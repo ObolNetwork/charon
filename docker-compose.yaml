@@ -1,0 +1,43 @@
+version: "3.8"
+
+x-logging: &logging
+    logging:
+        driver: "json-file"
+        options:
+            max-file: "10"
+            max-size: "100m"
+
+services:
+  ssv:
+    container_name: ssv
+    build: .
+    restart: unless-stopped
+    hostname: ssv
+    depends_on: 
+      - teku
+    networks:
+      - ssv
+    ports:
+            - 80:80/tcp
+            - 8080:8080/udp
+    <<: *logging
+
+  teku:
+    image: consensys/teku:develop
+    container_name: teku
+    command: ['--config-file=/opt/teku/bin/config/teku-config.yaml"']
+    volumes:
+      - ./local/.data/teku:/opt/teku/data
+      - ./local/config:/opt/teku/bin/config
+    restart: always
+    networks: 
+      - ssv
+    ports:
+      - "30303:30303"
+      - "5051:5051"
+      - "8009:8009"
+
+
+
+networks:
+        ssv:

@@ -2,7 +2,9 @@
 
 <h1 align="center">Obol Client</h1>
 
-This repo contains the source code for the Obol Client, a middleware HTTP client for Ethereum Staking that enables HA validation through the use of the Shared Secret Validator primitive. 
+This repo contains the source code for the Obol Client, a middleware HTTP client and server for Ethereum Staking that enables HA validation through the use of the Shared Secret Validator staking model.
+
+Obol is used by Enterprises and DAOs to distribute the responsibility of running Ethereum Validators.
 
 ## Quickstart
 

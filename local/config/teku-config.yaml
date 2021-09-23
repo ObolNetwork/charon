@@ -1,0 +1,32 @@
+# network
+network: "prater"
+
+# p2p
+p2p-enabled: true
+p2p-port: 9000
+
+# validators
+# validator-keys: "/Users/me/node/pyrmont/validator/keys:/Users/me/node/pyrmont/validator/passwords"
+# validators-graffiti: "Teku validator"
+
+# Eth 1
+eth1-endpoint: "http://localhost:8545"
+
+# metrics
+metrics-enabled: true
+metrics-categories: ["BEACON","LIBP2P","NETWORK"]
+metrics-host-whitelist: teku,teku:8009
+metrics-interface: "0.0.0.0"
+
+# database
+data-path: "/opt/teku/data"
+
+# rest api
+rest-api-port: 5051
+rest-api-docs-enabled: true
+rest-api-enabled: true
+rest-api-interface: "0.0.0.0"
+rest-api-host-whitelist: teku,teku:5051
+
+# logging
+log-include-validator-duties-enabled: true
