@@ -8,6 +8,11 @@ x-logging: &logging
             max-size: "100m"
 
 services:
+  #  ____ ______     __
+  # / ___/ ___\ \   / /
+  # \___ \___ \\ \ / / 
+  #  ___) |__) |\ V /  
+  # |____/____/  \_/   
   ssv:
     container_name: ssv
     build: .
@@ -22,8 +27,13 @@ services:
             - 8080:8080/udp
     <<: *logging
 
+  #  _                                       _ _            _   
+  # | |__   ___  __ _  ___ ___  _ __     ___| (_) ___ _ __ | |_ 
+  # | '_ \ / _ \/ _` |/ __/ _ \| '_ \   / __| | |/ _ \ '_ \| __|
+  # | |_) |  __/ (_| | (_| (_) | | | | | (__| | |  __/ | | | |_ 
+  # |_.__/ \___|\__,_|\___\___/|_| |_|  \___|_|_|\___|_| |_|\__|
   beacon:
-    image: consensys/teku
+    image: consensys/teku:${TEKU_VERSION}
     container_name: beacon
     command: ['--config-file=/opt/teku/config/teku-config.yaml']
     volumes:
@@ -38,6 +48,29 @@ services:
       - "8009:8009"
     env_file: 
       - .env 
+
+  #             _ _     _       _             
+  # __   ____ _| (_) __| | __ _| |_ ___  _ __ 
+  # \ \ / / _` | | |/ _` |/ _` | __/ _ \| '__|
+  #  \ V / (_| | | | (_| | (_| | || (_) | |   
+  #   \_/ \__,_|_|_|\__,_|\__,_|\__\___/|_|   
+  validator:
+    image: sigp/lighthouse:${LIGHTHOUSE_VERSION}
+    container_name: validator
+    networks:
+      - ssv
+    volumes:
+      - ./local/.data/lighthouse:/root/.lighthouse
+      - ./local/scripts:/root/scripts:ro
+      - ./local/validator_keys:/root/validator_keys:ro
+    depends_on:
+      - beacon
+    ports:
+      - 5064:5064/tcp     # metrics endpoint
+    env_file: .env
+    command: sh /root/scripts/start-lighthouse-validator-client.sh
+    restart: on-failure
+
 
 networks:
         ssv:

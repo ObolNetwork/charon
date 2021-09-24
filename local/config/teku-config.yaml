@@ -15,7 +15,7 @@ p2p-port: 9000
 # metrics
 metrics-enabled: true
 metrics-categories: ["BEACON","LIBP2P","NETWORK"]
-metrics-host-allowlist: teku,teku:8009,localhost,ssv
+metrics-host-allowlist: beacon,beacon:8009,localhost
 metrics-interface: "0.0.0.0"
 
 # database
@@ -26,7 +26,7 @@ rest-api-port: 5051
 rest-api-docs-enabled: true
 rest-api-enabled: true
 rest-api-interface: "0.0.0.0"
-rest-api-host-allowlist: teku,teku:5051,localhost,ssv
+rest-api-host-allowlist: beacon,beacon:5051,localhost
 
 # logging
 log-include-validator-duties-enabled: true
