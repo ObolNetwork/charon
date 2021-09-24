@@ -1,5 +1,5 @@
 # network
-network: "prater"
+network: "minimal"
 
 # p2p
 p2p-enabled: true
@@ -10,12 +10,12 @@ p2p-port: 9000
 # validators-graffiti: "Teku validator"
 
 # Eth 1
-eth1-endpoint: "http://localhost:8545"
+# eth1-endpoint: "http://192.168.0.68:8545"
 
 # metrics
 metrics-enabled: true
 metrics-categories: ["BEACON","LIBP2P","NETWORK"]
-metrics-host-whitelist: teku,teku:8009
+metrics-host-allowlist: teku,teku:8009,localhost,ssv
 metrics-interface: "0.0.0.0"
 
 # database
@@ -26,7 +26,7 @@ rest-api-port: 5051
 rest-api-docs-enabled: true
 rest-api-enabled: true
 rest-api-interface: "0.0.0.0"
-rest-api-host-whitelist: teku,teku:5051
+rest-api-host-allowlist: teku,teku:5051,localhost,ssv
 
 # logging
 log-include-validator-duties-enabled: true

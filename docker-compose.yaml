@@ -14,7 +14,7 @@ services:
     restart: unless-stopped
     hostname: ssv
     depends_on: 
-      - teku
+      - beacon
     networks:
       - ssv
     ports:
@@ -22,13 +22,13 @@ services:
             - 8080:8080/udp
     <<: *logging
 
-  teku:
-    image: consensys/teku:21.9
-    container_name: teku
-    # command: ['--config-file=/opt/teku/teku-config.yaml"']
+  beacon:
+    image: consensys/teku
+    container_name: beacon
+    command: ['--config-file=/opt/teku/config/teku-config.yaml']
     volumes:
       - ./local/.data/teku:/opt/teku/data
-      - ./local/config:/opt/teku/
+      - ./local/config:/opt/teku/config
     restart: always
     networks: 
       - ssv
@@ -36,6 +36,8 @@ services:
       - "30303:30303"
       - "5051:5051"
       - "8009:8009"
+    env_file: 
+      - .env 
 
 networks:
         ssv:
