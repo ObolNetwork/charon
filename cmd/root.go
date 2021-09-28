@@ -28,13 +28,12 @@ var cfgFile string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "obol-client",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Short: "Obol - The Ethereum SSV middleware client",
+	Long: `Obol client(s) enable the division of Ethereum validator operation across a group of trusted parties using threshold cryptography.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+Obol enables slash-minimised fault tolerant Ethereum staking architectures by
+dividing a single validating key into multiple parts using a threshold 
+signature scheme.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },
