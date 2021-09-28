@@ -24,11 +24,11 @@ import (
 // testCmd represents the test command
 var testCmd = &cobra.Command{
 	Use:   "test",
-	Short: "Used to test the readiness of obol dependencies",
+	Short: "Used to test the readiness of Charon's upstream dependencies",
 	Long: `The test command is used to check the communication health of the configured client dependencies.
 
-These test commands performance test the connection between the obol client and its upstream beacon nodes, its remote obol client peers, and its downstream validator client.
-A good network connection between obol and all dependencies is critical for the profitability of the SSV validator.`,
+These test commands performance test the connection between the charon client and its upstream beacon nodes, its remote charon client peers, and its downstream validator client.
+A good network connection between charon and all dependencies is critical for the profitability of the SSV validator.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("test called")
 	},

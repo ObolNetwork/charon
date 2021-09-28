@@ -24,9 +24,9 @@ import (
 // peersCmd represents the peers command
 var peersCmd = &cobra.Command{
 	Use:   "peers",
-	Short: "Test the connection to obol client peers",
-	Long: `Test the latency and dropped packet rate of communication between this Obol client and the configured peers.
-Low latency between obol clients is crucial for the profitable operation of an SSV validator. 
+	Short: "Test the connection to charon client peers",
+	Long: `Test the latency and dropped packet rate of communication between this charon client and the configured peers.
+Low latency between charon clients is crucial for the profitable operation of an SSV validator. 
 Be sure to performance test your deployed setup rigourously before going to production.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("peers called")

@@ -26,7 +26,7 @@ var validatorCmd = &cobra.Command{
 	Use:   "validator",
 	Short: "Test the connection to a downstream validator client",
 	Long: `This command is as of yet un-implemented, as with current middleware architecture designs, the dependent validator does not
-	implement an HTTP server. Instead, it opens a HTTP2 event stream to the Obol client, and subsequently makes POST requests to the client when it sees particular HTTP events.`,
+	implement an HTTP server. Instead, it opens a HTTP2 event stream to the charon client, and subsequently makes POST requests to the client when it sees particular HTTP events.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("validator called")
 	},
@@ -34,14 +34,4 @@ var validatorCmd = &cobra.Command{
 
 func init() {
 	testCmd.AddCommand(validatorCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// validatorCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// validatorCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
