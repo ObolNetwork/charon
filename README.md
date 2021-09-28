@@ -18,11 +18,34 @@ cp .env.template .env
 make up
 ```
 
+### Compile and Test Locally
+
+First you need to have an up to date version of Go installed, then you need to download the Cobra Go package:
+```sh
+# On mac with homebrew installed
+brew install go
+
+# Used for generating a cli program for Obol
+go get github.com/spf13/cobra/cobra
+```
+
+## Repo Overview
+
+The Obol Client is built in [GoLang](https://golang.org/dl/), with [Cobra](https://cobra.dev/) managing its command line interfaces.
+
+
 ## To Do List
-- [ ] Beacon client syncing
+- [x] Beacon client syncing
 - [ ] Validator client connected
+- [ ] Weak Subjectivity Working for faster syncs
 - [ ] Nginx pass through proxy server
+- [ ] GoLang Process
+- [ ] CI/CD to build and test GoLang process
+- [ ] Dockerised GoLang Process
+- [ ] GoLang process operating as a passthrough HTTP server
 - [ ] GoLang pass through proxy server
+- [ ] Multiple Validators and Proxy Servers
+- [ ] Test suite for DKG
 - [ ] Docker Compose file for running an SSV
 - [ ] Github CI for GoLang build of source
 - [ ] Github CI for Docker build

@@ -30,3 +30,6 @@ rest-api-host-allowlist: beacon,beacon:5051,localhost
 
 # logging
 log-include-validator-duties-enabled: true
+
+# Weak Subjectivity Sync
+ws-checkpoint: 0x6d269be18b030ec1d80a9f193983f6474ca588f7081ddd2c8c57218ef464e35a:41652
