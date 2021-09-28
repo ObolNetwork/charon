@@ -15,7 +15,7 @@ limitations under the License.
 */
 package main
 
-import "github.com/ObolNetwork/obol-client/cmd"
+import "github.com/ObolNetwork/charon/cmd"
 
 func main() {
 	cmd.Execute()

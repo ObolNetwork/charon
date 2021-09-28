@@ -1,4 +1,4 @@
-module github.com/ObolNetwork/obol-client
+module github.com/ObolNetwork/charon
 
 go 1.17
 

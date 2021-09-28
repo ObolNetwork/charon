@@ -429,4 +429,4 @@ dist
 ormconfig.json
 **/.data
 *.backup
-obol-client
+charon

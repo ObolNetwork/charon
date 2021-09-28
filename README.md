@@ -1,8 +1,8 @@
 ![Obol Logo](https://obol.tech/obolnetwork.png)
 
-<h1 align="center">Obol Client</h1>
+<h1 align="center">Charon - The Obol SSV middleware client</h1>
 
-This repo contains the source code for the Obol Client, a middleware HTTP client and server for Ethereum Staking that enables HA validation through the use of the Shared Secret Validator staking model.
+This repo contains the source code for the Obol Client, charon, a middleware HTTP client and server for Ethereum Staking that enables HA validation through the use of the Shared Secret Validator staking model.
 
 Obol is used by Enterprises and DAOs to distribute the responsibility of running Ethereum Validators.
 
@@ -31,7 +31,7 @@ go get github.com/spf13/cobra/cobra
 
 ## Repo Overview
 
-The Obol Client is built in [GoLang](https://golang.org/dl/), with [Cobra](https://cobra.dev/) managing its command line interfaces.
+Charon is built in [GoLang](https://golang.org/dl/), with [Cobra](https://cobra.dev/) managing its command line interfaces, and using [Viper](https://github.com/spf13/viper) for it's configuration management.
 
 
 ## To Do List
