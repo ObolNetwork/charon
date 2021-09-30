@@ -29,6 +29,14 @@ brew install go
 go get github.com/spf13/cobra/cobra
 ```
 
+### Configuration
+
+In descending order, the Charon client checks for client configurations:
+
+- As environment variables beginning with `CHARON_`, with hyphens substituted for underscores. e.g. `CHARON_BEACON_NODE=http://....`
+- Declared in a yaml file in `~/.charon.yaml`, e.g. `beacon-node: http://...`
+- Passed in as CLI params to the binary, e.g. `--beacon-node http://...`
+
 ## Repo Overview
 
 Charon is built in [GoLang](https://golang.org/dl/), with [Cobra](https://cobra.dev/) managing its command line interfaces, and using [Viper](https://github.com/spf13/viper) for it's configuration management.
@@ -39,7 +47,7 @@ Charon is built in [GoLang](https://golang.org/dl/), with [Cobra](https://cobra.
 - [ ] Validator client connected
 - [ ] Weak Subjectivity Working for faster syncs
 - [ ] Nginx pass through proxy server
-- [ ] GoLang Process
+- [x] GoLang Process
 - [ ] CI/CD to build and test GoLang process
 - [ ] Dockerised GoLang Process
 - [ ] GoLang process operating as a passthrough HTTP server

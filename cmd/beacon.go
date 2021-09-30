@@ -17,8 +17,12 @@ package cmd
 
 import (
 	"fmt"
+	"net/http"
+    "io/ioutil"
+	"encoding/json"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // beaconCmd represents the beacon command
@@ -27,20 +31,104 @@ var beaconCmd = &cobra.Command{
 	Short: "Test the connection to upstream beacon clients",
 	Long: `Test that one or more configured beacon chain consensus clients are accessible and that they implement the required minimum validator API endpoints.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("beacon called")
+		testBeaconClient()
 	},
 }
 
 func init() {
 	testCmd.AddCommand(beaconCmd)
+}
 
-	// Here you will define your flags and configuration settings.
+// Main function that organises API requests to the configured Beacon node and posts summary data to console
+func testBeaconClient() {
+	var beaconURI string = viper.GetString("beacon-node");
+	fmt.Printf("Testing readiness of beacon client at: %s\n\n", beaconURI)
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// beaconCmd.PersistentFlags().String("foo", "", "A help for foo")
+	chainSpec := getChainSpec(beaconURI)
+	spec := specJSON{}
 
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// beaconCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+    if err := json.Unmarshal(chainSpec, &spec); err != nil {
+        fmt.Printf("Could not unmarshal chain spec response. %#v", err)
+    }
+
+	nodeVersionResponse := getNodeVersion(beaconURI)
+	version := specJSON{}
+
+    if err := json.Unmarshal(nodeVersionResponse, &version); err != nil {
+        fmt.Printf("Could not unmarshal node version response. %#v", err)
+    }
+
+	// Debug Chain Spec Response Object
+    // fmt.Printf("%#v\r\n", spec)
+	// Debug Node Version Response Object
+    // fmt.Printf("%#v\r\n", version)
+
+	nodeVersion := version.Data["version"]
+	genesisForkVersion := spec.Data["GENESIS_FORK_VERSION"]
+	eth1ChainID := spec.Data["DEPOSIT_NETWORK_ID"]
+	fmt.Printf("Results:\n")
+	fmt.Printf("Node version: %s\r\n", nodeVersion)
+	fmt.Printf("Genesis fork version (which eth2 chain): %s\r\n", genesisForkVersion)
+	fmt.Printf("Eth1 Chain ID (which eth1 chain is upstream): %s\r\n", eth1ChainID)
+}
+
+// Retrieves info from the Beacon Chain Spec endpoint
+func getChainSpec(baseAPI string) []byte {
+    request, err := http.NewRequest(
+        http.MethodGet, 						//method
+        baseAPI + "/eth/v1/config/spec",		//url
+        nil,            						//body
+    )
+
+    if err != nil {
+        fmt.Printf("Could not request data from the chain spec endpoint. %v", err)
+    }
+
+    request.Header.Add("Accept", "application/json")
+    request.Header.Add("User-Agent", "Charon SSV Client (https://github.com/ObolNetwork/charon)")
+
+    response, err := http.DefaultClient.Do(request)
+    if err != nil {
+        fmt.Printf("Could not make a request. %v", err)
+    }
+
+    responseBytes, err := ioutil.ReadAll(response.Body)
+    if err != nil {
+        fmt.Printf("Could not read response body. %v", err)
+    }
+
+    return responseBytes
+}
+
+// Retrieves info from the Beacon Chain node version endpoint
+func getNodeVersion(baseAPI string) []byte {
+    request, err := http.NewRequest(
+        http.MethodGet, 						//method
+        baseAPI + "/eth/v1/node/version",		//url
+        nil,            						//body
+    )
+
+    if err != nil {
+        fmt.Printf("Could not request node version from the API endpoint. %v", err)
+    }
+
+    request.Header.Add("Accept", "application/json")
+    request.Header.Add("User-Agent", "Charon SSV Client (https://github.com/ObolNetwork/charon)")
+
+    response, err := http.DefaultClient.Do(request)
+    if err != nil {
+        fmt.Printf("Could not make a request. %v", err)
+    }
+
+    responseBytes, err := ioutil.ReadAll(response.Body)
+    if err != nil {
+        fmt.Printf("Could not read response body. %v", err)
+    }
+
+    return responseBytes
+}
+
+// Struct for storing the API response objects that are single key JSON objects with key 'data'
+type specJSON struct {
+	Data map[string]string `json:"data"`
 }

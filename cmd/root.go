@@ -39,6 +39,7 @@ var rootCmd = &cobra.Command{
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) { 
 		fmt.Println("No command specified, starting Charon as an SSV client")
+		fmt.Printf("Configured beacon chain URI: %s\n", viper.GetString("beacon-node"))
 	},
 	PersistentPreRunE: persistentPreRunE,
 }
@@ -63,49 +64,6 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	quiet = viper.GetBool("quiet")
 	verbose = viper.GetBool("verbose")
 	debug = viper.GetBool("debug")
-	// // Command-specific bindings.
-	// switch fmt.Sprintf("%s/%s", cmd.Parent().Name(), cmd.Name()) {
-	// case "account/create":
-	// 	accountCreateBindings()
-	// case "account/derive":
-	// 	accountDeriveBindings()
-	// case "account/import":
-	// 	accountImportBindings()
-	// case "attester/duties":
-	// 	attesterDutiesBindings()
-	// case "attester/inclusion":
-	// 	attesterInclusionBindings()
-	// case "block/info":
-	// 	blockInfoBindings()
-	// case "chain/time":
-	// 	chainTimeBindings()
-	// case "exit/verify":
-	// 	exitVerifyBindings()
-	// case "node/events":
-	// 	nodeEventsBindings()
-	// case "slot/time":
-	// 	slotTimeBindings()
-	// case "synccommittee/members":
-	// 	synccommitteeMembersBindings()
-	// case "validator/depositdata":
-	// 	validatorDepositdataBindings()
-	// case "validator/duties":
-	// 	validatorDutiesBindings()
-	// case "validator/exit":
-	// 	validatorExitBindings()
-	// case "validator/info":
-	// 	validatorInfoBindings()
-	// case "validator/keycheck":
-	// 	validatorKeycheckBindings()
-	// case "wallet/create":
-	// 	walletCreateBindings()
-	// case "wallet/import":
-	// 	walletImportBindings()
-	// case "wallet/sharedexport":
-	// 	walletSharedExportBindings()
-	// case "wallet/sharedimport":
-	// 	walletSharedImportBindings()
-	// }
 
 	if quiet && verbose {
 		fmt.Println("Cannot supply both quiet and verbose flags")
@@ -133,8 +91,13 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.charon.yaml)")
 	rootCmd.PersistentFlags().StringVar(&beaconNodes, "beacon-node", "http://localhost:5051", "URI for beacon node API")
+	if err := viper.BindPFlag("beacon-node", rootCmd.PersistentFlags().Lookup("beacon-node")); err != nil {
+		panic(err)
+	}
 	rootCmd.PersistentFlags().StringVar(&peerNodes, "peers", "http://localhost:9001,http://localhost:9002,http://localhost:9003", "URIs of peer charon clients")
-	
+	if err := viper.BindPFlag("peers", rootCmd.PersistentFlags().Lookup("peers")); err != nil {
+		panic(err)
+	}
 	rootCmd.PersistentFlags().Bool("quiet", false, "do not generate any output")
 	if err := viper.BindPFlag("quiet", rootCmd.PersistentFlags().Lookup("quiet")); err != nil {
 		panic(err)
