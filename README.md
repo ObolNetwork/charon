@@ -74,3 +74,6 @@ Charon is built in [GoLang](https://golang.org/dl/), with [Cobra](https://cobra.
     beacon  | Supplied deposit contract (0x77f7bed277449f51505a4c54550b074030d989bc) does not match the stored database (). Check that the existing database matches the current network settings.
     ```
     - Fixed by `rm -rf ./local/.data/teku` 
+
+- `charon test beacon` errors with an error something like: `panic: parse 192.168.2.2:5051: first path segment in URL cannot contain colon`.
+    - The issue is `beacon-node` URIs need to specify a `scheme`, prepend IP addresses with `http://`. 
