@@ -16,9 +16,18 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+
+	server "github.com/obolnetwork/charon/services"
+	"github.com/obolnetwork/charon/utils"
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -28,18 +37,20 @@ var beaconNodes string
 var peerNodes string
 var quiet bool
 var verbose bool
-var debug bool
+var logLevel string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "charon",
 	Short: "Charon - The Ethereum SSV middleware client",
-	Long: `Charon client(s) enable the division of Ethereum validator operation across a group of trusted parties using threshold cryptography.`,
+	Long:  `Charon client(s) enable the division of Ethereum validator operation across a group of trusted parties using threshold cryptography.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
-	Run: func(cmd *cobra.Command, args []string) { 
-		fmt.Println("No command specified, starting Charon as an SSV client")
-		fmt.Printf("Configured beacon chain URI: %s\n", viper.GetString("beacon-node"))
+	Run: func(cmd *cobra.Command, args []string) {
+		log.Info().Msg("No command specified, starting Charon as an SSV client")
+		log.Info().Msgf("Configured beacon chain URI: %s", viper.GetString("beacon-node"))
+		log.Info().Msgf("Configured logging level: %s", viper.GetString("log-level"))
+		StartCoreService()
 	},
 	PersistentPreRunE: persistentPreRunE,
 }
@@ -57,19 +68,14 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Disable service logging.
-	// zerolog.SetGlobalLevel(zerolog.Disabled)
-
 	// We bind viper here so that we bind to the correct command.
 	quiet = viper.GetBool("quiet")
 	verbose = viper.GetBool("verbose")
-	debug = viper.GetBool("debug")
+	logLevel = viper.GetString("log-level")
+	zerolog.SetGlobalLevel(utils.StringToLevel(logLevel))
 
 	if quiet && verbose {
 		fmt.Println("Cannot supply both quiet and verbose flags")
-	}
-	if quiet && debug {
-		fmt.Println("Cannot supply both quiet and debug flags")
 	}
 
 	return nil
@@ -81,13 +87,41 @@ func Execute() {
 	cobra.CheckErr(rootCmd.Execute())
 }
 
+// Instantiates core services then waits for an interrupt signal to shut everything down
+func StartCoreService() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	log.Debug().Msg("Starting Core SSV service")
+	_, err := server.New(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to start SSV core service")
+	}
+
+	log.Info().Msg("All services operational")
+
+	// Wait for interrupt/shutdown signal to kill context everywhere.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+	// Will break if interrupt received
+	for {
+		sig := <-sigCh
+		if sig == syscall.SIGINT || sig == syscall.SIGTERM || sig == os.Interrupt || sig == os.Kill {
+			log.Debug().Msg("Interrupt/shutdown signal received")
+			break
+		}
+	}
+
+	log.Info().Msg("Stopping Charon")
+	return nil
+}
+
 func init() {
 	cobra.OnInitialize(initConfig)
 
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
-	
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.charon.yaml)")
 	rootCmd.PersistentFlags().StringVar(&beaconNodes, "beacon-node", "http://localhost:5051", "URI for beacon node API")
@@ -106,8 +140,8 @@ func init() {
 	if err := viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
 		panic(err)
 	}
-	rootCmd.PersistentFlags().Bool("debug", false, "generate debug output")
-	if err := viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug")); err != nil {
+	rootCmd.PersistentFlags().String("log-level", "info", "Logging Level (none, trace, debug, warn, info, err, fatal)")
+	if err := viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level")); err != nil {
 		panic(err)
 	}
 }
