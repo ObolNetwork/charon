@@ -23,11 +23,10 @@ import (
 	"strings"
 	"syscall"
 
-	server "github.com/obolnetwork/charon/services"
+	"github.com/obolnetwork/charon/services/controller"
 	"github.com/obolnetwork/charon/utils"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -93,7 +92,7 @@ func StartCoreService() error {
 	defer cancel()
 
 	log.Debug().Msg("Starting Core SSV service")
-	_, err := server.New(ctx)
+	_, err := controller.New(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to start SSV core service")
 	}

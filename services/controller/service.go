@@ -13,40 +13,44 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package services
+package controller
 
 import (
 	"context"
 	"time"
 
-	"github.com/rs/zerolog"
-	zerologger "github.com/rs/zerolog/log"
+	eth2client "github.com/attestantio/go-eth2-client"
 )
 
 // Service is the core runtime for Charon, and may later make use of a formally verified SSV state machine.
+// It contains pointers to beacon client, p2p client and BLS services, and contains a map of Validator services for each SSV validator Charon is operating in
 type Service struct {
-	bftType string
+	bftType                     string
+	proposerDutiesProvider      eth2client.ProposerDutiesProvider
+	attesterDutiesProvider      eth2client.AttesterDutiesProvider
+	syncCommitteeDutiesProvider eth2client.SyncCommitteeDutiesProvider
 }
-
-// module-wide log.
-var log zerolog.Logger
 
 // New creates a new controller.
 func New(ctx context.Context) (*Service, error) {
-
-	// Set logging.
-	log = zerologger.With().Str("service", "controller").Str("impl", "standard").Logger()
 
 	s := &Service{
 		bftType: "qbft",
 	}
 	log.Info().Msg("Server Struct Instantiation complete")
-	go func() {
-		log = zerologger.With().Str("service", "subroutine").Str("impl", "standard").Logger()
+	go func(ctx context.Context, err interface{}) {
 		log.Info().Msg("First server subroutine instantiated")
+		time.Sleep(6 * time.Second)
+		if ctx.Err() != nil {
+			log.Err(ctx.Err()).Msg("Context Deadline Exceeded")
+		}
+
 		time.Sleep(10 * time.Second)
+		if ctx.Err() != nil {
+			log.Err(ctx.Err()).Msg("Context Deadline Exceeded")
+		}
 		log.Info().Msg("First server subroutine ended normally")
-	}()
+	}(context.WithTimeout(ctx, 5*time.Second))
 	log.Info().Msg("Server Subroutine Instantiated")
 	return s, nil
 }
