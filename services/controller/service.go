@@ -17,40 +17,87 @@ package controller
 
 import (
 	"context"
-	"time"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	"github.com/obolnetwork/charon/runtime"
 )
 
 // Service is the core runtime for Charon, and may later make use of a formally verified SSV state machine.
-// It contains pointers to beacon client, p2p client and BLS services, and contains a map of Validator services for each SSV validator Charon is operating in
+// It instantiates all services and handles the lifecycle of the Charon client
 type Service struct {
+	ctx                         context.Context
+	cancel                      context.CancelFunc
+	services                    *runtime.ServiceRegistry
+	lock                        sync.RWMutex
+	stop                        chan struct{} // Channel to wait for termination notifications.
 	bftType                     string
 	proposerDutiesProvider      eth2client.ProposerDutiesProvider
 	attesterDutiesProvider      eth2client.AttesterDutiesProvider
 	syncCommitteeDutiesProvider eth2client.SyncCommitteeDutiesProvider
 }
 
-// New creates a new controller.
-func New(ctx context.Context) (*Service, error) {
+// New creates a new controller service. (Does nothing yet, just getting the hang of context passing)
+func New(cliCtx context.Context) (*Service, error) {
+	ctx, cancel := context.WithCancel(cliCtx)
+	// Instantiate service registry for the controller
+	registry := runtime.NewServiceRegistry()
 
 	s := &Service{
-		bftType: "qbft",
+		ctx:      ctx,
+		cancel:   cancel,
+		stop:     make(chan struct{}),
+		services: registry,
+		bftType:  "qbft",
 	}
-	log.Info().Msg("Server Struct Instantiation complete")
-	go func(ctx context.Context, err interface{}) {
-		log.Info().Msg("First server subroutine instantiated")
-		time.Sleep(6 * time.Second)
-		if ctx.Err() != nil {
-			log.Err(ctx.Err()).Msg("Context Deadline Exceeded")
-		}
 
-		time.Sleep(10 * time.Second)
-		if ctx.Err() != nil {
-			log.Err(ctx.Err()).Msg("Context Deadline Exceeded")
-		}
-		log.Info().Msg("First server subroutine ended normally")
-	}(context.WithTimeout(ctx, 5*time.Second))
-	log.Info().Msg("Server Subroutine Instantiated")
 	return s, nil
+}
+
+// Start the Controller and kick off every registered service.
+func (s *Service) Start() {
+	s.lock.Lock()
+
+	log.Info().Msg("Starting Charon Controller")
+
+	s.services.StartAll()
+
+	stop := s.stop
+	s.lock.Unlock()
+
+	go func() {
+		sigc := make(chan os.Signal, 1)
+		signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
+		defer signal.Stop(sigc)
+		<-sigc
+		log.Info().Msg("Got interrupt, shutting down...")
+		go s.Close()
+		for i := 10; i > 0; i-- {
+			<-sigc
+			if i > 1 {
+				log.Info().Msgf("Already shutting down, interrupt %f more times to panic", i)
+			}
+		}
+		panic("Panic closing the Charon client")
+	}()
+
+	// Wait for stop channel to be closed.
+	<-stop
+}
+
+// Close handles graceful shutdown of the system.
+func (s *Service) Close() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	log.Info().Msg("Stopping Charon Controller")
+	s.services.StopAll()
+
+	// Metrics
+	// s.collector.unregister()
+	s.cancel()
+	close(s.stop)
 }

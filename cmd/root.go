@@ -19,13 +19,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	"github.com/obolnetwork/charon/services/controller"
 	"github.com/obolnetwork/charon/utils"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -86,41 +83,20 @@ func Execute() {
 	cobra.CheckErr(rootCmd.Execute())
 }
 
-// Instantiates core services then waits for an interrupt signal to shut everything down
+// Instantiates the Core Controller Service
 func StartCoreService() error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
-	log.Debug().Msg("Starting Core SSV service")
-	_, err := controller.New(ctx)
+	ctrl, err := controller.New(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to start SSV core service")
+		return err
 	}
-
-	log.Info().Msg("All services operational")
-
-	// Wait for interrupt/shutdown signal to kill context everywhere.
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
-	// Will break if interrupt received
-	for {
-		sig := <-sigCh
-		if sig == syscall.SIGINT || sig == syscall.SIGTERM || sig == os.Interrupt || sig == os.Kill {
-			log.Debug().Msg("Interrupt/shutdown signal received")
-			break
-		}
-	}
-
-	log.Info().Msg("Stopping Charon")
+	ctrl.Start()
 	return nil
 }
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.charon.yaml)")
 	rootCmd.PersistentFlags().StringVar(&beaconNodes, "beacon-node", "http://localhost:5051", "URI for beacon node API")
@@ -145,7 +121,7 @@ func init() {
 	}
 }
 
-// initConfig reads in config file and ENV variables if set.
+// initConfig reads in config file and ENV variables if set and stores them in Viper
 func initConfig() {
 	if cfgFile != "" {
 		// Use config file from the flag.
