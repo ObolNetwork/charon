@@ -48,7 +48,7 @@ Charon is built in [GoLang](https://golang.org/dl/), with [Cobra](https://cobra.
 - [ ] Weak Subjectivity Working for faster syncs
 - [ ] Nginx pass through proxy server
 - [x] GoLang Process
-- [ ] CI/CD to build and test GoLang process
+- [x] CI/CD to build and test GoLang process
 - [ ] Dockerised GoLang Process
 - [ ] GoLang process operating as a passthrough HTTP server
 - [ ] GoLang pass through proxy server

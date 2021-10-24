@@ -1,0 +1,28 @@
+# Runs "go vet" and "go test -short".
+# TODO: Might want to skip this stage in case Go files aren't modified.
+on: [ push, pull_request ]
+name: Test
+jobs:
+  unit_tests:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: '50'
+    - name: Install Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.17.x
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ~/go/pkg/mod      # Module download cache
+          ~/.cache/go-build # Build cache (Linux)
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+    - name: Vet
+      run: go vet ./...
+    - name: Test
+      run: go test -v -short ./...
