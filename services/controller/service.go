@@ -78,7 +78,7 @@ func (s *Service) Start() {
 		for i := 10; i > 0; i-- {
 			<-sigc
 			if i > 1 {
-				log.Info().Msgf("Already shutting down, interrupt %f more times to panic", i)
+				log.Info().Msgf("Already shutting down, interrupt %d more times to panic", i)
 			}
 		}
 		panic("Panic closing the Charon client")
