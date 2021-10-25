@@ -23,15 +23,11 @@ import (
 	"syscall"
 
 	eth2client "github.com/attestantio/go-eth2-client"
-	"github.com/obolnetwork/charon/internal/runtime"
 )
 
 // Service is the core runtime for Charon, and may later make use of a formally verified SSV state machine.
 // It instantiates all services and handles the lifecycle of the Charon client
 type Service struct {
-	ctx                         context.Context
-	cancel                      context.CancelFunc
-	services                    *runtime.ServiceRegistry
 	lock                        sync.RWMutex
 	stop                        chan struct{} // Channel to wait for termination notifications.
 	bftType                     string
@@ -41,29 +37,25 @@ type Service struct {
 }
 
 // New creates a new controller service. (Does nothing yet, just getting the hang of context passing)
-func New(cliCtx context.Context) (*Service, error) {
-	ctx, cancel := context.WithCancel(cliCtx)
-	// Instantiate service registry for the controller
-	registry := runtime.NewServiceRegistry()
-
+func New() (*Service, error) {
+	log.Debug().Msg("Controller Service instantiated")
 	s := &Service{
-		ctx:      ctx,
-		cancel:   cancel,
-		stop:     make(chan struct{}),
-		services: registry,
-		bftType:  "qbft",
+		stop:    make(chan struct{}),
+		bftType: "qbft",
 	}
 
 	return s, nil
 }
 
-// Start the Controller and kick off every registered service.
-func (s *Service) Start() {
+// Starts the Controller Service and instantiates all downstream services.
+// Waits for either the controller to come to a stop, or a system interrupt is fired, which triggers a Close() function on the controller service to clean up all resources.
+func (s *Service) Start(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
 	s.lock.Lock()
 
 	log.Info().Msg("Starting Charon Controller")
 
-	s.services.StartAll()
+	log.Info().Msg("Starting metrics service")
 
 	stop := s.stop
 	s.lock.Unlock()
@@ -74,6 +66,7 @@ func (s *Service) Start() {
 		defer signal.Stop(sigc)
 		<-sigc
 		log.Info().Msg("Got interrupt, shutting down...")
+		cancel()
 		go s.Close()
 		for i := 10; i > 0; i-- {
 			<-sigc
@@ -94,10 +87,7 @@ func (s *Service) Close() {
 	defer s.lock.Unlock()
 
 	log.Info().Msg("Stopping Charon Controller")
-	s.services.StopAll()
 
 	// Metrics
 	// s.collector.unregister()
-	s.cancel()
-	close(s.stop)
 }

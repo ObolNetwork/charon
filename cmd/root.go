@@ -87,11 +87,11 @@ func Execute() {
 func StartCoreService() error {
 	ctx := context.Background()
 
-	ctrl, err := controller.New(ctx)
+	ctrl, err := controller.New()
 	if err != nil {
 		return err
 	}
-	ctrl.Start()
+	ctrl.Start(ctx)
 	return nil
 }
 
