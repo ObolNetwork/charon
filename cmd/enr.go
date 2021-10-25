@@ -25,7 +25,7 @@ import (
 var enrCmd = &cobra.Command{
 	Use:   "enr",
 	Short: "Return information about this node's ENR",
-	Long: `Return information on this node's Ethereum Node Record (ENR)`,
+	Long:  `Return information on this node's Ethereum Node Record (ENR)`,
 	Run: func(cmd *cobra.Command, args []string) {
 		enrInfo()
 	},
@@ -35,9 +35,8 @@ func init() {
 	infoCmd.AddCommand(enrCmd)
 }
 
-
 // Function for printing status of ENR for this instance
-func enrInfo(){
+func enrInfo() {
 	fmt.Println("Checking for the presence of an Ethereum Node Record for this client")
 	fmt.Println("None found")
 	fmt.Println("enr:-")

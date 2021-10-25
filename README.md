@@ -20,18 +20,21 @@ make up
 
 ### Compile and Test Locally
 
-First you need to have an up to date version of Go installed, then you need to download the Cobra Go package:
+First you need to have [Go 1.17 installed](https://golang.org/doc/go1.17), then you need to run Go build:
 ```sh
 # On mac with homebrew installed
 brew install go
 
-# Used for generating a cli program for Obol
-go get github.com/spf13/cobra/cobra
+# Used for building from source
+go build
+
+# Run the charon client
+./charon --help
 ```
 
 ### Configuration
 
-In descending order, the Charon client checks for client configurations:
+In descending order, the Charon client checks the following places for client configuration info:
 
 - As environment variables beginning with `CHARON_`, with hyphens substituted for underscores. e.g. `CHARON_BEACON_NODE=http://....`
 - Declared in a yaml file in `~/.charon.yaml`, e.g. `beacon-node: http://...`

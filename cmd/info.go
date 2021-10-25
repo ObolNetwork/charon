@@ -25,7 +25,7 @@ import (
 var infoCmd = &cobra.Command{
 	Use:   "info",
 	Short: "Prints information about this Obol client and it's network status",
-	Long: `Prints information about the version, configuration and status of this Obol client.`,
+	Long:  `Prints information about the version, configuration and status of this Obol client.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("info called")
 	},

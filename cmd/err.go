@@ -35,7 +35,6 @@ func errCheck(err error, msg string) {
 	}
 }
 
-
 // assert checks a condition and quits if it is false
 func assert(condition bool, msg string) {
 	if !condition {

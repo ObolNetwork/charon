@@ -17,16 +17,15 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	dbg "runtime/debug"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"os"
+	dbg "runtime/debug"
 )
 
 // ReleaseVersion is the release version of the codebase.
 // Usually overridden by tag names when building binaries.
 var ReleaseVersion = "local build (latest release 0.1.0)"
-
 
 // versionCmd represents the version command
 var versionCmd = &cobra.Command{

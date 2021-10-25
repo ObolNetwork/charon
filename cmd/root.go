@@ -39,7 +39,7 @@ var logLevel string
 var rootCmd = &cobra.Command{
 	Use:   "charon",
 	Short: "Charon - The Ethereum SSV middleware client",
-	Long:  `Charon client(s) enable the division of Ethereum validator operation across a group of trusted parties using threshold cryptography.`,
+	Long:  `Charon client(s) enable the operation of Ethereum validators in a fault tolerant manner by splitting the validating keys acrosss a group of trusted parties using threshold cryptography.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
