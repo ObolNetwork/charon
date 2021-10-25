@@ -21,8 +21,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/obolnetwork/charon/services/controller"
-	"github.com/obolnetwork/charon/utils"
+	"github.com/obolnetwork/charon/internal/services/controller"
+	"github.com/obolnetwork/charon/logging"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -68,7 +68,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	quiet = viper.GetBool("quiet")
 	verbose = viper.GetBool("verbose")
 	logLevel = viper.GetString("log-level")
-	zerolog.SetGlobalLevel(utils.StringToLevel(logLevel))
+	zerolog.SetGlobalLevel(logging.StringToLevel(logLevel))
 
 	if quiet && verbose {
 		fmt.Println("Cannot supply both quiet and verbose flags")

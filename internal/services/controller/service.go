@@ -23,7 +23,7 @@ import (
 	"syscall"
 
 	eth2client "github.com/attestantio/go-eth2-client"
-	"github.com/obolnetwork/charon/runtime"
+	"github.com/obolnetwork/charon/internal/runtime"
 )
 
 // Service is the core runtime for Charon, and may later make use of a formally verified SSV state machine.

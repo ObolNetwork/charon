@@ -44,6 +44,29 @@ In descending order, the Charon client checks the following places for client co
 
 Charon is built in [GoLang](https://golang.org/dl/), with [Cobra](https://cobra.dev/) managing its command line interfaces, and using [Viper](https://github.com/spf13/viper) for it's configuration management.
 
+### Folder Organisation
+
+#### api
+Contains files relating to charon's HTTP client and server API
+
+#### cmd
+Contains files relating to the command line commands and argument management. Uses [Cobra](https://cobra.dev/).
+
+#### config
+Handles the separation of argument parsing from external sources to parameter passing to internal processes. Allows charon processes to declare what parameters they need using the [Golang Functional Options Pattern](https://golang.cafe/blog/golang-functional-options-pattern.html). Uses Cobra's companion package [Viper](https://github.com/spf13/viper).
+
+#### internal
+Internal structs and services for the charon client, not intended to be interacted with directly by external consumers.
+
+#### local
+Config and data storage mount point for local developement of the charon client with docker-compose. 
+
+#### logging
+Helper file for setting log level and overriding zerolog config
+
+#### nginx
+Temporary middleman between validator and beacon clients for testing purposes
+
 
 ## To Do List
 - [x] Beacon client syncing
