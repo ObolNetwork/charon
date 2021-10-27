@@ -46,7 +46,7 @@ var rootCmd = &cobra.Command{
 		log.Info().Msg("No command specified, starting Charon as an SSV client")
 		log.Info().Msgf("Configured beacon chain URI: %s", viper.GetString("beacon-node"))
 		log.Info().Msgf("Configured logging level: %s", viper.GetString("log-level"))
-		StartCoreService()
+		StartCoreServices()
 	},
 	PersistentPreRunE: persistentPreRunE,
 }
@@ -83,8 +83,8 @@ func Execute() {
 	cobra.CheckErr(rootCmd.Execute())
 }
 
-// Instantiates the Core Controller Service
-func StartCoreService() error {
+// Instantiates the Core Controller Service, the Metrics Service
+func StartCoreServices() error {
 	ctx := context.Background()
 
 	ctrl, err := controller.New()
