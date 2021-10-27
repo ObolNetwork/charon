@@ -23,6 +23,12 @@ import (
 	"syscall"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+
+	"github.com/obolnetwork/charon/internal/services/monitoring"
+	nullmetrics "github.com/obolnetwork/charon/internal/services/monitoring/null"
+	prometheusmetrics "github.com/obolnetwork/charon/internal/services/monitoring/prometheus"
+	"github.com/pkg/errors"
+	"github.com/spf13/viper"
 )
 
 // Service is the core runtime for Charon, and may later make use of a formally verified SSV state machine.
@@ -55,7 +61,12 @@ func (s *Service) Start(ctx context.Context) {
 
 	log.Info().Msg("Starting Charon Controller")
 
-	log.Info().Msg("Starting metrics service")
+	log.Info().Msg("Starting monitoring service")
+
+	_, err := startMonitor(ctx)
+	if err != nil {
+		log.Warn().Msg("failed to start monitoring service")
+	}
 
 	stop := s.stop
 	s.lock.Unlock()
@@ -90,4 +101,26 @@ func (s *Service) Close() {
 
 	// Metrics
 	// s.collector.unregister()
+}
+
+// Triggers the instantiation of either a prometheus monitoring service or a null monitoring service
+// suitable for injection into other processes for metric reporting
+func startMonitor(ctx context.Context) (monitoring.Service, error) {
+	log.Trace().Msg("Starting monitoring service")
+	var monitor monitoring.Service
+	if viper.Get("monitoring.prometheus") != nil {
+		var err error
+		monitor, err = prometheusmetrics.New(ctx,
+			prometheusmetrics.WithLogLevel(log.GetLevel()),
+			prometheusmetrics.WithAddress("8234"),
+		)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to start prometheus monitoring service")
+		}
+		log.Info().Str("listen_address", "8234").Msg("Started prometheus monitoring service")
+	} else {
+		log.Debug().Msg("No monitoring service supplied; monitor not starting")
+		monitor = nullmetrics.New(ctx)
+	}
+	return monitor, nil
 }
