@@ -1,5 +1,5 @@
 /*
-Copyright © 2021 Oisín Kyne <oisin@obol.tech>
+Copyright © 2021 Obol Technologies Inc.
 Copyright © 2020, 2021 Attestant Limited
 
 Licensed under the Apache License, Version 2.0 (the "License");

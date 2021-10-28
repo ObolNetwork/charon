@@ -1,0 +1,7 @@
+beacon-node: "temp"
+log-level: "info"
+monitoring: true
+monitoring-address: "localhost:8088"
+peers: ""
+quiet: false
+verbose: false
