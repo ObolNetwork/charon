@@ -61,7 +61,7 @@ func (s *Service) Start(ctx context.Context) {
 
 	log.Info().Msg("Starting Charon Controller")
 
-	log.Info().Msg("Starting monitoring service")
+	log.Debug().Msg("Starting Monitoring Service")
 
 	_, err := startMonitor(ctx)
 	if err != nil {
@@ -90,15 +90,15 @@ func (s *Service) Start(ctx context.Context) {
 
 	// Wait for stop channel to be closed.
 	<-stop
+	log.Debug().Msg("Stop signal received, controller.Start() function exit")
 }
 
 // Close handles graceful shutdown of the system.
 func (s *Service) Close() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-
 	log.Info().Msg("Stopping Charon Controller")
-
+	close(s.stop)
 	// Metrics
 	// s.collector.unregister()
 }
