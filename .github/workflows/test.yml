@@ -1,6 +1,6 @@
 # Runs "go vet" and "go test -short".
 # TODO: Might want to skip this stage in case Go files aren't modified.
-on: [ push, pull_request ]
+on: [ pull_request ]
 name: Test
 jobs:
   unit_tests:
