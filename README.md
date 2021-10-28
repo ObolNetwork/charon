@@ -67,6 +67,12 @@ Helper file for setting log level and overriding zerolog config
 #### nginx
 Temporary middleman between validator and beacon clients for testing purposes
 
+## Deployment workflow
+
+- Checkout a branch and commit your work
+- Open a PR
+- Once CI passes it can be merged to `master`
+- Commits on master can be tagged for public release with a command like; `git tag -a v0.0.1 -m "Charon v0.0.1: Hello Acheron"`
 
 ## To Do List
 - [x] Beacon client syncing

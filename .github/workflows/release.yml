@@ -16,10 +16,10 @@ jobs:
     - uses: actions/checkout@v2
 
     # Parse git tag as a version string
-    - version: get-version
+    - id: get-version
       run: |
         version=$(echo ${{ github.ref }} | cut -d/ -f3)
-        echo "::set-output name=version::$version"
+        echo "::set-output name=id::$version"
 
     - run: echo "${{steps.get-version.outputs.version}}"
 
