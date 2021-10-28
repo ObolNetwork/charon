@@ -1,5 +1,8 @@
-on: [push]
-name: Build
+on:
+  push:
+    branches:
+      - master
+name: Build docker image
 jobs:
   # buildx:
   #   runs-on: ubuntu-20.04
@@ -43,6 +46,7 @@ jobs:
       uses: elgohr/Publish-Docker-Github-Action@3.02
       env:
         NODE_ENV: production
+        DOCKER_BUILDKIT: 1
       with:
         name: ${{ github.repository }}/charon
         username: ${{ github.actor }}
