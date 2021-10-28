@@ -1,5 +1,5 @@
 /*
-Copyright © 2021 Oisín Kyne <oisin@obol.tech>
+Copyright © 2021 Obol Technologies Inc.
 Copyright © 2020, 2021 Attestant Limited
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -118,7 +118,7 @@ func New(ctx context.Context, params ...Parameter) (*Service, error) {
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
-		log.Debug().Msg("Starting prometheus server")
+		log.Debug().Msgf("Starting prometheus server at address %s", parameters.address)
 		if err := http.ListenAndServe(parameters.address, nil); err != nil {
 			log.Warn().Str("metrics_address", parameters.address).Err(err).Msg("Failed to run metrics server")
 		}
