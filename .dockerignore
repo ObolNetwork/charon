@@ -12,4 +12,5 @@
 **/data
 **/terraform
 **/test
+**/local
 **/*.backup
