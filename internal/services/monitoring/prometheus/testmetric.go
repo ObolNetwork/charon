@@ -11,12 +11,13 @@ func (s *Service) setupTestMetric() error {
 		Name:      "test_numbers_counted",
 		Help:      "The number of test numbers counted by our incrementer.",
 	})
-
-	return prometheus.Register(s.testCounter)
+	if err := prometheus.Register(s.testCounter); err != nil {
+		return err
+	}
+	return nil
 }
 
 // NumberCounted is called when a test number is counted.
 func (s *Service) NumberCounted() {
 	s.testCounter.Inc()
-	return
 }

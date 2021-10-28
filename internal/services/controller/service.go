@@ -63,10 +63,13 @@ func (s *Service) Start(ctx context.Context) {
 
 	log.Debug().Msg("Starting Monitoring Service")
 
-	_, err := startMonitor(ctx)
+	monitor, err := startMonitor(ctx)
 	if err != nil {
-		log.Warn().Msg("failed to start monitoring service")
+		log.Warn().Msg("Failed to start monitoring service")
+		log.Debug().Msgf("%s", err)
 	}
+
+	log.Debug().Msgf("%o", monitor)
 
 	stop := s.stop
 	s.lock.Unlock()
@@ -117,7 +120,7 @@ func startMonitor(ctx context.Context) (monitoring.Service, error) {
 			prometheusmetrics.WithAddress(address),
 		)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to start prometheus monitoring service")
+			return nil, errors.Wrap(err, "Failed to start prometheus monitoring service")
 		}
 		log.Info().Str("listen_address", address).Msg("Started prometheus monitoring service")
 	} else {
