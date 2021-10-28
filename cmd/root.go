@@ -46,7 +46,7 @@ var rootCmd = &cobra.Command{
 		log.Info().Msg("No command specified, starting Charon as an SSV client")
 		log.Info().Msgf("Configured beacon chain URI: %s", viper.GetString("beacon-node"))
 		log.Info().Msgf("Configured logging level: %s", viper.GetString("log-level"))
-		StartCoreServices()
+		StartCoreService()
 	},
 	PersistentPreRunE: persistentPreRunE,
 }
@@ -83,11 +83,11 @@ func Execute() {
 	cobra.CheckErr(rootCmd.Execute())
 }
 
-// Instantiates the Core Controller Service, the Metrics Service
-func StartCoreServices() error {
+// Instantiates the Core Controller Service
+func StartCoreService() error {
 	ctx := context.Background()
 
-	ctrl, err := controller.New()
+	ctrl, err := controller.New(ctx)
 	if err != nil {
 		return err
 	}
@@ -98,6 +98,7 @@ func StartCoreServices() error {
 func init() {
 	cobra.OnInitialize(initConfig)
 
+	// Flags that apply to all commands run in Charon
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.charon.yaml)")
 	rootCmd.PersistentFlags().StringVar(&beaconNodes, "beacon-node", "http://localhost:5051", "URI for beacon node API")
 	if err := viper.BindPFlag("beacon-node", rootCmd.PersistentFlags().Lookup("beacon-node")); err != nil {
@@ -119,6 +120,17 @@ func init() {
 	if err := viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level")); err != nil {
 		panic(err)
 	}
+
+	// Flags that only apply to the root command (i.e. start server command)
+	rootCmd.Flags().Bool("monitoring", false, "Enable prometheus monitoring")
+	if err := viper.BindPFlag("monitoring", rootCmd.Flags().Lookup("monitoring")); err != nil {
+		panic(err)
+	}
+	rootCmd.Flags().String("monitoring-address", "localhost:8088", "hostname:port or address:port for prometheus server to listen on")
+	if err := viper.BindPFlag("monitoring-address", rootCmd.Flags().Lookup("monitoring-address")); err != nil {
+		panic(err)
+	}
+
 }
 
 // initConfig reads in config file and ENV variables if set and stores them in Viper

@@ -43,7 +43,7 @@ type Service struct {
 }
 
 // New creates a new controller service. (Does nothing yet, just getting the hang of context passing)
-func New() (*Service, error) {
+func New(ctx context.Context) (*Service, error) {
 	log.Debug().Msg("Controller Service instantiated")
 	s := &Service{
 		stop:    make(chan struct{}),
@@ -108,16 +108,17 @@ func (s *Service) Close() {
 func startMonitor(ctx context.Context) (monitoring.Service, error) {
 	log.Trace().Msg("Starting monitoring service")
 	var monitor monitoring.Service
-	if viper.Get("monitoring.prometheus") != nil {
+	address := viper.GetString("monitoring-address")
+	if viper.Get("monitoring") != nil {
 		var err error
 		monitor, err = prometheusmetrics.New(ctx,
 			prometheusmetrics.WithLogLevel(log.GetLevel()),
-			prometheusmetrics.WithAddress("8234"),
+			prometheusmetrics.WithAddress(address),
 		)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to start prometheus monitoring service")
 		}
-		log.Info().Str("listen_address", "8234").Msg("Started prometheus monitoring service")
+		log.Info().Str("listen_address", address).Msg("Started prometheus monitoring service")
 	} else {
 		log.Debug().Msg("No monitoring service supplied; monitor not starting")
 		monitor = nullmetrics.New(ctx)
