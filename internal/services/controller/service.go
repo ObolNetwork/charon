@@ -109,7 +109,8 @@ func startMonitor(ctx context.Context) (monitoring.Service, error) {
 	log.Trace().Msg("Starting monitoring service")
 	var monitor monitoring.Service
 	address := viper.GetString("monitoring-address")
-	if viper.Get("monitoring") != nil {
+	enable := viper.GetBool("monitoring")
+	if enable {
 		var err error
 		monitor, err = prometheusmetrics.New(ctx,
 			prometheusmetrics.WithLogLevel(log.GetLevel()),
