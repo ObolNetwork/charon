@@ -35,6 +35,6 @@ jobs:
         password: ${{ secrets.CONTAINER_REGISTRY_SECRET }}
         buildargs: GITHUB_SHA=${{ github.sha }}
         registry: docker.pkg.github.com
-        tags: "latest,${ {steps.get-version.outputs.version }}"
+        tags: "latest,${{ steps.get-version.outputs.version }}"
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}
