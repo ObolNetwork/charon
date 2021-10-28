@@ -25,12 +25,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var metricsNamespace = "vouch"
+var metricsNamespace = "charon"
 
 var releaseMetric *prometheus.GaugeVec
 var readyMetric prometheus.Gauge
 
-func registerMetrics(ctx context.Context, monitor metrics.Service) error {
+func registerMetrics(ctx context.Context, monitor monitoring.Service) error {
 	if releaseMetric != nil {
 		// Already registered.
 		return nil
