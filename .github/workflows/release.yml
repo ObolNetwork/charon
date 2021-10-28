@@ -18,8 +18,8 @@ jobs:
     # Parse git tag as a version string
     - id: get-version
       run: |
-        version=$(echo ${{ github.ref }} | cut -d/ -f3)
-        echo "::set-output name=id::$version"
+        version=$(echo "${{ github.ref }}" | cut -d / -f 3)
+        echo "::set-output name=version::$version"
 
     - run: echo "${{steps.get-version.outputs.version}}"
 
