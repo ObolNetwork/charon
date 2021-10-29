@@ -21,9 +21,9 @@ jobs:
         version=$(echo "${{ github.ref }}" | cut -d / -f 3)
         echo "::set-output name=version::$version"
 
-    - run: echo "${{steps.get-version.outputs.version}}"
+    # - run: echo "${{steps.get-version.outputs.version}}"
 
-    # Runs a single command using the runners shell
+    # Docker builds and publishes
     - name: Publish to registry
       uses: elgohr/Publish-Docker-Github-Action@3.02
       env:
@@ -37,11 +37,15 @@ jobs:
         registry: docker.pkg.github.com
         tags: "latest,${{ steps.get-version.outputs.version }}"
 
+    # Creates a release object
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
-        # body: "Charon client version `${{steps.get-version.outputs.version}}`."
-        # note you'll typically need to create a personal access token
-        # with permissions to create releases in the other repo
+        body: |
+          ![Obol Logo](https://obol.tech/obolnetwork.png)
+
+          Charon client version `${{steps.get-version.outputs.version}}`.
+
+          ###### This software is in beta, use with caution
         token: ${{ secrets.RELEASE_SECRET }}
 
