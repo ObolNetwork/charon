@@ -36,5 +36,12 @@ jobs:
         buildargs: GITHUB_SHA=${{ github.sha }}
         registry: docker.pkg.github.com
         tags: "latest,${{ steps.get-version.outputs.version }}"
-    - name: Image digest
-      run: echo ${{ steps.docker_build.outputs.digest }}
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        # body: "Charon client version `${{steps.get-version.outputs.version}}`."
+        # note you'll typically need to create a personal access token
+        # with permissions to create releases in the other repo
+        token: ${{ secrets.RELEASE_SECRET }}
+
