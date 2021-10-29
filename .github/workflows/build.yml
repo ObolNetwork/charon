@@ -13,6 +13,14 @@ jobs:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v2
 
+    # Substring the git sha
+    - id: get-version
+      run: |
+        version=$(echo "${{ github.sha }}" | cut -c1-16)
+        echo "::set-output name=version::$version"
+
+    # - run: echo "${{steps.get-version.outputs.version}}"
+
     # Runs a single command using the runners shell
     - name: Publish to registry
       uses: elgohr/Publish-Docker-Github-Action@3.02
@@ -25,6 +33,6 @@ jobs:
         password: ${{ secrets.CONTAINER_REGISTRY_SECRET }}
         buildargs: GITHUB_SHA=${{ github.sha }}
         registry: docker.pkg.github.com
-        tags: "latest,${{ github.sha }}"
+        tags: "latest,${{steps.get-version.outputs.version}}"
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}
