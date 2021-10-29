@@ -16,7 +16,7 @@ jobs:
     # Substring the git sha
     - id: get-version
       run: |
-        version=$(echo "${{ github.sha }}" | cut -c1-16)
+        version=$(echo "${{ github.sha }}" | cut -c1-8)
         echo "::set-output name=version::$version"
 
     # - run: echo "${{steps.get-version.outputs.version}}"
