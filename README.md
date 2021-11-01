@@ -1,10 +1,20 @@
 ![Obol Logo](https://obol.tech/obolnetwork.png)
 
-<h1 align="center">Charon - The Obol SSV middleware client</h1>
+<h1 align="center">Charon - The Distributed Validator middleware client</h1>
+<!-- [![Tag](https://img.shields.io/github/tag/obolnetwork/charon.svg)](https://github.com/obolnetwork/charon/releases/)
+[![License](https://img.shields.io/github/license/obolnetwork/charon.svg)](LICENSE)
+[![GoDoc](https://godoc.org/github.com/obolnetwork/charon?status.svg)](https://godoc.org/github.com/obolnetwork/charon)
+![Lint](https://github.com/obolnetwork/charon/workflows/golangci-lint/badge.svg)
+[![Go Report Card](https://goreportcard.com/badge/github.com/obolnetwork/charon)](https://goreportcard.com/report/github.com/obolnetwork/charon) -->
 
-This repo contains the source code for the Obol Client, charon, a middleware HTTP client and server for Ethereum Staking that enables HA validation through the use of the Shared Secret Validator staking model.
+This repo contains the source code for the distributed validator client *Charon*; a HTTP middleware client for Ethereum Staking that enables you to safely run a single validator across a group of independent servers.
 
-Obol is used by Enterprises and DAOs to distribute the responsibility of running Ethereum Validators.
+Charon is accompanied by a DKG tool, [Delphi](https://github.com/obolnetwork/delphi), for distributed validator key creation. 
+
+Charon is used by Enterprises and DAOs to distribute the responsibility of running Ethereum Validators across a number of different running instances and client implementations.  
+
+![Example Obol Cluster](https://obol.tech/ObolCluster.png)
+###### A validator deployment that uses the Charon client to hedge client and hardware failure risks
 
 ## Quickstart
 
