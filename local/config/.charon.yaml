@@ -1,0 +1,7 @@
+beacon-node: "http://beacon:5051"
+log-level: "debug"
+monitoring: true
+monitoring-address: "0.0.0.0:8088"
+peers: ""
+quiet: false
+verbose: false

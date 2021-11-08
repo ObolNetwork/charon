@@ -80,6 +80,7 @@ Temporary middleman between validator and beacon clients for testing purposes
 ## Deployment workflow
 
 - Checkout a branch and commit your work
+    - Use either a ticket as the branch name or namespace it with your name, e.g. `obol-231` or `oisin/feature`. 
 - Open a PR
 - Once CI passes it can be merged to `master`
 - Commits on master can be tagged for public release with a command like; `git tag -a v0.0.1 -m "Charon v0.0.1: Hello Acheron"`
