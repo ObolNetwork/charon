@@ -120,3 +120,6 @@ Temporary middleman between validator and beacon clients for testing purposes
 
 - `charon test beacon` errors with an error something like: `panic: parse 192.168.2.2:5051: first path segment in URL cannot contain colon`.
     - The issue is `beacon-node` URIs need to specify a `scheme`, prepend IP addresses with `http://`. 
+
+- If you put your laptop into standby while running the local containers (e.g. overnight), when your computer un-suspends, prometheus will fail to scrape endpoints with errors like `unable to append`, `out of bounds`, `time too far into the past or too far into the future`. 
+    - The issue is the containers system clocks get way out of sync. Fix by turning them off and on again, classic.

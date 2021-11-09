@@ -45,6 +45,7 @@ require (
 	github.com/prometheus/common v0.26.0 // indirect
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/prysmaticlabs/go-bitfield v0.0.0-20210607200045-4da71aaf6c2d // indirect
+	go.uber.org/automaxprocs v1.4.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 )
