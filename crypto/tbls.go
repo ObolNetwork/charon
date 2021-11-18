@@ -16,7 +16,6 @@ var BLSKeyGroup = BLSPairing.G1()
 // required to recover BLS threshold signatures from signature shares.
 type TBLSScheme struct {
 	*share.PubPoly
-	T int // number of key shares required to produce a signature
 	N int // total number of key shares
 }
 
@@ -35,7 +34,6 @@ func NewTBLSScheme(pubPoly *share.PubPoly, n int) (*TBLSScheme, error) {
 	}
 	return &TBLSScheme{
 		PubPoly: pubPoly,
-		T:       t,
 		N:       n,
 	}, nil
 }
@@ -74,7 +72,6 @@ func (t *TBLSSchemeEncoded) Decode() (*TBLSScheme, error) {
 	pubPoly := share.NewPubPoly(BLSKeyGroup, BLSKeyGroup.Point().Base(), points)
 	return &TBLSScheme{
 		PubPoly: pubPoly,
-		T:       len(points),
 		N:       t.N,
 	}, nil
 }

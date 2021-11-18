@@ -7,13 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/drand/kyber"
 	"github.com/drand/kyber/share"
-	"github.com/google/uuid"
 	"github.com/obolnetwork/charon/crypto"
 	prompt "github.com/prysmaticlabs/prysm/shared/promptutil"
 	"github.com/spf13/cobra"
-	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 )
 
 var keygenCmd = cobra.Command{
@@ -88,7 +85,7 @@ func (k *keygen) run() {
 	k.saveScheme(scheme, pubkeyHex)
 	// Create private key shares.
 	priShares := priPoly.Shares(int(k.n))
-	k.saveKeys(priShares, pubkeyHex)
+	k.saveKeys(scheme, priShares, pubkeyHex)
 }
 
 func (k *keygen) getPassword() {
@@ -157,46 +154,17 @@ func (k *keygen) keyPath(pubkeyHex string, i int) string {
 	return filepath.Join(k.outDir, name)
 }
 
-func (k *keygen) saveKeys(priShares []*share.PriShare, pubkeyHex string) {
+func (k *keygen) saveKeys(scheme *crypto.TBLSScheme, priShares []*share.PriShare, pubkeyHex string) {
 	fmt.Println("Saving keys to", k.keyPath(pubkeyHex, 0))
 	for _, priShare := range priShares {
-		k.saveKey(priShare.V, priShare.I, pubkeyHex, k.keyPath(pubkeyHex, priShare.I))
+		k.saveKey(scheme, priShare, k.keyPath(pubkeyHex, priShare.I))
 	}
 }
 
-func (k *keygen) saveKey(key kyber.Scalar, i int, pubkeyHex string, path string) {
-	pubShare := crypto.BLSKeyGroup.Point().Mul(key, nil)
-	pubShareHex := crypto.BLSPointToHex(pubShare)
-	fmt.Printf("Share #%04d pubkey: %s\n", i, pubShareHex)
-	secret, err := key.MarshalBinary()
+func (k *keygen) saveKey(scheme *crypto.TBLSScheme, priShare *share.PriShare, path string) {
+	item, err := crypto.TBLSShareToKeystore(scheme, priShare, k.password)
 	if err != nil {
-		log.Fatal().Err(err).Int("key_share", i).Msg("Failed to marshal private key share")
-	}
-
-	id, err := uuid.NewRandom()
-	if err != nil {
-		panic(err.Error())
-	}
-	encryptor := keystorev4.New()
-	cryptoFields, err := encryptor.Encrypt(secret, k.password)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to encrypt key share")
-	}
-	type keyStore struct {
-		Crypto      map[string]interface{} `json:"crypto"`
-		Description string                 `json:"description"`
-		UUID        string                 `json:"uuid"`
-		Pubkey      string                 `json:"pubkey"`
-		Path        string                 `json:"path"`
-		Version     uint                   `json:"version"`
-	}
-	item := keyStore{
-		Crypto:      cryptoFields,
-		Description: fmt.Sprintf("Obol Eth2 validator %s i=%d t=%d n=%d", pubkeyHex, i, k.t, k.n),
-		UUID:        id.String(),
-		Pubkey:      pubShareHex,
-		Path:        "",
-		Version:     encryptor.Version(),
+		log.Fatal().Err(err).Int("key_share", priShare.I).Msg("Failed to create keystore for private key share")
 	}
 	buf, err := json.MarshalIndent(item, "", "\t")
 	if err != nil {
