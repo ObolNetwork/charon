@@ -11,7 +11,7 @@ require (
 
 require (
 	github.com/attestantio/go-eth2-client v0.8.1
-	github.com/drand/kyber v1.1.6
+	github.com/drand/kyber v1.1.7
 	github.com/drand/kyber-bls12381 v0.2.1
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/google/uuid v1.3.0
