@@ -1,7 +1,20 @@
+// Copyright © 2021 Obol Technologies Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package cmd
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -13,45 +26,49 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var keygenCmd = cobra.Command{
-	Use:   "keygen",
-	Short: "Centralized key generation tool for creating a validator signing key threshold signature scheme",
+var bootstrapCmd = cobra.Command{
+	Use:   "bootstrap",
+	Short: "Bootstraps a single validator centrally.",
 	Long: `Generates a BLS12-381 validator private key in-memory, then splits it into a set of private key shares using Shamir's Secret Sharing.
-Produces an EIP-2335 keystore file for each generated key share.`,
+Produces an EIP-2335 keystore file for each generated key share.
+Also outputs a distributed validator profile.`,
 	Args: cobra.NoArgs,
-	Run: func(cmd *cobra.Command, _ []string) {
-		flags := cmd.Flags()
-		out, err := flags.GetString("out")
-		if err != nil {
-			panic(err.Error())
-		}
-		passwordFile, err := flags.GetString("password-file")
-		if err != nil {
-			panic(err.Error())
-		}
-		shares, err := flags.GetUint("shares")
-		if err != nil {
-			panic(err.Error())
-		}
-		if shares < 1 {
-			shares = 1
-		}
-		k := keygen{
-			outDir:       out,
-			passwordFile: passwordFile,
-			n:            shares,
-		}
-		k.run()
-	},
+	Run:  runKeygen,
 }
 
 func init() {
-	rootCmd.AddCommand(&keygenCmd)
+	rootCmd.AddCommand(&bootstrapCmd)
 
-	flags := keygenCmd.Flags()
+	flags := bootstrapCmd.Flags()
 	flags.StringP("out", "o", "./keys", "Output directory")
 	flags.UintP("shares", "n", 4, "Number of key shares to generate")
 	flags.String("password-file", "", "Path to a plain-text password file")
+	flags.StringSlice("bootnodes", nil, "List of bootnodes")
+}
+
+func runKeygen(cmd *cobra.Command, _ []string) {
+	flags := cmd.Flags()
+	out, err := flags.GetString("out")
+	if err != nil {
+		panic(err.Error())
+	}
+	passwordFile, err := flags.GetString("password-file")
+	if err != nil {
+		panic(err.Error())
+	}
+	shares, err := flags.GetUint("shares")
+	if err != nil {
+		panic(err.Error())
+	}
+	if shares < 1 {
+		shares = 1
+	}
+	k := keygen{
+		outDir:       out,
+		passwordFile: passwordFile,
+		n:            shares,
+	}
+	k.run()
 }
 
 type keygen struct {
@@ -59,6 +76,7 @@ type keygen struct {
 	outDir       string
 	passwordFile string
 	n            uint
+	bootnodes    []string
 	// params
 	t        uint
 	password string
@@ -77,10 +95,7 @@ func (k *keygen) run() {
 	pubkeyHex := crypto.BLSPointToHex(pubkey)
 	fmt.Println("Public key:", pubkeyHex)
 	// Save public polynomials (required to recover root sig from sig shares).
-	scheme, err := crypto.NewTBLSScheme(pubPoly, int(k.n))
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create threshold BLS scheme info")
-	}
+	scheme := &crypto.TBLSScheme{PubPoly: pubPoly}
 	k.mkOutdir()
 	k.saveScheme(scheme, pubkeyHex)
 	// Create private key shares.
@@ -97,16 +112,11 @@ func (k *keygen) getPassword() {
 }
 
 func (k *keygen) readPassword() {
-	f, err := os.Open(k.passwordFile)
+	var err error
+	k.password, err = crypto.ReadPlaintextPassword(k.passwordFile)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to open password file")
+		log.Fatal().Err(err).Msg("Failed to read password")
 	}
-	defer f.Close()
-	scn := bufio.NewScanner(f)
-	if !scn.Scan() {
-		log.Fatal().Msg("Password file is empty")
-	}
-	k.password = scn.Text()
 }
 
 func (k *keygen) promptPassword() {
@@ -166,12 +176,7 @@ func (k *keygen) saveKey(scheme *crypto.TBLSScheme, priShare *share.PriShare, pa
 	if err != nil {
 		log.Fatal().Err(err).Int("key_share", priShare.I).Msg("Failed to create keystore for private key share")
 	}
-	buf, err := json.MarshalIndent(item, "", "\t")
-	if err != nil {
-		panic(err.Error())
-	}
-	err = os.WriteFile(path, buf, 0600)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to write key share")
+	if err := item.Save(path); err != nil {
+		log.Fatal().Err(err).Msg("Failed to write keyshare")
 	}
 }

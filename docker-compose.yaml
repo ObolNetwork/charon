@@ -7,6 +7,10 @@ x-logging: &logging
       max-file: "10"
       max-size: "100m"
 
+
+networks:
+  validator:
+
 services:
   #       _                           
   #   ___| |__   __ _ _ __ ___  _ __  
@@ -20,11 +24,11 @@ services:
     build: .
     # command: ['--config-file=/opt/char/config/teku.yaml']
     restart: unless-stopped
-    hostname: ssv
+    hostname: charon
     depends_on:
       - beacon
     networks:
-      - ssv
+      - validator
     volumes:
       - ./local/config/.charon.yaml:/opt/charon/.charon.yaml
     ports:
@@ -45,7 +49,7 @@ services:
       - ./local/config:/opt/teku/config
     restart: always
     networks:
-      - ssv
+      - validator
     ports:
       - "30303:30303"
       - "5051:5051"
@@ -62,7 +66,7 @@ services:
   #   image: sigp/lighthouse:${LIGHTHOUSE_VERSION}
   #   container_name: validator
   #   networks:
-  #     - ssv
+  #     - validator
   #   volumes:
   #     - ./local/.data/lighthouse:/root/.lighthouse
   #     - ./local/scripts:/root/scripts:ro
@@ -92,7 +96,7 @@ services:
     ports:
       - 127.0.0.1:9090:9090
     networks:
-      - ssv
+      - validator
     volumes:
       - ./local/config/prometheus.yaml:/etc/prometheus/prometheus.yml
       - ./local/.data/prometheus:/prometheus
@@ -109,7 +113,7 @@ services:
     restart: on-failure
     hostname: grafana
     networks:
-      - ssv
+      - validator
     environment:
       - GF_SECURITY_ADMIN=password
       - GF_USERS_ALLOW_SIGN_UP=false
@@ -121,6 +125,3 @@ services:
       - ./local/config/grafana/provisioning:/etc/grafana/provisioning
       - ./local/.data/grafana_data:/var/lib/grafana
     <<: *logging
-
-networks:
-  ssv:

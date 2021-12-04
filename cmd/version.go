@@ -1,58 +1,58 @@
-/*
-Copyright © 2021 Obol Technologies Inc.
+// Copyright © 2021 Obol Technologies Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package cmd
 
 import (
 	"fmt"
+	dbg "runtime/debug"
+
+	"github.com/obolnetwork/charon/internal"
+	"github.com/obolnetwork/charon/internal/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"os"
-	dbg "runtime/debug"
 )
-
-// ReleaseVersion is the release version of the codebase.
-// Usually overridden by tag names when building binaries.
-var ReleaseVersion = "local build (latest release 0.1.0)"
 
 // versionCmd represents the version command
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Output the charon version",
-	Long: `Obtain the version of charon.  For example:
-
-charon version`,
+	Short: "Print version and exit",
+	Long:  "Output version info. Use --verbose for detailed module version info.",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(ReleaseVersion)
-		if viper.GetBool("verbose") {
-			buildInfo, ok := dbg.ReadBuildInfo()
-			if ok {
-				fmt.Printf("Package: %s\n", buildInfo.Path)
-				fmt.Println("Dependencies:")
-				for _, dep := range buildInfo.Deps {
-					for dep.Replace != nil {
-						dep = dep.Replace
-					}
-					fmt.Printf("\t%v %v\n", dep.Path, dep.Version)
-				}
-			}
+		fmt.Println(internal.ReleaseVersion)
+		if viper.GetBool(config.KeyVerbose) {
+			printBuildInfo()
 		}
-		os.Exit(0)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(versionCmd)
+}
+
+func printBuildInfo() {
+	buildInfo, ok := dbg.ReadBuildInfo()
+	if !ok {
+		fmt.Println("Failed to gather build info")
+		return
+	}
+	fmt.Printf("Package: %s\n", buildInfo.Path)
+	fmt.Println("Dependencies:")
+	for _, dep := range buildInfo.Deps {
+		for dep.Replace != nil {
+			dep = dep.Replace
+		}
+		fmt.Printf("\t%v %v\n", dep.Path, dep.Version)
+	}
 }
