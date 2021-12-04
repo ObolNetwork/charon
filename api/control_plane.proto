@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package obol.v1.charon;
+option go_package = "github.com/obolnetwork/charon/api";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// ControlPlane is an internal API.
+service ControlPlane {
+  rpc GetSelf (GetSelfRequest) returns (GetSelfResponse) {
+    option (google.api.http) = {
+      get: "/v1/p2p/self"
+    };
+  }
+  rpc GetPeers (GetPeersRequest) returns (GetPeersResponse) {
+    option (google.api.http) = {
+      get: "/v1/p2p/peers"
+    };
+  }
+  // TODO add method to get validators
+}
+
+message PeerConnection {
+  Peer peer = 1;
+  PeerConnectionState state = 2;
+  string endpoint = 3;
+  bool incoming = 4;
+}
+
+message Peer {
+  string peer_id = 1;
+  optional google.protobuf.Timestamp connect_time = 2;
+  string version = 3;
+  string enr = 4;
+}
+
+enum PeerConnectionState {
+  DISCONNECTED = 0;
+  CONNECTING = 1;
+  CONNECTED = 2;
+  DISCONNECTING = 3;
+}
+
+message GetPeersRequest {
+  optional PeerConnectionState state = 1;
+}
+
+message GetPeersResponse {
+  repeated PeerConnection peers = 1;
+}
+
+message GetSelfRequest {}
+
+message GetSelfResponse {
+  Peer peer = 1;
+  google.protobuf.Timestamp start_time = 2;
+  uint32 peer_count = 3;
+}
