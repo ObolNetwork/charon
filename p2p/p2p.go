@@ -46,7 +46,7 @@ func NewNode(ctx context.Context, cfg *Config) (*Node, error) {
 		// Set P2P identity key.
 		libp2p.Identity(crypto.PrivKey((*crypto.Secp256k1PrivateKey)(cfg.PrivateKey))),
 		// Set noise-libp2p handshake.
-		libp2p.Security(noise.ID, noise.ID),
+		libp2p.Security(noise.ID, noise.New),
 		// Set listen addresses.
 		libp2p.ListenAddrs(addrs...),
 		// TODO proper user agent.

@@ -16,6 +16,7 @@ package config
 
 import (
 	"strings"
+	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -36,6 +37,9 @@ const (
 func init() {
 	viper.SetDefault(KeyValidators, []string(nil))
 }
+
+// StartTime is the time at which the application was started.
+var StartTime = time.Now()
 
 // CommonFlags sets up Charon's common flags.
 //

@@ -14,9 +14,9 @@ import (
 )
 
 type Config struct {
-	IPAddrs     []net.IP
-	Port        int
-	PrivateKey  *ecdsa.PrivateKey
+	IPAddrs    []net.IP
+	Port       int
+	PrivateKey *ecdsa.PrivateKey
 }
 
 // DefaultConfig constructs config using viper.
@@ -47,7 +47,6 @@ func resolveListenAddr(listenStr string) (addr net.IP, port int, err error) {
 	return tcpAddr.IP, tcpAddr.Port, nil
 }
 
-
 // IPv4 returns the first configured IPv4 address or nil.
 func (c *Config) IPv4() net.IP {
 	for _, a := range c.IPAddrs {
@@ -72,12 +71,12 @@ func (c *Config) IPv6() net.IP {
 func (c *Config) Multiaddrs() (addrs []multiaddr.Multiaddr, err error) {
 	for _, ipAddr := range c.IPAddrs {
 		var maddrStr string
-		switch len(ipAddr) {
-		case net.IPv4len:
-			maddrStr = "/ipv4/" + ipAddr.String() + "/tcp/" + strconv.Itoa(c.Port)
-		case net.IPv6len:
-			maddrStr = "/ipv6/" + ipAddr.String() + "/tcp/" + strconv.Itoa(c.Port)
-		default:
+		v4 := ipAddr.To4()
+		if v4 != nil {
+			maddrStr = "/ip4/" + ipAddr.String() + "/tcp/" + strconv.Itoa(c.Port)
+		} else if len(ipAddr) == net.IPv6len {
+			maddrStr = "/ip6/" + ipAddr.String() + "/tcp/" + strconv.Itoa(c.Port)
+		} else {
 			panic(fmt.Sprintf("invalid IP addr: %x", []byte(ipAddr)))
 		}
 		maddr, err := multiaddr.NewMultiaddr(maddrStr)

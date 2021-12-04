@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestResolveListenAddr(t *testing.T) {
@@ -42,4 +43,23 @@ func TestResolveListenAddr(t *testing.T) {
 			assert.Equal(t, c.port, port, "case", c.str)
 		}
 	}
+}
+
+func TestConfig_Multiaddrs(t *testing.T) {
+	c := &Config{
+		IPAddrs: []net.IP{
+			net.IPv4(10, 0, 0, 2),
+			net.IPv6linklocalallnodes,
+		},
+	}
+	maddrs, err := c.Multiaddrs()
+	require.NoError(t, err)
+	maddrStrs := make([]string, len(maddrs))
+	for i, ma := range maddrs {
+		maddrStrs[i] = ma.String()
+	}
+	assert.Equal(t, []string{
+		"/ip4/10.0.0.2/tcp/0",
+		"/ip6/ff02::1/tcp/0",
+	}, maddrStrs)
 }
