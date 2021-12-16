@@ -16,6 +16,7 @@ package p2p
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"fmt"
 
 	"github.com/libp2p/go-libp2p"
@@ -33,9 +34,8 @@ type Node struct {
 }
 
 // NewNode starts the libp2p subsystem.
-func NewNode(ctx context.Context, cfg *Config) (*Node, error) {
-	// Config checks.
-	if cfg.PrivateKey == nil {
+func NewNode(ctx context.Context, cfg *Config, key *ecdsa.PrivateKey) (*Node, error) {
+	if key == nil {
 		return nil, fmt.Errorf("missing private key")
 	}
 	addrs, err := cfg.Multiaddrs()
@@ -45,7 +45,7 @@ func NewNode(ctx context.Context, cfg *Config) (*Node, error) {
 	// Init options.
 	opts := []libp2p.Option{
 		// Set P2P identity key.
-		libp2p.Identity(crypto.PrivKey((*crypto.Secp256k1PrivateKey)(cfg.PrivateKey))),
+		libp2p.Identity(crypto.PrivKey((*crypto.Secp256k1PrivateKey)(key))),
 		// Set noise-libp2p handshake.
 		libp2p.Security(noise.ID, noise.New),
 		// Set listen addresses.
@@ -58,6 +58,6 @@ func NewNode(ctx context.Context, cfg *Config) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Info().Msgf("Listening on %v", h.Addrs())
+	log.Info().Msgf("Starting P2P interface on %v", h.Addrs())
 	return &Node{h}, nil
 }

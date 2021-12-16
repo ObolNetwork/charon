@@ -12,10 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+// Package appctx helps with managing the application lifecycle.
+package appctx
 
-import "github.com/obolnetwork/charon/cmd"
+import (
+	"context"
+	"os"
+	"os/signal"
+)
 
-func main() {
-	cmd.Main()
+// InterruptContext returns a context that cancels when receiving SIGINT.
+func InterruptContext(ctx context.Context) context.Context {
+	ctx, cancel := context.WithCancel(ctx)
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt)
+	go func() {
+		defer cancel()
+		<-signals
+	}()
+	return ctx
 }
