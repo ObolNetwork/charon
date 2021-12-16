@@ -1,12 +1,17 @@
 package cluster
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/drand/kyber"
+	"github.com/ethereum/go-ethereum/p2p/enr"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/obolnetwork/charon/crypto"
 	"github.com/obolnetwork/charon/internal/config"
 	zerologger "github.com/rs/zerolog/log"
@@ -23,6 +28,37 @@ type Manifest struct {
 // Pubkey returns the BLS public key of the distributed validator.
 func (m *Manifest) Pubkey() kyber.Point {
 	return m.TSS.Pubkey()
+}
+
+// ParsedENRs returns the decoded list of ENRs in a manifest.
+func (m *Manifest) ParsedENRs() ([]enr.Record, error) {
+	records := make([]enr.Record, len(m.ENRs))
+	for i, enrStr := range m.ENRs {
+		record, err := DecodeENR(enrStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ENR: %w for \"%s\"", err, enrStr)
+		}
+		records[i] = *record
+	}
+	return records, nil
+}
+
+func DecodeENR(enrStr string) (*enr.Record, error) {
+	enrStr = strings.TrimPrefix(enrStr, "enr:")
+	enrBytes, err := base64.StdEncoding.DecodeString(enrStr)
+	if err != nil {
+		return nil, err
+	}
+	// TODO support hex encoding too?
+	var record enr.Record
+	rd := bytes.NewReader(enrBytes)
+	if err := rlp.Decode(rd, &record); err != nil {
+		return nil, err
+	}
+	if rd.Len() > 0 {
+		return nil, fmt.Errorf("leftover garbage bytes in ENR")
+	}
+	return &record, nil
 }
 
 // KnownClusters is a registry of known clusters.
@@ -65,6 +101,11 @@ func LoadKnownClustersFromDir(dir string) (KnownClusters, error) {
 // Returns nil if no matching cluster was found.
 func (k KnownClusters) GetCluster(pubkey kyber.Point) *Manifest {
 	return k.clusters[crypto.BLSPointToHex(pubkey)]
+}
+
+// Clusters returns a list of known clusters.
+func (k KnownClusters) Clusters() map[string]*Manifest {
+	return k.clusters
 }
 
 // LoadCluster reads the cluster file from the given file path.
