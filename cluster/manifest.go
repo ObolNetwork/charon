@@ -43,9 +43,17 @@ func (m *Manifest) ParsedENRs() ([]enr.Record, error) {
 	return records, nil
 }
 
+func EncodeENR(record *enr.Record) (string, error) {
+	var buf bytes.Buffer
+	if err := record.EncodeRLP(&buf); err != nil {
+		return "", err
+	}
+	return "enr:" + base64.URLEncoding.EncodeToString(buf.Bytes()), nil
+}
+
 func DecodeENR(enrStr string) (*enr.Record, error) {
 	enrStr = strings.TrimPrefix(enrStr, "enr:")
-	enrBytes, err := base64.StdEncoding.DecodeString(enrStr)
+	enrBytes, err := base64.URLEncoding.DecodeString(enrStr)
 	if err != nil {
 		return nil, err
 	}

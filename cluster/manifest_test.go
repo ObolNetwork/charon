@@ -1,10 +1,8 @@
 package cluster
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"net"
 	"testing"
@@ -32,6 +30,13 @@ func TestManifestJSON(t *testing.T) {
 	for i := range manifest.ENRs {
 		manifest.ENRs[i] = newRandomENR(t)
 	}
+	// Check pubkey.
+	dvPubkey := manifest.Pubkey()
+	assert.True(t, pubPoly.Commit().Equal(dvPubkey))
+	// Check if ENRs work.
+	records, err := manifest.ParsedENRs()
+	require.NoError(t, err)
+	assert.Len(t, records, len(manifest.ENRs))
 	// Marshal to JSON.
 	data, err := json.MarshalIndent(&manifest, "", "\t")
 	require.NoError(t, err)
@@ -48,7 +53,7 @@ func TestManifestJSON(t *testing.T) {
 	assert.JSONEq(t, string(data), string(data2))
 }
 
-func newRandomENR(t *testing.T) string {
+func newRandomENR(t *testing.T) (res string) {
 	privkey, err := ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
 	require.NoError(t, err)
 
@@ -58,10 +63,9 @@ func newRandomENR(t *testing.T) string {
 	r.SetSeq(1)
 	err = enode.SignV4(&r, privkey)
 	require.NoError(t, err)
-	var buf bytes.Buffer
-	err = r.EncodeRLP(&buf)
+	res, err = EncodeENR(&r)
 	require.NoError(t, err)
-	return "enr:" + base64.URLEncoding.EncodeToString(buf.Bytes())
+	return
 }
 
 func newRandomIP() net.IP {
@@ -71,4 +75,37 @@ func newRandomIP() net.IP {
 		panic(err.Error())
 	}
 	return buf
+}
+
+func TestDecodeENR_Equal(t *testing.T) {
+	randEnr := newRandomENR(t)
+	t.Log(randEnr)
+	record, err := DecodeENR(randEnr)
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	reencodedEnr, err := EncodeENR(record)
+	assert.Equal(t, randEnr, reencodedEnr)
+	require.NoError(t, err)
+	record2, err := DecodeENR(reencodedEnr)
+	require.NoError(t, err)
+	require.NotNil(t, record2)
+	assert.Equal(t, record, record2)
+}
+
+func TestDecodeENR_InvalidBase64(t *testing.T) {
+	record, err := DecodeENR("enr:###")
+	assert.EqualError(t, err, "illegal base64 data at input byte 0")
+	assert.Nil(t, record)
+}
+
+func TestDecodeENR_InvalidRLP(t *testing.T) {
+	record, err := DecodeENR("enr:AAAAAAAA")
+	assert.EqualError(t, err, "rlp: expected List")
+	assert.Nil(t, record)
+}
+
+func TestDecodeENR_Oversize(t *testing.T) {
+	record, err := DecodeENR("enr:-IS4QBnEa-Oftjk7-sGRAY7IrvL5YjATdcHbqR5l2aXX2M25CiawfwaXh0k9hm98dCfdnqhz9mE-BfemFdjuL9KtHqgBgmlkgnY0gmlwhB72zxGJc2VjcDI1NmsxoQMaK8SspTrUgB8IYVI3qDgFYsHymPVsWlvIW477kxaKUIN0Y3CCJpUAAAA=")
+	assert.EqualError(t, err, "leftover garbage bytes in ENR")
+	assert.Nil(t, record)
 }
