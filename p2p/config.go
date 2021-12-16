@@ -1,11 +1,11 @@
 package p2p
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"net"
 	"strconv"
 
+	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/obolnetwork/charon/internal/config"
 	zerologger "github.com/rs/zerolog/log"
@@ -13,21 +13,31 @@ import (
 )
 
 type Config struct {
-	IPAddrs    []net.IP
-	Port       int
-	PrivateKey *ecdsa.PrivateKey
+	IPAddrs []net.IP
+	Port    int
+	Netlist *netutil.Netlist
 }
 
-// DefaultConfig constructs config using viper.
+// DefaultConfig constructs P2P config using viper.
 func DefaultConfig() *Config {
 	listenAddr := viper.GetString(config.KeyP2P)
 	addr, port, err := resolveListenAddr(listenAddr)
 	if err != nil {
-		zerologger.Fatal().Err(err).Msg("Failed to set up P2P")
+		zerologger.Fatal().Err(err).Msg("Invalid P2P listen address")
+	}
+	netlistStr := viper.GetString(config.KeyNetlist)
+	var netlist *netutil.Netlist
+	if netlistStr != "" {
+		var err error
+		netlist, err = netutil.ParseNetlist(netlistStr)
+		if err != nil {
+			zerologger.Fatal().Err(err).Msg("Invalid netlist")
+		}
 	}
 	c := &Config{
 		IPAddrs: []net.IP{addr}, // TODO support multiple IPs
 		Port:    port,
+		Netlist: netlist,
 	}
 	return c
 }
