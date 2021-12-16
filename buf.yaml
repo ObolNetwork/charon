@@ -1,4 +1,4 @@
 version: v1
-name: buf.build/ObolNetwork/charon
+name: buf.build/obolnetwork/charon
 deps:
   - buf.build/googleapis/googleapis

@@ -30,19 +30,21 @@ func runCharon(_ *cobra.Command, _ []string) {
 
 	log.Info().Str("version", internal.ReleaseVersion).Msg("Charon starting")
 
+	// Create or retrieve our P2P identity key.
+	p2pIdentity := identity.DefaultP2P()
+	p2pKey, err := p2pIdentity.Get()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to get peer ID")
+	}
 	// Create P2P client.
 	p2pConfig := p2p.DefaultConfig()
+	p2pConfig.PrivateKey = p2pKey
 	node, err := p2p.NewNode(ctx, p2pConfig)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to start P2P")
 	}
 	_ = node
 	// Create peer discovery.
-	p2pIdentity := identity.DefaultP2P() // TODO this should only be called once
-	p2pKey, err := p2pIdentity.Get()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get peer ID")
-	}
 	peerDB, err := discovery.NewPeerDB(viper.GetString(config.KeyNodeDB), p2pConfig, p2pKey)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to open peer DB")

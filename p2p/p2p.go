@@ -22,6 +22,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	noise "github.com/libp2p/go-libp2p-noise"
+	"github.com/obolnetwork/charon/internal"
 	zerologger "github.com/rs/zerolog/log"
 )
 
@@ -49,8 +50,8 @@ func NewNode(ctx context.Context, cfg *Config) (*Node, error) {
 		libp2p.Security(noise.ID, noise.New),
 		// Set listen addresses.
 		libp2p.ListenAddrs(addrs...),
-		// TODO proper user agent.
-		libp2p.UserAgent("charon poc"),
+		// Set up user-agent.
+		libp2p.UserAgent("ObolNetwork-Charon/" + internal.ReleaseVersion),
 	}
 	// Create node.
 	h, err := libp2p.New(ctx, opts...)

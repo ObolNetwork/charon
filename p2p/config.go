@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/multiformats/go-multiaddr"
-	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/internal/config"
 	zerologger "github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
@@ -26,12 +25,9 @@ func DefaultConfig() *Config {
 	if err != nil {
 		zerologger.Fatal().Err(err).Msg("Failed to set up P2P")
 	}
-	p2pIdentity := identity.DefaultP2P()
-	p2pKey, err := p2pIdentity.Get()
 	c := &Config{
-		IPAddrs:    []net.IP{addr}, // TODO support multiple IPs
-		Port:       port,
-		PrivateKey: p2pKey,
+		IPAddrs: []net.IP{addr}, // TODO support multiple IPs
+		Port:    port,
 	}
 	return c
 }

@@ -1,6 +1,9 @@
 //go:build tools
 // +build tools
 
+// Package tools is ignored while building.
+//
+// It exists to pin packages/CLIs that are useful while building into go.mod.
 package tools
 
 import (
