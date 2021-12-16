@@ -52,6 +52,17 @@ func BLSPointFromHex(hexStr string) (kyber.Point, error) {
 	return p, nil
 }
 
+// MustBLSPointFromHex unwraps a hex serialization to a G1 or G2 point on the BLS12-381 curve.
+//
+// Panics if conversion fails.
+func MustBLSPointFromHex(hexStr string) kyber.Point {
+	point, err := BLSPointFromHex(hexStr)
+	if err != nil {
+		panic("invalid BLS point \"" + hexStr + "\": " + err.Error())
+	}
+	return point
+}
+
 // BLSPubkeyHex wraps a BLS public key with simplified hex serialization.
 type BLSPubkeyHex struct {
 	*bls.KyberG1
