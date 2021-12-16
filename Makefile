@@ -4,3 +4,11 @@ up:
 
 down:
 	@docker-compose down
+
+.PHONY: gen
+gen: buf-generate
+
+# Builds the Protobuf files using https://buf.build
+.PHONY: buf-generate
+buf-generate:
+	buf generate

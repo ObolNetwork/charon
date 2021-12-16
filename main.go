@@ -18,5 +18,5 @@ package main
 import "github.com/obolnetwork/charon/cmd"
 
 func main() {
-	cmd.Execute()
+	cmd.Main()
 }
