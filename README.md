@@ -50,6 +50,15 @@ In descending order, the Charon client checks the following places for client co
 - From the config file specified with the `-config-file` flag as YAML, e.g. `beacon-node: http://...`
 - From CLI params, e.g. `--beacon-node http://...`
 
+### Project structure
+
+Charon is written in [Go](https://golang.org/dl/). Notable dependencies:
+- [Go Ethereum](https://pkg.go.dev/github.com/ethereum/go-ethereum): Ethereum libraries
+- [Prysm](https://pkg.go.dev/github.com/prysmaticlabs/prysm): Eth2 libraries
+- [spf13/cobra](https://pkg.go.dev/github.com/spf13/cobra): CLI interface
+- [spf13/viper](https://pkg.go.dev/github.com/spf13/viper): Config management
+- [gRPC](https://grpc.io) and [gRPC-Gateway](https://grpc-ecosystem.github.io/grpc-gateway/): REST API interfaces
+
 ## Lessons Learned
 
 - I don't want to wait to sync a full testnet, what can I do?
