@@ -46,65 +46,23 @@ go build
 
 In descending order, the Charon client checks the following places for client configuration info:
 
-- As environment variables beginning with `CHARON_`, with hyphens substituted for underscores. e.g. `CHARON_BEACON_NODE=http://....`
-- Declared in a yaml file in `~/.charon.yaml`, e.g. `beacon-node: http://...`
-- Passed in as CLI params to the binary, e.g. `--beacon-node http://...`
+- From environment vars beginning with `CHARON_`, with hyphens substituted for underscores. e.g. `CHARON_BEACON_NODE=http://....`
+- From the config file specified with the `-config-file` flag as YAML, e.g. `beacon-node: http://...`
+- From CLI params, e.g. `--beacon-node http://...`
 
-## Repo Overview
+### Project structure
 
-Charon is built in [GoLang](https://golang.org/dl/), with [Cobra](https://cobra.dev/) managing its command line interfaces, and using [Viper](https://github.com/spf13/viper) for it's configuration management.
-
-### Folder Organisation
-
-#### api
-Contains files relating to charon's HTTP client and server API
-
-#### cmd
-Contains files relating to the command line commands and argument management. Uses [Cobra](https://cobra.dev/).
-
-#### config
-Handles the separation of argument parsing from external sources to parameter passing to internal processes. Allows charon processes to declare what parameters they need using the [Golang Functional Options Pattern](https://golang.cafe/blog/golang-functional-options-pattern.html). Uses Cobra's companion package [Viper](https://github.com/spf13/viper).
-
-#### internal
-Internal structs and services for the charon client, not intended to be interacted with directly by external consumers.
-
-#### local
-Config and data storage mount point for local developement of the charon client with docker-compose. 
-
-#### logging
-Helper file for setting log level and overriding zerolog config
-
-#### nginx
-Temporary middleman between validator and beacon clients for testing purposes
-
-## Deployment workflow
-
-- Checkout a branch and commit your work
-    - Use either a ticket as the branch name or namespace it with your name, e.g. `obol-231` or `oisin/feature`. 
-- Open a PR
-- Once CI passes it can be merged to `master`
-- Commits on master can be tagged for public release with a command like; `git tag -a v0.0.1 -m "Charon v0.0.1: Hello Acheron"`
-
-## To Do List
-- [x] Beacon client syncing
-- [ ] Validator client connected
-- [ ] Weak Subjectivity Working for faster syncs
-- [ ] Nginx pass through proxy server
-- [x] GoLang Process
-- [x] CI/CD to build and test GoLang process
-- [ ] Dockerised GoLang Process
-- [ ] GoLang process operating as a passthrough HTTP server
-- [ ] GoLang pass through proxy server
-- [ ] Multiple Validators and Proxy Servers
-- [ ] Test suite for DKG
-- [ ] Docker Compose file for running an SSV
-- [ ] Github CI for GoLang build of source
-- [ ] Github CI for Docker build
+Charon is written in [Go](https://golang.org/dl/). Notable dependencies:
+- [Go Ethereum](https://pkg.go.dev/github.com/ethereum/go-ethereum): Ethereum libraries
+- [Prysm](https://pkg.go.dev/github.com/prysmaticlabs/prysm): Eth2 libraries
+- [spf13/cobra](https://pkg.go.dev/github.com/spf13/cobra): CLI interface
+- [spf13/viper](https://pkg.go.dev/github.com/spf13/viper): Config management
+- [gRPC](https://grpc.io) and [gRPC-Gateway](https://grpc-ecosystem.github.io/grpc-gateway/): REST API interfaces
 
 ## Lessons Learned
 
 - I don't want to wait to sync a full testnet, what can I do?
-    - You can use what's called wak subjectivity sync, which basically accepts a checkpoint from another node and starts from there. You can get a checkpoint from infura by calling (with the appropriate env vars set):
+    - You can use what's called weak subjectivity sync, which basically accepts a checkpoint from another node and starts from there. You can get a checkpoint from infura by calling (with the appropriate env vars set):
     ```log
     curl https://${INFURA_PROJECT_ID}:${INFURA_PROJECT_SECRET}@eth2-beacon-prater.infura.io/eth/v1/beacon/states/finalized/finality_checkpoints
     ```
