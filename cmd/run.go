@@ -18,10 +18,11 @@ import (
 	"context"
 
 	"github.com/obolnetwork/charon/api/server"
+	"github.com/obolnetwork/charon/appctx"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/internal"
-	"github.com/obolnetwork/charon/internal/appctx"
 	"github.com/obolnetwork/charon/internal/config"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/spf13/cobra"
@@ -51,6 +52,16 @@ func runCharon(_ *cobra.Command, _ []string) {
 
 	log.Info().Str("version", internal.ReleaseVersion).Msg("Charon starting")
 
+	// Load known DV clusters.
+	manifests, err := cluster.LoadKnownClusters()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to load DV clusters")
+	}
+	log.Info().Msgf("Loaded %d DVs", len(manifests.Clusters()))
+	// Create connection gater.
+	connGater := p2p.NewConnGaterForClusters(manifests, nil)
+	log.Info().Msgf("Connecting to %d unique peers", len(connGater.PeerIDs))
+
 	// Create or retrieve our P2P identity key.
 	p2pIdentity := identity.DefaultP2P()
 	p2pKey, err := p2pIdentity.Get()
@@ -59,7 +70,7 @@ func runCharon(_ *cobra.Command, _ []string) {
 	}
 	// Create P2P client.
 	p2pConfig := p2p.DefaultConfig()
-	node, err := p2p.NewNode(appCtx, p2pConfig, p2pKey)
+	node, err := p2p.NewNode(appCtx, p2pConfig, p2pKey, connGater)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to start P2P")
 	}

@@ -34,7 +34,7 @@ type Node struct {
 }
 
 // NewNode starts the libp2p subsystem.
-func NewNode(ctx context.Context, cfg *Config, key *ecdsa.PrivateKey) (*Node, error) {
+func NewNode(ctx context.Context, cfg *Config, key *ecdsa.PrivateKey, connGater *ConnGater) (*Node, error) {
 	if key == nil {
 		return nil, fmt.Errorf("missing private key")
 	}
@@ -52,6 +52,8 @@ func NewNode(ctx context.Context, cfg *Config, key *ecdsa.PrivateKey) (*Node, er
 		libp2p.ListenAddrs(addrs...),
 		// Set up user-agent.
 		libp2p.UserAgent("ObolNetwork-Charon/" + internal.ReleaseVersion),
+		// Limit connections to DV peers.
+		libp2p.ConnectionGater(connGater),
 	}
 	// Create node.
 	h, err := libp2p.New(ctx, opts...)
