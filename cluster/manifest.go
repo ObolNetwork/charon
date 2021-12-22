@@ -10,8 +10,11 @@ import (
 	"strings"
 
 	"github.com/drand/kyber"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/rlp"
+	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/obolnetwork/charon/crypto"
 	"github.com/obolnetwork/charon/internal/config"
 	zerologger "github.com/rs/zerolog/log"
@@ -41,6 +44,47 @@ func (m *Manifest) ParsedENRs() ([]enr.Record, error) {
 		records[i] = *record
 	}
 	return records, nil
+}
+
+// PeerIDs maps ENRs to libp2p peer IDs.
+//
+// TODO This can be computed at deserialization-time.
+func (m *Manifest) PeerIDs() ([]peer.ID, error) {
+	records, err := m.ParsedENRs()
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]peer.ID, len(records))
+	for i, record := range records {
+		var err error
+		ids[i], err = PeerIDFromENR(&record)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return ids, nil
+}
+
+// PeerIDFromENR derives the libp2p peer ID from the secp256k1 public key encoded in the ENR.
+func PeerIDFromENR(record *enr.Record) (peer.ID, error) {
+	var pubkey enode.Secp256k1
+	if err := record.Load(&pubkey); err != nil {
+		recordStr, _ := EncodeENR(record)
+		zerologger.Warn().Err(err).
+			Str("enr", recordStr).
+			Msg("ENR missing secp256k1 field")
+		return "", err
+	}
+	p2pPubkey := libp2pcrypto.Secp256k1PublicKey(pubkey)
+	p2pID, err := peer.IDFromPublicKey(&p2pPubkey)
+	if err != nil {
+		recordStr, _ := EncodeENR(record)
+		zerologger.Warn().Err(err).
+			Str("enr", recordStr).
+			Msg("Failed to derive libp2p ID")
+		return "", err
+	}
+	return p2pID, nil
 }
 
 func EncodeENR(record *enr.Record) (string, error) {
@@ -93,7 +137,7 @@ func LoadKnownClustersFromDir(dir string) (KnownClusters, error) {
 		if !entry.Type().IsRegular() || !strings.HasSuffix(entry.Name(), clusterSuffix) {
 			continue
 		}
-		cluster, err := LoadCluster(filepath.Join(dir, entry.Name()))
+		cluster, err := LoadManifest(filepath.Join(dir, entry.Name()))
 		if err != nil {
 			zerologger.Warn().Err(err).Msg("Ignoring invalid cluster file")
 			continue
@@ -116,8 +160,8 @@ func (k KnownClusters) Clusters() map[string]*Manifest {
 	return k.clusters
 }
 
-// LoadCluster reads the cluster file from the given file path.
-func LoadCluster(filePath string) (*Manifest, error) {
+// LoadManifest reads the manifest file from the given file path.
+func LoadManifest(filePath string) (*Manifest, error) {
 	buf, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err

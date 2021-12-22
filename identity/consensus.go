@@ -18,6 +18,7 @@ package identity
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,7 +27,6 @@ import (
 	bls12381 "github.com/drand/kyber-bls12381"
 	crypto2 "github.com/obolnetwork/charon/crypto"
 	"github.com/obolnetwork/charon/internal/config"
-	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 )
 

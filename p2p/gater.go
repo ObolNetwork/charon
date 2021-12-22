@@ -1,11 +1,9 @@
 package p2p
 
 import (
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/libp2p/go-libp2p-core/connmgr"
 	"github.com/libp2p/go-libp2p-core/control"
-	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -25,30 +23,15 @@ var _ connmgr.ConnectionGater = (*ConnGater)(nil)
 func NewConnGaterForClusters(clusters cluster.KnownClusters, networks *netutil.Netlist) *ConnGater {
 	peerIDs := make(map[peer.ID]struct{})
 	for _, manifest := range clusters.Clusters() {
-		enrs, err := manifest.ParsedENRs()
+		clusterPeerIDs, err := manifest.PeerIDs()
 		if err != nil {
 			// TODO how to appropriately handle a broken manifest in P2P?
 			zerologger.Warn().Err(err).Msg("Broken DV manifest")
 			continue
 		}
 		// Map ENRs to libp2p peer IDs.
-		for i, record := range enrs {
-			var pubkey enode.Secp256k1
-			if err := record.Load(&pubkey); err != nil {
-				zerologger.Warn().Err(err).
-					Str("enr", manifest.ENRs[i]).
-					Msg("ENR missing secp256k1 field")
-				continue
-			}
-			p2pPubkey := libp2pcrypto.Secp256k1PublicKey(pubkey)
-			p2pID, err := peer.IDFromPublicKey(&p2pPubkey)
-			if err != nil {
-				zerologger.Warn().Err(err).
-					Str("enr", manifest.ENRs[i]).
-					Msg("Failed to derive libp2p ID")
-				continue
-			}
-			peerIDs[p2pID] = struct{}{}
+		for _, peerID := range clusterPeerIDs {
+			peerIDs[peerID] = struct{}{}
 		}
 	}
 	return &ConnGater{

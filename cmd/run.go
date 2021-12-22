@@ -18,11 +18,11 @@ import (
 	"context"
 
 	"github.com/obolnetwork/charon/api/server"
+	"github.com/obolnetwork/charon/appctx"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/internal"
-	"github.com/obolnetwork/charon/internal/appctx"
 	"github.com/obolnetwork/charon/internal/config"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/spf13/cobra"
