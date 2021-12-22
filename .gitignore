@@ -149,3 +149,7 @@ ormconfig.json
 *.backup
 charon
 keys/
+
+# Data files
+nodedb
+nodekey

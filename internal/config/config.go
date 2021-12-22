@@ -29,7 +29,8 @@ const (
 	KeyConfigFile  = "config-file"
 	KeyBeaconNode  = "beacon-node"
 	KeyLogLevel    = "log-level"
-	KeyAPI         = "api"
+	KeyListen      = "listen"
+	KeyListenAPI   = "listen-api"
 	KeyVerbose     = "verbose"
 	KeyValidators  = "validators"
 )
@@ -59,8 +60,11 @@ func CommonFlags(flags *pflag.FlagSet) {
 	flags.String(KeyLogLevel, "info", "Default log level")
 	MustBindPFlag(KeyLogLevel, flags)
 
-	flags.String(KeyAPI, ":8088", "Control-plane API listen address")
-	MustBindPFlag(KeyAPI, flags)
+	flags.String(KeyListen, ":8087", "Beacon validator API listen address")
+	MustBindPFlag(KeyListen, flags)
+
+	flags.String(KeyListenAPI, ":8088", "Control-plane API listen address")
+	MustBindPFlag(KeyListenAPI, flags)
 
 	flags.Bool(KeyVerbose, false, "Verbose output?")
 	MustBindPFlag(KeyVerbose, flags)

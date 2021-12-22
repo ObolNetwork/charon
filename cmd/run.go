@@ -24,6 +24,7 @@ import (
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/internal"
 	"github.com/obolnetwork/charon/internal/config"
+	"github.com/obolnetwork/charon/middleware"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -85,21 +86,37 @@ func runCharon(_ *cobra.Command, _ []string) {
 	appGroup.Go(discoveryNode.Listen)
 
 	// Create internal API handler.
-	handler := &server.Handler{
+	apiHandler := &server.Handler{
 		PeerDB: peerDB,
 		Node:   node,
 	}
 	// Start internal API server.
-	if intAddr := viper.GetString(config.KeyAPI); intAddr != "" {
+	if intAddr := viper.GetString(config.KeyListenAPI); intAddr != "" {
 		appGroup.Go(func() error {
 			err := server.Run(appCtx, server.Options{
 				Addr:    intAddr,
-				Handler: handler,
+				Handler: apiHandler,
 				Log:     log.With().Str("component", "api").Logger(),
 			})
 			return err
 		})
 	}
+
+	// Create DVC middleware server.
+	dvHandler, err := middleware.NewMiddleware(
+		viper.GetString(config.KeyListen),
+		viper.GetString(config.KeyBeaconNode),
+		log.With().Str("component", "middleware").Logger(),
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to construct middleware")
+	}
+	appGroup.Go(dvHandler.ListenAndServe)
+	go func() {
+		// TODO this should be fixed to initiate shutdown on Ctrl+C, but actually wait for services to exit
+		defer dvHandler.Shutdown(exitCtx)
+		<-appCtx.Done()
+	}()
 
 	// Wait for services to exit gracefully or fail.
 	if err := appGroup.Wait(); err != nil {

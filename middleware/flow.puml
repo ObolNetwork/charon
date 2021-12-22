@@ -1,0 +1,30 @@
+@startuml
+title DVC Request Flow
+
+node VC
+node Charon as Charon1 {
+    component Server
+    component Router
+    component Upstream
+    component Handler
+    component Controller
+    component P2P as P2P1
+}
+
+node Charon as Charon2 #line.dotted {
+    component P2P as P2P2
+}
+node BN
+
+VC -> Server
+Server -> Router
+Router -> Upstream
+Upstream -> BN
+
+Router --> Handler
+Handler -> Controller
+BN <-- Controller
+Controller --> P2P1
+
+P2P1 <--> P2P2
+@enduml
