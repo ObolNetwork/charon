@@ -28,8 +28,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// TODO Middleware has to ensure forward-compatibility by blocking newer/unknown API revisions such as /eth/v2.
-
 // Middleware composes the Charon middleware stack.
 type Middleware struct {
 	Eth2Client   eth2client.Service     // Go client to beacon node
@@ -65,7 +63,8 @@ func NewMiddleware(listenAddr string, beaconURL string, log zerolog.Logger) (*Mi
 	reverseProxy := httputil.NewSingleHostReverseProxy(beaconURLParsed)
 	// Create router.
 	overridePaths := handler.APIPaths()
-	router := NewRouter(reverseProxy, restHandler, overridePaths)
+	basePath := "/eth/v1/"
+	router := NewRouter(reverseProxy, restHandler, basePath, overridePaths)
 	// Create and start server.
 	server := &http.Server{
 		Addr:     listenAddr,

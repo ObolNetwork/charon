@@ -27,9 +27,9 @@ type Router struct {
 
 // NewRouter creates a new request router given a base handler and an override handler,
 // which responds to the given list of paths.
-func NewRouter(base http.Handler, override http.Handler, overridePaths []string) *Router {
+func NewRouter(base http.Handler, override http.Handler, basePath string, overridePaths []string) *Router {
 	mux := http.NewServeMux()
-	mux.Handle("/", base)
+	mux.Handle(basePath, base)
 	for _, p := range overridePaths {
 		mux.Handle(p, override)
 	}
