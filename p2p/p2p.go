@@ -15,7 +15,6 @@
 package p2p
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"fmt"
 
@@ -34,7 +33,7 @@ type Node struct {
 }
 
 // NewNode starts the libp2p subsystem.
-func NewNode(ctx context.Context, cfg *Config, key *ecdsa.PrivateKey, connGater *ConnGater) (*Node, error) {
+func NewNode(cfg *Config, key *ecdsa.PrivateKey, connGater *ConnGater) (*Node, error) {
 	if key == nil {
 		return nil, fmt.Errorf("missing private key")
 	}
@@ -56,7 +55,7 @@ func NewNode(ctx context.Context, cfg *Config, key *ecdsa.PrivateKey, connGater 
 		libp2p.ConnectionGater(connGater),
 	}
 	// Create node.
-	h, err := libp2p.New(ctx, opts...)
+	h, err := libp2p.New(opts...)
 	if err != nil {
 		return nil, err
 	}
