@@ -70,7 +70,7 @@ func runCharon(_ *cobra.Command, _ []string) {
 	}
 	// Create P2P client.
 	p2pConfig := p2p.DefaultConfig()
-	node, err := p2p.NewNode(appCtx, p2pConfig, p2pKey, connGater)
+	node, err := p2p.NewNode(p2pConfig, p2pKey, connGater)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to start P2P")
 	}
