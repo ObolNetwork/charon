@@ -6,7 +6,7 @@ require (
 	github.com/ethereum/go-ethereum v1.10.10
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.1
 	github.com/libp2p/go-libp2p v0.15.1
-	github.com/libp2p/go-libp2p-core v0.9.0
+	github.com/libp2p/go-libp2p-core v0.13.0
 	github.com/libp2p/go-libp2p-noise v0.2.2
 	github.com/multiformats/go-multiaddr v0.5.0
 	github.com/pkg/errors v0.9.1 // indirect
