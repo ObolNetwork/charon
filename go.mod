@@ -7,7 +7,7 @@ require (
 	github.com/drand/kyber-bls12381 v0.2.1
 	github.com/ethereum/go-ethereum v1.10.10
 	github.com/golang/protobuf v1.5.2
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.0-00010101000000-000000000000
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.1
 	github.com/libp2p/go-libp2p v0.17.0
 	github.com/libp2p/go-libp2p-core v0.13.0
 	github.com/libp2p/go-libp2p-noise v0.3.0
@@ -131,7 +131,7 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
-	github.com/prysmaticlabs/prysm v1.3.9
+	github.com/prysmaticlabs/prysm v1.4.4
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sirupsen/logrus v1.6.0 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
