@@ -42,7 +42,7 @@ require (
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/common v0.32.1 // indirect
-	github.com/prysmaticlabs/prysm/v2 v2.0.1 // indirect
+	github.com/prysmaticlabs/prysm/v2 v2.0.1
 	github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.2.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.20.0 // indirect
