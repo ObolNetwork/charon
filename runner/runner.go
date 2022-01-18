@@ -1,3 +1,4 @@
+// Package runner provides the top app-level abstraction and entrypoint for a charon DVC instance.
 package runner
 
 import (
