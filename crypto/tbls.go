@@ -21,6 +21,8 @@ import (
 	"github.com/drand/kyber"
 	"github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/share"
+	"github.com/drand/kyber/sign"
+	"github.com/drand/kyber/sign/tbls"
 	"github.com/drand/kyber/util/random"
 )
 
@@ -94,4 +96,9 @@ func NewTBLSPoly(t int) (*share.PriPoly, *share.PubPoly) {
 	pub := pri.Commit(BLSKeyGroup.Point().Base())
 
 	return pri, pub
+}
+
+// NewTBLSScheme creates a new threshold scheme based on drand's Threshold Scheme
+func NewTBLSScheme() sign.ThresholdScheme {
+	return tbls.NewThresholdSchemeOnG2(BLSPairing)
 }
