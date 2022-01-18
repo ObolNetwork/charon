@@ -4,15 +4,17 @@ package runner
 import (
 	"context"
 	"fmt"
+	"path"
+	"time"
+
+	zerologger "github.com/rs/zerolog/log"
+
 	"github.com/obolnetwork/charon/api/server"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/internal"
 	"github.com/obolnetwork/charon/p2p"
-	zerologger "github.com/rs/zerolog/log"
-	"path"
-	"time"
 )
 
 // log is a convenience handle to the global logger.
@@ -36,6 +38,8 @@ func Run(shutdownCtx context.Context, conf Config) error {
 	nodekey := path.Join(conf.DataDir, nodekeyFile)
 
 	log.Info().Str("version", internal.ReleaseVersion).Msg("Charon starting")
+	versionGauge.WithLabelValues(internal.ReleaseVersion).Set(1)
+	startGauge.SetToCurrentTime()
 
 	// Construct processes and their dependencies
 
