@@ -6,6 +6,7 @@ import (
 	"github.com/prysmaticlabs/prysm/v2/beacon-chain/core/signing"
 	"github.com/prysmaticlabs/prysm/v2/encoding/bytesutil"
 	ethpb "github.com/prysmaticlabs/prysm/v2/proto/eth/v1"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTBLSAggregation(t *testing.T) {
@@ -20,14 +21,12 @@ func TestTBLSAggregation(t *testing.T) {
 	}
 
 	signingRoot, err := signing.ComputeSigningRoot(attestationData, make([]byte, 32))
-	if err != nil {
-		t.Fatal("Error in signing root: ", err)
-	}
+	require.NoError(t, err)
 
 	// Creating Threshold BLS Key shares
 	threshold := 3
 	numberOfShares := 5
-	priPoly, pubPoly := NewTBLSPoly(uint(threshold))
+	priPoly, pubPoly := NewTBLSPoly(threshold)
 	priKeyShares := priPoly.Shares(numberOfShares)
 	pubKeyShares := pubPoly.Shares(numberOfShares)
 	for _, priKeyShare := range priKeyShares {

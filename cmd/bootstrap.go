@@ -90,7 +90,7 @@ func (k *keygen) run() {
 	// Get password from file or prompt.
 	k.getPassword()
 	// Create "root" BLS key and polynomials.
-	priPoly, pubPoly := crypto.NewTBLSPoly(k.t)
+	priPoly, pubPoly := crypto.NewTBLSPoly(int(k.t))
 	pubkey := pubPoly.Commit()
 	pubkeyHex := crypto.BLSPointToHex(pubkey)
 	fmt.Println("Public key:", pubkeyHex)

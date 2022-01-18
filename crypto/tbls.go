@@ -86,10 +86,12 @@ func (t TBLSSchemeEncoded) Decode() (*TBLSScheme, error) {
 
 // NewTBLSPoly creates a new secret sharing polynomial for a BLS12-381 threshold signature scheme.
 // Note that this function is not particularly secure as it constructs the root key in memory.
-func NewTBLSPoly(t uint) (*share.PriPoly, *share.PubPoly) {
+// t represents the threshold number of shares to sign a message
+func NewTBLSPoly(t int) (*share.PriPoly, *share.PubPoly) {
 	stream := random.New()
 	secret := BLSKeyGroup.Scalar().Pick(stream)
-	pri := share.NewPriPoly(BLSKeyGroup, int(t), secret, stream)
+	pri := share.NewPriPoly(BLSKeyGroup, t, secret, stream)
 	pub := pri.Commit(BLSKeyGroup.Point().Base())
+
 	return pri, pub
 }
