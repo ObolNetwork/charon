@@ -36,4 +36,11 @@ func TestTBLSAggregation(t *testing.T) {
 		t.Log("Public key share: ", *pubKeyShare)
 	}
 	t.Log("Signing Root: ", signingRoot)
+
+	// Next steps would be:
+	// 1. Sign the signing root with different key shares with all possible
+	//    combinations of threshold.
+	// 2. Create the signed attestations with partial signatures from Step 1.
+	// 3. Merge Signed attestations while aggregating signatures into a final attestation.
+	// 4. Verify the Final Signed attestation from prysm's BLS library
 }
