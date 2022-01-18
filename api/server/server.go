@@ -17,11 +17,14 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/obolnetwork/charon/api"
+	"github.com/obolnetwork/charon/discovery"
+	"github.com/obolnetwork/charon/p2p"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 )
@@ -39,37 +42,54 @@ func Run(ctx context.Context, opts Options) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	srv, err := New(opts.Handler.PeerDB, opts.Handler.Node, opts.Addr)
+	if err != nil {
+		return fmt.Errorf("new monitoring server: %w", err)
+	}
+
 	log := opts.Log
 
-	// Set up endpoints.
-	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
-	// Set up gRPC-Gateway integrations.
-	gmux := gwruntime.NewServeMux()
-	if err := api.RegisterControlPlaneHandlerServer(ctx, gmux, opts.Handler); err != nil {
-		return err
-	}
-	mux.Handle("/", gmux)
-
-	s := &http.Server{
-		Addr:    opts.Addr,
-		Handler: mux,
-	}
 	// Install shutdown hook.
 	go func() {
 		<-ctx.Done()
 		log.Info().Msg("Shutting down HTTP server")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if err := s.Shutdown(ctx); err != nil {
+		if err := srv.Shutdown(ctx); err != nil {
 			log.Error().Err(err).Msg("Failed to shutdown HTTP server")
 		}
 	}()
+
 	// Start server and block.
 	log.Info().Msgf("Starting HTTP server at %s", opts.Addr)
-	if err := s.ListenAndServe(); err != http.ErrServerClosed {
+	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		log.Error().Err(err).Msg("HTTP server failed")
 		return err
 	}
+
 	return nil
+}
+
+func New(peerDB *discovery.Peers, p2pNode *p2p.Node, addr string) (*http.Server, error) {
+
+	// Set up gRPC-Gateway integrations.
+	// TODO(corver): Move this to validatorapi
+	handler := Handler{
+		PeerDB: peerDB,
+		Node:   p2pNode,
+	}
+	gmux := gwruntime.NewServeMux()
+	if err := api.RegisterControlPlaneHandlerServer(nil, gmux, handler); err != nil {
+		return nil, err
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/", gmux)
+	mux.Handle("/metrics", promhttp.Handler())
+	// TODO(corver): Add pprof
+
+	return &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}, nil
 }

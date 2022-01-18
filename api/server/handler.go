@@ -33,7 +33,7 @@ type Handler struct {
 	api.UnimplementedControlPlaneServer
 }
 
-func (h *Handler) GetSelf(_ context.Context, _ *api.GetSelfRequest) (*api.GetSelfResponse, error) {
+func (h Handler) GetSelf(_ context.Context, _ *api.GetSelfRequest) (*api.GetSelfResponse, error) {
 	r := &api.GetSelfResponse{
 		Peer: &api.Peer{
 			PeerId:  h.PeerDB.Local.ID().String(),
