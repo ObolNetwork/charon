@@ -95,7 +95,7 @@ func (k *keygen) run() {
 	pubkeyHex := crypto.BLSPointToHex(pubkey)
 	fmt.Println("Public key:", pubkeyHex)
 	// Save public polynomials (required to recover root sig from sig shares).
-	scheme := &crypto.TBLSScheme{PubPoly: pubPoly}
+	scheme := &crypto.TBLSParams{PubPoly: pubPoly}
 	k.mkOutdir()
 	k.saveScheme(scheme, pubkeyHex)
 	// Create private key shares.
@@ -142,12 +142,8 @@ func (k *keygen) mkOutdir() {
 	}
 }
 
-func (k *keygen) saveScheme(scheme *crypto.TBLSScheme, pubkeyHex string) {
-	enc, err := scheme.Encode()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to encode threshold BLS scheme info")
-	}
-	buf, err := json.MarshalIndent(enc, "", "\t")
+func (k *keygen) saveScheme(scheme *crypto.TBLSParams, pubkeyHex string) {
+	buf, err := json.MarshalIndent(scheme, "", "\t")
 	if err != nil {
 		panic(err.Error())
 	}
@@ -164,14 +160,14 @@ func (k *keygen) keyPath(pubkeyHex string, i int) string {
 	return filepath.Join(k.outDir, name)
 }
 
-func (k *keygen) saveKeys(scheme *crypto.TBLSScheme, priShares []*share.PriShare, pubkeyHex string) {
+func (k *keygen) saveKeys(scheme *crypto.TBLSParams, priShares []*share.PriShare, pubkeyHex string) {
 	fmt.Println("Saving keys to", k.keyPath(pubkeyHex, 0))
 	for _, priShare := range priShares {
 		k.saveKey(scheme, priShare, k.keyPath(pubkeyHex, priShare.I))
 	}
 }
 
-func (k *keygen) saveKey(scheme *crypto.TBLSScheme, priShare *share.PriShare, path string) {
+func (k *keygen) saveKey(scheme *crypto.TBLSParams, priShare *share.PriShare, path string) {
 	item, err := crypto.TBLSShareToKeystore(scheme, priShare, k.password)
 	if err != nil {
 		log.Fatal().Err(err).Int("key_share", priShare.I).Msg("Failed to create keystore for private key share")

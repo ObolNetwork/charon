@@ -21,7 +21,7 @@ func TestManifestJSON(t *testing.T) {
 	// Create new random manifest.
 	_, pubPoly := crypto.NewTBLSPoly(3)
 	manifest := Manifest{
-		TSS:     crypto.TBLSScheme{PubPoly: pubPoly},
+		TSS:     crypto.TBLSParams{PubPoly: pubPoly},
 		Members: make([]crypto.BLSPubkeyHex, 4),
 		ENRs:    make([]string, 4),
 	}

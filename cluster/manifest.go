@@ -23,7 +23,7 @@ import (
 
 // Manifest captures the public cryptographic and networking info required to connect to a DV cluster.
 type Manifest struct {
-	TSS     crypto.TBLSScheme     `json:"tss"`     // Threshold signature scheme params
+	TSS     crypto.TBLSParams     `json:"tss"`     // Threshold signature scheme params
 	Members []crypto.BLSPubkeyHex `json:"members"` // DV consensus BLS pubkeys
 	ENRs    []string              `json:"enrs"`    // Charon peer ENRs
 }
