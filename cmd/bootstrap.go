@@ -21,9 +21,10 @@ import (
 	"path/filepath"
 
 	"github.com/drand/kyber/share"
-	"github.com/obolnetwork/charon/crypto"
-	prompt "github.com/prysmaticlabs/prysm/shared/promptutil"
+	"github.com/prysmaticlabs/prysm/v2/io/prompt"
 	"github.com/spf13/cobra"
+
+	"github.com/obolnetwork/charon/crypto"
 )
 
 var bootstrapCmd = cobra.Command{

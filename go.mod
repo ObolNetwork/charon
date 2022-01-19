@@ -15,7 +15,6 @@ require (
 	github.com/multiformats/go-multiaddr v0.5.0
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prysmaticlabs/eth2-types v0.0.0-20210303084904-c9735a06829d
-	github.com/prysmaticlabs/prysm v1.4.4
 	github.com/prysmaticlabs/prysm/v2 v2.0.1
 	github.com/rs/zerolog v1.26.1
 	github.com/spf13/cobra v1.3.0
