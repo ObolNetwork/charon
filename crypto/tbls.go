@@ -19,8 +19,10 @@ import (
 	"fmt"
 
 	"github.com/drand/kyber"
-	"github.com/drand/kyber-bls12381"
+	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/share"
+	_ "github.com/drand/kyber/sign"
+	_ "github.com/drand/kyber/sign/tbls"
 	"github.com/drand/kyber/util/random"
 )
 
