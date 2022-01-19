@@ -3,6 +3,7 @@ module github.com/obolnetwork/charon
 go 1.17
 
 require (
+	github.com/attestantio/go-eth2-client v0.9.4
 	github.com/drand/kyber v1.1.9
 	github.com/drand/kyber-bls12381 v0.2.1
 	github.com/ethereum/go-ethereum v1.10.10
@@ -13,6 +14,7 @@ require (
 	github.com/libp2p/go-libp2p-noise v0.3.0
 	github.com/multiformats/go-multiaddr v0.5.0
 	github.com/prysmaticlabs/eth2-types v0.0.0-20210303084904-c9735a06829d
+	github.com/prysmaticlabs/go-bitfield v0.0.0-20210809151128-385d8c5e3fb7
 	github.com/prysmaticlabs/prysm v1.4.4
 	github.com/rs/zerolog v1.26.1
 	github.com/spf13/cobra v1.3.0
@@ -24,6 +26,12 @@ require (
 	google.golang.org/grpc v1.43.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0
 	google.golang.org/protobuf v1.27.1
+)
+
+require (
+	github.com/fatih/color v1.13.0 // indirect
+	github.com/goccy/go-yaml v1.8.9 // indirect
+	github.com/mattn/go-colorable v0.1.12 // indirect
 )
 
 // See https://github.com/prysmaticlabs/grpc-gateway/issues/2

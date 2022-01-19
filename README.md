@@ -54,6 +54,7 @@ In descending order, the Charon client checks the following places for client co
 
 Charon is written in [Go](https://golang.org/dl/). Notable dependencies:
 - [Go Ethereum](https://pkg.go.dev/github.com/ethereum/go-ethereum): Ethereum libraries
+- [Attestant go-eth2-client](github.com/attestantio/go-eth2-client): Eth2 libraries
 - [Prysm](https://pkg.go.dev/github.com/prysmaticlabs/prysm): Eth2 libraries
 - [spf13/cobra](https://pkg.go.dev/github.com/spf13/cobra): CLI interface
 - [spf13/viper](https://pkg.go.dev/github.com/spf13/viper): Config management
