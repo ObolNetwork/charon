@@ -26,6 +26,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+// TODO(corver): Refactor this to just functions (not OO) like Create, Load, LoadOrCreate, remove Must.
+
 // P2PStore stores the P2P identity key.
 type P2PStore struct {
 	KeyPath string
