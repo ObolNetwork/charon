@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strconv"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
@@ -46,23 +45,13 @@ func wrapAttesterDuties(h Handler) http.HandlerFunc {
 			params = struct {
 				Epoch eth2p0.Epoch `json:"epoch,string"`
 			}{}
-			indexes []string // TODO(corver): Need a better way to specify stringed json ints.
+			reqBody attesterDutiesRequest
 		)
-		if ok := parseReq(w, r, &params, &indexes); !ok {
+		if ok := parseReq(w, r, &params, &reqBody); !ok {
 			return
 		}
 
-		var il []eth2p0.ValidatorIndex
-		for _, index := range indexes {
-			i, err := strconv.ParseUint(index, 10, 64)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, fmt.Errorf("invalid validator index"))
-				return
-			}
-			il = append(il, eth2p0.ValidatorIndex(i))
-		}
-
-		data, err := h.AttesterDuties(r.Context(), params.Epoch, il)
+		data, err := h.AttesterDuties(r.Context(), params.Epoch, reqBody)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
