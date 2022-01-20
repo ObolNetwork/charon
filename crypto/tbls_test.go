@@ -26,16 +26,31 @@ func TestTBLSAggregation(t *testing.T) {
 	// Creating Threshold BLS Key shares
 	threshold := 3
 	numberOfShares := 5
-	priPoly, pubPoly := NewTBLSPoly(threshold)
-	priKeyShares := priPoly.Shares(numberOfShares)
-	pubKeyShares := pubPoly.Shares(numberOfShares)
-	for _, priKeyShare := range priKeyShares {
-		t.Log("Private key share: ", *priKeyShare)
-	}
-	for _, pubKeyShare := range pubKeyShares {
-		t.Log("Public key share: ", *pubKeyShare)
-	}
-	t.Log("Signing Root: ", signingRoot)
+	tblsScheme := NewTBLSScheme()
+
+	t.Run("Sharing and recovering", func(tt *testing.T) {
+		priPoly, pubPoly := NewTBLSPoly(threshold)
+		priKeyShares := priPoly.Shares(numberOfShares)
+		sigShares := make([][]byte, 0)
+
+		for _, priKeyShare := range priKeyShares {
+			sig, err := tblsScheme.Sign(priKeyShare, signingRoot[:])
+			require.Nil(tt, err)
+			require.Nil(tt, tblsScheme.VerifyPartial(pubPoly, signingRoot[:], sig))
+
+			idx, err := tblsScheme.IndexOf(sig)
+			require.NoError(tt, err)
+			require.Equal(tt, priKeyShare.I, idx)
+
+			sigShares = append(sigShares, sig)
+		}
+
+		sig, err := tblsScheme.Recover(pubPoly, signingRoot[:], sigShares, threshold, numberOfShares)
+		require.Nil(tt, err)
+
+		err = tblsScheme.VerifyRecovered(pubPoly.Commit(), signingRoot[:], sig)
+		require.Nil(tt, err)
+	})
 
 	// Next steps would be:
 	// 1. Sign the signing root with different key shares with all possible
