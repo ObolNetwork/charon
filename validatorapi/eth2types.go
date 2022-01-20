@@ -16,14 +16,7 @@ type errorResponse struct {
 	// TODO(corver): Maybe add stacktraces field for debugging.
 }
 
-// attesterDutiesResponse defines the response to the getAttesterDuties endpoint.
-// See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getAttesterDuties.
-type attesterDutiesResponse struct {
-	DependentRoot eth2p0.Root            `json:"dependent_root"`
-	Data          []*eth2v1.AttesterDuty `json:"data"`
-}
-
-// attesterDutiesRequest defines the request to the getAttesterDuties endpoint.
+// attesterDutiesRequest defines the request to the getAttesterDuties and getProposerDuties endpoint.
 // See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getAttesterDuties.
 type attesterDutiesRequest []eth2p0.ValidatorIndex
 
@@ -43,4 +36,18 @@ func (r *attesterDutiesRequest) UnmarshalJSON(bytes []byte) error {
 	}
 
 	return nil
+}
+
+// attesterDutiesResponse defines the response to the getAttesterDuties endpoint.
+// See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getAttesterDuties.
+type attesterDutiesResponse struct {
+	DependentRoot eth2p0.Root            `json:"dependent_root"`
+	Data          []*eth2v1.AttesterDuty `json:"data"`
+}
+
+// proposerDutiesResponse defines the response to the getAttesterDuties endpoint.
+// See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getProposerDuties.
+type proposerDutiesResponse struct {
+	DependentRoot eth2p0.Root            `json:"dependent_root"`
+	Data          []*eth2v1.ProposerDuty `json:"data"`
 }

@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"strconv"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
 	zerologger "github.com/rs/zerolog/log"
@@ -34,6 +35,7 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 
 	// Register subset of distributed validator related endpoints
 	r.Handle("/eth/v1/validator/duties/attester/{epoch}", wrap(attesterDuties(h)))
+	r.Handle("/eth/v1/validator/duties/proposer/{epoch}", wrap(proposerDuties(h)))
 	// TODO(corver): Add more endpoints
 
 	// Everything else is proxied
@@ -81,7 +83,31 @@ func wrap(handler handlerFunc) http.HandlerFunc {
 	}
 }
 
-func attesterDuties(h Handler) handlerFunc {
+// proposerDuties returns a handler function for the proposer duty endpoint.
+func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, body []byte) (interface{}, error) {
+
+		epoch, err := uintParam(params, "epoch")
+		if err != nil {
+			return nil, err
+		}
+
+		// Note the ProposerDutiesProvider interface adds some sugar to the official spec.
+		// ValidatorIndices aren't provided over the wire.
+		data, err := p.ProposerDuties(ctx, eth2p0.Epoch(epoch), nil)
+		if err != nil {
+			return nil, err
+		}
+
+		return proposerDutiesResponse{
+			DependentRoot: eth2p0.Root{}, // TODO(corver): Fill this
+			Data:          data,
+		}, nil
+	}
+}
+
+// attesterDuties returns a handler function for the attester duty endpoint.
+func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, body []byte) (interface{}, error) {
 
 		var req attesterDutiesRequest
@@ -94,7 +120,7 @@ func attesterDuties(h Handler) handlerFunc {
 			return nil, err
 		}
 
-		data, err := h.AttesterDuties(ctx, eth2p0.Epoch(epoch), req)
+		data, err := p.AttesterDuties(ctx, eth2p0.Epoch(epoch), req)
 		if err != nil {
 			return nil, err
 		}
@@ -170,12 +196,20 @@ func writeError(w http.ResponseWriter, err error) {
 // unmarshal parses the JSON-encoded request body and stores the result
 // in the value pointed to by v.
 func unmarshal(body []byte, v interface{}) error {
+	if len(body) == 0 {
+		return apiErr{
+			StatusCode:    http.StatusBadRequest,
+			Message: "empty request body",
+			Err:     errors.New("empty request body"),
+		}
+	}
+
 	err := json.Unmarshal(body, v)
 	if err != nil {
 		return apiErr{
-			StatusCode: http.StatusBadRequest,
-			Message:    "failed parsing request body",
-			Err:        err,
+			StatusCode:    http.StatusBadRequest,
+			Message: "failed parsing request body",
+			Err:     err,
 		}
 	}
 
