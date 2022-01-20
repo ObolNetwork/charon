@@ -33,6 +33,7 @@ type Node struct {
 }
 
 // NewNode starts the libp2p subsystem.
+// TODO(corver): Remove pointer to config.
 func NewNode(cfg *Config, key *ecdsa.PrivateKey, connGater *ConnGater) (*Node, error) {
 	if key == nil {
 		return nil, fmt.Errorf("missing private key")

@@ -76,7 +76,7 @@ func BLSKeyPairToKeystore(scalar kyber.Scalar, pubkey kyber.Point, password stri
 // TBLSShareToKeystore constructs a new keystore from a threshold BLS private key share.
 //
 // Prints the public key as a side effect.
-func TBLSShareToKeystore(scheme *TBLSScheme, priPoly *share.PriShare, password string) (*Keystore, error) {
+func TBLSShareToKeystore(scheme *TBLSParams, priPoly *share.PriShare, password string) (*Keystore, error) {
 	pubShare := DerivePubkey(priPoly.V)
 	pubShareHex := BLSPointToHex(pubShare)
 	fmt.Printf("Share #%04d pubkey: %s\n", priPoly.I, pubShareHex)

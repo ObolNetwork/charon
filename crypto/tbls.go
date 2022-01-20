@@ -26,24 +26,25 @@ import (
 	"github.com/drand/kyber/util/random"
 )
 
-// TBLSScheme wraps drand/share.PubPoly, the public commitments of a BLS secret sharing scheme
+// TBLSParams wraps drand/share.PubPoly, the public commitments of a BLS secret sharing scheme
 // required to recover BLS threshold signatures from signature shares.
-type TBLSScheme struct {
+type TBLSParams struct {
 	*share.PubPoly
+	N int
 }
 
 // Pubkey returns the BLS public key.
-func (t *TBLSScheme) Pubkey() kyber.Point {
+func (t *TBLSParams) Pubkey() kyber.Point {
 	return t.PubPoly.Commit()
 }
 
 // UnmarshalJSON deserializes a TBLS scheme from JSON.
-func (t *TBLSScheme) UnmarshalJSON(data []byte) error {
-	var encoded TBLSSchemeEncoded
+func (t *TBLSParams) UnmarshalJSON(data []byte) error {
+	var encoded tblsParamsEncoded
 	if err := json.Unmarshal(data, &encoded); err != nil {
 		return fmt.Errorf("failed to unmarshal TBLS scheme: %w", err)
 	}
-	decoded, err := encoded.Decode()
+	decoded, err := encoded.decode()
 	if err != nil {
 		return fmt.Errorf("failed to decode TBLS scheme: %w", err)
 	}
@@ -52,38 +53,46 @@ func (t *TBLSScheme) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalJSON serializes a TBLS scheme to JSON.
-func (t *TBLSScheme) MarshalJSON() ([]byte, error) {
-	encoded, err := t.Encode()
+func (t *TBLSParams) MarshalJSON() ([]byte, error) {
+	encoded, err := t.encode()
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode TBLS scheme: %w", err)
 	}
 	return json.Marshal(encoded)
 }
 
-// TBLSSchemeEncoded is the serialized form of TBLSScheme suitable for JSON encoding.
-type TBLSSchemeEncoded []BLSPubkeyHex
+// tblsParamsEncoded is the serialized form of TBLSParams suitable for JSON encoding.
+type tblsParamsEncoded struct {
+	Commits []BLSPubkeyHex `json:"commits"`
+	N       int            `json:"n"`
+}
 
-// Encode serializes cryptographic data.
-func (t *TBLSScheme) Encode() (TBLSSchemeEncoded, error) {
+// encode serializes cryptographic data.
+func (t *TBLSParams) encode() (*tblsParamsEncoded, error) {
 	base, commits := t.Info()
 	if !base.Equal(BLSKeyGroup.Point().Base()) {
 		return nil, fmt.Errorf("pubkey commits do not use standard base point")
 	}
-	enc := make([]BLSPubkeyHex, len(commits))
+	enc := new(tblsParamsEncoded)
+	enc.N = t.N
+	enc.Commits = make([]BLSPubkeyHex, len(commits))
 	for i, c := range commits {
-		enc[i] = BLSPubkeyHex{c.(*bls.KyberG1)}
+		enc.Commits[i] = BLSPubkeyHex{c.(*bls.KyberG1)}
 	}
 	return enc, nil
 }
 
-// Decode reconstructs the threshold BLS commitment data.
-func (t TBLSSchemeEncoded) Decode() (*TBLSScheme, error) {
-	points := make([]kyber.Point, len(t))
-	for i, commit := range t {
+// decode reconstructs the threshold BLS commitment data.
+func (t *tblsParamsEncoded) decode() (*TBLSParams, error) {
+	points := make([]kyber.Point, len(t.Commits))
+	for i, commit := range t.Commits {
 		points[i] = commit.KyberG1
 	}
 	pubPoly := share.NewPubPoly(BLSKeyGroup, BLSKeyGroup.Point().Base(), points)
-	return &TBLSScheme{pubPoly}, nil
+	return &TBLSParams{
+		PubPoly: pubPoly,
+		N:       t.N,
+	}, nil
 }
 
 // NewTBLSPoly creates a new secret sharing polynomial for a BLS12-381 threshold signature scheme.

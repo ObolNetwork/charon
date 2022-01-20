@@ -1,0 +1,49 @@
+// Copyright © 2021 Obol Technologies Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package helpers
+
+import (
+	"testing"
+
+	"github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// TODO(richard): All vectors for https://github.com/ethereum/consensus-spec-tests/tree/master/tests/general
+
+func TestUncompressBLSSignature_Valid(t *testing.T) {
+	sig := phase0.BLSSignature{
+		0xb2, 0xcc, 0x74, 0xbc, 0x9f, 0x08, 0x9e, 0xd9, 0x76, 0x4b, 0xbc, 0xea,
+		0xc5, 0xed, 0xba, 0x41, 0x6b, 0xef, 0x5e, 0x73, 0x70, 0x12, 0x88, 0x97,
+		0x7b, 0x9c, 0xac, 0x1c, 0xcb, 0x69, 0x64, 0x26, 0x9d, 0x4e, 0xbf, 0x78,
+		0xb4, 0xe8, 0xaa, 0x77, 0x92, 0xba, 0x09, 0xd3, 0xe4, 0x9c, 0x8e, 0x6a,
+		0x13, 0x51, 0xbd, 0xf5, 0x82, 0x97, 0x1f, 0x79, 0x6b, 0xba, 0xf6, 0x32,
+		0x0e, 0x81, 0x25, 0x1c, 0x9d, 0x28, 0xf6, 0x74, 0xd7, 0x20, 0xcc, 0xa0,
+		0x7e, 0xd1, 0x45, 0x96, 0xb9, 0x66, 0x97, 0xcf, 0x18, 0x23, 0x8e, 0x0e,
+		0x03, 0xeb, 0xd7, 0xfc, 0x13, 0x53, 0xd8, 0x85, 0xa3, 0x94, 0x07, 0xe0,
+	}
+	point, err := UncompressBLSSignature(&sig)
+	require.NoError(t, err)
+	sig2 := CompressBLSSignature(point)
+	assert.Equal(t, sig, sig2)
+}
+
+func TestUncompressBLSSignature_Invalid(t *testing.T) {
+	sig := phase0.BLSSignature{0xb2}
+	point, err := UncompressBLSSignature(&sig)
+	assert.Nil(t, point)
+	assert.EqualError(t, err, "point is not on curve")
+}

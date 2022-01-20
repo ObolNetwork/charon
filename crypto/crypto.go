@@ -18,6 +18,7 @@ package crypto
 import (
 	"github.com/drand/kyber"
 	bls12381 "github.com/drand/kyber-bls12381"
+	"github.com/drand/kyber/sign/bls"
 )
 
 // BLSPairing is the BLS12-381 suite.
@@ -25,6 +26,12 @@ var BLSPairing = bls12381.NewBLS12381Suite()
 
 // BLSKeyGroup is the G1 group.
 var BLSKeyGroup = BLSPairing.G1()
+
+// BLSSigGroup is the G2 group.
+var BLSSigGroup = BLSPairing.G2()
+
+// BLSSigScheme is the BLS12-381 signature scheme.
+var BLSSigScheme = bls.NewSchemeOnG2(BLSPairing)
 
 // DerivePubkey returns a BLS public key given a private key.
 func DerivePubkey(secret kyber.Scalar) *bls12381.KyberG1 {
