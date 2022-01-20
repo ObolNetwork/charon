@@ -4,6 +4,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"path"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/internal"
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/validatorapi"
 )
 
 // log is a convenience handle to the global logger.
@@ -25,10 +27,12 @@ const (
 )
 
 type Config struct {
-	Discovery         discovery.Config
-	ClusterDir        string
-	DataDir           string
-	MonitoringAddress string
+	Discovery        discovery.Config
+	ClusterDir       string
+	DataDir          string
+	MonitoringAddr   string
+	ValidatorAPIAddr string
+	BeaconNodeAddr   string
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -42,6 +46,7 @@ func Run(shutdownCtx context.Context, conf Config) error {
 	startGauge.SetToCurrentTime()
 
 	// Construct processes and their dependencies
+	// TODO(corver): Split this into high level methods like; setupP2P, setupMonitoring, setupValidatorAPI, etc.
 
 	p2pKey, err := identity.P2PStore{KeyPath: nodekey}.Get()
 	if err != nil {
@@ -69,9 +74,19 @@ func Run(shutdownCtx context.Context, conf Config) error {
 		return fmt.Errorf("new p2p node: %w", err)
 	}
 
-	monitoring, err := server.New(peerDB, p2pNode, conf.MonitoringAddress)
+	monitoring, err := server.New(peerDB, p2pNode, conf.MonitoringAddr)
 	if err != nil {
 		return fmt.Errorf("new monitoring server: %w", err)
+	}
+
+	vhandler := validatorapi.Handler(nil) // TODO(corver): Construct this
+	vrouter, err := validatorapi.NewRouter(vhandler, conf.BeaconNodeAddr)
+	if err != nil {
+		return fmt.Errorf("new monitoring server: %w", err)
+	}
+	vserver := http.Server{
+		Addr:    conf.ValidatorAPIAddr,
+		Handler: vrouter,
 	}
 
 	// Start processes and wait for first error or shutdown.
@@ -82,6 +97,8 @@ func Run(shutdownCtx context.Context, conf Config) error {
 		procErr = fmt.Errorf("monitoring server: %w", err)
 	case err := <-start(discoveryNode.Listen):
 		procErr = fmt.Errorf("discv5 server: %w", err)
+	case err := <-start(vserver.ListenAndServe):
+		procErr = fmt.Errorf("validatorapi server: %w", err)
 	case <-shutdownCtx.Done():
 		log.Info().Msgf("Shutdown signal detected")
 	}
@@ -101,6 +118,10 @@ func Run(shutdownCtx context.Context, conf Config) error {
 
 	if err := monitoring.Shutdown(ctx); err != nil {
 		return fmt.Errorf("stop monitoring server: %w", err)
+	}
+
+	if err := vserver.Shutdown(ctx); err != nil {
+		return fmt.Errorf("stop validatorapi server: %w", err)
 	}
 
 	return procErr
