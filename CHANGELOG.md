@@ -7,7 +7,7 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 <!--  -->
 ## [Unreleased] - yyyy-mm-dd
 
-First Charon client that will need disk write access, may run into `chmod` issues. 
+First Charon client that will need disk write access, may run into `chmod` issues.
 ### Added
 
     OBOL-02 FEATURE Instantiate an ENR

@@ -1,0 +1,19 @@
+default_language_version:
+  golang: go1.17.5 darwin/amd64
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.1.0
+    hooks:
+      - id: trailing-whitespace
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.4.0
+    hooks:
+      - id: go-fmt
+        args: [ -w, -s ] # simplify code and write result to (source) file instead of stdout
+      - id: go-vet
+  -   repo: https://github.com/tekwizely/pre-commit-golang
+      rev: v1.0.0-beta.5 # cannot use master as it is a mutable reference and is not supported
+      hooks:
+        -   id: go-mod-tidy
+        -   id: go-mod-tidy-repo
+        -   id: go-test-repo-mod
