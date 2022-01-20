@@ -20,10 +20,10 @@ func TestRouterAttesterDuties(t *testing.T) {
 			var res []*eth2v1.AttesterDuty
 			for _, index := range il {
 				res = append(res, &eth2v1.AttesterDuty{
-					ValidatorIndex:   index,
-					Slot:             eth2p0.Slot(epoch),
-					CommitteeLength:  1, // 0 fails validation
-					CommitteesAtSlot: 1, // 0 fails validation
+					ValidatorIndex:   index,              // Echo index
+					Slot:             eth2p0.Slot(epoch), // Echo epoch as slot
+					CommitteeLength:  1,                  // 0 fails validation
+					CommitteesAtSlot: 1,                  // 0 fails validation
 				})
 			}
 			return res, nil
