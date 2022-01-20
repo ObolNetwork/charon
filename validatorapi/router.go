@@ -44,9 +44,9 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 
 // apierr defines a validator api error that is converted to an eth2 errorResponse.
 type apierr struct {
-	// Code is the http status code to return.
+	// Code is the http status code to return, defaults to 500.
 	Code int
-	// Message is a safe human-readable message.
+	// Message is a safe human-readable message, defaults to "Internal server error".
 	Message string
 	// Err is the original error, returned in debug mode.
 	Err error
@@ -56,7 +56,7 @@ func (a apierr) Error() string {
 	return fmt.Sprintf("validator api error[status=%d,msg=%s]: %v", a.Code, a.Message, a.Err)
 }
 
-// handlerFunc is a convenient handler functions contract providing a coontext, parsed path parameters,
+// handlerFunc is a convenient handler function providing a context, parsed path parameters,
 // the request body, and returning the response struct or an error.
 type handlerFunc func(ctx context.Context, params map[string]string, body []byte) (res interface{}, err error)
 
