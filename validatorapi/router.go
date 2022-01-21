@@ -4,12 +4,15 @@
 package validatorapi
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
@@ -30,7 +33,7 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 	r := mux.NewRouter()
 
 	// Register subset of distributed validator related endpoints
-	r.Handle("/eth/v1/validator/duties/attester/{epoch}", wrapAttesterDuties(h))
+	r.Handle("/eth/v1/validator/duties/attester/{epoch}", wrap(attesterDuties(h)))
 	// TODO(corver): Add more endpoints
 
 	// Everything else is proxied
@@ -39,30 +42,67 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 	return r, nil
 }
 
-func wrapAttesterDuties(h Handler) http.HandlerFunc {
+// apiErr defines a validator api error that is converted to an eth2 errorResponse.
+type apiErr struct {
+	// StatusCode is the http status code to return, defaults to 500.
+	StatusCode int
+	// Message is a safe human-readable message, defaults to "Internal server error".
+	Message string
+	// Err is the original error, returned in debug mode.
+	Err error
+}
+
+func (a apiErr) Error() string {
+	return fmt.Sprintf("validator api error[status=%d,msg=%s]: %v", a.StatusCode, a.Message, a.Err)
+}
+
+// handlerFunc is a convenient handler function providing a context, parsed path parameters,
+// the request body, and returning the response struct or an error.
+type handlerFunc func(ctx context.Context, params map[string]string, body []byte) (res interface{}, err error)
+
+// wrap adapts the handler function returning a standard http handler.
+// It does response and error writing.
+func wrap(handler handlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var (
-			params = struct {
-				Epoch eth2p0.Epoch `json:"epoch,string"`
-			}{}
-			reqBody attesterDutiesRequest
-		)
-		if ok := parseReq(w, r, &params, &reqBody); !ok {
-			return
-		}
 
-		data, err := h.AttesterDuties(r.Context(), params.Epoch, reqBody)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
+			writeError(w, err)
 			return
 		}
 
-		res := attesterDutiesResponse{
-			DependentRoot: eth2p0.Root{}, // TODO(corver): Fill this
-			Data:          data,
+		res, err := handler(r.Context(), mux.Vars(r), body)
+		if err != nil {
+			writeError(w, err)
+			return
 		}
 
 		writeResponse(w, res)
+	}
+}
+
+func attesterDuties(h Handler) handlerFunc {
+	return func(ctx context.Context, params map[string]string, body []byte) (interface{}, error) {
+
+		var req attesterDutiesRequest
+		if err := unmarshal(body, &req); err != nil {
+			return nil, err
+		}
+
+		epoch, err := uintParam(params, "epoch")
+		if err != nil {
+			return nil, err
+		}
+
+		data, err := h.AttesterDuties(ctx, eth2p0.Epoch(epoch), req)
+		if err != nil {
+			return nil, err
+		}
+
+		return attesterDutiesResponse{
+			DependentRoot: eth2p0.Root{}, // TODO(corver): Fill this
+			Data:          data,
+		}, nil
 	}
 }
 
@@ -77,39 +117,11 @@ func proxyHandler(target string) (http.Handler, error) {
 	return httputil.NewSingleHostReverseProxy(targetURL), nil
 }
 
-// parseReq parses route variables in params and the json request body into reqBody and returns true.
-// On any parsing error, it writes the http error response and returns false.
-func parseReq(w http.ResponseWriter, r *http.Request, params interface{}, reqBody interface{}) bool {
-	b, err := json.Marshal(mux.Vars(r))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return false
-	}
-
-	if err := json.Unmarshal(b, params); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return false
-	}
-
-	b, err = io.ReadAll(r.Body)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return false
-	}
-
-	if err := json.Unmarshal(b, reqBody); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return false
-	}
-
-	return true
-}
-
 // writeResponse writes the 200 OK response and json response body.
 func writeResponse(w http.ResponseWriter, response interface{}) {
 	b, err := json.Marshal(response)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("marshal response body: %w", err))
+		writeError(w, fmt.Errorf("marshal response body: %w", err))
 		return
 	}
 
@@ -117,28 +129,70 @@ func writeResponse(w http.ResponseWriter, response interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if _, err = w.Write(b); err != nil {
+		// Too late to also try to writeError at this point, so just log.
 		log.Error().Err(err).Msg("Failed writing api response")
 	}
 }
 
 // writeError writes a http json error response object.
-func writeError(w http.ResponseWriter, statusCode int, err error) {
-	log.Error().Err(err).Int("status", statusCode).Msg("validator api error response")
+func writeError(w http.ResponseWriter, err error) {
+	var aerr apiErr
+	if !errors.As(err, &aerr) {
+		aerr = apiErr{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Internal server error",
+			Err:        err,
+		}
+	}
+
+	log.Error().Err(err).Int("status", aerr.StatusCode).Str("message", aerr.Message).Msg("Validator api error response")
 
 	res := errorResponse{
-		Code:    statusCode,
-		Message: err.Error(), // TODO(corver): This could leak sensitive info, define "exposable errors" with safe messages.
+		Code:    aerr.StatusCode,
+		Message: aerr.Message,
+		// TODO(corver): Add support for debug mode error and stacktraces.
 	}
 
 	b, err2 := json.Marshal(res)
 	if err2 != nil {
-		log.Error().Err(err2).Msg("Failed marshalling error body")
+		log.Error().Err(err2).Msg("Failed marshalling error response")
+		// Continue to write nil b.
 	}
 
-	w.WriteHeader(statusCode)
+	w.WriteHeader(aerr.StatusCode)
 	w.Header().Set("Content-Type", "application/json")
 
 	if _, err2 = w.Write(b); err2 != nil {
 		log.Error().Err(err2).Msg("Failed writing api error")
 	}
+}
+
+// unmarshal parses the JSON-encoded request body and stores the result
+// in the value pointed to by v.
+func unmarshal(body []byte, v interface{}) error {
+	err := json.Unmarshal(body, v)
+	if err != nil {
+		return apiErr{
+			StatusCode: http.StatusBadRequest,
+			Message:    "failed parsing request body",
+			Err:        err,
+		}
+	}
+
+	return nil
+}
+
+// uintParam returns a uint path parameter.
+func uintParam(params map[string]string, name string) (uint, error) {
+	param := params[name]
+	res, err := strconv.ParseUint(param, 10, 64)
+	if err != nil {
+		return 0, apiErr{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("invalid uint path parameter %s [%s]", name, param),
+			Err:        err,
+		}
+	}
+
+	return uint(res), nil
 }
