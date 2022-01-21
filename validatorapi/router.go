@@ -119,7 +119,7 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 		if err := unmarshal(body, &req); err != nil {
 			return nil, err
 		}
-		
+
 		data, err := p.AttesterDuties(ctx, eth2p0.Epoch(epoch), req)
 		if err != nil {
 			return nil, err
