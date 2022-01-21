@@ -206,6 +206,9 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 	callback(context.Background(), server.URL)
 }
 
+// testHandler implements the Handler interface allowing test-cases to specify only what they require.
+// This includes optional validatorapi handler functions, an optional beacon-node reserve proxy handler, and
+// mocked beacon-node endpoints required by the eth2http client during startup.
 type testHandler struct {
 	Handler
 	ProxyHandler       http.HandlerFunc
