@@ -52,6 +52,7 @@ func TestRawRouter(t *testing.T) {
 
 			var errRes errorResponse
 			err = json.NewDecoder(res.Body).Decode(&errRes)
+			require.NoError(t, err)
 			require.Equal(t, errRes, errorResponse{
 				Code:    http.StatusBadRequest,
 				Message: "invalid uint path parameter epoch [not_a_number]",
@@ -70,6 +71,7 @@ func TestRawRouter(t *testing.T) {
 
 			var errRes errorResponse
 			err = json.NewDecoder(res.Body).Decode(&errRes)
+			require.NoError(t, err)
 			require.Equal(t, errRes, errorResponse{
 				Code:    http.StatusBadRequest,
 				Message: "empty request body",
@@ -88,6 +90,7 @@ func TestRawRouter(t *testing.T) {
 
 			var errRes errorResponse
 			err = json.NewDecoder(res.Body).Decode(&errRes)
+			require.NoError(t, err)
 			require.Equal(t, errRes, errorResponse{
 				Code:    http.StatusBadRequest,
 				Message: "failed parsing request body",
