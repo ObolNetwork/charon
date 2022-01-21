@@ -1,10 +1,11 @@
 package config
 
 import (
-	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 	"strings"
 	"time"
+
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 func BindRunnerFlags(flags *pflag.FlagSet, config *RunnerConfig) {
