@@ -42,18 +42,18 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 	return r, nil
 }
 
-// apierr defines a validator api error that is converted to an eth2 errorResponse.
-type apierr struct {
-	// Code is the http status code to return, defaults to 500.
-	Code int
+// apiErr defines a validator api error that is converted to an eth2 errorResponse.
+type apiErr struct {
+	// StatusCode is the http status code to return, defaults to 500.
+	StatusCode int
 	// Message is a safe human-readable message, defaults to "Internal server error".
 	Message string
 	// Err is the original error, returned in debug mode.
 	Err error
 }
 
-func (a apierr) Error() string {
-	return fmt.Sprintf("validator api error[status=%d,msg=%s]: %v", a.Code, a.Message, a.Err)
+func (a apiErr) Error() string {
+	return fmt.Sprintf("validator api error[status=%d,msg=%s]: %v", a.StatusCode, a.Message, a.Err)
 }
 
 // handlerFunc is a convenient handler function providing a context, parsed path parameters,
@@ -136,19 +136,19 @@ func writeResponse(w http.ResponseWriter, response interface{}) {
 
 // writeError writes a http json error response object.
 func writeError(w http.ResponseWriter, err error) {
-	var aerr apierr
+	var aerr apiErr
 	if !errors.As(err, &aerr) {
-		aerr = apierr{
-			Code:    http.StatusInternalServerError,
-			Message: "Internal server error",
-			Err:     err,
+		aerr = apiErr{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Internal server error",
+			Err:        err,
 		}
 	}
 
-	log.Error().Err(err).Int("status", aerr.Code).Str("message", aerr.Message).Msg("Validator api error response")
+	log.Error().Err(err).Int("status", aerr.StatusCode).Str("message", aerr.Message).Msg("Validator api error response")
 
 	res := errorResponse{
-		Code:    aerr.Code,
+		Code:    aerr.StatusCode,
 		Message: aerr.Message,
 		// TODO(corver): Add support for debug mode error and stacktraces.
 	}
@@ -159,7 +159,7 @@ func writeError(w http.ResponseWriter, err error) {
 		// Continue to write nil b.
 	}
 
-	w.WriteHeader(aerr.Code)
+	w.WriteHeader(aerr.StatusCode)
 	w.Header().Set("Content-Type", "application/json")
 
 	if _, err2 = w.Write(b); err2 != nil {
@@ -172,10 +172,10 @@ func writeError(w http.ResponseWriter, err error) {
 func unmarshal(body []byte, v interface{}) error {
 	err := json.Unmarshal(body, v)
 	if err != nil {
-		return apierr{
-			Code:    http.StatusBadRequest,
-			Message: "failed parsing request body",
-			Err:     err,
+		return apiErr{
+			StatusCode: http.StatusBadRequest,
+			Message:    "failed parsing request body",
+			Err:        err,
 		}
 	}
 
@@ -187,10 +187,10 @@ func uintParam(params map[string]string, name string) (uint, error) {
 	param := params[name]
 	res, err := strconv.ParseUint(param, 10, 64)
 	if err != nil {
-		return 0, apierr{
-			Code:    http.StatusBadRequest,
-			Message: fmt.Sprintf("invalid uint path parameter %s [%s]", name, param),
-			Err:     err,
+		return 0, apiErr{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("invalid uint path parameter %s [%s]", name, param),
+			Err:        err,
 		}
 	}
 
