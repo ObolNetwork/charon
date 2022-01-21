@@ -42,8 +42,7 @@ func Run(shutdownCtx context.Context, conf Config) error {
 	nodekey := path.Join(conf.DataDir, nodekeyFile)
 
 	log.Info().Str("version", internal.ReleaseVersion).Msg("Charon starting")
-	versionGauge.WithLabelValues(internal.ReleaseVersion).Set(1)
-	startGauge.SetToCurrentTime()
+	setStartupMetrics()
 
 	// Construct processes and their dependencies
 	// TODO(corver): Split this into high level methods like; setupP2P, setupMonitoring, setupValidatorAPI, etc.
