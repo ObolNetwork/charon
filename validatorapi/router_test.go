@@ -171,7 +171,7 @@ func TestRouter(t *testing.T) {
 	})
 }
 
-// testRouter is a helper function to test router endpoints. The outer test
+// testRouter is a helper function to test router endpoints with an eth2http client. The outer test
 // provides the mocked test handler and a callback that does the client side test.
 func testRouter(t *testing.T, handler testHandler, callback func(context.Context, *eth2http.Service)) {
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
@@ -191,7 +191,7 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 	callback(ctx, cl.(*eth2http.Service))
 }
 
-// testRawRouter is a helper function to test router endpoints without the eth2http client. The outer test
+// testRawRouter is a helper function to test router endpoints with a raw http client. The outer test
 // provides the mocked test handler and a callback that does the client side test.
 func testRawRouter(t *testing.T, handler testHandler, callback func(context.Context, string)) {
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
