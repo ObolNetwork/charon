@@ -16,7 +16,7 @@
 package cmd
 
 import (
-	"github.com/obolnetwork/charon/internal/config"
+	"github.com/obolnetwork/charon/cmd/config"
 	"github.com/rs/zerolog"
 	zerologger "github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -34,8 +34,10 @@ var rootCmd = &cobra.Command{
 	PersistentPreRunE: preRunRoot,
 }
 
+var RunnerConfig config.RunnerConfig
+
 func init() {
-	config.CommonFlags(rootCmd.PersistentFlags())
+	config.BindRunnerFlags(rootCmd.PersistentFlags(), &RunnerConfig)
 }
 
 // Main executes the charon application.
