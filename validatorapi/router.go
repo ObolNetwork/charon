@@ -198,18 +198,18 @@ func writeError(w http.ResponseWriter, err error) {
 func unmarshal(body []byte, v interface{}) error {
 	if len(body) == 0 {
 		return apiErr{
-			StatusCode:    http.StatusBadRequest,
-			Message: "empty request body",
-			Err:     errors.New("empty request body"),
+			StatusCode: http.StatusBadRequest,
+			Message:    "empty request body",
+			Err:        errors.New("empty request body"),
 		}
 	}
 
 	err := json.Unmarshal(body, v)
 	if err != nil {
 		return apiErr{
-			StatusCode:    http.StatusBadRequest,
-			Message: "failed parsing request body",
-			Err:     err,
+			StatusCode: http.StatusBadRequest,
+			Message:    "failed parsing request body",
+			Err:        err,
 		}
 	}
 
