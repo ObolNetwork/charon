@@ -27,6 +27,10 @@ cp .env.template .env
 # Local development
 make up
 ```
+### Install Githooks
+We use `pre-commit hooks` to ensure that pull requests adhere to a minimum standard and are consistent. To install:
+- Follow installation instructions [here](https://pre-commit.com/#installation)
+- Once installed, run `pre-commit install` in the project's root directory. This will setup the hooks
 
 ### Compile and Test Locally
 
