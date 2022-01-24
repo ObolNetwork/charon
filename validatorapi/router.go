@@ -18,6 +18,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
 	zerologger "github.com/rs/zerolog/log"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 var log = zerologger.Logger
@@ -80,9 +81,9 @@ func (a apiErr) Error() string {
 type handlerFunc func(ctx context.Context, params map[string]string, body []byte) (res interface{}, err error)
 
 // wrap adapts the handler function returning a standard http handler.
-// It does metrics and response and error writing.
-func wrap(endpoint string, handler handlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+// It does tracing, metrics and response and error writing.
+func wrap(endpoint string, handler handlerFunc) http.Handler {
+	wrap := func(w http.ResponseWriter, r *http.Request) {
 
 		defer observeApiLatency(endpoint)()
 
@@ -100,6 +101,13 @@ func wrap(endpoint string, handler handlerFunc) http.HandlerFunc {
 
 		writeResponse(w, endpoint, res)
 	}
+
+	return trace(endpoint, wrap)
+}
+
+// trace wraps the passed handler in a OpenTelemetry tracing span.
+func trace(endpoint string, handler http.HandlerFunc) http.Handler {
+	return otelhttp.NewHandler(handler, "validator."+endpoint)
 }
 
 // proposerDuties returns a handler function for the proposer duty endpoint.
