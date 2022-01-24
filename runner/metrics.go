@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"github.com/obolnetwork/charon/internal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -18,3 +19,8 @@ var (
 		Help:      "Gauge set to the start time of the binary in unix seconds",
 	})
 )
+
+func setStartupMetrics() {
+	versionGauge.WithLabelValues(internal.ReleaseVersion).Set(1)
+	startGauge.SetToCurrentTime()
+}

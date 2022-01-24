@@ -26,19 +26,36 @@ var log = zerologger.Logger
 // translates http requests related to the distributed validator to the validatorapi.Handler.
 // All other requests are reserve-proxied to the beacon-node address.
 func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
+
+	// Register subset of distributed validator related endpoints
+	endpoints := []struct {
+		Name    string
+		Path    string
+		Handler handlerFunc
+	}{
+		{
+			Name:    "attester_duties",
+			Path:    "/eth/v1/validator/duties/attester/{epoch}",
+			Handler: attesterDuties(h),
+		},
+		{
+			Name:    "proposer_duties",
+			Path:    "/eth/v1/validator/duties/proposer/{epoch}",
+			Handler: proposerDuties(h),
+		},
+		// TODO(corver): Add more endpoints
+	}
+
+	r := mux.NewRouter()
+	for _, e := range endpoints {
+		r.Handle(e.Path, wrap(e.Name, e.Handler))
+	}
+
+	// Everything else is proxied
 	proxy, err := proxyHandler(beaconNodeAddr)
 	if err != nil {
 		return nil, err
 	}
-
-	r := mux.NewRouter()
-
-	// Register subset of distributed validator related endpoints
-	r.Handle("/eth/v1/validator/duties/attester/{epoch}", wrap(attesterDuties(h)))
-	r.Handle("/eth/v1/validator/duties/proposer/{epoch}", wrap(proposerDuties(h)))
-	// TODO(corver): Add more endpoints
-
-	// Everything else is proxied
 	r.PathPrefix("/").Handler(proxy)
 
 	return r, nil
@@ -63,23 +80,25 @@ func (a apiErr) Error() string {
 type handlerFunc func(ctx context.Context, params map[string]string, body []byte) (res interface{}, err error)
 
 // wrap adapts the handler function returning a standard http handler.
-// It does response and error writing.
-func wrap(handler handlerFunc) http.HandlerFunc {
+// It does metrics and response and error writing.
+func wrap(endpoint string, handler handlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
+		defer observeApiLatency(endpoint)()
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			writeError(w, err)
+			writeError(w, endpoint, err)
 			return
 		}
 
 		res, err := handler(r.Context(), mux.Vars(r), body)
 		if err != nil {
-			writeError(w, err)
+			writeError(w, endpoint, err)
 			return
 		}
 
-		writeResponse(w, res)
+		writeResponse(w, endpoint, res)
 	}
 }
 
@@ -133,21 +152,26 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 }
 
 // proxyHandler returns a reverse proxy handler.
-func proxyHandler(target string) (http.Handler, error) {
+func proxyHandler(target string) (http.HandlerFunc, error) {
 	targetURL, err := url.Parse(target)
 	if err != nil {
 		return nil, fmt.Errorf("invalid proxy target address: %w", err)
 	}
 
 	// TODO(corver): Add support for multiple upstream targets via some form of load balancing.
-	return httputil.NewSingleHostReverseProxy(targetURL), nil
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		defer observeApiLatency("proxy")()
+		proxy.ServeHTTP(proxyResponseWriter{w}, r)
+	}, nil
 }
 
 // writeResponse writes the 200 OK response and json response body.
-func writeResponse(w http.ResponseWriter, response interface{}) {
+func writeResponse(w http.ResponseWriter, endpoint string, response interface{}) {
 	b, err := json.Marshal(response)
 	if err != nil {
-		writeError(w, fmt.Errorf("marshal response body: %w", err))
+		writeError(w, endpoint, fmt.Errorf("marshal response body: %w", err))
 		return
 	}
 
@@ -156,12 +180,12 @@ func writeResponse(w http.ResponseWriter, response interface{}) {
 
 	if _, err = w.Write(b); err != nil {
 		// Too late to also try to writeError at this point, so just log.
-		log.Error().Err(err).Msg("Failed writing api response")
+		log.Error().Err(err).Str("endpoint", endpoint).Msg("Failed writing api response")
 	}
 }
 
 // writeError writes a http json error response object.
-func writeError(w http.ResponseWriter, err error) {
+func writeError(w http.ResponseWriter, endpoint string, err error) {
 	var aerr apiErr
 	if !errors.As(err, &aerr) {
 		aerr = apiErr{
@@ -171,7 +195,12 @@ func writeError(w http.ResponseWriter, err error) {
 		}
 	}
 
-	log.Error().Err(err).Int("status", aerr.StatusCode).Str("message", aerr.Message).Msg("Validator api error response")
+	log.Error().Err(err).
+		Str("endpoint", endpoint).
+		Int("status_code", aerr.StatusCode).
+		Str("message", aerr.Message).
+		Msg("Validator api error response")
+	incApiErrors(endpoint, aerr.StatusCode)
 
 	res := errorResponse{
 		Code:    aerr.StatusCode,
@@ -229,4 +258,18 @@ func uintParam(params map[string]string, name string) (uint, error) {
 	}
 
 	return uint(res), nil
+}
+
+// proxyResponseWriter wraps a http response writer and instruments errors.
+type proxyResponseWriter struct {
+	http.ResponseWriter
+}
+
+func (w proxyResponseWriter) WriteHeader(statusCode int) {
+	if statusCode/100 == 2 {
+		// 2XX isn't an error
+		return
+	}
+	incApiErrors("proxy", statusCode)
+	w.ResponseWriter.WriteHeader(statusCode)
 }

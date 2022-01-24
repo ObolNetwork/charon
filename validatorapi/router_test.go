@@ -235,28 +235,28 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 	mux.HandleFunc("/eth/v1/beacon/genesis", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.Genesis(ctx)
 		require.NoError(t, err)
-		writeResponse(w, res)
+		writeResponse(w, "", res)
 	})
 	mux.HandleFunc("/eth/v1/config/spec", func(w http.ResponseWriter, r *http.Request) {
 		res := map[string]interface{}{
 			"SLOTS_PER_EPOCH": fmt.Sprint(slotsPerEpoch),
 		}
-		writeResponse(w, nest(res, "data"))
+		writeResponse(w, "", nest(res, "data"))
 	})
 	mux.HandleFunc("/eth/v1/config/deposit_contract", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.DepositContract(ctx)
 		require.NoError(t, err)
-		writeResponse(w, res)
+		writeResponse(w, "", res)
 	})
 	mux.HandleFunc("/eth/v1/config/fork_schedule", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.ForkSchedule(ctx)
 		require.NoError(t, err)
-		writeResponse(w, nest(res, "data"))
+		writeResponse(w, "", nest(res, "data"))
 	})
 	mux.HandleFunc("/eth/v1/node/version", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.NodeVersion(ctx)
 		require.NoError(t, err)
-		writeResponse(w, nest(res, "version", "data"))
+		writeResponse(w, "", nest(res, "version", "data"))
 	})
 
 	if h.ProxyHandler != nil {
