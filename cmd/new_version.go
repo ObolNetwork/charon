@@ -16,31 +16,42 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/spf13/pflag"
 	dbg "runtime/debug"
 
 	"github.com/obolnetwork/charon/internal"
-	"github.com/obolnetwork/charon/internal/config"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
+
+type versionConfig struct {
+	verbose bool
+}
 
 // newVersionCmd returns the version command
 func newVersionCmd() *cobra.Command {
+	var conf versionConfig
+
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print version and exit",
-		Long:  "Output version info. Use --verbose for detailed module version info.",
+		Long:  "Output version info",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println(internal.ReleaseVersion)
-			if viper.GetBool(config.KeyVerbose) {
-				printNewBuildInfo()
-			}
+			printNewBuildInfo(conf)
 		},
 	}
+	bindVersionFlags(cmd.Flags(), &conf)
 	return cmd
 }
 
-func printNewBuildInfo() {
+func bindVersionFlags(flags *pflag.FlagSet, config *versionConfig) {
+	flags.BoolVar(&config.verbose, "verbose", false, "Use --verbose for detailed module version info.")
+}
+
+func printNewBuildInfo(config versionConfig) {
+	fmt.Println(internal.ReleaseVersion)
+	if !config.verbose {
+		return
+	}
 	buildInfo, ok := dbg.ReadBuildInfo()
 	if !ok {
 		fmt.Println("Failed to gather build info")

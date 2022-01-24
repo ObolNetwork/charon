@@ -27,7 +27,7 @@ import (
 const (
 	// The name of our config file, without the file extension because
 	// viper supports many different config file languages.
-	defaultConfigFilename = ""
+	defaultConfigFilename = "charon"
 
 	// The environment variable prefix of all environment variables bound to our command line flags.
 	envPrefix = "charon"
@@ -35,19 +35,16 @@ const (
 
 // New returns a new root cobra command that handles our command line tool.
 func New() *cobra.Command {
-	// Create the root command
 	root := &cobra.Command{
 		Use:   "charon",
 		Short: "Charon - The Ethereum DVT middleware client",
-		Long:  `Charon enables the operation of Ethereum validators in a fault tolerant manner by splitting the validating keys across a group of trusted parties using threshold cryptography.`,
+		Long: `Charon enables the operation of Ethereum validators in a fault tolerant manner by splitting the
+				validating keys across a group of trusted parties using threshold cryptography.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// You can bind cobra and viper in a few locations,
-			// but PersistencePreRunE on the root command works well
 			return initializeConfig(cmd)
 		},
 	}
 
-	// Add sub-commands
 	root.AddCommand(
 		newVersionCmd(),
 	)
@@ -55,15 +52,11 @@ func New() *cobra.Command {
 	return root
 }
 
-// initializeConfig sets up the general viper config and bind the cobra flag to the viper flags.
+// initializeConfig sets up the general viper config and binds the cobra flags to the viper flags.
 func initializeConfig(cmd *cobra.Command) error {
 	v := viper.New()
 
-	// Set the base name of the config file, without the file extension.
 	v.SetConfigName(defaultConfigFilename)
-
-	// Set as many paths as you like where viper should look for the
-	// config file. We are only looking in the current working directory.
 	v.AddConfigPath(".")
 
 	// Attempt to read the config file, gracefully ignoring errors
@@ -76,13 +69,7 @@ func initializeConfig(cmd *cobra.Command) error {
 		}
 	}
 
-	// When we bind flags to environment variables expect that the
-	// environment variables are prefixed. This helps avoid conflicts.
 	v.SetEnvPrefix(envPrefix)
-
-	// Bind to environment variables
-	// Works great for simple config names, but needs help for names
-	// like --favorite-color which we fix in the bindFlags function
 	v.AutomaticEnv()
 
 	// Bind the current command's flags to viper
@@ -93,20 +80,14 @@ func initializeConfig(cmd *cobra.Command) error {
 	return nil
 }
 
-// Bind each cobra flag to its associated viper configuration (config file and environment variable)
+// bindFlags binds each cobra flag to its associated viper configuration (config file and environment variable)
 func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
 	var lastErr error
 
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		// Environment variables can't have dashes in them, so bind them to their equivalent
-		// keys with underscores, e.g. --foo-bar to STING_FOO_BAR
-		if strings.Contains(f.Name, "-") {
-			envVarSuffix := strings.ToUpper(strings.ReplaceAll(f.Name, "-", "_"))
-			err := v.BindEnv(f.Name, fmt.Sprintf("%s_%s", envPrefix, envVarSuffix))
-			if err != nil {
-				lastErr = err
-			}
-		}
+		// keys with underscores
+		viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
 		// Cobra provided flags take priority
 		if f.Changed {
