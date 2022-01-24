@@ -19,12 +19,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"path"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	zerologger "github.com/rs/zerolog/log"
 
-	"github.com/obolnetwork/charon/api/server"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/identity"
@@ -89,15 +90,12 @@ func Run(shutdownCtx context.Context, conf Config) error {
 	connGater := p2p.NewConnGaterForClusters(manifests, nil)
 	log.Info().Msgf("Connecting to %d unique peers", len(connGater.PeerIDs))
 
-	p2pNode, err := p2p.NewNode(conf.Discovery.P2P, p2pKey, connGater)
+	_, err = p2p.NewNode(conf.Discovery.P2P, p2pKey, connGater)
 	if err != nil {
 		return fmt.Errorf("new p2p node: %w", err)
 	}
 
-	monitoring, err := server.New(peerDB, p2pNode, conf.MonitoringAddr)
-	if err != nil {
-		return fmt.Errorf("new monitoring server: %w", err)
-	}
+	monitoring := newMonitoring(conf.MonitoringAddr)
 
 	vhandler := validatorapi.Handler(nil) // TODO(corver): Construct this
 	vrouter, err := validatorapi.NewRouter(vhandler, conf.BeaconNodeAddr)
@@ -164,4 +162,22 @@ func start(fn func() error) <-chan error {
 	}()
 
 	return ch
+}
+
+// newMonitoring returns the monitoring server providing prometheus metrics and pprof profiling.
+func newMonitoring(addr string) *http.Server {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+
+	// Copied from net/http/pprof/pprof.go
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	return &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
 }
