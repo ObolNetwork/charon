@@ -17,6 +17,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/spf13/pflag"
+	"io"
 	dbg "runtime/debug"
 
 	"github.com/obolnetwork/charon/internal"
@@ -28,7 +29,7 @@ type versionConfig struct {
 }
 
 // newVersionCmd returns the version command
-func newVersionCmd() *cobra.Command {
+func newVersionCmd(runFunc func(io.Writer, versionConfig)) *cobra.Command {
 	var conf versionConfig
 
 	cmd := &cobra.Command{
@@ -36,7 +37,7 @@ func newVersionCmd() *cobra.Command {
 		Short: "Print version and exit",
 		Long:  "Output version info",
 		Run: func(cmd *cobra.Command, args []string) {
-			printNewBuildInfo(conf)
+			runFunc(cmd.OutOrStdout(), conf)
 		},
 	}
 	bindVersionFlags(cmd.Flags(), &conf)
@@ -44,25 +45,30 @@ func newVersionCmd() *cobra.Command {
 }
 
 func bindVersionFlags(flags *pflag.FlagSet, config *versionConfig) {
-	flags.BoolVar(&config.verbose, "verbose", false, "Use --verbose for detailed module version info.")
+	flags.BoolVar(&config.verbose, "verbose", false, "Includes detailed module version info")
 }
 
-func printNewBuildInfo(config versionConfig) {
-	fmt.Println(internal.ReleaseVersion)
+func runVersionCmd(out io.Writer, config versionConfig) {
+	fmt.Fprintf(out, internal.ReleaseVersion)
+
 	if !config.verbose {
 		return
 	}
+
 	buildInfo, ok := dbg.ReadBuildInfo()
+
 	if !ok {
-		fmt.Println("Failed to gather build info")
+		fmt.Fprintf(out, "Failed to gather build info")
 		return
 	}
-	fmt.Printf("Package: %s\n", buildInfo.Path)
-	fmt.Println("Dependencies:")
+
+	fmt.Fprintf(out, "Package: %s\n", buildInfo.Path)
+	fmt.Fprintf(out, "Dependencies:")
+
 	for _, dep := range buildInfo.Deps {
 		for dep.Replace != nil {
 			dep = dep.Replace
 		}
-		fmt.Printf("\t%v %v\n", dep.Path, dep.Version)
+		fmt.Fprintf(out, "\t%v %v\n", dep.Path, dep.Version)
 	}
 }

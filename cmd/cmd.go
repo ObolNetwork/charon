@@ -46,7 +46,7 @@ func New() *cobra.Command {
 	}
 
 	root.AddCommand(
-		newVersionCmd(),
+		newVersionCmd(runVersionCmd),
 	)
 
 	return root
@@ -71,6 +71,7 @@ func initializeConfig(cmd *cobra.Command) error {
 
 	v.SetEnvPrefix(envPrefix)
 	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
 	// Bind the current command's flags to viper
 	if err := bindFlags(cmd, v); err != nil {
@@ -85,9 +86,6 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
 	var lastErr error
 
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		// Environment variables can't have dashes in them, so bind them to their equivalent
-		// keys with underscores
-		viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
 		// Cobra provided flags take priority
 		if f.Changed {
