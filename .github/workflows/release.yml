@@ -48,4 +48,3 @@ jobs:
 
           ###### This software is in beta, use with caution
         token: ${{ secrets.RELEASE_SECRET }}
-

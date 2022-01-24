@@ -18,7 +18,7 @@ instead of opening a public issue or PR on GitHub.
 
 - If you have found a bug...
   - Check for existing bug reports of the same issue in GitHub.
-  - Do not post about it publicly if it is a suspected vulnerability to protect Obol's users; 
+  - Do not post about it publicly if it is a suspected vulnerability to protect Obol's users;
     instead use `security@obol.tech`.
   - Maybe send a message in relevant community channels if you are unsure whether you are seeing a technical issue.
   - Open a GitHub issue if everything else checks out 🤓
