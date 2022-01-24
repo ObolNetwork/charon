@@ -14,7 +14,9 @@ func TestCommands(t *testing.T) {
 		out  string
 	}{
 		{"version without verbose", []string{"version"}, `v0.1.0-dirty`},
+		{"version with verbose", []string{"version", "--verbose"}, `v0.1.0-dirty`},
 	}
+
 	for _, cmd := range commands {
 		t.Run(cmd.name, func(t *testing.T) {
 			root := New()

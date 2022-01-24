@@ -16,12 +16,12 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/spf13/pflag"
 	"io"
 	dbg "runtime/debug"
 
 	"github.com/obolnetwork/charon/internal"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 type versionConfig struct {
@@ -58,7 +58,7 @@ func runVersionCmd(out io.Writer, config versionConfig) {
 	buildInfo, ok := dbg.ReadBuildInfo()
 
 	if !ok {
-		fmt.Fprintf(out, "Failed to gather build info")
+		fmt.Fprintf(out, "\nFailed to gather build info")
 		return
 	}
 
