@@ -110,13 +110,13 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, body []byte) (interface{}, error) {
 
-		var req attesterDutiesRequest
-		if err := unmarshal(body, &req); err != nil {
+		epoch, err := uintParam(params, "epoch")
+		if err != nil {
 			return nil, err
 		}
 
-		epoch, err := uintParam(params, "epoch")
-		if err != nil {
+		var req attesterDutiesRequest
+		if err := unmarshal(body, &req); err != nil {
 			return nil, err
 		}
 
@@ -198,18 +198,18 @@ func writeError(w http.ResponseWriter, err error) {
 func unmarshal(body []byte, v interface{}) error {
 	if len(body) == 0 {
 		return apiErr{
-			StatusCode:    http.StatusBadRequest,
-			Message: "empty request body",
-			Err:     errors.New("empty request body"),
+			StatusCode: http.StatusBadRequest,
+			Message:    "empty request body",
+			Err:        errors.New("empty request body"),
 		}
 	}
 
 	err := json.Unmarshal(body, v)
 	if err != nil {
 		return apiErr{
-			StatusCode:    http.StatusBadRequest,
-			Message: "failed parsing request body",
-			Err:     err,
+			StatusCode: http.StatusBadRequest,
+			Message:    "failed parsing request body",
+			Err:        err,
 		}
 	}
 

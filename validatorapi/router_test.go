@@ -2,9 +2,13 @@ package validatorapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"strings"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -17,6 +21,85 @@ import (
 )
 
 const slotsPerEpoch = 32
+
+func TestRawRouter(t *testing.T) {
+	t.Run("proxy", func(t *testing.T) {
+		handler := testHandler{
+			ProxyHandler: func(w http.ResponseWriter, r *http.Request) {
+				b, err := httputil.DumpRequest(r, false)
+				require.NoError(t, err)
+				_, _ = w.Write(b)
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			res, err := http.Get(baseURL + "/foo?bar=123")
+			require.NoError(t, err)
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			require.Contains(t, string(body), "GET /foo?bar=123")
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("invalid path param", func(t *testing.T) {
+		handler := testHandler{}
+
+		callback := func(ctx context.Context, baseURL string) {
+			res, err := http.Get(baseURL + "/eth/v1/validator/duties/attester/not_a_number")
+			require.NoError(t, err)
+
+			var errRes errorResponse
+			err = json.NewDecoder(res.Body).Decode(&errRes)
+			require.NoError(t, err)
+			require.Equal(t, errRes, errorResponse{
+				Code:    http.StatusBadRequest,
+				Message: "invalid uint path parameter epoch [not_a_number]",
+			})
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("empty body", func(t *testing.T) {
+		handler := testHandler{}
+
+		callback := func(ctx context.Context, baseURL string) {
+			res, err := http.Get(baseURL + "/eth/v1/validator/duties/attester/1")
+			require.NoError(t, err)
+
+			var errRes errorResponse
+			err = json.NewDecoder(res.Body).Decode(&errRes)
+			require.NoError(t, err)
+			require.Equal(t, errRes, errorResponse{
+				Code:    http.StatusBadRequest,
+				Message: "empty request body",
+			})
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("invalid request body", func(t *testing.T) {
+		handler := testHandler{}
+
+		callback := func(ctx context.Context, baseURL string) {
+			res, err := http.Post(baseURL+"/eth/v1/validator/duties/attester/1", "", strings.NewReader("not json"))
+			require.NoError(t, err)
+
+			var errRes errorResponse
+			err = json.NewDecoder(res.Body).Decode(&errRes)
+			require.NoError(t, err)
+			require.Equal(t, errRes, errorResponse{
+				Code:    http.StatusBadRequest,
+				Message: "failed parsing request body",
+			})
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+}
 
 func TestRouter(t *testing.T) {
 	t.Run("attesterduty", func(t *testing.T) {
@@ -88,7 +171,7 @@ func TestRouter(t *testing.T) {
 	})
 }
 
-// testRouter is a helper function to test router endpoints. The outer test
+// testRouter is a helper function to test router endpoints with an eth2http client. The outer test
 // provides the mocked test handler and a callback that does the client side test.
 func testRouter(t *testing.T, handler testHandler, callback func(context.Context, *eth2http.Service)) {
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
@@ -108,6 +191,24 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 	callback(ctx, cl.(*eth2http.Service))
 }
 
+// testRawRouter is a helper function to test router endpoints with a raw http client. The outer test
+// provides the mocked test handler and a callback that does the client side test.
+func testRawRouter(t *testing.T, handler testHandler, callback func(context.Context, string)) {
+	proxy := httptest.NewServer(handler.newBeaconHandler(t))
+	defer proxy.Close()
+
+	r, err := NewRouter(handler, proxy.URL)
+	require.NoError(t, err)
+
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	callback(context.Background(), server.URL)
+}
+
+// testHandler implements the Handler interface allowing test-cases to specify only what they require.
+// This includes optional validatorapi handler functions, an optional beacon-node reserve proxy handler, and
+// mocked beacon-node endpoints required by the eth2http client during startup.
 type testHandler struct {
 	Handler
 	ProxyHandler       http.HandlerFunc
