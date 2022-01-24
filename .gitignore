@@ -147,5 +147,7 @@ dist
 ormconfig.json
 **/.data
 *.backup
+# have to commented out once refactoring is done
 charon
+!charon/
 keys/
