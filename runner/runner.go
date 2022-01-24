@@ -16,6 +16,7 @@ import (
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/internal"
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/runner/tracer"
 	"github.com/obolnetwork/charon/validatorapi"
 )
 
@@ -33,6 +34,7 @@ type Config struct {
 	MonitoringAddr   string
 	ValidatorAPIAddr string
 	BeaconNodeAddr   string
+	JaegerAddr       string
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -45,7 +47,12 @@ func Run(shutdownCtx context.Context, conf Config) error {
 	setStartupMetrics()
 
 	// Construct processes and their dependencies
-	// TODO(corver): Split this into high level methods like; setupP2P, setupMonitoring, setupValidatorAPI, etc.
+	// TODO(corver): Split this into high level methods like; setupApp, setupP2P, setupMonitoring, setupValidatorAPI, etc.
+
+	stopJeager, err := tracer.Init(tracer.WithJaegerOrNoop(conf.JaegerAddr))
+	if err != nil {
+		return fmt.Errorf("init jaeger tracing: %w", err)
+	}
 
 	p2pKey, err := identity.P2PStore{KeyPath: nodekey}.Get()
 	if err != nil {
@@ -121,6 +128,10 @@ func Run(shutdownCtx context.Context, conf Config) error {
 
 	if err := vserver.Shutdown(ctx); err != nil {
 		return fmt.Errorf("stop validatorapi server: %w", err)
+	}
+
+	if err := stopJeager(ctx); err != nil {
+		return fmt.Errorf("stop jaeger tracer: %w", err)
 	}
 
 	return procErr
