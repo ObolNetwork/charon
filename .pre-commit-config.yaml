@@ -20,8 +20,11 @@ repos:
             files: go.mod
         -   id: go-test-mod
   -   repo: https://github.com/xenowits/go-pre-commit-hooks
-      rev: 0991f400d6bc93fe
+      rev: v0.0.1
       hooks:
         -   id: check-go-version
+            args: [-v=go1.17]
+            pass_filenames: false
+            additional_dependencies: [packaging]
         -   id: check-licence-header
             types: [file, go]
