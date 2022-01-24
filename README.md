@@ -9,7 +9,7 @@
 
 This repo contains the source code for the distributed validator client *Charon*; a HTTP middleware client for Ethereum Staking that enables you to safely run a single validator across a group of independent servers.
 
-Charon is accompanied by a DKG tool, [Delphi](https://github.com/obolnetwork/delphi), for distributed validator key creation. 
+Charon is accompanied by webapp called the [Distributed Validator Launchpad](https://github.com/obolnetwork/dv-launchpad), for distributed validator key creation. 
 
 Charon is used by Enterprises and DAOs to distribute the responsibility of running Ethereum Validators across a number of different running instances and client implementations.  
 
@@ -58,6 +58,13 @@ Charon is written in [Go](https://golang.org/dl/). Notable dependencies:
 - [spf13/cobra](https://pkg.go.dev/github.com/spf13/cobra): CLI interface
 - [spf13/viper](https://pkg.go.dev/github.com/spf13/viper): Config management
 - [gRPC](https://grpc.io) and [gRPC-Gateway](https://grpc-ecosystem.github.io/grpc-gateway/): REST API interfaces
+
+### Release Process
+
+Charon is set up to run a release with Github Actions triggered by a Tag. To tag a commit for release run:
+```
+git tag -a v0.1.0 -m "Charon v0.1.0: Getting Started"
+```
 
 ## Lessons Learned
 

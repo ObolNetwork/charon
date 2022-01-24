@@ -17,6 +17,18 @@ First Charon client that will need disk write access, may run into `chmod` issue
 ### Fixed
 
 <!--  -->
+## [v0.1.0] - 2022-01-24
+
+First alpha release of Charon. 
+### Added
+
+    OBOL-103 Implement networking
+    OBOL-105 Implement BLS signature aggregation
+
+### Changed
+### Fixed
+
+<!--  -->
 ## [v0.0.2] - 2020-11-01
 
 Added information relating to a future Obol product
