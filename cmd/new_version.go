@@ -24,13 +24,13 @@ import (
 	"github.com/spf13/pflag"
 )
 
-type versionConfig struct {
-	verbose bool
+type VersionConfig struct {
+	Verbose bool
 }
 
 // newVersionCmd returns the version command
-func newVersionCmd(runFunc func(io.Writer, versionConfig)) *cobra.Command {
-	var conf versionConfig
+func newVersionCmd(runFunc func(io.Writer, VersionConfig)) *cobra.Command {
+	var conf VersionConfig
 
 	cmd := &cobra.Command{
 		Use:   "version",
@@ -44,14 +44,14 @@ func newVersionCmd(runFunc func(io.Writer, versionConfig)) *cobra.Command {
 	return cmd
 }
 
-func bindVersionFlags(flags *pflag.FlagSet, config *versionConfig) {
-	flags.BoolVar(&config.verbose, "verbose", false, "Includes detailed module version info")
+func bindVersionFlags(flags *pflag.FlagSet, config *VersionConfig) {
+	flags.BoolVar(&config.Verbose, "verbose", false, "Includes detailed module version info")
 }
 
-func runVersionCmd(out io.Writer, config versionConfig) {
+func runVersionCmd(out io.Writer, config VersionConfig) {
 	fmt.Fprintf(out, internal.ReleaseVersion)
 
-	if !config.verbose {
+	if !config.Verbose {
 		return
 	}
 
