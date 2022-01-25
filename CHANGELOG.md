@@ -19,7 +19,7 @@ First Charon client that will need disk write access, may run into `chmod` issue
 <!--  -->
 ## [v0.1.0] - 2022-01-24
 
-First alpha release of Charon. 
+First alpha release of Charon.
 ### Added
 
     OBOL-103 Implement networking

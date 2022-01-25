@@ -29,10 +29,11 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/obolnetwork/charon/crypto"
-	"github.com/obolnetwork/charon/internal/config"
 	zerologger "github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
+
+	"github.com/obolnetwork/charon/crypto"
+	"github.com/obolnetwork/charon/internal/config"
 )
 
 // Manifest captures the public cryptographic and networking info required to connect to a DV cluster.

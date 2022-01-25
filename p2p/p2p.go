@@ -22,8 +22,9 @@ import (
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	noise "github.com/libp2p/go-libp2p-noise"
-	"github.com/obolnetwork/charon/internal"
 	zerologger "github.com/rs/zerolog/log"
+
+	"github.com/obolnetwork/charon/internal"
 )
 
 var log = zerologger.With().Str("component", "p2p").Logger()

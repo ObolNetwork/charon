@@ -21,9 +21,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/obolnetwork/charon/internal/config"
 	zerologger "github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
+
+	"github.com/obolnetwork/charon/internal/config"
 )
 
 type Config struct {

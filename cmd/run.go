@@ -17,6 +17,10 @@ package cmd
 import (
 	"context"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/obolnetwork/charon/api/server"
 	"github.com/obolnetwork/charon/appctx"
 	"github.com/obolnetwork/charon/cluster"
@@ -25,9 +29,6 @@ import (
 	"github.com/obolnetwork/charon/internal"
 	"github.com/obolnetwork/charon/internal/config"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"golang.org/x/sync/errgroup"
 )
 
 var runCmd = cobra.Command{

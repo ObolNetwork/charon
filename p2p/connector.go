@@ -16,6 +16,7 @@ package p2p
 
 import (
 	"github.com/libp2p/go-libp2p-core/connmgr"
+
 	"github.com/obolnetwork/charon/cluster"
 )
 

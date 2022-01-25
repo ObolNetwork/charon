@@ -25,9 +25,10 @@ import (
 
 	"github.com/drand/kyber"
 	bls12381 "github.com/drand/kyber-bls12381"
+	"github.com/spf13/viper"
+
 	crypto2 "github.com/obolnetwork/charon/crypto"
 	"github.com/obolnetwork/charon/internal/config"
-	"github.com/spf13/viper"
 )
 
 // ConsensusStore stores a single DVC consensus key using a keystore and password file.

@@ -18,10 +18,11 @@ import (
 	"fmt"
 	dbg "runtime/debug"
 
-	"github.com/obolnetwork/charon/internal"
-	"github.com/obolnetwork/charon/internal/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/obolnetwork/charon/internal"
+	"github.com/obolnetwork/charon/internal/config"
 )
 
 // versionCmd represents the version command
