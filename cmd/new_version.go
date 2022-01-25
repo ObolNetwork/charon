@@ -26,7 +26,7 @@ import (
 )
 
 type versionConfig struct {
-	verbose bool
+	Verbose bool
 }
 
 // newVersionCmd returns the version command
@@ -46,13 +46,13 @@ func newVersionCmd(runFunc func(io.Writer, versionConfig)) *cobra.Command {
 }
 
 func bindVersionFlags(flags *pflag.FlagSet, config *versionConfig) {
-	flags.BoolVar(&config.verbose, "verbose", false, "Includes detailed module version info")
+	flags.BoolVar(&config.Verbose, "verbose", false, "Includes detailed module version info")
 }
 
 func runVersionCmd(out io.Writer, config versionConfig) {
 	fmt.Fprintf(out, internal.ReleaseVersion)
 
-	if !config.verbose {
+	if !config.Verbose {
 		return
 	}
 
