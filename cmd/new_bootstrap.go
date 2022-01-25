@@ -120,8 +120,26 @@ func getPassword(config BootstrapConfig) (string, error) {
 	if config.PasswordFile != "" {
 		return crypto.ReadPlaintextPassword(config.PasswordFile)
 	} else {
-		return prompt.PasswordPrompt("Enter keystore password", prompt.NotEmpty)
+		return promptPassword()
 	}
+}
+
+func promptPassword() (string, error) {
+	password, err := prompt.PasswordPrompt("Enter keystore password", prompt.NotEmpty)
+	if err != nil {
+		return "", err
+	}
+
+	confirm, err := prompt.PasswordPrompt("Confirm keystore password", prompt.NotEmpty)
+	if err != nil {
+		return "", err
+	}
+
+	if password != confirm {
+		return "", errors.New("passwords do not match")
+	}
+
+	return password, nil
 }
 
 func saveScheme(scheme *crypto.TBLSScheme, filename string) error {
