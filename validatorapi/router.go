@@ -14,7 +14,7 @@
 
 // Package validatorapi defines validator facing API that serves the subset of
 // endpoints related to distributed validation and reverse-proxies the rest to the
-// upstream beacon  client.
+// upstream beacon client.
 package validatorapi
 
 import (
