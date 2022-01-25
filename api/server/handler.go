@@ -17,12 +17,13 @@ package server
 import (
 	"context"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/obolnetwork/charon/api"
 	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/internal"
 	"github.com/obolnetwork/charon/internal/config"
 	"github.com/obolnetwork/charon/p2p"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Handler implements gRPC APIs.

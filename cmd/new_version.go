@@ -19,9 +19,10 @@ import (
 	"io"
 	dbg "runtime/debug"
 
-	"github.com/obolnetwork/charon/internal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"github.com/obolnetwork/charon/internal"
 )
 
 type versionConfig struct {

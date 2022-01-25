@@ -16,6 +16,7 @@ package p2p
 
 import (
 	"crypto/ecdsa"
+
 	gcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/libp2p/go-libp2p-core/crypto"
 )

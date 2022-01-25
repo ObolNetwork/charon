@@ -21,8 +21,9 @@ import (
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/obolnetwork/charon/cluster"
 	zerologger "github.com/rs/zerolog/log"
+
+	"github.com/obolnetwork/charon/cluster"
 )
 
 // ConnGater filters incoming connections to known DV clients.

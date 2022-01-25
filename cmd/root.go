@@ -16,13 +16,13 @@
 package cmd
 
 import (
-	"github.com/obolnetwork/charon/internal/config"
 	"github.com/rs/zerolog"
 	zerologger "github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
 	_ "go.uber.org/automaxprocs"
+
+	"github.com/obolnetwork/charon/internal/config"
 )
 
 // rootCmd is the root of the command tree.

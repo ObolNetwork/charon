@@ -17,10 +17,11 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/spf13/cobra"
 )
 
 var enrCmd = &cobra.Command{

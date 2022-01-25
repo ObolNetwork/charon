@@ -18,6 +18,10 @@ repos:
         -   id: go-mod-tidy
             files: go.mod
         -   id: go-test-mod
+  -   repo: https://github.com/corverroos/fiximports
+      rev: 258e9de8481700360dd4b65a9183c1ba4874c66c
+      hooks:
+        -   id: go-fiximports # format imports for go source files
   -   repo: https://github.com/xenowits/go-pre-commit-hooks
       rev: v0.0.1
       hooks:

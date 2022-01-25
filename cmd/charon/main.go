@@ -15,8 +15,9 @@
 package main
 
 import (
-	"github.com/obolnetwork/charon/cmd"
 	"github.com/spf13/cobra"
+
+	"github.com/obolnetwork/charon/cmd"
 )
 
 func main() {

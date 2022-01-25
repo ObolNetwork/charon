@@ -22,11 +22,12 @@ import (
 	"time"
 
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/zerolog"
+
 	"github.com/obolnetwork/charon/api"
 	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/rs/zerolog"
 )
 
 // Options contains the server options.

@@ -21,9 +21,10 @@ import (
 	"path/filepath"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/obolnetwork/charon/internal/config"
 	zerologger "github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
+
+	"github.com/obolnetwork/charon/internal/config"
 )
 
 // TODO(corver): Refactor this to just functions (not OO) like Create, Load, LoadOrCreate, remove Must.

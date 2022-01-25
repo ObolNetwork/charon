@@ -18,10 +18,11 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/obolnetwork/charon/internal/config"
-	"github.com/obolnetwork/charon/p2p"
 	zerologger "github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
+
+	"github.com/obolnetwork/charon/internal/config"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 type Config struct {

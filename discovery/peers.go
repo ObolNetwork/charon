@@ -19,6 +19,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
+
 	"github.com/obolnetwork/charon/p2p"
 )
 
