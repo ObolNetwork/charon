@@ -35,14 +35,14 @@ const (
 
 // New returns a new root cobra command that handles our command line tool.
 func New() *cobra.Command {
-	return newRoot(
+	return newRootCmd(
 		newVersionCmd(runVersionCmd),
 		newBootstrapCmd(runBootstrapCmd),
 		newEnrCmd(runNewENR),
 	)
 }
 
-func newRoot(cmds ...*cobra.Command) *cobra.Command {
+func newRootCmd(cmds ...*cobra.Command) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "charon",
 		Short: "Charon - The Ethereum DVT middleware client",

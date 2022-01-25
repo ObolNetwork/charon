@@ -25,22 +25,22 @@ func TestCmdFlags(t *testing.T) {
 	tests := []struct {
 		Name            string
 		Args            []string
-		VersionConfig   *VersionConfig
-		BootstrapConfig *BootstrapConfig
+		VersionConfig   *versionConfig
+		BootstrapConfig *bootstrapConfig
 	}{
 		{
 			Name:          "version verbose",
 			Args:          slice("version", "--verbose"),
-			VersionConfig: &VersionConfig{Verbose: true},
+			VersionConfig: &versionConfig{Verbose: true},
 		}, {
 			Name:          "version no verbose",
 			Args:          slice("version", "--verbose=false"),
-			VersionConfig: &VersionConfig{Verbose: false},
+			VersionConfig: &versionConfig{Verbose: false},
 		},
 		{
-			Name: "bootstrap no flags",
+			Name: "bootstrap flags",
 			Args: slice("bootstrap"),
-			BootstrapConfig: &BootstrapConfig{
+			BootstrapConfig: &bootstrapConfig{
 				Out:          "./keys",
 				Shares:       4,
 				PasswordFile: "",
@@ -48,9 +48,9 @@ func TestCmdFlags(t *testing.T) {
 			},
 		},
 		{
-			Name: "bootstrap no flags",
+			Name: "bootstrap with flags",
 			Args: slice("bootstrap", "-o=./gen_keys", "-n=6", "--password-file=./pass", `--bootnodes=hello,world`),
-			BootstrapConfig: &BootstrapConfig{
+			BootstrapConfig: &bootstrapConfig{
 				Out:          "./gen_keys",
 				Shares:       6,
 				PasswordFile: "./pass",
@@ -61,12 +61,12 @@ func TestCmdFlags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			root := newRoot(
-				newVersionCmd(func(_ io.Writer, config VersionConfig) {
+			root := newRootCmd(
+				newVersionCmd(func(_ io.Writer, config versionConfig) {
 					require.NotNil(t, test.VersionConfig)
 					require.Equal(t, *test.VersionConfig, config)
 				}),
-				newBootstrapCmd(func(_ io.Writer, config BootstrapConfig) error {
+				newBootstrapCmd(func(_ io.Writer, config bootstrapConfig) error {
 					require.NotNil(t, test.BootstrapConfig)
 					require.Equal(t, *test.BootstrapConfig, config)
 					return nil

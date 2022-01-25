@@ -30,16 +30,16 @@ import (
 	"github.com/obolnetwork/charon/crypto"
 )
 
-type BootstrapConfig struct {
+type bootstrapConfig struct {
 	Out          string
 	Shares       int
 	PasswordFile string
 	Bootnodes    []string
 }
 
-// newBoostrapCmd returns new bootstrap command with BootstrapConfig
-func newBootstrapCmd(runFunc func(io.Writer, BootstrapConfig) error) *cobra.Command {
-	var conf BootstrapConfig
+// newBoostrapCmd returns new bootstrap command with bootstrapConfig
+func newBootstrapCmd(runFunc func(io.Writer, bootstrapConfig) error) *cobra.Command {
+	var conf bootstrapConfig
 
 	cmd := &cobra.Command{
 		Use:   "bootstrap",
@@ -58,16 +58,16 @@ Also outputs a distributed validator profile.`,
 	return cmd
 }
 
-func bindBootstrapFlags(flags *pflag.FlagSet, config *BootstrapConfig) {
+func bindBootstrapFlags(flags *pflag.FlagSet, config *bootstrapConfig) {
 	flags.StringVarP(&config.Out, "out", "o", "./keys", "Output directory")
 	flags.IntVarP(&config.Shares, "shares", "n", 4, "Number of key shares to generate")
 	flags.StringVar(&config.PasswordFile, "password-file", "", "Path to a plain-text password file")
 	flags.StringSliceVar(&config.Bootnodes, "bootnodes", nil, "List of bootnodes")
 }
 
-// runBootstrapCmd runs bootstrap command with the given BootstrapConfig. The BootstrapConfig
+// runBootstrapCmd runs bootstrap command with the given bootstrapConfig. The bootstrapConfig
 // helps to generate keyshares which are then saved into desired directories in json
-func runBootstrapCmd(w io.Writer, config BootstrapConfig) error {
+func runBootstrapCmd(w io.Writer, config bootstrapConfig) error {
 	if config.Shares < 1 {
 		return errors.New("invalid non-positive shares")
 	}
@@ -116,7 +116,7 @@ func runBootstrapCmd(w io.Writer, config BootstrapConfig) error {
 }
 
 // getPassword returns the keystore password either from a file if provided or from user prompt.
-func getPassword(config BootstrapConfig) (string, error) {
+func getPassword(config bootstrapConfig) (string, error) {
 	if config.PasswordFile != "" {
 		return crypto.ReadPlaintextPassword(config.PasswordFile)
 	} else {
