@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go test . -run=TestCmdFlags -update -clean
 func TestCmdFlags(t *testing.T) {
 	tests := []struct {
 		Name            string
@@ -80,6 +79,7 @@ func TestCmdFlags(t *testing.T) {
 	}
 }
 
+// slice is a convenience function for creating string slice literals.
 func slice(strs ...string) []string {
 	return strs
 }
