@@ -43,7 +43,6 @@ linters:
   enable-all: true
   disable:
     # Enable these and fix the issues
-    - errorlint
     - forbidigo
     - forcetypeassert
     - gci
