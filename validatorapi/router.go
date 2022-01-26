@@ -77,7 +77,7 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 }
 
 // apiErr defines a validator api error that is converted to an eth2 errorResponse.
-type apiErr struct {
+type apiError struct {
 	// StatusCode is the http status code to return, defaults to 500.
 	StatusCode int
 	// Message is a safe human-readable message, defaults to "Internal server error".
@@ -86,7 +86,7 @@ type apiErr struct {
 	Err error
 }
 
-func (a apiErr) Error() string {
+func (a apiError) Error() string {
 	return fmt.Sprintf("validator api error[status=%d,msg=%s]: %v", a.StatusCode, a.Message, a.Err)
 }
 
@@ -208,9 +208,9 @@ func writeResponse(w http.ResponseWriter, endpoint string, response interface{})
 
 // writeError writes a http json error response object.
 func writeError(w http.ResponseWriter, endpoint string, err error) {
-	var aerr apiErr
+	var aerr apiError
 	if !errors.As(err, &aerr) {
-		aerr = apiErr{
+		aerr = apiError{
 			StatusCode: http.StatusInternalServerError,
 			Message:    "Internal server error",
 			Err:        err,
@@ -248,7 +248,7 @@ func writeError(w http.ResponseWriter, endpoint string, err error) {
 // in the value pointed to by v.
 func unmarshal(body []byte, v interface{}) error {
 	if len(body) == 0 {
-		return apiErr{
+		return apiError{
 			StatusCode: http.StatusBadRequest,
 			Message:    "empty request body",
 			Err:        errors.New("empty request body"),
@@ -257,7 +257,7 @@ func unmarshal(body []byte, v interface{}) error {
 
 	err := json.Unmarshal(body, v)
 	if err != nil {
-		return apiErr{
+		return apiError{
 			StatusCode: http.StatusBadRequest,
 			Message:    "failed parsing request body",
 			Err:        err,
@@ -272,7 +272,7 @@ func uintParam(params map[string]string, name string) (uint, error) {
 	param := params[name]
 	res, err := strconv.ParseUint(param, 10, 64)
 	if err != nil {
-		return 0, apiErr{
+		return 0, apiError{
 			StatusCode: http.StatusBadRequest,
 			Message:    fmt.Sprintf("invalid uint path parameter %s [%s]", name, param),
 			Err:        err,
