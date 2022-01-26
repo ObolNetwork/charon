@@ -154,7 +154,7 @@ func WritePlaintextPassword(filePath string, overwrite bool, password string) er
 		return err
 	}
 	defer f.Close()
-	_, err = f.WriteString(password)
+	_, _ = f.WriteString(password)
 	return nil
 }
 

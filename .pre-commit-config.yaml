@@ -38,6 +38,12 @@ repos:
   # Then run code validators (on the formatted code)
       - id: go-vet
 
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.44.0
+    hooks:
+      - id: golangci-lint
+        args: [ -D, staticcheck, -E, nestif ] # add more linters from https://golangci-lint.run/usage/linters/
+
   - repo: local
     hooks:
       - id: run-go-tests

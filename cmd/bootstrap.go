@@ -77,7 +77,7 @@ type keygen struct {
 	outDir       string
 	passwordFile string
 	n            uint
-	bootnodes    []string
+	// bootnodes    []string
 	// params
 	t        uint
 	password string
