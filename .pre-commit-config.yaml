@@ -42,7 +42,7 @@ repos:
     rev: v1.44.0
     hooks:
       - id: golangci-lint
-        args: [ -D, staticcheck, -E, nestif ] # add more linters from https://golangci-lint.run/usage/linters/
+        args: [ -n, -D, staticcheck, -E, nestif ] # add more linters from https://golangci-lint.run/usage/linters/
 
   - repo: local
     hooks:
