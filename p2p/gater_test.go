@@ -18,7 +18,6 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"net"
 	"testing"
 
 	"github.com/libp2p/go-libp2p-core/crypto"
@@ -60,7 +59,7 @@ func TestP2PConnGating(t *testing.T) {
 	}
 
 	// create node A
-	p2pConfigA := &Config{[]net.IP{net.ParseIP("127.0.0.1")}, 3030, nil}
+	p2pConfigA := Config{Addrs: []string{"127.0.0.1:3030"}}
 	prvKeyA, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	if err != nil {
 		t.Fatal("private key generation for A failed", err)
@@ -71,7 +70,7 @@ func TestP2PConnGating(t *testing.T) {
 	}
 
 	// create node B
-	p2pConfigB := &Config{[]net.IP{net.ParseIP("127.0.0.1")}, 3031, nil}
+	p2pConfigB := Config{Addrs: []string{"127.0.0.1:3031"}}
 	prvKeyB, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	if err != nil {
 		t.Fatal("private key generation for B failed", err)

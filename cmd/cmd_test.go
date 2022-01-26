@@ -17,7 +17,6 @@ package cmd
 import (
 	"context"
 	"io"
-	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -67,7 +66,7 @@ func TestCmdFlags(t *testing.T) {
 			Name: "run command",
 			Args: slice("run"),
 			RunnerConfig: &runner.Config{
-				Discovery:        discovery.Config{ListenAddr: net.UDPAddr{Port: 30309}},
+				Discovery:        discovery.Config{ListenAddr: "0.0.0.0:30309"},
 				ClusterDir:       "./charon/manifest.json",
 				DataDir:          "./charon/data",
 				MonitoringAddr:   "0.0.0.0",

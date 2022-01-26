@@ -44,6 +44,7 @@ const (
 
 type Config struct {
 	Discovery        discovery.Config
+	P2P              p2p.Config
 	ClusterDir       string
 	DataDir          string
 	MonitoringAddr   string
@@ -76,12 +77,15 @@ func Run(shutdownCtx context.Context, conf Config) error {
 		return fmt.Errorf("load or create peer ID: %w", err)
 	}
 
-	peerDB, err := discovery.NewPeerDB(&conf.Discovery, conf.Discovery.P2P, p2pKey)
+	localEnode, peerDB, err := discovery.NewLocalEnode(conf.Discovery, conf.P2P, p2pKey)
 	if err != nil {
-		return fmt.Errorf("new peer db: %w", err)
+		return fmt.Errorf("create local enode: %w", err)
 	}
 
-	discoveryNode := discovery.NewNode(&conf.Discovery, peerDB, p2pKey)
+	discoveryNode, err := discovery.NewListener(conf.Discovery, conf.P2P, localEnode, p2pKey)
+	if err != nil {
+		return fmt.Errorf("start discv5 listener: %w", err)
+	}
 
 	manifests, err := cluster.LoadKnownClustersFromDir(conf.ClusterDir)
 	if err != nil {
@@ -92,7 +96,7 @@ func Run(shutdownCtx context.Context, conf Config) error {
 	connGater := p2p.NewConnGaterForClusters(manifests, nil)
 	log.Info().Msgf("Connecting to %d unique peers", len(connGater.PeerIDs))
 
-	_, err = p2p.NewNode(conf.Discovery.P2P, p2pKey, connGater)
+	_, err = p2p.NewNode(conf.P2P, p2pKey, connGater)
 	if err != nil {
 		return fmt.Errorf("new p2p node: %w", err)
 	}
@@ -115,8 +119,6 @@ func Run(shutdownCtx context.Context, conf Config) error {
 	select {
 	case err := <-start(monitoring.ListenAndServe):
 		procErr = fmt.Errorf("monitoring server: %w", err)
-	case err := <-start(discoveryNode.Listen):
-		procErr = fmt.Errorf("discv5 server: %w", err)
 	case err := <-start(vserver.ListenAndServe):
 		procErr = fmt.Errorf("validatorapi server: %w", err)
 	case <-shutdownCtx.Done():
@@ -147,6 +149,8 @@ func Run(shutdownCtx context.Context, conf Config) error {
 	if err := stopJeager(ctx); err != nil {
 		return fmt.Errorf("stop jaeger tracer: %w", err)
 	}
+
+	peerDB.Close()
 
 	return procErr
 }

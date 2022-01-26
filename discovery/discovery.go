@@ -20,44 +20,74 @@ import (
 	"net"
 
 	"github.com/ethereum/go-ethereum/p2p/discover"
-	zerologger "github.com/rs/zerolog/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
+	"github.com/ethereum/go-ethereum/p2p/netutil"
+	"github.com/spf13/viper"
+
+	"github.com/obolnetwork/charon/internal/config"
+	charonp2p "github.com/obolnetwork/charon/p2p"
 )
 
-var log = zerologger.With().Str("component", "discovery").Logger()
-
-// Node participates in the discv5 network.
-type Node struct {
-	Config     *Config
-	Peers      *Peers
-	PrivateKey *ecdsa.PrivateKey
-
-	conn   *net.UDPConn
-	discv5 *discover.UDPv5
+type Config struct {
+	DBPath     string
+	ListenAddr string
 }
 
-func NewNode(config *Config, peers *Peers, key *ecdsa.PrivateKey) *Node {
-	return &Node{
-		Config:     config,
-		Peers:      peers,
-		PrivateKey: key,
+// DefaultConfig constructs discovery config using viper.
+func DefaultConfig() Config {
+	return Config{
+		DBPath:     viper.GetString(config.KeyNodeDB),
+		ListenAddr: viper.GetString(config.KeyDiscV5),
 	}
 }
 
-// Listen starts up the discv5 UDP listener and node logic.
-func (n *Node) Listen() (err error) {
-	n.conn, err = net.ListenUDP("udp", &n.Config.ListenAddr)
+// NewListener starts and returns a discv5 UDP implementation.
+func NewListener(config Config, p2pConfig charonp2p.Config, ln *enode.LocalNode, key *ecdsa.PrivateKey) (*discover.UDPv5, error) {
+	udpAddr, err := net.ResolveUDPAddr("udp", config.ListenAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	n.discv5, err = discover.ListenV5(n.conn, n.Peers.Local, discover.Config{
-		PrivateKey:  n.PrivateKey,
-		NetRestrict: n.Config.P2P.Netlist,
+
+	conn, err := net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	netlist, err := netutil.ParseNetlist(p2pConfig.Netlist)
+	if err != nil {
+		return nil, err
+	}
+
+	return discover.ListenV5(conn, ln, discover.Config{
+		PrivateKey:  key,
+		NetRestrict: netlist,
 		Bootnodes:   nil, // TODO
 	})
-	log.Info().Msgf("Starting discv5 on %s", n.Config.ListenAddr.String())
-	return
 }
 
-func (n *Node) Close() {
-	n.discv5.Close()
+// NewLocalEnode returns a local enode and a peer DB or an error.
+func NewLocalEnode(config Config, p2pConfig charonp2p.Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *enode.DB, error) {
+	db, err := enode.OpenDB(config.DBPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	addrs, err := p2pConfig.TCPAddrs()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	node := enode.NewLocalNode(db, key)
+	for _, addr := range addrs {
+		if v4 := addr.IP.To4(); v4 != nil {
+			node.Set(enr.IPv4(v4))
+			node.Set(enr.TCP(addr.Port))
+		} else if v6 := addr.IP.To16(); v6 != nil {
+			node.Set(enr.IPv6(v6))
+			node.Set(enr.TCP(addr.Port))
+		}
+	}
+
+	return node, db, nil
 }
