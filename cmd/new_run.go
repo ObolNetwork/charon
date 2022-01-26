@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"os/signal"
 
@@ -24,7 +25,7 @@ import (
 	"github.com/obolnetwork/charon/runner"
 )
 
-func newRunCmd() *cobra.Command {
+func newRunCmd(runFunc func(context.Context, runner.Config) error) *cobra.Command {
 	var conf runner.Config
 
 	cmd := &cobra.Command{
@@ -35,7 +36,7 @@ func newRunCmd() *cobra.Command {
 			ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
 			defer cancel()
 
-			return runner.Run(ctx, conf)
+			return runFunc(ctx, conf)
 		},
 	}
 
@@ -48,9 +49,9 @@ func bindRunFlags(flags *pflag.FlagSet, config *runner.Config) {
 	flags.StringVar(&config.DataDir, "data-dir", "./charon/data", "The directory where charon will store all its internal data")
 	flags.StringVar(&config.ClusterDir, "cluster-file", "./charon/manifest.json", "The filepath to the manifest file defining distributed validator cluster")
 	flags.StringVar(&config.BeaconNodeAddr, "beacon-node-endpoint", "http://localhost/", "Beacon node endpoint URL")
-	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "http://0.0.0.0", "Listening address for validator-facing traffic proxying the beacon-node API")
+	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "0.0.0.0", "Listening address for validator-facing traffic proxying the beacon-node API")
 	flags.IntVar(&config.ValidatorAPIPort, "validator-api-port", 3500, "Listening port for validator-facing traffic proxying the beacon-node API.")
-	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "http://0.0.0.0", "Listening address for the monitoring API (prometheus, pprof)")
+	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "0.0.0.0", "Listening address for the monitoring API (prometheus, pprof)")
 	flags.IntVar(&config.MonitoringPort, "monitoring-port", 8088, "Listening port for monitoring API (prometheus, pprof)")
 	flags.StringVar(&config.JaegerAddr, "jaegar-address", "", "Listening address for Jaegar tracing")
 	flags.IntVar(&config.Discovery.ListenAddr.Port, "p2p-udp-port", 30309, "Listening UDP port for Discovery v5 discovery")
