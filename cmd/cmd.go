@@ -16,6 +16,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -73,7 +74,8 @@ func initializeConfig(cmd *cobra.Command) error {
 	// if we cannot parse the config file.
 	if err := v.ReadInConfig(); err != nil {
 		// It's okay if there isn't a config file
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		var cfgError viper.ConfigFileNotFoundError
+		if ok := errors.As(err, &cfgError); !ok {
 			return err
 		}
 	}
