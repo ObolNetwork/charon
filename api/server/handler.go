@@ -17,10 +17,10 @@ package server
 import (
 	"context"
 
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/api"
-	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/internal"
 	"github.com/obolnetwork/charon/internal/config"
 	"github.com/obolnetwork/charon/p2p"
@@ -28,8 +28,8 @@ import (
 
 // Handler implements gRPC APIs.
 type Handler struct {
-	PeerDB *discovery.Peers
-	Node   *p2p.Node
+	LocalEnode *enode.LocalNode
+	Node       *p2p.Node
 
 	api.UnimplementedControlPlaneServer
 }
@@ -37,9 +37,9 @@ type Handler struct {
 func (h Handler) GetSelf(_ context.Context, _ *api.GetSelfRequest) (*api.GetSelfResponse, error) {
 	r := &api.GetSelfResponse{
 		Peer: &api.Peer{
-			PeerId:  h.PeerDB.Local.ID().String(),
+			PeerId:  h.LocalEnode.ID().String(),
 			Version: internal.ReleaseVersion,
-			Enr:     h.PeerDB.Local.Node().String(),
+			Enr:     h.LocalEnode.Node().String(),
 		},
 		StartTime: timestamppb.New(config.StartTime),
 		PeerCount: uint32(len(h.Node.Network().Peers())),

@@ -49,10 +49,8 @@ func bindRunFlags(flags *pflag.FlagSet, config *runner.Config) {
 	flags.StringVar(&config.DataDir, "data-dir", "./charon/data", "The directory where charon will store all its internal data")
 	flags.StringVar(&config.ClusterDir, "cluster-file", "./charon/manifest.json", "The filepath to the manifest file defining distributed validator cluster")
 	flags.StringVar(&config.BeaconNodeAddr, "beacon-node-endpoint", "http://localhost/", "Beacon node endpoint URL")
-	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "0.0.0.0", "Listening address for validator-facing traffic proxying the beacon-node API")
-	flags.IntVar(&config.ValidatorAPIPort, "validator-api-port", 3500, "Listening port for validator-facing traffic proxying the beacon-node API.")
-	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "0.0.0.0", "Listening address for the monitoring API (prometheus, pprof)")
-	flags.IntVar(&config.MonitoringPort, "monitoring-port", 8088, "Listening port for monitoring API (prometheus, pprof)")
+	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "0.0.0.0:3500", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API")
+	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "0.0.0.0:8088", "Listening address (ip and port) for the monitoring API (prometheus, pprof)")
 	flags.StringVar(&config.JaegerAddr, "jaegar-address", "", "Listening address for Jaegar tracing")
-	flags.IntVar(&config.Discovery.ListenAddr.Port, "p2p-udp-port", 30309, "Listening UDP port for Discovery v5 discovery")
+	flags.StringVar(&config.Discovery.ListenAddr, "p2p-udp-address", "0.0.0.0:30309", "Listening UDP address (ip and port) for Discv5 discovery")
 }

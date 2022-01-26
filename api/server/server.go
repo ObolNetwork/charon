@@ -21,12 +21,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 
 	"github.com/obolnetwork/charon/api"
-	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -43,7 +43,7 @@ func Run(ctx context.Context, opts Options) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	srv, err := New(opts.Handler.PeerDB, opts.Handler.Node, opts.Addr)
+	srv, err := New(opts.Handler.LocalEnode, opts.Handler.Node, opts.Addr)
 	if err != nil {
 		return fmt.Errorf("new monitoring server: %w", err)
 	}
@@ -71,13 +71,13 @@ func Run(ctx context.Context, opts Options) error {
 	return nil
 }
 
-func New(peerDB *discovery.Peers, p2pNode *p2p.Node, addr string) (*http.Server, error) {
+func New(localEnode *enode.LocalNode, p2pNode *p2p.Node, addr string) (*http.Server, error) {
 
 	// Set up gRPC-Gateway integrations.
 	// TODO(corver): Move this to validatorapi
 	handler := Handler{
-		PeerDB: peerDB,
-		Node:   p2pNode,
+		LocalEnode: localEnode,
+		Node:       p2pNode,
 	}
 	gmux := gwruntime.NewServeMux()
 	if err := api.RegisterControlPlaneHandlerServer(context.TODO(), gmux, handler); err != nil {

@@ -77,18 +77,23 @@ func runCharon(_ *cobra.Command, _ []string) {
 	}
 
 	// Create peer discovery.
-	discoveryConfig := discovery.DefaultConfig(p2pConfig)
-	peerDB, err := discovery.NewPeerDB(discoveryConfig, p2pConfig, p2pKey)
+	discoveryConfig := discovery.DefaultConfig()
+	localEnode, peerDB, err := discovery.NewLocalEnode(discoveryConfig, p2pConfig, p2pKey)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to open peer DB")
 	}
-	discoveryNode := discovery.NewNode(discoveryConfig, peerDB, p2pKey)
-	appGroup.Go(discoveryNode.Listen)
+	defer peerDB.Close()
+
+	discoveryNode, err := discovery.NewListener(discoveryConfig, p2pConfig, localEnode, p2pKey)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to start discv5 listener")
+	}
+	defer discoveryNode.Close()
 
 	// Create internal API handler.
 	handler := &server.Handler{
-		PeerDB: peerDB,
-		Node:   node,
+		LocalEnode: localEnode,
+		Node:       node,
 	}
 	// Start internal API server.
 	if intAddr := viper.GetString(config.KeyAPI); intAddr != "" {

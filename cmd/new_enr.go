@@ -41,14 +41,14 @@ func newEnrCmd(runFunc func()) *cobra.Command {
 // Function for printing status of ENR for this instance
 func runNewENR() {
 	p2pConfig := p2p.DefaultConfig()
-	discoveryConfig := discovery.DefaultConfig(p2pConfig)
+	discoveryConfig := discovery.DefaultConfig()
 	identityKey := identity.DefaultP2P().MustGet()
-	db, err := discovery.NewPeerDB(discoveryConfig, p2pConfig, identityKey)
+	localEnode, db, err := discovery.NewLocalEnode(discoveryConfig, p2pConfig, identityKey)
 
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to open peer DB")
 	}
 
 	defer db.Close()
-	fmt.Println(db.Local.Node().String())
+	fmt.Println(localEnode.Node().String())
 }
