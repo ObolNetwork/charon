@@ -22,6 +22,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+
+	"github.com/obolnetwork/charon/runner"
 )
 
 const (
@@ -39,6 +41,7 @@ func New() *cobra.Command {
 		newVersionCmd(runVersionCmd),
 		newBootstrapCmd(runBootstrapCmd),
 		newEnrCmd(runNewENR),
+		newRunCmd(runner.Run),
 	)
 }
 
