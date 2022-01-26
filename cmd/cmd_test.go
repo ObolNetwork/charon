@@ -15,10 +15,15 @@
 package cmd
 
 import (
+	"context"
 	"io"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/discovery"
+	"github.com/obolnetwork/charon/runner"
 )
 
 func TestCmdFlags(t *testing.T) {
@@ -27,6 +32,7 @@ func TestCmdFlags(t *testing.T) {
 		Args            []string
 		VersionConfig   *versionConfig
 		BootstrapConfig *bootstrapConfig
+		RunnerConfig    *runner.Config
 	}{
 		{
 			Name:          "version verbose",
@@ -57,6 +63,21 @@ func TestCmdFlags(t *testing.T) {
 				Bootnodes:    []string{"hello", "world"},
 			},
 		},
+		{
+			Name: "run command",
+			Args: slice("run"),
+			RunnerConfig: &runner.Config{
+				Discovery:        discovery.Config{ListenAddr: net.UDPAddr{Port: 30309}},
+				ClusterDir:       "./charon/manifest.json",
+				DataDir:          "./charon/data",
+				MonitoringAddr:   "0.0.0.0",
+				MonitoringPort:   8088,
+				ValidatorAPIAddr: "0.0.0.0",
+				ValidatorAPIPort: 3500,
+				BeaconNodeAddr:   "http://localhost/",
+				JaegerAddr:       "",
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -69,6 +90,11 @@ func TestCmdFlags(t *testing.T) {
 				newBootstrapCmd(func(_ io.Writer, config bootstrapConfig) error {
 					require.NotNil(t, test.BootstrapConfig)
 					require.Equal(t, *test.BootstrapConfig, config)
+					return nil
+				}),
+				newRunCmd(func(_ context.Context, config runner.Config) error {
+					require.NotNil(t, test.RunnerConfig)
+					require.Equal(t, *test.RunnerConfig, config)
 					return nil
 				}),
 			)

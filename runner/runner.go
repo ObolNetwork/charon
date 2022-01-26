@@ -47,7 +47,9 @@ type Config struct {
 	ClusterDir       string
 	DataDir          string
 	MonitoringAddr   string
+	MonitoringPort   int
 	ValidatorAPIAddr string
+	ValidatorAPIPort int
 	BeaconNodeAddr   string
 	JaegerAddr       string
 }
