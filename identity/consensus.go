@@ -58,6 +58,7 @@ func (s ConsensusStore) Password() (password string, err error) {
 	if errors.Is(err, os.ErrNotExist) {
 		return s.createNewPassword()
 	}
+
 	return
 }
 
@@ -78,6 +79,7 @@ func (s ConsensusStore) createNewPassword() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return password, nil
 }
 
@@ -96,6 +98,7 @@ func (s ConsensusStore) Create() (*ConsensusKey, error) {
 	if err := key.Save(s.KeystorePath); err != nil {
 		return nil, err
 	}
+
 	return &ConsensusKey{
 		PrivKey: privKey,
 		PubKey:  pubKey.(*bls12381.KyberG1),
@@ -116,6 +119,7 @@ func (s ConsensusStore) Load() (*ConsensusKey, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &ConsensusKey{
 		PrivKey: priv,
 		PubKey:  pub.(*bls12381.KyberG1),
@@ -128,5 +132,6 @@ func (s ConsensusStore) Get() (*ConsensusKey, error) {
 	if errors.Is(err, os.ErrNotExist) {
 		return s.Create()
 	}
+
 	return key, err
 }

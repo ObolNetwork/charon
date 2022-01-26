@@ -20,7 +20,7 @@ import (
 	zerologger "github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	_ "go.uber.org/automaxprocs"
+	_ "go.uber.org/automaxprocs" // Automatically sets GOMAXPROCS to match Linux container CPU quota.
 
 	"github.com/obolnetwork/charon/internal/config"
 )
@@ -62,6 +62,7 @@ func preRunRoot(c *cobra.Command, _ []string) error {
 		return err
 	}
 	zerolog.SetGlobalLevel(lvl)
+
 	return err
 }
 

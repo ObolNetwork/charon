@@ -88,11 +88,13 @@ func TestCmdFlags(t *testing.T) {
 				newBootstrapCmd(func(_ io.Writer, config bootstrapConfig) error {
 					require.NotNil(t, test.BootstrapConfig)
 					require.Equal(t, *test.BootstrapConfig, config)
+
 					return nil
 				}),
 				newRunCmd(func(_ context.Context, config runner.Config) error {
 					require.NotNil(t, test.RunnerConfig)
 					require.Equal(t, *test.RunnerConfig, config)
+
 					return nil
 				}),
 			)

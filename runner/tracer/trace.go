@@ -86,6 +86,7 @@ func WithJaegerOrNoop(jaegerAddr string) func(*options) {
 	if jaegerAddr == "" {
 		return func(o *options) {}
 	}
+
 	return WithJaeger(jaegerAddr)
 }
 

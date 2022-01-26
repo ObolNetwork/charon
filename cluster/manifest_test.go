@@ -83,6 +83,7 @@ func newRandomENR(t *testing.T) (res string) {
 	require.NoError(t, err)
 	res, err = EncodeENR(&r)
 	require.NoError(t, err)
+
 	return
 }
 
@@ -92,6 +93,7 @@ func newRandomIP() net.IP {
 	if err != nil {
 		panic(err.Error())
 	}
+
 	return buf
 }
 

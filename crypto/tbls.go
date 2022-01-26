@@ -46,6 +46,7 @@ func (t *TBLSScheme) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("failed to decode TBLS scheme: %w", err)
 	}
 	*t = *decoded
+
 	return nil
 }
 
@@ -55,6 +56,7 @@ func (t *TBLSScheme) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode TBLS scheme: %w", err)
 	}
+
 	return json.Marshal(encoded)
 }
 
@@ -71,6 +73,7 @@ func (t *TBLSScheme) Encode() (TBLSSchemeEncoded, error) {
 	for i, c := range commits {
 		enc[i] = BLSPubkeyHex{c.(*bls.KyberG1)}
 	}
+
 	return enc, nil
 }
 
@@ -81,6 +84,7 @@ func (t TBLSSchemeEncoded) Decode() (*TBLSScheme, error) {
 		points[i] = commit.KyberG1
 	}
 	pubPoly := share.NewPubPoly(BLSKeyGroup, BLSKeyGroup.Point().Base(), points)
+
 	return &TBLSScheme{pubPoly}, nil
 }
 
@@ -91,5 +95,6 @@ func NewTBLSPoly(t uint) (pri *share.PriPoly, pub *share.PubPoly) {
 	secret := BLSKeyGroup.Scalar().Pick(stream)
 	pri = share.NewPriPoly(BLSKeyGroup, int(t), secret, stream)
 	pub = pri.Commit(BLSKeyGroup.Point().Base())
+
 	return
 }

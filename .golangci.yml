@@ -49,9 +49,6 @@ linters:
     - gochecknoinits # Once config refactor is done.
     - godot
     - gosec
-    - ineffassign
-    - nlreturn
-    - revive
     - stylecheck
     - testpackage # rename internal test files to *_internal_test.go
     - thelper

@@ -26,9 +26,11 @@ func InterruptContext(ctx context.Context) context.Context {
 	ctx, cancel := context.WithCancel(ctx)
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
+
 	go func() {
 		defer cancel()
 		<-signals
 	}()
+
 	return ctx
 }

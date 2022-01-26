@@ -49,6 +49,7 @@ func NewConnGaterForClusters(clusters cluster.KnownClusters, networks *netutil.N
 			peerIDs[peerID] = struct{}{}
 		}
 	}
+
 	return &ConnGater{
 		PeerIDs:  peerIDs,
 		Networks: networks,

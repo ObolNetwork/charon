@@ -51,6 +51,7 @@ func (m *Manifest) Pubkey() kyber.Point {
 // ParsedENRs returns the decoded list of ENRs in a manifest.
 func (m *Manifest) ParsedENRs() ([]enr.Record, error) {
 	records := make([]enr.Record, len(m.ENRs))
+
 	for i, enrStr := range m.ENRs {
 		record, err := DecodeENR(enrStr)
 		if err != nil {
@@ -58,6 +59,7 @@ func (m *Manifest) ParsedENRs() ([]enr.Record, error) {
 		}
 		records[i] = *record
 	}
+
 	return records, nil
 }
 
@@ -70,6 +72,7 @@ func (m *Manifest) PeerIDs() ([]peer.ID, error) {
 		return nil, err
 	}
 	ids := make([]peer.ID, len(records))
+
 	for i, record := range records {
 		var err error
 		ids[i], err = PeerIDFromENR(&record)
@@ -77,6 +80,7 @@ func (m *Manifest) PeerIDs() ([]peer.ID, error) {
 			return nil, err
 		}
 	}
+
 	return ids, nil
 }
 
@@ -88,6 +92,7 @@ func PeerIDFromENR(record *enr.Record) (peer.ID, error) {
 		zerologger.Warn().Err(err).
 			Str("enr", recordStr).
 			Msg("ENR missing secp256k1 field")
+
 		return "", err
 	}
 	p2pPubkey := libp2pcrypto.Secp256k1PublicKey(pubkey)
@@ -97,8 +102,10 @@ func PeerIDFromENR(record *enr.Record) (peer.ID, error) {
 		zerologger.Warn().Err(err).
 			Str("enr", recordStr).
 			Msg("Failed to derive libp2p ID")
+
 		return "", err
 	}
+
 	return p2pID, nil
 }
 
@@ -107,6 +114,7 @@ func EncodeENR(record *enr.Record) (string, error) {
 	if err := record.EncodeRLP(&buf); err != nil {
 		return "", err
 	}
+
 	return "enr:" + base64.URLEncoding.EncodeToString(buf.Bytes()), nil
 }
 
@@ -125,6 +133,7 @@ func DecodeENR(enrStr string) (*enr.Record, error) {
 	if rd.Len() > 0 {
 		return nil, fmt.Errorf("leftover garbage bytes in ENR")
 	}
+
 	return &record, nil
 }
 
@@ -160,6 +169,7 @@ func LoadKnownClustersFromDir(dir string) (KnownClusters, error) {
 		pubkeyHex := crypto.BLSPointToHex(cluster.Pubkey())
 		known.clusters[pubkeyHex] = cluster
 	}
+
 	return known, nil
 }
 
@@ -183,5 +193,6 @@ func LoadManifest(filePath string) (*Manifest, error) {
 	}
 	c := new(Manifest)
 	err = json.Unmarshal(buf, c)
+
 	return c, err
 }

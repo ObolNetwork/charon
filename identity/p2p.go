@@ -52,6 +52,7 @@ func (s P2PStore) Create() (*ecdsa.PrivateKey, error) {
 		return nil, err
 	}
 	err = crypto.SaveECDSA(s.KeyPath, key)
+
 	return key, err
 }
 
@@ -66,6 +67,7 @@ func (s P2PStore) Get() (*ecdsa.PrivateKey, error) {
 	if errors.Is(err, os.ErrNotExist) {
 		return s.Create()
 	}
+
 	return key, err
 }
 
@@ -75,5 +77,6 @@ func (s P2PStore) MustGet() *ecdsa.PrivateKey {
 	if err != nil {
 		zerologger.Fatal().Err(err).Msg("Failed to read node key")
 	}
+
 	return key
 }

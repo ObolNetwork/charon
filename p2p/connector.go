@@ -33,5 +33,6 @@ func PinPeers(clusters *cluster.KnownClusters, connMgr connmgr.ConnManager) erro
 			connMgr.Protect(id, tagDVPeer)
 		}
 	}
+
 	return nil
 }

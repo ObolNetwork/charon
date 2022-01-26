@@ -36,11 +36,11 @@ var (
 	}, []string{"endpoint", "status_code"})
 )
 
-func incApiErrors(endpoint string, statusCode int) {
+func incAPIErrors(endpoint string, statusCode int) {
 	apiErrors.WithLabelValues(endpoint, strconv.Itoa(statusCode)).Inc()
 }
 
-func observeApiLatency(endpoint string) func() {
+func observeAPILatency(endpoint string) func() {
 	t0 := time.Now()
 	return func() {
 		apiLatency.WithLabelValues(endpoint).Observe(time.Since(t0).Seconds())

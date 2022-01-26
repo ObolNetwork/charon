@@ -61,5 +61,6 @@ func NewNode(cfg Config, key *ecdsa.PrivateKey, connGater *ConnGater) (*Node, er
 		return nil, err
 	}
 	log.Info().Msgf("Starting P2P interface on %v", h.Addrs())
+
 	return &Node{h}, nil
 }

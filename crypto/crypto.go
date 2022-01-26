@@ -35,5 +35,6 @@ func DerivePubkey(secret kyber.Scalar) *bls12381.KyberG1 {
 func NewKeyPair() (secret kyber.Scalar, pubkey *bls12381.KyberG1) {
 	secret = BLSPairing.G1().Scalar().Pick(BLSPairing.RandomStream())
 	pubkey = DerivePubkey(secret)
+
 	return
 }

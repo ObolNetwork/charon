@@ -77,6 +77,7 @@ func LoadViper(configPath string) error {
 		viper.SetConfigFile(configPath)
 		return viper.ReadInConfig()
 	}
+
 	return nil
 }
 
