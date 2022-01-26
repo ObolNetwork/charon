@@ -39,6 +39,7 @@ type Options struct {
 }
 
 // Run starts the internal server and blocks until a fatal error occurs or the context is canceled.
+//nolint:contextcheck
 func Run(ctx context.Context, opts Options) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
