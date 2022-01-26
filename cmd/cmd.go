@@ -39,7 +39,7 @@ func New() *cobra.Command {
 		newVersionCmd(runVersionCmd),
 		newBootstrapCmd(runBootstrapCmd),
 		newEnrCmd(runNewENR),
-		newRunCmd(runNewCharon),
+		newRunCmd(),
 	)
 }
 

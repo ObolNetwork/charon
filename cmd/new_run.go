@@ -15,108 +15,43 @@
 package cmd
 
 import (
-	"context"
-	"fmt"
-	"io"
+	"os"
+	"os/signal"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"golang.org/x/sync/errgroup"
+	"github.com/spf13/pflag"
 
-	"github.com/obolnetwork/charon/api/server"
-	"github.com/obolnetwork/charon/appctx"
-	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/discovery"
-	"github.com/obolnetwork/charon/identity"
-	"github.com/obolnetwork/charon/internal"
-	"github.com/obolnetwork/charon/internal/config"
-	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/runner"
 )
 
-func newRunCmd(runFunc func(io.Writer) error) *cobra.Command {
+func newRunCmd() *cobra.Command {
+	var conf runner.Config
+
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Runs the Charon middleware",
 		Long:  "Starts the long-running Charon middleware process to perform distributed validator duties.",
-		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(cmd.OutOrStdout())
+			ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
+			defer cancel()
+
+			return runner.Run(ctx, conf)
 		},
 	}
+
+	bindRunFlags(cmd.Flags(), &conf)
 
 	return cmd
 }
 
-// runCharon is the main routine powering the Charon daemon.
-// TODO(dhruv): rename back to runCharon before deploying to prod
-func runNewCharon(w io.Writer) error {
-	// The exit context cancels as soon as the user requests an exit.
-	// Note that services may outlive the exit context.
-	exitCtx := appctx.InterruptContext(context.Background())
-
-	// The application context cancels as soon as any module raises a fatal error.
-	appGroup, appCtx := errgroup.WithContext(exitCtx)
-
-	// Load known DV clusters.
-	manifests, err := cluster.LoadKnownClusters()
-	if err != nil {
-		return err
-	}
-
-	// Create connection gater.
-	connGater := p2p.NewConnGaterForClusters(manifests, nil)
-
-	// Create or retrieve our P2P identity key.
-	p2pIdentity := identity.DefaultP2P()
-	p2pKey, err := p2pIdentity.Get()
-	if err != nil {
-		return err
-	}
-
-	// Create P2P client.
-	p2pConfig := p2p.DefaultConfig()
-	node, err := p2p.NewNode(p2pConfig, p2pKey, connGater)
-	if err != nil {
-		return err
-	}
-
-	// Create peer discovery.
-	discoveryConfig := discovery.DefaultConfig(p2pConfig)
-	peerDB, err := discovery.NewPeerDB(discoveryConfig, p2pConfig, p2pKey)
-	if err != nil {
-		return err
-	}
-
-	discoveryNode := discovery.NewNode(discoveryConfig, peerDB, p2pKey)
-	appGroup.Go(discoveryNode.Listen)
-
-	// Create internal API handler.
-	handler := &server.Handler{
-		PeerDB: peerDB,
-		Node:   node,
-	}
-
-	// Start internal API server.
-	if intAddr := viper.GetString(config.KeyAPI); intAddr != "" {
-		appGroup.Go(func() error {
-			err := server.Run(appCtx, server.Options{
-				Addr:    intAddr,
-				Handler: handler,
-				Log:     log.With().Str("component", "api").Logger(),
-			})
-			return err
-		})
-	}
-
-	// Wait for services to exit gracefully or fail.
-	if err := appGroup.Wait(); err != nil {
-		return err
-	}
-
-	_, _ = fmt.Fprintln(w, "version: ", internal.ReleaseVersion)
-	_, _ = fmt.Fprintln(w, "Charon Started")
-	_, _ = fmt.Fprintf(w, "Loaded %d DVs", len(manifests.Clusters()))
-	_, _ = fmt.Fprintf(w, "Connected to %d unique peers", len(connGater.PeerIDs))
-
-	return nil
+func bindRunFlags(flags *pflag.FlagSet, config *runner.Config) {
+	flags.StringVar(&config.DataDir, "data-dir", "./charon/data", "The directory where charon will store all its internal data")
+	flags.StringVar(&config.ClusterDir, "cluster-file", "./charon/manifest.json", "The filepath to the manifest file defining distributed validator cluster")
+	flags.StringVar(&config.BeaconNodeAddr, "beacon-node-endpoint", "http://localhost/", "Beacon node endpoint URL")
+	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "http://0.0.0.0", "Listening address for validator-facing traffic proxying the beacon-node API")
+	flags.IntVar(&config.ValidatorAPIPort, "validator-api-port", 3500, "Listening port for validator-facing traffic proxying the beacon-node API.")
+	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "http://0.0.0.0", "Listening address for the monitoring API (prometheus, pprof)")
+	flags.IntVar(&config.MonitoringPort, "monitoring-port", 8088, "Listening port for monitoring API (prometheus, pprof)")
+	flags.StringVar(&config.JaegerAddr, "jaegar-address", "", "Listening address for Jaegar tracing")
+	flags.IntVar(&config.Discovery.ListenAddr.Port, "p2p-udp-port", 30309, "Listening UDP port for Discovery v5 discovery")
 }
