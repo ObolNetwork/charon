@@ -62,6 +62,6 @@ func TestStdOutTracer(t *testing.T) {
 
 func inner(ctx context.Context) {
 	var span trace.Span
-	ctx, span = tracer.Start(ctx, "inner")
+	_, span = tracer.Start(ctx, "inner")
 	defer span.End()
 }

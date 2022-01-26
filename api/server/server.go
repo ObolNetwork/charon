@@ -80,7 +80,7 @@ func New(peerDB *discovery.Peers, p2pNode *p2p.Node, addr string) (*http.Server,
 		Node:   p2pNode,
 	}
 	gmux := gwruntime.NewServeMux()
-	if err := api.RegisterControlPlaneHandlerServer(nil, gmux, handler); err != nil {
+	if err := api.RegisterControlPlaneHandlerServer(context.TODO(), gmux, handler); err != nil {
 		return nil, err
 	}
 
