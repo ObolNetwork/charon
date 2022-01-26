@@ -32,13 +32,13 @@ type Config struct {
 
 // TCPAddrs returns the configured addresses as tcp addresses.
 func (c Config) TCPAddrs() ([]*net.TCPAddr, error) {
-	var res []*net.TCPAddr
+	res := make([]*net.TCPAddr, 0, len(c.Addrs))
+
 	for _, addr := range c.Addrs {
 		tcpAddr, err := resolveListenAddr(addr)
 		if err != nil {
 			return nil, err
 		}
-
 		res = append(res, tcpAddr)
 	}
 
@@ -47,13 +47,12 @@ func (c Config) TCPAddrs() ([]*net.TCPAddr, error) {
 
 // Multiaddrs returns the configured addresses as libp2p multiaddrs.
 func (c Config) Multiaddrs() ([]multiaddr.Multiaddr, error) {
-	var res []multiaddr.Multiaddr
-
 	tcpAddrs, err := c.TCPAddrs()
 	if err != nil {
 		return nil, err
 	}
 
+	res := make([]multiaddr.Multiaddr, 0, len(tcpAddrs))
 	for _, addr := range tcpAddrs {
 
 		var typ string

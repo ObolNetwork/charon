@@ -82,12 +82,13 @@ func runCharon(_ *cobra.Command, _ []string) {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to open peer DB")
 	}
-	defer peerDB.Close()
 
 	discoveryNode, err := discovery.NewListener(discoveryConfig, p2pConfig, localEnode, p2pKey)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to start discv5 listener")
 	}
+
+	defer peerDB.Close()
 	defer discoveryNode.Close()
 
 	// Create internal API handler.
