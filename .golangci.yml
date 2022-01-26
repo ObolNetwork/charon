@@ -43,7 +43,6 @@ linters:
   enable-all: true
   disable:
     # Enable these and fix the issues
-    - contextcheck # add nolint directive to runner.Run, //nolint:contextcheck
     - errname
     - errorlint
     - forbidigo
