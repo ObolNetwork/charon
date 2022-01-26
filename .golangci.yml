@@ -1,0 +1,88 @@
+linters-settings:
+  cyclop:
+    max-complexity: 15
+    skip-tests: true
+  gci:
+    local-prefixes: github.com/obolnetwork/charon
+  gocritic:
+    disabled-checks:
+      - ifElseChain
+  nlreturn:
+    block-size: 2
+  staticcheck:
+    go: "1.17"
+    checks:
+     - "all"
+     - "-SA1019" # Ignoring since github.com/drand/kyber/sign/bls uses Proof Of Possession as does Ethereum.
+  testpackage:
+    skip-regexp: internal_test\.go
+  whitespace:
+    multi-if: true
+    multi-func: true
+  wsl:
+    strict-append: false
+    allow-assign-and-anything: true
+    allow-separated-leading-comment: true
+    allow-case-trailing-whitespace: true
+    enforce-err-cuddling: true
+
+issues:
+  exclude-rules:
+    - path: '(.+)_test\.go'
+      linters:
+        - bodyclose
+        - noctx
+    - text: "only one"
+      linters:
+        - wsl
+    - text: "unnecessary leading newline"
+      linters:
+        - whitespace
+
+linters:
+  enable-all: true
+  disable:
+    # Enable these and fix the issues
+    - contextcheck # add nolint directive to runner.Run, //nolint:contextcheck
+    - errname
+    - errorlint
+    - forbidigo
+    - forcetypeassert
+    - gci
+    - gochecknoinits # Once config refactor is done.
+    - godot
+    - gosec
+    - ineffassign
+    - nlreturn
+    - revive
+    - structcheck
+    - staticcheck
+    - stylecheck
+    - testpackage # rename internal test files to *_internal_test.go
+    - thelper
+    - unused
+    - whitespace
+    - wastedassign
+    - wsl
+
+    # Keep disabled
+    - exhaustivestruct
+    - funlen
+    - forcetypeassert
+    - gochecknoglobals
+    - godox
+    - goerr113
+    - gofumpt
+    - golint
+    - gomnd
+    - gomoddirectives
+    - ifshort
+    - interfacer
+    - ireturn
+    - lll # Think about adding this (max line length)
+    - maligned
+    - paralleltest
+    - scopelint
+    - tagliatelle
+    - varnamelen
+    - wrapcheck
