@@ -56,6 +56,7 @@ type Config struct {
 // Run is the entrypoint for running a charon DVC instance.
 // All processes and their dependencies are constructed and then started.
 // Graceful shutdown is triggered on first process error or when the shutdown context is cancelled.
+//nolint:contextcheck
 func Run(shutdownCtx context.Context, conf Config) error {
 	nodekey := path.Join(conf.DataDir, nodekeyFile)
 
