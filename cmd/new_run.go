@@ -54,5 +54,5 @@ func bindRunFlags(flags *pflag.FlagSet, config *runner.Config) {
 	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "0.0.0.0", "Listening address for the monitoring API (prometheus, pprof)")
 	flags.IntVar(&config.MonitoringPort, "monitoring-port", 8088, "Listening port for monitoring API (prometheus, pprof)")
 	flags.StringVar(&config.JaegerAddr, "jaegar-address", "", "Listening address for Jaegar tracing")
-	flags.StringVar(&config.Discovery.ListenAddr, "p2p-addr", "0.0.0.0:30309", "Listening UDP address (ip and port) for Discovery v5 discovery")
+	flags.StringVar(&config.Discovery.ListenAddr, "p2p-udp-addr", "0.0.0.0:30309", "Listening UDP address (ip and port) for Discv5 discovery")
 }
