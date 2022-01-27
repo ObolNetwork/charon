@@ -37,7 +37,7 @@ type bootstrapConfig struct {
 	Bootnodes    []string
 }
 
-// newBoostrapCmd returns new bootstrap command with bootstrapConfig
+// newBoostrapCmd returns new bootstrap command with bootstrapConfig.
 func newBootstrapCmd(runFunc func(io.Writer, bootstrapConfig) error) *cobra.Command {
 	var conf bootstrapConfig
 
@@ -66,7 +66,7 @@ func bindBootstrapFlags(flags *pflag.FlagSet, config *bootstrapConfig) {
 }
 
 // runBootstrapCmd runs bootstrap command with the given bootstrapConfig. The bootstrapConfig
-// helps to generate keyshares which are then saved into desired directories in json
+// helps to generate keyshares which are then saved into desired directories in json.
 func runBootstrapCmd(w io.Writer, config bootstrapConfig) error {
 	if config.Shares < 1 {
 		return errors.New("invalid non-positive shares")
@@ -119,9 +119,9 @@ func runBootstrapCmd(w io.Writer, config bootstrapConfig) error {
 func getPassword(config bootstrapConfig) (string, error) {
 	if config.PasswordFile != "" {
 		return crypto.ReadPlaintextPassword(config.PasswordFile)
-	} else {
-		return promptPassword()
 	}
+
+	return promptPassword()
 }
 
 func promptPassword() (string, error) {
@@ -153,6 +153,7 @@ func saveScheme(scheme *crypto.TBLSScheme, filename string) error {
 		return err
 	}
 
+	//nolint:gosec
 	return os.WriteFile(filename, buf, 0644)
 }
 
@@ -167,9 +168,11 @@ func saveKeys(scheme *crypto.TBLSScheme, priShares []*share.PriShare, pubkeyHex 
 		if err != nil {
 			return err
 		}
+
 		if err := item.Save(keyPath(outDir, pubkeyHex, priShare.I)); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }

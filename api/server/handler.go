@@ -22,7 +22,6 @@ import (
 
 	"github.com/obolnetwork/charon/api"
 	"github.com/obolnetwork/charon/internal"
-	"github.com/obolnetwork/charon/internal/config"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -41,7 +40,7 @@ func (h Handler) GetSelf(_ context.Context, _ *api.GetSelfRequest) (*api.GetSelf
 			Version: internal.ReleaseVersion,
 			Enr:     h.LocalEnode.Node().String(),
 		},
-		StartTime: timestamppb.New(config.StartTime),
+		StartTime: timestamppb.New(internal.StartTime),
 		PeerCount: uint32(len(h.Node.Network().Peers())),
 	}
 

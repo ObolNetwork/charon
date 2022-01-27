@@ -26,9 +26,11 @@ import (
 )
 
 func newEnrCmd(runFunc func(io.Writer, p2p.Config, discovery.Config, string) error) *cobra.Command {
-	var p2pConfig p2p.Config
-	var discoveryConfig discovery.Config
-	var dataDir string
+	var (
+		p2pConfig       p2p.Config
+		discoveryConfig discovery.Config
+		dataDir         string
+	)
 
 	cmd := &cobra.Command{
 		Use:   "enr",
@@ -47,13 +49,13 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, discovery.Config, string) err
 	return cmd
 }
 
-// Function for printing status of ENR for this instance
+// Function for printing status of ENR for this instance.
 func runNewENR(w io.Writer, p2pConfig p2p.Config, discoveryConfig discovery.Config, dataDir string) error {
 	identityKey := identity.DefaultP2P(dataDir).MustGet()
 	localEnode, db, err := discovery.NewLocalEnode(discoveryConfig, p2pConfig, identityKey)
 
 	if err != nil {
-		return fmt.Errorf("Failed to open peer DB")
+		return fmt.Errorf("failed to open peer DB")
 	}
 
 	defer db.Close()

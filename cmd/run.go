@@ -53,8 +53,8 @@ func newRunCmd(runFunc func(context.Context, runner.Config) error) *cobra.Comman
 func bindRunFlags(flags *pflag.FlagSet, config *runner.Config) {
 	flags.StringVar(&config.ClusterDir, "cluster-file", "./charon/manifest.json", "The filepath to the manifest file defining distributed validator cluster")
 	flags.StringVar(&config.BeaconNodeAddr, "beacon-node-endpoint", "http://localhost/", "Beacon node endpoint URL")
-	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "0.0.0.0:3500", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API")
-	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "0.0.0.0:8088", "Listening address (ip and port) for the monitoring API (prometheus, pprof)")
+	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:3500", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API")
+	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:8088", "Listening address (ip and port) for the monitoring API (prometheus, pprof)")
 	flags.StringVar(&config.JaegerAddr, "jaegar-address", "", "Listening address for Jaegar tracing")
 }
 
@@ -63,12 +63,12 @@ func bindGeneralFlags(flags *pflag.FlagSet, dataDir *string) {
 }
 
 func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {
-	flags.StringSliceVar(&config.Addrs, "p2p-tcp-address", []string{"0.0.0.0:13900"}, "Listening TCP addresses (ip and port) for LibP2P traffic")
+	flags.StringSliceVar(&config.Addrs, "p2p-tcp-address", []string{"127.0.0.1:13900"}, "Listening TCP addresses (ip and port) for LibP2P traffic")
 	flags.StringVar(&config.Allowlist, "p2p-allowlist", "", "Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.")
 	flags.StringVar(&config.Denylist, "p2p-denylist", "", "Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.")
 }
 
 func bindDiscoveryFlags(flags *pflag.FlagSet, config *discovery.Config) {
-	flags.StringVar(&config.ListenAddr, "p2p-udp-address", "0.0.0.0:30309", "Listening UDP address (ip and port) for Discv5 discovery")
-	flags.StringVar(&config.DBPath, "nodedb", "", "Path to Node DB")
+	flags.StringVar(&config.ListenAddr, "p2p-udp-address", "127.0.0.1:30309", "Listening UDP address (ip and port) for Discv5 discovery")
+	flags.StringVar(&config.DBPath, "p2p-nodedb", "", "Path to store a discv5 node database. Empty default results in in-memory database.")
 }
