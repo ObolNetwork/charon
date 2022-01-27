@@ -189,7 +189,7 @@ func TestRouter(t *testing.T) {
 // testRouter is a helper function to test router endpoints with an eth2http client. The outer test
 // provides the mocked test handler and a callback that does the client side test.
 func testRouter(t *testing.T, handler testHandler, callback func(context.Context, *eth2http.Service)) {
-	t.Helper() // test helper function should start from t.Helper()
+	t.Helper()
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
@@ -210,7 +210,7 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 // testRawRouter is a helper function to test router endpoints with a raw http client. The outer test
 // provides the mocked test handler and a callback that does the client side test.
 func testRawRouter(t *testing.T, handler testHandler, callback func(context.Context, string)) {
-	t.Helper() // test helper function should start from t.Helper()
+	t.Helper()
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
@@ -244,7 +244,7 @@ func (h testHandler) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, il 
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the
 // eth2http service on startup, all other requests are routed to ProxyHandler if not nil.
 func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
-	t.Helper() // test helper function should start from t.Helper()
+	t.Helper()
 	ctx := context.Background()
 	mock, err := eth2mock.New(ctx, eth2mock.WithLogLevel(zerolog.InfoLevel))
 	require.NoError(t, err)
