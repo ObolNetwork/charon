@@ -92,7 +92,7 @@ func initializeConfig(cmd *cobra.Command) error {
 	return nil
 }
 
-// bindFlags binds each cobra flag to its associated viper configuration (config file and environment variable)
+// bindFlags binds each cobra flag to its associated viper configuration (config file and environment variable).
 func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
 	var lastErr error
 

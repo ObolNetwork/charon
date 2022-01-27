@@ -51,7 +51,7 @@ func TestInterceptSecured(t *testing.T) {
 	}
 }
 
-// Tests if node A rejects connection attempt from unknown node B
+// Tests if node A rejects connection attempt from unknown node B.
 func TestP2PConnGating(t *testing.T) {
 	c := ConnGater{
 		PeerIDs:  map[peer.ID]struct{}{},

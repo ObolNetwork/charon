@@ -44,7 +44,7 @@ func Main() {
 }
 
 // Pre-run hook executed by all commands and subcommands unless they declare their own
-// Used to parse and validate global config typically (for now it sets log level)
+// Used to parse and validate global config typically (for now it sets log level).
 func preRunRoot(c *cobra.Command, _ []string) error {
 	// Set config file path from flag.
 	configFileFlag, err := c.Flags().GetString(config.KeyConfigFile)

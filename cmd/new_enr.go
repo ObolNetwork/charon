@@ -38,7 +38,7 @@ func newEnrCmd(runFunc func()) *cobra.Command {
 	return cmd
 }
 
-// Function for printing status of ENR for this instance
+// Function for printing status of ENR for this instance.
 func runNewENR() {
 	p2pConfig := p2p.DefaultConfig()
 	discoveryConfig := discovery.DefaultConfig()

@@ -29,7 +29,7 @@ type versionConfig struct {
 	Verbose bool
 }
 
-// newVersionCmd returns the version command
+// newVersionCmd returns the version command.
 func newVersionCmd(runFunc func(io.Writer, versionConfig)) *cobra.Command {
 	var conf versionConfig
 

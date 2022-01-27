@@ -154,6 +154,8 @@ func (k *keygen) saveScheme(scheme *crypto.TBLSScheme, pubkeyHex string) {
 	}
 	polyName := filepath.Join(k.outDir, pubkeyHex+"-poly.json")
 	fmt.Println("Writing polynomials to", polyName)
+
+	//nolint:gosec // No need to reduce permissions as it simply saves the public keys
 	err = os.WriteFile(polyName, buf, 0666)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to save public polynomials")

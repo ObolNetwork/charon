@@ -47,8 +47,6 @@ linters:
     - forcetypeassert
     - gci
     - gochecknoinits # Once config refactor is done.
-    - godot
-    - gosec
     - stylecheck
     - testpackage # rename internal test files to *_internal_test.go
     - thelper
