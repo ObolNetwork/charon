@@ -37,7 +37,7 @@ type bootstrapConfig struct {
 	Bootnodes    []string
 }
 
-// newBoostrapCmd returns new bootstrap command with bootstrapConfig
+// newBoostrapCmd returns new bootstrap command with bootstrapConfig.
 func newBootstrapCmd(runFunc func(io.Writer, bootstrapConfig) error) *cobra.Command {
 	var conf bootstrapConfig
 
@@ -66,7 +66,7 @@ func bindBootstrapFlags(flags *pflag.FlagSet, config *bootstrapConfig) {
 }
 
 // runBootstrapCmd runs bootstrap command with the given bootstrapConfig. The bootstrapConfig
-// helps to generate keyshares which are then saved into desired directories in json
+// helps to generate keyshares which are then saved into desired directories in json.
 func runBootstrapCmd(w io.Writer, config bootstrapConfig) error {
 	if config.Shares < 1 {
 		return errors.New("invalid non-positive shares")
@@ -153,6 +153,7 @@ func saveScheme(scheme *crypto.TBLSScheme, filename string) error {
 		return err
 	}
 
+	//nolint:gosec // No need to reduce permissions as it simply saves the public keys
 	return os.WriteFile(filename, buf, 0644)
 }
 

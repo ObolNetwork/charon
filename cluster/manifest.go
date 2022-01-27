@@ -73,9 +73,9 @@ func (m *Manifest) PeerIDs() ([]peer.ID, error) {
 	}
 	ids := make([]peer.ID, len(records))
 
-	for i, record := range records {
+	for i := range records {
 		var err error
-		ids[i], err = PeerIDFromENR(&record)
+		ids[i], err = PeerIDFromENR(&records[i])
 		if err != nil {
 			return nil, err
 		}
