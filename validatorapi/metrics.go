@@ -42,6 +42,7 @@ func incAPIErrors(endpoint string, statusCode int) {
 
 func observeAPILatency(endpoint string) func() {
 	t0 := time.Now()
+
 	return func() {
 		apiLatency.WithLabelValues(endpoint).Observe(time.Since(t0).Seconds())
 	}

@@ -41,10 +41,12 @@ func (t *TBLSScheme) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &encoded); err != nil {
 		return fmt.Errorf("failed to unmarshal TBLS scheme: %w", err)
 	}
+
 	decoded, err := encoded.Decode()
 	if err != nil {
 		return fmt.Errorf("failed to decode TBLS scheme: %w", err)
 	}
+
 	*t = *decoded
 
 	return nil
@@ -69,6 +71,7 @@ func (t *TBLSScheme) Encode() (TBLSSchemeEncoded, error) {
 	if !base.Equal(BLSKeyGroup.Point().Base()) {
 		return nil, fmt.Errorf("pubkey commits do not use standard base point")
 	}
+
 	enc := make([]BLSPubkeyHex, len(commits))
 	for i, c := range commits {
 		enc[i] = BLSPubkeyHex{c.(*bls.KyberG1)}
@@ -83,6 +86,7 @@ func (t TBLSSchemeEncoded) Decode() (*TBLSScheme, error) {
 	for i, commit := range t {
 		points[i] = commit.KyberG1
 	}
+
 	pubPoly := share.NewPubPoly(BLSKeyGroup, BLSKeyGroup.Point().Base(), points)
 
 	return &TBLSScheme{pubPoly}, nil
@@ -96,5 +100,5 @@ func NewTBLSPoly(t uint) (pri *share.PriPoly, pub *share.PubPoly) {
 	pri = share.NewPriPoly(BLSKeyGroup, int(t), secret, stream)
 	pub = pri.Commit(BLSKeyGroup.Point().Base())
 
-	return
+	return pri, pub
 }

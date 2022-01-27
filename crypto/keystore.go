@@ -56,10 +56,12 @@ func BLSKeyPairToKeystore(scalar kyber.Scalar, pubkey kyber.Point, password stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal private key: %w", err)
 	}
+
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
 	}
+
 	encryptor := keystorev4.New()
 	cryptoFields, err := encryptor.Encrypt(secret, password)
 	if err != nil {
@@ -81,13 +83,17 @@ func BLSKeyPairToKeystore(scalar kyber.Scalar, pubkey kyber.Point, password stri
 func TBLSShareToKeystore(scheme *TBLSScheme, priPoly *share.PriShare, password string) (*Keystore, error) {
 	pubShare := DerivePubkey(priPoly.V)
 	pubShareHex := BLSPointToHex(pubShare)
+
 	fmt.Printf("Share #%04d pubkey: %s\n", priPoly.I, pubShareHex)
+
 	pubkey := scheme.PubPoly.Commit()
 	pubkeyHex := BLSPointToHex(pubkey)
+
 	keyStore, err := BLSKeyPairToKeystore(priPoly.V, pubShare, password)
 	if err != nil {
 		return nil, err
 	}
+
 	keyStore.Description = fmt.Sprintf("Obol Eth2 validator %s i=%d t=%d",
 		pubkeyHex, priPoly.I, scheme.Threshold())
 
@@ -102,6 +108,7 @@ func (k *Keystore) BLSKeyPair(password string) (kyber.Scalar, kyber.Point, error
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to decrypt BLS private key: %w", err)
 	}
+
 	secret := BLSKeyGroup.Scalar()
 	if err := secret.UnmarshalBinary(secretBytes); err != nil {
 		return nil, nil, fmt.Errorf("failed to unmarshal BLS private key: %w", err)
@@ -113,10 +120,12 @@ func (k *Keystore) BLSKeyPair(password string) (kyber.Scalar, kyber.Point, error
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to unmarshal BLS public key: %w", err)
 	}
+
 	givenPubkey := BLSKeyGroup.Point()
 	if err := givenPubkey.UnmarshalBinary(pubkeyBytes); err != nil {
 		return nil, nil, fmt.Errorf("failed to uncompress BLS public key: %w", err)
 	}
+
 	if !givenPubkey.Equal(derivedPubkey) {
 		return nil, nil, fmt.Errorf("public key mismatch: expected %v, actual %v", givenPubkey, derivedPubkey)
 	}
@@ -131,11 +140,14 @@ func ReadPlaintextPassword(filePath string) (string, error) {
 		return "", err
 	}
 	defer f.Close()
+
 	const maxPasswordLen = 1024
+
 	scn := bufio.NewScanner(io.LimitReader(f, maxPasswordLen))
 	if !scn.Scan() {
 		return "", io.ErrUnexpectedEOF
 	}
+
 	password := scn.Text()
 	if len(password) >= maxPasswordLen {
 		return "", fmt.Errorf("password very long, aborting")
@@ -154,11 +166,13 @@ func WritePlaintextPassword(filePath string, overwrite bool, password string) er
 	} else {
 		mode |= os.O_EXCL
 	}
+
 	f, err := os.OpenFile(filePath, mode, 0600)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+
 	_, _ = f.WriteString(password)
 
 	return nil
@@ -170,16 +184,17 @@ func (k *Keystore) Save(filePath string) error {
 	if err != nil {
 		return err
 	}
+
 	f, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return err
 	}
-	_, err = f.Write(data)
-	if err1 := f.Close(); err1 != nil && err == nil {
-		err = err1
+
+	if _, err := f.Write(data); err != nil {
+		return err
 	}
 
-	return err
+	return f.Close()
 }
 
 // LoadKeystore reads and unmarshals the keystore from the given path.
@@ -188,6 +203,7 @@ func LoadKeystore(filePath string) (*Keystore, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	k := new(Keystore)
 	if err := json.Unmarshal(data, k); err != nil {
 		return nil, err

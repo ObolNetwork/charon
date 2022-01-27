@@ -51,16 +51,19 @@ func preRunRoot(c *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+
 	// Load config.
 	if err := config.LoadViper(configFileFlag); err != nil {
 		return err
 	}
+
 	// Set global log level.
 	logLevel := viper.GetString(config.KeyLogLevel)
 	lvl, err := zerolog.ParseLevel(logLevel)
 	if err != nil {
 		return err
 	}
+
 	zerolog.SetGlobalLevel(lvl)
 
 	return err

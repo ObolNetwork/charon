@@ -44,6 +44,8 @@ func init() {
 }
 
 // runCharon is the main routine powering the Charon daemon.
+// Ignore wsl lint since this code is going to be deleted.
+//nolint:gocritic
 func runCharon(_ *cobra.Command, _ []string) {
 	// The exit context cancels as soon as the user requests an exit.
 	// Note that services may outlive the exit context.
@@ -58,7 +60,9 @@ func runCharon(_ *cobra.Command, _ []string) {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to load DV clusters")
 	}
+
 	log.Info().Msgf("Loaded %d DVs", len(manifests.Clusters()))
+
 	// Create connection gater.
 	connGater := p2p.NewConnGaterForClusters(manifests, nil)
 	log.Info().Msgf("Connecting to %d unique peers", len(connGater.PeerIDs))
@@ -69,6 +73,7 @@ func runCharon(_ *cobra.Command, _ []string) {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get peer ID")
 	}
+
 	// Create P2P client.
 	p2pConfig := p2p.DefaultConfig()
 	node, err := p2p.NewNode(p2pConfig, p2pKey, connGater)

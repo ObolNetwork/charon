@@ -90,6 +90,7 @@ func Run(shutdownCtx context.Context, conf Config) error {
 	if err != nil {
 		return fmt.Errorf("load known cluster: %w", err)
 	}
+
 	log.Info().Msgf("Loaded %d DVs", len(manifests.Clusters()))
 
 	connGater := p2p.NewConnGaterForClusters(manifests, nil)
@@ -123,6 +124,7 @@ func Run(shutdownCtx context.Context, conf Config) error {
 	case <-shutdownCtx.Done():
 		log.Info().Msgf("Shutdown signal detected")
 	}
+
 	if procErr != nil {
 		// Even though procErr is returned below, also log it in case shutdown errors.
 		log.Error().Err(err).Msg("Process error")
@@ -159,6 +161,7 @@ func Run(shutdownCtx context.Context, conf Config) error {
 // Note this supports both blocking and non-blocking functions.
 func start(fn func() error) <-chan error {
 	ch := make(chan error, 1)
+
 	go func() {
 		err := fn()
 		if err != nil {

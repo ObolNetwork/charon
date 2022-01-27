@@ -38,10 +38,12 @@ func NewNode(cfg Config, key *ecdsa.PrivateKey, connGater *ConnGater) (*Node, er
 	if key == nil {
 		return nil, fmt.Errorf("missing private key")
 	}
+
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
 		return nil, fmt.Errorf("invalid multiaddrs: %w", err)
 	}
+
 	// Init options.
 	opts := []libp2p.Option{
 		// Set P2P identity key.
@@ -55,11 +57,13 @@ func NewNode(cfg Config, key *ecdsa.PrivateKey, connGater *ConnGater) (*Node, er
 		// Limit connections to DV peers.
 		libp2p.ConnectionGater(connGater),
 	}
+
 	// Create node.
 	h, err := libp2p.New(opts...)
 	if err != nil {
 		return nil, err
 	}
+
 	log.Info().Msgf("Starting P2P interface on %v", h.Addrs())
 
 	return &Node{h}, nil

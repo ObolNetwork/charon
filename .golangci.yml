@@ -32,12 +32,11 @@ issues:
       linters:
         - bodyclose
         - noctx
-    - text: "only one"
-      linters:
-        - wsl
-    - text: "unnecessary leading newline"
-      linters:
-        - whitespace
+  exclude:
+    # Relax wsl and whitespace linters
+    - "unnecessary leading newline"
+    - "block should not start with a whitespace"
+    - "only one cuddle assignment"
 
 linters:
   enable-all: true
@@ -48,7 +47,6 @@ linters:
     - gci
     - gochecknoinits # Once config refactor is done.
     - testpackage # rename internal test files to *_internal_test.go
-    - wsl
 
     # Keep disabled
     - exhaustivestruct

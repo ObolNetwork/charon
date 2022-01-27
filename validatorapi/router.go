@@ -71,6 +71,7 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	r.PathPrefix("/").Handler(proxy)
 
 	return r, nil
@@ -98,7 +99,6 @@ type handlerFunc func(ctx context.Context, params map[string]string, body []byte
 // It does tracing, metrics and response and error writing.
 func wrap(endpoint string, handler handlerFunc) http.Handler {
 	wrap := func(w http.ResponseWriter, r *http.Request) {
-
 		defer observeAPILatency(endpoint)()
 
 		body, err := io.ReadAll(r.Body)
@@ -232,8 +232,8 @@ func writeError(w http.ResponseWriter, endpoint string, err error) {
 
 	b, err2 := json.Marshal(res)
 	if err2 != nil {
+		// Log and continue to write nil b.
 		log.Error().Err(err2).Msg("Failed marshalling error response")
-		// Continue to write nil b.
 	}
 
 	w.WriteHeader(aerr.StatusCode)
@@ -292,6 +292,7 @@ func (w proxyResponseWriter) WriteHeader(statusCode int) {
 		// 2XX isn't an error
 		return
 	}
+
 	incAPIErrors("proxy", statusCode)
 	w.ResponseWriter.WriteHeader(statusCode)
 }

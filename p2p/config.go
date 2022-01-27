@@ -53,6 +53,7 @@ func (c Config) Multiaddrs() ([]multiaddr.Multiaddr, error) {
 	}
 
 	res := make([]multiaddr.Multiaddr, 0, len(tcpAddrs))
+
 	for _, addr := range tcpAddrs {
 
 		var typ string

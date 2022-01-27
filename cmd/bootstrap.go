@@ -49,21 +49,26 @@ func init() {
 
 func runKeygen(cmd *cobra.Command, _ []string) {
 	flags := cmd.Flags()
+
 	out, err := flags.GetString("out")
 	if err != nil {
 		panic(err.Error())
 	}
+
 	passwordFile, err := flags.GetString("password-file")
 	if err != nil {
 		panic(err.Error())
 	}
+
 	shares, err := flags.GetUint("shares")
 	if err != nil {
 		panic(err.Error())
 	}
+
 	if shares < 1 {
 		shares = 1
 	}
+
 	k := keygen{
 		outDir:       out,
 		passwordFile: passwordFile,
@@ -88,17 +93,21 @@ func (k *keygen) run() {
 	// Figure out secret sharing params.
 	k.t = k.n - ((k.n - 1) / 3)
 	fmt.Printf("Params: n=%d t=%d\n", k.n, k.t)
+
 	// Get password from file or prompt.
 	k.getPassword()
+	k.mkOutdir()
+
 	// Create "root" BLS key and polynomials.
 	priPoly, pubPoly := crypto.NewTBLSPoly(k.t)
 	pubkey := pubPoly.Commit()
 	pubkeyHex := crypto.BLSPointToHex(pubkey)
 	fmt.Println("Public key:", pubkeyHex)
+
 	// Save public polynomials (required to recover root sig from sig shares).
 	scheme := &crypto.TBLSScheme{PubPoly: pubPoly}
-	k.mkOutdir()
 	k.saveScheme(scheme, pubkeyHex)
+
 	// Create private key shares.
 	priShares := priPoly.Shares(int(k.n))
 	k.saveKeys(scheme, priShares, pubkeyHex)
@@ -125,14 +134,17 @@ func (k *keygen) promptPassword() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to prompt password")
 	}
+
 	confirmPassword, err := prompt.PasswordPrompt("Confirm keystore password", prompt.NotEmpty)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to prompt password")
 	}
+
 	if password != confirmPassword {
 		fmt.Println("Passwords do not match")
 		os.Exit(1)
 	}
+
 	k.password = password
 }
 
@@ -169,6 +181,7 @@ func (k *keygen) keyPath(pubkeyHex string, i int) string {
 
 func (k *keygen) saveKeys(scheme *crypto.TBLSScheme, priShares []*share.PriShare, pubkeyHex string) {
 	fmt.Println("Saving keys to", k.keyPath(pubkeyHex, 0))
+
 	for _, priShare := range priShares {
 		k.saveKey(scheme, priShare, k.keyPath(pubkeyHex, priShare.I))
 	}
@@ -179,6 +192,7 @@ func (k *keygen) saveKey(scheme *crypto.TBLSScheme, priShare *share.PriShare, pa
 	if err != nil {
 		log.Fatal().Err(err).Int("key_share", priShare.I).Msg("Failed to create keystore for private key share")
 	}
+
 	if err := item.Save(path); err != nil {
 		log.Fatal().Err(err).Msg("Failed to write keyshare")
 	}
