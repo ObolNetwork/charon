@@ -44,5 +44,6 @@ func (h Handler) GetSelf(_ context.Context, _ *api.GetSelfRequest) (*api.GetSelf
 		StartTime: timestamppb.New(config.StartTime),
 		PeerCount: uint32(len(h.Node.Network().Peers())),
 	}
+
 	return r, nil
 }

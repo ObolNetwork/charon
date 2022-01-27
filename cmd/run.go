@@ -104,6 +104,7 @@ func runCharon(_ *cobra.Command, _ []string) {
 				Handler: handler,
 				Log:     log.With().Str("component", "api").Logger(),
 			})
+
 			return err
 		})
 	}

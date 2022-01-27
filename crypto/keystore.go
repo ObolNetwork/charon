@@ -45,6 +45,7 @@ type Keystore struct {
 func NewBLSKeystore(password string) (*Keystore, kyber.Scalar, kyber.Point, error) {
 	privKey, pubKey := bls.NewSchemeOnG1(BLSPairing).NewKeyPair(BLSPairing.RandomStream())
 	k, err := BLSKeyPairToKeystore(privKey, pubKey, password)
+
 	return k, privKey, pubKey, err
 }
 
@@ -64,6 +65,7 @@ func BLSKeyPairToKeystore(scalar kyber.Scalar, pubkey kyber.Point, password stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt key")
 	}
+
 	return &Keystore{
 		Crypto:  cryptoFields,
 		UUID:    id.String(),
@@ -88,6 +90,7 @@ func TBLSShareToKeystore(scheme *TBLSScheme, priPoly *share.PriShare, password s
 	}
 	keyStore.Description = fmt.Sprintf("Obol Eth2 validator %s i=%d t=%d",
 		pubkeyHex, priPoly.I, scheme.Threshold())
+
 	return keyStore, nil
 }
 
@@ -117,6 +120,7 @@ func (k *Keystore) BLSKeyPair(password string) (kyber.Scalar, kyber.Point, error
 	if !givenPubkey.Equal(derivedPubkey) {
 		return nil, nil, fmt.Errorf("public key mismatch: expected %v, actual %v", givenPubkey, derivedPubkey)
 	}
+
 	return secret, derivedPubkey, nil
 }
 
@@ -136,6 +140,7 @@ func ReadPlaintextPassword(filePath string) (string, error) {
 	if len(password) >= maxPasswordLen {
 		return "", fmt.Errorf("password very long, aborting")
 	}
+
 	return password, nil
 }
 
@@ -155,6 +160,7 @@ func WritePlaintextPassword(filePath string, overwrite bool, password string) er
 	}
 	defer f.Close()
 	_, _ = f.WriteString(password)
+
 	return nil
 }
 
@@ -172,6 +178,7 @@ func (k *Keystore) Save(filePath string) error {
 	if err1 := f.Close(); err1 != nil && err == nil {
 		err = err1
 	}
+
 	return err
 }
 
@@ -185,5 +192,6 @@ func LoadKeystore(filePath string) (*Keystore, error) {
 	if err := json.Unmarshal(data, k); err != nil {
 		return nil, err
 	}
+
 	return k, nil
 }

@@ -49,6 +49,7 @@ func BLSPointFromHex(hexStr string) (kyber.Point, error) {
 	if err := p.UnmarshalBinary(b); err != nil {
 		return nil, err
 	}
+
 	return p, nil
 }
 
@@ -60,6 +61,7 @@ func MustBLSPointFromHex(hexStr string) kyber.Point {
 	if err != nil {
 		panic("invalid BLS point \"" + hexStr + "\": " + err.Error())
 	}
+
 	return point
 }
 
@@ -82,6 +84,7 @@ func (p *BLSPubkeyHex) UnmarshalText(b []byte) error {
 		return fmt.Errorf("expected %d bytes, got %d", expectedLen, n)
 	}
 	p.KyberG1 = bls.NullKyberG1()
+
 	return p.UnmarshalBinary(data)
 }
 
@@ -93,5 +96,6 @@ func (p BLSPubkeyHex) MarshalText() ([]byte, error) {
 	}
 	data := make([]byte, hex.EncodedLen(len(raw)))
 	hex.Encode(data, raw)
+
 	return data, nil
 }

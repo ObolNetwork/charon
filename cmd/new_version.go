@@ -42,6 +42,7 @@ func newVersionCmd(runFunc func(io.Writer, versionConfig)) *cobra.Command {
 		},
 	}
 	bindVersionFlags(cmd.Flags(), &conf)
+
 	return cmd
 }
 

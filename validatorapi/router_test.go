@@ -128,6 +128,7 @@ func TestRouter(t *testing.T) {
 						CommitteesAtSlot: 1,                  // 0 fails validation
 					})
 				}
+
 				return res, nil
 			},
 		}
@@ -164,6 +165,7 @@ func TestRouter(t *testing.T) {
 						Slot:           eth2p0.Slot(int(epoch)*slotsPerEpoch + i),
 					})
 				}
+
 				return res, nil
 			},
 		}
@@ -288,5 +290,6 @@ func nest(data interface{}, nests ...string) interface{} {
 			nest: res,
 		}
 	}
+
 	return res
 }

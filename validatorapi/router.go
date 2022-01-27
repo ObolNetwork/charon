@@ -99,7 +99,7 @@ type handlerFunc func(ctx context.Context, params map[string]string, body []byte
 func wrap(endpoint string, handler handlerFunc) http.Handler {
 	wrap := func(w http.ResponseWriter, r *http.Request) {
 
-		defer observeApiLatency(endpoint)()
+		defer observeAPILatency(endpoint)()
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -184,7 +184,7 @@ func proxyHandler(target string) (http.HandlerFunc, error) {
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		defer observeApiLatency("proxy")()
+		defer observeAPILatency("proxy")()
 		proxy.ServeHTTP(proxyResponseWriter{w}, r)
 	}, nil
 }
@@ -222,7 +222,7 @@ func writeError(w http.ResponseWriter, endpoint string, err error) {
 		Int("status_code", aerr.StatusCode).
 		Str("message", aerr.Message).
 		Msg("Validator api error response")
-	incApiErrors(endpoint, aerr.StatusCode)
+	incAPIErrors(endpoint, aerr.StatusCode)
 
 	res := errorResponse{
 		Code:    aerr.StatusCode,
@@ -292,6 +292,6 @@ func (w proxyResponseWriter) WriteHeader(statusCode int) {
 		// 2XX isn't an error
 		return
 	}
-	incApiErrors("proxy", statusCode)
+	incAPIErrors("proxy", statusCode)
 	w.ResponseWriter.WriteHeader(statusCode)
 }

@@ -119,9 +119,9 @@ func runBootstrapCmd(w io.Writer, config bootstrapConfig) error {
 func getPassword(config bootstrapConfig) (string, error) {
 	if config.PasswordFile != "" {
 		return crypto.ReadPlaintextPassword(config.PasswordFile)
-	} else {
-		return promptPassword()
 	}
+
+	return promptPassword()
 }
 
 func promptPassword() (string, error) {
@@ -172,5 +172,6 @@ func saveKeys(scheme *crypto.TBLSScheme, priShares []*share.PriShare, pubkeyHex 
 			return err
 		}
 	}
+
 	return nil
 }

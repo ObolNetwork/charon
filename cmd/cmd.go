@@ -119,6 +119,7 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
 			if err != nil {
 				lastErr = err
 			}
+
 			break
 		}
 	})
