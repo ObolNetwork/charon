@@ -16,106 +16,59 @@ package cmd
 
 import (
 	"context"
+	"os"
+	"os/signal"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"golang.org/x/sync/errgroup"
+	"github.com/spf13/pflag"
 
-	"github.com/obolnetwork/charon/api/server"
-	"github.com/obolnetwork/charon/appctx"
-	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/discovery"
-	"github.com/obolnetwork/charon/identity"
-	"github.com/obolnetwork/charon/internal"
-	"github.com/obolnetwork/charon/internal/config"
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/runner"
 )
 
-var runCmd = cobra.Command{
-	Use:   "run",
-	Short: "Runs the Charon middleware",
-	Long:  "Starts the long-running Charon middleware process to perform distributed validator duties.",
-	Args:  cobra.NoArgs,
-	Run:   runCharon,
+func newRunCmd(runFunc func(context.Context, runner.Config) error) *cobra.Command {
+	var conf runner.Config
+
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Runs the Charon middleware",
+		Long:  "Starts the long-running Charon middleware process to perform distributed validator duties.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
+			defer cancel()
+
+			return runFunc(ctx, conf)
+		},
+	}
+
+	bindRunFlags(cmd.Flags(), &conf)
+	bindGeneralFlags(cmd.Flags(), &conf.DataDir)
+	bindDiscoveryFlags(cmd.Flags(), &conf.Discovery)
+	bindP2PFlags(cmd.Flags(), &conf.P2P)
+
+	return cmd
 }
 
-func init() {
-	rootCmd.AddCommand(&runCmd)
+func bindRunFlags(flags *pflag.FlagSet, config *runner.Config) {
+	flags.StringVar(&config.ClusterDir, "cluster-file", "./charon/manifest.json", "The filepath to the manifest file defining distributed validator cluster")
+	flags.StringVar(&config.BeaconNodeAddr, "beacon-node-endpoint", "http://localhost/", "Beacon node endpoint URL")
+	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "0.0.0.0:3500", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API")
+	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "0.0.0.0:8088", "Listening address (ip and port) for the monitoring API (prometheus, pprof)")
+	flags.StringVar(&config.JaegerAddr, "jaegar-address", "", "Listening address for Jaegar tracing")
 }
 
-// runCharon is the main routine powering the Charon daemon.
-// Ignore wsl lint since this code is going to be deleted.
-//nolint:gocritic
-func runCharon(_ *cobra.Command, _ []string) {
-	// The exit context cancels as soon as the user requests an exit.
-	// Note that services may outlive the exit context.
-	exitCtx := appctx.InterruptContext(context.Background())
-	// The application context cancels as soon as any module raises a fatal error.
-	appGroup, appCtx := errgroup.WithContext(exitCtx)
+func bindGeneralFlags(flags *pflag.FlagSet, dataDir *string) {
+	flags.StringVar(dataDir, "data-dir", "./charon/data", "The directory where charon will store all its internal data")
+}
 
-	log.Info().Str("version", internal.ReleaseVersion).Msg("Charon starting")
+func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {
+	flags.StringSliceVar(&config.Addrs, "p2p-tcp-address", []string{"0.0.0.0:13900"}, "Listening TCP addresses (ip and port) for LibP2P traffic")
+	flags.StringVar(&config.Allowlist, "p2p-allowlist", "", "Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.")
+	flags.StringVar(&config.Denylist, "p2p-denylist", "", "Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.")
+}
 
-	// Load known DV clusters.
-	manifests, err := cluster.LoadKnownClusters()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to load DV clusters")
-	}
-
-	log.Info().Msgf("Loaded %d DVs", len(manifests.Clusters()))
-
-	// Create connection gater.
-	connGater := p2p.NewConnGaterForClusters(manifests, nil)
-	log.Info().Msgf("Connecting to %d unique peers", len(connGater.PeerIDs))
-
-	// Create or retrieve our P2P identity key.
-	p2pIdentity := identity.DefaultP2P()
-	p2pKey, err := p2pIdentity.Get()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get peer ID")
-	}
-
-	// Create P2P client.
-	p2pConfig := p2p.DefaultConfig()
-	node, err := p2p.NewNode(p2pConfig, p2pKey, connGater)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to start P2P")
-	}
-
-	// Create peer discovery.
-	discoveryConfig := discovery.DefaultConfig()
-	localEnode, peerDB, err := discovery.NewLocalEnode(discoveryConfig, p2pConfig, p2pKey)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to open peer DB")
-	}
-
-	discoveryNode, err := discovery.NewListener(discoveryConfig, p2pConfig, localEnode, p2pKey)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to start discv5 listener")
-	}
-
-	defer peerDB.Close()
-	defer discoveryNode.Close()
-
-	// Create internal API handler.
-	handler := &server.Handler{
-		LocalEnode: localEnode,
-		Node:       node,
-	}
-	// Start internal API server.
-	if intAddr := viper.GetString(config.KeyAPI); intAddr != "" {
-		appGroup.Go(func() error {
-			err := server.Run(appCtx, server.Options{
-				Addr:    intAddr,
-				Handler: handler,
-				Log:     log.With().Str("component", "api").Logger(),
-			})
-
-			return err
-		})
-	}
-
-	// Wait for services to exit gracefully or fail.
-	if err := appGroup.Wait(); err != nil {
-		log.Error().Err(err).Msg("Fatal error")
-	}
+func bindDiscoveryFlags(flags *pflag.FlagSet, config *discovery.Config) {
+	flags.StringVar(&config.ListenAddr, "p2p-udp-address", "0.0.0.0:30309", "Listening UDP address (ip and port) for Discv5 discovery")
+	flags.StringVar(&config.DBPath, "nodedb", "", "Path to Node DB")
 }

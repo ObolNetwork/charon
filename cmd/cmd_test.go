@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/discovery"
+	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/runner"
 )
 
@@ -67,7 +68,12 @@ func TestCmdFlags(t *testing.T) {
 			Name: "run command",
 			Args: slice("run"),
 			RunnerConfig: &runner.Config{
-				Discovery:        discovery.Config{ListenAddr: "0.0.0.0:30309"},
+				Discovery: discovery.Config{ListenAddr: "0.0.0.0:30309", DBPath: ""},
+				P2P: p2p.Config{
+					Addrs:     []string{"0.0.0.0:13900"},
+					Allowlist: "",
+					Denylist:  "",
+				},
 				ClusterDir:       "./charon/manifest.json",
 				DataDir:          "./charon/data",
 				MonitoringAddr:   "0.0.0.0:8088",

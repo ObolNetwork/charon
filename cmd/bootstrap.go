@@ -16,184 +16,160 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/drand/kyber/share"
 	prompt "github.com/prysmaticlabs/prysm/shared/promptutil"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/crypto"
 )
 
-var bootstrapCmd = cobra.Command{
-	Use:   "bootstrap",
-	Short: "Bootstraps a single validator centrally.",
-	Long: `Generates a BLS12-381 validator private key in-memory, then splits it into a set of private key shares using Shamir's Secret Sharing.
-Produces an EIP-2335 keystore file for each generated key share.
+type bootstrapConfig struct {
+	Out          string
+	Shares       int
+	PasswordFile string
+	Bootnodes    []string
+}
+
+// newBoostrapCmd returns new bootstrap command with bootstrapConfig
+func newBootstrapCmd(runFunc func(io.Writer, bootstrapConfig) error) *cobra.Command {
+	var conf bootstrapConfig
+
+	cmd := &cobra.Command{
+		Use:   "bootstrap",
+		Short: "Bootstraps a single validator centrally.",
+		Long: `Generates a BLS12-381 validator private key in-memory, then splits it into a set of private key shares
+using Shamir's Secret Sharing. Produces an EIP-2335 keystore file for each generated key share.
 Also outputs a distributed validator profile.`,
-	Args: cobra.NoArgs,
-	Run:  runKeygen,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runFunc(cmd.OutOrStdout(), conf)
+		},
+	}
+
+	bindBootstrapFlags(cmd.Flags(), &conf)
+
+	return cmd
 }
 
-func init() {
-	rootCmd.AddCommand(&bootstrapCmd)
-
-	flags := bootstrapCmd.Flags()
-	flags.StringP("out", "o", "./keys", "Output directory")
-	flags.UintP("shares", "n", 4, "Number of key shares to generate")
-	flags.String("password-file", "", "Path to a plain-text password file")
-	flags.StringSlice("bootnodes", nil, "List of bootnodes")
+func bindBootstrapFlags(flags *pflag.FlagSet, config *bootstrapConfig) {
+	flags.StringVarP(&config.Out, "out", "o", "./keys", "Output directory")
+	flags.IntVarP(&config.Shares, "shares", "n", 4, "Number of key shares to generate")
+	flags.StringVar(&config.PasswordFile, "password-file", "", "Path to a plain-text password file")
+	flags.StringSliceVar(&config.Bootnodes, "bootnodes", nil, "List of bootnodes")
 }
 
-func runKeygen(cmd *cobra.Command, _ []string) {
-	flags := cmd.Flags()
+// runBootstrapCmd runs bootstrap command with the given bootstrapConfig. The bootstrapConfig
+// helps to generate keyshares which are then saved into desired directories in json
+func runBootstrapCmd(w io.Writer, config bootstrapConfig) error {
+	if config.Shares < 1 {
+		return errors.New("invalid non-positive shares")
+	}
 
-	out, err := flags.GetString("out")
+	if err := os.MkdirAll(config.Out, 0755); err != nil {
+		return err
+	}
+
+	password, err := getPassword(config)
 	if err != nil {
-		panic(err.Error())
+		return err
 	}
 
-	passwordFile, err := flags.GetString("password-file")
-	if err != nil {
-		panic(err.Error())
-	}
-
-	shares, err := flags.GetUint("shares")
-	if err != nil {
-		panic(err.Error())
-	}
-
-	if shares < 1 {
-		shares = 1
-	}
-
-	k := keygen{
-		outDir:       out,
-		passwordFile: passwordFile,
-		n:            shares,
-	}
-	k.run()
-}
-
-type keygen struct {
-	// flags
-	outDir       string
-	passwordFile string
-	n            uint
-	// bootnodes    []string
-	// params
-	t        uint
-	password string
-}
-
-func (k *keygen) run() {
-	fmt.Println("Running trusted BLS threshold key generation ceremony")
-	// Figure out secret sharing params.
-	k.t = k.n - ((k.n - 1) / 3)
-	fmt.Printf("Params: n=%d t=%d\n", k.n, k.t)
-
-	// Get password from file or prompt.
-	k.getPassword()
-	k.mkOutdir()
+	threshold := config.Shares - ((config.Shares - 1) / 3)
 
 	// Create "root" BLS key and polynomials.
-	priPoly, pubPoly := crypto.NewTBLSPoly(k.t)
+	priPoly, pubPoly := crypto.NewTBLSPoly(uint(threshold))
+
 	pubkey := pubPoly.Commit()
 	pubkeyHex := crypto.BLSPointToHex(pubkey)
-	fmt.Println("Public key:", pubkeyHex)
 
 	// Save public polynomials (required to recover root sig from sig shares).
 	scheme := &crypto.TBLSScheme{PubPoly: pubPoly}
-	k.saveScheme(scheme, pubkeyHex)
 
-	// Create private key shares.
-	priShares := priPoly.Shares(int(k.n))
-	k.saveKeys(scheme, priShares, pubkeyHex)
+	// Saves generated TBLS scheme in config.Out directory
+	polyFile := filepath.Join(config.Out, pubkeyHex+"-poly.json")
+	err = saveScheme(scheme, polyFile)
+	if err != nil {
+		return err
+	}
+
+	// Create and save private key shares.
+	priShares := priPoly.Shares(config.Shares)
+	err = saveKeys(scheme, priShares, pubkeyHex, config.Out, password)
+	if err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintln(w, "Ran trusted BLS threshold key generation ceremony")
+	_, _ = fmt.Fprintf(w, "Params: shares=%d threshold=%d\n", config.Shares, threshold)
+	_, _ = fmt.Fprintln(w, "Public key:", pubkeyHex)
+	_, _ = fmt.Fprintln(w, "Saved polynomials to", polyFile)
+	_, _ = fmt.Fprintln(w, "Saved keys to", keyPath(config.Out, pubkeyHex, 0))
+
+	return nil
 }
 
-func (k *keygen) getPassword() {
-	if k.passwordFile != "" {
-		k.readPassword()
+// getPassword returns the keystore password either from a file if provided or from user prompt.
+func getPassword(config bootstrapConfig) (string, error) {
+	if config.PasswordFile != "" {
+		return crypto.ReadPlaintextPassword(config.PasswordFile)
 	} else {
-		k.promptPassword()
+		return promptPassword()
 	}
 }
 
-func (k *keygen) readPassword() {
-	var err error
-	k.password, err = crypto.ReadPlaintextPassword(k.passwordFile)
+func promptPassword() (string, error) {
+	password, err := prompt.PasswordPrompt("Enter keystore password", prompt.NotEmpty)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to read password")
+		return "", err
 	}
+
+	confirm, err := prompt.PasswordPrompt("Confirm keystore password", prompt.NotEmpty)
+	if err != nil {
+		return "", err
+	}
+
+	if password != confirm {
+		return "", errors.New("passwords do not match")
+	}
+
+	return password, nil
 }
 
-func (k *keygen) promptPassword() {
-	password, err := prompt.PasswordPrompt("Input keystore password", prompt.NotEmpty)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to prompt password")
-	}
-
-	confirmPassword, err := prompt.PasswordPrompt("Confirm keystore password", prompt.NotEmpty)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to prompt password")
-	}
-
-	if password != confirmPassword {
-		fmt.Println("Passwords do not match")
-		os.Exit(1)
-	}
-
-	k.password = password
-}
-
-func (k *keygen) mkOutdir() {
-	err := os.MkdirAll(k.outDir, 0777)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create out dir")
-	}
-}
-
-func (k *keygen) saveScheme(scheme *crypto.TBLSScheme, pubkeyHex string) {
+func saveScheme(scheme *crypto.TBLSScheme, filename string) error {
 	enc, err := scheme.Encode()
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to encode threshold BLS scheme info")
+		return err
 	}
-	buf, err := json.MarshalIndent(enc, "", "\t")
-	if err != nil {
-		panic(err.Error())
-	}
-	polyName := filepath.Join(k.outDir, pubkeyHex+"-poly.json")
-	fmt.Println("Writing polynomials to", polyName)
 
-	//nolint:gosec // No need to reduce permissions as it simply saves the public keys
-	err = os.WriteFile(polyName, buf, 0666)
+	buf, err := json.MarshalIndent(enc, "", " ")
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to save public polynomials")
+		return err
 	}
+
+	return os.WriteFile(filename, buf, 0644)
 }
 
-func (k *keygen) keyPath(pubkeyHex string, i int) string {
+func keyPath(outDir string, pubkeyHex string, i int) string {
 	name := fmt.Sprintf("%s-share-%04d.json", pubkeyHex, i)
-	return filepath.Join(k.outDir, name)
+	return filepath.Join(outDir, name)
 }
 
-func (k *keygen) saveKeys(scheme *crypto.TBLSScheme, priShares []*share.PriShare, pubkeyHex string) {
-	fmt.Println("Saving keys to", k.keyPath(pubkeyHex, 0))
-
+func saveKeys(scheme *crypto.TBLSScheme, priShares []*share.PriShare, pubkeyHex string, outDir string, password string) error {
 	for _, priShare := range priShares {
-		k.saveKey(scheme, priShare, k.keyPath(pubkeyHex, priShare.I))
+		item, err := crypto.TBLSShareToKeystore(scheme, priShare, password)
+		if err != nil {
+			return err
+		}
+		if err := item.Save(keyPath(outDir, pubkeyHex, priShare.I)); err != nil {
+			return err
+		}
 	}
-}
-
-func (k *keygen) saveKey(scheme *crypto.TBLSScheme, priShare *share.PriShare, path string) {
-	item, err := crypto.TBLSShareToKeystore(scheme, priShare, k.password)
-	if err != nil {
-		log.Fatal().Err(err).Int("key_share", priShare.I).Msg("Failed to create keystore for private key share")
-	}
-
-	if err := item.Save(path); err != nil {
-		log.Fatal().Err(err).Msg("Failed to write keyshare")
-	}
+	return nil
 }
