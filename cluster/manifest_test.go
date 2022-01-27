@@ -72,6 +72,7 @@ func TestManifestJSON(t *testing.T) {
 }
 
 func newRandomENR(t *testing.T) (res string) {
+	t.Helper() // test helper function should start from t.Helper()
 	privkey, err := ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
 	require.NoError(t, err)
 

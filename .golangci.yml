@@ -47,12 +47,7 @@ linters:
     - forcetypeassert
     - gci
     - gochecknoinits # Once config refactor is done.
-    - stylecheck
     - testpackage # rename internal test files to *_internal_test.go
-    - thelper
-    - unused
-    - whitespace
-    - wastedassign
     - wsl
 
     # Keep disabled

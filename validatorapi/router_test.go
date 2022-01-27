@@ -28,7 +28,6 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2mock "github.com/attestantio/go-eth2-client/mock"
-	"github.com/attestantio/go-eth2-client/spec/phase0"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -156,7 +155,7 @@ func TestRouter(t *testing.T) {
 	t.Run("proposerduty", func(t *testing.T) {
 		const total = 2
 		handler := testHandler{
-			ProposerDutiesFunc: func(ctx context.Context, epoch phase0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			ProposerDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 				// Returns ordered total number of duties for the epoch
 				var res []*eth2v1.ProposerDuty
 				for i := 0; i < total; i++ {
@@ -190,6 +189,7 @@ func TestRouter(t *testing.T) {
 // testRouter is a helper function to test router endpoints with an eth2http client. The outer test
 // provides the mocked test handler and a callback that does the client side test.
 func testRouter(t *testing.T, handler testHandler, callback func(context.Context, *eth2http.Service)) {
+	t.Helper() // test helper function should start from t.Helper()
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
@@ -210,6 +210,7 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 // testRawRouter is a helper function to test router endpoints with a raw http client. The outer test
 // provides the mocked test handler and a callback that does the client side test.
 func testRawRouter(t *testing.T, handler testHandler, callback func(context.Context, string)) {
+	t.Helper() // test helper function should start from t.Helper()
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
@@ -229,20 +230,21 @@ type testHandler struct {
 	Handler
 	ProxyHandler       http.HandlerFunc
 	AttesterDutiesFunc func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
-	ProposerDutiesFunc func(ctx context.Context, epoch phase0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	ProposerDutiesFunc func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 }
 
 func (h testHandler) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 	return h.AttesterDutiesFunc(ctx, epoch, il)
 }
 
-func (h testHandler) ProposerDuties(ctx context.Context, epoch phase0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+func (h testHandler) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 	return h.ProposerDutiesFunc(ctx, epoch, il)
 }
 
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the
 // eth2http service on startup, all other requests are routed to ProxyHandler if not nil.
 func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
+	t.Helper() // test helper function should start from t.Helper()
 	ctx := context.Background()
 	mock, err := eth2mock.New(ctx, eth2mock.WithLogLevel(zerolog.InfoLevel))
 	require.NoError(t, err)
