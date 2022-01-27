@@ -43,10 +43,7 @@ linters:
   disable:
     # Enable these and fix the issues
     - forbidigo
-    - forcetypeassert
-    - gci
     - gochecknoinits # Once config refactor is done.
-    - testpackage # rename internal test files to *_internal_test.go
 
     # Keep disabled
     - exhaustivestruct
