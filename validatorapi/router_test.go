@@ -287,6 +287,7 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 // nest returns a json nested version the data objected. Note nests must be provided in inverse order.
 func nest(data interface{}, nests ...string) interface{} {
 	res := data
+
 	for _, nest := range nests {
 		res = map[string]interface{}{
 			nest: res,

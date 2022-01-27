@@ -46,6 +46,7 @@ type ConsensusKey struct {
 // DefaultConsensus returns the DVC identity store at the default file path (<data_dir>/nodekey.json).
 func DefaultConsensus() ConsensusStore {
 	dataDir := viper.GetString(config.KeyDataDir)
+
 	return ConsensusStore{
 		KeystorePath: filepath.Join(dataDir, "dvkey.json"),
 		PasswordPath: filepath.Join(dataDir, "dv_password.txt"),
@@ -69,11 +70,14 @@ func (s ConsensusStore) createNewPassword() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	password := hex.EncodeToString(pwdBytes[:])
+
 	// Zero stack buffer.
 	for i := range pwdBytes {
 		pwdBytes[i] = 0
 	}
+
 	// Write back to file.
 	err = crypto2.WritePlaintextPassword(s.PasswordPath, false, password)
 	if err != nil {
@@ -91,10 +95,12 @@ func (s ConsensusStore) Create() (*ConsensusKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get password: %w", err)
 	}
+
 	key, privKey, pubKey, err := crypto2.NewBLSKeystore(password)
 	if err != nil {
 		return nil, err
 	}
+
 	if err := key.Save(s.KeystorePath); err != nil {
 		return nil, err
 	}
@@ -111,10 +117,12 @@ func (s ConsensusStore) Load() (*ConsensusKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get password: %w", err)
 	}
+
 	key, err := crypto2.LoadKeystore(s.KeystorePath)
 	if err != nil {
 		return nil, err
 	}
+
 	priv, pub, err := key.BLSKeyPair(password)
 	if err != nil {
 		return nil, err

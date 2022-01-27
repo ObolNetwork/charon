@@ -34,7 +34,9 @@ func BLSPointFromHex(hexStr string) (kyber.Point, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var p kyber.Point
+
 	switch len(b) {
 	case 48:
 		p = bls.NullKyberG1()
@@ -43,9 +45,11 @@ func BLSPointFromHex(hexStr string) (kyber.Point, error) {
 	default:
 		return nil, fmt.Errorf("weird length: %d", len(b))
 	}
+
 	if p.MarshalSize() != len(b) {
 		panic(fmt.Sprintf("expected %T to be %d bytes, actually is %d", p, len(b), p.MarshalSize()))
 	}
+
 	if err := p.UnmarshalBinary(b); err != nil {
 		return nil, err
 	}
@@ -77,12 +81,14 @@ func (p *BLSPubkeyHex) UnmarshalText(b []byte) error {
 	if decodedLen != expectedLen {
 		return fmt.Errorf("expected %d bytes, got %d", expectedLen, decodedLen)
 	}
+
 	data := make([]byte, expectedLen)
 	if n, err := hex.Decode(data, b); err != nil {
 		return err
 	} else if n != expectedLen {
 		return fmt.Errorf("expected %d bytes, got %d", expectedLen, n)
 	}
+
 	p.KyberG1 = bls.NullKyberG1()
 
 	return p.UnmarshalBinary(data)
@@ -94,6 +100,7 @@ func (p BLSPubkeyHex) MarshalText() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	data := make([]byte, hex.EncodedLen(len(raw)))
 	hex.Encode(data, raw)
 

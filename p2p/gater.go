@@ -37,6 +37,7 @@ var _ connmgr.ConnectionGater = (*ConnGater)(nil)
 // NewConnGaterForClusters constructs a conn gater that limits access to nodes part of the provided clusters.
 func NewConnGaterForClusters(clusters cluster.KnownClusters, networks *netutil.Netlist) *ConnGater {
 	peerIDs := make(map[peer.ID]struct{})
+
 	for _, manifest := range clusters.Clusters() {
 		clusterPeerIDs, err := manifest.PeerIDs()
 		if err != nil {

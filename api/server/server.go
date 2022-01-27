@@ -57,6 +57,7 @@ func Run(ctx context.Context, opts Options) error {
 		log.Info().Msg("Shutting down HTTP server")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+
 		if err := srv.Shutdown(ctx); err != nil {
 			log.Error().Err(err).Msg("Failed to shutdown HTTP server")
 		}
@@ -64,6 +65,7 @@ func Run(ctx context.Context, opts Options) error {
 
 	// Start server and block.
 	log.Info().Msgf("Starting HTTP server at %s", opts.Addr)
+
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		log.Error().Err(err).Msg("HTTP server failed")
 		return err

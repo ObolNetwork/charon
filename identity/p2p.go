@@ -37,6 +37,7 @@ type P2PStore struct {
 // DefaultP2P returns the DVC identity store at the default file path (<data_dir>/nodekey.json).
 func DefaultP2P() P2PStore {
 	dataDir := viper.GetString(config.KeyDataDir)
+
 	return P2PStore{
 		KeyPath: filepath.Join(dataDir, "nodekey"),
 	}
@@ -47,13 +48,18 @@ func (s P2PStore) Create() (*ecdsa.PrivateKey, error) {
 	if err := os.MkdirAll(filepath.Dir(s.KeyPath), 0755); err != nil {
 		return nil, err
 	}
+
 	key, err := crypto.GenerateKey()
 	if err != nil {
 		return nil, err
 	}
-	err = crypto.SaveECDSA(s.KeyPath, key)
 
-	return key, err
+	err = crypto.SaveECDSA(s.KeyPath, key)
+	if err != nil {
+		return nil, err
+	}
+
+	return key, nil
 }
 
 // Load reads the existing node identity.

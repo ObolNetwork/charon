@@ -73,6 +73,7 @@ func LoadViper(configPath string) error {
 	viper.SetEnvPrefix("charon")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 	viper.AutomaticEnv() // read in environment variables that match
+
 	if configPath != "" {
 		viper.SetConfigFile(configPath)
 		return viper.ReadInConfig()

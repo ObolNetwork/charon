@@ -48,8 +48,10 @@ func printBuildInfo() {
 		fmt.Println("Failed to gather build info")
 		return
 	}
+
 	fmt.Printf("Package: %s\n", buildInfo.Path)
 	fmt.Println("Dependencies:")
+
 	for _, dep := range buildInfo.Deps {
 		for dep.Replace != nil {
 			dep = dep.Replace

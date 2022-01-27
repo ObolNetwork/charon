@@ -71,14 +71,17 @@ func (m *Manifest) PeerIDs() ([]peer.ID, error) {
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]peer.ID, len(records))
+
+	ids := make([]peer.ID, 0, len(records))
 
 	for i := range records {
-		var err error
-		ids[i], err = PeerIDFromENR(&records[i])
+
+		id, err := PeerIDFromENR(&records[i])
 		if err != nil {
 			return nil, err
 		}
+
+		ids = append(ids, id)
 	}
 
 	return ids, nil
@@ -89,16 +92,21 @@ func PeerIDFromENR(record *enr.Record) (peer.ID, error) {
 	var pubkey enode.Secp256k1
 	if err := record.Load(&pubkey); err != nil {
 		recordStr, _ := EncodeENR(record)
+
+		// TODO(corver): Do not log AND return errors.
 		zerologger.Warn().Err(err).
 			Str("enr", recordStr).
 			Msg("ENR missing secp256k1 field")
 
 		return "", err
 	}
+
 	p2pPubkey := libp2pcrypto.Secp256k1PublicKey(pubkey)
 	p2pID, err := peer.IDFromPublicKey(&p2pPubkey)
 	if err != nil {
 		recordStr, _ := EncodeENR(record)
+
+		// TODO(corver): Do not log AND return errors.
 		zerologger.Warn().Err(err).
 			Str("enr", recordStr).
 			Msg("Failed to derive libp2p ID")
@@ -124,12 +132,15 @@ func DecodeENR(enrStr string) (*enr.Record, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// TODO support hex encoding too?
 	var record enr.Record
+
 	rd := bytes.NewReader(enrBytes)
 	if err := rlp.Decode(rd, &record); err != nil {
 		return nil, err
 	}
+
 	if rd.Len() > 0 {
 		return nil, fmt.Errorf("leftover garbage bytes in ENR")
 	}
@@ -156,16 +167,20 @@ func LoadKnownClustersFromDir(dir string) (KnownClusters, error) {
 	if err != nil {
 		return KnownClusters{}, err
 	}
+
 	known := KnownClusters{clusters: make(map[string]*Manifest)}
+
 	for _, entry := range entries {
 		if !entry.Type().IsRegular() || !strings.HasSuffix(entry.Name(), clusterSuffix) {
 			continue
 		}
+
 		cluster, err := LoadManifest(filepath.Join(dir, entry.Name()))
 		if err != nil {
 			zerologger.Warn().Err(err).Msg("Ignoring invalid cluster file")
 			continue
 		}
+
 		pubkeyHex := crypto.BLSPointToHex(cluster.Pubkey())
 		known.clusters[pubkeyHex] = cluster
 	}
@@ -191,6 +206,7 @@ func LoadManifest(filePath string) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	c := new(Manifest)
 	err = json.Unmarshal(buf, c)
 
