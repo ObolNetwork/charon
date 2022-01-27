@@ -123,8 +123,8 @@ github.com/armon/go-metrics v0.3.10/go.mod h1:4O98XIr/9W0sxpJ8UaYkvjk10Iff7SnFrb
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
 github.com/armon/go-radix v1.0.0/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
 github.com/aryann/difflib v0.0.0-20170710044230-e206f873d14a/go.mod h1:DAHtR1m6lCRdSC2Tm3DSWRPvIPr6xNKyeHdqDQSQT+A=
-github.com/attestantio/go-eth2-client v0.9.4 h1:tELTJEd0Nq7tr5dw38mRbuWJWAOcz6b8FhULAqIv594=
-github.com/attestantio/go-eth2-client v0.9.4/go.mod h1:Qf+B4ZFb8gSwpmH8mndllZP+YIfdBnPwFqoZZ/lqmB0=
+github.com/attestantio/go-eth2-client v0.9.6 h1:T8kkoUP8NY2bthGbWKp2QUpEmhBBQ0a3RI5L64CEQng=
+github.com/attestantio/go-eth2-client v0.9.6/go.mod h1:Qf+B4ZFb8gSwpmH8mndllZP+YIfdBnPwFqoZZ/lqmB0=
 github.com/aws/aws-lambda-go v1.13.3/go.mod h1:4UKl9IzQMoD+QF79YdCuzCwp8VbmG4VAQwij/eHl5CU=
 github.com/aws/aws-sdk-go v1.25.48/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
 github.com/aws/aws-sdk-go v1.27.0/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
