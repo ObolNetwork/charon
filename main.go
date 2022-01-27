@@ -14,8 +14,12 @@
 
 package main
 
-import "github.com/obolnetwork/charon/cmd"
+import (
+	"github.com/spf13/cobra"
+
+	"github.com/obolnetwork/charon/cmd"
+)
 
 func main() {
-	cmd.Main()
+	cobra.CheckErr(cmd.New().Execute())
 }

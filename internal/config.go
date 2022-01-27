@@ -14,6 +14,11 @@
 
 package internal
 
+import "time"
+
 // ReleaseVersion is the release version of the codebase.
 // Usually overridden by tag names when building binaries.
 var ReleaseVersion = "v0.1.0-dirty"
+
+// StartTime is the time at which the application was started.
+var StartTime = time.Now()

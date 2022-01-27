@@ -23,23 +23,13 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
-	"github.com/spf13/viper"
 
-	"github.com/obolnetwork/charon/internal/config"
 	charonp2p "github.com/obolnetwork/charon/p2p"
 )
 
 type Config struct {
 	DBPath     string
 	ListenAddr string
-}
-
-// DefaultConfig constructs discovery config using viper.
-func DefaultConfig() Config {
-	return Config{
-		DBPath:     viper.GetString(config.KeyNodeDB),
-		ListenAddr: viper.GetString(config.KeyDiscV5),
-	}
 }
 
 // NewListener starts and returns a discv5 UDP implementation.
@@ -54,7 +44,7 @@ func NewListener(config Config, p2pConfig charonp2p.Config, ln *enode.LocalNode,
 		return nil, err
 	}
 
-	netlist, err := netutil.ParseNetlist(p2pConfig.Netlist)
+	netlist, err := netutil.ParseNetlist(p2pConfig.Allowlist)
 	if err != nil {
 		return nil, err
 	}

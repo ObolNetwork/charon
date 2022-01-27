@@ -21,14 +21,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/drand/kyber"
 	bls12381 "github.com/drand/kyber-bls12381"
-	"github.com/spf13/viper"
 
 	crypto2 "github.com/obolnetwork/charon/crypto"
-	"github.com/obolnetwork/charon/internal/config"
 )
 
 // ConsensusStore stores a single DVC consensus key using a keystore and password file.
@@ -41,16 +38,6 @@ type ConsensusStore struct {
 type ConsensusKey struct {
 	PrivKey kyber.Scalar
 	PubKey  *bls12381.KyberG1
-}
-
-// DefaultConsensus returns the DVC identity store at the default file path (<data_dir>/nodekey.json).
-func DefaultConsensus() ConsensusStore {
-	dataDir := viper.GetString(config.KeyDataDir)
-
-	return ConsensusStore{
-		KeystorePath: filepath.Join(dataDir, "dvkey.json"),
-		PasswordPath: filepath.Join(dataDir, "dv_password.txt"),
-	}
 }
 
 // Password reads the node password or creates a new random password if none exists.

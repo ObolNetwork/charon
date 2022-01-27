@@ -20,14 +20,12 @@ import (
 	"net"
 
 	"github.com/multiformats/go-multiaddr"
-	"github.com/spf13/viper"
-
-	"github.com/obolnetwork/charon/internal/config"
 )
 
 type Config struct {
-	Addrs   []string
-	Netlist string
+	Addrs     []string
+	Allowlist string
+	Denylist  string
 }
 
 // TCPAddrs returns the configured addresses as tcp addresses.
@@ -76,21 +74,13 @@ func (c Config) Multiaddrs() ([]multiaddr.Multiaddr, error) {
 	return res, nil
 }
 
-// DefaultConfig constructs P2P config using viper.
-func DefaultConfig() Config {
-	return Config{
-		Addrs:   viper.GetStringSlice(config.KeyP2P), // TODO support multiple IPs
-		Netlist: viper.GetString(config.KeyNetlist),
-	}
-}
-
 func resolveListenAddr(addr string) (*net.TCPAddr, error) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve P2P bind addr: %w", err)
 	}
 
-	if tcpAddr.IP == nil || tcpAddr.IP.IsUnspecified() {
+	if tcpAddr.IP == nil {
 		return nil, fmt.Errorf("IP not specified in P2P bind addr: \"%s\"", addr)
 	}
 

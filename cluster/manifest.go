@@ -30,10 +30,8 @@ import (
 	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	zerologger "github.com/rs/zerolog/log"
-	"github.com/spf13/viper"
 
 	"github.com/obolnetwork/charon/crypto"
-	"github.com/obolnetwork/charon/internal/config"
 )
 
 // Manifest captures the public cryptographic and networking info required to connect to a DV cluster.
@@ -155,11 +153,6 @@ type KnownClusters struct {
 
 // clusterSuffix is the file extension that each cluster file should have.
 var clusterSuffix = ".dv.json"
-
-// LoadKnownClusters loads cluster specs.
-func LoadKnownClusters() (KnownClusters, error) {
-	return LoadKnownClustersFromDir(viper.GetString(config.KeyClustersDir))
-}
 
 // LoadKnownClustersFromDir discovers clusters from the given directory.
 func LoadKnownClustersFromDir(dir string) (KnownClusters, error) {

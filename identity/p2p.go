@@ -22,9 +22,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	zerologger "github.com/rs/zerolog/log"
-	"github.com/spf13/viper"
-
-	"github.com/obolnetwork/charon/internal/config"
 )
 
 // TODO(corver): Refactor this to just functions (not OO) like Create, Load, LoadOrCreate, remove Must.
@@ -35,9 +32,7 @@ type P2PStore struct {
 }
 
 // DefaultP2P returns the DVC identity store at the default file path (<data_dir>/nodekey.json).
-func DefaultP2P() P2PStore {
-	dataDir := viper.GetString(config.KeyDataDir)
-
+func DefaultP2P(dataDir string) P2PStore {
 	return P2PStore{
 		KeyPath: filepath.Join(dataDir, "nodekey"),
 	}

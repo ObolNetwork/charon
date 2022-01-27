@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 
@@ -24,27 +25,41 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-var enrCmd = &cobra.Command{
-	Use:   "enr",
-	Short: "Return this node's ENR",
-	Long:  `Return information on this node's Ethereum Node Record (ENR)`,
-	Args:  cobra.NoArgs,
-	Run:   runENR,
-}
+func newEnrCmd(runFunc func(io.Writer, p2p.Config, discovery.Config, string) error) *cobra.Command {
+	var (
+		p2pConfig       p2p.Config
+		discoveryConfig discovery.Config
+		dataDir         string
+	)
 
-func init() {
-	rootCmd.AddCommand(enrCmd)
+	cmd := &cobra.Command{
+		Use:   "enr",
+		Short: "Return this node's ENR",
+		Long:  `Return information on this node's Ethereum Node Record (ENR)`,
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runFunc(cmd.OutOrStdout(), p2pConfig, discoveryConfig, dataDir)
+		},
+	}
+
+	bindGeneralFlags(cmd.Flags(), &dataDir)
+	bindP2PFlags(cmd.Flags(), &p2pConfig)
+	bindDiscoveryFlags(cmd.Flags(), &discoveryConfig)
+
+	return cmd
 }
 
 // Function for printing status of ENR for this instance.
-func runENR(_ *cobra.Command, _ []string) {
-	p2pConfig := p2p.DefaultConfig()
-	discoveryConfig := discovery.DefaultConfig()
-	identityKey := identity.DefaultP2P().MustGet()
+func runNewENR(w io.Writer, p2pConfig p2p.Config, discoveryConfig discovery.Config, dataDir string) error {
+	identityKey := identity.DefaultP2P(dataDir).MustGet()
 	localEnode, db, err := discovery.NewLocalEnode(discoveryConfig, p2pConfig, identityKey)
+
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to open peer DB")
+		return fmt.Errorf("failed to open peer DB")
 	}
+
 	defer db.Close()
-	fmt.Println(localEnode.Node().String())
+	fmt.Fprintln(w, localEnode.Node().String())
+
+	return nil
 }

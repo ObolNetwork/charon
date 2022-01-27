@@ -35,10 +35,6 @@ func TestResolveListenAddr(t *testing.T) {
 			err: `IP not specified in P2P bind addr: ":1234"`,
 		},
 		{
-			str: "0.0.0.0:1234",
-			err: `IP not specified in P2P bind addr: "0.0.0.0:1234"`,
-		},
-		{
 			str:  "10.4.3.3:1234",
 			addr: net.IPv4(10, 4, 3, 3),
 			port: 1234,

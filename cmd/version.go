@@ -16,46 +16,62 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	dbg "runtime/debug"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/internal"
-	"github.com/obolnetwork/charon/internal/config"
 )
 
-// versionCmd represents the version command.
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print version and exit",
-	Long:  "Output version info. Use --verbose for detailed module version info.",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(internal.ReleaseVersion)
-		if viper.GetBool(config.KeyVerbose) {
-			printBuildInfo()
-		}
-	},
+type versionConfig struct {
+	Verbose bool
 }
 
-func init() {
-	rootCmd.AddCommand(versionCmd)
+// newVersionCmd returns the version command.
+func newVersionCmd(runFunc func(io.Writer, versionConfig)) *cobra.Command {
+	var conf versionConfig
+
+	cmd := &cobra.Command{
+		Use:   "version",
+		Short: "Print version and exit",
+		Long:  "Output version info",
+		Run: func(cmd *cobra.Command, args []string) {
+			runFunc(cmd.OutOrStdout(), conf)
+		},
+	}
+
+	bindVersionFlags(cmd.Flags(), &conf)
+
+	return cmd
 }
 
-func printBuildInfo() {
-	buildInfo, ok := dbg.ReadBuildInfo()
-	if !ok {
-		fmt.Println("Failed to gather build info")
+func bindVersionFlags(flags *pflag.FlagSet, config *versionConfig) {
+	flags.BoolVar(&config.Verbose, "verbose", false, "Includes detailed module version info")
+}
+
+func runVersionCmd(out io.Writer, config versionConfig) {
+	fmt.Fprintln(out, internal.ReleaseVersion)
+
+	if !config.Verbose {
 		return
 	}
 
-	fmt.Printf("Package: %s\n", buildInfo.Path)
-	fmt.Println("Dependencies:")
+	buildInfo, ok := dbg.ReadBuildInfo()
+
+	if !ok {
+		fmt.Fprintf(out, "\nFailed to gather build info")
+		return
+	}
+
+	fmt.Fprintf(out, "Package: %s\n", buildInfo.Path)
+	fmt.Fprintf(out, "Dependencies:")
 
 	for _, dep := range buildInfo.Deps {
 		for dep.Replace != nil {
 			dep = dep.Replace
 		}
-		fmt.Printf("\t%v %v\n", dep.Path, dep.Version)
+		fmt.Fprintf(out, "\t%v %v\n", dep.Path, dep.Version)
 	}
 }
