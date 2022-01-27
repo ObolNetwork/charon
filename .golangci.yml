@@ -52,8 +52,6 @@ linters:
     - ineffassign
     - nlreturn
     - revive
-    - structcheck
-    - staticcheck
     - stylecheck
     - testpackage # rename internal test files to *_internal_test.go
     - thelper
