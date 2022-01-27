@@ -24,6 +24,9 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
+	// Automatically sets GOMAXPROCS to match Linux container CPU quota.
+	_ "go.uber.org/automaxprocs"
+
 	"github.com/obolnetwork/charon/runner"
 )
 
