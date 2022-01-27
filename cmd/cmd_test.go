@@ -37,7 +37,8 @@ func TestCmdFlags(t *testing.T) {
 			Name:          "version verbose",
 			Args:          slice("version", "--verbose"),
 			VersionConfig: &versionConfig{Verbose: true},
-		}, {
+		},
+		{
 			Name:          "version no verbose",
 			Args:          slice("version", "--verbose=false"),
 			VersionConfig: &versionConfig{Verbose: false},
