@@ -24,7 +24,7 @@ import (
 	noise "github.com/libp2p/go-libp2p-noise"
 	zerologger "github.com/rs/zerolog/log"
 
-	"github.com/obolnetwork/charon/internal"
+	"github.com/obolnetwork/charon/runner/version"
 )
 
 var log = zerologger.With().Str("component", "p2p").Logger()
@@ -53,7 +53,7 @@ func NewNode(cfg Config, key *ecdsa.PrivateKey, connGater *ConnGater) (*Node, er
 		// Set listen addresses.
 		libp2p.ListenAddrs(addrs...),
 		// Set up user-agent.
-		libp2p.UserAgent("ObolNetwork-Charon/" + internal.ReleaseVersion),
+		libp2p.UserAgent("ObolNetwork-Charon/" + version.Version),
 		// Limit connections to DV peers.
 		libp2p.ConnectionGater(connGater),
 	}
