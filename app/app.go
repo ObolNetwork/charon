@@ -18,15 +18,15 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/pprof"
 	"path"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	zerologger "github.com/rs/zerolog/log"
 
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/cluster"
@@ -35,9 +35,6 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/validatorapi"
 )
-
-// log is a convenience handle to the global logger.
-var log = zerologger.Logger
 
 const (
 	nodekeyFile = "nodekey"
@@ -58,10 +55,11 @@ type Config struct {
 // All processes and their dependencies are constructed and then started.
 // Graceful shutdown is triggered on first process error or when the shutdown context is cancelled.
 //nolint:contextcheck
-func Run(shutdownCtx context.Context, conf Config) error {
+func Run(ctx context.Context, conf Config) error {
+	ctx = log.WithComponent(ctx, "app-start")
 	nodekey := path.Join(conf.DataDir, nodekeyFile)
 
-	log.Info().Str("version", version.Version).Msg("Charon starting")
+	log.Info(ctx).Str("version", version.Version).Msg("Charon starting")
 	setStartupMetrics()
 
 	// Construct processes and their dependencies
@@ -69,37 +67,37 @@ func Run(shutdownCtx context.Context, conf Config) error {
 
 	stopJeager, err := tracer.Init(tracer.WithJaegerOrNoop(conf.JaegerAddr))
 	if err != nil {
-		return fmt.Errorf("init jaeger tracing: %w", err)
+		return errors.Wrap(err, "init jaeger tracing")
 	}
 
 	p2pKey, err := identity.P2PStore{KeyPath: nodekey}.Get()
 	if err != nil {
-		return fmt.Errorf("load or create peer ID: %w", err)
+		return errors.Wrap(err, "load or create peer ID")
 	}
 
 	localEnode, peerDB, err := discovery.NewLocalEnode(conf.Discovery, conf.P2P, p2pKey)
 	if err != nil {
-		return fmt.Errorf("create local enode: %w", err)
+		return errors.Wrap(err, "create local enode")
 	}
 
 	discoveryNode, err := discovery.NewListener(conf.Discovery, conf.P2P, localEnode, p2pKey)
 	if err != nil {
-		return fmt.Errorf("start discv5 listener: %w", err)
+		return errors.Wrap(err, "start discv5 listener")
 	}
 
 	manifests, err := cluster.LoadKnownClustersFromDir(conf.ClusterDir)
 	if err != nil {
-		return fmt.Errorf("load known cluster: %w", err)
+		return errors.Wrap(err, "load known cluster")
 	}
 
-	log.Info().Msgf("Loaded %d DVs", len(manifests.Clusters()))
+	log.Info(ctx).Int("n", len(manifests.Clusters())).Msg("Clusters loaded")
 
 	connGater := p2p.NewConnGaterForClusters(manifests, nil)
-	log.Info().Msgf("Connecting to %d unique peers", len(connGater.PeerIDs))
+	log.Info(ctx).Msgf("Connecting to %d unique peers", len(connGater.PeerIDs))
 
 	_, err = p2p.NewNode(conf.P2P, p2pKey, connGater)
 	if err != nil {
-		return fmt.Errorf("new p2p node: %w", err)
+		return errors.Wrap(err, "new p2p node")
 	}
 
 	monitoring := newMonitoring(conf.MonitoringAddr)
@@ -107,7 +105,7 @@ func Run(shutdownCtx context.Context, conf Config) error {
 	vhandler := validatorapi.Handler(nil) // TODO(corver): Construct this
 	vrouter, err := validatorapi.NewRouter(vhandler, conf.BeaconNodeAddr)
 	if err != nil {
-		return fmt.Errorf("new monitoring server: %w", err)
+		return errors.Wrap(err, "new monitoring server")
 	}
 	vserver := http.Server{
 		Addr:    conf.ValidatorAPIAddr,
@@ -119,37 +117,38 @@ func Run(shutdownCtx context.Context, conf Config) error {
 	var procErr error
 	select {
 	case err := <-start(monitoring.ListenAndServe):
-		procErr = fmt.Errorf("monitoring server: %w", err)
+		procErr = errors.Wrap(err, "monitoring server")
 	case err := <-start(vserver.ListenAndServe):
-		procErr = fmt.Errorf("validatorapi server: %w", err)
-	case <-shutdownCtx.Done():
-		log.Info().Msgf("Shutdown signal detected")
+		procErr = errors.Wrap(err, "validatorapi server")
+	case <-ctx.Done():
+		log.Info(ctx).Msg("Shutdown signal detected")
 	}
 
 	if procErr != nil {
 		// Even though procErr is returned below, also log it in case shutdown errors.
-		log.Error().Err(err).Msg("Process error")
+		log.Error(ctx, procErr).Msg("Process error")
 	}
 
-	log.Info().Msgf("Shutting down gracefully")
+	log.Info(ctx).Msg("Shutting down gracefully")
 
-	// Shutdown processes (allow 10s)
+	// Shutdown processes with a fresh context allowing 10s.
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
+	ctx = log.WithComponent(ctx, "app-stop")
 
 	discoveryNode.Close()
 
 	if err := monitoring.Shutdown(ctx); err != nil {
-		return fmt.Errorf("stop monitoring server: %w", err)
+		return errors.Wrap(err, "stop monitoring server")
 	}
 
 	if err := vserver.Shutdown(ctx); err != nil {
-		return fmt.Errorf("stop validatorapi server: %w", err)
+		return errors.Wrap(err, "stop validatorapi server")
 	}
 
 	if err := stopJeager(ctx); err != nil {
-		return fmt.Errorf("stop jaeger tracer: %w", err)
+		return errors.Wrap(err, "stop jaeger tracer")
 	}
 
 	peerDB.Close()
