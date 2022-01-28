@@ -26,7 +26,6 @@ import (
 	"github.com/drand/kyber/share"
 	"github.com/drand/kyber/sign/bls"
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 )
 
@@ -82,14 +81,9 @@ func BLSKeyPairToKeystore(scalar kyber.Scalar, pubkey kyber.Point, password stri
 //
 // Prints the public key as a side effect.
 func TBLSShareToKeystore(scheme *TBLSScheme, priPoly *share.PriShare, password string) (*Keystore, error) {
-	pubShare := DerivePubkey(priPoly.V)
-	pubShareHex := BLSPointToHex(pubShare)
-
-	w := (&cobra.Command{}).ErrOrStderr()
-	_, _ = fmt.Fprintf(w, "Share #%04d pubkey: %s\n", priPoly.I, pubShareHex)
-
 	pubkey := scheme.PubPoly.Commit()
 	pubkeyHex := BLSPointToHex(pubkey)
+	pubShare := DerivePubkey(priPoly.V)
 
 	keyStore, err := BLSKeyPairToKeystore(priPoly.V, pubShare, password)
 	if err != nil {
