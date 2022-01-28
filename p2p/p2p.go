@@ -24,7 +24,7 @@ import (
 	noise "github.com/libp2p/go-libp2p-noise"
 	zerologger "github.com/rs/zerolog/log"
 
-	"github.com/obolnetwork/charon/runner/version"
+	"github.com/obolnetwork/charon/app/version"
 )
 
 var log = zerologger.With().Str("component", "p2p").Logger()

@@ -27,7 +27,7 @@ import (
 	// Automatically sets GOMAXPROCS to match Linux container CPU quota.
 	_ "go.uber.org/automaxprocs"
 
-	"github.com/obolnetwork/charon/runner"
+	"github.com/obolnetwork/charon/app"
 )
 
 const (
@@ -45,7 +45,7 @@ func New() *cobra.Command {
 		newVersionCmd(runVersionCmd),
 		newBootstrapCmd(runBootstrapCmd),
 		newEnrCmd(runNewENR),
-		newRunCmd(runner.Run),
+		newRunCmd(app.Run),
 	)
 }
 

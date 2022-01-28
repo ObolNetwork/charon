@@ -22,7 +22,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/obolnetwork/charon/runner/version"
+	"github.com/obolnetwork/charon/app/version"
 )
 
 type versionConfig struct {
