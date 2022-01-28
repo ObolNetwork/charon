@@ -22,13 +22,13 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/runner"
 )
 
-func newRunCmd(runFunc func(context.Context, runner.Config) error) *cobra.Command {
-	var conf runner.Config
+func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
+	var conf app.Config
 
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -50,7 +50,7 @@ func newRunCmd(runFunc func(context.Context, runner.Config) error) *cobra.Comman
 	return cmd
 }
 
-func bindRunFlags(flags *pflag.FlagSet, config *runner.Config) {
+func bindRunFlags(flags *pflag.FlagSet, config *app.Config) {
 	flags.StringVar(&config.ClusterDir, "cluster-file", "./charon/manifest.json", "The filepath to the manifest file defining distributed validator cluster")
 	flags.StringVar(&config.BeaconNodeAddr, "beacon-node-endpoint", "http://localhost/", "Beacon node endpoint URL")
 	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:3500", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API")

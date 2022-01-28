@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package runner provides the top app-level abstraction and entrypoint for a charon DVC instance.
-package runner
+// Package app provides the top app-level abstraction and entrypoint for a charon DVC instance.
+// The sub-packages also provide app-level functionality.
+package app
 
 import (
 	"context"
@@ -26,12 +27,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	zerologger "github.com/rs/zerolog/log"
 
+	"github.com/obolnetwork/charon/app/tracer"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/runner/tracer"
-	"github.com/obolnetwork/charon/runner/version"
 	"github.com/obolnetwork/charon/validatorapi"
 )
 

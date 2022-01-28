@@ -21,9 +21,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/runner"
 )
 
 func TestCmdFlags(t *testing.T) {
@@ -32,7 +32,7 @@ func TestCmdFlags(t *testing.T) {
 		Args            []string
 		VersionConfig   *versionConfig
 		BootstrapConfig *bootstrapConfig
-		RunnerConfig    *runner.Config
+		appConfig       *app.Config
 	}{
 		{
 			Name:          "version verbose",
@@ -67,7 +67,7 @@ func TestCmdFlags(t *testing.T) {
 		{
 			Name: "run command",
 			Args: slice("run"),
-			RunnerConfig: &runner.Config{
+			appConfig: &app.Config{
 				Discovery: discovery.Config{ListenAddr: "127.0.0.1:30309", DBPath: ""},
 				P2P: p2p.Config{
 					Addrs:     []string{"127.0.0.1:13900"},
@@ -97,9 +97,9 @@ func TestCmdFlags(t *testing.T) {
 
 					return nil
 				}),
-				newRunCmd(func(_ context.Context, config runner.Config) error {
-					require.NotNil(t, test.RunnerConfig)
-					require.Equal(t, *test.RunnerConfig, config)
+				newRunCmd(func(_ context.Context, config app.Config) error {
+					require.NotNil(t, test.appConfig)
+					require.Equal(t, *test.appConfig, config)
 
 					return nil
 				}),

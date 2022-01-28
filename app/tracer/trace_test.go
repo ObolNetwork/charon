@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/obolnetwork/charon/runner/tracer"
+	"github.com/obolnetwork/charon/app/tracer"
 )
 
 func TestDefaultNoopTracer(t *testing.T) {

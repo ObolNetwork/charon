@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package runner
+package app
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/obolnetwork/charon/runner/version"
+	"github.com/obolnetwork/charon/app/version"
 )
 
 var (
