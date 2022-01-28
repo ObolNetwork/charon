@@ -12,25 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package appctx helps with managing the application lifecycle.
-package appctx
+package version
 
-import (
-	"context"
-	"os"
-	"os/signal"
-)
-
-// InterruptContext returns a context that cancels when receiving SIGINT.
-func InterruptContext(ctx context.Context) context.Context {
-	ctx, cancel := context.WithCancel(ctx)
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt)
-
-	go func() {
-		defer cancel()
-		<-signals
-	}()
-
-	return ctx
-}
+// Version is the release version of the codebase.
+// Usually overridden by tag names when building binaries.
+const Version = "v0.1.0-dirty"
