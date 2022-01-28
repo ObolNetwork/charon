@@ -41,10 +41,6 @@ issues:
 linters:
   enable-all: true
   disable:
-    # Enable these and fix the issues
-    - forbidigo
-    - gochecknoinits # Once config refactor is done.
-
     # Keep disabled
     - exhaustivestruct
     - funlen

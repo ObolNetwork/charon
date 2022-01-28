@@ -81,13 +81,9 @@ func BLSKeyPairToKeystore(scalar kyber.Scalar, pubkey kyber.Point, password stri
 //
 // Prints the public key as a side effect.
 func TBLSShareToKeystore(scheme *TBLSScheme, priPoly *share.PriShare, password string) (*Keystore, error) {
-	pubShare := DerivePubkey(priPoly.V)
-	pubShareHex := BLSPointToHex(pubShare)
-
-	fmt.Printf("Share #%04d pubkey: %s\n", priPoly.I, pubShareHex)
-
 	pubkey := scheme.PubPoly.Commit()
 	pubkeyHex := BLSPointToHex(pubkey)
+	pubShare := DerivePubkey(priPoly.V)
 
 	keyStore, err := BLSKeyPairToKeystore(priPoly.V, pubShare, password)
 	if err != nil {
