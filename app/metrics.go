@@ -23,13 +23,13 @@ import (
 
 var (
 	versionGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "runner",
+		Namespace: "app",
 		Name:      "version",
 		Help:      "Constant gauge with label set to current version",
 	}, []string{"version"})
 
 	startGauge = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "runner",
+		Namespace: "app",
 		Name:      "start_time_secs",
 		Help:      "Gauge set to the start time of the binary in unix seconds",
 	})
