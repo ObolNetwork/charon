@@ -181,11 +181,13 @@ func LoadKnownClustersFromDir(dir string) (KnownClusters, error) {
 	return known, nil
 }
 
-// GetCluster returns the cluster for the given BLS public key.
+// GetCluster returns the cluster and true for the given BLS public key.
 //
-// Returns nil if no matching cluster was found.
-func (k KnownClusters) GetCluster(pubkey kyber.Point) *Manifest {
-	return k.clusters[crypto.BLSPointToHex(pubkey)]
+// Returns false if no matching cluster was found.
+func (k KnownClusters) GetCluster(pubkey kyber.Point) (*Manifest, bool) {
+	res, ok := k.clusters[crypto.BLSPointToHex(pubkey)]
+
+	return res, ok
 }
 
 // Clusters returns a list of known clusters.

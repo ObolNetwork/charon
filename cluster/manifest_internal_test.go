@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"net"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
@@ -134,20 +133,21 @@ func TestDecodeENR_Oversize(t *testing.T) {
 }
 
 func TestKnownClusters(t *testing.T) {
-	// Load test cluster dir file.
-	_, srcPath, _, ok := runtime.Caller(0)
-	require.True(t, ok)
-	clustersDir := filepath.Join(filepath.Dir(srcPath), "tests", "clusters")
+	// Load testdata cluster dir file.
+	clustersDir := filepath.Join("testdata", "clusters")
 	knownClusters, err := LoadKnownClustersFromDir(clustersDir)
 	require.NoError(t, err)
-	require.NotNil(t, knownClusters)
 	require.Len(t, knownClusters.Clusters(), 3)
+
 	// Select cluster by pubkey.
 	pubkey1 := crypto.MustBLSPointFromHex("83def2bde67a3e02449ff109b4d53e0126222bdc7a911c3f5bec00a44e4ba9c548cd7c55e1ecdef549a270af11fccb9e")
-	cluster1 := knownClusters.GetCluster(pubkey1)
-	require.NotNil(t, cluster1)
+	cluster1, ok := knownClusters.GetCluster(pubkey1)
+	require.True(t, ok)
+	require.Equal(t, pubkey1, cluster1.Pubkey())
+
 	// Select nonexistent cluster by pubkey.
 	pubkey2 := crypto.MustBLSPointFromHex("8a1e64c5fac393516e59574c65030149d2ef76e70d8a98e8203eabfdeeccbb490a36e5d146a64692cb56aa6f5573e06e")
-	cluster2 := knownClusters.GetCluster(pubkey2)
+	cluster2, ok := knownClusters.GetCluster(pubkey2)
+	require.False(t, ok)
 	require.Nil(t, cluster2)
 }

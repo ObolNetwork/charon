@@ -29,9 +29,9 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/identity"
-	"github.com/obolnetwork/charon/internal"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/runner/tracer"
+	"github.com/obolnetwork/charon/runner/version"
 	"github.com/obolnetwork/charon/validatorapi"
 )
 
@@ -60,7 +60,7 @@ type Config struct {
 func Run(shutdownCtx context.Context, conf Config) error {
 	nodekey := path.Join(conf.DataDir, nodekeyFile)
 
-	log.Info().Str("version", internal.ReleaseVersion).Msg("Charon starting")
+	log.Info().Str("version", version.Version).Msg("Charon starting")
 	setStartupMetrics()
 
 	// Construct processes and their dependencies

@@ -18,7 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/obolnetwork/charon/internal"
+	"github.com/obolnetwork/charon/runner/version"
 )
 
 var (
@@ -36,6 +36,6 @@ var (
 )
 
 func setStartupMetrics() {
-	versionGauge.WithLabelValues(internal.ReleaseVersion).Set(1)
+	versionGauge.WithLabelValues(version.Version).Set(1)
 	startGauge.SetToCurrentTime()
 }

@@ -17,12 +17,12 @@ package cmd
 import (
 	"fmt"
 	"io"
-	dbg "runtime/debug"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/obolnetwork/charon/internal"
+	"github.com/obolnetwork/charon/runner/version"
 )
 
 type versionConfig struct {
@@ -52,13 +52,13 @@ func bindVersionFlags(flags *pflag.FlagSet, config *versionConfig) {
 }
 
 func runVersionCmd(out io.Writer, config versionConfig) {
-	fmt.Fprintln(out, internal.ReleaseVersion)
+	fmt.Fprintln(out, version.Version)
 
 	if !config.Verbose {
 		return
 	}
 
-	buildInfo, ok := dbg.ReadBuildInfo()
+	buildInfo, ok := debug.ReadBuildInfo()
 
 	if !ok {
 		fmt.Fprintf(out, "\nFailed to gather build info")
@@ -66,7 +66,7 @@ func runVersionCmd(out io.Writer, config versionConfig) {
 	}
 
 	fmt.Fprintf(out, "Package: %s\n", buildInfo.Path)
-	fmt.Fprintf(out, "Dependencies:")
+	fmt.Fprint(out, "Dependencies:\n")
 
 	for _, dep := range buildInfo.Deps {
 		for dep.Replace != nil {
