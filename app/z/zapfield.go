@@ -1,0 +1,104 @@
+// Copyright © 2021 Obol Technologies Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package z provides an API for structured logging fields by wrapping zap.Field.
+// It also supports internal structured errors.
+package z
+
+import (
+	"go.uber.org/zap"
+)
+
+// Field wraps one or more zap fields.
+type Field func(add func(zap.Field))
+
+// Err returns a wrapped zap error field. It will include an additional stack trace and fields
+// if the error is an internal structured error.
+func Err(err error) Field {
+	type fieldErr interface {
+		Fields() []Field
+		Stack() zap.Field
+	}
+
+	ferr, ok := err.(fieldErr) //nolint:errorlint
+	if ok {
+		return func(add func(zap.Field)) {
+			add(zap.Error(err))
+			add(ferr.Stack())
+			for _, field := range ferr.Fields() {
+				field(add)
+			}
+		}
+	}
+
+	return func(add func(zap.Field)) {
+		add(zap.Error(err))
+	}
+}
+
+// Str returns a wrapped zap string field.
+func Str(key, val string) Field {
+	return func(add func(zap.Field)) {
+		add(zap.String(key, val))
+	}
+}
+
+// Bool returns a wrapped zap boolean field.
+func Bool(key string, val bool) Field {
+	return func(add func(zap.Field)) {
+		add(zap.Bool(key, val))
+	}
+}
+
+// Int returns a wrapped zap int field.
+func Int(key string, val int) Field {
+	return func(add func(zap.Field)) {
+		add(zap.Int(key, val))
+	}
+}
+
+// Uint returns a wrapped zap uint field.
+func Uint(key string, val uint) Field {
+	return func(add func(zap.Field)) {
+		add(zap.Uint(key, val))
+	}
+}
+
+// I64 returns a wrapped zap int64 field.
+func I64(key string, val int64) Field {
+	return func(add func(zap.Field)) {
+		add(zap.Int64(key, val))
+	}
+}
+
+// U64 returns a wrapped zap uint64 field.
+func U64(key string, val uint64) Field {
+	return func(add func(zap.Field)) {
+		add(zap.Uint64(key, val))
+	}
+}
+
+// F64 returns a wrapped zap float64 field.
+func F64(key string, val float64) Field {
+	return func(add func(zap.Field)) {
+		add(zap.Float64(key, val))
+	}
+}
+
+// Any returns a wrapped zap any field.
+func Any(key string, val float64) Field {
+	return func(add func(zap.Field)) {
+		add(zap.Any(key, val))
+	}
+}

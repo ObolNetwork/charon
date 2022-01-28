@@ -37,11 +37,13 @@ issues:
     - "unnecessary leading newline"
     - "block should not start with a whitespace"
     - "only one cuddle assignment"
+    - "only cuddled expressions if assigning variable or using from line above"
 
 linters:
   enable-all: true
   disable:
     # Keep disabled
+    - containedctx
     - exhaustivestruct
     - funlen
     - forcetypeassert
