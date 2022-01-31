@@ -7,6 +7,8 @@ replace github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/prysmaticlabs/gr
 
 require (
 	github.com/attestantio/go-eth2-client v0.9.6
+	github.com/dgraph-io/badger/v3 v3.2103.2
+	github.com/dgraph-io/sroar v0.0.0-20211209113350-3e3f1b382a64
 	github.com/drand/kyber v1.1.9
 	github.com/drand/kyber-bls12381 v0.2.1
 	github.com/ethereum/go-ethereum v1.10.10
@@ -51,7 +53,6 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
-	github.com/dgraph-io/badger/v3 v3.2103.2 // indirect
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect
