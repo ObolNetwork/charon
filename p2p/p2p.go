@@ -16,13 +16,13 @@ package p2p
 
 import (
 	"crypto/ecdsa"
-	"errors"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	noise "github.com/libp2p/go-libp2p-noise"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/version"
 )
 

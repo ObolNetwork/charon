@@ -18,7 +18,6 @@ import (
 	"net"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,14 +43,14 @@ func TestResolveListenAddr(t *testing.T) {
 			addr, err := resolveListenAddr(test.input)
 			if test.err != "" {
 				if err != nil {
-					assert.Error(t, err)
-					assert.Contains(t, err.Error(), test.err)
+					require.Error(t, err)
+					require.Contains(t, err.Error(), test.err)
 				} else {
 					t.Errorf("Expected error but got %s for %s", addr.String(), test.input)
 				}
 			} else {
-				assert.Equal(t, test.addr, addr.IP)
-				assert.Equal(t, test.port, addr.Port)
+				require.Equal(t, test.addr, addr.IP)
+				require.Equal(t, test.port, addr.Port)
 			}
 		})
 	}
