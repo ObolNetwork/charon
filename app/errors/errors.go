@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package errors provides errors with structured fields and stack traces.
-// It is a drop-in replacement for stdlib errors and should be used as such through the app.
+// It is a drop-in replacement for stdlib errors and should be used as such throughout the app.
 package errors
 
 import (
@@ -61,14 +61,17 @@ type structured struct {
 	stack  zap.Field
 }
 
+// Error returns the error message and implements the error interface.
 func (s structured) Error() string {
 	return s.err.Error()
 }
 
+// Fields returns the structured fields.
 func (s structured) Fields() []z.Field {
 	return s.fields
 }
 
+// Stack returns the zap stack trace.
 func (s structured) Stack() zap.Field {
 	return s.stack
 }

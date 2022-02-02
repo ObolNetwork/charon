@@ -23,19 +23,16 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-//nolint: gochecknoinits
-func init() {
-	initConsoleLogger()
-}
+var logger = newConsoleLogger()
 
-func initConsoleLogger() {
+func newConsoleLogger() *zap.Logger {
 	encCondig := zap.NewDevelopmentEncoderConfig()
 	encCondig.ConsoleSeparator = " "
 	encCondig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 
 	ws, _, _ := zap.Open("stderr")
 
-	logger = newConsoleLogger(encCondig, ws)
+	return buildConsoleLogger(encCondig, ws)
 }
 
 // InitJSONLogger initialises a JSON logger for production usage.
@@ -48,11 +45,11 @@ func InitJSONLogger() error {
 
 // InitLoggerForT initialises a console logger for testing purposes.
 func InitLoggerForT(_ *testing.T, encConfig zapcore.EncoderConfig, ws zapcore.WriteSyncer) {
-	logger = newConsoleLogger(encConfig, ws)
+	logger = buildConsoleLogger(encConfig, ws)
 }
 
-// newConsoleLogger returns an opinionated console logger.
-func newConsoleLogger(encConfig zapcore.EncoderConfig, ws zapcore.WriteSyncer) *zap.Logger {
+// buildConsoleLogger returns an opinionated console logger.
+func buildConsoleLogger(encConfig zapcore.EncoderConfig, ws zapcore.WriteSyncer) *zap.Logger {
 	encoder := customEncoder{Encoder: zapcore.NewConsoleEncoder(encConfig)}
 
 	return zap.New(

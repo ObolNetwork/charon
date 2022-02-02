@@ -19,7 +19,6 @@ package log
 
 import (
 	"context"
-	"testing"
 
 	"go.uber.org/zap"
 
@@ -28,18 +27,6 @@ import (
 )
 
 type ctxKey struct{}
-
-var logger *zap.Logger
-
-// SetLoggerForT sets the global logger for testing.
-func SetLoggerForT(t *testing.T, l *zap.Logger) {
-	t.Helper()
-	cached := logger
-	logger = l
-	t.Cleanup(func() {
-		logger = cached
-	})
-}
 
 // WithCtx returns a copy of the context with which the logging fields are associated.
 // Usage:
