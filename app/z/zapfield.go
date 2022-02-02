@@ -31,6 +31,8 @@ func Err(err error) Field {
 		Stack() zap.Field
 	}
 
+	// Using cast instead of errors.As since no other wrapping library
+	// is used and this avoids exporting the structured error type.
 	ferr, ok := err.(fieldErr) //nolint:errorlint
 	if ok {
 		return func(add func(zap.Field)) {
