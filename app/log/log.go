@@ -51,21 +51,25 @@ func fromCtx(ctx context.Context) []z.Field {
 }
 
 // Debug logs the message and fields (incl fields in the context) at Debug level.
+// TODO(corver): Add indication of when debug should be used.
 func Debug(ctx context.Context, msg string, fields ...z.Field) {
 	logger.Debug(msg, unwrapDedup(ctx, fields...)...)
 }
 
 // Info logs the message and fields (incl fields in the context) at Info level.
+// TODO(corver): Add indication of when info should be used.
 func Info(ctx context.Context, msg string, fields ...z.Field) {
 	logger.Info(msg, unwrapDedup(ctx, fields...)...)
 }
 
 // Warn logs the message and fields (incl fields in the context) at Warn level.
+// TODO(corver): Add indication of when warn should be used.
 func Warn(ctx context.Context, msg string, fields ...z.Field) {
 	logger.Warn(msg, unwrapDedup(ctx, fields...)...)
 }
 
 // Error wraps err with msg and fields and logs it (incl fields in the context) at Error level.
+// TODO(corver): Add indication of when error should be used.
 func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
 	err = errors.Wrap(err, msg, fields...)
 	logger.Error(err.Error(), unwrapDedup(ctx, errFields(err))...)
@@ -98,14 +102,14 @@ func unwrapDedup(ctx context.Context, fields ...z.Field) []zap.Field {
 // stack trace but without the error message. It avoids duplication of the error message
 // since it is used as the main log message in Error above.
 func errFields(err error) z.Field {
-	type fieldErr interface {
+	type structErr interface {
 		Fields() []z.Field
 		Stack() zap.Field
 	}
 
 	// Using cast instead of errors.As since no other wrapping library
 	// is used and this avoids exporting the structured error type.
-	ferr, ok := err.(fieldErr) //nolint:errorlint
+	ferr, ok := err.(structErr) //nolint:errorlint
 	if !ok {
 		return func(add func(zap.Field)) {}
 	}
