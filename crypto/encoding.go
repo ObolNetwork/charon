@@ -16,10 +16,12 @@ package crypto
 
 import (
 	"encoding/hex"
-	"fmt"
 
 	"github.com/drand/kyber"
 	bls "github.com/drand/kyber-bls12381"
+
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 // BLSPointToHex returns the hex serialization of a BLS public key (G1) or signature (G2).
@@ -43,30 +45,18 @@ func BLSPointFromHex(hexStr string) (kyber.Point, error) {
 	case 96:
 		p = bls.NullKyberG2()
 	default:
-		return nil, fmt.Errorf("weird length: %d", len(b))
+		return nil, errors.New("invalid length", z.Int("len", len(b)))
 	}
 
 	if p.MarshalSize() != len(b) {
-		panic(fmt.Sprintf("expected %T to be %d bytes, actually is %d", p, len(b), p.MarshalSize()))
+		return nil, errors.New("unexpected marshal length")
 	}
 
 	if err := p.UnmarshalBinary(b); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "unmarshal point")
 	}
 
 	return p, nil
-}
-
-// MustBLSPointFromHex unwraps a hex serialization to a G1 or G2 point on the BLS12-381 curve.
-//
-// Panics if conversion fails.
-func MustBLSPointFromHex(hexStr string) kyber.Point {
-	point, err := BLSPointFromHex(hexStr)
-	if err != nil {
-		panic("invalid BLS point \"" + hexStr + "\": " + err.Error())
-	}
-
-	return point
 }
 
 // BLSPubkeyHex wraps a BLS public key with simplified hex serialization.
@@ -79,14 +69,14 @@ func (p *BLSPubkeyHex) UnmarshalText(b []byte) error {
 	decodedLen := hex.DecodedLen(len(b))
 	expectedLen := p.MarshalSize()
 	if decodedLen != expectedLen {
-		return fmt.Errorf("expected %d bytes, got %d", expectedLen, decodedLen)
+		return errors.New("expected marshal length")
 	}
 
 	data := make([]byte, expectedLen)
 	if n, err := hex.Decode(data, b); err != nil {
-		return err
+		return errors.Wrap(err, "decode bls hex")
 	} else if n != expectedLen {
-		return fmt.Errorf("expected %d bytes, got %d", expectedLen, n)
+		return errors.New("expected decode length")
 	}
 
 	p.KyberG1 = bls.NullKyberG1()
@@ -98,7 +88,7 @@ func (p *BLSPubkeyHex) UnmarshalText(b []byte) error {
 func (p BLSPubkeyHex) MarshalText() ([]byte, error) {
 	raw, err := p.MarshalBinary()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "marshal binary")
 	}
 
 	data := make([]byte, hex.EncodedLen(len(raw)))

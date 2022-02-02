@@ -16,32 +16,25 @@ package p2p
 
 import (
 	"crypto/ecdsa"
-	"fmt"
+	"errors"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	noise "github.com/libp2p/go-libp2p-noise"
-	zerologger "github.com/rs/zerolog/log"
 
 	"github.com/obolnetwork/charon/app/version"
 )
 
-var log = zerologger.With().Str("component", "p2p").Logger()
-
-type Node struct {
-	host.Host
-}
-
-// NewNode starts the libp2p subsystem.
-func NewNode(cfg Config, key *ecdsa.PrivateKey, connGater *ConnGater) (*Node, error) {
+// NewNode returns a started libp2p node.
+func NewNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater) (host.Host, error) {
 	if key == nil {
-		return nil, fmt.Errorf("missing private key")
+		return nil, errors.New("missing private key")
 	}
 
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
-		return nil, fmt.Errorf("invalid multiaddrs: %w", err)
+		return nil, err
 	}
 
 	// Init options.
@@ -58,13 +51,5 @@ func NewNode(cfg Config, key *ecdsa.PrivateKey, connGater *ConnGater) (*Node, er
 		libp2p.ConnectionGater(connGater),
 	}
 
-	// Create node.
-	h, err := libp2p.New(opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Info().Msgf("Starting P2P interface on %v", h.Addrs())
-
-	return &Node{h}, nil
+	return libp2p.New(opts...)
 }

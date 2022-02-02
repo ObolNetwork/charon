@@ -27,6 +27,8 @@ import (
 	"github.com/drand/kyber/sign/bls"
 	"github.com/google/uuid"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 // Keystore describes the EIP-2335 BLS12-381 keystore file format.
@@ -44,9 +46,13 @@ type Keystore struct {
 // NewBLSKeystore creates a new keystore with a random BLS12-381 private key.
 func NewBLSKeystore(password string) (*Keystore, kyber.Scalar, kyber.Point, error) {
 	privKey, pubKey := bls.NewSchemeOnG1(BLSPairing).NewKeyPair(BLSPairing.RandomStream())
-	k, err := BLSKeyPairToKeystore(privKey, pubKey, password)
 
-	return k, privKey, pubKey, err
+	k, err := BLSKeyPairToKeystore(privKey, pubKey, password)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return k, privKey, pubKey, nil
 }
 
 // BLSKeyPairToKeystore creates a new EIP-2335 keystore given a BLS12-381 key pair.
@@ -54,18 +60,18 @@ func NewBLSKeystore(password string) (*Keystore, kyber.Scalar, kyber.Point, erro
 func BLSKeyPairToKeystore(scalar kyber.Scalar, pubkey kyber.Point, password string) (*Keystore, error) {
 	secret, err := scalar.MarshalBinary()
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal private key: %w", err)
+		return nil, errors.Wrap(err, "marshal private key")
 	}
 
 	id, err := uuid.NewRandom()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "new uuid")
 	}
 
 	encryptor := keystorev4.New()
 	cryptoFields, err := encryptor.Encrypt(secret, password)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt key")
+		return nil, errors.Wrap(err, "encrypt key")
 	}
 
 	return &Keystore{
@@ -102,28 +108,28 @@ func (k *Keystore) BLSKeyPair(password string) (kyber.Scalar, kyber.Point, error
 	decryptor := keystorev4.New()
 	secretBytes, err := decryptor.Decrypt(k.Crypto, password)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to decrypt BLS private key: %w", err)
+		return nil, nil, errors.Wrap(err, "decrypt BLS private key")
 	}
 
 	secret := BLSKeyGroup.Scalar()
 	if err := secret.UnmarshalBinary(secretBytes); err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal BLS private key: %w", err)
+		return nil, nil, errors.Wrap(err, "unmarshal BLS private key")
 	}
 	// Derive public key from private key.
 	derivedPubkey := DerivePubkey(secret)
 	// Unmarshal public key.
 	pubkeyBytes, err := hex.DecodeString(k.Pubkey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal BLS public key: %w", err)
+		return nil, nil, errors.Wrap(err, "decode BLS public key")
 	}
 
 	givenPubkey := BLSKeyGroup.Point()
 	if err := givenPubkey.UnmarshalBinary(pubkeyBytes); err != nil {
-		return nil, nil, fmt.Errorf("failed to uncompress BLS public key: %w", err)
+		return nil, nil, errors.Wrap(err, "unmarshal BLS public key")
 	}
 
 	if !givenPubkey.Equal(derivedPubkey) {
-		return nil, nil, fmt.Errorf("public key mismatch: expected %v, actual %v", givenPubkey, derivedPubkey)
+		return nil, nil, errors.New("mismatching public keys")
 	}
 
 	return secret, derivedPubkey, nil
@@ -133,7 +139,7 @@ func (k *Keystore) BLSKeyPair(password string) (kyber.Scalar, kyber.Point, error
 func ReadPlaintextPassword(filePath string) (string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "open file")
 	}
 	defer f.Close()
 
@@ -141,12 +147,12 @@ func ReadPlaintextPassword(filePath string) (string, error) {
 
 	scn := bufio.NewScanner(io.LimitReader(f, maxPasswordLen))
 	if !scn.Scan() {
-		return "", io.ErrUnexpectedEOF
+		return "", errors.New("scanning password file")
 	}
 
 	password := scn.Text()
 	if len(password) >= maxPasswordLen {
-		return "", fmt.Errorf("password very long, aborting")
+		return "", errors.New("password too long")
 	}
 
 	return password, nil
@@ -165,7 +171,7 @@ func WritePlaintextPassword(filePath string, overwrite bool, password string) er
 
 	f, err := os.OpenFile(filePath, mode, 0600)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "open file")
 	}
 	defer f.Close()
 
@@ -178,16 +184,16 @@ func WritePlaintextPassword(filePath string, overwrite bool, password string) er
 func (k *Keystore) Save(filePath string) error {
 	data, err := json.MarshalIndent(k, "", "\t")
 	if err != nil {
-		return err
+		return errors.Wrap(err, "marshal keystore")
 	}
 
 	f, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "open file")
 	}
 
 	if _, err := f.Write(data); err != nil {
-		return err
+		return errors.Wrap(err, "write file")
 	}
 
 	return f.Close()
@@ -197,12 +203,12 @@ func (k *Keystore) Save(filePath string) error {
 func LoadKeystore(filePath string) (*Keystore, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "read keystore")
 	}
 
 	k := new(Keystore)
 	if err := json.Unmarshal(data, k); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "unmarshal keystore")
 	}
 
 	return k, nil

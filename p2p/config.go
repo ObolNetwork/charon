@@ -15,11 +15,12 @@
 package p2p
 
 import (
-	"errors"
 	"fmt"
 	"net"
 
 	"github.com/multiformats/go-multiaddr"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 type Config struct {
@@ -77,11 +78,11 @@ func (c Config) Multiaddrs() ([]multiaddr.Multiaddr, error) {
 func resolveListenAddr(addr string) (*net.TCPAddr, error) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve P2P bind addr: %w", err)
+		return nil, errors.Wrap(err, "resolve P2P bind addr")
 	}
 
 	if tcpAddr.IP == nil {
-		return nil, fmt.Errorf("IP not specified in P2P bind addr: \"%s\"", addr)
+		return nil, errors.New("p2p bind IP not specified")
 	}
 
 	return tcpAddr, nil

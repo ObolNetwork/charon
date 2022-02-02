@@ -16,12 +16,13 @@ package crypto
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/drand/kyber"
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/share"
 	"github.com/drand/kyber/util/random"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 // TBLSScheme wraps drand/share.PubPoly, the public commitments of a BLS secret sharing scheme
@@ -39,15 +40,10 @@ func (t *TBLSScheme) Pubkey() kyber.Point {
 func (t *TBLSScheme) UnmarshalJSON(data []byte) error {
 	var encoded TBLSSchemeEncoded
 	if err := json.Unmarshal(data, &encoded); err != nil {
-		return fmt.Errorf("failed to unmarshal TBLS scheme: %w", err)
+		return errors.Wrap(err, "unmarshal TBLS scheme")
 	}
 
-	decoded, err := encoded.Decode()
-	if err != nil {
-		return fmt.Errorf("failed to decode TBLS scheme: %w", err)
-	}
-
-	*t = *decoded
+	*t = *encoded.Decode()
 
 	return nil
 }
@@ -56,7 +52,7 @@ func (t *TBLSScheme) UnmarshalJSON(data []byte) error {
 func (t *TBLSScheme) MarshalJSON() ([]byte, error) {
 	encoded, err := t.Encode()
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode TBLS scheme: %w", err)
+		return nil, errors.Wrap(err, "encode TBLS scheme")
 	}
 
 	return json.Marshal(encoded)
@@ -69,7 +65,7 @@ type TBLSSchemeEncoded []BLSPubkeyHex
 func (t *TBLSScheme) Encode() (TBLSSchemeEncoded, error) {
 	base, commits := t.Info()
 	if !base.Equal(BLSKeyGroup.Point().Base()) {
-		return nil, fmt.Errorf("pubkey commits do not use standard base point")
+		return nil, errors.New("pubkey commits do not use standard base point")
 	}
 
 	enc := make([]BLSPubkeyHex, len(commits))
@@ -81,7 +77,7 @@ func (t *TBLSScheme) Encode() (TBLSSchemeEncoded, error) {
 }
 
 // Decode reconstructs the threshold BLS commitment data.
-func (t TBLSSchemeEncoded) Decode() (*TBLSScheme, error) {
+func (t TBLSSchemeEncoded) Decode() *TBLSScheme {
 	points := make([]kyber.Point, len(t))
 	for i, commit := range t {
 		points[i] = commit.KyberG1
@@ -89,7 +85,7 @@ func (t TBLSSchemeEncoded) Decode() (*TBLSScheme, error) {
 
 	pubPoly := share.NewPubPoly(BLSKeyGroup, BLSKeyGroup.Point().Base(), points)
 
-	return &TBLSScheme{pubPoly}, nil
+	return &TBLSScheme{pubPoly}
 }
 
 // NewTBLSPoly creates a new secret sharing polynomial for a BLS12-381 threshold signature scheme.

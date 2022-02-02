@@ -20,6 +20,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/p2p"
@@ -51,15 +52,18 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, discovery.Config, string) err
 
 // Function for printing status of ENR for this instance.
 func runNewENR(w io.Writer, p2pConfig p2p.Config, discoveryConfig discovery.Config, dataDir string) error {
-	identityKey := identity.DefaultP2P(dataDir).MustGet()
-	localEnode, db, err := discovery.NewLocalEnode(discoveryConfig, p2pConfig, identityKey)
-
+	identityKey, err := identity.LoadOrCreatePrivKey(dataDir)
 	if err != nil {
-		return fmt.Errorf("failed to open peer DB")
+		return err
 	}
 
+	localEnode, db, err := discovery.NewLocalEnode(discoveryConfig, p2pConfig, identityKey)
+	if err != nil {
+		return errors.Wrap(err, "failed to open peer DB")
+	}
 	defer db.Close()
-	fmt.Fprintln(w, localEnode.Node().String())
+
+	_, _ = fmt.Fprintln(w, localEnode.Node().String())
 
 	return nil
 }

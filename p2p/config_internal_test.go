@@ -23,35 +23,37 @@ import (
 )
 
 func TestResolveListenAddr(t *testing.T) {
-	type testCase struct {
-		str  string
-		addr net.IP
-		port int
-		err  string
-	}
-	cases := []testCase{
+	tests := []struct {
+		input string
+		addr  net.IP
+		port  int
+		err   string
+	}{
 		{
-			str: ":1234",
-			err: `IP not specified in P2P bind addr: ":1234"`,
+			input: ":1234",
+			err:   `p2p bind IP not specified`,
 		},
 		{
-			str:  "10.4.3.3:1234",
-			addr: net.IPv4(10, 4, 3, 3),
-			port: 1234,
+			input: "10.4.3.3:1234",
+			addr:  net.IPv4(10, 4, 3, 3),
+			port:  1234,
 		},
 	}
-	for _, c := range cases {
-		addr, err := resolveListenAddr(c.str)
-		if c.err != "" {
-			if err != nil {
-				assert.EqualError(t, err, c.err, "case", c.str)
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			addr, err := resolveListenAddr(test.input)
+			if test.err != "" {
+				if err != nil {
+					assert.Error(t, err)
+					assert.Contains(t, err.Error(), test.err)
+				} else {
+					t.Errorf("Expected error but got %s for %s", addr.String(), test.input)
+				}
 			} else {
-				t.Errorf("Expected error but got %s for %s", addr.String(), c.str)
+				assert.Equal(t, test.addr, addr.IP)
+				assert.Equal(t, test.port, addr.Port)
 			}
-		} else {
-			assert.Equal(t, c.addr, addr.IP, "case", c.str)
-			assert.Equal(t, c.port, addr.Port, "case", c.str)
-		}
+		})
 	}
 }
 

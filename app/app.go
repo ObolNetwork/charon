@@ -20,7 +20,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/pprof"
-	"path"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -35,10 +34,6 @@ import (
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/validatorapi"
-)
-
-const (
-	nodekeyFile = "nodekey"
 )
 
 type Config struct {
@@ -58,7 +53,6 @@ type Config struct {
 //nolint:contextcheck
 func Run(ctx context.Context, conf Config) error {
 	ctx = log.WithTopic(ctx, "app-start")
-	nodekey := path.Join(conf.DataDir, nodekeyFile)
 
 	log.Info(ctx, "Charon starting", z.Str("version", version.Version))
 	setStartupMetrics()
@@ -71,7 +65,7 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "init jaeger tracing")
 	}
 
-	p2pKey, err := identity.P2PStore{KeyPath: nodekey}.Get()
+	p2pKey, err := identity.LoadOrCreatePrivKey(conf.DataDir)
 	if err != nil {
 		return errors.Wrap(err, "load or create peer ID")
 	}
@@ -93,10 +87,14 @@ func Run(ctx context.Context, conf Config) error {
 
 	log.Info(ctx, "Clusters loaded", z.Int("n", len(manifests.Clusters())))
 
-	connGater := p2p.NewConnGaterForClusters(manifests, nil)
+	connGater, err := p2p.NewConnGater(manifests, nil)
+	if err != nil {
+		return errors.Wrap(err, "connection gater")
+	}
+
 	log.Info(ctx, "Connecting to peers", z.Int("n", len(connGater.PeerIDs)))
 
-	_, err = p2p.NewNode(conf.P2P, p2pKey, connGater)
+	node, err := p2p.NewNode(conf.P2P, p2pKey, connGater)
 	if err != nil {
 		return errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
 	}
@@ -138,6 +136,10 @@ func Run(ctx context.Context, conf Config) error {
 	log.Info(ctx, "Shutting down gracefully")
 
 	discoveryNode.Close()
+
+	if err := node.Close(); err != nil {
+		return errors.Wrap(err, "stop p2p node")
+	}
 
 	if err := monitoring.Shutdown(ctx); err != nil {
 		return errors.Wrap(err, "stop monitoring server")
