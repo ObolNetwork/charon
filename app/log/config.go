@@ -100,7 +100,7 @@ func formatZapStack(zapStack string) string {
 	for _, line := range strings.Split(zapStack, "\n") {
 		if strings.HasPrefix(line, "\t") {
 			const sep = "charon/"
-			i := strings.Index(line, sep)
+			i := strings.LastIndex(line, sep)
 			if i < 0 {
 				// Skip non-charon lines
 				continue
