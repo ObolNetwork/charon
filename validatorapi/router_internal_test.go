@@ -29,11 +29,13 @@ import (
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2mock "github.com/attestantio/go-eth2-client/mock"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
-const slotsPerEpoch = 32
+const (
+	slotsPerEpoch = 32
+	infoLevel     = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
+)
 
 func TestRawRouter(t *testing.T) {
 	t.Run("proxy", func(t *testing.T) {
@@ -201,7 +203,7 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 
 	ctx := context.Background()
 
-	cl, err := eth2http.New(ctx, eth2http.WithAddress(server.URL), eth2http.WithLogLevel(zerolog.InfoLevel))
+	cl, err := eth2http.New(ctx, eth2http.WithAddress(server.URL), eth2http.WithLogLevel(infoLevel))
 	require.NoError(t, err)
 
 	callback(ctx, cl.(*eth2http.Service))
@@ -246,35 +248,35 @@ func (h testHandler) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, il 
 func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 	t.Helper()
 	ctx := context.Background()
-	mock, err := eth2mock.New(ctx, eth2mock.WithLogLevel(zerolog.InfoLevel))
+	mock, err := eth2mock.New(ctx, eth2mock.WithLogLevel(infoLevel))
 	require.NoError(t, err)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/eth/v1/beacon/genesis", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.Genesis(ctx)
 		require.NoError(t, err)
-		writeResponse(w, "", res)
+		writeResponse(ctx, w, "", res)
 	})
 	mux.HandleFunc("/eth/v1/config/spec", func(w http.ResponseWriter, r *http.Request) {
 		res := map[string]interface{}{
 			"SLOTS_PER_EPOCH": fmt.Sprint(slotsPerEpoch),
 		}
-		writeResponse(w, "", nest(res, "data"))
+		writeResponse(ctx, w, "", nest(res, "data"))
 	})
 	mux.HandleFunc("/eth/v1/config/deposit_contract", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.DepositContract(ctx)
 		require.NoError(t, err)
-		writeResponse(w, "", res)
+		writeResponse(ctx, w, "", res)
 	})
 	mux.HandleFunc("/eth/v1/config/fork_schedule", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.ForkSchedule(ctx)
 		require.NoError(t, err)
-		writeResponse(w, "", nest(res, "data"))
+		writeResponse(ctx, w, "", nest(res, "data"))
 	})
 	mux.HandleFunc("/eth/v1/node/version", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.NodeVersion(ctx)
 		require.NoError(t, err)
-		writeResponse(w, "", nest(res, "version", "data"))
+		writeResponse(ctx, w, "", nest(res, "version", "data"))
 	})
 
 	if h.ProxyHandler != nil {

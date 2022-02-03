@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,8 +28,9 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
-	zerologger "github.com/rs/zerolog/log"
 
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/crypto"
 )
 
@@ -53,7 +53,7 @@ func (m *Manifest) ParsedENRs() ([]enr.Record, error) {
 	for i, enrStr := range m.ENRs {
 		record, err := DecodeENR(enrStr)
 		if err != nil {
-			return nil, fmt.Errorf("invalid ENR: %w for \"%s\"", err, enrStr)
+			return nil, err
 		}
 		records[i] = *record
 	}
@@ -89,27 +89,13 @@ func (m *Manifest) PeerIDs() ([]peer.ID, error) {
 func PeerIDFromENR(record *enr.Record) (peer.ID, error) {
 	var pubkey enode.Secp256k1
 	if err := record.Load(&pubkey); err != nil {
-		recordStr, _ := EncodeENR(record)
-
-		// TODO(corver): Do not log AND return errors.
-		zerologger.Warn().Err(err).
-			Str("enr", recordStr).
-			Msg("ENR missing secp256k1 field")
-
-		return "", err
+		return "", errors.Wrap(err, "pubkey from enr")
 	}
 
 	p2pPubkey := libp2pcrypto.Secp256k1PublicKey(pubkey)
 	p2pID, err := peer.IDFromPublicKey(&p2pPubkey)
 	if err != nil {
-		recordStr, _ := EncodeENR(record)
-
-		// TODO(corver): Do not log AND return errors.
-		zerologger.Warn().Err(err).
-			Str("enr", recordStr).
-			Msg("Failed to derive libp2p ID")
-
-		return "", err
+		return "", errors.Wrap(err, "enr id from pubkey")
 	}
 
 	return p2pID, nil
@@ -128,7 +114,7 @@ func DecodeENR(enrStr string) (*enr.Record, error) {
 	enrStr = strings.TrimPrefix(enrStr, "enr:")
 	enrBytes, err := base64.URLEncoding.DecodeString(enrStr)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "base64 enr")
 	}
 
 	// TODO support hex encoding too?
@@ -136,11 +122,11 @@ func DecodeENR(enrStr string) (*enr.Record, error) {
 
 	rd := bytes.NewReader(enrBytes)
 	if err := rlp.Decode(rd, &record); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "rlp enr")
 	}
 
 	if rd.Len() > 0 {
-		return nil, fmt.Errorf("leftover garbage bytes in ENR")
+		return nil, errors.New("leftover garbage bytes in ENR")
 	}
 
 	return &record, nil
@@ -170,8 +156,7 @@ func LoadKnownClustersFromDir(dir string) (KnownClusters, error) {
 
 		cluster, err := LoadManifest(filepath.Join(dir, entry.Name()))
 		if err != nil {
-			zerologger.Warn().Err(err).Msg("Ignoring invalid cluster file")
-			continue
+			return KnownClusters{}, errors.Wrap(err, "invalid manifest file", z.Str("name", entry.Name()))
 		}
 
 		pubkeyHex := crypto.BLSPointToHex(cluster.Pubkey())

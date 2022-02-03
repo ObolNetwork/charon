@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -27,6 +26,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/crypto"
 )
 

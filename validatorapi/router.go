@@ -20,7 +20,6 @@ package validatorapi
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,11 +30,12 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
-	zerologger "github.com/rs/zerolog/log"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-)
 
-var log = zerologger.Logger
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
+)
 
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the validatorapi.Handler.
@@ -101,19 +101,23 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 	wrap := func(w http.ResponseWriter, r *http.Request) {
 		defer observeAPILatency(endpoint)()
 
+		ctx := r.Context()
+		ctx = log.WithTopic(ctx, "validatorapi")
+		ctx = log.WithCtx(ctx, z.Str("endpoint", endpoint))
+
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			writeError(w, endpoint, err)
+			writeError(ctx, w, endpoint, err)
 			return
 		}
 
 		res, err := handler(r.Context(), mux.Vars(r), body)
 		if err != nil {
-			writeError(w, endpoint, err)
+			writeError(ctx, w, endpoint, err)
 			return
 		}
 
-		writeResponse(w, endpoint, res)
+		writeResponse(ctx, w, endpoint, res)
 	}
 
 	return trace(endpoint, wrap)
@@ -177,7 +181,7 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 func proxyHandler(target string) (http.HandlerFunc, error) {
 	targetURL, err := url.Parse(target)
 	if err != nil {
-		return nil, fmt.Errorf("invalid proxy target address: %w", err)
+		return nil, errors.Wrap(err, "invalid proxy target address")
 	}
 
 	// TODO(corver): Add support for multiple upstream targets via some form of load balancing.
@@ -190,10 +194,10 @@ func proxyHandler(target string) (http.HandlerFunc, error) {
 }
 
 // writeResponse writes the 200 OK response and json response body.
-func writeResponse(w http.ResponseWriter, endpoint string, response interface{}) {
+func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, response interface{}) {
 	b, err := json.Marshal(response)
 	if err != nil {
-		writeError(w, endpoint, fmt.Errorf("marshal response body: %w", err))
+		writeError(ctx, w, endpoint, errors.Wrap(err, "marshal response body"))
 		return
 	}
 
@@ -202,12 +206,13 @@ func writeResponse(w http.ResponseWriter, endpoint string, response interface{})
 
 	if _, err = w.Write(b); err != nil {
 		// Too late to also try to writeError at this point, so just log.
-		log.Error().Err(err).Str("endpoint", endpoint).Msg("Failed writing api response")
+		log.Error(ctx, "Failed writing api response", err, z.Str("endpoint", endpoint))
 	}
 }
 
 // writeError writes a http json error response object.
-func writeError(w http.ResponseWriter, endpoint string, err error) {
+func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err error) {
+
 	var aerr apiError
 	if !errors.As(err, &aerr) {
 		aerr = apiError{
@@ -217,11 +222,9 @@ func writeError(w http.ResponseWriter, endpoint string, err error) {
 		}
 	}
 
-	log.Error().Err(err).
-		Str("endpoint", endpoint).
-		Int("status_code", aerr.StatusCode).
-		Str("message", aerr.Message).
-		Msg("Validator api error response")
+	log.Error(ctx, "Validator api error response", err,
+		z.Int("status_code", aerr.StatusCode),
+		z.Str("message", aerr.Message))
 	incAPIErrors(endpoint, aerr.StatusCode)
 
 	res := errorResponse{
@@ -233,14 +236,14 @@ func writeError(w http.ResponseWriter, endpoint string, err error) {
 	b, err2 := json.Marshal(res)
 	if err2 != nil {
 		// Log and continue to write nil b.
-		log.Error().Err(err2).Msg("Failed marshalling error response")
+		log.Error(ctx, "Failed marshalling error response", err2)
 	}
 
 	w.WriteHeader(aerr.StatusCode)
 	w.Header().Set("Content-Type", "application/json")
 
 	if _, err2 = w.Write(b); err2 != nil {
-		log.Error().Err(err2).Msg("Failed writing api error")
+		log.Error(ctx, "Failed writing api error", err2)
 	}
 }
 

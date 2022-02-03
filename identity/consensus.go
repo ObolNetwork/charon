@@ -18,13 +18,12 @@ package identity
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
-	"fmt"
 	"os"
 
 	"github.com/drand/kyber"
 	bls12381 "github.com/drand/kyber-bls12381"
 
+	"github.com/obolnetwork/charon/app/errors"
 	crypto2 "github.com/obolnetwork/charon/crypto"
 )
 
@@ -55,7 +54,7 @@ func (s ConsensusStore) createNewPassword() (string, error) {
 	var pwdBytes [32]byte
 	_, err := rand.Read(pwdBytes[:])
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "read random")
 	}
 
 	password := hex.EncodeToString(pwdBytes[:])
@@ -68,7 +67,7 @@ func (s ConsensusStore) createNewPassword() (string, error) {
 	// Write back to file.
 	err = crypto2.WritePlaintextPassword(s.PasswordPath, false, password)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "write password")
 	}
 
 	return password, nil
@@ -80,7 +79,7 @@ func (s ConsensusStore) createNewPassword() (string, error) {
 func (s ConsensusStore) Create() (*ConsensusKey, error) {
 	password, err := s.Password()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get password: %w", err)
+		return nil, err
 	}
 
 	key, privKey, pubKey, err := crypto2.NewBLSKeystore(password)
@@ -102,7 +101,7 @@ func (s ConsensusStore) Create() (*ConsensusKey, error) {
 func (s ConsensusStore) Load() (*ConsensusKey, error) {
 	password, err := s.Password()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get password: %w", err)
+		return nil, err
 	}
 
 	key, err := crypto2.LoadKeystore(s.KeystorePath)
