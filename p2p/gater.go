@@ -15,7 +15,6 @@
 package p2p
 
 import (
-	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/libp2p/go-libp2p-core/connmgr"
 	"github.com/libp2p/go-libp2p-core/control"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -23,24 +22,22 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-// ConnGater filters incoming connections by cluster peers.
+// ConnGater filters incoming connections by the cluster peers.
 type ConnGater struct {
-	peerIDs  map[peer.ID]bool
-	networks *netutil.Netlist
+	peerIDs map[peer.ID]bool
 }
 
 var _ connmgr.ConnectionGater = ConnGater{}
 
-// NewConnGater constructs a connection gater that limits access to nodes part of the provided clusters.
-func NewConnGater(peers []peer.ID, networks *netutil.Netlist) (ConnGater, error) {
+// NewConnGater return a new connection gater that limits access to the cluster peers.
+func NewConnGater(peers []peer.ID) (ConnGater, error) {
 	peerMap := make(map[peer.ID]bool)
 	for _, peerID := range peers {
 		peerMap[peerID] = true
 	}
 
 	return ConnGater{
-		peerIDs:  peerMap,
-		networks: networks,
+		peerIDs: peerMap,
 	}, nil
 }
 

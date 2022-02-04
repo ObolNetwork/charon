@@ -94,7 +94,7 @@ func Run(ctx context.Context, conf Config) error {
 		return err
 	}
 
-	connGater, err := p2p.NewConnGater(peers, nil)
+	connGater, err := p2p.NewConnGater(peers)
 	if err != nil {
 		return errors.Wrap(err, "connection gater")
 	}

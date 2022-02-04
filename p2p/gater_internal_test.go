@@ -29,8 +29,7 @@ import (
 
 func TestInterceptSecured(t *testing.T) {
 	c := ConnGater{
-		peerIDs:  map[peer.ID]bool{},
-		networks: nil,
+		peerIDs: map[peer.ID]bool{},
 	}
 	tests := map[string]struct {
 		peerID         peer.ID
@@ -56,8 +55,7 @@ func TestInterceptSecured(t *testing.T) {
 // Tests if node A rejects connection attempt from unknown node B.
 func TestP2PConnGating(t *testing.T) {
 	c := ConnGater{
-		peerIDs:  map[peer.ID]bool{},
-		networks: nil,
+		peerIDs: map[peer.ID]bool{},
 	}
 
 	// create node A
