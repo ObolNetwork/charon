@@ -29,6 +29,7 @@ import (
 
 // StartPingService stars a p2p ping service that pings all peers every second
 // and collects metrics.
+// TODO(corver): Cluster wide req/resp doesn't scale since it is O(n^2).
 func StartPingService(host host.Host, peers []peer.ID, callback func(peer.ID)) context.CancelFunc {
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = log.WithTopic(ctx, "ping")
@@ -79,8 +80,9 @@ func StartPingService(host host.Host, peers []peer.ID, callback func(peer.ID)) c
 // newPingLogger returns stateful logging function that logs ping failures
 // and recoveries after applying hysteresis; only logging after N opposite results.
 func newPingLogger(peers []peer.ID) func(context.Context, peer.ID, error) {
-	const hysteresis = 1 // N = 5
+	const hysteresis = 5 // N = 5
 
+	first := make(map[peer.ID]bool) // first indicates if the peer has logged anything.
 	state := make(map[peer.ID]bool) // state indicates if the peer is ok or not
 	counts := make(map[peer.ID]int)
 	for _, p := range peers {
@@ -103,9 +105,13 @@ func newPingLogger(peers []peer.ID) func(context.Context, peer.ID, error) {
 		if prev > 0 && now == 0 && ok {
 			log.Warn(ctx, "Peer ping failing", z.Str("peer", ShortID(p)), z.Str("error", err.Error()))
 			state[p] = false
+			first[p] = true
 		} else if prev < hysteresis && now == hysteresis && !ok {
-			log.Warn(ctx, "Peer ping recovered", z.Str("peer", ShortID(p)))
+			log.Info(ctx, "Peer ping recovered", z.Str("peer", ShortID(p)))
 			state[p] = true
+		} else if err == nil && !first[p] {
+			log.Info(ctx, "Peer ping success", z.Str("peer", ShortID(p)))
+			first[p] = true
 		}
 	}
 }
