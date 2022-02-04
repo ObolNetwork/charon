@@ -41,6 +41,7 @@ func NewForT(t *testing.T, m, n int) (Manifest, []*ecdsa.PrivateKey, []kyber.Sca
 		p2pKeys []*ecdsa.PrivateKey
 		blsKeys []kyber.Scalar
 	)
+
 	for i := 0; i < n; i++ {
 		{
 			// Generate fake BLS shards.

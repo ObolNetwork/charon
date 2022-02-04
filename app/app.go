@@ -18,10 +18,12 @@ package app
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"net/http"
 	"net/http/pprof"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -46,6 +48,20 @@ type Config struct {
 	ValidatorAPIAddr string
 	BeaconNodeAddr   string
 	JaegerAddr       string
+
+	TestConfig TestConfig
+}
+
+// TestConfig defines additional test-only config.
+type TestConfig struct {
+	// Manifest provides the manifest explicitly, skipping loading ManifestFile from disk.
+	Manifest cluster.Manifest
+	// P2PKey provides the p2p privkey explicitly, skipping loading from keystore on disk.
+	P2PKey *ecdsa.PrivateKey
+	// ConnectAttempts defines synchronous peer connect at startup.
+	ConnectAttempts int
+	// PingCallback is called when a ping is received from a peer.
+	PingCallback func(peer.ID)
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -66,9 +82,12 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "init jaeger tracing")
 	}
 
-	p2pKey, err := identity.LoadOrCreatePrivKey(conf.DataDir)
-	if err != nil {
-		return errors.Wrap(err, "load or create peer ID")
+	p2pKey := conf.TestConfig.P2PKey
+	if p2pKey == nil {
+		p2pKey, err = identity.LoadOrCreatePrivKey(conf.DataDir)
+		if err != nil {
+			return errors.Wrap(err, "load or create peer ID")
+		}
 	}
 
 	localEnode, peerDB, err := discovery.NewLocalEnode(conf.Discovery, conf.P2P, p2pKey)
@@ -81,9 +100,12 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "start discv5 listener")
 	}
 
-	manifest, err := cluster.LoadManifest(conf.ManifestFile)
-	if err != nil {
-		return errors.Wrap(err, "load manifest")
+	manifest := conf.TestConfig.Manifest
+	if len(manifest.ENRs) == 0 {
+		manifest, err = cluster.LoadManifest(conf.ManifestFile)
+		if err != nil {
+			return errors.Wrap(err, "load manifest")
+		}
 	}
 
 	enrs, err := manifest.ParsedENRs()
@@ -111,7 +133,7 @@ func Run(ctx context.Context, conf Config) error {
 		z.Str("local_peer", p2p.ShortID(node.ID())),
 		z.Str("pubkey", crypto.BLSPointToHex(manifest.Pubkey())[:10]))
 
-	if err := p2p.ConnectPeers(ctx, node, enrs, 0); err != nil {
+	if err := p2p.ConnectPeers(ctx, node, enrs, conf.TestConfig.ConnectAttempts); err != nil {
 		return errors.Wrap(err, "connect peers")
 	}
 
@@ -128,6 +150,8 @@ func Run(ctx context.Context, conf Config) error {
 	}
 
 	// Start processes and wait for first error or shutdown.
+
+	stopPing := p2p.StartPingService(node, peers, conf.TestConfig.PingCallback)
 
 	var procErr error
 	select {
@@ -150,6 +174,8 @@ func Run(ctx context.Context, conf Config) error {
 	defer cancel()
 	ctx = log.WithTopic(ctx, "app-stop")
 	log.Info(ctx, "Shutting down gracefully")
+
+	stopPing()
 
 	discoveryNode.Close()
 

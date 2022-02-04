@@ -85,6 +85,7 @@ func ConnectPeers(ctx context.Context, h host.Host, enrs []enr.Record, attempts 
 				log.Warn(ctx, "Failed connecting to manifest peer", z.Str("peer", ShortID(info.ID)),
 					z.Str("error", err.Error()))
 			}
+
 			return err == nil
 		}
 
@@ -92,7 +93,8 @@ func ConnectPeers(ctx context.Context, h host.Host, enrs []enr.Record, attempts 
 			if connect() {
 				continue
 			}
-			time.Sleep(time.Second) // Improve backoff
+
+			time.Sleep(time.Second) // TODO(corver): Improve backoff
 		}
 	}
 
