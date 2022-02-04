@@ -61,25 +61,24 @@ func BLSPointFromHex(hexStr string) (kyber.Point, error) {
 
 // BLSPubkeyHex wraps a BLS public key with simplified hex serialization.
 type BLSPubkeyHex struct {
-	*bls.KyberG1
+	kyber.Point
 }
 
 // UnmarshalText decodes the given hex serialization of the compressed form BLS12-381 G1 point.
 func (p *BLSPubkeyHex) UnmarshalText(b []byte) error {
 	decodedLen := hex.DecodedLen(len(b))
-	expectedLen := p.MarshalSize()
-	if decodedLen != expectedLen {
+	if decodedLen != new(bls.KyberG1).MarshalSize() {
 		return errors.New("expected marshal length")
 	}
 
-	data := make([]byte, expectedLen)
+	data := make([]byte, decodedLen)
 	if n, err := hex.Decode(data, b); err != nil {
 		return errors.Wrap(err, "decode bls hex")
-	} else if n != expectedLen {
+	} else if n != decodedLen {
 		return errors.New("expected decode length")
 	}
 
-	p.KyberG1 = bls.NullKyberG1()
+	p.Point = bls.NullKyberG1()
 
 	return p.UnmarshalBinary(data)
 }

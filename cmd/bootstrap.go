@@ -84,7 +84,7 @@ func runBootstrapCmd(w io.Writer, config bootstrapConfig) error {
 	threshold := config.Shares - ((config.Shares - 1) / 3)
 
 	// Create "root" BLS key and polynomials.
-	priPoly, pubPoly := crypto.NewTBLSPoly(uint(threshold))
+	priPoly, pubPoly := crypto.NewTBLSPoly(threshold)
 
 	pubkey := pubPoly.Commit()
 	pubkeyHex := crypto.BLSPointToHex(pubkey)

@@ -86,8 +86,10 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "load manifest")
 	}
 
-	log.Info(ctx, "Manifest loaded", z.Int("peers", len(manifest.ENRs)),
-		z.Str("pubkey", crypto.BLSPointToHex(manifest.Pubkey())))
+	enrs, err := manifest.ParsedENRs()
+	if err != nil {
+		return err
+	}
 
 	peers, err := manifest.PeerIDs()
 	if err != nil {
@@ -102,6 +104,15 @@ func Run(ctx context.Context, conf Config) error {
 	node, err := p2p.NewNode(conf.P2P, p2pKey, connGater)
 	if err != nil {
 		return errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
+	}
+
+	log.Info(ctx, "Manifest loaded",
+		z.Int("peers", len(manifest.ENRs)),
+		z.Str("local_peer", p2p.ShortID(node.ID())),
+		z.Str("pubkey", crypto.BLSPointToHex(manifest.Pubkey())[:10]))
+
+	if err := p2p.ConnectPeers(ctx, node, enrs, 0); err != nil {
+		return errors.Wrap(err, "connect peers")
 	}
 
 	monitoring := newMonitoring(conf.MonitoringAddr)

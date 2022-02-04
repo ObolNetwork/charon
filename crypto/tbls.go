@@ -32,7 +32,7 @@ type TBLSScheme struct {
 }
 
 // Pubkey returns the BLS public key.
-func (t *TBLSScheme) Pubkey() kyber.Point {
+func (t TBLSScheme) Pubkey() kyber.Point {
 	return t.PubPoly.Commit()
 }
 
@@ -49,7 +49,7 @@ func (t *TBLSScheme) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalJSON serializes a TBLS scheme to JSON.
-func (t *TBLSScheme) MarshalJSON() ([]byte, error) {
+func (t TBLSScheme) MarshalJSON() ([]byte, error) {
 	encoded, err := t.Encode()
 	if err != nil {
 		return nil, errors.Wrap(err, "encode TBLS scheme")
@@ -62,7 +62,7 @@ func (t *TBLSScheme) MarshalJSON() ([]byte, error) {
 type TBLSSchemeEncoded []BLSPubkeyHex
 
 // Encode serializes cryptographic data.
-func (t *TBLSScheme) Encode() (TBLSSchemeEncoded, error) {
+func (t TBLSScheme) Encode() (TBLSSchemeEncoded, error) {
 	base, commits := t.Info()
 	if !base.Equal(BLSKeyGroup.Point().Base()) {
 		return nil, errors.New("pubkey commits do not use standard base point")
@@ -80,7 +80,7 @@ func (t *TBLSScheme) Encode() (TBLSSchemeEncoded, error) {
 func (t TBLSSchemeEncoded) Decode() *TBLSScheme {
 	points := make([]kyber.Point, len(t))
 	for i, commit := range t {
-		points[i] = commit.KyberG1
+		points[i] = commit.Point
 	}
 
 	pubPoly := share.NewPubPoly(BLSKeyGroup, BLSKeyGroup.Point().Base(), points)
@@ -90,10 +90,10 @@ func (t TBLSSchemeEncoded) Decode() *TBLSScheme {
 
 // NewTBLSPoly creates a new secret sharing polynomial for a BLS12-381 threshold signature scheme.
 // Note that this function is not particularly secure as it constructs the root key in memory.
-func NewTBLSPoly(t uint) (pri *share.PriPoly, pub *share.PubPoly) {
+func NewTBLSPoly(t int) (pri *share.PriPoly, pub *share.PubPoly) {
 	stream := random.New()
 	secret := BLSKeyGroup.Scalar().Pick(stream)
-	pri = share.NewPriPoly(BLSKeyGroup, int(t), secret, stream)
+	pri = share.NewPriPoly(BLSKeyGroup, t, secret, stream)
 	pub = pri.Commit(BLSKeyGroup.Point().Base())
 
 	return pri, pub
