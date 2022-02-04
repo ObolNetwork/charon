@@ -74,7 +74,7 @@ func TestCmdFlags(t *testing.T) {
 					Allowlist: "",
 					Denylist:  "",
 				},
-				ClusterDir:       "./charon/manifest.json",
+				ManifestFile:     "./charon/manifest.json",
 				DataDir:          "./charon/data",
 				MonitoringAddr:   "127.0.0.1:8088",
 				ValidatorAPIAddr: "127.0.0.1:3500",
