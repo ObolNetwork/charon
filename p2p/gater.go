@@ -15,44 +15,29 @@
 package p2p
 
 import (
-	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/libp2p/go-libp2p-core/connmgr"
 	"github.com/libp2p/go-libp2p-core/control"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
-
-	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/cluster"
 )
 
-// ConnGater filters incoming connections to known DV clients.
+// ConnGater filters incoming connections by the cluster peers.
 type ConnGater struct {
-	PeerIDs  map[peer.ID]struct{} // known nodes by libp2p peer ID
-	Networks *netutil.Netlist
+	peerIDs map[peer.ID]bool
 }
 
 var _ connmgr.ConnectionGater = ConnGater{}
 
-// NewConnGater constructs a conn gater that limits access to nodes part of the provided clusters.
-func NewConnGater(clusters cluster.KnownClusters, networks *netutil.Netlist) (ConnGater, error) {
-	peerIDs := make(map[peer.ID]struct{})
-
-	for _, manifest := range clusters.Clusters() {
-		clusterPeerIDs, err := manifest.PeerIDs()
-		if err != nil {
-			return ConnGater{}, errors.Wrap(err, "invalid manifest")
-		}
-
-		// Map ENRs to libp2p peer IDs.
-		for _, peerID := range clusterPeerIDs {
-			peerIDs[peerID] = struct{}{}
-		}
+// NewConnGater return a new connection gater that limits access to the cluster peers.
+func NewConnGater(peers []peer.ID) (ConnGater, error) {
+	peerMap := make(map[peer.ID]bool)
+	for _, peerID := range peers {
+		peerMap[peerID] = true
 	}
 
 	return ConnGater{
-		PeerIDs:  peerIDs,
-		Networks: networks,
+		peerIDs: peerMap,
 	}, nil
 }
 
@@ -73,8 +58,7 @@ func (c ConnGater) InterceptAccept(_ network.ConnMultiaddrs) (allow bool) {
 
 // InterceptSecured rejects nodes with a peer ID that isn't part of any known DV.
 func (c ConnGater) InterceptSecured(_ network.Direction, id peer.ID, _ network.ConnMultiaddrs) bool {
-	_, allow := c.PeerIDs[id]
-	return allow
+	return c.peerIDs[id]
 }
 
 // InterceptUpgraded does nothing.

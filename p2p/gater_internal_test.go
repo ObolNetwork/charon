@@ -16,10 +16,12 @@ package p2p
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/rand"
 	"fmt"
 	"testing"
 
+	gcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
@@ -27,8 +29,7 @@ import (
 
 func TestInterceptSecured(t *testing.T) {
 	c := ConnGater{
-		PeerIDs:  map[peer.ID]struct{}{},
-		Networks: nil,
+		peerIDs: map[peer.ID]bool{},
 	}
 	tests := map[string]struct {
 		peerID         peer.ID
@@ -43,7 +44,7 @@ func TestInterceptSecured(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			if tc.setPeerToKnown {
-				c.PeerIDs[tc.peerID] = struct{}{}
+				c.peerIDs[tc.peerID] = true
 			}
 			allow := c.InterceptSecured(0, tc.peerID, nil)
 			require.Equal(t, tc.expected, allow, tc.logMsg)
@@ -54,8 +55,7 @@ func TestInterceptSecured(t *testing.T) {
 // Tests if node A rejects connection attempt from unknown node B.
 func TestP2PConnGating(t *testing.T) {
 	c := ConnGater{
-		PeerIDs:  map[peer.ID]struct{}{},
-		Networks: nil,
+		peerIDs: map[peer.ID]bool{},
 	}
 
 	// create node A
@@ -64,7 +64,7 @@ func TestP2PConnGating(t *testing.T) {
 	if err != nil {
 		t.Fatal("private key generation for A failed", err)
 	}
-	nodeA, err := NewNode(p2pConfigA, convertInterfaceToPrivKey(prvKeyA), c)
+	nodeA, err := NewNode(p2pConfigA, convertPrivKey(prvKeyA), c)
 	if err != nil {
 		t.Fatal("couldn't instantiate new node A", err)
 	}
@@ -75,7 +75,7 @@ func TestP2PConnGating(t *testing.T) {
 	if err != nil {
 		t.Fatal("private key generation for B failed", err)
 	}
-	nodeB, err := NewNode(p2pConfigB, convertInterfaceToPrivKey(prvKeyB), c)
+	nodeB, err := NewNode(p2pConfigB, convertPrivKey(prvKeyB), c)
 	if err != nil {
 		t.Fatal("couldn't instantiate new node B", err)
 	}
@@ -84,4 +84,11 @@ func TestP2PConnGating(t *testing.T) {
 	err = nodeB.Connect(context.Background(), peer.AddrInfo{ID: nodeA.ID(), Addrs: nodeA.Addrs()})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), fmt.Sprintf("gater rejected connection with peer %s and addr %s", nodeA.ID(), nodeA.Addrs()[0]))
+}
+
+func convertPrivKey(privkey crypto.PrivKey) *ecdsa.PrivateKey {
+	typeAssertedKey := (*ecdsa.PrivateKey)(privkey.(*crypto.Secp256k1PrivateKey))
+	typeAssertedKey.Curve = gcrypto.S256() // Temporary hack, so libp2p Secp256k1 is recognized as geth Secp256k1 in disc v5.1.
+
+	return typeAssertedKey
 }
