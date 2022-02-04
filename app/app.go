@@ -30,6 +30,7 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/crypto"
 	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/p2p"
@@ -39,7 +40,7 @@ import (
 type Config struct {
 	Discovery        discovery.Config
 	P2P              p2p.Config
-	ClusterDir       string
+	ManifestFile     string
 	DataDir          string
 	MonitoringAddr   string
 	ValidatorAPIAddr string
@@ -80,19 +81,23 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "start discv5 listener")
 	}
 
-	manifests, err := cluster.LoadKnownClustersFromDir(conf.ClusterDir)
+	manifest, err := cluster.LoadManifest(conf.ManifestFile)
 	if err != nil {
-		return errors.Wrap(err, "load known cluster")
+		return errors.Wrap(err, "load manifest")
 	}
 
-	log.Info(ctx, "Clusters loaded", z.Int("n", len(manifests.Clusters())))
+	log.Info(ctx, "Manifest loaded", z.Int("peers", len(manifest.ENRs)),
+		z.Str("pubkey", crypto.BLSPointToHex(manifest.Pubkey())))
 
-	connGater, err := p2p.NewConnGater(manifests, nil)
+	peers, err := manifest.PeerIDs()
+	if err != nil {
+		return err
+	}
+
+	connGater, err := p2p.NewConnGater(peers, nil)
 	if err != nil {
 		return errors.Wrap(err, "connection gater")
 	}
-
-	log.Info(ctx, "Connecting to peers", z.Int("n", len(connGater.PeerIDs)))
 
 	node, err := p2p.NewNode(conf.P2P, p2pKey, connGater)
 	if err != nil {

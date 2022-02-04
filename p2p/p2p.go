@@ -49,6 +49,8 @@ func NewNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater) (host.Host,
 		libp2p.UserAgent("ObolNetwork-Charon/" + version.Version),
 		// Limit connections to DV peers.
 		libp2p.ConnectionGater(connGater),
+
+		// TODO(corver): Add a connection manager.
 	}
 
 	return libp2p.New(opts...)

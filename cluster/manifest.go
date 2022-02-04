@@ -19,7 +19,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/drand/kyber"
@@ -30,7 +29,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/crypto"
 )
 
@@ -132,63 +130,18 @@ func DecodeENR(enrStr string) (*enr.Record, error) {
 	return &record, nil
 }
 
-// KnownClusters is a registry of known clusters.
-type KnownClusters struct {
-	clusters map[string]*Manifest
-}
-
-// clusterSuffix is the file extension that each cluster file should have.
-var clusterSuffix = ".dv.json"
-
-// LoadKnownClustersFromDir discovers clusters from the given directory.
-func LoadKnownClustersFromDir(dir string) (KnownClusters, error) {
-	entries, err := os.ReadDir(dir)
+// LoadManifest reads the manifest from the given file path.
+func LoadManifest(file string) (Manifest, error) {
+	buf, err := os.ReadFile(file)
 	if err != nil {
-		return KnownClusters{}, err
+		return Manifest{}, err
 	}
 
-	known := KnownClusters{clusters: make(map[string]*Manifest)}
-
-	for _, entry := range entries {
-		if !entry.Type().IsRegular() || !strings.HasSuffix(entry.Name(), clusterSuffix) {
-			continue
-		}
-
-		cluster, err := LoadManifest(filepath.Join(dir, entry.Name()))
-		if err != nil {
-			return KnownClusters{}, errors.Wrap(err, "invalid manifest file", z.Str("name", entry.Name()))
-		}
-
-		pubkeyHex := crypto.BLSPointToHex(cluster.Pubkey())
-		known.clusters[pubkeyHex] = cluster
-	}
-
-	return known, nil
-}
-
-// GetCluster returns the cluster and true for the given BLS public key.
-//
-// Returns false if no matching cluster was found.
-func (k KnownClusters) GetCluster(pubkey kyber.Point) (*Manifest, bool) {
-	res, ok := k.clusters[crypto.BLSPointToHex(pubkey)]
-
-	return res, ok
-}
-
-// Clusters returns a list of known clusters.
-func (k KnownClusters) Clusters() map[string]*Manifest {
-	return k.clusters
-}
-
-// LoadManifest reads the manifest file from the given file path.
-func LoadManifest(filePath string) (*Manifest, error) {
-	buf, err := os.ReadFile(filePath)
+	var res Manifest
+	err = json.Unmarshal(buf, &res)
 	if err != nil {
-		return nil, err
+		return Manifest{}, errors.Wrap(err, "unmarshal manifest")
 	}
 
-	c := new(Manifest)
-	err = json.Unmarshal(buf, c)
-
-	return c, err
+	return res, nil
 }
