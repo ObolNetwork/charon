@@ -16,6 +16,7 @@
 package crypto
 
 import (
+	bls123812 "github.com/coinbase/kryptology/pkg/core/curves/native/bls12-381"
 	"github.com/drand/kyber"
 	bls12381 "github.com/drand/kyber-bls12381"
 )
@@ -23,8 +24,11 @@ import (
 // BLSPairing is the BLS12-381 suite.
 var BLSPairing = bls12381.NewBLS12381Suite()
 
-// BLSKeyGroup is the G1 group.
+// BLSKeyGroup is the G1 group for public keys.
 var BLSKeyGroup = BLSPairing.G1()
+
+// BLSSigGroup is the G2 group for signatures.
+var BLSSigGroup = bls123812.NewG2()
 
 // DerivePubkey returns a BLS public key given a private key.
 func DerivePubkey(secret kyber.Scalar) *bls12381.KyberG1 {

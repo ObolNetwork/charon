@@ -16,7 +16,6 @@ package crypto
 
 import (
 	"github.com/attestantio/go-eth2-client/spec/phase0"
-	bls12381 "github.com/coinbase/kryptology/pkg/core/curves/native/bls12-381"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -26,18 +25,17 @@ func AggregateAttestations(attestations []phase0.Attestation) (phase0.Attestatio
 	data := attestations[0].Data
 	bitfield := attestations[0].AggregationBits
 	partialSignatures := make([]*bls_sig.PartialSignature, len(attestations))
-	g2 := bls12381.NewG2()
 	for i, att := range attestations {
 		if data != att.Data {
 			return phase0.Attestation{}, errors.New("attestations data mismatch")
 		}
 
-		bitfieldsMatch, err := bitfield.Contains(att.AggregationBits)
-		if err != nil || !bitfieldsMatch {
+		ok, err := bitfield.Contains(att.AggregationBits)
+		if err != nil || !ok {
 			return phase0.Attestation{}, errors.New("attestations bitfield mismatch")
 		}
 
-		partialSig, err := g2.FromCompressed(att.Signature[:])
+		partialSig, err := BLSSigGroup.FromCompressed(att.Signature[:])
 		if err != nil {
 			return phase0.Attestation{}, err
 		}
@@ -48,14 +46,14 @@ func AggregateAttestations(attestations []phase0.Attestation) (phase0.Attestatio
 		}
 	}
 
-	bls := bls_sig.NewSigPop()
-	combinedSignature, err := bls.CombineSignatures(partialSignatures...)
+	blsScheme := bls_sig.NewSigPop()
+	combinedSignature, err := blsScheme.CombineSignatures(partialSignatures...)
 	if err != nil {
 		return phase0.Attestation{}, errors.Wrap(err, "combine partial signatures")
 	}
 
 	var sig phase0.BLSSignature
-	buf := g2.ToCompressed(&combinedSignature.Value)
+	buf := BLSSigGroup.ToCompressed(&combinedSignature.Value)
 	copy(sig[:], buf)
 
 	return phase0.Attestation{
