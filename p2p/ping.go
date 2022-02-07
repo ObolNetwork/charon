@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
+	"github.com/pkg/errors"
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
@@ -34,20 +34,8 @@ func StartPingService(host host.Host, peers []peer.ID, callback func(peer.ID)) c
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = log.WithTopic(ctx, "ping")
 
-	svc := ping.PingService{Host: host}
-	host.SetStreamHandler(ping.ID, func(s network.Stream) {
-		s = streamSpy{
-			Stream: s,
-			WriteCallback: func() {
-				if callback != nil {
-					callback(s.Conn().RemotePeer())
-				}
-			},
-		}
-		svc.PingHandler(s)
-	})
-
-	logResult := newPingLogger(peers)
+	svc := ping.NewPingService(host)
+	logFunc := newPingLogger(peers)
 
 	for _, p := range peers {
 		if p == host.ID() {
@@ -55,26 +43,40 @@ func StartPingService(host host.Host, peers []peer.ID, callback func(peer.ID)) c
 			continue
 		}
 
-		go func(p peer.ID) {
-			for ctx.Err() == nil {
-				for result := range svc.Ping(ctx, p) {
-					logResult(ctx, p, result.Error)
-
-					if result.Error != nil {
-						incPingError(p)
-					} else {
-						observePing(p, result.RTT)
-					}
-
-					const pingPeriod = time.Second
-
-					time.Sleep(pingPeriod)
-				}
-			}
-		}(p)
+		go pingPeer(ctx, svc, p, logFunc, callback)
 	}
 
 	return cancel
+}
+
+// pingPeer starts (and restarts) a long-lived ping service stream, pinging the peer every second until some error.
+// It returns when the context is cancelled.
+func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID,
+	logFunc func(context.Context, peer.ID, error), callback func(peer.ID)) {
+
+	for ctx.Err() == nil {
+		for result := range svc.Ping(ctx, p) {
+			if errors.Is(result.Error, context.Canceled) {
+				// Just exit if context cancelled.
+				break
+			}
+
+			logFunc(ctx, p, result.Error)
+
+			if result.Error != nil {
+				incPingError(p)
+			} else {
+				observePing(p, result.RTT)
+				if callback != nil {
+					callback(p)
+				}
+			}
+
+			const pingPeriod = time.Second
+
+			time.Sleep(pingPeriod)
+		}
+	}
 }
 
 // newPingLogger returns stateful logging function that logs ping failures
@@ -114,15 +116,4 @@ func newPingLogger(peers []peer.ID) func(context.Context, peer.ID, error) {
 			first[p] = true
 		}
 	}
-}
-
-// streamSpy wraps a stream and calls WriteCallback for each call to Write.
-type streamSpy struct {
-	network.Stream
-	WriteCallback func()
-}
-
-func (s streamSpy) Write(p []byte) (n int, err error) {
-	s.WriteCallback()
-	return s.Stream.Write(p)
 }

@@ -33,7 +33,7 @@ import (
 )
 
 func TestPingCluster(t *testing.T) {
-	const n = 2
+	const n = 3
 	ctx, cancel := context.WithCancel(context.Background())
 
 	manifest, p2pKeys, _ := cluster.NewForT(t, n, n)
@@ -74,10 +74,10 @@ func TestPingCluster(t *testing.T) {
 		})
 	}
 
-	// Wait until we detect 4 pings.
+	// Wait until we detect n*2 pings.
 	// TODO(corver): Make re-connects more robust.
 	go func() {
-		for i := 0; i < 4; i++ {
+		for i := 0; i < n*2; i++ {
 			select {
 			case p := <-pingCh:
 				t.Logf("Received ping from: %v", p2p.ShortID(p))
