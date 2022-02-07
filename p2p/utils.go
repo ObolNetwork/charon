@@ -26,5 +26,6 @@ func ShortID(id peer.ID) string {
 	if len(pid) <= 10 {
 		return pid
 	}
-	return fmt.Sprintf("%s*%s>", pid[:2], pid[len(pid)-6:])
+
+	return fmt.Sprintf("%s*%s", pid[:2], pid[len(pid)-6:])
 }
