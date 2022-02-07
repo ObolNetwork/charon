@@ -15,16 +15,10 @@
 package cluster_test
 
 import (
-	"crypto/ecdsa"
-	"crypto/rand"
 	"encoding/json"
-	"net"
 	"path"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
@@ -32,108 +26,75 @@ import (
 )
 
 func TestManifestJSON(t *testing.T) {
-	// Create new random manifest.
-	_, pubPoly := crypto.NewTBLSPoly(3)
-	manifest := cluster.Manifest{
-		TSS:     crypto.TBLSScheme{PubPoly: pubPoly},
-		Members: make([]crypto.BLSPubkeyHex, 4),
-		ENRs:    make([]string, 4),
-	}
-	for i := range manifest.Members {
-		_, pubkey := crypto.NewKeyPair()
-		manifest.Members[i] = crypto.BLSPubkeyHex{KyberG1: pubkey}
-	}
-	for i := range manifest.ENRs {
-		manifest.ENRs[i] = newRandomENR(t)
-	}
-	// Check pubkey.
-	dvPubkey := manifest.Pubkey()
-	require.True(t, pubPoly.Commit().Equal(dvPubkey))
-	// Check if ENRs work.
+	manifest, _, _ := cluster.NewForT(t, 3, 4)
+
+	// Check ENRs
 	records, err := manifest.ParsedENRs()
 	require.NoError(t, err)
 	require.Len(t, records, len(manifest.ENRs))
+	for i, record := range records {
+		enr, err := cluster.EncodeENR(record)
+		require.NoError(t, err)
+		require.Equal(t, manifest.ENRs[i], enr)
+	}
+
 	// Marshal to JSON.
-	data, err := json.MarshalIndent(&manifest, "", "\t")
+	data, err := json.MarshalIndent(manifest, "", " ")
 	require.NoError(t, err)
-	t.Log(crypto.BLSPointToHex(dvPubkey))
+
+	t.Log(crypto.BLSPointToHex(manifest.Pubkey()))
 	t.Log(string(data))
+
 	// Unmarshal from JSON.
 	var manifest2 cluster.Manifest
 	err = json.Unmarshal(data, &manifest2)
 	require.NoError(t, err)
+
 	// Marshal to JSON (again).
 	data2, err := json.Marshal(&manifest2)
 	require.NoError(t, err)
+
 	// Check if result is the same.
 	require.Equal(t, &manifest, &manifest2)
 	require.JSONEq(t, string(data), string(data2))
 }
 
-func newRandomENR(t *testing.T) (res string) {
-	t.Helper() // test helper function should start from t.Helper()
-	privkey, err := ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
-	require.NoError(t, err)
+func TestDecodeENR(t *testing.T) {
+	manifest, _, _ := cluster.NewForT(t, 3, 4)
 
-	var r enr.Record
+	for _, enrStr := range manifest.ENRs {
+		t.Log(enrStr)
 
-	r.Set(enr.IPv4(newRandomIP()))
-	r.Set(enr.TCP(9877))
-	r.SetSeq(1)
+		record, err := cluster.DecodeENR(enrStr)
+		require.NoError(t, err)
+		require.NotNil(t, record)
 
-	err = enode.SignV4(&r, privkey)
-	require.NoError(t, err)
+		reencodedEnr, err := cluster.EncodeENR(record)
+		require.NoError(t, err)
+		require.Equal(t, enrStr, reencodedEnr)
 
-	res, err = cluster.EncodeENR(&r)
-	require.NoError(t, err)
-
-	return
-}
-
-func newRandomIP() net.IP {
-	buf := make([]byte, 4)
-	_, err := rand.Read(buf)
-	if err != nil {
-		panic(err.Error())
+		record2, err := cluster.DecodeENR(reencodedEnr)
+		require.NoError(t, err)
+		require.Equal(t, record, record2)
 	}
-
-	return buf
-}
-
-func TestDecodeENR_Equal(t *testing.T) {
-	randEnr := newRandomENR(t)
-	t.Log(randEnr)
-	record, err := cluster.DecodeENR(randEnr)
-	require.NoError(t, err)
-	require.NotNil(t, record)
-	reencodedEnr, err := cluster.EncodeENR(record)
-	require.Equal(t, randEnr, reencodedEnr)
-	require.NoError(t, err)
-	record2, err := cluster.DecodeENR(reencodedEnr)
-	require.NoError(t, err)
-	require.NotNil(t, record2)
-	require.Equal(t, record, record2)
 }
 
 func TestDecodeENR_InvalidBase64(t *testing.T) {
-	record, err := cluster.DecodeENR("enr:###")
+	_, err := cluster.DecodeENR("enr:###")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "illegal base64 data at input byte 0")
-	require.Nil(t, record)
 }
 
 func TestDecodeENR_InvalidRLP(t *testing.T) {
-	record, err := cluster.DecodeENR("enr:AAAAAAAA")
+	_, err := cluster.DecodeENR("enr:AAAAAAAA")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "rlp: expected List")
-	require.Nil(t, record)
 }
 
 func TestDecodeENR_Oversize(t *testing.T) {
-	record, err := cluster.DecodeENR("enr:-IS4QBnEa-Oftjk7-sGRAY7IrvL5YjATdcHbqR5l2aXX2M25CiawfwaXh0k9hm98dCfdnqhz9mE-BfemFdjuL9KtHqgBgmlkgnY0gmlwhB72zxGJc2VjcDI1NmsxoQMaK8SspTrUgB8IYVI3qDgFYsHymPVsWlvIW477kxaKUIN0Y3CCJpUAAAA=")
+	_, err := cluster.DecodeENR("enr:-IS4QBnEa-Oftjk7-sGRAY7IrvL5YjATdcHbqR5l2aXX2M25CiawfwaXh0k9hm98dCfdnqhz9mE-BfemFdjuL9KtHqgBgmlkgnY0gmlwhB72zxGJc2VjcDI1NmsxoQMaK8SspTrUgB8IYVI3qDgFYsHymPVsWlvIW477kxaKUIN0Y3CCJpUAAAA=")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "leftover garbage bytes in ENR")
-	require.Nil(t, record)
 }
 
 func TestLoadManifest(t *testing.T) {

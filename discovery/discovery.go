@@ -73,11 +73,10 @@ func NewLocalEnode(config Config, p2pConfig charonp2p.Config, key *ecdsa.Private
 	for _, addr := range addrs {
 		if v4 := addr.IP.To4(); v4 != nil {
 			node.Set(enr.IPv4(v4))
-			node.Set(enr.TCP(addr.Port))
 		} else if v6 := addr.IP.To16(); v6 != nil {
 			node.Set(enr.IPv6(v6))
-			node.Set(enr.TCP(addr.Port))
 		}
+		node.Set(enr.TCP(addr.Port))
 	}
 
 	return node, db, nil

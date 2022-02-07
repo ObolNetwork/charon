@@ -15,15 +15,21 @@
 package p2p
 
 import (
+	"context"
 	"crypto/ecdsa"
+	"time"
 
+	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	noise "github.com/libp2p/go-libp2p-noise"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
+	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 )
 
 // NewNode returns a started libp2p node.
@@ -54,4 +60,41 @@ func NewNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater) (host.Host,
 	}
 
 	return libp2p.New(opts...)
+}
+
+// ConnectPeers attempts to connect to cluster peers by their addresses defined in manifest ENRs.
+func ConnectPeers(ctx context.Context, h host.Host, enrs []enr.Record, attempts int) error {
+	if attempts == 0 {
+		return nil
+	}
+
+	for _, e := range enrs {
+		info, err := cluster.PeerInfoFromENR(e)
+		if err != nil {
+			return err
+		}
+
+		if info.ID == h.ID() {
+			// Do not connect to self.
+			continue
+		}
+
+		connect := func() bool {
+			err := h.Connect(ctx, info)
+			if err != nil {
+				log.Warn(ctx, "Failed connecting to manifest peer", z.Str("peer", ShortID(info.ID)),
+					z.Str("error", err.Error()))
+			}
+			return err == nil
+		}
+
+		for i := 0; i < attempts; i++ {
+			if connect() {
+				continue
+			}
+			time.Sleep(time.Second) // Improve backoff
+		}
+	}
+
+	return nil
 }

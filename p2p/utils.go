@@ -13,3 +13,18 @@
 // limitations under the License.
 
 package p2p
+
+import (
+	"fmt"
+
+	"github.com/libp2p/go-libp2p-core/peer"
+)
+
+// ShortID returns the short ID string of the peer ID. It was inspired by peer.ID.ShortString() but even shorter.
+func ShortID(id peer.ID) string {
+	pid := id.Pretty()
+	if len(pid) <= 10 {
+		return pid
+	}
+	return fmt.Sprintf("%s*%s>", pid[:2], pid[len(pid)-6:])
+}
