@@ -15,6 +15,7 @@
 package log
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -26,13 +27,14 @@ import (
 var logger = newConsoleLogger()
 
 func newConsoleLogger() *zap.Logger {
-	encCondig := zap.NewDevelopmentEncoderConfig()
-	encCondig.ConsoleSeparator = " "
-	encCondig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	encConfig := zap.NewDevelopmentEncoderConfig()
+	encConfig.ConsoleSeparator = " "
+	encConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	encConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05.000")
 
-	ws, _, _ := zap.Open("stderr")
+	writer, _, _ := zap.Open("stderr")
 
-	return buildConsoleLogger(encCondig, ws)
+	return buildConsoleLogger(encConfig, writer)
 }
 
 // InitJSONLogger initialises a JSON logger for production usage.
@@ -62,7 +64,8 @@ func buildConsoleLogger(encConfig zapcore.EncoderConfig, ws zapcore.WriteSyncer)
 	)
 }
 
-// customEncoder wraps an encoder and transforms stacktrace fields to concise entry stack traces.
+// customEncoder wraps an encoder and transforms stacktrace fields to concise entry stack traces and
+// prepends a green "topic".
 type customEncoder struct {
 	zapcore.Encoder
 }
@@ -80,6 +83,25 @@ func (e customEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*buff
 				continue
 			}
 			ent.Stack = formatZapStack(stack)
+
+			continue
+		}
+
+		const topicKey = "topic"
+		if f.Key == topicKey {
+			m := zapcore.NewMapObjectEncoder()
+			f.AddTo(m)
+			topic, ok := m.Fields[topicKey].(string)
+			if !ok {
+				continue
+			}
+
+			const green = uint8(32)
+
+			topic = (topic + "          ")[:10] // Align topic spacing.
+			topic = fmt.Sprintf("\x1b[%dm%s\x1b[0m", green, topic)
+
+			ent.LoggerName = topic
 
 			continue
 		}
