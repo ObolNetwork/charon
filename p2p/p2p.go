@@ -32,8 +32,8 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 )
 
-// NewNode returns a started libp2p node.
-func NewNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater) (host.Host, error) {
+// NewP2PNode returns a started libp2p node.
+func NewP2PNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater) (host.Host, error) {
 	if key == nil {
 		return nil, errors.New("missing private key")
 	}

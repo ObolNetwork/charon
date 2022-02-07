@@ -21,16 +21,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/p2p"
 )
 
-func newEnrCmd(runFunc func(io.Writer, p2p.Config, discovery.Config, string) error) *cobra.Command {
+func newEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.Command {
 	var (
-		p2pConfig       p2p.Config
-		discoveryConfig discovery.Config
-		dataDir         string
+		config  p2p.Config
+		dataDir string
 	)
 
 	cmd := &cobra.Command{
@@ -39,25 +37,24 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, discovery.Config, string) err
 		Long:  `Return information on this node's Ethereum Node Record (ENR)`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(cmd.OutOrStdout(), p2pConfig, discoveryConfig, dataDir)
+			return runFunc(cmd.OutOrStdout(), config, dataDir)
 		},
 	}
 
 	bindGeneralFlags(cmd.Flags(), &dataDir)
-	bindP2PFlags(cmd.Flags(), &p2pConfig)
-	bindDiscoveryFlags(cmd.Flags(), &discoveryConfig)
+	bindP2PFlags(cmd.Flags(), &config)
 
 	return cmd
 }
 
 // Function for printing status of ENR for this instance.
-func runNewENR(w io.Writer, p2pConfig p2p.Config, discoveryConfig discovery.Config, dataDir string) error {
+func runNewENR(w io.Writer, config p2p.Config, dataDir string) error {
 	identityKey, err := identity.LoadOrCreatePrivKey(dataDir)
 	if err != nil {
 		return err
 	}
 
-	localEnode, db, err := discovery.NewLocalEnode(discoveryConfig, p2pConfig, identityKey)
+	localEnode, db, err := p2p.NewLocalEnode(config, identityKey)
 	if err != nil {
 		return errors.Wrap(err, "failed to open peer DB")
 	}

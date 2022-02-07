@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package discovery provides peer discovery.
-package discovery
+package p2p
 
 import (
 	"crypto/ecdsa"
@@ -23,18 +22,11 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
-
-	charonp2p "github.com/obolnetwork/charon/p2p"
 )
 
-type Config struct {
-	DBPath     string
-	ListenAddr string
-}
-
-// NewListener starts and returns a discv5 UDP implementation.
-func NewListener(config Config, p2pConfig charonp2p.Config, ln *enode.LocalNode, key *ecdsa.PrivateKey) (*discover.UDPv5, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp", config.ListenAddr)
+// NewDiscNode starts and returns a discv5 UDP implementation.
+func NewDiscNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey) (*discover.UDPv5, error) {
+	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +36,7 @@ func NewListener(config Config, p2pConfig charonp2p.Config, ln *enode.LocalNode,
 		return nil, err
 	}
 
-	netlist, err := netutil.ParseNetlist(p2pConfig.Allowlist)
+	netlist, err := netutil.ParseNetlist(config.Allowlist)
 	if err != nil {
 		return nil, err
 	}
@@ -57,13 +49,13 @@ func NewListener(config Config, p2pConfig charonp2p.Config, ln *enode.LocalNode,
 }
 
 // NewLocalEnode returns a local enode and a peer DB or an error.
-func NewLocalEnode(config Config, p2pConfig charonp2p.Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *enode.DB, error) {
+func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *enode.DB, error) {
 	db, err := enode.OpenDB(config.DBPath)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	addrs, err := p2pConfig.TCPAddrs()
+	addrs, err := config.ParseTCPAddrs()
 	if err != nil {
 		return nil, nil, err
 	}

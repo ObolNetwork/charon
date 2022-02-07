@@ -28,7 +28,6 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -48,11 +47,9 @@ func TestPingCluster(t *testing.T) {
 	for i := 0; i < n; i++ {
 
 		conf := app.Config{
-			Discovery: discovery.Config{
-				ListenAddr: availableAddr(t).String(), // Random discv5 address
-			},
 			P2P: p2p.Config{
-				Addrs: []string{addrFromENR(t, records[i])}, // Use p2p address defined in each ENR
+				TCPAddrs: []string{addrFromENR(t, records[i])}, // Use p2p address defined in each ENR
+				UDPAddr:  availableAddr(t).String(),            // Random discv5 address
 			},
 			MonitoringAddr:   availableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: availableAddr(t).String(), // Random validatorapi address
