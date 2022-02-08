@@ -34,8 +34,8 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// NewP2PNode returns a started libp2p node.
-func NewP2PNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
+// NewTCPNode returns a started tcp-based libp2p node.
+func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 	discNode *discover.UDPv5) (host.Host, error) {
 
 	addrs, err := cfg.Multiaddrs()

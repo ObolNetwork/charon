@@ -24,8 +24,8 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 )
 
-// NewDiscNode starts and returns a discv5 UDP implementation.
-func NewDiscNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs []enr.Record,
+// NewUDPNode starts and returns a discv5 UDP implementation.
+func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs []enr.Record,
 	bootOverride []*enode.Node) (*discover.UDPv5, error) {
 
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)

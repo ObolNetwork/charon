@@ -24,11 +24,16 @@ import (
 )
 
 type Config struct {
-	DBPath    string
-	UDPAddr   string   // discv5 listen address
-	TCPAddrs  []string // lib-p2p listen addresses
+	// DBPath defines the discv5 peer database file path.
+	DBPath string
+	// UDPAddr defines the discv5 udp listen address.
+	UDPAddr string
+	// TCPAddrs defines the lib-p2p tcp listen addresses.
+	TCPAddrs []string
+	// Allowlist defines csv CIDR blocks for lib-p2p allowed connections.
 	Allowlist string
-	Denylist  string
+	// Allowlist defines csv CIDR blocks for lib-p2p denied connections.
+	Denylist string
 }
 
 // ParseTCPAddrs returns the configured tcp addresses as typed net tcp addresses.

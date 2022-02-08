@@ -109,7 +109,7 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "create local enode")
 	}
 
-	discNode, err := p2p.NewDiscNode(conf.P2P, localEnode, p2pKey, enrs, conf.TestConfig.DiscBootnodes)
+	udpNode, err := p2p.NewUDPNode(conf.P2P, localEnode, p2pKey, enrs, conf.TestConfig.DiscBootnodes)
 	if err != nil {
 		return errors.Wrap(err, "start discv5 listener")
 	}
@@ -124,14 +124,14 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "connection gater")
 	}
 
-	p2pNode, err := p2p.NewP2PNode(conf.P2P, p2pKey, connGater, discNode)
+	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode)
 	if err != nil {
 		return errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
 	}
 
 	log.Info(ctx, "Manifest loaded",
 		z.Int("peers", len(manifest.ENRs)),
-		z.Str("local_peer", p2p.ShortID(p2pNode.ID())),
+		z.Str("local_peer", p2p.ShortID(tcpNode.ID())),
 		z.Str("pubkey", crypto.BLSPointToHex(manifest.Pubkey())[:10]))
 
 	monitoring := newMonitoring(conf.MonitoringAddr)
@@ -148,7 +148,7 @@ func Run(ctx context.Context, conf Config) error {
 
 	// Start processes and wait for first error or shutdown.
 
-	stopPing := p2p.StartPingService(p2pNode, peers, conf.TestConfig.PingCallback)
+	stopPing := p2p.StartPingService(tcpNode, peers, conf.TestConfig.PingCallback)
 
 	var procErr error
 	select {
@@ -162,7 +162,7 @@ func Run(ctx context.Context, conf Config) error {
 
 	if procErr != nil {
 		// Even though procErr is returned below, also log it in case shutdown errors.
-		log.Error(ctx, "Process error", procErr)
+		log.Error(ctx, "Process start error", procErr)
 	}
 
 	// Shutdown processes with a fresh context allowing 10s.
@@ -174,9 +174,7 @@ func Run(ctx context.Context, conf Config) error {
 
 	stopPing()
 
-	discNode.Close()
-
-	if err := p2pNode.Close(); err != nil {
+	if err := tcpNode.Close(); err != nil {
 		return errors.Wrap(err, "stop p2p node")
 	}
 
@@ -191,6 +189,8 @@ func Run(ctx context.Context, conf Config) error {
 	if err := stopJeager(ctx); err != nil {
 		return errors.Wrap(err, "stop jaeger tracer")
 	}
+
+	udpNode.Close()
 
 	peerDB.Close()
 
