@@ -151,3 +151,4 @@ ormconfig.json
 charon
 !charon/
 keys/
+coverage.out
