@@ -59,23 +59,23 @@ func TestP2PConnGating(t *testing.T) {
 	}
 
 	// create node A
-	p2pConfigA := Config{Addrs: []string{"127.0.0.1:3030"}}
+	p2pConfigA := Config{TCPAddrs: []string{"127.0.0.1:3030"}}
 	prvKeyA, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	if err != nil {
 		t.Fatal("private key generation for A failed", err)
 	}
-	nodeA, err := NewNode(p2pConfigA, convertPrivKey(prvKeyA), c)
+	nodeA, err := NewP2PNode(p2pConfigA, convertPrivKey(prvKeyA), c)
 	if err != nil {
 		t.Fatal("couldn't instantiate new node A", err)
 	}
 
 	// create node B
-	p2pConfigB := Config{Addrs: []string{"127.0.0.1:3031"}}
+	p2pConfigB := Config{TCPAddrs: []string{"127.0.0.1:3031"}}
 	prvKeyB, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	if err != nil {
 		t.Fatal("private key generation for B failed", err)
 	}
-	nodeB, err := NewNode(p2pConfigB, convertPrivKey(prvKeyB), c)
+	nodeB, err := NewP2PNode(p2pConfigB, convertPrivKey(prvKeyB), c)
 	if err != nil {
 		t.Fatal("couldn't instantiate new node B", err)
 	}

@@ -25,6 +25,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -33,14 +34,12 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/crypto"
-	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/validatorapi"
 )
 
 type Config struct {
-	Discovery        discovery.Config
 	P2P              p2p.Config
 	ManifestFile     string
 	DataDir          string
@@ -69,6 +68,7 @@ type TestConfig struct {
 // Graceful shutdown is triggered on first process error or when the shutdown context is cancelled.
 //nolint:contextcheck
 func Run(ctx context.Context, conf Config) error {
+	_, _ = maxprocs.Set()
 	ctx = log.WithTopic(ctx, "app-start")
 
 	log.Info(ctx, "Charon starting", z.Str("version", version.Version))
@@ -90,12 +90,12 @@ func Run(ctx context.Context, conf Config) error {
 		}
 	}
 
-	localEnode, peerDB, err := discovery.NewLocalEnode(conf.Discovery, conf.P2P, p2pKey)
+	localEnode, peerDB, err := p2p.NewLocalEnode(conf.P2P, p2pKey)
 	if err != nil {
 		return errors.Wrap(err, "create local enode")
 	}
 
-	discoveryNode, err := discovery.NewListener(conf.Discovery, conf.P2P, localEnode, p2pKey)
+	discNode, err := p2p.NewDiscNode(conf.P2P, localEnode, p2pKey)
 	if err != nil {
 		return errors.Wrap(err, "start discv5 listener")
 	}
@@ -123,17 +123,17 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "connection gater")
 	}
 
-	node, err := p2p.NewNode(conf.P2P, p2pKey, connGater)
+	p2pNode, err := p2p.NewP2PNode(conf.P2P, p2pKey, connGater)
 	if err != nil {
 		return errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
 	}
 
 	log.Info(ctx, "Manifest loaded",
 		z.Int("peers", len(manifest.ENRs)),
-		z.Str("local_peer", p2p.ShortID(node.ID())),
+		z.Str("local_peer", p2p.ShortID(p2pNode.ID())),
 		z.Str("pubkey", crypto.BLSPointToHex(manifest.Pubkey())[:10]))
 
-	if err := p2p.ConnectPeers(ctx, node, enrs, conf.TestConfig.ConnectAttempts); err != nil {
+	if err := p2p.ConnectPeers(ctx, p2pNode, enrs, conf.TestConfig.ConnectAttempts); err != nil {
 		return errors.Wrap(err, "connect peers")
 	}
 
@@ -151,7 +151,7 @@ func Run(ctx context.Context, conf Config) error {
 
 	// Start processes and wait for first error or shutdown.
 
-	stopPing := p2p.StartPingService(node, peers, conf.TestConfig.PingCallback)
+	stopPing := p2p.StartPingService(p2pNode, peers, conf.TestConfig.PingCallback)
 
 	var procErr error
 	select {
@@ -177,9 +177,9 @@ func Run(ctx context.Context, conf Config) error {
 
 	stopPing()
 
-	discoveryNode.Close()
+	discNode.Close()
 
-	if err := node.Close(); err != nil {
+	if err := p2pNode.Close(); err != nil {
 		return errors.Wrap(err, "stop p2p node")
 	}
 

@@ -58,7 +58,7 @@ func TestResolveListenAddr(t *testing.T) {
 
 func TestConfig_Multiaddrs(t *testing.T) {
 	c := Config{
-		Addrs: []string{
+		TCPAddrs: []string{
 			"10.0.0.2:0",
 			"[" + net.IPv6linklocalallnodes.String() + "]:0",
 		},

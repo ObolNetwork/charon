@@ -23,7 +23,6 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app"
-	"github.com/obolnetwork/charon/discovery"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -44,7 +43,6 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 
 	bindRunFlags(cmd.Flags(), &conf)
 	bindGeneralFlags(cmd.Flags(), &conf.DataDir)
-	bindDiscoveryFlags(cmd.Flags(), &conf.Discovery)
 	bindP2PFlags(cmd.Flags(), &conf.P2P)
 
 	return cmd
@@ -63,12 +61,9 @@ func bindGeneralFlags(flags *pflag.FlagSet, dataDir *string) {
 }
 
 func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {
-	flags.StringSliceVar(&config.Addrs, "p2p-tcp-address", []string{"127.0.0.1:13900"}, "Listening TCP addresses (ip and port) for LibP2P traffic")
+	flags.StringSliceVar(&config.TCPAddrs, "p2p-tcp-address", []string{"127.0.0.1:13900"}, "Comma-separated list of listening TCP addresses (ip and port) for LibP2P traffic")
+	flags.StringVar(&config.UDPAddr, "p2p-udp-address", "127.0.0.1:30309", "Listening UDP address (ip and port) for Discv5 discovery")
 	flags.StringVar(&config.Allowlist, "p2p-allowlist", "", "Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.")
 	flags.StringVar(&config.Denylist, "p2p-denylist", "", "Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.")
-}
-
-func bindDiscoveryFlags(flags *pflag.FlagSet, config *discovery.Config) {
-	flags.StringVar(&config.ListenAddr, "p2p-udp-address", "127.0.0.1:30309", "Listening UDP address (ip and port) for Discv5 discovery")
 	flags.StringVar(&config.DBPath, "p2p-nodedb", "", "Path to store a discv5 node database. Empty default results in in-memory database.")
 }

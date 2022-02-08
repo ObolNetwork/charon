@@ -24,16 +24,18 @@ import (
 )
 
 type Config struct {
-	Addrs     []string
+	DBPath    string
+	UDPAddr   string   // discv5 listen address
+	TCPAddrs  []string // lib-p2p listen addresses
 	Allowlist string
 	Denylist  string
 }
 
-// TCPAddrs returns the configured addresses as tcp addresses.
-func (c Config) TCPAddrs() ([]*net.TCPAddr, error) {
-	res := make([]*net.TCPAddr, 0, len(c.Addrs))
+// ParseTCPAddrs returns the configured tcp addresses as typed net tcp addresses.
+func (c Config) ParseTCPAddrs() ([]*net.TCPAddr, error) {
+	res := make([]*net.TCPAddr, 0, len(c.TCPAddrs))
 
-	for _, addr := range c.Addrs {
+	for _, addr := range c.TCPAddrs {
 		tcpAddr, err := resolveListenAddr(addr)
 		if err != nil {
 			return nil, err
@@ -46,7 +48,7 @@ func (c Config) TCPAddrs() ([]*net.TCPAddr, error) {
 
 // Multiaddrs returns the configured addresses as libp2p multiaddrs.
 func (c Config) Multiaddrs() ([]multiaddr.Multiaddr, error) {
-	tcpAddrs, err := c.TCPAddrs()
+	tcpAddrs, err := c.ParseTCPAddrs()
 	if err != nil {
 		return nil, err
 	}
