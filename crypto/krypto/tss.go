@@ -31,31 +31,74 @@ type PubShare struct {
 	Value      *bls_sig.PublicKey
 }
 
-// TSS (threshold signing scheme) wraps PubKey (PublicKey), PubShares (the public shares corresponding to each secret share)
-// and NumShares (number of shares).
+// TSS (threshold signing scheme) wraps PubKey (PublicKey), Verifiers (the public shares corresponding to each secret share)
+// and threshold (number of shares).
 type TSS struct {
 	PubKey    *bls_sig.PublicKey
-	PubShares []*PubShare
-	NumShares uint
+	Verifiers []*share.ShareVerifier
+	NumShares int
 }
 
 // GenerateTSS returns a new instance of threshold signing scheme and associated SecretKeyShares.
-func GenerateTSS(t, n uint) (*TSS, []*bls_sig.SecretKeyShare, error) {
+func GenerateTSS(t, n int) (*TSS, []*bls_sig.SecretKeyShare, error) {
 	pubKey, secret, err := BlsScheme.Keygen()
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "BLS Key Generation")
 	}
 
-	sks, pubshares, err := generateSecretShares(*secret, t, n)
+	sks, verifiers, err := generateSecretShares(*secret, t, n)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Generate Secret Shares")
 	}
 
-	return &TSS{PubKey: pubKey, PubShares: pubshares, NumShares: n}, sks, nil
+	return &TSS{PubKey: pubKey, Verifiers: verifiers, NumShares: n}, sks, nil
+}
+
+// ThresholdAggregateSignatures aggregates partial signatures over the given message.
+// Returns aggregated signatures and slice of signers identifiers that had valid partial signatures.
+func ThresholdAggregateSignatures(msg []byte, partialSigs []*bls_sig.PartialSignature, tss *TSS) (*bls_sig.Signature, []byte, error) {
+	threshold := len(tss.Verifiers)
+	if len(partialSigs) < threshold {
+		return nil, nil, errors.New("Insufficient signatures")
+	}
+
+	var (
+		signers     []byte
+		validShares []*PubShare
+	)
+
+	for _, psig := range partialSigs {
+		if len(validShares) >= threshold {
+			break
+		}
+
+		pubShare, err := getPubShare(share.Bls12381G1().N, uint32(psig.Identifier), tss.Verifiers)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "Get Public Share")
+		}
+
+		sig := &bls_sig.Signature{Value: *psig.Signature}
+		result, err := BlsScheme.Verify(pubShare.Value, msg, sig)
+		if result && err != nil {
+			validShares = append(validShares, pubShare)
+			signers = append(signers, psig.Identifier)
+		}
+	}
+
+	if len(validShares) < threshold {
+		return nil, nil, errors.New("Insufficient signatures")
+	}
+
+	aggregatedSig, err := BlsScheme.CombineSignatures(partialSigs...)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "Aggregate Signatures")
+	}
+
+	return aggregatedSig, signers, nil
 }
 
 // generateSecretShares creates []*SecretKeyShare and []*PubShare over the given SecretKey.
-func generateSecretShares(sk bls_sig.SecretKey, t, n uint) ([]*bls_sig.SecretKeyShare, []*PubShare, error) {
+func generateSecretShares(sk bls_sig.SecretKey, t, n int) ([]*bls_sig.SecretKeyShare, []*share.ShareVerifier, error) {
 	scheme, err := share.NewFeldman(uint32(t), uint32(n), share.Bls12381G1())
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "New Feldman VSS")
@@ -72,7 +115,7 @@ func generateSecretShares(sk bls_sig.SecretKey, t, n uint) ([]*bls_sig.SecretKey
 	}
 
 	sks := make([]*bls_sig.SecretKeyShare, len(shares))
-	pbs := make([]*PubShare, len(shares))
+
 	for i, s := range shares {
 		skbin := make([]byte, 33)
 		copy(skbin, s.Value.Bytes())
@@ -82,25 +125,19 @@ func generateSecretShares(sk bls_sig.SecretKey, t, n uint) ([]*bls_sig.SecretKey
 		if err := sks[i].UnmarshalBinary(skbin); err != nil {
 			return nil, nil, errors.Wrap(err, "Unmarshalling shamir share")
 		}
-
-		pbs[i], err = getPubShare(share.Bls12381G1().Params().N, s, verifiers)
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "Get Public Share")
-		}
 	}
 
-	return sks, pbs, nil
+	return sks, verifiers, nil
 }
 
 // getPubShare creates PubShare corresponding to a secret share with given verifiers.
-func getPubShare(n *big.Int, share *share.ShamirShare, verifiers []*share.ShareVerifier) (*PubShare, error) {
+func getPubShare(n *big.Int, identifier uint32, verifiers []*share.ShareVerifier) (*PubShare, error) {
 	field := curves.NewField(n)
 
 	xBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(xBytes, share.Identifier)
+	binary.BigEndian.PutUint32(xBytes, identifier)
 	x := field.ElementFromBytes(xBytes)
-
-	i := share.Value.Modulus.One()
+	i := field.One()
 
 	// c_0
 	rhs := verifiers[0]
@@ -128,12 +165,11 @@ func getPubShare(n *big.Int, share *share.ShamirShare, verifiers []*share.ShareV
 		return nil, err
 	}
 
-	pubshare := &PubShare{}
-	err = pubshare.Value.UnmarshalBinary(KeyGroup.ToCompressed(g1Point))
+	pks := &bls_sig.PublicKey{}
+	err = pks.UnmarshalBinary(KeyGroup.ToCompressed(g1Point))
 	if err != nil {
 		return nil, err
 	}
-	pubshare.Identifier = uint8(share.Identifier)
 
-	return pubshare, nil
+	return &PubShare{Identifier: uint8(identifier), Value: pks}, nil
 }

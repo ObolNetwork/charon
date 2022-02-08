@@ -13,3 +13,24 @@
 // limitations under the License.
 
 package krypto_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/crypto/krypto"
+)
+
+func TestGenerateTSS(t *testing.T) {
+	threshold := 3
+	shares := 5
+
+	tss, secrets, err := krypto.GenerateTSS(threshold, shares)
+	require.NoError(t, err)
+	require.NotNil(t, tss)
+	require.NotNil(t, secrets)
+
+	require.Equal(t, threshold, len(tss.Verifiers))
+	require.Equal(t, shares, tss.NumShares)
+}
