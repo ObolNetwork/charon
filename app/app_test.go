@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"flag"
 	"fmt"
 	"net"
 	"sync"
@@ -35,79 +36,97 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/p2p"
 )
 
-// TestPingSelfBoot starts a cluster of charon nodes and waits for each node to ping all the others.
-// It relies on discv5 using manifest ENRs as bootnodes.
-func TestPingSelfBoot(t *testing.T) {
+var slow = flag.Bool("slow", false, "enable slow tests")
+
+// TestPingCluster starts a cluster of charon nodes and waits for each node to ping all the others.
+// It relies on discv5 for peer discovery.
+func TestPingCluster(t *testing.T) {
+	// Nodes bind to manifest ENR addresses.
+	// Discv5 can just use those as bootnodes.
+	t.Run("bind_enrs", func(t *testing.T) {
+		pingCluster(t, pingTest{
+			BindENRAddrs: true,
+		})
+	})
+
+	// Nodes bind to non-ENR addresses, with only single external bootnode.
+	// Discv5 will resolve peers via external node.
+	t.Run("exteral_bootnode_only", func(t *testing.T) {
+		external := startExtBootnode(t)
+
+		pingCluster(t, pingTest{
+			BindENRAddrs: false,
+			DiscBootnodes: func([]*enode.Node) []*enode.Node {
+				return []*enode.Node{external}
+			},
+		})
+	})
+
+	// Nodes bind to non-ENR addresses, with external bootnode AS WELL AS stale ENRs.
+	// Discv5 times out resolving stale ENRs, then resolves peers via external node.
+	// This is slow due to discv5 internal timeouts, run with -slow.
+	t.Run("external_and_stale_enrs", func(t *testing.T) {
+		external := startExtBootnode(t)
+
+		pingCluster(t, pingTest{
+			Slow:         true,
+			BindENRAddrs: false,
+			DiscBootnodes: func(manifestENRs []*enode.Node) []*enode.Node {
+				return append(manifestENRs, external)
+			},
+		})
+	})
+}
+
+type pingTest struct {
+	DiscBootnodes func([]*enode.Node) []*enode.Node
+	Slow          bool
+	BindENRAddrs  bool
+}
+
+func pingCluster(t *testing.T, test pingTest) {
+	t.Helper()
+
+	timeout := time.Second * 10
+
+	if test.Slow {
+		if !*slow {
+			t.Skip("skipping slow test")
+			return
+		}
+		timeout = time.Minute
+	}
+
 	const n = 3
 	ctx, cancel := context.WithCancel(context.Background())
-
 	manifest, p2pKeys, _ := cluster.NewForT(t, n, n)
-
+	asserter := &pingAsserter{N: n, Manifest: manifest, Timeout: timeout}
 	records, err := manifest.ParsedENRs()
 	require.NoError(t, err)
 
-	asserter := &pingAsserter{N: n, Manifest: manifest}
-
 	var eg errgroup.Group
 
 	for i := 0; i < n; i++ {
 		conf := app.Config{
-			P2P: p2p.Config{
-				TCPAddrs: []string{tcpAddrFromENR(t, records[i])}, // Use p2p address defined in each ENR
-				UDPAddr:  udpAddrFromENR(t, records[i]),           // Use discv5 address defined in each ENR
-			},
-			MonitoringAddr:   availableAddr(t).String(), // Random monitoring address
-			ValidatorAPIAddr: availableAddr(t).String(), // Random validatorapi address
-			TestConfig: app.TestConfig{
-				Manifest:     manifest,
-				P2PKey:       p2pKeys[i],
-				PingCallback: asserter.Callback(t, i),
-			},
-		}
-
-		eg.Go(func() error {
-			return app.Run(ctx, conf)
-		})
-	}
-
-	asserter.Await(t)
-	cancel()
-
-	require.NoError(t, eg.Wait())
-}
-
-// TestPingExtBoot starts a cluster of charon nodes and waits for each node to ping all the others.
-// It relies on discv5 using an external bootnode and not the manifest ENRs.
-func TestPingExtBoot(t *testing.T) {
-	node := startExtBootnode(t)
-
-	const n = 3
-	ctx, cancel := context.WithCancel(context.Background())
-
-	manifest, p2pKeys, _ := cluster.NewForT(t, n, n)
-
-	asserter := &pingAsserter{N: n, Manifest: manifest}
-
-	var eg errgroup.Group
-
-	for i := 0; i < n; i++ {
-		conf := app.Config{
-			P2P: p2p.Config{
-				// Use random p2p and discv5 addresses, different from ENRs
-				TCPAddrs: []string{availableAddr(t).String()},
-				UDPAddr:  availableAddr(t).String(),
-			},
 			MonitoringAddr:   availableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: availableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
 				Manifest:      manifest,
 				P2PKey:        p2pKeys[i],
 				PingCallback:  asserter.Callback(t, i),
-				DiscBootnodes: []*enode.Node{node}, // Use external bootnode only
+				DiscBootnodes: test.DiscBootnodes,
 			},
+		}
+
+		// Either bind to ENR addresses, or bind to random address resulting in stale ENRs
+		if test.BindENRAddrs {
+			conf.P2P.TCPAddrs = []string{tcpAddrFromENR(t, records[i])}
+			conf.P2P.UDPAddr = udpAddrFromENR(t, records[i])
+		} else {
+			conf.P2P.TCPAddrs = []string{availableAddr(t).String()}
+			conf.P2P.UDPAddr = availableAddr(t).String()
 		}
 
 		eg.Go(func() error {
@@ -202,6 +221,7 @@ func udpAddrFromENR(t *testing.T, record enr.Record) string {
 type pingAsserter struct {
 	N        int
 	Manifest cluster.Manifest
+	Timeout  time.Duration
 	pings    sync.Map // map[string]bool
 }
 
@@ -243,7 +263,7 @@ func (a *pingAsserter) Await(t *testing.T) {
 		})
 
 		return len(pings) == factorial
-	}, time.Second*5, time.Millisecond*10)
+	}, a.Timeout, time.Millisecond*10)
 
 	if !ok {
 		t.Errorf("Timeout waiting for pings, expect=%d, actual=%d: %v", factorial, len(pings), pings)

@@ -32,11 +32,32 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 )
 
 // NewTCPNode returns a started tcp-based libp2p node.
 func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
-	discNode *discover.UDPv5) (host.Host, error) {
+	udpNode *discover.UDPv5, manifest cluster.Manifest) (host.Host, error) {
+
+	peers, err := manifest.PeerIDs()
+	if err != nil {
+		return nil, err
+	}
+
+	enrs, err := manifest.ParsedENRs()
+	if err != nil {
+		return nil, err
+	}
+
+	peerMap := make(map[peer.ID]enode.Node)
+
+	for i, p := range peers {
+		node, err := enode.New(new(enode.V4ID), &enrs[i])
+		if err != nil {
+			return nil, err
+		}
+		peerMap[p] = *node
+	}
 
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
@@ -57,7 +78,7 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 		libp2p.ConnectionGater(connGater),
 
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
-			return logWrapRouting(adaptDiscRouting(discNode)), nil
+			return logWrapRouting(adaptDiscRouting(udpNode, peerMap)), nil
 		}),
 	}
 
@@ -83,27 +104,19 @@ func logWrapRouting(fn peerRoutingFunc) peerRoutingFunc {
 }
 
 // adaptDiscRouting returns a function that adapts p2p routing requests to discv5 lookups.
-func adaptDiscRouting(disc *discover.UDPv5) peerRoutingFunc {
+func adaptDiscRouting(udpNode *discover.UDPv5, peers map[peer.ID]enode.Node) peerRoutingFunc {
 	return func(ctx context.Context, p peer.ID) (peer.AddrInfo, error) {
-		cPubkey, err := p.ExtractPublicKey()
-		if err != nil {
-			return peer.AddrInfo{}, err
-		}
-
-		sPubkey, ok := cPubkey.(*crypto.Secp256k1PublicKey)
+		node, ok := peers[p]
 		if !ok {
-			return peer.AddrInfo{}, errors.New("invalid peer pubkey")
+			return peer.AddrInfo{}, errors.New("unknown peer")
 		}
 
-		ePubkey := ecdsa.PublicKey(*sPubkey)
-
-		targets := disc.Lookup(enode.PubkeyToIDV4(&ePubkey))
-
-		if len(targets) == 0 {
-			return peer.AddrInfo{}, errors.New("discv5 peer not found")
+		resolved := udpNode.Resolve(&node)
+		if resolved == nil || resolved.Seq() == 0 {
+			return peer.AddrInfo{}, errors.New("peer not resolved")
 		}
 
-		mAddr, err := multiAddrFromIPPort(targets[0].IP(), targets[0].TCP())
+		mAddr, err := multiAddrFromIPPort(resolved.IP(), resolved.TCP())
 		if err != nil {
 			return peer.AddrInfo{}, err
 		}

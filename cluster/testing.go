@@ -61,7 +61,7 @@ func NewForT(t *testing.T, m, n int) (Manifest, []*ecdsa.PrivateKey, []kyber.Sca
 			r.Set(enr.IPv4(tcp.IP))
 			r.Set(enr.TCP(tcp.Port))
 			r.Set(enr.UDP(udp.Port))
-			r.SetSeq(1)
+			r.SetSeq(0)
 
 			err = enode.SignV4(&r, p2pKey)
 			require.NoError(t, err)

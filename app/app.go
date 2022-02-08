@@ -60,8 +60,8 @@ type TestConfig struct {
 	P2PKey *ecdsa.PrivateKey
 	// PingCallback is called when a ping was completed to a peer.
 	PingCallback func(peer.ID)
-	// DiscBootnodes provides discv5 bootnodes explicitly, skips using manifest ENRs.
-	DiscBootnodes []*enode.Node
+	// DiscBootnodes provides a callback that transforms the default manifest ENR discv5 bootnodes.
+	DiscBootnodes func([]*enode.Node) []*enode.Node
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -124,7 +124,7 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "connection gater")
 	}
 
-	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode)
+	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode, manifest)
 	if err != nil {
 		return errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
 	}

@@ -25,6 +25,8 @@ import (
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/cluster"
 )
 
 func TestInterceptSecured(t *testing.T) {
@@ -64,7 +66,7 @@ func TestP2PConnGating(t *testing.T) {
 	if err != nil {
 		t.Fatal("private key generation for A failed", err)
 	}
-	nodeA, err := NewTCPNode(p2pConfigA, convertPrivKey(prvKeyA), c, nil)
+	nodeA, err := NewTCPNode(p2pConfigA, convertPrivKey(prvKeyA), c, nil, cluster.Manifest{})
 	if err != nil {
 		t.Fatal("couldn't instantiate new node A", err)
 	}
@@ -75,7 +77,7 @@ func TestP2PConnGating(t *testing.T) {
 	if err != nil {
 		t.Fatal("private key generation for B failed", err)
 	}
-	nodeB, err := NewTCPNode(p2pConfigB, convertPrivKey(prvKeyB), c, nil)
+	nodeB, err := NewTCPNode(p2pConfigB, convertPrivKey(prvKeyB), c, nil, cluster.Manifest{})
 	if err != nil {
 		t.Fatal("couldn't instantiate new node B", err)
 	}

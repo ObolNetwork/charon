@@ -26,7 +26,7 @@ import (
 
 // NewUDPNode starts and returns a discv5 UDP implementation.
 func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs []enr.Record,
-	bootOverride []*enode.Node) (*discover.UDPv5, error) {
+	bootOverride func([]*enode.Node) []*enode.Node) (*discover.UDPv5, error) {
 
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
@@ -43,22 +43,25 @@ func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs 
 		return nil, err
 	}
 
-	bootnodes := bootOverride
-	if len(bootnodes) == 0 {
-		for _, record := range enrs {
-			record := record
-			n, err := enode.New(enode.V4ID{}, &record)
-			if err != nil {
-				return nil, err
-			}
+	bootnodes := make([]*enode.Node, 0, len(enrs))
 
-			if ln.ID() == n.ID() {
-				// Do not add local node as bootnode
-				continue
-			}
-
-			bootnodes = append(bootnodes, n)
+	for _, record := range enrs {
+		record := record
+		n, err := enode.New(enode.V4ID{}, &record)
+		if err != nil {
+			return nil, err
 		}
+
+		if ln.ID() == n.ID() {
+			// Do not add local node as bootnode
+			continue
+		}
+
+		bootnodes = append(bootnodes, n)
+	}
+
+	if bootOverride != nil {
+		bootnodes = bootOverride(bootnodes)
 	}
 
 	return discover.ListenV5(conn, ln, discover.Config{
@@ -70,6 +73,7 @@ func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs 
 
 // NewLocalEnode returns a local enode and a peer DB or an error.
 func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *enode.DB, error) {
+
 	db, err := enode.OpenDB(config.DBPath)
 	if err != nil {
 		return nil, nil, err
@@ -93,7 +97,6 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 		} else if v6 := addr.IP.To16(); v6 != nil {
 			node.Set(enr.IPv6(v6))
 		}
-
 		node.Set(enr.TCP(addr.Port))
 	}
 
