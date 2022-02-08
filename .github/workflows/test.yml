@@ -26,5 +26,9 @@ jobs:
       run: go vet ./...
     - name: Test
       run: go test -v -short ./...
+    - name: Run coverage
+      run: go test ./... -coverprofile=coverage.out -covermode=atomic
+    - name: Upload coverage to Codecov
+      run: bash <(curl -s https://codecov.io/bash)
     - name: Check Format
       run: '[ "$(gofmt -l ./ | wc -l)" -eq 0 ]'
