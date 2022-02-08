@@ -25,7 +25,9 @@ import (
 )
 
 // NewDiscNode starts and returns a discv5 UDP implementation.
-func NewDiscNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey) (*discover.UDPv5, error) {
+func NewDiscNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs []enr.Record,
+	bootOverride []*enode.Node) (*discover.UDPv5, error) {
+
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
 		return nil, err
@@ -41,10 +43,28 @@ func NewDiscNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey) (*di
 		return nil, err
 	}
 
+	bootnodes := bootOverride
+	if len(bootnodes) == 0 {
+		for _, record := range enrs {
+			record := record
+			n, err := enode.New(enode.V4ID{}, &record)
+			if err != nil {
+				return nil, err
+			}
+
+			if ln.ID() == n.ID() {
+				// Do not add local node as bootnode
+				continue
+			}
+
+			bootnodes = append(bootnodes, n)
+		}
+	}
+
 	return discover.ListenV5(conn, ln, discover.Config{
 		PrivateKey:  key,
 		NetRestrict: netlist,
-		Bootnodes:   nil, // TODO
+		Bootnodes:   bootnodes,
 	})
 }
 
@@ -55,14 +75,19 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 		return nil, nil, err
 	}
 
-	addrs, err := config.ParseTCPAddrs()
+	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tcpAddrs, err := config.ParseTCPAddrs()
 	if err != nil {
 		return nil, nil, err
 	}
 
 	node := enode.NewLocalNode(db, key)
 
-	for _, addr := range addrs {
+	for _, addr := range tcpAddrs {
 		if v4 := addr.IP.To4(); v4 != nil {
 			node.Set(enr.IPv4(v4))
 		} else if v6 := addr.IP.To16(); v6 != nil {
@@ -71,6 +96,9 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 
 		node.Set(enr.TCP(addr.Port))
 	}
+
+	node.SetFallbackIP(udpAddr.IP)
+	node.SetFallbackUDP(udpAddr.Port)
 
 	return node, db, nil
 }

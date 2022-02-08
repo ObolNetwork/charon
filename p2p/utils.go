@@ -21,8 +21,8 @@ import (
 )
 
 // ShortID returns the short ID string of the peer ID. It was inspired by peer.ID.ShortString() but even shorter.
-func ShortID(id peer.ID) string {
-	pid := id.Pretty()
+func ShortID(p peer.ID) string {
+	pid := p.Pretty()
 	if len(pid) <= 10 {
 		return pid
 	}

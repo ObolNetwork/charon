@@ -23,6 +23,7 @@ import (
 	"net/http/pprof"
 	"time"
 
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/automaxprocs/maxprocs"
@@ -53,14 +54,14 @@ type Config struct {
 
 // TestConfig defines additional test-only config.
 type TestConfig struct {
-	// Manifest provides the manifest explicitly, skipping loading ManifestFile from disk.
+	// Manifest provides the manifest explicitly, skips loading ManifestFile from disk.
 	Manifest cluster.Manifest
-	// P2PKey provides the p2p privkey explicitly, skipping loading from keystore on disk.
+	// P2PKey provides the p2p privkey explicitly, skips loading from keystore on disk.
 	P2PKey *ecdsa.PrivateKey
-	// ConnectAttempts defines synchronous peer connect at startup.
-	ConnectAttempts int
-	// PingCallback is called when a ping is received from a peer.
+	// PingCallback is called when a ping was completed to a peer.
 	PingCallback func(peer.ID)
+	// DiscBootnodes provides discv5 bootnodes explicitly, skips using manifest ENRs.
+	DiscBootnodes []*enode.Node
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -82,24 +83,6 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "init jaeger tracing")
 	}
 
-	p2pKey := conf.TestConfig.P2PKey
-	if p2pKey == nil {
-		p2pKey, err = identity.LoadOrCreatePrivKey(conf.DataDir)
-		if err != nil {
-			return errors.Wrap(err, "load or create peer ID")
-		}
-	}
-
-	localEnode, peerDB, err := p2p.NewLocalEnode(conf.P2P, p2pKey)
-	if err != nil {
-		return errors.Wrap(err, "create local enode")
-	}
-
-	discNode, err := p2p.NewDiscNode(conf.P2P, localEnode, p2pKey)
-	if err != nil {
-		return errors.Wrap(err, "start discv5 listener")
-	}
-
 	manifest := conf.TestConfig.Manifest
 	if len(manifest.ENRs) == 0 {
 		manifest, err = cluster.LoadManifest(conf.ManifestFile)
@@ -113,6 +96,24 @@ func Run(ctx context.Context, conf Config) error {
 		return err
 	}
 
+	p2pKey := conf.TestConfig.P2PKey
+	if p2pKey == nil {
+		p2pKey, err = identity.LoadOrCreatePrivKey(conf.DataDir)
+		if err != nil {
+			return errors.Wrap(err, "load or create peer ID")
+		}
+	}
+
+	localEnode, peerDB, err := p2p.NewLocalEnode(conf.P2P, p2pKey)
+	if err != nil {
+		return errors.Wrap(err, "create local enode")
+	}
+
+	discNode, err := p2p.NewDiscNode(conf.P2P, localEnode, p2pKey, enrs, conf.TestConfig.DiscBootnodes)
+	if err != nil {
+		return errors.Wrap(err, "start discv5 listener")
+	}
+
 	peers, err := manifest.PeerIDs()
 	if err != nil {
 		return err
@@ -123,7 +124,7 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "connection gater")
 	}
 
-	p2pNode, err := p2p.NewP2PNode(conf.P2P, p2pKey, connGater)
+	p2pNode, err := p2p.NewP2PNode(conf.P2P, p2pKey, connGater, discNode)
 	if err != nil {
 		return errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
 	}
@@ -132,10 +133,6 @@ func Run(ctx context.Context, conf Config) error {
 		z.Int("peers", len(manifest.ENRs)),
 		z.Str("local_peer", p2p.ShortID(p2pNode.ID())),
 		z.Str("pubkey", crypto.BLSPointToHex(manifest.Pubkey())[:10]))
-
-	if err := p2p.ConnectPeers(ctx, p2pNode, enrs, conf.TestConfig.ConnectAttempts); err != nil {
-		return errors.Wrap(err, "connect peers")
-	}
 
 	monitoring := newMonitoring(conf.MonitoringAddr)
 
