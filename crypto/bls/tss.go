@@ -25,14 +25,18 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// pairing is the BLS12-381 Engine initialising G1 and G2 groups.
-var pairing = bls12381.NewEngine()
+var (
+	// pairing is the BLS12-381 Engine initialising G1 and G2 groups.
+	pairing = bls12381.NewEngine()
 
-// keyGroup is the G1 group.
-var keyGroup = pairing.G1
+	// keyGroup is the G1 group.
+	keyGroup = pairing.G1
 
-// blsScheme is the BLS12-381 signature scheme.
-var blsScheme = bls_sig.NewSigPop()
+	// blsScheme is the BLS12-381 ETH2 signature scheme with standard domain separation tag used for signatures.
+	// blsScheme uses proofs of possession to mitigate rogue-key attacks.
+	// see: https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature-03#section-4.2.3
+	blsScheme = bls_sig.NewSigEth2()
+)
 
 // PubShare is a public share corresponding to a secret share.
 type PubShare struct {
@@ -48,30 +52,31 @@ type TSS struct {
 	NumShares int
 }
 
+// Threshold returns the secret sharing threshold.
 func (t TSS) Threshold() int {
 	return len(t.verifiers)
 }
 
 // GenerateTSS returns a new random instance of threshold signing scheme and associated SecretKeyShares.
 // It generates n number of secret key shares where t of them can be combined to sign a message.
-func GenerateTSS(t, n int) (*TSS, []*bls_sig.SecretKeyShare, error) {
+func GenerateTSS(t, n int) (TSS, []*bls_sig.SecretKeyShare, error) {
 	pubKey, secret, err := blsScheme.Keygen()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "bls key generation")
+		return TSS{}, nil, errors.Wrap(err, "bls key generation")
 	}
 
 	sks, verifiers, err := generateSecretShares(*secret, t, n)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "generate secret shares")
+		return TSS{}, nil, errors.Wrap(err, "generate secret shares")
 	}
 
-	return &TSS{PubKey: pubKey, verifiers: verifiers, NumShares: n}, sks, nil
+	return TSS{PubKey: pubKey, verifiers: verifiers, NumShares: n}, sks, nil
 }
 
 // AggregateSignatures aggregates partial signatures over the given message.
 // Returns aggregated signatures and slice of signers identifiers that had valid partial signatures.
-func AggregateSignatures(tss *TSS, partialSigs []*bls_sig.PartialSignature, msg []byte) (*bls_sig.Signature, []byte, error) {
-	threshold := len(tss.verifiers)
+func AggregateSignatures(tss TSS, partialSigs []*bls_sig.PartialSignature, msg []byte) (*bls_sig.Signature, []byte, error) {
+	threshold := tss.Threshold()
 	if len(partialSigs) < threshold {
 		return nil, nil, errors.New("insufficient signatures")
 	}
@@ -89,11 +94,12 @@ func AggregateSignatures(tss *TSS, partialSigs []*bls_sig.PartialSignature, msg 
 		}
 
 		sig := &bls_sig.Signature{Value: *psig.Signature}
-		result, err := blsScheme.Verify(pubShare.Value, msg, sig)
-		if result && err == nil {
-			validShares = append(validShares, pubShare)
-			signers = append(signers, psig.Identifier)
+		ok, err := blsScheme.Verify(pubShare.Value, msg, sig)
+		if err != nil || !ok {
+			continue
 		}
+		validShares = append(validShares, pubShare)
+		signers = append(signers, psig.Identifier)
 	}
 
 	if len(validShares) < threshold {
@@ -118,33 +124,34 @@ func PartialSign(sks *bls_sig.SecretKeyShare, msg []byte) (*bls_sig.PartialSigna
 	return blsScheme.PartialSign(sks, msg)
 }
 
-// generateSecretShares creates []*SecretKeyShare and []*PubShare over the given SecretKey.
+// generateSecretShares splits the secret and returns n secret shares and t verifiers.
 func generateSecretShares(secret bls_sig.SecretKey, t, n int) ([]*bls_sig.SecretKeyShare, []*share.ShareVerifier, error) {
 	scheme, err := share.NewFeldman(uint32(t), uint32(n), share.Bls12381G1())
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "New Feldman VSS")
+		return nil, nil, errors.Wrap(err, "new Feldman VSS")
 	}
 
 	secretBytes, err := secret.MarshalBinary()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "Marshalling Secret Key")
+		return nil, nil, errors.Wrap(err, "marshalling Secret Key")
 	}
 
 	verifiers, shares, err := scheme.Split(secretBytes)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "Split Secret Key")
+		return nil, nil, errors.Wrap(err, "split Secret Key")
 	}
 
 	sks := make([]*bls_sig.SecretKeyShare, len(shares))
 
 	for i, s := range shares {
+		// ref: https://github.com/coinbase/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/signatures/bls/bls_sig/lib.go#L26
 		skbin := make([]byte, 33)
 		copy(skbin, s.Value.Bytes())
 		skbin[32] = uint8(s.Identifier)
 
 		sks[i] = &bls_sig.SecretKeyShare{}
 		if err := sks[i].UnmarshalBinary(skbin); err != nil {
-			return nil, nil, errors.Wrap(err, "Unmarshalling shamir share")
+			return nil, nil, errors.Wrap(err, "unmarshalling shamir share")
 		}
 	}
 
