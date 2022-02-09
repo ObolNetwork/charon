@@ -24,11 +24,12 @@ jobs:
           ${{ runner.os }}-go-
     - name: Vet
       run: go vet ./...
-    - name: Test
-      run: go test -v -short ./...
-    - name: Run coverage
-      run: go test ./... -coverprofile=coverage.out -covermode=atomic
+    - name: Test and Run coverage
+      run: go test -coverprofile=coverage.out -covermode=atomic ./... -v -short
     - name: Upload coverage to Codecov
-      run: bash <(curl -s https://codecov.io/bash)
+      uses: codecov/codecov-action@v2.1.0
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: coverage.out
     - name: Check Format
       run: '[ "$(gofmt -l ./ | wc -l)" -eq 0 ]'
