@@ -32,17 +32,17 @@ func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs 
 
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "resolve udp address")
 	}
 
 	conn, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "parse udp address")
 	}
 
 	netlist, err := netutil.ParseNetlist(config.Allowlist)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "parse allow list")
 	}
 
 	bootnodes := make([]*enode.Node, 0, len(enrs))
@@ -52,7 +52,7 @@ func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs 
 			record := record
 			node, err := enode.New(enode.V4ID{}, &record)
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrap(err, "new enode")
 			}
 
 			if ln.ID() == node.ID() {
@@ -73,11 +73,16 @@ func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs 
 		bootnodes = append(bootnodes, node)
 	}
 
-	return discover.ListenV5(conn, ln, discover.Config{
+	node, err := discover.ListenV5(conn, ln, discover.Config{
 		PrivateKey:  key,
 		NetRestrict: netlist,
 		Bootnodes:   bootnodes,
 	})
+	if err != nil {
+		return nil, errors.Wrap(err, "discv5 listen")
+	}
+
+	return node, nil
 }
 
 // NewLocalEnode returns a local enode and a peer DB or an error.
@@ -85,7 +90,7 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 
 	db, err := enode.OpenDB(config.DBPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.Wrap(err, "open peer db")
 	}
 
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)

@@ -40,13 +40,13 @@ type ConsensusKey struct {
 }
 
 // Password reads the node password or creates a new random password if none exists.
-func (s ConsensusStore) Password() (password string, err error) {
-	password, err = crypto2.ReadPlaintextPassword(s.PasswordPath)
+func (s ConsensusStore) Password() (string, error) {
+	password, err := crypto2.ReadPlaintextPassword(s.PasswordPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return s.createNewPassword()
 	}
 
-	return
+	return password, nil
 }
 
 func (s ConsensusStore) createNewPassword() (string, error) {
@@ -65,7 +65,7 @@ func (s ConsensusStore) createNewPassword() (string, error) {
 	}
 
 	// Write back to file.
-	err = crypto2.WritePlaintextPassword(s.PasswordPath, false, password)
+	err = crypto2.WritePlaintextPassword(s.PasswordPath, password)
 	if err != nil {
 		return "", errors.Wrap(err, "write password")
 	}

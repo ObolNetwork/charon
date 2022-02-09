@@ -21,8 +21,8 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
-	"github.com/pkg/errors"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -30,15 +30,15 @@ import (
 // StartPingService stars a p2p ping service that pings all peers every second
 // and collects metrics.
 // TODO(corver): Cluster wide req/resp doesn't scale since it is O(n^2).
-func StartPingService(host host.Host, peers []peer.ID, callback func(peer.ID)) context.CancelFunc {
+func StartPingService(h host.Host, peers []peer.ID, callback func(peer.ID)) context.CancelFunc {
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = log.WithTopic(ctx, "ping")
 
-	svc := ping.NewPingService(host)
+	svc := ping.NewPingService(h)
 	logFunc := newPingLogger(peers)
 
 	for _, p := range peers {
-		if p == host.ID() {
+		if p == h.ID() {
 			// Do not ping self
 			continue
 		}
@@ -52,8 +52,8 @@ func StartPingService(host host.Host, peers []peer.ID, callback func(peer.ID)) c
 // pingPeer starts (and restarts) a long-lived ping service stream, pinging the peer every second until some error.
 // It returns when the context is cancelled.
 func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID,
-	logFunc func(context.Context, peer.ID, error), callback func(peer.ID)) {
-
+	logFunc func(context.Context, peer.ID, error), callback func(peer.ID),
+) {
 	for ctx.Err() == nil {
 		for result := range svc.Ping(ctx, p) {
 			if errors.Is(result.Error, context.Canceled) {

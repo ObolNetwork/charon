@@ -16,7 +16,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -25,6 +24,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 const (
@@ -76,7 +76,7 @@ func initializeConfig(cmd *cobra.Command) error {
 		// It's okay if there isn't a config file
 		var cfgError viper.ConfigFileNotFoundError
 		if ok := errors.As(err, &cfgError); !ok {
-			return err
+			return errors.Wrap(err, "read config")
 		}
 	}
 
@@ -85,11 +85,7 @@ func initializeConfig(cmd *cobra.Command) error {
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
 	// Bind the current command's flags to viper
-	if err := bindFlags(cmd, v); err != nil {
-		return err
-	}
-
-	return nil
+	return bindFlags(cmd, v)
 }
 
 // bindFlags binds each cobra flag to its associated viper configuration (config file and environment variable).
@@ -97,7 +93,6 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
 	var lastErr error
 
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-
 		// Cobra provided flags take priority
 		if f.Changed {
 			return

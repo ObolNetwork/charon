@@ -161,15 +161,10 @@ func ReadPlaintextPassword(filePath string) (string, error) {
 // WritePlaintextPassword saves a password to a file without leading or trailing whitespace.
 //
 // If overwrite is set and a file already exists at the given path, the file contents will be erased.
-func WritePlaintextPassword(filePath string, overwrite bool, password string) error {
-	mode := os.O_WRONLY | os.O_CREATE
-	if overwrite {
-		mode |= os.O_TRUNC
-	} else {
-		mode |= os.O_EXCL
-	}
+func WritePlaintextPassword(filePath string, password string) error {
+	mode := os.O_WRONLY | os.O_CREATE | os.O_EXCL
 
-	f, err := os.OpenFile(filePath, mode, 0600)
+	f, err := os.OpenFile(filePath, mode, 0o600)
 	if err != nil {
 		return errors.Wrap(err, "open file")
 	}
@@ -187,7 +182,7 @@ func (k *Keystore) Save(filePath string) error {
 		return errors.Wrap(err, "marshal keystore")
 	}
 
-	f, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	f, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return errors.Wrap(err, "open file")
 	}
@@ -196,7 +191,11 @@ func (k *Keystore) Save(filePath string) error {
 		return errors.Wrap(err, "write file")
 	}
 
-	return f.Close()
+	if err := f.Close(); err != nil {
+		return errors.Wrap(err, "close file")
+	}
+
+	return nil
 }
 
 // LoadKeystore reads and unmarshals the keystore from the given path.

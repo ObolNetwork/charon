@@ -2,6 +2,9 @@ linters-settings:
   cyclop:
     max-complexity: 15
     skip-tests: true
+  forbidigo:
+    forbid:
+      - 'fmt\.Print.*'            # Prevent debug logging
   gci:
     local-prefixes: github.com/obolnetwork/charon
   gocritic:
@@ -9,6 +12,35 @@ linters-settings:
       - ifElseChain
   nlreturn:
     block-size: 2
+  revive:
+    enable-all-rules: true
+    severity: warning
+    rules:
+      # Disabled revive rules
+      - name: banned-characters
+        disabled: true
+      - name: add-constant
+        disabled: true
+      - name: file-header
+        disabled: true
+      - name: function-result-limit
+        disabled: true
+      - name: cyclomatic
+        disabled: true
+      - name: line-length-limit
+        disabled: true
+      - name: max-public-structs
+        disabled: true
+      - name: argument-limit
+        disabled: true
+      - name: function-length
+        disabled: true
+
+      # Some configured revive rules
+      - name: cognitive-complexity
+        arguments: [20]
+      - name: imports-blacklist
+        arguments: ["errors", "github.com/pkg/errors"] # Prefer ./app/errors
   staticcheck:
     go: "1.17"
     checks:
@@ -16,28 +48,21 @@ linters-settings:
      - "-SA1019" # Ignoring since github.com/drand/kyber/sign/bls uses Proof Of Possession as does Ethereum.
   testpackage:
     skip-regexp: internal_test\.go
-  whitespace:
-    multi-if: true
-    multi-func: true
-  wsl:
-    strict-append: false
-    allow-assign-and-anything: true
-    allow-separated-leading-comment: true
-    allow-case-trailing-whitespace: true
-    enforce-err-cuddling: true
+  wrapcheck:
+    ignoreSigs:
+      - github.com/obolnetwork/charon/
 
 issues:
+  fix: true
   exclude-rules:
     - path: '(.+)_test\.go'
       linters:
         - bodyclose
         - noctx
+        - revive
   exclude:
-    # Relax wsl and whitespace linters
-    - "unnecessary leading newline"
-    - "block should not start with a whitespace"
-    - "only one cuddle assignment"
-    - "only cuddled expressions if assigning variable or using from line above"
+    - "error returned from interface method should be wrapped" # Relax wrapcheck
+    - "defer: prefer not to defer chains of function calls" # Relax revive
 
 linters:
   enable-all: true
@@ -50,7 +75,6 @@ linters:
     - gochecknoglobals
     - godox
     - goerr113
-    - gofumpt
     - golint
     - gomnd
     - gomoddirectives
@@ -63,4 +87,4 @@ linters:
     - scopelint
     - tagliatelle
     - varnamelen
-    - wrapcheck
+    - wsl

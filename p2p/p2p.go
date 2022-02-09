@@ -82,7 +82,12 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 		}),
 	}
 
-	return libp2p.New(opts...)
+	res, err := libp2p.New(opts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "new libp2p node")
+	}
+
+	return res, nil
 }
 
 // logWrapRouting wraps a peerRoutingFunc in debug logging.

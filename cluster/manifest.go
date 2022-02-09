@@ -51,8 +51,8 @@ func (m *Manifest) Pubkey() kyber.Point {
 func (m *Manifest) ParsedENRs() ([]enr.Record, error) {
 	records := make([]enr.Record, 0, len(m.ENRs))
 
-	for _, enr := range m.ENRs {
-		record, err := DecodeENR(enr)
+	for _, enrStr := range m.ENRs {
+		record, err := DecodeENR(enrStr)
 		if err != nil {
 			return nil, err
 		}
@@ -74,7 +74,6 @@ func (m *Manifest) PeerIDs() ([]peer.ID, error) {
 	ids := make([]peer.ID, 0, len(records))
 
 	for _, record := range records {
-
 		info, err := PeerInfoFromENR(record)
 		if err != nil {
 			return nil, err
@@ -112,7 +111,7 @@ func PeerInfoFromENR(record enr.Record) (peer.AddrInfo, error) {
 	mAddrStr := fmt.Sprintf("/ip4/%s/tcp/%d", net.IP(ip).String(), port)
 	addr, err := multiaddr.NewMultiaddr(mAddrStr)
 	if err != nil {
-		return peer.AddrInfo{}, err
+		return peer.AddrInfo{}, errors.Wrap(err, "multiaddr")
 	}
 
 	return peer.AddrInfo{
@@ -124,7 +123,7 @@ func PeerInfoFromENR(record enr.Record) (peer.AddrInfo, error) {
 func EncodeENR(record enr.Record) (string, error) {
 	var buf bytes.Buffer
 	if err := record.EncodeRLP(&buf); err != nil {
-		return "", err
+		return "", errors.Wrap(err, "encode rlp")
 	}
 
 	return "enr:" + base64.URLEncoding.EncodeToString(buf.Bytes()), nil
@@ -156,7 +155,7 @@ func DecodeENR(enrStr string) (enr.Record, error) {
 func LoadManifest(file string) (Manifest, error) {
 	buf, err := os.ReadFile(file)
 	if err != nil {
-		return Manifest{}, err
+		return Manifest{}, errors.Wrap(err, "read manifest")
 	}
 
 	var res Manifest

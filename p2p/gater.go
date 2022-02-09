@@ -42,16 +42,16 @@ func NewConnGater(peers []peer.ID) (ConnGater, error) {
 }
 
 // InterceptPeerDial does nothing.
-func (c ConnGater) InterceptPeerDial(_ peer.ID) (allow bool) {
+func (ConnGater) InterceptPeerDial(_ peer.ID) (allow bool) {
 	return true // don't filter peer dials
 }
 
-func (c ConnGater) InterceptAddrDial(_ peer.ID, addr multiaddr.Multiaddr) (allow bool) {
+func (ConnGater) InterceptAddrDial(_ peer.ID, _ multiaddr.Multiaddr) (allow bool) {
 	// TODO should limit dialing to the netlist
 	return true // don't filter address dials
 }
 
-func (c ConnGater) InterceptAccept(_ network.ConnMultiaddrs) (allow bool) {
+func (ConnGater) InterceptAccept(_ network.ConnMultiaddrs) (allow bool) {
 	// TODO should limit accepting from the netlist
 	return true // don't filter incoming connections purely by address
 }
@@ -62,6 +62,6 @@ func (c ConnGater) InterceptSecured(_ network.Direction, id peer.ID, _ network.C
 }
 
 // InterceptUpgraded does nothing.
-func (c ConnGater) InterceptUpgraded(_ network.Conn) (bool, control.DisconnectReason) {
+func (ConnGater) InterceptUpgraded(_ network.Conn) (bool, control.DisconnectReason) {
 	return true, 0
 }

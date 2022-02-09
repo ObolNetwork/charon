@@ -52,7 +52,7 @@ func bindVersionFlags(flags *pflag.FlagSet, config *versionConfig) {
 }
 
 func runVersionCmd(out io.Writer, config versionConfig) {
-	fmt.Fprintln(out, version.Version)
+	_, _ = fmt.Fprintln(out, version.Version)
 
 	if !config.Verbose {
 		return
@@ -61,17 +61,17 @@ func runVersionCmd(out io.Writer, config versionConfig) {
 	buildInfo, ok := debug.ReadBuildInfo()
 
 	if !ok {
-		fmt.Fprintf(out, "\nFailed to gather build info")
+		_, _ = fmt.Fprintf(out, "\nFailed to gather build info")
 		return
 	}
 
-	fmt.Fprintf(out, "Package: %s\n", buildInfo.Path)
-	fmt.Fprint(out, "Dependencies:\n")
+	_, _ = fmt.Fprintf(out, "Package: %s\n", buildInfo.Path)
+	_, _ = fmt.Fprint(out, "Dependencies:\n")
 
 	for _, dep := range buildInfo.Deps {
 		for dep.Replace != nil {
 			dep = dep.Replace
 		}
-		fmt.Fprintf(out, "\t%v %v\n", dep.Path, dep.Version)
+		_, _ = fmt.Fprintf(out, "\t%v %v\n", dep.Path, dep.Version)
 	}
 }

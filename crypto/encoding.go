@@ -34,7 +34,7 @@ func BLSPointToHex(p kyber.Point) string {
 func BLSPointFromHex(hexStr string) (kyber.Point, error) {
 	b, err := hex.DecodeString(hexStr)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "decode hex")
 	}
 
 	var p kyber.Point
@@ -80,7 +80,11 @@ func (p *BLSPubkeyHex) UnmarshalText(b []byte) error {
 
 	p.Point = bls.NullKyberG1()
 
-	return p.UnmarshalBinary(data)
+	if err := p.UnmarshalBinary(data); err != nil {
+		return errors.Wrap(err, "unmarshal")
+	}
+
+	return nil
 }
 
 // MarshalText returns the hex serialization of the compressed form BLS12-381 G1 point.
