@@ -61,9 +61,10 @@ func bindGeneralFlags(flags *pflag.FlagSet, dataDir *string) {
 }
 
 func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {
-	flags.StringSliceVar(&config.TCPAddrs, "p2p-tcp-address", []string{"127.0.0.1:13900"}, "Comma-separated list of listening TCP addresses (ip and port) for LibP2P traffic")
+	flags.StringVar(&config.DBPath, "p2p-udp-peerdb", "", "Path to store a discv5 peer database. Empty default results in in-memory database.")
+	flags.StringSliceVar(&config.UDPBootnodes, "p2p-udp-bootnodes", nil, "Comma-separated list of discv5 bootnode URLs or ENRs. Example URL: enode://<hex node id>@10.3.58.6:30303?discport=30301")
 	flags.StringVar(&config.UDPAddr, "p2p-udp-address", "127.0.0.1:30309", "Listening UDP address (ip and port) for Discv5 discovery")
+	flags.StringSliceVar(&config.TCPAddrs, "p2p-tcp-address", []string{"127.0.0.1:13900"}, "Comma-separated list of listening TCP addresses (ip and port) for LibP2P traffic")
 	flags.StringVar(&config.Allowlist, "p2p-allowlist", "", "Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.")
 	flags.StringVar(&config.Denylist, "p2p-denylist", "", "Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.")
-	flags.StringVar(&config.DBPath, "p2p-nodedb", "", "Path to store a discv5 node database. Empty default results in in-memory database.")
 }

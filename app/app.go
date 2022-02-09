@@ -23,7 +23,6 @@ import (
 	"net/http/pprof"
 	"time"
 
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/automaxprocs/maxprocs"
@@ -60,8 +59,8 @@ type TestConfig struct {
 	P2PKey *ecdsa.PrivateKey
 	// PingCallback is called when a ping was completed to a peer.
 	PingCallback func(peer.ID)
-	// DiscBootnodes provides a callback that transforms the default manifest ENR discv5 bootnodes.
-	DiscBootnodes func([]*enode.Node) []*enode.Node
+	// ExcludeManifestBootnodes excludes the manifest ENRs to be used as discv5 bootnodes.
+	ExcludeManifestBootnodes bool
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -109,7 +108,7 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "create local enode")
 	}
 
-	udpNode, err := p2p.NewUDPNode(conf.P2P, localEnode, p2pKey, enrs, conf.TestConfig.DiscBootnodes)
+	udpNode, err := p2p.NewUDPNode(conf.P2P, localEnode, p2pKey, enrs, conf.TestConfig.ExcludeManifestBootnodes)
 	if err != nil {
 		return errors.Wrap(err, "start discv5 listener")
 	}

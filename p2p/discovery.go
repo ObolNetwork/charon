@@ -22,11 +22,13 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 // NewUDPNode starts and returns a discv5 UDP implementation.
 func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs []enr.Record,
-	bootOverride func([]*enode.Node) []*enode.Node) (*discover.UDPv5, error) {
+	excludeENRs bool) (*discover.UDPv5, error) {
 
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
@@ -45,23 +47,30 @@ func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs 
 
 	bootnodes := make([]*enode.Node, 0, len(enrs))
 
-	for _, record := range enrs {
-		record := record
-		n, err := enode.New(enode.V4ID{}, &record)
-		if err != nil {
-			return nil, err
-		}
+	if !excludeENRs {
+		for _, record := range enrs {
+			record := record
+			node, err := enode.New(enode.V4ID{}, &record)
+			if err != nil {
+				return nil, err
+			}
 
-		if ln.ID() == n.ID() {
-			// Do not add local node as bootnode
-			continue
-		}
+			if ln.ID() == node.ID() {
+				// Do not add local node as bootnode
+				continue
+			}
 
-		bootnodes = append(bootnodes, n)
+			bootnodes = append(bootnodes, node)
+		}
 	}
 
-	if bootOverride != nil {
-		bootnodes = bootOverride(bootnodes)
+	for _, seed := range config.UDPBootnodes {
+		node, err := enode.Parse(enode.V4ID{}, seed)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid bootnode url")
+		}
+
+		bootnodes = append(bootnodes, node)
 	}
 
 	return discover.ListenV5(conn, ln, discover.Config{

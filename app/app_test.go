@@ -36,6 +36,7 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 var slow = flag.Bool("slow", false, "enable slow tests")
@@ -47,7 +48,10 @@ func TestPingCluster(t *testing.T) {
 	// Discv5 can just use those as bootnodes.
 	t.Run("bind_enrs", func(t *testing.T) {
 		pingCluster(t, pingTest{
+			Slow:         false,
 			BindENRAddrs: true,
+			ENRBootnodes: true,
+			ExtBootnodes: nil,
 		})
 	})
 
@@ -57,10 +61,10 @@ func TestPingCluster(t *testing.T) {
 		external := startExtBootnode(t)
 
 		pingCluster(t, pingTest{
+			Slow:         false,
 			BindENRAddrs: false,
-			DiscBootnodes: func([]*enode.Node) []*enode.Node {
-				return []*enode.Node{external}
-			},
+			ENRBootnodes: false,
+			ExtBootnodes: []string{external.URLv4()},
 		})
 	})
 
@@ -73,17 +77,17 @@ func TestPingCluster(t *testing.T) {
 		pingCluster(t, pingTest{
 			Slow:         true,
 			BindENRAddrs: false,
-			DiscBootnodes: func(manifestENRs []*enode.Node) []*enode.Node {
-				return append(manifestENRs, external)
-			},
+			ENRBootnodes: true,
+			ExtBootnodes: []string{external.URLv4()},
 		})
 	})
 }
 
 type pingTest struct {
-	DiscBootnodes func([]*enode.Node) []*enode.Node
-	Slow          bool
-	BindENRAddrs  bool
+	Slow         bool
+	BindENRAddrs bool
+	ENRBootnodes bool
+	ExtBootnodes []string
 }
 
 func pingCluster(t *testing.T, test pingTest) {
@@ -113,10 +117,13 @@ func pingCluster(t *testing.T, test pingTest) {
 			MonitoringAddr:   availableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: availableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
-				Manifest:      manifest,
-				P2PKey:        p2pKeys[i],
-				PingCallback:  asserter.Callback(t, i),
-				DiscBootnodes: test.DiscBootnodes,
+				Manifest:                 manifest,
+				P2PKey:                   p2pKeys[i],
+				PingCallback:             asserter.Callback(t, i),
+				ExcludeManifestBootnodes: !test.ENRBootnodes,
+			},
+			P2P: p2p.Config{
+				UDPBootnodes: test.ExtBootnodes,
 			},
 		}
 

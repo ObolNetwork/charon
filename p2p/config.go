@@ -26,6 +26,8 @@ import (
 type Config struct {
 	// DBPath defines the discv5 peer database file path.
 	DBPath string
+	// UDPBootnodes defines the discv5 boot node URLs (in addition to manifest ENRs).
+	UDPBootnodes []string
 	// UDPAddr defines the discv5 udp listen address.
 	UDPAddr string
 	// TCPAddrs defines the lib-p2p tcp listen addresses.
