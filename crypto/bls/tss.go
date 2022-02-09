@@ -82,6 +82,7 @@ func AggregateSignatures(tss *TSS, partialSigs []*bls_sig.PartialSignature, msg 
 	)
 
 	for _, psig := range partialSigs {
+		// TODO(dhruv): add break condition if valid shares >= threshold
 		pubShare, err := getPubShare(uint32(psig.Identifier), tss.verifiers)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "get Public Share")
@@ -107,10 +108,12 @@ func AggregateSignatures(tss *TSS, partialSigs []*bls_sig.PartialSignature, msg 
 	return aggregatedSig, signers, nil
 }
 
+// Verify verifies the given signature(sig) on message(msg) with given public key (pk).
 func Verify(pk *bls_sig.PublicKey, msg []byte, sig *bls_sig.Signature) (bool, error) {
 	return blsScheme.Verify(pk, msg, sig)
 }
 
+// PartialSign signs given message(msg) using given Secret Key Share(sks) and returns a Partial Signature.
 func PartialSign(sks *bls_sig.SecretKeyShare, msg []byte) (*bls_sig.PartialSignature, error) {
 	return blsScheme.PartialSign(sks, msg)
 }
