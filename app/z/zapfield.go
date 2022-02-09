@@ -100,7 +100,7 @@ func F64(key string, val float64) Field {
 }
 
 // Any returns a wrapped zap any field.
-func Any(key string, val float64) Field {
+func Any(key string, val interface{}) Field {
 	return func(add func(zap.Field)) {
 		add(zap.Any(key, val))
 	}

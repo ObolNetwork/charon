@@ -54,12 +54,14 @@ func NewForT(t *testing.T, m, n int) (Manifest, []*ecdsa.PrivateKey, []kyber.Sca
 			p2pKey, err := ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
 			require.NoError(t, err)
 
-			addr := availableLocalAddr(t)
+			tcp := availableLocalAddr(t) // localhost and lib-p2p tcp port
+			udp := availableLocalAddr(t) // localhost and discv5 udp port
 
 			var r enr.Record
-			r.Set(enr.IPv4(addr.IP))
-			r.Set(enr.TCP(addr.Port))
-			r.SetSeq(1)
+			r.Set(enr.IPv4(tcp.IP))
+			r.Set(enr.TCP(tcp.Port))
+			r.Set(enr.UDP(udp.Port))
+			r.SetSeq(0)
 
 			err = enode.SignV4(&r, p2pKey)
 			require.NoError(t, err)

@@ -53,14 +53,14 @@ type Config struct {
 
 // TestConfig defines additional test-only config.
 type TestConfig struct {
-	// Manifest provides the manifest explicitly, skipping loading ManifestFile from disk.
+	// Manifest provides the manifest explicitly, skips loading ManifestFile from disk.
 	Manifest cluster.Manifest
-	// P2PKey provides the p2p privkey explicitly, skipping loading from keystore on disk.
+	// P2PKey provides the p2p privkey explicitly, skips loading from keystore on disk.
 	P2PKey *ecdsa.PrivateKey
-	// ConnectAttempts defines synchronous peer connect at startup.
-	ConnectAttempts int
-	// PingCallback is called when a ping is received from a peer.
+	// PingCallback is called when a ping was completed to a peer.
 	PingCallback func(peer.ID)
+	// ExcludeManifestBootnodes excludes the manifest ENRs to be used as discv5 bootnodes.
+	ExcludeManifestBootnodes bool
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -82,24 +82,6 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "init jaeger tracing")
 	}
 
-	p2pKey := conf.TestConfig.P2PKey
-	if p2pKey == nil {
-		p2pKey, err = identity.LoadOrCreatePrivKey(conf.DataDir)
-		if err != nil {
-			return errors.Wrap(err, "load or create peer ID")
-		}
-	}
-
-	localEnode, peerDB, err := p2p.NewLocalEnode(conf.P2P, p2pKey)
-	if err != nil {
-		return errors.Wrap(err, "create local enode")
-	}
-
-	discNode, err := p2p.NewDiscNode(conf.P2P, localEnode, p2pKey)
-	if err != nil {
-		return errors.Wrap(err, "start discv5 listener")
-	}
-
 	manifest := conf.TestConfig.Manifest
 	if len(manifest.ENRs) == 0 {
 		manifest, err = cluster.LoadManifest(conf.ManifestFile)
@@ -113,6 +95,24 @@ func Run(ctx context.Context, conf Config) error {
 		return err
 	}
 
+	p2pKey := conf.TestConfig.P2PKey
+	if p2pKey == nil {
+		p2pKey, err = identity.LoadOrCreatePrivKey(conf.DataDir)
+		if err != nil {
+			return errors.Wrap(err, "load or create peer ID")
+		}
+	}
+
+	localEnode, peerDB, err := p2p.NewLocalEnode(conf.P2P, p2pKey)
+	if err != nil {
+		return errors.Wrap(err, "create local enode")
+	}
+
+	udpNode, err := p2p.NewUDPNode(conf.P2P, localEnode, p2pKey, enrs, conf.TestConfig.ExcludeManifestBootnodes)
+	if err != nil {
+		return errors.Wrap(err, "start discv5 listener")
+	}
+
 	peers, err := manifest.PeerIDs()
 	if err != nil {
 		return err
@@ -123,19 +123,15 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "connection gater")
 	}
 
-	p2pNode, err := p2p.NewP2PNode(conf.P2P, p2pKey, connGater)
+	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode, manifest)
 	if err != nil {
 		return errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
 	}
 
 	log.Info(ctx, "Manifest loaded",
 		z.Int("peers", len(manifest.ENRs)),
-		z.Str("local_peer", p2p.ShortID(p2pNode.ID())),
+		z.Str("local_peer", p2p.ShortID(tcpNode.ID())),
 		z.Str("pubkey", crypto.BLSPointToHex(manifest.Pubkey())[:10]))
-
-	if err := p2p.ConnectPeers(ctx, p2pNode, enrs, conf.TestConfig.ConnectAttempts); err != nil {
-		return errors.Wrap(err, "connect peers")
-	}
 
 	monitoring := newMonitoring(conf.MonitoringAddr)
 
@@ -151,7 +147,7 @@ func Run(ctx context.Context, conf Config) error {
 
 	// Start processes and wait for first error or shutdown.
 
-	stopPing := p2p.StartPingService(p2pNode, peers, conf.TestConfig.PingCallback)
+	stopPing := p2p.StartPingService(tcpNode, peers, conf.TestConfig.PingCallback)
 
 	var procErr error
 	select {
@@ -165,7 +161,7 @@ func Run(ctx context.Context, conf Config) error {
 
 	if procErr != nil {
 		// Even though procErr is returned below, also log it in case shutdown errors.
-		log.Error(ctx, "Process error", procErr)
+		log.Error(ctx, "Process start error", procErr)
 	}
 
 	// Shutdown processes with a fresh context allowing 10s.
@@ -177,9 +173,7 @@ func Run(ctx context.Context, conf Config) error {
 
 	stopPing()
 
-	discNode.Close()
-
-	if err := p2pNode.Close(); err != nil {
+	if err := tcpNode.Close(); err != nil {
 		return errors.Wrap(err, "stop p2p node")
 	}
 
@@ -194,6 +188,8 @@ func Run(ctx context.Context, conf Config) error {
 	if err := stopJeager(ctx); err != nil {
 		return errors.Wrap(err, "stop jaeger tracer")
 	}
+
+	udpNode.Close()
 
 	peerDB.Close()
 

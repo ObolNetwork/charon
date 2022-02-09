@@ -17,13 +17,16 @@ package p2p
 import (
 	"context"
 	"crypto/ecdsa"
-	"time"
 
-	"github.com/ethereum/go-ethereum/p2p/enr"
+	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/routing"
 	noise "github.com/libp2p/go-libp2p-noise"
+	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -32,10 +35,28 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 )
 
-// NewP2PNode returns a started libp2p node.
-func NewP2PNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater) (host.Host, error) {
-	if key == nil {
-		return nil, errors.New("missing private key")
+// NewTCPNode returns a started tcp-based libp2p node.
+func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
+	udpNode *discover.UDPv5, manifest cluster.Manifest) (host.Host, error) {
+
+	peers, err := manifest.PeerIDs()
+	if err != nil {
+		return nil, err
+	}
+
+	enrs, err := manifest.ParsedENRs()
+	if err != nil {
+		return nil, err
+	}
+
+	peerMap := make(map[peer.ID]enode.Node)
+
+	for i, p := range peers {
+		node, err := enode.New(new(enode.V4ID), &enrs[i])
+		if err != nil {
+			return nil, err
+		}
+		peerMap[p] = *node
 	}
 
 	addrs, err := cfg.Multiaddrs()
@@ -56,47 +77,62 @@ func NewP2PNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater) (host.Ho
 		// Limit connections to DV peers.
 		libp2p.ConnectionGater(connGater),
 
-		// TODO(corver): Add a connection manager.
+		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
+			return logWrapRouting(adaptDiscRouting(udpNode, peerMap)), nil
+		}),
 	}
 
 	return libp2p.New(opts...)
 }
 
-// ConnectPeers attempts to connect to cluster peers by their addresses defined in manifest ENRs.
-func ConnectPeers(ctx context.Context, h host.Host, enrs []enr.Record, attempts int) error {
-	if attempts == 0 {
-		return nil
-	}
+// logWrapRouting wraps a peerRoutingFunc in debug logging.
+func logWrapRouting(fn peerRoutingFunc) peerRoutingFunc {
+	return func(ctx context.Context, p peer.ID) (peer.AddrInfo, error) {
+		ctx = log.WithTopic(ctx, "p2p")
 
-	for _, e := range enrs {
-		info, err := cluster.PeerInfoFromENR(e)
+		res, err := fn(ctx, p)
 		if err != nil {
-			return err
+			log.Debug(ctx, "Peer routing request failure",
+				z.Any("error", err), z.Str("peer", ShortID(p)))
+		} else {
+			log.Debug(ctx, "Peer routing request success",
+				z.Any("addrs", res.Addrs), z.Str("peer", ShortID(p)))
 		}
 
-		if info.ID == h.ID() {
-			// Do not connect to self.
-			continue
-		}
-
-		connect := func() bool {
-			err := h.Connect(ctx, info)
-			if err != nil {
-				log.Warn(ctx, "Failed connecting to manifest peer", z.Str("peer", ShortID(info.ID)),
-					z.Str("error", err.Error()))
-			}
-
-			return err == nil
-		}
-
-		for i := 0; i < attempts; i++ {
-			if connect() {
-				continue
-			}
-
-			time.Sleep(time.Second) // TODO(corver): Improve backoff
-		}
+		return res, err
 	}
-
-	return nil
 }
+
+// adaptDiscRouting returns a function that adapts p2p routing requests to discv5 lookups.
+func adaptDiscRouting(udpNode *discover.UDPv5, peers map[peer.ID]enode.Node) peerRoutingFunc {
+	return func(ctx context.Context, p peer.ID) (peer.AddrInfo, error) {
+		node, ok := peers[p]
+		if !ok {
+			return peer.AddrInfo{}, errors.New("unknown peer")
+		}
+
+		resolved := udpNode.Resolve(&node)
+		if resolved == nil || resolved.Seq() == 0 {
+			return peer.AddrInfo{}, errors.New("peer not resolved")
+		}
+
+		mAddr, err := multiAddrFromIPPort(resolved.IP(), resolved.TCP())
+		if err != nil {
+			return peer.AddrInfo{}, err
+		}
+
+		return peer.AddrInfo{
+			ID:    p,
+			Addrs: []ma.Multiaddr{mAddr},
+		}, nil
+	}
+}
+
+// peerRoutingFunc wraps a function to implement routing.PeerRouting.
+type peerRoutingFunc func(context.Context, peer.ID) (peer.AddrInfo, error)
+
+func (f peerRoutingFunc) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo, error) {
+	return f(ctx, p)
+}
+
+var _ routing.PeerRouting = peerRoutingFunc(nil) // interface assertion

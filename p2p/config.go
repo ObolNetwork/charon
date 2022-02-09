@@ -18,17 +18,24 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/multiformats/go-multiaddr"
+	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
 
 type Config struct {
-	DBPath    string
-	UDPAddr   string   // discv5 listen address
-	TCPAddrs  []string // lib-p2p listen addresses
+	// DBPath defines the discv5 peer database file path.
+	DBPath string
+	// UDPBootnodes defines the discv5 boot node URLs (in addition to manifest ENRs).
+	UDPBootnodes []string
+	// UDPAddr defines the discv5 udp listen address.
+	UDPAddr string
+	// TCPAddrs defines the lib-p2p tcp listen addresses.
+	TCPAddrs []string
+	// Allowlist defines csv CIDR blocks for lib-p2p allowed connections.
 	Allowlist string
-	Denylist  string
+	// Allowlist defines csv CIDR blocks for lib-p2p denied connections.
+	Denylist string
 }
 
 // ParseTCPAddrs returns the configured tcp addresses as typed net tcp addresses.
@@ -47,26 +54,16 @@ func (c Config) ParseTCPAddrs() ([]*net.TCPAddr, error) {
 }
 
 // Multiaddrs returns the configured addresses as libp2p multiaddrs.
-func (c Config) Multiaddrs() ([]multiaddr.Multiaddr, error) {
+func (c Config) Multiaddrs() ([]ma.Multiaddr, error) {
 	tcpAddrs, err := c.ParseTCPAddrs()
 	if err != nil {
 		return nil, err
 	}
 
-	res := make([]multiaddr.Multiaddr, 0, len(tcpAddrs))
+	res := make([]ma.Multiaddr, 0, len(tcpAddrs))
 
 	for _, addr := range tcpAddrs {
-
-		var typ string
-		if addr.IP.To4() != nil {
-			typ = "ip4"
-		} else if addr.IP.To16() != nil {
-			typ = "ip6"
-		} else {
-			return nil, errors.New("invalid p2p address")
-		}
-
-		maddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", typ, addr.IP.String(), addr.Port))
+		maddr, err := multiAddrFromIPPort(addr.IP, addr.Port)
 		if err != nil {
 			return nil, err
 		}
@@ -88,4 +85,23 @@ func resolveListenAddr(addr string) (*net.TCPAddr, error) {
 	}
 
 	return tcpAddr, nil
+}
+
+// multiAddrFromIPPort returns a multiaddr composed of the provided ip (v4 or v6) and tcp port.
+func multiAddrFromIPPort(ip net.IP, port int) (ma.Multiaddr, error) {
+	var typ string
+	if ip.To4() != nil {
+		typ = "ip4"
+	} else if ip.To16() != nil {
+		typ = "ip6"
+	} else {
+		return nil, errors.New("invalid ip address")
+	}
+
+	maddr, err := ma.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", typ, ip.String(), port))
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid multiaddr")
+	}
+
+	return maddr, nil
 }

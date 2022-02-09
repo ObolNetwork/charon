@@ -22,10 +22,14 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
-// NewDiscNode starts and returns a discv5 UDP implementation.
-func NewDiscNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey) (*discover.UDPv5, error) {
+// NewUDPNode starts and returns a discv5 UDP implementation.
+func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs []enr.Record,
+	excludeENRs bool) (*discover.UDPv5, error) {
+
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
 		return nil, err
@@ -41,36 +45,72 @@ func NewDiscNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey) (*di
 		return nil, err
 	}
 
+	bootnodes := make([]*enode.Node, 0, len(enrs))
+
+	if !excludeENRs {
+		for _, record := range enrs {
+			record := record
+			node, err := enode.New(enode.V4ID{}, &record)
+			if err != nil {
+				return nil, err
+			}
+
+			if ln.ID() == node.ID() {
+				// Do not add local node as bootnode
+				continue
+			}
+
+			bootnodes = append(bootnodes, node)
+		}
+	}
+
+	for _, seed := range config.UDPBootnodes {
+		node, err := enode.Parse(enode.V4ID{}, seed)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid bootnode url")
+		}
+
+		bootnodes = append(bootnodes, node)
+	}
+
 	return discover.ListenV5(conn, ln, discover.Config{
 		PrivateKey:  key,
 		NetRestrict: netlist,
-		Bootnodes:   nil, // TODO
+		Bootnodes:   bootnodes,
 	})
 }
 
 // NewLocalEnode returns a local enode and a peer DB or an error.
 func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *enode.DB, error) {
+
 	db, err := enode.OpenDB(config.DBPath)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	addrs, err := config.ParseTCPAddrs()
+	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tcpAddrs, err := config.ParseTCPAddrs()
 	if err != nil {
 		return nil, nil, err
 	}
 
 	node := enode.NewLocalNode(db, key)
 
-	for _, addr := range addrs {
+	for _, addr := range tcpAddrs {
 		if v4 := addr.IP.To4(); v4 != nil {
 			node.Set(enr.IPv4(v4))
 		} else if v6 := addr.IP.To16(); v6 != nil {
 			node.Set(enr.IPv6(v6))
 		}
-
 		node.Set(enr.TCP(addr.Port))
 	}
+
+	node.SetFallbackIP(udpAddr.IP)
+	node.SetFallbackUDP(udpAddr.Port)
 
 	return node, db, nil
 }
