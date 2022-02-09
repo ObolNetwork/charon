@@ -12,25 +12,48 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package krypto_test
+package krypto
 
 import (
 	"testing"
 
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
-
-	"github.com/obolnetwork/charon/crypto/krypto"
 )
 
 func TestGenerateTSS(t *testing.T) {
 	threshold := 3
 	shares := 5
 
-	tss, secrets, err := krypto.GenerateTSS(threshold, shares)
+	tss, secrets, err := GenerateTSS(threshold, shares)
 	require.NoError(t, err)
 	require.NotNil(t, tss)
 	require.NotNil(t, secrets)
 
-	require.Equal(t, threshold, len(tss.Verifiers))
-	require.Equal(t, shares, tss.NumShares)
+	require.Equal(t, threshold, len(tss.verifiers))
+	require.Equal(t, shares, tss.numShares)
+}
+
+func TestAggregateSignatures(t *testing.T) {
+	threshold := 3
+	shares := 5
+
+	tss, secrets, err := GenerateTSS(threshold, shares)
+	require.NoError(t, err)
+
+	msg := []byte("Hello Obol")
+	partialSigs := make([]*bls_sig.PartialSignature, len(secrets))
+	for i, secret := range secrets {
+		psig, err := BlsScheme.PartialSign(secret, msg)
+		require.NoError(t, err)
+
+		partialSigs[i] = psig
+	}
+
+	sig, _, err := AggregateSignatures(tss, partialSigs, msg)
+	require.NoError(t, err)
+
+	result, err := BlsScheme.Verify(tss.pubKey, msg, sig)
+	require.NoError(t, err)
+	require.Equal(t, true, result)
 }

@@ -93,7 +93,7 @@ func TestKrypto(t *testing.T) {
 	err = sks.UnmarshalBinary(shabin)
 	require.NoError(t, err)
 	t.Log(sks)
-	t.Log("Identifier: ", shares[0].Identifier)
+	t.Log("identifier: ", shares[0].Identifier)
 	t.Log("Value: ", shares[0].Value)
 
 	msg := []byte("Hello Obol")
