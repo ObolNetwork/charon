@@ -37,10 +37,17 @@ jobs:
         registry: docker.pkg.github.com
         tags: "latest,${{ steps.get-version.outputs.version }}"
 
+    - name: Run image to push Charon's help text to a file for producing as a build artifact
+      run: docker run docker.pkg.github.com/obolnetwork/charon/charon:${{steps.get-version.outputs.version}} charon --help > cli-reference.txt
+
+    - name: View Help Text
+      run: cat cli-reference.txt
+
     # Creates a release object
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
+        files: cli-reference.txt
         body: |
           ![Obol Logo](https://obol.tech/obolnetwork.png)
 
