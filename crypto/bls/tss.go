@@ -145,15 +145,8 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int) ([]*bls_sig.Secret
 
 	for i, s := range shares {
 		// ref: https://github.com/coinbase/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/signatures/bls/bls_sig/lib.go#L26
-		skbin := make([]byte, 33)
-		secretbin := make([]byte, 32)
-		nbytes := copy(skbin, s.Value.BigInt().FillBytes(secretbin))
-		if nbytes != 32 {
-			return nil, nil, errors.New("copy failed")
-		}
-
-		skbin[32] = uint8(s.Identifier)
-
+		skbin := s.Value.BigInt().FillBytes(make([]byte, 32, 33))
+		skbin = append(skbin, byte(s.Identifier))
 		sks[i] = &bls_sig.SecretKeyShare{}
 		if err := sks[i].UnmarshalBinary(skbin); err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshalling shamir share")

@@ -36,6 +36,14 @@ func TestGenerateTSS(t *testing.T) {
 	require.Equal(t, shares, tss.NumShares)
 }
 
+func TestMultipleRunsGenerateTSS(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		t.Run("GenerateTSS", func(t *testing.T) {
+			TestGenerateTSS(t)
+		})
+	}
+}
+
 func TestAggregateSignatures(t *testing.T) {
 	threshold := 3
 	shares := 5
