@@ -40,9 +40,9 @@ jobs:
       run: echo ${{ steps.docker_build.outputs.digest }}
 
     - name: Run image to get help text
-      run: docker run docker.pkg.github.com/obolnetwork/charon/charon:${{steps.get-version.outputs.version}} charon --help
+      run: docker run docker.pkg.github.com/obolnetwork/charon/charon:${{steps.get-version.outputs.version}} charon --help > help.txt
 
-    - name: Output Charon Help Text
-      run: echo ${{ github.sha }} > help.txt
+    # - name: Output Charon Help Text
+    #   run: echo ${{ github.sha }} > help.txt
     - name: View Help Text
       run: cat help.txt
