@@ -12,6 +12,7 @@ First Charon client that will need disk write access, may run into `chmod` issue
 
     OBOL-02 FEATURE Instantiate an ENR
     OBOL-03 FEATURE Add prometheus + grafana to local docker compose
+    OBOL-222 FEATURE Added code coverage reporting to Charon CI/CD
 
 ### Changed
 ### Fixed
