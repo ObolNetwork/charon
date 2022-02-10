@@ -146,7 +146,8 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int) ([]*bls_sig.Secret
 	for i, s := range shares {
 		// ref: https://github.com/coinbase/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/signatures/bls/bls_sig/lib.go#L26
 		skbin := make([]byte, 33)
-		copy(skbin, s.Value.Bytes())
+		secretbin := make([]byte, 32)
+		copy(skbin, s.Value.BigInt().FillBytes(secretbin))
 		skbin[32] = uint8(s.Identifier)
 
 		sks[i] = &bls_sig.SecretKeyShare{}
