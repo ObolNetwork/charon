@@ -63,8 +63,9 @@ type TestConfig struct {
 	PingCallback func(peer.ID)
 	// ExcludeManifestBootnodes excludes the manifest ENRs to be used as discv5 bootnodes.
 	ExcludeManifestBootnodes bool
-
-	SimDutyPeriod   time.Duration
+	// SimDutyPeriod overrides the default duty simulator period of 5 seconds.
+	SimDutyPeriod time.Duration
+	// SimDutyCallback is called when the duty simulator resolves a mock duty.
 	SimDutyCallback func(consensus.Duty, []byte)
 }
 
@@ -154,13 +155,13 @@ func Run(ctx context.Context, conf Config) error {
 		Handler: vrouter,
 	}
 
-	cons := leadercast.NewLeaderCast(leadercast.NewP2PTransport(tcpNode, index, manifest.PeerIDs()), index, len(peers))
+	lcast := leadercast.NewLeaderCast(leadercast.NewP2PTransport(tcpNode, index, peers), index, len(peers))
 
 	// Start processes and wait for first error or shutdown.
 
 	stopPing := p2p.StartPingService(tcpNode, manifest.PeerIDs(), conf.TestConfig.PingCallback)
 
-	startSim, stopSim := newDutySimulator(cons, testConf.SimDutyPeriod, testConf.SimDutyCallback)
+	startSim, stopSim := newDutySimulator(lcast, testConf.SimDutyPeriod, testConf.SimDutyCallback)
 
 	var procErr error
 	select {
@@ -168,8 +169,8 @@ func Run(ctx context.Context, conf Config) error {
 		procErr = errors.Wrap(err, "monitoring server")
 	case err := <-start(vserver.ListenAndServe):
 		procErr = errors.Wrap(err, "validatorapi server")
-	case err := <-start(cons.Start):
-		procErr = errors.Wrap(err, "monitoring server")
+	case err := <-start(lcast.Start):
+		procErr = errors.Wrap(err, "leadercast consensus")
 	case err := <-start(startSim):
 		procErr = errors.Wrap(err, "duty simulator")
 	case <-ctx.Done():
@@ -189,7 +190,7 @@ func Run(ctx context.Context, conf Config) error {
 	log.Info(ctx, "Shutting down gracefully")
 
 	stopSim()
-	cons.Stop()
+	lcast.Stop()
 	stopPing()
 
 	if err := tcpNode.Close(); err != nil {
