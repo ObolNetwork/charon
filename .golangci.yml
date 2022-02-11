@@ -60,6 +60,7 @@ linters:
     - lll # Think about adding this (max line length)
     - maligned
     - paralleltest
+    - prealloc
     - scopelint
     - tagliatelle
     - varnamelen

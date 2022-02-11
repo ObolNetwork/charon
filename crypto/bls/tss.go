@@ -15,11 +15,11 @@
 package bls
 
 import (
-	"encoding/binary"
+	"crypto/rand"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	bls12381 "github.com/coinbase/kryptology/pkg/core/curves/native/bls12-381"
-	share "github.com/coinbase/kryptology/pkg/sharing/v1"
+	share "github.com/coinbase/kryptology/pkg/sharing"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -48,13 +48,13 @@ type PubShare struct {
 // and threshold (number of shares).
 type TSS struct {
 	PubKey    *bls_sig.PublicKey
-	verifiers []*share.ShareVerifier
+	verifier  *share.FeldmanVerifier
 	NumShares int
 }
 
 // Threshold returns the secret sharing threshold.
 func (t TSS) Threshold() int {
-	return len(t.verifiers)
+	return len(t.verifier.Commitments)
 }
 
 // GenerateTSS returns a new random instance of threshold signing scheme and associated SecretKeyShares.
@@ -65,12 +65,12 @@ func GenerateTSS(t, n int) (TSS, []*bls_sig.SecretKeyShare, error) {
 		return TSS{}, nil, errors.Wrap(err, "bls key generation")
 	}
 
-	sks, verifiers, err := generateSecretShares(*secret, t, n)
+	sks, verifier, err := generateSecretShares(*secret, t, n)
 	if err != nil {
 		return TSS{}, nil, errors.Wrap(err, "generate secret shares")
 	}
 
-	return TSS{PubKey: pubKey, verifiers: verifiers, NumShares: n}, sks, nil
+	return TSS{PubKey: pubKey, verifier: verifier, NumShares: n}, sks, nil
 }
 
 // AggregateSignatures aggregates partial signatures over the given message.
@@ -88,7 +88,7 @@ func AggregateSignatures(tss TSS, partialSigs []*bls_sig.PartialSignature, msg [
 
 	for _, psig := range partialSigs {
 		// TODO(dhruv): add break condition if valid shares >= threshold
-		pubShare, err := getPubShare(uint32(psig.Identifier), tss.verifiers)
+		pubShare, err := getPubShare(uint32(psig.Identifier), tss.verifier)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "get Public Share")
 		}
@@ -125,8 +125,8 @@ func PartialSign(sks *bls_sig.SecretKeyShare, msg []byte) (*bls_sig.PartialSigna
 }
 
 // generateSecretShares splits the secret and returns n secret shares and t verifiers.
-func generateSecretShares(secret bls_sig.SecretKey, t, n int) ([]*bls_sig.SecretKeyShare, []*share.ShareVerifier, error) {
-	scheme, err := share.NewFeldman(uint32(t), uint32(n), share.Bls12381G1())
+func generateSecretShares(secret bls_sig.SecretKey, t, n int) ([]*bls_sig.SecretKeyShare, *share.FeldmanVerifier, error) {
+	scheme, err := share.NewFeldman(uint32(t), uint32(n), curves.BLS12381G1())
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new Feldman VSS")
 	}
@@ -136,7 +136,12 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int) ([]*bls_sig.Secret
 		return nil, nil, errors.Wrap(err, "marshalling Secret Key")
 	}
 
-	verifiers, shares, err := scheme.Split(secretBytes)
+	secretScaler, err := curves.BLS12381G1().NewScalar().SetBytes(secretBytes)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "convert to scaler")
+	}
+
+	verifier, shares, err := scheme.Split(secretScaler, rand.Reader)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "split Secret Key")
 	}
@@ -145,17 +150,15 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int) ([]*bls_sig.Secret
 
 	for i, s := range shares {
 		// ref: https://github.com/coinbase/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/signatures/bls/bls_sig/lib.go#L26
-		skbin := make([]byte, 33)
-		copy(skbin, s.Value.Bytes())
-		skbin[32] = uint8(s.Identifier)
-
+		skbin := s.Value
+		skbin = append(skbin, byte(s.Id))
 		sks[i] = &bls_sig.SecretKeyShare{}
 		if err := sks[i].UnmarshalBinary(skbin); err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshalling shamir share")
 		}
 	}
 
-	return sks, verifiers, nil
+	return sks, verifier, nil
 }
 
 // getPubShare creates PubShare corresponding to a secret share with given verifiers.
@@ -163,37 +166,32 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int) ([]*bls_sig.Secret
 // https://github.com/coinbase/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/sharing/v1/feldman.go#L66
 // where verifiers(coefficients of public polynomial) are used to compute sum of products of public polynomial with
 // identifier as x coordinate.
-func getPubShare(identifier uint32, verifiers []*share.ShareVerifier) (*PubShare, error) {
-	field := curves.NewField(share.Bls12381G1().N)
+func getPubShare(identifier uint32, verifier *share.FeldmanVerifier) (*PubShare, error) {
+	curve := curves.GetCurveByName(verifier.Commitments[0].CurveName())
+	if curve != curves.BLS12381G1() {
+		return nil, errors.New("curve mismatch")
+	}
 
-	xBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(xBytes, identifier)
-	x := field.ElementFromBytes(xBytes)
-	i := field.One()
+	x := curve.Scalar.New(int(identifier))
+	i := curve.Scalar.One()
 
 	// c_0
-	rhs := verifiers[0]
+	pubshare := verifier.Commitments[0]
 
 	// Compute the sum of products
 	// c_0 + c_1 * i + c_2 * {i^2} + c_3 * {i^3} ... c_t * {i_t}
-	for j := 1; j < len(verifiers); j++ {
+	for j := 1; j < len(verifier.Commitments); j++ {
 		// i *= x
 		i = i.Mul(x)
 
 		// c_i * i
-		c, err := verifiers[j].ScalarMult(i.Value)
-		if err != nil {
-			return nil, err
-		}
+		c := verifier.Commitments[j].Mul(i)
 
 		// ... + c_j^{i^j}
-		rhs, err = rhs.Add(c)
-		if err != nil {
-			return nil, err
-		}
+		pubshare = pubshare.Add(c)
 	}
 
-	g1Point, err := keyGroup.FromUncompressed(rhs.Bytes())
+	g1Point, err := keyGroup.FromUncompressed(pubshare.ToAffineUncompressed())
 	if err != nil {
 		return nil, err
 	}
