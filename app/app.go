@@ -32,6 +32,9 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/consensus"
+	"github.com/obolnetwork/charon/consensus/leadercast"
+	"github.com/obolnetwork/charon/crypto"
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/types"
@@ -60,6 +63,9 @@ type TestConfig struct {
 	PingCallback func(peer.ID)
 	// ExcludeManifestBootnodes excludes the manifest ENRs to be used as discv5 bootnodes.
 	ExcludeManifestBootnodes bool
+
+	SimDutyPeriod   time.Duration
+	SimDutyCallback func(consensus.Duty, []byte)
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -69,6 +75,8 @@ type TestConfig struct {
 func Run(ctx context.Context, conf Config) error {
 	_, _ = maxprocs.Set()
 	ctx = log.WithTopic(ctx, "app-start")
+
+	testConf := conf.TestConfig
 
 	log.Info(ctx, "Charon starting", z.Str("version", version.Version))
 	setStartupMetrics()
@@ -119,9 +127,20 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
 	}
 
+	index := -1
+	for i, p := range manifest.PeerIDs() {
+		if tcpNode.ID() == p {
+			index = i
+		}
+	}
+	if index == -1 {
+		return errors.New("privkey not in manifest peers")
+	}
+
 	log.Info(ctx, "Manifest loaded",
 		z.Int("peers", len(manifest.Peers)),
-		z.Str("local_peer", p2p.ShortID(tcpNode.ID())))
+		z.Str("local_peer", p2p.ShortID(tcpNode.ID())),
+		z.Int("index", index))
 
 	monitoring := newMonitoring(conf.MonitoringAddr)
 
@@ -135,9 +154,13 @@ func Run(ctx context.Context, conf Config) error {
 		Handler: vrouter,
 	}
 
+	cons := leadercast.NewLeaderCast(leadercast.NewP2PTransport(tcpNode, index, manifest.PeerIDs()), index, len(peers))
+
 	// Start processes and wait for first error or shutdown.
 
 	stopPing := p2p.StartPingService(tcpNode, manifest.PeerIDs(), conf.TestConfig.PingCallback)
+
+	startSim, stopSim := newDutySimulator(cons, testConf.SimDutyPeriod, testConf.SimDutyCallback)
 
 	var procErr error
 	select {
@@ -145,6 +168,10 @@ func Run(ctx context.Context, conf Config) error {
 		procErr = errors.Wrap(err, "monitoring server")
 	case err := <-start(vserver.ListenAndServe):
 		procErr = errors.Wrap(err, "validatorapi server")
+	case err := <-start(cons.Start):
+		procErr = errors.Wrap(err, "monitoring server")
+	case err := <-start(startSim):
+		procErr = errors.Wrap(err, "duty simulator")
 	case <-ctx.Done():
 		log.Info(ctx, "Shutdown signal detected")
 	}
@@ -161,6 +188,8 @@ func Run(ctx context.Context, conf Config) error {
 	ctx = log.WithTopic(ctx, "app-stop")
 	log.Info(ctx, "Shutting down gracefully")
 
+	stopSim()
+	cons.Stop()
 	stopPing()
 
 	if err := tcpNode.Close(); err != nil {
