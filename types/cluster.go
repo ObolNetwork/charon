@@ -15,209 +15,95 @@
 package types
 
 import (
-	"bytes"
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
-	"strings"
+	"crypto/ecdsa"
+	"math/rand"
+	"net"
+	"testing"
 
-	"github.com/coinbase/kryptology/pkg/core/curves"
-	"github.com/coinbase/kryptology/pkg/sharing"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
-	"github.com/ethereum/go-ethereum/rlp"
-	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/crypto/bls"
 )
 
-// Peer represents a charon node in a cluster.
-type Peer struct {
-	// ENR defines the networking information of the peer.
-	ENR enr.Record
+// NewClusterForT returns a new random cluster manifest with threshold m and size n.
+// It also returns the peer p2p keys and BLS secret shares.
+// Note that the threshold signatures are stubs at this point.
+func NewClusterForT(t *testing.T, m, n int, seed int64) (Manifest, []*ecdsa.PrivateKey, []*bls_sig.SecretKeyShare) {
+	t.Helper()
 
-	// ID is a libp2p peer identity. It is inferred from the ENR.
-	ID peer.ID
+	var (
+		p2pKeys []*ecdsa.PrivateKey
+		peers   []Peer
+	)
 
-	// Index is the order of this node in the cluster.
-	Index int
-}
+	reader := rand.New(rand.NewSource(seed))
 
-// NewPeer returns a new peer from an
-func NewPeer(record enr.Record, index int) (Peer, error) {
-	var pubkey enode.Secp256k1
-	if err := record.Load(&pubkey); err != nil {
-		return Peer{}, errors.Wrap(err, "pubkey from enr")
+	tss, shares, err := bls.GenerateTSS(m, n, reader)
+	require.NoError(t, err)
+
+	addrFunc := getAddrFunc(seed)
+
+	for i := 0; i < n; i++ {
+		// Generate ENR
+		p2pKey, err := ecdsa.GenerateKey(secp256k1.S256(), reader)
+		require.NoError(t, err)
+
+		tcp := addrFunc(t) // localhost and lib-p2p tcp port
+		udp := addrFunc(t) // localhost and discv5 udp port
+
+		var r enr.Record
+		r.Set(enr.IPv4(tcp.IP))
+		r.Set(enr.TCP(tcp.Port))
+		r.Set(enr.UDP(udp.Port))
+		r.SetSeq(0)
+
+		err = enode.SignV4(&r, p2pKey)
+		require.NoError(t, err)
+
+		peer, err := NewPeer(r, i)
+		require.NoError(t, err)
+
+		peers = append(peers, peer)
+		p2pKeys = append(p2pKeys, p2pKey)
 	}
 
-	p2pPubkey := libp2pcrypto.Secp256k1PublicKey(pubkey)
-	id, err := peer.IDFromPublicKey(&p2pPubkey)
-	if err != nil {
-		return Peer{}, errors.Wrap(err, "p2p id from pubkey")
-	}
-
-	return Peer{
-		ENR:   record,
-		ID:    id,
-		Index: index,
-	}, nil
-}
-
-// Manifest defines a charon cluster. The same manifest is loaded by all charon nodes in the cluster.
-type Manifest struct {
-	// TSS is the threshold signature scheme  of the cluster.
-	TSS bls.TSS
-	// Peers is set of charon nodes in the cluster.
-	Peers []Peer
-}
-
-// ENRs returns the peer ENRs.
-func (m Manifest) ENRs() []enr.Record {
-	res := make([]enr.Record, 0, len(m.Peers))
-
-	for _, p := range m.Peers {
-		res = append(res, p.ENR)
-	}
-
-	return res
-}
-
-// PeerIDs returns the peer IDs.
-func (m Manifest) PeerIDs() []peer.ID {
-	res := make([]peer.ID, 0, len(m.Peers))
-
-	for _, p := range m.Peers {
-		res = append(res, p.ID)
-	}
-
-	return res
-}
-
-func (m Manifest) MarshalJSON() ([]byte, error) {
-	var enrs []string
-	for _, p := range m.Peers {
-		enrStr, err := EncodeENR(p.ENR)
-		if err != nil {
-			return nil, err
-		}
-
-		enrs = append(enrs, enrStr)
-	}
-
-	var verifiers [][]byte
-	for _, c := range m.TSS.Verifier.Commitments {
-		verifiers = append(verifiers, c.ToAffineCompressed())
-	}
-
-	rawPK, err := m.TSS.PubKey.MarshalBinary()
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal pubkey")
-	}
-
-	return json.Marshal(manifestJSON{
-		PubKey:    hex.EncodeToString(rawPK),
-		Verifiers: verifiers,
-		PeerENRs:  enrs,
-	})
-}
-
-func (m *Manifest) UnmarshalJSON(data []byte) error {
-	var mj manifestJSON
-	if err := json.Unmarshal(data, &mj); err != nil {
-		return errors.Wrap(err, "unmarshal manifest")
-	}
-
-	var peers []Peer
-	for i, enrStr := range mj.PeerENRs {
-		record, err := DecodeENR(enrStr)
-		if err != nil {
-			return err
-		}
-
-		var pubkey enode.Secp256k1
-		if err := record.Load(&pubkey); err != nil {
-			return errors.Wrap(err, "pubkey from enr")
-		}
-
-		p2pPubkey := libp2pcrypto.Secp256k1PublicKey(pubkey)
-		id, err := peer.IDFromPublicKey(&p2pPubkey)
-		if err != nil {
-			return errors.Wrap(err, "p2p id from pubkey")
-		}
-
-		peers = append(peers, Peer{
-			ENR:   record,
-			ID:    id,
-			Index: i,
-		})
-	}
-
-	var commitments []curves.Point
-	for _, vbytes := range mj.Verifiers {
-		c, err := curves.BLS12381G1().Point.FromAffineCompressed(vbytes)
-		if err != nil {
-			return errors.Wrap(err, "verifier hex")
-		}
-
-		commitments = append(commitments, c)
-	}
-
-	b, err := hex.DecodeString(mj.PubKey)
-	if err != nil {
-		return errors.Wrap(err, "pubkey hex")
-	}
-
-	pk := new(bls_sig.PublicKey)
-	if err := pk.UnmarshalBinary(b); err != nil {
-		return errors.Wrap(err, "unmarshal pubkey")
-	}
-
-	*m = Manifest{
-		TSS: bls.TSS{
-			PubKey: pk,
-			Verifier: &sharing.FeldmanVerifier{
-				Commitments: commitments,
-			},
-			NumShares: len(mj.PeerENRs),
-		},
+	return Manifest{
+		DVs:   []bls.TSS{tss}, // TODO(corver): Support more dvs per cluster.
 		Peers: peers,
-	}
-
-	return nil
+	}, p2pKeys, shares
 }
 
-type manifestJSON struct {
-	PubKey    string   `json:"pubkey"`
-	Verifiers [][]byte `json:"verifiers"`
-	PeerENRs  []string `json:"peers"`
+// getAddrFunc returns either actual available ports for timestamp seeds
+// or deterministic addresses for non-timestamp seeds.
+func getAddrFunc(seed int64) func(*testing.T) *net.TCPAddr {
+	if seed > 1e6 {
+		return availableLocalAddr
+	}
+
+	var j int
+	return func(*testing.T) *net.TCPAddr {
+		j++
+		return &net.TCPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: j,
+		}
+	}
 }
 
-// EncodeENR returns an encoded string format of the enr record.
-func EncodeENR(record enr.Record) (string, error) {
-	var buf bytes.Buffer
-	if err := record.EncodeRLP(&buf); err != nil {
-		return "", err
-	}
+// availableLocalAddr returns an available local tcp address.
+func availableLocalAddr(t *testing.T) *net.TCPAddr {
+	t.Helper()
 
-	return "enr:" + base64.URLEncoding.EncodeToString(buf.Bytes()), nil
-}
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	require.NoError(t, l.Close())
 
-// DecodeENR returns a enr record decoded from the string.
-// See reference github.com/ethereum/go-ethereum@v1.10.10/p2p/dnsdisc/tree.go:378
-func DecodeENR(enrStr string) (enr.Record, error) {
-	enrStr = strings.TrimPrefix(enrStr, "enr:")
-	enrBytes, err := base64.URLEncoding.DecodeString(enrStr)
-	if err != nil {
-		return enr.Record{}, errors.Wrap(err, "base64 enr")
-	}
+	addr, err := net.ResolveTCPAddr(l.Addr().Network(), l.Addr().String())
+	require.NoError(t, err)
 
-	var record enr.Record
-	if err := rlp.DecodeBytes(enrBytes, &record); err != nil {
-		return enr.Record{}, errors.Wrap(err, "rlp enr")
-	}
-
-	return record, nil
+	return addr
 }

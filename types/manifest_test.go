@@ -40,7 +40,7 @@ func TestManifestJSON(t *testing.T) {
 		manifest, _, _ := types.NewClusterForT(t, 3, 4, i)
 
 		// Marshal to JSON.
-		data, err := json.MarshalIndent(manifest, "", " ")
+		data, err := json.MarshalIndent(manifest, "", "  ")
 		require.NoError(t, err)
 
 		filename := fmt.Sprintf("testdata/manifest%d.json", i)
@@ -61,13 +61,18 @@ func TestManifestJSON(t *testing.T) {
 
 		// TODO(corver): Figure out how a better way to compare manifest structs.
 		require.Equal(t, manifest.Peers, manifest2.Peers)
-		require.Equal(t, manifest.TSS.NumShares, manifest2.TSS.NumShares)
-		require.Equal(t, manifest.TSS.Verifier, manifest2.TSS.Verifier)
-		pk1, err := manifest.TSS.PubKey.MarshalBinary()
-		require.NoError(t, err)
-		pk2, err := manifest2.TSS.PubKey.MarshalBinary()
-		require.NoError(t, err)
-		require.Equal(t, pk1, pk2)
+		require.Equal(t, len(manifest.DVs), len(manifest2.DVs))
+		for i := 0; i < len(manifest.DVs); i++ {
+			tss1 := manifest.DVs[i]
+			tss2 := manifest2.DVs[i]
+			require.Equal(t, tss1.NumShares, tss2.NumShares)
+			require.Equal(t, tss1.Verifier, tss2.Verifier)
+			pk1, err := tss1.PubKey.MarshalBinary()
+			require.NoError(t, err)
+			pk2, err := tss2.PubKey.MarshalBinary()
+			require.NoError(t, err)
+			require.Equal(t, pk1, pk2)
+		}
 	}
 }
 
