@@ -22,6 +22,8 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 var logger = newConsoleLogger()
@@ -41,8 +43,11 @@ func newConsoleLogger() *zap.Logger {
 func InitJSONLogger() error {
 	var err error
 	logger, err = zap.NewProduction()
+	if err != nil {
+		return errors.Wrap(err, "zap logger")
+	}
 
-	return err
+	return nil
 }
 
 // InitLoggerForT initialises a console logger for testing purposes.

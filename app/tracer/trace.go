@@ -26,12 +26,12 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
-var (
-	// tracer is the global app level tracer, it defaults to a noop tracer.
-	tracer = trace.NewNoopTracerProvider().Tracer("")
-)
+// tracer is the global app level tracer, it defaults to a noop tracer.
+var tracer = trace.NewNoopTracerProvider().Tracer("")
 
 // Start creates a span and a context.Context containing the newly-created span from the global tracer.
 // See go.opentelemetry.io/otel/trace#Start for more details.
@@ -75,7 +75,12 @@ type options struct {
 func WithStdOut(w io.Writer) func(*options) {
 	return func(o *options) {
 		o.expFunc = func() (sdktrace.SpanExporter, error) {
-			return stdouttrace.New(stdouttrace.WithWriter(w))
+			ex, err := stdouttrace.New(stdouttrace.WithWriter(w))
+			if err != nil {
+				return nil, errors.Wrap(err, "jeager exporter")
+			}
+
+			return ex, nil
 		}
 	}
 }
@@ -94,7 +99,12 @@ func WithJaegerOrNoop(jaegerAddr string) func(*options) {
 func WithJaeger(addr string) func(*options) {
 	return func(o *options) {
 		o.expFunc = func() (sdktrace.SpanExporter, error) {
-			return jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(addr)))
+			ex, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(addr)))
+			if err != nil {
+				return nil, errors.Wrap(err, "jeager exporter")
+			}
+
+			return ex, nil
 		}
 	}
 }

@@ -41,7 +41,6 @@ import (
 // translates http requests related to the distributed validator to the validatorapi.Handler.
 // All other requests are reserve-proxied to the beacon-node address.
 func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
-
 	// Register subset of distributed validator related endpoints
 	endpoints := []struct {
 		Name    string
@@ -131,7 +130,6 @@ func trace(endpoint string, handler http.HandlerFunc) http.Handler {
 // proposerDuties returns a handler function for the proposer duty endpoint.
 func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, body []byte) (interface{}, error) {
-
 		epoch, err := uintParam(params, "epoch")
 		if err != nil {
 			return nil, err
@@ -154,7 +152,6 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 // attesterDuties returns a handler function for the attester duty endpoint.
 func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, body []byte) (interface{}, error) {
-
 		epoch, err := uintParam(params, "epoch")
 		if err != nil {
 			return nil, err
@@ -212,7 +209,6 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, 
 
 // writeError writes a http json error response object.
 func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err error) {
-
 	var aerr apiError
 	if !errors.As(err, &aerr) {
 		aerr = apiError{

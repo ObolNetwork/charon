@@ -72,8 +72,8 @@ func runBootstrapCmd(w io.Writer, config bootstrapConfig) error {
 		return errors.New("invalid non-positive shares")
 	}
 
-	if err := os.MkdirAll(config.Out, 0755); err != nil {
-		return err
+	if err := os.MkdirAll(config.Out, 0o755); err != nil {
+		return errors.Wrap(err, "mkdir")
 	}
 
 	password, err := getPassword(config)
@@ -127,12 +127,12 @@ func getPassword(config bootstrapConfig) (string, error) {
 func promptPassword() (string, error) {
 	password, err := prompt.PasswordPrompt("Enter keystore password", prompt.NotEmpty)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "prompt")
 	}
 
 	confirm, err := prompt.PasswordPrompt("Confirm keystore password", prompt.NotEmpty)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "prompt")
 	}
 
 	if password != confirm {
@@ -150,11 +150,15 @@ func saveScheme(scheme *crypto.TBLSScheme, filename string) error {
 
 	buf, err := json.MarshalIndent(enc, "", " ")
 	if err != nil {
-		return err
+		return errors.Wrap(err, "marshal scheme")
 	}
 
 	//nolint:gosec
-	return os.WriteFile(filename, buf, 0644)
+	if err = os.WriteFile(filename, buf, 0o644); err != nil {
+		return errors.Wrap(err, "write file")
+	}
+
+	return nil
 }
 
 func keyPath(outDir string, pubkeyHex string, i int) string {

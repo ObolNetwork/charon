@@ -32,7 +32,7 @@ func LoadOrCreatePrivKey(dataDir string) (*ecdsa.PrivateKey, error) {
 	if errors.Is(err, os.ErrNotExist) {
 		return newSavedPrivKey(keyPath)
 	} else if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "load key")
 	}
 
 	return key, nil
@@ -41,12 +41,12 @@ func LoadOrCreatePrivKey(dataDir string) (*ecdsa.PrivateKey, error) {
 // newSavedPrivKey generates a new key and saves the new node identity.
 func newSavedPrivKey(keyPath string) (*ecdsa.PrivateKey, error) {
 	if err := os.MkdirAll(filepath.Dir(keyPath), 0o755); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "mkdir")
 	}
 
 	key, err := crypto.GenerateKey()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "gen key")
 	}
 
 	err = crypto.SaveECDSA(keyPath, key)

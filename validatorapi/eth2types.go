@@ -20,6 +20,8 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 // errorResponse an error response from the beacon-node api.
@@ -38,13 +40,13 @@ func (r *attesterDutiesRequest) UnmarshalJSON(bytes []byte) error {
 	var strints []string
 
 	if err := json.Unmarshal(bytes, &strints); err != nil {
-		return err
+		return errors.Wrap(err, "unmarshal slice")
 	}
 
 	for _, strint := range strints {
 		i, err := strconv.ParseUint(strint, 10, 64)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "parse index")
 		}
 		*r = append(*r, eth2p0.ValidatorIndex(i))
 	}

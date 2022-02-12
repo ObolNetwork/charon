@@ -55,7 +55,12 @@ func (t TBLSScheme) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "encode TBLS scheme")
 	}
 
-	return json.Marshal(encoded)
+	b, err := json.Marshal(encoded)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal scheme")
+	}
+
+	return b, nil
 }
 
 // TBLSSchemeEncoded is the serialized form of TBLSScheme suitable for JSON encoding.

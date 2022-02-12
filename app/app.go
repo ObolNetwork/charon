@@ -66,7 +66,7 @@ type TestConfig struct {
 // Run is the entrypoint for running a charon DVC instance.
 // All processes and their dependencies are constructed and then started.
 // Graceful shutdown is triggered on first process error or when the shutdown context is cancelled.
-//nolint:contextcheck
+//nolint:contextcheck,revive,cyclop
 func Run(ctx context.Context, conf Config) error {
 	_, _ = maxprocs.Set()
 	ctx = log.WithTopic(ctx, "app-start")
