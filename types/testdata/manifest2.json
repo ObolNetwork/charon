@@ -1,0 +1,14 @@
+{
+ "pubkey": "af7e10e176ad2cd634009fed0e906e95866d47ec16808cc4df32b3bcfcaffbad9158f52531a086f6d9c54152dc4250da",
+ "verifiers": [
+  "r34Q4XatLNY0AJ/tDpBulYZtR+wWgIzE3zKzvPyv+62RWPUlMaCG9tnFQVLcQlDa",
+  "jRadEC0L5vp+sYPUvRgp9b4x/nzN1qGkiFA+lgpwNjq3BiJjhhikMKY8HQ1PJ0R2",
+  "uQHdtolDJjjXXwnQikhBx9T9Hp20fPXqOS4hP3nZORhtPlVCCvP8IggANkq9o7hF"
+ ],
+ "peers": [
+  "enr:-Ie4QHndRfPTROCyzmfYOMKCNeV5p-_aucxFHEsyGJsN-WG-U3jah3KPlaBNC7QK2nvaz93jaPTYLdtPE5aq79aGLT2AgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQO7DhH_C5BewFiLUb2lcrBrFTpYP8JQTZ-mEPpNf23DqIN0Y3ABg3VkcAI=",
+  "enr:-Ie4QHG5CPr2gD4tsmFXLdX9gJgNoK5YLkA3xuZgMXvgzkIWSysXhepu39_zd3KvenLpvvhOxgsQKS23G-UMSyr8dveAgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKQoENmy8sOtb3l7nHdu40-ppPt_Lkhg0fv-XFOLxiVJ4N0Y3ADg3VkcAQ=",
+  "enr:-Ie4QGOmLhRTLNGEriMuvs_wM4PRjWjwtbeGPQrh9Fgtm4I4GjgMmQvU_IjCEHQhUpd54UV0E_rboWA5kmIzL0XSwQeAgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQJiv2prazoTnZGw0fe6yYbJWfcjRVaSl588Xzr3bU1uA4N0Y3AFg3VkcAY=",
+  "enr:-Ie4QOt4H_rIv38gw7GhTAaQF6fwviKf3Ugoeg9kIMCS5BTTRnfbWtEbHmLtFzRCNBfgkUyE8Fbbd5jswaYepxlM6B-AgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQNhCJmgj7jJt_F5nMffAaGUf_S8HksTqMFty1XBmFds-4N0Y3AHg3VkcAg="
+ ]
+}

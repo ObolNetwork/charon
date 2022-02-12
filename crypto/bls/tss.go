@@ -15,7 +15,7 @@
 package bls
 
 import (
-	"crypto/rand"
+	"io"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	bls12381 "github.com/coinbase/kryptology/pkg/core/curves/native/bls12-381"
@@ -44,33 +44,35 @@ type PubShare struct {
 	Value      *bls_sig.PublicKey
 }
 
-// TSS (threshold signing scheme) wraps PubKey (PublicKey), verifiers (the public shares corresponding to each secret share)
+// TSS (threshold signing scheme) wraps PubKey (PublicKey), Verifiers (the public shares corresponding to each secret share)
 // and threshold (number of shares).
 type TSS struct {
 	PubKey    *bls_sig.PublicKey
-	verifier  *share.FeldmanVerifier
+	Verifier  *share.FeldmanVerifier
 	NumShares int
 }
 
 // Threshold returns the secret sharing threshold.
 func (t TSS) Threshold() int {
-	return len(t.verifier.Commitments)
+	return len(t.Verifier.Commitments)
 }
 
 // GenerateTSS returns a new random instance of threshold signing scheme and associated SecretKeyShares.
 // It generates n number of secret key shares where t of them can be combined to sign a message.
-func GenerateTSS(t, n int) (TSS, []*bls_sig.SecretKeyShare, error) {
-	pubKey, secret, err := blsScheme.Keygen()
+func GenerateTSS(t, n int, reader io.Reader) (TSS, []*bls_sig.SecretKeyShare, error) {
+	ikm := make([]byte, 32)
+	_, _ = reader.Read(ikm)
+	pubKey, secret, err := blsScheme.KeygenWithSeed(ikm)
 	if err != nil {
 		return TSS{}, nil, errors.Wrap(err, "bls key generation")
 	}
 
-	sks, verifier, err := generateSecretShares(*secret, t, n)
+	sks, verifier, err := generateSecretShares(*secret, t, n, reader)
 	if err != nil {
 		return TSS{}, nil, errors.Wrap(err, "generate secret shares")
 	}
 
-	return TSS{PubKey: pubKey, verifier: verifier, NumShares: n}, sks, nil
+	return TSS{PubKey: pubKey, Verifier: verifier, NumShares: n}, sks, nil
 }
 
 // AggregateSignatures aggregates partial signatures over the given message.
@@ -88,7 +90,7 @@ func AggregateSignatures(tss TSS, partialSigs []*bls_sig.PartialSignature, msg [
 
 	for _, psig := range partialSigs {
 		// TODO(dhruv): add break condition if valid shares >= threshold
-		pubShare, err := getPubShare(uint32(psig.Identifier), tss.verifier)
+		pubShare, err := getPubShare(uint32(psig.Identifier), tss.Verifier)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "get Public Share")
 		}
@@ -125,7 +127,7 @@ func PartialSign(sks *bls_sig.SecretKeyShare, msg []byte) (*bls_sig.PartialSigna
 }
 
 // generateSecretShares splits the secret and returns n secret shares and t verifiers.
-func generateSecretShares(secret bls_sig.SecretKey, t, n int) ([]*bls_sig.SecretKeyShare, *share.FeldmanVerifier, error) {
+func generateSecretShares(secret bls_sig.SecretKey, t, n int, reader io.Reader) ([]*bls_sig.SecretKeyShare, *share.FeldmanVerifier, error) {
 	scheme, err := share.NewFeldman(uint32(t), uint32(n), curves.BLS12381G1())
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new Feldman VSS")
@@ -141,7 +143,7 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int) ([]*bls_sig.Secret
 		return nil, nil, errors.Wrap(err, "convert to scaler")
 	}
 
-	verifier, shares, err := scheme.Split(secretScaler, rand.Reader)
+	verifier, shares, err := scheme.Split(secretScaler, reader)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "split Secret Key")
 	}
@@ -161,10 +163,10 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int) ([]*bls_sig.Secret
 	return sks, verifier, nil
 }
 
-// getPubShare creates PubShare corresponding to a secret share with given verifiers.
+// getPubShare creates PubShare corresponding to a secret share with given Verifiers.
 // This function has been taken from:
 // https://github.com/coinbase/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/sharing/v1/feldman.go#L66
-// where verifiers(coefficients of public polynomial) are used to compute sum of products of public polynomial with
+// where Verifiers(coefficients of public polynomial) are used to compute sum of products of public polynomial with
 // identifier as x coordinate.
 func getPubShare(identifier uint32, verifier *share.FeldmanVerifier) (*PubShare, error) {
 	curve := curves.GetCurveByName(verifier.Commitments[0].CurveName())

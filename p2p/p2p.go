@@ -32,31 +32,20 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/types"
 )
 
 // NewTCPNode returns a started tcp-based libp2p node.
 func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
-	udpNode *discover.UDPv5, manifest cluster.Manifest) (host.Host, error) {
-
-	peers, err := manifest.PeerIDs()
-	if err != nil {
-		return nil, err
-	}
-
-	enrs, err := manifest.ParsedENRs()
-	if err != nil {
-		return nil, err
-	}
+	udpNode *discover.UDPv5, peers []types.Peer) (host.Host, error) {
 
 	peerMap := make(map[peer.ID]enode.Node)
-
-	for i, p := range peers {
-		node, err := enode.New(new(enode.V4ID), &enrs[i])
+	for _, p := range peers {
+		node, err := enode.New(new(enode.V4ID), &p.ENR)
 		if err != nil {
 			return nil, err
 		}
-		peerMap[p] = *node
+		peerMap[p.ID] = *node
 	}
 
 	addrs, err := cfg.Multiaddrs()
