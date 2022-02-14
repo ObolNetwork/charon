@@ -16,6 +16,7 @@ package app_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,16 +24,24 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app"
-	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/types"
 )
 
+// TestSimDuties starts a cluster of charon nodes and waits for each node to resolve identical duties.
+// It relies on discv5 for peer discovery.
 func TestSimDuties(t *testing.T) {
 	const n = 3
 	ctx, cancel := context.WithCancel(context.Background())
-	manifest, p2pKeys, _ := cluster.NewForT(t, n, n)
-	records, err := manifest.ParsedENRs()
-	require.NoError(t, err)
+	manifest, p2pKeys, _ := types.NewClusterForT(t, 1, n, n, 0)
+
+	asserter := &simDutyAsserter{
+		asserter: asserter{
+			Timeout: time.Second * 10,
+		},
+		N:     n,
+		Slots: 2, // Assert 2 rounds/slots
+	}
 
 	var eg errgroup.Group
 
@@ -41,14 +50,14 @@ func TestSimDuties(t *testing.T) {
 			MonitoringAddr:   availableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: availableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
-				Manifest:        manifest,
+				Manifest:        &manifest,
 				P2PKey:          p2pKeys[i],
-				SimDutyPeriod:   time.Second,
-				SimDutyCallback: nil,
+				SimDutyPeriod:   time.Millisecond * 10,
+				SimDutyCallback: asserter.Callback(t),
 			},
 			P2P: p2p.Config{
-				TCPAddrs: []string{tcpAddrFromENR(t, records[i])},
-				UDPAddr:  udpAddrFromENR(t, records[i]),
+				TCPAddrs: []string{tcpAddrFromENR(t, manifest.Peers[i].ENR)},
+				UDPAddr:  udpAddrFromENR(t, manifest.Peers[i].ENR),
 			},
 		}
 
@@ -57,8 +66,51 @@ func TestSimDuties(t *testing.T) {
 		})
 	}
 
-	time.Sleep(time.Second * 10)
+	asserter.Await(t)
 	cancel()
 
 	require.NoError(t, eg.Wait())
+}
+
+// simDutyAsserter asserts that all nodes resolve identical duties.
+type simDutyAsserter struct {
+	asserter
+	N     int
+	Slots int
+
+	mu     sync.Mutex
+	duties map[types.Duty][][]byte
+}
+
+// Await waits for all nodes to ping each other or time out.
+func (a *simDutyAsserter) Await(t *testing.T) {
+	t.Helper()
+
+	a.await(t, a.Slots)
+}
+
+// Callback returns the PingCallback function for the ith node.
+func (a *simDutyAsserter) Callback(t *testing.T) func(duty types.Duty, data []byte) {
+	t.Helper()
+
+	return func(duty types.Duty, data []byte) {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+
+		datas := a.duties[duty]
+		for _, prev := range datas {
+			require.Equal(t, prev, data)
+		}
+		datas = append(datas, data)
+
+		if len(datas) == a.N {
+			t.Logf("All nodes resolved duty=%v", duty)
+			a.callbacks.Store(duty, true)
+		}
+
+		if len(datas) == 1 {
+			a.duties = make(map[types.Duty][][]byte)
+		}
+		a.duties[duty] = datas
+	}
 }

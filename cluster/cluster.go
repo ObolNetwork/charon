@@ -12,32 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package consensus
+package cluster
 
 import (
 	"context"
+
+	"github.com/obolnetwork/charon/types"
 )
 
 // Consensus abstracts a cluster consensus layer.
 type Consensus interface {
 	// ResolveDuty returns the cluster's agreed upon data for the given duty.
 	// The result will be proposed data from one of the nodes in the cluster.
-	ResolveDuty(ctx context.Context, d Duty, proposedData []byte) ([]byte, error)
-}
-
-type DutyType int
-
-const (
-	DutyUnknown = DutyType(iota)
-	DutyAttester
-	dutySentinel
-)
-
-func (t DutyType) Valid() bool {
-	return t > DutyUnknown && t < dutySentinel
-}
-
-type Duty struct {
-	Slot int
-	Type DutyType
+	ResolveDuty(ctx context.Context, d types.Duty, proposedData []byte) ([]byte, error)
 }

@@ -32,9 +32,7 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/consensus"
-	"github.com/obolnetwork/charon/consensus/leadercast"
-	"github.com/obolnetwork/charon/crypto"
+	"github.com/obolnetwork/charon/cluster/leadercast"
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/types"
@@ -66,7 +64,7 @@ type TestConfig struct {
 	// SimDutyPeriod overrides the default duty simulator period of 5 seconds.
 	SimDutyPeriod time.Duration
 	// SimDutyCallback is called when the duty simulator resolves a mock duty.
-	SimDutyCallback func(consensus.Duty, []byte)
+	SimDutyCallback func(types.Duty, []byte)
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -155,7 +153,7 @@ func Run(ctx context.Context, conf Config) error {
 		Handler: vrouter,
 	}
 
-	lcast := leadercast.NewLeaderCast(leadercast.NewP2PTransport(tcpNode, index, peers), index, len(peers))
+	lcast := leadercast.New(leadercast.NewP2PTransport(tcpNode, index, manifest.PeerIDs()), index, len(manifest.Peers))
 
 	// Start processes and wait for first error or shutdown.
 

@@ -26,15 +26,15 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/consensus"
+	"github.com/obolnetwork/charon/types"
 )
 
 const protocol = "/charon/leadercast/1.0.0"
 
 // Transport abstracts the transport layer for leader cast consensus.
 type Transport interface {
-	Broadcast(ctx context.Context, source int, d consensus.Duty, data []byte) error
-	AwaitNext(ctx context.Context) (source int, d consensus.Duty, data []byte, err error)
+	Broadcast(ctx context.Context, source int, d types.Duty, data []byte) error
+	AwaitNext(ctx context.Context) (source int, d types.Duty, data []byte, err error)
 }
 
 func NewP2PTransport(tcpNode host.Host, index int, peers []peer.ID) Transport {
@@ -73,7 +73,7 @@ func (t *p2pTransport) handle(s network.Stream) {
 	}
 }
 
-func (t *p2pTransport) Broadcast(ctx context.Context, source int, d consensus.Duty, data []byte) error {
+func (t *p2pTransport) Broadcast(ctx context.Context, source int, d types.Duty, data []byte) error {
 	b, err := json.Marshal(p2pMsg{
 		Source: source,
 		Duty:   d,
@@ -107,7 +107,7 @@ func (t *p2pTransport) Broadcast(ctx context.Context, source int, d consensus.Du
 	return nil
 }
 
-func (t *p2pTransport) AwaitNext(ctx context.Context) (int, consensus.Duty, []byte, error) {
+func (t *p2pTransport) AwaitNext(ctx context.Context) (int, types.Duty, []byte, error) {
 	var msg p2pMsg
 
 	err := async(ctx, func() error {
@@ -138,6 +138,6 @@ func sendData(ctx context.Context, t *p2pTransport, p peer.ID, b []byte) error {
 
 type p2pMsg struct {
 	Source int
-	Duty   consensus.Duty
+	Duty   types.Duty
 	Data   []byte
 }

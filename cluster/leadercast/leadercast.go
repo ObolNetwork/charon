@@ -21,12 +21,12 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/consensus"
+	"github.com/obolnetwork/charon/types"
 )
 
-// NewLeaderCast returns a new leader cast consensus implementation
+// New returns a new leader cast consensus implementation
 // for the node at index in the total cluster.
-func NewLeaderCast(transport Transport, index, total int) *LeaderCast {
+func New(transport Transport, index, total int) *LeaderCast {
 	return &LeaderCast{
 		total:     total,
 		index:     index,
@@ -87,7 +87,7 @@ func (l *LeaderCast) Stop() {
 	l.stop()
 }
 
-func (l *LeaderCast) ResolveDuty(ctx context.Context, d consensus.Duty, data []byte) ([]byte, error) {
+func (l *LeaderCast) ResolveDuty(ctx context.Context, d types.Duty, data []byte) ([]byte, error) {
 	if isLeader(l.index, l.total, d) {
 		if err := l.transport.Broadcast(ctx, l.index, d, data); err != nil {
 			return nil, err
@@ -128,15 +128,21 @@ func (l *LeaderCast) ResolveDuty(ctx context.Context, d consensus.Duty, data []b
 	return resp, err
 }
 
-// isLeader is a deterministic LeaderCast election function that returns true if the ith instance (of total instances)
+// isLeader is a deterministic LeaderCast election function that returns true if the instance at index (of total)
 // is the LeaderCast for the given duty.
-func isLeader(ith, total int, d consensus.Duty) bool {
-	mod := (d.Slot + int(d.Type)) % total
-	return mod == ith
+func isLeader(index, total int, d types.Duty) bool {
+	const slotFactor = 10
+	if d.Type >= slotFactor {
+		panic("invalid duty type")
+	}
+
+	mod := ((d.Slot * 10) + int(d.Type)) % total
+
+	return mod == index
 }
 
 type dutyTuple struct {
-	Duty consensus.Duty
+	Duty types.Duty
 	Data []byte
 }
 
