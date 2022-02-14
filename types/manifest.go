@@ -79,7 +79,7 @@ type Manifest struct {
 	Peers []Peer
 }
 
-// ENRs returns the peer ENRs.
+// ENRs is a convenience function that returns the peer ENRs.
 func (m Manifest) ENRs() []enr.Record {
 	res := make([]enr.Record, 0, len(m.Peers))
 
@@ -90,7 +90,7 @@ func (m Manifest) ENRs() []enr.Record {
 	return res
 }
 
-// PeerIDs returns the peer IDs.
+// PeerIDs is a convenience function that returns the peer IDs.
 func (m Manifest) PeerIDs() []peer.ID {
 	res := make([]peer.ID, 0, len(m.Peers))
 
