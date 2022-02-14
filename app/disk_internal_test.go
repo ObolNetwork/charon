@@ -12,32 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package bls
+package app
 
 import (
-	"crypto/rand"
+	"encoding/json"
+	"os"
+	"path"
 	"testing"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/types"
 )
 
-func TestGenerateSecretShares(t *testing.T) {
-	for i := 0; i < 10; i++ {
-		t.Run("GenerateSecretShares", func(t *testing.T) {
-			ikm := make([]byte, 32)
-			cnt, err := rand.Read(ikm)
-			require.NoError(t, err)
-			require.Equal(t, 32, cnt)
+func TestLoadManifest(t *testing.T) {
+	manifest, _, _ := types.NewClusterForT(t, 1, 2, 3, 0)
 
-			secret, err := new(bls_sig.SecretKey).Generate(ikm)
-			require.NoError(t, err)
-			require.NotNil(t, secret)
+	b, err := json.MarshalIndent(manifest, "", " ")
 
-			shares, verifiers, err := generateSecretShares(*secret, 3, 5, rand.Reader)
-			require.NoError(t, err)
-			require.NotNil(t, shares)
-			require.NotNil(t, verifiers)
-		})
-	}
+	dir, err := os.MkdirTemp("", "")
+	require.NoError(t, err)
+
+	filename := path.Join(dir, "manifest.json")
+
+	err = os.WriteFile(filename, b, 0o644)
+	require.NoError(t, err)
+
+	actual, err := loadManifest(filename)
+	require.NoError(t, err)
+
+	b2, err := json.Marshal(actual)
+	require.NoError(t, err)
+	require.JSONEq(t, string(b), string(b2))
 }

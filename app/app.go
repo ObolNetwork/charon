@@ -32,10 +32,9 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/crypto"
 	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/types"
 	"github.com/obolnetwork/charon/validatorapi"
 )
 
@@ -54,7 +53,7 @@ type Config struct {
 // TestConfig defines additional test-only config.
 type TestConfig struct {
 	// Manifest provides the manifest explicitly, skips loading ManifestFile from disk.
-	Manifest cluster.Manifest
+	Manifest *types.Manifest
 	// P2PKey provides the p2p privkey explicitly, skips loading from keystore on disk.
 	P2PKey *ecdsa.PrivateKey
 	// PingCallback is called when a ping was completed to a peer.
@@ -82,17 +81,14 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "init jaeger tracing")
 	}
 
-	manifest := conf.TestConfig.Manifest
-	if len(manifest.ENRs) == 0 {
-		manifest, err = cluster.LoadManifest(conf.ManifestFile)
+	var manifest types.Manifest
+	if conf.TestConfig.Manifest != nil {
+		manifest = *conf.TestConfig.Manifest
+	} else {
+		manifest, err = loadManifest(conf.ManifestFile)
 		if err != nil {
 			return errors.Wrap(err, "load manifest")
 		}
-	}
-
-	enrs, err := manifest.ParsedENRs()
-	if err != nil {
-		return err
 	}
 
 	p2pKey := conf.TestConfig.P2PKey
@@ -108,30 +104,24 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "create local enode")
 	}
 
-	udpNode, err := p2p.NewUDPNode(conf.P2P, localEnode, p2pKey, enrs, conf.TestConfig.ExcludeManifestBootnodes)
+	udpNode, err := p2p.NewUDPNode(conf.P2P, localEnode, p2pKey, manifest.ENRs(), conf.TestConfig.ExcludeManifestBootnodes)
 	if err != nil {
 		return errors.Wrap(err, "start discv5 listener")
 	}
 
-	peers, err := manifest.PeerIDs()
-	if err != nil {
-		return err
-	}
-
-	connGater, err := p2p.NewConnGater(peers)
+	connGater, err := p2p.NewConnGater(manifest.PeerIDs())
 	if err != nil {
 		return errors.Wrap(err, "connection gater")
 	}
 
-	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode, manifest)
+	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode, manifest.Peers)
 	if err != nil {
 		return errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
 	}
 
 	log.Info(ctx, "Manifest loaded",
-		z.Int("peers", len(manifest.ENRs)),
-		z.Str("local_peer", p2p.ShortID(tcpNode.ID())),
-		z.Str("pubkey", crypto.BLSPointToHex(manifest.Pubkey())[:10]))
+		z.Int("peers", len(manifest.Peers)),
+		z.Str("local_peer", p2p.ShortID(tcpNode.ID())))
 
 	monitoring := newMonitoring(conf.MonitoringAddr)
 
@@ -147,7 +137,7 @@ func Run(ctx context.Context, conf Config) error {
 
 	// Start processes and wait for first error or shutdown.
 
-	stopPing := p2p.StartPingService(tcpNode, peers, conf.TestConfig.PingCallback)
+	stopPing := p2p.StartPingService(tcpNode, manifest.PeerIDs(), conf.TestConfig.PingCallback)
 
 	var procErr error
 	select {

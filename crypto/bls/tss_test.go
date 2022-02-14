@@ -15,6 +15,7 @@
 package bls_test
 
 import (
+	"crypto/rand"
 	"testing"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -27,7 +28,7 @@ func TestGenerateTSS(t *testing.T) {
 	threshold := 3
 	shares := 5
 
-	tss, secrets, err := bls.GenerateTSS(threshold, shares)
+	tss, secrets, err := bls.GenerateTSS(threshold, shares, rand.Reader)
 	require.NoError(t, err)
 	require.NotNil(t, tss)
 	require.NotNil(t, secrets)
@@ -37,10 +38,12 @@ func TestGenerateTSS(t *testing.T) {
 }
 
 func TestAggregateSignatures(t *testing.T) {
+	// TODO(corver): This test fails if run with "generic" build tag due to bug in kryptology.
+
 	threshold := 3
 	shares := 5
 
-	tss, secrets, err := bls.GenerateTSS(threshold, shares)
+	tss, secrets, err := bls.GenerateTSS(threshold, shares, rand.Reader)
 	require.NoError(t, err)
 
 	msg := []byte("Hello Obol")

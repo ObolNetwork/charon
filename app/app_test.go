@@ -35,8 +35,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app"
-	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/types"
 )
 
 var slow = flag.Bool("slow", false, "enable slow tests")
@@ -105,10 +105,8 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	const n = 3
 	ctx, cancel := context.WithCancel(context.Background())
-	manifest, p2pKeys, _ := cluster.NewForT(t, n, n)
+	manifest, p2pKeys, _ := types.NewClusterForT(t, 1, n, n, 0)
 	asserter := &pingAsserter{N: n, Manifest: manifest, Timeout: timeout}
-	records, err := manifest.ParsedENRs()
-	require.NoError(t, err)
 
 	var eg errgroup.Group
 
@@ -117,7 +115,7 @@ func pingCluster(t *testing.T, test pingTest) {
 			MonitoringAddr:   availableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: availableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
-				Manifest:                 manifest,
+				Manifest:                 &manifest,
 				P2PKey:                   p2pKeys[i],
 				PingCallback:             asserter.Callback(t, i),
 				ExcludeManifestBootnodes: !test.ENRBootnodes,
@@ -129,8 +127,8 @@ func pingCluster(t *testing.T, test pingTest) {
 
 		// Either bind to ENR addresses, or bind to random address resulting in stale ENRs
 		if test.BindENRAddrs {
-			conf.P2P.TCPAddrs = []string{tcpAddrFromENR(t, records[i])}
-			conf.P2P.UDPAddr = udpAddrFromENR(t, records[i])
+			conf.P2P.TCPAddrs = []string{tcpAddrFromENR(t, manifest.Peers[i].ENR)}
+			conf.P2P.UDPAddr = udpAddrFromENR(t, manifest.Peers[i].ENR)
 		} else {
 			conf.P2P.TCPAddrs = []string{availableAddr(t).String()}
 			conf.P2P.UDPAddr = availableAddr(t).String()
@@ -227,7 +225,7 @@ func udpAddrFromENR(t *testing.T, record enr.Record) string {
 // pingAsserter asserts that all nodes ping all other nodes.
 type pingAsserter struct {
 	N        int
-	Manifest cluster.Manifest
+	Manifest types.Manifest
 	Timeout  time.Duration
 	pings    sync.Map // map[string]bool
 }
@@ -236,11 +234,8 @@ type pingAsserter struct {
 func (a *pingAsserter) Callback(t *testing.T, i int) func(peer.ID) {
 	t.Helper()
 
-	peers, err := a.Manifest.PeerIDs()
-	require.NoError(t, err)
-
 	return func(target peer.ID) {
-		for j, p := range peers {
+		for j, p := range a.Manifest.PeerIDs() {
 			if p == target {
 				a.pings.Store(fmt.Sprint(i, "-", j), true)
 			}
