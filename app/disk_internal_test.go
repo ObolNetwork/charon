@@ -19,7 +19,6 @@ import (
 	"os"
 	"path"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -27,7 +26,7 @@ import (
 )
 
 func TestLoadManifest(t *testing.T) {
-	manifest, _, _ := types.NewClusterForT(t, 2, 3, time.Now().UnixNano())
+	manifest, _, _ := types.NewClusterForT(t, 1, 2, 3, 0)
 
 	b, err := json.MarshalIndent(manifest, "", " ")
 

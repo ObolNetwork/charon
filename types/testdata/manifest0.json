@@ -1,18 +1,18 @@
 {
-  "dvs": [
+  "version": "obol/charon/manifest/0.0.1",
+  "description": "dv/1/threshold/2/peer/3",
+  "distributed_validators": [
     {
-      "pubkey": "b505be38621a1f988090886a9e0cc46635ded1b901fdb44a3279b7630129b7a35227478fce8d27a3c8ca3ad253a2cfa9",
-      "verifiers": [
-        "tQW+OGIaH5iAkIhqngzEZjXe0bkB/bRKMnm3YwEpt6NSJ0ePzo0no8jKOtJTos+p",
-        "ohHDf4qrJ1NwaRN25pu2ne078BEO0sDmNVK3o+eK5+33tN1usXDtzqgVUjBVVhbH",
-        "qPXJV2hh/tdIKxAMzsw8u3usXC35z8UZQPceRcsJ4AMNvXV0Qvew2yy/uCoHF8Ur"
+      "root_pubkey": "b82bc680e0257425355da00d9697f47566bbcb1ff81803bb741ee50bc2e13842e2280a79fb038cc5156967f7f0f563e1",
+      "threshold_verifiers": [
+        "uCvGgOAldCU1XaANlpf0dWa7yx/4GAO7dB7lC8LhOELiKAp5+wOMxRVpZ/fw9WPh",
+        "tFO8m4gQ8hjCMnBOuUU8WW9+eNfX8lB/RFGxphBLocugP6ba6XKUh/D5Z7nEsf7z"
       ]
     }
   ],
   "peers": [
-    "enr:-Ie4QPR148kz-4hfFo7fWCYsgr0bXggcL-XVbfQR_fAyyqVSb16eR0I7m7FcY-VFtLUFmCpizvQvWvVlits7ZstGO6GAgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQIv6rL19bylj2tH0iQ0BUE6VUEM15vKwlC6e5WqJVhWcoN0Y3ABg3VkcAI=",
-    "enr:-Ie4QHctSpKRQfo2NHj6g9_yI0QqsKFN8VcgZbNAYlanjCmNa8cni6GPqknEbqkrGeckYI0QD6zAGmCfPKGjAwGrh8WAgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQNfyj5tStguqe4eQJ1OWNOk7WDKER_MjQgd0GCyqBxUmoN0Y3ADg3VkcAQ=",
-    "enr:-Ie4QHa3KJ8VaLPGYpIu6L4x82biCyToB2lcKB4aLZq2sfwDCa2q1sCphLk9cAo1svj00LEDmduuSo0VfrwYlPsdIyWAgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQLPgRUDkD7Gj08WAKfCx-lnvYyxzbk4P44VUF35GacPt4N0Y3AFg3VkcAY=",
-    "enr:-Ie4QLolQgmm8efFml7qM_l6Qpd2sDBYlIwD_VZULoxOajLFHw_ODcNwScKmOm5jpGxVVtiNglOGxPWSVGP7UAtHXpyAgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMe5Wj6yJqQdqcHIX1QRCpuGsZFJspGT3ii3mHtLwzRXIN0Y3AHg3VkcAg="
+    "enr:-Ie4QGz-g_p9R8q98IoyUfw8cykR2k1-iEKKMvy7MyP4i8vaXss3V0ormlzUxKtNCgPT_R4QM_pYceIuxNX0KHp6louAgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQOuz_fEzqHfrqd8e7Hw8MzUgfUCyA3O-wamz2pZaXNPIIN0Y3ABg3VkcAI=",
+    "enr:-Ie4QNz-5ltbLJTY6VT18IwtaUFAR9pUGyxQZDS5DEMjY_MWGfsZ9BDgAheX5CeOrp9XmiNK9HONXUJtzmIKsDaww8aAgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQJXwipsT_HsaaKgvBaADtsZ0HSUN9i_N7z0vJ61Mwa5CYN0Y3ADg3VkcAQ=",
+    "enr:-Ie4QBbZ7PiV_Ll0tGyfE06MGNM7CIH0N-GWy_4OGSeRPie-ANAMV9KSkigSn51x4uCWl_lG-bdLyvNaLubDGHLXJs2AgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQOynImRglr7lxpazPQt8uJ5BoXhRpSF7zDVTWXLwrxNooN0Y3AFg3VkcAY="
   ]
 }

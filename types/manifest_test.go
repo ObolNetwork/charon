@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -36,8 +35,8 @@ func TestManifestJSON(t *testing.T) {
 		require.NoError(t, os.Mkdir("testdata", 0o755))
 	}
 
-	for i := int64(0); i < 3; i++ {
-		manifest, _, _ := types.NewClusterForT(t, 3, 4, i)
+	for i := 0; i < 3; i++ {
+		manifest, _, _ := types.NewClusterForT(t, i+1, 2+i, 3+(2*i), i+1)
 
 		// Marshal to JSON.
 		data, err := json.MarshalIndent(manifest, "", "  ")
@@ -77,7 +76,7 @@ func TestManifestJSON(t *testing.T) {
 }
 
 func TestDecodeENR(t *testing.T) {
-	manifest, _, _ := types.NewClusterForT(t, 3, 4, time.Now().UnixNano())
+	manifest, _, _ := types.NewClusterForT(t, 1, 3, 4, 0)
 
 	for _, p := range manifest.Peers {
 		enrStr, err := types.EncodeENR(p.ENR)

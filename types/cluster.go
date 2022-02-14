@@ -16,6 +16,8 @@ package types
 
 import (
 	"crypto/ecdsa"
+	crand "crypto/rand"
+	"io"
 	"math/rand"
 	"net"
 	"testing"
@@ -29,27 +31,37 @@ import (
 	"github.com/obolnetwork/charon/crypto/bls"
 )
 
-// NewClusterForT returns a new random cluster manifest with threshold m and size n.
-// It also returns the peer p2p keys and BLS secret shares.
-// Note that the threshold signatures are stubs at this point.
-func NewClusterForT(t *testing.T, m, n int, seed int64) (Manifest, []*ecdsa.PrivateKey, []*bls_sig.SecretKeyShare) {
+// NewClusterForT returns a new cluster manifest with dv number of distributed validators, k threshold and n peers.
+// It also returns the peer p2p keys and BLS secret shares. If the seed is zero a random cluster on available loopback
+// ports is generated, else a deterministic cluster is generated.
+func NewClusterForT(t *testing.T, dv, k, n, seed int) (Manifest, []*ecdsa.PrivateKey, [][]*bls_sig.SecretKeyShare) {
 	t.Helper()
 
 	var (
-		p2pKeys []*ecdsa.PrivateKey
-		peers   []Peer
+		dvs      []bls.TSS
+		dvShares [][]*bls_sig.SecretKeyShare
+		p2pKeys  []*ecdsa.PrivateKey
+		peers    []Peer
 	)
-
-	reader := rand.New(rand.NewSource(seed))
-
-	tss, shares, err := bls.GenerateTSS(m, n, reader)
-	require.NoError(t, err)
 
 	addrFunc := getAddrFunc(seed)
 
+	random := io.Reader(rand.New(rand.NewSource(int64(seed)))) //nolint:gosec // Explicit use of weak random generator for determinism.
+	if seed == 0 {
+		random = crand.Reader
+	}
+
+	for i := 0; i < dv; i++ {
+		tss, shares, err := bls.GenerateTSS(k, n, random)
+		require.NoError(t, err)
+
+		dvs = append(dvs, tss)
+		dvShares = append(dvShares, shares)
+	}
+
 	for i := 0; i < n; i++ {
 		// Generate ENR
-		p2pKey, err := ecdsa.GenerateKey(secp256k1.S256(), reader)
+		p2pKey, err := ecdsa.GenerateKey(secp256k1.S256(), random)
 		require.NoError(t, err)
 
 		tcp := addrFunc(t) // localhost and lib-p2p tcp port
@@ -72,19 +84,20 @@ func NewClusterForT(t *testing.T, m, n int, seed int64) (Manifest, []*ecdsa.Priv
 	}
 
 	return Manifest{
-		DVs:   []bls.TSS{tss}, // TODO(corver): Support more dvs per cluster.
+		DVs:   dvs,
 		Peers: peers,
-	}, p2pKeys, shares
+	}, p2pKeys, dvShares
 }
 
-// getAddrFunc returns either actual available ports for timestamp seeds
-// or deterministic addresses for non-timestamp seeds.
-func getAddrFunc(seed int64) func(*testing.T) *net.TCPAddr {
-	if seed > 1e6 {
+// getAddrFunc returns either actual available ports for zero seeds
+// or deterministic addresses for non-zero seeds.
+func getAddrFunc(seed int) func(*testing.T) *net.TCPAddr {
+	if seed == 0 {
 		return availableLocalAddr
 	}
 
 	var j int
+
 	return func(*testing.T) *net.TCPAddr {
 		j++
 		return &net.TCPAddr{

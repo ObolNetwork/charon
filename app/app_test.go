@@ -105,7 +105,7 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	const n = 3
 	ctx, cancel := context.WithCancel(context.Background())
-	manifest, p2pKeys, _ := types.NewClusterForT(t, n, n, time.Now().UnixNano())
+	manifest, p2pKeys, _ := types.NewClusterForT(t, 1, n, n, 0)
 	asserter := &pingAsserter{N: n, Manifest: manifest, Timeout: timeout}
 
 	var eg errgroup.Group

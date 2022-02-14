@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
@@ -34,6 +35,8 @@ import (
 	"github.com/obolnetwork/charon/crypto/bls"
 )
 
+const manifestVersion = "obol/charon/manifest/0.0.1"
+
 // Peer represents a charon node in a cluster.
 type Peer struct {
 	// ENR defines the networking information of the peer.
@@ -46,7 +49,7 @@ type Peer struct {
 	Index int
 }
 
-// NewPeer returns a new peer from an
+// NewPeer returns a new peer from an.
 func NewPeer(record enr.Record, index int) (Peer, error) {
 	var pubkey enode.Secp256k1
 	if err := record.Load(&pubkey); err != nil {
@@ -67,6 +70,7 @@ func NewPeer(record enr.Record, index int) (Peer, error) {
 }
 
 // Manifest defines a charon cluster. The same manifest is loaded by all charon nodes in the cluster.
+// TODO(corver): Add authentication signatures for each peer per DV.
 type Manifest struct {
 	// DVs is the set of distributed validators managed by the cluster.
 	// Each DV is defined by its threshold signature scheme.
@@ -130,16 +134,27 @@ func (m Manifest) MarshalJSON() ([]byte, error) {
 		})
 	}
 
-	return json.Marshal(manifestJSON{
-		DVs:      dvs,
-		PeerENRs: enrs,
+	res, err := json.Marshal(manifestJSON{
+		Version:     manifestVersion,
+		Description: getDescription(m),
+		DVs:         dvs,
+		PeerENRs:    enrs,
 	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal manifest")
+	}
+
+	return res, nil
 }
 
 func (m *Manifest) UnmarshalJSON(data []byte) error {
 	var mjson manifestJSON
 	if err := json.Unmarshal(data, &mjson); err != nil {
 		return errors.Wrap(err, "unmarshal manifest")
+	}
+
+	if mjson.Version != manifestVersion {
+		return errors.New("invalid manifest version")
 	}
 
 	var peers []Peer
@@ -169,7 +184,6 @@ func (m *Manifest) UnmarshalJSON(data []byte) error {
 
 	var dvs []bls.TSS
 	for _, dv := range mjson.DVs {
-
 		var commitments []curves.Point
 		for _, vBytes := range dv.Verifiers {
 			c, err := curves.BLS12381G1().Point.FromAffineCompressed(vBytes)
@@ -208,27 +222,29 @@ func (m *Manifest) UnmarshalJSON(data []byte) error {
 }
 
 type manifestJSON struct {
-	DVs      []dvJSON `json:"dvs"`
-	PeerENRs []string `json:"peers"`
+	Version     string   `json:"version"`
+	Description string   `json:"description"`
+	DVs         []dvJSON `json:"distributed_validators"`
+	PeerENRs    []string `json:"peers"`
 }
 
 type dvJSON struct {
-	PubKey    string   `json:"pubkey"`
-	Verifiers [][]byte `json:"verifiers"`
+	PubKey    string   `json:"root_pubkey"`
+	Verifiers [][]byte `json:"threshold_verifiers"`
 }
 
 // EncodeENR returns an encoded string format of the enr record.
 func EncodeENR(record enr.Record) (string, error) {
 	var buf bytes.Buffer
 	if err := record.EncodeRLP(&buf); err != nil {
-		return "", err
+		return "", errors.Wrap(err, "encode rlp")
 	}
 
 	return "enr:" + base64.URLEncoding.EncodeToString(buf.Bytes()), nil
 }
 
 // DecodeENR returns a enr record decoded from the string.
-// See reference github.com/ethereum/go-ethereum@v1.10.10/p2p/dnsdisc/tree.go:378
+// See reference github.com/ethereum/go-ethereum@v1.10.10/p2p/dnsdisc/tree.go:378.
 func DecodeENR(enrStr string) (enr.Record, error) {
 	enrStr = strings.TrimPrefix(enrStr, "enr:")
 	enrBytes, err := base64.URLEncoding.DecodeString(enrStr)
@@ -242,4 +258,16 @@ func DecodeENR(enrStr string) (enr.Record, error) {
 	}
 
 	return record, nil
+}
+
+func getDescription(m Manifest) string {
+	dv := len(m.DVs)
+	peers := len(m.Peers)
+
+	var threshold int
+	if dv > 0 {
+		threshold = m.DVs[0].Threshold()
+	}
+
+	return fmt.Sprintf("dv/%d/threshold/%d/peer/%d", dv, threshold, peers)
 }
