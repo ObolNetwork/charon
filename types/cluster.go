@@ -23,7 +23,7 @@ import (
 	"testing"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/stretchr/testify/require"
@@ -61,7 +61,7 @@ func NewClusterForT(t *testing.T, dv, k, n, seed int) (Manifest, []*ecdsa.Privat
 
 	for i := 0; i < n; i++ {
 		// Generate ENR
-		p2pKey, err := ecdsa.GenerateKey(secp256k1.S256(), random)
+		p2pKey, err := ecdsa.GenerateKey(crypto.S256(), random)
 		require.NoError(t, err)
 
 		tcp := addrFunc(t) // localhost and lib-p2p tcp port
