@@ -10,7 +10,7 @@ require (
 	github.com/coinbase/kryptology v1.5.5
 	github.com/drand/kyber v1.1.9
 	github.com/drand/kyber-bls12381 v0.2.1
-	github.com/ethereum/go-ethereum v1.10.10
+	github.com/ethereum/go-ethereum v1.10.16
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/libp2p/go-libp2p v0.17.0
