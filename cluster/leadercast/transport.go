@@ -56,6 +56,7 @@ type p2pTransport struct {
 	ch      chan p2pMsg
 }
 
+// handle implements p2p network.StreamHandler processing new incoming messages.
 func (t *p2pTransport) handle(s network.Stream) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
