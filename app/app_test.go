@@ -106,7 +106,12 @@ func pingCluster(t *testing.T, test pingTest) {
 	const n = 3
 	ctx, cancel := context.WithCancel(context.Background())
 	manifest, p2pKeys, _ := types.NewClusterForT(t, 1, n, n, 0)
-	asserter := &pingAsserter{N: n, Manifest: manifest, Timeout: timeout}
+	asserter := &pingAsserter{
+		asserter: asserter{
+			Timeout: timeout,
+		},
+		N: n, Manifest: manifest,
+	}
 
 	var eg errgroup.Group
 
@@ -222,25 +227,39 @@ func udpAddrFromENR(t *testing.T, record enr.Record) string {
 	return fmt.Sprintf("%s:%d", net.IP(ip), port)
 }
 
-// pingAsserter asserts that all nodes ping all other nodes.
-type pingAsserter struct {
-	N        int
-	Manifest types.Manifest
-	Timeout  time.Duration
-	pings    sync.Map // map[string]bool
+// asserter provides an abstract callback asserter.
+type asserter struct {
+	Timeout   time.Duration
+	callbacks sync.Map // map[string]bool
 }
 
-// Callback returns the PingCallback function for the ith node.
-func (a *pingAsserter) Callback(t *testing.T, i int) func(peer.ID) {
+// Await waits for all nodes to ping each other or time out.
+func (a *asserter) await(t *testing.T, expect int) {
 	t.Helper()
 
-	return func(target peer.ID) {
-		for j, p := range a.Manifest.PeerIDs() {
-			if p == target {
-				a.pings.Store(fmt.Sprint(i, "-", j), true)
-			}
-		}
+	var actual map[interface{}]bool
+
+	ok := assert.Eventually(t, func() bool {
+		actual = make(map[interface{}]bool)
+		a.callbacks.Range(func(k, v interface{}) bool {
+			actual[k] = true
+
+			return true
+		})
+
+		return len(actual) >= expect
+	}, a.Timeout, time.Millisecond*10)
+
+	if !ok {
+		t.Errorf("Timeout waiting for callbacks, expect=%d, actual=%d: %v", expect, len(actual), actual)
 	}
+}
+
+// pingAsserter asserts that all nodes ping all other nodes.
+type pingAsserter struct {
+	asserter
+	N        int
+	Manifest types.Manifest
 }
 
 // Await waits for all nodes to ping each other or time out.
@@ -254,20 +273,18 @@ func (a *pingAsserter) Await(t *testing.T) {
 		n--
 	}
 
-	var pings map[interface{}]bool
+	a.await(t, factorial)
+}
 
-	ok := assert.Eventually(t, func() bool {
-		pings = make(map[interface{}]bool)
-		a.pings.Range(func(k, v interface{}) bool {
-			pings[k] = true
+// Callback returns the PingCallback function for the ith node.
+func (a *pingAsserter) Callback(t *testing.T, i int) func(peer.ID) {
+	t.Helper()
 
-			return true
-		})
-
-		return len(pings) == factorial
-	}, a.Timeout, time.Millisecond*10)
-
-	if !ok {
-		t.Errorf("Timeout waiting for pings, expect=%d, actual=%d: %v", factorial, len(pings), pings)
+	return func(target peer.ID) {
+		for j, p := range a.Manifest.PeerIDs() {
+			if p == target {
+				a.callbacks.Store(fmt.Sprint(i, "-", j), true)
+			}
+		}
 	}
 }
