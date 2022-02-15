@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
@@ -155,7 +155,7 @@ func pingCluster(t *testing.T, test pingTest) {
 func startExtBootnode(t *testing.T) *enode.Node {
 	t.Helper()
 
-	privkey, err := ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
+	privkey, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
 	require.NoError(t, err)
 
 	db, err := enode.OpenDB("")
