@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Command pull extracts a fresh copy of github.com/consensys/quorum/consensus/istanbul/qbft/core
+// Command fork extracts a fresh fork of github.com/consensys/quorum/consensus/istanbul/qbft/core
 // into the goquorum package. It provides a programmatic way to keep our qbft fork up to date
 // with the upstream.
 package main
@@ -91,6 +91,8 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "find sed", z.Str("out", string(out)))
 	}
+
+	// TODO(corver): Add a istanbul.RawProposal type and replace reference to types.Block.
 
 	out, err = execute(ctx, workDir, "mv", "istanbul", "../../istanbul")
 	if err != nil {
