@@ -28,7 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/stretchr/testify/require"
 
-	crypto2 "github.com/obolnetwork/charon/crypto"
+	crypto2 "github.com/obolnetwork/charon/tbls"
 )
 
 // NewClusterForT returns a new cluster manifest with dv number of distributed validators, k threshold and n peers.
