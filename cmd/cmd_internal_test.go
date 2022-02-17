@@ -27,11 +27,10 @@ import (
 
 func TestCmdFlags(t *testing.T) {
 	tests := []struct {
-		Name            string
-		Args            []string
-		VersionConfig   *versionConfig
-		BootstrapConfig *bootstrapConfig
-		appConfig       *app.Config
+		Name          string
+		Args          []string
+		VersionConfig *versionConfig
+		appConfig     *app.Config
 	}{
 		{
 			Name:          "version verbose",
@@ -42,26 +41,6 @@ func TestCmdFlags(t *testing.T) {
 			Name:          "version no verbose",
 			Args:          slice("version", "--verbose=false"),
 			VersionConfig: &versionConfig{Verbose: false},
-		},
-		{
-			Name: "bootstrap flags",
-			Args: slice("bootstrap"),
-			BootstrapConfig: &bootstrapConfig{
-				Out:          "./keys",
-				Shares:       4,
-				PasswordFile: "",
-				Bootnodes:    nil,
-			},
-		},
-		{
-			Name: "bootstrap with flags",
-			Args: slice("bootstrap", "-o=./gen_keys", "-n=6", "--password-file=./pass", `--bootnodes=hello,world`),
-			BootstrapConfig: &bootstrapConfig{
-				Out:          "./gen_keys",
-				Shares:       6,
-				PasswordFile: "./pass",
-				Bootnodes:    []string{"hello", "world"},
-			},
 		},
 		{
 			Name: "run command",
@@ -90,12 +69,6 @@ func TestCmdFlags(t *testing.T) {
 				newVersionCmd(func(_ io.Writer, config versionConfig) {
 					require.NotNil(t, test.VersionConfig)
 					require.Equal(t, *test.VersionConfig, config)
-				}),
-				newBootstrapCmd(func(_ io.Writer, config bootstrapConfig) error {
-					require.NotNil(t, test.BootstrapConfig)
-					require.Equal(t, *test.BootstrapConfig, config)
-
-					return nil
 				}),
 				newRunCmd(func(_ context.Context, config app.Config) error {
 					require.NotNil(t, test.appConfig)
