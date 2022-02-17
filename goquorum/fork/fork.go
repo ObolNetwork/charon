@@ -56,10 +56,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	if err := removeAll(workDir + "/istanbul"); err != nil {
-		return err
-	}
-
+	// Extract istanbul consensus from repo.
 	out, err = execute(ctx, workDir, "cp",
 		"-R",
 		"quorum/consensus/istanbul",
@@ -68,24 +65,28 @@ func run(ctx context.Context) error {
 		return errors.Wrap(err, "cp istanbul", z.Str("out", string(out)))
 	}
 
-	pkgToFolder := func(pkg string) string {
+	// pkgToDir is a function that maps a go package to a dir.
+	pkgToDir := func(pkg string) string {
 		return strings.ReplaceAll(pkg, "github.com/ethereum/go-ethereum/consensus", workDir)
 	}
 
+	// find all imports of istanbul/qbft/core
 	imprts, err := findImports(ctx,
 		"github.com/ethereum/go-ethereum/consensus/istanbul/qbft/core",
 		"github.com/ethereum/go-ethereum/consensus/istanbul",
-		pkgToFolder,
+		pkgToDir,
 	)
 	if err != nil {
 		return err
 	}
 
-	err = deleteUnusedPkgs("github.com/ethereum/go-ethereum/consensus/istanbul", imprts, pkgToFolder)
+	// delete all other packages under instanbul.
+	err = deleteUnusedPkgs("github.com/ethereum/go-ethereum/consensus/istanbul", imprts, pkgToDir)
 	if err != nil {
 		return err
 	}
 
+	// Rename imports from go-ethereum to charon.
 	out, err = execute(ctx, workDir, "find", "istanbul/", "-name", "*.go", "-exec", "sed", "-i", "",
 		"s#github.com/ethereum/go-ethereum/consensus/istanbul#github.com/obolnetwork/charon/goquorum/istanbul#g", "{}", "+")
 	if err != nil {
@@ -94,6 +95,7 @@ func run(ctx context.Context) error {
 
 	// TODO(corver): Add a istanbul.RawProposal type and replace reference to types.Block.
 
+	// Move result from work dir to target dir.
 	out, err = execute(ctx, workDir, "mv", "istanbul", "../../istanbul")
 	if err != nil {
 		return errors.Wrap(err, "cp istanbul", z.Str("out", string(out)))
@@ -102,7 +104,8 @@ func run(ctx context.Context) error {
 	return nil
 }
 
-func deleteUnusedPkgs(basePkg string, imprts map[string]bool, pkgToFolder func(pkg string) string) error {
+// deleteUnusedPkgs deletes all packages (and sub-packages) from basePkg that are not referenced by the imports.
+func deleteUnusedPkgs(basePkg string, imprts map[string]bool, pkgToDir func(pkg string) string) error {
 	var inImports bool
 	for imprt := range imprts {
 		if strings.HasPrefix(imprt, basePkg) {
@@ -111,21 +114,21 @@ func deleteUnusedPkgs(basePkg string, imprts map[string]bool, pkgToFolder func(p
 		}
 	}
 
-	folder := pkgToFolder(basePkg)
+	dir := pkgToDir(basePkg)
 	if !inImports {
-		return removeAll(folder)
+		return removeAll(dir)
 	}
 
-	entries, err := os.ReadDir(folder)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return errors.Wrap(err, "read folder")
+		return errors.Wrap(err, "read dir")
 	}
 
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
-		err := deleteUnusedPkgs(path.Join(basePkg, entry.Name()), imprts, pkgToFolder)
+		err := deleteUnusedPkgs(path.Join(basePkg, entry.Name()), imprts, pkgToDir)
 		if err != nil {
 			return err
 		}
@@ -136,9 +139,9 @@ func deleteUnusedPkgs(basePkg string, imprts map[string]bool, pkgToFolder func(p
 
 // findImports recursively finds all imports marching the prefix from a package and returns the unique set.
 func findImports(ctx context.Context, fromPkg string, importPrefix string,
-	pkgToFolder func(string) string) (map[string]bool, error,
+	pkgToDir func(string) string) (map[string]bool, error,
 ) {
-	out, err := execute(ctx, pkgToFolder(fromPkg), "go", "list", "-f",
+	out, err := execute(ctx, pkgToDir(fromPkg), "go", "list", "-f",
 		"{{range $imp := .Imports}}{{printf \"%s\\n\" $imp}}{{end}}")
 	if err != nil {
 		return nil, err
@@ -157,7 +160,7 @@ func findImports(ctx context.Context, fromPkg string, importPrefix string,
 		}
 		imprts[imprt] = true
 
-		nexts, err := findImports(ctx, imprt, importPrefix, pkgToFolder)
+		nexts, err := findImports(ctx, imprt, importPrefix, pkgToDir)
 		if err != nil {
 			return nil, err
 		}
@@ -170,6 +173,7 @@ func findImports(ctx context.Context, fromPkg string, importPrefix string,
 	return imprts, nil
 }
 
+// checkout checks out a shallow copy of github.com:ConsenSys/quorum.git into workdir.
 func checkout(ctx context.Context, workDir string) error {
 	_ = os.RemoveAll(workDir)
 
@@ -189,6 +193,7 @@ func checkout(ctx context.Context, workDir string) error {
 	return nil
 }
 
+// execute runs a command from dir and returns the output or a wrapped error.
 func execute(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
@@ -200,6 +205,7 @@ func execute(ctx context.Context, dir string, name string, args ...string) ([]by
 	return out, nil
 }
 
+// removeAll removes path p and any children it contains and wraps the error.
 func removeAll(p string) error {
 	err := os.RemoveAll(p)
 	if err != nil {
