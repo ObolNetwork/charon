@@ -42,9 +42,9 @@ func main() {
 
 func run(ctx context.Context) error {
 	// Ensure we are in this pull dir
-	out, err := execute(ctx, "", "stat", "pull.go")
+	_, err := execute(ctx, "", "stat", "fork.go")
 	if err != nil {
-		return errors.Wrap(err, "not in pull directory", z.Str("out", string(out)))
+		return errors.Wrap(err, "not in fork directory, use run.sh")
 	}
 
 	workDir := "tmp"
@@ -52,12 +52,13 @@ func run(ctx context.Context) error {
 		_ = os.RemoveAll(workDir)
 	}()
 
+	// Checkout goquorum.
 	if err := checkout(ctx, workDir); err != nil {
 		return err
 	}
 
 	// Extract istanbul consensus from repo.
-	out, err = execute(ctx, workDir, "cp",
+	out, err := execute(ctx, workDir, "cp",
 		"-R",
 		"quorum/consensus/istanbul",
 		"istanbul")
@@ -70,7 +71,7 @@ func run(ctx context.Context) error {
 		return strings.ReplaceAll(pkg, "github.com/ethereum/go-ethereum/consensus", workDir)
 	}
 
-	// find all imports of istanbul/qbft/core
+	// Find all imports of istanbul/qbft/core.
 	imprts, err := findImports(ctx,
 		"github.com/ethereum/go-ethereum/consensus/istanbul/qbft/core",
 		"github.com/ethereum/go-ethereum/consensus/istanbul",
@@ -80,7 +81,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	// delete all other packages under instanbul.
+	// Delete all other packages under instanbul.
 	err = deleteUnusedPkgs("github.com/ethereum/go-ethereum/consensus/istanbul", imprts, pkgToDir)
 	if err != nil {
 		return err
