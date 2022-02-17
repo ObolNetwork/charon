@@ -28,7 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/crypto/bls"
+	crypto2 "github.com/obolnetwork/charon/tbls"
 )
 
 // NewClusterForT returns a new cluster manifest with dv number of distributed validators, k threshold and n peers.
@@ -38,7 +38,7 @@ func NewClusterForT(t *testing.T, dv, k, n, seed int) (Manifest, []*ecdsa.Privat
 	t.Helper()
 
 	var (
-		dvs      []bls.TSS
+		dvs      []crypto2.TSS
 		dvShares [][]*bls_sig.SecretKeyShare
 		p2pKeys  []*ecdsa.PrivateKey
 		peers    []Peer
@@ -52,7 +52,7 @@ func NewClusterForT(t *testing.T, dv, k, n, seed int) (Manifest, []*ecdsa.Privat
 	}
 
 	for i := 0; i < dv; i++ {
-		tss, shares, err := bls.GenerateTSS(k, n, random)
+		tss, shares, err := crypto2.GenerateTSS(k, n, random)
 		require.NoError(t, err)
 
 		dvs = append(dvs, tss)

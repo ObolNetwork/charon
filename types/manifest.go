@@ -32,7 +32,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/crypto/bls"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 const manifestVersion = "obol/charon/manifest/0.0.1"
@@ -74,7 +74,7 @@ func NewPeer(record enr.Record, index int) (Peer, error) {
 type Manifest struct {
 	// DVs is the set of distributed validators managed by the cluster.
 	// Each DV is defined by its threshold signature scheme.
-	DVs []bls.TSS
+	DVs []tbls.TSS
 	// Peers is set of charon nodes in the cluster.
 	Peers []Peer
 }
@@ -182,7 +182,7 @@ func (m *Manifest) UnmarshalJSON(data []byte) error {
 		})
 	}
 
-	var dvs []bls.TSS
+	var dvs []tbls.TSS
 	for _, dv := range mjson.DVs {
 		var commitments []curves.Point
 		for _, vBytes := range dv.Verifiers {
@@ -204,7 +204,7 @@ func (m *Manifest) UnmarshalJSON(data []byte) error {
 			return errors.Wrap(err, "unmarshal pubkey")
 		}
 
-		dvs = append(dvs, bls.TSS{
+		dvs = append(dvs, tbls.TSS{
 			PubKey: pk,
 			Verifier: &sharing.FeldmanVerifier{
 				Commitments: commitments,

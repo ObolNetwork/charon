@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package bls_test
+package tbls_test
 
 import (
 	"crypto/rand"
@@ -21,14 +21,14 @@ import (
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/crypto/bls"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 func TestGenerateTSS(t *testing.T) {
 	threshold := 3
 	shares := 5
 
-	tss, secrets, err := bls.GenerateTSS(threshold, shares, rand.Reader)
+	tss, secrets, err := tbls.GenerateTSS(threshold, shares, rand.Reader)
 	require.NoError(t, err)
 	require.NotNil(t, tss)
 	require.NotNil(t, secrets)
@@ -43,22 +43,22 @@ func TestAggregateSignatures(t *testing.T) {
 	threshold := 3
 	shares := 5
 
-	tss, secrets, err := bls.GenerateTSS(threshold, shares, rand.Reader)
+	tss, secrets, err := tbls.GenerateTSS(threshold, shares, rand.Reader)
 	require.NoError(t, err)
 
 	msg := []byte("Hello Obol")
 	partialSigs := make([]*bls_sig.PartialSignature, len(secrets))
 	for i, secret := range secrets {
-		psig, err := bls.PartialSign(secret, msg)
+		psig, err := tbls.PartialSign(secret, msg)
 		require.NoError(t, err)
 
 		partialSigs[i] = psig
 	}
 
-	sig, _, err := bls.AggregateSignatures(tss, partialSigs, msg)
+	sig, _, err := tbls.AggregateSignatures(tss, partialSigs, msg)
 	require.NoError(t, err)
 
-	result, err := bls.Verify(tss.PubKey, msg, sig)
+	result, err := tbls.Verify(tss.PubKey, msg, sig)
 	require.NoError(t, err)
 	require.Equal(t, true, result)
 }
