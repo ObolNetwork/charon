@@ -33,7 +33,6 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster/leadercast"
-	"github.com/obolnetwork/charon/identity"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/types"
 	"github.com/obolnetwork/charon/validatorapi"
@@ -100,7 +99,7 @@ func Run(ctx context.Context, conf Config) error {
 
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
-		p2pKey, err = identity.LoadOrCreatePrivKey(conf.DataDir)
+		p2pKey, err = LoadOrCreatePrivKey(conf.DataDir)
 		if err != nil {
 			return errors.Wrap(err, "load or create peer ID")
 		}

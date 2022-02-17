@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package identity
+package app
 
 import (
 	"crypto/ecdsa"
@@ -25,6 +25,8 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
+// LoadOrCreatePrivKey returns a k1 (secp256k1) private key from the provided folder.
+// If it doesn't exist, a new key is generated and stored and returned.
 func LoadOrCreatePrivKey(dataDir string) (*ecdsa.PrivateKey, error) {
 	keyPath := path.Join(dataDir, "nodekey")
 
