@@ -58,7 +58,9 @@ func TestAggregateSignatures(t *testing.T) {
 	sig, _, err := tbls.AggregateSignatures(tss, partialSigs, msg)
 	require.NoError(t, err)
 
-	result, err := tbls.Verify(tss.PubKey, msg, sig)
+	pubkey, err := tss.PublicKey()
+	require.NoError(t, err)
+	result, err := tbls.Verify(pubkey, msg, sig)
 	require.NoError(t, err)
 	require.Equal(t, true, result)
 }

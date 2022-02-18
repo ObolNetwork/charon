@@ -66,11 +66,6 @@ func TestManifestJSON(t *testing.T) {
 			tss2 := manifest2.DVs[i]
 			require.Equal(t, tss1.NumShares, tss2.NumShares)
 			require.Equal(t, tss1.Verifier, tss2.Verifier)
-			pk1, err := tss1.PubKey.MarshalBinary()
-			require.NoError(t, err)
-			pk2, err := tss2.PubKey.MarshalBinary()
-			require.NoError(t, err)
-			require.Equal(t, pk1, pk2)
 		}
 	}
 }

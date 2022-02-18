@@ -47,7 +47,6 @@ type PubShare struct {
 // TSS (threshold signing scheme) wraps PubKey (PublicKey), Verifiers (the public shares corresponding to each secret share)
 // and threshold (number of shares).
 type TSS struct {
-	PubKey    *bls_sig.PublicKey
 	Verifier  *share.FeldmanVerifier
 	NumShares int
 }
@@ -57,12 +56,23 @@ func (t TSS) Threshold() int {
 	return len(t.Verifier.Commitments)
 }
 
+// PublicKey returns the root public key for given verifiers.
+func (t TSS) PublicKey() (*bls_sig.PublicKey, error) {
+	pk := &bls_sig.PublicKey{}
+	err := pk.UnmarshalBinary(t.Verifier.Commitments[0].ToAffineCompressed())
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal pubkey")
+	}
+
+	return pk, nil
+}
+
 // GenerateTSS returns a new random instance of threshold signing scheme and associated SecretKeyShares.
 // It generates n number of secret key shares where t of them can be combined to sign a message.
 func GenerateTSS(t, n int, reader io.Reader) (TSS, []*bls_sig.SecretKeyShare, error) {
 	ikm := make([]byte, 32)
 	_, _ = reader.Read(ikm)
-	pubKey, secret, err := blsScheme.KeygenWithSeed(ikm)
+	_, secret, err := blsScheme.KeygenWithSeed(ikm)
 	if err != nil {
 		return TSS{}, nil, errors.Wrap(err, "bls key generation")
 	}
@@ -72,7 +82,7 @@ func GenerateTSS(t, n int, reader io.Reader) (TSS, []*bls_sig.SecretKeyShare, er
 		return TSS{}, nil, errors.Wrap(err, "generate secret shares")
 	}
 
-	return TSS{PubKey: pubKey, Verifier: verifier, NumShares: n}, sks, nil
+	return TSS{Verifier: verifier, NumShares: n}, sks, nil
 }
 
 // AggregateSignatures aggregates partial signatures over the given message.
@@ -193,13 +203,8 @@ func getPubShare(identifier uint32, verifier *share.FeldmanVerifier) (*PubShare,
 		pubshare = pubshare.Add(c)
 	}
 
-	g1Point, err := keyGroup.FromUncompressed(pubshare.ToAffineUncompressed())
-	if err != nil {
-		return nil, err
-	}
-
 	pks := &bls_sig.PublicKey{}
-	err = pks.UnmarshalBinary(keyGroup.ToCompressed(g1Point))
+	err := pks.UnmarshalBinary(pubshare.ToAffineCompressed())
 	if err != nil {
 		return nil, err
 	}
