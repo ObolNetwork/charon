@@ -17,6 +17,7 @@ package types
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -121,7 +122,18 @@ func (m Manifest) MarshalJSON() ([]byte, error) {
 			verifiers = append(verifiers, c.ToAffineCompressed())
 		}
 
+		pk, err := tss.PublicKey()
+		if err != nil {
+			return nil, errors.Wrap(err, "get pubkey")
+		}
+
+		rawPK, err := pk.MarshalBinary()
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal pubkey")
+		}
+
 		dvs = append(dvs, dvJSON{
+			PubKey:    "0x" + hex.EncodeToString(rawPK),
 			Verifiers: verifiers,
 		})
 	}
@@ -210,6 +222,7 @@ type manifestJSON struct {
 }
 
 type dvJSON struct {
+	PubKey    string   `json:"root_pubkey"`
 	Verifiers [][]byte `json:"threshold_verifiers"`
 }
 
