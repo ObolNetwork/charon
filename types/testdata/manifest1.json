@@ -3,7 +3,7 @@
   "description": "dv/2/threshold/3/peer/5",
   "distributed_validators": [
     {
-      "root_pubkey": "af7e10e176ad2cd634009fed0e906e95866d47ec16808cc4df32b3bcfcaffbad9158f52531a086f6d9c54152dc4250da",
+      "root_pubkey": "0xaf7e10e176ad2cd634009fed0e906e95866d47ec16808cc4df32b3bcfcaffbad9158f52531a086f6d9c54152dc4250da",
       "threshold_verifiers": [
         "r34Q4XatLNY0AJ/tDpBulYZtR+wWgIzE3zKzvPyv+62RWPUlMaCG9tnFQVLcQlDa",
         "jRadEC0L5vp+sYPUvRgp9b4x/nzN1qGkiFA+lgpwNjq3BiJjhhikMKY8HQ1PJ0R2",
@@ -11,7 +11,7 @@
       ]
     },
     {
-      "root_pubkey": "82313d1fc1b7e2e361935b977068434226a0bc1ec3680a35669b63378f0154e419b1daba3531b0068a7af3159e0f56d7",
+      "root_pubkey": "0x82313d1fc1b7e2e361935b977068434226a0bc1ec3680a35669b63378f0154e419b1daba3531b0068a7af3159e0f56d7",
       "threshold_verifiers": [
         "gjE9H8G34uNhk1uXcGhDQiagvB7DaAo1ZptjN48BVOQZsdq6NTGwBop68xWeD1bX",
         "ud3X5IV2KqOkBMWRLGpWsuyRQkK0shUKp8pascNEQE3Vo2ujVfs0O+3dPPbi8CYm",

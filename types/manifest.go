@@ -24,7 +24,6 @@ import (
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/sharing"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -123,13 +122,18 @@ func (m Manifest) MarshalJSON() ([]byte, error) {
 			verifiers = append(verifiers, c.ToAffineCompressed())
 		}
 
-		rawPK, err := tss.PubKey.MarshalBinary()
+		pk, err := tss.PublicKey()
+		if err != nil {
+			return nil, errors.Wrap(err, "get pubkey")
+		}
+
+		rawPK, err := pk.MarshalBinary()
 		if err != nil {
 			return nil, errors.Wrap(err, "marshal pubkey")
 		}
 
 		dvs = append(dvs, dvJSON{
-			PubKey:    hex.EncodeToString(rawPK),
+			PubKey:    "0x" + hex.EncodeToString(rawPK),
 			Verifiers: verifiers,
 		})
 	}
@@ -194,18 +198,7 @@ func (m *Manifest) UnmarshalJSON(data []byte) error {
 			commitments = append(commitments, c)
 		}
 
-		b, err := hex.DecodeString(dv.PubKey)
-		if err != nil {
-			return errors.Wrap(err, "pubkey hex")
-		}
-
-		pk := new(bls_sig.PublicKey)
-		if err := pk.UnmarshalBinary(b); err != nil {
-			return errors.Wrap(err, "unmarshal pubkey")
-		}
-
 		dvs = append(dvs, tbls.TSS{
-			PubKey: pk,
 			Verifier: &sharing.FeldmanVerifier{
 				Commitments: commitments,
 			},
