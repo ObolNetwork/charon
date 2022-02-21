@@ -40,30 +40,42 @@ func newDutySimulator(cons cluster.Consensus,
 		period = time.Second * 5
 	}
 
-	slotTicker := time.NewTicker(period)
+	slotZero := time.Now().Truncate(time.Hour * 24)
 
-	var slot int
+	// slotFromTime returns a deterministic slot from a timestamp.
+	slotFromTime := func(ts time.Time) int {
+		return int(ts.Sub(slotZero) / period)
+	}
+
+	// nextSlot returns a timer channel for the start of the next slot.
+	nextSlot := func() <-chan time.Time {
+		now := time.Now()
+		next := now.Truncate(period).Add(period)
+
+		return time.NewTimer(next.Sub(now)).C
+	}
 
 	return func() error {
 			for {
 				select {
-				case <-slotTicker.C:
-					slot++
-					duty := types.Duty{
-						Slot: slot,
-						Type: types.DutyAttester,
-					}
+				case ts := <-nextSlot():
+					// Do not block resolving duty, just kick it off.
+					go func() {
+						duty := types.Duty{
+							Slot: slotFromTime(ts),
+							Type: types.DutyAttester,
+						}
 
-					err := simulateDuty(ctx, cons, duty, callback)
-					if err != nil {
-						log.Error(ctx, "Simulate duty error", err)
-					}
+						err := simulateDuty(ctx, cons, duty, callback)
+						if err != nil {
+							log.Error(ctx, "Simulate duty error", err, z.Int("slot", duty.Slot))
+						}
+					}()
 				case <-ctx.Done():
 					return nil
 				}
 			}
 		}, func() {
-			slotTicker.Stop()
 			cancel()
 		}
 }

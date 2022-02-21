@@ -52,7 +52,7 @@ func TestSimDuties(t *testing.T) {
 			TestConfig: app.TestConfig{
 				Manifest:        &manifest,
 				P2PKey:          p2pKeys[i],
-				SimDutyPeriod:   time.Millisecond * 10,
+				SimDutyPeriod:   time.Second,
 				SimDutyCallback: asserter.Callback(t),
 			},
 			P2P: p2p.Config{
