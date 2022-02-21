@@ -31,29 +31,29 @@ func TestIsLeader(t *testing.T) {
 	}{
 		{
 			Slot:     1,
-			DutyType: types.DutyAttester,
-			Total:    5,
-			Leader:   1,
-		}, {
-			Slot:     1,
-			DutyType: 2,
+			DutyType: 1,
 			Total:    5,
 			Leader:   2,
 		}, {
 			Slot:     1,
-			DutyType: 3,
+			DutyType: 2,
 			Total:    5,
 			Leader:   3,
+		}, {
+			Slot:     1,
+			DutyType: 3,
+			Total:    5,
+			Leader:   4,
+		}, {
+			Slot:     1,
+			DutyType: 1,
+			Total:    2,
+			Leader:   0,
 		}, {
 			Slot:     2,
 			DutyType: 1,
 			Total:    2,
 			Leader:   1,
-		}, {
-			Slot:     2,
-			DutyType: 2,
-			Total:    2,
-			Leader:   0,
 		},
 	}
 	for i, test := range tests {
