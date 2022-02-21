@@ -21,6 +21,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"text/template"
 
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
@@ -32,6 +33,10 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/types"
 )
+
+const scriptTmpl = `#!/bin/sh
+{{.CharonDir}} run {{range .Flags}} {{.}} \
+{{end}}`
 
 type simnetConfig struct {
 	clusterDir string
@@ -77,6 +82,10 @@ func runGenSimnet(config simnetConfig) error {
 
 	var peers []types.Peer
 	port := config.portStart
+	getPort := func() int {
+		port++
+		return port
+	}
 	for i := 0; i < config.numNodes; i++ {
 		dirname := fmt.Sprintf(config.clusterDir+"/node%d", i)
 		if err := os.Mkdir(dirname, 0o755); err != nil {
@@ -90,19 +99,12 @@ func runGenSimnet(config simnetConfig) error {
 
 		tcp := net.TCPAddr{
 			IP:   net.ParseIP("127.0.0.1"),
-			Port: port,
-		}
-		if err != nil {
-			return errors.Wrap(err, "resolve tcp address")
+			Port: getPort(),
 		}
 
-		port++
 		udp := net.UDPAddr{
 			IP:   net.ParseIP("127.0.0.1"),
-			Port: port,
-		}
-		if err != nil {
-			return errors.Wrap(err, "resolve udp address")
+			Port: getPort(),
 		}
 
 		var r enr.Record
@@ -124,11 +126,9 @@ func runGenSimnet(config simnetConfig) error {
 		peers = append(peers, peer)
 
 		// Write run command to a bash script for each node
-		if err := writeRunScript(dirname, port, tcp.String(), udp.String(), port+1); err != nil {
+		if err := writeRunScript(dirname, getPort(), tcp.String(), udp.String(), getPort()); err != nil {
 			return errors.Wrap(err, "write run script")
 		}
-
-		port += 2
 	}
 
 	tss, _, err := tbls.GenerateTSS(config.threshold, config.numNodes, rand.Reader)
@@ -154,26 +154,42 @@ func runGenSimnet(config simnetConfig) error {
 }
 
 func writeRunScript(dirname string, monitoringPort int, tcpAddr string, udpAddr string, validatorAPIPort int) error {
-	charonDir, err := os.Getwd()
+	charonDir, err := os.Executable()
 	if err != nil {
 		return errors.Wrap(err, "getting current directory")
 	}
 
-	// Flags for running a node
-	dataDir := " --data-dir=./"
-	manifest := " --manifest-file=../manifest.json"
-	monitoringAddr := fmt.Sprintf(" --monitoring-address=127.0.0.1:%d", monitoringPort)
-	validatorAPIAddr := fmt.Sprintf(" --validator-api-address=127.0.0.1:%d", validatorAPIPort)
-	p2pTCPAddr := fmt.Sprintf(" --p2p-tcp-address=%s", tcpAddr)
-	p2pUDPAddr := fmt.Sprintf(" --p2p-udp-address=%s", udpAddr)
-
-	// Run Command with flags
-	runNode := fmt.Sprintf("%s/charon run ", charonDir) + manifest + monitoringAddr + validatorAPIAddr + dataDir + p2pTCPAddr + p2pUDPAddr
-	b := []byte(runNode)
-	//nolint:gosec
-	err = os.WriteFile(dirname+"/run.sh", b, 0o755)
+	f, err := os.Create(dirname + "/run.sh")
 	if err != nil {
-		return errors.Wrap(err, "write run.sh")
+		return errors.Wrap(err, "create run.sh")
+	}
+	defer f.Close()
+
+	// Flags for running a node
+	var flags []string
+	flags = append(flags, "--data-dir=\"./\"")
+	flags = append(flags, "--manifest-file=\"../manifest.json\"")
+	flags = append(flags, fmt.Sprintf("--monitoring-address=\"127.0.0.1:%d\"", monitoringPort))
+	flags = append(flags, fmt.Sprintf("--validator-api-address=\"127.0.0.1:%d\"", validatorAPIPort))
+	flags = append(flags, fmt.Sprintf("--p2p-tcp-address=%s", tcpAddr))
+	flags = append(flags, fmt.Sprintf("--p2p-udp-address=%s", udpAddr))
+
+	tmpl, err := template.New("run").Parse(scriptTmpl)
+	if err != nil {
+		return errors.Wrap(err, "new template")
+	}
+
+	err = tmpl.Execute(f, struct {
+		CharonDir string
+		Flags     []string
+	}{CharonDir: charonDir, Flags: flags})
+	if err != nil {
+		return errors.Wrap(err, "execute template")
+	}
+
+	err = os.Chmod(dirname+"/run.sh", 0o755)
+	if err != nil {
+		return errors.Wrap(err, "change run.sh permissions")
 	}
 
 	return nil
