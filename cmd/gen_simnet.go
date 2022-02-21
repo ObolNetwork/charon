@@ -37,8 +37,7 @@ type simnetConfig struct {
 	clusterDir string
 	numNodes   int
 	threshold  int
-	tcpAddress string
-	udpAddress string
+	portStart  int
 }
 
 func newGenSimnetCmd(runFunc func(simnetConfig) error) *cobra.Command {
@@ -62,16 +61,22 @@ func bindSimnetFlags(flags *pflag.FlagSet, config *simnetConfig) {
 	flags.StringVar(&config.clusterDir, "cluster-dir", "./clusterData", "The root folder to create the cluster files and scripts")
 	flags.IntVarP(&config.numNodes, "nodes", "n", 5, "The number of charon nodes in the cluster")
 	flags.IntVarP(&config.threshold, "threshold", "t", 3, "The threshold required for signatures")
-	flags.StringVar(&config.tcpAddress, "tcp-address", "127.0.0.1:8080", "TCP address for lib-p2p tcp")
-	flags.StringVar(&config.udpAddress, "udp-address", "127.0.0.1:3030", "UDP address for discv5 udp")
+	flags.IntVar(&config.portStart, "port-start", 15000, "Starting port number for nodes in cluster")
 }
 
 func runGenSimnet(config simnetConfig) error {
+	// Remove previous directories
+	if err := os.RemoveAll(config.clusterDir); err != nil {
+		return errors.Wrap(err, "remove cluster dir")
+	}
+
+	// Create cluster directory at given location
 	if err := os.Mkdir(config.clusterDir, 0o755); err != nil {
 		return errors.Wrap(err, "mkdir")
 	}
 
 	var peers []types.Peer
+	port := config.portStart
 	for i := 0; i < config.numNodes; i++ {
 		dirname := fmt.Sprintf(config.clusterDir+"/node%d", i)
 		if err := os.Mkdir(dirname, 0o755); err != nil {
@@ -83,12 +88,19 @@ func runGenSimnet(config simnetConfig) error {
 			return errors.Wrap(err, "create p2p key")
 		}
 
-		tcp, err := net.ResolveTCPAddr("tcp", config.tcpAddress)
+		tcp := net.TCPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: port,
+		}
 		if err != nil {
 			return errors.Wrap(err, "resolve tcp address")
 		}
 
-		udp, err := net.ResolveUDPAddr("udp", config.udpAddress)
+		port++
+		udp := net.UDPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: port,
+		}
 		if err != nil {
 			return errors.Wrap(err, "resolve udp address")
 		}
@@ -110,6 +122,13 @@ func runGenSimnet(config simnetConfig) error {
 		}
 
 		peers = append(peers, peer)
+
+		// Write run command to a bash script for each node
+		if err := writeRunScript(dirname, port, tcp.String(), udp.String(), port+1); err != nil {
+			return errors.Wrap(err, "write run script")
+		}
+
+		port += 2
 	}
 
 	tss, _, err := tbls.GenerateTSS(config.threshold, config.numNodes, rand.Reader)
@@ -129,6 +148,32 @@ func runGenSimnet(config simnetConfig) error {
 	filename := path.Join(config.clusterDir, "manifest.json")
 	if err = os.WriteFile(filename, manifestJSON, 0o600); err != nil {
 		return errors.Wrap(err, "write manifest.json")
+	}
+
+	return nil
+}
+
+func writeRunScript(dirname string, monitoringPort int, tcpAddr string, udpAddr string, validatorAPIPort int) error {
+	charonDir, err := os.Getwd()
+	if err != nil {
+		return errors.Wrap(err, "getting current directory")
+	}
+
+	// Flags for running a node
+	dataDir := " --data-dir=./"
+	manifest := " --manifest-file=../manifest.json"
+	monitoringAddr := fmt.Sprintf(" --monitoring-address=127.0.0.1:%d", monitoringPort)
+	validatorAPIAddr := fmt.Sprintf(" --validator-api-address=127.0.0.1:%d", validatorAPIPort)
+	p2pTCPAddr := fmt.Sprintf(" --p2p-tcp-address=%s", tcpAddr)
+	p2pUDPAddr := fmt.Sprintf(" --p2p-udp-address=%s", udpAddr)
+
+	// Run Command with flags
+	runNode := fmt.Sprintf("%s/charon run ", charonDir) + manifest + monitoringAddr + validatorAPIAddr + dataDir + p2pTCPAddr + p2pUDPAddr
+	b := []byte(runNode)
+	//nolint:gosec
+	err = os.WriteFile(dirname+"/run.sh", b, 0o755)
+	if err != nil {
+		return errors.Wrap(err, "write run.sh")
 	}
 
 	return nil
