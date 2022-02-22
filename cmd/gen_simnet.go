@@ -154,7 +154,7 @@ func runGenSimnet(config simnetConfig) error {
 }
 
 func writeRunScript(dirname string, monitoringPort int, tcpAddr string, udpAddr string, validatorAPIPort int) error {
-	charonDir, err := os.Executable()
+	charonExe, err := os.Executable()
 	if err != nil {
 		return errors.Wrap(err, "getting current directory")
 	}
@@ -182,7 +182,7 @@ func writeRunScript(dirname string, monitoringPort int, tcpAddr string, udpAddr 
 	err = tmpl.Execute(f, struct {
 		CharonDir string
 		Flags     []string
-	}{CharonDir: charonDir, Flags: flags})
+	}{CharonDir: charonExe, Flags: flags})
 	if err != nil {
 		return errors.Wrap(err, "execute template")
 	}
