@@ -42,6 +42,7 @@ func New() *cobra.Command {
 		newVersionCmd(runVersionCmd),
 		newEnrCmd(runNewENR),
 		newRunCmd(app.Run),
+		newGenSimnetCmd(runGenSimnet),
 	)
 }
 
