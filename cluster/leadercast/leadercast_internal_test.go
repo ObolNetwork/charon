@@ -15,7 +15,6 @@
 package leadercast
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -71,55 +70,5 @@ func TestIsLeader(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestMemTransport(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	trFunc := NewMemTransportFunc(ctx)
-
-	const (
-		n     = 3
-		slots = 3
-	)
-	var casts []*LeaderCast
-	for i := 0; i < n; i++ {
-		c := New(trFunc(), i, n)
-		casts = append(casts, c)
-		go func() {
-			require.NoError(t, c.Start())
-		}()
-
-		t.Cleanup(c.Stop)
-	}
-
-	resolved := make(chan []byte, slots*n)
-	for i := 0; i < slots; i++ {
-		duty := types.Duty{Slot: i}
-		for j := 0; j < n; j++ {
-			go func(slot, node int) {
-				data, err := casts[node].ResolveDuty(ctx, duty, []byte(fmt.Sprintf("c%d#%d", node, slot)))
-				require.NoError(t, err)
-				resolved <- data
-			}(i, j)
-		}
-	}
-
-	var actual []string
-	for i := 0; i < slots*n; i++ {
-		actual = append(actual, string(<-resolved))
-	}
-
-	expects := []string{"c0#0", "c1#1", "c2#2"}
-	for _, expect := range expects {
-		var count int
-		for _, resolved := range actual {
-			if resolved == expect {
-				count++
-			}
-		}
-		require.Equal(t, n, count, expect)
 	}
 }
