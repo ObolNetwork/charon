@@ -18,6 +18,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path"
@@ -45,15 +46,15 @@ type simnetConfig struct {
 	portStart  int
 }
 
-func newGenSimnetCmd(runFunc func(simnetConfig) error) *cobra.Command {
+func newGenSimnetCmd(runFunc func(io.Writer, simnetConfig) error) *cobra.Command {
 	var conf simnetConfig
 
 	cmd := &cobra.Command{
-		Use:  "gen-simnet",
-		Long: "Generate local simnet cluster",
-		Args: cobra.NoArgs,
+		Use:   "gen-simnet",
+		Short: "Generates charon simnet cluster",
+		Long:  "Generate local simnet cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(conf)
+			return runFunc(cmd.OutOrStdout(), conf)
 		},
 	}
 
@@ -63,13 +64,13 @@ func newGenSimnetCmd(runFunc func(simnetConfig) error) *cobra.Command {
 }
 
 func bindSimnetFlags(flags *pflag.FlagSet, config *simnetConfig) {
-	flags.StringVar(&config.clusterDir, "cluster-dir", "./clusterData", "The root folder to create the cluster files and scripts")
+	flags.StringVar(&config.clusterDir, "cluster-dir", "/tmp/charon-simnet", "The root folder to create the cluster files and scripts")
 	flags.IntVarP(&config.numNodes, "nodes", "n", 5, "The number of charon nodes in the cluster")
 	flags.IntVarP(&config.threshold, "threshold", "t", 3, "The threshold required for signatures")
 	flags.IntVar(&config.portStart, "port-start", 15000, "Starting port number for nodes in cluster")
 }
 
-func runGenSimnet(config simnetConfig) error {
+func runGenSimnet(out io.Writer, config simnetConfig) error {
 	// Remove previous directories
 	if err := os.RemoveAll(config.clusterDir); err != nil {
 		return errors.Wrap(err, "remove cluster dir")
@@ -149,6 +150,8 @@ func runGenSimnet(config simnetConfig) error {
 	if err = os.WriteFile(filename, manifestJSON, 0o600); err != nil {
 		return errors.Wrap(err, "write manifest.json")
 	}
+
+	_, _ = fmt.Fprintf(out, "Created a simnet cluster at: %s", config.clusterDir)
 
 	return nil
 }
