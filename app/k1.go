@@ -28,7 +28,7 @@ import (
 // LoadOrCreatePrivKey returns a k1 (secp256k1) private key from the provided folder.
 // If it doesn't exist, a new key is generated and stored and returned.
 func LoadOrCreatePrivKey(dataDir string) (*ecdsa.PrivateKey, error) {
-	keyPath := path.Join(dataDir, "nodekey")
+	keyPath := path.Join(dataDir, "p2pkey")
 
 	key, err := crypto.LoadECDSA(keyPath)
 	if errors.Is(err, os.ErrNotExist) {
