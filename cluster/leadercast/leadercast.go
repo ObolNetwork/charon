@@ -83,7 +83,7 @@ func (l *LeaderCast) getBuffer(duty types.Duty) chan []byte {
 	defer l.mu.Unlock()
 	ch, ok := l.buffers[duty]
 	if !ok {
-		ch = make(chan []byte, 1)
+		ch = make(chan []byte, 1) // Only need to buffer a single message per duty.
 		l.buffers[duty] = ch
 	}
 
