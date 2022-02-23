@@ -65,7 +65,7 @@ issues:
   exclude:
     - "error returned from interface method should be wrapped" # Relax wrapcheck
     - "defer: prefer not to defer chains of function calls" # Relax revive
-    - "flag-parameter: parameter 'excludeENRs' seems to be a control flag, avoid control coupling" # Relax control flags
+    - "avoid control coupling" # Relax revive
 
 linters:
   enable-all: true
