@@ -89,13 +89,15 @@ func resolveListenAddr(addr string) (*net.TCPAddr, error) {
 
 // multiAddrFromIPPort returns a multiaddr composed of the provided ip (v4 or v6) and tcp port.
 func multiAddrFromIPPort(ip net.IP, port int) (ma.Multiaddr, error) {
+	if ip.To4() == nil && ip.To16() == nil {
+		return nil, errors.New("invalid ip address")
+	}
+
 	var typ string
 	if ip.To4() != nil {
 		typ = "ip4"
 	} else if ip.To16() != nil {
 		typ = "ip6"
-	} else {
-		return nil, errors.New("invalid ip address")
 	}
 
 	maddr, err := ma.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", typ, ip.String(), port))
