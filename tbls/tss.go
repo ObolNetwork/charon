@@ -18,25 +18,16 @@ import (
 	"io"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
-	bls12381 "github.com/coinbase/kryptology/pkg/core/curves/native/bls12-381"
 	share "github.com/coinbase/kryptology/pkg/sharing"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-var (
-	// pairing is the BLS12-381 Engine initialising G1 and G2 groups.
-	pairing = bls12381.NewEngine()
-
-	// keyGroup is the G1 group.
-	keyGroup = pairing.G1
-
-	// blsScheme is the BLS12-381 ETH2 signature scheme with standard domain separation tag used for signatures.
-	// blsScheme uses proofs of possession to mitigate rogue-key attacks.
-	// see: https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature-03#section-4.2.3
-	blsScheme = bls_sig.NewSigEth2()
-)
+// blsScheme is the BLS12-381 ETH2 signature scheme with standard domain separation tag used for signatures.
+// blsScheme uses proofs of possession to mitigate rogue-key attacks.
+// see: https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature-03#section-4.2.3
+var blsScheme = bls_sig.NewSigEth2()
 
 // PubShare is a public share corresponding to a secret share.
 type PubShare struct {
@@ -128,12 +119,22 @@ func AggregateSignatures(tss TSS, partialSigs []*bls_sig.PartialSignature, msg [
 
 // Verify verifies the given signature(sig) on message(msg) with given public key (pk).
 func Verify(pk *bls_sig.PublicKey, msg []byte, sig *bls_sig.Signature) (bool, error) {
-	return blsScheme.Verify(pk, msg, sig)
+	res, err := blsScheme.Verify(pk, msg, sig)
+	if err != nil {
+		return res, errors.Wrap(err, "verify signature")
+	}
+
+	return res, nil
 }
 
 // PartialSign signs given message(msg) using given Secret Key Share(sks) and returns a Partial Signature.
 func PartialSign(sks *bls_sig.SecretKeyShare, msg []byte) (*bls_sig.PartialSignature, error) {
-	return blsScheme.PartialSign(sks, msg)
+	psig, err := blsScheme.PartialSign(sks, msg)
+	if err != nil {
+		return nil, errors.Wrap(err, "partial sign")
+	}
+
+	return psig, nil
 }
 
 // generateSecretShares splits the secret and returns n secret shares and t verifiers.
@@ -206,7 +207,7 @@ func getPubShare(identifier uint32, verifier *share.FeldmanVerifier) (*PubShare,
 	pks := &bls_sig.PublicKey{}
 	err := pks.UnmarshalBinary(pubshare.ToAffineCompressed())
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "unmarshal pubshare")
 	}
 
 	return &PubShare{identifier: uint8(identifier), Value: pks}, nil

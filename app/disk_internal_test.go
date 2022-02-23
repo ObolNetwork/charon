@@ -29,12 +29,14 @@ func TestLoadManifest(t *testing.T) {
 	manifest, _, _ := types.NewClusterForT(t, 1, 2, 3, 0)
 
 	b, err := json.MarshalIndent(manifest, "", " ")
+	require.NoError(t, err)
 
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
 	filename := path.Join(dir, "manifest.json")
 
+	// nolint:gosec
 	err = os.WriteFile(filename, b, 0o644)
 	require.NoError(t, err)
 
