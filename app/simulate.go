@@ -32,7 +32,6 @@ import (
 func newDutySimulator(cons cluster.Consensus,
 	period time.Duration, callback func(types.Duty, []byte),
 ) (func() error, context.CancelFunc) {
-
 	ctx := log.WithTopic(context.Background(), "sim-duty")
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -83,7 +82,6 @@ func newDutySimulator(cons cluster.Consensus,
 func simulateDuty(ctx context.Context, cons cluster.Consensus, duty types.Duty,
 	callback func(types.Duty, []byte),
 ) error {
-
 	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 

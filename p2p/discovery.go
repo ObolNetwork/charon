@@ -28,8 +28,8 @@ import (
 
 // NewUDPNode starts and returns a discv5 UDP implementation.
 func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs []enr.Record,
-	excludeENRs bool) (*discover.UDPv5, error) {
-
+	excludeENRs bool) (*discover.UDPv5, error,
+) {
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "resolve udp address")
@@ -87,7 +87,6 @@ func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs 
 
 // NewLocalEnode returns a local enode and a peer DB or an error.
 func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *enode.DB, error) {
-
 	db, err := enode.OpenDB(config.DBPath)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "open peer db")
@@ -95,7 +94,7 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.Wrap(err, "resolve udp address")
 	}
 
 	tcpAddrs, err := config.ParseTCPAddrs()

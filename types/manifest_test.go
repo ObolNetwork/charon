@@ -45,12 +45,15 @@ func TestManifestJSON(t *testing.T) {
 		filename := fmt.Sprintf("testdata/manifest%d.json", i)
 
 		if *update {
+			// nolint:gosec
 			err := os.WriteFile(filename, data, 0o644)
 			require.NoError(t, err)
+
 			continue
 		}
 
 		actual, err := os.ReadFile(filename)
+		require.NoError(t, err)
 		require.JSONEq(t, string(data), string(actual))
 
 		// Unmarshal from JSON.

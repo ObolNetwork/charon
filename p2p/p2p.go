@@ -37,13 +37,13 @@ import (
 
 // NewTCPNode returns a started tcp-based libp2p node.
 func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
-	udpNode *discover.UDPv5, peers []types.Peer) (host.Host, error) {
-
+	udpNode *discover.UDPv5, peers []types.Peer) (host.Host, error,
+) {
 	peerMap := make(map[peer.ID]enode.Node)
 	for _, p := range peers {
 		node, err := enode.New(new(enode.V4ID), &p.ENR)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "new peer enode")
 		}
 		peerMap[p.ID] = *node
 	}

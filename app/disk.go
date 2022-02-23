@@ -26,7 +26,7 @@ import (
 func loadManifest(file string) (types.Manifest, error) {
 	buf, err := os.ReadFile(file)
 	if err != nil {
-		return types.Manifest{}, err
+		return types.Manifest{}, errors.Wrap(err, "read manifest")
 	}
 
 	var res types.Manifest
