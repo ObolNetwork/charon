@@ -31,7 +31,7 @@ func New(transport Transport, index, total int) *LeaderCast {
 		total:     total,
 		index:     index,
 		transport: transport,
-		cond:      sync.Cond{L: new(sync.Mutex)},
+		buffers:   make(map[types.Duty]chan []byte),
 		stop:      func() {},
 	}
 }
@@ -47,9 +47,9 @@ type LeaderCast struct {
 	index     int // index of this node in the cluster
 	transport Transport
 
-	cond   sync.Cond
-	duties []dutyTuple
-	stop   context.CancelFunc
+	mu      sync.Mutex
+	buffers map[types.Duty]chan []byte
+	stop    context.CancelFunc
 }
 
 func (l *LeaderCast) Start() error {
@@ -57,7 +57,7 @@ func (l *LeaderCast) Start() error {
 	ctx, l.stop = context.WithCancel(ctx)
 
 	for {
-		source, d, data, err := l.transport.AwaitNext(ctx)
+		source, duty, data, err := l.transport.AwaitNext(ctx)
 		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
 			return nil //nolint:nilerr
 		} else if err != nil {
@@ -65,67 +65,54 @@ func (l *LeaderCast) Start() error {
 			continue
 		}
 
-		if !isLeader(source, l.total, d) {
+		if !isLeader(source, l.total, duty) {
 			log.Warn(ctx, "received duty from non-leader", z.Int("peer", source))
 			continue
 		}
 
-		log.Debug(ctx, "received duty from leader", z.Int("peer", source), z.Any("duty", d))
+		log.Debug(ctx, "received duty from leader", z.Int("peer", source), z.Any("duty", duty))
 
-		l.cond.L.Lock()
-		l.duties = append(l.duties, dutyTuple{
-			Duty: d,
-			Data: data,
-		})
-		l.cond.L.Unlock()
-		l.cond.Signal()
-		// TODO(corver): Trim old resolved duties.
-	} //nolint:wsl
+		l.getBuffer(duty) <- data
+		// TODO(corver): Trim channels that are never resolved.
+	}
+}
+
+// getBuffer returns the channel to buffer the duty data.
+func (l *LeaderCast) getBuffer(duty types.Duty) chan []byte {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	ch, ok := l.buffers[duty]
+	if !ok {
+		ch = make(chan []byte, 1) // Only need to buffer a single message per duty.
+		l.buffers[duty] = ch
+	}
+
+	return ch
 }
 
 func (l *LeaderCast) Stop() {
 	l.stop()
 }
 
-func (l *LeaderCast) ResolveDuty(ctx context.Context, d types.Duty, data []byte) ([]byte, error) {
-	if isLeader(l.index, l.total, d) {
-		if err := l.transport.Broadcast(ctx, l.index, d, data); err != nil {
+func (l *LeaderCast) ResolveDuty(ctx context.Context, duty types.Duty, data []byte) ([]byte, error) {
+	if isLeader(l.index, l.total, duty) {
+		if err := l.transport.Broadcast(ctx, l.index, duty, data); err != nil {
 			return nil, err
 		}
 
 		return data, nil
 	}
 
-	// Wait for leader's duty using conditional
-	// lock that is signalled when duties are received.
-	//
-	// Wrap this in async for responsive timeouts since waiting
-	// on condition doesn't support context.
-	var resp []byte
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case data := <-l.getBuffer(duty):
+		l.mu.Lock()
+		delete(l.buffers, duty)
+		l.mu.Unlock()
 
-	err := async(ctx, func() error {
-		l.cond.L.Lock()
-		defer l.cond.L.Unlock()
-
-		for {
-			if ctx.Err() != nil { // Timed out
-				return ctx.Err()
-			}
-
-			for _, t := range l.duties {
-				if t.Duty == d {
-					resp = t.Data
-					return nil
-				}
-			}
-
-			// Duty not received yet, give up the lock and wait for a signal.
-			l.cond.Wait()
-			// Note that when continuing here, we have the lock again.
-		}
-	})
-
-	return resp, err
+		return data, nil
+	}
 }
 
 // isLeader is a deterministic LeaderCast election function that returns true if the instance at index (of total)
@@ -134,29 +121,4 @@ func isLeader(index, total int, d types.Duty) bool {
 	mod := (d.Slot + int(d.Type)) % total
 
 	return mod == index
-}
-
-type dutyTuple struct {
-	Duty types.Duty
-	Data []byte
-}
-
-// async calls the fn asynchronously returning either its response or
-// a context cancel error, whichever happens first.
-func async(ctx context.Context, fn func() error) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	ch := make(chan error, 1)
-
-	go func() {
-		ch <- fn()
-	}()
-
-	go func() {
-		<-ctx.Done()
-		ch <- ctx.Err()
-	}()
-
-	return <-ch
 }

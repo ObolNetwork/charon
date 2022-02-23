@@ -17,6 +17,7 @@ package leadercast
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/host"
@@ -109,14 +110,12 @@ func (t *p2pTransport) Broadcast(ctx context.Context, source int, d types.Duty, 
 }
 
 func (t *p2pTransport) AwaitNext(ctx context.Context) (int, types.Duty, []byte, error) {
-	var msg p2pMsg
-
-	err := async(ctx, func() error {
-		msg = <-t.ch
-		return nil
-	})
-
-	return msg.Source, msg.Duty, msg.Data, err
+	select {
+	case <-ctx.Done():
+		return 0, types.Duty{}, nil, ctx.Err()
+	case msg := <-t.ch:
+		return msg.Source, msg.Duty, msg.Data, nil
+	}
 }
 
 func sendData(ctx context.Context, t *p2pTransport, p peer.ID, b []byte) error {
@@ -141,4 +140,71 @@ type p2pMsg struct {
 	Source int
 	Duty   types.Duty
 	Data   []byte
+}
+
+// NewMemTransportFunc returns a function that itself returns in-memory
+// transport instances that communicate with each other.
+// It stops processing messages when the context is closed.
+func NewMemTransportFunc(ctx context.Context) func() Transport {
+	var (
+		input   = make(chan p2pMsg)
+		outputs []chan p2pMsg
+		mu      sync.Mutex
+	)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg := <-input:
+				mu.Lock()
+				for _, output := range outputs {
+					output <- msg
+				}
+				mu.Unlock()
+			}
+		}
+	}()
+
+	return func() Transport {
+		mu.Lock()
+		defer mu.Unlock()
+
+		output := make(chan p2pMsg)
+		outputs = append(outputs, output)
+
+		return memTransport{
+			input:  input,
+			output: output,
+		}
+	}
+}
+
+// memTransport is an in-memory transport useful for deterministic integration tests.
+type memTransport struct {
+	input  chan<- p2pMsg
+	output <-chan p2pMsg
+}
+
+func (m memTransport) Broadcast(ctx context.Context, source int, duty types.Duty, data []byte) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case m.input <- p2pMsg{
+		Source: source,
+		Duty:   duty,
+		Data:   data,
+	}:
+		return nil
+	}
+}
+
+func (m memTransport) AwaitNext(ctx context.Context) (int, types.Duty, []byte, error) {
+	select {
+	case <-ctx.Done():
+		return 0, types.Duty{}, nil, ctx.Err()
+	case msg := <-m.output:
+		return msg.Source, msg.Duty, msg.Data, nil
+	}
 }
