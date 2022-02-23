@@ -65,6 +65,7 @@ issues:
   exclude:
     - "error returned from interface method should be wrapped" # Relax wrapcheck
     - "defer: prefer not to defer chains of function calls" # Relax revive
+    - "avoid control coupling" # Relax revive
 
 linters:
   enable-all: true
