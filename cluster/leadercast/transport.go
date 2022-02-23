@@ -181,6 +181,7 @@ func NewMemTransportFunc(ctx context.Context) func() Transport {
 	}
 }
 
+// memTransport is an in-memory transport useful for deterministic integration tests.
 type memTransport struct {
 	input  chan<- p2pMsg
 	output <-chan p2pMsg
