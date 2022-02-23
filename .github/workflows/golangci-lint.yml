@@ -1,0 +1,20 @@
+name: golangci-lint
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  golangci:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      # Config options can be found in README here: https://github.com/golangci/golangci-lint-action
+      - uses: actions/checkout@v2
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.44.0
+          only-new-issues: true
