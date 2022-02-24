@@ -12,6 +12,10 @@ linters-settings:
   gocritic:
     disabled-checks:
       - ifElseChain
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
   nlreturn:
     block-size: 2
   revive:
@@ -66,6 +70,7 @@ issues:
     - "error returned from interface method should be wrapped" # Relax wrapcheck
     - "defer: prefer not to defer chains of function calls" # Relax revive
     - "avoid control coupling" # Relax revive
+    - "shadow: declaration of \"err\" shadows declaration" # Relax govet
 
 linters:
   enable-all: true
