@@ -18,55 +18,29 @@ Charon is used by Enterprises and DAOs to distribute the responsibility of runni
 
 ## Quickstart
 
-This repo contains the GoLang source code for the middleware, a docker-compose file for deploying the client in a local dev environment, and deployment files for deploying this client to a test cluster. To get started:
+The easiest way to get started is with the [charon-docker-compose](https://github.com/ObolNetwork/charon-docker-compose) repo
+which contains a docker compose setup for running a charon cluster on your local machine.
 
+If however, you want to build from source with this repo directly, you can get started with:
 ```bash
-# Setup env vars, copy .env.template and then manually enter the correct secrets for the likes of Eth1 nodes etc.
-cp .env.template .env
-
-# Local development
-make up
-```
-### Install Githooks
-We use `pre-commit hooks` to ensure that pull requests adhere to a minimum standard and are consistent. To install:
-- Follow installation instructions [here](https://pre-commit.com/#installation)
-- Once installed, run `pre-commit install` in the project's root directory. This will setup the hooks.
-- NOTE: If you don't want to run hooks on every commit, simply disable it by `pre-commit uninstall`
-
-### Compile and Test Locally
-
-First you need to have [Go 1.17 installed](https://golang.org/doc/go1.17), then you need to run Go build:
-```sh
-# On mac with homebrew installed
+# Install go 1.17 or later (on mac with homebrew installed)
 brew install go
 
-# Used for building from source
+# Build the charon binary
 go build
 
-# Run the charon client
+# Run the charon command to generate a local simnet.
 ./charon --help
+./charon gen-simnet
+/tmp/charon-simnet/run_cluster.sh
 ```
 
-### Configuration
+## Documentation
 
-In descending order, the Charon client checks the following places for client configuration info:
+The [Obol Docs](https://docs.obol.tech/) website it best place to get started.
+Import sections are the [intro](https://docs.obol.tech/docs/intro),
+[key concepts](https://docs.obol.tech/docs/key-concepts) and [charon](https://docs.obol.tech/docs/dv/introducing-charon).
 
-- From environment vars beginning with `CHARON_`, with hyphens substituted for underscores. e.g. `CHARON_BEACON_NODE=http://....`
-- From the config file specified with the `-config-file` flag as YAML, e.g. `beacon-node: http://...`
-- From CLI params, e.g. `--beacon-node http://...`
+For detailed documentation on this repo, see the [docs](docs) folder.
 
-### Project structure
-
-Charon is written in [Go](https://golang.org/dl/). Notable dependencies:
-- [Go Ethereum](https://pkg.go.dev/github.com/ethereum/go-ethereum): Ethereum libraries
-- [Prysm](https://pkg.go.dev/github.com/prysmaticlabs/prysm): Eth2 libraries
-- [spf13/cobra](https://pkg.go.dev/github.com/spf13/cobra): CLI interface
-- [spf13/viper](https://pkg.go.dev/github.com/spf13/viper): Config management
-- [gRPC](https://grpc.io) and [gRPC-Gateway](https://grpc-ecosystem.github.io/grpc-gateway/): REST API interfaces
-
-### Release Process
-
-Charon is set up to run a release with Github Actions triggered by a Tag. To tag a commit for release run:
-```
-git tag -a v0.1.0 -m "Charon v0.1.0: Getting Started"
-```
+For source code documentation, there is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/charon).
