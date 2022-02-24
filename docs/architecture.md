@@ -271,3 +271,197 @@ Store(context.Context, types.Duty, types.DutyDataSet) error
 	GetDVByAggBits(context.Context, types.Duty, int, string) (types.VIdx, error)
 }
 ```
+### Validator API
+The validator API provides a [beacon-node API](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi) to downstream VCs,
+intercepting some calls and proxying others directly to the upstream beacon node.
+It mostly serves duty data requests from the `DutyDB` and sends the resulting signatures to the `SigDB`.
+
+It provides the following beacon-node endpoints:
+
+- `GET /eth/v1/validator/attestation_data` Produce an attestation data
+  - The request arguments are: `slot` and `committee_index`
+  - Query the `DutyDB` `AwaitAttester` with `DutyAttester`, `slot` and `committee_index`
+- `GET /eth/v2/validator/blocks/{slot}` Produce a new block, without signature.
+  - The request arguments are: `slot` and `randao_reveal`
+  - Ignore `randao_reveal`
+  - Query the `DutyDB` `AwaitProposer` with `DutyProposer` and `slot`
+- `POST /eth/v1/beacon/pool/attestations` Submit Attestation objects to node
+  - Construct a `SignedDutyData` for each attestation object in request body.
+  - Infer `VIdx` of the request by querying the `DutyDB` `GetDVByAggBits` with the `slot`, `committee index` and `aggregation bits` provided in the request body.
+  - Set the BLS private share `identifier` to charon node index.
+  - Combine `SignedDutyData`s into a `SignedDutyDataSet`.
+  - Store `SignedDutyDataSet` in the `SigDB`
+- `POST /eth/v1/beacon/blocks` Publish a signed block
+  - The request body contains `SignedBeaconBlock` object composed of `BeaconBlock` object (produced by beacon node) and validator signature.
+  - Construct a `SignedDutyData` for the block object in request body.
+  - Lookup `VIdx` by querying the `DutyDB` `AwaitProposer` with the slot in the request body.
+  - Set the BLS private share `identifier` to charon node index.
+  - Create a `SignedDutyDataSet` with only a single element.
+  - Store `SignedDutyDataSet` in the `SigDB`
+
+> 🏗️ TODO: Figure out other endpoints required.
+
+### SigDB
+The signature database persists partial BLS threshold signatures received internally (from the local Charon node's VC(s))
+as well as externally (from other nodes in cluster).
+It calls the `SigEx` component with signatures received internally to share them with all peers in the cluster.
+When sufficient signatures have been received for a duty, it calls the `SigAgg` component.
+
+Partial signatures in the database have one of the following states:
+
+ - `Internal`: Received from local VC, not broadcasted yet.
+ - `Broadcasted`: Received from peer, or broadcasted to peers.
+ - `Aggregated`: Sent to `SigAgg` service.
+ - `Expired`: Not eligible for aggregation anymore (too old).
+
+The data model for entries in this DB is defined as:
+ - *Key*: `ID int64` auto-incrementing primary-key.
+ - *Value*:
+```go
+type Entry struct {
+  CreatedAt int64 // Unix nano timestamp
+  UpdatedAt int64 // Unix nano timestamp
+  Slot      int64
+  DutyType  byte
+  VIdx      string
+  DutyData  []byte
+  Signature []byte
+  Index     int32
+  Status    byte
+}
+```
+It has the following indexes:
+ - `Slot,DutyType,VIdx,Index` a unique index on for idempotent inserts.
+ - `Status/Slot/DutyType` for querying by state.
+
+Entries inserted by `StoreInternal` have `Status=Interna`l, while entries inserted by `StoreExternal` have `Status=Broadcasted`.
+
+A `broadcaster` worker goroutine, triggered periodically and by `StoreInternal` queries all `Status=Internal` entries,
+sends them to `SigEX` as a batch, then updates them to `Status=Broadcasted` in a transaction.
+
+An `aggregator` worker goroutine, triggered periodically and by `StoreExternal` and by `broadcaster`
+queries all `Status=Broadcasted` entries, and if sufficient entries exist for a duty, sends them to the `SigAgg` component
+and update them to `Status=Aggregated`. Entries older than `X?` epochs are set to `Status=Expired`.
+
+> ⁉️ What about the race condition where some partial signatures are received AFTER others of the same duty reached threshold and was aggregated? Currently, they will Expire.
+
+The signature database interface is defined as:
+```go
+// SigDB persists partial signatures and sends them for
+// signature exchange and aggregation.
+type SigDB interface {
+  // StoreInternal stores an internally received partially signed duty data set.
+  StoreInternal(context.Context, types.Duty, SignedDutyDataSet) error
+
+  // StoreExternal stores an externally received partially signed duty data set.
+  StoreExternal(context.Context, types.Duty, SignedDutyDataSet) error
+
+  // SubscribeInternal registers a callback when an internal
+  // partially signed duty set is stored.
+  SubscribeInternal(func(context.Context, types.Duty, SignedDutyDataSet) error)
+
+  // SubscribeThreshold registers a callback when *threshold*
+  // partially signed duty is reached for a DV.
+  SubscribeThreshold(func(context.Context, types.Duty, VIdx, []SignedDutyData) error)
+}
+```
+
+### SigEx
+The signature exchange component ensures that all partial signatures are persisted by all peers.
+It registers with the `SigDB` for internally received partial signatures and broadcasts them in batches to all other peers.
+It listens and receives batches of partial signatures from other peers and stores them in the `SigDB`.
+It implements a simple libp2p protocol leveraging direct p2p connections to all nodes (instead of gossip-style pubsub).
+This incurs higher network overhead (n^2), but improves aggregation latency.
+
+The signature exchange interface is defined as:
+```go
+// SigEx exchanges partially signed duty data sets.
+type SigEx interface {
+  // Broadcast broadcasts the partially signed duty data set to all peers.
+  Broadcast(context.Context, types.Duty, SignedDutyDataSet) error
+
+  // Subscribe registers a callback when a partially signed duty set
+  // is received from a peer.
+  Subscribe(func(context.Context, types.Duty, SignedDutyDataSet) error)
+}
+```
+
+### SigAgg
+The signature aggregation service aggregates partial BLS signatures and sends them to the `bcast` component and persists them to the `AggDB`. It is a stateless pure function.
+
+The signature aggregation interface is defined as:
+```go
+
+// SigAgg aggregates threshold partial signatures.
+type SigAgg interface {
+  // Aggregate aggregates the partially signed duty data for the DV.
+  Aggregate(context.Context, types.Duty, VIdx, []SignedDutyData) error
+
+  // Subscribe registers a callback for aggregated signatures and duty data.
+  Subscribe(func(context.Context, types.Duty, VIdx, bls_sig.Signature, []byte) error)
+}
+```
+
+### AggDB
+The aggregate database persists aggregated BLS signatures and makes it available for querying.
+This database persists the final end results of the duty workflow; aggregate signatures.
+At this point, only `DutyRandao` is queried, but other use cases may yet present themselves.
+
+The data model of the database is:
+- Key: `fmt.Sprintf(Slot,"/",DutyType,"/",VIdx)`
+- Value: `SignedDutyData` (without partial signature index)
+
+> ⁉️ Can old data be trimmed/deleted and if so when?
+
+The aggregate database interface is defined as:
+
+```go
+// AggDB persists aggregated signed duty data to the beacon node.
+type AggDB interface {
+  // Store stores aggregated signed duty data.
+  Store(context.Context, types.Duty, types.VIdx, types.SignedDutyData) error
+
+  // Get returns a set of aggregated signed duty data.
+  Get(context.Context, types.Duty) (types.SignedDutyDataSet, error)
+}
+```
+### Bcast
+The broadcast component broadcasts aggregated signed duty data to the beacon node. It is a stateless pure function.
+
+The broadcast interface is defined as:
+```
+// Bcast broadcasts aggregated signed duty data to the beacon node.
+type Bcast interface {
+  Broadcast(context.Context, types.Duty, types.VIdx, types.SignedDutyData) error
+}
+```
+### Stitching the core workflow
+The core workflow components are stitched together as follows:
+
+```go
+// StitchFlow stitches the workflow steps together.
+func StitchFlow(
+  sched Scheduler,
+  fetch Fetcher,
+  cons Consensys,
+  dutyDB DutyDB,
+  vapi ValidatorAPI,
+  sigDB SigDB,
+  sigEx SigEx,
+  sigAgg SigAgg,
+  aggDB AggDb,
+  bcast Broadcaster,
+) {
+  sched.Subscribe(fetch.Fetch)
+  fetch.Subscribe(cons.Propose)
+  fetch.RegisterAgg(aggDB.Get)
+  cons.Subscribe(dutyDB.Store)
+  vapi.RegisterSource(dutyDB.Await)
+  vapi.Subscribe(sigDB.StoreInternal)
+  sigDB.SubscribeInternal(sigEx.Broadcast)
+  sigEx.Subscribe(sigDB.StoreExternal)
+  sigDB.SubscribeThreshold(sigAgg.Aggregate)
+  sigAgg.Subscribe(aggDB.Store)
+  sigAgg.Subscribe(bcast.Broadcast)
+}
+```
