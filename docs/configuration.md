@@ -14,7 +14,7 @@ In descending order, the Charon node checks the following places for configurati
 
 ## Configuration Options
 
-```text:cli-reference.txt
+```text:clireference.txt
 
 ```
-If the above block is empty, see the [cli-reference.txt](cli-reference.txt) file directly.
+If the above block is empty, see the [clireference.txt](clireference.txt) file directly.
