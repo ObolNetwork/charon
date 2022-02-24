@@ -7,7 +7,7 @@ As an open source project, we need to aim for high code quality, consistency and
 These resources define opinions and practices that are highly recommended.
 
 - [Effective Go](https://go.dev/doc/effective_go)
-- [CodeReviewComments](https://github.com/golang/go/wiki/CodeReviewComments)
+- [Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 - [Practical Go](https://dave.cheney.net/practical-go/presentations/gophercon-israel.html)
 - [Go Proverbs](https://go-proverbs.github.io)
 - [The Zen of Go](https://the-zen-of-go.netlify.app/)
