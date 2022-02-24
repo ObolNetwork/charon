@@ -220,12 +220,12 @@ func writeClusterScript(dirname string, n int) error {
 		cmds = append(cmds, fmt.Sprintf("node%d/run.sh &", i))
 	}
 	cmds = append(cmds, fmt.Sprintf("node%d/run.sh", n-1))
-	f, err := os.Create(dirname + "/run-cluster.sh")
+	f, err := os.Create(dirname + "/run_cluster.sh")
 	if err != nil {
 		return errors.Wrap(err, "create run cluster")
 	}
 
-	tmpl, err := template.New("run-cluster").Parse(clusterTmpl)
+	tmpl, err := template.New("").Parse(clusterTmpl)
 	if err != nil {
 		return errors.Wrap(err, "new template")
 	}
@@ -235,7 +235,7 @@ func writeClusterScript(dirname string, n int) error {
 		return errors.Wrap(err, "execute template")
 	}
 
-	err = os.Chmod(dirname+"/run-cluster.sh", 0o755)
+	err = os.Chmod(dirname+"/run_cluster.sh", 0o755)
 	if err != nil {
 		return errors.Wrap(err, "change run.sh permissions")
 	}
