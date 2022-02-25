@@ -143,6 +143,9 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 }
 
 func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
+	// Overwrite slot, since we normally fetch for a future slot
+	ctx = log.WithCtx(ctx, z.I64("slot", slot.Slot))
+
 	dvs, indexes, err := resolveActiveDVs(ctx, s.eth2Cl, s.manifest, slot.Slot)
 	if err != nil {
 		return err
@@ -181,35 +184,11 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 			s.duties[duty] = argSet
 
 			log.Debug(ctx, "Resolved attester duty",
-				z.I64("slot", duty.Slot),
+				z.U64("epoch", uint64(slot.Epoch())),
 				z.U64("vidx", uint64(attDuty.ValidatorIndex)),
 				z.U64("commidx", uint64(attDuty.CommitteeIndex)))
 		}
 	}
-
-	// Resolve proposer duties
-	//{
-	//	propDuties, err := s.eth2Cl.ProposerDuties(ctx, slot.Epoch(), indexes)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	argSet := make(types.DutyArgSet)
-	//	for _, propDuty := range propDuties {
-	//		b, err := json.Marshal(propDuty)
-	//		if err != nil {
-	//			return err
-	//		}
-	//
-	//		argSet[types.VIdx(propDuty.ValidatorIndex)] = b
-	//	}
-	//
-	//	duty := types.Duty{
-	//		Slot: slot.Slot,
-	//		Type: types.DutyProposer,
-	//	}
-	//	s.duties[duty] = argSet
-	//}
 
 	return nil
 }

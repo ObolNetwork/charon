@@ -33,6 +33,8 @@ import (
 	"github.com/obolnetwork/charon/types"
 )
 
+const infoLevel = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
+
 var integration = flag.Bool("integration", false, "enable integration test, requires BEACON_URL vars.")
 
 // TestIntegration runs an integration test for the Scheduler.
@@ -51,7 +53,7 @@ func TestIntegration(t *testing.T) {
 
 	ctx := context.Background()
 
-	eth2Cl, err := eth2http.New(ctx, eth2http.WithAddress(beaconURL))
+	eth2Cl, err := eth2http.New(ctx, eth2http.WithAddress(beaconURL), eth2http.WithLogLevel(infoLevel))
 	require.NoError(t, err)
 
 	// Use random actual mainnet validators
