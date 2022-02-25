@@ -30,11 +30,11 @@ jobs:
         NODE_ENV: production
         DOCKER_BUILDKIT: 1
       with:
-        name: ${{ github.repository }}/charon
+        name: ${{ github.repository }}
         username: ${{ github.actor }}
         password: ${{ secrets.CONTAINER_REGISTRY_SECRET }}
         buildargs: GITHUB_SHA=${{ github.sha }}
-        registry: docker.pkg.github.com
+        registry: ghcr.io
         tags: "latest,${{steps.get-version.outputs.version}}"
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}
