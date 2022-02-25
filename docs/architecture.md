@@ -109,11 +109,22 @@ We define the following duty types:
 
 ### Scheduler
 
-The scheduler is the initiator of a duty in the core workflow. It is responsible for starting a duty at the optimal time by calling the `fetcher`.
+The scheduler is the initiator of a duty in the core workflow. It resolves the which DVs in the cluster are active and
+is then responsible for starting a duty at the optimal time by calling the `fetcher`.
 
-It does so by first calling [Get attester duties](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getAttesterDuties)
+DVs are identified by their validator index `VIdx` as any normal validator.
+```go
+type VIdx int64
+```
+It has access to the cluster manifest, so it first resolves `VIdx` and validator status for each
+DV by calling [Get validator from state by id](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getStateValidator)
+using `HEAD` state and the DV root public key.
+
+If the validator is not found or is not active, it is skipped.
+
+It then calls [Get attester duties](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getAttesterDuties)
 and [Get block proposer](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getProposerDuties) duties on the beacon API
-at the start of each epoch for the next epoch. It has access to the cluster manifest, and can therefore calculate which
+at the end of each epoch for the next epoch. It can then calculate which
 duties need to be performed by which DVs at which slots.
 
 Note the `DutyRandao` isn’t scheduled by the scheduler, since it is initiated directly by VC at the start of the epoch.
@@ -125,15 +136,14 @@ The scheduler interface is defined as:
 // Scheduler triggers the start of a duty workflow.
 type Scheduler interface {
   // Subscribe registers a callback for triggering a duty.
-  Subscribe(func(context.Context, types.Duty) error)
+  Subscribe(func(context.Context, types.Duty, []types.VIdx) error)
 }
 ```
 > ℹ️ Components of the workflow are decoupled from each other. They are stitched together by callback subscriptions.
 > This improves testability and avoids the need for mocks. It also allows defining both inputs and outputs in the interface.
 
 ### Fetcher
-The fetcher is responsible for identifying which DVs are active, whether they should perform the duty in the slot and for
-fetching input data required to perform the duty.
+The fetcher is responsible for fetching input data required to perform the duty.
 
 For `DutyAttester` it [fetches AttestationData](https://github.com/ethereum/beacon-APIs/blob/master/validator-flow.md#/ValidatorRequiredApi/produceAttestationData) from the beacon node.
 
@@ -149,19 +159,12 @@ type DutyData []byte
 ```
 
 Since a cluster can contain multiple DVs, it may have to perform multiple similar `DutyAttester` duties for the same slot.
-The fetcher therefore fetches multiple `DutyData` objects for the same `Duty`.
-
-
-Multiple `DutyData`s are combined into a single `DutyDataSet` that is defined as:
+The fetcher therefore fetches multiple `DutyData` objects for the same `Duty`. Multiple `DutyData`s are combined into a single `DutyDataSet` that is defined as:
 ```go
 type DutyDataSet map[VIdx]DutyData
 ```
 `DutyProposer` is however unique per slot, so its `DutyDataSet` will only ever contain a single entry.
 
-DVs are identified by their validator index `VIdx` as any normal validator. It is obtained by querying the beacon node using the DV root public key.
-```go
-type VIdx int64
-```
 The duty data returned by a beacon node for a given slot is however not deterministic. It changes over and time and
 from beacon node to beacon node. This means that different charon nodes will fetch different input data.
 This is a problem since signing different data for the same duty results in slashing.
@@ -173,7 +176,7 @@ The fetcher interface is defined as:
 // Fetcher fetches proposed duty data.
 type Fetcher interface {
   // Fetch triggers fetching of a proposed duty data set.
-  Fetch(context.Context, types.Duty) error
+  Fetch(context.Context, types.Duty, []types.VIdx) error
 
   // Subscribe registers a callback for proposed duty data sets.
   Subscribe(func(context.Context, types.Duty, types.DutyDataSet) error)
