@@ -40,22 +40,26 @@ type PubShare struct {
 type TSS struct {
 	Verifier  *share.FeldmanVerifier
 	NumShares int
+
+	// PublicKey and Threshold are inferred from verifier commitments in NewTSS.
+
+	PublicKey *bls_sig.PublicKey
+	Threshold int
 }
 
-// Threshold returns the secret sharing threshold.
-func (t TSS) Threshold() int {
-	return len(t.Verifier.Commitments)
-}
-
-// PublicKey returns the root public key for given verifiers.
-func (t TSS) PublicKey() (*bls_sig.PublicKey, error) {
-	pk := &bls_sig.PublicKey{}
-	err := pk.UnmarshalBinary(t.Verifier.Commitments[0].ToAffineCompressed())
+func NewTSS(verifier *share.FeldmanVerifier, numShares int) (TSS, error) {
+	pk := new(bls_sig.PublicKey)
+	err := pk.UnmarshalBinary(verifier.Commitments[0].ToAffineCompressed())
 	if err != nil {
-		return nil, errors.Wrap(err, "unmarshal pubkey")
+		return TSS{}, errors.Wrap(err, "unmarshal pubkey")
 	}
 
-	return pk, nil
+	return TSS{
+		Verifier:  verifier,
+		PublicKey: pk,
+		NumShares: numShares,
+		Threshold: len(verifier.Commitments),
+	}, nil
 }
 
 // GenerateTSS returns a new random instance of threshold signing scheme and associated SecretKeyShares.
@@ -73,14 +77,18 @@ func GenerateTSS(t, n int, reader io.Reader) (TSS, []*bls_sig.SecretKeyShare, er
 		return TSS{}, nil, errors.Wrap(err, "generate secret shares")
 	}
 
-	return TSS{Verifier: verifier, NumShares: n}, sks, nil
+	tss, err := NewTSS(verifier, n)
+	if err != nil {
+		return TSS{}, nil, err
+	}
+
+	return tss, sks, nil
 }
 
 // AggregateSignatures aggregates partial signatures over the given message.
 // Returns aggregated signatures and slice of signers identifiers that had valid partial signatures.
 func AggregateSignatures(tss TSS, partialSigs []*bls_sig.PartialSignature, msg []byte) (*bls_sig.Signature, []byte, error) {
-	threshold := tss.Threshold()
-	if len(partialSigs) < threshold {
+	if len(partialSigs) < tss.Threshold {
 		return nil, nil, errors.New("insufficient signatures")
 	}
 
@@ -105,7 +113,7 @@ func AggregateSignatures(tss TSS, partialSigs []*bls_sig.PartialSignature, msg [
 		signers = append(signers, psig.Identifier)
 	}
 
-	if len(validShares) < threshold {
+	if len(validShares) < tss.Threshold {
 		return nil, nil, errors.New("insufficient valid signatures")
 	}
 

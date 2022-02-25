@@ -33,7 +33,7 @@ func TestGenerateTSS(t *testing.T) {
 	require.NotNil(t, tss)
 	require.NotNil(t, secrets)
 
-	require.Equal(t, threshold, tss.Threshold())
+	require.Equal(t, threshold, tss.Threshold)
 	require.Equal(t, shares, tss.NumShares)
 }
 
@@ -58,9 +58,7 @@ func TestAggregateSignatures(t *testing.T) {
 	sig, _, err := tbls.AggregateSignatures(tss, partialSigs, msg)
 	require.NoError(t, err)
 
-	pubkey, err := tss.PublicKey()
-	require.NoError(t, err)
-	result, err := tbls.Verify(pubkey, msg, sig)
+	result, err := tbls.Verify(tss.PublicKey, msg, sig)
 	require.NoError(t, err)
 	require.Equal(t, true, result)
 }
