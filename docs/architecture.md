@@ -124,8 +124,20 @@ If the validator is not found or is not active, it is skipped.
 
 It then calls [Get attester duties](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getAttesterDuties)
 and [Get block proposer](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getProposerDuties) duties on the beacon API
-at the end of each epoch for the next epoch. It can then calculate which
-duties need to be performed by which DVs at which slots.
+at the end of each epoch for the next epoch. It then caches the results returned and triggers the duty
+when the associated slot starts.
+
+An abstract `DutyArgs` type is defined that represents the json formatted responses returned by the beacon node above.
+```go
+// DutyArg is the duty arguments required to fetch the duty data.
+type DutyArg []byte
+```
+Since a cluster can contain multiple DVs, it may have to perform multiple similar duties for the same slot, e.g. `DutyAttester`.
+Multiple `DutyArg`s are combined into a single `DutyArgSet` that is defined as:
+```go
+// DutyArgSet is a set of duty args, one per validator.
+type DutyArgSet map[types.VIdx]types.DutyArg
+```
 
 Note the `DutyRandao` isn’t scheduled by the scheduler, since it is initiated directly by VC at the start of the epoch.
 
@@ -136,7 +148,7 @@ The scheduler interface is defined as:
 // Scheduler triggers the start of a duty workflow.
 type Scheduler interface {
   // Subscribe registers a callback for triggering a duty.
-  Subscribe(func(context.Context, types.Duty, []types.VIdx) error)
+  Subscribe(func(context.Context, types.Duty, types.DutyArgSet) error)
 }
 ```
 > ℹ️ Components of the workflow are decoupled from each other. They are stitched together by callback subscriptions.
@@ -158,9 +170,9 @@ It contains the standard serialised json format of the data as returned from bea
 type DutyData []byte
 ```
 
-Since a cluster can contain multiple DVs, it may have to perform multiple similar `DutyAttester` duties for the same slot.
-The fetcher therefore fetches multiple `DutyData` objects for the same `Duty`. Multiple `DutyData`s are combined into a single `DutyDataSet` that is defined as:
+Since the input to fetcher contains `DutyArgSet`, it fetches multiple `DutyData` objects for the same `Duty`. Multiple `DutyData`s are combined into a single `DutyDataSet` that is defined as:
 ```go
+// DutyDataSet is a set of duty data objects, one for each validator.
 type DutyDataSet map[VIdx]DutyData
 ```
 `DutyProposer` is however unique per slot, so its `DutyDataSet` will only ever contain a single entry.
@@ -176,14 +188,14 @@ The fetcher interface is defined as:
 // Fetcher fetches proposed duty data.
 type Fetcher interface {
   // Fetch triggers fetching of a proposed duty data set.
-  Fetch(context.Context, types.Duty, []types.VIdx) error
+  Fetch(context.Context, types.Duty, types.DutyArgSet) error
 
   // Subscribe registers a callback for proposed duty data sets.
   Subscribe(func(context.Context, types.Duty, types.DutyDataSet) error)
 
   // RegisterAggDB registers a function to resolved aggregated
   // signatures from the AggDB (e.g., randao reveals).
-  RegisterAggDB(func(context.Context, types.Duty, types.VIdx) (SignedDutyData, error))
+  RegisterAggDB(func(context.Context, types.Duty, types.VIdx) (types.SignedDutyData, error))
 }
 ```
 ### Consensus
