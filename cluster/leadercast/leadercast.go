@@ -118,7 +118,7 @@ func (l *LeaderCast) ResolveDuty(ctx context.Context, duty types.Duty, data []by
 // isLeader is a deterministic LeaderCast election function that returns true if the instance at index (of total)
 // is the LeaderCast for the given duty.
 func isLeader(index, total int, d types.Duty) bool {
-	mod := (d.Slot + int(d.Type)) % total
+	mod := (int(d.Slot) + int(d.Type)) % total
 
 	return mod == index
 }

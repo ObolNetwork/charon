@@ -48,7 +48,7 @@ func TestMemTransport(t *testing.T) {
 
 	resolved := make(chan []byte, slots*n)
 	for i := 0; i < slots; i++ {
-		duty := types.Duty{Slot: i}
+		duty := types.Duty{Slot: int64(i)}
 		for j := 0; j < n; j++ {
 			go func(slot, node int) {
 				data, err := casts[node].ResolveDuty(ctx, duty, []byte(fmt.Sprintf("c%d#%d", node, slot)))
