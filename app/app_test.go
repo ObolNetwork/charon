@@ -50,8 +50,6 @@ func TestPingCluster(t *testing.T) {
 		pingCluster(t, pingTest{
 			Slow:         false,
 			BindENRAddrs: true,
-			ENRBootnodes: true,
-			ExtBootnodes: nil,
 		})
 	})
 
@@ -63,31 +61,29 @@ func TestPingCluster(t *testing.T) {
 		pingCluster(t, pingTest{
 			Slow:         false,
 			BindENRAddrs: false,
-			ENRBootnodes: false,
-			ExtBootnodes: []string{external.URLv4()},
+			Bootnodes:    []string{external.URLv4()},
 		})
 	})
 
-	// Nodes bind to non-ENR addresses, with external bootnode AS WELL AS stale ENRs.
-	// Discv5 times out resolving stale ENRs, then resolves peers via external node.
-	// This is slow due to discv5 internal timeouts, run with -slow.
-	t.Run("external_and_stale_enrs", func(t *testing.T) {
-		external := startExtBootnode(t)
-
-		pingCluster(t, pingTest{
-			Slow:         true,
-			BindENRAddrs: false,
-			ENRBootnodes: true,
-			ExtBootnodes: []string{external.URLv4()},
-		})
-	})
+	// TODO(corver): Figure out how to provide stale ENRs AND external bootnodes.
+	//// Nodes bind to non-ENR addresses, with external bootnode AS WELL AS stale ENRs.
+	//// Discv5 times out resolving stale ENRs, then resolves peers via external node.
+	//// This is slow due to discv5 internal timeouts, run with -slow.
+	// t.Run("external_and_stale_enrs", func(t *testing.T) {
+	//	external := startExtBootnode(t)
+	//
+	//	pingCluster(t, pingTest{
+	//		Slow:         true,
+	//		BindENRAddrs: false,
+	//		ExtBootnodes: []string{external.URLv4()},
+	//	})
+	// })
 }
 
 type pingTest struct {
 	Slow         bool
 	BindENRAddrs bool
-	ENRBootnodes bool
-	ExtBootnodes []string
+	Bootnodes    []string
 }
 
 func pingCluster(t *testing.T, test pingTest) {
@@ -120,13 +116,12 @@ func pingCluster(t *testing.T, test pingTest) {
 			MonitoringAddr:   availableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: availableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
-				Manifest:                 &manifest,
-				P2PKey:                   p2pKeys[i],
-				PingCallback:             asserter.Callback(t, i),
-				ExcludeManifestBootnodes: !test.ENRBootnodes,
+				Manifest:     &manifest,
+				P2PKey:       p2pKeys[i],
+				PingCallback: asserter.Callback(t, i),
 			},
 			P2P: p2p.Config{
-				UDPBootnodes: test.ExtBootnodes,
+				UDPBootnodes: test.Bootnodes,
 			},
 		}
 

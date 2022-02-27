@@ -23,6 +23,7 @@ import (
 	"net/http/pprof"
 	"time"
 
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/automaxprocs/maxprocs"
@@ -58,8 +59,6 @@ type TestConfig struct {
 	P2PKey *ecdsa.PrivateKey
 	// PingCallback is called when a ping was completed to a peer.
 	PingCallback func(peer.ID)
-	// ExcludeManifestBootnodes excludes the manifest ENRs to be used as discv5 bootnodes.
-	ExcludeManifestBootnodes bool
 	// SimDutyPeriod overrides the default duty simulator period of 5 seconds.
 	SimDutyPeriod time.Duration
 	// SimDutyCallback is called when the duty simulator resolves a mock duty.
@@ -110,7 +109,7 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "create local enode")
 	}
 
-	udpNode, err := p2p.NewUDPNode(conf.P2P, localEnode, p2pKey, manifest.ENRs(), conf.TestConfig.ExcludeManifestBootnodes)
+	udpNode, err := p2p.NewUDPNode(conf.P2P, localEnode, p2pKey, manifest.ENRs())
 	if err != nil {
 		return errors.Wrap(err, "start discv5 listener")
 	}
@@ -140,7 +139,7 @@ func Run(ctx context.Context, conf Config) error {
 		z.Str("local_peer", p2p.ShortID(tcpNode.ID())),
 		z.Int("index", index))
 
-	monitoring := newMonitoring(conf.MonitoringAddr)
+	monitoring := newMonitoring(conf.MonitoringAddr, localEnode)
 
 	vhandler := validatorapi.Handler(nil) // TODO(corver): Construct this
 	vrouter, err := validatorapi.NewRouter(vhandler, conf.BeaconNodeAddr)
@@ -230,9 +229,13 @@ func start(fn func() error) <-chan error {
 }
 
 // newMonitoring returns the monitoring server providing prometheus metrics and pprof profiling.
-func newMonitoring(addr string) *http.Server {
+func newMonitoring(addr string, localNode *enode.LocalNode) *http.Server {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
+	// Serve local ENR to allow simple HTTP Get to this node to resolve it as bootnode ENR.
+	mux.Handle("/enr", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(localNode.Node().String()))
+	}))
 
 	// Copied from net/http/pprof/pprof.go
 	mux.HandleFunc("/debug/pprof/", pprof.Index)

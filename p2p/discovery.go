@@ -27,9 +27,9 @@ import (
 )
 
 // NewUDPNode starts and returns a discv5 UDP implementation.
-func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs []enr.Record,
-	excludeENRs bool) (*discover.UDPv5, error,
-) {
+func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey,
+	enrs []enr.Record,
+) (*discover.UDPv5, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "resolve udp address")
@@ -45,9 +45,19 @@ func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs 
 		return nil, errors.Wrap(err, "parse allow list")
 	}
 
-	bootnodes := make([]*enode.Node, 0, len(enrs))
+	var bootnodes []*enode.Node
 
-	if !excludeENRs {
+	for _, seed := range config.UDPBootnodes {
+		node, err := enode.Parse(enode.V4ID{}, seed)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid bootnode url")
+		}
+
+		bootnodes = append(bootnodes, node)
+	}
+
+	// Use manifest ENRs as bootnodes if nothing else provided.
+	if len(bootnodes) == 0 {
 		for _, record := range enrs {
 			record := record
 			node, err := enode.New(enode.V4ID{}, &record)
@@ -62,15 +72,6 @@ func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey, enrs 
 
 			bootnodes = append(bootnodes, node)
 		}
-	}
-
-	for _, seed := range config.UDPBootnodes {
-		node, err := enode.Parse(enode.V4ID{}, seed)
-		if err != nil {
-			return nil, errors.Wrap(err, "invalid bootnode url")
-		}
-
-		bootnodes = append(bootnodes, node)
 	}
 
 	node, err := discover.ListenV5(conn, ln, discover.Config{
