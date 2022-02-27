@@ -49,6 +49,7 @@ func TestPingCluster(t *testing.T) {
 	t.Run("bind_enrs", func(t *testing.T) {
 		pingCluster(t, pingTest{
 			Slow:         false,
+			BootManifest: true,
 			BindENRAddrs: true,
 		})
 	})
@@ -61,28 +62,30 @@ func TestPingCluster(t *testing.T) {
 		pingCluster(t, pingTest{
 			Slow:         false,
 			BindENRAddrs: false,
+			BootManifest: false,
 			Bootnodes:    []string{external.URLv4()},
 		})
 	})
 
-	// TODO(corver): Figure out how to provide stale ENRs AND external bootnodes.
-	//// Nodes bind to non-ENR addresses, with external bootnode AS WELL AS stale ENRs.
-	//// Discv5 times out resolving stale ENRs, then resolves peers via external node.
-	//// This is slow due to discv5 internal timeouts, run with -slow.
-	// t.Run("external_and_stale_enrs", func(t *testing.T) {
-	//	external := startExtBootnode(t)
-	//
-	//	pingCluster(t, pingTest{
-	//		Slow:         true,
-	//		BindENRAddrs: false,
-	//		ExtBootnodes: []string{external.URLv4()},
-	//	})
-	// })
+	// Nodes bind to non-ENR addresses, with external bootnode AS WELL AS stale ENRs.
+	// Discv5 times out resolving stale ENRs, then resolves peers via external node.
+	// This is slow due to discv5 internal timeouts, run with -slow.
+	t.Run("external_and_stale_enrs", func(t *testing.T) {
+		external := startExtBootnode(t)
+
+		pingCluster(t, pingTest{
+			Slow:         true,
+			BindENRAddrs: false,
+			BootManifest: true,
+			Bootnodes:    []string{external.URLv4()},
+		})
+	})
 }
 
 type pingTest struct {
 	Slow         bool
 	BindENRAddrs bool
+	BootManifest bool
 	Bootnodes    []string
 }
 
@@ -121,7 +124,8 @@ func pingCluster(t *testing.T, test pingTest) {
 				PingCallback: asserter.Callback(t, i),
 			},
 			P2P: p2p.Config{
-				UDPBootnodes: test.Bootnodes,
+				UDPBootnodes:    test.Bootnodes,
+				UDPBootManifest: test.BootManifest,
 			},
 		}
 

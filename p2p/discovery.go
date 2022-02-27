@@ -56,8 +56,7 @@ func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey,
 		bootnodes = append(bootnodes, node)
 	}
 
-	// Use manifest ENRs as bootnodes if nothing else provided.
-	if len(bootnodes) == 0 {
+	if config.UDPBootManifest {
 		for _, record := range enrs {
 			record := record
 			node, err := enode.New(enode.V4ID{}, &record)
