@@ -232,6 +232,7 @@ func start(fn func() error) <-chan error {
 func newMonitoring(addr string, localNode *enode.LocalNode) *http.Server {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
+	// Serve local ENR to allow simple HTTP Get to this IP to use this node as a bootnode.
 	mux.Handle("/enr", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(localNode.Node().String()))
 	}))
