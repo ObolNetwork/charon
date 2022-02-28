@@ -122,12 +122,7 @@ func (m Manifest) MarshalJSON() ([]byte, error) {
 			verifiers = append(verifiers, c.ToAffineCompressed())
 		}
 
-		pk, err := tss.PublicKey()
-		if err != nil {
-			return nil, errors.Wrap(err, "get pubkey")
-		}
-
-		rawPK, err := pk.MarshalBinary()
+		rawPK, err := tss.PublicKey.MarshalBinary()
 		if err != nil {
 			return nil, errors.Wrap(err, "marshal pubkey")
 		}
@@ -198,12 +193,15 @@ func (m *Manifest) UnmarshalJSON(data []byte) error {
 			commitments = append(commitments, c)
 		}
 
-		dvs = append(dvs, tbls.TSS{
-			Verifier: &sharing.FeldmanVerifier{
-				Commitments: commitments,
-			},
-			NumShares: len(mjson.PeerENRs),
-		})
+		tss, err := tbls.NewTSS(
+			&sharing.FeldmanVerifier{Commitments: commitments},
+			len(mjson.PeerENRs),
+		)
+		if err != nil {
+			return err
+		}
+
+		dvs = append(dvs, tss)
 	}
 
 	*m = Manifest{
@@ -259,7 +257,7 @@ func getDescription(m Manifest) string {
 
 	var threshold int
 	if dv > 0 {
-		threshold = m.DVs[0].Threshold()
+		threshold = m.DVs[0].Threshold
 	}
 
 	return fmt.Sprintf("dv/%d/threshold/%d/peer/%d", dv, threshold, peers)
