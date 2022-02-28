@@ -18,11 +18,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"testing"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -40,7 +43,20 @@ type eth2Provider interface {
 	eth2client.ProposerDutiesProvider
 }
 
-func New(pubkeys []bls_sig.PublicKey, eth2Svc eth2client.Service) (*Scheduler, error) {
+// NewForT returns a new scheduler for testing supporting a fake clock.
+func NewForT(t *testing.T, clock clockwork.Clock, pubkeys []*bls_sig.PublicKey, eth2Svc eth2client.Service) *Scheduler {
+	t.Helper()
+
+	s, err := New(pubkeys, eth2Svc)
+	require.NoError(t, err)
+
+	s.clock = clock
+
+	return s
+}
+
+// New returns a new scheduler.
+func New(pubkeys []*bls_sig.PublicKey, eth2Svc eth2client.Service) (*Scheduler, error) {
 	eth2Cl, ok := eth2Svc.(eth2Provider)
 	if !ok {
 		return nil, errors.New("invalid eth2 client service")
@@ -56,8 +72,9 @@ func New(pubkeys []bls_sig.PublicKey, eth2Svc eth2client.Service) (*Scheduler, e
 
 type Scheduler struct {
 	eth2Cl  eth2Provider
-	pubkeys []bls_sig.PublicKey
+	pubkeys []*bls_sig.PublicKey
 	quit    chan struct{}
+	clock   clockwork.Clock
 
 	duties map[types.Duty]types.DutyArgSet
 	subs   []func(context.Context, types.Duty, types.DutyArgSet) error
@@ -77,10 +94,10 @@ func (s *Scheduler) Stop() {
 func (s *Scheduler) Run() error {
 	ctx := log.WithTopic(context.Background(), "sched")
 
-	waitChainStart(ctx, s.eth2Cl)
-	waitBeaconSync(ctx, s.eth2Cl)
+	waitChainStart(ctx, s.eth2Cl, s.clock)
+	waitBeaconSync(ctx, s.eth2Cl, s.clock)
 
-	slotTicker, err := newSlotTicker(ctx, s.eth2Cl)
+	slotTicker, err := newSlotTicker(ctx, s.eth2Cl, s.clock)
 	if err != nil {
 		return err
 	}
@@ -221,7 +238,7 @@ func (s slot) IsLastInEpoch() bool {
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
 // It is also populated with the current slot immediately.
-func newSlotTicker(ctx context.Context, eth2Cl eth2Provider) (<-chan slot, error) {
+func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clock) (<-chan slot, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return nil, err
@@ -237,7 +254,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider) (<-chan slot, error
 		return nil, err
 	}
 
-	chainAge := time.Since(genesis)
+	chainAge := clock.Since(genesis)
 	height := int64(chainAge / slotDuration)
 	startTime := genesis.Add(time.Duration(height) * slotDuration)
 	initial := true
@@ -257,7 +274,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider) (<-chan slot, error
 			startTime = startTime.Add(slotDuration)
 			initial = false
 
-			time.Sleep(time.Until(startTime))
+			clock.Sleep(startTime.Sub(clock.Now()))
 		}
 	}()
 
@@ -266,7 +283,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider) (<-chan slot, error
 
 // resolveActiveDVs returns the active validators for the slot (in two different formats).
 func resolveActiveDVs(ctx context.Context, eth2Cl eth2Provider,
-	pubkeys []bls_sig.PublicKey, slot int64,
+	pubkeys []*bls_sig.PublicKey, slot int64,
 ) ([]types.VIdx, []eth2p0.ValidatorIndex, error) {
 	var e2pks []eth2p0.BLSPubKey
 	for _, pubkey := range pubkeys {
@@ -312,21 +329,22 @@ func resolveActiveDVs(ctx context.Context, eth2Cl eth2Provider,
 	return resp1, resp2, nil
 }
 
-func waitChainStart(ctx context.Context, eth2Cl eth2Provider) {
+func waitChainStart(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clock) {
 	for {
 		genesis, err := eth2Cl.GenesisTime(ctx)
 		if err != nil {
 			log.Error(ctx, "failure getting genesis time", err)
-			time.Sleep(time.Second * 5) // TODO(corver): Improve backoff
+			clock.Sleep(time.Second * 5) // TODO(corver): Improve backoff
 
 			continue
 		}
 
-		if time.Now().Before(genesis) {
-			delta := time.Since(genesis)
+		now := clock.Now()
+		if now.Before(genesis) {
+			delta := genesis.Sub(now)
 			log.Info(ctx, "Sleeping until genesis time",
 				z.Str("genesis", genesis.String()), z.Str("sleep", delta.String()))
-			time.Sleep(delta)
+			clock.Sleep(delta)
 
 			continue
 		}
@@ -335,12 +353,12 @@ func waitChainStart(ctx context.Context, eth2Cl eth2Provider) {
 	}
 }
 
-func waitBeaconSync(ctx context.Context, eth2Cl eth2Provider) {
+func waitBeaconSync(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clock) {
 	for {
 		state, err := eth2Cl.NodeSyncing(ctx)
 		if err != nil {
 			log.Error(ctx, "failure getting sync state", err)
-			time.Sleep(time.Second * 5) // TODO(corver): Improve backoff
+			clock.Sleep(time.Second * 5) // TODO(corver): Improve backoff
 
 			continue
 		}
@@ -348,7 +366,7 @@ func waitBeaconSync(ctx context.Context, eth2Cl eth2Provider) {
 		if state.IsSyncing {
 			log.Info(ctx, "Waiting for beacon node to sync",
 				z.U64("distance", uint64(state.SyncDistance)))
-			time.Sleep(time.Minute) // TODO(corver): Improve backoff
+			clock.Sleep(time.Minute) // TODO(corver): Improve backoff
 
 			continue
 		}

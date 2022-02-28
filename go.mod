@@ -10,6 +10,7 @@ require (
 	github.com/coinbase/kryptology v1.5.5
 	github.com/ethereum/go-ethereum v1.10.16
 	github.com/gorilla/mux v1.8.0
+	github.com/jonboulle/clockwork v0.2.2
 	github.com/libp2p/go-libp2p v0.17.0
 	github.com/libp2p/go-libp2p-core v0.13.0
 	github.com/libp2p/go-libp2p-noise v0.3.0
