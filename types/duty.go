@@ -24,19 +24,36 @@ type DutyType int
 const (
 	DutyUnknown = DutyType(iota)
 	DutyAttester
+	DutyProposer
+	dutySentinal // Must always be last
 )
+
+func (d DutyType) Valid() bool {
+	return d > DutyUnknown && d < dutySentinal
+}
 
 func (d DutyType) String() string {
 	return map[DutyType]string{
 		DutyUnknown:  "unknown",
 		DutyAttester: "attester",
+		DutyProposer: "proposer",
 	}[d]
+}
+
+// AllDutyTypes returns a list of all valid duty types.
+func AllDutyTypes() []DutyType {
+	var resp []DutyType
+	for i := DutyUnknown + 1; i.Valid(); i++ {
+		resp = append(resp, i)
+	}
+
+	return resp
 }
 
 // Duty is a unit of consensus agreed upon by the cluster and executed by the distributed validators.
 type Duty struct {
 	// Slot is the Ethereum consensus layer slot.
-	Slot int
+	Slot int64
 	// Type is the duty type performed in the slot.
 	Type DutyType
 }
@@ -44,3 +61,7 @@ type Duty struct {
 func (d Duty) String() string {
 	return fmt.Sprintf("%d/%s", d.Slot, d.Type)
 }
+
+type DutyArgs []byte
+
+type DutyArgSet map[VIdx]DutyArgs

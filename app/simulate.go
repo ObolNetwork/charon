@@ -42,8 +42,8 @@ func newDutySimulator(cons cluster.Consensus,
 	slotZero := time.Now().Truncate(time.Hour * 24)
 
 	// slotFromTime returns a deterministic slot from a timestamp.
-	slotFromTime := func(ts time.Time) int {
-		return int(ts.Sub(slotZero) / period)
+	slotFromTime := func(ts time.Time) int64 {
+		return int64(ts.Sub(slotZero) / period)
 	}
 
 	// nextSlot returns a timer channel for the start of the next slot.
@@ -67,7 +67,7 @@ func newDutySimulator(cons cluster.Consensus,
 
 						err := simulateDuty(ctx, cons, duty, callback)
 						if err != nil {
-							log.Error(ctx, "Simulate duty error", err, z.Int("slot", duty.Slot))
+							log.Error(ctx, "Simulate duty error", err, z.I64("slot", duty.Slot))
 						}
 					}()
 				case <-ctx.Done():
