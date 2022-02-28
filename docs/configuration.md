@@ -30,7 +30,7 @@ Flags:
       --manifest-file string           The path to the manifest file defining distributed validator cluster (default "./charon/manifest.json")
       --monitoring-address string      Listening address (ip and port) for the monitoring API (prometheus, pprof) (default "127.0.0.1:8088")
       --p2p-allowlist string           Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.
-      --p2p-bootmanifest               Enables using manifest ENRs as discv5 boot nodes. Allows skipping explicit p2p-bootnodes if key generation ceremony included correct IPs
+      --p2p-bootmanifest               Enables using manifest ENRs as discv5 boot nodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs
       --p2p-bootnodes strings          Comma-separated list of discv5 bootnode URLs or ENRs. Manifest ENRs are used if empty. Example URL: enode://<hex node id>@10.3.58.6:30303?discport=30301
       --p2p-denylist string            Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.
       --p2p-peerdb string              Path to store a discv5 peer database. Empty default results in in-memory database.
