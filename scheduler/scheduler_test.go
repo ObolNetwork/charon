@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/scheduler"
-	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/types"
 )
 
@@ -57,17 +56,15 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Use random actual mainnet validators
-	manifest := types.Manifest{
-		DVs: []tbls.TSS{
-			pkFromHex(t, "0x914cff835a769156ba43ad50b931083c2dadd94e8359ce394bc7a3e06424d0214922ddf15f81640530b9c25c0bc0d490"),
-			pkFromHex(t, "0x8dae41352b69f2b3a1c0b05330c1bf65f03730c520273028864b11fcb94d8ce8f26d64f979a0ee3025467f45fd2241ea"),
-			pkFromHex(t, "0x8ee91545183c8c2db86633626f5074fd8ef93c4c9b7a2879ad1768f600c5b5906c3af20d47de42c3b032956fa8db1a76"),
-			pkFromHex(t, "0xa8785ecbb5c030e5da6cbbacc3e6cad39dffbc7bcf7f223a12844db8c1182603df99f673157f0d27912a53546e0f64fe"),
-			pkFromHex(t, "0xb790b322e1cce41c48e3c344cf8d752bdc3cfd51e8eeef44a4bdaac081bc92b53b73e823a9878b5d7a532eb9d9dce1e3"),
-		},
+	pubkeys := []bls_sig.PublicKey{
+		pkFromHex(t, "0x914cff835a769156ba43ad50b931083c2dadd94e8359ce394bc7a3e06424d0214922ddf15f81640530b9c25c0bc0d490"),
+		pkFromHex(t, "0x8dae41352b69f2b3a1c0b05330c1bf65f03730c520273028864b11fcb94d8ce8f26d64f979a0ee3025467f45fd2241ea"),
+		pkFromHex(t, "0x8ee91545183c8c2db86633626f5074fd8ef93c4c9b7a2879ad1768f600c5b5906c3af20d47de42c3b032956fa8db1a76"),
+		pkFromHex(t, "0xa8785ecbb5c030e5da6cbbacc3e6cad39dffbc7bcf7f223a12844db8c1182603df99f673157f0d27912a53546e0f64fe"),
+		pkFromHex(t, "0xb790b322e1cce41c48e3c344cf8d752bdc3cfd51e8eeef44a4bdaac081bc92b53b73e823a9878b5d7a532eb9d9dce1e3"),
 	}
 
-	s, err := scheduler.New(manifest, eth2Cl)
+	s, err := scheduler.New(pubkeys, eth2Cl)
 	require.NoError(t, err)
 
 	count := 10
@@ -91,7 +88,7 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, s.Run())
 }
 
-func pkFromHex(t *testing.T, pk string) tbls.TSS {
+func pkFromHex(t *testing.T, pk string) bls_sig.PublicKey {
 	t.Helper()
 
 	pk = strings.TrimPrefix(pk, "0x")
@@ -99,11 +96,9 @@ func pkFromHex(t *testing.T, pk string) tbls.TSS {
 	b, err := hex.DecodeString(pk)
 	require.NoError(t, err)
 
-	pubkey := new(bls_sig.PublicKey)
-	err = pubkey.UnmarshalBinary(b)
+	var pubkey bls_sig.PublicKey
+	err = (&pubkey).UnmarshalBinary(b)
 	require.NoError(t, err)
 
-	return tbls.TSS{
-		PublicKey: pubkey,
-	}
+	return pubkey
 }

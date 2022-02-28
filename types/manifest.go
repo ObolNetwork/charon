@@ -24,6 +24,7 @@ import (
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/sharing"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -100,6 +101,17 @@ func (m Manifest) PeerIDs() []peer.ID {
 	return res
 }
 
+// PublicKeys is a convenience function that returns the DV root public keys.
+func (m Manifest) PublicKeys() []*bls_sig.PublicKey {
+	res := make([]*bls_sig.PublicKey, 0, len(m.DVs))
+
+	for _, tss := range m.DVs {
+		res = append(res, tss.PublicKey())
+	}
+
+	return res
+}
+
 func (m Manifest) MarshalJSON() ([]byte, error) {
 	var enrs []string
 	for _, p := range m.Peers {
@@ -113,16 +125,16 @@ func (m Manifest) MarshalJSON() ([]byte, error) {
 
 	var dvs []dvJSON
 	for _, tss := range m.DVs {
-		if len(m.Peers) != tss.NumShares {
+		if len(m.Peers) != tss.NumShares() {
 			return nil, errors.New("dv shares and peers mismatch")
 		}
 
 		var verifiers [][]byte
-		for _, c := range tss.Verifier.Commitments {
+		for _, c := range tss.Verifier().Commitments {
 			verifiers = append(verifiers, c.ToAffineCompressed())
 		}
 
-		rawPK, err := tss.PublicKey.MarshalBinary()
+		rawPK, err := tss.PublicKey().MarshalBinary()
 		if err != nil {
 			return nil, errors.Wrap(err, "marshal pubkey")
 		}
@@ -257,7 +269,7 @@ func getDescription(m Manifest) string {
 
 	var threshold int
 	if dv > 0 {
-		threshold = m.DVs[0].Threshold
+		threshold = m.DVs[0].Threshold()
 	}
 
 	return fmt.Sprintf("dv/%d/threshold/%d/peer/%d", dv, threshold, peers)

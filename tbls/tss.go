@@ -38,13 +38,31 @@ type PubShare struct {
 // TSS (threshold signing scheme) wraps PubKey (PublicKey), Verifiers (the public shares corresponding to each secret share)
 // and threshold (number of shares).
 type TSS struct {
-	Verifier  *share.FeldmanVerifier
-	NumShares int
+	verifier  *share.FeldmanVerifier
+	numShares int
 
-	// PublicKey and Threshold are inferred from verifier commitments in NewTSS.
+	// publicKey inferred from verifier commitments in NewTSS.
+	publicKey *bls_sig.PublicKey
+}
 
-	PublicKey *bls_sig.PublicKey
-	Threshold int
+// Verifier returns the feldman verifier containing the public shares of the threshold signature scheme.
+func (t TSS) Verifier() *share.FeldmanVerifier {
+	return t.verifier
+}
+
+// NumShares returns the number of shares in the threshold signature scheme.
+func (t TSS) NumShares() int {
+	return t.numShares
+}
+
+// PublicKey returns the threshold signature scheme's root public key.
+func (t TSS) PublicKey() *bls_sig.PublicKey {
+	return t.publicKey
+}
+
+// Threshold returns the minimum number of partial signatures required to aggregate the threshold signature.
+func (t TSS) Threshold() int {
+	return len(t.verifier.Commitments)
 }
 
 func NewTSS(verifier *share.FeldmanVerifier, numShares int) (TSS, error) {
@@ -55,10 +73,9 @@ func NewTSS(verifier *share.FeldmanVerifier, numShares int) (TSS, error) {
 	}
 
 	return TSS{
-		Verifier:  verifier,
-		PublicKey: pk,
-		NumShares: numShares,
-		Threshold: len(verifier.Commitments),
+		verifier:  verifier,
+		publicKey: pk,
+		numShares: numShares,
 	}, nil
 }
 
@@ -88,7 +105,7 @@ func GenerateTSS(t, n int, reader io.Reader) (TSS, []*bls_sig.SecretKeyShare, er
 // AggregateSignatures aggregates partial signatures over the given message.
 // Returns aggregated signatures and slice of signers identifiers that had valid partial signatures.
 func AggregateSignatures(tss TSS, partialSigs []*bls_sig.PartialSignature, msg []byte) (*bls_sig.Signature, []byte, error) {
-	if len(partialSigs) < tss.Threshold {
+	if len(partialSigs) < tss.Threshold() {
 		return nil, nil, errors.New("insufficient signatures")
 	}
 
@@ -99,7 +116,7 @@ func AggregateSignatures(tss TSS, partialSigs []*bls_sig.PartialSignature, msg [
 
 	for _, psig := range partialSigs {
 		// TODO(dhruv): add break condition if valid shares >= threshold
-		pubShare, err := getPubShare(uint32(psig.Identifier), tss.Verifier)
+		pubShare, err := getPubShare(uint32(psig.Identifier), tss.Verifier())
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "get Public Share")
 		}
@@ -113,7 +130,7 @@ func AggregateSignatures(tss TSS, partialSigs []*bls_sig.PartialSignature, msg [
 		signers = append(signers, psig.Identifier)
 	}
 
-	if len(validShares) < tss.Threshold {
+	if len(validShares) < tss.Threshold() {
 		return nil, nil, errors.New("insufficient valid signatures")
 	}
 

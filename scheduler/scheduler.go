@@ -22,6 +22,7 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -39,24 +40,24 @@ type eth2Provider interface {
 	eth2client.ProposerDutiesProvider
 }
 
-func New(manifest types.Manifest, eth2Svc eth2client.Service) (*Scheduler, error) {
+func New(pubkeys []bls_sig.PublicKey, eth2Svc eth2client.Service) (*Scheduler, error) {
 	eth2Cl, ok := eth2Svc.(eth2Provider)
 	if !ok {
 		return nil, errors.New("invalid eth2 client service")
 	}
 
 	return &Scheduler{
-		eth2Cl:   eth2Cl,
-		manifest: manifest,
-		quit:     make(chan struct{}),
-		duties:   make(map[types.Duty]types.DutyArgSet),
+		eth2Cl:  eth2Cl,
+		pubkeys: pubkeys,
+		quit:    make(chan struct{}),
+		duties:  make(map[types.Duty]types.DutyArgSet),
 	}, nil
 }
 
 type Scheduler struct {
-	eth2Cl   eth2Provider
-	manifest types.Manifest
-	quit     chan struct{}
+	eth2Cl  eth2Provider
+	pubkeys []bls_sig.PublicKey
+	quit    chan struct{}
 
 	duties map[types.Duty]types.DutyArgSet
 	subs   []func(context.Context, types.Duty, types.DutyArgSet) error
@@ -143,16 +144,13 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 }
 
 func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
-	// Overwrite slot, since we normally fetch for a future slot
-	ctx = log.WithCtx(ctx, z.I64("slot", slot.Slot))
-
-	dvs, indexes, err := resolveActiveDVs(ctx, s.eth2Cl, s.manifest, slot.Slot)
+	dvs, indexes, err := resolveActiveDVs(ctx, s.eth2Cl, s.pubkeys, slot.Slot)
 	if err != nil {
 		return err
 	}
 
 	if len(dvs) == 0 {
-		log.Debug(ctx, "No active DVs for slot")
+		log.Debug(ctx, "No active DVs for slot", z.I64("slot", slot.Slot))
 		return nil
 	}
 
@@ -180,12 +178,14 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 			if !ok {
 				argSet = make(types.DutyArgSet)
 			}
+
 			argSet[types.VIdx(attDuty.ValidatorIndex)] = b
 			s.duties[duty] = argSet
 
 			log.Debug(ctx, "Resolved attester duty",
 				z.U64("epoch", uint64(slot.Epoch())),
 				z.U64("vidx", uint64(attDuty.ValidatorIndex)),
+				z.U64("slot", uint64(attDuty.Slot)),
 				z.U64("commidx", uint64(attDuty.CommitteeIndex)))
 		}
 	}
@@ -266,11 +266,11 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider) (<-chan slot, error
 
 // resolveActiveDVs returns the active validators for the slot (in two different formats).
 func resolveActiveDVs(ctx context.Context, eth2Cl eth2Provider,
-	manifest types.Manifest, slot int64,
+	pubkeys []bls_sig.PublicKey, slot int64,
 ) ([]types.VIdx, []eth2p0.ValidatorIndex, error) {
-	var pubkeys []eth2p0.BLSPubKey
-	for _, dv := range manifest.DVs {
-		b, err := dv.PublicKey.MarshalBinary()
+	var e2pks []eth2p0.BLSPubKey
+	for _, pubkey := range pubkeys {
+		b, err := pubkey.MarshalBinary()
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "marshal pubkey")
 		}
@@ -281,7 +281,7 @@ func resolveActiveDVs(ctx context.Context, eth2Cl eth2Provider,
 			return nil, nil, errors.New("invalid pubkey")
 		}
 
-		pubkeys = append(pubkeys, e2pk)
+		e2pks = append(e2pks, e2pk)
 	}
 
 	state := fmt.Sprint(slot)
@@ -289,7 +289,7 @@ func resolveActiveDVs(ctx context.Context, eth2Cl eth2Provider,
 		state = "head"
 	}
 
-	vals, err := eth2Cl.ValidatorsByPubKey(ctx, state, pubkeys)
+	vals, err := eth2Cl.ValidatorsByPubKey(ctx, state, e2pks)
 	if err != nil {
 		return nil, nil, err
 	}
