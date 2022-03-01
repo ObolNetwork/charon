@@ -18,7 +18,7 @@ charon/             # project root
 │  ├─ version/      # app version
 │  ├─ dbindex/      # badger DB index helper
 │
-├─ core/            # core workflow; charon business logic
+├─ core/            # core workflow; charon business logic (see architecture doc for details)
 │  ├─ interfaces.go # component interfaces: Scheduler, Fetcher, Consensus, etc.
 │  ├─ types.go      # core types: Manifest, Duty, DutyArg, PubKey, DutyData, etc.
 │  ├─ scheduler/    # scheduler implementation
