@@ -67,8 +67,8 @@ func (d Duty) String() string {
 
 const pkLen = 98 // "0x" + hex.Encode([48]byte) = 2+2*48
 
-// NewPubKeyFromBytes returns a new public key from raw bytes.
-func NewPubKeyFromBytes(bytes []byte) (PubKey, error) {
+// PubKeyFromBytes returns a new public key from raw bytes.
+func PubKeyFromBytes(bytes []byte) (PubKey, error) {
 	pk := PubKey("0x" + hex.EncodeToString(bytes))
 	if len(pk) != pkLen {
 		return "", errors.New("invalid public key length")
@@ -110,3 +110,9 @@ type FetchArg []byte
 
 // FetchArgSet is a set of fetch args, one per validator.
 type FetchArgSet map[PubKey]FetchArg
+
+// UnsignedData represents an unsigned duty data object.
+type UnsignedData []byte
+
+// UnsignedDataSet is a set of unsigned duty data objects, one per validator.
+type UnsignedDataSet map[PubKey]UnsignedData
