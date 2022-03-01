@@ -130,7 +130,7 @@ func TestSchedulerWait(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			var t0 time.Time
 			clock := clockwork.NewFakeClockAt(t0)
-			eth2Cl := beaconmock.NewMock()
+			eth2Cl := beaconmock.New()
 
 			eth2Cl.GenesisTimeFunc = func(context.Context) (time.Time, error) {
 				var err error
@@ -209,7 +209,7 @@ func TestSchedulerDuties(t *testing.T) {
 			clock := clockwork.NewFakeClockAt(t0)
 
 			valSet := beaconmock.ValidatorSetA
-			eth2Cl := beaconmock.NewMock(
+			eth2Cl := beaconmock.New(
 				beaconmock.WithValidatorSet(valSet),
 				beaconmock.WithGenesis(t0),
 				beaconmock.WithDeterministicDuties(test.Factor),

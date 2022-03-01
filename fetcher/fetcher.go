@@ -16,7 +16,6 @@ package fetcher
 
 import (
 	"context"
-	"encoding/json"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -67,7 +66,7 @@ func (f *Fetcher) Fetch(ctx context.Context, duty types.Duty, argSet types.DutyA
 	case types.DutyAttester:
 		dataSet, err = f.fetchAttesterData(ctx, duty.Slot, argSet)
 		if err != nil {
-			return errors.New("fetch attester data")
+			return errors.Wrap(err, "fetch attester data")
 		}
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
@@ -99,18 +98,18 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet type
 
 	resp := make(types.DutyDataSet)
 	for commIdx, vals := range valsByCommittee {
-		data, err := f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), commIdx)
+		attData, err := f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), commIdx)
 		if err != nil {
 			return nil, err
 		}
 
 		// TODO(corver): Attestion data for the same committee is identical, could optimise this.
 		for _, val := range vals {
-			b, err := json.Marshal(data)
+			dutyData, err := types.EncodeAttesterDutyData(attData)
 			if err != nil {
 				return nil, errors.Wrap(err, "unmarhsl json")
 			}
-			resp[val] = b
+			resp[val] = dutyData
 		}
 	}
 

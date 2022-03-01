@@ -186,6 +186,14 @@ func defaultMock() Mock {
 		AttesterDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return nil, nil
 		},
+		AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+			return &eth2p0.AttestationData{
+				Slot:   slot,
+				Index:  index,
+				Source: &eth2p0.Checkpoint{},
+				Target: &eth2p0.Checkpoint{},
+			}, nil
+		},
 		SlotDurationFunc: func(ctx context.Context) (time.Duration, error) {
 			return time.Second, nil
 		},
