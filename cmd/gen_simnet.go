@@ -22,6 +22,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"strings"
 	"text/template"
 
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -35,18 +36,27 @@ import (
 	"github.com/obolnetwork/charon/types"
 )
 
-const scriptTmpl = `#!/bin/sh
-{{.CharonDir}} run {{range .Flags}} {{.}} \
+const scriptTmpl = `#!/usr/bin/env bash
+
+# This script run a charon node using the p2pkey in the
+# local directory and the manifest in the parent directory
+
+{{.CharonBin}} run \
+{{range .Flags}}  {{.}} \
 {{end}}`
 
-const clusterTmpl = `#!/bin/sh
+const clusterTmpl = `#!/usr/bin/env bash
+
+# This script runs all the charon nodes in
+# the sub-directories; the whole cluster.
+
 trap "exit" INT TERM ERR
 trap "kill 0" EXIT
 
-{{range .}} {{.}}
+{{range .}} {{.}} &
 {{end}}
-
-wait`
+wait
+`
 
 type simnetConfig struct {
 	clusterDir string
@@ -60,8 +70,7 @@ func newGenSimnetCmd(runFunc func(io.Writer, simnetConfig) error) *cobra.Command
 
 	cmd := &cobra.Command{
 		Use:   "gen-simnet",
-		Short: "Generates charon simnet cluster",
-		Long:  "Generate local simnet cluster",
+		Short: "Generates local charon simnet cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), conf)
 		},
@@ -90,31 +99,38 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "mkdir")
 	}
 
-	var peers []types.Peer
+	charonBin, err := os.Executable()
+	if err != nil {
+		return errors.Wrap(err, "get charon binary")
+	}
+
 	port := config.portStart
-	getPort := func() int {
+	nextPort := func() int {
 		port++
 		return port
 	}
+
+	var peers []types.Peer
 	for i := 0; i < config.numNodes; i++ {
-		dirname := fmt.Sprintf(config.clusterDir+"/node%d", i)
-		if err := os.Mkdir(dirname, 0o755); err != nil {
+		nodeDir := fmt.Sprintf("%s/node%d", config.clusterDir, i)
+
+		if err := os.Mkdir(nodeDir, 0o755); err != nil {
 			return errors.Wrap(err, "mkdir")
 		}
 
-		p2pKey, err := app.LoadOrCreatePrivKey(dirname)
+		p2pKey, err := app.LoadOrCreatePrivKey(nodeDir)
 		if err != nil {
 			return errors.Wrap(err, "create p2p key")
 		}
 
 		tcp := net.TCPAddr{
 			IP:   net.ParseIP("127.0.0.1"),
-			Port: getPort(),
+			Port: nextPort(),
 		}
 
 		udp := net.UDPAddr{
 			IP:   net.ParseIP("127.0.0.1"),
-			Port: getPort(),
+			Port: nextPort(),
 		}
 
 		var r enr.Record
@@ -135,8 +151,8 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 
 		peers = append(peers, peer)
 
-		// Write run command to a bash script for each node
-		if err := writeRunScript(config.clusterDir, dirname, getPort(), tcp.String(), udp.String(), getPort()); err != nil {
+		if err := writeRunScript(config.clusterDir, nodeDir, charonBin, nextPort(),
+			tcp.String(), udp.String(), nextPort()); err != nil {
 			return errors.Wrap(err, "write run script")
 		}
 	}
@@ -155,8 +171,8 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "json marshal manifest")
 	}
 
-	filename := path.Join(config.clusterDir, "manifest.json")
-	if err = os.WriteFile(filename, manifestJSON, 0o600); err != nil {
+	manifestPath := path.Join(config.clusterDir, "manifest.json")
+	if err = os.WriteFile(manifestPath, manifestJSON, 0o600); err != nil {
 		return errors.Wrap(err, "write manifest.json")
 	}
 
@@ -165,19 +181,26 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "write cluster script")
 	}
 
-	_, _ = fmt.Fprintf(out, "Created a simnet cluster at: %s", config.clusterDir)
+	var sb strings.Builder
+	_, _ = sb.WriteString(fmt.Sprintf("Using charon binary in scripts: %s\n", charonBin))
+	_, _ = sb.WriteString("Created a simnet cluster:\n\n")
+	_, _ = sb.WriteString(strings.TrimSuffix(config.clusterDir, "/") + "/\n")
+	_, _ = sb.WriteString("├─ manifest.json\tCluster manifest defines the cluster; used by all nodes\n")
+	_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes; merges log output :(\n")
+	_, _ = sb.WriteString("├─ node[0-3]/\t\tDirectory for each node\n")
+	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key; node authentication\n")
+	_, _ = sb.WriteString("│  ├─ run.sh\t\tScript to run the node\n")
+
+	_, _ = fmt.Fprint(out, sb.String())
 
 	return nil
 }
 
-// writeRunScript creates run script for each node.
-func writeRunScript(clusterDir string, dirname string, monitoringPort int, tcpAddr string, udpAddr string, validatorAPIPort int) error {
-	charonExe, err := os.Executable()
-	if err != nil {
-		return errors.Wrap(err, "getting current directory")
-	}
-
-	f, err := os.Create(dirname + "/run.sh")
+// writeRunScript creates run script for a node.
+func writeRunScript(clusterDir string, nodeDir string, charonBin string, monitoringPort int,
+	tcpAddr string, udpAddr string, validatorAPIPort int,
+) error {
+	f, err := os.Create(nodeDir + "/run.sh")
 	if err != nil {
 		return errors.Wrap(err, "create run.sh")
 	}
@@ -185,42 +208,42 @@ func writeRunScript(clusterDir string, dirname string, monitoringPort int, tcpAd
 
 	// Flags for running a node
 	var flags []string
-	flags = append(flags, fmt.Sprintf("--data-dir=\"%s\"", dirname))
+	flags = append(flags, fmt.Sprintf("--data-dir=\"%s\"", nodeDir))
 	flags = append(flags, fmt.Sprintf("--manifest-file=\"%s/manifest.json\"", clusterDir))
 	flags = append(flags, fmt.Sprintf("--monitoring-address=\"127.0.0.1:%d\"", monitoringPort))
 	flags = append(flags, fmt.Sprintf("--validator-api-address=\"127.0.0.1:%d\"", validatorAPIPort))
 	flags = append(flags, fmt.Sprintf("--p2p-tcp-address=%s", tcpAddr))
 	flags = append(flags, fmt.Sprintf("--p2p-udp-address=%s", udpAddr))
 
-	tmpl, err := template.New("run").Parse(scriptTmpl)
+	tmpl, err := template.New("").Parse(scriptTmpl)
 	if err != nil {
 		return errors.Wrap(err, "new template")
 	}
 
 	err = tmpl.Execute(f, struct {
-		CharonDir string
+		CharonBin string
 		Flags     []string
-	}{CharonDir: charonExe, Flags: flags})
+	}{CharonBin: charonBin, Flags: flags})
 	if err != nil {
 		return errors.Wrap(err, "execute template")
 	}
 
-	err = os.Chmod(dirname+"/run.sh", 0o755)
+	err = os.Chmod(nodeDir+"/run.sh", 0o755)
 	if err != nil {
-		return errors.Wrap(err, "change run.sh permissions")
+		return errors.Wrap(err, "change permissions")
 	}
 
 	return nil
 }
 
 // writeClusterScript creates script to run all the nodes in the cluster.
-func writeClusterScript(dirname string, n int) error {
+func writeClusterScript(clusterDir string, n int) error {
 	var cmds []string
-	for i := 0; i < n-1; i++ {
-		cmds = append(cmds, fmt.Sprintf("node%d/run.sh &", i))
+	for i := 0; i < n; i++ {
+		cmds = append(cmds, fmt.Sprintf("%s/node%d/run.sh", clusterDir, i))
 	}
-	cmds = append(cmds, fmt.Sprintf("node%d/run.sh", n-1))
-	f, err := os.Create(dirname + "/run_cluster.sh")
+
+	f, err := os.Create(clusterDir + "/run_cluster.sh")
 	if err != nil {
 		return errors.Wrap(err, "create run cluster")
 	}
@@ -235,9 +258,9 @@ func writeClusterScript(dirname string, n int) error {
 		return errors.Wrap(err, "execute template")
 	}
 
-	err = os.Chmod(dirname+"/run_cluster.sh", 0o755)
+	err = os.Chmod(clusterDir+"/run_cluster.sh", 0o755)
 	if err != nil {
-		return errors.Wrap(err, "change run.sh permissions")
+		return errors.Wrap(err, "change permissions")
 	}
 
 	return nil
