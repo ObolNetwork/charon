@@ -59,17 +59,18 @@ func newDutySimulator(cons cluster.Consensus,
 				select {
 				case ts := <-nextSlot():
 					// Do not block resolving duty, just kick it off.
-					go func() {
+					go func(ts time.Time) {
 						duty := types.Duty{
 							Slot: slotFromTime(ts),
 							Type: types.DutyAttester,
 						}
+						dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
 
-						err := simulateDuty(ctx, cons, duty, callback)
+						err := simulateDuty(dutyCtx, cons, duty, callback)
 						if err != nil {
-							log.Error(ctx, "Simulate duty error", err, z.I64("slot", duty.Slot))
+							log.Error(dutyCtx, "Simulate duty error", err)
 						}
-					}()
+					}(ts)
 				case <-ctx.Done():
 					return nil
 				}
@@ -96,7 +97,7 @@ func simulateDuty(ctx context.Context, cons cluster.Consensus, duty types.Duty,
 		return err
 	}
 
-	log.Info(ctx, "Resolved duty", z.Any("duty", duty), z.Str("data", string(data)))
+	log.Info(ctx, "Resolved duty", z.Str("data", string(data)))
 
 	if callback != nil {
 		callback(duty, data)
