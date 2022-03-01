@@ -159,7 +159,7 @@ type Scheduler interface {
 > It also allows for cyclic dependencies between components.
 
 ### Fetcher
-The fetcher is responsible for fetching input data required to perform the duty.
+The fetcher is responsible for fetching input data required to perform the duty. It is a stateless pure function.
 
 For `DutyAttester` it [fetches AttestationData](https://github.com/ethereum/beacon-APIs/blob/master/validator-flow.md#/ValidatorRequiredApi/produceAttestationData) from the beacon node.
 

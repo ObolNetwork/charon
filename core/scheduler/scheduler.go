@@ -81,7 +81,7 @@ type Scheduler struct {
 }
 
 // Subscribe registers a callback for triggering a duty.
-// Note this should be called BEFORE Start.
+// Note this should be called *before* Start.
 func (s *Scheduler) Subscribe(fn func(context.Context, core.Duty, core.FetchArgSet) error) {
 	s.subs = append(s.subs, fn)
 }
