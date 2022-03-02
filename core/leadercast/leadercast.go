@@ -32,7 +32,6 @@ func New(transport Transport, index, total int) *LeaderCast {
 		index:     index,
 		transport: transport,
 		buffers:   make(map[core.Duty]chan []byte),
-		stop:      func() {},
 	}
 }
 
@@ -49,13 +48,9 @@ type LeaderCast struct {
 
 	mu      sync.Mutex
 	buffers map[core.Duty]chan []byte
-	stop    context.CancelFunc
 }
 
-func (l *LeaderCast) Start() error {
-	ctx := log.WithTopic(context.Background(), "leadercast")
-	ctx, l.stop = context.WithCancel(ctx)
-
+func (l *LeaderCast) Run(ctx context.Context) error {
 	for {
 		source, duty, data, err := l.transport.AwaitNext(ctx)
 		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
@@ -88,10 +83,6 @@ func (l *LeaderCast) getBuffer(duty core.Duty) chan []byte {
 	}
 
 	return ch
-}
-
-func (l *LeaderCast) Stop() {
-	l.stop()
 }
 
 func (l *LeaderCast) ResolveDuty(ctx context.Context, duty core.Duty, data []byte) ([]byte, error) {

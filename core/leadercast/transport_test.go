@@ -39,11 +39,10 @@ func TestMemTransport(t *testing.T) {
 	for i := 0; i < n; i++ {
 		c := leadercast.New(trFunc(), i, n)
 		casts = append(casts, c)
-		go func() {
-			require.NoError(t, c.Start())
-		}()
 
-		t.Cleanup(c.Stop)
+		go func() {
+			require.NoError(t, c.Run(ctx))
+		}()
 	}
 
 	resolved := make(chan []byte, slots*n)
