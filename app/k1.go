@@ -25,19 +25,20 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// LoadOrCreatePrivKey returns a k1 (secp256k1) private key from the provided folder.
-// If it doesn't exist, a new key is generated and stored and returned.
-func LoadOrCreatePrivKey(dataDir string) (*ecdsa.PrivateKey, error) {
+// LoadOrCreatePrivKey returns a k1 (secp256k1) private key and true from the provided folder.
+// If it doesn't exist, a new key is generated and stored and returned with false.
+func LoadOrCreatePrivKey(dataDir string) (*ecdsa.PrivateKey, bool, error) {
 	keyPath := path.Join(dataDir, "p2pkey")
 
 	key, err := crypto.LoadECDSA(keyPath)
 	if errors.Is(err, os.ErrNotExist) {
-		return newSavedPrivKey(keyPath)
+		key, err = newSavedPrivKey(keyPath)
+		return key, false, err
 	} else if err != nil {
-		return nil, errors.Wrap(err, "load key")
+		return nil, false, errors.Wrap(err, "load key")
 	}
 
-	return key, nil
+	return key, true, nil
 }
 
 // newSavedPrivKey generates a new key and saves the new node identity.

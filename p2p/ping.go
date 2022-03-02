@@ -27,26 +27,23 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// StartPingService stars a p2p ping service that pings all peers every second
+// NewPingService returns a start function of a p2p ping service that pings all peers every second
 // and collects metrics.
 // TODO(corver): Cluster wide req/resp doesn't scale since it is O(n^2).
-func StartPingService(h host.Host, peers []peer.ID, callback func(peer.ID)) context.CancelFunc {
-	ctx, cancel := context.WithCancel(context.Background())
-	ctx = log.WithTopic(ctx, "ping")
-
+func NewPingService(h host.Host, peers []peer.ID, callback func(peer.ID)) func(context.Context) {
 	svc := ping.NewPingService(h)
 	logFunc := newPingLogger(peers)
 
-	for _, p := range peers {
-		if p == h.ID() {
-			// Do not ping self
-			continue
+	return func(ctx context.Context) {
+		for _, p := range peers {
+			if p == h.ID() {
+				// Do not ping self
+				continue
+			}
+
+			go pingPeer(ctx, svc, p, logFunc, callback)
 		}
-
-		go pingPeer(ctx, svc, p, logFunc, callback)
 	}
-
-	return cancel
 }
 
 // pingPeer starts (and restarts) a long-lived ping service stream, pinging the peer every second until some error.

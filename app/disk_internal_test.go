@@ -38,7 +38,8 @@ func TestLoadManifest(t *testing.T) {
 	err = os.WriteFile(filename, b, 0o644)
 	require.NoError(t, err)
 
-	actual, err := loadManifest(filename)
+	conf := Config{ManifestFile: filename}
+	actual, err := loadManifest(conf)
 	require.NoError(t, err)
 
 	b2, err := json.Marshal(actual)

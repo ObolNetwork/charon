@@ -19,11 +19,13 @@ package app
 import (
 	"context"
 	"crypto/ecdsa"
+	"github.com/obolnetwork/charon/app/lifecycle"
 	"net/http"
 	"net/http/pprof"
 	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/automaxprocs/maxprocs"
@@ -34,7 +36,7 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
-	leadercast "github.com/obolnetwork/charon/core/leadercast"
+	"github.com/obolnetwork/charon/core/leadercast"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -66,62 +68,99 @@ type TestConfig struct {
 }
 
 // Run is the entrypoint for running a charon DVC instance.
-// All processes and their dependencies are constructed and then started.
-// Graceful shutdown is triggered on first process error or when the shutdown context is cancelled.
-//nolint:contextcheck,revive,cyclop
-func Run(ctx context.Context, conf Config) error {
-	_, _ = maxprocs.Set()
+// All processes and their dependencies are wired and added
+// to the life cycle manager which handles starting and graceful shutdown.
+func Run(ctx context.Context, conf Config) (err error) {
 	ctx = log.WithTopic(ctx, "app-start")
-
-	testConf := conf.TestConfig
+	defer func() {
+		if err != nil {
+			log.Error(ctx, "Fatal run error", err)
+		}
+	}()
 
 	log.Info(ctx, "Charon starting", z.Str("version", version.Version))
-	setStartupMetrics()
+
+	_, _ = maxprocs.Set()
+	initStartupMetrics()
 
 	// Construct processes and their dependencies
-	// TODO(corver): Split this into high level methods like; setupApp, setupP2P, setupMonitoring, setupValidatorAPI, etc.
+	life := new(lifecycle.Manager)
 
-	stopJeager, err := tracer.Init(tracer.WithJaegerOrNoop(conf.JaegerAddr))
+	if err := initTracing(life, conf); err != nil {
+		return err
+	}
+
+	manifest, err := loadManifest(conf)
 	if err != nil {
-		return errors.Wrap(err, "init jaeger tracing")
+		return err
 	}
 
-	var manifest Manifest
-	if conf.TestConfig.Manifest != nil {
-		manifest = *conf.TestConfig.Manifest
-	} else {
-		manifest, err = loadManifest(conf.ManifestFile)
-		if err != nil {
-			return errors.Wrap(err, "load manifest")
-		}
+	tcpNode, localEnode, index, err := initP2P(ctx, life, conf, manifest)
+	if err != nil {
+		return err
 	}
 
+	log.Info(ctx, "Manifest loaded",
+		z.Int("peers", len(manifest.Peers)),
+		z.Str("local_peer", p2p.ShortID(tcpNode.ID())),
+		z.Int("index", index))
+
+	initMonitoring(life, conf.MonitoringAddr, localEnode)
+
+	if err := initValdatorAPI(life, conf); err != nil {
+		return err
+	}
+
+	initDutySimulator(life, tcpNode, index, manifest, conf)
+
+	return life.Run(ctx)
+}
+
+func initDutySimulator(life *lifecycle.Manager, tcpNode host.Host, index int, manifest types.Manifest, conf Config) {
+	lcast := leadercast.New(leadercast.NewP2PTransport(tcpNode, index, manifest.PeerIDs()), index, len(manifest.Peers))
+
+	startSim := newDutySimulator(lcast, conf.TestConfig.SimDutyPeriod, conf.TestConfig.SimDutyCallback)
+
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartLeaderCast, lifecycle.HookFunc(lcast.Run))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartSimulator, lifecycle.HookFunc(startSim))
+}
+
+func initP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest types.Manifest,
+) (host.Host, *enode.LocalNode, int, error) {
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
-		p2pKey, err = LoadOrCreatePrivKey(conf.DataDir)
+		var err error
+		var loaded bool
+		p2pKey, loaded, err = LoadOrCreatePrivKey(conf.DataDir)
 		if err != nil {
-			return errors.Wrap(err, "load or create peer ID")
+			return nil, nil, 0, errors.Wrap(err, "load or create peer ID")
+		}
+
+		if loaded {
+			log.Info(ctx, "Loaded p2p key", z.Str("dir", conf.DataDir))
+		} else {
+			log.Info(ctx, "Generated new p2p key", z.Str("dir", conf.DataDir))
 		}
 	}
 
 	localEnode, peerDB, err := p2p.NewLocalEnode(conf.P2P, p2pKey)
 	if err != nil {
-		return errors.Wrap(err, "create local enode")
+		return nil, nil, 0, errors.Wrap(err, "create local enode")
 	}
 
 	udpNode, err := p2p.NewUDPNode(conf.P2P, localEnode, p2pKey, manifest.ENRs())
 	if err != nil {
-		return errors.Wrap(err, "start discv5 listener")
+		return nil, nil, 0, errors.Wrap(err, "start discv5 listener")
 	}
 
 	connGater, err := p2p.NewConnGater(manifest.PeerIDs())
 	if err != nil {
-		return errors.Wrap(err, "connection gater")
+		return nil, nil, 0, errors.Wrap(err, "connection gater")
 	}
 
 	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode, manifest.Peers)
 	if err != nil {
-		return errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
+		return nil, nil, 0, errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
 	}
 
 	index := -1
@@ -131,110 +170,26 @@ func Run(ctx context.Context, conf Config) error {
 		}
 	}
 	if index == -1 {
-		return errors.New("privkey not in manifest peers")
+		return nil, nil, 0, errors.New("privkey not in manifest peers")
 	}
 
-	log.Info(ctx, "Manifest loaded",
-		z.Int("peers", len(manifest.Peers)),
-		z.Str("local_peer", p2p.ShortID(tcpNode.ID())),
-		z.Int("index", index))
+	startPing := p2p.NewPingService(tcpNode, manifest.PeerIDs(), conf.TestConfig.PingCallback)
 
-	monitoring := newMonitoring(conf.MonitoringAddr, localEnode)
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, lifecycle.HookFuncCtx(startPing))
+	life.RegisterStop(lifecycle.StopP2PPeerDB, lifecycle.HookFuncMin(peerDB.Close))
+	life.RegisterStop(lifecycle.StopP2PTCPNode, lifecycle.HookFuncErr(tcpNode.Close))
+	life.RegisterStop(lifecycle.StopP2PUDPNode, lifecycle.HookFuncMin(udpNode.Close))
 
-	vhandler := validatorapi.Handler(nil) // TODO(corver): Construct this
-	vrouter, err := validatorapi.NewRouter(vhandler, conf.BeaconNodeAddr)
-	if err != nil {
-		return errors.Wrap(err, "new monitoring server")
-	}
-	vserver := http.Server{
-		Addr:    conf.ValidatorAPIAddr,
-		Handler: vrouter,
-	}
-
-	lcast := leadercast.New(leadercast.NewP2PTransport(tcpNode, index, manifest.PeerIDs()), index, len(manifest.Peers))
-
-	// Start processes and wait for first error or shutdown.
-
-	go func() {
-		_ = lcast.Run(ctx)
-	}()
-
-	stopPing := p2p.StartPingService(tcpNode, manifest.PeerIDs(), conf.TestConfig.PingCallback)
-
-	startSim, stopSim := newDutySimulator(lcast, testConf.SimDutyPeriod, testConf.SimDutyCallback)
-
-	var procErr error
-	select {
-	case err := <-start(monitoring.ListenAndServe):
-		procErr = errors.Wrap(err, "monitoring server")
-	case err := <-start(vserver.ListenAndServe):
-		procErr = errors.Wrap(err, "validatorapi server")
-
-	//	procErr = errors.Wrap(err, "leadercast consensus")
-	case err := <-start(startSim):
-		procErr = errors.Wrap(err, "duty simulator")
-	case <-ctx.Done():
-		log.Info(ctx, "Shutdown signal detected")
-	}
-
-	if procErr != nil {
-		// Even though procErr is returned below, also log it in case shutdown errors.
-		log.Error(ctx, "Process start error", procErr)
-	}
-
-	// Shutdown processes with a fresh context allowing 10s.
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
-	ctx = log.WithTopic(ctx, "app-stop")
-	log.Info(ctx, "Shutting down gracefully")
-
-	stopSim()
-	stopPing()
-
-	if err := tcpNode.Close(); err != nil {
-		return errors.Wrap(err, "stop p2p node")
-	}
-
-	if err := monitoring.Shutdown(ctx); err != nil {
-		return errors.Wrap(err, "stop monitoring server")
-	}
-
-	if err := vserver.Shutdown(ctx); err != nil {
-		return errors.Wrap(err, "stop validatorapi server")
-	}
-
-	if err := stopJeager(ctx); err != nil {
-		return errors.Wrap(err, "stop jaeger tracer")
-	}
-
-	udpNode.Close()
-
-	peerDB.Close()
-
-	return procErr
+	return tcpNode, localEnode, index, nil
 }
 
-// start calls the function asynchronously and returns a channel that propagates
-// a non-nil error response. Nil responses are dropped.
-// Note this supports both blocking and non-blocking functions.
-func start(fn func() error) <-chan error {
-	ch := make(chan error, 1)
-
-	go func() {
-		err := fn()
-		if err != nil {
-			ch <- err
-		}
-	}()
-
-	return ch
-}
-
-// newMonitoring returns the monitoring server providing prometheus metrics and pprof profiling.
-func newMonitoring(addr string, localNode *enode.LocalNode) *http.Server {
+// initMonitoring returns the monitoring server providing prometheus metrics and pprof profiling.
+func initMonitoring(cycle *lifecycle.Manager, addr string, localNode *enode.LocalNode) {
 	mux := http.NewServeMux()
+
+	// Serve prometheus metrics
 	mux.Handle("/metrics", promhttp.Handler())
+
 	// Serve local ENR to allow simple HTTP Get to this node to resolve it as bootnode ENR.
 	mux.Handle("/enr", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(localNode.Node().String()))
@@ -247,8 +202,54 @@ func newMonitoring(addr string, localNode *enode.LocalNode) *http.Server {
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
-	return &http.Server{
+	server := &http.Server{
 		Addr:    addr,
 		Handler: mux,
 	}
+
+	cycle.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))
+	cycle.RegisterStop(lifecycle.StopMonitoringAPI, lifecycle.HookFunc(server.Shutdown))
+}
+
+func initValdatorAPI(life *lifecycle.Manager, conf Config) error {
+	vhandler := validatorapi.Handler(nil) // TODO(corver): Construct this
+	vrouter, err := validatorapi.NewRouter(vhandler, conf.BeaconNodeAddr)
+	if err != nil {
+		return errors.Wrap(err, "new monitoring server")
+	}
+
+	server := &http.Server{
+		Addr:    conf.ValidatorAPIAddr,
+		Handler: vrouter,
+	}
+
+	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartValidatorAPI, httpServeHook(server.ListenAndServe))
+	life.RegisterStop(lifecycle.StopValidatorAPI, lifecycle.HookFunc(server.Shutdown))
+
+	return nil
+}
+
+func initTracing(life *lifecycle.Manager, conf Config) error {
+	stopJeager, err := tracer.Init(tracer.WithJaegerOrNoop(conf.JaegerAddr))
+	if err != nil {
+		return errors.Wrap(err, "init jaeger tracing")
+	}
+
+	life.RegisterStop(lifecycle.StopTracing, lifecycle.HookFunc(stopJeager))
+
+	return nil
+}
+
+// httpServeHook wraps a http.Server.ListenAndServe function, swallowing http.ErrServerClosed.
+type httpServeHook func() error
+
+func (h httpServeHook) Call(context.Context) error {
+	err := h()
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	} else if err != nil {
+		return errors.Wrap(err, "serve")
+	}
+
+	return nil
 }

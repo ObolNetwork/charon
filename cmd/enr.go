@@ -49,9 +49,15 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.Command
 
 // Function for printing status of ENR for this instance.
 func runNewENR(w io.Writer, config p2p.Config, dataDir string) error {
-	identityKey, err := app.LoadOrCreatePrivKey(dataDir)
+	identityKey, loaded, err := app.LoadOrCreatePrivKey(dataDir)
 	if err != nil {
 		return err
+	}
+
+	if loaded {
+		_, _ = fmt.Fprintf(w, "Loaded p2p key from folder %s", dataDir)
+	} else {
+		_, _ = fmt.Fprintf(w, "Generated new p2p key to folder %s", dataDir)
 	}
 
 	localEnode, db, err := p2p.NewLocalEnode(config, identityKey)

@@ -22,8 +22,12 @@ import (
 )
 
 // loadManifest reads the cluster manifest from the given file path.
-func loadManifest(file string) (Manifest, error) {
-	buf, err := os.ReadFile(file)
+func loadManifest(conf Config) (Manifest, error) {
+	if conf.TestConfig.Manifest != nil {
+		return *conf.TestConfig.Manifest, nil
+	}
+
+	buf, err := os.ReadFile(conf.ManifestFile)
 	if err != nil {
 		return Manifest{}, errors.Wrap(err, "read manifest")
 	}

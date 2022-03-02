@@ -35,7 +35,7 @@ var (
 	})
 )
 
-func setStartupMetrics() {
+func initStartupMetrics() {
 	versionGauge.WithLabelValues(version.Version).Set(1)
 	startGauge.SetToCurrentTime()
 }
