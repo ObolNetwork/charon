@@ -73,34 +73,3 @@ func TestManifestJSON(t *testing.T) {
 		}
 	}
 }
-
-func TestDecodeENR(t *testing.T) {
-	manifest, _, _ := app.NewClusterForT(t, 1, 3, 4, 0)
-
-	for _, p := range manifest.Peers {
-		enrStr, err := app.EncodeENR(p.ENR)
-		require.NoError(t, err)
-
-		record2, err := app.DecodeENR(enrStr)
-		require.NoError(t, err)
-		require.Equal(t, p.ENR, record2)
-	}
-}
-
-func TestDecodeENR_InvalidBase64(t *testing.T) {
-	_, err := app.DecodeENR("enr:###")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "illegal base64 data at input byte 0")
-}
-
-func TestDecodeENR_InvalidRLP(t *testing.T) {
-	_, err := app.DecodeENR("enr:AAAAAAAA")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "rlp: expected List")
-}
-
-func TestDecodeENR_Oversize(t *testing.T) {
-	_, err := app.DecodeENR("enr:-IS4QBnEa-Oftjk7-sGRAY7IrvL5YjATdcHbqR5l2aXX2M25CiawfwaXh0k9hm98dCfdnqhz9mE-BfemFdjuL9KtHqgBgmlkgnY0gmlwhB72zxGJc2VjcDI1NmsxoQMaK8SspTrUgB8IYVI3qDgFYsHymPVsWlvIW477kxaKUIN0Y3CCJpUAAAA=")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "input contains more than one value")
-}
