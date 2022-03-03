@@ -62,7 +62,7 @@ func RequireGoldenBytes(t *testing.T, data []byte) {
 		return
 	}
 
-	require.Equalf(t, expected, data, "Golden file mismatch, %s", filename)
+	require.Equalf(t, string(expected), string(data), "Golden file mismatch, %s", filename)
 }
 
 // RequireGoldenJSON asserts that a golden testdata file exists containing the JSON serialised form of the data object.
