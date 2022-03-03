@@ -19,20 +19,19 @@ import (
 	"os"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/types"
 )
 
 // loadManifest reads the cluster manifest from the given file path.
-func loadManifest(file string) (types.Manifest, error) {
+func loadManifest(file string) (Manifest, error) {
 	buf, err := os.ReadFile(file)
 	if err != nil {
-		return types.Manifest{}, errors.Wrap(err, "read manifest")
+		return Manifest{}, errors.Wrap(err, "read manifest")
 	}
 
-	var res types.Manifest
+	var res Manifest
 	err = json.Unmarshal(buf, &res)
 	if err != nil {
-		return types.Manifest{}, errors.Wrap(err, "unmarshal manifest")
+		return Manifest{}, errors.Wrap(err, "unmarshal manifest")
 	}
 
 	return res, nil

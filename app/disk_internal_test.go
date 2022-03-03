@@ -21,12 +21,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/obolnetwork/charon/types"
 )
 
 func TestLoadManifest(t *testing.T) {
-	manifest, _, _ := types.NewClusterForT(t, 1, 2, 3, 0)
+	manifest, _, _ := NewClusterForT(t, 1, 2, 3, 0)
 
 	b, err := json.MarshalIndent(manifest, "", " ")
 	require.NoError(t, err)
