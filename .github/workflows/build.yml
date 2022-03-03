@@ -1,7 +1,7 @@
 on:
   push:
     branches:
-      - main
+      - xenowits/investigate-ghcr-issue
 
 name: Build docker image
 jobs:
@@ -23,7 +23,7 @@ jobs:
 
     # Runs a single command using the runners shell
     - name: Publish to registry
-      uses: elgohr/Publish-Docker-Github-Action@3.03
+      uses: elgohr/Publish-Docker-Github-Action@3.04
       env:
         NODE_ENV: production
         DOCKER_BUILDKIT: 1
@@ -32,8 +32,8 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.CONTAINER_REGISTRY_SECRET }}
         buildargs: GITHUB_SHA=${{ github.sha }}
-        # registry: ghcr.io
-        registry: docker.pkg.github.com
+        registry: ghcr.io
+#        registry: docker.pkg.github.com
         tags: "latest,${{steps.get-version.outputs.version}}"
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}
