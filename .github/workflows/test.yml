@@ -1,7 +1,7 @@
 # Runs "go vet" and "go test -short".
 # TODO: Might want to skip this stage in case Go files aren't modified.
 on: [ pull_request ]
-name: Unit, lint, fmt, vet, coverage of PR
+name: unit tests
 jobs:
   unit_tests:
     runs-on: ubuntu-20.04
