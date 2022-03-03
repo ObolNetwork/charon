@@ -15,19 +15,15 @@
 package app
 
 import (
-	"bytes"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/sharing"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
-	"github.com/ethereum/go-ethereum/rlp"
 	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 
@@ -85,7 +81,7 @@ func (m Manifest) PublicKeys() []*bls_sig.PublicKey {
 func (m Manifest) MarshalJSON() ([]byte, error) {
 	var enrs []string
 	for _, p := range m.Peers {
-		enrStr, err := EncodeENR(p.ENR)
+		enrStr, err := p2p.EncodeENR(p.ENR)
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +136,7 @@ func (m *Manifest) UnmarshalJSON(data []byte) error {
 
 	var peers []p2p.Peer
 	for i, enrStr := range mjson.PeerENRs {
-		record, err := DecodeENR(enrStr)
+		record, err := p2p.DecodeENR(enrStr)
 		if err != nil {
 			return err
 		}
@@ -204,33 +200,6 @@ type manifestJSON struct {
 type dvJSON struct {
 	PubKey    string   `json:"root_pubkey"`
 	Verifiers [][]byte `json:"threshold_verifiers"`
-}
-
-// EncodeENR returns an encoded string format of the enr record.
-func EncodeENR(record enr.Record) (string, error) {
-	var buf bytes.Buffer
-	if err := record.EncodeRLP(&buf); err != nil {
-		return "", errors.Wrap(err, "encode rlp")
-	}
-
-	return "enr:" + base64.URLEncoding.EncodeToString(buf.Bytes()), nil
-}
-
-// DecodeENR returns a enr record decoded from the string.
-// See reference github.com/ethereum/go-ethereum@v1.10.10/p2p/dnsdisc/tree.go:378.
-func DecodeENR(enrStr string) (enr.Record, error) {
-	enrStr = strings.TrimPrefix(enrStr, "enr:")
-	enrBytes, err := base64.URLEncoding.DecodeString(enrStr)
-	if err != nil {
-		return enr.Record{}, errors.Wrap(err, "base64 enr")
-	}
-
-	var record enr.Record
-	if err := rlp.DecodeBytes(enrBytes, &record); err != nil {
-		return enr.Record{}, errors.Wrap(err, "rlp enr")
-	}
-
-	return record, nil
 }
 
 func getDescription(m Manifest) string {

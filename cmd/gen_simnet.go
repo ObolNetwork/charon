@@ -105,11 +105,6 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "get charon binary")
 	}
 
-	charonBin, err := os.Executable()
-	if err != nil {
-		return errors.Wrap(err, "get charon binary")
-	}
-
 	port := config.portStart
 	nextPort := func() int {
 		port++
