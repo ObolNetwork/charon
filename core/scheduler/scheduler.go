@@ -30,7 +30,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/types"
+	"github.com/obolnetwork/charon/core"
 )
 
 type eth2Provider interface {
@@ -66,7 +66,7 @@ func New(pubkeys []*bls_sig.PublicKey, eth2Svc eth2client.Service) (*Scheduler, 
 		eth2Cl:  eth2Cl,
 		pubkeys: pubkeys,
 		quit:    make(chan struct{}),
-		duties:  make(map[types.Duty]types.DutyArgSet),
+		duties:  make(map[core.Duty]core.DutyArgSet),
 	}, nil
 }
 
@@ -76,13 +76,13 @@ type Scheduler struct {
 	quit    chan struct{}
 	clock   clockwork.Clock
 
-	duties map[types.Duty]types.DutyArgSet
-	subs   []func(context.Context, types.Duty, types.DutyArgSet) error
+	duties map[core.Duty]core.DutyArgSet
+	subs   []func(context.Context, core.Duty, core.DutyArgSet) error
 }
 
 // Subscribe registers a callback for triggering a duty.
 // Note this should be called BEFORE Start.
-func (s *Scheduler) Subscribe(fn func(context.Context, types.Duty, types.DutyArgSet) error) {
+func (s *Scheduler) Subscribe(fn func(context.Context, core.Duty, core.DutyArgSet) error) {
 	s.subs = append(s.subs, fn)
 }
 
@@ -126,8 +126,8 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 		}
 	}
 
-	for _, dutyType := range types.AllDutyTypes() {
-		duty := types.Duty{
+	for _, dutyType := range core.AllDutyTypes() {
+		duty := core.Duty{
 			Slot: slot.Slot,
 			Type: dutyType,
 		}
@@ -189,14 +189,14 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				return errors.Wrap(err, "unmarshal duty")
 			}
 
-			duty := types.Duty{Slot: int64(attDuty.Slot), Type: types.DutyAttester}
+			duty := core.Duty{Slot: int64(attDuty.Slot), Type: core.DutyAttester}
 
 			argSet, ok := s.duties[duty]
 			if !ok {
-				argSet = make(types.DutyArgSet)
+				argSet = make(core.DutyArgSet)
 			}
 
-			argSet[types.VIdx(attDuty.ValidatorIndex)] = b
+			argSet[core.VIdx(attDuty.ValidatorIndex)] = b
 			s.duties[duty] = argSet
 
 			log.Debug(ctx, "Resolved attester duty",
@@ -284,7 +284,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 // resolveActiveDVs returns the active validators for the slot (in two different formats).
 func resolveActiveDVs(ctx context.Context, eth2Cl eth2Provider,
 	pubkeys []*bls_sig.PublicKey, slot int64,
-) ([]types.VIdx, []eth2p0.ValidatorIndex, error) {
+) ([]core.VIdx, []eth2p0.ValidatorIndex, error) {
 	var e2pks []eth2p0.BLSPubKey
 	for _, pubkey := range pubkeys {
 		b, err := pubkey.MarshalBinary()
@@ -312,7 +312,7 @@ func resolveActiveDVs(ctx context.Context, eth2Cl eth2Provider,
 	}
 
 	var (
-		resp1 []types.VIdx
+		resp1 []core.VIdx
 		resp2 []eth2p0.ValidatorIndex
 	)
 	for index, validator := range vals {
@@ -322,7 +322,7 @@ func resolveActiveDVs(ctx context.Context, eth2Cl eth2Provider,
 		}
 
 		// TODO(corver): Ensure returned validator in manifest
-		resp1 = append(resp1, types.VIdx(index))
+		resp1 = append(resp1, core.VIdx(index))
 		resp2 = append(resp2, index)
 	}
 

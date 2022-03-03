@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types
+package core
 
-// VIdx is the validator index.
-//
-// https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#custom-types
-// Every validator that enters the system is consecutively assigned a unique
-// validator index number that is permanent, remaining even after the validator exits.
-type VIdx int64
+import (
+	"context"
+)
+
+// Consensus abstracts a cluster consensus layer.
+type Consensus interface {
+	// ResolveDuty returns the cluster's agreed upon data for the given duty.
+	// The result will be proposed data from one of the nodes in the cluster.
+	ResolveDuty(ctx context.Context, d Duty, proposedData []byte) ([]byte, error)
+}

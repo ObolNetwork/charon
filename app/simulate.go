@@ -23,14 +23,13 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/types"
+	"github.com/obolnetwork/charon/core"
 )
 
 // newDutySimulator returns a start and stop function that
 // simulates consensus duty resolution with periodic mock data.
-func newDutySimulator(cons cluster.Consensus,
-	period time.Duration, callback func(types.Duty, []byte),
+func newDutySimulator(cons core.Consensus,
+	period time.Duration, callback func(core.Duty, []byte),
 ) (func() error, context.CancelFunc) {
 	ctx := log.WithTopic(context.Background(), "sim-duty")
 	ctx, cancel := context.WithCancel(ctx)
@@ -60,9 +59,9 @@ func newDutySimulator(cons cluster.Consensus,
 				case ts := <-nextSlot():
 					// Do not block resolving duty, just kick it off.
 					go func() {
-						duty := types.Duty{
+						duty := core.Duty{
 							Slot: slotFromTime(ts),
-							Type: types.DutyAttester,
+							Type: core.DutyAttester,
 						}
 
 						err := simulateDuty(ctx, cons, duty, callback)
@@ -79,8 +78,8 @@ func newDutySimulator(cons cluster.Consensus,
 		}
 }
 
-func simulateDuty(ctx context.Context, cons cluster.Consensus, duty types.Duty,
-	callback func(types.Duty, []byte),
+func simulateDuty(ctx context.Context, cons core.Consensus, duty core.Duty,
+	callback func(core.Duty, []byte),
 ) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()

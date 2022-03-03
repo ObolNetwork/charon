@@ -32,12 +32,11 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/types"
 )
 
 // NewTCPNode returns a started tcp-based libp2p node.
 func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
-	udpNode *discover.UDPv5, peers []types.Peer) (host.Host, error,
+	udpNode *discover.UDPv5, peers []Peer) (host.Host, error,
 ) {
 	peerMap := make(map[peer.ID]enode.Node)
 	for _, p := range peers {

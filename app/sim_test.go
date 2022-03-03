@@ -24,8 +24,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/types"
 )
 
 // TestSimDuties starts a cluster of charon nodes and waits for each node to resolve identical duties.
@@ -33,7 +33,7 @@ import (
 func TestSimDuties(t *testing.T) {
 	const n = 3
 	ctx, cancel := context.WithCancel(context.Background())
-	manifest, p2pKeys, _ := types.NewClusterForT(t, 1, n, n, 0)
+	manifest, p2pKeys, _ := app.NewClusterForT(t, 1, n, n, 0)
 
 	asserter := &simDutyAsserter{
 		asserter: asserter{
@@ -79,7 +79,7 @@ type simDutyAsserter struct {
 	Slots int
 
 	mu     sync.Mutex
-	duties map[types.Duty][][]byte
+	duties map[core.Duty][][]byte
 }
 
 // Await waits for all nodes to ping each other or time out.
@@ -90,10 +90,10 @@ func (a *simDutyAsserter) Await(t *testing.T) {
 }
 
 // Callback returns the PingCallback function for the ith node.
-func (a *simDutyAsserter) Callback(t *testing.T) func(duty types.Duty, data []byte) {
+func (a *simDutyAsserter) Callback(t *testing.T) func(duty core.Duty, data []byte) {
 	t.Helper()
 
-	return func(duty types.Duty, data []byte) {
+	return func(duty core.Duty, data []byte) {
 		a.mu.Lock()
 		defer a.mu.Unlock()
 
@@ -109,7 +109,7 @@ func (a *simDutyAsserter) Callback(t *testing.T) func(duty types.Duty, data []by
 		}
 
 		if len(datas) == 1 {
-			a.duties = make(map[types.Duty][][]byte)
+			a.duties = make(map[core.Duty][][]byte)
 		}
 		a.duties[duty] = datas
 	}

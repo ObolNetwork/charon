@@ -36,7 +36,6 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/types"
 )
 
 var slow = flag.Bool("slow", false, "enable slow tests")
@@ -104,7 +103,7 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	const n = 3
 	ctx, cancel := context.WithCancel(context.Background())
-	manifest, p2pKeys, _ := types.NewClusterForT(t, 1, n, n, 0)
+	manifest, p2pKeys, _ := app.NewClusterForT(t, 1, n, n, 0)
 	asserter := &pingAsserter{
 		asserter: asserter{
 			Timeout: timeout,
@@ -258,7 +257,7 @@ func (a *asserter) await(t *testing.T, expect int) {
 type pingAsserter struct {
 	asserter
 	N        int
-	Manifest types.Manifest
+	Manifest app.Manifest
 }
 
 // Await waits for all nodes to ping each other or time out.

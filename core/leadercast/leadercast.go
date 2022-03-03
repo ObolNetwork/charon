@@ -21,7 +21,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/types"
+	"github.com/obolnetwork/charon/core"
 )
 
 // New returns a new leader cast consensus implementation
@@ -31,7 +31,7 @@ func New(transport Transport, index, total int) *LeaderCast {
 		total:     total,
 		index:     index,
 		transport: transport,
-		buffers:   make(map[types.Duty]chan []byte),
+		buffers:   make(map[core.Duty]chan []byte),
 		stop:      func() {},
 	}
 }
@@ -48,7 +48,7 @@ type LeaderCast struct {
 	transport Transport
 
 	mu      sync.Mutex
-	buffers map[types.Duty]chan []byte
+	buffers map[core.Duty]chan []byte
 	stop    context.CancelFunc
 }
 
@@ -78,7 +78,7 @@ func (l *LeaderCast) Start() error {
 }
 
 // getBuffer returns the channel to buffer the duty data.
-func (l *LeaderCast) getBuffer(duty types.Duty) chan []byte {
+func (l *LeaderCast) getBuffer(duty core.Duty) chan []byte {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	ch, ok := l.buffers[duty]
@@ -94,7 +94,7 @@ func (l *LeaderCast) Stop() {
 	l.stop()
 }
 
-func (l *LeaderCast) ResolveDuty(ctx context.Context, duty types.Duty, data []byte) ([]byte, error) {
+func (l *LeaderCast) ResolveDuty(ctx context.Context, duty core.Duty, data []byte) ([]byte, error) {
 	if isLeader(l.index, l.total, duty) {
 		if err := l.transport.Broadcast(ctx, l.index, duty, data); err != nil {
 			return nil, err
@@ -117,7 +117,7 @@ func (l *LeaderCast) ResolveDuty(ctx context.Context, duty types.Duty, data []by
 
 // isLeader is a deterministic LeaderCast election function that returns true if the instance at index (of total)
 // is the LeaderCast for the given duty.
-func isLeader(index, total int, d types.Duty) bool {
+func isLeader(index, total int, d core.Duty) bool {
 	mod := (int(d.Slot) + int(d.Type)) % total
 
 	return mod == index
