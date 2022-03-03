@@ -23,7 +23,6 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -44,7 +43,7 @@ type eth2Provider interface {
 }
 
 // NewForT returns a new scheduler for testing supporting a fake clock.
-func NewForT(t *testing.T, clock clockwork.Clock, pubkeys []*bls_sig.PublicKey, eth2Svc eth2client.Service) *Scheduler {
+func NewForT(t *testing.T, clock clockwork.Clock, pubkeys []core.PubKey, eth2Svc eth2client.Service) *Scheduler {
 	t.Helper()
 
 	s, err := New(pubkeys, eth2Svc)
@@ -56,7 +55,7 @@ func NewForT(t *testing.T, clock clockwork.Clock, pubkeys []*bls_sig.PublicKey, 
 }
 
 // New returns a new scheduler.
-func New(pubkeys []*bls_sig.PublicKey, eth2Svc eth2client.Service) (*Scheduler, error) {
+func New(pubkeys []core.PubKey, eth2Svc eth2client.Service) (*Scheduler, error) {
 	eth2Cl, ok := eth2Svc.(eth2Provider)
 	if !ok {
 		return nil, errors.New("invalid eth2 client service")
@@ -66,23 +65,24 @@ func New(pubkeys []*bls_sig.PublicKey, eth2Svc eth2client.Service) (*Scheduler, 
 		eth2Cl:  eth2Cl,
 		pubkeys: pubkeys,
 		quit:    make(chan struct{}),
-		duties:  make(map[core.Duty]core.DutyArgSet),
+		duties:  make(map[core.Duty]core.FetchArgSet),
+		clock:   clockwork.NewRealClock(),
 	}, nil
 }
 
 type Scheduler struct {
 	eth2Cl  eth2Provider
-	pubkeys []*bls_sig.PublicKey
+	pubkeys []core.PubKey
 	quit    chan struct{}
 	clock   clockwork.Clock
 
-	duties map[core.Duty]core.DutyArgSet
-	subs   []func(context.Context, core.Duty, core.DutyArgSet) error
+	duties map[core.Duty]core.FetchArgSet
+	subs   []func(context.Context, core.Duty, core.FetchArgSet) error
 }
 
 // Subscribe registers a callback for triggering a duty.
 // Note this should be called BEFORE Start.
-func (s *Scheduler) Subscribe(fn func(context.Context, core.Duty, core.DutyArgSet) error) {
+func (s *Scheduler) Subscribe(fn func(context.Context, core.Duty, core.FetchArgSet) error) {
 	s.subs = append(s.subs, fn)
 }
 
@@ -161,22 +161,25 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 }
 
 func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
-	dvs, indexes, err := resolveActiveDVs(ctx, s.eth2Cl, s.pubkeys, slot.Slot)
+	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.pubkeys, slot.Slot)
 	if err != nil {
 		return err
 	}
 
-	if len(dvs) == 0 {
+	if len(vals) == 0 {
 		log.Debug(ctx, "No active DVs for slot", z.I64("slot", slot.Slot))
 		return nil
 	}
 
 	// Resolve attester duties
 	{
-		attDuties, err := s.eth2Cl.AttesterDuties(ctx, slot.Epoch(), indexes)
+
+		attDuties, err := s.eth2Cl.AttesterDuties(ctx, slot.Epoch(), vals.Indexes())
 		if err != nil {
 			return err
 		}
+
+		// TODO(corver): Log when duty not included for some indexes
 
 		for _, attDuty := range attDuties {
 			if attDuty.Slot < eth2p0.Slot(slot.Slot) {
@@ -193,10 +196,16 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 
 			argSet, ok := s.duties[duty]
 			if !ok {
-				argSet = make(core.DutyArgSet)
+				argSet = make(core.FetchArgSet)
 			}
 
-			argSet[core.VIdx(attDuty.ValidatorIndex)] = b
+			pubkey, ok := vals.PubKeyFromIndex(attDuty.ValidatorIndex)
+			if !ok {
+				log.Warn(ctx, "ignoring unexpected attester duty", z.U64("vidx", uint64(attDuty.ValidatorIndex)))
+				continue
+			}
+
+			argSet[pubkey] = b
 			s.duties[duty] = argSet
 
 			log.Debug(ctx, "Resolved attester duty",
@@ -281,21 +290,21 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 	return resp, nil
 }
 
-// resolveActiveDVs returns the active validators for the slot (in two different formats).
-func resolveActiveDVs(ctx context.Context, eth2Cl eth2Provider,
-	pubkeys []*bls_sig.PublicKey, slot int64,
-) ([]core.VIdx, []eth2p0.ValidatorIndex, error) {
+// resolveActiveValidators returns the active validators (including their validator index) for the slot.
+func resolveActiveValidators(ctx context.Context, eth2Cl eth2Provider,
+	pubkeys []core.PubKey, slot int64,
+) (validators, error) {
 	var e2pks []eth2p0.BLSPubKey
 	for _, pubkey := range pubkeys {
-		b, err := pubkey.MarshalBinary()
+		b, err := pubkey.Bytes()
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "marshal pubkey")
+			return nil, err
 		}
 
 		var e2pk eth2p0.BLSPubKey
 		n := copy(e2pk[:], b)
 		if n != 48 {
-			return nil, nil, errors.New("invalid pubkey")
+			return nil, errors.New("invalid pubkey")
 		}
 
 		e2pks = append(e2pks, e2pk)
@@ -308,25 +317,28 @@ func resolveActiveDVs(ctx context.Context, eth2Cl eth2Provider,
 
 	vals, err := eth2Cl.ValidatorsByPubKey(ctx, state, e2pks)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	var (
-		resp1 []core.VIdx
-		resp2 []eth2p0.ValidatorIndex
-	)
-	for index, validator := range vals {
-		if !validator.Status.IsActive() {
+	var resp []validator
+	for index, val := range vals {
+		if !val.Status.IsActive() {
 			log.Debug(ctx, "skipping inactive validator", z.U64("index", uint64(index)))
 			continue
 		}
 
-		// TODO(corver): Ensure returned validator in manifest
-		resp1 = append(resp1, core.VIdx(index))
-		resp2 = append(resp2, index)
+		pubkey, err := core.NewPubKeyFromBytes(val.Validator.PublicKey[:])
+		if err != nil {
+			return nil, err
+		}
+
+		resp = append(resp, validator{
+			PubKey: pubkey,
+			VIdx:   index,
+		})
 	}
 
-	return resp1, resp2, nil
+	return resp, nil
 }
 
 func waitChainStart(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clock) {
@@ -373,4 +385,32 @@ func waitBeaconSync(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Cl
 
 		return
 	}
+}
+
+type validator struct {
+	PubKey core.PubKey
+	VIdx   eth2p0.ValidatorIndex
+}
+
+type validators []validator
+
+// PubKeyFromIndex is a convenience function that returns the public key for the validator indexes .
+func (v validators) PubKeyFromIndex(vIdx eth2p0.ValidatorIndex) (core.PubKey, bool) {
+	for _, val := range v {
+		if val.VIdx == vIdx {
+			return val.PubKey, true
+		}
+	}
+
+	return "", false
+}
+
+// Indexes is a convenience function that extracts the validator indexes from the validators.
+func (v validators) Indexes() []eth2p0.ValidatorIndex {
+	var resp []eth2p0.ValidatorIndex
+	for _, val := range v {
+		resp = append(resp, val.VIdx)
+	}
+
+	return resp
 }
