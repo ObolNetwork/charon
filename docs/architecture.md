@@ -112,7 +112,7 @@ We define the following duty types:
 The scheduler is the initiator of a duty in the core workflow. It resolves the which DVs in the cluster are active and
 is then responsible for starting a duty at the optimal time by calling the `fetcher`.
 
-DVs are identified by their vroot public key `PubKey`.
+DVs are identified by their root public key `PubKey`.
 ```go
 // PubKey is the DV root public key, the identifier of a validator in the core workflow.
 // It is a hex formatted string, e.g. "0xb82bc6...."
@@ -270,7 +270,7 @@ The `DutyDB` therefore provides a blocking query API. This query blocks until an
 > 🏗️ TODO: Identify if it is safe to delete old entries.
 
 The duty database interface is defined as:
-```
+```go
 // DutyDB persists unsigned duty data sets and makes it available for querying. It also acts
 // as slashing database.
 type DutyDB interface {
@@ -483,7 +483,7 @@ type AggSigDB interface {
 The broadcast component broadcasts aggregated signed duty data to the beacon node. It is a stateless pure function.
 
 The broadcast interface is defined as:
-```
+```go
 // Bcast broadcasts aggregated signed duty data to the beacon node.
 type Bcast interface {
   Broadcast(context.Context, Duty, PubKey, AggSignedData) error
@@ -495,27 +495,27 @@ The core workflow components are stitched together as follows:
 ```go
 // StitchFlow stitches the workflow steps together.
 func StitchFlow(
-  sched Scheduler,
-  fetch Fetcher,
-  cons Consensys,
-  dutyDB DutyDB,
-  vapi ValidatorAPI,
-  sigDB SigDB,
-  sigEx SigEx,
-  sigAgg SigAgg,
-  AggSigDB AggSigDB,
-  bcast Broadcaster,
+  sched    Scheduler,
+  fetch    Fetcher,
+  cons     Consensys,
+  dutyDB   DutyDB,
+  vapi     ValidatorAPI,
+  sigDB    SigDB,
+  sigEx    SigEx,
+  sigAgg   SigAgg,
+  aggSigDB AggSigDB,
+  bcast    Broadcaster,
 ) {
   sched.Subscribe(fetch.Fetch)
   fetch.Subscribe(cons.Propose)
-  fetch.RegisterAgg(AggSigDB.Get)
+  fetch.RegisterAgg(aggSigDB.Get)
   cons.Subscribe(dutyDB.Store)
   vapi.RegisterSource(dutyDB.Await)
   vapi.Subscribe(sigDB.StoreInternal)
   sigDB.SubscribeInternal(sigEx.Broadcast)
   sigEx.Subscribe(sigDB.StoreExternal)
   sigDB.SubscribeThreshold(sigAgg.Aggregate)
-  sigAgg.Subscribe(AggSigDB.Store)
+  sigAgg.Subscribe(aggSigDB.Store)
   sigAgg.Subscribe(bcast.Broadcast)
 }
 ```
