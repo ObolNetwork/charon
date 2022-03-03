@@ -107,7 +107,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet type
 		for _, val := range vals {
 			dutyData, err := types.EncodeAttesterDutyData(attData)
 			if err != nil {
-				return nil, errors.Wrap(err, "unmarhsl json")
+				return nil, errors.Wrap(err, "unmarhsal json")
 			}
 			resp[val] = dutyData
 		}
