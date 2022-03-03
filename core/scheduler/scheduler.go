@@ -32,6 +32,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+// eth2Provider defines the eth2 provider subset used by this package.
 type eth2Provider interface {
 	eth2client.NodeSyncingProvider
 	eth2client.GenesisTimeProvider
@@ -330,7 +331,7 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2Provider,
 			continue
 		}
 
-		pubkey, err := core.NewPubKeyFromBytes(val.Validator.PublicKey[:])
+		pubkey, err := core.PubKeyFromBytes(val.Validator.PublicKey[:])
 		if err != nil {
 			return nil, err
 		}

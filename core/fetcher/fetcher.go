@@ -22,10 +22,10 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/types"
+	"github.com/obolnetwork/charon/core"
 )
 
-// eth2Provider defines the eth2 provider subset used by fetcher.
+// eth2Provider defines the eth2 provider subset used by this package.
 type eth2Provider interface {
 	eth2client.AttestationDataProvider
 }
@@ -45,26 +45,26 @@ func New(eth2Svc eth2client.Service) (*Fetcher, error) {
 // Fetcher fetches proposed duty data.
 type Fetcher struct {
 	eth2Cl eth2Provider
-	subs   []func(context.Context, types.Duty, types.DutyDataSet) error
+	subs   []func(context.Context, core.Duty, core.UnsignedDataSet) error
 }
 
 // Subscribe registers a callback for fetched duties.
 // Note this is not thread safe should be called *before* Fetch.
-func (f *Fetcher) Subscribe(fn func(context.Context, types.Duty, types.DutyDataSet) error) {
+func (f *Fetcher) Subscribe(fn func(context.Context, core.Duty, core.UnsignedDataSet) error) {
 	f.subs = append(f.subs, fn)
 }
 
 // Fetch triggers fetching of a proposed duty data set.
-func (f *Fetcher) Fetch(ctx context.Context, duty types.Duty, argSet types.DutyArgSet) error {
+func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchArgSet) error {
 	var (
-		dataSet types.DutyDataSet
-		err     error
+		unsignedSet core.UnsignedDataSet
+		err         error
 	)
 
 	//nolint: exhaustive // Default case is exhaustive
 	switch duty.Type {
-	case types.DutyAttester:
-		dataSet, err = f.fetchAttesterData(ctx, duty.Slot, argSet)
+	case core.DutyAttester:
+		unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, argSet)
 		if err != nil {
 			return errors.Wrap(err, "fetch attester data")
 		}
@@ -73,7 +73,7 @@ func (f *Fetcher) Fetch(ctx context.Context, duty types.Duty, argSet types.DutyA
 	}
 
 	for _, sub := range f.subs {
-		err := sub(ctx, duty, dataSet)
+		err := sub(ctx, duty, unsignedSet)
 		if err != nil {
 			return err
 		}
@@ -83,33 +83,34 @@ func (f *Fetcher) Fetch(ctx context.Context, duty types.Duty, argSet types.DutyA
 }
 
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.
-func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet types.DutyArgSet,
-) (types.DutyDataSet, error) {
-	valsByCommittee := make(map[eth2p0.CommitteeIndex][]types.VIdx)
+func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core.FetchArgSet,
+) (core.UnsignedDataSet, error) {
+	valsByComm := make(map[eth2p0.CommitteeIndex][]core.PubKey)
 
 	for val, arg := range argSet {
-		attDuty, err := types.DecodeAttesterDutyArg(arg)
+		attDuty, err := core.DecodeAttesterFetchArg(arg)
 		if err != nil {
 			return nil, err
 		}
 
-		valsByCommittee[attDuty.CommitteeIndex] = append(valsByCommittee[attDuty.CommitteeIndex], val)
+		valsByComm[attDuty.CommitteeIndex] = append(valsByComm[attDuty.CommitteeIndex], val)
 	}
 
-	resp := make(types.DutyDataSet)
-	for commIdx, vals := range valsByCommittee {
+	resp := make(core.UnsignedDataSet)
+	for commIdx, pubkeys := range valsByComm {
 		attData, err := f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), commIdx)
 		if err != nil {
 			return nil, err
 		}
 
+		dutyData, err := core.EncodeAttesterUnsingedData(attData)
+		if err != nil {
+			return nil, errors.Wrap(err, "unmarhsal json")
+		}
+
 		// TODO(corver): Attestion data for the same committee is identical, could optimise this.
-		for _, val := range vals {
-			dutyData, err := types.EncodeAttesterDutyData(attData)
-			if err != nil {
-				return nil, errors.Wrap(err, "unmarhsal json")
-			}
-			resp[val] = dutyData
+		for _, pubkey := range pubkeys {
+			resp[pubkey] = dutyData
 		}
 	}
 

@@ -48,7 +48,7 @@ func (s ValidatorSet) ByPublicKey(pubkey eth2p0.BLSPubKey) (*eth2v1.Validator, b
 func (s ValidatorSet) PublicKeys() ([]core.PubKey, error) {
 	var resp []core.PubKey
 	for _, validator := range s {
-		pk, err := core.NewPubKeyFromBytes(validator.Validator.PublicKey[:])
+		pk, err := core.PubKeyFromBytes(validator.Validator.PublicKey[:])
 		if err != nil {
 			return nil, errors.Wrap(err, "unmarshal pubkey")
 		}

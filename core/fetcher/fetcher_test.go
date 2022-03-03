@@ -19,11 +19,13 @@ import (
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/beaconmock"
-	"github.com/obolnetwork/charon/fetcher"
-	"github.com/obolnetwork/charon/types"
+	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/fetcher"
+	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestFetchAttester(t *testing.T) {
@@ -35,7 +37,13 @@ func TestFetchAttester(t *testing.T) {
 		vIdxB   = 3
 		notZero = 99 // Validation require non-zero values
 	)
-	dutyArgA, err := types.EncodeAttesterDutyArg(&eth2v1.AttesterDuty{
+
+	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
+		vIdxA: testutil.RandomPubKey(t),
+		vIdxB: testutil.RandomPubKey(t),
+	}
+
+	fetchArgA, err := core.EncodeAttesterFetchArg(&eth2v1.AttesterDuty{
 		Slot:             slot,
 		ValidatorIndex:   vIdxA,
 		CommitteeIndex:   vIdxA,
@@ -44,7 +52,7 @@ func TestFetchAttester(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dutyArgB, err := types.EncodeAttesterDutyArg(&eth2v1.AttesterDuty{
+	fetchArgB, err := core.EncodeAttesterFetchArg(&eth2v1.AttesterDuty{
 		Slot:             slot,
 		ValidatorIndex:   vIdxB,
 		CommitteeIndex:   vIdxB,
@@ -53,27 +61,27 @@ func TestFetchAttester(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	argSet := types.DutyArgSet{
-		vIdxA: dutyArgA,
-		vIdxB: dutyArgB,
+	argSet := core.FetchArgSet{
+		pubkeysByIdx[vIdxA]: fetchArgA,
+		pubkeysByIdx[vIdxB]: fetchArgB,
 	}
-	duty := types.Duty{Type: types.DutyAttester, Slot: slot}
+	duty := core.Duty{Type: core.DutyAttester, Slot: slot}
 
 	fetch, err := fetcher.New(beaconmock.New())
 	require.NoError(t, err)
 
-	fetch.Subscribe(func(ctx context.Context, resDuty types.Duty, resDataSet types.DutyDataSet) error {
+	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
 		require.Equal(t, duty, resDuty)
 		require.Len(t, resDataSet, 2)
 
-		dataA := resDataSet[types.VIdx(vIdxA)]
-		dutyDataA, err := types.DecodeAttesterDutyData(dataA)
+		dataA := resDataSet[pubkeysByIdx[vIdxA]]
+		dutyDataA, err := core.DecodeAttesterUnsingedData(dataA)
 		require.NoError(t, err)
 		require.EqualValues(t, slot, dutyDataA.Slot)
 		require.EqualValues(t, vIdxA, dutyDataA.Index)
 
-		dataB := resDataSet[types.VIdx(vIdxB)]
-		dutyDataB, err := types.DecodeAttesterDutyData(dataB)
+		dataB := resDataSet[pubkeysByIdx[vIdxB]]
+		dutyDataB, err := core.DecodeAttesterUnsingedData(dataB)
 		require.NoError(t, err)
 		require.EqualValues(t, slot, dutyDataB.Slot)
 		require.EqualValues(t, vIdxB, dutyDataB.Index)

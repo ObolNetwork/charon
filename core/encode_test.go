@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types_test
+package core_test
 
 import (
 	"crypto/rand"
@@ -22,10 +22,10 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/types"
+	"github.com/obolnetwork/charon/core"
 )
 
-func TestEncodeAttesterDutyArg(t *testing.T) {
+func TestEncodeAttesterFetchArg(t *testing.T) {
 	attDuty1 := &eth2v1.AttesterDuty{
 		PubKey:                  randomPubKey(),
 		Slot:                    1,
@@ -36,20 +36,20 @@ func TestEncodeAttesterDutyArg(t *testing.T) {
 		ValidatorCommitteeIndex: 6,
 	}
 
-	arg1, err := types.EncodeAttesterDutyArg(attDuty1)
+	arg1, err := core.EncodeAttesterFetchArg(attDuty1)
 	require.NoError(t, err)
 
-	attDuty2, err := types.DecodeAttesterDutyArg(arg1)
+	attDuty2, err := core.DecodeAttesterFetchArg(arg1)
 	require.NoError(t, err)
 
-	arg2, err := types.EncodeAttesterDutyArg(attDuty2)
+	arg2, err := core.EncodeAttesterFetchArg(attDuty2)
 	require.NoError(t, err)
 
 	require.Equal(t, attDuty1, attDuty2)
 	require.Equal(t, arg1, arg2)
 }
 
-func TestEncodeAttesterDutyData(t *testing.T) {
+func TestEncodeAttesterUnsignedData(t *testing.T) {
 	attData1 := &eth2p0.AttestationData{
 		Slot:            1,
 		Index:           2,
@@ -64,13 +64,13 @@ func TestEncodeAttesterDutyData(t *testing.T) {
 		},
 	}
 
-	data1, err := types.EncodeAttesterDutyData(attData1)
+	data1, err := core.EncodeAttesterUnsingedData(attData1)
 	require.NoError(t, err)
 
-	attData2, err := types.DecodeAttesterDutyData(data1)
+	attData2, err := core.DecodeAttesterUnsingedData(data1)
 	require.NoError(t, err)
 
-	data2, err := types.EncodeAttesterDutyData(attData1)
+	data2, err := core.EncodeAttesterUnsingedData(attData1)
 	require.NoError(t, err)
 
 	require.Equal(t, attData1, attData2)
