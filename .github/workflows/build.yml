@@ -28,7 +28,7 @@ jobs:
         NODE_ENV: production
         DOCKER_BUILDKIT: 1
       with:
-        name: ${{ github.repository }}/charon
+        name: ${{ github.repository }}
         username: ${{ github.actor }}
         password: ${{ secrets.CONTAINER_REGISTRY_SECRET }}
         buildargs: GITHUB_SHA=${{ github.sha }}
