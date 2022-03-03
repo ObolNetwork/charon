@@ -118,6 +118,7 @@ func (s *Scheduler) Run() error {
 	}
 }
 
+// scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
 func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 	if slot.Initial {
 		err := s.resolveDuties(ctx, slot)
@@ -160,6 +161,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 	return nil
 }
 
+// resolveDuties resolves the duties for the slot's epoch, caching the results.
 func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.pubkeys, slot.Slot)
 	if err != nil {
@@ -219,6 +221,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 	return nil
 }
 
+// slot is a beacon chain slot and includes chain metadata to infer epoch and next slot.
 type slot struct {
 	Slot          int64
 	Time          time.Time
@@ -341,6 +344,7 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2Provider,
 	return resp, nil
 }
 
+// waitChainStart blocks until the beacon chain has started.
 func waitChainStart(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clock) {
 	for {
 		genesis, err := eth2Cl.GenesisTime(ctx)
@@ -365,6 +369,7 @@ func waitChainStart(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Cl
 	}
 }
 
+// waitBeaconSync blocks until the beacon node is synced.
 func waitBeaconSync(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clock) {
 	for {
 		state, err := eth2Cl.NodeSyncing(ctx)
@@ -387,11 +392,13 @@ func waitBeaconSync(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Cl
 	}
 }
 
+// validator is a validator public key and index.
 type validator struct {
 	PubKey core.PubKey
 	VIdx   eth2p0.ValidatorIndex
 }
 
+// validators is a list of validators with convenience functions.
 type validators []validator
 
 // PubKeyFromIndex is a convenience function that returns the public key for the validator indexes .
