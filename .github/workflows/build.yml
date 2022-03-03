@@ -1,7 +1,7 @@
 on:
   push:
     branches:
-      - xenowits/investigate-ghcr-issue
+      - main
 
 name: Build docker image
 jobs:
