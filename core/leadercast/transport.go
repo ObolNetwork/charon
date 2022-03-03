@@ -27,15 +27,15 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/types"
+	"github.com/obolnetwork/charon/core"
 )
 
 const protocol = "/charon/leadercast/1.0.0"
 
 // Transport abstracts the transport layer for leader cast consensus.
 type Transport interface {
-	Broadcast(ctx context.Context, source int, d types.Duty, data []byte) error
-	AwaitNext(ctx context.Context) (source int, d types.Duty, data []byte, err error)
+	Broadcast(ctx context.Context, source int, d core.Duty, data []byte) error
+	AwaitNext(ctx context.Context) (source int, d core.Duty, data []byte, err error)
 }
 
 func NewP2PTransport(tcpNode host.Host, index int, peers []peer.ID) Transport {
@@ -75,7 +75,7 @@ func (t *p2pTransport) handle(s network.Stream) {
 	}
 }
 
-func (t *p2pTransport) Broadcast(ctx context.Context, source int, d types.Duty, data []byte) error {
+func (t *p2pTransport) Broadcast(ctx context.Context, source int, d core.Duty, data []byte) error {
 	b, err := json.Marshal(p2pMsg{
 		Source: source,
 		Duty:   d,
@@ -109,10 +109,10 @@ func (t *p2pTransport) Broadcast(ctx context.Context, source int, d types.Duty, 
 	return nil
 }
 
-func (t *p2pTransport) AwaitNext(ctx context.Context) (int, types.Duty, []byte, error) {
+func (t *p2pTransport) AwaitNext(ctx context.Context) (int, core.Duty, []byte, error) {
 	select {
 	case <-ctx.Done():
-		return 0, types.Duty{}, nil, ctx.Err()
+		return 0, core.Duty{}, nil, ctx.Err()
 	case msg := <-t.ch:
 		return msg.Source, msg.Duty, msg.Data, nil
 	}
@@ -138,7 +138,7 @@ func sendData(ctx context.Context, t *p2pTransport, p peer.ID, b []byte) error {
 
 type p2pMsg struct {
 	Source int
-	Duty   types.Duty
+	Duty   core.Duty
 	Data   []byte
 }
 
@@ -187,7 +187,7 @@ type memTransport struct {
 	output <-chan p2pMsg
 }
 
-func (m memTransport) Broadcast(ctx context.Context, source int, duty types.Duty, data []byte) error {
+func (m memTransport) Broadcast(ctx context.Context, source int, duty core.Duty, data []byte) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -200,10 +200,10 @@ func (m memTransport) Broadcast(ctx context.Context, source int, duty types.Duty
 	}
 }
 
-func (m memTransport) AwaitNext(ctx context.Context) (int, types.Duty, []byte, error) {
+func (m memTransport) AwaitNext(ctx context.Context) (int, core.Duty, []byte, error) {
 	select {
 	case <-ctx.Done():
-		return 0, types.Duty{}, nil, ctx.Err()
+		return 0, core.Duty{}, nil, ctx.Err()
 	case msg := <-m.output:
 		return msg.Source, msg.Duty, msg.Data, nil
 	}

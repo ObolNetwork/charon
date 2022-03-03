@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types
+package core
 
 import (
+	"encoding/hex"
 	"fmt"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 // DutyType enumerates the different types of duties.
@@ -50,7 +53,7 @@ func AllDutyTypes() []DutyType {
 	return resp
 }
 
-// Duty is a unit of consensus agreed upon by the cluster and executed by the distributed validators.
+// Duty is the unit of work of the core workflow.
 type Duty struct {
 	// Slot is the Ethereum consensus layer slot.
 	Slot int64
@@ -62,6 +65,48 @@ func (d Duty) String() string {
 	return fmt.Sprintf("%d/%s", d.Slot, d.Type)
 }
 
-type DutyArgs []byte
+const pkLen = 98 // "0x" + hex.Encode([48]byte) = 2+2*48
 
-type DutyArgSet map[VIdx]DutyArgs
+// NewPubKeyFromBytes returns a new public key from raw bytes.
+func NewPubKeyFromBytes(bytes []byte) (PubKey, error) {
+	pk := PubKey("0x" + hex.EncodeToString(bytes))
+	if len(pk) != pkLen {
+		return "", errors.New("invalid public key length")
+	}
+
+	return pk, nil
+}
+
+// PubKey is the DV root public key, the identifier of a validator in the core workflow.
+// It is a hex formatted string, e.g. "0xb82bc680e...".
+type PubKey string
+
+// String returns a concise logging friendly version of the public key, e.g. "b82_97f".
+func (k PubKey) String() string {
+	if len(k) != pkLen {
+		return "<invalid public key:" + string(k) + ">"
+	}
+
+	return string(k[2:5]) + "_" + string(k[94:97])
+}
+
+// Bytes returns the public key as raw bytes.
+func (k PubKey) Bytes() ([]byte, error) {
+	if len(k) != pkLen {
+		return nil, errors.New("invalid public key length")
+	}
+
+	b, err := hex.DecodeString(string(k[2:]))
+	if err != nil {
+		return nil, errors.Wrap(err, "decode public key hex")
+	}
+
+	return b, nil
+}
+
+// FetchArg contains the arguments required to fetch the duty data,
+// it is the result of resolving duties at the start of an epoch.
+type FetchArg []byte
+
+// FetchArgSet is a set of fetch args, one per validator.
+type FetchArgSet map[PubKey]FetchArg

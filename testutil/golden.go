@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package golden provides a test utility for asserting blobs against golden files in a testdata folder.
-// This is heavily inspired from https://github.com/sebdah/goldie.
-package golden
+// Package testutil provides test utilities.
+package testutil
 
 import (
 	"encoding/json"
@@ -35,8 +34,9 @@ var (
 
 var cleanOnce sync.Once
 
-// RequireBytes asserts that a golden testdata file exists containing the exact data.
-func RequireBytes(t *testing.T, data []byte) {
+// RequireGoldenBytes asserts that a golden testdata file exists containing the exact data.
+// This is heavily inspired from https://github.com/sebdah/goldie.
+func RequireGoldenBytes(t *testing.T, data []byte) {
 	t.Helper()
 
 	filename := path.Join("testdata", strings.ReplaceAll(t.Name(), "/", "_"))
@@ -62,15 +62,16 @@ func RequireBytes(t *testing.T, data []byte) {
 		return
 	}
 
-	require.Equalf(t, expected, data, "Golden file mismatch, %s", filename)
+	require.Equalf(t, string(expected), string(data), "Golden file mismatch, %s", filename)
 }
 
-// RequireJSON asserts that a golden testdata file exists containing the JSON serialised form of the data object.
-func RequireJSON(t *testing.T, data interface{}) {
+// RequireGoldenJSON asserts that a golden testdata file exists containing the JSON serialised form of the data object.
+// This is heavily inspired from https://github.com/sebdah/goldie.
+func RequireGoldenJSON(t *testing.T, data interface{}) {
 	t.Helper()
 
 	b, err := json.MarshalIndent(data, "", " ")
 	require.NoError(t, err)
 
-	RequireBytes(t, b)
+	RequireGoldenBytes(t, b)
 }
