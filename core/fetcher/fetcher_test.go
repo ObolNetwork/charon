@@ -43,22 +43,24 @@ func TestFetchAttester(t *testing.T) {
 		vIdxB: testutil.RandomPubKey(t),
 	}
 
-	fetchArgA, err := core.EncodeAttesterFetchArg(&eth2v1.AttesterDuty{
+	dutyA := eth2v1.AttesterDuty{
 		Slot:             slot,
 		ValidatorIndex:   vIdxA,
 		CommitteeIndex:   vIdxA,
 		CommitteeLength:  notZero,
 		CommitteesAtSlot: notZero,
-	})
+	}
+	fetchArgA, err := core.EncodeAttesterFetchArg(&dutyA)
 	require.NoError(t, err)
 
-	fetchArgB, err := core.EncodeAttesterFetchArg(&eth2v1.AttesterDuty{
+	dutyB := eth2v1.AttesterDuty{
 		Slot:             slot,
 		ValidatorIndex:   vIdxB,
 		CommitteeIndex:   vIdxB,
 		CommitteeLength:  notZero,
 		CommitteesAtSlot: notZero,
-	})
+	}
+	fetchArgB, err := core.EncodeAttesterFetchArg(&dutyB)
 	require.NoError(t, err)
 
 	argSet := core.FetchArgSet{
@@ -77,14 +79,16 @@ func TestFetchAttester(t *testing.T) {
 		dataA := resDataSet[pubkeysByIdx[vIdxA]]
 		dutyDataA, err := core.DecodeAttesterUnsingedData(dataA)
 		require.NoError(t, err)
-		require.EqualValues(t, slot, dutyDataA.Slot)
-		require.EqualValues(t, vIdxA, dutyDataA.Index)
+		require.EqualValues(t, slot, dutyDataA.Data.Slot)
+		require.EqualValues(t, vIdxA, dutyDataA.Data.Index)
+		require.EqualValues(t, dutyA, dutyDataA.Duty)
 
 		dataB := resDataSet[pubkeysByIdx[vIdxB]]
 		dutyDataB, err := core.DecodeAttesterUnsingedData(dataB)
 		require.NoError(t, err)
-		require.EqualValues(t, slot, dutyDataB.Slot)
-		require.EqualValues(t, vIdxB, dutyDataB.Index)
+		require.EqualValues(t, slot, dutyDataB.Data.Slot)
+		require.EqualValues(t, vIdxB, dutyDataB.Data.Index)
+		require.EqualValues(t, dutyB, dutyDataB.Duty)
 
 		return nil
 	})

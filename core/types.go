@@ -18,6 +18,9 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+
 	"github.com/obolnetwork/charon/app/errors"
 )
 
@@ -116,3 +119,11 @@ type UnsignedData []byte
 
 // UnsignedDataSet is a set of unsigned duty data objects, one per validator.
 type UnsignedDataSet map[PubKey]UnsignedData
+
+// AttestationData wraps the eth2 attestation data and adds the original duty.
+// The original duty allows mapping the partial signed response from the VC
+// backed to the validator pubkey via the aggregation bits field.
+type AttestationData struct {
+	Data eth2p0.AttestationData
+	Duty eth2v1.AttesterDuty
+}

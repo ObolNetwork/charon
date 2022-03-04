@@ -85,22 +85,29 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchAr
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.
 func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core.FetchArgSet,
 ) (core.UnsignedDataSet, error) {
-	valsByComm := make(map[eth2p0.CommitteeIndex][]core.PubKey)
+	// We may have multiple validators in the same committee, use the same attestation data in that case.
+	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
 
-	for val, arg := range argSet {
-		attDuty, err := core.DecodeAttesterFetchArg(arg)
+	resp := make(core.UnsignedDataSet)
+	for pubkey, fetchArg := range argSet {
+		attDuty, err := core.DecodeAttesterFetchArg(fetchArg)
 		if err != nil {
 			return nil, err
 		}
 
-		valsByComm[attDuty.CommitteeIndex] = append(valsByComm[attDuty.CommitteeIndex], val)
-	}
+		eth2AttData, ok := dataByCommIdx[attDuty.CommitteeIndex]
+		if !ok {
+			eth2AttData, err = f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), attDuty.CommitteeIndex)
+			if err != nil {
+				return nil, err
+			}
 
-	resp := make(core.UnsignedDataSet)
-	for commIdx, pubkeys := range valsByComm {
-		attData, err := f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), commIdx)
-		if err != nil {
-			return nil, err
+			dataByCommIdx[attDuty.CommitteeIndex] = eth2AttData
+		}
+
+		attData := &core.AttestationData{
+			Data: *eth2AttData,
+			Duty: *attDuty,
 		}
 
 		dutyData, err := core.EncodeAttesterUnsingedData(attData)
@@ -108,10 +115,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core
 			return nil, errors.Wrap(err, "unmarhsal json")
 		}
 
-		// TODO(corver): Attestion data for the same committee is identical, could optimise this.
-		for _, pubkey := range pubkeys {
-			resp[pubkey] = dutyData
-		}
+		resp[pubkey] = dutyData
 	}
 
 	return resp, nil

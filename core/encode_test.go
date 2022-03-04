@@ -15,7 +15,7 @@
 package core_test
 
 import (
-	"crypto/rand"
+	"math/rand"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -26,15 +26,7 @@ import (
 )
 
 func TestEncodeAttesterFetchArg(t *testing.T) {
-	attDuty1 := &eth2v1.AttesterDuty{
-		PubKey:                  randomPubKey(),
-		Slot:                    1,
-		ValidatorIndex:          2,
-		CommitteeIndex:          3,
-		CommitteeLength:         4,
-		CommitteesAtSlot:        5,
-		ValidatorCommitteeIndex: 6,
-	}
+	attDuty1 := randomAttDuty()
 
 	arg1, err := core.EncodeAttesterFetchArg(attDuty1)
 	require.NoError(t, err)
@@ -50,18 +42,21 @@ func TestEncodeAttesterFetchArg(t *testing.T) {
 }
 
 func TestEncodeAttesterUnsignedData(t *testing.T) {
-	attData1 := &eth2p0.AttestationData{
-		Slot:            1,
-		Index:           2,
-		BeaconBlockRoot: randomRoot(),
-		Source: &eth2p0.Checkpoint{
-			Epoch: 3,
-			Root:  randomRoot(),
+	attData1 := &core.AttestationData{
+		Data: eth2p0.AttestationData{
+			Slot:            1,
+			Index:           2,
+			BeaconBlockRoot: randomRoot(),
+			Source: &eth2p0.Checkpoint{
+				Epoch: 3,
+				Root:  randomRoot(),
+			},
+			Target: &eth2p0.Checkpoint{
+				Epoch: 4,
+				Root:  randomRoot(),
+			},
 		},
-		Target: &eth2p0.Checkpoint{
-			Epoch: 4,
-			Root:  randomRoot(),
-		},
+		Duty: *randomAttDuty(),
 	}
 
 	data1, err := core.EncodeAttesterUnsingedData(attData1)
@@ -75,6 +70,18 @@ func TestEncodeAttesterUnsignedData(t *testing.T) {
 
 	require.Equal(t, attData1, attData2)
 	require.Equal(t, data1, data2)
+}
+
+func randomAttDuty() *eth2v1.AttesterDuty {
+	return &eth2v1.AttesterDuty{
+		PubKey:                  randomPubKey(),
+		Slot:                    eth2p0.Slot(rand.Uint64()),
+		ValidatorIndex:          eth2p0.ValidatorIndex(rand.Uint64()),
+		CommitteeIndex:          eth2p0.CommitteeIndex(rand.Uint64()),
+		CommitteeLength:         rand.Uint64(),
+		CommitteesAtSlot:        rand.Uint64(),
+		ValidatorCommitteeIndex: rand.Uint64(),
+	}
 }
 
 func randomRoot() eth2p0.Root {
