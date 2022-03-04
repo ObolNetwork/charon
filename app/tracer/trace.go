@@ -39,7 +39,7 @@ func Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) 
 	return tracer.Start(ctx, spanName, opts...)
 }
 
-// Init initialises the global tracer via the option(s) defaulting to a noop tracer.
+// Init initialises the global tracer via the option(s) defaulting to a noop tracer. It returns a shutdown function.
 func Init(opts ...func(*options)) (func(context.Context) error, error) {
 	var o options
 	for _, opt := range opts {

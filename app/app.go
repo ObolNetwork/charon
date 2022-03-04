@@ -83,10 +83,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	_, _ = maxprocs.Set()
 	initStartupMetrics()
 
-	// Construct processes and their dependencies
+	// Wire processes and their dependencies
 	life := new(lifecycle.Manager)
 
-	if err := initTracing(life, conf); err != nil {
+	if err := wireTracing(life, conf); err != nil {
 		return err
 	}
 
@@ -95,7 +95,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	tcpNode, localEnode, index, err := initP2P(ctx, life, conf, manifest)
+	tcpNode, localEnode, index, err := wireP2P(ctx, life, conf, manifest)
 	if err != nil {
 		return err
 	}
@@ -105,18 +105,20 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Str("local_peer", p2p.ShortID(tcpNode.ID())),
 		z.Int("index", index))
 
-	initMonitoring(life, conf.MonitoringAddr, localEnode)
+	wireMonitoringAPI(life, conf.MonitoringAddr, localEnode)
 
-	if err := initValdatorAPI(life, conf); err != nil {
+	if err := wireValidatorAPI(life, conf); err != nil {
 		return err
 	}
 
-	initDutySimulator(life, tcpNode, index, manifest, conf)
+	wireDutySimulator(life, tcpNode, index, manifest, conf)
 
+	// Run life cycle manager
 	return life.Run(ctx)
 }
 
-func initDutySimulator(life *lifecycle.Manager, tcpNode host.Host, index int, manifest Manifest, conf Config) {
+// wireDutySimulator constructs the duty simulator and registers it with the life cycle manager.
+func wireDutySimulator(life *lifecycle.Manager, tcpNode host.Host, index int, manifest Manifest, conf Config) {
 	lcast := leadercast.New(leadercast.NewP2PTransport(tcpNode, index, manifest.PeerIDs()), index, len(manifest.Peers))
 
 	startSim := newDutySimulator(lcast, conf.TestConfig.SimDutyPeriod, conf.TestConfig.SimDutyCallback)
@@ -125,7 +127,8 @@ func initDutySimulator(life *lifecycle.Manager, tcpNode host.Host, index int, ma
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartSimulator, lifecycle.HookFunc(startSim))
 }
 
-func initP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest Manifest,
+// wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
+func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest Manifest,
 ) (host.Host, *enode.LocalNode, int, error) {
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
@@ -183,8 +186,9 @@ func initP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 	return tcpNode, localEnode, index, nil
 }
 
-// initMonitoring returns the monitoring server providing prometheus metrics and pprof profiling.
-func initMonitoring(cycle *lifecycle.Manager, addr string, localNode *enode.LocalNode) {
+// wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
+// It serves prometheus metrics, pprof profiling and the runtime enr.
+func wireMonitoringAPI(cycle *lifecycle.Manager, addr string, localNode *enode.LocalNode) {
 	mux := http.NewServeMux()
 
 	// Serve prometheus metrics
@@ -211,7 +215,8 @@ func initMonitoring(cycle *lifecycle.Manager, addr string, localNode *enode.Loca
 	cycle.RegisterStop(lifecycle.StopMonitoringAPI, lifecycle.HookFunc(server.Shutdown))
 }
 
-func initValdatorAPI(life *lifecycle.Manager, conf Config) error {
+// wireValidatorAPI constructs the validator API and registers it with the life cycle manager.
+func wireValidatorAPI(life *lifecycle.Manager, conf Config) error {
 	vhandler := validatorapi.Handler(nil) // TODO(corver): Construct this
 	vrouter, err := validatorapi.NewRouter(vhandler, conf.BeaconNodeAddr)
 	if err != nil {
@@ -229,7 +234,8 @@ func initValdatorAPI(life *lifecycle.Manager, conf Config) error {
 	return nil
 }
 
-func initTracing(life *lifecycle.Manager, conf Config) error {
+// wireTracing constructs the global tracer and registers it with the life cycle manager.
+func wireTracing(life *lifecycle.Manager, conf Config) error {
 	stopJeager, err := tracer.Init(tracer.WithJaegerOrNoop(conf.JaegerAddr))
 	if err != nil {
 		return errors.Wrap(err, "init jaeger tracing")
