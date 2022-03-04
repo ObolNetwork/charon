@@ -32,6 +32,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+// eth2Provider defines the eth2 provider subset used by this package.
 type eth2Provider interface {
 	eth2client.NodeSyncingProvider
 	eth2client.GenesisTimeProvider
@@ -81,7 +82,7 @@ type Scheduler struct {
 }
 
 // Subscribe registers a callback for triggering a duty.
-// Note this should be called BEFORE Start.
+// Note this should be called *before* Start.
 func (s *Scheduler) Subscribe(fn func(context.Context, core.Duty, core.FetchArgSet) error) {
 	s.subs = append(s.subs, fn)
 }
@@ -330,7 +331,7 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2Provider,
 			continue
 		}
 
-		pubkey, err := core.NewPubKeyFromBytes(val.Validator.PublicKey[:])
+		pubkey, err := core.PubKeyFromBytes(val.Validator.PublicKey[:])
 		if err != nil {
 			return nil, err
 		}

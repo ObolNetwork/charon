@@ -26,18 +26,19 @@ import (
 
 // Interface assertions.
 var (
-	_ eth2client.Service                = (*Mock)(nil)
-	_ eth2client.NodeSyncingProvider    = (*Mock)(nil)
-	_ eth2client.GenesisTimeProvider    = (*Mock)(nil)
-	_ eth2client.ValidatorsProvider     = (*Mock)(nil)
-	_ eth2client.SlotsPerEpochProvider  = (*Mock)(nil)
-	_ eth2client.SlotDurationProvider   = (*Mock)(nil)
-	_ eth2client.AttesterDutiesProvider = (*Mock)(nil)
-	_ eth2client.ProposerDutiesProvider = (*Mock)(nil)
+	_ eth2client.Service                 = (*Mock)(nil)
+	_ eth2client.NodeSyncingProvider     = (*Mock)(nil)
+	_ eth2client.GenesisTimeProvider     = (*Mock)(nil)
+	_ eth2client.ValidatorsProvider      = (*Mock)(nil)
+	_ eth2client.SlotsPerEpochProvider   = (*Mock)(nil)
+	_ eth2client.SlotDurationProvider    = (*Mock)(nil)
+	_ eth2client.AttesterDutiesProvider  = (*Mock)(nil)
+	_ eth2client.ProposerDutiesProvider  = (*Mock)(nil)
+	_ eth2client.AttestationDataProvider = (*Mock)(nil)
 )
 
-// NewMock returns a new beacon client mock configured with the default and provided options.
-func NewMock(opts ...Option) Mock {
+// New returns a new beacon client mock configured with the default and provided options.
+func New(opts ...Option) Mock {
 	mock := defaultMock()
 	for _, opt := range opts {
 		opt(&mock)
@@ -46,16 +47,22 @@ func NewMock(opts ...Option) Mock {
 	return mock
 }
 
-// Mock provides a mock beacon client and implements eth2client.Service and many of the erh2client Providers.
+// Mock provides a mock beacon client and implements eth2client.Service and many of the eth2client Providers.
+// Create a new instance with default behaviour via New and then override any function.
 type Mock struct {
 	ProposerDutiesFunc     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	AttesterDutiesFunc     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	AttestationDataFunc    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	SlotDurationFunc       func(context.Context) (time.Duration, error)
 	SlotsPerEpochFunc      func(context.Context) (uint64, error)
 	ValidatorsFunc         func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	ValidatorsByPubKeyFunc func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	GenesisTimeFunc        func(context.Context) (time.Time, error)
 	NodeSyncingFunc        func(context.Context) (*eth2v1.SyncState, error)
+}
+
+func (m Mock) AttestationData(ctx context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+	return m.AttestationDataFunc(ctx, slot, committeeIndex)
 }
 
 func (m Mock) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
