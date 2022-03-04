@@ -19,7 +19,6 @@ package app
 import (
 	"context"
 	"crypto/ecdsa"
-	"github.com/obolnetwork/charon/app/lifecycle"
 	"net/http"
 	"net/http/pprof"
 	"time"
@@ -31,6 +30,7 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
@@ -116,7 +116,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	return life.Run(ctx)
 }
 
-func initDutySimulator(life *lifecycle.Manager, tcpNode host.Host, index int, manifest types.Manifest, conf Config) {
+func initDutySimulator(life *lifecycle.Manager, tcpNode host.Host, index int, manifest Manifest, conf Config) {
 	lcast := leadercast.New(leadercast.NewP2PTransport(tcpNode, index, manifest.PeerIDs()), index, len(manifest.Peers))
 
 	startSim := newDutySimulator(lcast, conf.TestConfig.SimDutyPeriod, conf.TestConfig.SimDutyCallback)
@@ -125,7 +125,7 @@ func initDutySimulator(life *lifecycle.Manager, tcpNode host.Host, index int, ma
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartSimulator, lifecycle.HookFunc(startSim))
 }
 
-func initP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest types.Manifest,
+func initP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest Manifest,
 ) (host.Host, *enode.LocalNode, int, error) {
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
