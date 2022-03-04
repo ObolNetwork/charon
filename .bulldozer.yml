@@ -1,0 +1,21 @@
+version: 1
+
+merge:
+  trigger:
+    labels: ["merge when ready"]
+    comment_substrings: ["==MERGE_WHEN_READY=="]
+    branches: ["main"]
+  ignore:
+    labels: ["do not merge"]
+    comment_substrings: ["==DO_NOT_MERGE=="]
+  method: squash
+  options:
+    squash:
+      title: "github_default_title"
+      body: pull_request_body
+  delete_after_merge: true
+  allow_merge_with_no_checks: false
+
+update:
+  trigger:
+    labels: ["wip", "update me"]
