@@ -176,7 +176,6 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 
 	// Resolve attester duties
 	{
-
 		attDuties, err := s.eth2Cl.AttesterDuties(ctx, slot.Epoch(), vals.Indexes())
 		if err != nil {
 			return err
