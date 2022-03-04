@@ -23,9 +23,9 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/core"
 )
 
 // Option defines a functional option to configure the mock beacon client.
@@ -45,11 +45,10 @@ func (s ValidatorSet) ByPublicKey(pubkey eth2p0.BLSPubKey) (*eth2v1.Validator, b
 }
 
 // PublicKeys is a convenience function to extract the bls public keys from the validators.
-func (s ValidatorSet) PublicKeys() ([]*bls_sig.PublicKey, error) {
-	var resp []*bls_sig.PublicKey
+func (s ValidatorSet) PublicKeys() ([]core.PubKey, error) {
+	var resp []core.PubKey
 	for _, validator := range s {
-		pk := new(bls_sig.PublicKey)
-		err := pk.UnmarshalBinary(validator.Validator.PublicKey[:])
+		pk, err := core.NewPubKeyFromBytes(validator.Validator.PublicKey[:])
 		if err != nil {
 			return nil, errors.Wrap(err, "unmarshal pubkey")
 		}
