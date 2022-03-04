@@ -277,7 +277,7 @@ type DutyDB interface {
     // Store stores the unsigned duty data set.
     Store(context.Context, Duty, UnsignedDataSet) error
 
-	// AwaitProposer blocks and returns the proposed beacon block
+	// AwaitBeaconBlock blocks and returns the proposed beacon block
 	// for the slot when available. It also returns the DV public key.
 	AwaitBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BeaconBlock, error)
 
