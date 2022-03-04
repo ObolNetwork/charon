@@ -31,10 +31,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/golden"
-	"github.com/obolnetwork/charon/beaconmock"
-	"github.com/obolnetwork/charon/scheduler"
-	"github.com/obolnetwork/charon/types"
+	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/scheduler"
+	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 const infoLevel = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
@@ -74,7 +74,7 @@ func TestIntegration(t *testing.T) {
 
 	count := 10
 
-	s.Subscribe(func(ctx context.Context, duty types.Duty, set types.DutyArgSet) error {
+	s.Subscribe(func(ctx context.Context, duty core.Duty, set core.DutyArgSet) error {
 		for idx, data := range set {
 			duty := new(eth2v1.AttesterDuty)
 			err := json.Unmarshal(data, &duty)
@@ -223,9 +223,9 @@ func TestSchedulerDuties(t *testing.T) {
 
 			sched := scheduler.NewForT(t, clock, pubkeys, eth2Cl)
 
-			dutyChan := make(chan map[types.Duty]types.DutyArgSet)
-			sched.Subscribe(func(ctx context.Context, duty types.Duty, set types.DutyArgSet) error {
-				dutyChan <- map[types.Duty]types.DutyArgSet{duty: set}
+			dutyChan := make(chan map[core.Duty]core.DutyArgSet)
+			sched.Subscribe(func(ctx context.Context, duty core.Duty, set core.DutyArgSet) error {
+				dutyChan <- map[core.Duty]core.DutyArgSet{duty: set}
 				return nil
 			})
 
@@ -236,7 +236,7 @@ func TestSchedulerDuties(t *testing.T) {
 
 			type tuple struct {
 				Duty       string
-				DutyArgSet map[types.VIdx]string
+				DutyArgSet map[core.VIdx]string
 			}
 			var tuples []tuple
 
@@ -247,7 +247,7 @@ func TestSchedulerDuties(t *testing.T) {
 				select {
 				case dmap := <-dutyChan:
 					for duty, set := range dmap {
-						dset := make(map[types.VIdx]string)
+						dset := make(map[core.VIdx]string)
 						for idx, args := range set {
 							dset[idx] = string(args)
 						}
@@ -271,7 +271,7 @@ func TestSchedulerDuties(t *testing.T) {
 				break
 			}
 
-			golden.RequireJSON(t, tuples)
+			testutil.RequireGoldenJSON(t, tuples)
 		})
 	}
 }

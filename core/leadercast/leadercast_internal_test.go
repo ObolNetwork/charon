@@ -20,13 +20,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/types"
+	"github.com/obolnetwork/charon/core"
 )
 
 func TestIsLeader(t *testing.T) {
 	tests := []struct {
 		Slot          int64
-		DutyType      types.DutyType
+		DutyType      core.DutyType
 		Leader, Total int
 	}{
 		{
@@ -59,7 +59,7 @@ func TestIsLeader(t *testing.T) {
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			for i := 0; i < test.Total; i++ {
-				ok := isLeader(i, test.Total, types.Duty{
+				ok := isLeader(i, test.Total, core.Duty{
 					Slot: test.Slot,
 					Type: test.DutyType,
 				})

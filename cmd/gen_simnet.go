@@ -32,8 +32,8 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/types"
 )
 
 const scriptTmpl = `#!/usr/bin/env bash
@@ -111,7 +111,7 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return port
 	}
 
-	var peers []types.Peer
+	var peers []p2p.Peer
 	for i := 0; i < config.numNodes; i++ {
 		nodeDir := fmt.Sprintf("%s/node%d", config.clusterDir, i)
 
@@ -145,7 +145,7 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 			return errors.Wrap(err, "enode sign")
 		}
 
-		peer, err := types.NewPeer(r, i)
+		peer, err := p2p.NewPeer(r, i)
 		if err != nil {
 			return errors.Wrap(err, "new peer")
 		}
@@ -163,7 +163,7 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "generate tss")
 	}
 
-	manifest := types.Manifest{
+	manifest := app.Manifest{
 		DVs:   []tbls.TSS{tss},
 		Peers: peers,
 	}

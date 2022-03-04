@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types_test
+package app_test
 
 import (
 	"encoding/json"
@@ -23,7 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/types"
+	"github.com/obolnetwork/charon/app"
 )
 
 //go:generate go test -tags=generic -run=TestManifestJSON -update
@@ -36,7 +36,7 @@ func TestManifestJSON(t *testing.T) {
 	}
 
 	for i := 0; i < 3; i++ {
-		manifest, _, _ := types.NewClusterForT(t, i+1, 2+i, 3+(2*i), i+1)
+		manifest, _, _ := app.NewClusterForT(t, i+1, 2+i, 3+(2*i), i+1)
 
 		// Marshal to JSON.
 		data, err := json.MarshalIndent(manifest, "", "  ")
@@ -57,7 +57,7 @@ func TestManifestJSON(t *testing.T) {
 		require.JSONEq(t, string(data), string(actual))
 
 		// Unmarshal from JSON.
-		var manifest2 types.Manifest
+		var manifest2 app.Manifest
 		err = json.Unmarshal(actual, &manifest2)
 		require.NoError(t, err)
 
@@ -72,35 +72,4 @@ func TestManifestJSON(t *testing.T) {
 			require.Equal(t, tss1.PublicKey(), tss2.PublicKey())
 		}
 	}
-}
-
-func TestDecodeENR(t *testing.T) {
-	manifest, _, _ := types.NewClusterForT(t, 1, 3, 4, 0)
-
-	for _, p := range manifest.Peers {
-		enrStr, err := types.EncodeENR(p.ENR)
-		require.NoError(t, err)
-
-		record2, err := types.DecodeENR(enrStr)
-		require.NoError(t, err)
-		require.Equal(t, p.ENR, record2)
-	}
-}
-
-func TestDecodeENR_InvalidBase64(t *testing.T) {
-	_, err := types.DecodeENR("enr:###")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "illegal base64 data at input byte 0")
-}
-
-func TestDecodeENR_InvalidRLP(t *testing.T) {
-	_, err := types.DecodeENR("enr:AAAAAAAA")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "rlp: expected List")
-}
-
-func TestDecodeENR_Oversize(t *testing.T) {
-	_, err := types.DecodeENR("enr:-IS4QBnEa-Oftjk7-sGRAY7IrvL5YjATdcHbqR5l2aXX2M25CiawfwaXh0k9hm98dCfdnqhz9mE-BfemFdjuL9KtHqgBgmlkgnY0gmlwhB72zxGJc2VjcDI1NmsxoQMaK8SspTrUgB8IYVI3qDgFYsHymPVsWlvIW477kxaKUIN0Y3CCJpUAAAA=")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "input contains more than one value")
 }

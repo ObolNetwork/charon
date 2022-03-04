@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types
+package app
 
 import (
 	"crypto/ecdsa"
@@ -28,12 +28,14 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/p2p"
 	crypto2 "github.com/obolnetwork/charon/tbls"
 )
 
 // NewClusterForT returns a new cluster manifest with dv number of distributed validators, k threshold and n peers.
 // It also returns the peer p2p keys and BLS secret shares. If the seed is zero a random cluster on available loopback
 // ports is generated, else a deterministic cluster is generated.
+// Note this is not defined in testutil since it is tightly coupled with the app package.
 func NewClusterForT(t *testing.T, dv, k, n, seed int) (Manifest, []*ecdsa.PrivateKey, [][]*bls_sig.SecretKeyShare) {
 	t.Helper()
 
@@ -41,7 +43,7 @@ func NewClusterForT(t *testing.T, dv, k, n, seed int) (Manifest, []*ecdsa.Privat
 		dvs      []crypto2.TSS
 		dvShares [][]*bls_sig.SecretKeyShare
 		p2pKeys  []*ecdsa.PrivateKey
-		peers    []Peer
+		peers    []p2p.Peer
 	)
 
 	addrFunc := getAddrFunc(seed)
@@ -76,7 +78,7 @@ func NewClusterForT(t *testing.T, dv, k, n, seed int) (Manifest, []*ecdsa.Privat
 		err = enode.SignV4(&r, p2pKey)
 		require.NoError(t, err)
 
-		peer, err := NewPeer(r, i)
+		peer, err := p2p.NewPeer(r, i)
 		require.NoError(t, err)
 
 		peers = append(peers, peer)

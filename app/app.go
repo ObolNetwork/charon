@@ -33,10 +33,10 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster/leadercast"
+	"github.com/obolnetwork/charon/core"
+	leadercast "github.com/obolnetwork/charon/core/leadercast"
+	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/types"
-	"github.com/obolnetwork/charon/validatorapi"
 )
 
 type Config struct {
@@ -54,7 +54,7 @@ type Config struct {
 // TestConfig defines additional test-only config.
 type TestConfig struct {
 	// Manifest provides the manifest explicitly, skips loading ManifestFile from disk.
-	Manifest *types.Manifest
+	Manifest *Manifest
 	// P2PKey provides the p2p privkey explicitly, skips loading from keystore on disk.
 	P2PKey *ecdsa.PrivateKey
 	// PingCallback is called when a ping was completed to a peer.
@@ -62,7 +62,7 @@ type TestConfig struct {
 	// SimDutyPeriod overrides the default duty simulator period of 5 seconds.
 	SimDutyPeriod time.Duration
 	// SimDutyCallback is called when the duty simulator resolves a mock duty.
-	SimDutyCallback func(types.Duty, []byte)
+	SimDutyCallback func(core.Duty, []byte)
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -86,7 +86,7 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "init jaeger tracing")
 	}
 
-	var manifest types.Manifest
+	var manifest Manifest
 	if conf.TestConfig.Manifest != nil {
 		manifest = *conf.TestConfig.Manifest
 	} else {

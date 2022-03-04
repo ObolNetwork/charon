@@ -12,62 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types
+package app
 
 import (
-	"bytes"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/sharing"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
-	"github.com/ethereum/go-ethereum/rlp"
 	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 )
 
 const manifestVersion = "obol/charon/manifest/0.0.1"
-
-// Peer represents a charon node in a cluster.
-type Peer struct {
-	// ENR defines the networking information of the peer.
-	ENR enr.Record
-
-	// ID is a libp2p peer identity. It is inferred from the ENR.
-	ID peer.ID
-
-	// Index is the order of this node in the cluster.
-	Index int
-}
-
-// NewPeer returns a new peer from an.
-func NewPeer(record enr.Record, index int) (Peer, error) {
-	var pubkey enode.Secp256k1
-	if err := record.Load(&pubkey); err != nil {
-		return Peer{}, errors.Wrap(err, "pubkey from enr")
-	}
-
-	p2pPubkey := libp2pcrypto.Secp256k1PublicKey(pubkey)
-	id, err := peer.IDFromPublicKey(&p2pPubkey)
-	if err != nil {
-		return Peer{}, errors.Wrap(err, "p2p id from pubkey")
-	}
-
-	return Peer{
-		ENR:   record,
-		ID:    id,
-		Index: index,
-	}, nil
-}
 
 // Manifest defines a charon cluster. The same manifest is loaded by all charon nodes in the cluster.
 // TODO(corver): Add authentication signatures for each peer per DV.
@@ -75,8 +40,9 @@ type Manifest struct {
 	// DVs is the set of distributed validators managed by the cluster.
 	// Each DV is defined by its threshold signature scheme.
 	DVs []tbls.TSS
+
 	// Peers is set of charon nodes in the cluster.
-	Peers []Peer
+	Peers []p2p.Peer
 }
 
 // ENRs is a convenience function that returns the peer ENRs.
@@ -115,7 +81,7 @@ func (m Manifest) PublicKeys() []*bls_sig.PublicKey {
 func (m Manifest) MarshalJSON() ([]byte, error) {
 	var enrs []string
 	for _, p := range m.Peers {
-		enrStr, err := EncodeENR(p.ENR)
+		enrStr, err := p2p.EncodeENR(p.ENR)
 		if err != nil {
 			return nil, err
 		}
@@ -168,9 +134,9 @@ func (m *Manifest) UnmarshalJSON(data []byte) error {
 		return errors.New("invalid manifest version")
 	}
 
-	var peers []Peer
+	var peers []p2p.Peer
 	for i, enrStr := range mjson.PeerENRs {
-		record, err := DecodeENR(enrStr)
+		record, err := p2p.DecodeENR(enrStr)
 		if err != nil {
 			return err
 		}
@@ -186,7 +152,7 @@ func (m *Manifest) UnmarshalJSON(data []byte) error {
 			return errors.Wrap(err, "p2p id from pubkey")
 		}
 
-		peers = append(peers, Peer{
+		peers = append(peers, p2p.Peer{
 			ENR:   record,
 			ID:    id,
 			Index: i,
@@ -234,33 +200,6 @@ type manifestJSON struct {
 type dvJSON struct {
 	PubKey    string   `json:"root_pubkey"`
 	Verifiers [][]byte `json:"threshold_verifiers"`
-}
-
-// EncodeENR returns an encoded string format of the enr record.
-func EncodeENR(record enr.Record) (string, error) {
-	var buf bytes.Buffer
-	if err := record.EncodeRLP(&buf); err != nil {
-		return "", errors.Wrap(err, "encode rlp")
-	}
-
-	return "enr:" + base64.URLEncoding.EncodeToString(buf.Bytes()), nil
-}
-
-// DecodeENR returns a enr record decoded from the string.
-// See reference github.com/ethereum/go-ethereum@v1.10.10/p2p/dnsdisc/tree.go:378.
-func DecodeENR(enrStr string) (enr.Record, error) {
-	enrStr = strings.TrimPrefix(enrStr, "enr:")
-	enrBytes, err := base64.URLEncoding.DecodeString(enrStr)
-	if err != nil {
-		return enr.Record{}, errors.Wrap(err, "base64 enr")
-	}
-
-	var record enr.Record
-	if err := rlp.DecodeBytes(enrBytes, &record); err != nil {
-		return enr.Record{}, errors.Wrap(err, "rlp enr")
-	}
-
-	return record, nil
 }
 
 func getDescription(m Manifest) string {
