@@ -155,6 +155,10 @@ func Run(ctx context.Context, conf Config) error {
 
 	// Start processes and wait for first error or shutdown.
 
+	go func() {
+		_ = lcast.Run(ctx)
+	}()
+
 	stopPing := p2p.StartPingService(tcpNode, manifest.PeerIDs(), conf.TestConfig.PingCallback)
 
 	startSim, stopSim := newDutySimulator(lcast, testConf.SimDutyPeriod, testConf.SimDutyCallback)
@@ -165,8 +169,8 @@ func Run(ctx context.Context, conf Config) error {
 		procErr = errors.Wrap(err, "monitoring server")
 	case err := <-start(vserver.ListenAndServe):
 		procErr = errors.Wrap(err, "validatorapi server")
-	case err := <-start(lcast.Start):
-		procErr = errors.Wrap(err, "leadercast consensus")
+
+	//	procErr = errors.Wrap(err, "leadercast consensus")
 	case err := <-start(startSim):
 		procErr = errors.Wrap(err, "duty simulator")
 	case <-ctx.Done():
@@ -186,7 +190,6 @@ func Run(ctx context.Context, conf Config) error {
 	log.Info(ctx, "Shutting down gracefully")
 
 	stopSim()
-	lcast.Stop()
 	stopPing()
 
 	if err := tcpNode.Close(); err != nil {
