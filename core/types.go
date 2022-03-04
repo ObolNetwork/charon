@@ -127,3 +127,17 @@ type AttestationData struct {
 	Data eth2p0.AttestationData
 	Duty eth2v1.AttesterDuty
 }
+
+// ParSignedData is a partially signed duty data.
+// Partial refers to it being signed by a single share of the BLS threshold signing scheme.
+type ParSignedData struct {
+	// Data is the partially signed duty data received from VC.
+	Data []byte
+	// Signature of tbls share extracted from data.
+	Signature []byte
+	// Index of the tbls share.
+	Index int
+}
+
+// ParSignedDataSet is a set of partially signed duty data objects, one per validator.
+type ParSignedDataSet map[PubKey]ParSignedData

@@ -342,6 +342,25 @@ It provides the following beacon-node endpoints:
 
 > 🏗️ TODO: Figure out other endpoints required.
 
+The validator api interface is defined as:
+```
+// ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the
+// DutyDB and stores partial signed data in the ParSigDB.
+type ValidatorAPI interface {
+	// RegisterAwaitBeaconBlock registers a function to query proposed beacon blocks.
+	RegisterAwaitBeaconBlock(func(context.Context, slot int) (PubKey, beaconapi.BeaconBlock, error))
+
+	// RegisterAwaitAttestation registers a function to query attestation data.
+	RegisterAwaitAttestation(func(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error))
+
+	// RegisterPubKeyByAttestation registers a function to query pubkeys by attestation.
+	RegisterPubKeyByAttestation(func(context.Context, slot int, commIdx int, aggBitsHex string) (PubKey, error))
+
+	// RegisterParSigDB registers a function to store partially signed data sets.
+	RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error))
+}
+```
+
 ### ParSigDB
 The partial signature database persists partial BLS threshold signatures received internally (from the local Charon node's VC(s))
 as well as externally (from other nodes in cluster).
