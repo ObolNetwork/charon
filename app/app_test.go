@@ -38,6 +38,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+//go:generate go test . -v -run=TestPingCluster -slow
 var slow = flag.Bool("slow", false, "enable slow tests")
 
 // TestPingCluster starts a cluster of charon nodes and waits for each node to ping all the others.

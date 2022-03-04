@@ -26,14 +26,11 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// newDutySimulator returns a start and stop function that
+// newDutySimulator returns a start function that
 // simulates consensus duty resolution with periodic mock data.
 func newDutySimulator(cons core.Consensus,
 	period time.Duration, callback func(core.Duty, []byte),
-) (func() error, context.CancelFunc) {
-	ctx := log.WithTopic(context.Background(), "sim-duty")
-	ctx, cancel := context.WithCancel(ctx)
-
+) func(ctx context.Context) error {
 	if period == 0 {
 		period = time.Second * 5
 	}
@@ -53,29 +50,27 @@ func newDutySimulator(cons core.Consensus,
 		return time.NewTimer(next.Sub(now)).C
 	}
 
-	return func() error {
-			for {
-				select {
-				case ts := <-nextSlot():
-					// Do not block resolving duty, just kick it off.
-					go func() {
-						duty := core.Duty{
-							Slot: slotFromTime(ts),
-							Type: core.DutyAttester,
-						}
+	return func(ctx context.Context) error {
+		for {
+			select {
+			case ts := <-nextSlot():
+				// Do not block resolving duty, just kick it off.
+				go func() {
+					duty := core.Duty{
+						Slot: slotFromTime(ts),
+						Type: core.DutyAttester,
+					}
 
-						err := simulateDuty(ctx, cons, duty, callback)
-						if err != nil {
-							log.Error(ctx, "Simulate duty error", err, z.I64("slot", duty.Slot))
-						}
-					}()
-				case <-ctx.Done():
-					return nil
-				}
+					err := simulateDuty(ctx, cons, duty, callback)
+					if err != nil {
+						log.Error(ctx, "Simulate duty error", err, z.I64("slot", duty.Slot))
+					}
+				}()
+			case <-ctx.Done():
+				return nil
 			}
-		}, func() {
-			cancel()
 		}
+	}
 }
 
 func simulateDuty(ctx context.Context, cons core.Consensus, duty core.Duty,
