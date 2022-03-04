@@ -151,14 +151,18 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 // resolveQueriesUnsafe resolve any query to a result if found.
 // It is unsafe since it assume that the lock is held.
 func (db *MemDB) resolveQueriesUnsafe() {
+	var unresolved []query
 	for _, query := range db.attQueries {
 		value, ok := db.attDuties[query.Key]
 		if !ok {
+			unresolved = append(unresolved, query)
 			continue
 		}
 
 		query.Response <- value
 	}
+
+	db.attQueries = unresolved
 }
 
 // attKey is the key to lookup an attester value in the DB.
