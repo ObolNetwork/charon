@@ -20,7 +20,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -49,7 +48,7 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.Command
 
 // Function for printing status of ENR for this instance.
 func runNewENR(w io.Writer, config p2p.Config, dataDir string) error {
-	identityKey, loaded, err := app.LoadOrCreatePrivKey(dataDir)
+	identityKey, loaded, err := p2p.LoadOrCreatePrivKey(dataDir)
 	if err != nil {
 		return err
 	}

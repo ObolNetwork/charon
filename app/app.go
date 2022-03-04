@@ -134,7 +134,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 	if p2pKey == nil {
 		var err error
 		var loaded bool
-		p2pKey, loaded, err = LoadOrCreatePrivKey(conf.DataDir)
+		p2pKey, loaded, err = p2p.LoadOrCreatePrivKey(conf.DataDir)
 		if err != nil {
 			return nil, nil, 0, errors.Wrap(err, "load or create peer ID")
 		}
@@ -188,7 +188,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
-func wireMonitoringAPI(cycle *lifecycle.Manager, addr string, localNode *enode.LocalNode) {
+func wireMonitoringAPI(life *lifecycle.Manager, addr string, localNode *enode.LocalNode) {
 	mux := http.NewServeMux()
 
 	// Serve prometheus metrics
@@ -211,8 +211,8 @@ func wireMonitoringAPI(cycle *lifecycle.Manager, addr string, localNode *enode.L
 		Handler: mux,
 	}
 
-	cycle.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))
-	cycle.RegisterStop(lifecycle.StopMonitoringAPI, lifecycle.HookFunc(server.Shutdown))
+	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))
+	life.RegisterStop(lifecycle.StopMonitoringAPI, lifecycle.HookFunc(server.Shutdown))
 }
 
 // wireValidatorAPI constructs the validator API and registers it with the life cycle manager.

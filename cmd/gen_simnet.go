@@ -119,7 +119,7 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 			return errors.Wrap(err, "mkdir")
 		}
 
-		p2pKey, _, err := app.LoadOrCreatePrivKey(nodeDir)
+		p2pKey, _, err := p2p.LoadOrCreatePrivKey(nodeDir)
 		if err != nil {
 			return errors.Wrap(err, "create p2p key")
 		}
