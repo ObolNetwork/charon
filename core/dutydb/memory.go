@@ -87,14 +87,14 @@ func (db *MemDB) AwaitAttestation(ctx context.Context, slot int64, commIdx int64
 }
 
 // PubKeyByAttestation implements core.DutyDB, see its godoc.
-func (db *MemDB) PubKeyByAttestation(_ context.Context, slot int64, commIdx int64, aggBitsHex string) (core.PubKey, error) {
+func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	key := pkKey{
 		Slot:       slot,
 		CommIdx:    commIdx,
-		AggBitsHex: aggBitsHex,
+		ValCommIdx: valCommIdx,
 	}
 
 	pubkey, ok := db.attPubKeys[key]
@@ -112,16 +112,11 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 		return err
 	}
 
-	aggBits, err := getAggBitsHex(attData.Duty.CommitteeLength, attData.Duty.ValidatorCommitteeIndex)
-	if err != nil {
-		return err
-	}
-
 	// Store key and value for PubKeyByAttestation
 	pKey := pkKey{
 		Slot:       int64(attData.Data.Slot),
 		CommIdx:    int64(attData.Data.Index),
-		AggBitsHex: aggBits,
+		ValCommIdx: int64(attData.Duty.ValidatorCommitteeIndex),
 	}
 	if value, ok := db.attPubKeys[pKey]; ok {
 		if value != pubkey {
@@ -175,7 +170,7 @@ type attKey struct {
 type pkKey struct {
 	Slot       int64
 	CommIdx    int64
-	AggBitsHex string
+	ValCommIdx int64
 }
 
 // query is a waiting query with a response channel.
