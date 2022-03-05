@@ -55,7 +55,7 @@ func DecodeAttesterUnsignedData(unsignedData UnsignedData) (*AttestationData, er
 }
 
 // EncodeAttesterUnsingedData returns the attestation data as an encoded UnsignedData.
-func EncodeAttesterUnsingedData(attData *AttestationData) (UnsignedData, error) {
+func EncodeAttesterUnsignedData(attData *AttestationData) (UnsignedData, error) {
 	b, err := json.Marshal(attData)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal attestation data")
