@@ -82,6 +82,7 @@ func (c *Component) SubmitAttestations(ctx context.Context, attestations []*eth2
 	for _, att := range attestations {
 		slot := int64(att.Data.Slot)
 
+		// Get validator committee index from aggregation bits
 		indices := att.AggregationBits.BitIndices()
 		if len(indices) != 1 {
 			return errors.New("unexpected number of aggregation bits",
