@@ -77,14 +77,14 @@ func TestFetchAttester(t *testing.T) {
 		require.Len(t, resDataSet, 2)
 
 		dataA := resDataSet[pubkeysByIdx[vIdxA]]
-		dutyDataA, err := core.DecodeAttesterUnsingedData(dataA)
+		dutyDataA, err := core.DecodeAttesterUnsignedData(dataA)
 		require.NoError(t, err)
 		require.EqualValues(t, slot, dutyDataA.Data.Slot)
 		require.EqualValues(t, vIdxA, dutyDataA.Data.Index)
 		require.EqualValues(t, dutyA, dutyDataA.Duty)
 
 		dataB := resDataSet[pubkeysByIdx[vIdxB]]
-		dutyDataB, err := core.DecodeAttesterUnsingedData(dataB)
+		dutyDataB, err := core.DecodeAttesterUnsignedData(dataB)
 		require.NoError(t, err)
 		require.EqualValues(t, slot, dutyDataB.Data.Slot)
 		require.EqualValues(t, vIdxB, dutyDataB.Data.Index)

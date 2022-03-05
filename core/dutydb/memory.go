@@ -107,7 +107,7 @@ func (db *MemDB) PubKeyByAttestation(_ context.Context, slot int64, commIdx int6
 
 // storeAttestationUnsafe stores the unsigned attestation. It is unsafe since it assumes the lock is held.
 func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.UnsignedData) error {
-	attData, err := core.DecodeAttesterUnsingedData(unsignedData)
+	attData, err := core.DecodeAttesterUnsignedData(unsignedData)
 	if err != nil {
 		return err
 	}

@@ -79,7 +79,7 @@ func TestMemDB(t *testing.T) {
 	duty := core.Duty{Slot: slot, Type: core.DutyAttester}
 
 	// The two validators have similar unsigned data, just the ValidatorCommitteeIndex is different.
-	unsingedA, err := core.EncodeAttesterUnsingedData(&core.AttestationData{
+	unsingedA, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
 		Data: attData,
 		Duty: eth2v1.AttesterDuty{
 			CommitteeLength:         commLen,
@@ -88,7 +88,7 @@ func TestMemDB(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	unsingedB, err := core.EncodeAttesterUnsingedData(&core.AttestationData{
+	unsingedB, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
 		Data: attData,
 		Duty: eth2v1.AttesterDuty{
 			CommitteeLength:         commLen,

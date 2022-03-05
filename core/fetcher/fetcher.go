@@ -110,7 +110,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core
 			Duty: *attDuty,
 		}
 
-		dutyData, err := core.EncodeAttesterUnsingedData(attData)
+		dutyData, err := core.EncodeAttesterUnsignedData(attData)
 		if err != nil {
 			return nil, errors.Wrap(err, "unmarhsal json")
 		}

@@ -59,13 +59,13 @@ func TestEncodeAttesterUnsignedData(t *testing.T) {
 		Duty: *randomAttDuty(),
 	}
 
-	data1, err := core.EncodeAttesterUnsingedData(attData1)
+	data1, err := core.EncodeAttesterUnsignedData(attData1)
 	require.NoError(t, err)
 
-	attData2, err := core.DecodeAttesterUnsingedData(data1)
+	attData2, err := core.DecodeAttesterUnsignedData(data1)
 	require.NoError(t, err)
 
-	data2, err := core.EncodeAttesterUnsingedData(attData1)
+	data2, err := core.EncodeAttesterUnsignedData(attData1)
 	require.NoError(t, err)
 
 	require.Equal(t, attData1, attData2)
