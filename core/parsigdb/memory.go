@@ -94,13 +94,15 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 			db.entries[k] = sigs
 		}
 
-		// Calls the SigAgg component if sufficient signatures have been received.
-		if len(sigs) == db.threshold {
-			for _, sub := range db.threshSubs {
-				err := sub(ctx, duty, pubkey, sigs)
-				if err != nil {
-					return err
-				}
+		// Call the SigAgg component if sufficient signatures have been received.
+		if len(sigs) != db.threshold {
+			continue
+		}
+
+		for _, sub := range db.threshSubs {
+			err := sub(ctx, duty, pubkey, sigs)
+			if err != nil {
+				return err
 			}
 		}
 	}
