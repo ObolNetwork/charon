@@ -171,7 +171,7 @@ type attKey struct {
 	CommIdx int64
 }
 
-// pkKey is the key to lookup pubkeys by attestion in the DB.
+// pkKey is the key to lookup pubkeys by attestation in the DB.
 type pkKey struct {
 	Slot       int64
 	CommIdx    int64
