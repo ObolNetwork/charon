@@ -44,7 +44,7 @@ func EncodeAttesterFetchArg(attDuty *eth2v1.AttesterDuty) (FetchArg, error) {
 }
 
 // DecodeAttesterUnsingedData return the attestation data from the encoded UnsignedData.
-func DecodeAttesterUnsingedData(unsignedData UnsignedData) (*AttestationData, error) {
+func DecodeAttesterUnsignedData(unsignedData UnsignedData) (*AttestationData, error) {
 	attData := new(AttestationData)
 	err := json.Unmarshal(unsignedData, attData)
 	if err != nil {
