@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -44,9 +43,9 @@ func EncodeAttesterFetchArg(attDuty *eth2v1.AttesterDuty) (FetchArg, error) {
 	return b, nil
 }
 
-// DecodeAttesterUnsingedData return the attestation data from the encoded UnsignedData.
-func DecodeAttesterUnsingedData(unsignedData UnsignedData) (*eth2p0.AttestationData, error) {
-	attData := new(eth2p0.AttestationData)
+// DecodeAttesterUnsignedData return the attestation data from the encoded UnsignedData.
+func DecodeAttesterUnsignedData(unsignedData UnsignedData) (*AttestationData, error) {
+	attData := new(AttestationData)
 	err := json.Unmarshal(unsignedData, attData)
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal attestation data")
@@ -55,8 +54,8 @@ func DecodeAttesterUnsingedData(unsignedData UnsignedData) (*eth2p0.AttestationD
 	return attData, nil
 }
 
-// EncodeAttesterUnsingedData returns the attestation data as an encoded UnsignedData.
-func EncodeAttesterUnsingedData(attData *eth2p0.AttestationData) (UnsignedData, error) {
+// EncodeAttesterUnsignedData returns the attestation data as an encoded UnsignedData.
+func EncodeAttesterUnsignedData(attData *AttestationData) (UnsignedData, error) {
 	b, err := json.Marshal(attData)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal attestation data")

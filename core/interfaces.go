@@ -16,7 +16,40 @@ package core
 
 import (
 	"context"
+
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 )
+
+// Scheduler triggers the start of a duty workflow.
+type Scheduler interface {
+	// Subscribe registers a callback for fetching a duty.
+	Subscribe(func(context.Context, Duty, FetchArgSet) error)
+}
+
+// Fetcher fetches proposed unsigned duty data.
+type Fetcher interface {
+	// Fetch triggers fetching of a proposed duty data set.
+	Fetch(context.Context, Duty, FetchArgSet) error
+
+	// Subscribe registers a callback for proposed unsigned duty data sets.
+	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
+}
+
+// DutyDB persists unsigned duty data sets and makes it available for querying. It also acts
+// as slashing database.
+type DutyDB interface {
+	// Store stores the unsigned duty data set.
+	Store(context.Context, Duty, UnsignedDataSet) error
+
+	// AwaitAttestation blocks and returns the attestation data
+	// for the slot and committee index when available.
+	AwaitAttestation(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error)
+
+	// PubKeyByAttestation returns the validator PubKey for the provided attestation data
+	// slot, committee index and aggregation bits hex. This allows mapping of attestation
+	// data response to validator.
+	PubKeyByAttestation(ctx context.Context, slot int64, commIdx int64, aggBitsHex string) (PubKey, error)
+}
 
 // Consensus abstracts a cluster consensus layer.
 type Consensus interface {

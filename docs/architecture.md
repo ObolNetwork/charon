@@ -274,16 +274,16 @@ The duty database interface is defined as:
 // DutyDB persists unsigned duty data sets and makes it available for querying. It also acts
 // as slashing database.
 type DutyDB interface {
-    // Store stores the duty data set.
+    // Store stores the unsigned duty data set.
     Store(context.Context, Duty, UnsignedDataSet) error
 
-	// AwaitProposer blocks and returns the proposer duty unsinged data
+	// AwaitBeaconBlock blocks and returns the proposed beacon block
 	// for the slot when available. It also returns the DV public key.
-	AwaitProposer(context.Context, slot int) (PubKey, UnsignedData, error)
+	AwaitBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BeaconBlock, error)
 
-	// AwaitProposer blocks and returns the attester duty data
+	// AwaitAttestation blocks and returns the attestation data
 	// for the slot and committee index when available.
-	AwaitAttester(context.Context, slot int, commIdx int) (UnsignedData, error)
+	AwaitAttestation(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error)
 
 	// PubKeyByAttestation returns the validator PubKey for the provided attestation data
 	// slot, committee index and aggregation bits hex. This allows mapping of attestation
