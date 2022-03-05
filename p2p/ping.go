@@ -60,13 +60,8 @@ func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID,
 
 			logFunc(ctx, p, result.Error)
 
-			if result.Error != nil {
-				incPingError(p)
-			} else {
-				observePing(p, result.RTT)
-				if callback != nil {
-					callback(p)
-				}
+			if callback != nil {
+				callback(p)
 			}
 
 			const pingPeriod = time.Second
