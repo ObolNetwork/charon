@@ -37,6 +37,15 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+// Handler defines the request handler providing the business logic
+// for the validator API router.
+type Handler interface {
+	eth2client.AttesterDutiesProvider
+	eth2client.ProposerDutiesProvider
+	eth2client.AttestationDataProvider
+	eth2client.AttestationsSubmitter
+}
+
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the validatorapi.Handler.
 // All other requests are reserve-proxied to the beacon-node address.
@@ -56,6 +65,16 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 			Name:    "proposer_duties",
 			Path:    "/eth/v1/validator/duties/proposer/{epoch}",
 			Handler: proposerDuties(h),
+		},
+		{
+			Name:    "attestation_data",
+			Path:    "/eth/v1/validator/attestation_data",
+			Handler: attestationData(h),
+		},
+		{
+			Name:    "submit_attestations",
+			Path:    "/eth/v1/beacon/pool/attestations",
+			Handler: submitAttestations(h),
 		},
 		// TODO(corver): Add more endpoints
 	}
@@ -127,6 +146,50 @@ func trace(endpoint string, handler http.HandlerFunc) http.Handler {
 	return otelhttp.NewHandler(handler, "validator."+endpoint)
 }
 
+// attestationData returns a handler function for the attestation data endpoint.
+func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, body []byte) (interface{}, error) {
+		slot, err := uintParam(params, "slot")
+		if err != nil {
+			return nil, err
+		}
+
+		commIdx, err := uintParam(params, "committee_index")
+		if err != nil {
+			return nil, err
+		}
+
+		data, err := p.AttestationData(ctx, eth2p0.Slot(slot), eth2p0.CommitteeIndex(commIdx))
+		if err != nil {
+			return nil, err
+		}
+
+		return struct {
+			Data *eth2p0.AttestationData
+		}{
+			Data: data,
+		}, nil
+	}
+}
+
+// submitAttestations returns a handler function for the attestation submitter endpoint.
+func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, body []byte) (interface{}, error) {
+		var atts []*eth2p0.Attestation
+		err := json.Unmarshal(body, &atts)
+		if err != nil {
+			return nil, errors.Wrap(err, "unmarshal attestations")
+		}
+
+		err = p.SubmitAttestations(ctx, atts)
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, nil
+	}
+}
+
 // proposerDuties returns a handler function for the proposer duty endpoint.
 func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, body []byte) (interface{}, error) {
@@ -192,13 +255,18 @@ func proxyHandler(target string) (http.HandlerFunc, error) {
 
 // writeResponse writes the 200 OK response and json response body.
 func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, response interface{}) {
+	w.WriteHeader(http.StatusOK)
+
+	if response == nil {
+		return
+	}
+
 	b, err := json.Marshal(response)
 	if err != nil {
 		writeError(ctx, w, endpoint, errors.Wrap(err, "marshal response body"))
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 
 	if _, err = w.Write(b); err != nil {
@@ -267,7 +335,7 @@ func unmarshal(body []byte, v interface{}) error {
 }
 
 // uintParam returns a uint path parameter.
-func uintParam(params map[string]string, name string) (uint, error) {
+func uintParam(params map[string]string, name string) (uint64, error) {
 	param := params[name]
 	res, err := strconv.ParseUint(param, 10, 64)
 	if err != nil {
@@ -278,7 +346,7 @@ func uintParam(params map[string]string, name string) (uint, error) {
 		}
 	}
 
-	return uint(res), nil
+	return res, nil
 }
 
 // proxyResponseWriter wraps a http response writer and instruments errors.

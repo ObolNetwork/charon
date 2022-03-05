@@ -57,3 +57,16 @@ type Consensus interface {
 	// The result will be proposed data from one of the nodes in the cluster.
 	ResolveDuty(ctx context.Context, d Duty, proposedData []byte) ([]byte, error)
 }
+
+// ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the
+// DutyDB and stores partial signed data in the ParSigDB.
+type ValidatorAPI interface {
+	// RegisterAwaitAttestation registers a function to query attestation data.
+	RegisterAwaitAttestation(func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error))
+
+	// RegisterPubKeyByAttestation registers a function to query pubkeys by attestation.
+	RegisterPubKeyByAttestation(func(ctx context.Context, slot int64, commIdx int64, aggBitsHex string) (PubKey, error))
+
+	// RegisterParSigDB registers a function to store partially signed data sets.
+	RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error)
+}
