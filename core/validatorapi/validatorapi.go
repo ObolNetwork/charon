@@ -22,6 +22,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
 
@@ -45,21 +46,21 @@ func NewComponent(eth2Svc eth2client.Service, index int) (*Component, error) {
 
 type Component struct {
 	eth2Provider
-	awaitAttFunc    func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error)
-	pubKeyByAttFunc func(ctx context.Context, slot int64, commIdx int64, aggBitsHex string) (core.PubKey, error)
+	awaitAttFunc    func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
+	pubKeyByAttFunc func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
 	parSigDBFuncs   []func(context.Context, core.Duty, core.ParSignedDataSet) error
 	index           int
 }
 
 // RegisterAwaitAttestation registers a function to query attestation data.
 // It only supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitAttestation(fn func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error)) {
+func (c *Component) RegisterAwaitAttestation(fn func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)) {
 	c.awaitAttFunc = fn
 }
 
 // RegisterPubKeyByAttestation registers a function to query pubkeys by attestation.
 // It only supports a single function, since it is an input of the component.
-func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slot int64, commIdx int64, aggBitsHex string) (core.PubKey, error)) {
+func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)) {
 	c.pubKeyByAttFunc = fn
 }
 
@@ -81,8 +82,14 @@ func (c *Component) SubmitAttestations(ctx context.Context, attestations []*eth2
 	for _, att := range attestations {
 		slot := int64(att.Data.Slot)
 
-		pubkey, err := c.pubKeyByAttFunc(ctx, slot, int64(att.Data.Index),
-			fmt.Sprintf("%#x", []byte(att.AggregationBits)))
+		// Get validator committee index from aggregation bits
+		indices := att.AggregationBits.BitIndices()
+		if len(indices) != 1 {
+			return errors.New("unexpected number of aggregation bits",
+				z.Str("aggbits", fmt.Sprintf("%#x", []byte(att.AggregationBits))))
+		}
+
+		pubkey, err := c.pubKeyByAttFunc(ctx, slot, int64(att.Data.Index), int64(indices[0]))
 		if err != nil {
 			return err
 		}

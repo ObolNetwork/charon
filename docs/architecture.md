@@ -255,14 +255,14 @@ type Entry struct {
   PubKey       string
   Data         []byte  // unsigned data object
   CommIdx      int64   // committee index (0 for DutyProposer)
-  AggBitsHex   string  // aggregation bits (empty for DutyProposer)
+  ValCommIdx   int64   // validator committee index (0 for DutyProposer)
 }
 ```
 > ℹ️ Database entry fields are persistence friendly types and are not exported or used outside this component
 
 The database has the following indexes:
 - `Slot,DutyType,PubKey`: unique index for deduplication and idempotent inserts
-- `Slot,DutyType,CommIdx,AggBits`: Queried by `AwaitAttester` and `GetDVByAggBits`
+- `Slot,DutyType,CommIdx,ValCommIdx`: Queried by `AwaitAttester` and `PubKeyByAttestation`
 
 The `UnsignedData` might however not be available yet at the time the VC queries the `ValidatorAPI`.
 The `DutyDB` therefore provides a blocking query API. This query blocks until any requested data is available or until VC decides to timeout.
@@ -286,9 +286,9 @@ type DutyDB interface {
 	AwaitAttestation(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error)
 
 	// PubKeyByAttestation returns the validator PubKey for the provided attestation data
-	// slot, committee index and aggregation bits hex. This allows mapping of attestation
-	// data response to DV.
-	PubKeyByAttestation(context.Context, slot int, commIdx int, aggBitsHex string) (PubKey, error)
+	// slot, committee index and validator committee index. This allows mapping of attestation
+	// data response to validator.
+	PubKeyByAttestation(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error)
 }
 ```
 ### Validator API
@@ -353,8 +353,8 @@ type ValidatorAPI interface {
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error))
 
-	// RegisterPubKeyByAttestation registers a function to query pubkeys by attestation.
-	RegisterPubKeyByAttestation(func(context.Context, slot int, commIdx int, aggBitsHex string) (PubKey, error))
+	// RegisterPubKeyByAttestation registers a function to query validator by attestation.
+	RegisterPubKeyByAttestation(func(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error))
 
 	// RegisterParSigDB registers a function to store partially signed data sets.
 	RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error))

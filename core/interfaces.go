@@ -43,12 +43,12 @@ type DutyDB interface {
 
 	// AwaitAttestation blocks and returns the attestation data
 	// for the slot and committee index when available.
-	AwaitAttestation(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error)
+	AwaitAttestation(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
 
 	// PubKeyByAttestation returns the validator PubKey for the provided attestation data
-	// slot, committee index and aggregation bits hex. This allows mapping of attestation
+	// slot, committee index and validator committee index. This allows mapping of attestation
 	// data response to validator.
-	PubKeyByAttestation(ctx context.Context, slot int64, commIdx int64, aggBitsHex string) (PubKey, error)
+	PubKeyByAttestation(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
 }
 
 // Consensus abstracts a cluster consensus layer.
@@ -62,10 +62,10 @@ type Consensus interface {
 // DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
 	// RegisterAwaitAttestation registers a function to query attestation data.
-	RegisterAwaitAttestation(func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error))
+	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
 
-	// RegisterPubKeyByAttestation registers a function to query pubkeys by attestation.
-	RegisterPubKeyByAttestation(func(ctx context.Context, slot int64, commIdx int64, aggBitsHex string) (PubKey, error))
+	// RegisterPubKeyByAttestation registers a function to query validator by attestation.
+	RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
 
 	// RegisterParSigDB registers a function to store partially signed data sets.
 	RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error)

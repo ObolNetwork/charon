@@ -32,7 +32,7 @@ func TestMemDB(t *testing.T) {
 	db := dutydb.NewMemDB()
 
 	// Nothing in the DB, so expect error
-	_, err := db.PubKeyByAttestation(ctx, 0, 0, "")
+	_, err := db.PubKeyByAttestation(ctx, 0, 0, 0)
 	require.Error(t, err)
 
 	// Unsupported duty type
@@ -43,13 +43,13 @@ func TestMemDB(t *testing.T) {
 		queries = 3
 		notZero = 99
 
-		slot     = 123
-		commIdx  = 456
-		commLen  = 8
-		vIdxA    = 1
-		vIdxB    = 2
-		aggBitsA = "0x02" // getAggBitsHex(vIdxA, commLen)
-		aggBitsB = "0x04" // getAggBitsHex(vIdxB, commLen)
+		slot        = 123
+		commIdx     = 456
+		commLen     = 8
+		vIdxA       = 1
+		vIdxB       = 2
+		valCommIdxA = vIdxA
+		valCommIdxB = vIdxB
 	)
 	// Store the same attestation (same slot and committee) for two validators.
 
@@ -83,7 +83,7 @@ func TestMemDB(t *testing.T) {
 		Data: attData,
 		Duty: eth2v1.AttesterDuty{
 			CommitteeLength:         commLen,
-			ValidatorCommitteeIndex: vIdxA,
+			ValidatorCommitteeIndex: valCommIdxA,
 			CommitteesAtSlot:        notZero,
 		},
 	})
@@ -92,7 +92,7 @@ func TestMemDB(t *testing.T) {
 		Data: attData,
 		Duty: eth2v1.AttesterDuty{
 			CommitteeLength:         commLen,
-			ValidatorCommitteeIndex: vIdxB,
+			ValidatorCommitteeIndex: valCommIdxB,
 			CommitteesAtSlot:        notZero,
 		},
 	})
@@ -113,11 +113,11 @@ func TestMemDB(t *testing.T) {
 	}
 
 	// Assert that two pubkeys can be resolved.
-	pkA, err := db.PubKeyByAttestation(ctx, int64(attData.Slot), int64(attData.Index), aggBitsA)
+	pkA, err := db.PubKeyByAttestation(ctx, int64(attData.Slot), int64(attData.Index), valCommIdxA)
 	require.NoError(t, err)
 	require.Equal(t, pubkeysByIdx[vIdxA], pkA)
 
-	pkB, err := db.PubKeyByAttestation(ctx, int64(attData.Slot), int64(attData.Index), aggBitsB)
+	pkB, err := db.PubKeyByAttestation(ctx, int64(attData.Slot), int64(attData.Index), valCommIdxB)
 	require.NoError(t, err)
 	require.Equal(t, pubkeysByIdx[vIdxB], pkB)
 }
