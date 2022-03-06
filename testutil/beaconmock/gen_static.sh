@@ -11,24 +11,24 @@ fi
 
 echo "Using BEACON_URL=${BEACON_URL}"
 
-TARGET="static.json"
 ENDPOINTS=(/eth/v1/beacon/genesis /eth/v1/config/deposit_contract /eth/v1/config/fork_schedule /eth/v1/node/version /eth/v1/config/spec)
 
-RESP="{"
 FIRST=true
+RESP="{"
 for ENDPOINT in "${ENDPOINTS[@]}"; do
-  if [ "${FIRST}" == "true" ]; then
+  if ${FIRST}; then
     FIRST=false
   else
-      RESP="${RESP},"
+    RESP="${RESP},"
   fi
 
   echo "Curling ${ENDPOINT}"
   VALUE=$(curl -s "${BEACON_URL}${ENDPOINT}")
 
-  RESP="${RESP}\"${ENDPOINT}\":${VALUE}"
+  RESP="${RESP} \"${ENDPOINT}\": ${VALUE}"
 done
+RESP="${RESP} }"
 
+TARGET="static.json"
 echo "Writing ${TARGET}"
-RESP="${RESP}}"
 echo "${RESP}" | jq . > "${TARGET}"
