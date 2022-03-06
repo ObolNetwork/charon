@@ -27,6 +27,8 @@ import (
 //go:embed static.json
 var staticJSON []byte
 
+// StaticProvider defines a subset of eth2 service providers that
+// are served from memory after fetching the data once on startup.
 type StaticProvider interface {
 	eth2client.SpecProvider
 	eth2client.GenesisProvider

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 
-# Generates the statis.json file which used in the beaconmock as static values.
+# Generates the static.json file which is served as part of the beaconmock's static values provider.
+
+set -e
 
 if [ -z "${BEACON_URL}" ]; then
-  echo BEACON_URL not set
+  echo "BEACON_URL not set"
   exit 1
 fi
 
