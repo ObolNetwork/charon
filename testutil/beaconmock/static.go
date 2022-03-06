@@ -50,6 +50,7 @@ func NewStaticProvider(ctx context.Context) (StaticProvider, error) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(respPerPath[r.URL.Path])
 	}))
+	defer srv.Close()
 
 	ethCl, err := eth2http.New(ctx, eth2http.WithAddress(srv.URL), eth2http.WithLogLevel(1))
 	if err != nil {
