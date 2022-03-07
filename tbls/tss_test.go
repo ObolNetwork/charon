@@ -18,7 +18,7 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/tbls"
@@ -38,8 +38,6 @@ func TestGenerateTSS(t *testing.T) {
 }
 
 func TestAggregateSignatures(t *testing.T) {
-	// TODO(corver): This test fails if run with "generic" build tag due to bug in kryptology.
-
 	threshold := 3
 	shares := 5
 
@@ -53,9 +51,16 @@ func TestAggregateSignatures(t *testing.T) {
 		require.NoError(t, err)
 
 		partialSigs[i] = psig
+
+		pubshare, err := tss.PublicShare(int(psig.Identifier))
+		require.NoError(t, err)
+
+		ok, err := tbls.Verify(pubshare, msg, &bls_sig.Signature{Value: *psig.Signature})
+		require.NoError(t, err)
+		require.True(t, ok)
 	}
 
-	sig, _, err := tbls.AggregateSignatures(tss, partialSigs, msg)
+	sig, _, err := tbls.VerifyAndAggregate(tss, partialSigs, msg)
 	require.NoError(t, err)
 
 	result, err := tbls.Verify(tss.PublicKey(), msg, sig)

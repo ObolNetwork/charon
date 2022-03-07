@@ -7,7 +7,7 @@ replace github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/prysmaticlabs/gr
 
 require (
 	github.com/attestantio/go-eth2-client v0.10.2
-	github.com/coinbase/kryptology v1.5.5
+	github.com/dB2510/kryptology v1.5.6-0.20220307123050-907df7c22492
 	github.com/ethereum/go-ethereum v1.10.16
 	github.com/gorilla/mux v1.8.0
 	github.com/jonboulle/clockwork v0.2.2
@@ -16,6 +16,7 @@ require (
 	github.com/libp2p/go-libp2p-noise v0.3.0
 	github.com/multiformats/go-multiaddr v0.5.0
 	github.com/prometheus/client_golang v1.12.1
+	github.com/prysmaticlabs/go-bitfield v0.0.0-20210809151128-385d8c5e3fb7
 	github.com/spf13/cobra v1.3.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.10.1
@@ -136,7 +137,6 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
-	github.com/prysmaticlabs/go-bitfield v0.0.0-20210809151128-385d8c5e3fb7 // indirect
 	github.com/r3labs/sse/v2 v2.7.4 // indirect
 	github.com/rs/zerolog v1.26.1 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
