@@ -1,3 +1,4 @@
+// Package validatormock provides mock validator client functionality.
 package validatormock
 
 import (
@@ -11,6 +12,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
+// Eth2AttProvider defines the eth2 beacon api providers required to perform attestations.
 type Eth2AttProvider interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttesterDutiesProvider
@@ -21,9 +23,10 @@ type Eth2AttProvider interface {
 	eth2client.DomainProvider
 }
 
+// SignFunc abstract signing done by the validator client.
 type SignFunc func(context.Context, eth2p0.BLSPubKey, eth2p0.SigningData) (eth2p0.BLSSignature, error)
 
-// Attest performs attestion duties for the provided slot and pubkeys (validators).
+// Attest performs attestation duties for the provided slot and pubkeys (validators).
 func Attest(ctx context.Context, eth2Cl Eth2AttProvider, signFunc SignFunc,
 	slot eth2p0.Slot, pubkeys []eth2p0.BLSPubKey,
 ) error {
@@ -94,6 +97,7 @@ func Attest(ctx context.Context, eth2Cl Eth2AttProvider, signFunc SignFunc,
 	return eth2Cl.SubmitAttestations(ctx, atts)
 }
 
+// eth2DomainProvider is the subset of eth2 beacon api provider required to get a signing domain.
 type eth2DomainProvider interface {
 	eth2client.SpecProvider
 	eth2client.DomainProvider
