@@ -32,9 +32,9 @@ func NewMemDB(threshold int) *MemDB {
 // MemDB is a placeholder in-memory partial signature database.
 // It will be replaced with a BadgerDB implementation.
 type MemDB struct {
-	mu         sync.Mutex
-	intSubs    []func(context.Context, core.Duty, core.ParSignedDataSet) error
-	threshSubs []func(context.Context, core.Duty, core.PubKey, []core.ParSignedData) error
+	mu           sync.Mutex
+	internalSubs []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	threshSubs   []func(context.Context, core.Duty, core.PubKey, []core.ParSignedData) error
 
 	entries   map[key][]core.ParSignedData
 	threshold int
@@ -45,7 +45,7 @@ type MemDB struct {
 func (db *MemDB) SubscribeInternal(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	db.intSubs = append(db.intSubs, fn)
+	db.internalSubs = append(db.internalSubs, fn)
 }
 
 // SubscribeThreshold registers a callback when *threshold*
@@ -62,8 +62,8 @@ func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet co
 		return err
 	}
 
-	// Call ParSigEx to exchange partial signed data with all peers.
-	for _, sub := range db.intSubs {
+	// Call internalSubs (which includes ParSigEx to exchange partial signed data with all peers).
+	for _, sub := range db.internalSubs {
 		err := sub(ctx, duty, signedSet)
 		if err != nil {
 			return err
@@ -94,7 +94,7 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 			db.entries[k] = sigs
 		}
 
-		// Call the SigAgg component if sufficient signatures have been received.
+		// Call the threshSubs (which includes SigAgg component) if sufficient signatures have been received.
 		if len(sigs) != db.threshold {
 			continue
 		}
