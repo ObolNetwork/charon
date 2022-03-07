@@ -172,7 +172,7 @@ func PartialSign(sks *bls_sig.SecretKeyShare, msg []byte) (*bls_sig.PartialSigna
 	return psig, nil
 }
 
-// Sign signs given message(msg) using given Secret Key Share(sks) and returns a Partial Signature.
+// Sign signs given message(msg) using given Secret Key(sk) and returns a Signature.
 func Sign(sk *bls_sig.SecretKey, msg []byte) (*bls_sig.Signature, error) {
 	sig, err := blsScheme.Sign(sk, msg)
 	if err != nil {
@@ -207,7 +207,7 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int, reader io.Reader) 
 	sks := make([]*bls_sig.SecretKeyShare, len(shares))
 
 	for i, s := range shares {
-		// ref: https://github.com/dB2510/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/signatures/bls/bls_sig/lib.go#L26
+		// ref: https://github.com/coinbase/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/signatures/bls/bls_sig/lib.go#L26
 		skbin := s.Value
 		skbin = append(skbin, byte(s.Id))
 		sks[i] = &bls_sig.SecretKeyShare{}
@@ -222,7 +222,7 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int, reader io.Reader) 
 // getPubShare returns the public key corresponding to a secret share with given Verifiers.
 //
 // This function has been taken from:
-// https://github.com/dB2510/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/sharing/v1/feldman.go#L66
+// https://github.com/coinbase/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/sharing/v1/feldman.go#L66
 // where Verifiers(coefficients of public polynomial) are used to compute sum of products of public polynomial with
 // identifier as x coordinate.
 func getPubShare(identifier int, verifier *share.FeldmanVerifier) (*bls_sig.PublicKey, error) {
