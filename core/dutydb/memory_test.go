@@ -79,7 +79,7 @@ func TestMemDB(t *testing.T) {
 	duty := core.Duty{Slot: slot, Type: core.DutyAttester}
 
 	// The two validators have similar unsigned data, just the ValidatorCommitteeIndex is different.
-	unsingedA, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
+	unsignedA, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
 		Data: attData,
 		Duty: eth2v1.AttesterDuty{
 			CommitteeLength:         commLen,
@@ -88,7 +88,7 @@ func TestMemDB(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	unsingedB, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
+	unsignedB, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
 		Data: attData,
 		Duty: eth2v1.AttesterDuty{
 			CommitteeLength:         commLen,
@@ -99,11 +99,11 @@ func TestMemDB(t *testing.T) {
 	require.NoError(t, err)
 
 	// Store it
-	err = db.Store(ctx, duty, core.UnsignedDataSet{pubkeysByIdx[vIdxA]: unsingedA, pubkeysByIdx[vIdxB]: unsingedB})
+	err = db.Store(ctx, duty, core.UnsignedDataSet{pubkeysByIdx[vIdxA]: unsignedA, pubkeysByIdx[vIdxB]: unsignedB})
 	require.NoError(t, err)
 
 	// Store one validator again to test idempotent inserts
-	err = db.Store(ctx, duty, core.UnsignedDataSet{pubkeysByIdx[vIdxA]: unsingedA})
+	err = db.Store(ctx, duty, core.UnsignedDataSet{pubkeysByIdx[vIdxA]: unsignedA})
 	require.NoError(t, err)
 
 	// Get and assert the query responses.
