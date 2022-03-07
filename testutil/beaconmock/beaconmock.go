@@ -26,15 +26,18 @@ import (
 
 // Interface assertions.
 var (
-	_ eth2client.Service                 = (*Mock)(nil)
-	_ eth2client.NodeSyncingProvider     = (*Mock)(nil)
-	_ eth2client.GenesisTimeProvider     = (*Mock)(nil)
-	_ eth2client.ValidatorsProvider      = (*Mock)(nil)
-	_ eth2client.SlotsPerEpochProvider   = (*Mock)(nil)
-	_ eth2client.SlotDurationProvider    = (*Mock)(nil)
-	_ eth2client.AttesterDutiesProvider  = (*Mock)(nil)
-	_ eth2client.ProposerDutiesProvider  = (*Mock)(nil)
 	_ eth2client.AttestationDataProvider = (*Mock)(nil)
+	_ eth2client.AttestationsSubmitter   = (*Mock)(nil)
+	_ eth2client.AttesterDutiesProvider  = (*Mock)(nil)
+	_ eth2client.DomainProvider          = (*Mock)(nil)
+	_ eth2client.GenesisTimeProvider     = (*Mock)(nil)
+	_ eth2client.NodeSyncingProvider     = (*Mock)(nil)
+	_ eth2client.ProposerDutiesProvider  = (*Mock)(nil)
+	_ eth2client.Service                 = (*Mock)(nil)
+	_ eth2client.SlotDurationProvider    = (*Mock)(nil)
+	_ eth2client.SlotsPerEpochProvider   = (*Mock)(nil)
+	_ eth2client.SpecProvider            = (*Mock)(nil)
+	_ eth2client.ValidatorsProvider      = (*Mock)(nil)
 )
 
 // New returns a new beacon client mock configured with the default and provided options.
@@ -50,15 +53,30 @@ func New(opts ...Option) Mock {
 // Mock provides a mock beacon client and implements eth2client.Service and many of the eth2client Providers.
 // Create a new instance with default behaviour via New and then override any function.
 type Mock struct {
-	ProposerDutiesFunc     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
-	AttesterDutiesFunc     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	AttestationDataFunc    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
-	SlotDurationFunc       func(context.Context) (time.Duration, error)
-	SlotsPerEpochFunc      func(context.Context) (uint64, error)
-	ValidatorsFunc         func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	ValidatorsByPubKeyFunc func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	AttesterDutiesFunc     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	DomainFunc             func(context.Context, eth2p0.DomainType, eth2p0.Epoch) (eth2p0.Domain, error)
 	GenesisTimeFunc        func(context.Context) (time.Time, error)
 	NodeSyncingFunc        func(context.Context) (*eth2v1.SyncState, error)
+	ProposerDutiesFunc     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	SlotDurationFunc       func(context.Context) (time.Duration, error)
+	SlotsPerEpochFunc      func(context.Context) (uint64, error)
+	SpecFunc               func(context.Context) (map[string]interface{}, error)
+	SubmitAttestationsFunc func(context.Context, []*eth2p0.Attestation) error
+	ValidatorsByPubKeyFunc func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	ValidatorsFunc         func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+}
+
+func (m Mock) Domain(ctx context.Context, domainType eth2p0.DomainType, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
+	return m.DomainFunc(ctx, domainType, epoch)
+}
+
+func (m Mock) Spec(ctx context.Context) (map[string]interface{}, error) {
+	return m.SpecFunc(ctx)
+}
+
+func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
+	return m.SubmitAttestationsFunc(ctx, attestations)
 }
 
 func (m Mock) AttestationData(ctx context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {

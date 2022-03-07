@@ -59,6 +59,16 @@ func (s ValidatorSet) PublicKeys() ([]core.PubKey, error) {
 	return resp, nil
 }
 
+// ETH2PubKeys is a convenience function to extract the eth2 client bls public keys from the validators.
+func (s ValidatorSet) ETH2PubKeys() []eth2p0.BLSPubKey {
+	var resp []eth2p0.BLSPubKey
+	for _, validator := range s {
+		resp = append(resp, validator.Validator.PublicKey)
+	}
+
+	return resp
+}
+
 // ValidatorSetA defines a set 3 validators.
 var ValidatorSetA = ValidatorSet{
 	1: {
@@ -134,7 +144,7 @@ func WithGenesis(t0 time.Time) Option {
 	}
 }
 
-// WithDeterministicDuties configures the mock with to provide deterministic duties based on provided arguments and config.
+// WithDeterministicDuties configures the mock to provide deterministic duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
 func WithDeterministicDuties(factor int) Option {
 	return func(mock *Mock) {
@@ -165,14 +175,26 @@ func WithDeterministicDuties(factor int) Option {
 					Slot:                    eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(i*factor)),
 					ValidatorIndex:          index,
 					CommitteeIndex:          eth2p0.CommitteeIndex(i * factor),
-					CommitteeLength:         0,
-					CommitteesAtSlot:        0,
+					CommitteeLength:         8,
+					CommitteesAtSlot:        8,
 					ValidatorCommitteeIndex: uint64(i * factor),
 				})
 			}
 
 			return resp, nil
 		}
+	}
+}
+
+// WithStaticProvider configures the mock with a static value provider.
+func WithStaticProvider(provider StaticProvider) Option {
+	return func(mock *Mock) {
+		mock.GenesisTimeFunc = provider.GenesisTime
+		mock.SpecFunc = provider.Spec
+		mock.SlotDurationFunc = provider.SlotDuration
+		mock.SlotsPerEpochFunc = provider.SlotsPerEpoch
+		mock.DomainFunc = provider.Domain
+		mock.GenesisTimeFunc = provider.GenesisTime
 	}
 }
 
@@ -216,6 +238,12 @@ func defaultMock() Mock {
 				SyncDistance: 0,
 				IsSyncing:    false,
 			}, nil
+		},
+		SpecFunc: func(context.Context) (map[string]interface{}, error) {
+			return nil, nil
+		},
+		SubmitAttestationsFunc: func(context.Context, []*eth2p0.Attestation) error {
+			return nil
 		},
 	}
 }
