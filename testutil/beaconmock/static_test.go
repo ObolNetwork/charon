@@ -16,9 +16,11 @@ package beaconmock_test
 
 import (
 	"context"
-	"github.com/obolnetwork/charon/testutil/beaconmock"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestStatic(t *testing.T) {
