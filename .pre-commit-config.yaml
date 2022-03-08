@@ -20,6 +20,11 @@ repos:
       - id: check-licence-header
         types: [ file, go ]
 
+  - repo: https://github.com/corverroos/fiximports
+    rev: 496e5392530966aa8f12e88a289c07782075cf91
+    hooks:
+      - id: go-fiximports # format imports for go source files
+
   - repo: https://github.com/tekwizely/pre-commit-golang
     rev: v1.0.0-beta.5 # cannot use master as it is a mutable reference and is not supported
     hooks:

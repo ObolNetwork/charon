@@ -20,12 +20,16 @@ import (
 
 	"github.com/attestantio/go-eth2-client/mock"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
+	"github.com/obolnetwork/charon/testutil/validatormock"
 )
 
 func TestComponent_ValidSubmitAttestations(t *testing.T) {
@@ -48,7 +52,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 		vIdxB: testutil.RandomPubKey(t),
 	}
 
-	component, err := validatorapi.NewComponent(eth2Svc, 0)
+	component, err := validatorapi.NewComponentInsecure(eth2Svc, 0)
 	require.NoError(t, err)
 
 	aggBitsA := bitfield.NewBitlist(commLen)
@@ -119,7 +123,7 @@ func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 		commLen    = 8
 	)
 
-	component, err := validatorapi.NewComponent(eth2Svc, vIdx)
+	component, err := validatorapi.NewComponentInsecure(eth2Svc, vIdx)
 	require.NoError(t, err)
 
 	aggBits := bitfield.NewBitlist(commLen)
@@ -141,4 +145,79 @@ func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 
 	err = component.SubmitAttestations(ctx, atts)
 	require.Error(t, err)
+}
+
+func TestSubmitAttestations_Verify(t *testing.T) {
+	ctx := context.Background()
+
+	// Create keys
+	pubkey, secret, err := bls_sig.NewSigEth2().Keygen()
+	require.NoError(t, err)
+
+	// Configure validator
+	const vIdx = 1
+	validator := beaconmock.ValidatorSetA[vIdx]
+
+	b, err := pubkey.MarshalBinary()
+	require.NoError(t, err)
+	copy(validator.Validator.PublicKey[:], b)
+	corePubKey, err := core.PubKeyFromBytes(b)
+	require.NoError(t, err)
+
+	// Configure beacon mock
+	static, err := beaconmock.NewStaticProvider(ctx)
+	require.NoError(t, err)
+
+	bmock := beaconmock.New(
+		beaconmock.WithStaticProvider(static),
+		beaconmock.WithValidatorSet(beaconmock.ValidatorSet{vIdx: validator}),
+		beaconmock.WithDeterministicDuties(0), // All duties in first slot of epoch.
+	)
+	require.NoError(t, err)
+
+	epochSlot, err := bmock.SlotsPerEpoch(ctx)
+	require.NoError(t, err)
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, stubPubShare, 0)
+	require.NoError(t, err)
+
+	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error) {
+		require.EqualValues(t, slot, epochSlot)
+		require.EqualValues(t, commIdx, 0)
+		require.EqualValues(t, valCommIdx, 0)
+
+		return corePubKey, nil
+	})
+
+	// Collect submitted partial signature.
+	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Len(t, set, 1)
+		_, err := core.DecodeAttestationParSignedData(set[corePubKey])
+		require.NoError(t, err)
+
+		return nil
+	})
+
+	// Configure beacon mock to call validator API for submissions
+	bmock.SubmitAttestationsFunc = vapi.SubmitAttestations
+
+	// Run attestation using validator mock
+	err = validatormock.Attest(ctx, bmock, validatormock.NewSigner(secret), eth2p0.Slot(epochSlot), validator.Validator.PublicKey)
+	require.NoError(t, err)
+}
+
+// stubPubShare is a stub PubShareFunc that just returns the public key itself.
+func stubPubShare(pubkey core.PubKey, _ int) (*bls_sig.PublicKey, error) {
+	b, err := pubkey.Bytes()
+	if err != nil {
+		return nil, err
+	}
+
+	pk := new(bls_sig.PublicKey)
+	if err := pk.UnmarshalBinary(b); err != nil {
+		return nil, errors.Wrap(err, "unmarshal pubkey")
+	}
+
+	return pk, nil
 }

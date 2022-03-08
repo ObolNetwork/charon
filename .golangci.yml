@@ -81,6 +81,7 @@ linters:
     - exhaustivestruct
     - funlen
     - forcetypeassert
+    - gci
     - gochecknoglobals
     - godox
     - goerr113

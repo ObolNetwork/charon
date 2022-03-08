@@ -1,3 +1,17 @@
+// Copyright © 2021 Obol Technologies Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // Package validatormock provides mock validator client functionality.
 package validatormock
 
@@ -7,20 +21,24 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/prysmaticlabs/go-bitfield"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/core/validatorapi"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 // Eth2AttProvider defines the eth2 beacon api providers required to perform attestations.
 type Eth2AttProvider interface {
 	eth2client.AttestationDataProvider
-	eth2client.AttesterDutiesProvider
 	eth2client.AttestationsSubmitter
-	eth2client.SlotsPerEpochProvider
-	eth2client.ValidatorsProvider
-	eth2client.SpecProvider
+	eth2client.AttesterDutiesProvider
 	eth2client.DomainProvider
+	eth2client.SlotsPerEpochProvider
+	eth2client.SpecProvider
+	eth2client.ValidatorsProvider
+	// Above sorted alphabetically.
 }
 
 // SignFunc abstract signing done by the validator client.
@@ -28,7 +46,7 @@ type SignFunc func(context.Context, eth2p0.BLSPubKey, eth2p0.SigningData) (eth2p
 
 // Attest performs attestation duties for the provided slot and pubkeys (validators).
 func Attest(ctx context.Context, eth2Cl Eth2AttProvider, signFunc SignFunc,
-	slot eth2p0.Slot, pubkeys []eth2p0.BLSPubKey,
+	slot eth2p0.Slot, pubkeys ...eth2p0.BLSPubKey,
 ) error {
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
@@ -37,7 +55,7 @@ func Attest(ctx context.Context, eth2Cl Eth2AttProvider, signFunc SignFunc,
 
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 
-	domain, err := getDomain(ctx, eth2Cl, "DOMAIN_BEACON_ATTESTER", epoch)
+	domain, err := validatorapi.GetDomain(ctx, eth2Cl, validatorapi.DomainBeaconAttester, epoch)
 	if err != nil {
 		return err
 	}
@@ -97,30 +115,55 @@ func Attest(ctx context.Context, eth2Cl Eth2AttProvider, signFunc SignFunc,
 	return eth2Cl.SubmitAttestations(ctx, atts)
 }
 
-// eth2DomainProvider is the subset of eth2 beacon api provider required to get a signing domain.
-type eth2DomainProvider interface {
-	eth2client.SpecProvider
-	eth2client.DomainProvider
+// NewSigner returns a singing function supporting the provided private keys.
+func NewSigner(secrets ...*bls_sig.SecretKey) SignFunc {
+	return func(ctx context.Context, pubkey eth2p0.BLSPubKey, data eth2p0.SigningData) (eth2p0.BLSSignature, error) {
+		secret, err := getSecret(secrets, pubkey)
+		if err != nil {
+			return eth2p0.BLSSignature{}, err
+		}
+
+		msg, err := data.MarshalSSZ()
+		if err != nil {
+			return eth2p0.BLSSignature{}, errors.Wrap(err, "marshal signing data")
+		}
+
+		sig, err := tbls.Sign(secret, msg)
+		if err != nil {
+			return eth2p0.BLSSignature{}, err
+		}
+
+		b, err := sig.MarshalBinary()
+		if err != nil {
+			return eth2p0.BLSSignature{}, errors.Wrap(err, "marshal signature")
+		}
+
+		var eth2Sig eth2p0.BLSSignature
+		copy(eth2Sig[:], b)
+
+		return eth2Sig, nil
+	}
 }
 
-// getDomain returns the beacon domain for the provided type.
-// Types are defined in eth2 spec, see "specs/[phase0|altair]/beacon-chain.md#domain-types"
-// at https://github.com/ethereum/consensus-specs.
-func getDomain(ctx context.Context, eth2Cl eth2DomainProvider, typ string, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
-	spec, err := eth2Cl.Spec(ctx)
-	if err != nil {
-		return eth2p0.Domain{}, err
+func getSecret(secrets []*bls_sig.SecretKey, pubkey eth2p0.BLSPubKey) (*bls_sig.SecretKey, error) {
+	for _, secret := range secrets {
+		pk, err := secret.GetPublicKey()
+		if err != nil {
+			return nil, errors.Wrap(err, "get pubkey")
+		}
+
+		b, err := pk.MarshalBinary()
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal pubkey")
+		}
+
+		var ethPk eth2p0.BLSPubKey
+		copy(ethPk[:], b)
+
+		if ethPk == pubkey {
+			return secret, nil
+		}
 	}
 
-	domainType, ok := spec[typ]
-	if !ok {
-		return eth2p0.Domain{}, errors.New("domain type not found")
-	}
-
-	domainTyped, ok := domainType.(eth2p0.DomainType)
-	if !ok {
-		return eth2p0.Domain{}, errors.New("invalid domain type")
-	}
-
-	return eth2Cl.Domain(ctx, domainTyped, epoch)
+	return nil, errors.New("private key not found")
 }
