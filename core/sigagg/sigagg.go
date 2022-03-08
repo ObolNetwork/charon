@@ -51,23 +51,26 @@ func (a *Aggregator) Subscribe(fn func(context.Context, core.Duty, core.PubKey, 
 func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.PubKey, parSigs []core.ParSignedData) error {
 	if len(parSigs) < a.threshold {
 		return errors.New("require threshold signatures")
+	} else if a.threshold == 0 {
+		return errors.New("invalid threshold config")
 	}
 
+	// Get all partial signatures and one partial signed data object.
 	var (
-		blsSigs []*bls_sig.PartialSignature
-		first   core.ParSignedData
-		root    eth2p0.Root
+		blsSigs     []*bls_sig.PartialSignature
+		firstParSig core.ParSignedData
+		firstRoot   eth2p0.Root
 	)
 	for i, parSig := range parSigs {
-		r, err := getSignedRoot(duty.Type, parSig)
+		root, err := getSignedRoot(duty.Type, parSig)
 		if err != nil {
 			return err
 		}
 
 		if i == 0 {
-			first = parSig
-			root = r
-		} else if root != r {
+			firstParSig = parSig
+			firstRoot = root
+		} else if firstRoot != root {
 			return errors.New("mismatching signed root")
 		}
 
@@ -82,16 +85,19 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 		})
 	}
 
+	// Aggregate signatures
 	sig, err := tbls.Aggregate(blsSigs)
 	if err != nil {
 		return err
 	}
 
-	aggSig, err := getAggSignedData(duty.Type, first, sig)
+	// Inject signature into resulting aggregate singed data.
+	aggSig, err := getAggSignedData(duty.Type, firstParSig, sig)
 	if err != nil {
 		return err
 	}
 
+	// Call subscriptions.
 	for _, sub := range a.subs {
 		err := sub(ctx, duty, pubkey, aggSig)
 		if err != nil {
