@@ -88,11 +88,11 @@ func TestMemTransport(t *testing.T) {
 		expected = append(expected, data)
 
 		for j := 0; j < n; j++ {
-			go func(slot, node int) {
+			go func(node int) {
 				err := casts[node].Propose(ctx, duty, data)
 				require.NoError(t, err)
 				resolved <- data
-			}(i, j)
+			}(j)
 		}
 	}
 

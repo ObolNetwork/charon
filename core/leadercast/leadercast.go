@@ -92,11 +92,7 @@ func (l *LeaderCast) Subscribe(fn func(ctx context.Context, duty core.Duty, set 
 
 func (l *LeaderCast) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	if isLeader(l.index, l.total, duty) {
-		if err := l.transport.Broadcast(ctx, l.index, duty, data); err != nil {
-			return err
-		}
-
-		return nil
+		return l.transport.Broadcast(ctx, l.index, duty, data)
 	}
 
 	select {
