@@ -21,7 +21,6 @@ import (
 	"crypto/ecdsa"
 	"net/http"
 	"net/http/pprof"
-	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -35,8 +34,6 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/leadercast"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -61,10 +58,6 @@ type TestConfig struct {
 	P2PKey *ecdsa.PrivateKey
 	// PingCallback is called when a ping was completed to a peer.
 	PingCallback func(peer.ID)
-	// SimDutyPeriod overrides the default duty simulator period of 5 seconds.
-	SimDutyPeriod time.Duration
-	// SimDutyCallback is called when the duty simulator resolves a mock duty.
-	SimDutyCallback func(core.Duty, []byte)
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -111,20 +104,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	wireDutySimulator(life, tcpNode, index, manifest, conf)
-
 	// Run life cycle manager
 	return life.Run(ctx)
-}
-
-// wireDutySimulator constructs the duty simulator and registers it with the life cycle manager.
-func wireDutySimulator(life *lifecycle.Manager, tcpNode host.Host, index int, manifest Manifest, conf Config) {
-	lcast := leadercast.New(leadercast.NewP2PTransport(tcpNode, index, manifest.PeerIDs()), index, len(manifest.Peers))
-
-	startSim := newDutySimulator(lcast, conf.TestConfig.SimDutyPeriod, conf.TestConfig.SimDutyCallback)
-
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartLeaderCast, lifecycle.HookFunc(lcast.Run))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartSimulator, lifecycle.HookFunc(startSim))
 }
 
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
