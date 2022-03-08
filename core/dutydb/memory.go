@@ -47,7 +47,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	switch duty.Type { //nolint:exhaustive // Default is exhaustive
+	switch duty.Type {
 	case core.DutyAttester:
 		for pubkey, unsignedData := range unsignedSet {
 			err := db.storeAttestationUnsafe(pubkey, unsignedData)

@@ -61,7 +61,6 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchAr
 		err         error
 	)
 
-	//nolint: exhaustive // Default case is exhaustive
 	switch duty.Type {
 	case core.DutyAttester:
 		unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, argSet)
