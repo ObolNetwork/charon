@@ -34,8 +34,8 @@ const protocol = "/charon/leadercast/1.0.0"
 
 // Transport abstracts the transport layer for leader cast consensus.
 type Transport interface {
-	Broadcast(ctx context.Context, source int, d core.Duty, data []byte) error
-	AwaitNext(ctx context.Context) (source int, d core.Duty, data []byte, err error)
+	Broadcast(ctx context.Context, source int, d core.Duty, data core.UnsignedDataSet) error
+	AwaitNext(ctx context.Context) (source int, d core.Duty, data core.UnsignedDataSet, err error)
 }
 
 func NewP2PTransport(tcpNode host.Host, index int, peers []peer.ID) Transport {
@@ -75,7 +75,7 @@ func (t *p2pTransport) handle(s network.Stream) {
 	}
 }
 
-func (t *p2pTransport) Broadcast(ctx context.Context, source int, d core.Duty, data []byte) error {
+func (t *p2pTransport) Broadcast(ctx context.Context, source int, d core.Duty, data core.UnsignedDataSet) error {
 	b, err := json.Marshal(p2pMsg{
 		Source: source,
 		Duty:   d,
@@ -109,7 +109,7 @@ func (t *p2pTransport) Broadcast(ctx context.Context, source int, d core.Duty, d
 	return nil
 }
 
-func (t *p2pTransport) AwaitNext(ctx context.Context) (int, core.Duty, []byte, error) {
+func (t *p2pTransport) AwaitNext(ctx context.Context) (int, core.Duty, core.UnsignedDataSet, error) {
 	select {
 	case <-ctx.Done():
 		return 0, core.Duty{}, nil, ctx.Err()
@@ -139,7 +139,7 @@ func sendData(ctx context.Context, t *p2pTransport, p peer.ID, b []byte) error {
 type p2pMsg struct {
 	Source int
 	Duty   core.Duty
-	Data   []byte
+	Data   core.UnsignedDataSet
 }
 
 // NewMemTransportFunc returns a function that itself returns in-memory
@@ -187,7 +187,7 @@ type memTransport struct {
 	output <-chan p2pMsg
 }
 
-func (m memTransport) Broadcast(ctx context.Context, source int, duty core.Duty, data []byte) error {
+func (m memTransport) Broadcast(ctx context.Context, source int, duty core.Duty, data core.UnsignedDataSet) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -200,7 +200,7 @@ func (m memTransport) Broadcast(ctx context.Context, source int, duty core.Duty,
 	}
 }
 
-func (m memTransport) AwaitNext(ctx context.Context) (int, core.Duty, []byte, error) {
+func (m memTransport) AwaitNext(ctx context.Context) (int, core.Duty, core.UnsignedDataSet, error) {
 	select {
 	case <-ctx.Done():
 		return 0, core.Duty{}, nil, ctx.Err()

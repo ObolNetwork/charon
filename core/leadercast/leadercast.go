@@ -31,7 +31,7 @@ func New(transport Transport, index, total int) *LeaderCast {
 		total:     total,
 		index:     index,
 		transport: transport,
-		buffers:   make(map[core.Duty]chan []byte),
+		buffers:   make(map[core.Duty]chan core.UnsignedDataSet),
 	}
 }
 
@@ -47,7 +47,8 @@ type LeaderCast struct {
 	transport Transport
 
 	mu      sync.Mutex
-	buffers map[core.Duty]chan []byte
+	buffers map[core.Duty]chan core.UnsignedDataSet
+	subs    []func(context.Context, core.Duty, core.UnsignedDataSet) error
 }
 
 func (l *LeaderCast) Run(ctx context.Context) error {
@@ -73,36 +74,47 @@ func (l *LeaderCast) Run(ctx context.Context) error {
 }
 
 // getBuffer returns the channel to buffer the duty data.
-func (l *LeaderCast) getBuffer(duty core.Duty) chan []byte {
+func (l *LeaderCast) getBuffer(duty core.Duty) chan core.UnsignedDataSet {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	ch, ok := l.buffers[duty]
 	if !ok {
-		ch = make(chan []byte, 1) // Only need to buffer a single message per duty.
+		ch = make(chan core.UnsignedDataSet, 1) // Only need to buffer a single message per duty.
 		l.buffers[duty] = ch
 	}
 
 	return ch
 }
 
-func (l *LeaderCast) ResolveDuty(ctx context.Context, duty core.Duty, data []byte) ([]byte, error) {
+func (l *LeaderCast) Subscribe(fn func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error) {
+	l.subs = append(l.subs, fn)
+}
+
+func (l *LeaderCast) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	if isLeader(l.index, l.total, duty) {
 		if err := l.transport.Broadcast(ctx, l.index, duty, data); err != nil {
-			return nil, err
+			return err
 		}
 
-		return data, nil
+		return nil
 	}
 
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
-	case data := <-l.getBuffer(duty):
+		return ctx.Err()
+	case <-l.getBuffer(duty):
 		l.mu.Lock()
 		delete(l.buffers, duty)
 		l.mu.Unlock()
 
-		return data, nil
+		for _, sub := range l.subs {
+			err := sub(ctx, duty, data)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}
 }
 
