@@ -4,6 +4,8 @@ linters-settings:
   cyclop:
     max-complexity: 15
     skip-tests: true
+  exhaustive:
+    default-signifies-exhaustive: true
   forbidigo:
     forbid:
       - 'fmt\.Print.*'            # Prevent debug logging

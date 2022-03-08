@@ -141,3 +141,12 @@ type ParSignedData struct {
 
 // ParSignedDataSet is a set of partially signed duty data objects, one per validator.
 type ParSignedDataSet map[PubKey]ParSignedData
+
+// AggSignedData is an aggregated signed duty data.
+// Aggregated refers to it being signed by the aggregated BLS threshold signing scheme.
+type AggSignedData struct {
+	// Data is the signed duty data to be sent to beacon chain.
+	Data []byte
+	// Signature is the result of tbls aggregation and is inserted into the data.
+	Signature []byte
+}

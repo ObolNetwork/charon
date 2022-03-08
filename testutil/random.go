@@ -12,12 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//nolint:gosec
 package testutil
 
 import (
-	"crypto/rand"
+	"math/rand"
 	"testing"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -33,4 +37,91 @@ func RandomPubKey(t *testing.T) core.PubKey {
 	require.NoError(t, err)
 
 	return pubkey
+}
+
+// RandomBLSPubKey returns a random eth2 phase0 bls pubkey.
+func RandomBLSPubKey() eth2p0.BLSPubKey {
+	var pubkey eth2p0.BLSPubKey
+	_, _ = rand.Read(pubkey[:])
+
+	return pubkey
+}
+
+func RandomAttestation() *eth2p0.Attestation {
+	return &eth2p0.Attestation{
+		AggregationBits: RandomBitList(),
+		Data:            RandomAttestationData(),
+		Signature:       RandomSignature(),
+	}
+}
+
+func RandomAttestationData() *eth2p0.AttestationData {
+	return &eth2p0.AttestationData{
+		Slot:            RandomSlot(),
+		Index:           RandomCommIdx(),
+		BeaconBlockRoot: RandomRoot(),
+		Source:          RandomCheckpoint(),
+		Target:          RandomCheckpoint(),
+	}
+}
+
+func RandomAttestationDuty() *eth2v1.AttesterDuty {
+	return &eth2v1.AttesterDuty{
+		PubKey:                  RandomBLSPubKey(),
+		Slot:                    RandomSlot(),
+		ValidatorIndex:          RandomVIdx(),
+		CommitteeIndex:          RandomCommIdx(),
+		CommitteeLength:         256,
+		CommitteesAtSlot:        256,
+		ValidatorCommitteeIndex: uint64(rand.Intn(256)),
+	}
+}
+
+func RandomRoot() eth2p0.Root {
+	var resp eth2p0.Root
+	_, _ = rand.Read(resp[:])
+
+	return resp
+}
+
+func RandomSignature() eth2p0.BLSSignature {
+	var resp eth2p0.BLSSignature
+	_, _ = rand.Read(resp[:])
+
+	return resp
+}
+
+func RandomCheckpoint() *eth2p0.Checkpoint {
+	var resp eth2p0.Root
+	_, _ = rand.Read(resp[:])
+
+	return &eth2p0.Checkpoint{
+		Epoch: RandomEpoch(),
+		Root:  RandomRoot(),
+	}
+}
+
+func RandomEpoch() eth2p0.Epoch {
+	return eth2p0.Epoch(rand.Uint64())
+}
+
+func RandomSlot() eth2p0.Slot {
+	return eth2p0.Slot(rand.Uint64())
+}
+
+func RandomCommIdx() eth2p0.CommitteeIndex {
+	return eth2p0.CommitteeIndex(rand.Uint64())
+}
+
+func RandomVIdx() eth2p0.ValidatorIndex {
+	return eth2p0.ValidatorIndex(rand.Uint64())
+}
+
+func RandomBitList() bitfield.Bitlist {
+	size := 256
+	index := rand.Intn(size)
+	resp := bitfield.NewBitlist(uint64(size))
+	resp.SetBitAt(uint64(index), true)
+
+	return resp
 }

@@ -74,13 +74,37 @@ func EncodeAttestationParSignedData(att *eth2p0.Attestation, index int) (ParSign
 
 	return ParSignedData{
 		Data:      data,
-		Signature: att.Signature[:],
+		Signature: append([]byte{}, att.Signature[:]...), // Copy the signature
 		Index:     index,
 	}, nil
 }
 
 // DecodeAttestationParSignedData returns the attestation as an encoded ParSignedData.
 func DecodeAttestationParSignedData(data ParSignedData) (*eth2p0.Attestation, error) {
+	att := new(eth2p0.Attestation)
+	err := json.Unmarshal(data.Data, att)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal attestation")
+	}
+
+	return att, nil
+}
+
+// EncodeAttestationAggSignedData returns the attestation as an encoded AggSignedData.
+func EncodeAttestationAggSignedData(att *eth2p0.Attestation) (AggSignedData, error) {
+	data, err := json.Marshal(att)
+	if err != nil {
+		return AggSignedData{}, errors.Wrap(err, "marshal attestation")
+	}
+
+	return AggSignedData{
+		Data:      data,
+		Signature: append([]byte{}, att.Signature[:]...), // Copy the signature
+	}, nil
+}
+
+// DecodeAttestationAggSignedData returns the attestation as an encoded AggSignedData.
+func DecodeAttestationAggSignedData(data AggSignedData) (*eth2p0.Attestation, error) {
 	att := new(eth2p0.Attestation)
 	err := json.Unmarshal(data.Data, att)
 	if err != nil {
