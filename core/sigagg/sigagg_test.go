@@ -19,7 +19,6 @@ import (
 	"crypto/rand"
 	"testing"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	bls12381 "github.com/dB2510/kryptology/pkg/core/curves/native/bls12-381"
 	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
@@ -38,15 +37,13 @@ func TestSigAgg(t *testing.T) {
 		peers     = 4
 	)
 
-	att := &eth2p0.Attestation{
-		AggregationBits: testutil.RandomBitList(),
-		Data:            testutil.RandomAttestationData(),
-	}
+	att := testutil.RandomAttestation()
 
 	// Sign the attestation directly (spec domain not required for test)
 	msg, err := att.MarshalSSZ()
 	require.NoError(t, err)
 
+	// Generate private shares
 	tss, secrets, err := tbls.GenerateTSS(threshold, peers, rand.Reader)
 	require.NoError(t, err)
 
