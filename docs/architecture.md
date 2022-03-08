@@ -226,8 +226,8 @@ The consensus component verifies that the `UnsignedDataSet` is valid during the 
 
 The consensus interface is defined as:
 ```go
-// Consensys comes to consensus on proposed duty data.
-type Consensys interface {
+// Consensus comes to consensus on proposed duty data.
+type Consensus interface {
 	// Propose triggers consensus game of the proposed duty unsigned data set.
 	Propose(context.Context, Duty, UnsignedDataSet) error
 
@@ -516,7 +516,7 @@ The core workflow components are stitched together as follows:
 func StitchFlow(
   sched    Scheduler,
   fetch    Fetcher,
-  cons     Consensys,
+  cons     Consensus,
   dutyDB   DutyDB,
   vapi     ValidatorAPI,
   sigDB    SigDB,

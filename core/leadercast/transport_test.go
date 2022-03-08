@@ -15,14 +15,17 @@
 package leadercast_test
 
 import (
+	"bytes"
 	"context"
-	"fmt"
 	"testing"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
-	leadercast "github.com/obolnetwork/charon/core/leadercast"
+	"github.com/obolnetwork/charon/core/leadercast"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestMemTransport(t *testing.T) {
@@ -32,9 +35,22 @@ func TestMemTransport(t *testing.T) {
 	trFunc := leadercast.NewMemTransportFunc(ctx)
 
 	const (
-		n     = 3
-		slots = 3
+		notZero = 99
+		n       = 3
+		vIdxA   = 0
+		vIdxB   = 1
+		vIdxC   = 2
+		slots   = 3
+		commIdx = 123
+		commLen = 8
 	)
+
+	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
+		vIdxA: testutil.RandomPubKey(t),
+		vIdxB: testutil.RandomPubKey(t),
+		vIdxC: testutil.RandomPubKey(t),
+	}
+
 	var casts []*leadercast.LeaderCast
 	for i := 0; i < n; i++ {
 		c := leadercast.New(trFunc(), i, n)
@@ -45,31 +61,57 @@ func TestMemTransport(t *testing.T) {
 		}()
 	}
 
-	resolved := make(chan []byte, slots*n)
+	var expected []core.UnsignedDataSet
+	resolved := make(chan core.UnsignedDataSet, slots*n)
 	for i := 0; i < slots; i++ {
 		duty := core.Duty{Slot: int64(i)}
+		data := core.UnsignedDataSet{}
+		for j := 0; j < n; j++ {
+			unsignedData, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
+				Data: eth2p0.AttestationData{
+					Slot:   eth2p0.Slot(i),
+					Index:  commIdx,
+					Source: &eth2p0.Checkpoint{},
+					Target: &eth2p0.Checkpoint{},
+				},
+				Duty: eth2v1.AttesterDuty{
+					CommitteeLength:         commLen,
+					ValidatorCommitteeIndex: uint64(j),
+					CommitteesAtSlot:        notZero,
+				},
+			})
+			require.NoError(t, err)
+
+			data[pubkeysByIdx[eth2p0.ValidatorIndex(j)]] = unsignedData
+		}
+
+		expected = append(expected, data)
+
 		for j := 0; j < n; j++ {
 			go func(slot, node int) {
-				data, err := casts[node].ResolveDuty(ctx, duty, []byte(fmt.Sprintf("c%d#%d", node, slot)))
+				err := casts[node].Propose(ctx, duty, data)
 				require.NoError(t, err)
 				resolved <- data
 			}(i, j)
 		}
 	}
 
-	var actual []string
+	var actual []core.UnsignedDataSet
 	for i := 0; i < slots*n; i++ {
-		actual = append(actual, string(<-resolved))
+		actual = append(actual, <-resolved)
 	}
 
-	expects := []string{"c0#0", "c1#1", "c2#2"}
-	for _, expect := range expects {
+	for _, expect := range expected {
 		var count int
 		for _, resolved := range actual {
-			if resolved == expect {
-				count++
+			for j := 0; j < n; j++ {
+				a := resolved[pubkeysByIdx[eth2p0.ValidatorIndex(j)]]
+				b := expect[pubkeysByIdx[eth2p0.ValidatorIndex(j)]]
+				if bytes.Equal(a, b) {
+					count++
+				}
 			}
 		}
-		require.Equal(t, n, count, expect)
+		require.Equal(t, n*slots, count, expect)
 	}
 }

@@ -53,9 +53,11 @@ type DutyDB interface {
 
 // Consensus abstracts a cluster consensus layer.
 type Consensus interface {
-	// ResolveDuty returns the cluster's agreed upon data for the given duty.
-	// The result will be proposed data from one of the nodes in the cluster.
-	ResolveDuty(ctx context.Context, d Duty, proposedData []byte) ([]byte, error)
+	// Propose triggers consensus game of the proposed duty unsigned data set.
+	Propose(context.Context, Duty, UnsignedDataSet) error
+
+	// Subscribe registers a callback for resolved (reached consensus) duty unsigned data set.
+	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
 }
 
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the
