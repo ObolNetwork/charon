@@ -17,9 +17,9 @@ package tbls
 import (
 	"io"
 
-	"github.com/coinbase/kryptology/pkg/core/curves"
-	share "github.com/coinbase/kryptology/pkg/sharing"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/dB2510/kryptology/pkg/core/curves"
+	share "github.com/dB2510/kryptology/pkg/sharing"
+	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -28,12 +28,6 @@ import (
 // blsScheme uses proofs of possession to mitigate rogue-key attacks.
 // see: https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature-03#section-4.2.3
 var blsScheme = bls_sig.NewSigEth2()
-
-// PubShare is a public share corresponding to a secret share.
-type PubShare struct {
-	identifier byte
-	Value      *bls_sig.PublicKey
-}
 
 // TSS (threshold signing scheme) wraps PubKey (PublicKey), Verifiers (the public shares corresponding to each secret share)
 // and threshold (number of shares).
@@ -63,6 +57,11 @@ func (t TSS) PublicKey() *bls_sig.PublicKey {
 // Threshold returns the minimum number of partial signatures required to aggregate the threshold signature.
 func (t TSS) Threshold() int {
 	return len(t.verifier.Commitments)
+}
+
+// PublicShare returns a share's public key.
+func (t TSS) PublicShare(identifier int) (*bls_sig.PublicKey, error) {
+	return getPubShare(identifier, t.verifier)
 }
 
 func NewTSS(verifier *share.FeldmanVerifier, numShares int) (TSS, error) {
@@ -102,44 +101,55 @@ func GenerateTSS(t, n int, reader io.Reader) (TSS, []*bls_sig.SecretKeyShare, er
 	return tss, sks, nil
 }
 
-// AggregateSignatures aggregates partial signatures over the given message.
-// Returns aggregated signatures and slice of signers identifiers that had valid partial signatures.
-func AggregateSignatures(tss TSS, partialSigs []*bls_sig.PartialSignature, msg []byte) (*bls_sig.Signature, []byte, error) {
+// Aggregate returns an aggregated signature.
+func Aggregate(partialSigs []*bls_sig.PartialSignature) (*bls_sig.Signature, error) {
+	aggSig, err := blsScheme.CombineSignatures(partialSigs...)
+	if err != nil {
+		return nil, errors.Wrap(err, "aggregate signatures")
+	}
+
+	return aggSig, nil
+}
+
+// VerifyAndAggregate verifies all partial signatures against a message and aggregates them.
+// It returns the aggregated signature and slice of valid partial signature identifiers.
+func VerifyAndAggregate(tss TSS, partialSigs []*bls_sig.PartialSignature, msg []byte) (*bls_sig.Signature, []byte, error) {
 	if len(partialSigs) < tss.Threshold() {
 		return nil, nil, errors.New("insufficient signatures")
 	}
 
 	var (
-		signers     []byte
-		validShares []*PubShare
+		signers   []byte
+		validSigs []*bls_sig.PartialSignature
 	)
 
 	for _, psig := range partialSigs {
 		// TODO(dhruv): add break condition if valid shares >= threshold
-		pubShare, err := getPubShare(uint32(psig.Identifier), tss.Verifier())
+		pubShare, err := tss.PublicShare(int(psig.Identifier))
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "get Public Share")
 		}
 
 		sig := &bls_sig.Signature{Value: *psig.Signature}
-		ok, err := blsScheme.Verify(pubShare.Value, msg, sig)
+		ok, err := blsScheme.Verify(pubShare, msg, sig)
 		if err != nil || !ok {
 			continue
 		}
-		validShares = append(validShares, pubShare)
+
+		validSigs = append(validSigs, psig)
 		signers = append(signers, psig.Identifier)
 	}
 
-	if len(validShares) < tss.Threshold() {
+	if len(validSigs) < tss.Threshold() {
 		return nil, nil, errors.New("insufficient valid signatures")
 	}
 
-	aggregatedSig, err := blsScheme.CombineSignatures(partialSigs...)
+	aggSig, err := blsScheme.CombineSignatures(validSigs...)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "aggregate signatures")
 	}
 
-	return aggregatedSig, signers, nil
+	return aggSig, signers, nil
 }
 
 // Verify verifies the given signature(sig) on message(msg) with given public key (pk).
@@ -160,6 +170,16 @@ func PartialSign(sks *bls_sig.SecretKeyShare, msg []byte) (*bls_sig.PartialSigna
 	}
 
 	return psig, nil
+}
+
+// Sign signs given message(msg) using given Secret Key(sk) and returns a Signature.
+func Sign(sk *bls_sig.SecretKey, msg []byte) (*bls_sig.Signature, error) {
+	sig, err := blsScheme.Sign(sk, msg)
+	if err != nil {
+		return nil, errors.Wrap(err, "sign")
+	}
+
+	return sig, nil
 }
 
 // generateSecretShares splits the secret and returns n secret shares and t verifiers.
@@ -199,18 +219,19 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int, reader io.Reader) 
 	return sks, verifier, nil
 }
 
-// getPubShare creates PubShare corresponding to a secret share with given Verifiers.
+// getPubShare returns the public key corresponding to a secret share with given Verifiers.
+//
 // This function has been taken from:
 // https://github.com/coinbase/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/sharing/v1/feldman.go#L66
 // where Verifiers(coefficients of public polynomial) are used to compute sum of products of public polynomial with
 // identifier as x coordinate.
-func getPubShare(identifier uint32, verifier *share.FeldmanVerifier) (*PubShare, error) {
+func getPubShare(identifier int, verifier *share.FeldmanVerifier) (*bls_sig.PublicKey, error) {
 	curve := curves.GetCurveByName(verifier.Commitments[0].CurveName())
 	if curve != curves.BLS12381G1() {
 		return nil, errors.New("curve mismatch")
 	}
 
-	x := curve.Scalar.New(int(identifier))
+	x := curve.Scalar.New(identifier)
 	i := curve.Scalar.One()
 
 	// c_0
@@ -229,11 +250,11 @@ func getPubShare(identifier uint32, verifier *share.FeldmanVerifier) (*PubShare,
 		pubshare = pubshare.Add(c)
 	}
 
-	pks := &bls_sig.PublicKey{}
-	err := pks.UnmarshalBinary(pubshare.ToAffineCompressed())
+	pk := new(bls_sig.PublicKey)
+	err := pk.UnmarshalBinary(pubshare.ToAffineCompressed())
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal pubshare")
 	}
 
-	return &PubShare{identifier: uint8(identifier), Value: pks}, nil
+	return pk, nil
 }
