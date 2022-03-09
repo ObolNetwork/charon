@@ -16,6 +16,7 @@ package p2p
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/host"
@@ -81,15 +82,22 @@ func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID,
 func newPingLogger(peers []peer.ID) func(context.Context, peer.ID, error) {
 	const hysteresis = 5 // N = 5
 
-	first := make(map[peer.ID]bool) // first indicates if the peer has logged anything.
-	state := make(map[peer.ID]bool) // state indicates if the peer is ok or not
-	counts := make(map[peer.ID]int)
+	var (
+		mu     sync.Mutex
+		first  = make(map[peer.ID]bool) // first indicates if the peer has logged anything.
+		state  = make(map[peer.ID]bool) // state indicates if the peer is ok or not
+		counts = make(map[peer.ID]int)
+	)
+
 	for _, p := range peers {
 		state[p] = true
 		counts[p] = hysteresis
 	}
 
 	return func(ctx context.Context, p peer.ID, err error) {
+		mu.Lock()
+		defer mu.Unlock()
+
 		prev := counts[p]
 
 		if err != nil && prev > 0 {
