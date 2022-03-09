@@ -100,11 +100,10 @@ func (s MemEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedDataS
 
 const protocol = "/charon/parsigex/1.0.0"
 
-func NewMemEx(tcpNode host.Host, index int, peers []peer.ID) *ParSigEx {
+func NewParSigEx(tcpNode host.Host, sourceID peer.ID, peers []peer.ID) *ParSigEx {
 	memEx := &ParSigEx{
-		mu:      sync.Mutex{},
 		tcpNode: tcpNode,
-		index:   index,
+		source:  sourceID,
 		peers:   peers,
 	}
 	memEx.tcpNode.SetStreamHandler(protocol, memEx.handle)
@@ -115,11 +114,9 @@ func NewMemEx(tcpNode host.Host, index int, peers []peer.ID) *ParSigEx {
 // MemEx provides an in-memory implementation of
 // the core workflow's partial signature exchange component.
 type ParSigEx struct {
-	mu      sync.Mutex
 	tcpNode host.Host
-	index   int
+	source  peer.ID
 	peers   []peer.ID
-	ch      chan p2pMsg
 	subs    []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
@@ -134,17 +131,18 @@ func (m *ParSigEx) handle(s network.Stream) {
 		return
 	}
 
-	select {
-	case m.ch <- msg:
-	case <-ctx.Done():
-		log.Warn(ctx, "parsigex buffer full")
+	for _, sub := range m.subs {
+		err := sub(ctx, msg.Duty, msg.Data)
+		if err != nil {
+			log.Error(ctx, "subscribe error", err)
+		}
 	}
 }
 
 // Broadcast broadcasts the partially signed duty data set to all peers.
 func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
 	b, err := json.Marshal(p2pMsg{
-		Source: m.index,
+		Source: m.source,
 		Duty:   duty,
 		Data:   data,
 	})
@@ -154,12 +152,12 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, data core.ParS
 
 	var errs []error
 
-	for i, p := range m.peers {
-		if i == m.index {
+	for _, p := range m.peers {
+		if p == m.source {
 			continue
 		}
 
-		err := sendData(ctx, m, p, b)
+		err := sendData(ctx, m.tcpNode, p, b)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -176,32 +174,13 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, data core.ParS
 }
 
 // Subscribe registers a callback when a partially signed duty set
-// is received from a peer.
+// is received from a peer. This is not thread safe, it must be called before starting to use parsigex.
 func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	m.subs = append(m.subs, fn)
 }
 
-func (m *ParSigEx) AwaitNext(ctx context.Context) (int, core.Duty, core.ParSignedDataSet, error) {
-	select {
-	case <-ctx.Done():
-		return 0, core.Duty{}, nil, ctx.Err()
-	case msg := <-m.ch:
-		for _, sub := range m.subs {
-			err := sub(ctx, msg.Duty, msg.Data)
-			if err != nil {
-				return 0, core.Duty{}, nil, err
-			}
-		}
-
-		return msg.Source, msg.Duty, msg.Data, nil
-	}
-}
-
-func sendData(ctx context.Context, m *ParSigEx, p peer.ID, b []byte) error {
-	s, err := m.tcpNode.NewStream(ctx, p, protocol)
+func sendData(ctx context.Context, tcpNode host.Host, p peer.ID, b []byte) error {
+	s, err := tcpNode.NewStream(ctx, p, protocol)
 	if err != nil {
 		return errors.Wrap(err, "tcpNode stream")
 	}
@@ -219,7 +198,7 @@ func sendData(ctx context.Context, m *ParSigEx, p peer.ID, b []byte) error {
 }
 
 type p2pMsg struct {
-	Source int
+	Source peer.ID
 	Duty   core.Duty
 	Data   core.ParSignedDataSet
 }
