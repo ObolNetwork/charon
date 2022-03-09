@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	bls12381 "github.com/dB2510/kryptology/pkg/core/curves/native/bls12-381"
 	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
@@ -27,11 +28,14 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 type eth2Provider interface {
 	Eth2DomainProvider
+	eth2client.AttesterDutiesProvider
 	eth2client.SlotsPerEpochProvider
+	eth2client.ValidatorsProvider
 }
 
 // PubShareFunc abstracts the mapping of validator root public key to tbls public share.
@@ -53,24 +57,83 @@ func NewComponentInsecure(eth2Svc eth2client.Service, index int) (*Component, er
 }
 
 // NewComponent returns a new instance of the validator API core workflow component.
-func NewComponent(eth2Svc eth2client.Service, pubShareFunc PubShareFunc, index int) (*Component, error) {
+func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey, index int) (*Component, error) {
 	eth2Cl, ok := eth2Svc.(eth2Provider)
 	if !ok {
 		return nil, errors.New("invalid eth2 service")
 	}
 
+	// Create pubkey mappings.
+	var (
+		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
+		keysByShare     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
+		sharesByCoreKey = make(map[core.PubKey]*bls_sig.PublicKey)
+	)
+
+	for pubkey, pubshare := range pubShareByKey {
+		coreKey, err := tblsconv.KeyToCore(pubkey)
+		if err != nil {
+			return nil, err
+		}
+		key, err := tblsconv.KeyToETH2(pubkey)
+		if err != nil {
+			return nil, err
+		}
+		share, err := tblsconv.KeyToETH2(pubshare)
+		if err != nil {
+			return nil, err
+		}
+		sharesByCoreKey[coreKey] = pubshare
+		sharesByKey[key] = share
+		keysByShare[share] = key
+	}
+
+	getVerifyShareFunc := func(pubkey core.PubKey) (*bls_sig.PublicKey, error) {
+		pubshare, ok := sharesByCoreKey[pubkey]
+		if !ok {
+			return nil, errors.New("unknown public key")
+		}
+
+		return pubshare, nil
+	}
+
+	getPubShareFunc := func(pubkey eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error) {
+		share, ok := sharesByKey[pubkey]
+		if !ok {
+			return eth2p0.BLSPubKey{}, errors.New("unknown public key")
+		}
+
+		return share, nil
+	}
+
+	getPubKeyFunc := func(share eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error) {
+		key, ok := keysByShare[share]
+		if !ok {
+			return eth2p0.BLSPubKey{}, errors.New("unknown public share")
+		}
+
+		return key, nil
+	}
+
 	return &Component{
-		pubShareFunc: pubShareFunc,
-		eth2Cl:       eth2Cl,
-		index:        index,
+		getVerifyShareFunc: getVerifyShareFunc,
+		getPubShareFunc:    getPubShareFunc,
+		getPubKeyFunc:      getPubKeyFunc,
+		eth2Cl:             eth2Cl,
+		index:              index,
 	}, nil
 }
 
 type Component struct {
-	eth2Cl       eth2Provider
-	index        int
-	skipVerify   bool
-	pubShareFunc PubShareFunc
+	eth2Cl     eth2Provider
+	index      int
+	skipVerify bool
+
+	// Mapping public shares (what the VC thinks as its public key) to public keys (the DV root public key)
+
+	getVerifyShareFunc func(core.PubKey) (*bls_sig.PublicKey, error)
+	getPubShareFunc    func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error)
+	getPubKeyFunc      func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error)
 
 	// Registered input functions
 
@@ -98,12 +161,12 @@ func (c *Component) RegisterParSigDB(fn func(context.Context, core.Duty, core.Pa
 }
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
-func (c *Component) AttestationData(ctx context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+func (c Component) AttestationData(ctx context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 	return c.awaitAttFunc(ctx, int64(slot), int64(committeeIndex))
 }
 
 // SubmitAttestations implements the eth2client.AttestationsSubmitter for the router.
-func (c *Component) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
+func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
 	setsBySlot := make(map[int64]core.ParSignedDataSet)
 
 	for _, att := range attestations {
@@ -166,15 +229,9 @@ func (c *Component) SubmitAttestations(ctx context.Context, attestations []*eth2
 }
 
 // verifyParSig verifies the partial signature against the root and validator.
-func (c *Component) verifyParSig(ctx context.Context, duty core.Duty, pubkey core.PubKey, sigRoot eth2p0.Root, sig eth2p0.BLSSignature) error {
+func (c Component) verifyParSig(ctx context.Context, duty core.Duty, pubkey core.PubKey, sigRoot eth2p0.Root, sig eth2p0.BLSSignature) error {
 	if c.skipVerify {
 		return nil
-	}
-
-	// Get the public key of the share that created the signature.
-	pubshare, err := c.pubShareFunc(pubkey, c.index)
-	if err != nil {
-		return err
 	}
 
 	// Wrap the signing root with the domain and serialise it.
@@ -189,7 +246,12 @@ func (c *Component) verifyParSig(ctx context.Context, duty core.Duty, pubkey cor
 		return errors.Wrap(err, "convert signature")
 	}
 
-	// Verify
+	// Verify using public share
+	pubshare, err := c.getVerifyShareFunc(pubkey)
+	if err != nil {
+		return err
+	}
+
 	ok, err := tbls.Verify(pubshare, sigData, &bls_sig.Signature{Value: *s})
 	if err != nil {
 		return err
@@ -198,4 +260,79 @@ func (c *Component) verifyParSig(ctx context.Context, duty core.Duty, pubkey cor
 	}
 
 	return nil
+}
+
+func (c Component) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+	duties, err := c.eth2Cl.AttesterDuties(ctx, epoch, validatorIndices)
+	if err != nil {
+		return nil, err
+	}
+
+	// Replace root public keys with public shares.
+	for i := 0; i < len(duties); i++ {
+		pubshare, err := c.getPubShareFunc(duties[i].PubKey)
+		if err != nil {
+			return nil, err
+		}
+		duties[i].PubKey = pubshare
+	}
+
+	return duties, nil
+}
+
+func (c Component) Domain(ctx context.Context, domainType eth2p0.DomainType, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
+	return c.eth2Cl.Domain(ctx, domainType, epoch)
+}
+
+func (c Component) SlotsPerEpoch(ctx context.Context) (uint64, error) {
+	return c.eth2Cl.SlotsPerEpoch(ctx)
+}
+
+func (c Component) Spec(ctx context.Context) (map[string]interface{}, error) {
+	return c.eth2Cl.Spec(ctx)
+}
+
+func (c Component) Validators(ctx context.Context, stateID string, validatorIndices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+	vals, err := c.eth2Cl.Validators(ctx, stateID, validatorIndices)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.convertValidators(vals)
+}
+
+func (c Component) ValidatorsByPubKey(ctx context.Context, stateID string, pubshares []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+	// Map from public shares to public keys before querying the beacon node.
+	var pubkeys []eth2p0.BLSPubKey
+	for _, pubshare := range pubshares {
+		pubkey, err := c.getPubKeyFunc(pubshare)
+		if err != nil {
+			return nil, err
+		}
+
+		pubkeys = append(pubkeys, pubkey)
+	}
+
+	valMap, err := c.eth2Cl.ValidatorsByPubKey(ctx, stateID, pubkeys)
+	if err != nil {
+		return nil, err
+	}
+
+	// Then convert back.
+	return c.convertValidators(valMap)
+}
+
+// convertValidators returns the validator map with all root public keys replaced by public shares.
+func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Validator) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+	resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+	for vIdx, val := range vals {
+		var err error
+		val.Validator.PublicKey, err = c.getPubShareFunc(val.Validator.PublicKey)
+		if err != nil {
+			return nil, err
+		}
+		resp[vIdx] = val
+	}
+
+	return resp, nil
 }
