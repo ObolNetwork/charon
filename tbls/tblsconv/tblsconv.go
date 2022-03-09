@@ -25,6 +25,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+// KeyFromETH2 converts an eth2 phase0 public key into a kryptology bls public key.
 func KeyFromETH2(key eth2p0.BLSPubKey) (*bls_sig.PublicKey, error) {
 	resp := new(bls_sig.PublicKey)
 	if err := resp.UnmarshalBinary(key[:]); err != nil {
@@ -34,6 +35,7 @@ func KeyFromETH2(key eth2p0.BLSPubKey) (*bls_sig.PublicKey, error) {
 	return resp, nil
 }
 
+// KeyToETH2 converts a kryptology bls public key into an eth2 phase0 public key.
 func KeyToETH2(key *bls_sig.PublicKey) (eth2p0.BLSPubKey, error) {
 	b, err := key.MarshalBinary()
 	if err != nil {
@@ -48,6 +50,7 @@ func KeyToETH2(key *bls_sig.PublicKey) (eth2p0.BLSPubKey, error) {
 	return resp, nil
 }
 
+// KeyFromCore converts a core workflow public key into a kryptology bls public key.
 func KeyFromCore(key core.PubKey) (*bls_sig.PublicKey, error) {
 	b, err := key.Bytes()
 	if err != nil {
@@ -62,6 +65,7 @@ func KeyFromCore(key core.PubKey) (*bls_sig.PublicKey, error) {
 	return pubkey, nil
 }
 
+// KeyToCore converts a kryptology bls public key into a core workflow public key.
 func KeyToCore(key *bls_sig.PublicKey) (core.PubKey, error) {
 	b, err := key.MarshalBinary()
 	if err != nil {
@@ -71,6 +75,7 @@ func KeyToCore(key *bls_sig.PublicKey) (core.PubKey, error) {
 	return core.PubKeyFromBytes(b)
 }
 
+// SigFromETH2 converts an eth2 phase0 bls signature into a kryptology bls signature.
 func SigFromETH2(sig eth2p0.BLSSignature) (*bls_sig.Signature, error) {
 	point, err := bls12381.NewG2().FromCompressed(sig[:])
 	if err != nil {
@@ -80,6 +85,7 @@ func SigFromETH2(sig eth2p0.BLSSignature) (*bls_sig.Signature, error) {
 	return &bls_sig.Signature{Value: *point}, nil
 }
 
+// SigToETH2 converts a kryptology bls signature into an eth2 phase0 bls signature.
 func SigToETH2(sig *bls_sig.Signature) eth2p0.BLSSignature {
 	var resp eth2p0.BLSSignature
 	copy(resp[:], bls12381.NewG2().ToCompressed(&sig.Value))
@@ -87,6 +93,7 @@ func SigToETH2(sig *bls_sig.Signature) eth2p0.BLSSignature {
 	return resp
 }
 
+// SigFromBytes converts bytes into a kryptology bls signature.
 func SigFromBytes(sig []byte) (*bls_sig.Signature, error) {
 	point, err := bls12381.NewG2().FromCompressed(sig)
 	if err != nil {
@@ -96,6 +103,7 @@ func SigFromBytes(sig []byte) (*bls_sig.Signature, error) {
 	return &bls_sig.Signature{Value: *point}, nil
 }
 
+// SigToBytes converts a kryptology bls signature to bytes.
 func SigToBytes(sig *bls_sig.Signature) []byte {
 	return bls12381.NewG2().ToCompressed(&sig.Value)
 }
