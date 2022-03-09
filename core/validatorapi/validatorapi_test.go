@@ -24,9 +24,9 @@ import (
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/validatorapi"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 	"github.com/obolnetwork/charon/testutil/validatormock"
@@ -150,19 +150,21 @@ func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 func TestSubmitAttestations_Verify(t *testing.T) {
 	ctx := context.Background()
 
-	// Create keys
+	// Create keys (just use normal keys, not split tbls)
 	pubkey, secret, err := bls_sig.NewSigEth2().Keygen()
 	require.NoError(t, err)
 
 	// Configure validator
 	const vIdx = 1
-	validator := beaconmock.ValidatorSetA[vIdx]
 
-	b, err := pubkey.MarshalBinary()
+	validator := beaconmock.ValidatorSetA[vIdx]
+	validator.Validator.PublicKey, err = tblsconv.KeyToETH2(pubkey)
 	require.NoError(t, err)
-	copy(validator.Validator.PublicKey[:], b)
-	corePubKey, err := core.PubKeyFromBytes(b)
+
+	// Convert pubkey
+	corePubKey, err := tblsconv.KeyToCore(pubkey)
 	require.NoError(t, err)
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
 
 	// Configure beacon mock
 	static, err := beaconmock.NewStaticProvider(ctx)
@@ -179,7 +181,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, stubPubShare, 0)
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
 	require.NoError(t, err)
 
 	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error) {
@@ -205,19 +207,4 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	// Run attestation using validator mock
 	err = validatormock.Attest(ctx, bmock, validatormock.NewSigner(secret), eth2p0.Slot(epochSlot), validator.Validator.PublicKey)
 	require.NoError(t, err)
-}
-
-// stubPubShare is a stub PubShareFunc that just returns the public key itself.
-func stubPubShare(pubkey core.PubKey, _ int) (*bls_sig.PublicKey, error) {
-	b, err := pubkey.Bytes()
-	if err != nil {
-		return nil, err
-	}
-
-	pk := new(bls_sig.PublicKey)
-	if err := pk.UnmarshalBinary(b); err != nil {
-		return nil, errors.Wrap(err, "unmarshal pubkey")
-	}
-
-	return pk, nil
 }
