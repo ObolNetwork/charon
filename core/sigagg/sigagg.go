@@ -28,6 +28,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // New returns a new aggregator instance.
@@ -80,7 +81,7 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 		}
 
 		blsSigs = append(blsSigs, &bls_sig.PartialSignature{
-			Identifier: byte(parSig.Index),
+			Identifier: byte(parSig.ShareIdx),
 			Signature:  s,
 		})
 	}
@@ -110,13 +111,7 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 
 // getAggSignedData returns the encoded aggregated signed data by injecting the aggregated signature.
 func getAggSignedData(typ core.DutyType, data core.ParSignedData, aggSig *bls_sig.Signature) (core.AggSignedData, error) {
-	sigBytes, err := aggSig.MarshalBinary()
-	if err != nil {
-		return core.AggSignedData{}, errors.Wrap(err, "marshal signature")
-	}
-
-	var eth2Sig eth2p0.BLSSignature
-	copy(eth2Sig[:], sigBytes)
+	eth2Sig := tblsconv.SigToETH2(aggSig)
 
 	switch typ {
 	case core.DutyAttester:

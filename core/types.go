@@ -72,7 +72,7 @@ const pkLen = 98 // "0x" + hex.Encode([48]byte) = 2+2*48
 
 // PubKeyFromBytes returns a new public key from raw bytes.
 func PubKeyFromBytes(bytes []byte) (PubKey, error) {
-	pk := PubKey("0x" + hex.EncodeToString(bytes))
+	pk := PubKey(fmt.Sprintf("%#x", bytes))
 	if len(pk) != pkLen {
 		return "", errors.New("invalid public key length")
 	}
@@ -135,8 +135,8 @@ type ParSignedData struct {
 	Data []byte
 	// Signature of tbls share extracted from data.
 	Signature []byte
-	// Index of the tbls share.
-	Index int
+	// ShareIdx of the tbls share.
+	ShareIdx int
 }
 
 // ParSignedDataSet is a set of partially signed duty data objects, one per validator.

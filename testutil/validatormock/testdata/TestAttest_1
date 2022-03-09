@@ -1,6 +1,6 @@
 [
  {
-  "aggregation_bits": "0x0101",
+  "aggregation_bits": "0x0200000001",
   "data": {
    "slot": "32",
    "index": "0",

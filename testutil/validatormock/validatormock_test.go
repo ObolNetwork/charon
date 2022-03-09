@@ -48,16 +48,12 @@ func TestAttest(t *testing.T) {
 			ctx := context.Background()
 
 			// Configure beacon mock
-			static, err := beaconmock.NewStaticProvider(ctx)
-			require.NoError(t, err)
-
 			valSet := beaconmock.ValidatorSetA
 			beaconMock := beaconmock.New(
-				beaconmock.WithStaticProvider(static),
+				beaconmock.WithDefaultStaticProvider(),
 				beaconmock.WithValidatorSet(valSet),
 				beaconmock.WithDeterministicDuties(test.DutyFactor),
 			)
-			require.NoError(t, err)
 
 			// Callback to collect attestations
 			var atts []*eth2p0.Attestation
@@ -75,14 +71,14 @@ func TestAttest(t *testing.T) {
 			}
 
 			// Get first slot in epoch 1
-			slotsPerEpoch, err := static.SlotsPerEpoch(ctx)
+			slotsPerEpoch, err := beaconMock.SlotsPerEpoch(ctx)
 			require.NoError(t, err)
 
 			// Call attest function
 			err = validatormock.Attest(ctx,
 				beaconMock, signFunc,
 				eth2p0.Slot(slotsPerEpoch),
-				valSet.ETH2PubKeys()...,
+				valSet.PublicKeys()...,
 			)
 			require.NoError(t, err)
 

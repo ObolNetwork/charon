@@ -26,7 +26,7 @@ import (
 func TestStatic(t *testing.T) {
 	ctx := context.Background()
 
-	eth2Cl, err := beaconmock.NewStaticProvider(ctx)
+	eth2Cl, err := beaconmock.NewStaticProvider()
 	require.NoError(t, err)
 
 	gen, err := eth2Cl.Genesis(ctx)

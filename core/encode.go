@@ -66,7 +66,7 @@ func EncodeAttesterUnsignedData(attData *AttestationData) (UnsignedData, error) 
 }
 
 // EncodeAttestationParSignedData returns the attestation as an encoded ParSignedData.
-func EncodeAttestationParSignedData(att *eth2p0.Attestation, index int) (ParSignedData, error) {
+func EncodeAttestationParSignedData(att *eth2p0.Attestation, shareIdx int) (ParSignedData, error) {
 	data, err := json.Marshal(att)
 	if err != nil {
 		return ParSignedData{}, errors.Wrap(err, "marshal attestation")
@@ -75,7 +75,7 @@ func EncodeAttestationParSignedData(att *eth2p0.Attestation, index int) (ParSign
 	return ParSignedData{
 		Data:      data,
 		Signature: append([]byte{}, att.Signature[:]...), // Copy the signature
-		Index:     index,
+		ShareIdx:  shareIdx,
 	}, nil
 }
 

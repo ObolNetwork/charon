@@ -19,13 +19,13 @@ import (
 	"crypto/rand"
 	"testing"
 
-	bls12381 "github.com/dB2510/kryptology/pkg/core/curves/native/bls12-381"
 	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/sigagg"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -56,7 +56,7 @@ func TestSigAgg(t *testing.T) {
 		sig, err := tbls.PartialSign(secret, msg)
 		require.NoError(t, err)
 
-		copy(att.Signature[:], bls12381.NewG2().ToCompressed(sig.Signature))
+		att.Signature = tblsconv.SigToETH2(&bls_sig.Signature{Value: *sig.Signature})
 
 		parsig, err := core.EncodeAttestationParSignedData(att, int(sig.Identifier))
 		require.NoError(t, err)
@@ -76,9 +76,7 @@ func TestSigAgg(t *testing.T) {
 	// Assert output
 	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.AggSignedData) error {
 		require.Equal(t, expect, aggData.Signature)
-
-		sig := new(bls_sig.Signature)
-		err := sig.UnmarshalBinary(aggData.Signature)
+		sig, err := tblsconv.SigFromBytes(aggData.Signature)
 		require.NoError(t, err)
 
 		ok, err := tbls.Verify(tss.PublicKey(), msg, sig)

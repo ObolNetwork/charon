@@ -25,14 +25,14 @@ type sub func(context.Context, core.Duty, core.ParSignedDataSet) error
 
 // NewMemExFunc returns a function that itself returns in-memory exchange components
 // that exchange partial signatures.
-func NewMemExFunc() func() MemEx {
+func NewMemExFunc() func() core.ParSigEx {
 	var (
 		mu    sync.Mutex
 		index int
 		subs  = make(map[int][]sub)
 	)
 
-	return func() MemEx {
+	return func() core.ParSigEx {
 		mu.Lock()
 		defer mu.Unlock()
 		i := index

@@ -84,7 +84,7 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 
 		var exists bool
 		for _, s := range sigs {
-			if s.Index == sig.Index {
+			if s.ShareIdx == sig.ShareIdx {
 				exists = true
 				break
 			}

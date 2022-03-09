@@ -44,8 +44,8 @@ func (s ValidatorSet) ByPublicKey(pubkey eth2p0.BLSPubKey) (*eth2v1.Validator, b
 	return nil, false
 }
 
-// PublicKeys is a convenience function to extract the bls public keys from the validators.
-func (s ValidatorSet) PublicKeys() ([]core.PubKey, error) {
+// CorePubKeys is a convenience function to extract the core workflow public keys from the validators.
+func (s ValidatorSet) CorePubKeys() ([]core.PubKey, error) {
 	var resp []core.PubKey
 	for _, validator := range s {
 		pk, err := core.PubKeyFromBytes(validator.Validator.PublicKey[:])
@@ -59,8 +59,8 @@ func (s ValidatorSet) PublicKeys() ([]core.PubKey, error) {
 	return resp, nil
 }
 
-// ETH2PubKeys is a convenience function to extract the eth2 client bls public keys from the validators.
-func (s ValidatorSet) ETH2PubKeys() []eth2p0.BLSPubKey {
+// PublicKeys is a convenience function to extract the eth2 client bls public keys from the validators.
+func (s ValidatorSet) PublicKeys() []eth2p0.BLSPubKey {
 	var resp []eth2p0.BLSPubKey
 	for _, validator := range s {
 		resp = append(resp, validator.Validator.PublicKey)
@@ -136,10 +136,31 @@ func WithValidatorSet(set ValidatorSet) Option {
 }
 
 // WithGenesis configures the mock with the provided genesis time.
+// Note this does NOT update the MIN_GENESIS_TIME value inside the spec config map.
 func WithGenesis(t0 time.Time) Option {
 	return func(mock *Mock) {
 		mock.GenesisTimeFunc = func(_ context.Context) (time.Time, error) {
 			return t0, nil
+		}
+	}
+}
+
+// WithSlotDuration configures the mock with the provided slots duration.
+// Note this does NOT update the SECONDS_PER_SLOT value inside the spec config map.
+func WithSlotDuration(duration time.Duration) Option {
+	return func(mock *Mock) {
+		mock.SlotDurationFunc = func(context.Context) (time.Duration, error) {
+			return duration, nil
+		}
+	}
+}
+
+// WithSlotsPerEpoch configures the mock with the provided slots per epoch.
+// Note this does NOT update the SLOTS_PER_EPOCH value inside the spec config map.
+func WithSlotsPerEpoch(slotsPerEpoch int) Option {
+	return func(mock *Mock) {
+		mock.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
+			return uint64(slotsPerEpoch), nil
 		}
 	}
 }
@@ -170,20 +191,32 @@ func WithDeterministicDuties(factor int) Option {
 					continue
 				}
 
+				offset := (i * factor) % int(slotsPerEpoch)
+
 				resp = append(resp, &eth2v1.AttesterDuty{
 					PubKey:                  val.Validator.PublicKey,
-					Slot:                    eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(i*factor)),
+					Slot:                    eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(offset)),
 					ValidatorIndex:          index,
-					CommitteeIndex:          eth2p0.CommitteeIndex(i * factor),
-					CommitteeLength:         8,
-					CommitteesAtSlot:        8,
-					ValidatorCommitteeIndex: uint64(i * factor),
+					CommitteeIndex:          eth2p0.CommitteeIndex(offset),
+					CommitteeLength:         slotsPerEpoch,
+					CommitteesAtSlot:        slotsPerEpoch,
+					ValidatorCommitteeIndex: uint64(index),
 				})
 			}
 
 			return resp, nil
 		}
 	}
+}
+
+// WithDefaultStaticProvider configures the mock with the default static value provider.
+func WithDefaultStaticProvider() Option {
+	static, err := NewStaticProvider()
+	if err != nil {
+		panic(err) // This is test code, so panic here is kinda ok since it improves API.
+	}
+
+	return WithStaticProvider(static)
 }
 
 // WithStaticProvider configures the mock with a static value provider.

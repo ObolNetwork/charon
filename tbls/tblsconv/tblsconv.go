@@ -107,3 +107,18 @@ func SigFromBytes(sig []byte) (*bls_sig.Signature, error) {
 func SigToBytes(sig *bls_sig.Signature) []byte {
 	return bls12381.NewG2().ToCompressed(&sig.Value)
 }
+
+// ShareToSecret converts a bls secret share into a normal bls secret.
+func ShareToSecret(share *bls_sig.SecretKeyShare) (*bls_sig.SecretKey, error) {
+	b, err := share.MarshalBinary()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal share")
+	}
+
+	resp := new(bls_sig.SecretKey)
+	if err := resp.UnmarshalBinary(b[:len(b)-1]); err != nil {
+		return nil, errors.Wrap(err, "unmarshal secret")
+	}
+
+	return resp, nil
+}

@@ -59,9 +59,9 @@ func (t TSS) Threshold() int {
 	return len(t.verifier.Commitments)
 }
 
-// PublicShare returns a share's public key.
-func (t TSS) PublicShare(identifier int) (*bls_sig.PublicKey, error) {
-	return getPubShare(identifier, t.verifier)
+// PublicShare returns a share's public key by share index (identifier).
+func (t TSS) PublicShare(shareIdx int) (*bls_sig.PublicKey, error) {
+	return getPubShare(shareIdx, t.verifier)
 }
 
 func NewTSS(verifier *share.FeldmanVerifier, numShares int) (TSS, error) {

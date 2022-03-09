@@ -15,7 +15,6 @@
 package app
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -33,6 +32,16 @@ import (
 )
 
 const manifestVersion = "obol/charon/manifest/0.0.1"
+
+// ClusterIdx represents the index of a node/peer/share in the cluster as defined in the manifest.
+type ClusterIdx struct {
+	// PeerID is ID of this peers.
+	PeerID peer.ID
+	// PeerIdx is the index of a peer in the peer list (it 0-indexed).
+	PeerIdx int
+	// ShareIdx is the tbls share identifier (it is 1-indexed).
+	ShareIdx int
+}
 
 // Manifest defines a charon cluster. The same manifest is loaded by all charon nodes in the cluster.
 // TODO(corver): Add authentication signatures for each peer per DV.
@@ -65,6 +74,23 @@ func (m Manifest) PeerIDs() []peer.ID {
 	}
 
 	return res
+}
+
+// ClusterIdx returns the cluster index for the peer.
+func (m Manifest) ClusterIdx(pID peer.ID) (ClusterIdx, error) {
+	for i, p := range m.Peers {
+		if p.ID != pID {
+			continue
+		}
+
+		return ClusterIdx{
+			PeerIdx:  i,
+			PeerID:   pID,
+			ShareIdx: i + 1,
+		}, nil
+	}
+
+	return ClusterIdx{}, errors.New("unknown peer id")
 }
 
 // PublicKeys is a convenience function that returns the DV root public keys.
@@ -106,7 +132,7 @@ func (m Manifest) MarshalJSON() ([]byte, error) {
 		}
 
 		dvs = append(dvs, dvJSON{
-			PubKey:    "0x" + hex.EncodeToString(rawPK),
+			PubKey:    fmt.Sprintf("%#x", rawPK),
 			Verifiers: verifiers,
 		})
 	}
