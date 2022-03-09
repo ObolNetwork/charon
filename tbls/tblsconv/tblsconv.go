@@ -85,6 +85,10 @@ func SigFromETH2(sig eth2p0.BLSSignature) (*bls_sig.Signature, error) {
 	return &bls_sig.Signature{Value: *point}, nil
 }
 
+func SigFromPartial(psig *bls_sig.PartialSignature) *bls_sig.Signature {
+	return &bls_sig.Signature{Value: *psig.Signature}
+}
+
 // SigToETH2 converts a kryptology bls signature into an eth2 phase0 bls signature.
 func SigToETH2(sig *bls_sig.Signature) eth2p0.BLSSignature {
 	var resp eth2p0.BLSSignature

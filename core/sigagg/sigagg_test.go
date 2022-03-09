@@ -53,15 +53,15 @@ func TestSigAgg(t *testing.T) {
 		psigs   []*bls_sig.PartialSignature
 	)
 	for _, secret := range secrets {
-		sig, err := tbls.PartialSign(secret, msg)
+		psig, err := tbls.PartialSign(secret, msg)
 		require.NoError(t, err)
 
-		att.Signature = tblsconv.SigToETH2(&bls_sig.Signature{Value: *sig.Signature})
+		att.Signature = tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
 
-		parsig, err := core.EncodeAttestationParSignedData(att, int(sig.Identifier))
+		parsig, err := core.EncodeAttestationParSignedData(att, int(psig.Identifier))
 		require.NoError(t, err)
 
-		psigs = append(psigs, sig)
+		psigs = append(psigs, psig)
 		parsigs = append(parsigs, parsig)
 	}
 
