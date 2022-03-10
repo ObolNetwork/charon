@@ -119,6 +119,12 @@ func ShareToSecret(share *bls_sig.SecretKeyShare) (*bls_sig.SecretKey, error) {
 		return nil, errors.Wrap(err, "marshal share")
 	}
 
+	// shamir.Share.Bytes() strips leading zeros...
+	const sksLen = 33
+	if len(b) < sksLen {
+		b = append(make([]byte, sksLen-len(b)), b...)
+	}
+
 	resp := new(bls_sig.SecretKey)
 	if err := resp.UnmarshalBinary(b[:len(b)-1]); err != nil {
 		return nil, errors.Wrap(err, "unmarshal secret")

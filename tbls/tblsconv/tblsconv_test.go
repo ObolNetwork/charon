@@ -15,8 +15,9 @@
 package tblsconv_test
 
 import (
-	"crypto/rand"
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
@@ -88,7 +89,30 @@ func TestSig(t *testing.T) {
 }
 
 func TestShareToSecret(t *testing.T) {
-	_, shares, err := tbls.GenerateTSS(3, 4, rand.Reader)
+	_, shares, err := tbls.GenerateTSS(3, 4, rand.New(rand.NewSource(time.Now().UnixNano())))
+	require.NoError(t, err)
+
+	msg := []byte("test data")
+
+	for _, share := range shares {
+		secret, err := tblsconv.ShareToSecret(share)
+		require.NoError(t, err)
+
+		psig, err := tbls.PartialSign(share, msg)
+		require.NoError(t, err)
+
+		sig, err := tbls.Sign(secret, msg)
+		require.NoError(t, err)
+
+		pdata := tblsconv.SigToBytes(&bls_sig.Signature{Value: *psig.Signature})
+		data := tblsconv.SigToBytes(sig)
+
+		require.Equal(t, pdata, data)
+	}
+}
+
+func TestShareToSecret_ZeroPadding(t *testing.T) {
+	_, shares, err := tbls.GenerateTSS(3, 4, rand.New(rand.NewSource(96)))
 	require.NoError(t, err)
 
 	msg := []byte("test data")
