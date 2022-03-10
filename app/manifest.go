@@ -35,8 +35,6 @@ const manifestVersion = "obol/charon/manifest/0.0.1"
 
 // NodeIdx represents the index of a node/peer/share in the cluster as defined in the manifest.
 type NodeIdx struct {
-	// PeerID is ID of this peer.
-	PeerID peer.ID
 	// PeerIdx is the index of a peer in the peer list (it 0-indexed).
 	PeerIdx int
 	// ShareIdx is the tbls share identifier (it is 1-indexed).
@@ -84,9 +82,8 @@ func (m Manifest) NodeIdx(pID peer.ID) (NodeIdx, error) {
 		}
 
 		return NodeIdx{
-			PeerIdx:  i,
-			PeerID:   pID,
-			ShareIdx: i + 1,
+			PeerIdx:  i,     // 0-indexed
+			ShareIdx: i + 1, // 1-indexed
 		}, nil
 	}
 

@@ -119,15 +119,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	clusterIdx, err := manifest.ClusterIdx(tcpNode.ID())
+	nodeIdx, err := manifest.NodeIdx(tcpNode.ID())
 	if err != nil {
 		return err
 	}
 
 	log.Info(ctx, "Manifest loaded",
 		z.Int("peers", len(manifest.Peers)),
-		z.Str("peer_id", p2p.ShortID(clusterIdx.PeerID)),
-		z.Int("peer_index", clusterIdx.PeerIdx))
+		z.Str("peer_id", p2p.ShortID(tcpNode.ID())),
+		z.Int("peer_index", nodeIdx.PeerIdx))
 
 	wireMonitoringAPI(life, conf.MonitoringAddr, localEnode)
 
@@ -135,7 +135,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	if err := wireSimNetCoreWorkflow(life, conf, manifest, clusterIdx, tcpNode); err != nil {
+	if err := wireSimNetCoreWorkflow(life, conf, manifest, nodeIdx, tcpNode); err != nil {
 		return err
 	}
 
@@ -196,7 +196,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 }
 
 // wireSimNetCoreWorkflow wires a simnet core workflow including a beaconmock and validatormock.
-func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manifest, clusterIdx ClusterIdx, tcpNode host.Host) error {
+func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manifest, nodeIdx NodeIdx, tcpNode host.Host) error {
 	// Convert and prep public keys and public shares
 	var (
 		corePubkeys    []core.PubKey
@@ -218,7 +218,7 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 			return err
 		}
 
-		pubShare, err := dv.PublicShare(clusterIdx.ShareIdx)
+		pubShare, err := dv.PublicShare(nodeIdx.ShareIdx)
 		if err != nil {
 			return err
 		}
@@ -256,14 +256,14 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 	if conf.TestConfig.LcastTransportFunc != nil {
 		lcastTransport = conf.TestConfig.LcastTransportFunc()
 	} else {
-		lcastTransport = leadercast.NewP2PTransport(tcpNode, clusterIdx.PeerIdx, manifest.PeerIDs())
+		lcastTransport = leadercast.NewP2PTransport(tcpNode, nodeIdx.PeerIdx, manifest.PeerIDs())
 	}
 
-	consensus := leadercast.New(lcastTransport, clusterIdx.PeerIdx, len(manifest.PeerIDs()))
+	consensus := leadercast.New(lcastTransport, nodeIdx.PeerIdx, len(manifest.PeerIDs()))
 
 	dutyDB := dutydb.NewMemDB()
 
-	vapi, err := validatorapi.NewComponent(bmock, pubSharesByKey, clusterIdx.ShareIdx)
+	vapi, err := validatorapi.NewComponent(bmock, pubSharesByKey, nodeIdx.ShareIdx)
 	if err != nil {
 		return err
 	}
