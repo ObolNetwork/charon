@@ -171,6 +171,7 @@ func NewMemTransportFunc(ctx context.Context) func() Transport {
 	}()
 
 	var index int
+
 	return func() Transport {
 		mu.Lock()
 		defer mu.Unlock()
