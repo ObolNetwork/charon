@@ -32,18 +32,20 @@ import (
 )
 
 type eth2Provider interface {
-	Eth2DomainProvider
 	eth2client.AttesterDutiesProvider
+	eth2client.DomainProvider
 	eth2client.SlotsPerEpochProvider
+	eth2client.SpecProvider
 	eth2client.ValidatorsProvider
+	// Above sorted alphabetically
 }
 
 // PubShareFunc abstracts the mapping of validator root public key to tbls public share.
-type PubShareFunc func(pubkey core.PubKey, index int) (*bls_sig.PublicKey, error)
+type PubShareFunc func(pubkey core.PubKey, shareIdx int) (*bls_sig.PublicKey, error)
 
 // NewComponentInsecure returns a new instance of the validator API core workflow component
 // that does not perform signature verification.
-func NewComponentInsecure(eth2Svc eth2client.Service, index int) (*Component, error) {
+func NewComponentInsecure(eth2Svc eth2client.Service, shareIdx int) (*Component, error) {
 	eth2Cl, ok := eth2Svc.(eth2Provider)
 	if !ok {
 		return nil, errors.New("invalid eth2 service")
@@ -52,12 +54,12 @@ func NewComponentInsecure(eth2Svc eth2client.Service, index int) (*Component, er
 	return &Component{
 		skipVerify: true,
 		eth2Cl:     eth2Cl,
-		index:      index,
+		shareIdx:   shareIdx,
 	}, nil
 }
 
 // NewComponent returns a new instance of the validator API core workflow component.
-func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey, index int) (*Component, error) {
+func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey, shareIdx int) (*Component, error) {
 	eth2Cl, ok := eth2Svc.(eth2Provider)
 	if !ok {
 		return nil, errors.New("invalid eth2 service")
@@ -120,13 +122,13 @@ func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicK
 		getPubShareFunc:    getPubShareFunc,
 		getPubKeyFunc:      getPubKeyFunc,
 		eth2Cl:             eth2Cl,
-		index:              index,
+		shareIdx:           shareIdx,
 	}, nil
 }
 
 type Component struct {
 	eth2Cl     eth2Provider
-	index      int
+	shareIdx   int
 	skipVerify bool
 
 	// Mapping public shares (what the VC thinks as its public key) to public keys (the DV root public key)
@@ -202,7 +204,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 			setsBySlot[slot] = set
 		}
 
-		signedData, err := core.EncodeAttestationParSignedData(att, c.index)
+		signedData, err := core.EncodeAttestationParSignedData(att, c.shareIdx)
 		if err != nil {
 			return err
 		}

@@ -85,6 +85,10 @@ func SigFromETH2(sig eth2p0.BLSSignature) (*bls_sig.Signature, error) {
 	return &bls_sig.Signature{Value: *point}, nil
 }
 
+func SigFromPartial(psig *bls_sig.PartialSignature) *bls_sig.Signature {
+	return &bls_sig.Signature{Value: *psig.Signature}
+}
+
 // SigToETH2 converts a kryptology bls signature into an eth2 phase0 bls signature.
 func SigToETH2(sig *bls_sig.Signature) eth2p0.BLSSignature {
 	var resp eth2p0.BLSSignature
@@ -106,4 +110,19 @@ func SigFromBytes(sig []byte) (*bls_sig.Signature, error) {
 // SigToBytes converts a kryptology bls signature to bytes.
 func SigToBytes(sig *bls_sig.Signature) []byte {
 	return bls12381.NewG2().ToCompressed(&sig.Value)
+}
+
+// ShareToSecret converts a bls secret share into a normal bls secret.
+func ShareToSecret(share *bls_sig.SecretKeyShare) (*bls_sig.SecretKey, error) {
+	b, err := share.MarshalBinary()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal share")
+	}
+
+	resp := new(bls_sig.SecretKey)
+	if err := resp.UnmarshalBinary(b[:len(b)-1]); err != nil {
+		return nil, errors.Wrap(err, "unmarshal secret")
+	}
+
+	return resp, nil
 }

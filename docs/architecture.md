@@ -315,7 +315,7 @@ Multiple `ParSignedData` are combined into a single `ParSignedDataSet` defines a
 type ParSignedDataSet map[PubKey]ParSignedData
 ```
 
-It provides the following beacon-node endpoints:
+The validator API provides the following beacon-node endpoints relating to duties:
 
 - `GET /eth/v1/validator/attestation_data` Produce an attestation data
   - The request arguments are: `slot` and `committee_index`
@@ -339,6 +339,11 @@ It provides the following beacon-node endpoints:
   - Set the BLS private share `identifier` to charon node index.
   - Create a `SignedDutyDataSet` with only a single element.
   - Store `SignedDutyDataSet` in the `SigDB`
+
+Note that the VC is configured with one or more private key shares (output of the DKG).
+The VC infers its public keys from those private shares, but those public keys does not exist on the beacon chain.
+The validatorapi therefore needs to intercept and map all endpoints containing the validator public key and map
+the public share (what the VC thinks as its public key) to and from the DV root public key.
 
 > 🏗️ TODO: Figure out other endpoints required.
 

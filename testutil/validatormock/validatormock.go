@@ -27,6 +27,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // Eth2AttProvider defines the eth2 beacon api providers required to perform attestations.
@@ -133,15 +134,7 @@ func NewSigner(secrets ...*bls_sig.SecretKey) SignFunc {
 			return eth2p0.BLSSignature{}, err
 		}
 
-		b, err := sig.MarshalBinary()
-		if err != nil {
-			return eth2p0.BLSSignature{}, errors.Wrap(err, "marshal signature")
-		}
-
-		var eth2Sig eth2p0.BLSSignature
-		copy(eth2Sig[:], b)
-
-		return eth2Sig, nil
+		return tblsconv.SigToETH2(sig), nil
 	}
 }
 
@@ -152,15 +145,12 @@ func getSecret(secrets []*bls_sig.SecretKey, pubkey eth2p0.BLSPubKey) (*bls_sig.
 			return nil, errors.Wrap(err, "get pubkey")
 		}
 
-		b, err := pk.MarshalBinary()
+		eth2Pubkey, err := tblsconv.KeyToETH2(pk)
 		if err != nil {
-			return nil, errors.Wrap(err, "marshal pubkey")
+			return nil, err
 		}
 
-		var ethPk eth2p0.BLSPubKey
-		copy(ethPk[:], b)
-
-		if ethPk == pubkey {
+		if eth2Pubkey == pubkey {
 			return secret, nil
 		}
 	}

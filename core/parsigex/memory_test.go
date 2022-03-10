@@ -38,16 +38,16 @@ func TestMemEx(t *testing.T) {
 
 	var received []tuple
 
-	var exes []parsigex.MemEx
+	var exes []core.ParSigEx
 	for i := 0; i < n; i++ {
 		i := i
 		ex := memExFunc()
 		ex.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-			require.NotEqual(t, i, set[pubkey].Index, "received from self")
+			require.NotEqual(t, i, set[pubkey].ShareIdx, "received from self")
 
 			received = append(received, tuple{
 				Target: i,
-				Source: set[pubkey].Index,
+				Source: set[pubkey].ShareIdx,
 			})
 
 			return nil
@@ -57,7 +57,7 @@ func TestMemEx(t *testing.T) {
 
 	for i := 0; i < n; i++ {
 		set := make(core.ParSignedDataSet)
-		set[pubkey] = core.ParSignedData{Index: i}
+		set[pubkey] = core.ParSignedData{ShareIdx: i}
 
 		err := exes[i].Broadcast(ctx, core.Duty{}, set)
 		require.NoError(t, err)

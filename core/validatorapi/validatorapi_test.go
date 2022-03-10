@@ -167,11 +167,8 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
 
 	// Configure beacon mock
-	static, err := beaconmock.NewStaticProvider(ctx)
-	require.NoError(t, err)
-
 	bmock := beaconmock.New(
-		beaconmock.WithStaticProvider(static),
+		beaconmock.WithDefaultStaticProvider(),
 		beaconmock.WithValidatorSet(beaconmock.ValidatorSet{vIdx: validator}),
 		beaconmock.WithDeterministicDuties(0), // All duties in first slot of epoch.
 	)
@@ -187,7 +184,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error) {
 		require.EqualValues(t, slot, epochSlot)
 		require.EqualValues(t, commIdx, 0)
-		require.EqualValues(t, valCommIdx, 0)
+		require.EqualValues(t, valCommIdx, vIdx)
 
 		return corePubKey, nil
 	})

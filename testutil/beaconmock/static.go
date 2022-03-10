@@ -47,7 +47,7 @@ type StaticProvider interface {
 }
 
 // NewStaticProvider returns eth2 http client that is populated with static values defined in static.json.
-func NewStaticProvider(ctx context.Context) (StaticProvider, error) {
+func NewStaticProvider() (StaticProvider, error) {
 	respPerPath := make(map[string]json.RawMessage)
 	err := json.Unmarshal(staticJSON, &respPerPath)
 	if err != nil {
@@ -59,7 +59,7 @@ func NewStaticProvider(ctx context.Context) (StaticProvider, error) {
 	}))
 	defer srv.Close()
 
-	ethCl, err := eth2http.New(ctx, eth2http.WithAddress(srv.URL), eth2http.WithLogLevel(1))
+	ethCl, err := eth2http.New(context.Background(), eth2http.WithAddress(srv.URL), eth2http.WithLogLevel(1))
 	if err != nil {
 		return nil, errors.Wrap(err, "new eth2 http")
 	}

@@ -51,7 +51,7 @@ type DutyDB interface {
 	PubKeyByAttestation(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
 }
 
-// Consensus abstracts a cluster consensus layer.
+// Consensus comes to consensus on proposed duty data.
 type Consensus interface {
 	// Propose triggers consensus game of the proposed duty unsigned data set.
 	Propose(context.Context, Duty, UnsignedDataSet) error
@@ -71,4 +71,70 @@ type ValidatorAPI interface {
 
 	// RegisterParSigDB registers a function to store partially signed data sets.
 	RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error)
+}
+
+// ParSigDB persists partial signatures and sends them to the
+// partial signature exchange and aggregation.
+type ParSigDB interface {
+	// StoreInternal stores an internally received partially signed duty data set.
+	StoreInternal(context.Context, Duty, ParSignedDataSet) error
+
+	// StoreExternal stores an externally received partially signed duty data set.
+	StoreExternal(context.Context, Duty, ParSignedDataSet) error
+
+	// SubscribeInternal registers a callback when an internal
+	// partially signed duty set is stored.
+	SubscribeInternal(func(context.Context, Duty, ParSignedDataSet) error)
+
+	// SubscribeThreshold registers a callback when *threshold*
+	// partially signed duty is reached for a DV.
+	SubscribeThreshold(func(context.Context, Duty, PubKey, []ParSignedData) error)
+}
+
+// ParSigEx exchanges partially signed duty data sets.
+type ParSigEx interface {
+	// Broadcast broadcasts the partially signed duty data set to all peers.
+	Broadcast(context.Context, Duty, ParSignedDataSet) error
+
+	// Subscribe registers a callback when a partially signed duty set
+	// is received from a peer.
+	Subscribe(func(context.Context, Duty, ParSignedDataSet) error)
+}
+
+// SigAgg aggregates threshold partial signatures.
+type SigAgg interface {
+	// Aggregate aggregates the partially signed duty data for the DV.
+	Aggregate(context.Context, Duty, PubKey, []ParSignedData) error
+
+	// Subscribe registers a callback for aggregated signed duty data.
+	Subscribe(func(context.Context, Duty, PubKey, AggSignedData) error)
+}
+
+// Broadcaster broadcasts aggregated signed duty data to the beacon node.
+type Broadcaster interface {
+	Broadcast(context.Context, Duty, PubKey, AggSignedData) error
+}
+
+// Wire wires the workflow components together.
+func Wire(
+	sched Scheduler,
+	fetch Fetcher,
+	cons Consensus,
+	dutyDB DutyDB,
+	vapi ValidatorAPI,
+	parSigDB ParSigDB,
+	parSigEx ParSigEx,
+	sigAgg SigAgg,
+	bcast Broadcaster,
+) {
+	sched.Subscribe(fetch.Fetch)
+	fetch.Subscribe(cons.Propose)
+	cons.Subscribe(dutyDB.Store)
+	vapi.RegisterAwaitAttestation(dutyDB.AwaitAttestation)
+	vapi.RegisterPubKeyByAttestation(dutyDB.PubKeyByAttestation)
+	vapi.RegisterParSigDB(parSigDB.StoreInternal)
+	parSigDB.SubscribeInternal(parSigEx.Broadcast)
+	parSigEx.Subscribe(parSigDB.StoreExternal)
+	parSigDB.SubscribeThreshold(sigAgg.Aggregate)
+	sigAgg.Subscribe(bcast.Broadcast)
 }

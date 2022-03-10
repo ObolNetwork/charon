@@ -215,7 +215,7 @@ func TestSchedulerDuties(t *testing.T) {
 				beaconmock.WithDeterministicDuties(test.Factor),
 			)
 
-			pubkeys, err := valSet.PublicKeys()
+			pubkeys, err := valSet.CorePubKeys()
 			require.NoError(t, err)
 
 			sched := scheduler.NewForT(t, clock, pubkeys, eth2Cl)
