@@ -52,8 +52,13 @@ func TestMemTransport(t *testing.T) {
 	}
 
 	var casts []*leadercast.LeaderCast
+	resolved := make(chan core.UnsignedDataSet, slots*n)
 	for i := 0; i < n; i++ {
 		c := leadercast.New(trFunc(), i, n)
+		c.Subscribe(func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error {
+			resolved <- set
+			return nil
+		})
 		casts = append(casts, c)
 
 		go func() {
@@ -62,7 +67,6 @@ func TestMemTransport(t *testing.T) {
 	}
 
 	var expected []core.UnsignedDataSet
-	resolved := make(chan core.UnsignedDataSet, slots*n)
 	for i := 0; i < slots; i++ {
 		duty := core.Duty{Slot: int64(i)}
 		data := core.UnsignedDataSet{}
@@ -91,7 +95,6 @@ func TestMemTransport(t *testing.T) {
 			go func(node int) {
 				err := casts[node].Propose(ctx, duty, data)
 				require.NoError(t, err)
-				resolved <- data
 			}(j)
 		}
 	}
