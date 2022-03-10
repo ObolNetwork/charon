@@ -140,6 +140,7 @@ func sendData(ctx context.Context, t *p2pTransport, p peer.ID, b []byte) error {
 }
 
 type p2pMsg struct {
+	Idx     int
 	FromIdx int
 	Duty    core.Duty
 	Data    core.UnsignedDataSet
@@ -151,7 +152,7 @@ type p2pMsg struct {
 func NewMemTransportFunc(ctx context.Context) func() Transport {
 	var (
 		input   = make(chan p2pMsg)
-		outputs []chan p2pMsg
+		outputs = make(map[int]chan p2pMsg)
 		mu      sync.Mutex
 	)
 
@@ -162,7 +163,10 @@ func NewMemTransportFunc(ctx context.Context) func() Transport {
 				return
 			case msg := <-input:
 				mu.Lock()
-				for _, output := range outputs {
+				for idx, output := range outputs {
+					if msg.Idx == idx {
+						continue
+					}
 					output <- msg
 				}
 				mu.Unlock()
@@ -175,28 +179,30 @@ func NewMemTransportFunc(ctx context.Context) func() Transport {
 		mu.Lock()
 		defer mu.Unlock()
 
+		idx := index
 		output := make(chan p2pMsg)
-		outputs = append(outputs, output)
-		peerIdx := index
+		outputs[idx] = output
+
 		index++
 
 		return memTransport{
-			peerIdx: peerIdx,
-			input:   input,
-			output:  output,
+			idx:    idx,
+			input:  input,
+			output: output,
 		}
 	}
 }
 
 // memTransport is an in-memory transport useful for deterministic integration tests.
 type memTransport struct {
-	peerIdx int
-	input   chan<- p2pMsg
-	output  <-chan p2pMsg
+	idx    int
+	input  chan<- p2pMsg
+	output <-chan p2pMsg
 }
 
 func (m memTransport) Broadcast(ctx context.Context, fromIdx int, duty core.Duty, data core.UnsignedDataSet) error {
 	msg := p2pMsg{
+		Idx:     m.idx,
 		FromIdx: fromIdx,
 		Duty:    duty,
 		Data:    data,
@@ -216,11 +222,6 @@ func (m memTransport) AwaitNext(ctx context.Context) (int, core.Duty, core.Unsig
 		case <-ctx.Done():
 			return 0, core.Duty{}, nil, ctx.Err()
 		case msg := <-m.output:
-			if msg.FromIdx == m.peerIdx {
-				// Do not broadcast to self
-				continue
-			}
-
 			return msg.FromIdx, msg.Duty, msg.Data, nil
 		}
 	}

@@ -104,6 +104,9 @@ func GenerateTSS(t, n int, reader io.Reader) (TSS, []*bls_sig.SecretKeyShare, er
 
 // Aggregate returns an aggregated signature.
 func Aggregate(partialSigs []*bls_sig.PartialSignature) (*bls_sig.Signature, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
 	aggSig, err := blsScheme.CombineSignatures(partialSigs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "aggregate signatures")

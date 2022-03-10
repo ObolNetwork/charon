@@ -406,7 +406,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 
 	// Trigger validatormock when scheduler triggers new slot.
 	sched.Subscribe(func(ctx context.Context, duty core.Duty, _ core.FetchArgSet) error {
-		ctx = log.WithTopic(ctx, "validatormock")
+		ctx = log.WithTopic(ctx, "vmock")
 		go func() {
 			err := validatormock.Attest(ctx, vapi, signer, eth2p0.Slot(duty.Slot), pubshares...)
 			if err != nil {
