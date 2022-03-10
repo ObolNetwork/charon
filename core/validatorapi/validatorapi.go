@@ -41,11 +41,11 @@ type eth2Provider interface {
 }
 
 // PubShareFunc abstracts the mapping of validator root public key to tbls public share.
-type PubShareFunc func(pubkey core.PubKey, index int) (*bls_sig.PublicKey, error)
+type PubShareFunc func(pubkey core.PubKey, shareIdx int) (*bls_sig.PublicKey, error)
 
 // NewComponentInsecure returns a new instance of the validator API core workflow component
 // that does not perform signature verification.
-func NewComponentInsecure(eth2Svc eth2client.Service, index int) (*Component, error) {
+func NewComponentInsecure(eth2Svc eth2client.Service, shareIdx int) (*Component, error) {
 	eth2Cl, ok := eth2Svc.(eth2Provider)
 	if !ok {
 		return nil, errors.New("invalid eth2 service")
@@ -54,7 +54,7 @@ func NewComponentInsecure(eth2Svc eth2client.Service, index int) (*Component, er
 	return &Component{
 		skipVerify: true,
 		eth2Cl:     eth2Cl,
-		shareIdx:   index,
+		shareIdx:   shareIdx,
 	}, nil
 }
 

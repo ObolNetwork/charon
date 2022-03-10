@@ -33,9 +33,9 @@ import (
 
 const manifestVersion = "obol/charon/manifest/0.0.1"
 
-// ClusterIdx represents the index of a node/peer/share in the cluster as defined in the manifest.
-type ClusterIdx struct {
-	// PeerID is ID of this peers.
+// NodeIdx represents the index of a node/peer/share in the cluster as defined in the manifest.
+type NodeIdx struct {
+	// PeerID is ID of this peer.
 	PeerID peer.ID
 	// PeerIdx is the index of a peer in the peer list (it 0-indexed).
 	PeerIdx int
@@ -76,21 +76,21 @@ func (m Manifest) PeerIDs() []peer.ID {
 	return res
 }
 
-// ClusterIdx returns the cluster index for the peer.
-func (m Manifest) ClusterIdx(pID peer.ID) (ClusterIdx, error) {
+// NodeIdx returns the node index for the peer.
+func (m Manifest) NodeIdx(pID peer.ID) (NodeIdx, error) {
 	for i, p := range m.Peers {
 		if p.ID != pID {
 			continue
 		}
 
-		return ClusterIdx{
+		return NodeIdx{
 			PeerIdx:  i,
 			PeerID:   pID,
 			ShareIdx: i + 1,
 		}, nil
 	}
 
-	return ClusterIdx{}, errors.New("unknown peer id")
+	return NodeIdx{}, errors.New("unknown peer id")
 }
 
 // PublicKeys is a convenience function that returns the DV root public keys.
