@@ -54,6 +54,7 @@ type ParSigEx struct {
 func (m *ParSigEx) handle(s network.Stream) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
+	defer s.Close()
 
 	var msg p2pMsg
 	err := json.NewDecoder(s).Decode(&msg)
@@ -73,9 +74,8 @@ func (m *ParSigEx) handle(s network.Stream) {
 // Broadcast broadcasts the partially signed duty data set to all peers.
 func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
 	b, err := json.Marshal(p2pMsg{
-		Source: m.peerIdx,
-		Duty:   duty,
-		Data:   data,
+		Duty: duty,
+		Data: data,
 	})
 	if err != nil {
 		return errors.Wrap(err, "marshal tcpNode msg")
@@ -84,6 +84,7 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, data core.ParS
 	var errs []error
 
 	for _, p := range m.peers {
+		// Don't send to self
 		if p == m.peerIdx {
 			continue
 		}
@@ -129,7 +130,6 @@ func sendData(ctx context.Context, tcpNode host.Host, p peer.ID, b []byte) error
 }
 
 type p2pMsg struct {
-	Source peer.ID
-	Duty   core.Duty
-	Data   core.ParSignedDataSet
+	Duty core.Duty
+	Data core.ParSignedDataSet
 }
