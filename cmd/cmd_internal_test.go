@@ -134,7 +134,7 @@ func TestConfigReference(t *testing.T) {
 			}
 		}
 
-		err = os.WriteFile(file, []byte(strings.Join(output, "\n")), 0o644) //nolint:gosec
+		err = os.WriteFile(file, []byte(strings.Join(output, "\n")), 0o644)
 		require.NoError(t, err)
 
 		return

@@ -34,7 +34,6 @@ func TestLoadManifest(t *testing.T) {
 
 	filename := path.Join(dir, "manifest.json")
 
-	// nolint:gosec
 	err = os.WriteFile(filename, b, 0o644)
 	require.NoError(t, err)
 

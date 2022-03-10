@@ -45,7 +45,7 @@ func TestManifestJSON(t *testing.T) {
 		filename := fmt.Sprintf("testdata/manifest%d.json", i)
 
 		if *update {
-			// nolint:gosec
+
 			err := os.WriteFile(filename, data, 0o644)
 			require.NoError(t, err)
 
