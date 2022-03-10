@@ -16,7 +16,6 @@ package leadercast
 
 import (
 	"context"
-	"sync"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -25,13 +24,12 @@ import (
 )
 
 // New returns a new leader cast consensus implementation
-// for the node at index in the total cluster.
-func New(transport Transport, index, total int) *LeaderCast {
+// for the peer at index of a total number of peers.
+func New(transport Transport, peerIdx, peers int) *LeaderCast {
 	return &LeaderCast{
-		total:     total,
-		index:     index,
+		peers:     peers,
+		peerIdx:   peerIdx,
 		transport: transport,
-		buffers:   make(map[core.Duty]chan core.UnsignedDataSet),
 	}
 }
 
@@ -42,16 +40,16 @@ func New(transport Transport, index, total int) *LeaderCast {
 //
 // Note this is neither HA nor BFT.
 type LeaderCast struct {
-	total     int // total number of nodes in the cluster
-	index     int // index of this node in the cluster
+	peers     int // total number of peers in the cluster
+	peerIdx   int // index of this peers in the cluster
 	transport Transport
 
-	mu      sync.Mutex
-	buffers map[core.Duty]chan core.UnsignedDataSet
-	subs    []func(context.Context, core.Duty, core.UnsignedDataSet) error
+	subs []func(context.Context, core.Duty, core.UnsignedDataSet) error
 }
 
 func (l *LeaderCast) Run(ctx context.Context) error {
+	ctx = log.WithTopic(ctx, "lcast")
+
 	for {
 		source, duty, data, err := l.transport.AwaitNext(ctx)
 		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
@@ -61,63 +59,53 @@ func (l *LeaderCast) Run(ctx context.Context) error {
 			continue
 		}
 
-		if !isLeader(source, l.total, duty) {
+		if !isLeader(source, l.peers, duty) {
 			log.Warn(ctx, "received duty from non-leader", z.Int("peer", source))
 			continue
 		}
 
 		log.Debug(ctx, "received duty from leader", z.Int("peer", source), z.Any("duty", duty))
 
-		l.getBuffer(duty) <- data
-		// TODO(corver): Trim channels that are never resolved.
+		for _, sub := range l.subs {
+			if err := sub(ctx, duty, data); err != nil {
+				log.Error(ctx, "subscriber error", err)
+				continue
+			}
+		}
 	}
 }
 
-// getBuffer returns the channel to buffer the duty data.
-func (l *LeaderCast) getBuffer(duty core.Duty) chan core.UnsignedDataSet {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	ch, ok := l.buffers[duty]
-	if !ok {
-		ch = make(chan core.UnsignedDataSet, 1) // Only need to buffer a single message per duty.
-		l.buffers[duty] = ch
-	}
-
-	return ch
-}
-
+// Subscribe registers a callback for unsigned duty data proposals from leaders.
+// Note this function is not thread safe, it should be called *before* Run or Propose.
 func (l *LeaderCast) Subscribe(fn func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error) {
 	l.subs = append(l.subs, fn)
 }
 
+// Propose proposes an unsigned duty data object for consensus. If this peer is the leader, then it is
+// broadcasted to all peers (including self), else the proposal is ignored.
 func (l *LeaderCast) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
-	if isLeader(l.index, l.total, duty) {
-		return l.transport.Broadcast(ctx, l.index, duty, data)
-	}
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-l.getBuffer(duty):
-		l.mu.Lock()
-		delete(l.buffers, duty)
-		l.mu.Unlock()
-
-		for _, sub := range l.subs {
-			err := sub(ctx, duty, data)
-			if err != nil {
-				return err
-			}
-		}
-
+	if !isLeader(l.peerIdx, l.peers, duty) {
 		return nil
 	}
+
+	err := l.transport.Broadcast(ctx, l.peerIdx, duty, data)
+	if err != nil {
+		return err
+	}
+
+	for _, sub := range l.subs {
+		if err := sub(ctx, duty, data); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-// isLeader is a deterministic LeaderCast election function that returns true if the instance at index (of total)
-// is the LeaderCast for the given duty.
-func isLeader(index, total int, d core.Duty) bool {
-	mod := (int(d.Slot) + int(d.Type)) % total
+// isLeader is a deterministic leader election function that returns true if the peer at index (of total)
+// is the leader for the given duty.
+func isLeader(peerIdx, peers int, d core.Duty) bool {
+	mod := (int(d.Slot) + int(d.Type)) % peers
 
-	return mod == index
+	return mod == peerIdx
 }

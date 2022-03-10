@@ -34,15 +34,17 @@ const protocol = "/charon/leadercast/1.0.0"
 
 // Transport abstracts the transport layer for leader cast consensus.
 type Transport interface {
-	Broadcast(ctx context.Context, source int, d core.Duty, data core.UnsignedDataSet) error
-	AwaitNext(ctx context.Context) (source int, d core.Duty, data core.UnsignedDataSet, err error)
+	// Broadcast proposal all *other* peers.
+	Broadcast(ctx context.Context, fromIdx int, d core.Duty, data core.UnsignedDataSet) error
+	// AwaitNext blocks and returns when the next proposal is received from *another* peer.
+	AwaitNext(ctx context.Context) (fromIdx int, d core.Duty, data core.UnsignedDataSet, err error)
 }
 
-func NewP2PTransport(tcpNode host.Host, index int, peers []peer.ID) Transport {
+func NewP2PTransport(tcpNode host.Host, peerIDx int, peers []peer.ID) Transport {
 	t := &p2pTransport{
 		tcpNode: tcpNode,
 		peers:   peers,
-		index:   index,
+		peerIDx: peerIDx,
 		ch:      make(chan p2pMsg),
 	}
 	t.tcpNode.SetStreamHandler(protocol, t.handle)
@@ -52,7 +54,7 @@ func NewP2PTransport(tcpNode host.Host, index int, peers []peer.ID) Transport {
 
 type p2pTransport struct {
 	tcpNode host.Host
-	index   int
+	peerIDx int
 	peers   []peer.ID
 	ch      chan p2pMsg
 }
@@ -61,6 +63,7 @@ type p2pTransport struct {
 func (t *p2pTransport) handle(s network.Stream) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
+	defer s.Close()
 
 	var msg p2pMsg
 	err := json.NewDecoder(s).Decode(&msg)
@@ -75,11 +78,11 @@ func (t *p2pTransport) handle(s network.Stream) {
 	}
 }
 
-func (t *p2pTransport) Broadcast(ctx context.Context, source int, d core.Duty, data core.UnsignedDataSet) error {
+func (t *p2pTransport) Broadcast(ctx context.Context, fromIdx int, d core.Duty, data core.UnsignedDataSet) error {
 	b, err := json.Marshal(p2pMsg{
-		Source: source,
-		Duty:   d,
-		Data:   data,
+		FromIdx: fromIdx,
+		Duty:    d,
+		Data:    data,
 	})
 	if err != nil {
 		return errors.Wrap(err, "marshal tcpNode msg")
@@ -87,8 +90,8 @@ func (t *p2pTransport) Broadcast(ctx context.Context, source int, d core.Duty, d
 
 	var errs []error
 
-	for i, p := range t.peers {
-		if i == t.index {
+	for idx, p := range t.peers {
+		if idx == t.peerIDx {
 			// Don't send to self.
 			continue
 		}
@@ -114,7 +117,7 @@ func (t *p2pTransport) AwaitNext(ctx context.Context) (int, core.Duty, core.Unsi
 	case <-ctx.Done():
 		return 0, core.Duty{}, nil, ctx.Err()
 	case msg := <-t.ch:
-		return msg.Source, msg.Duty, msg.Data, nil
+		return msg.FromIdx, msg.Duty, msg.Data, nil
 	}
 }
 
@@ -137,9 +140,9 @@ func sendData(ctx context.Context, t *p2pTransport, p peer.ID, b []byte) error {
 }
 
 type p2pMsg struct {
-	Source int
-	Duty   core.Duty
-	Data   core.UnsignedDataSet
+	FromIdx int
+	Duty    core.Duty
+	Data    core.UnsignedDataSet
 }
 
 // NewMemTransportFunc returns a function that itself returns in-memory
@@ -167,44 +170,58 @@ func NewMemTransportFunc(ctx context.Context) func() Transport {
 		}
 	}()
 
+	var index int
 	return func() Transport {
 		mu.Lock()
 		defer mu.Unlock()
 
 		output := make(chan p2pMsg)
 		outputs = append(outputs, output)
+		peerIdx := index
+		index++
 
 		return memTransport{
-			input:  input,
-			output: output,
+			peerIdx: peerIdx,
+			input:   input,
+			output:  output,
 		}
 	}
 }
 
 // memTransport is an in-memory transport useful for deterministic integration tests.
 type memTransport struct {
-	input  chan<- p2pMsg
-	output <-chan p2pMsg
+	peerIdx int
+	input   chan<- p2pMsg
+	output  <-chan p2pMsg
 }
 
-func (m memTransport) Broadcast(ctx context.Context, source int, duty core.Duty, data core.UnsignedDataSet) error {
+func (m memTransport) Broadcast(ctx context.Context, fromIdx int, duty core.Duty, data core.UnsignedDataSet) error {
+	msg := p2pMsg{
+		FromIdx: fromIdx,
+		Duty:    duty,
+		Data:    data,
+	}
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case m.input <- p2pMsg{
-		Source: source,
-		Duty:   duty,
-		Data:   data,
-	}:
+	case m.input <- msg:
 		return nil
 	}
 }
 
 func (m memTransport) AwaitNext(ctx context.Context) (int, core.Duty, core.UnsignedDataSet, error) {
-	select {
-	case <-ctx.Done():
-		return 0, core.Duty{}, nil, ctx.Err()
-	case msg := <-m.output:
-		return msg.Source, msg.Duty, msg.Data, nil
+	for {
+		select {
+		case <-ctx.Done():
+			return 0, core.Duty{}, nil, ctx.Err()
+		case msg := <-m.output:
+			if msg.FromIdx == m.peerIdx {
+				// Do not broadcast to self
+				continue
+			}
+
+			return msg.FromIdx, msg.Duty, msg.Data, nil
+		}
 	}
 }
