@@ -27,11 +27,12 @@ func _() {
 	_ = x[StartP2PPing-2]
 	_ = x[StartLeaderCast-3]
 	_ = x[StartSimulator-4]
+	_ = x[StartScheduler-5]
 }
 
-const _OrderStart_name = "MonitoringAPIValidatorAPIP2PPingLeaderCastSimulator"
+const _OrderStart_name = "MonitoringAPIValidatorAPIP2PPingLeaderCastSimulatorScheduler"
 
-var _OrderStart_index = [...]uint8{0, 13, 25, 32, 42, 51}
+var _OrderStart_index = [...]uint8{0, 13, 25, 32, 42, 51, 60}
 
 func (i OrderStart) String() string {
 	if i < 0 || i >= OrderStart(len(_OrderStart_index)-1) {

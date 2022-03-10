@@ -30,8 +30,10 @@ const (
 	StartP2PPing
 	StartLeaderCast
 	StartSimulator
+	StartScheduler
 
 	StopTracing OrderStop = iota
+	StopScheduler
 	StopP2PPeerDB
 	StopP2PTCPNode
 	StopP2PUDPNode

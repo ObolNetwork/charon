@@ -16,6 +16,7 @@ package tbls
 
 import (
 	"io"
+	"sync"
 
 	"github.com/dB2510/kryptology/pkg/core/curves"
 	share "github.com/dB2510/kryptology/pkg/sharing"
@@ -219,13 +220,13 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int, reader io.Reader) 
 	return sks, verifier, nil
 }
 
-// getPubShare returns the public key corresponding to a secret share with given Verifiers.
-//
-// This function has been taken from:
-// https://github.com/coinbase/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/sharing/v1/feldman.go#L66
-// where Verifiers(coefficients of public polynomial) are used to compute sum of products of public polynomial with
-// identifier as x coordinate.
+// TODO(corver): Remove this once kryptology concurrency issues have been addressed.
+var mu sync.Mutex
+
 func getPubShare(identifier int, verifier *share.FeldmanVerifier) (*bls_sig.PublicKey, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
 	curve := curves.GetCurveByName(verifier.Commitments[0].CurveName())
 	if curve != curves.BLS12381G1() {
 		return nil, errors.New("curve mismatch")
