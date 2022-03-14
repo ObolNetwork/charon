@@ -98,7 +98,8 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, data core.ParS
 	if len(errs) == 0 {
 		log.Debug(ctx, "parsigex broadcast duty success", z.Any("duty", duty))
 	} else {
-		log.Warn(ctx, "broadcast duty with errors", z.Int("success", len(m.peers)-len(errs)),
+		// len(t.peers)-len(errs)-1 is total number of errors excluding broadcast to self case
+		log.Warn(ctx, "broadcast duty with errors", z.Int("success", len(m.peers)-len(errs)-1),
 			z.Int("errors", len(errs)), z.Str("err_0", errs[0].Error()))
 	}
 
