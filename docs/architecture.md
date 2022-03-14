@@ -56,36 +56,36 @@ Core Workflow
 ─────────────┴───────────────────────────
 
              │                ┌─────────┐
-    Schedule │                │Scheduler│
+  *Schedule* │                │Scheduler│
         duty │                └─&┌──────┘
                                  │
              │                ┌──▼────┐
              │  ┌──----------─┤Fetcher│
              │  │             └─&┌────┘
-      Decide │  |                │
+    *Decide* │  |                │
         what │  |             ┌──▼──────┐
-          to │  |             │Consensus│
-        sign │  |             └─*┌──────┘
-             │  |                │
+        data │  |             │Consensus│
+          to │  |             └─*┌──────┘
+        sign │  |                │
              │  |             ┌──▼───┐
              │  |             │DutyDB│
              │  |             └──▲───┘
                 |                │
-             │  |             ┌──┴─┐
-        Sign │  |             │VAPI◄───VC
-             │  |             └──┬─┘
+      *Sign* │  |             ┌──┴─┐
+        duty │  |             │VAPI◄───VC
+        data │  |             └──┬─┘
                 |                │
-             │  | ┌────────┐  ┌──▼─────┐
-       Share │  | │ParSigEx◄──►ParSigDB│
-             │  | └─────*──┘  └──┬─────┘
+     *Share* │  | ┌────────┐  ┌──▼─────┐
+     partial │  | │ParSigEx◄──►ParSigDB│
+        sigs │  | └─────*──┘  └──┬─────┘
                 |                │
-             │  │ ┌────────┐  ┌──▼───┐
-   Aggregate │  └─►AggSigDB◄──┤SigAgg│
-             │    └────────┘  └──┬───┘
+ *Aggregate* │  │ ┌────────┐  ┌──▼───┐
+     partial │  └─►AggSigDB◄──┤SigAgg│
+        sigs │    └────────┘  └──┬───┘
                                  │
-             │                ┌──▼──────┐
-   Broadcast │                │Broadcast│
-             │                └─&───────┘
+ *Broadcast* │                ┌──▼──────┐
+  aggregated │                │Broadcast│
+         sig │                └─&───────┘
 
        &:Beacon-node client calls
        *:P2P protocol
