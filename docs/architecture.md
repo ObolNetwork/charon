@@ -70,11 +70,11 @@ Core Workflow
              │  |             ┌──▼───┐
              │  |             │DutyDB│
              │  |             └──▲───┘
-                |                │
-      *Sign* │  |             ┌──┴─┐
-        duty │  |             │VAPI◄───VC
-        data │  |             └──┬─┘
-                |                │
+                |                │           │
+      *Sign* │  |             ┌──┴─┐         │
+        duty │  |             │VAPI◄─────────│── VC
+        data │  |             └──┬─┘         │ Query, sign, submit
+                |                │           │
      *Share* │  | ┌────────┐  ┌──▼─────┐
      partial │  | │ParSigEx◄──►ParSigDB│
         sigs │  | └─────*──┘  └──┬─────┘
@@ -87,8 +87,8 @@ Core Workflow
   aggregated │                │Broadcast│
          sig │                └─&───────┘
 
-       &:Beacon-node client calls
-       *:P2P protocol
+       &: Beacon-node client calls
+       *: P2P protocol
 ```
 ### Duty
 As per the Ethereum consensus [spec](https://github.com/ethereum/consensus-specs/blob/v1.1.0-alpha.2/specs/phase0/validator.md#beacon-chain-responsibilities):
