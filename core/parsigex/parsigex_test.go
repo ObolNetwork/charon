@@ -16,19 +16,12 @@ package parsigex_test
 
 import (
 	"context"
-	"crypto/rand"
-	"fmt"
 	"sync"
 	"testing"
 
-	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/peerstore"
-	noise "github.com/libp2p/go-libp2p-noise"
-	"github.com/libp2p/go-tcp-transport"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -42,7 +35,6 @@ func TestParSigEx(t *testing.T) {
 		Slot: 123,
 		Type: core.DutyAttester,
 	}
-	portStart := 15000
 
 	pubkey := testutil.RandomPubKey(t)
 	data := core.ParSignedDataSet{
@@ -62,7 +54,7 @@ func TestParSigEx(t *testing.T) {
 
 	// create hosts
 	for i := 0; i < n; i++ {
-		h := createHost(t, portStart)
+		h := testutil.CreateHost(t, testutil.AvailableAddr(t))
 		info := peer.AddrInfo{
 			ID:    h.ID(),
 			Addrs: h.Addrs(),
@@ -70,7 +62,16 @@ func TestParSigEx(t *testing.T) {
 		hostsInfo = append(hostsInfo, info)
 		peers = append(peers, h.ID())
 		hosts = append(hosts, h)
-		portStart++
+	}
+
+	// connect each host with its peers
+	for i := 0; i < n; i++ {
+		for k := 0; k < n; k++ {
+			if i == k {
+				continue
+			}
+			hosts[i].Peerstore().AddAddrs(hostsInfo[k].ID, hostsInfo[k].Addrs, peerstore.PermanentAddrTTL)
+		}
 	}
 
 	// create ParSigEx components for each host
@@ -88,41 +89,12 @@ func TestParSigEx(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {
 		wg.Add(1)
-		i := i
-		go func() {
+		go func(node int) {
 			defer wg.Done()
-
-			// register other peers
-			for j := 0; j < n; j++ {
-				if i == j {
-					continue
-				}
-				hosts[i].Peerstore().AddAddrs(hostsInfo[j].ID, hostsInfo[j].Addrs, peerstore.PermanentAddrTTL)
-			}
-
-			// broadcast parsigex
-			require.NoError(t, parsigexs[i].Broadcast(context.Background(), duty, data))
-		}()
+			// broadcast partially signed data
+			require.NoError(t, parsigexs[node].Broadcast(context.Background(), duty, data))
+		}(i)
 	}
 
 	wg.Wait()
-}
-
-func createHost(t *testing.T, port int) host.Host {
-	t.Helper()
-	pkey, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
-	require.NoError(t, err)
-
-	listen, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", port))
-	require.NoError(t, err)
-
-	h, err := libp2p.New([]libp2p.Option{
-		libp2p.Transport(tcp.NewTCPTransport),
-		libp2p.Identity(pkey),
-		libp2p.ListenAddrs(listen),
-		libp2p.Security(noise.ID, noise.New),
-	}...)
-	require.NoError(t, err)
-
-	return h
 }

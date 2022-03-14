@@ -17,20 +17,12 @@ package leadercast_test
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"fmt"
-	"net"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/peerstore"
-	noise "github.com/libp2p/go-libp2p-noise"
-	"github.com/libp2p/go-tcp-transport"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -145,7 +137,7 @@ func TestP2PTransport(t *testing.T) {
 
 	// create hosts
 	for i := 0; i < n; i++ {
-		h := createHost(t, testutil.AvailableAddr(t))
+		h := testutil.CreateHost(t, testutil.AvailableAddr(t))
 		info := peer.AddrInfo{
 			ID:    h.ID(),
 			Addrs: h.Addrs(),
@@ -238,18 +230,4 @@ func TestP2PTransport(t *testing.T) {
 		// assert total number of bytes to be equal in between expected and actual data
 		require.Equal(t, n*slots, count, expect)
 	}
-}
-
-func createHost(t *testing.T, addr *net.TCPAddr) host.Host {
-	t.Helper()
-	pkey, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
-	require.NoError(t, err)
-
-	addrs, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", addr.IP, addr.Port))
-	require.NoError(t, err)
-
-	h, err := libp2p.New(libp2p.Transport(tcp.NewTCPTransport), libp2p.Identity(pkey), libp2p.ListenAddrs(addrs), libp2p.Security(noise.ID, noise.New))
-	require.NoError(t, err)
-
-	return h
 }

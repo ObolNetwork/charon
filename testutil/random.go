@@ -16,12 +16,18 @@
 package testutil
 
 import (
+	crand "crypto/rand"
+	"fmt"
 	"math/rand"
 	"net"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
 
@@ -139,4 +145,18 @@ func AvailableAddr(t *testing.T) *net.TCPAddr {
 	require.NoError(t, err)
 
 	return addr
+}
+
+func CreateHost(t *testing.T, addr *net.TCPAddr) host.Host {
+	t.Helper()
+	pkey, _, err := crypto.GenerateSecp256k1Key(crand.Reader)
+	require.NoError(t, err)
+
+	addrs, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", addr.IP, addr.Port))
+	require.NoError(t, err)
+
+	h, err := libp2p.New(libp2p.Identity(pkey), libp2p.ListenAddrs(addrs))
+	require.NoError(t, err)
+
+	return h
 }
