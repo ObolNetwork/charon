@@ -28,6 +28,7 @@ import (
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestSimnetNoNetwork(t *testing.T) {
@@ -53,8 +54,8 @@ func TestSimnetNoNetwork(t *testing.T) {
 	)
 	for i := 0; i < n; i++ {
 		conf := app.Config{
-			MonitoringAddr:   availableAddr(t).String(), // Random monitoring address
-			ValidatorAPIAddr: availableAddr(t).String(), // Random validatorapi address
+			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
+			ValidatorAPIAddr: testutil.AvailableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
 				Manifest:           &manifest,
 				P2PKey:             p2pKeys[i],

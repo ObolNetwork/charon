@@ -26,11 +26,11 @@ import (
 	"github.com/obolnetwork/charon/app"
 )
 
-//go:generate go test -tags=generic -run=TestManifestJSON -update
-var update = flag.Bool("update", false, "update the manifest json golden test files")
+//go:generate go test -tags=generic -run=TestManifestJSON -updateManifest-manifest
+var updateManifest = flag.Bool("updateManifest-manifest", false, "updateManifest the manifest json golden test files")
 
 func TestManifestJSON(t *testing.T) {
-	if *update {
+	if *updateManifest {
 		require.NoError(t, os.RemoveAll("testdata/"))
 		require.NoError(t, os.Mkdir("testdata", 0o755))
 	}
@@ -44,7 +44,7 @@ func TestManifestJSON(t *testing.T) {
 
 		filename := fmt.Sprintf("testdata/manifest%d.json", i)
 
-		if *update {
+		if *updateManifest {
 			err := os.WriteFile(filename, data, 0o644)
 			require.NoError(t, err)
 

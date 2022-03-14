@@ -17,6 +17,7 @@ package testutil
 
 import (
 	"math/rand"
+	"net"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -124,4 +125,18 @@ func RandomBitList() bitfield.Bitlist {
 	resp.SetBitAt(uint64(index), true)
 
 	return resp
+}
+
+// AvailableAddr returns an available local tcp address.
+func AvailableAddr(t *testing.T) *net.TCPAddr {
+	t.Helper()
+
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	defer l.Close()
+
+	addr, err := net.ResolveTCPAddr(l.Addr().Network(), l.Addr().String())
+	require.NoError(t, err)
+
+	return addr
 }
