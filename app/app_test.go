@@ -36,6 +36,7 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 //go:generate go test . -v -run=TestPingCluster -slow
@@ -116,8 +117,8 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	for i := 0; i < n; i++ {
 		conf := app.Config{
-			MonitoringAddr:   availableAddr(t).String(), // Random monitoring address
-			ValidatorAPIAddr: availableAddr(t).String(), // Random validatorapi address
+			MonitoringAddr:   testutil.RandomAvailableAddr(t).String(), // Random monitoring address
+			ValidatorAPIAddr: testutil.RandomAvailableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
 				Manifest:     &manifest,
 				P2PKey:       p2pKeys[i],
@@ -134,8 +135,8 @@ func pingCluster(t *testing.T, test pingTest) {
 			conf.P2P.TCPAddrs = []string{tcpAddrFromENR(t, manifest.Peers[i].ENR)}
 			conf.P2P.UDPAddr = udpAddrFromENR(t, manifest.Peers[i].ENR)
 		} else {
-			conf.P2P.TCPAddrs = []string{availableAddr(t).String()}
-			conf.P2P.UDPAddr = availableAddr(t).String()
+			conf.P2P.TCPAddrs = []string{testutil.RandomAvailableAddr(t).String()}
+			conf.P2P.UDPAddr = testutil.RandomAvailableAddr(t).String()
 		}
 
 		eg.Go(func() error {
@@ -160,7 +161,7 @@ func startExtBootnode(t *testing.T) *enode.Node {
 	db, err := enode.OpenDB("")
 	require.NoError(t, err)
 
-	addr := availableAddr(t)
+	addr := testutil.RandomAvailableAddr(t)
 
 	ln := enode.NewLocalNode(db, privkey)
 	ln.Set(enr.IPv4(addr.IP))
@@ -180,20 +181,6 @@ func startExtBootnode(t *testing.T) *enode.Node {
 	t.Cleanup(listener.Close)
 
 	return ln.Node()
-}
-
-// availableAddr returns an available local tcp address.
-func availableAddr(t *testing.T) *net.TCPAddr {
-	t.Helper()
-
-	l, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-	defer l.Close()
-
-	addr, err := net.ResolveTCPAddr(l.Addr().Network(), l.Addr().String())
-	require.NoError(t, err)
-
-	return addr
 }
 
 // tcpAddrFromENR returns the "<ip4>:<tcp>" address stored in the ENR.
