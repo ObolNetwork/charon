@@ -107,6 +107,19 @@ func (k PubKey) Bytes() ([]byte, error) {
 	return b, nil
 }
 
+// ToETH2 returns the public key as an eth2 phase0 public key.
+func (k PubKey) ToETH2() (eth2p0.BLSPubKey, error) {
+	b, err := k.Bytes()
+	if err != nil {
+		return eth2p0.BLSPubKey{}, err
+	}
+
+	var resp eth2p0.BLSPubKey
+	copy(resp[:], b)
+
+	return resp, nil
+}
+
 // FetchArg contains the arguments required to fetch the duty data,
 // it is the result of resolving duties at the start of an epoch.
 type FetchArg []byte

@@ -16,6 +16,7 @@ package tbls
 
 import (
 	"io"
+	"sync"
 
 	"github.com/dB2510/kryptology/pkg/core/curves"
 	share "github.com/dB2510/kryptology/pkg/sharing"
@@ -28,6 +29,9 @@ import (
 // blsScheme uses proofs of possession to mitigate rogue-key attacks.
 // see: https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature-03#section-4.2.3
 var blsScheme = bls_sig.NewSigEth2()
+
+// TODO(corver): Remove this once kryptology concurrency issues have been addressed.
+var mu sync.Mutex
 
 // TSS (threshold signing scheme) wraps PubKey (PublicKey), Verifiers (the public shares corresponding to each secret share)
 // and threshold (number of shares).
@@ -103,6 +107,9 @@ func GenerateTSS(t, n int, reader io.Reader) (TSS, []*bls_sig.SecretKeyShare, er
 
 // Aggregate returns an aggregated signature.
 func Aggregate(partialSigs []*bls_sig.PartialSignature) (*bls_sig.Signature, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
 	aggSig, err := blsScheme.CombineSignatures(partialSigs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "aggregate signatures")
@@ -219,13 +226,10 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int, reader io.Reader) 
 	return sks, verifier, nil
 }
 
-// getPubShare returns the public key corresponding to a secret share with given Verifiers.
-//
-// This function has been taken from:
-// https://github.com/coinbase/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/sharing/v1/feldman.go#L66
-// where Verifiers(coefficients of public polynomial) are used to compute sum of products of public polynomial with
-// identifier as x coordinate.
 func getPubShare(identifier int, verifier *share.FeldmanVerifier) (*bls_sig.PublicKey, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
 	curve := curves.GetCurveByName(verifier.Commitments[0].CurveName())
 	if curve != curves.BLS12381G1() {
 		return nil, errors.New("curve mismatch")

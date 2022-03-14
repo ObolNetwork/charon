@@ -18,6 +18,7 @@ package validatormock
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -29,6 +30,9 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
+
+// TODO(corver): Remove this once kryptology concurrency issues have been addressed.
+var mu sync.Mutex
 
 // Eth2AttProvider defines the eth2 beacon api providers required to perform attestations.
 type Eth2AttProvider interface {
@@ -119,6 +123,9 @@ func Attest(ctx context.Context, eth2Cl Eth2AttProvider, signFunc SignFunc,
 // NewSigner returns a singing function supporting the provided private keys.
 func NewSigner(secrets ...*bls_sig.SecretKey) SignFunc {
 	return func(ctx context.Context, pubkey eth2p0.BLSPubKey, data eth2p0.SigningData) (eth2p0.BLSSignature, error) {
+		mu.Lock()
+		defer mu.Unlock()
+
 		secret, err := getSecret(secrets, pubkey)
 		if err != nil {
 			return eth2p0.BLSSignature{}, err

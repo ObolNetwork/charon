@@ -25,6 +25,7 @@ import (
 	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/tbls"
@@ -218,6 +219,8 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 			Slot: slot,
 			Type: core.DutyAttester,
 		}
+
+		log.Debug(ctx, "Attestation submitted by VC", z.I64("slot", slot))
 
 		for _, dbFunc := range c.parSigDBFuncs {
 			err := dbFunc(ctx, duty, set)

@@ -214,7 +214,8 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				z.U64("epoch", uint64(slot.Epoch())),
 				z.U64("vidx", uint64(attDuty.ValidatorIndex)),
 				z.U64("slot", uint64(attDuty.Slot)),
-				z.U64("commidx", uint64(attDuty.CommitteeIndex)))
+				z.U64("commidx", uint64(attDuty.CommitteeIndex)),
+				z.Any("pubkey", pubkey))
 		}
 	}
 
@@ -299,15 +300,9 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2Provider,
 ) (validators, error) {
 	var e2pks []eth2p0.BLSPubKey
 	for _, pubkey := range pubkeys {
-		b, err := pubkey.Bytes()
+		e2pk, err := pubkey.ToETH2()
 		if err != nil {
 			return nil, err
-		}
-
-		var e2pk eth2p0.BLSPubKey
-		n := copy(e2pk[:], b)
-		if n != 48 {
-			return nil, errors.New("invalid pubkey")
 		}
 
 		e2pks = append(e2pks, e2pk)

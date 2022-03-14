@@ -25,6 +25,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
 )
 
@@ -114,7 +115,9 @@ func WithValidatorSet(set ValidatorSet) Option {
 			for _, pubkey := range pubkeys {
 				val, ok := set.ByPublicKey(pubkey)
 				if ok {
-					resp[val.Index] = val
+					resp[val.Index] = cloneValidator(val)
+				} else {
+					log.Debug(ctx, "pubkey not found")
 				}
 			}
 
@@ -126,13 +129,24 @@ func WithValidatorSet(set ValidatorSet) Option {
 			for _, index := range indexes {
 				val, ok := set[index]
 				if ok {
-					resp[index] = val
+					resp[index] = cloneValidator(val)
+				} else {
+					log.Debug(ctx, "index not found")
 				}
 			}
 
 			return resp, nil
 		}
 	}
+}
+
+// cloneValidator returns a cloned value that is safe for modification.
+func cloneValidator(val *eth2v1.Validator) *eth2v1.Validator {
+	tempv1 := *val
+	tempp0 := *tempv1.Validator
+	tempv1.Validator = &tempp0
+
+	return &tempv1
 }
 
 // WithGenesis configures the mock with the provided genesis time.
