@@ -30,6 +30,9 @@ import (
 // see: https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature-03#section-4.2.3
 var blsScheme = bls_sig.NewSigEth2()
 
+// TODO(corver): Remove this once kryptology concurrency issues have been addressed.
+var mu sync.Mutex
+
 // TSS (threshold signing scheme) wraps PubKey (PublicKey), Verifiers (the public shares corresponding to each secret share)
 // and threshold (number of shares).
 type TSS struct {
@@ -222,9 +225,6 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int, reader io.Reader) 
 
 	return sks, verifier, nil
 }
-
-// TODO(corver): Remove this once kryptology concurrency issues have been addressed.
-var mu sync.Mutex
 
 func getPubShare(identifier int, verifier *share.FeldmanVerifier) (*bls_sig.PublicKey, error) {
 	mu.Lock()

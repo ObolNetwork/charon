@@ -31,6 +31,9 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
+// TODO(corver): Remove this once kryptology concurrency issues have been addressed.
+var mu sync.Mutex
+
 // Eth2AttProvider defines the eth2 beacon api providers required to perform attestations.
 type Eth2AttProvider interface {
 	eth2client.AttestationDataProvider
@@ -116,9 +119,6 @@ func Attest(ctx context.Context, eth2Cl Eth2AttProvider, signFunc SignFunc,
 
 	return eth2Cl.SubmitAttestations(ctx, atts)
 }
-
-// TODO(corver): Remove this once kryptology concurrency issues have been addressed.
-var mu sync.Mutex
 
 // NewSigner returns a singing function supporting the provided private keys.
 func NewSigner(secrets ...*bls_sig.SecretKey) SignFunc {
