@@ -145,7 +145,7 @@ func TestP2PTransport(t *testing.T) {
 
 	// create hosts
 	for i := 0; i < n; i++ {
-		h := createHost(t, testutil.RandomAvailableAddr(t))
+		h := createHost(t, testutil.AvailableAddr(t))
 		info := peer.AddrInfo{
 			ID:    h.ID(),
 			Addrs: h.Addrs(),
@@ -210,7 +210,6 @@ func TestP2PTransport(t *testing.T) {
 		expected = append(expected, data)
 
 		for j := 0; j < n; j++ {
-			j := j
 			go func(node int) {
 				err := casts[node].Propose(ctx, duty, data)
 				require.NoError(t, err)

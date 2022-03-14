@@ -127,8 +127,8 @@ func RandomBitList() bitfield.Bitlist {
 	return resp
 }
 
-// RandomAvailableAddr returns an available local tcp address.
-func RandomAvailableAddr(t *testing.T) *net.TCPAddr {
+// AvailableAddr returns an available local tcp address.
+func AvailableAddr(t *testing.T) *net.TCPAddr {
 	t.Helper()
 
 	l, err := net.Listen("tcp", "localhost:0")

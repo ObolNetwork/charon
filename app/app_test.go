@@ -117,8 +117,8 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	for i := 0; i < n; i++ {
 		conf := app.Config{
-			MonitoringAddr:   testutil.RandomAvailableAddr(t).String(), // Random monitoring address
-			ValidatorAPIAddr: testutil.RandomAvailableAddr(t).String(), // Random validatorapi address
+			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
+			ValidatorAPIAddr: testutil.AvailableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
 				Manifest:     &manifest,
 				P2PKey:       p2pKeys[i],
@@ -135,8 +135,8 @@ func pingCluster(t *testing.T, test pingTest) {
 			conf.P2P.TCPAddrs = []string{tcpAddrFromENR(t, manifest.Peers[i].ENR)}
 			conf.P2P.UDPAddr = udpAddrFromENR(t, manifest.Peers[i].ENR)
 		} else {
-			conf.P2P.TCPAddrs = []string{testutil.RandomAvailableAddr(t).String()}
-			conf.P2P.UDPAddr = testutil.RandomAvailableAddr(t).String()
+			conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
+			conf.P2P.UDPAddr = testutil.AvailableAddr(t).String()
 		}
 
 		eg.Go(func() error {
@@ -161,7 +161,7 @@ func startExtBootnode(t *testing.T) *enode.Node {
 	db, err := enode.OpenDB("")
 	require.NoError(t, err)
 
-	addr := testutil.RandomAvailableAddr(t)
+	addr := testutil.AvailableAddr(t)
 
 	ln := enode.NewLocalNode(db, privkey)
 	ln.Set(enr.IPv4(addr.IP))
