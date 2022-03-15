@@ -6,7 +6,7 @@ go 1.17
 replace github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/prysmaticlabs/grpc-gateway/v2 v2.3.1-0.20210702154020-550e1cd83ec1
 
 require (
-	github.com/attestantio/go-eth2-client v0.11.0
+	github.com/attestantio/go-eth2-client v0.11.1
 	github.com/dB2510/kryptology v1.5.6-0.20220307123050-907df7c22492
 	github.com/ethereum/go-ethereum v1.10.16
 	github.com/gorilla/mux v1.8.0
