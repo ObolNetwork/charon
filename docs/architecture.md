@@ -51,28 +51,44 @@ This document describes the Charon middleware architecture both from cluster lev
 Charon core business logic is modelled as a workflow, with a duty being performed in a slot as the “unit of work”.
 ```
 Core Workflow
-          ┌─────┐  ┌─────┐  ┌────┐   ┌──────┐
-  Decide  │Sched├──►Fetch├──►Cons├───►DutyDB│
-          └─&───┘  └─&─┬─┘  └─*──┘   └───▲──┘
-                       │                 │
-                       │              ┌──┴─┐
-  Sign                 │              │VAPI◄───VC
-                       │              └──┬─┘
-                       │                 │
-                       │ ┌────────┐  ┌───▼────┐
-  Share                │ │ParSigEx◄──►ParSigDB│
-                       │ └─────*──┘  └───┬────┘
-                       │                 │
-                       │  ┌────────┐  ┌──▼───┐
-  Agg                  └──►AggSigDB◄──┤SigAgg│
-                          └────────┘  └──┬───┘
-                                         │
-                                      ┌──▼──┐
-  BCast                               │BCast│
-                                      └─&───┘
 
-  &:Beacon-node client calls
-  *:P2P protocol
+      Phases │ Components
+─────────────┴───────────────────────────
+
+             │                ┌─────────┐
+  *Schedule* │                │Scheduler│
+        duty │                └─&┌──────┘
+                                 │
+             │                ┌──▼────┐
+             │  ┌──----------─┤Fetcher│
+             │  │             └─&┌────┘
+    *Decide* │  |                │
+        what │  |             ┌──▼──────┐
+        data │  |             │Consensus│
+          to │  |             └─*┌──────┘
+        sign │  |                │
+             │  |             ┌──▼───┐
+             │  |             │DutyDB│
+             │  |             └──▲───┘
+                |                │           │
+      *Sign* │  |             ┌──┴─┐         │
+        duty │  |             │VAPI◄─────────│── VC
+        data │  |             └──┬─┘         │ Query, sign, submit
+                |                │           │
+     *Share* │  | ┌────────┐  ┌──▼─────┐
+     partial │  | │ParSigEx◄──►ParSigDB│
+        sigs │  | └─────*──┘  └──┬─────┘
+                |                │
+ *Aggregate* │  │ ┌────────┐  ┌──▼───┐
+     partial │  └─►AggSigDB◄──┤SigAgg│
+        sigs │    └────────┘  └──┬───┘
+                                 │
+ *Broadcast* │                ┌──▼──────┐
+  aggregated │                │Broadcast│
+         sig │                └─&───────┘
+
+       &: Beacon-node client calls
+       *: P2P protocol
 ```
 ### Duty
 As per the Ethereum consensus [spec](https://github.com/ethereum/consensus-specs/blob/v1.1.0-alpha.2/specs/phase0/validator.md#beacon-chain-responsibilities):
