@@ -44,3 +44,38 @@ Import sections are the [intro](https://docs.obol.tech/docs/intro),
 For detailed documentation on this repo, see the [docs](docs) folder.
 
 For source code documentation, there is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/charon).
+
+## In Active Development
+
+### Project Status ![Project Status](https://img.shields.io/badge/project--status-WIP-yellowgreen)
+
+It is still early days for the Obol Network and everything is under active development.
+It is NOT ready for mainnet or testnet for that matter.
+Keep checking in for updates.
+
+### Tasks Checklist
+
+#### TODOs
+
+v0
+- [ ] Work on adding block proposer workflow
+- [ ] Integration test for complete workflow (Attestation + Block Proposer)
+
+v1
+- [ ] Add QBFT consensus algorithm
+
+#### In Progress
+- [ ] Integration test for Attestation workflow
+
+#### Done
+- [x] Add all the required components for v0
+  - Scheduler
+  - Fetcher
+  - Leadercast Consensus
+  - DutyDB
+  - Validator API
+  - ParSigDB
+  - ParSigEx
+  - SigAgg
+  - AggSigDB
+  - Bcast
