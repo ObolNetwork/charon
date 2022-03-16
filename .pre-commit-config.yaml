@@ -38,7 +38,6 @@ repos:
         args: [ -w, -s ] # simplify code and write result to (source) file instead of stdout
 
   # Then run code validators (on the formatted code)
-      - id: go-vet
 
   - repo: https://github.com/golangci/golangci-lint
     rev: v1.44.0
