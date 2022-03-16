@@ -2,8 +2,7 @@
 
 🎉 Thanks for taking the time to contribute, we really appreciate it.
 
-To get started with DV tech, check out the
-[Obol book](https://docs.obol.tech/docs/intro) and [Go docs](https://pkg.go.dev/github.com/obolnetwork/charon).
+To get started, check out the [Obol Docs](https://docs.obol.tech/) and other Charon repo [docs](.).
 
 We keep a simple set of guidelines to streamline the contribution process,
 loosely based on the [Atom contributing guide](https://github.com/atom/atom/blob/master/CONTRIBUTING.md).
@@ -39,23 +38,49 @@ Please include a PR description mentioning everything important (according to yo
 ### Core Dev Contributions
 
 - Publish your work in a branch under this [charon repo](https://github.com/ObolNetwork/charon).
-- Keep track of roadmap and feature work via issues in the [pm repo](https://github.com/ObolNetwork/pm).
-- Bug fixes and smaller changes can be linked to issues in the [charon repo](https://github.com/ObolNetwork/charon).
-- Suggested branch names: `<name>/<feature>`, e.g. `oisin/OB1-1234` or `richard/fix-discv5-panic`.
+- Keep track of all roadmap and feature work, as well as bug fixes and smaller changes via GitHub [issues](https://github.com/ObolNetwork/charon/issues).
+- Suggested branch names: `<name>/<feature>`, e.g. `oisin/improve-docs` or `richard/fix-discv5-panic`.
 - Configure Git to use your `obol.tech` email.
 
 ## Style Guide
 
-### Git commit messages
+### Micro-commits on stable trunk
 
-- Use a concise summary line.
-- Prefix the summary with a Jira ticket ID like `[OB1-1234]` if applicable.
-- Feel free to use `Co-Authored-By` and `Signed-Off-By` lines.
+> TL;DR: Introduce change in small increments
 
-### Go code
+- Please see the [Branching and Release Model](branching.md) for more details about how we do branching and releases.
+- Multiple PRs per issue is encouraged.
+- This ensures small PRs that are easy to review, merge and test.
+- The issue can be closed once all PRs are completed.
+- Keeping track of completed and planned PRs via a checklist in the issue is a great idea.
 
-- Make sure your tests pass.
-- Make sure new code paths/modules are also covered by tests.
+### PR Template
+
+- **PRs are always squash merged into main**.
+- The PR title and body is used as the final squash-merged git commit message.
+- The PR's original git commits are therefore lost (so naming isn't specified)
+- **PR title format** is defined as:
+  - Following the [go team's commit format](https://github.com/golang/go/commits/master): `package[/path]: concise overview of change`
+  - Prefix identifies the primary package affected by the change.
+  - Prefix can be a single or double hierarchical package name, but not three or more. E.g. `app` , or `app/tracer`.
+  - The rest of the title must be a concise high-level overview in the present tense and starting with lower case.
+- **PR body format** is defined as:
+  - Start with detailed description of the change.
+  - Description should use proper grammar in present tense.
+  - Ends with a list of tags (some required, others optional) (`^tag: value of this tag\n`):
+  - `ticket`: required; URL of the Github issue just a reference, E.g. `#123` or `none`.
+  - `category`: required; one of: `refactor`, `bug`, `feature`, `docs`, `release`, `tidy`, `fixbuild`.
+  - `release`: optional; identifies the highest release environment/network targeted by the change; `devnet`, `testnet`, `mainnet`, `none`
+- Example:
+```
+runner/tracer: add jaeger otel exporter
+
+Adds the jaeger exporter to our opentelemetery infra.
+
+ticket: https://obol.atlassian.net/browse/OBOL-206
+category: feature
+release: mainnet
+```
 
 ### Githooks
 Charon is configured with [pre-commit](https://pre-commit.com) githooks that ensures pull
