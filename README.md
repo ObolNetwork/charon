@@ -41,6 +41,12 @@ The [Obol Docs](https://docs.obol.tech/) website it best place to get started.
 Import sections are the [intro](https://docs.obol.tech/docs/intro),
 [key concepts](https://docs.obol.tech/docs/key-concepts) and [charon](https://docs.obol.tech/docs/dv/introducing-charon).
 
-For detailed documentation on this repo, see the [docs](docs) folder.
+For detailed documentation on this repo, see the [docs](docs) folder:
+- [Configuration](configuration.md): Configuring a charon node
+- [Architecture](architecture.md): Overview of charon cluster and node architecture
+- [Project Structure](structure.md): Project folder structure
+- [Branching and Release Model](branching.md): Git branching and release model
+- [Go Guidelines](goguidelines.md): Guidelines and principals relating to go development
+- [Contributing](contributing.md): How to contribute to charon; githooks, PR templates, etc.
 
 For source code documentation, there is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/charon).

@@ -372,12 +372,12 @@ func wireValidatorAPI(life *lifecycle.Manager, conf Config) error {
 
 // wireTracing constructs the global tracer and registers it with the life cycle manager.
 func wireTracing(life *lifecycle.Manager, conf Config) error {
-	stopJeager, err := tracer.Init(tracer.WithJaegerOrNoop(conf.JaegerAddr))
+	stopjaeger, err := tracer.Init(tracer.WithJaegerOrNoop(conf.JaegerAddr))
 	if err != nil {
 		return errors.Wrap(err, "init jaeger tracing")
 	}
 
-	life.RegisterStop(lifecycle.StopTracing, lifecycle.HookFunc(stopJeager))
+	life.RegisterStop(lifecycle.StopTracing, lifecycle.HookFunc(stopjaeger))
 
 	return nil
 }

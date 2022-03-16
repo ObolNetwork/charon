@@ -77,7 +77,7 @@ func WithStdOut(w io.Writer) func(*options) {
 		o.expFunc = func() (sdktrace.SpanExporter, error) {
 			ex, err := stdouttrace.New(stdouttrace.WithWriter(w))
 			if err != nil {
-				return nil, errors.Wrap(err, "jeager exporter")
+				return nil, errors.Wrap(err, "jaeger exporter")
 			}
 
 			return ex, nil
@@ -101,7 +101,7 @@ func WithJaeger(addr string) func(*options) {
 		o.expFunc = func() (sdktrace.SpanExporter, error) {
 			ex, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(addr)))
 			if err != nil {
-				return nil, errors.Wrap(err, "jeager exporter")
+				return nil, errors.Wrap(err, "jaeger exporter")
 			}
 
 			return ex, nil

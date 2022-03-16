@@ -53,7 +53,7 @@ func bindRunFlags(flags *pflag.FlagSet, config *app.Config) {
 	flags.StringVar(&config.BeaconNodeAddr, "beacon-node-endpoint", "http://localhost/", "Beacon node endpoint URL")
 	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:3500", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API")
 	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:8088", "Listening address (ip and port) for the monitoring API (prometheus, pprof)")
-	flags.StringVar(&config.JaegerAddr, "jaegar-address", "", "Listening address for Jaegar tracing")
+	flags.StringVar(&config.JaegerAddr, "jaeger-address", "", "Listening address for jaeger tracing")
 }
 
 func bindGeneralFlags(flags *pflag.FlagSet, dataDir *string) {
