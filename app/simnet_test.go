@@ -60,7 +60,7 @@ func TestSimnetNoNetwork(t *testing.T) {
 				Manifest:           &manifest,
 				P2PKey:             p2pKeys[i],
 				DisablePing:        true,
-				SimnetSecrets:      []*bls_sig.SecretKey{secrets[i]},
+				SimnetKeys:         []*bls_sig.SecretKey{secrets[i]},
 				ParSigExFunc:       parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
 				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.AggSignedData) error {

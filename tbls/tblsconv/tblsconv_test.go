@@ -111,6 +111,23 @@ func TestShareToSecret(t *testing.T) {
 	}
 }
 
+func TestSecretToBytes(t *testing.T) {
+	_, shares, err := tbls.GenerateTSS(3, 4, rand.New(rand.NewSource(time.Now().UnixNano())))
+	require.NoError(t, err)
+
+	for _, share := range shares {
+		secret, err := tblsconv.ShareToSecret(share)
+		require.NoError(t, err)
+
+		b, err := tblsconv.SecretToBytes(secret)
+		require.NoError(t, err)
+
+		result, err := tblsconv.SecretFromBytes(b)
+		require.NoError(t, err)
+		require.Equal(t, secret, result)
+	}
+}
+
 func TestShareToSecret_ZeroPadding(t *testing.T) {
 	_, shares, err := tbls.GenerateTSS(3, 4, rand.New(rand.NewSource(96)))
 	require.NoError(t, err)

@@ -80,8 +80,10 @@ type TestConfig struct {
 	ParSigExFunc func() core.ParSigEx
 	// LcastTransportFunc provides an in-memory leader cast transport.
 	LcastTransportFunc func() leadercast.Transport
-	// SimnetSecrets provides private key shares for the simnet validatormock signer.
-	SimnetSecrets []*bls_sig.SecretKey
+	// DisableSimnet disables the simnet.
+	DisableSimnet bool
+	// SimnetKeys provides private key shares for the simnet validatormock signer.
+	SimnetKeys []*bls_sig.SecretKey
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.AggSignedData) error
 }
@@ -197,6 +199,10 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 
 // wireSimNetCoreWorkflow wires a simnet core workflow including a beaconmock and validatormock.
 func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manifest, nodeIdx NodeIdx, tcpNode host.Host) error {
+	if conf.TestConfig.DisableSimnet {
+		return nil
+	}
+
 	// Convert and prep public keys and public shares
 	var (
 		corePubkeys    []core.PubKey
@@ -397,10 +403,10 @@ func (h httpServeHook) Call(context.Context) error {
 }
 
 func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler, vapi *validatorapi.Component) error {
-	secrets := conf.TestConfig.SimnetSecrets
-	// if len(secrets) == 0 {
-	//	// TODO(corver): Load simnet secret shares from conf.DataDir/simnetkey*)
-	//}
+	secrets, err := loadSimnetKeys(conf)
+	if err != nil {
+		return err
+	}
 
 	signer := validatormock.NewSigner(secrets...)
 
