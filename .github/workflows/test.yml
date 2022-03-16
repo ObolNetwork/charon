@@ -19,7 +19,7 @@ jobs:
         path: |
           ~/go/pkg/mod      # Module download cache
           ~/.cache/go-build # Build cache (Linux)
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-v2
         restore-keys: |
           ${{ runner.os }}-go-
     - name: Test and Run coverage
