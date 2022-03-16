@@ -17,9 +17,9 @@ jobs:
     - uses: actions/cache@v2
       with:
         path: |
-          ~/go/pkg/mod      # Module download cache
-          ~/.cache/go-build # Build cache (Linux)
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-v2
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-v3
         restore-keys: |
           ${{ runner.os }}-go-
     - name: Test and Run coverage
