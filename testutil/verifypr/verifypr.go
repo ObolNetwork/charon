@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Command verifypr provides a tool to verify charon PRs against the template defined in docs/contibuting.md.
+//
 //nolint:wrapcheck,revive,gocognit,cyclop,nestif,forbidigo
 package main
 
