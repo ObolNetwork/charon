@@ -52,12 +52,30 @@ const clusterTmpl = `#!/usr/bin/env bash
 # This script runs all the charon nodes in
 # the sub-directories; the whole cluster.
 
-trap "exit" INT TERM ERR
-trap "kill 0" EXIT
+if (type -P tmux >/dev/null && type -P teamocil >/dev/null); then
+  echo "Commands tmux and teamocil are installed""
+  tmux new-session 'teamocil --layout teamocil.yml'
+else
+  echo "Commands tmux and teamocil are not installed, output will be merged"
 
-{{range .}} {{.}} &
+  trap "exit" INT TERM ERR
+  trap "kill 0" EXIT
+
+  {{range .}} {{.}} &
+  {{end}}
+
+  wait
+fi
+`
+
+const teamocilTmpl = `
+windows:
+  - name: charon-simnet
+    root: /tmp/charon-simnet
+    layout: tiled
+    panes: {{range .}}
+      -  {{.}}
 {{end}}
-wait
 `
 
 type simnetConfig struct {
@@ -183,6 +201,11 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "write cluster script")
 	}
 
+	err = writeTeamocilYML(config.clusterDir, config.numNodes)
+	if err != nil {
+		return errors.Wrap(err, "write teamocil.yml")
+	}
+
 	writeOutput(out, config, charonBin)
 
 	return nil
@@ -221,7 +244,8 @@ func writeOutput(out io.Writer, config simnetConfig, charonBin string) {
 	_, _ = sb.WriteString("Created a simnet cluster:\n\n")
 	_, _ = sb.WriteString(strings.TrimSuffix(config.clusterDir, "/") + "/\n")
 	_, _ = sb.WriteString("├─ manifest.json\tCluster manifest defines the cluster; used by all nodes\n")
-	_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes; merges log output :(\n")
+	_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")
+	_, _ = sb.WriteString("├─ teamocil.yml\tConfiguration for teamocil utility to show output in different tmux panes\n")
 	_, _ = sb.WriteString("├─ node[0-3]/\t\tDirectory for each node\n")
 	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ simnet_keys.json\tSimnet mock validator private share keys for duty signing\n")
@@ -293,6 +317,36 @@ func writeClusterScript(clusterDir string, n int) error {
 	}
 
 	err = os.Chmod(clusterDir+"/run_cluster.sh", 0o755)
+	if err != nil {
+		return errors.Wrap(err, "change permissions")
+	}
+
+	return nil
+}
+
+// writeTeamocilYML creates teamocil configurations file to show the nodes output in different tmux panes.
+func writeTeamocilYML(clusterDir string, n int) error {
+	var cmds []string
+	for i := 0; i < n; i++ {
+		cmds = append(cmds, fmt.Sprintf("%s/node%d/run.sh", clusterDir, i))
+	}
+
+	f, err := os.Create(clusterDir + "/teamocil.yml")
+	if err != nil {
+		return errors.Wrap(err, "create teamocil.yml")
+	}
+
+	tmpl, err := template.New("").Parse(teamocilTmpl)
+	if err != nil {
+		return errors.Wrap(err, "new template")
+	}
+
+	err = tmpl.Execute(f, cmds)
+	if err != nil {
+		return errors.Wrap(err, "execute template")
+	}
+
+	err = os.Chmod(clusterDir+"/teamocil.yml", 0o644)
 	if err != nil {
 		return errors.Wrap(err, "change permissions")
 	}
