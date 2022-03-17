@@ -30,9 +30,7 @@ import (
 var titlePrefix = regexp.MustCompile(`^[*\w]+(/[*\w]+)?$`)
 
 func main() {
-	err := run(func(msg string, args ...interface{}) {
-		fmt.Printf(msg+"\n", args...)
-	})
+	err := run()
 	if err != nil {
 		fmt.Print("❌ " + err.Error())
 		os.Exit(1)
@@ -44,10 +42,10 @@ type PR struct {
 	Body  string
 }
 
-func run(log func(msg string, args ...interface{})) error {
+func run() error {
 	const prenv = "GITHUB_PR"
-	log("Verifying charon PR against template")
-	log("Parsing %s", prenv)
+	fmt.Println("Verifying charon PR against template")
+	fmt.Printf("Parsing %s\n", prenv)
 
 	prJSON, ok := os.LookupEnv(prenv)
 	if !ok {
@@ -62,8 +60,8 @@ func run(log func(msg string, args ...interface{})) error {
 		return fmt.Errorf("unmarshal %s failed: %w", prenv, err)
 	}
 
-	log("PR Title: %s", pr.Title)
-	log("PR Body: %s", pr.Title)
+	fmt.Printf("PR Title: %s\n", pr.Title)
+	fmt.Printf("PR Body: %s\n", pr.Body)
 
 	if err := verifyTitle(pr.Title); err != nil {
 		return err
@@ -73,7 +71,7 @@ func run(log func(msg string, args ...interface{})) error {
 		return err
 	}
 
-	log("✅ Success")
+	fmt.Println("✅ Success")
 
 	return nil
 }
