@@ -61,7 +61,7 @@ func run() error {
 	}
 
 	fmt.Printf("PR Title: %s\n", pr.Title)
-	fmt.Printf("PR Body: %s\n", pr.Body)
+	fmt.Printf("## PR Body:\n%s\n####\n", pr.Body)
 
 	if err := verifyTitle(pr.Title); err != nil {
 		return err
