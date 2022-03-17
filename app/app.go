@@ -39,6 +39,7 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/aggsigdb"
 	"github.com/obolnetwork/charon/core/bcast"
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/core/fetcher"
@@ -286,12 +287,14 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 
 	sigAgg := sigagg.New(threshold)
 
+	aggSigDB := aggsigdb.Stub{}
+
 	broadcaster, err := bcast.New(bmock)
 	if err != nil {
 		return err
 	}
 
-	core.Wire(sched, fetch, consensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, broadcaster)
+	core.Wire(sched, fetch, consensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster)
 
 	err = wireValidatorMock(conf, pubshares, sched, vapi)
 	if err != nil {
