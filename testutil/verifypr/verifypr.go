@@ -12,15 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//nolint:wrapcheck,revive,gocognit,cyclop,nestif
+//nolint:wrapcheck,revive,gocognit,cyclop,nestif,forbidigo
 package main
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
 	"net/url"
 	"os"
 	"regexp"
@@ -32,9 +30,12 @@ import (
 var titlePrefix = regexp.MustCompile(`^[*\w]+(/[*\w]+)?$`)
 
 func main() {
-	err := run(os.Stdout)
+	err := run(func(msg string, args ...interface{}) {
+		fmt.Printf(msg+"\n", args...)
+	})
 	if err != nil {
-		log.Fatal(err.Error())
+		fmt.Print("❌ " + err.Error())
+		os.Exit(1)
 	}
 }
 
@@ -43,9 +44,10 @@ type PR struct {
 	Body  string
 }
 
-func run(w io.Writer) error {
+func run(log func(msg string, args ...interface{})) error {
 	const prenv = "GITHUB_PR"
-	_, _ = w.Write([]byte(fmt.Sprintf("Parsing %s", prenv)))
+	log("Verifying charon PR against template")
+	log("Parsing %s", prenv)
 
 	prJSON, ok := os.LookupEnv(prenv)
 	if !ok {
@@ -60,8 +62,8 @@ func run(w io.Writer) error {
 		return fmt.Errorf("unmarshal %s failed: %w", prenv, err)
 	}
 
-	_, _ = w.Write([]byte(fmt.Sprintf("PR Title: %s", pr.Title)))
-	_, _ = w.Write([]byte(fmt.Sprintf("PR Body: %s", pr.Title)))
+	log("PR Title: %s", pr.Title)
+	log("PR Body: %s", pr.Title)
 
 	if err := verifyTitle(pr.Title); err != nil {
 		return err
@@ -70,6 +72,8 @@ func run(w io.Writer) error {
 	if err := verifyBody(pr.Body); err != nil {
 		return err
 	}
+
+	log("✅ Success")
 
 	return nil
 }
