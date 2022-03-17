@@ -120,9 +120,10 @@ func pingCluster(t *testing.T, test pingTest) {
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: testutil.AvailableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
-				Manifest:     &manifest,
-				P2PKey:       p2pKeys[i],
-				PingCallback: asserter.Callback(t, i),
+				Manifest:      &manifest,
+				P2PKey:        p2pKeys[i],
+				PingCallback:  asserter.Callback(t, i),
+				DisableSimnet: true,
 			},
 			P2P: p2p.Config{
 				UDPBootnodes:    test.Bootnodes,

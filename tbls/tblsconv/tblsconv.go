@@ -132,3 +132,23 @@ func ShareToSecret(share *bls_sig.SecretKeyShare) (*bls_sig.SecretKey, error) {
 
 	return resp, nil
 }
+
+// SecretFromBytes returns a bls secret from bytes.
+func SecretFromBytes(secret []byte) (*bls_sig.SecretKey, error) {
+	resp := new(bls_sig.SecretKey)
+	if err := resp.UnmarshalBinary(secret); err != nil {
+		return nil, errors.Wrap(err, "unmarshal secret")
+	}
+
+	return resp, nil
+}
+
+// SecretToBytes converts a bls secret into bytes.
+func SecretToBytes(secret *bls_sig.SecretKey) ([]byte, error) {
+	resp, err := secret.MarshalBinary()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal secret")
+	}
+
+	return resp, nil
+}
