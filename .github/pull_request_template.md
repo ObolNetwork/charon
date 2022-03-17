@@ -1,0 +1,10 @@
+==>> Instructions
+ PR title format: `package[/subpackage]: consice overview`
+ PR body: Replace body with detailed description of the change.
+ category: pick one, delete the rest
+ ticket: Replace #000 with link to a GitHub issue
+<<== Delete instructions
+body
+
+category: bug feature refactor docs test fixbuild misc
+ticket: #000
