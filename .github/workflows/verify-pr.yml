@@ -11,6 +11,7 @@ jobs:
     name: verify
     runs-on: ubuntu-latest
     env:
+      GITHUB_TOKEN: ${{ github.token }}
       GITHUB_JSON: ${{ toJSON(github) }}
     steps:
       - uses: actions/checkout@v2
