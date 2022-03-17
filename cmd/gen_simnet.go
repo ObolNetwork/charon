@@ -51,10 +51,10 @@ const clusterTmpl = `#!/usr/bin/env bash
 # the sub-directories; the whole cluster.
 
 if (type -P tmux >/dev/null && type -P teamocil >/dev/null); then
-  echo Commands tmux and teamocil are installed
+  echo "Commands tmux and teamocil are installed""
   tmux new-session 'teamocil --layout teamocil.yml'
 else
-  echo Commands tmux and teamocil are not installed, output will be merged
+  echo "Commands tmux and teamocil are not installed, output will be merged"
 
   trap "exit" INT TERM ERR
   trap "kill 0" EXIT
@@ -291,7 +291,7 @@ func writeClusterScript(clusterDir string, n int) error {
 	return nil
 }
 
-// writeClusterScript creates script to run all the nodes in the cluster.
+// writeTeamocilYML creates teamocil configurations file to show the nodes output in different tmux panes.
 func writeTeamocilYML(clusterDir string, n int) error {
 	var cmds []string
 	for i := 0; i < n; i++ {
