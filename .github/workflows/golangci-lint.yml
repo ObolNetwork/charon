@@ -4,11 +4,8 @@ on:
   push:
     branches:
       - main
-permissions:
-  contents: read
 jobs:
   golangci:
-    name: lint
     runs-on: ubuntu-latest
     steps:
       # Config options can be found in README here: https://github.com/golangci/golangci-lint-action

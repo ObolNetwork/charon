@@ -2,13 +2,9 @@ name: verify-pr
 on:
   pull_request:
     types: [opened, reopened, edited]
-permissions:
-  contents: read
-  pull-requests: read
 
 jobs:
   verify:
-    name: verify
     runs-on: ubuntu-latest
     env:
       GITHUB_PR: ${{ toJSON(github.event.pull_request) }}
