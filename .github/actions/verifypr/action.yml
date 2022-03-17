@@ -1,0 +1,5 @@
+name: 'Verify PR'
+description: 'Verifies PR matches the PR template.'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
