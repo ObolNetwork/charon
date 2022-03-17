@@ -118,14 +118,8 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 
 	var peers []p2p.Peer
 	for i := 0; i < config.numNodes; i++ {
-
 		if err := os.Mkdir(nodeDir(i), 0o755); err != nil {
 			return errors.Wrap(err, "mkdir")
-		}
-
-		p2pKey, _, err := p2p.LoadOrCreatePrivKey(nodeDir(i))
-		if err != nil {
-			return errors.Wrap(err, "create p2p key")
 		}
 
 		tcp := net.TCPAddr{
@@ -138,20 +132,9 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 			Port: nextPort(),
 		}
 
-		var r enr.Record
-		r.Set(enr.IPv4(tcp.IP))
-		r.Set(enr.TCP(tcp.Port))
-		r.Set(enr.UDP(udp.Port))
-		r.SetSeq(0)
-
-		err = enode.SignV4(&r, p2pKey)
+		peer, err := newPeer(nodeDir(i), i, tcp, udp)
 		if err != nil {
-			return errors.Wrap(err, "enode sign")
-		}
-
-		peer, err := p2p.NewPeer(r, i)
-		if err != nil {
-			return errors.Wrap(err, "new peer")
+			return err
 		}
 
 		peers = append(peers, peer)
@@ -167,33 +150,31 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "generate tss")
 	}
 
-	{ // Write manifest
-		manifest := app.Manifest{
-			DVs:   []tbls.TSS{tss},
-			Peers: peers,
-		}
-		manifestJSON, err := json.MarshalIndent(manifest, "", " ")
-		if err != nil {
-			return errors.Wrap(err, "json marshal manifest")
-		}
-
-		manifestPath := path.Join(config.clusterDir, "manifest.json")
-		if err = os.WriteFile(manifestPath, manifestJSON, 0o600); err != nil {
-			return errors.Wrap(err, "write manifest.json")
-		}
+	// Write manifest
+	manifest := app.Manifest{
+		DVs:   []tbls.TSS{tss},
+		Peers: peers,
+	}
+	manifestJSON, err := json.MarshalIndent(manifest, "", " ")
+	if err != nil {
+		return errors.Wrap(err, "json marshal manifest")
 	}
 
-	{ // Write shares
-		for i, share := range shares {
-			secret, err := tblsconv.ShareToSecret(share)
-			if err != nil {
-				return err
-			}
+	manifestPath := path.Join(config.clusterDir, "manifest.json")
+	if err = os.WriteFile(manifestPath, manifestJSON, 0o600); err != nil {
+		return errors.Wrap(err, "write manifest.json")
+	}
 
-			err = app.StoreSimnetKeys([]*bls_sig.SecretKey{secret}, nodeDir(i))
-			if err != nil {
-				return err
-			}
+	// Write shares
+	for i, share := range shares {
+		secret, err := tblsconv.ShareToSecret(share)
+		if err != nil {
+			return err
+		}
+
+		err = app.StoreSimnetKeys([]*bls_sig.SecretKey{secret}, nodeDir(i))
+		if err != nil {
+			return err
 		}
 	}
 
@@ -202,6 +183,39 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "write cluster script")
 	}
 
+	writeOutput(out, config, charonBin)
+
+	return nil
+}
+
+// newPeer returns a new peer, generating a p2pkey and ENR in the process.
+func newPeer(nodeDir string, peerIdx int, tcp net.TCPAddr, udp net.UDPAddr) (p2p.Peer, error) {
+	p2pKey, _, err := p2p.LoadOrCreatePrivKey(nodeDir)
+	if err != nil {
+		return p2p.Peer{}, errors.Wrap(err, "create p2p key")
+	}
+
+	var r enr.Record
+	r.Set(enr.IPv4(tcp.IP))
+	r.Set(enr.TCP(tcp.Port))
+	r.Set(enr.UDP(udp.Port))
+	r.SetSeq(0)
+
+	err = enode.SignV4(&r, p2pKey)
+	if err != nil {
+		return p2p.Peer{}, errors.Wrap(err, "enode sign")
+	}
+
+	peer, err := p2p.NewPeer(r, peerIdx)
+	if err != nil {
+		return p2p.Peer{}, errors.Wrap(err, "new peer")
+	}
+
+	return peer, nil
+}
+
+// writeOutput writes the gen_simnet output.
+func writeOutput(out io.Writer, config simnetConfig, charonBin string) {
 	var sb strings.Builder
 	_, _ = sb.WriteString(fmt.Sprintf("Using charon binary in scripts: %s\n", charonBin))
 	_, _ = sb.WriteString("Created a simnet cluster:\n\n")
@@ -214,8 +228,6 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 	_, _ = sb.WriteString("│  ├─ run.sh\t\tScript to run the node\n")
 
 	_, _ = fmt.Fprint(out, sb.String())
-
-	return nil
 }
 
 // writeRunScript creates run script for a node.
