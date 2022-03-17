@@ -25,6 +25,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/spf13/cobra"
@@ -34,6 +35,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 const scriptTmpl = `#!/usr/bin/env bash
@@ -128,18 +130,14 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		port++
 		return port
 	}
+	nodeDir := func(i int) string {
+		return fmt.Sprintf("%s/node%d", config.clusterDir, i)
+	}
 
 	var peers []p2p.Peer
 	for i := 0; i < config.numNodes; i++ {
-		nodeDir := fmt.Sprintf("%s/node%d", config.clusterDir, i)
-
-		if err := os.Mkdir(nodeDir, 0o755); err != nil {
+		if err := os.Mkdir(nodeDir(i), 0o755); err != nil {
 			return errors.Wrap(err, "mkdir")
-		}
-
-		p2pKey, _, err := p2p.LoadOrCreatePrivKey(nodeDir)
-		if err != nil {
-			return errors.Wrap(err, "create p2p key")
 		}
 
 		tcp := net.TCPAddr{
@@ -152,35 +150,25 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 			Port: nextPort(),
 		}
 
-		var r enr.Record
-		r.Set(enr.IPv4(tcp.IP))
-		r.Set(enr.TCP(tcp.Port))
-		r.Set(enr.UDP(udp.Port))
-		r.SetSeq(0)
-
-		err = enode.SignV4(&r, p2pKey)
+		peer, err := newPeer(nodeDir(i), i, tcp, udp)
 		if err != nil {
-			return errors.Wrap(err, "enode sign")
-		}
-
-		peer, err := p2p.NewPeer(r, i)
-		if err != nil {
-			return errors.Wrap(err, "new peer")
+			return err
 		}
 
 		peers = append(peers, peer)
 
-		if err := writeRunScript(config.clusterDir, nodeDir, charonBin, nextPort(),
+		if err := writeRunScript(config.clusterDir, nodeDir(i), charonBin, nextPort(),
 			tcp.String(), udp.String(), nextPort()); err != nil {
 			return errors.Wrap(err, "write run script")
 		}
 	}
 
-	tss, _, err := tbls.GenerateTSS(config.threshold, config.numNodes, rand.Reader)
+	tss, shares, err := tbls.GenerateTSS(config.threshold, config.numNodes, rand.Reader)
 	if err != nil {
 		return errors.Wrap(err, "generate tss")
 	}
 
+	// Write manifest
 	manifest := app.Manifest{
 		DVs:   []tbls.TSS{tss},
 		Peers: peers,
@@ -195,6 +183,19 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "write manifest.json")
 	}
 
+	// Write shares
+	for i, share := range shares {
+		secret, err := tblsconv.ShareToSecret(share)
+		if err != nil {
+			return err
+		}
+
+		err = app.StoreSimnetKeys([]*bls_sig.SecretKey{secret}, nodeDir(i))
+		if err != nil {
+			return err
+		}
+	}
+
 	err = writeClusterScript(config.clusterDir, config.numNodes)
 	if err != nil {
 		return errors.Wrap(err, "write cluster script")
@@ -205,6 +206,39 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "write teamocil.yml")
 	}
 
+	writeOutput(out, config, charonBin)
+
+	return nil
+}
+
+// newPeer returns a new peer, generating a p2pkey and ENR in the process.
+func newPeer(nodeDir string, peerIdx int, tcp net.TCPAddr, udp net.UDPAddr) (p2p.Peer, error) {
+	p2pKey, _, err := p2p.LoadOrCreatePrivKey(nodeDir)
+	if err != nil {
+		return p2p.Peer{}, errors.Wrap(err, "create p2p key")
+	}
+
+	var r enr.Record
+	r.Set(enr.IPv4(tcp.IP))
+	r.Set(enr.TCP(tcp.Port))
+	r.Set(enr.UDP(udp.Port))
+	r.SetSeq(0)
+
+	err = enode.SignV4(&r, p2pKey)
+	if err != nil {
+		return p2p.Peer{}, errors.Wrap(err, "enode sign")
+	}
+
+	peer, err := p2p.NewPeer(r, peerIdx)
+	if err != nil {
+		return p2p.Peer{}, errors.Wrap(err, "new peer")
+	}
+
+	return peer, nil
+}
+
+// writeOutput writes the gen_simnet output.
+func writeOutput(out io.Writer, config simnetConfig, charonBin string) {
 	var sb strings.Builder
 	_, _ = sb.WriteString(fmt.Sprintf("Using charon binary in scripts: %s\n", charonBin))
 	_, _ = sb.WriteString("Created a simnet cluster:\n\n")
@@ -213,12 +247,11 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 	_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")
 	_, _ = sb.WriteString("├─ teamocil.yml\tConfiguration for teamocil utility to show output in different tmux panes\n")
 	_, _ = sb.WriteString("├─ node[0-3]/\t\tDirectory for each node\n")
-	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key; node authentication\n")
+	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key for node authentication\n")
+	_, _ = sb.WriteString("│  ├─ simnet_keys.json\tSimnet mock validator private share keys for duty signing\n")
 	_, _ = sb.WriteString("│  ├─ run.sh\t\tScript to run the node\n")
 
 	_, _ = fmt.Fprint(out, sb.String())
-
-	return nil
 }
 
 // writeRunScript creates run script for a node.
