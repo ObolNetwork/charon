@@ -497,26 +497,25 @@ type SigAgg interface {
 ```
 
 ### AggSigDB
-The aggregated signature database persists aggregated BLS signatures and makes it available for querying.
-This database persists the final results of the duty workflow; aggregate signatures.
+The aggregated signature database persists aggregated signed duty data and makes it available for querying.
+This database persists the final results of the core workflow; aggregate signatures.
 At this point, only `DutyRandao` is queried, but other use cases may yet present themselves.
 
 The data model of the database is:
-- Key: `fmt.Sprintf(Slot,"/",DutyType,"/",PubKey)`
+- Key: `Slot,DutyType,PubKey`
 - Value: `AggSignedData`
 
-> ⁉️ Can old data be trimmed/deleted and if so when?
+> ⁉️ When can old data be trimmed/deleted?
 
 The aggregated signature database interface is defined as:
-
 ```go
-// AggSigDB persists aggregated signed duty data to the beacon node.
+// AggSigDB persists aggregated signed duty data.
 type AggSigDB interface {
   // Store stores aggregated signed duty data.
   Store(context.Context, Duty, PubKey, AggSignedData) error
 
-  // Get returns an aggregated signed duty data.
-  Get(context.Context, Duty, PubKey) (AggSignedData, error)
+  // Await blocks and returns the aggregated signed duty data when available.
+  Await(context.Context, Duty, PubKey) (AggSignedData, error)
 }
 ```
 ### Bcast

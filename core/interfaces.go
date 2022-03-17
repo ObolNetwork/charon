@@ -110,6 +110,15 @@ type SigAgg interface {
 	Subscribe(func(context.Context, Duty, PubKey, AggSignedData) error)
 }
 
+// AggSigDB persists aggregated signed duty data.
+type AggSigDB interface {
+	// Store stores aggregated signed duty data.
+	Store(context.Context, Duty, PubKey, AggSignedData) error
+
+	// Await blocks and returns the aggregated signed duty data when available.
+	Await(context.Context, Duty, PubKey) (AggSignedData, error)
+}
+
 // Broadcaster broadcasts aggregated signed duty data to the beacon node.
 type Broadcaster interface {
 	Broadcast(context.Context, Duty, PubKey, AggSignedData) error
@@ -125,6 +134,7 @@ func Wire(
 	parSigDB ParSigDB,
 	parSigEx ParSigEx,
 	sigAgg SigAgg,
+	aggSigDB AggSigDB,
 	bcast Broadcaster,
 ) {
 	sched.Subscribe(fetch.Fetch)
@@ -136,5 +146,6 @@ func Wire(
 	parSigDB.SubscribeInternal(parSigEx.Broadcast)
 	parSigEx.Subscribe(parSigDB.StoreExternal)
 	parSigDB.SubscribeThreshold(sigAgg.Aggregate)
+	sigAgg.Subscribe(aggSigDB.Store)
 	sigAgg.Subscribe(bcast.Broadcast)
 }
