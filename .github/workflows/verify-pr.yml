@@ -11,8 +11,8 @@ jobs:
     name: verify
     runs-on: ubuntu-latest
     env:
-      GITHUB_TOKEN: ${{ github.token }}
-      GITHUB_JSON: ${{ toJSON(github) }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_BODY: ${{ github.event.pull_request.body }}
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/verifypr
