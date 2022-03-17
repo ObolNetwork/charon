@@ -17,7 +17,6 @@ jobs:
       GITHUB_TOKEN: ${{ github.token }}
       GITHUB_EVENT: ${{ github.event }}
       PR_NUMBER: ${{ github.event.number }}
-      PR: ${{ github.event.pull_request }}
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/verifypr
