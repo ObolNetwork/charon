@@ -168,19 +168,8 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "generate tss")
 	}
 
-	// Write manifest
-	manifest := app.Manifest{
-		DVs:   []tbls.TSS{tss},
-		Peers: peers,
-	}
-	manifestJSON, err := json.MarshalIndent(manifest, "", " ")
-	if err != nil {
-		return errors.Wrap(err, "json marshal manifest")
-	}
-
-	manifestPath := path.Join(config.clusterDir, "manifest.json")
-	if err = os.WriteFile(manifestPath, manifestJSON, 0o600); err != nil {
-		return errors.Wrap(err, "write manifest.json")
+	if err := writeManifest(config, tss, peers); err != nil {
+		return err
 	}
 
 	// Write shares
@@ -207,6 +196,24 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 	}
 
 	writeOutput(out, config, charonBin)
+
+	return nil
+}
+
+func writeManifest(config simnetConfig, tss tbls.TSS, peers []p2p.Peer) error {
+	manifest := app.Manifest{
+		DVs:   []tbls.TSS{tss},
+		Peers: peers,
+	}
+	manifestJSON, err := json.MarshalIndent(manifest, "", " ")
+	if err != nil {
+		return errors.Wrap(err, "json marshal manifest")
+	}
+
+	manifestPath := path.Join(config.clusterDir, "manifest.json")
+	if err = os.WriteFile(manifestPath, manifestJSON, 0o600); err != nil {
+		return errors.Wrap(err, "write manifest.json")
+	}
 
 	return nil
 }
