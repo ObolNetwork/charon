@@ -1,22 +1,17 @@
 name: verify-pr
 on:
   pull_request:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: read
 
 jobs:
   verify:
     name: verify
     runs-on: ubuntu-latest
     env:
-      GITHUB_TOKEN: ${{ github.token }}
-      GITHUB_EVENT: ${{ github.event }}
-      PR_NUMBER: ${{ github.event.number }}
+      GITHUB_JSON: ${{ toJSON(github) }}
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/verifypr
