@@ -88,12 +88,12 @@ func TestCmdFlags(t *testing.T) {
 	}
 }
 
-var update = flag.Bool("update", false, "Updates the config reference doc")
+var update = flag.Bool("update_conf", false, "Updates the config reference doc")
 
-//go:generate go test . -run=TestConfigReference -update
+//go:generate go test . -run=TestConfigReference -update_conf
 
 // TestConfigReference ensures that docs/configuration.md contains the latest output of `charon run --help`.
-// Running this test with the --update flag will generate the contents, fixing the test if broken.
+// Running this test with the --update_conf flag will generate the contents, fixing the test if broken.
 func TestConfigReference(t *testing.T) {
 	cmd := newRootCmd(newRunCmd(func(context.Context, app.Config) error {
 		return nil
@@ -142,7 +142,7 @@ func TestConfigReference(t *testing.T) {
 
 	require.Containsf(t, string(content), buf.String(),
 		"docs/configuration.md doesn't contain latest `charon run --help` output. "+
-			"Run with --update to fix")
+			"Run with -update_conf to fix")
 }
 
 // slice is a convenience function for creating string slice literals.
