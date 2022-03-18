@@ -18,9 +18,9 @@ import (
 	"io"
 	"sync"
 
-	"github.com/dB2510/kryptology/pkg/core/curves"
-	share "github.com/dB2510/kryptology/pkg/sharing"
-	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/coinbase/kryptology/pkg/core/curves"
+	share "github.com/coinbase/kryptology/pkg/sharing"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -137,7 +137,7 @@ func VerifyAndAggregate(tss TSS, partialSigs []*bls_sig.PartialSignature, msg []
 			return nil, nil, errors.Wrap(err, "get Public Share")
 		}
 
-		sig := &bls_sig.Signature{Value: *psig.Signature}
+		sig := &bls_sig.Signature{Value: psig.Signature}
 		ok, err := blsScheme.Verify(pubShare, msg, sig)
 		if err != nil || !ok {
 			continue

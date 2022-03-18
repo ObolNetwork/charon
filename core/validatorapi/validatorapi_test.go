@@ -20,7 +20,7 @@ import (
 
 	"github.com/attestantio/go-eth2-client/mock"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
 

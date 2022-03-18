@@ -22,8 +22,8 @@ import (
 	"context"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	bls12381 "github.com/dB2510/kryptology/pkg/core/curves/native/bls12-381"
-	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
@@ -75,14 +75,14 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 			return errors.New("mismatching signed root")
 		}
 
-		s, err := bls12381.NewG2().FromCompressed(parSig.Signature)
+		s, err := new(bls12381.G2).FromCompressed((*[96]byte)(parSig.Signature))
 		if err != nil {
 			return errors.Wrap(err, "convert signature")
 		}
 
 		blsSigs = append(blsSigs, &bls_sig.PartialSignature{
 			Identifier: byte(parSig.ShareIdx),
-			Signature:  s,
+			Signature:  *s,
 		})
 	}
 

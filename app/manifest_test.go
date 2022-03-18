@@ -67,7 +67,10 @@ func TestManifestJSON(t *testing.T) {
 			tss1 := manifest.DVs[i]
 			tss2 := manifest2.DVs[i]
 			require.Equal(t, tss1.NumShares(), tss2.NumShares())
-			require.Equal(t, tss1.Verifier(), tss2.Verifier())
+			require.Equal(t, tss1.Threshold(), tss2.Threshold())
+			for j := 0; j < tss1.Threshold(); j++ {
+				require.Equal(t, tss1.Verifier().Commitments[j].Equal(tss2.Verifier().Commitments[j]), true)
+			}
 			require.Equal(t, tss1.PublicKey(), tss2.PublicKey())
 		}
 	}
