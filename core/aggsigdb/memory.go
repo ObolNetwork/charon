@@ -16,15 +16,15 @@ package aggsigdb
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 )
 
 // NewMemDB creates a basic memory based AggSigDB.
 func NewMemDB() core.AggSigDB {
 	db := &memDB{
-		data:           make(map[string]core.AggSignedData),
+		data:           make(map[memDBKey]core.AggSignedData),
 		commands:       make(chan writeCommand),
 		queries:        make(chan readQuery),
 		blockedQueries: []readQuery{},
@@ -37,7 +37,7 @@ func NewMemDB() core.AggSigDB {
 
 // memDB is a basic memory implementation of core.AggSigDB.
 type memDB struct {
-	data map[string]core.AggSignedData
+	data map[memDBKey]core.AggSignedData
 
 	commands       chan writeCommand
 	queries        chan readQuery
@@ -46,21 +46,21 @@ type memDB struct {
 
 // Store implements core.AggSigDB, see its godoc.
 func (db *memDB) Store(_ context.Context, duty core.Duty, pubKey core.PubKey, data core.AggSignedData) error {
+	response := make(chan error, 1)
 	db.commands <- writeCommand{
-		duty:   duty,
-		pubKey: pubKey,
-		data:   data,
+		memDBKey: memDBKey{duty, pubKey},
+		data:     data,
+		response: response,
 	}
 
-	return nil
+	return <-response
 }
 
 // Await implements core.AggSigDB, see its godoc.
 func (db *memDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.AggSignedData, error) {
 	response := make(chan core.AggSignedData, 1)
 	query := readQuery{
-		duty:     duty,
-		pubKey:   pubKey,
+		memDBKey: memDBKey{duty, pubKey},
 		response: response,
 	}
 
@@ -89,14 +89,29 @@ func (db *memDB) loop() {
 
 // execCommand executes a write command.
 func (db *memDB) execCommand(command writeCommand) {
-	db.data[db.getKey(command.duty, command.pubKey)] = command.data
+	key := memDBKey{command.duty, command.pubKey}
+
+	curData, ok := db.data[key]
+	if ok && !curData.Equal(command.data) {
+		command.response <- errors.New("trying to update entry in aggsigdb/memDB")
+		close(command.response)
+
+		return
+	}
+
+	if !ok {
+		db.data[key] = command.data
+	}
+
+	command.response <- nil
+	close(command.response)
 }
 
 // execQuery executes a read query.
 // If the requested entry is found in the DB it will return it via query.response channel,
 // if it is not present it will store the query in blockedQueries.
 func (db *memDB) execQuery(query readQuery) {
-	data, ok := db.data[db.getKey(query.duty, query.pubKey)]
+	data, ok := db.data[memDBKey{query.duty, query.pubKey}]
 	if ok {
 		query.response <- data
 		close(query.response)
@@ -119,21 +134,20 @@ func (db *memDB) processBlockedQueries() {
 	}
 }
 
-// getKey returns the key used to map a database entry.
-func (memDB) getKey(duty core.Duty, pubKey core.PubKey) string {
-	return fmt.Sprintf("/%d", duty.Slot) + "/" + duty.Type.String() + "/" + pubKey.String()
+type memDBKey struct {
+	duty   core.Duty
+	pubKey core.PubKey
 }
 
 // writeCommand holds the data to write into the database.
 type writeCommand struct {
-	duty   core.Duty
-	pubKey core.PubKey
-	data   core.AggSignedData
+	memDBKey
+	data     core.AggSignedData
+	response chan<- error
 }
 
 // readQuery holds the query data and the response channel.
 type readQuery struct {
-	duty     core.Duty
-	pubKey   core.PubKey
+	memDBKey
 	response chan<- core.AggSignedData
 }
