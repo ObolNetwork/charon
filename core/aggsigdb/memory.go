@@ -35,6 +35,15 @@ func NewMemDB() core.AggSigDB {
 	return db
 }
 
+// memDB is a basic memory implementation of core.AggSigDB.
+type memDB struct {
+	data map[string]core.AggSignedData
+
+	commands       chan writeCommand
+	queries        chan readQuery
+	blockedQueries []readQuery
+}
+
 // Store implements core.AggSigDB, see its godoc.
 func (db *memDB) Store(_ context.Context, duty core.Duty, pubKey core.PubKey, data core.AggSignedData) error {
 	db.commands <- writeCommand{
@@ -48,7 +57,7 @@ func (db *memDB) Store(_ context.Context, duty core.Duty, pubKey core.PubKey, da
 
 // Await implements core.AggSigDB, see its godoc.
 func (db *memDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.AggSignedData, error) {
-	response := make(chan core.AggSignedData)
+	response := make(chan core.AggSignedData, 1)
 	query := readQuery{
 		duty:     duty,
 		pubKey:   pubKey,
@@ -63,15 +72,6 @@ func (db *memDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) 
 	case value := <-response:
 		return value, nil
 	}
-}
-
-// memDB is a basic memory implementation of core.AggSigDB.
-type memDB struct {
-	data map[string]core.AggSignedData
-
-	commands       chan writeCommand
-	queries        chan readQuery
-	blockedQueries []readQuery
 }
 
 // loop over commands and queries to serialise them.

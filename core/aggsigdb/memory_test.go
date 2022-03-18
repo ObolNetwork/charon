@@ -96,3 +96,40 @@ func TestCoreAggsigdb_MemDB_CancelAwait(t *testing.T) {
 	cancel()
 	wg.Wait()
 }
+
+func TestCoreAggsigdb_MemDB_CancelAwaitDoesnotblock(t *testing.T) {
+	// A naive implementation with channels might cause that the main execution loop
+	// to block after a await query has been canceled
+	db := aggsigdb.NewMemDB()
+
+	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
+	testPubKey := core.PubKey("pubkey")
+	testPubKey2 := core.PubKey("pubkey2")
+	testAggSignedData := core.AggSignedData{
+		Data:      []byte("test data"),
+		Signature: []byte("test signature"),
+	}
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		_, err := db.Await(ctx, testDuty, testPubKey)
+		require.Error(t, err)
+		require.Equal(t, err.Error(), "context canceled")
+		wg.Done()
+	}()
+
+	runtime.Gosched()
+
+	cancel()
+
+	wg.Wait()
+	err := db.Store(context.Background(), testDuty, testPubKey, testAggSignedData)
+	require.NoError(t, err)
+
+	err = db.Store(context.Background(), testDuty, testPubKey2, testAggSignedData)
+	require.NoError(t, err)
+}
