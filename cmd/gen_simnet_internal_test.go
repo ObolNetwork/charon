@@ -28,6 +28,7 @@ import (
 
 func TestGenSimnet(t *testing.T) {
 	dir := "testdata/simnet"
+	require.NoError(t, os.RemoveAll(dir))
 	err := os.MkdirAll(dir, 0o755)
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
