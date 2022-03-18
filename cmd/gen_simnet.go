@@ -33,6 +33,7 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -145,7 +146,7 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 	for i := 0; i < config.numNodes; i++ {
 		peer, err := newPeer(config.clusterDir, nodeDir(i), charonBin, i, nextPort)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "new peer", z.Int("i", i))
 		}
 
 		peers = append(peers, peer)
@@ -239,10 +240,6 @@ func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func()
 		return p2p.Peer{}, errors.Wrap(err, "new peer")
 	}
 
-	if err := os.Mkdir(nodeDir, 0o755); err != nil {
-		return p2p.Peer{}, errors.Wrap(err, "mkdir")
-	}
-
 	if err := writeRunScript(clusterDir, nodeDir, charonBin, nextPort(),
 		tcp.String(), udp.String(), nextPort()); err != nil {
 		return p2p.Peer{}, errors.Wrap(err, "write run script")
@@ -262,7 +259,7 @@ func writeOutput(out io.Writer, config simnetConfig, charonBin string) {
 	_, _ = sb.WriteString("├─ teamocil.yml\t\tConfiguration for teamocil utility to show output in different tmux panes\n")
 	_, _ = sb.WriteString("├─ node[0-3]/\t\tDirectory for each node\n")
 	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key for node authentication\n")
-	_, _ = sb.WriteString("│  ├─ simnet_keys.json\tSimnet mock validator private share keys for duty signing\n")
+	_, _ = sb.WriteString("│  ├─ simnetkeys\tSimnet mock validator private share keys for duty signing\n")
 	_, _ = sb.WriteString("│  ├─ run.sh\t\tScript to run the node\n")
 
 	_, _ = fmt.Fprint(out, sb.String())

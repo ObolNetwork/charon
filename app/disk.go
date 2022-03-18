@@ -15,9 +15,11 @@
 package app
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
 
@@ -26,7 +28,7 @@ import (
 )
 
 const (
-	simnetKeysFile = "simnet_keys.json"
+	simnetKeysFile = "simnetkeys"
 )
 
 // loadManifest reads the cluster manifest from the given file path.
@@ -49,25 +51,25 @@ func loadManifest(conf Config) (Manifest, error) {
 	return res, nil
 }
 
-// loadSimnetKeys returns the keys from the json file in the data directory.
+// loadSimnetKeys returns the keys from the file in the data directory.
 func loadSimnetKeys(conf Config) ([]*bls_sig.SecretKey, error) {
 	if len(conf.TestConfig.SimnetKeys) != 0 {
 		return conf.TestConfig.SimnetKeys, nil
 	}
 
-	buf, err := os.ReadFile(path.Join(conf.DataDir, simnetKeysFile))
+	content, err := os.ReadFile(path.Join(conf.DataDir, simnetKeysFile))
 	if err != nil {
 		return nil, errors.Wrap(err, "read simnetkeys")
 	}
 
-	var rawKeys [][]byte
-	if err := json.Unmarshal(buf, &rawKeys); err != nil {
-		return nil, errors.Wrap(err, "unmarshal keys")
-	}
-
 	var resp []*bls_sig.SecretKey
-	for _, raw := range rawKeys {
-		secret, err := tblsconv.SecretFromBytes(raw)
+	for _, line := range strings.Split(string(content), "\n") {
+		b, err := hex.DecodeString(line)
+		if err != nil {
+			return nil, errors.Wrap(err, "decode hex")
+		}
+
+		secret, err := tblsconv.SecretFromBytes(b)
 		if err != nil {
 			return nil, errors.Wrap(err, "read simnetkeys")
 		}
@@ -78,25 +80,22 @@ func loadSimnetKeys(conf Config) ([]*bls_sig.SecretKey, error) {
 	return resp, nil
 }
 
-// StoreSimnetKeys stores the keys as json file in the directory.
+// StoreSimnetKeys stores the keys as a hex new line delimited file in the directory.
 func StoreSimnetKeys(keys []*bls_sig.SecretKey, dir string) error {
-	var rawKeys [][]byte
+	var hexKeys []string
 	for _, key := range keys {
-		rawKey, err := tblsconv.SecretToBytes(key)
+		b, err := tblsconv.SecretToBytes(key)
 		if err != nil {
 			return err
 		}
 
-		rawKeys = append(rawKeys, rawKey)
+		hexKeys = append(hexKeys, hex.EncodeToString(b))
 	}
 
-	secretsJSON, err := json.MarshalIndent(rawKeys, "", " ")
-	if err != nil {
-		return errors.Wrap(err, "marshal simnet keys")
-	}
+	content := []byte(strings.Join(hexKeys, "\n"))
 
 	secretsPath := path.Join(dir, simnetKeysFile)
-	if err = os.WriteFile(secretsPath, secretsJSON, 0o600); err != nil {
+	if err := os.WriteFile(secretsPath, content, 0o600); err != nil {
 		return errors.Wrap(err, "write simnet keys")
 	}
 
