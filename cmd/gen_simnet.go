@@ -143,31 +143,12 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 
 	var peers []p2p.Peer
 	for i := 0; i < config.numNodes; i++ {
-		if err := os.Mkdir(nodeDir(i), 0o755); err != nil {
-			return errors.Wrap(err, "mkdir")
-		}
-
-		tcp := net.TCPAddr{
-			IP:   net.ParseIP("127.0.0.1"),
-			Port: nextPort(),
-		}
-
-		udp := net.UDPAddr{
-			IP:   net.ParseIP("127.0.0.1"),
-			Port: nextPort(),
-		}
-
-		peer, err := newPeer(nodeDir(i), i, tcp, udp)
+		peer, err := newPeer(config.clusterDir, nodeDir(i), charonBin, i, nextPort)
 		if err != nil {
 			return err
 		}
 
 		peers = append(peers, peer)
-
-		if err := writeRunScript(config.clusterDir, nodeDir(i), charonBin, nextPort(),
-			tcp.String(), udp.String(), nextPort()); err != nil {
-			return errors.Wrap(err, "write run script")
-		}
 	}
 
 	tss, shares, err := tbls.GenerateTSS(config.threshold, config.numNodes, rand.Reader)
@@ -225,8 +206,18 @@ func writeManifest(config simnetConfig, tss tbls.TSS, peers []p2p.Peer) error {
 	return nil
 }
 
-// newPeer returns a new peer, generating a p2pkey and ENR in the process.
-func newPeer(nodeDir string, peerIdx int, tcp net.TCPAddr, udp net.UDPAddr) (p2p.Peer, error) {
+// newPeer returns a new peer, generating a p2pkey and ENR and node directory and run script in the process.
+func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func() int) (p2p.Peer, error) {
+	tcp := net.TCPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: nextPort(),
+	}
+
+	udp := net.UDPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: nextPort(),
+	}
+
 	p2pKey, _, err := p2p.LoadOrCreatePrivKey(nodeDir)
 	if err != nil {
 		return p2p.Peer{}, errors.Wrap(err, "create p2p key")
@@ -246,6 +237,15 @@ func newPeer(nodeDir string, peerIdx int, tcp net.TCPAddr, udp net.UDPAddr) (p2p
 	peer, err := p2p.NewPeer(r, peerIdx)
 	if err != nil {
 		return p2p.Peer{}, errors.Wrap(err, "new peer")
+	}
+
+	if err := os.Mkdir(nodeDir, 0o755); err != nil {
+		return p2p.Peer{}, errors.Wrap(err, "mkdir")
+	}
+
+	if err := writeRunScript(clusterDir, nodeDir, charonBin, nextPort(),
+		tcp.String(), udp.String(), nextPort()); err != nil {
+		return p2p.Peer{}, errors.Wrap(err, "write run script")
 	}
 
 	return peer, nil
