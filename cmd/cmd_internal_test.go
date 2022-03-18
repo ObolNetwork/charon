@@ -88,9 +88,9 @@ func TestCmdFlags(t *testing.T) {
 	}
 }
 
-var update = flag.Bool("update", false, "Updates the config reference doc")
+var update = flag.Bool("update_conf", false, "Updates the config reference doc")
 
-//go:generate go test . -run=TestConfigReference -update
+//go:generate go test . -run=TestConfigReference -update_conf
 
 // TestConfigReference ensures that docs/configuration.md contains the latest output of `charon run --help`.
 // Running this test with the --update flag will generate the contents, fixing the test if broken.

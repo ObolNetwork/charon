@@ -83,6 +83,9 @@ type simnetConfig struct {
 	numNodes   int
 	threshold  int
 	portStart  int
+
+	// testBinary overrides the charon binary for testing.
+	testBinary string
 }
 
 func newGenSimnetCmd(runFunc func(io.Writer, simnetConfig) error) *cobra.Command {
@@ -120,9 +123,13 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "mkdir")
 	}
 
-	charonBin, err := os.Executable()
-	if err != nil {
-		return errors.Wrap(err, "get charon binary")
+	charonBin := config.testBinary
+	if charonBin == "" {
+		var err error
+		charonBin, err = os.Executable()
+		if err != nil {
+			return errors.Wrap(err, "get charon binary")
+		}
 	}
 
 	port := config.portStart
@@ -247,16 +254,16 @@ func newPeer(nodeDir string, peerIdx int, tcp net.TCPAddr, udp net.UDPAddr) (p2p
 // writeOutput writes the gen_simnet output.
 func writeOutput(out io.Writer, config simnetConfig, charonBin string) {
 	var sb strings.Builder
-	_, _ = sb.WriteString(fmt.Sprintf("Using charon binary in scripts: %s\n", charonBin))
+	_, _ = sb.WriteString(fmt.Sprintf("Referencing charon binary in scripts: %s\n", charonBin))
 	_, _ = sb.WriteString("Created a simnet cluster:\n\n")
 	_, _ = sb.WriteString(strings.TrimSuffix(config.clusterDir, "/") + "/\n")
-	_, _ = sb.WriteString("├─ manifest.json\tCluster manifest defines the cluster; used by all nodes\n")
-	_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")
-	_, _ = sb.WriteString("├─ teamocil.yml\tConfiguration for teamocil utility to show output in different tmux panes\n")
-	_, _ = sb.WriteString("├─ node[0-3]/\t\tDirectory for each node\n")
-	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key for node authentication\n")
+	_, _ = sb.WriteString("├─ manifest.json\t\tCluster manifest defines the cluster; used by all nodes\n")
+	_, _ = sb.WriteString("├─ run_cluster.sh\t\tConvenience script to run all nodes\n")
+	_, _ = sb.WriteString("├─ teamocil.yml\t\t\tConfiguration for teamocil utility to show output in different tmux panes\n")
+	_, _ = sb.WriteString("├─ node[0-3]/\t\t\tDirectory for each node\n")
+	_, _ = sb.WriteString("│  ├─ p2pkey\t\t\tP2P networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ simnet_keys.json\tSimnet mock validator private share keys for duty signing\n")
-	_, _ = sb.WriteString("│  ├─ run.sh\t\tScript to run the node\n")
+	_, _ = sb.WriteString("│  ├─ run.sh\t\t\tScript to run the node\n")
 
 	_, _ = fmt.Fprint(out, sb.String())
 }
