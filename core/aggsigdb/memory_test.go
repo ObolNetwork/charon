@@ -72,3 +72,27 @@ func TestCoreAggsigdb_MemDB_WriteUnblocks(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestCoreAggsigdb_MemDB_CancelAwait(t *testing.T) {
+	db := aggsigdb.NewMemDB()
+
+	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
+	testPubKey := core.PubKey("pubkey")
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		_, err := db.Await(ctx, testDuty, testPubKey)
+		require.Error(t, err)
+		require.Equal(t, err.Error(), "context canceled")
+		wg.Done()
+	}()
+
+	runtime.Gosched()
+
+	cancel()
+	wg.Wait()
+}
