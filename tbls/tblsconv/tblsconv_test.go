@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/tbls"
@@ -104,7 +104,7 @@ func TestShareToSecret(t *testing.T) {
 		sig, err := tbls.Sign(secret, msg)
 		require.NoError(t, err)
 
-		pdata := tblsconv.SigToBytes(&bls_sig.Signature{Value: *psig.Signature})
+		pdata := tblsconv.SigToBytes(&bls_sig.Signature{Value: psig.Signature})
 		data := tblsconv.SigToBytes(sig)
 
 		require.Equal(t, pdata, data)
@@ -144,7 +144,7 @@ func TestShareToSecret_ZeroPadding(t *testing.T) {
 		sig, err := tbls.Sign(secret, msg)
 		require.NoError(t, err)
 
-		pdata := tblsconv.SigToBytes(&bls_sig.Signature{Value: *psig.Signature})
+		pdata := tblsconv.SigToBytes(&bls_sig.Signature{Value: psig.Signature})
 		data := tblsconv.SigToBytes(sig)
 
 		require.Equal(t, pdata, data)

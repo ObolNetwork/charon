@@ -16,11 +16,10 @@ package tbls
 
 import (
 	"io"
-	"sync"
 
-	"github.com/dB2510/kryptology/pkg/core/curves"
-	share "github.com/dB2510/kryptology/pkg/sharing"
-	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/coinbase/kryptology/pkg/core/curves"
+	share "github.com/coinbase/kryptology/pkg/sharing"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -29,9 +28,6 @@ import (
 // blsScheme uses proofs of possession to mitigate rogue-key attacks.
 // see: https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature-03#section-4.2.3
 var blsScheme = bls_sig.NewSigEth2()
-
-// TODO(corver): Remove this once kryptology concurrency issues have been addressed.
-var mu sync.Mutex
 
 // TSS (threshold signing scheme) wraps PubKey (PublicKey), Verifiers (the public shares corresponding to each secret share)
 // and threshold (number of shares).
@@ -107,9 +103,6 @@ func GenerateTSS(t, n int, reader io.Reader) (TSS, []*bls_sig.SecretKeyShare, er
 
 // Aggregate returns an aggregated signature.
 func Aggregate(partialSigs []*bls_sig.PartialSignature) (*bls_sig.Signature, error) {
-	mu.Lock()
-	defer mu.Unlock()
-
 	aggSig, err := blsScheme.CombineSignatures(partialSigs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "aggregate signatures")
@@ -137,7 +130,7 @@ func VerifyAndAggregate(tss TSS, partialSigs []*bls_sig.PartialSignature, msg []
 			return nil, nil, errors.Wrap(err, "get Public Share")
 		}
 
-		sig := &bls_sig.Signature{Value: *psig.Signature}
+		sig := &bls_sig.Signature{Value: psig.Signature}
 		ok, err := blsScheme.Verify(pubShare, msg, sig)
 		if err != nil || !ok {
 			continue
@@ -227,9 +220,6 @@ func generateSecretShares(secret bls_sig.SecretKey, t, n int, reader io.Reader) 
 }
 
 func getPubShare(identifier int, verifier *share.FeldmanVerifier) (*bls_sig.PublicKey, error) {
-	mu.Lock()
-	defer mu.Unlock()
-
 	curve := curves.GetCurveByName(verifier.Commitments[0].CurveName())
 	if curve != curves.BLS12381G1() {
 		return nil, errors.New("curve mismatch")

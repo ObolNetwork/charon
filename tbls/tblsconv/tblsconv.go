@@ -18,8 +18,8 @@ package tblsconv
 
 import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	bls12381 "github.com/dB2510/kryptology/pkg/core/curves/native/bls12-381"
-	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
@@ -77,7 +77,7 @@ func KeyToCore(key *bls_sig.PublicKey) (core.PubKey, error) {
 
 // SigFromETH2 converts an eth2 phase0 bls signature into a kryptology bls signature.
 func SigFromETH2(sig eth2p0.BLSSignature) (*bls_sig.Signature, error) {
-	point, err := bls12381.NewG2().FromCompressed(sig[:])
+	point, err := new(bls12381.G2).FromCompressed((*[96]byte)(sig[:]))
 	if err != nil {
 		return nil, errors.Wrap(err, "uncompress sig")
 	}
@@ -86,20 +86,17 @@ func SigFromETH2(sig eth2p0.BLSSignature) (*bls_sig.Signature, error) {
 }
 
 func SigFromPartial(psig *bls_sig.PartialSignature) *bls_sig.Signature {
-	return &bls_sig.Signature{Value: *psig.Signature}
+	return &bls_sig.Signature{Value: psig.Signature}
 }
 
 // SigToETH2 converts a kryptology bls signature into an eth2 phase0 bls signature.
 func SigToETH2(sig *bls_sig.Signature) eth2p0.BLSSignature {
-	var resp eth2p0.BLSSignature
-	copy(resp[:], bls12381.NewG2().ToCompressed(&sig.Value))
-
-	return resp
+	return sig.Value.ToCompressed()
 }
 
 // SigFromBytes converts bytes into a kryptology bls signature.
 func SigFromBytes(sig []byte) (*bls_sig.Signature, error) {
-	point, err := bls12381.NewG2().FromCompressed(sig)
+	point, err := new(bls12381.G2).FromCompressed((*[96]byte)(sig))
 	if err != nil {
 		return nil, errors.Wrap(err, "uncompress sig")
 	}
@@ -109,7 +106,8 @@ func SigFromBytes(sig []byte) (*bls_sig.Signature, error) {
 
 // SigToBytes converts a kryptology bls signature to bytes.
 func SigToBytes(sig *bls_sig.Signature) []byte {
-	return bls12381.NewG2().ToCompressed(&sig.Value)
+	resp := sig.Value.ToCompressed()
+	return resp[:]
 }
 
 // ShareToSecret converts a bls secret share into a normal bls secret.
