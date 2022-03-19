@@ -29,7 +29,7 @@ func TestStoreLoad(t *testing.T) {
 	require.NoError(t, err)
 
 	var secrets []*bls_sig.SecretKey
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 2; i++ {
 		_, secret, err := bls_sig.NewSigEth2().Keygen()
 		require.NoError(t, err)
 

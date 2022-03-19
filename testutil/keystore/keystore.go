@@ -33,10 +33,10 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-// StoreSimnetKeys stores the secrets in dir/keystore-simnet-%d.json files.
+// StoreSimnetKeys stores the secrets in dir/keystore-simnet-%d.json files with empty passwords.
 func StoreSimnetKeys(secrets []*bls_sig.SecretKey, dir string) error {
 	for i, secret := range secrets {
-		store, err := encrypt(secret, rand.Reader)
+		store, err := encrypt(secret, "", rand.Reader)
 		if err != nil {
 			return err
 		}
@@ -55,7 +55,7 @@ func StoreSimnetKeys(secrets []*bls_sig.SecretKey, dir string) error {
 	return nil
 }
 
-// LoadSimnetKeys returns all secrets stores in dir/keystore-*.json files.
+// LoadSimnetKeys returns all secrets stores in dir/keystore-*.json files using empty passwords.
 func LoadSimnetKeys(dir string) ([]*bls_sig.SecretKey, error) {
 	files, err := filepath.Glob(path.Join(dir, "keystore-*.json"))
 	if err != nil {
@@ -74,7 +74,7 @@ func LoadSimnetKeys(dir string) ([]*bls_sig.SecretKey, error) {
 			return nil, errors.Wrap(err, "unmarshal keystore")
 		}
 
-		secret, err := decrypt(store)
+		secret, err := decrypt(store, "")
 		if err != nil {
 			return nil, err
 		}
@@ -94,8 +94,8 @@ type keystore struct {
 	Name    string                 `json:"name"`
 }
 
-// encrypt returns the secret as an encrypted (empty password) keystore.
-func encrypt(secret *bls_sig.SecretKey, random io.Reader) (keystore, error) {
+// encrypt returns the secret as an encrypted keystore.
+func encrypt(secret *bls_sig.SecretKey, password string, random io.Reader) (keystore, error) {
 	secretBytes, err := tblsconv.SecretToBytes(secret)
 	if err != nil {
 		return keystore{}, err
@@ -111,7 +111,7 @@ func encrypt(secret *bls_sig.SecretKey, random io.Reader) (keystore, error) {
 	}
 
 	encryptor := keystorev4.New(keystorev4.WithCipher("scrypt"))
-	fields, err := encryptor.Encrypt(secretBytes, "")
+	fields, err := encryptor.Encrypt(secretBytes, password)
 	if err != nil {
 		return keystore{}, errors.Wrap(err, "encrypt keystore")
 	}
@@ -126,9 +126,9 @@ func encrypt(secret *bls_sig.SecretKey, random io.Reader) (keystore, error) {
 }
 
 // decrypt returns the secret from the encrypted (empty password) keystore.
-func decrypt(store keystore) (*bls_sig.SecretKey, error) {
+func decrypt(store keystore, password string) (*bls_sig.SecretKey, error) {
 	encryptor := keystorev4.New(keystorev4.WithCipher("scrypt"))
-	secretBytes, err := encryptor.Decrypt(store.Crypto, "")
+	secretBytes, err := encryptor.Decrypt(store.Crypto, password)
 	if err != nil {
 		return nil, errors.Wrap(err, "decrypt keystore")
 	}
