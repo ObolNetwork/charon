@@ -26,7 +26,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/errors"
