@@ -12,31 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package keystore_test
 
 import (
-	"encoding/json"
 	"os"
+	"testing"
 
-	"github.com/obolnetwork/charon/app/errors"
+	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
-// loadManifest reads the cluster manifest from the given file path.
-func loadManifest(conf Config) (Manifest, error) {
-	if conf.TestConfig.Manifest != nil {
-		return *conf.TestConfig.Manifest, nil
+func TestStoreLoad(t *testing.T) {
+	dir, err := os.MkdirTemp("", "")
+	require.NoError(t, err)
+
+	var secrets []*bls_sig.SecretKey
+	for i := 0; i < 2; i++ {
+		_, secret, err := bls_sig.NewSigEth2().Keygen()
+		require.NoError(t, err)
+
+		secrets = append(secrets, secret)
 	}
 
-	buf, err := os.ReadFile(conf.ManifestFile)
-	if err != nil {
-		return Manifest{}, errors.Wrap(err, "read manifest")
-	}
+	err = keystore.StoreSimnetKeys(secrets, dir)
+	require.NoError(t, err)
 
-	var res Manifest
-	err = json.Unmarshal(buf, &res)
-	if err != nil {
-		return Manifest{}, errors.Wrap(err, "unmarshal manifest")
-	}
+	actual, err := keystore.LoadSimnetKeys(dir)
+	require.NoError(t, err)
 
-	return res, nil
+	require.Equal(t, secrets, actual)
 }

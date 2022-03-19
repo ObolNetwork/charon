@@ -52,6 +52,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
+	"github.com/obolnetwork/charon/testutil/keystore"
 	"github.com/obolnetwork/charon/testutil/validatormock"
 )
 
@@ -406,9 +407,13 @@ func (h httpServeHook) Call(context.Context) error {
 }
 
 func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler, vapi *validatorapi.Component) error {
-	secrets, err := loadSimnetKeys(conf)
-	if err != nil {
-		return err
+	secrets := conf.TestConfig.SimnetKeys
+	if len(secrets) == 0 {
+		var err error
+		secrets, err = keystore.LoadSimnetKeys(conf.DataDir)
+		if err != nil {
+			return err
+		}
 	}
 
 	signer := validatormock.NewSigner(secrets...)

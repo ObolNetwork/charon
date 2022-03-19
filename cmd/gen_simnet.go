@@ -37,6 +37,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
 const scriptTmpl = `#!/usr/bin/env bash
@@ -54,7 +55,7 @@ const clusterTmpl = `#!/usr/bin/env bash
 # the sub-directories; the whole cluster.
 
 if (type -P tmux >/dev/null && type -P teamocil >/dev/null); then
-  echo "Commands tmux and teamocil are installed""
+  echo "Commands tmux and teamocil are installed"
   tmux new-session 'teamocil --layout teamocil.yml'
 else
   echo "Commands tmux and teamocil are not installed, output will be merged"
@@ -168,7 +169,7 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 			return err
 		}
 
-		err = app.StoreSimnetKeys([]*bls_sig.SecretKey{secret}, nodeDir(i))
+		err = keystore.StoreSimnetKeys([]*bls_sig.SecretKey{secret}, nodeDir(i))
 		if err != nil {
 			return err
 		}
@@ -259,7 +260,7 @@ func writeOutput(out io.Writer, config simnetConfig, charonBin string) {
 	_, _ = sb.WriteString("├─ teamocil.yml\t\tConfiguration for teamocil utility to show output in different tmux panes\n")
 	_, _ = sb.WriteString("├─ node[0-3]/\t\tDirectory for each node\n")
 	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key for node authentication\n")
-	_, _ = sb.WriteString("│  ├─ simnetkeys\tSimnet mock validator private share keys for duty signing\n")
+	_, _ = sb.WriteString("│  ├─ keystore-simnet-0.json\tSimnet mock validator private share key for duty signing\n")
 	_, _ = sb.WriteString("│  ├─ run.sh\t\tScript to run the node\n")
 
 	_, _ = fmt.Fprint(out, sb.String())

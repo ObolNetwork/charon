@@ -7,5 +7,5 @@ testdata/simnet/
 ├─ teamocil.yml		Configuration for teamocil utility to show output in different tmux panes
 ├─ node[0-3]/		Directory for each node
 │  ├─ p2pkey		P2P networking private key for node authentication
-│  ├─ simnetkeys	Simnet mock validator private share keys for duty signing
+│  ├─ keystore-simnet-0.json	Simnet mock validator private share key for duty signing
 │  ├─ run.sh		Script to run the node

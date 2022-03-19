@@ -20,10 +20,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/dB2510/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
-
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 func TestLoadManifest(t *testing.T) {
@@ -47,26 +44,4 @@ func TestLoadManifest(t *testing.T) {
 	b2, err := json.Marshal(actual)
 	require.NoError(t, err)
 	require.JSONEq(t, string(b), string(b2))
-}
-
-func TestLoadKeys(t *testing.T) {
-	_, _, shares := NewClusterForT(t, 1, 2, 3, 0)
-
-	var secrets []*bls_sig.SecretKey
-	for _, share := range shares[0] {
-		secret, err := tblsconv.ShareToSecret(share)
-		require.NoError(t, err)
-
-		secrets = append(secrets, secret)
-	}
-
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-
-	err = StoreSimnetKeys(secrets, dir)
-	require.NoError(t, err)
-
-	result, err := loadSimnetKeys(Config{DataDir: dir})
-	require.NoError(t, err)
-	require.Equal(t, secrets, result)
 }
