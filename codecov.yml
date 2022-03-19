@@ -1,0 +1,10 @@
+coverage:
+  status:
+    project:
+      default:
+        branches: [main]
+        informational: true
+    patch:
+      default:
+        only_pulls: true # No patch status on single commits in main.
+        informational: true
