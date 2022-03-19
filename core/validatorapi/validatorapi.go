@@ -21,7 +21,6 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -246,7 +245,7 @@ func (c Component) verifyParSig(ctx context.Context, duty core.Duty, pubkey core
 	}
 
 	// Convert the signature
-	s, err := new(bls12381.G2).FromCompressed((*[96]byte)(sig[:]))
+	s, err := tblsconv.SigFromBytes(sig[:])
 	if err != nil {
 		return errors.Wrap(err, "convert signature")
 	}
@@ -257,7 +256,7 @@ func (c Component) verifyParSig(ctx context.Context, duty core.Duty, pubkey core
 		return err
 	}
 
-	ok, err := tbls.Verify(pubshare, sigData, &bls_sig.Signature{Value: *s})
+	ok, err := tbls.Verify(pubshare, sigData, s)
 	if err != nil {
 		return err
 	} else if !ok {
