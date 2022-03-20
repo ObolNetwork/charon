@@ -27,8 +27,10 @@ import (
 )
 
 func TestCoreAggsigdb_MemDB_WriteRead(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	db := aggsigdb.NewMemDB()
-	db.Run(context.Background())
+	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
 	testPubKey := core.PubKey("pubkey")
@@ -47,8 +49,10 @@ func TestCoreAggsigdb_MemDB_WriteRead(t *testing.T) {
 }
 
 func TestCoreAggsigdb_MemDB_WriteUnblocks(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	db := aggsigdb.NewMemDB()
-	db.Run(context.Background())
+	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
 	testPubKey := core.PubKey("pubkey")
@@ -76,16 +80,16 @@ func TestCoreAggsigdb_MemDB_WriteUnblocks(t *testing.T) {
 }
 
 func TestCoreAggsigdb_MemDB_CancelAwait(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	db := aggsigdb.NewMemDB()
-	db.Run(context.Background())
+	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
 	testPubKey := core.PubKey("pubkey")
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-
-	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
 		_, err := db.Await(ctx, testDuty, testPubKey)
@@ -103,8 +107,10 @@ func TestCoreAggsigdb_MemDB_CancelAwait(t *testing.T) {
 func TestCoreAggsigdb_MemDB_CancelAwaitDoesnotblock(t *testing.T) {
 	// A naive implementation with channels might cause that the main execution loop
 	// to block after a await query has been canceled
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	db := aggsigdb.NewMemDB()
-	db.Run(context.Background())
+	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
 	testPubKey := core.PubKey("pubkey")
@@ -116,8 +122,6 @@ func TestCoreAggsigdb_MemDB_CancelAwaitDoesnotblock(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-
-	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
 		_, err := db.Await(ctx, testDuty, testPubKey)
@@ -132,15 +136,17 @@ func TestCoreAggsigdb_MemDB_CancelAwaitDoesnotblock(t *testing.T) {
 
 	wg.Wait()
 	err := db.Store(context.Background(), testDuty, testPubKey, testAggSignedData)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	err = db.Store(context.Background(), testDuty, testPubKey2, testAggSignedData)
-	require.NoError(t, err)
+	require.Error(t, err)
 }
 
 func TestCoreAggsigdb_MemDB_CannotOverwrite(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	db := aggsigdb.NewMemDB()
-	db.Run(context.Background())
+	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
 	testPubKey := core.PubKey("pubkey")
@@ -161,8 +167,10 @@ func TestCoreAggsigdb_MemDB_CannotOverwrite(t *testing.T) {
 }
 
 func TestCoreAggsigdb_MemDB_WriteIdempotent(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	db := aggsigdb.NewMemDB()
-	db.Run(context.Background())
+	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
 	testPubKey := core.PubKey("pubkey")
