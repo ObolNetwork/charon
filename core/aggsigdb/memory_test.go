@@ -187,6 +187,33 @@ func TestCoreAggsigdb_MemDB_WriteIdempotent(t *testing.T) {
 
 	result, err := db.Await(context.Background(), testDuty, testPubKey)
 	require.NoError(t, err)
-
 	require.EqualValues(t, testAggSignedData, result)
+}
+
+func TestCoreAggsigdb_MemDB_WriteReadAftersStopped(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	db := aggsigdb.NewMemDB()
+	go db.Run(ctx)
+
+	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
+	testPubKey := core.PubKey("pubkey")
+	testAggSignedData := core.AggSignedData{
+		Data:      []byte("test data"),
+		Signature: []byte("test signature"),
+	}
+
+	err := db.Store(context.Background(), testDuty, testPubKey, testAggSignedData)
+	require.NoError(t, err)
+
+	result, err := db.Await(context.Background(), testDuty, testPubKey)
+	require.NoError(t, err)
+	require.EqualValues(t, testAggSignedData, result)
+
+	cancel()
+
+	err = db.Store(context.Background(), testDuty, testPubKey, testAggSignedData)
+	require.Equal(t, err.Error(), aggsigdb.ErrStopped.Error())
+
+	_, err = db.Await(context.Background(), testDuty, testPubKey)
+	require.Equal(t, err.Error(), aggsigdb.ErrStopped.Error())
 }
