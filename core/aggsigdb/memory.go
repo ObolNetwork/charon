@@ -45,7 +45,7 @@ type memDB struct {
 }
 
 // Store implements core.AggSigDB, see its godoc.
-func (db *memDB) Store(_ context.Context, duty core.Duty, pubKey core.PubKey, data core.AggSignedData) error {
+func (db *memDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, data core.AggSignedData) error {
 	response := make(chan error, 1)
 	db.commands <- writeCommand{
 		memDBKey: memDBKey{duty, pubKey},
@@ -53,7 +53,12 @@ func (db *memDB) Store(_ context.Context, duty core.Duty, pubKey core.PubKey, da
 		response: response,
 	}
 
-	return <-response
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-response:
+		return err
+	}
 }
 
 // Await implements core.AggSigDB, see its godoc.
@@ -82,7 +87,9 @@ func (db *memDB) loop() {
 			db.execCommand(command)
 			db.processBlockedQueries()
 		case query := <-db.queries:
-			db.execQuery(query)
+			if db.execQuery(query) {
+				db.blockedQueries = append(db.blockedQueries, query)
+			}
 		}
 	}
 }
@@ -107,19 +114,19 @@ func (db *memDB) execCommand(command writeCommand) {
 	close(command.response)
 }
 
-// execQuery executes a read query.
+// execQuery executes a read query, returns true if the query is blocked.
 // If the requested entry is found in the DB it will return it via query.response channel,
 // if it is not present it will store the query in blockedQueries.
-func (db *memDB) execQuery(query readQuery) {
+func (db *memDB) execQuery(query readQuery) bool {
 	data, ok := db.data[memDBKey{query.duty, query.pubKey}]
 	if ok {
 		query.response <- data
 		close(query.response)
 
-		return
+		return false
 	}
 
-	db.blockedQueries = append(db.blockedQueries, query)
+	return true
 }
 
 // processBlockedQueries loops over the blockedQueries and executes them.
@@ -130,7 +137,9 @@ func (db *memDB) processBlockedQueries() {
 	db.blockedQueries = []readQuery{}
 
 	for _, query := range queries {
-		db.execQuery(query)
+		if db.execQuery(query) {
+			db.blockedQueries = append(db.blockedQueries, query)
+		}
 	}
 }
 
