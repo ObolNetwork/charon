@@ -16,21 +16,29 @@ package aggsigdb
 
 import (
 	"context"
+	"sync"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 )
 
 // NewMemDB creates a basic memory based AggSigDB.
-func NewMemDB() core.AggSigDB {
+func NewMemDB(ctx context.Context) core.AggSigDB {
 	db := &memDB{
 		data:           make(map[memDBKey]core.AggSignedData),
 		commands:       make(chan writeCommand),
 		queries:        make(chan readQuery),
 		blockedQueries: []readQuery{},
+
+		closingCh: make(chan struct{}),
 	}
 
 	go db.loop()
+
+	go func() {
+		<-ctx.Done()
+		db.close()
+	}()
 
 	return db
 }
@@ -42,10 +50,27 @@ type memDB struct {
 	commands       chan writeCommand
 	queries        chan readQuery
 	blockedQueries []readQuery
+
+	// required to stop gorutine
+	closingCh      chan struct{}
+	closedCh       chan struct{}
+	writersWG      sync.WaitGroup
+	writersWGMutex sync.Mutex
 }
 
 // Store implements core.AggSigDB, see its godoc.
 func (db *memDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, data core.AggSignedData) error {
+	db.writersWGMutex.Lock()
+	db.writersWG.Add(1)
+	db.writersWGMutex.Unlock()
+	defer db.writersWG.Done()
+
+	select {
+	case <-db.closingCh:
+		return errors.New("database stopped")
+	default:
+	}
+
 	response := make(chan error, 1)
 	db.commands <- writeCommand{
 		memDBKey: memDBKey{duty, pubKey},
@@ -63,6 +88,17 @@ func (db *memDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 
 // Await implements core.AggSigDB, see its godoc.
 func (db *memDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.AggSignedData, error) {
+	db.writersWGMutex.Lock()
+	db.writersWG.Add(1)
+	db.writersWGMutex.Unlock()
+	defer db.writersWG.Done()
+
+	select {
+	case <-db.closingCh:
+		return core.AggSignedData{}, errors.New("database stopped")
+	default:
+	}
+
 	response := make(chan core.AggSignedData, 1)
 	query := readQuery{
 		memDBKey: memDBKey{duty, pubKey},
@@ -83,13 +119,21 @@ func (db *memDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) 
 func (db *memDB) loop() {
 	for {
 		select {
-		case command := <-db.commands:
+		case command, ok := <-db.commands:
+			if !ok {
+				return
+			}
 			db.execCommand(command)
 			db.processBlockedQueries()
-		case query := <-db.queries:
+		case query, ok := <-db.queries:
+			if !ok {
+				return
+			}
 			if db.execQuery(query) {
 				db.blockedQueries = append(db.blockedQueries, query)
 			}
+		case <-db.closedCh:
+			return
 		}
 	}
 }
@@ -141,6 +185,18 @@ func (db *memDB) processBlockedQueries() {
 			db.blockedQueries = append(db.blockedQueries, query)
 		}
 	}
+}
+
+func (db *memDB) close() {
+	close(db.closingCh)
+
+	db.writersWGMutex.Lock()
+	db.writersWG.Wait()
+	db.writersWGMutex.Unlock()
+
+	close(db.closedCh)
+	close(db.commands)
+	close(db.queries)
 }
 
 type memDBKey struct {

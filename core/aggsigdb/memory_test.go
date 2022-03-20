@@ -27,7 +27,7 @@ import (
 )
 
 func TestCoreAggsigdb_MemDB_WriteRead(t *testing.T) {
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(context.Background())
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
 	testPubKey := core.PubKey("pubkey")
@@ -46,7 +46,7 @@ func TestCoreAggsigdb_MemDB_WriteRead(t *testing.T) {
 }
 
 func TestCoreAggsigdb_MemDB_WriteUnblocks(t *testing.T) {
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(context.Background())
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
 	testPubKey := core.PubKey("pubkey")
@@ -74,7 +74,7 @@ func TestCoreAggsigdb_MemDB_WriteUnblocks(t *testing.T) {
 }
 
 func TestCoreAggsigdb_MemDB_CancelAwait(t *testing.T) {
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(context.Background())
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
 	testPubKey := core.PubKey("pubkey")
@@ -100,7 +100,7 @@ func TestCoreAggsigdb_MemDB_CancelAwait(t *testing.T) {
 func TestCoreAggsigdb_MemDB_CancelAwaitDoesnotblock(t *testing.T) {
 	// A naive implementation with channels might cause that the main execution loop
 	// to block after a await query has been canceled
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(context.Background())
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
 	testPubKey := core.PubKey("pubkey")
@@ -135,7 +135,7 @@ func TestCoreAggsigdb_MemDB_CancelAwaitDoesnotblock(t *testing.T) {
 }
 
 func TestCoreAggsigdb_MemDB_CannotOverwrite(t *testing.T) {
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(context.Background())
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
 	testPubKey := core.PubKey("pubkey")
@@ -156,7 +156,7 @@ func TestCoreAggsigdb_MemDB_CannotOverwrite(t *testing.T) {
 }
 
 func TestCoreAggsigdb_MemDB_WriteIdempotent(t *testing.T) {
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(context.Background())
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
 	testPubKey := core.PubKey("pubkey")
