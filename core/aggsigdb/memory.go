@@ -16,11 +16,12 @@ package aggsigdb
 
 import (
 	"context"
-	"sync"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 )
+
+var ErrStopped = errors.New("database stopped")
 
 // NewMemDB creates a basic memory based AggSigDB.
 func NewMemDB() *MemDB {
@@ -29,9 +30,7 @@ func NewMemDB() *MemDB {
 		commands:       make(chan writeCommand),
 		queries:        make(chan readQuery),
 		blockedQueries: []readQuery{},
-
-		closingCh: make(chan struct{}),
-		closedCh:  make(chan struct{}),
+		closedCh:       make(chan struct{}),
 	}
 }
 
@@ -43,29 +42,13 @@ type MemDB struct {
 	queries        chan readQuery
 	blockedQueries []readQuery
 
-	// required to stop gorutine
-	runOnce        sync.Once
-	closingCh      chan struct{}
-	closedCh       chan struct{}
-	writersWG      sync.WaitGroup
-	writersWGMutex sync.Mutex
+	closedCh chan struct{}
 }
 
 // Store implements core.AggSigDB, see its godoc.
 func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, data core.AggSignedData) error {
-	db.writersWGMutex.Lock()
-	db.writersWG.Add(1)
-	db.writersWGMutex.Unlock()
-	defer db.writersWG.Done()
-
-	select {
-	case <-db.closingCh:
-		return errors.New("database stopped")
-	default:
-	}
-
 	response := make(chan error, 1)
-	db.commands <- writeCommand{
+	cmd := writeCommand{
 		memDBKey: memDBKey{duty, pubKey},
 		data:     data,
 		response: response,
@@ -74,6 +57,16 @@ func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-db.closedCh:
+		return ErrStopped
+	case db.commands <- cmd:
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-db.closedCh:
+		return ErrStopped
 	case err := <-response:
 		return err
 	}
@@ -81,62 +74,44 @@ func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 
 // Await implements core.AggSigDB, see its godoc.
 func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.AggSignedData, error) {
-	db.writersWGMutex.Lock()
-	db.writersWG.Add(1)
-	db.writersWGMutex.Unlock()
-	defer db.writersWG.Done()
-
-	select {
-	case <-db.closingCh:
-		return core.AggSignedData{}, errors.New("database stopped")
-	default:
-	}
-
 	response := make(chan core.AggSignedData, 1)
 	query := readQuery{
 		memDBKey: memDBKey{duty, pubKey},
 		response: response,
 	}
 
-	db.queries <- query
+	select {
+	case <-ctx.Done():
+		return core.AggSignedData{}, ctx.Err()
+	case <-db.closedCh:
+		return core.AggSignedData{}, ErrStopped
+	case db.queries <- query:
+	}
 
 	select {
 	case <-ctx.Done():
 		return core.AggSignedData{}, ctx.Err()
+	case <-db.closedCh:
+		return core.AggSignedData{}, ErrStopped
 	case value := <-response:
 		return value, nil
 	}
 }
 
-// Run starts memDB processing goroutine.
+// Run blocks and runs the database process until the context is cancelled.
 func (db *MemDB) Run(ctx context.Context) {
-	db.runOnce.Do(func() {
-		go db.loop()
-
-		go func() {
-			<-ctx.Done()
-			db.close()
-		}()
-	})
-}
-
-// loop over commands and queries to serialise them.
-func (db *MemDB) loop() {
 	for {
 		select {
-		case command, ok := <-db.commands:
-			if !ok {
-				return
-			}
+		case command := <-db.commands:
 			db.execCommand(command)
 			db.processBlockedQueries()
-		case query, ok := <-db.queries:
-			if !ok {
-				return
-			}
-			if db.execQuery(query) {
+		case query := <-db.queries:
+			if !db.execQuery(query) {
 				db.blockedQueries = append(db.blockedQueries, query)
 			}
+		case <-ctx.Done():
+			close(db.closedCh)
+			return
 		case <-db.closedCh:
 			return
 		}
@@ -153,27 +128,23 @@ func (db *MemDB) execCommand(command writeCommand) {
 		close(command.response)
 
 		return
-	}
-
-	if !ok {
+	} else if !ok {
 		db.data[key] = command.data
 	}
 
-	command.response <- nil
 	close(command.response)
 }
 
-// execQuery executes a read query, returns true if the query is blocked.
-// If the requested entry is found in the DB it will return it via query.response channel,
-// if it is not present it will store the query in blockedQueries.
+// execQuery returns true if the query was successfully executed.
+// If the requested entry is found in the DB it will return it via query.response channel.
 func (db *MemDB) execQuery(query readQuery) bool {
 	data, ok := db.data[memDBKey{query.duty, query.pubKey}]
-	if ok {
-		query.response <- data
-		close(query.response)
-
+	if !ok {
 		return false
 	}
+
+	query.response <- data
+	close(query.response)
 
 	return true
 }
@@ -183,25 +154,13 @@ func (db *MemDB) execQuery(query readQuery) bool {
 // and removed from blockedQueries.
 func (db *MemDB) processBlockedQueries() {
 	queries := db.blockedQueries
-	db.blockedQueries = []readQuery{}
+	db.blockedQueries = nil
 
 	for _, query := range queries {
-		if db.execQuery(query) {
+		if !db.execQuery(query) {
 			db.blockedQueries = append(db.blockedQueries, query)
 		}
 	}
-}
-
-func (db *MemDB) close() {
-	close(db.closingCh)
-
-	db.writersWGMutex.Lock()
-	db.writersWG.Wait()
-	db.writersWGMutex.Unlock()
-
-	close(db.closedCh)
-	close(db.commands)
-	close(db.queries)
 }
 
 type memDBKey struct {
