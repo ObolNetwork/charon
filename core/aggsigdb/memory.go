@@ -23,28 +23,20 @@ import (
 )
 
 // NewMemDB creates a basic memory based AggSigDB.
-func NewMemDB(ctx context.Context) core.AggSigDB {
-	db := &memDB{
+func NewMemDB() *MemDB {
+	return &MemDB{
 		data:           make(map[memDBKey]core.AggSignedData),
 		commands:       make(chan writeCommand),
 		queries:        make(chan readQuery),
 		blockedQueries: []readQuery{},
 
 		closingCh: make(chan struct{}),
+		closedCh:  make(chan struct{}),
 	}
-
-	go db.loop()
-
-	go func() {
-		<-ctx.Done()
-		db.close()
-	}()
-
-	return db
 }
 
-// memDB is a basic memory implementation of core.AggSigDB.
-type memDB struct {
+// MemDB is a basic memory implementation of core.AggSigDB.
+type MemDB struct {
 	data map[memDBKey]core.AggSignedData
 
 	commands       chan writeCommand
@@ -52,6 +44,7 @@ type memDB struct {
 	blockedQueries []readQuery
 
 	// required to stop gorutine
+	runOnce        sync.Once
 	closingCh      chan struct{}
 	closedCh       chan struct{}
 	writersWG      sync.WaitGroup
@@ -59,7 +52,7 @@ type memDB struct {
 }
 
 // Store implements core.AggSigDB, see its godoc.
-func (db *memDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, data core.AggSignedData) error {
+func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, data core.AggSignedData) error {
 	db.writersWGMutex.Lock()
 	db.writersWG.Add(1)
 	db.writersWGMutex.Unlock()
@@ -87,7 +80,7 @@ func (db *memDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 }
 
 // Await implements core.AggSigDB, see its godoc.
-func (db *memDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.AggSignedData, error) {
+func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.AggSignedData, error) {
 	db.writersWGMutex.Lock()
 	db.writersWG.Add(1)
 	db.writersWGMutex.Unlock()
@@ -115,8 +108,20 @@ func (db *memDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) 
 	}
 }
 
+// Run starts memDB processing goroutine.
+func (db *MemDB) Run(ctx context.Context) {
+	db.runOnce.Do(func() {
+		go db.loop()
+
+		go func() {
+			<-ctx.Done()
+			db.close()
+		}()
+	})
+}
+
 // loop over commands and queries to serialise them.
-func (db *memDB) loop() {
+func (db *MemDB) loop() {
 	for {
 		select {
 		case command, ok := <-db.commands:
@@ -139,12 +144,12 @@ func (db *memDB) loop() {
 }
 
 // execCommand executes a write command.
-func (db *memDB) execCommand(command writeCommand) {
+func (db *MemDB) execCommand(command writeCommand) {
 	key := memDBKey{command.duty, command.pubKey}
 
 	curData, ok := db.data[key]
 	if ok && !curData.Equal(command.data) {
-		command.response <- errors.New("trying to update entry in aggsigdb/memDB")
+		command.response <- errors.New("trying to update entry in aggsigdb/MemDB")
 		close(command.response)
 
 		return
@@ -161,7 +166,7 @@ func (db *memDB) execCommand(command writeCommand) {
 // execQuery executes a read query, returns true if the query is blocked.
 // If the requested entry is found in the DB it will return it via query.response channel,
 // if it is not present it will store the query in blockedQueries.
-func (db *memDB) execQuery(query readQuery) bool {
+func (db *MemDB) execQuery(query readQuery) bool {
 	data, ok := db.data[memDBKey{query.duty, query.pubKey}]
 	if ok {
 		query.response <- data
@@ -176,7 +181,7 @@ func (db *memDB) execQuery(query readQuery) bool {
 // processBlockedQueries loops over the blockedQueries and executes them.
 // For each of them that have an entry in the DB it will be returned via query.response channel
 // and removed from blockedQueries.
-func (db *memDB) processBlockedQueries() {
+func (db *MemDB) processBlockedQueries() {
 	queries := db.blockedQueries
 	db.blockedQueries = []readQuery{}
 
@@ -187,7 +192,7 @@ func (db *memDB) processBlockedQueries() {
 	}
 }
 
-func (db *memDB) close() {
+func (db *MemDB) close() {
 	close(db.closingCh)
 
 	db.writersWGMutex.Lock()
