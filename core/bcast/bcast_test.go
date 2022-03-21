@@ -29,7 +29,8 @@ import (
 
 func TestBroadcastAttestation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	mock := beaconmock.New()
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
 
 	att := testutil.RandomAttestation()
 	aggData, err := core.EncodeAttestationAggSignedData(att)

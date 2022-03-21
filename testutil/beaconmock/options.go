@@ -17,6 +17,7 @@ package beaconmock
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -149,33 +150,41 @@ func cloneValidator(val *eth2v1.Validator) *eth2v1.Validator {
 	return &tempv1
 }
 
-// WithGenesis configures the mock with the provided genesis time.
-// Note this does NOT update the MIN_GENESIS_TIME value inside the spec config map.
-func WithGenesis(t0 time.Time) Option {
+// WithGenesisTime configures the http mock with the provided genesis time.
+func WithGenesisTime(t0 time.Time) Option {
 	return func(mock *Mock) {
-		mock.GenesisTimeFunc = func(_ context.Context) (time.Time, error) {
-			return t0, nil
-		}
+		mock.overrides = append(mock.overrides, staticOverride{
+			Endpoint: "/eth/v1/config/spec",
+			Key:      "MIN_GENESIS_TIME",
+			Value:    fmt.Sprint(t0.Unix()),
+		})
+		mock.overrides = append(mock.overrides, staticOverride{
+			Endpoint: "/eth/v1/beacon/genesis",
+			Key:      "genesis_time",
+			Value:    fmt.Sprint(t0.Unix()),
+		})
 	}
 }
 
-// WithSlotDuration configures the mock with the provided slots duration.
-// Note this does NOT update the SECONDS_PER_SLOT value inside the spec config map.
+// WithSlotDuration configures the http mock with the provided slots duration.
 func WithSlotDuration(duration time.Duration) Option {
 	return func(mock *Mock) {
-		mock.SlotDurationFunc = func(context.Context) (time.Duration, error) {
-			return duration, nil
-		}
+		mock.overrides = append(mock.overrides, staticOverride{
+			Endpoint: "/eth/v1/config/spec",
+			Key:      "SECONDS_PER_SLOT",
+			Value:    fmt.Sprint(int(duration.Seconds())),
+		})
 	}
 }
 
-// WithSlotsPerEpoch configures the mock with the provided slots per epoch.
-// Note this does NOT update the SLOTS_PER_EPOCH value inside the spec config map.
+// WithSlotsPerEpoch configures the http mock with the provided slots per epoch.
 func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 	return func(mock *Mock) {
-		mock.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
-			return uint64(slotsPerEpoch), nil
-		}
+		mock.overrides = append(mock.overrides, staticOverride{
+			Endpoint: "/eth/v1/config/spec",
+			Key:      "SLOTS_PER_EPOCH",
+			Value:    fmt.Sprint(slotsPerEpoch),
+		})
 	}
 }
 
@@ -223,37 +232,16 @@ func WithDeterministicDuties(factor int) Option {
 	}
 }
 
-// WithDefaultStaticProvider configures the mock with the default static value provider.
-func WithDefaultStaticProvider() Option {
-	static, err := NewStaticProvider()
-	if err != nil {
-		panic(err) // This is test code, so panic here is kinda ok since it improves API.
-	}
-
-	return WithStaticProvider(static)
-}
-
-// WithStaticProvider configures the mock with a static value provider.
-func WithStaticProvider(provider StaticProvider) Option {
-	return func(mock *Mock) {
-		mock.GenesisTimeFunc = provider.GenesisTime
-		mock.SpecFunc = provider.Spec
-		mock.SlotDurationFunc = provider.SlotDuration
-		mock.SlotsPerEpochFunc = provider.SlotsPerEpoch
-		mock.DomainFunc = provider.Domain
-		mock.GenesisTimeFunc = provider.GenesisTime
-	}
-}
-
 // defaultMock returns a minimum viable mock that doesn't panic and returns mostly empty responses.
-// The default slots have 1 second duration and there are 10 slots per epoch (for simple math).
-func defaultMock() Mock {
+func defaultMock(httpMock HTTPMock, addr string) Mock {
 	return Mock{
+		HTTPMock:       httpMock,
+		HTTPServerAddr: addr,
 		ProposerDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-			return nil, nil
+			return []*eth2v1.ProposerDuty{}, nil
 		},
 		AttesterDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
-			return nil, nil
+			return []*eth2v1.AttesterDuty{}, nil
 		},
 		AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 			return &eth2p0.AttestationData{
@@ -263,34 +251,20 @@ func defaultMock() Mock {
 				Target: &eth2p0.Checkpoint{},
 			}, nil
 		},
-		SlotDurationFunc: func(ctx context.Context) (time.Duration, error) {
-			return time.Second, nil
-		},
-		SlotsPerEpochFunc: func(ctx context.Context) (uint64, error) {
-			return 10, nil
-		},
 		ValidatorsFunc: func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			return nil, nil
 		},
 		ValidatorsByPubKeyFunc: func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			return nil, nil
 		},
-		GenesisTimeFunc: func(ctx context.Context) (time.Time, error) {
-			day := time.Hour * 24
-			return time.Now().Truncate(day).Add(-day), nil // Start of yesterday.
-		},
-		NodeSyncingFunc: func(ctx context.Context) (*eth2v1.SyncState, error) {
-			return &eth2v1.SyncState{
-				HeadSlot:     0,
-				SyncDistance: 0,
-				IsSyncing:    false,
-			}, nil
-		},
-		SpecFunc: func(context.Context) (map[string]interface{}, error) {
-			return nil, nil
-		},
 		SubmitAttestationsFunc: func(context.Context, []*eth2p0.Attestation) error {
 			return nil
+		},
+		GenesisTimeFunc: func(ctx context.Context) (time.Time, error) {
+			return httpMock.GenesisTime(ctx)
+		},
+		NodeSyncingFunc: func(ctx context.Context) (*eth2v1.SyncState, error) {
+			return httpMock.NodeSyncing(ctx)
 		},
 	}
 }

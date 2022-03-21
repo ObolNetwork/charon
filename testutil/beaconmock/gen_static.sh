@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # Generates the static.json file which is served as part of the beaconmock's static values provider.
+# Note it should be a prater testnet beacon node.
 
 set -e
 
@@ -9,9 +10,16 @@ if [ -z "${BEACON_URL}" ]; then
   exit 1
 fi
 
-echo "Using BEACON_URL=${BEACON_URL}"
+echo "Using prater testnet BEACON_URL=${BEACON_URL}"
 
-ENDPOINTS=(/eth/v1/beacon/genesis /eth/v1/config/deposit_contract /eth/v1/config/fork_schedule /eth/v1/node/version /eth/v1/config/spec)
+ENDPOINTS=(\
+ /eth/v1/beacon/genesis \
+ /eth/v1/config/deposit_contract \
+ /eth/v1/config/fork_schedule \
+ /eth/v1/node/version \
+ /eth/v1/config/spec\
+ /eth/v2/beacon/blocks/0 \
+)
 
 FIRST=true
 RESP="{"

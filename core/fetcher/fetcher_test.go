@@ -69,7 +69,9 @@ func TestFetchAttester(t *testing.T) {
 	}
 	duty := core.Duty{Type: core.DutyAttester, Slot: slot}
 
-	fetch, err := fetcher.New(beaconmock.New())
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+	fetch, err := fetcher.New(bmock)
 	require.NoError(t, err)
 
 	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {

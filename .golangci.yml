@@ -59,6 +59,7 @@ linters-settings:
   wrapcheck:
     ignoreSigs:
       - github.com/obolnetwork/charon/
+      - github.com/attestantio/go-eth2-client
 
 issues:
   fix: true

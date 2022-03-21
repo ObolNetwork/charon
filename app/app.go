@@ -24,6 +24,7 @@ import (
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -135,10 +136,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	wireMonitoringAPI(life, conf.MonitoringAddr, localEnode)
 
-	if err := wireValidatorAPI(life, conf); err != nil {
-		return err
-	}
-
 	if err := wireSimNetCoreWorkflow(life, conf, manifest, nodeIdx, tcpNode); err != nil {
 		return err
 	}
@@ -200,6 +197,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 }
 
 // wireSimNetCoreWorkflow wires a simnet core workflow including a beaconmock and validatormock.
+//nolint:cyclop
 func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manifest, nodeIdx NodeIdx, tcpNode host.Host) error {
 	if conf.TestConfig.DisableSimnet {
 		return nil
@@ -235,6 +233,7 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 		if err != nil {
 			return err
 		}
+
 		corePubkeys = append(corePubkeys, corePubkey)
 		pubkeys = append(pubkeys, pubkey)
 		pubSharesByKey[dv.PublicKey()] = pubShare
@@ -242,13 +241,16 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 	}
 
 	// Configure the beacon mock.
-	bmock := beaconmock.New(
-		beaconmock.WithDefaultStaticProvider(),       // Use mostly beacon chain config.
+	bmock, err := beaconmock.New(
 		beaconmock.WithSlotsPerEpoch(len(pubshares)), // Except for slots per epoch, make that faster.
 		beaconmock.WithSlotDuration(time.Second),     // Except for slots duration, make that faster as well.
 		beaconmock.WithDeterministicDuties(13),       // This should result in pseudo random duties.
 		beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
 	)
+	if err != nil {
+		return err
+	}
+	conf.BeaconNodeAddr = bmock.HTTPServerAddr
 
 	sched, err := scheduler.New(corePubkeys, bmock)
 	if err != nil {
@@ -276,6 +278,10 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 		return err
 	}
 
+	if err := wireVAPIRouter(life, conf, vapi); err != nil {
+		return err
+	}
+
 	parSigDB := parsigdb.NewMemDB(threshold)
 
 	var parSigEx core.ParSigEx
@@ -297,7 +303,7 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 
 	core.Wire(sched, fetch, consensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster)
 
-	err = wireValidatorMock(conf, pubshares, sched, vapi)
+	err = wireValidatorMock(conf, pubshares, sched)
 	if err != nil {
 		return err
 	}
@@ -361,10 +367,9 @@ func wireMonitoringAPI(life *lifecycle.Manager, addr string, localNode *enode.Lo
 	life.RegisterStop(lifecycle.StopMonitoringAPI, lifecycle.HookFunc(server.Shutdown))
 }
 
-// wireValidatorAPI constructs the validator API and registers it with the life cycle manager.
-func wireValidatorAPI(life *lifecycle.Manager, conf Config) error {
-	vhandler := validatorapi.Handler(nil) // TODO(corver): Construct this
-	vrouter, err := validatorapi.NewRouter(vhandler, conf.BeaconNodeAddr)
+// wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
+func wireVAPIRouter(life *lifecycle.Manager, conf Config, handler validatorapi.Handler) error {
+	vrouter, err := validatorapi.NewRouter(handler, conf.BeaconNodeAddr)
 	if err != nil {
 		return errors.Wrap(err, "new monitoring server")
 	}
@@ -406,7 +411,7 @@ func (h httpServeHook) Call(context.Context) error {
 	return nil
 }
 
-func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler, vapi *validatorapi.Component) error {
+func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
 	secrets := conf.TestConfig.SimnetKeys
 	if len(secrets) == 0 {
 		var err error
@@ -422,7 +427,13 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	sched.Subscribe(func(ctx context.Context, duty core.Duty, _ core.FetchArgSet) error {
 		ctx = log.WithTopic(ctx, "vmock")
 		go func() {
-			err := validatormock.Attest(ctx, vapi, signer, eth2p0.Slot(duty.Slot), pubshares...)
+			addr := "http://" + conf.ValidatorAPIAddr
+			cl, err := eth2http.New(ctx, eth2http.WithLogLevel(1), eth2http.WithAddress(addr))
+			if err != nil {
+				log.Warn(ctx, "validatorapi client", z.Err(err))
+			}
+
+			err = validatormock.Attest(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), pubshares...)
 			if err != nil {
 				log.Warn(ctx, "attestation failed", z.Err(err))
 			} else {

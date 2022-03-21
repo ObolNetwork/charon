@@ -132,7 +132,8 @@ func TestSchedulerWait(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			var t0 time.Time
 			clock := clockwork.NewFakeClockAt(t0)
-			eth2Cl := beaconmock.New()
+			eth2Cl, err := beaconmock.New()
+			require.NoError(t, err)
 
 			eth2Cl.GenesisTimeFunc = func(context.Context) (time.Time, error) {
 				var err error
@@ -211,11 +212,15 @@ func TestSchedulerDuties(t *testing.T) {
 			clock := clockwork.NewFakeClockAt(t0)
 
 			valSet := beaconmock.ValidatorSetA
-			eth2Cl := beaconmock.New(
+			eth2Cl, err := beaconmock.New(
 				beaconmock.WithValidatorSet(valSet),
-				beaconmock.WithGenesis(t0),
+				beaconmock.WithGenesisTime(t0),
 				beaconmock.WithDeterministicDuties(test.Factor),
 			)
+			require.NoError(t, err)
+
+			slotDuration, err := eth2Cl.SlotDuration(context.Background())
+			require.NoError(t, err)
 
 			pubkeys, err := valSet.CorePubKeys()
 			require.NoError(t, err)
@@ -239,7 +244,7 @@ func TestSchedulerDuties(t *testing.T) {
 			}
 			var tuples []tuple
 
-			stopAt := clock.Now().Add(time.Second * 30) // See duties for 30 seconds (3 epochs).
+			stopAt := clock.Now().Add(slotDuration * 3) // See duties for 3 slots.
 			for {
 				gosched() // Wait for scheduler goroutine to sleep or complete
 
@@ -262,7 +267,7 @@ func TestSchedulerDuties(t *testing.T) {
 					if !clock.Now().Before(stopAt) {
 						break
 					}
-					clock.Advance(time.Second)
+					clock.Advance(slotDuration)
 
 					continue
 				}

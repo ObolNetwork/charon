@@ -144,6 +144,10 @@ type Component struct {
 	parSigDBFuncs   []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
+func (*Component) ProposerDuties(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+	return []*eth2v1.ProposerDuty{}, nil // No proposer duties for now.
+}
+
 // RegisterAwaitAttestation registers a function to query attestation data.
 // It only supports a single function, since it is an input of the component.
 func (c *Component) RegisterAwaitAttestation(fn func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)) {
@@ -282,18 +286,6 @@ func (c Component) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, valid
 	}
 
 	return duties, nil
-}
-
-func (c Component) Domain(ctx context.Context, domainType eth2p0.DomainType, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
-	return c.eth2Cl.Domain(ctx, domainType, epoch)
-}
-
-func (c Component) SlotsPerEpoch(ctx context.Context) (uint64, error) {
-	return c.eth2Cl.SlotsPerEpoch(ctx)
-}
-
-func (c Component) Spec(ctx context.Context) (map[string]interface{}, error) {
-	return c.eth2Cl.Spec(ctx)
 }
 
 func (c Component) Validators(ctx context.Context, stateID string, validatorIndices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
