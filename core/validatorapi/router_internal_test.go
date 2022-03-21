@@ -217,7 +217,7 @@ func TestRouter(t *testing.T) {
 						Index:  index,
 						Status: eth2v1.ValidatorStateActiveOngoing,
 						Validator: &eth2p0.Validator{
-							PublicKey:             testutil.RandomBLSPubKey(),
+							PublicKey:             testutil.RandomBLSPubKey(t),
 							WithdrawalCredentials: []byte("12345678901234567890123456789012"),
 						},
 					}
@@ -269,8 +269,8 @@ func TestRouter(t *testing.T) {
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
 			res, err := cl.ValidatorsByPubKey(ctx, "head", []eth2p0.BLSPubKey{
-				testutil.RandomBLSPubKey(),
-				testutil.RandomBLSPubKey(),
+				testutil.RandomBLSPubKey(t),
+				testutil.RandomBLSPubKey(t),
 			})
 			require.NoError(t, err)
 

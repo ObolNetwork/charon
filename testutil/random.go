@@ -49,9 +49,12 @@ func RandomPubKey(t *testing.T) core.PubKey {
 }
 
 // RandomBLSPubKey returns a random eth2 phase0 bls pubkey.
-func RandomBLSPubKey() eth2p0.BLSPubKey {
-	pubkey, _, _ := bls_sig.NewSigEth2().Keygen()
-	resp, _ := tblsconv.KeyToETH2(pubkey)
+func RandomBLSPubKey(t *testing.T) eth2p0.BLSPubKey {
+	t.Helper()
+	pubkey, _, err := bls_sig.NewSigEth2().Keygen()
+	require.NoError(t, err)
+	resp, err := tblsconv.KeyToETH2(pubkey)
+	require.NoError(t, err)
 
 	return resp
 }
@@ -74,9 +77,10 @@ func RandomAttestationData() *eth2p0.AttestationData {
 	}
 }
 
-func RandomAttestationDuty() *eth2v1.AttesterDuty {
+func RandomAttestationDuty(t *testing.T) *eth2v1.AttesterDuty {
+	t.Helper()
 	return &eth2v1.AttesterDuty{
-		PubKey:                  RandomBLSPubKey(),
+		PubKey:                  RandomBLSPubKey(t),
 		Slot:                    RandomSlot(),
 		ValidatorIndex:          RandomVIdx(),
 		CommitteeIndex:          RandomCommIdx(),
