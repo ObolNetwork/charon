@@ -18,7 +18,6 @@
 package validatorapi
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -209,13 +208,9 @@ func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
 			}
 		}
 
-		var resp []json.RawMessage
+		var resp []v1Validator
 		for _, val := range vals {
-			raw, err := json.Marshal(val)
-			if err != nil {
-				return nil, errors.Wrap(err, "marshal validator")
-			}
-			resp = append(resp, bytes.ToLower(raw)) // eth2v1.ValidatorStatus must be lowercase.
+			resp = append(resp, v1Validator(*val))
 		}
 
 		return validatorResponse{Data: resp}, nil
@@ -490,11 +485,11 @@ func (w proxyResponseWriter) WriteHeader(statusCode int) {
 }
 
 // stubRoot return a stub dependent root for an epoch.
-func stubRoot(epoch uint64) string {
-	var root [32]byte
-	binary.PutUvarint(root[:], epoch)
+func stubRoot(epoch uint64) root {
+	var r eth2p0.Root
+	binary.PutUvarint(r[:], epoch)
 
-	return fmt.Sprintf("%#x", root[:])
+	return root(r)
 }
 
 // getValidatorIDs returns validator IDs provided in "id" query parameters, supporting csv values.

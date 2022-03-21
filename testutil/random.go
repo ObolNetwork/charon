@@ -24,6 +24,7 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -32,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // RandomPubKey returns a random core workflow pubkey.
@@ -48,10 +50,10 @@ func RandomPubKey(t *testing.T) core.PubKey {
 
 // RandomBLSPubKey returns a random eth2 phase0 bls pubkey.
 func RandomBLSPubKey() eth2p0.BLSPubKey {
-	var pubkey eth2p0.BLSPubKey
-	_, _ = rand.Read(pubkey[:])
+	pubkey, _, _ := bls_sig.NewSigEth2().Keygen()
+	resp, _ := tblsconv.KeyToETH2(pubkey)
 
-	return pubkey
+	return resp
 }
 
 func RandomAttestation() *eth2p0.Attestation {

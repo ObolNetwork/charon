@@ -15,7 +15,9 @@
 package validatorapi
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"strconv"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -57,17 +59,37 @@ func (r *attesterDutiesRequest) UnmarshalJSON(bytes []byte) error {
 // attesterDutiesResponse defines the response to the getAttesterDuties endpoint.
 // See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getAttesterDuties.
 type attesterDutiesResponse struct {
-	DependentRoot string                 `json:"dependent_root"`
+	DependentRoot root                   `json:"dependent_root"`
 	Data          []*eth2v1.AttesterDuty `json:"data"`
 }
 
 // proposerDutiesResponse defines the response to the getAttesterDuties endpoint.
 // See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getProposerDuties.
 type proposerDutiesResponse struct {
-	DependentRoot string                 `json:"dependent_root"`
+	DependentRoot root                   `json:"dependent_root"`
 	Data          []*eth2v1.ProposerDuty `json:"data"`
 }
 
 type validatorResponse struct {
-	Data []json.RawMessage `json:"data"`
+	Data []v1Validator `json:"data"`
+}
+
+// root wraps eth2p0 root adding proper json marshalling.
+type root eth2p0.Root
+
+func (r root) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf(`"%#x"`, r)), nil
+}
+
+// v1Validator wraps eth2v1 Validator proper json marshalling of status.
+type v1Validator eth2v1.Validator
+
+func (v v1Validator) MarshalJSON() ([]byte, error) {
+	cast := eth2v1.Validator(v)
+	b, err := json.Marshal(&cast)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal wrapped validator")
+	}
+
+	return bytes.ToLower(b), nil // ValidatorState must be lower case.
 }
