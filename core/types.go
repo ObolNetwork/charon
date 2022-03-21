@@ -15,6 +15,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 
@@ -162,4 +163,8 @@ type AggSignedData struct {
 	Data []byte
 	// Signature is the result of tbls aggregation and is inserted into the data.
 	Signature []byte
+}
+
+func (a AggSignedData) Equal(b AggSignedData) bool {
+	return bytes.Equal(a.Data, b.Data) && bytes.Equal(a.Signature, b.Signature)
 }
