@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"os"
 	"strings"
 	"testing"
 
@@ -36,6 +37,24 @@ const (
 	slotsPerEpoch = 32
 	infoLevel     = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
 )
+
+func TestRouterIntegration(t *testing.T) {
+	beaconURL, ok := os.LookupEnv("BEACON_URL")
+	if !ok {
+		t.Skip("Skipping integration test since BEACON_URL not found")
+	}
+
+	r, err := NewRouter(Handler(nil), beaconURL)
+	require.NoError(t, err)
+
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/eth/v1/node/version")
+	require.NoError(t, err)
+
+	require.Equal(t, 200, resp.StatusCode)
+}
 
 func TestRawRouter(t *testing.T) {
 	t.Run("proxy", func(t *testing.T) {
