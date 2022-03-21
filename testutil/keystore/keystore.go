@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package keystore provides functions to store and load simnet private keys
-// to/from EIP 2335 compatible keystore files with empty passwords.
+// to/from EIP 2335 compatible keystore files with "simnet" as passwords.
 package keystore
 
 import (
@@ -33,10 +33,12 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
+const passphrase = "simnet"
+
 // StoreSimnetKeys stores the secrets in dir/keystore-simnet-%d.json files with empty passwords.
 func StoreSimnetKeys(secrets []*bls_sig.SecretKey, dir string) error {
 	for i, secret := range secrets {
-		store, err := encrypt(secret, "", rand.Reader)
+		store, err := encrypt(secret, passphrase, rand.Reader)
 		if err != nil {
 			return err
 		}
@@ -74,7 +76,7 @@ func LoadSimnetKeys(dir string) ([]*bls_sig.SecretKey, error) {
 			return nil, errors.Wrap(err, "unmarshal keystore")
 		}
 
-		secret, err := decrypt(store, "")
+		secret, err := decrypt(store, passphrase)
 		if err != nil {
 			return nil, err
 		}
