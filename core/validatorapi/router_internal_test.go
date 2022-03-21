@@ -281,6 +281,29 @@ func TestRouter(t *testing.T) {
 
 		testRouter(t, handler, callback)
 	})
+
+	t.Run("attestation_data", func(t *testing.T) {
+		handler := testHandler{
+			AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+				data := testutil.RandomAttestationData()
+				data.Slot = slot
+				data.Index = commIdx
+
+				return data, nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			const slot, commIdx = 12, 23
+			res, err := cl.AttestationData(ctx, slot, commIdx)
+			require.NoError(t, err)
+
+			require.EqualValues(t, slot, res.Slot)
+			require.EqualValues(t, commIdx, res.Index)
+		}
+
+		testRouter(t, handler, callback)
+	})
 }
 
 // testRouter is a helper function to test router endpoints with an eth2http client. The outer test
@@ -326,10 +349,15 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 type testHandler struct {
 	Handler
 	ProxyHandler           http.HandlerFunc
+	AttestationDataFunc    func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc     func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	ProposerDutiesFunc     func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	ValidatorsFunc         func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	ValidatorsByPubKeyFunc func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+}
+
+func (h testHandler) AttestationData(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+	return h.AttestationDataFunc(ctx, slot, commIdx)
 }
 
 func (h testHandler) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
