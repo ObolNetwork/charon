@@ -75,20 +75,15 @@ func GetDomain(ctx context.Context, eth2Cl Eth2DomainProvider, name DomainName, 
 
 // prepSigningData wraps the signing root with the domain and returns ssz marshalled bytes to sign.
 // The result should be identical to what was signed by the VC.
-func prepSigningData(ctx context.Context, eth2Cl eth2Provider, duty core.Duty, root eth2p0.Root) ([]byte, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+func prepSigningData(ctx context.Context, eth2Cl eth2Provider, typ core.DutyType, epoch eth2p0.Epoch, root eth2p0.Root) ([32]byte, error) {
+	domain, err := GetDomain(ctx, eth2Cl, dutyDomain[typ], epoch)
 	if err != nil {
-		return nil, err
+		return [32]byte{}, err
 	}
 
-	domain, err := GetDomain(ctx, eth2Cl, dutyDomain[duty.Type], eth2p0.Epoch(uint64(duty.Slot)/slotsPerEpoch))
+	msg, err := (&eth2p0.SigningData{ObjectRoot: root, Domain: domain}).HashTreeRoot()
 	if err != nil {
-		return nil, err
-	}
-
-	msg, err := (&eth2p0.SigningData{ObjectRoot: root, Domain: domain}).MarshalSSZ()
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal signing data")
+		return [32]byte{}, errors.Wrap(err, "marshal signing data")
 	}
 
 	return msg, nil

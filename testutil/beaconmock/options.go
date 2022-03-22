@@ -16,14 +16,17 @@ package beaconmock
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"hash/fnv"
 	"sort"
 	"strings"
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -150,6 +153,16 @@ func cloneValidator(val *eth2v1.Validator) *eth2v1.Validator {
 	return &tempv1
 }
 
+// WithEndpoint configures the http mock with the endpoint override.
+func WithEndpoint(endpoint string, value string) Option {
+	return func(mock *Mock) {
+		mock.overrides = append(mock.overrides, staticOverride{
+			Endpoint: endpoint,
+			Value:    value,
+		})
+	}
+}
+
 // WithGenesisTime configures the http mock with the provided genesis time.
 func WithGenesisTime(t0 time.Time) Option {
 	return func(mock *Mock) {
@@ -162,6 +175,17 @@ func WithGenesisTime(t0 time.Time) Option {
 			Endpoint: "/eth/v1/beacon/genesis",
 			Key:      "genesis_time",
 			Value:    fmt.Sprint(t0.Unix()),
+		})
+	}
+}
+
+// WithGenesisValidatorsRoot configures the http mock with the provided genesis validators root.
+func WithGenesisValidatorsRoot(root [32]byte) Option {
+	return func(mock *Mock) {
+		mock.overrides = append(mock.overrides, staticOverride{
+			Endpoint: "/eth/v1/beacon/genesis",
+			Key:      "genesis_validators_root",
+			Value:    fmt.Sprintf("%#x", root),
 		})
 	}
 }
@@ -232,9 +256,17 @@ func WithDeterministicDuties(factor int) Option {
 	}
 }
 
+// WithClock configures the mock with the provided clock.
+func WithClock(clock clockwork.Clock) Option {
+	return func(mock *Mock) {
+		mock.clock = clock
+	}
+}
+
 // defaultMock returns a minimum viable mock that doesn't panic and returns mostly empty responses.
-func defaultMock(httpMock HTTPMock, addr string) Mock {
+func defaultMock(httpMock HTTPMock, addr string, clock clockwork.Clock) Mock {
 	return Mock{
+		clock:          clock,
 		HTTPMock:       httpMock,
 		HTTPServerAddr: addr,
 		ProposerDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -244,11 +276,23 @@ func defaultMock(httpMock HTTPMock, addr string) Mock {
 			return []*eth2v1.AttesterDuty{}, nil
 		},
 		AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+			epoch, err := currentEpoch(ctx, httpMock, clock)
+			if err != nil {
+				return nil, err
+			}
+
 			return &eth2p0.AttestationData{
-				Slot:   slot,
-				Index:  index,
-				Source: &eth2p0.Checkpoint{},
-				Target: &eth2p0.Checkpoint{},
+				Slot:            slot,
+				Index:           index,
+				BeaconBlockRoot: stubRoot(epoch),
+				Source: &eth2p0.Checkpoint{
+					Epoch: eth2p0.Epoch(epoch - 1),
+					Root:  stubRoot(epoch - 1),
+				},
+				Target: &eth2p0.Checkpoint{
+					Epoch: eth2p0.Epoch(epoch),
+					Root:  stubRoot(epoch),
+				},
 			}, nil
 		},
 		ValidatorsFunc: func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
@@ -282,4 +326,35 @@ func mustPKFromHex(pubkeyHex string) eth2p0.BLSPubKey {
 	}
 
 	return resp
+}
+
+// stubRoot return a stub dependent root for an epoch.
+func stubRoot(epoch uint64) eth2p0.Root {
+	h := fnv.New128a()
+	_ = binary.Write(h, binary.LittleEndian, epoch)
+
+	var r eth2p0.Root
+	copy(r[:], h.Sum(nil))
+
+	return r
+}
+
+// currentEpoch returns the current epoch.
+func currentEpoch(ctx context.Context, eth2Cl HTTPMock, clock clockwork.Clock) (uint64, error) {
+	genesis, err := eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return 0, err
+	}
+	slotsDuration, err := eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return 0, err
+	}
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	epoch := uint64(clock.Since(genesis)/slotsDuration) / slotsPerEpoch
+
+	return epoch, nil
 }

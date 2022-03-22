@@ -197,7 +197,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 			return errors.Wrap(err, "hash attestation data")
 		}
 
-		if err := c.verifyParSig(ctx, duty, pubkey, sigRoot, att.Signature); err != nil {
+		if err := c.verifyParSig(ctx, duty.Type, att.Data.Target.Epoch, pubkey, sigRoot, att.Signature); err != nil {
 			return err
 		}
 
@@ -237,13 +237,15 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 }
 
 // verifyParSig verifies the partial signature against the root and validator.
-func (c Component) verifyParSig(ctx context.Context, duty core.Duty, pubkey core.PubKey, sigRoot eth2p0.Root, sig eth2p0.BLSSignature) error {
+func (c Component) verifyParSig(ctx context.Context, typ core.DutyType, epoch eth2p0.Epoch,
+	pubkey core.PubKey, sigRoot eth2p0.Root, sig eth2p0.BLSSignature,
+) error {
 	if c.skipVerify {
 		return nil
 	}
 
 	// Wrap the signing root with the domain and serialise it.
-	sigData, err := prepSigningData(ctx, c.eth2Cl, duty, sigRoot)
+	sigData, err := prepSigningData(ctx, c.eth2Cl, typ, epoch, sigRoot)
 	if err != nil {
 		return err
 	}
@@ -260,7 +262,7 @@ func (c Component) verifyParSig(ctx context.Context, duty core.Duty, pubkey core
 		return err
 	}
 
-	ok, err := tbls.Verify(pubshare, sigData, s)
+	ok, err := tbls.Verify(pubshare, sigData[:], s)
 	if err != nil {
 		return err
 	} else if !ok {

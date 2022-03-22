@@ -18,8 +18,10 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/testutil"
@@ -46,10 +48,12 @@ func TestAttest(t *testing.T) {
 	for _, test := range tests {
 		t.Run(fmt.Sprint(test.DutyFactor), func(t *testing.T) {
 			ctx := context.Background()
+			clock := clockwork.NewFakeClockAt(time.Date(2022, 0o3, 20, 0o1, 0, 0, 0, time.UTC))
 
 			// Configure beacon mock
 			valSet := beaconmock.ValidatorSetA
 			beaconMock, err := beaconmock.New(
+				beaconmock.WithClock(clock),
 				beaconmock.WithValidatorSet(valSet),
 				beaconmock.WithDeterministicDuties(test.DutyFactor),
 			)

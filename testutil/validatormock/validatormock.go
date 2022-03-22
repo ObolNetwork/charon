@@ -56,11 +56,6 @@ func Attest(ctx context.Context, eth2Cl Eth2AttProvider, signFunc SignFunc,
 
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 
-	domain, err := validatorapi.GetDomain(ctx, eth2Cl, validatorapi.DomainBeaconAttester, epoch)
-	if err != nil {
-		return err
-	}
-
 	valMap, err := eth2Cl.ValidatorsByPubKey(ctx, fmt.Sprint(slot), pubkeys)
 	if err != nil {
 		return err
@@ -86,6 +81,11 @@ func Attest(ctx context.Context, eth2Cl Eth2AttProvider, signFunc SignFunc,
 		}
 
 		data, err := eth2Cl.AttestationData(ctx, duty.Slot, duty.CommitteeIndex)
+		if err != nil {
+			return err
+		}
+
+		domain, err := validatorapi.GetDomain(ctx, eth2Cl, validatorapi.DomainBeaconAttester, data.Target.Epoch)
 		if err != nil {
 			return err
 		}
@@ -124,12 +124,12 @@ func NewSigner(secrets ...*bls_sig.SecretKey) SignFunc {
 			return eth2p0.BLSSignature{}, err
 		}
 
-		msg, err := data.MarshalSSZ()
+		msg, err := data.HashTreeRoot()
 		if err != nil {
 			return eth2p0.BLSSignature{}, errors.Wrap(err, "marshal signing data")
 		}
 
-		sig, err := tbls.Sign(secret, msg)
+		sig, err := tbls.Sign(secret, msg[:])
 		if err != nil {
 			return eth2p0.BLSSignature{}, err
 		}

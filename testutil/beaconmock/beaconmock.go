@@ -42,6 +42,7 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/jonboulle/clockwork"
 )
 
 // Interface assertions.
@@ -58,7 +59,7 @@ var (
 // New returns a new beacon client mock configured with the default and provided options.
 func New(opts ...Option) (Mock, error) {
 	// Configure http mock first.
-	var temp Mock
+	temp := Mock{clock: clockwork.NewRealClock()}
 	for _, opt := range opts {
 		opt(&temp)
 	}
@@ -68,7 +69,7 @@ func New(opts ...Option) (Mock, error) {
 	}
 
 	// Then configure the mock
-	mock := defaultMock(httpMock, "http://"+httpServer.Addr)
+	mock := defaultMock(httpMock, "http://"+httpServer.Addr, temp.clock)
 	for _, opt := range opts {
 		opt(&mock)
 	}
@@ -80,8 +81,9 @@ func New(opts ...Option) (Mock, error) {
 // Create a new instance with default behaviour via New and then override any function.
 type Mock struct {
 	HTTPMock
-	overrides      []staticOverride
 	HTTPServerAddr string
+	overrides      []staticOverride
+	clock          clockwork.Clock
 
 	AttestationDataFunc    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
