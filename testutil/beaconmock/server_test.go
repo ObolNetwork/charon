@@ -102,3 +102,24 @@ func TestSlotsDurationOverride(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, expect, spec["SECONDS_PER_SLOT"])
 }
+
+func TestEndpointOverride(t *testing.T) {
+	ctx := context.Background()
+
+	// Setup beaconmock
+	forkSchedule := `{"data": [{
+        	"previous_version": "0x12345678",
+			"current_version": "0x00000000",
+        	"epoch": "0"
+      	}]}`
+	bmock, err := beaconmock.New(
+		beaconmock.WithEndpoint("/eth/v1/config/fork_schedule", forkSchedule),
+	)
+	require.NoError(t, err)
+
+	fs, err := bmock.ForkSchedule(ctx)
+	require.NoError(t, err)
+	require.Len(t, fs, 1)
+	require.EqualValues(t, [4]byte{}, fs[0].CurrentVersion)
+	require.EqualValues(t, [4]byte{0x12, 0x34, 0x56, 0x78}, fs[0].PreviousVersion)
+}

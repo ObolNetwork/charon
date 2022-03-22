@@ -16,6 +16,8 @@ package validatorapi_test
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/mock"
@@ -203,4 +205,109 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	// Run attestation using validator mock
 	err = validatormock.Attest(ctx, bmock, validatormock.NewSigner(secret), eth2p0.Slot(epochSlot), validator.Validator.PublicKey)
 	require.NoError(t, err)
+}
+
+// TestSignAndVerify signs and verifies the signature.
+// Test input and output obtained from prysm/validator/client/attest_test.go#TestSignAttestation.
+func TestSignAndVerify(t *testing.T) {
+	ctx := context.Background()
+
+	// Create key pair
+	secretKey, err := tblsconv.SecretFromBytes(padTo([]byte{1}, 32))
+	require.NoError(t, err)
+
+	// Setup beaconmock
+	forkSchedule := `{"data": [{
+        	"previous_version": "0x61626364",
+			"current_version": "0x64656666",
+        	"epoch": "0"
+      	}]}`
+	bmock, err := beaconmock.New(
+		beaconmock.WithEndpoint("/eth/v1/config/fork_schedule", forkSchedule),
+		beaconmock.WithGenesisValidatorsRoot([32]byte{0x01, 0x02}))
+	require.NoError(t, err)
+
+	// Get and assert domain
+	domain, err := validatorapi.GetDomain(ctx, bmock, validatorapi.DomainBeaconAttester, 0)
+	require.NoError(t, err)
+	require.Equal(t, "0x0100000011b4296f38fa573d05f00854d452e120725b4d24b5587a472c6c4258", fmt.Sprintf("%#x", domain))
+
+	// Define attestation data to sign
+	blockRoot := padTo([]byte("blockRoot"), 32)
+	var eth2Root eth2p0.Root
+	copy(eth2Root[:], blockRoot)
+	attData := eth2p0.AttestationData{
+		Slot:            999,
+		Index:           0,
+		BeaconBlockRoot: eth2Root,
+		Source:          &eth2p0.Checkpoint{Epoch: 100},
+		Target:          &eth2p0.Checkpoint{Epoch: 200},
+	}
+
+	// Assert attestation data
+	attRoot, err := attData.HashTreeRoot()
+	require.NoError(t, err)
+	require.Equal(t, "0xeee68bd8e94662122695d04afa5fd5c30ae385c9f39d98aa840062f43221d0d0", fmt.Sprintf("%#x", attRoot))
+
+	// Create and assert signing data
+	sigData := eth2p0.SigningData{ObjectRoot: attRoot, Domain: domain}
+	sigDataBytes, err := sigData.HashTreeRoot()
+	require.NoError(t, err)
+	require.Equal(t, "0x02bbdb88056d6cbafd6e94575540e74b8cf2c0f2c1b79b8e17e7b21ed1694305", fmt.Sprintf("%#x", sigDataBytes))
+
+	// Get pubkey
+	pubkey, err := secretKey.GetPublicKey()
+	require.NoError(t, err)
+	eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
+	require.NoError(t, err)
+
+	// Sign
+	sig, err := validatormock.NewSigner(secretKey)(ctx, eth2Pubkey, sigData)
+	require.NoError(t, err)
+
+	// Assert signature
+	require.Equal(t, "0xb6a60f8497bd328908be83634d045dd7a32f5e246b2c4031fc2f316983f362e36fc27fd3d6d5a2b15b4dbff38804ffb10b1719b7ebc54e9cbf3293fd37082bc0fc91f79d70ce5b04ff13de3c8e10bb41305bfdbe921a43792c12624f225ee865",
+		fmt.Sprintf("%#x", sig))
+
+	// Setup validatorapi component.
+	vapi, err := validatorapi.NewComponent(bmock, map[*bls_sig.PublicKey]*bls_sig.PublicKey{
+		pubkey: pubkey,
+	}, 0)
+	require.NoError(t, err)
+	vapi.RegisterPubKeyByAttestation(func(context.Context, int64, int64, int64) (core.PubKey, error) {
+		return tblsconv.KeyToCore(pubkey)
+	})
+
+	// Assert output
+	var wg sync.WaitGroup
+	wg.Add(1)
+	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.DutyAttester, duty.Type)
+		require.Len(t, set, 1)
+		wg.Done()
+
+		return nil
+	})
+
+	// Create and submit attestation.
+	aggBits := bitfield.NewBitlist(1)
+	aggBits.SetBitAt(0, true)
+	att := eth2p0.Attestation{
+		AggregationBits: aggBits,
+		Data:            &attData,
+		Signature:       sig,
+	}
+	err = vapi.SubmitAttestations(ctx, []*eth2p0.Attestation{&att})
+	require.NoError(t, err)
+	wg.Wait()
+}
+
+// padTo pads a byte slice to the given size.
+// It was copied from prysm/encoding/bytesutil/bytes.go.
+func padTo(b []byte, size int) []byte {
+	if len(b) > size {
+		return b
+	}
+
+	return append(b, make([]byte, size-len(b))...)
 }

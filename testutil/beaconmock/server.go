@@ -181,8 +181,12 @@ func newHTTPMock(overrides ...staticOverride) (HTTPMock, *http.Server, error) {
 	return cl.(HTTPMock), srv, nil
 }
 
-// overrideResponse overrides field in the raw response.
+// overrideResponse overrides the key in the raw response. If key is empty, it overrides the whole response.
 func overrideResponse(rawResponse json.RawMessage, key, value string) (json.RawMessage, error) {
+	if key == "" {
+		return []byte(value), nil
+	}
+
 	response := struct {
 		Data map[string]string `json:"data"`
 	}{
