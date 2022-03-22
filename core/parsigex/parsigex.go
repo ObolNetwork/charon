@@ -31,10 +31,10 @@ import (
 
 const protocol = "/charon/parsigex/1.0.0"
 
-func NewParSigEx(tcpNode host.Host, sourceID peer.ID, peers []peer.ID) *ParSigEx {
+func NewParSigEx(tcpNode host.Host, peerIdx int, peers []peer.ID) *ParSigEx {
 	parSigEx := &ParSigEx{
 		tcpNode: tcpNode,
-		peerIdx: sourceID,
+		peerIdx: peerIdx,
 		peers:   peers,
 	}
 	parSigEx.tcpNode.SetStreamHandler(protocol, parSigEx.handle)
@@ -46,13 +46,14 @@ func NewParSigEx(tcpNode host.Host, sourceID peer.ID, peers []peer.ID) *ParSigEx
 // It ensures that all partial signatures are persisted by all peers.
 type ParSigEx struct {
 	tcpNode host.Host
-	peerIdx peer.ID
+	peerIdx int
 	peers   []peer.ID
 	subs    []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
 func (m *ParSigEx) handle(s network.Stream) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx = log.WithTopic(ctx, "parsigex")
 	defer cancel()
 	defer s.Close()
 
@@ -83,9 +84,9 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, data core.ParS
 
 	var errs []error
 
-	for _, p := range m.peers {
+	for i, p := range m.peers {
 		// Don't send to self
-		if p == m.peerIdx {
+		if i == m.peerIdx {
 			continue
 		}
 

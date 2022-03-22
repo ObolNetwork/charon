@@ -76,7 +76,7 @@ func TestParSigEx(t *testing.T) {
 
 	// create ParSigEx components for each host
 	for i := 0; i < n; i++ {
-		sigex := parsigex.NewParSigEx(hosts[i], hosts[i].ID(), peers)
+		sigex := parsigex.NewParSigEx(hosts[i], i, peers)
 		sigex.Subscribe(func(_ context.Context, d core.Duty, set core.ParSignedDataSet) error {
 			require.Equal(t, duty, d)
 			require.Equal(t, data, set)

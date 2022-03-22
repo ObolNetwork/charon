@@ -17,6 +17,7 @@ package app_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestSimnetNoNetwork(t *testing.T) {
@@ -67,6 +69,10 @@ func TestSimnetNoNetwork(t *testing.T) {
 				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.AggSignedData) error {
 					results <- simResult{Duty: duty, Pubkey: key, Data: data}
 					return nil
+				},
+				SimnetBMockOpts: []beaconmock.Option{
+					beaconmock.WithSlotsPerEpoch(1),
+					beaconmock.WithSlotDuration(time.Second),
 				},
 			},
 			P2P: p2p.Config{},

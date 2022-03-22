@@ -21,7 +21,6 @@ import (
 	"crypto/ecdsa"
 	"net/http"
 	"net/http/pprof"
-	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
@@ -88,6 +87,8 @@ type TestConfig struct {
 	DisableSimnet bool
 	// SimnetKeys provides private key shares for the simnet validatormock signer.
 	SimnetKeys []*bls_sig.SecretKey
+	// SimnetBMockOpts defines additional simnet beacon mock options.
+	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.AggSignedData) error
 }
@@ -242,12 +243,12 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 	}
 
 	// Configure the beacon mock.
-	bmock, err := beaconmock.New(
-		beaconmock.WithSlotsPerEpoch(len(pubshares)), // Except for slots per epoch, make that faster.
-		beaconmock.WithSlotDuration(time.Second),     // Except for slots duration, make that faster as well.
-		beaconmock.WithDeterministicDuties(13),       // This should result in pseudo random duties.
+	opts := []beaconmock.Option{
+		beaconmock.WithDeterministicDuties(100),
 		beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
-	)
+	}
+	opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
+	bmock, err := beaconmock.New(opts...)
 	if err != nil {
 		return err
 	}
@@ -289,8 +290,7 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 	if conf.TestConfig.ParSigExFunc != nil {
 		parSigEx = conf.TestConfig.ParSigExFunc()
 	} else {
-		// TODO(corver): Use p2p implementation here.
-		parSigEx = parsigex.NewMemExFunc()()
+		parSigEx = parsigex.NewParSigEx(tcpNode, nodeIdx.PeerIdx, manifest.PeerIDs())
 	}
 
 	sigAgg := sigagg.New(threshold)
