@@ -167,8 +167,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
 
 	// Configure beacon mock
-	bmock := beaconmock.New(
-		beaconmock.WithDefaultStaticProvider(),
+	bmock, err := beaconmock.New(
 		beaconmock.WithValidatorSet(beaconmock.ValidatorSet{vIdx: validator}),
 		beaconmock.WithDeterministicDuties(0), // All duties in first slot of epoch.
 	)

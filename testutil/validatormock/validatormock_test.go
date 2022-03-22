@@ -49,11 +49,11 @@ func TestAttest(t *testing.T) {
 
 			// Configure beacon mock
 			valSet := beaconmock.ValidatorSetA
-			beaconMock := beaconmock.New(
-				beaconmock.WithDefaultStaticProvider(),
+			beaconMock, err := beaconmock.New(
 				beaconmock.WithValidatorSet(valSet),
 				beaconmock.WithDeterministicDuties(test.DutyFactor),
 			)
+			require.NoError(t, err)
 
 			// Callback to collect attestations
 			var atts []*eth2p0.Attestation
