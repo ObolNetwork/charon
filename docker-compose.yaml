@@ -1,0 +1,129 @@
+version: "3.8"
+
+x-logging: &logging
+  logging:
+    driver: "json-file"
+    options:
+      max-file: "10"
+      max-size: "100m"
+
+
+networks:
+  validator:
+
+services:
+  #       _
+  #   ___| |__   __ _ _ __ ___  _ __
+  #  / __| '_ \ / _` | '__/ _ \| '_ \
+  # | (__| | | | (_| | | | (_) | | | |
+  #  \___|_| |_|\__,_|_|  \___/|_| |_|
+  charon:
+    container_name: charon
+    # If you don't want to build locally
+    #image: docker.pkg.github.com/obolnetwork/charon/charon:${CHARON_VERSION}
+    build: .
+    # command: ['--config-file=/opt/char/config/teku.yaml']
+    restart: unless-stopped
+    hostname: charon
+    depends_on:
+      - beacon
+    networks:
+      - validator
+    volumes:
+      - ./local/config/.charon.yaml:/opt/charon/.charon.yaml
+      - ./local/config/manifest.json:/opt/charon/charon/manifest.json
+      - ./local/.data/charon:/opt/charon/charon/data
+    ports:
+      - 8088:8088
+    <<: *logging
+
+  #  _                                       _ _            _
+  # | |__   ___  __ _  ___ ___  _ __     ___| (_) ___ _ __ | |_
+  # | '_ \ / _ \/ _` |/ __/ _ \| '_ \   / __| | |/ _ \ '_ \| __|
+  # | |_) |  __/ (_| | (_| (_) | | | | | (__| | |  __/ | | | |_
+  # |_.__/ \___|\__,_|\___\___/|_| |_|  \___|_|_|\___|_| |_|\__|
+  beacon:
+    image: consensys/teku:${TEKU_VERSION}
+    container_name: beacon
+    command: ["--config-file=/opt/teku/config/teku.yaml"]
+    volumes:
+      - ./local/.data/teku:/opt/teku/data
+      - ./local/config:/opt/teku/config
+    restart: always
+    networks:
+      - validator
+    ports:
+      - "30303:30303"
+      - "5051:5051"
+      - "8008:8008"
+    env_file:
+      - .env
+
+  # #             _ _     _       _
+  # # __   ____ _| (_) __| | __ _| |_ ___  _ __
+  # # \ \ / / _` | | |/ _` |/ _` | __/ _ \| '__|
+  # #  \ V / (_| | | | (_| | (_| | || (_) | |
+  # #   \_/ \__,_|_|_|\__,_|\__,_|\__\___/|_|
+  # validator:
+  #   image: sigp/lighthouse:${LIGHTHOUSE_VERSION}
+  #   container_name: validator
+  #   networks:
+  #     - validator
+  #   volumes:
+  #     - ./local/.data/lighthouse:/root/.lighthouse
+  #     - ./local/scripts:/root/scripts:ro
+  #     - ./local/validator_keys:/root/validator_keys:ro
+  #   depends_on:
+  #     - beacon
+  #   ports:
+  #     - 5064:5064/tcp     # metrics endpoint
+  #   env_file: .env
+  #   command: sh /root/scripts/start-lighthouse-validator-client.sh
+  #   restart: on-failure
+
+  #                                 _   _
+  #  _ __  _ __ ___  _ __ ___   ___| |_| |__   ___ _   _ ___
+  # | '_ \| '__/ _ \| '_ ` _ \ / _ \ __| '_ \ / _ \ | | / __|
+  # | |_) | | | (_) | | | | | |  __/ |_| | | |  __/ |_| \__ \
+  # | .__/|_|  \___/|_| |_| |_|\___|\__|_| |_|\___|\__,_|___/
+  # |_|
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v2.31.1
+    user: root # https://github.com/prometheus/prometheus/issues/5976
+    restart: on-failure
+    hostname: prometheus
+    command: --storage.tsdb.retention.time=31d --config.file=/etc/prometheus/prometheus.yml
+    ports:
+      - 127.0.0.1:9090:9090
+    networks:
+      - validator
+    volumes:
+      - ./local/config/prometheus.yaml:/etc/prometheus/prometheus.yml
+      - ./local/.data/prometheus:/prometheus
+    <<: *logging
+  #                   __
+  #   __ _ _ __ __ _ / _| __ _ _ __   __ _
+  #  / _` | '__/ _` | |_ / _` | '_ \ / _` |
+  # | (_| | | | (_| |  _| (_| | | | | (_| |
+  #  \__, |_|  \__,_|_|  \__,_|_| |_|\__,_|
+  #  |___/
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:8.2.3
+    restart: on-failure
+    hostname: grafana
+    networks:
+      - validator
+    environment:
+      - GF_SECURITY_ADMIN=password
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+    ports:
+      - 127.0.0.1:3000:3000
+    volumes:
+      - ./local/config/grafana/provisioning:/etc/grafana/provisioning
+      - ./local/.data/grafana_data:/var/lib/grafana
+    <<: *logging
