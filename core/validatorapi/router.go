@@ -426,8 +426,8 @@ func unmarshal(body []byte, v interface{}) error {
 
 // uintParam returns a uint path parameter.
 func uintParam(params map[string]string, name string) (uint64, error) {
-	param := params[name]
-	if param == "" {
+	param, ok := params[name]
+	if !ok {
 		return 0, apiError{
 			StatusCode: http.StatusBadRequest,
 			Message:    fmt.Sprintf("missing path parameter %s", name),
