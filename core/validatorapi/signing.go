@@ -73,7 +73,7 @@ func GetDomain(ctx context.Context, eth2Cl Eth2DomainProvider, name DomainName, 
 	return eth2Cl.Domain(ctx, domainTyped, epoch)
 }
 
-// prepSigningData wraps the signing root with the domain and returns ssz marshalled bytes to sign.
+// prepSigningData wraps the signing root with the domain and returns hash tree root to sign.
 // The result should be identical to what was signed by the VC.
 func prepSigningData(ctx context.Context, eth2Cl eth2Provider, typ core.DutyType, epoch eth2p0.Epoch, root eth2p0.Root) ([32]byte, error) {
 	domain, err := GetDomain(ctx, eth2Cl, dutyDomain[typ], epoch)
