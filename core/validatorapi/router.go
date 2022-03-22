@@ -19,6 +19,7 @@ package validatorapi
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,8 +27,10 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strconv"
+	"strings"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -35,15 +38,19 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // Handler defines the request handler providing the business logic
 // for the validator API router.
 type Handler interface {
-	eth2client.AttesterDutiesProvider
-	eth2client.ProposerDutiesProvider
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
+	eth2client.AttesterDutiesProvider
+	eth2client.ProposerDutiesProvider
+	eth2client.ValidatorsProvider
+	// Above sorted alphabetically.
 }
 
 // NewRouter returns a new validator http server router. The http router
@@ -75,6 +82,11 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 			Name:    "submit_attestations",
 			Path:    "/eth/v1/beacon/pool/attestations",
 			Handler: submitAttestations(h),
+		},
+		{
+			Name:    "get_validator",
+			Path:    "/eth/v1/beacon/states/{state_id}/validators",
+			Handler: getValidator(h),
 		},
 		// TODO(corver): Add more endpoints
 	}
@@ -111,7 +123,7 @@ func (a apiError) Error() string {
 
 // handlerFunc is a convenient handler function providing a context, parsed path parameters,
 // the request body, and returning the response struct or an error.
-type handlerFunc func(ctx context.Context, params map[string]string, body []byte) (res interface{}, err error)
+type handlerFunc func(ctx context.Context, params map[string]string, query url.Values, body []byte) (res interface{}, err error)
 
 // wrap adapts the handler function returning a standard http handler.
 // It does tracing, metrics and response and error writing.
@@ -129,7 +141,7 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 			return
 		}
 
-		res, err := handler(r.Context(), mux.Vars(r), body)
+		res, err := handler(r.Context(), mux.Vars(r), r.URL.Query(), body)
 		if err != nil {
 			writeError(ctx, w, endpoint, err)
 			return
@@ -146,15 +158,74 @@ func trace(endpoint string, handler http.HandlerFunc) http.Handler {
 	return otelhttp.NewHandler(handler, "validator."+endpoint)
 }
 
+// getValidator returns a handler function for the get validators by pubkey or index endpoint.
+//nolint:nestif,gocognit,revive
+func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		stateID := params["state_id"]
+
+		vals := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+		for _, id := range getValidatorIds(query) {
+			if strings.HasPrefix(id, "0x") {
+				pubkey, err := tblsconv.KeyFromCore(core.PubKey(id))
+				if err != nil {
+					return nil, errors.Wrap(err, "decode public key hex")
+				}
+				eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
+				if err != nil {
+					return nil, err
+				}
+
+				temp, err := p.ValidatorsByPubKey(ctx, stateID, []eth2p0.BLSPubKey{eth2Pubkey})
+				if err != nil {
+					return nil, err
+				}
+
+				for index, validator := range temp {
+					vals[index] = validator
+				}
+			} else {
+				vIdx, err := strconv.ParseUint(id, 10, 64)
+				if err != nil {
+					return nil, errors.Wrap(err, "parse validator index")
+				}
+
+				temp, err := p.Validators(ctx, stateID, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
+				if err != nil {
+					return nil, err
+				}
+
+				for index, validator := range temp {
+					vals[index] = validator
+				}
+			}
+		}
+
+		if len(vals) == 0 {
+			return nil, apiError{
+				StatusCode: http.StatusNotFound,
+				Message:    "NotFound",
+			}
+		}
+
+		var resp []v1Validator
+		for _, val := range vals {
+			resp = append(resp, v1Validator(*val))
+		}
+
+		return validatorResponse{Data: resp}, nil
+	}
+}
+
 // attestationData returns a handler function for the attestation data endpoint.
 func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, body []byte) (interface{}, error) {
-		slot, err := uintParam(params, "slot")
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		slot, err := uintQuery(query, "slot")
 		if err != nil {
 			return nil, err
 		}
 
-		commIdx, err := uintParam(params, "committee_index")
+		commIdx, err := uintQuery(query, "committee_index")
 		if err != nil {
 			return nil, err
 		}
@@ -165,7 +236,7 @@ func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
 		}
 
 		return struct {
-			Data *eth2p0.AttestationData
+			Data *eth2p0.AttestationData `json:"data"`
 		}{
 			Data: data,
 		}, nil
@@ -174,7 +245,7 @@ func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
 
 // submitAttestations returns a handler function for the attestation submitter endpoint.
 func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, body []byte) (interface{}, error) {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, body []byte) (interface{}, error) {
 		var atts []*eth2p0.Attestation
 		err := json.Unmarshal(body, &atts)
 		if err != nil {
@@ -192,7 +263,7 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 
 // proposerDuties returns a handler function for the proposer duty endpoint.
 func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, body []byte) (interface{}, error) {
+	return func(ctx context.Context, params map[string]string, _ url.Values, body []byte) (interface{}, error) {
 		epoch, err := uintParam(params, "epoch")
 		if err != nil {
 			return nil, err
@@ -205,8 +276,12 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 			return nil, err
 		}
 
+		if len(data) == 0 {
+			data = []*eth2v1.ProposerDuty{}
+		}
+
 		return proposerDutiesResponse{
-			DependentRoot: eth2p0.Root{}, // TODO(corver): Fill this
+			DependentRoot: stubRoot(epoch), // TODO(corver): Fill this properly
 			Data:          data,
 		}, nil
 	}
@@ -214,7 +289,7 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 
 // attesterDuties returns a handler function for the attester duty endpoint.
 func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, body []byte) (interface{}, error) {
+	return func(ctx context.Context, params map[string]string, _ url.Values, body []byte) (interface{}, error) {
 		epoch, err := uintParam(params, "epoch")
 		if err != nil {
 			return nil, err
@@ -230,8 +305,12 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 			return nil, err
 		}
 
+		if len(data) == 0 {
+			data = []*eth2v1.AttesterDuty{}
+		}
+
 		return attesterDutiesResponse{
-			DependentRoot: eth2p0.Root{}, // TODO(corver): Fill this
+			DependentRoot: stubRoot(epoch), // TODO(corver): Fill this properly
 			Data:          data,
 		}, nil
 	}
@@ -246,6 +325,17 @@ func proxyHandler(target string) (http.HandlerFunc, error) {
 
 	// TODO(corver): Add support for multiple upstream targets via some form of load balancing.
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	// Extend default proxy director with basic auth and host header.
+	defaultDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		if targetURL.User != nil {
+			password, _ := targetURL.User.Password()
+			req.SetBasicAuth(targetURL.User.Username(), password)
+		}
+		req.Host = targetURL.Host
+		defaultDirector(req)
+	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer observeAPILatency("proxy")()
@@ -336,7 +426,37 @@ func unmarshal(body []byte, v interface{}) error {
 
 // uintParam returns a uint path parameter.
 func uintParam(params map[string]string, name string) (uint64, error) {
-	param := params[name]
+	param, ok := params[name]
+	if !ok {
+		return 0, apiError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("missing path parameter %s", name),
+		}
+	}
+
+	res, err := strconv.ParseUint(param, 10, 64)
+	if err != nil {
+		return 0, apiError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("invalid uint path parameter %s [%s]", name, param),
+			Err:        err,
+		}
+	}
+
+	return res, nil
+}
+
+// uintQuery returns a uint query parameter.
+func uintQuery(query url.Values, name string) (uint64, error) {
+	if !query.Has(name) {
+		return 0, apiError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("missing query parameter %s", name),
+		}
+	}
+
+	param := query.Get(name)
+
 	res, err := strconv.ParseUint(param, 10, 64)
 	if err != nil {
 		return 0, apiError{
@@ -362,4 +482,24 @@ func (w proxyResponseWriter) WriteHeader(statusCode int) {
 
 	incAPIErrors("proxy", statusCode)
 	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+// stubRoot return a stub dependent root for an epoch.
+func stubRoot(epoch uint64) root {
+	var r eth2p0.Root
+	binary.PutUvarint(r[:], epoch)
+
+	return root(r)
+}
+
+// getValidatorIDs returns validator IDs provided in "id" query parameters, supporting csv values.
+func getValidatorIds(query url.Values) []string {
+	var resp []string
+	for _, csv := range query["id"] {
+		for _, id := range strings.Split(csv, ",") {
+			resp = append(resp, strings.TrimSpace(id))
+		}
+	}
+
+	return resp
 }

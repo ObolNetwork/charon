@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"os"
 	"strings"
 	"testing"
 
@@ -30,12 +31,32 @@ import (
 	eth2mock "github.com/attestantio/go-eth2-client/mock"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/testutil"
 )
 
 const (
 	slotsPerEpoch = 32
 	infoLevel     = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
 )
+
+func TestRouterIntegration(t *testing.T) {
+	beaconURL, ok := os.LookupEnv("BEACON_URL")
+	if !ok {
+		t.Skip("Skipping integration test since BEACON_URL not found")
+	}
+
+	r, err := NewRouter(Handler(nil), beaconURL)
+	require.NoError(t, err)
+
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/eth/v1/node/version")
+	require.NoError(t, err)
+
+	require.Equal(t, 200, resp.StatusCode)
+}
 
 func TestRawRouter(t *testing.T) {
 	t.Run("proxy", func(t *testing.T) {
@@ -186,6 +207,103 @@ func TestRouter(t *testing.T) {
 
 		testRouter(t, handler, callback)
 	})
+
+	t.Run("get_validator_index", func(t *testing.T) {
+		handler := testHandler{
+			ValidatorsFunc: func(_ context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+				res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+				for _, index := range indices {
+					res[index] = &eth2v1.Validator{
+						Index:  index,
+						Status: eth2v1.ValidatorStateActiveOngoing,
+						Validator: &eth2p0.Validator{
+							PublicKey:             testutil.RandomBLSPubKey(t),
+							WithdrawalCredentials: []byte("12345678901234567890123456789012"),
+						},
+					}
+				}
+
+				return res, nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			const (
+				val1 = 1
+				val2 = 2
+			)
+			res, err := cl.Validators(ctx, "head", []eth2p0.ValidatorIndex{
+				eth2p0.ValidatorIndex(val1),
+				eth2p0.ValidatorIndex(val2),
+			})
+			require.NoError(t, err)
+
+			require.Len(t, res, 2)
+			require.EqualValues(t, val1, res[val1].Index)
+			require.EqualValues(t, eth2v1.ValidatorStateActiveOngoing, res[val1].Status)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
+	t.Run("get_validator_pubkeu", func(t *testing.T) {
+		var idx eth2p0.ValidatorIndex
+		handler := testHandler{
+			ValidatorsByPubKeyFunc: func(_ context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+				res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+				for _, pubkey := range pubkeys {
+					idx++
+					res[idx] = &eth2v1.Validator{
+						Index:  idx,
+						Status: eth2v1.ValidatorStateActiveOngoing,
+						Validator: &eth2p0.Validator{
+							PublicKey:             pubkey,
+							WithdrawalCredentials: []byte("12345678901234567890123456789012"),
+						},
+					}
+				}
+
+				return res, nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			res, err := cl.ValidatorsByPubKey(ctx, "head", []eth2p0.BLSPubKey{
+				testutil.RandomBLSPubKey(t),
+				testutil.RandomBLSPubKey(t),
+			})
+			require.NoError(t, err)
+
+			require.Len(t, res, 2)
+			require.EqualValues(t, 1, res[1].Index)
+			require.EqualValues(t, eth2v1.ValidatorStateActiveOngoing, res[1].Status)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
+	t.Run("attestation_data", func(t *testing.T) {
+		handler := testHandler{
+			AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+				data := testutil.RandomAttestationData()
+				data.Slot = slot
+				data.Index = commIdx
+
+				return data, nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			const slot, commIdx = 12, 23
+			res, err := cl.AttestationData(ctx, slot, commIdx)
+			require.NoError(t, err)
+
+			require.EqualValues(t, slot, res.Slot)
+			require.EqualValues(t, commIdx, res.Index)
+		}
+
+		testRouter(t, handler, callback)
+	})
 }
 
 // testRouter is a helper function to test router endpoints with an eth2http client. The outer test
@@ -230,13 +348,28 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 // mocked beacon-node endpoints required by the eth2http client during startup.
 type testHandler struct {
 	Handler
-	ProxyHandler       http.HandlerFunc
-	AttesterDutiesFunc func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
-	ProposerDutiesFunc func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	ProxyHandler           http.HandlerFunc
+	AttestationDataFunc    func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
+	AttesterDutiesFunc     func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	ProposerDutiesFunc     func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	ValidatorsFunc         func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	ValidatorsByPubKeyFunc func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+}
+
+func (h testHandler) AttestationData(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+	return h.AttestationDataFunc(ctx, slot, commIdx)
 }
 
 func (h testHandler) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 	return h.AttesterDutiesFunc(ctx, epoch, il)
+}
+
+func (h testHandler) Validators(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+	return h.ValidatorsFunc(ctx, stateID, indices)
+}
+
+func (h testHandler) ValidatorsByPubKey(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+	return h.ValidatorsByPubKeyFunc(ctx, stateID, pubkeys)
 }
 
 func (h testHandler) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {

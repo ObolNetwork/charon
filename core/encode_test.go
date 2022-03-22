@@ -24,7 +24,7 @@ import (
 )
 
 func TestEncodeAttesterFetchArg(t *testing.T) {
-	attDuty1 := testutil.RandomAttestationDuty()
+	attDuty1 := testutil.RandomAttestationDuty(t)
 
 	arg1, err := core.EncodeAttesterFetchArg(attDuty1)
 	require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestEncodeAttesterFetchArg(t *testing.T) {
 func TestEncodeAttesterUnsignedData(t *testing.T) {
 	attData1 := &core.AttestationData{
 		Data: *testutil.RandomAttestationData(),
-		Duty: *testutil.RandomAttestationDuty(),
+		Duty: *testutil.RandomAttestationDuty(t),
 	}
 
 	data1, err := core.EncodeAttesterUnsignedData(attData1)
