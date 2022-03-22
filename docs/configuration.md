@@ -36,6 +36,7 @@ Flags:
       --p2p-peerdb string              Path to store a discv5 peer database. Empty default results in in-memory database.
       --p2p-tcp-address strings        Comma-separated list of listening TCP addresses (ip and port) for LibP2P traffic (default [127.0.0.1:13900])
       --p2p-udp-address string         Listening UDP address (ip and port) for Discv5 discovery (default "127.0.0.1:30309")
+      --simnet-validator-mock          Enables mock validator when running simnet.
       --validator-api-address string   Listening address (ip and port) for validator-facing traffic proxying the beacon-node API (default "127.0.0.1:3500")
 
 ````

@@ -89,14 +89,7 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 		{
 			Path: "/eth/v1/node/syncing",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				_, _ = w.Write([]byte(`
-			{
-				"data": {
-    				"head_slot": "1",
-    				"sync_distance": "0",
-    				"is_syncing": false
-  				}
-			}`))
+				_, _ = w.Write([]byte(`{"data": {"head_slot": "1","sync_distance": "0","is_syncing": false}}`))
 			},
 		},
 	}
@@ -105,6 +98,7 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 
 	// Configure above endpoints.
 	for _, e := range endpoints {
+		e := e
 		r.Handle(e.Path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := log.WithTopic(r.Context(), "bmock")
 			ctx = log.WithCtx(ctx, z.Str("path", e.Path))

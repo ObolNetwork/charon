@@ -105,3 +105,6 @@ func Any(key string, val interface{}) Field {
 		add(zap.Any(key, val))
 	}
 }
+
+// Skip is a noop wrapped zap field similar to zap.Skip.
+var Skip = func(add func(zap.Field)) {}

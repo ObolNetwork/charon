@@ -135,6 +135,40 @@ func TestRawRouter(t *testing.T) {
 
 		testRawRouter(t, handler, callback)
 	})
+
+	t.Run("get_single_validators", func(t *testing.T) {
+		handler := testHandler{
+			ValidatorsFunc: func(_ context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+				res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+				for _, index := range indices {
+					res[index] = &eth2v1.Validator{
+						Index:  index,
+						Status: eth2v1.ValidatorStateActiveOngoing,
+						Validator: &eth2p0.Validator{
+							PublicKey:             testutil.RandomBLSPubKey(t),
+							WithdrawalCredentials: []byte("12345678901234567890123456789012"),
+						},
+					}
+				}
+
+				return res, nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			res, err := http.Get(baseURL + "/eth/v1/beacon/states/head/validators/12")
+			require.NoError(t, err)
+
+			resp := struct {
+				Data *eth2v1.Validator `json:"data"`
+			}{}
+			err = json.NewDecoder(res.Body).Decode(&resp)
+			require.NoError(t, err)
+			require.EqualValues(t, 12, resp.Data.Index)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
 }
 
 func TestRouter(t *testing.T) {

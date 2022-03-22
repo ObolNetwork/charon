@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -86,6 +87,11 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 		{
 			Name:    "get_validator",
 			Path:    "/eth/v1/beacon/states/{state_id}/validators",
+			Handler: getValidators(h),
+		},
+		{
+			Name:    "get_validator",
+			Path:    "/eth/v1/beacon/states/{state_id}/validators/{validator_id}",
 			Handler: getValidator(h),
 		},
 		// TODO(corver): Add more endpoints
@@ -132,8 +138,9 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 		defer observeAPILatency(endpoint)()
 
 		ctx := r.Context()
-		ctx = log.WithTopic(ctx, "validatorapi")
+		ctx = log.WithTopic(ctx, "vapi")
 		ctx = log.WithCtx(ctx, z.Str("endpoint", endpoint))
+		ctx = withCtxDuration(ctx)
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -141,7 +148,7 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 			return
 		}
 
-		res, err := handler(r.Context(), mux.Vars(r), r.URL.Query(), body)
+		res, err := handler(ctx, mux.Vars(r), r.URL.Query(), body)
 		if err != nil {
 			writeError(ctx, w, endpoint, err)
 			return
@@ -159,61 +166,48 @@ func trace(endpoint string, handler http.HandlerFunc) http.Handler {
 }
 
 // getValidator returns a handler function for the get validators by pubkey or index endpoint.
-//nolint:nestif,gocognit,revive
-func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
+func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
 		stateID := params["state_id"]
 
-		vals := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
-		for _, id := range getValidatorIds(query) {
-			if strings.HasPrefix(id, "0x") {
-				pubkey, err := tblsconv.KeyFromCore(core.PubKey(id))
-				if err != nil {
-					return nil, errors.Wrap(err, "decode public key hex")
-				}
-				eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
-				if err != nil {
-					return nil, err
-				}
-
-				temp, err := p.ValidatorsByPubKey(ctx, stateID, []eth2p0.BLSPubKey{eth2Pubkey})
-				if err != nil {
-					return nil, err
-				}
-
-				for index, validator := range temp {
-					vals[index] = validator
-				}
-			} else {
-				vIdx, err := strconv.ParseUint(id, 10, 64)
-				if err != nil {
-					return nil, errors.Wrap(err, "parse validator index")
-				}
-
-				temp, err := p.Validators(ctx, stateID, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
-				if err != nil {
-					return nil, err
-				}
-
-				for index, validator := range temp {
-					vals[index] = validator
-				}
+		var resp []v1Validator
+		for _, id := range getValidatorIDs(query) {
+			val, ok, err := getValidatorByID(ctx, p, stateID, id)
+			if err != nil {
+				return nil, err
+			} else if ok {
+				resp = append(resp, v1Validator(*val))
 			}
 		}
 
-		if len(vals) == 0 {
+		if len(resp) == 0 {
 			return nil, apiError{
 				StatusCode: http.StatusNotFound,
 				Message:    "NotFound",
 			}
 		}
 
-		var resp []v1Validator
-		for _, val := range vals {
-			resp = append(resp, v1Validator(*val))
+		return validatorsResponse{Data: resp}, nil
+	}
+}
+
+// getValidator returns a handler function for the get validators by pubkey or index endpoint.
+func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		stateID := params["state_id"]
+		id := params["validator_id"]
+
+		val, ok, err := getValidatorByID(ctx, p, stateID, id)
+		if err != nil {
+			return nil, err
+		} else if !ok {
+			return nil, apiError{
+				StatusCode: http.StatusNotFound,
+				Message:    "NotFound",
+			}
 		}
 
-		return validatorResponse{Data: resp}, nil
+		return validatorResponse{Data: v1Validator(*val)}, nil
 	}
 }
 
@@ -378,7 +372,8 @@ func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err
 
 	log.Error(ctx, "Validator api error response", err,
 		z.Int("status_code", aerr.StatusCode),
-		z.Str("message", aerr.Message))
+		z.Str("message", aerr.Message),
+		getCtxDuration(ctx))
 	incAPIErrors(endpoint, aerr.StatusCode)
 
 	res := errorResponse{
@@ -492,8 +487,8 @@ func stubRoot(epoch uint64) root {
 	return root(r)
 }
 
-// getValidatorIDs returns validator IDs provided in "id" query parameters, supporting csv values.
-func getValidatorIds(query url.Values) []string {
+// getValidatorIDs returns validator IDs as "id" query parameters (supporting csv values).
+func getValidatorIDs(query url.Values) []string {
 	var resp []string
 	for _, csv := range query["id"] {
 		for _, id := range strings.Split(csv, ",") {
@@ -502,4 +497,68 @@ func getValidatorIds(query url.Values) []string {
 	}
 
 	return resp
+}
+
+// getValidatorByID returns the validator and true with id being either a pubkey or a validator index.
+// It returns false if the validator is not found.
+func getValidatorByID(ctx context.Context, p eth2client.ValidatorsProvider, stateID, id string) (*eth2v1.Validator, bool, error) {
+	if strings.HasPrefix(id, "0x") {
+		pubkey, err := tblsconv.KeyFromCore(core.PubKey(id))
+		if err != nil {
+			return nil, false, errors.Wrap(err, "decode public key hex")
+		}
+		eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
+		if err != nil {
+			return nil, false, err
+		}
+
+		temp, err := p.ValidatorsByPubKey(ctx, stateID, []eth2p0.BLSPubKey{eth2Pubkey})
+		if err != nil {
+			return nil, false, err
+		}
+
+		for _, validator := range temp {
+			return validator, true, nil
+		}
+
+		return nil, false, nil
+	}
+
+	vIdx, err := strconv.ParseUint(id, 10, 64)
+	if err != nil {
+		return nil, false, errors.Wrap(err, "parse validator index")
+	}
+
+	temp, err := p.Validators(ctx, stateID, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
+	if err != nil {
+		return nil, false, err
+	}
+
+	for _, validator := range temp {
+		return validator, true, nil
+	}
+
+	return nil, false, nil
+}
+
+type durationKey struct{}
+
+// withCtxDuration returns a copy of parent in which the current time is associated with the duration key.
+func withCtxDuration(ctx context.Context) context.Context {
+	return context.WithValue(ctx, durationKey{}, time.Now())
+}
+
+// getCtxDuration returns a zap field with the duration withCtxDuration was called on the context.
+// Else it returns a noop zap field.
+func getCtxDuration(ctx context.Context) z.Field {
+	v := ctx.Value(durationKey{})
+	if v == nil {
+		return z.Skip
+	}
+	t0, ok := v.(time.Time)
+	if !ok {
+		return z.Skip
+	}
+
+	return z.Str("duration", time.Since(t0).String())
 }

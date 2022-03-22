@@ -65,6 +65,7 @@ type Config struct {
 	ValidatorAPIAddr string
 	BeaconNodeAddr   string
 	JaegerAddr       string
+	SimnetVMock      bool
 
 	TestConfig TestConfig
 }
@@ -411,7 +412,13 @@ func (h httpServeHook) Call(context.Context) error {
 	return nil
 }
 
+// wireValidatorMock wires the validator mock if enabled. The validator mock attestions
+// will be triggered by scheduler's DutyAttester. It connects via http validatorapi.Router.
 func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
+	if !conf.SimnetVMock {
+		return nil
+	}
+
 	secrets := conf.TestConfig.SimnetKeys
 	if len(secrets) == 0 {
 		var err error
@@ -425,6 +432,10 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 
 	// Trigger validatormock when scheduler triggers new slot.
 	sched.Subscribe(func(ctx context.Context, duty core.Duty, _ core.FetchArgSet) error {
+		if duty.Type != core.DutyAttester {
+			return nil
+		}
+
 		ctx = log.WithTopic(ctx, "vmock")
 		go func() {
 			addr := "http://" + conf.ValidatorAPIAddr
