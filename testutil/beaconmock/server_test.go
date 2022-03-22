@@ -45,6 +45,14 @@ func TestStatic(t *testing.T) {
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	require.NoError(t, err)
 	require.Equal(t, uint64(32), slotsPerEpoch)
+
+	state, err := eth2Cl.NodeSyncing(ctx)
+	require.NoError(t, err)
+	require.False(t, state.IsSyncing)
+
+	version, err := eth2Cl.NodeVersion(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "charon/static_beacon_mock", version)
 }
 
 func TestGenesisTimeOverride(t *testing.T) {

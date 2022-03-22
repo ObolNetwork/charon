@@ -54,6 +54,7 @@ func bindRunFlags(flags *pflag.FlagSet, config *app.Config) {
 	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:3500", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API")
 	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:8088", "Listening address (ip and port) for the monitoring API (prometheus, pprof)")
 	flags.StringVar(&config.JaegerAddr, "jaeger-address", "", "Listening address for jaeger tracing")
+	flags.BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables mock validator when running simnet.")
 }
 
 func bindGeneralFlags(flags *pflag.FlagSet, dataDir *string) {

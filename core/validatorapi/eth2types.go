@@ -70,8 +70,12 @@ type proposerDutiesResponse struct {
 	Data          []*eth2v1.ProposerDuty `json:"data"`
 }
 
-type validatorResponse struct {
+type validatorsResponse struct {
 	Data []v1Validator `json:"data"`
+}
+
+type validatorResponse struct {
+	Data v1Validator `json:"data"`
 }
 
 // root wraps eth2p0 root adding proper json marshalling.

@@ -17,6 +17,7 @@ package p2p
 import (
 	"context"
 	"crypto/ecdsa"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -80,16 +81,21 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 
 // logWrapRouting wraps a peerRoutingFunc in debug logging.
 func logWrapRouting(fn peerRoutingFunc) peerRoutingFunc {
+	var failing sync.Map // map[peer.ID]struct{}
 	return func(ctx context.Context, p peer.ID) (peer.AddrInfo, error) {
 		ctx = log.WithTopic(ctx, "p2p")
 
 		res, err := fn(ctx, p)
 		if err != nil {
-			log.Debug(ctx, "Peer routing request failure",
-				z.Any("error", err), z.Str("peer", ShortID(p)))
+			if _, ok := failing.Load(p); !ok {
+				log.Debug(ctx, "Peer routing request failure",
+					z.Any("error", err), z.Str("peer", ShortID(p)))
+			}
+			failing.Store(p, struct{}{})
 		} else {
 			log.Debug(ctx, "Peer routing request success",
 				z.Any("addrs", res.Addrs), z.Str("peer", ShortID(p)))
+			failing.Delete(p)
 		}
 
 		return res, err
