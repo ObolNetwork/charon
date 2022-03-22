@@ -92,6 +92,13 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 				_, _ = w.Write([]byte(`{"data": {"head_slot": "1","sync_distance": "0","is_syncing": false}}`))
 			},
 		},
+		{
+			Path: "/eth/v1/events",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				// TODO(corver): Send keep alives
+				<-r.Context().Done()
+			},
+		},
 	}
 
 	r := mux.NewRouter()

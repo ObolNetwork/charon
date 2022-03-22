@@ -18,6 +18,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
 
@@ -93,6 +95,9 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 			sigs = append(sigs, sig)
 			db.entries[k] = sigs
 		}
+
+		log.Debug(ctx, "Stored partial signed data", z.Any("duty", duty),
+			z.Any("pubkey", pubkey), z.Int("count", len(sigs)))
 
 		// Call the threshSubs (which includes SigAgg component) if sufficient signatures have been received.
 		if len(sigs) != db.threshold {

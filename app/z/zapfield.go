@@ -17,6 +17,8 @@
 package z
 
 import (
+	"fmt"
+
 	"go.uber.org/zap"
 )
 
@@ -89,6 +91,13 @@ func I64(key string, val int64) Field {
 func U64(key string, val uint64) Field {
 	return func(add func(zap.Field)) {
 		add(zap.Uint64(key, val))
+	}
+}
+
+// Hex returns a wrapped zap hex field.
+func Hex(key string, val []byte) Field {
+	return func(add func(zap.Field)) {
+		add(zap.String(key, fmt.Sprintf("%#x", val)))
 	}
 }
 

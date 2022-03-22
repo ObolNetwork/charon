@@ -39,8 +39,18 @@ type errorResponse struct {
 type attesterDutiesRequest []eth2p0.ValidatorIndex
 
 func (r *attesterDutiesRequest) UnmarshalJSON(bytes []byte) error {
-	var strints []string
+	// First try normal json number array
+	var ints []uint64
+	if err := json.Unmarshal(bytes, &ints); err == nil {
+		for _, i := range ints {
+			*r = append(*r, eth2p0.ValidatorIndex(i))
+		}
 
+		return nil
+	}
+
+	// Then try string json number array
+	var strints []string
 	if err := json.Unmarshal(bytes, &strints); err != nil {
 		return errors.Wrap(err, "unmarshal slice")
 	}

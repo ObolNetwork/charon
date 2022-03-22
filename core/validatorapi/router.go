@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	stdlog "log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -330,6 +331,7 @@ func proxyHandler(target string) (http.HandlerFunc, error) {
 		req.Host = targetURL.Host
 		defaultDirector(req)
 	}
+	proxy.ErrorLog = stdlog.New(io.Discard, "", 0)
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer observeAPILatency("proxy")()
