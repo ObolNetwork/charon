@@ -177,7 +177,6 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 
 	for _, att := range attestations {
 		slot := int64(att.Data.Slot)
-		duty := core.Duty{Slot: slot, Type: core.DutyAttester}
 
 		// Determine the validator that sent this by mapping values from original AttestationDuty via the dutyDB
 		indices := att.AggregationBits.BitIndices()
@@ -197,7 +196,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 			return errors.Wrap(err, "hash attestation data")
 		}
 
-		if err := c.verifyParSig(ctx, duty.Type, att.Data.Target.Epoch, pubkey, sigRoot, att.Signature); err != nil {
+		if err := c.verifyParSig(ctx, core.DutyAttester, att.Data.Target.Epoch, pubkey, sigRoot, att.Signature); err != nil {
 			return err
 		}
 

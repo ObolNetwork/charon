@@ -43,7 +43,7 @@ func TestDeterministicDuties(t *testing.T) {
 
 func TestAttestationData(t *testing.T) {
 	bmock, err := beaconmock.New(
-		beaconmock.WithClock(clockwork.NewFakeClockAt(time.Date(2022, 03, 20, 1, 0, 0, 0, time.UTC))),
+		beaconmock.WithClock(clockwork.NewFakeClockAt(time.Date(2022, 0o3, 20, 1, 0, 0, 0, time.UTC))),
 	)
 	require.NoError(t, err)
 
