@@ -295,7 +295,7 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 
 	sigAgg := sigagg.New(threshold)
 
-	aggSigDB := aggsigdb.Stub{}
+	aggSigDB := aggsigdb.NewMemDB()
 
 	broadcaster, err := bcast.New(bmock)
 	if err != nil {
@@ -315,6 +315,7 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartLeaderCast, lifecycle.HookFunc(consensus.Run))
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartScheduler, lifecycle.HookFuncErr(sched.Run))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartScheduler, lifecycle.HookFuncCtx(aggSigDB.Run))
 	life.RegisterStop(lifecycle.StopScheduler, lifecycle.HookFuncMin(sched.Stop))
 
 	return nil
