@@ -225,7 +225,7 @@ func run(appCtx context.Context, startHooks, stopHooks []hook) error {
 	stop := func(hook hook) {
 		err := hook.Func.Call(stopCtx)
 		if errors.Is(stopCtx.Err(), context.DeadlineExceeded) {
-			cacheErr(errors.New("shutdown timeout"))
+			cacheErr(errors.New("shutdown timeout", z.Str("hook", hook.Label)))
 		} else if err != nil && !errors.Is(err, context.Canceled) {
 			cacheErr(errors.Wrap(err, "stop hook", z.Str("hook", hook.Label)))
 			cancel() // Cancel the graceful stop context.

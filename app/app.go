@@ -252,7 +252,7 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 	if err != nil {
 		return err
 	}
-	conf.BeaconNodeAddr = bmock.HTTPServerAddr
+	conf.BeaconNodeAddr = bmock.HTTPAddr()
 
 	sched, err := scheduler.New(corePubkeys, bmock)
 	if err != nil {
@@ -316,6 +316,7 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartLeaderCast, lifecycle.HookFunc(consensus.Run))
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartScheduler, lifecycle.HookFuncErr(sched.Run))
 	life.RegisterStop(lifecycle.StopScheduler, lifecycle.HookFuncMin(sched.Stop))
+	life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
 
 	return nil
 }
@@ -441,14 +442,15 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 			addr := "http://" + conf.ValidatorAPIAddr
 			cl, err := eth2http.New(ctx, eth2http.WithLogLevel(1), eth2http.WithAddress(addr))
 			if err != nil {
-				log.Warn(ctx, "validatorapi client", z.Err(err))
+				log.Warn(ctx, "Cannot connect to validatorapi", z.Err(err))
+				return
 			}
 
 			err = validatormock.Attest(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), pubshares...)
 			if err != nil {
-				log.Warn(ctx, "attestation failed", z.Err(err))
+				log.Warn(ctx, "Attestation failed", z.Err(err))
 			} else {
-				log.Info(ctx, "attestation success", z.I64("slot", duty.Slot))
+				log.Info(ctx, "Attestation success", z.I64("slot", duty.Slot))
 			}
 		}()
 

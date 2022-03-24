@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash/fnv"
+	"net/http"
 	"sort"
 	"strings"
 	"time"
@@ -265,11 +266,11 @@ func WithClock(clock clockwork.Clock) Option {
 }
 
 // defaultMock returns a minimum viable mock that doesn't panic and returns mostly empty responses.
-func defaultMock(httpMock HTTPMock, addr string, clock clockwork.Clock) Mock {
+func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clock) Mock {
 	return Mock{
-		clock:          clock,
-		HTTPMock:       httpMock,
-		HTTPServerAddr: addr,
+		clock:      clock,
+		HTTPMock:   httpMock,
+		httpServer: httpServer,
 		ProposerDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return []*eth2v1.ProposerDuty{}, nil
 		},

@@ -37,12 +37,15 @@ package beaconmock
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 // Interface assertions.
@@ -69,7 +72,7 @@ func New(opts ...Option) (Mock, error) {
 	}
 
 	// Then configure the mock
-	mock := defaultMock(httpMock, "http://"+httpServer.Addr, temp.clock)
+	mock := defaultMock(httpMock, httpServer, temp.clock)
 	for _, opt := range opts {
 		opt(&mock)
 	}
@@ -81,9 +84,9 @@ func New(opts ...Option) (Mock, error) {
 // Create a new instance with default behaviour via New and then override any function.
 type Mock struct {
 	HTTPMock
-	HTTPServerAddr string
-	overrides      []staticOverride
-	clock          clockwork.Clock
+	httpServer *http.Server
+	overrides  []staticOverride
+	clock      clockwork.Clock
 
 	AttestationDataFunc    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
@@ -133,4 +136,17 @@ func (Mock) Name() string {
 
 func (Mock) Address() string {
 	return "mock-address"
+}
+
+func (m Mock) HTTPAddr() string {
+	return "http://" + m.httpServer.Addr
+}
+
+func (m Mock) Close() error {
+	err := m.httpServer.Close()
+	if err != nil {
+		return errors.Wrap(err, "close server")
+	}
+
+	return nil
 }
