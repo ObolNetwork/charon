@@ -29,6 +29,7 @@ jobs:
 
   integration_tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
@@ -43,4 +44,4 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - run: docker pull consensys/teku:latest
-      - run: go test github.com/obolnetwork/charon/app -integration -slow -v -timeout=1m
+      - run: go test github.com/obolnetwork/charon/app -integration -slow -v -timeout=5m

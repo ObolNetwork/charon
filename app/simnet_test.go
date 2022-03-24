@@ -43,6 +43,7 @@ import (
 	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
+//go:generate go test . -run=TestSimnetNoNetwork_TekuVC -integration
 var integration = flag.Bool("integration", false, "Enable docker based integration test")
 
 func TestSimnetNoNetwork_TekuVC(t *testing.T) {
