@@ -32,6 +32,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/leadercast"
 	"github.com/obolnetwork/charon/core/parsigex"
@@ -45,6 +46,9 @@ import (
 var integration = flag.Bool("integration", false, "Forces docker based integration test")
 
 func TestSimnetNoNetwork_TekuVC(t *testing.T) {
+	if testing.Short() {
+		return
+	}
 	hasDocker := exec.Command("docker", "--version").Run() == nil
 	if !hasDocker && !*integration {
 		t.Skip("Skipping Teku integration test since no docker found")
@@ -68,6 +72,7 @@ type simnetArgs struct {
 	P2PKeys    []*ecdsa.PrivateKey
 	SimnetKeys []*bls_sig.SecretKey
 	Manifest   app.Manifest
+	ErrChan    chan error
 }
 
 func newSimnetArgs(t *testing.T) simnetArgs {
@@ -99,6 +104,7 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 		P2PKeys:    p2pKeys,
 		SimnetKeys: secrets,
 		Manifest:   manifest,
+		ErrChan:    make(chan error, 1),
 	}
 }
 
@@ -187,6 +193,17 @@ func testSimnet(t *testing.T, args simnetArgs) {
 		}
 	}()
 
+	// Wire err channel (for docker errors)
+	eg.Go(func() error {
+		select {
+		case <-ctx.Done():
+			return nil
+		case err := <-args.ErrChan:
+			cancel()
+			return err
+		}
+	})
+
 	require.NoError(t, eg.Wait())
 }
 
@@ -231,13 +248,17 @@ func startTeku(t *testing.T, args simnetArgs) simnetArgs {
 	cmd := exec.CommandContext(ctx, "docker", dockerArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	require.NoError(t, cmd.Start())
-
+	go func() {
+		err = cmd.Run()
+		if ctx.Err() != nil {
+			return
+		}
+		args.ErrChan <- errors.Wrap(err, "docker command failed (see logging)")
+	}()
 	// Kill the container when done.
 	t.Cleanup(func() {
 		cancel()
 		_ = exec.Command("docker", "kill", name).Run() // Teku in docker doesn't support sig term...
-		_ = cmd.Wait()
 	})
 
 	return args
