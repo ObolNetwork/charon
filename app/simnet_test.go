@@ -242,7 +242,7 @@ func startTeku(t *testing.T, args simnetArgs) simnetArgs {
 		"consensys/teku:latest",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
-
+	t.Logf("docker args: %v", dockerArgs)
 	// Start teku
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, "docker", dockerArgs...)
