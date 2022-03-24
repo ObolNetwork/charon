@@ -169,11 +169,6 @@ func WithEndpoint(endpoint string, value string) Option {
 func WithGenesisTime(t0 time.Time) Option {
 	return func(mock *Mock) {
 		mock.overrides = append(mock.overrides, staticOverride{
-			Endpoint: "/eth/v1/config/spec",
-			Key:      "MIN_GENESIS_TIME",
-			Value:    fmt.Sprint(t0.Unix()),
-		})
-		mock.overrides = append(mock.overrides, staticOverride{
 			Endpoint: "/eth/v1/beacon/genesis",
 			Key:      "genesis_time",
 			Value:    fmt.Sprint(t0.Unix()),

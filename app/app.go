@@ -21,6 +21,7 @@ import (
 	"crypto/ecdsa"
 	"net/http"
 	"net/http/pprof"
+	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
@@ -244,6 +245,7 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 
 	// Configure the beacon mock.
 	opts := []beaconmock.Option{
+		beaconmock.WithSlotDuration(time.Second),
 		beaconmock.WithDeterministicDuties(100),
 		beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
 	}
