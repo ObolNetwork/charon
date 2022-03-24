@@ -43,17 +43,11 @@ import (
 	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
-var integration = flag.Bool("integration", false, "Forces docker based integration test")
+var integration = flag.Bool("integration", false, "Enable docker based integration test")
 
 func TestSimnetNoNetwork_TekuVC(t *testing.T) {
-	if testing.Short() {
-		return
-	}
-	hasDocker := exec.Command("docker", "--version").Run() == nil
-	if !hasDocker && !*integration {
-		t.Skip("Skipping Teku integration test since no docker found")
-	} else if !hasDocker {
-		t.Fatal("docker command not found")
+	if !*integration {
+		t.Skip("Skipping Teku integration test")
 	}
 
 	args := newSimnetArgs(t)

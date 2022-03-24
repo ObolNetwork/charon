@@ -442,14 +442,15 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 			addr := "http://" + conf.ValidatorAPIAddr
 			cl, err := eth2http.New(ctx, eth2http.WithLogLevel(1), eth2http.WithAddress(addr))
 			if err != nil {
-				log.Warn(ctx, "validatorapi client", z.Err(err))
+				log.Warn(ctx, "Cannot connect to validatorapi", z.Err(err))
+				return
 			}
 
 			err = validatormock.Attest(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), pubshares...)
 			if err != nil {
-				log.Warn(ctx, "attestation failed", z.Err(err))
+				log.Warn(ctx, "Attestation failed", z.Err(err))
 			} else {
-				log.Info(ctx, "attestation success", z.I64("slot", duty.Slot))
+				log.Info(ctx, "Attestation success", z.I64("slot", duty.Slot))
 			}
 		}()
 
