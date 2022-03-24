@@ -63,7 +63,7 @@ type staticOverride struct {
 
 // newHTTPServer returns a beacon API mock http server.
 func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, error) {
-	debug := os.Getenv("BEACONMOCK_DEBUG") == "true"
+	debug := os.Getenv("BEACONMOCK_DEBUG") == "true" // NOTE: These logs are verbose, so disabled by default.
 	shutdown := make(chan struct{})
 
 	endpoints := []struct {
