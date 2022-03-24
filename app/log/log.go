@@ -71,7 +71,7 @@ func Warn(ctx context.Context, msg string, fields ...z.Field) {
 // Error wraps err with msg and fields and logs it (incl fields in the context) at Error level.
 // TODO(corver): Add indication of when error should be used.
 func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
-	err = errors.Wrap(err, msg, fields...)
+	err = errors.SkipWrap(err, msg, 2, fields...)
 	logger.Error(err.Error(), unwrapDedup(ctx, errFields(err))...)
 }
 
