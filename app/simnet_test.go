@@ -43,7 +43,7 @@ import (
 	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
-//go:generate go test . -run=TestSimnetNoNetwork_TekuVC -integration
+//go:generate go test . -run=TestSimnetNoNetwork_TekuVC -integration -v
 var integration = flag.Bool("integration", false, "Enable docker based integration test")
 
 func TestSimnetNoNetwork_TekuVC(t *testing.T) {
@@ -52,7 +52,7 @@ func TestSimnetNoNetwork_TekuVC(t *testing.T) {
 	}
 
 	args := newSimnetArgs(t)
-	args = startTeku(t, args)
+	args = startTeku(t, args, 0)
 	testSimnet(t, args)
 }
 
@@ -70,6 +70,7 @@ type simnetArgs struct {
 	ErrChan    chan error
 }
 
+// newSimnetArgs defines the default simnet test args.
 func newSimnetArgs(t *testing.T) simnetArgs {
 	t.Helper()
 
@@ -103,12 +104,6 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 	}
 }
 
-type simResult struct {
-	Duty   core.Duty
-	Pubkey core.PubKey
-	Data   core.AggSignedData
-}
-
 // testSimnet spins of a simnet cluster or N charon nodes connected via in-memory transports.
 // It asserts successful end-2-end attestation broadcast from all nodes for 2 slots.
 func testSimnet(t *testing.T, args simnetArgs) {
@@ -117,6 +112,12 @@ func testSimnet(t *testing.T, args simnetArgs) {
 
 	parSigExFunc := parsigex.NewMemExFunc()
 	lcastTransportFunc := leadercast.NewMemTransportFunc(ctx)
+
+	type simResult struct {
+		Duty   core.Duty
+		Pubkey core.PubKey
+		Data   core.AggSignedData
+	}
 
 	var (
 		eg      errgroup.Group
@@ -202,29 +203,30 @@ func testSimnet(t *testing.T, args simnetArgs) {
 	require.NoError(t, eg.Wait())
 }
 
-// startTeku starts a teku validator client for node0 and returns updated args.
-func startTeku(t *testing.T, args simnetArgs) simnetArgs {
+// startTeku starts a teku validator client for the provided node and returns updated args.
+func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	t.Helper()
 
 	// Configure teku as VC for node0
-	args.VMocks[0] = false
+	args.VMocks[node] = false
 
 	// Write private share keystore and password
 	tempDir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
-	err = keystore.StoreSimnetKeys([]*bls_sig.SecretKey{args.SimnetKeys[0]}, tempDir)
+	err = keystore.StoreSimnetKeys([]*bls_sig.SecretKey{args.SimnetKeys[node]}, tempDir)
 	require.NoError(t, err)
 	err = os.WriteFile(path.Join(tempDir, "keystore-simnet-0.txt"), []byte("simnet"), 0o644)
 	require.NoError(t, err)
 
 	// Change VAPI bind address to host external IP
-	args.VAPIAddrs[0] = strings.Replace(args.VAPIAddrs[0], "127.0.0.1", externalIP(t), 1)
+	args.VAPIAddrs[node] = strings.Replace(args.VAPIAddrs[node], "127.0.0.1", externalIP(t), 1)
 
+	// Teku arguments
 	tekuArgs := []string{
 		"validator-client",
 		"--network=auto",
 		"--validator-keys=/keys:/keys",
-		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[0]),
+		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
 	}
 
 	// Configure docker
@@ -234,26 +236,30 @@ func startTeku(t *testing.T, args simnetArgs) simnetArgs {
 		"--rm",
 		fmt.Sprintf("--name=%s", name),
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
+		"--user=root", // Root required to read volume files in GitHub actions.
 		"consensys/teku:latest",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
 	t.Logf("docker args: %v", dockerArgs)
+
 	// Start teku
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, "docker", dockerArgs...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	go func() {
-		err = cmd.Run()
+		c := exec.CommandContext(ctx, "docker", dockerArgs...)
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
+		err = c.Run()
 		if ctx.Err() != nil {
+			// Expected shutdown
 			return
 		}
 		args.ErrChan <- errors.Wrap(err, "docker command failed (see logging)")
 	}()
-	// Kill the container when done.
+
+	// Kill the container when done (context cancel is not enough for some reason).
 	t.Cleanup(func() {
 		cancel()
-		_ = exec.Command("docker", "kill", name).Run() // Teku in docker doesn't support sig term...
+		_ = exec.Command("docker", "kill", name).Run()
 	})
 
 	return args
