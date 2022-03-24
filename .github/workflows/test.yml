@@ -43,5 +43,7 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+      - run: ls -la /var/lib/docker
+      - run: ls -la /usr/bin
       - run: docker pull consensys/teku:latest
       - run: go test github.com/obolnetwork/charon/app -integration -slow -v -timeout=5m
