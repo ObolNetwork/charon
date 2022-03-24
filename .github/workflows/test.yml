@@ -20,7 +20,7 @@ jobs:
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
-    - run: go test -coverprofile=coverage.out -covermode=atomic ./...
+    - run: go test -coverprofile=coverage.out -covermode=atomic -timeout=5m ./...
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2.1.0
       with:
@@ -44,4 +44,4 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - run: docker pull consensys/teku:latest
-      - run: go test github.com/obolnetwork/charon/app -integration -slow -v -timeout=5m
+      - run: go test -timeout=5m -v github.com/obolnetwork/charon/app -integration -slow
