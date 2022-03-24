@@ -1,0 +1,4 @@
+00:00 [31mERRO[0m err1: EOF {"caller": "log_test.go:73"}
+	app/log/log_test.go:73 .TestErrorWrapOther
+00:00 [31mERRO[0m err2: wrap: EOF {"caller": "log_test.go:74"}
+	app/log/log_test.go:70 .TestErrorWrapOther
