@@ -252,7 +252,7 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 	if err != nil {
 		return err
 	}
-	conf.BeaconNodeAddr = bmock.HTTPServerAddr
+	conf.BeaconNodeAddr = bmock.HTTPAddr()
 
 	sched, err := scheduler.New(corePubkeys, bmock)
 	if err != nil {
@@ -316,6 +316,7 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartLeaderCast, lifecycle.HookFunc(consensus.Run))
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartScheduler, lifecycle.HookFuncErr(sched.Run))
 	life.RegisterStop(lifecycle.StopScheduler, lifecycle.HookFuncMin(sched.Stop))
+	life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
 
 	return nil
 }
