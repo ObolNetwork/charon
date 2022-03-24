@@ -20,15 +20,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/testutil"
 )
+
+//go:generate go test . -update -clean
 
 func TestWithContext(t *testing.T) {
 	buf := setup(t)
@@ -43,12 +44,7 @@ func TestWithContext(t *testing.T) {
 	log.Warn(ctx3a, "msg3a")
 	log.Warn(ctx3b, "msg3b")
 
-	expect := `00:00 DEBUG log/log_test.go:41 msg1 {"ctx1": 1}
-00:00 INFO log/log_test.go:42 msg2 {"ctx2": 2, "wrap2": 2}
-00:00 WARN log/log_test.go:43 msg3a {"wrap3": "a", "wrap2": 2}
-00:00 WARN log/log_test.go:44 msg3b {"wrap3": "b", "wrap2": 2}
-`
-	require.Equal(t, expect, buf.String())
+	testutil.RequireGoldenBytes(t, buf.Bytes())
 }
 
 func TestErrorWrap(t *testing.T) {
@@ -63,15 +59,7 @@ func TestErrorWrap(t *testing.T) {
 	log.Error(ctx, "err2", err2)
 	log.Error(ctx, "err3", err3)
 
-	expect := `00:00 ERROR log/log_test.go:62 err1: first {"1": 1}
-	app/log/log_test.go:57 .TestErrorWrap
-00:00 ERROR log/log_test.go:63 err2: second: first {"2": 2, "1": 1}
-	app/log/log_test.go:57 .TestErrorWrap
-00:00 ERROR log/log_test.go:64 err3: third: second: first {"3": 3, "2": 2, "1": 1}
-	app/log/log_test.go:57 .TestErrorWrap
-`
-
-	require.Equal(t, expect, buf.String())
+	testutil.RequireGoldenBytes(t, buf.Bytes())
 }
 
 // setup returns a buffer that logs are written to and stubs non-deterministic logging fields.
@@ -80,13 +68,11 @@ func setup(t *testing.T) *bytes.Buffer {
 
 	var buf zaptest.Buffer
 
-	encConfig := zap.NewDevelopmentConfig().EncoderConfig
-	encConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-		enc.AppendString("00:00")
-	}
-	encConfig.ConsoleSeparator = " "
-
-	log.InitLoggerForT(t, encConfig, &buf)
+	log.InitLoggerForT(t, &buf, func(config *zapcore.EncoderConfig) {
+		config.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+			enc.AppendString("00:00")
+		}
+	})
 
 	return &buf.Buffer
 }

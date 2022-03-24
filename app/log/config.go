@@ -16,6 +16,7 @@ package log
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -29,14 +30,8 @@ import (
 var logger = newConsoleLogger()
 
 func newConsoleLogger() *zap.Logger {
-	encConfig := zap.NewDevelopmentEncoderConfig()
-	encConfig.ConsoleSeparator = " "
-	encConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	encConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05.000")
-
 	writer, _, _ := zap.Open("stderr")
-
-	return buildConsoleLogger(encConfig, writer)
+	return buildConsoleLogger(writer)
 }
 
 // InitJSONLogger initialises a JSON logger for production usage.
@@ -51,12 +46,21 @@ func InitJSONLogger() error {
 }
 
 // InitLoggerForT initialises a console logger for testing purposes.
-func InitLoggerForT(_ *testing.T, encConfig zapcore.EncoderConfig, ws zapcore.WriteSyncer) {
-	logger = buildConsoleLogger(encConfig, ws)
+func InitLoggerForT(_ *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
+	logger = buildConsoleLogger(ws, opts...)
 }
 
 // buildConsoleLogger returns an opinionated console logger.
-func buildConsoleLogger(encConfig zapcore.EncoderConfig, ws zapcore.WriteSyncer) *zap.Logger {
+func buildConsoleLogger(ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) *zap.Logger {
+	encConfig := zap.NewDevelopmentEncoderConfig()
+	encConfig.ConsoleSeparator = " "
+	encConfig.EncodeLevel = level4CharEncoder
+	encConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05.000")
+
+	for _, opt := range opts {
+		opt(&encConfig)
+	}
+
 	encoder := customEncoder{Encoder: zapcore.NewConsoleEncoder(encConfig)}
 
 	return zap.New(
@@ -114,6 +118,12 @@ func (e customEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*buff
 		filtered = append(filtered, f)
 	}
 
+	// Use only file and line for caller and move to fields.
+	if ent.Caller.Defined {
+		filtered = append(filtered, zap.String("caller", filepath.Base(ent.Caller.TrimmedPath())))
+		ent.Caller.Defined = false
+	}
+
 	return e.Encoder.EncodeEntry(ent, filtered)
 }
 
@@ -145,4 +155,37 @@ func formatZapStack(zapStack string) string {
 	}
 
 	return strings.Join(resp, "\n")
+}
+
+// level4Map defines 4 character mappings of log levels.
+var level4Map = map[zapcore.Level]string{
+	zapcore.DebugLevel: "DEBG",
+	zapcore.ErrorLevel: "ERRO",
+	// Levels below not actually used.
+	zapcore.DPanicLevel: "PNIC",
+	zapcore.PanicLevel:  "PNIC",
+	zapcore.FatalLevel:  "FATL",
+}
+
+// level4CharEncoder adapts zapcore CapitalColorLevelEncoder but trims level strings to 4 characters.
+func level4CharEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
+	replace, ok := level4Map[l]
+	trimLevel := func(level string) string {
+		if !ok {
+			return level
+		}
+
+		return strings.Replace(level, l.CapitalString(), replace, 1)
+	}
+	zapcore.CapitalColorLevelEncoder(l, appendWrapper{enc, trimLevel})
+}
+
+// appendWrapper wraps zapcore.PrimitiveArrayEncoder's AppendString function with custom transformation function.
+type appendWrapper struct {
+	zapcore.PrimitiveArrayEncoder
+	appendWrapFunc func(string) string
+}
+
+func (w appendWrapper) AppendString(s string) {
+	w.PrimitiveArrayEncoder.AppendString(w.appendWrapFunc(s))
 }
