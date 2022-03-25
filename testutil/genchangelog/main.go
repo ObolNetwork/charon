@@ -51,6 +51,7 @@ var (
 	//go:embed template.md
 	tpl string
 
+	// categoryOrder defines the supported categories and their ordering.
 	categoryOrder = map[string]int{
 		"feature":  1,
 		"bug":      2,
@@ -59,8 +60,13 @@ var (
 		"test":     5,
 		"misc":     6,
 	}
+
+	numberRegex   = regexp.MustCompile(`[#/](\d{2,})`)
+	categoryRegex = regexp.MustCompile(`category:\s?(\w+)`)
+	ticketRegex   = regexp.MustCompile(`ticket:(.*)`)
 )
 
+// pullRequest is parsed from log.
 type pullRequest struct {
 	Title    string
 	Number   int
@@ -68,6 +74,7 @@ type pullRequest struct {
 	Issue    int
 }
 
+// log is parsed from git logs.
 type log struct {
 	Commit  string `json:"commit"`
 	Body    string `json:"body"`
@@ -75,6 +82,7 @@ type log struct {
 	Author  string `json:"author"`
 }
 
+// tplData is the changelog template data structure.
 type tplData struct {
 	Date       string
 	RangeText  string
@@ -82,12 +90,14 @@ type tplData struct {
 	Categories []tplCategory
 }
 
+// tplCategory is a category section in the changelog.
 type tplCategory struct {
 	Name   string
 	Label  string
 	Issues []tplIssue
 }
 
+// tplIssue is an issue in the changelog.
 type tplIssue struct {
 	Category string
 	Title    string
@@ -96,6 +106,7 @@ type tplIssue struct {
 	PRs      []tplPR
 }
 
+// tplPR is an PR link in the changelog.
 type tplPR struct {
 	Label string
 }
@@ -120,6 +131,7 @@ func main() {
 	}
 }
 
+// run runs the command.
 func run(gitRange string, output string, token string) error {
 	if gitRange == "" {
 		tag, err := getLatestTag()
@@ -188,6 +200,7 @@ func makeIssueFunc(token string) func(int) (string, error) {
 	}
 }
 
+// execTemplate returns the executed changelog template.
 func execTemplate(data tplData) ([]byte, error) {
 	templ, err := template.New("").Parse(tpl)
 	if err != nil {
@@ -201,6 +214,7 @@ func execTemplate(data tplData) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// tplDataFromPRs builds the template data from the provides PRs, git range, issue title func.
 func tplDataFromPRs(prs []pullRequest, gitRange string, issueTitle func(int) (string, error)) (tplData, error) {
 	issues := make(map[int]tplIssue)
 	for _, pr := range prs {
@@ -247,26 +261,28 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueTitle func(int) (st
 	}, nil
 }
 
-func selectCategory(current, option string) string {
-	optionOrder, ok := categoryOrder[option]
+// selectCategory returns the current or the candidate category based on categoryOrder.
+func selectCategory(current, candidate string) string {
+	optionOrder, ok := categoryOrder[candidate]
 	if !ok {
 		return current
 	}
 
 	currentOrder, ok := categoryOrder[current]
 	if !ok {
-		return option
+		return candidate
 	}
 
 	if currentOrder >= optionOrder {
 		return current
 	}
 
-	return option
+	return candidate
 }
 
+// parsePRs returns parsed PRs by query the git logs for the provided range.
 func parsePRs(gitRange string) ([]pullRequest, error) {
-	// Custom json encoding if git log output.
+	// Custom json encoding of git log output.
 	const format = `--pretty=format:{…commit…: …%h…,…body…: …%b…,…subject…: …%s…,…author…: …%aE…}†`
 
 	b, err := exec.Command("git", "log", format, gitRange).CombinedOutput()
@@ -301,12 +317,7 @@ func parsePRs(gitRange string) ([]pullRequest, error) {
 	return resp, nil
 }
 
-var (
-	numberRegex   = regexp.MustCompile(`[#/](\d{2,})`)
-	categoryRegex = regexp.MustCompile(`category:\s?(\w+)`)
-	ticketRegex   = regexp.MustCompile(`ticket:(.*)`)
-)
-
+// prFromLog returns a charon pull request from the raw git log.
 func prFromLog(l log) (pullRequest, bool) {
 	if strings.Contains(l.Subject, "build(deps)") {
 		fmt.Printf("Skipping dependabot PR (%s): %s\n", l.Commit, l.Subject)
@@ -357,6 +368,7 @@ func prFromLog(l log) (pullRequest, bool) {
 	}, true
 }
 
+// getNumber returns a github issue number from the string.
 func getNumber(s string) (int, bool) {
 	matches := numberRegex.FindStringSubmatch(s)
 	if len(matches) < 1 || matches[1] == "" {
@@ -371,6 +383,7 @@ func getNumber(s string) (int, bool) {
 	return number, true
 }
 
+// getFirstMatch returns the first regex match from the string.
 func getFirstMatch(r *regexp.Regexp, s string) (string, bool) {
 	matches := r.FindStringSubmatch(s)
 	if len(matches) < 1 || matches[1] == "" {
