@@ -56,6 +56,11 @@ func run() error {
 		return fmt.Errorf("environments variable empty: %s", prenv)
 	}
 
+	if strings.Contains(strings.ToLower(prJSON), "build(deps)") {
+		fmt.Println("Skipping dependabot PRs")
+		return nil
+	}
+
 	var pr PR
 	err := json.Unmarshal([]byte(prJSON), &pr)
 	if err != nil {
