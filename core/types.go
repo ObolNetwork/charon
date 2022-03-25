@@ -31,6 +31,7 @@ type DutyType int
 const (
 	DutyUnknown = DutyType(iota)
 	DutyAttester
+	DutyRandao
 	DutyProposer
 	dutySentinal // Must always be last
 )

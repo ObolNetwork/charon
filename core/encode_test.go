@@ -105,3 +105,19 @@ func TestEncodeRandaoParSignedData(t *testing.T) {
 	require.Equal(t, randao1, *randao2)
 	require.Equal(t, data1, data2)
 }
+
+func TestEncodeRandaoAggSignedData(t *testing.T) {
+	randao1 := testutil.RandomSignature()
+
+	data1, err := core.EncodeRandaoAggSignedData(&randao1)
+	require.NoError(t, err)
+
+	randao2, err := core.DecodeRandaoAggSignedData(data1)
+	require.NoError(t, err)
+
+	data2, err := core.EncodeRandaoAggSignedData(randao2)
+	require.NoError(t, err)
+
+	require.Equal(t, randao1, *randao2)
+	require.Equal(t, data1, data2)
+}
