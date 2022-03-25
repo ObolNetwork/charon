@@ -37,6 +37,7 @@ package beaconmock
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -62,7 +63,7 @@ var (
 // New returns a new beacon client mock configured with the default and provided options.
 func New(opts ...Option) (Mock, error) {
 	// Configure http mock first.
-	temp := Mock{clock: clockwork.NewRealClock()}
+	temp := defaultHTTPMock()
 	for _, opt := range opts {
 		opt(&temp)
 	}
@@ -78,6 +79,37 @@ func New(opts ...Option) (Mock, error) {
 	}
 
 	return mock, nil
+}
+
+// defaultHTTPMock returns a mock with default http mock overrides.
+func defaultHTTPMock() Mock {
+	// Default to recent genesis for lower slot and epoch numbers.
+	genesis := time.Date(2022, 3, 1, 0, 0, 0, 0, time.UTC)
+	return Mock{
+		clock: clockwork.NewRealClock(),
+		overrides: []staticOverride{
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "CONFIG_NAME",
+				Value:    "charon-simnet",
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "PRESET_BASE",
+				Value:    "gnosis", // Using gnosis since has shorter slots per epoch (16)
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "SLOTS_PER_EPOCH",
+				Value:    "16",
+			},
+			{
+				Endpoint: "/eth/v1/beacon/genesis",
+				Key:      "genesis_time",
+				Value:    fmt.Sprint(genesis.Unix()),
+			},
+		},
+	}
 }
 
 // Mock provides a mock beacon client and implements eth2client.Service and many of the eth2client Providers.

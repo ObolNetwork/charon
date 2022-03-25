@@ -141,7 +141,6 @@ func testSimnet(t *testing.T, args simnetArgs) {
 				},
 				SimnetBMockOpts: []beaconmock.Option{
 					beaconmock.WithSlotsPerEpoch(1),
-					beaconmock.WithSlotDuration(time.Second),
 				},
 			},
 			P2P: p2p.Config{},

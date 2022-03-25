@@ -1,11 +1,11 @@
 [
  {
   "pubkey": "0x8dae41352b69f2b3a1c0b05330c1bf65f03730c520273028864b11fcb94d8ce8f26d64f979a0ee3025467f45fd2241ea",
-  "slot": "32",
+  "slot": "16",
   "validator_index": "2",
   "committee_index": "0",
-  "committee_length": "32",
-  "committees_at_slot": "32",
+  "committee_length": "16",
+  "committees_at_slot": "16",
   "validator_committee_index": "2"
  }
 ]
