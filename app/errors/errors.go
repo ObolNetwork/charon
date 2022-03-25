@@ -37,6 +37,11 @@ func New(msg string, fields ...z.Field) error {
 
 // Wrap returns a new error wrapping the provided with additional structured fields and a stack trace if not already present.
 func Wrap(err error, msg string, fields ...z.Field) error {
+	return SkipWrap(err, msg, 2, fields...)
+}
+
+// SkipWrap is the same as Wrap, but allows overriding the skipped stacktraces.
+func SkipWrap(err error, msg string, skip int, fields ...z.Field) error {
 	wrap := fmt.Errorf("%s: %w", msg, err)
 
 	var inner structured
@@ -51,7 +56,7 @@ func Wrap(err error, msg string, fields ...z.Field) error {
 	return structured{
 		err:    wrap,
 		fields: fields,
-		stack:  zap.StackSkip("stacktrace", 1),
+		stack:  zap.StackSkip("stacktrace", skip),
 	}
 }
 

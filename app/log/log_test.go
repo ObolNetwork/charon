@@ -17,6 +17,7 @@ package log_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -58,6 +59,19 @@ func TestErrorWrap(t *testing.T) {
 	log.Error(ctx, "err1", err1)
 	log.Error(ctx, "err2", err2)
 	log.Error(ctx, "err3", err3)
+
+	testutil.RequireGoldenBytes(t, buf.Bytes())
+}
+
+func TestErrorWrapOther(t *testing.T) {
+	buf := setup(t)
+
+	err1 := io.EOF
+	err2 := errors.Wrap(err1, "wrap")
+
+	ctx := context.Background()
+	log.Error(ctx, "err1", err1)
+	log.Error(ctx, "err2", err2)
 
 	testutil.RequireGoldenBytes(t, buf.Bytes())
 }
