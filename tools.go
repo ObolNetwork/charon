@@ -17,6 +17,12 @@
 
 package main
 
+// This file contains build time developer tools used in the charon repo.
+// To install all the tools run: go generate tools.go
+
 import (
 	_ "golang.org/x/tools/cmd/stringer"
 )
+
+//go:generate echo Installing tools: stringer
+//go:generate go install golang.org/x/tools/cmd/stringer
