@@ -117,13 +117,13 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	for i := 0; i < n; i++ {
 		conf := app.Config{
+			Simnet:           true,
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: testutil.AvailableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
-				Manifest:      &manifest,
-				P2PKey:        p2pKeys[i],
-				PingCallback:  asserter.Callback(t, i),
-				DisableSimnet: true,
+				Manifest:     &manifest,
+				P2PKey:       p2pKeys[i],
+				PingCallback: asserter.Callback(t, i),
 			},
 			P2P: p2p.Config{
 				UDPBootnodes:    test.Bootnodes,
