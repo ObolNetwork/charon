@@ -79,7 +79,7 @@ func EncodeAttestationParSignedData(att *eth2p0.Attestation, shareIdx int) (ParS
 	}, nil
 }
 
-// DecodeAttestationParSignedData returns the attestation as an encoded ParSignedData.
+// DecodeAttestationParSignedData returns the attestation from the encoded ParSignedData.
 func DecodeAttestationParSignedData(data ParSignedData) (*eth2p0.Attestation, error) {
 	att := new(eth2p0.Attestation)
 	err := json.Unmarshal(data.Data, att)
@@ -103,7 +103,7 @@ func EncodeAttestationAggSignedData(att *eth2p0.Attestation) (AggSignedData, err
 	}, nil
 }
 
-// DecodeAttestationAggSignedData returns the attestation as an encoded AggSignedData.
+// DecodeAttestationAggSignedData returns the attestation from the encoded AggSignedData.
 func DecodeAttestationAggSignedData(data AggSignedData) (*eth2p0.Attestation, error) {
 	att := new(eth2p0.Attestation)
 	err := json.Unmarshal(data.Data, att)
@@ -112,4 +112,28 @@ func DecodeAttestationAggSignedData(data AggSignedData) (*eth2p0.Attestation, er
 	}
 
 	return att, nil
+}
+
+// EncodeRandaoParSignedData returns the RANDAO reveal as an encoded ParSignedData.
+func EncodeRandaoParSignedData(randao *eth2p0.BLSSignature, shareIdx int) (ParSignedData, error) {
+	data, err := json.Marshal(randao)
+	if err != nil {
+		return ParSignedData{}, errors.Wrap(err, "marshal randao reveal")
+	}
+
+	return ParSignedData{
+		Data:     data,
+		ShareIdx: shareIdx,
+	}, nil
+}
+
+// DecodeRandaoParSignedData returns the RANDAO reveal from the encoded ParSignedData as BLS signature.
+func DecodeRandaoParSignedData(data ParSignedData) (*eth2p0.BLSSignature, error) {
+	randao := new(eth2p0.BLSSignature)
+	err := json.Unmarshal(data.Data, randao)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal randao reveal")
+	}
+
+	return randao, nil
 }
