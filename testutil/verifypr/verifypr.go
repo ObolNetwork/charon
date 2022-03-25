@@ -56,8 +56,8 @@ func run() error {
 		return fmt.Errorf("environments variable empty: %s", prenv)
 	}
 
-	if strings.Contains(strings.ToLower(prJSON), "build(deps)") {
-		fmt.Println("Skipping dependabot PRs")
+	if strings.Contains(prJSON, "build(deps)") && strings.Contains(prJSON, "dependabot") {
+		fmt.Println("Skipping dependabot PR")
 		return nil
 	}
 
