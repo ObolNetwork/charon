@@ -115,50 +115,28 @@ func DecodeAttestationAggSignedData(data AggSignedData) (*eth2p0.Attestation, er
 }
 
 // EncodeRandaoParSignedData returns the RANDAO reveal as an encoded ParSignedData.
-func EncodeRandaoParSignedData(randao *eth2p0.BLSSignature, shareIdx int) (ParSignedData, error) {
-	data, err := json.Marshal(randao)
-	if err != nil {
-		return ParSignedData{}, errors.Wrap(err, "marshal randao reveal")
-	}
-
+func EncodeRandaoParSignedData(randao *eth2p0.BLSSignature, shareIdx int) ParSignedData {
 	return ParSignedData{
-		Data:      data,
-		Signature: data,
+		Data:      randao[:],
+		Signature: randao[:],
 		ShareIdx:  shareIdx,
-	}, nil
+	}
 }
 
 // DecodeRandaoParSignedData returns the RANDAO reveal from the encoded ParSignedData as BLS signature.
-func DecodeRandaoParSignedData(data ParSignedData) (*eth2p0.BLSSignature, error) {
-	randao := new(eth2p0.BLSSignature)
-	err := json.Unmarshal(data.Signature, randao)
-	if err != nil {
-		return nil, errors.Wrap(err, "unmarshal randao reveal")
-	}
-
-	return randao, nil
+func DecodeRandaoParSignedData(data ParSignedData) *eth2p0.BLSSignature {
+	return (*eth2p0.BLSSignature)(data.Signature)
 }
 
 // EncodeRandaoAggSignedData returns the RANDAO reveal as an encoded AggSignedData.
-func EncodeRandaoAggSignedData(randao *eth2p0.BLSSignature) (AggSignedData, error) {
-	data, err := json.Marshal(randao)
-	if err != nil {
-		return AggSignedData{}, errors.Wrap(err, "marshal randao reveal")
-	}
-
+func EncodeRandaoAggSignedData(randao *eth2p0.BLSSignature) AggSignedData {
 	return AggSignedData{
-		Data:      data,
-		Signature: data,
-	}, nil
+		Data:      randao[:],
+		Signature: randao[:],
+	}
 }
 
 // DecodeRandaoAggSignedData returns the RANDAO reveal from the encoded AggSignedData as BLS Signature.
-func DecodeRandaoAggSignedData(data AggSignedData) (*eth2p0.BLSSignature, error) {
-	randao := new(eth2p0.BLSSignature)
-	err := json.Unmarshal(data.Signature, randao)
-	if err != nil {
-		return nil, errors.Wrap(err, "unmarshal randao reveal")
-	}
-
-	return randao, nil
+func DecodeRandaoAggSignedData(data AggSignedData) *eth2p0.BLSSignature {
+	return (*eth2p0.BLSSignature)(data.Signature)
 }

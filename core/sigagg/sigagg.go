@@ -122,7 +122,7 @@ func getAggSignedData(typ core.DutyType, data core.ParSignedData, aggSig *bls_si
 
 		return core.EncodeAttestationAggSignedData(att)
 	case core.DutyRandao:
-		return core.EncodeRandaoAggSignedData(&eth2Sig)
+		return core.EncodeRandaoAggSignedData(&eth2Sig), nil
 	default:
 		return core.AggSignedData{}, errors.New("unsupported duty type")
 	}
@@ -144,6 +144,7 @@ func getSignedRoot(typ core.DutyType, data core.ParSignedData) (eth2p0.Root, err
 
 		return b, nil
 	case core.DutyRandao:
+		// randao is just a signature, it doesn't have other data to check
 		return eth2p0.Root{}, nil
 	default:
 		return eth2p0.Root{}, errors.New("unsupported duty type")
