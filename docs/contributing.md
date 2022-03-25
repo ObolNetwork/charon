@@ -33,7 +33,20 @@ instead of opening a public issue or PR on GitHub.
 
 Feel free to fork the Charon repo and submit a pull request with your suggested changes.
 
-Please include a PR description mentioning everything important (according to your best judgement).
+You will then need to sign our Contributor License Agreement (CLA), which will show up as a comment
+from a bot in this pull request after you open it. We cannot review code without a signed CLA.
+
+As mentioned above, please file an associated issue if this pull request is non-trivial and
+requires context for our team to understand. All features and most bug fixes should have
+an associated issue with a design discussed and decided upon. Small bug fixes and documentation
+improvements don't need issues.
+
+New features and bug fixes must have tests. Documentation may need to be updated. If you're
+unsure what to update, open the PR, and we'll discuss during review.
+
+Note that PRs updating dependencies and new Go versions are not accepted. Please file an issue instead.
+
+> TL;DR: Open an Issue with details and motivation behind a PR.
 
 ### Core Dev Contributions
 
@@ -68,18 +81,18 @@ Please include a PR description mentioning everything important (according to yo
   - Start with detailed description of the change.
   - Description should use proper grammar in present tense.
   - Ends with a list of tags (some required, others optional) (`^tag: value of this tag\n`):
-  - `ticket`: required; URL of the Github issue just a reference, E.g. `#123` or `none`.
   - `category`: required; one of: `refactor`, `bug`, `feature`, `docs`, `release`, `tidy`, `fixbuild`.
-  - `release`: optional; identifies the highest release environment/network targeted by the change; `devnet`, `testnet`, `mainnet`, `none`
+  - `ticket`: required; URL of the Github issue just a reference, E.g. `#123` or `none`.
+  - `phase`: optional; identifies the highest release cycle phase targeted by the change; `aplha`, `beta`, `gold`
 - Example:
 ```
 runner/tracer: add jaeger otel exporter
 
 Adds the jaeger exporter to our opentelemetery infra.
 
-ticket: https://obol.atlassian.net/browse/OBOL-206
 category: feature
-release: mainnet
+ticket: #206
+phase: gold
 ```
 
 ### Dev tools, git hooks and linters.
