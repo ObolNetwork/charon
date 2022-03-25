@@ -1,0 +1,16 @@
+# v0.0.0 - 1970-01-01
+
+This release introduces general fixes and improvements including progress on great new features.
+
+**Full Changelog**: [606e9bc^..eff988a](https://github.com/obolnetwork/charon/compare/606e9bc^..eff988a)
+
+## Feature
+- Issue#220 #220 (#249)
+
+## Test
+- Issue#271 #271 (#273)
+- Issue#268 #268 (#271)
+
+## Misc
+- Issue#251 #251 (#265,#264,#263,#260,#259,#258)
+

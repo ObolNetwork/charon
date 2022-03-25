@@ -1,0 +1,56 @@
+[
+ {
+  "Title": "testutil/beaconmock: default to gnosis as preset base (#273)",
+  "Number": 273,
+  "Category": "test",
+  "Issue": 271
+ },
+ {
+  "Title": "app: add teku simnet integration test (#271)",
+  "Number": 271,
+  "Category": "test",
+  "Issue": 268
+ },
+ {
+  "Title": "*: add support for external VC to simnet (#265)",
+  "Number": 265,
+  "Category": "misc",
+  "Issue": 251
+ },
+ {
+  "Title": "core/validatorapi: fix attestation domain and signature verification (#264)",
+  "Number": 264,
+  "Category": "bug",
+  "Issue": 251
+ },
+ {
+  "Title": "cmd: add flag to disable simnet mock validator (#263)",
+  "Number": 263,
+  "Category": "feature",
+  "Issue": 251
+ },
+ {
+  "Title": "testutil/beaconmock: refactor http mock (#260)",
+  "Number": 260,
+  "Category": "feature",
+  "Issue": 251
+ },
+ {
+  "Title": "core/validatorapi: add validators to router (#259)",
+  "Number": 259,
+  "Category": "feature",
+  "Issue": 251
+ },
+ {
+  "Title": "testutil/keystore: use hardcoded password (#258)",
+  "Number": 258,
+  "Category": "feature",
+  "Issue": 251
+ },
+ {
+  "Title": "core/aggsigdb: implement in-memory AggSigDB (#249)",
+  "Number": 249,
+  "Category": "feature",
+  "Issue": 220
+ }
+]
