@@ -82,17 +82,20 @@ category: feature
 release: mainnet
 ```
 
-### Githooks
-Charon is configured with [pre-commit](https://pre-commit.com) githooks that ensures pull
-requests adhere to a minimum standard and are consistent.
+### Dev tools, git hooks and linters.
 
-The githooks are run as a GitHub action for each PR commit. But it is highly recommended
-running the githooks locally while developing for faster feedback.
+Charon is configured with [pre-commit](https://pre-commit.com) **githooks** that ensures pull
+requests adhere to a minimum standard and are consistent. The githooks are run as a GitHub action
+for each PR commit. But it is highly recommended running the githooks locally while developing for faster feedback.
 
-To install:
+To install githooks:
 - Follow installation instructions [here](https://pre-commit.com/#installation) to install the `pre-commit` tool.
 - Once installed, run `pre-commit install` in the project's root directory. This will setup the hooks.
 - Note you can skip the hooks by committing with `-n`: `git commit -n -m "look mom no githooks"`
+
+The **linter** used is [golangci-lint](https://golangci-lint.run/). It runs as part of the githooks and is configured in [.golangci.yml](../.golangci.yml)
+
+Different **dev tools** are used in throughout the code base and are defined and installed from [tools.go](../tools.go). To install the dev tools run: `go generate tools.go`
 
 ## Anything missing?
 
