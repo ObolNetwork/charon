@@ -68,8 +68,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	// Create expected aggregated signature
 	aggSig, err := tbls.Aggregate(psigs)
 	require.NoError(t, err)
-	expect, err := aggSig.MarshalBinary()
-	require.NoError(t, err)
+	expect := tblsconv.SigToCore(aggSig)
 
 	agg := sigagg.New(threshold)
 
@@ -125,8 +124,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	// Create expected aggregated signature
 	aggSig, err := tbls.Aggregate(psigs)
 	require.NoError(t, err)
-	expect, err := aggSig.MarshalBinary()
-	require.NoError(t, err)
+	expect := tblsconv.SigToCore(aggSig)
 
 	agg := sigagg.New(threshold)
 

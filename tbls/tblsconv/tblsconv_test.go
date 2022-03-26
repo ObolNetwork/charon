@@ -86,6 +86,11 @@ func TestSig(t *testing.T) {
 
 	require.Equal(t, b1, b2)
 	require.Equal(t, b1, b3)
+
+	coreSig := tblsconv.SigToCore(sig3)
+	sig4, err := tblsconv.SigFromCore(coreSig)
+	require.NoError(t, err)
+	require.Equal(t, sig3, sig4)
 }
 
 func TestShareToSecret(t *testing.T) {

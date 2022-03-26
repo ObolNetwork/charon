@@ -74,7 +74,7 @@ func EncodeAttestationParSignedData(att *eth2p0.Attestation, shareIdx int) (ParS
 
 	return ParSignedData{
 		Data:      data,
-		Signature: append([]byte{}, att.Signature[:]...), // Copy the signature
+		Signature: Signature{}.FromETH2(att.Signature), // Copy the signature
 		ShareIdx:  shareIdx,
 	}, nil
 }
@@ -99,7 +99,7 @@ func EncodeAttestationAggSignedData(att *eth2p0.Attestation) (AggSignedData, err
 
 	return AggSignedData{
 		Data:      data,
-		Signature: append([]byte{}, att.Signature[:]...), // Copy the signature
+		Signature: Signature{}.FromETH2(att.Signature), // Copy the signature
 	}, nil
 }
 

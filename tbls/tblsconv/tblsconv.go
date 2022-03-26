@@ -104,6 +104,22 @@ func SigFromBytes(sig []byte) (*bls_sig.Signature, error) {
 	return &bls_sig.Signature{Value: *point}, nil
 }
 
+// SigToCore converts a kryptology bls signature into a core workflow Signature type.
+func SigToCore(sig *bls_sig.Signature) core.Signature {
+	s := sig.Value.ToCompressed()
+	return core.Signature{}.FromETH2(s)
+}
+
+// SigFromCore converts a core workflow Signature type into a kryptology bls signature.
+func SigFromCore(sig core.Signature) (*bls_sig.Signature, error) {
+	point, err := new(bls12381.G2).FromCompressed((*[96]byte)(sig))
+	if err != nil {
+		return nil, errors.Wrap(err, "uncompress sig")
+	}
+
+	return &bls_sig.Signature{Value: *point}, nil
+}
+
 // SigToBytes converts a kryptology bls signature to bytes.
 func SigToBytes(sig *bls_sig.Signature) []byte {
 	resp := sig.Value.ToCompressed()
