@@ -29,7 +29,7 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestSigAgg(t *testing.T) {
+func TestSigAgg_DutyAttester(t *testing.T) {
 	ctx := context.Background()
 
 	const (
@@ -88,5 +88,62 @@ func TestSigAgg(t *testing.T) {
 
 	// Run aggregation
 	err = agg.Aggregate(ctx, core.Duty{Type: core.DutyAttester}, "", parsigs)
+	require.NoError(t, err)
+}
+
+func TestSigAgg_DutyRandao(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		threshold = 3
+		peers     = 4
+	)
+
+	msg := []byte("RANDAO reveal")
+
+	// Generate private shares
+	tss, secrets, err := tbls.GenerateTSS(threshold, peers, rand.Reader)
+	require.NoError(t, err)
+
+	// Create partial signatures (in two formats)
+	var (
+		parsigs []core.ParSignedData
+		psigs   []*bls_sig.PartialSignature
+	)
+	for _, secret := range secrets {
+		psig, err := tbls.PartialSign(secret, msg)
+		require.NoError(t, err)
+
+		sig := tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
+
+		parsig := core.EncodeRandaoParSignedData(&sig, int(psig.Identifier))
+
+		psigs = append(psigs, psig)
+		parsigs = append(parsigs, parsig)
+	}
+
+	// Create expected aggregated signature
+	aggSig, err := tbls.Aggregate(psigs)
+	require.NoError(t, err)
+	expect, err := aggSig.MarshalBinary()
+	require.NoError(t, err)
+
+	agg := sigagg.New(threshold)
+
+	// Assert output
+	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.AggSignedData) error {
+		require.Equal(t, expect, aggData.Signature)
+		sig, err := tblsconv.SigFromBytes(aggData.Signature)
+		require.NoError(t, err)
+
+		ok, err := tbls.Verify(tss.PublicKey(), msg, sig)
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		return nil
+	})
+
+	// Run aggregation
+	err = agg.Aggregate(ctx, core.Duty{Type: core.DutyRandao}, "", parsigs)
 	require.NoError(t, err)
 }
