@@ -20,32 +20,40 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestAggSignedData_Equal(t *testing.T) {
+	sig1 := testutil.RandomSignature()
 	testAggSignedData1 := core.AggSignedData{
 		Data:      []byte("test data"),
-		Signature: []byte("test signature"),
+		Signature: core.Signature{}.FromETH2(sig1),
 	}
+
+	sig2, err := testAggSignedData1.Signature.ToETH2()
+	require.NoError(t, err)
 
 	testAggSignedData2 := core.AggSignedData{
 		Data:      []byte("test data"),
-		Signature: []byte("test signature"),
+		Signature: core.Signature{}.FromETH2(*sig2),
 	}
 
+	sig3 := testutil.RandomSignature()
 	testAggSignedData3 := core.AggSignedData{
 		Data:      []byte("test data 3"),
-		Signature: []byte("test signature"),
+		Signature: core.Signature{}.FromETH2(sig3),
 	}
 
+	sig4 := testutil.RandomSignature()
 	testAggSignedData4 := core.AggSignedData{
 		Data:      []byte("test data"),
-		Signature: []byte("test signature 4"),
+		Signature: core.Signature{}.FromETH2(sig4),
 	}
 
+	sig5 := testutil.RandomSignature()
 	testAggSignedData5 := core.AggSignedData{
 		Data:      []byte("test data 5"),
-		Signature: []byte("test signature 5"),
+		Signature: core.Signature{}.FromETH2(sig5),
 	}
 
 	require.True(t, testAggSignedData1.Equal(testAggSignedData2))

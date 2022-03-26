@@ -94,7 +94,10 @@ func TestEncodeRandaoParSignedData(t *testing.T) {
 	randao1 := testutil.RandomSignature()
 
 	data1 := core.EncodeRandaoParSignedData(&randao1, 1)
-	randao2 := core.DecodeRandaoParSignedData(data1)
+
+	randao2, err := core.DecodeRandaoParSignedData(data1)
+	require.NoError(t, err)
+
 	data2 := core.EncodeRandaoParSignedData(randao2, 1)
 
 	require.Equal(t, randao1, *randao2)
@@ -105,7 +108,9 @@ func TestEncodeRandaoAggSignedData(t *testing.T) {
 	randao1 := testutil.RandomSignature()
 
 	data1 := core.EncodeRandaoAggSignedData(&randao1)
-	randao2 := core.DecodeRandaoAggSignedData(data1)
+
+	randao2, err := core.DecodeRandaoAggSignedData(data1)
+	require.NoError(t, err)
 	data2 := core.EncodeRandaoAggSignedData(randao2)
 
 	require.Equal(t, randao1, *randao2)
