@@ -54,8 +54,8 @@ func TestMemDB(t *testing.T) {
 	// Store the same attestation (same slot and committee) for two validators.
 
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
-		vIdxA: testutil.RandomPubKey(t),
-		vIdxB: testutil.RandomPubKey(t),
+		vIdxA: testutil.RandomCorePubKey(t),
+		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
 	// Kick of some queries, it should return when the data is populated.

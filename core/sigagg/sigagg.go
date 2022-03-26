@@ -74,7 +74,7 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 			return errors.New("mismatching signed root")
 		}
 
-		s, err := tblsconv.SigFromBytes(parSig.Signature)
+		s, err := tblsconv.SigFromCore(parSig.Signature)
 		if err != nil {
 			return errors.Wrap(err, "convert signature")
 		}

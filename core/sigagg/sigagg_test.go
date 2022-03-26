@@ -75,7 +75,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	// Assert output
 	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.AggSignedData) error {
 		require.Equal(t, expect, aggData.Signature)
-		sig, err := tblsconv.SigFromBytes(aggData.Signature)
+		sig, err := tblsconv.SigFromCore(aggData.Signature)
 		require.NoError(t, err)
 
 		ok, err := tbls.Verify(tss.PublicKey(), msg, sig)
@@ -131,7 +131,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	// Assert output
 	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.AggSignedData) error {
 		require.Equal(t, expect, aggData.Signature)
-		sig, err := tblsconv.SigFromBytes(aggData.Signature)
+		sig, err := tblsconv.SigFromCore(aggData.Signature)
 		require.NoError(t, err)
 
 		ok, err := tbls.Verify(tss.PublicKey(), msg, sig)

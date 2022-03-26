@@ -250,7 +250,7 @@ func (c Component) verifyParSig(ctx context.Context, typ core.DutyType, epoch et
 	}
 
 	// Convert the signature
-	s, err := tblsconv.SigFromBytes(sig[:])
+	s, err := tblsconv.SigFromETH2(sig)
 	if err != nil {
 		return errors.Wrap(err, "convert signature")
 	}

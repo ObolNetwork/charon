@@ -50,8 +50,8 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 	)
 
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
-		vIdxA: testutil.RandomPubKey(t),
-		vIdxB: testutil.RandomPubKey(t),
+		vIdxA: testutil.RandomCorePubKey(t),
+		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
 	component, err := validatorapi.NewComponentInsecure(eth2Svc, 0)

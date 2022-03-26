@@ -129,8 +129,8 @@ func (k PubKey) ToETH2() (eth2p0.BLSPubKey, error) {
 type Signature []byte
 
 // FromETH2 returns the signature from eth2 phase0 BLSSignature.
-func (s Signature) FromETH2(sig eth2p0.BLSSignature) Signature {
-	s = make(Signature, sigLen)
+func SigFromETH2(sig eth2p0.BLSSignature) Signature {
+	s := make(Signature, sigLen)
 	copy(s, sig[:])
 
 	return s
@@ -138,9 +138,6 @@ func (s Signature) FromETH2(sig eth2p0.BLSSignature) Signature {
 
 // ToETH2 returns the signature as an eth2 phase0 BLSSignature.
 func (s Signature) ToETH2() (*eth2p0.BLSSignature, error) {
-	if sigLen != len(s) {
-		return nil, errors.New("invalid signature")
-	}
 	sig := new(eth2p0.BLSSignature)
 	copy(sig[:], s)
 
