@@ -44,6 +44,27 @@ func EncodeAttesterFetchArg(attDuty *eth2v1.AttesterDuty) (FetchArg, error) {
 	return b, nil
 }
 
+// DecodeProposerFetchArg return the proposer duty from the encoded FetchArg.
+func DecodeProposerFetchArg(fetchArg FetchArg) (*eth2v1.ProposerDuty, error) {
+	proDuty := new(eth2v1.ProposerDuty)
+	err := json.Unmarshal(fetchArg, proDuty)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal proposer duty")
+	}
+
+	return proDuty, nil
+}
+
+// EncodeProposerFetchArg return the proposer duty as an encoded FetchArg.
+func EncodeProposerFetchArg(proDuty *eth2v1.ProposerDuty) (FetchArg, error) {
+	b, err := json.Marshal(proDuty)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal proposer duty")
+	}
+
+	return b, nil
+}
+
 // DecodeAttesterUnsignedData return the attestation data from the encoded UnsignedData.
 func DecodeAttesterUnsignedData(unsignedData UnsignedData) (*AttestationData, error) {
 	attData := new(AttestationData)
