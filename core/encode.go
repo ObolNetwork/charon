@@ -115,28 +115,28 @@ func DecodeAttestationAggSignedData(data AggSignedData) (*eth2p0.Attestation, er
 }
 
 // EncodeRandaoParSignedData returns the RANDAO reveal as an encoded ParSignedData.
-func EncodeRandaoParSignedData(randao *eth2p0.BLSSignature, shareIdx int) ParSignedData {
+func EncodeRandaoParSignedData(randao eth2p0.BLSSignature, shareIdx int) ParSignedData {
 	return ParSignedData{
-		Data:      randao[:],
-		Signature: SigFromETH2(*randao),
+		Data:      nil, // Randao is just a signature, so keeping data nil.
+		Signature: SigFromETH2(randao),
 		ShareIdx:  shareIdx,
 	}
 }
 
 // DecodeRandaoParSignedData returns the RANDAO reveal from the encoded ParSignedData as BLS signature.
-func DecodeRandaoParSignedData(data ParSignedData) *eth2p0.BLSSignature {
+func DecodeRandaoParSignedData(data ParSignedData) eth2p0.BLSSignature {
 	return data.Signature.ToETH2()
 }
 
 // EncodeRandaoAggSignedData returns the RANDAO reveal as an encoded AggSignedData.
-func EncodeRandaoAggSignedData(randao *eth2p0.BLSSignature) AggSignedData {
+func EncodeRandaoAggSignedData(randao eth2p0.BLSSignature) AggSignedData {
 	return AggSignedData{
-		Data:      randao[:],
-		Signature: SigFromETH2(*randao),
+		Data:      nil, // Randao is just a signature, so keeping data nil.
+		Signature: SigFromETH2(randao),
 	}
 }
 
 // DecodeRandaoAggSignedData returns the RANDAO reveal from the encoded AggSignedData as BLS Signature.
-func DecodeRandaoAggSignedData(data AggSignedData) *eth2p0.BLSSignature {
+func DecodeRandaoAggSignedData(data AggSignedData) eth2p0.BLSSignature {
 	return data.Signature.ToETH2()
 }

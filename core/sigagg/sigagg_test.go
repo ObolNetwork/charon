@@ -115,7 +115,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 
 		sig := tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
 
-		parsig := core.EncodeRandaoParSignedData(&sig, int(psig.Identifier))
+		parsig := core.EncodeRandaoParSignedData(sig, int(psig.Identifier))
 
 		psigs = append(psigs, psig)
 		parsigs = append(parsigs, parsig)
