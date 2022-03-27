@@ -91,7 +91,7 @@ func TestEncodeAttesterAggSignedData(t *testing.T) {
 }
 
 func TestEncodeRandaoParSignedData(t *testing.T) {
-	randao1 := testutil.RandomSignature()
+	randao1 := testutil.RandomEth2Signature()
 
 	data1 := core.EncodeRandaoParSignedData(&randao1, 1)
 	randao2 := core.DecodeRandaoParSignedData(data1)
@@ -102,7 +102,7 @@ func TestEncodeRandaoParSignedData(t *testing.T) {
 }
 
 func TestEncodeRandaoAggSignedData(t *testing.T) {
-	randao1 := testutil.RandomSignature()
+	randao1 := testutil.RandomEth2Signature()
 
 	data1 := core.EncodeRandaoAggSignedData(&randao1)
 	randao2 := core.DecodeRandaoAggSignedData(data1)

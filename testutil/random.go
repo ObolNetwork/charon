@@ -36,8 +36,8 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-// RandomPubKey returns a random core workflow pubkey.
-func RandomPubKey(t *testing.T) core.PubKey {
+// RandomCorePubKey returns a random core workflow pubkey.
+func RandomCorePubKey(t *testing.T) core.PubKey {
 	t.Helper()
 	buf := make([]byte, 48)
 	_, _ = rand.Read(buf)
@@ -48,8 +48,8 @@ func RandomPubKey(t *testing.T) core.PubKey {
 	return pubkey
 }
 
-// RandomBLSPubKey returns a random eth2 phase0 bls pubkey.
-func RandomBLSPubKey(t *testing.T) eth2p0.BLSPubKey {
+// RandomEth2PubKey returns a random eth2 phase0 bls pubkey.
+func RandomEth2PubKey(t *testing.T) eth2p0.BLSPubKey {
 	t.Helper()
 	pubkey, _, err := bls_sig.NewSigEth2().Keygen()
 	require.NoError(t, err)
@@ -63,7 +63,7 @@ func RandomAttestation() *eth2p0.Attestation {
 	return &eth2p0.Attestation{
 		AggregationBits: RandomBitList(),
 		Data:            RandomAttestationData(),
-		Signature:       RandomSignature(),
+		Signature:       RandomEth2Signature(),
 	}
 }
 
@@ -80,7 +80,7 @@ func RandomAttestationData() *eth2p0.AttestationData {
 func RandomAttestationDuty(t *testing.T) *eth2v1.AttesterDuty {
 	t.Helper()
 	return &eth2v1.AttesterDuty{
-		PubKey:                  RandomBLSPubKey(t),
+		PubKey:                  RandomEth2PubKey(t),
 		Slot:                    RandomSlot(),
 		ValidatorIndex:          RandomVIdx(),
 		CommitteeIndex:          RandomCommIdx(),
@@ -97,9 +97,16 @@ func RandomRoot() eth2p0.Root {
 	return resp
 }
 
-func RandomSignature() eth2p0.BLSSignature {
+func RandomEth2Signature() eth2p0.BLSSignature {
 	var resp eth2p0.BLSSignature
 	_, _ = rand.Read(resp[:])
+
+	return resp
+}
+
+func RandomCoreSignature() core.Signature {
+	resp := make(core.Signature, 96)
+	_, _ = rand.Read(resp)
 
 	return resp
 }

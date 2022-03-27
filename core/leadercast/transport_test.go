@@ -46,7 +46,7 @@ func TestMemTransport(t *testing.T) {
 	// generate random public keys for each peer
 	pubkeysByIdx := map[int]core.PubKey{}
 	for i := 0; i < n; i++ {
-		pubkeysByIdx[i] = testutil.RandomPubKey(t)
+		pubkeysByIdx[i] = testutil.RandomCorePubKey(t)
 	}
 
 	// leadercast in memory transport consensus for peers for each slot
@@ -160,7 +160,7 @@ func TestP2PTransport(t *testing.T) {
 	// generate random public keys for each peer
 	pubkeysByIdx := map[int]core.PubKey{}
 	for i := 0; i < n; i++ {
-		pubkeysByIdx[i] = testutil.RandomPubKey(t)
+		pubkeysByIdx[i] = testutil.RandomCorePubKey(t)
 	}
 
 	// leadercast P2P transport consensus for peers for each slot
