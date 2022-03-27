@@ -128,20 +128,20 @@ func (k PubKey) ToETH2() (eth2p0.BLSPubKey, error) {
 // Signature is a BLS12-381 Signature.
 type Signature []byte
 
-// SigFromETH2 returns a signature from eth2 phase0 BLSSignature.
-func SigFromETH2(sig eth2p0.BLSSignature) Signature {
-	s := make(Signature, sigLen)
-	copy(s, sig[:])
-
-	return s
-}
-
 // ToETH2 returns the signature as an eth2 phase0 BLSSignature.
 func (s Signature) ToETH2() eth2p0.BLSSignature {
 	var sig eth2p0.BLSSignature
 	copy(sig[:], s)
 
 	return sig
+}
+
+// SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
+func SigFromETH2(sig eth2p0.BLSSignature) Signature {
+	s := make(Signature, sigLen)
+	copy(s, sig[:])
+
+	return s
 }
 
 // FetchArg contains the arguments required to fetch the duty data,
