@@ -137,11 +137,11 @@ func SigFromETH2(sig eth2p0.BLSSignature) Signature {
 }
 
 // ToETH2 returns the signature as an eth2 phase0 BLSSignature.
-func (s Signature) ToETH2() (*eth2p0.BLSSignature, error) {
+func (s Signature) ToETH2() *eth2p0.BLSSignature {
 	sig := new(eth2p0.BLSSignature)
 	copy(sig[:], s)
 
-	return sig, nil
+	return sig
 }
 
 // FetchArg contains the arguments required to fetch the duty data,

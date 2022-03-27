@@ -104,6 +104,13 @@ func RandomEth2Signature() eth2p0.BLSSignature {
 	return resp
 }
 
+func RandomCoreSignature() core.Signature {
+	resp := make(core.Signature, 96)
+	_, _ = rand.Read(resp)
+
+	return resp
+}
+
 func RandomCheckpoint() *eth2p0.Checkpoint {
 	var resp eth2p0.Root
 	_, _ = rand.Read(resp[:])

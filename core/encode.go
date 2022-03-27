@@ -124,7 +124,7 @@ func EncodeRandaoParSignedData(randao *eth2p0.BLSSignature, shareIdx int) ParSig
 }
 
 // DecodeRandaoParSignedData returns the RANDAO reveal from the encoded ParSignedData as BLS signature.
-func DecodeRandaoParSignedData(data ParSignedData) (*eth2p0.BLSSignature, error) {
+func DecodeRandaoParSignedData(data ParSignedData) *eth2p0.BLSSignature {
 	return data.Signature.ToETH2()
 }
 
@@ -137,6 +137,6 @@ func EncodeRandaoAggSignedData(randao *eth2p0.BLSSignature) AggSignedData {
 }
 
 // DecodeRandaoAggSignedData returns the RANDAO reveal from the encoded AggSignedData as BLS Signature.
-func DecodeRandaoAggSignedData(data AggSignedData) (*eth2p0.BLSSignature, error) {
+func DecodeRandaoAggSignedData(data AggSignedData) *eth2p0.BLSSignature {
 	return data.Signature.ToETH2()
 }

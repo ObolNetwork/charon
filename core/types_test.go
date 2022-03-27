@@ -24,36 +24,29 @@ import (
 )
 
 func TestAggSignedData_Equal(t *testing.T) {
-	sig1 := testutil.RandomEth2Signature()
 	testAggSignedData1 := core.AggSignedData{
 		Data:      []byte("test data"),
-		Signature: core.SigFromETH2(sig1),
+		Signature: testutil.RandomCoreSignature(),
 	}
-
-	sig2, err := testAggSignedData1.Signature.ToETH2()
-	require.NoError(t, err)
 
 	testAggSignedData2 := core.AggSignedData{
 		Data:      []byte("test data"),
-		Signature: core.SigFromETH2(*sig2),
+		Signature: testAggSignedData1.Signature,
 	}
 
-	sig3 := testutil.RandomEth2Signature()
 	testAggSignedData3 := core.AggSignedData{
 		Data:      []byte("test data 3"),
-		Signature: core.SigFromETH2(sig3),
+		Signature: testutil.RandomCoreSignature(),
 	}
 
-	sig4 := testutil.RandomEth2Signature()
 	testAggSignedData4 := core.AggSignedData{
 		Data:      []byte("test data"),
-		Signature: core.SigFromETH2(sig4),
+		Signature: testutil.RandomCoreSignature(),
 	}
 
-	sig5 := testutil.RandomEth2Signature()
 	testAggSignedData5 := core.AggSignedData{
 		Data:      []byte("test data 5"),
-		Signature: core.SigFromETH2(sig5),
+		Signature: testutil.RandomCoreSignature(),
 	}
 
 	require.True(t, testAggSignedData1.Equal(testAggSignedData2))
