@@ -135,6 +135,10 @@ func TestBody(t *testing.T) {
 			Body:  "Foo\n\ncategory: bug\nticket:https://s",
 			Error: "ticket tag invalid url",
 		},
+		{
+			Body:  "<!--\n\ncategory: bug\nticket: none",
+			Error: "instructions not deleted (markdown comments present)",
+		},
 	}
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
