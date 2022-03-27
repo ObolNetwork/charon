@@ -93,21 +93,21 @@ func TestEncodeAttesterAggSignedData(t *testing.T) {
 func TestEncodeRandaoParSignedData(t *testing.T) {
 	randao1 := testutil.RandomEth2Signature()
 
-	data1 := core.EncodeRandaoParSignedData(&randao1, 1)
+	data1 := core.EncodeRandaoParSignedData(randao1, 1)
 	randao2 := core.DecodeRandaoParSignedData(data1)
 	data2 := core.EncodeRandaoParSignedData(randao2, 1)
 
-	require.Equal(t, randao1, *randao2)
+	require.Equal(t, randao1, randao2)
 	require.Equal(t, data1, data2)
 }
 
 func TestEncodeRandaoAggSignedData(t *testing.T) {
 	randao1 := testutil.RandomEth2Signature()
 
-	data1 := core.EncodeRandaoAggSignedData(&randao1)
+	data1 := core.EncodeRandaoAggSignedData(randao1)
 	randao2 := core.DecodeRandaoAggSignedData(data1)
 	data2 := core.EncodeRandaoAggSignedData(randao2)
 
-	require.Equal(t, randao1, *randao2)
+	require.Equal(t, randao1, randao2)
 	require.Equal(t, data1, data2)
 }

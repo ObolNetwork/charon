@@ -122,7 +122,7 @@ func getAggSignedData(typ core.DutyType, data core.ParSignedData, aggSig *bls_si
 
 		return core.EncodeAttestationAggSignedData(att)
 	case core.DutyRandao:
-		return core.EncodeRandaoAggSignedData(&eth2Sig), nil
+		return core.EncodeRandaoAggSignedData(eth2Sig), nil
 	default:
 		return core.AggSignedData{}, errors.New("unsupported duty type")
 	}
