@@ -188,7 +188,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				continue
 			}
 
-			b, err := core.EncodeAttesterFetchArg(attDuty)
+			arg, err := core.EncodeAttesterFetchArg(attDuty)
 			if err != nil {
 				return errors.Wrap(err, "encode attester duty")
 			}
@@ -206,7 +206,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				continue
 			}
 
-			argSet[pubkey] = b
+			argSet[pubkey] = arg
 			s.duties[duty] = argSet
 
 			log.Debug(ctx, "Resolved attester duty",
@@ -231,7 +231,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				continue
 			}
 
-			b, err := core.EncodeProposerFetchArg(proDuty)
+			arg, err := core.EncodeProposerFetchArg(proDuty)
 			if err != nil {
 				return errors.Wrap(err, "encode proposer duty")
 			}
@@ -249,7 +249,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				continue
 			}
 
-			argSet[pubkey] = b
+			argSet[pubkey] = arg
 			s.duties[duty] = argSet
 
 			log.Debug(ctx, "Resolved proposer duty",
