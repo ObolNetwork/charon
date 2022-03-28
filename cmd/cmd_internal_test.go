@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -50,6 +51,10 @@ func TestCmdFlags(t *testing.T) {
 			Name: "run command",
 			Args: slice("run"),
 			appConfig: &app.Config{
+				Log: log.Config{
+					Level:  "info",
+					Format: "console",
+				},
 				P2P: p2p.Config{
 					UDPAddr:   "127.0.0.1:30309",
 					TCPAddrs:  []string{"127.0.0.1:13900"},
