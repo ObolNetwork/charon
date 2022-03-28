@@ -24,13 +24,15 @@ import (
 
 var (
 	apiLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "validatorapi",
+		Namespace: "core",
+		Subsystem: "validatorapi",
 		Name:      "request_latency_seconds",
 		Help:      "The validatorapi request latencies in seconds by endpoint",
 	}, []string{"endpoint"})
 
 	apiErrors = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "validatorapi",
+		Namespace: "core",
+		Subsystem: "validatorapi",
 		Name:      "request_error_total",
 		Help:      "The total number of validatorapi request errors",
 	}, []string{"endpoint", "status_code"})
