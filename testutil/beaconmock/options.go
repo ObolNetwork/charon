@@ -209,6 +209,7 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 	}
 }
 
+//nolint:revive
 // WithDeterministicDuties configures the mock to provide deterministic duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
 func WithDeterministicDuties(factor int) Option {
