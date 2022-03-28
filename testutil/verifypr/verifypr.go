@@ -124,6 +124,9 @@ func verifyBody(body string) error {
 	if strings.TrimSpace(body) == "" {
 		return errors.New("body empty")
 	}
+	if strings.Contains(body, "<!--") {
+		return errors.New("instructions not deleted (markdown comments present)")
+	}
 
 	var (
 		prevLineEmpty bool
