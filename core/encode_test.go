@@ -111,3 +111,19 @@ func TestEncodeRandaoAggSignedData(t *testing.T) {
 	require.Equal(t, randao1, randao2)
 	require.Equal(t, data1, data2)
 }
+
+func TestEncodeProposerFetchArg(t *testing.T) {
+	proDuty1 := testutil.RandomProposerDuty(t)
+
+	arg1, err := core.EncodeProposerFetchArg(proDuty1)
+	require.NoError(t, err)
+
+	proDuty2, err := core.DecodeProposerFetchArg(arg1)
+	require.NoError(t, err)
+
+	arg2, err := core.EncodeProposerFetchArg(proDuty2)
+	require.NoError(t, err)
+
+	require.Equal(t, arg1, arg2)
+	require.Equal(t, proDuty1, proDuty2)
+}

@@ -90,6 +90,15 @@ func RandomAttestationDuty(t *testing.T) *eth2v1.AttesterDuty {
 	}
 }
 
+func RandomProposerDuty(t *testing.T) *eth2v1.ProposerDuty {
+	t.Helper()
+	return &eth2v1.ProposerDuty{
+		PubKey:         RandomEth2PubKey(t),
+		Slot:           RandomSlot(),
+		ValidatorIndex: RandomVIdx(),
+	}
+}
+
 func RandomRoot() eth2p0.Root {
 	var resp eth2p0.Root
 	_, _ = rand.Read(resp[:])

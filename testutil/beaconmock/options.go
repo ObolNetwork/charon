@@ -250,6 +250,40 @@ func WithDeterministicDuties(factor int) Option {
 
 			return resp, nil
 		}
+
+		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			vals, err := mock.Validators(ctx, "", indices)
+			if err != nil {
+				return nil, err
+			}
+
+			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			sort.Slice(indices, func(i, j int) bool {
+				return indices[i] < indices[j]
+			})
+
+			var resp []*eth2v1.ProposerDuty
+			for i, index := range indices {
+				val, ok := vals[index]
+				if !ok {
+					continue
+				}
+
+				offset := (i * factor) % int(slotsPerEpoch)
+
+				resp = append(resp, &eth2v1.ProposerDuty{
+					PubKey:         val.Validator.PublicKey,
+					Slot:           eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(offset)),
+					ValidatorIndex: index,
+				})
+			}
+
+			return resp, nil
+		}
 	}
 }
 
