@@ -20,7 +20,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"go.uber.org/zap"
@@ -72,10 +71,8 @@ func InitLogger(config Config) error {
 
 	encConfig := zap.NewProductionEncoderConfig()
 	encoder := zapcore.NewJSONEncoder(encConfig)
-	if config.Format != "logfmt" {
-		encConfig.EncodeTime = func(ts time.Time, encoder zapcore.PrimitiveArrayEncoder) {
-			encoder.AppendString(ts.UTC().Format(time.RFC3339Nano))
-		}
+	if config.Format == "logfmt" {
+		encConfig.EncodeTime = zapcore.RFC3339NanoTimeEncoder
 		encoder = zaplogfmt.NewEncoder(encConfig)
 	} else if config.Format != "json" {
 		return errors.New("logger format not console, logfmt or json", z.Str("format", config.Format))
