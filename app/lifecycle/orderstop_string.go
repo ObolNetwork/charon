@@ -22,13 +22,13 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
-	_ = x[StopTracing-6]
-	_ = x[StopScheduler-7]
-	_ = x[StopP2PPeerDB-8]
-	_ = x[StopP2PTCPNode-9]
-	_ = x[StopP2PUDPNode-10]
-	_ = x[StopMonitoringAPI-11]
-	_ = x[StopValidatorAPI-12]
+	_ = x[StopTracing-7]
+	_ = x[StopScheduler-8]
+	_ = x[StopP2PPeerDB-9]
+	_ = x[StopP2PTCPNode-10]
+	_ = x[StopP2PUDPNode-11]
+	_ = x[StopMonitoringAPI-12]
+	_ = x[StopValidatorAPI-13]
 }
 
 const _OrderStop_name = "TracingSchedulerP2PPeerDBP2PTCPNodeP2PUDPNodeMonitoringAPIValidatorAPI"
@@ -36,9 +36,9 @@ const _OrderStop_name = "TracingSchedulerP2PPeerDBP2PTCPNodeP2PUDPNodeMonitoring
 var _OrderStop_index = [...]uint8{0, 7, 16, 25, 35, 45, 58, 70}
 
 func (i OrderStop) String() string {
-	i -= 6
+	i -= 7
 	if i < 0 || i >= OrderStop(len(_OrderStop_index)-1) {
-		return "OrderStop(" + strconv.FormatInt(int64(i+6), 10) + ")"
+		return "OrderStop(" + strconv.FormatInt(int64(i+7), 10) + ")"
 	}
 	return _OrderStop_name[_OrderStop_index[i]:_OrderStop_index[i+1]]
 }
