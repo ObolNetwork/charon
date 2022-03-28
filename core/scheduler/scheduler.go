@@ -191,7 +191,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 
 			b, err := json.Marshal(attDuty)
 			if err != nil {
-				return errors.Wrap(err, "unmarshal duty")
+				return errors.Wrap(err, "marshal duty")
 			}
 
 			duty := core.Duty{Slot: int64(attDuty.Slot), Type: core.DutyAttester}
@@ -215,6 +215,47 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				z.U64("vidx", uint64(attDuty.ValidatorIndex)),
 				z.U64("slot", uint64(attDuty.Slot)),
 				z.U64("commidx", uint64(attDuty.CommitteeIndex)),
+				z.Any("pubkey", pubkey))
+		}
+	}
+
+	// resolve proposer duties
+	{
+		proDuties, err := s.eth2Cl.ProposerDuties(ctx, slot.Epoch(), vals.Indexes())
+		if err != nil {
+			return err
+		}
+
+		for _, proDuty := range proDuties {
+			if proDuty.Slot < eth2p0.Slot(slot.Slot) {
+				continue
+			}
+
+			b, err := json.Marshal(proDuty)
+			if err != nil {
+				return errors.Wrap(err, "marshal duty")
+			}
+
+			duty := core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
+
+			argSet, ok := s.duties[duty]
+			if !ok {
+				argSet = make(core.FetchArgSet)
+			}
+
+			pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
+			if !ok {
+				log.Warn(ctx, "ignoring unexpected proposer duty", z.U64("vidx", uint64(proDuty.ValidatorIndex)))
+				continue
+			}
+
+			argSet[pubkey] = b
+			s.duties[duty] = argSet
+
+			log.Debug(ctx, "Resolved proposer duty",
+				z.U64("epoch", uint64(slot.Epoch())),
+				z.U64("vidx", uint64(proDuty.ValidatorIndex)),
+				z.U64("slot", uint64(proDuty.Slot)),
 				z.Any("pubkey", pubkey))
 		}
 	}
