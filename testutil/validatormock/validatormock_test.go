@@ -38,7 +38,7 @@ func TestAttest(t *testing.T) {
 	}{
 		{
 			DutyFactor: 0, // All validators in first slot of epoch
-			Expect:     2,
+			Expect:     3,
 		},
 		{
 			DutyFactor: 1, // Validators spread over 1st, 2nd, 3rd slots of epoch

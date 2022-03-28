@@ -230,10 +230,6 @@ func WithDeterministicDuties(factor int) Option {
 
 			var resp []*eth2v1.AttesterDuty
 			for i, index := range indices {
-				if i == factor {
-					continue
-				}
-
 				val, ok := vals[index]
 				if !ok {
 					continue
@@ -272,10 +268,6 @@ func WithDeterministicDuties(factor int) Option {
 
 			var resp []*eth2v1.ProposerDuty
 			for i, index := range indices {
-				if i != factor {
-					continue
-				}
-
 				val, ok := vals[index]
 				if !ok {
 					continue
