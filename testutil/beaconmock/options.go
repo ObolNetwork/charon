@@ -209,9 +209,9 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 	}
 }
 
-//nolint:revive
 // WithDeterministicDuties configures the mock to provide deterministic duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
+//nolint:revive
 func WithDeterministicDuties(factor int) Option {
 	return func(mock *Mock) {
 		mock.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
