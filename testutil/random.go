@@ -93,7 +93,7 @@ func RandomAttestationDuty(t *testing.T) *eth2v1.AttesterDuty {
 func RandomProposerDuty(t *testing.T) *eth2v1.ProposerDuty {
 	t.Helper()
 	return &eth2v1.ProposerDuty{
-		PubKey:         RandomBLSPubKey(t),
+		PubKey:         RandomEth2PubKey(t),
 		Slot:           RandomSlot(),
 		ValidatorIndex: RandomVIdx(),
 	}
