@@ -16,7 +16,6 @@ package scheduler
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -189,9 +188,9 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				continue
 			}
 
-			b, err := json.Marshal(attDuty)
+			b, err := core.EncodeAttesterFetchArg(attDuty)
 			if err != nil {
-				return errors.Wrap(err, "marshal duty")
+				return errors.Wrap(err, "encode attester duty")
 			}
 
 			duty := core.Duty{Slot: int64(attDuty.Slot), Type: core.DutyAttester}
@@ -228,12 +227,13 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 
 		for _, proDuty := range proDuties {
 			if proDuty.Slot < eth2p0.Slot(slot.Slot) {
+				// Skip duties for earlier slots in initial epoch.
 				continue
 			}
 
-			b, err := json.Marshal(proDuty)
+			b, err := core.EncodeProposerFetchArg(proDuty)
 			if err != nil {
-				return errors.Wrap(err, "marshal duty")
+				return errors.Wrap(err, "encode proposer duty")
 			}
 
 			duty := core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
