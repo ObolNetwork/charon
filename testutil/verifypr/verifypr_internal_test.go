@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//nolint:dupl
 package main
 
 import (
@@ -134,6 +135,10 @@ func TestBody(t *testing.T) {
 		{
 			Body:  "Foo\n\ncategory: bug\nticket:https://s",
 			Error: "ticket tag invalid url",
+		},
+		{
+			Body:  "<!--\n\ncategory: bug\nticket: none",
+			Error: "instructions not deleted (markdown comments present)",
 		},
 	}
 	for i, test := range tests {

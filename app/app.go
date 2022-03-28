@@ -21,7 +21,9 @@ import (
 	"crypto/ecdsa"
 	"net/http"
 	"net/http/pprof"
+	"time"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -64,6 +66,7 @@ type Config struct {
 	ValidatorAPIAddr string
 	BeaconNodeAddr   string
 	JaegerAddr       string
+	Simnet           bool
 	SimnetVMock      bool
 
 	TestConfig TestConfig
@@ -83,8 +86,6 @@ type TestConfig struct {
 	ParSigExFunc func() core.ParSigEx
 	// LcastTransportFunc provides an in-memory leader cast transport.
 	LcastTransportFunc func() leadercast.Transport
-	// DisableSimnet disables the simnet.
-	DisableSimnet bool
 	// SimnetKeys provides private key shares for the simnet validatormock signer.
 	SimnetKeys []*bls_sig.SecretKey
 	// SimnetBMockOpts defines additional simnet beacon mock options.
@@ -138,7 +139,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	wireMonitoringAPI(life, conf.MonitoringAddr, localEnode)
 
-	if err := wireSimNetCoreWorkflow(life, conf, manifest, nodeIdx, tcpNode); err != nil {
+	if err := wireCoreWorkflow(ctx, life, conf, manifest, nodeIdx, tcpNode); err != nil {
 		return err
 	}
 
@@ -198,13 +199,9 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 	return tcpNode, localEnode, nil
 }
 
-// wireSimNetCoreWorkflow wires a simnet core workflow including a beaconmock and validatormock.
-//nolint:cyclop
-func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manifest, nodeIdx NodeIdx, tcpNode host.Host) error {
-	if conf.TestConfig.DisableSimnet {
-		return nil
-	}
-
+// wireCoreWorkflow wires the core workflow components.
+//nolint:cyclop,revive
+func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config, manifest Manifest, nodeIdx NodeIdx, tcpNode host.Host) error {
 	// Convert and prep public keys and public shares
 	var (
 		corePubkeys    []core.PubKey
@@ -242,24 +239,40 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 		pubshares = append(pubshares, eth2Share)
 	}
 
-	// Configure the beacon mock.
-	opts := []beaconmock.Option{
-		beaconmock.WithDeterministicDuties(100),
-		beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
+	// Configure the beacon node api.
+	var eth2Cl eth2client.Service
+	if conf.Simnet {
+		// Configure the beacon mock.
+		opts := []beaconmock.Option{
+			beaconmock.WithSlotDuration(time.Second),
+			beaconmock.WithDeterministicDuties(100),
+			beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
+		}
+		opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
+		bmock, err := beaconmock.New(opts...)
+		if err != nil {
+			return err
+		}
+		conf.BeaconNodeAddr = bmock.HTTPAddr()
+		eth2Cl = bmock
+		life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
+	} else {
+		var err error
+		eth2Cl, err = eth2http.New(ctx,
+			eth2http.WithLogLevel(1),
+			eth2http.WithAddress(conf.BeaconNodeAddr),
+		)
+		if err != nil {
+			return errors.Wrap(err, "new eth2 http client")
+		}
 	}
-	opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
-	bmock, err := beaconmock.New(opts...)
+
+	sched, err := scheduler.New(corePubkeys, eth2Cl)
 	if err != nil {
 		return err
 	}
-	conf.BeaconNodeAddr = bmock.HTTPServerAddr
 
-	sched, err := scheduler.New(corePubkeys, bmock)
-	if err != nil {
-		return err
-	}
-
-	fetch, err := fetcher.New(bmock)
+	fetch, err := fetcher.New(eth2Cl)
 	if err != nil {
 		return err
 	}
@@ -275,7 +288,7 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 
 	dutyDB := dutydb.NewMemDB()
 
-	vapi, err := validatorapi.NewComponent(bmock, pubSharesByKey, nodeIdx.ShareIdx)
+	vapi, err := validatorapi.NewComponent(eth2Cl, pubSharesByKey, nodeIdx.ShareIdx)
 	if err != nil {
 		return err
 	}
@@ -297,7 +310,7 @@ func wireSimNetCoreWorkflow(life *lifecycle.Manager, conf Config, manifest Manif
 
 	aggSigDB := aggsigdb.NewMemDB()
 
-	broadcaster, err := bcast.New(bmock)
+	broadcaster, err := bcast.New(eth2Cl)
 	if err != nil {
 		return err
 	}
@@ -416,7 +429,7 @@ func (h httpServeHook) Call(context.Context) error {
 // wireValidatorMock wires the validator mock if enabled. The validator mock attestions
 // will be triggered by scheduler's DutyAttester. It connects via http validatorapi.Router.
 func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
-	if !conf.SimnetVMock {
+	if !conf.Simnet || !conf.SimnetVMock {
 		return nil
 	}
 
@@ -442,14 +455,15 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 			addr := "http://" + conf.ValidatorAPIAddr
 			cl, err := eth2http.New(ctx, eth2http.WithLogLevel(1), eth2http.WithAddress(addr))
 			if err != nil {
-				log.Warn(ctx, "validatorapi client", z.Err(err))
+				log.Warn(ctx, "Cannot connect to validatorapi", z.Err(err))
+				return
 			}
 
 			err = validatormock.Attest(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), pubshares...)
 			if err != nil {
-				log.Warn(ctx, "attestation failed", z.Err(err))
+				log.Warn(ctx, "Attestation failed", z.Err(err))
 			} else {
-				log.Info(ctx, "attestation success", z.I64("slot", duty.Slot))
+				log.Info(ctx, "Attestation success", z.I64("slot", duty.Slot))
 			}
 		}()
 

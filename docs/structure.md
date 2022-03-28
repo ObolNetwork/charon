@@ -31,11 +31,11 @@ charon/             # project root
 │  ├─ leadercast/   # consensus implementation (will add qbft later)
 │  ├─ dutydb/       # dutydb
 │  ├─ validatorapi/ # validatorapi
-│  ├─ sigdb/        # sigdb
-│  ├─ sigex/        # sigex
+│  ├─ parsigdb/     # parsigdb
+│  ├─ parsigex/     # parsigex
 │  ├─ sigagg/       # sigagg
-│  ├─ aggdb/        # aggdb
-│  ├─ broadcast/    # broadcast
+│  ├─ aggsigdb/     # aggsigdb
+│  ├─ bcast/        # broadcast
 │
 ├─ p2p/             # p2p networking services
 │  ├─ p2p.go        # libp2p tcp service, provides inter node communication
@@ -43,10 +43,17 @@ charon/             # project root
 │  ├─ ping.go       # ping libp2p protocol
 │
 ├─ tbls/            # bls threshold signature scheme; verify, aggregate partial signatures
+│  ├─ tblsconv/     # bls threshold type conversion (tbls to/from core and eth2 types)
 │
-├─ testutil/        # testing libraries
+├─ testutil/        # testing libraries (unit, integration, simnet)
 │  ├─ golden.go     # golden file testing
 │  ├─ beaconmock/   # beacon client mock
+│  ├─ validatormock/# validator client mock
+│  ├─ keystore/     # Simnet EIP 2335 keystore files
+│  ├─ verifypr/     # Github PR template verifier
+│  ├─ genchangelog/ # Generate changelog markdown
+│
+├─ docs/            # Documentation
 ```
 
 - `github.com/obolnetwork/charon`: Project root and main package
@@ -90,3 +97,36 @@ charon/             # project root
 - `testutil/`: Test utilities
   - `beaconmock/`: Beacon-node client mock used for testing and simnet.
   - `validatormock/`: Validator client mock used for testing and simnet.
+
+The package import hierarchy can be illustrated as follows:
+```
+
+
+                  ┌──────┐
+                  │ main │
+                  └──┬───┘
+                     │                               app/*
+                  ┌──▼───┐                      ┌───────────────┐
+                  │ cmd  ├──────────────────────► ┌─────────┐   │
+                  └──┬───┘                      │ │ version │   │
+                     │                          │ └─────────┘   │
+                  ┌──▼───┐                      │ ┌─────────┐   │
+                  │ app  ├──────────────────────► │    z    ◄─┐ │
+   core/*         └──┬───┘                      │ └─▲───────┘ │ │
+  ┌──────┐           │                          │ ┌─┴───────┐ │ │
+  │sched │◄──────┬───┴───────┬────────┐         │ │ errors  ◄─┤ │
+  ├──────┤       │           │        │         │ └─────────┘ │ │
+  │fetch │    ┌──▼───┐       │        │         │ ┌─────────┐ │ │
+  ├──────┼────► core ├───────┼────────┼─────────► │  log    ◄─► │
+  │dutydb│    └──────┘       │        │         │ └─────────┘ │ │
+  ├──────┤                   │        │         │ ┌─────────┐ │ │
+  │...   │              ┌────▼───┐    │         │ │ tracer  ├─┤ │
+  ├──────┼──────────────►  tbls  ├────┼─────────► └─────────┘ │ │
+  │sigagg│              ├────▲───┤    │         │ ┌─────────┐ │ │
+  ├──────┤              │tblsconv│  ┌─▼─┐       │ │lifecycle├─┘ │
+  │bcast │              └────────┘  │p2p├───────► └─────────┘   │
+  └──┬───┘                          └─▲─┘       └──────▲────────┘
+     │                                │                │
+     └────────────────────────────────┴────────────────┘
+
+```

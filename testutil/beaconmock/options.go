@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash/fnv"
+	"net/http"
 	"sort"
 	"strings"
 	"time"
@@ -168,11 +169,6 @@ func WithEndpoint(endpoint string, value string) Option {
 func WithGenesisTime(t0 time.Time) Option {
 	return func(mock *Mock) {
 		mock.overrides = append(mock.overrides, staticOverride{
-			Endpoint: "/eth/v1/config/spec",
-			Key:      "MIN_GENESIS_TIME",
-			Value:    fmt.Sprint(t0.Unix()),
-		})
-		mock.overrides = append(mock.overrides, staticOverride{
 			Endpoint: "/eth/v1/beacon/genesis",
 			Key:      "genesis_time",
 			Value:    fmt.Sprint(t0.Unix()),
@@ -215,6 +211,7 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 
 // WithDeterministicDuties configures the mock to provide deterministic duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
+//nolint:revive
 func WithDeterministicDuties(factor int) Option {
 	return func(mock *Mock) {
 		mock.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
@@ -254,6 +251,40 @@ func WithDeterministicDuties(factor int) Option {
 
 			return resp, nil
 		}
+
+		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			vals, err := mock.Validators(ctx, "", indices)
+			if err != nil {
+				return nil, err
+			}
+
+			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			sort.Slice(indices, func(i, j int) bool {
+				return indices[i] < indices[j]
+			})
+
+			var resp []*eth2v1.ProposerDuty
+			for i, index := range indices {
+				val, ok := vals[index]
+				if !ok {
+					continue
+				}
+
+				offset := (i * factor) % int(slotsPerEpoch)
+
+				resp = append(resp, &eth2v1.ProposerDuty{
+					PubKey:         val.Validator.PublicKey,
+					Slot:           eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(offset)),
+					ValidatorIndex: index,
+				})
+			}
+
+			return resp, nil
+		}
 	}
 }
 
@@ -265,11 +296,11 @@ func WithClock(clock clockwork.Clock) Option {
 }
 
 // defaultMock returns a minimum viable mock that doesn't panic and returns mostly empty responses.
-func defaultMock(httpMock HTTPMock, addr string, clock clockwork.Clock) Mock {
+func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clock) Mock {
 	return Mock{
-		clock:          clock,
-		HTTPMock:       httpMock,
-		HTTPServerAddr: addr,
+		clock:      clock,
+		HTTPMock:   httpMock,
+		httpServer: httpServer,
 		ProposerDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return []*eth2v1.ProposerDuty{}, nil
 		},

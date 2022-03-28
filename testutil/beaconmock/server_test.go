@@ -32,7 +32,7 @@ func TestStatic(t *testing.T) {
 
 	gen, err := eth2Cl.Genesis(ctx)
 	require.NoError(t, err)
-	require.Equal(t, "2021-03-23 14:00:00 +0000 UTC", gen.GenesisTime.UTC().String())
+	require.Equal(t, "2022-03-01 00:00:00 +0000 UTC", gen.GenesisTime.UTC().String())
 
 	config, err := eth2Cl.Spec(ctx)
 	require.NoError(t, err)
@@ -44,7 +44,7 @@ func TestStatic(t *testing.T) {
 
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	require.NoError(t, err)
-	require.Equal(t, uint64(32), slotsPerEpoch)
+	require.Equal(t, uint64(16), slotsPerEpoch)
 
 	state, err := eth2Cl.NodeSyncing(ctx)
 	require.NoError(t, err)
@@ -122,4 +122,25 @@ func TestEndpointOverride(t *testing.T) {
 	require.Len(t, fs, 1)
 	require.EqualValues(t, [4]byte{}, fs[0].CurrentVersion)
 	require.EqualValues(t, [4]byte{0x12, 0x34, 0x56, 0x78}, fs[0].PreviousVersion)
+}
+
+func TestDefaultOverrides(t *testing.T) {
+	ctx := context.Background()
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	spec, err := bmock.Spec(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t, "charon-simnet", spec["CONFIG_NAME"])
+	require.Equal(t, "gnosis", spec["PRESET_BASE"])
+	require.EqualValues(t, 16, spec["SLOTS_PER_EPOCH"])
+
+	slotsPerEpoch, err := bmock.SlotsPerEpoch(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, 16, slotsPerEpoch)
+
+	genesis, err := bmock.GenesisTime(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "2022-03-01 00:00:00 +0000 UTC", genesis.UTC().String())
 }

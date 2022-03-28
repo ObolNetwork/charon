@@ -30,8 +30,9 @@ type DutyType int
 
 const (
 	DutyUnknown = DutyType(iota)
-	DutyAttester
 	DutyProposer
+	DutyAttester
+	DutyRandao
 	dutySentinal // Must always be last
 )
 
@@ -69,7 +70,10 @@ func (d Duty) String() string {
 	return fmt.Sprintf("%d/%s", d.Slot, d.Type)
 }
 
-const pkLen = 98 // "0x" + hex.Encode([48]byte) = 2+2*48
+const (
+	pkLen  = 98 // "0x" + hex.Encode([48]byte) = 2+2*48
+	sigLen = 96
+)
 
 // PubKeyFromBytes returns a new public key from raw bytes.
 func PubKeyFromBytes(bytes []byte) (PubKey, error) {
@@ -121,6 +125,25 @@ func (k PubKey) ToETH2() (eth2p0.BLSPubKey, error) {
 	return resp, nil
 }
 
+// Signature is a BLS12-381 Signature.
+type Signature []byte
+
+// ToETH2 returns the signature as an eth2 phase0 BLSSignature.
+func (s Signature) ToETH2() eth2p0.BLSSignature {
+	var sig eth2p0.BLSSignature
+	copy(sig[:], s)
+
+	return sig
+}
+
+// SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
+func SigFromETH2(sig eth2p0.BLSSignature) Signature {
+	s := make(Signature, sigLen)
+	copy(s, sig[:])
+
+	return s
+}
+
 // FetchArg contains the arguments required to fetch the duty data,
 // it is the result of resolving duties at the start of an epoch.
 type FetchArg []byte
@@ -148,7 +171,7 @@ type ParSignedData struct {
 	// Data is the partially signed duty data received from VC.
 	Data []byte
 	// Signature of tbls share extracted from data.
-	Signature []byte
+	Signature Signature
 	// ShareIdx of the tbls share.
 	ShareIdx int
 }
@@ -162,7 +185,7 @@ type AggSignedData struct {
 	// Data is the signed duty data to be sent to beacon chain.
 	Data []byte
 	// Signature is the result of tbls aggregation and is inserted into the data.
-	Signature []byte
+	Signature Signature
 }
 
 func (a AggSignedData) Equal(b AggSignedData) bool {

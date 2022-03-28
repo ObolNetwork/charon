@@ -37,12 +37,16 @@ package beaconmock
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 // Interface assertions.
@@ -59,7 +63,7 @@ var (
 // New returns a new beacon client mock configured with the default and provided options.
 func New(opts ...Option) (Mock, error) {
 	// Configure http mock first.
-	temp := Mock{clock: clockwork.NewRealClock()}
+	temp := defaultHTTPMock()
 	for _, opt := range opts {
 		opt(&temp)
 	}
@@ -69,7 +73,7 @@ func New(opts ...Option) (Mock, error) {
 	}
 
 	// Then configure the mock
-	mock := defaultMock(httpMock, "http://"+httpServer.Addr, temp.clock)
+	mock := defaultMock(httpMock, httpServer, temp.clock)
 	for _, opt := range opts {
 		opt(&mock)
 	}
@@ -77,13 +81,44 @@ func New(opts ...Option) (Mock, error) {
 	return mock, nil
 }
 
+// defaultHTTPMock returns a mock with default http mock overrides.
+func defaultHTTPMock() Mock {
+	// Default to recent genesis for lower slot and epoch numbers.
+	genesis := time.Date(2022, 3, 1, 0, 0, 0, 0, time.UTC)
+	return Mock{
+		clock: clockwork.NewRealClock(),
+		overrides: []staticOverride{
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "CONFIG_NAME",
+				Value:    "charon-simnet",
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "PRESET_BASE",
+				Value:    "gnosis", // Using gnosis since has shorter slots per epoch (16)
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "SLOTS_PER_EPOCH",
+				Value:    "16",
+			},
+			{
+				Endpoint: "/eth/v1/beacon/genesis",
+				Key:      "genesis_time",
+				Value:    fmt.Sprint(genesis.Unix()),
+			},
+		},
+	}
+}
+
 // Mock provides a mock beacon client and implements eth2client.Service and many of the eth2client Providers.
 // Create a new instance with default behaviour via New and then override any function.
 type Mock struct {
 	HTTPMock
-	HTTPServerAddr string
-	overrides      []staticOverride
-	clock          clockwork.Clock
+	httpServer *http.Server
+	overrides  []staticOverride
+	clock      clockwork.Clock
 
 	AttestationDataFunc    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
@@ -133,4 +168,17 @@ func (Mock) Name() string {
 
 func (Mock) Address() string {
 	return "mock-address"
+}
+
+func (m Mock) HTTPAddr() string {
+	return "http://" + m.httpServer.Addr
+}
+
+func (m Mock) Close() error {
+	err := m.httpServer.Close()
+	if err != nil {
+		return errors.Wrap(err, "close server")
+	}
+
+	return nil
 }

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -62,6 +63,9 @@ type staticOverride struct {
 
 // newHTTPServer returns a beacon API mock http server.
 func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, error) {
+	debug := os.Getenv("BEACONMOCK_DEBUG") == "true" // NOTE: These logs are verbose, so disabled by default.
+	shutdown := make(chan struct{})
+
 	endpoints := []struct {
 		Path    string
 		Handler http.HandlerFunc
@@ -96,7 +100,10 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 			Path: "/eth/v1/events",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				// TODO(corver): Send keep alives
-				<-r.Context().Done()
+				select {
+				case <-shutdown:
+				case <-r.Context().Done():
+				}
 			},
 		},
 	}
@@ -109,7 +116,9 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 		r.Handle(e.Path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := log.WithTopic(r.Context(), "bmock")
 			ctx = log.WithCtx(ctx, z.Str("path", e.Path))
-			log.Debug(ctx, "Serving mocked endpoint")
+			if debug {
+				log.Debug(ctx, "Serving mocked endpoint")
+			}
 			e.Handler(w, r)
 		}))
 	}
@@ -141,12 +150,18 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 
 			return
 		}
-
-		log.Debug(ctx, "Serving static endpoint")
+		if debug {
+			log.Debug(ctx, "Serving static endpoint")
+		}
 		_, _ = w.Write(resp)
 	}))
 
-	return &http.Server{Addr: addr, Handler: r}, nil
+	s := http.Server{Addr: addr, Handler: r}
+	s.RegisterOnShutdown(func() {
+		close(shutdown)
+	})
+
+	return &s, nil
 }
 
 // newHTTPMock starts and returns a static beacon mock http server and client.

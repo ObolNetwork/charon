@@ -16,7 +16,6 @@ package scheduler
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -163,6 +162,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 }
 
 // resolveDuties resolves the duties for the slot's epoch, caching the results.
+//nolint:revive
 func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.pubkeys, slot.Slot)
 	if err != nil {
@@ -189,9 +189,9 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				continue
 			}
 
-			b, err := json.Marshal(attDuty)
+			arg, err := core.EncodeAttesterFetchArg(attDuty)
 			if err != nil {
-				return errors.Wrap(err, "unmarshal duty")
+				return errors.Wrap(err, "encode attester duty")
 			}
 
 			duty := core.Duty{Slot: int64(attDuty.Slot), Type: core.DutyAttester}
@@ -207,7 +207,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				continue
 			}
 
-			argSet[pubkey] = b
+			argSet[pubkey] = arg
 			s.duties[duty] = argSet
 
 			log.Debug(ctx, "Resolved attester duty",
@@ -215,6 +215,48 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				z.U64("vidx", uint64(attDuty.ValidatorIndex)),
 				z.U64("slot", uint64(attDuty.Slot)),
 				z.U64("commidx", uint64(attDuty.CommitteeIndex)),
+				z.Any("pubkey", pubkey))
+		}
+	}
+
+	// resolve proposer duties
+	{
+		proDuties, err := s.eth2Cl.ProposerDuties(ctx, slot.Epoch(), vals.Indexes())
+		if err != nil {
+			return err
+		}
+
+		for _, proDuty := range proDuties {
+			if proDuty.Slot < eth2p0.Slot(slot.Slot) {
+				// Skip duties for earlier slots in initial epoch.
+				continue
+			}
+
+			arg, err := core.EncodeProposerFetchArg(proDuty)
+			if err != nil {
+				return errors.Wrap(err, "encode proposer duty")
+			}
+
+			duty := core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
+
+			argSet, ok := s.duties[duty]
+			if !ok {
+				argSet = make(core.FetchArgSet)
+			}
+
+			pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
+			if !ok {
+				log.Warn(ctx, "ignoring unexpected proposer duty", z.U64("vidx", uint64(proDuty.ValidatorIndex)))
+				continue
+			}
+
+			argSet[pubkey] = arg
+			s.duties[duty] = argSet
+
+			log.Debug(ctx, "Resolved proposer duty",
+				z.U64("epoch", uint64(slot.Epoch())),
+				z.U64("vidx", uint64(proDuty.ValidatorIndex)),
+				z.U64("slot", uint64(proDuty.Slot)),
 				z.Any("pubkey", pubkey))
 		}
 	}

@@ -62,6 +62,9 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchAr
 	)
 
 	switch duty.Type {
+	case core.DutyProposer:
+		// TODO(dhruv): Add support for proposer here
+		return nil
 	case core.DutyAttester:
 		unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, argSet)
 		if err != nil {

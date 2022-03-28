@@ -56,6 +56,11 @@ func run() error {
 		return fmt.Errorf("environments variable empty: %s", prenv)
 	}
 
+	if strings.Contains(prJSON, "build(deps)") && strings.Contains(prJSON, "dependabot") {
+		fmt.Println("Skipping dependabot PR")
+		return nil
+	}
+
 	var pr PR
 	err := json.Unmarshal([]byte(prJSON), &pr)
 	if err != nil {
@@ -118,6 +123,9 @@ func verifyTitle(title string) error {
 func verifyBody(body string) error {
 	if strings.TrimSpace(body) == "" {
 		return errors.New("body empty")
+	}
+	if strings.Contains(body, "<!--") {
+		return errors.New("instructions not deleted (markdown comments present)")
 	}
 
 	var (

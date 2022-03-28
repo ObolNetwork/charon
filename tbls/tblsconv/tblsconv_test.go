@@ -76,16 +76,10 @@ func TestSig(t *testing.T) {
 	sig2, err := tblsconv.SigFromETH2(eth2Sig)
 	require.NoError(t, err)
 
-	b1 := tblsconv.SigToBytes(sig1)
-	b2 := tblsconv.SigToBytes(sig2)
-
-	sig3, err := tblsconv.SigFromBytes(b2)
+	coreSig := tblsconv.SigToCore(sig2)
+	sig3, err := tblsconv.SigFromCore(coreSig)
 	require.NoError(t, err)
-
-	b3 := tblsconv.SigToBytes(sig3)
-
-	require.Equal(t, b1, b2)
-	require.Equal(t, b1, b3)
+	require.Equal(t, sig2, sig3)
 }
 
 func TestShareToSecret(t *testing.T) {
@@ -104,8 +98,8 @@ func TestShareToSecret(t *testing.T) {
 		sig, err := tbls.Sign(secret, msg)
 		require.NoError(t, err)
 
-		pdata := tblsconv.SigToBytes(&bls_sig.Signature{Value: psig.Signature})
-		data := tblsconv.SigToBytes(sig)
+		pdata := tblsconv.SigToCore(&bls_sig.Signature{Value: psig.Signature})
+		data := tblsconv.SigToCore(sig)
 
 		require.Equal(t, pdata, data)
 	}
@@ -144,8 +138,8 @@ func TestShareToSecret_ZeroPadding(t *testing.T) {
 		sig, err := tbls.Sign(secret, msg)
 		require.NoError(t, err)
 
-		pdata := tblsconv.SigToBytes(&bls_sig.Signature{Value: psig.Signature})
-		data := tblsconv.SigToBytes(sig)
+		pdata := tblsconv.SigToCore(&bls_sig.Signature{Value: psig.Signature})
+		data := tblsconv.SigToCore(sig)
 
 		require.Equal(t, pdata, data)
 	}
