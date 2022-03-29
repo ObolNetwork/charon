@@ -16,7 +16,6 @@ package fetcher
 
 import (
 	"context"
-	"crypto/rand"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -89,6 +88,8 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchAr
 	return nil
 }
 
+// RegisterAggSigDB registers a function to get resolved aggregated signed data from the AggSigDB.
+// Note: This is not thread safe should be called *before* Fetch.
 func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.AggSignedData, error)) {
 	f.aggSigDBFunc = fn
 }
@@ -151,10 +152,9 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core
 		}
 		randaoEth2 := core.DecodeRandaoAggSignedData(randao)
 
-		// TODO(dhruv): what to do with graffiti? This will make this BeaconBlock unique for this charon node
-		// passing randam graffiti since it is not required in API
+		// TODO(dhruv): what to do with graffiti?
+		// passing empty graffiti since it is not required in API
 		var graffiti [32]byte
-		_, _ = rand.Read(graffiti[:])
 		eth2ProData, err := f.eth2Cl.BeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randaoEth2, graffiti[:])
 		if err != nil {
 			return nil, err
