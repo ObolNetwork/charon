@@ -46,8 +46,14 @@ type Broadcaster struct {
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
 func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
-	_ core.PubKey, aggData core.AggSignedData,
-) error {
+	pubkey core.PubKey, aggData core.AggSignedData,
+) (err error) {
+	defer func() {
+		if err == nil {
+			instrumentDuty(duty, pubkey)
+		}
+	}()
+
 	switch duty.Type {
 	case core.DutyAttester:
 		att, err := core.DecodeAttestationAggSignedData(aggData)

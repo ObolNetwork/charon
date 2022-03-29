@@ -27,6 +27,7 @@ import (
 )
 
 type ctxKey struct{}
+type topicKey struct{}
 
 // WithCtx returns a copy of the context with which the logging fields are associated.
 // Usage:
@@ -36,17 +37,27 @@ type ctxKey struct{}
 //  log.Info(ctx, "Slot processed") // Will contain field: slot=1234
 //
 func WithCtx(ctx context.Context, fields ...z.Field) context.Context {
-	return context.WithValue(ctx, ctxKey{}, append(fields, fromCtx(ctx)...))
+	return context.WithValue(ctx, ctxKey{}, append(fields, fieldsFromCtx(ctx)...))
 }
 
 // WithTopic is a convenience function that adds the topic
 // contextual logging field to the returned child context.
 func WithTopic(ctx context.Context, component string) context.Context {
+	ctx = context.WithValue(ctx, topicKey{}, component)
 	return WithCtx(ctx, z.Str("topic", component))
 }
 
-func fromCtx(ctx context.Context) []z.Field {
+func fieldsFromCtx(ctx context.Context) []z.Field {
 	resp, _ := ctx.Value(ctxKey{}).([]z.Field)
+	return resp
+}
+
+func metricsTopicFromCtx(ctx context.Context) string {
+	resp, _ := ctx.Value(topicKey{}).(string)
+	if resp == "" {
+		return "unknown"
+	}
+
 	return resp
 }
 
@@ -65,12 +76,14 @@ func Info(ctx context.Context, msg string, fields ...z.Field) {
 // Warn logs the message and fields (incl fields in the context) at Warn level.
 // TODO(corver): Add indication of when warn should be used.
 func Warn(ctx context.Context, msg string, fields ...z.Field) {
+	incWarnCounter(ctx)
 	logger.Warn(msg, unwrapDedup(ctx, fields...)...)
 }
 
 // Error wraps err with msg and fields and logs it (incl fields in the context) at Error level.
 // TODO(corver): Add indication of when error should be used.
 func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
+	incErrorCounter(ctx)
 	err = errors.SkipWrap(err, msg, 2, fields...)
 	logger.Error(err.Error(), unwrapDedup(ctx, errFields(err))...)
 }
@@ -91,7 +104,7 @@ func unwrapDedup(ctx context.Context, fields ...z.Field) []zap.Field {
 		field(adder)
 	}
 
-	for _, field := range fromCtx(ctx) {
+	for _, field := range fieldsFromCtx(ctx) {
 		field(adder)
 	}
 

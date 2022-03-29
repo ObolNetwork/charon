@@ -120,6 +120,7 @@ func (s *Scheduler) Run() error {
 
 // scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
 func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
+	instrumentSlot(slot)
 	if slot.Initial {
 		err := s.resolveDuties(ctx, slot)
 		if err != nil {
@@ -133,14 +134,16 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 			Type: dutyType,
 		}
 
-		dvs, ok := s.duties[duty]
+		argSet, ok := s.duties[duty]
 		if !ok {
 			// Nothing for this duty.
 			continue
 		}
 
+		instrumentDuty(duty, argSet)
+
 		for _, sub := range s.subs {
-			err := sub(ctx, duty, dvs)
+			err := sub(ctx, duty, argSet)
 			if err != nil {
 				// TODO(corver): Improve error handling; possibly call subscription async
 				//  with backoff until duty expires.
