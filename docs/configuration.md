@@ -27,6 +27,7 @@ Flags:
       --data-dir string                The directory where charon will store all its internal data (default "./charon/data")
   -h, --help                           help for run
       --jaeger-address string          Listening address for jaeger tracing
+      --jaeger-service string          Service name used for jaeger tracing (default "charon")
       --log-format string              Log format; console, logfmt or json (default "console")
       --log-level string               Log level; debug, info, warn or error (default "info")
       --manifest-file string           The path to the manifest file defining distributed validator cluster (default "./charon/manifest.json")
