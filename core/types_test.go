@@ -63,7 +63,7 @@ func TestWithDutySpanCtx(t *testing.T) {
 	stop, err := tracer.Init(tracer.WithStdOut(io.Discard))
 	require.NoError(t, err)
 	defer func() {
-		require.NoError(t, stop(context.Background()))
+		require.NoError(t, stop(ctx))
 	}()
 
 	_, span1 := tracer.Start(core.DutyTraceRoot(ctx, core.Duty{}), "span1")
