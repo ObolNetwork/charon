@@ -1,53 +1,41 @@
-# Change Log
+# v0.0.0 - 2022-03-29
 
-All notable changes to this project will be documented in this file.
+This release introduces general fixes and improvements including progress on great new features.
 
-The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
+**Full Changelog**: [v0.1.1..HEAD](https://github.com/obolnetwork/charon/compare/v0.1.1..HEAD)
 
-<!--  -->
-## [Unreleased] - yyyy-mm-dd
+## Feature
+- Implement SigEx v1 #167 (#194)
+- app: integrate life cycle #162 (#162)
+- Support configuring log format and level #296 (#297)
+- Load private shares when running simnet #216 (#232)
+- Implement SigAgg component #184 (#192)
+- Implement ParSigDB #166 (#183)
+- Create fetcher v1 for attester data #156 (#175)
+- Improve gen-simnet run_cluster output #154 (#231)
+- Implement validatorapi component #179 (#180)
+- app/life: implement life cycle manager #161 (#161)
 
-First Charon client that will need disk write access, may run into `chmod` issues.
-### Added
+## Bug
+- Ping logger concurrent map write #197 (#199)
 
-    OBOL-02 FEATURE Instantiate an ENR
-    OBOL-03 FEATURE Add prometheus + grafana to local docker compose
-    OBOL-222 FEATURE Added code coverage reporting to Charon CI/CD
+## Refactor
+- Simplify p2p flag names #151 (#152)
+- Follow up on kryptology issues #168 (#188)
+- Refactor core workflow types #163 (#174)
+- Create scheduler v1  #145 (#149,#137,#144,#136)
+- Introduce explicit core.Signature type #289 (#294)
+- Integrate the simnet core workflow #203 (#206,#202,#205)
+- Implement dutyDB v1 #165 (#182,#178)
 
-### Changed
-### Fixed
+## Docs
+- Implement AggSigDB #220 (#249,#238)
+- Add project structure docs #146 (#171,#155)
 
-<!--  -->
-## [v0.1.0] - 2022-01-24
+## Test
+- Add integration unit test using one teku validator client #268 (#271)
+- app: add teku simnet integration test #271 (#273)
 
-First alpha release of Charon.
-### Added
-
-    OBOL-103 Implement networking
-    OBOL-105 Implement BLS signature aggregation
-
-### Changed
-### Fixed
-
-<!--  -->
-## [v0.0.2] - 2020-11-01
-
-Added information relating to a future Obol product
-
-### Added
-### Changed
-
-    OBOL-01 MINOR Cleanup readme and release process
-
-### Fixed
-
-<!--  -->
-## [v0.0.1] - 2020-10-28
-
-First Charon tagged release
-
-### Added
-
-    Everything
-### Changed
-### Fixed
+## Misc
+- Support lighthouse validator-client in a simnet cluster #251 (#265,#264,#263,#260,#259,#258,#252)
+- Add and verify PR templates #239 (#241,#240)
