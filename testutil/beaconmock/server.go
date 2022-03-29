@@ -85,6 +85,13 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 			},
 		},
 		{
+			Path: "/eth/v1/validator/aggregate_attestation",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"code": 403,"message": "Beacon node was not assigned to aggregate on that subnet."}`))
+			},
+		},
+		{
 			Path: "/eth/v1/node/version",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(`{"data": {"version": "charon/static_beacon_mock"}}`))

@@ -26,8 +26,10 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-type ctxKey struct{}
-type topicKey struct{}
+type (
+	ctxKey   struct{}
+	topicKey struct{}
+)
 
 // WithCtx returns a copy of the context with which the logging fields are associated.
 // Usage:
