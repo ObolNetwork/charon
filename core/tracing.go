@@ -16,11 +16,25 @@ package core
 
 import (
 	"context"
+	"hash/fnv"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/tracer"
 )
+
+// DutyTraceRoot returns a copy of the parent context containing a tracing span context rooted
+// to the duty.
+func DutyTraceRoot(ctx context.Context, duty Duty) context.Context {
+	h := fnv.New128a()
+	_, _ = h.Write([]byte(duty.String()))
+
+	var traceID trace.TraceID
+	copy(traceID[:], h.Sum(nil))
+
+	return tracer.RootedCtx(ctx, traceID)
+}
 
 // WithTracing wraps component input functions with tracing spans.
 func WithTracing() WireOption {
