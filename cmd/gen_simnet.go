@@ -284,7 +284,7 @@ func writeRunScript(clusterDir string, nodeDir string, charonBin string, monitor
 	flags = append(flags, fmt.Sprintf("--validator-api-address=\"127.0.0.1:%d\"", validatorAPIPort))
 	flags = append(flags, fmt.Sprintf("--p2p-tcp-address=%s", tcpAddr))
 	flags = append(flags, fmt.Sprintf("--p2p-udp-address=%s", udpAddr))
-	flags = append(flags, "--simnet")
+	flags = append(flags, "--simnet-beacon-mock")
 	flags = append(flags, "--simnet-validator-mock")
 
 	tmpl, err := template.New("").Parse(scriptTmpl)
