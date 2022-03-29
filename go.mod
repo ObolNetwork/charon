@@ -11,6 +11,7 @@ require (
 	github.com/ethereum/go-ethereum v1.10.16
 	github.com/gorilla/mux v1.8.0
 	github.com/jonboulle/clockwork v0.2.3
+	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/libp2p/go-libp2p v0.18.0
 	github.com/libp2p/go-libp2p-core v0.14.0
 	github.com/libp2p/go-libp2p-noise v0.3.0

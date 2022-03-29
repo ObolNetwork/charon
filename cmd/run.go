@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -44,6 +45,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 	bindRunFlags(cmd.Flags(), &conf)
 	bindGeneralFlags(cmd.Flags(), &conf.DataDir)
 	bindP2PFlags(cmd.Flags(), &conf.P2P)
+	bindLogFlags(cmd.Flags(), &conf.Log)
 
 	return cmd
 }
@@ -56,6 +58,11 @@ func bindRunFlags(flags *pflag.FlagSet, config *app.Config) {
 	flags.StringVar(&config.JaegerAddr, "jaeger-address", "", "Listening address for jaeger tracing")
 	flags.BoolVar(&config.Simnet, "simnet", false, "Enables simnet, starts and connects to an internal mock beacon node.")
 	flags.BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running simnet.")
+}
+
+func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
+	flags.StringVar(&config.Format, "log-format", "console", "Log format; console, logfmt or json")
+	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
 }
 
 func bindGeneralFlags(flags *pflag.FlagSet, dataDir *string) {

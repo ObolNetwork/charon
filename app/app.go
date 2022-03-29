@@ -60,6 +60,7 @@ import (
 
 type Config struct {
 	P2P              p2p.Config
+	Log              log.Config
 	ManifestFile     string
 	DataDir          string
 	MonitoringAddr   string
@@ -105,10 +106,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}()
 
-	log.Info(ctx, "Charon starting", z.Str("version", version.Version))
-
 	_, _ = maxprocs.Set()
 	initStartupMetrics()
+	if err := log.InitLogger(conf.Log); err != nil {
+		return err
+	}
+
+	log.Info(ctx, "Charon starting", z.Str("version", version.Version))
 
 	// Wire processes and their dependencies
 	life := new(lifecycle.Manager)

@@ -33,6 +33,7 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/leadercast"
 	"github.com/obolnetwork/charon/core/parsigex"
@@ -125,6 +126,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 	)
 	for i := 0; i < args.N; i++ {
 		conf := app.Config{
+			Log:              log.DefaultConfig(),
 			Simnet:           true,
 			SimnetVMock:      args.VMocks[i],
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address

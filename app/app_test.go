@@ -35,6 +35,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -117,6 +118,7 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	for i := 0; i < n; i++ {
 		conf := app.Config{
+			Log:              log.DefaultConfig(),
 			Simnet:           true,
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: testutil.AvailableAddr(t).String(), // Random validatorapi address
