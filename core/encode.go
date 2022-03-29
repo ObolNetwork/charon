@@ -161,3 +161,24 @@ func EncodeRandaoAggSignedData(randao eth2p0.BLSSignature) AggSignedData {
 func DecodeRandaoAggSignedData(data AggSignedData) eth2p0.BLSSignature {
 	return data.Signature.ToETH2()
 }
+
+// EncodeProposerUnsignedData returns the proposer data as an encoded UnsignedData.
+func EncodeProposerUnsignedData(proData *ProposerData) (UnsignedData, error) {
+	b, err := json.Marshal(proData)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal proposer data")
+	}
+
+	return b, nil
+}
+
+// DecodeProposerUnsignedData returns the proposer data as an encoded UnsignedData.
+func DecodeProposerUnsignedData(unsignedData UnsignedData) (*ProposerData, error) {
+	proData := new(ProposerData)
+	err := json.Unmarshal(unsignedData, proData)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal proposer data")
+	}
+
+	return proData, nil
+}

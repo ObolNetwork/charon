@@ -127,3 +127,22 @@ func TestEncodeProposerFetchArg(t *testing.T) {
 	require.Equal(t, arg1, arg2)
 	require.Equal(t, proDuty1, proDuty2)
 }
+
+func TestEncodeProposerUnsignedData(t *testing.T) {
+	proData1 := &core.ProposerData{
+		Data: *testutil.RandomBeaconBlock(),
+		Duty: *testutil.RandomProposerDuty(t),
+	}
+
+	data1, err := core.EncodeProposerUnsignedData(proData1)
+	require.NoError(t, err)
+
+	proData2, err := core.DecodeProposerUnsignedData(data1)
+	require.NoError(t, err)
+
+	data2, err := core.EncodeProposerUnsignedData(proData2)
+	require.NoError(t, err)
+
+	require.Equal(t, proData1, proData2)
+	require.Equal(t, data1, data2)
+}

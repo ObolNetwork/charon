@@ -26,6 +26,7 @@ import (
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 // Option defines a functional option to configure the mock beacon client.
@@ -211,7 +213,7 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 
 // WithDeterministicDuties configures the mock to provide deterministic duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
-//nolint:revive
+//nolint:revive,dupl
 func WithDeterministicDuties(factor int) Option {
 	return func(mock *Mock) {
 		mock.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
@@ -288,6 +290,51 @@ func WithDeterministicDuties(factor int) Option {
 	}
 }
 
+// WithDeterministicAttesterDuties configures the mock to provide deterministic duties based on provided arguments and config.
+// Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
+//nolint:dupl
+func WithDeterministicAttesterDuties(factor int) Option {
+	return func(mock *Mock) {
+		mock.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+			vals, err := mock.Validators(ctx, "", indices)
+			if err != nil {
+				return nil, err
+			}
+
+			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			sort.Slice(indices, func(i, j int) bool {
+				return indices[i] < indices[j]
+			})
+
+			var resp []*eth2v1.AttesterDuty
+			for i, index := range indices {
+				val, ok := vals[index]
+				if !ok {
+					continue
+				}
+
+				offset := (i * factor) % int(slotsPerEpoch)
+
+				resp = append(resp, &eth2v1.AttesterDuty{
+					PubKey:                  val.Validator.PublicKey,
+					Slot:                    eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(offset)),
+					ValidatorIndex:          index,
+					CommitteeIndex:          eth2p0.CommitteeIndex(offset),
+					CommitteeLength:         slotsPerEpoch,
+					CommitteesAtSlot:        slotsPerEpoch,
+					ValidatorCommitteeIndex: uint64(index),
+				})
+			}
+
+			return resp, nil
+		}
+	}
+}
+
 // WithClock configures the mock with the provided clock.
 func WithClock(clock clockwork.Clock) Option {
 	return func(mock *Mock) {
@@ -301,6 +348,28 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		clock:      clock,
 		HTTPMock:   httpMock,
 		httpServer: httpServer,
+		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
+			return &spec.VersionedBeaconBlock{
+				Version: spec.DataVersionPhase0,
+				Phase0: &eth2p0.BeaconBlock{
+					Slot: slot,
+					Body: &eth2p0.BeaconBlockBody{
+						RANDAOReveal: randaoReveal,
+						ETH1Data: &eth2p0.ETH1Data{
+							DepositRoot:  testutil.RandomRoot(),
+							DepositCount: 0,
+							BlockHash:    testutil.RandomBytes(),
+						},
+						Graffiti:          testutil.RandomBytes(),
+						ProposerSlashings: []*eth2p0.ProposerSlashing{},
+						AttesterSlashings: []*eth2p0.AttesterSlashing{},
+						Attestations:      []*eth2p0.Attestation{testutil.RandomAttestation(), testutil.RandomAttestation()},
+						Deposits:          []*eth2p0.Deposit{},
+						VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
+					},
+				},
+			}, nil
+		},
 		ProposerDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return []*eth2v1.ProposerDuty{}, nil
 		},

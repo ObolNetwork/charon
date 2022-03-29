@@ -33,6 +33,10 @@ type Fetcher interface {
 
 	// Subscribe registers a callback for proposed unsigned duty data sets.
 	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
+
+	// RegisterAggSigDB registers a function to resolved aggregated
+	// signed data from the AggSigDB (e.g., randao reveals).
+	RegisterAggSigDB(func(context.Context, Duty, PubKey) (AggSignedData, error))
 }
 
 // DutyDB persists unsigned duty data sets and makes it available for querying. It also acts
@@ -139,6 +143,7 @@ func Wire(
 ) {
 	sched.Subscribe(fetch.Fetch)
 	fetch.Subscribe(cons.Propose)
+
 	cons.Subscribe(dutyDB.Store)
 	vapi.RegisterAwaitAttestation(dutyDB.AwaitAttestation)
 	vapi.RegisterPubKeyByAttestation(dutyDB.PubKeyByAttestation)
