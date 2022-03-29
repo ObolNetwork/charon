@@ -119,7 +119,7 @@ func pingCluster(t *testing.T, test pingTest) {
 	for i := 0; i < n; i++ {
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
-			Simnet:           true,
+			SimnetBMock:      true,
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: testutil.AvailableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{

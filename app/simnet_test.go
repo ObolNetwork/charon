@@ -127,7 +127,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 	for i := 0; i < args.N; i++ {
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
-			Simnet:           true,
+			SimnetBMock:      true,
 			SimnetVMock:      args.VMocks[i],
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: args.VAPIAddrs[i],
