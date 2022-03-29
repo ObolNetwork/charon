@@ -67,7 +67,7 @@ type Config struct {
 	ValidatorAPIAddr string
 	BeaconNodeAddr   string
 	JaegerAddr       string
-	Simnet           bool
+	SimnetBMock      bool
 	SimnetVMock      bool
 
 	TestConfig TestConfig
@@ -245,7 +245,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	// Configure the beacon node api.
 	var eth2Cl eth2client.Service
-	if conf.Simnet {
+	if conf.SimnetBMock {
 		// Configure the beacon mock.
 		opts := []beaconmock.Option{
 			beaconmock.WithSlotDuration(time.Second),
@@ -433,7 +433,7 @@ func (h httpServeHook) Call(context.Context) error {
 // wireValidatorMock wires the validator mock if enabled. The validator mock attestions
 // will be triggered by scheduler's DutyAttester. It connects via http validatorapi.Router.
 func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
-	if !conf.Simnet || !conf.SimnetVMock {
+	if !conf.SimnetBMock || !conf.SimnetVMock {
 		return nil
 	}
 
