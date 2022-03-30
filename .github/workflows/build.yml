@@ -6,22 +6,17 @@ on:
 name: Build docker image
 jobs:
   build-docker:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
     name: Build Docker Image
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+
     - uses: actions/checkout@v2
-      with:
-        fetch-depth: '50'
-    # Substring the git sha
+
     - id: get-version
       run: |
         version=$(echo "${{ github.sha }}" | cut -c1-8)
         echo "::set-output name=version::$version"
 
-    # Runs a single command using the runners shell
     - name: Publish to registry
       uses: elgohr/Publish-Docker-Github-Action@3.04
       env:
@@ -33,7 +28,7 @@ jobs:
         password: ${{ secrets.CONTAINER_REGISTRY_SECRET }}
         buildargs: GITHUB_SHA=${{ github.sha }}
         registry: ghcr.io
-#        registry: docker.pkg.github.com
         tags: "latest,${{steps.get-version.outputs.version}}"
+
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}

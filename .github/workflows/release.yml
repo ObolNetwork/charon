@@ -4,26 +4,17 @@ on:
       - 'v*'
 name: Publish Release
 jobs:
-
-  # Build a tagged version
   build:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
-    name: Build Docker Image
-    # Steps represent a sequence of tasks that will be executed as part of the job
+    name: Build docker image
     steps:
-    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v2
 
-    # Parse git tag as a version string
     - id: get-version
       run: |
         version=$(echo "${{ github.ref }}" | cut -d / -f 3)
         echo "::set-output name=version::$version"
 
-    # - run: echo "${{steps.get-version.outputs.version}}"
-
-    # Docker builds and publishes
     - name: Publish to registry
       uses: elgohr/Publish-Docker-Github-Action@3.02
       env:
@@ -34,16 +25,15 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.CONTAINER_REGISTRY_SECRET }}
         buildargs: GITHUB_SHA=${{ github.sha }}
-        registry: docker.pkg.github.com
-        tags: "latest,${{ steps.get-version.outputs.version }}"
+        registry: ghcr.io
+        tags: "${{ steps.get-version.outputs.version }}"
 
-    - name: Run image to push Charon's help text to a file for producing as a build artifact
-      run: docker run docker.pkg.github.com/obolnetwork/charon/charon:${{steps.get-version.outputs.version}} charon --help > cli-reference.txt
+    - name: Generate cli reference
+      run: docker run ghcr.io/obolnetwork/charon/charon:${{steps.get-version.outputs.version}} charon --help > cli-reference.txt
 
-    - name: View Help Text
+    - name: View cli reference
       run: cat cli-reference.txt
 
-    # Creates a release object
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
