@@ -20,6 +20,7 @@ package validatorapi
 import (
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -50,7 +51,9 @@ type Handler interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
+	eth2client.BeaconBlockProposalProvider
 	eth2client.ProposerDutiesProvider
+	eth2client.SlotsPerEpochProvider
 	eth2client.ValidatorsProvider
 	// Above sorted alphabetically.
 }
@@ -94,6 +97,11 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 			Name:    "get_validator",
 			Path:    "/eth/v1/beacon/states/{state_id}/validators/{validator_id}",
 			Handler: getValidator(h),
+		},
+		{
+			Name:    "submit_randao",
+			Path:    "/eth/v2/validator/blocks/{slot}",
+			Handler: submitRandao(h),
 		},
 		// TODO(corver): Add more endpoints
 	}
@@ -308,6 +316,48 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 			DependentRoot: stubRoot(epoch), // TODO(corver): Fill this properly
 			Data:          data,
 		}, nil
+	}
+}
+
+func submitRandao(p Handler) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		slot, err := uintParam(params, "slot")
+		if err != nil {
+			return nil, err
+		}
+
+		randaoA, ok := query["randao_reveal"]
+		if !ok || len(randaoA) != 1 {
+			return nil, errors.New("randao_reveal is required")
+		}
+		randaoS := randaoA[0]
+
+		// TODO perhaps this should a function in core/types.go
+		var sig core.Signature = make([]byte, 96) // TODO: 96 from where? sigLen is private
+		_, err = hex.Decode(sig, []byte(randaoS))
+		if err != nil {
+			return nil, errors.Wrap(err, "hexadecimal decoding")
+		}
+
+		// TODO perhaps we should have a graffiti function somewhere to do this
+		graffitiA, ok := query["graffiti"]
+		if !ok || len(graffitiA) != 1 {
+			return nil, errors.New("graffiti is required")
+		}
+		graffitiS := graffitiA[0]
+
+		graffiti := make([]byte, len(graffitiS)/2)
+		_, err = hex.Decode(graffiti, []byte(graffitiS))
+		if err != nil {
+			return nil, errors.Wrap(err, "hexadecimal decoding")
+		}
+
+		_, err = p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), sig.ToETH2(), graffiti)
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, errors.New("not implemented yet")
 	}
 }
 
