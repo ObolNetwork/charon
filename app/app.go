@@ -67,6 +67,7 @@ type Config struct {
 	ValidatorAPIAddr string
 	BeaconNodeAddr   string
 	JaegerAddr       string
+	JaegerService    string
 	SimnetBMock      bool
 	SimnetVMock      bool
 
@@ -408,7 +409,10 @@ func wireVAPIRouter(life *lifecycle.Manager, conf Config, handler validatorapi.H
 
 // wireTracing constructs the global tracer and registers it with the life cycle manager.
 func wireTracing(life *lifecycle.Manager, conf Config) error {
-	stopjaeger, err := tracer.Init(tracer.WithJaegerOrNoop(conf.JaegerAddr))
+	stopjaeger, err := tracer.Init(
+		tracer.WithJaegerOrNoop(conf.JaegerAddr),
+		tracer.WithJaegerService(conf.JaegerService),
+	)
 	if err != nil {
 		return errors.Wrap(err, "init jaeger tracing")
 	}

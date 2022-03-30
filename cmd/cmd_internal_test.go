@@ -68,6 +68,7 @@ func TestCmdFlags(t *testing.T) {
 				ValidatorAPIAddr: "127.0.0.1:3500",
 				BeaconNodeAddr:   "http://localhost/",
 				JaegerAddr:       "",
+				JaegerService:    "charon",
 			},
 		},
 	}
