@@ -127,7 +127,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	tcpNode, localEnode, err := wireP2P(ctx, life, conf, manifest)
+	tcpNode, localEnode, err := wireP2P(life, conf, manifest)
 	if err != nil {
 		return err
 	}
@@ -140,7 +140,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Info(ctx, "Manifest loaded",
 		z.Int("peers", len(manifest.Peers)),
 		z.Str("peer_id", p2p.ShortID(tcpNode.ID())),
-		z.Int("peer_index", nodeIdx.PeerIdx))
+		z.Int("peer_index", nodeIdx.PeerIdx),
+		z.Str("enr", localEnode.Node().String()))
 
 	wireMonitoringAPI(life, conf.MonitoringAddr, localEnode)
 
@@ -153,21 +154,14 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
-func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest Manifest,
+func wireP2P(life *lifecycle.Manager, conf Config, manifest Manifest,
 ) (host.Host, *enode.LocalNode, error) {
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
 		var err error
-		var loaded bool
-		p2pKey, loaded, err = p2p.LoadOrCreatePrivKey(conf.DataDir)
+		p2pKey, err = p2p.LoadPrivKey(conf.DataDir)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "load or create peer ID")
-		}
-
-		if loaded {
-			log.Info(ctx, "Loaded p2p key", z.Str("dir", conf.DataDir))
-		} else {
-			log.Info(ctx, "Generated new p2p key", z.Str("dir", conf.DataDir))
+			return nil, nil, errors.Wrap(err, "load p2p key")
 		}
 	}
 

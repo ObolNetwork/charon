@@ -29,7 +29,7 @@ jobs:
         tags: "${{ steps.get-version.outputs.version }}"
 
     - name: Generate cli reference
-      run: docker run ghcr.io/obolnetwork/charon/charon:${{steps.get-version.outputs.version}} charon --help > cli-reference.txt
+      run: docker run ghcr.io/obolnetwork/charon/charon:${{steps.get-version.outputs.version}} charon run --help > cli-reference.txt
 
     - name: View cli reference
       run: cat cli-reference.txt

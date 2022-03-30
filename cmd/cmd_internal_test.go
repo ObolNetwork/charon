@@ -35,7 +35,9 @@ func TestCmdFlags(t *testing.T) {
 		Name          string
 		Args          []string
 		VersionConfig *versionConfig
-		appConfig     *app.Config
+		AppConfig     *app.Config
+		P2PConfig     *p2p.Config
+		Datadir       string
 	}{
 		{
 			Name:          "version verbose",
@@ -50,7 +52,7 @@ func TestCmdFlags(t *testing.T) {
 		{
 			Name: "run command",
 			Args: slice("run"),
-			appConfig: &app.Config{
+			AppConfig: &app.Config{
 				Log: log.Config{
 					Level:  "info",
 					Format: "console",
@@ -71,6 +73,18 @@ func TestCmdFlags(t *testing.T) {
 				JaegerService:    "charon",
 			},
 		},
+		{
+			Name:    "gen p2p",
+			Args:    slice("gen-p2pkey"),
+			Datadir: "./charon/data",
+			P2PConfig: &p2p.Config{
+				UDPAddr:   "127.0.0.1:30309",
+				TCPAddrs:  []string{"127.0.0.1:13900"},
+				Allowlist: "",
+				Denylist:  "",
+				DBPath:    "",
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -81,8 +95,15 @@ func TestCmdFlags(t *testing.T) {
 					require.Equal(t, *test.VersionConfig, config)
 				}),
 				newRunCmd(func(_ context.Context, config app.Config) error {
-					require.NotNil(t, test.appConfig)
-					require.Equal(t, *test.appConfig, config)
+					require.NotNil(t, test.AppConfig)
+					require.Equal(t, *test.AppConfig, config)
+
+					return nil
+				}),
+				newGenP2PKeyCmd(func(_ io.Writer, config p2p.Config, datadir string) error {
+					require.NotNil(t, test.P2PConfig)
+					require.Equal(t, *test.P2PConfig, config)
+					require.Equal(t, test.Datadir, datadir)
 
 					return nil
 				}),

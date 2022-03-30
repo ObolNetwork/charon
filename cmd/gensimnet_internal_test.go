@@ -27,11 +27,8 @@ import (
 //go:generate go test . -run=TestGenSimnet -update
 
 func TestGenSimnet(t *testing.T) {
-	dir := "testdata/simnet"
-	require.NoError(t, os.RemoveAll(dir))
-	err := os.MkdirAll(dir, 0o755)
+	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
-	defer os.RemoveAll(dir)
 
 	var buf bytes.Buffer
 	conf := simnetConfig{
@@ -45,7 +42,9 @@ func TestGenSimnet(t *testing.T) {
 	err = runGenSimnet(&buf, conf)
 	require.NoError(t, err)
 
-	testutil.RequireGoldenBytes(t, buf.Bytes())
+	out := buf.Bytes()
+	out = bytes.Replace(out, []byte(dir), []byte("charon-simnet"), 1)
+	testutil.RequireGoldenBytes(t, out)
 
 	// TODO(corver): Assert generated files.
 }

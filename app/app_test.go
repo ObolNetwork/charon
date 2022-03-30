@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -150,7 +151,14 @@ func pingCluster(t *testing.T, test pingTest) {
 	asserter.Await(t)
 	cancel()
 
-	require.NoError(t, eg.Wait())
+	err := eg.Wait()
+	if err != nil && strings.Contains(err.Error(), "bind: address already in use") {
+		// This sometimes happens, not sure how to lock available ports...
+		t.Skip("couldn't bind to available port")
+		return
+	}
+
+	require.NoError(t, err)
 }
 
 // startExtBootnode creates a new discv5 listener and returns its local enode.
