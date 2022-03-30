@@ -150,12 +150,12 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core
 		// TODO(dhruv): what to do with graffiti?
 		// passing empty graffiti since it is not required in API
 		var graffiti [32]byte
-		proData, err := f.eth2Cl.BeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randaoEth2, graffiti[:])
+		block, err := f.eth2Cl.BeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randaoEth2, graffiti[:])
 		if err != nil {
 			return nil, err
 		}
 
-		dutyData, err := core.EncodeProposerUnsignedData(proData)
+		dutyData, err := core.EncodeProposerUnsignedData(block)
 		if err != nil {
 			return nil, errors.Wrap(err, "encode proposer data")
 		}

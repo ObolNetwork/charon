@@ -171,7 +171,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	// Configure beacon mock
 	bmock, err := beaconmock.New(
 		beaconmock.WithValidatorSet(beaconmock.ValidatorSet{vIdx: validator}),
-		beaconmock.WithDeterministicAttesterDuties(0), // All duties in first slot of epoch.
+		beaconmock.WithDeterministicDuties(0), // All duties in first slot of epoch.
 	)
 	require.NoError(t, err)
 

@@ -213,7 +213,7 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 
 // WithDeterministicDuties configures the mock to provide deterministic duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
-//nolint:revive,dupl
+//nolint:revive
 func WithDeterministicDuties(factor int) Option {
 	return func(mock *Mock) {
 		mock.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
@@ -290,47 +290,11 @@ func WithDeterministicDuties(factor int) Option {
 	}
 }
 
-// WithDeterministicAttesterDuties configures the mock to provide deterministic duties based on provided arguments and config.
-// Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
-//nolint:dupl
-func WithDeterministicAttesterDuties(factor int) Option {
+// WithNoProposerDuties configures the mock to override ProposerDutiesFunc to return nothing.
+func WithNoProposerDuties() Option {
 	return func(mock *Mock) {
-		mock.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
-			vals, err := mock.Validators(ctx, "", indices)
-			if err != nil {
-				return nil, err
-			}
-
-			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			sort.Slice(indices, func(i, j int) bool {
-				return indices[i] < indices[j]
-			})
-
-			var resp []*eth2v1.AttesterDuty
-			for i, index := range indices {
-				val, ok := vals[index]
-				if !ok {
-					continue
-				}
-
-				offset := (i * factor) % int(slotsPerEpoch)
-
-				resp = append(resp, &eth2v1.AttesterDuty{
-					PubKey:                  val.Validator.PublicKey,
-					Slot:                    eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(offset)),
-					ValidatorIndex:          index,
-					CommitteeIndex:          eth2p0.CommitteeIndex(offset),
-					CommitteeLength:         slotsPerEpoch,
-					CommitteesAtSlot:        slotsPerEpoch,
-					ValidatorCommitteeIndex: uint64(index),
-				})
-			}
-
-			return resp, nil
+		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			return nil, nil
 		}
 	}
 }
