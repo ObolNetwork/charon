@@ -19,7 +19,10 @@ package log
 
 import (
 	"context"
+	"fmt"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -64,30 +67,38 @@ func metricsTopicFromCtx(ctx context.Context) string {
 }
 
 // Debug logs the message and fields (incl fields in the context) at Debug level.
-// TODO(corver): Add indication of when debug should be used.
+// Debug should be used for most logging.
 func Debug(ctx context.Context, msg string, fields ...z.Field) {
-	logger.Debug(msg, unwrapDedup(ctx, fields...)...)
+	zfl := unwrapDedup(ctx, fields...)
+	trace.SpanFromContext(ctx).AddEvent("log.Debug: "+msg, toAttributes(zfl))
+	logger.Debug(msg, zfl...)
 }
 
 // Info logs the message and fields (incl fields in the context) at Info level.
-// TODO(corver): Add indication of when info should be used.
+// Info should only be used for high level important events.
 func Info(ctx context.Context, msg string, fields ...z.Field) {
-	logger.Info(msg, unwrapDedup(ctx, fields...)...)
+	zfl := unwrapDedup(ctx, fields...)
+	trace.SpanFromContext(ctx).AddEvent("log.Info: "+msg, toAttributes(zfl))
+	logger.Info(msg, zfl...)
 }
 
 // Warn logs the message and fields (incl fields in the context) at Warn level.
-// TODO(corver): Add indication of when warn should be used.
+// Warn should only be used when a problem is encountered that *does not* require any action to be taken.
 func Warn(ctx context.Context, msg string, fields ...z.Field) {
+	zfl := unwrapDedup(ctx, fields...)
+	trace.SpanFromContext(ctx).AddEvent("log.Warn: "+msg, toAttributes(zfl))
+	logger.Warn(msg, zfl...)
 	incWarnCounter(ctx)
-	logger.Warn(msg, unwrapDedup(ctx, fields...)...)
 }
 
 // Error wraps err with msg and fields and logs it (incl fields in the context) at Error level.
-// TODO(corver): Add indication of when error should be used.
+// Error should only be used when a problem is encountered that *does* require action to be taken.
 func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
-	incErrorCounter(ctx)
 	err = errors.SkipWrap(err, msg, 2, fields...)
-	logger.Error(err.Error(), unwrapDedup(ctx, errFields(err))...)
+	zfl := unwrapDedup(ctx, errFields(err))
+	trace.SpanFromContext(ctx).RecordError(err, trace.WithStackTrace(true), toAttributes(zfl))
+	logger.Error(err.Error(), zfl...)
+	incErrorCounter(ctx)
 }
 
 // unwrapDedup returns the wrapped zap fields from the slice and from the context. Duplicate fields are dropped.
@@ -136,4 +147,20 @@ func errFields(err error) z.Field {
 			field(add)
 		}
 	}
+}
+
+// toAttributes returns the zap fields as tracing event attributes.
+func toAttributes(fields []zap.Field) trace.EventOption {
+	var kvs []attribute.KeyValue
+	for _, field := range fields {
+		if field.Interface != nil {
+			kvs = append(kvs, attribute.String(field.Key, fmt.Sprint(field.Interface)))
+		} else if field.String != "" {
+			kvs = append(kvs, attribute.String(field.Key, field.String))
+		} else if field.Integer != 0 {
+			kvs = append(kvs, attribute.Int64(field.Key, field.Integer))
+		}
+	}
+
+	return trace.WithAttributes(kvs...)
 }

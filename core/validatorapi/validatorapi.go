@@ -169,10 +169,8 @@ func (c *Component) RegisterParSigDB(fn func(context.Context, core.Duty, core.Pa
 }
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
-func (c Component) AttestationData(ctx context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
-	duty := core.NewAttesterDuty(int64(slot))
-	var span trace.Span
-	ctx, span = tracer.Start(core.DutyTraceRoot(ctx, duty), "core/validatorapi.AttestationData")
+func (c Component) AttestationData(parent context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+	ctx, span := core.StartDutyTrace(parent, core.NewAttesterDuty(int64(slot)), "core/validatorapi.AttestationData")
 	defer span.End()
 
 	return c.awaitAttFunc(ctx, int64(slot), int64(committeeIndex))
@@ -184,7 +182,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 		// Pick the first attestation slot to use as trace root.
 		duty := core.NewAttesterDuty(int64(attestations[0].Data.Slot))
 		var span trace.Span
-		ctx, span = tracer.Start(core.DutyTraceRoot(ctx, duty), "core/validatorapi.SubmitAttestations")
+		ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitAttestations")
 		defer span.End()
 	}
 

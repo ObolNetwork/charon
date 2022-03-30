@@ -26,7 +26,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
@@ -67,7 +66,7 @@ func (m *ParSigEx) handle(s network.Stream) {
 	}
 
 	var span trace.Span
-	ctx, span = tracer.Start(core.DutyTraceRoot(ctx, msg.Duty), "core/parsigex.Handle")
+	ctx, span = core.StartDutyTrace(ctx, msg.Duty, "core/parsigex.Handle")
 	defer span.End()
 
 	for _, sub := range m.subs {

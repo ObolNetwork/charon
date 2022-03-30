@@ -28,7 +28,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
@@ -145,7 +144,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 		instrumentDuty(duty, argSet)
 
 		var span trace.Span
-		ctx, span = tracer.Start(core.DutyTraceRoot(ctx, duty), "core/scheduler.scheduleSlot")
+		ctx, span = core.StartDutyTrace(ctx, duty, "core/scheduler.scheduleSlot")
 
 		for _, sub := range s.subs {
 			err := sub(ctx, duty, argSet)

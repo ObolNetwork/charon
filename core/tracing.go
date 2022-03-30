@@ -16,24 +16,48 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"hash/fnv"
+	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/tracer"
 )
 
-// DutyTraceRoot returns a copy of the parent context containing a tracing span context rooted
-// to the duty.
-func DutyTraceRoot(ctx context.Context, duty Duty) context.Context {
+// StartDutyTrace returns a context and span rooted to the duty traceID and wrapped in a duty span.
+// This creates a new trace root and should generally only be called when a new duty is scheduled
+// or when a duty is received from the VC or peer.
+func StartDutyTrace(ctx context.Context, duty Duty, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	h := fnv.New128a()
 	_, _ = h.Write([]byte(duty.String()))
 
 	var traceID trace.TraceID
 	copy(traceID[:], h.Sum(nil))
 
-	return tracer.RootedCtx(ctx, traceID)
+	var outerSpan, innerSpan trace.Span
+	ctx, outerSpan = tracer.Start(tracer.RootedCtx(ctx, traceID), fmt.Sprintf("core/duty.%s", strings.Title(duty.Type.String())))
+	ctx, innerSpan = tracer.Start(ctx, spanName, opts...)
+
+	outerSpan.SetAttributes(attribute.Int64("slot", duty.Slot))
+
+	return ctx, withEndSpan{
+		Span:    innerSpan,
+		endFunc: func() { outerSpan.End() },
+	}
+}
+
+// withEndSpan wraps a trace span and calls endFunc when End is called.
+type withEndSpan struct {
+	trace.Span
+	endFunc func()
+}
+
+func (s withEndSpan) End(options ...trace.SpanEndOption) {
+	s.Span.End(options...)
+	s.endFunc()
 }
 
 // WithTracing wraps component input functions with tracing spans.

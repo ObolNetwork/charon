@@ -21,7 +21,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
@@ -70,7 +69,7 @@ func (l *LeaderCast) Run(ctx context.Context) error {
 		log.Debug(ctx, "received duty from leader", z.Int("peer", source), z.Any("duty", duty))
 
 		var span trace.Span
-		ctx, span = tracer.Start(core.DutyTraceRoot(ctx, duty), "core/leadercast.Handle")
+		ctx, span = core.StartDutyTrace(ctx, duty, "core/leadercast.Handle")
 
 		for _, sub := range l.subs {
 			if err := sub(ctx, duty, data); err != nil {
