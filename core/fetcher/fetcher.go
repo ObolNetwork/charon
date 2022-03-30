@@ -28,6 +28,7 @@ import (
 // eth2Provider defines the eth2 provider subset used by this package.
 type eth2Provider interface {
 	eth2client.AttestationDataProvider
+	eth2client.BeaconBlockProposalProvider
 }
 
 // New returns a new fetcher instance.
@@ -44,8 +45,9 @@ func New(eth2Svc eth2client.Service) (*Fetcher, error) {
 
 // Fetcher fetches proposed duty data.
 type Fetcher struct {
-	eth2Cl eth2Provider
-	subs   []func(context.Context, core.Duty, core.UnsignedDataSet) error
+	eth2Cl       eth2Provider
+	subs         []func(context.Context, core.Duty, core.UnsignedDataSet) error
+	aggSigDBFunc func(context.Context, core.Duty, core.PubKey) (core.AggSignedData, error)
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -63,8 +65,10 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchAr
 
 	switch duty.Type {
 	case core.DutyProposer:
-		// TODO(dhruv): Add support for proposer here
-		return nil
+		unsignedSet, err = f.fetchProposerData(ctx, duty.Slot, argSet)
+		if err != nil {
+			return errors.Wrap(err, "fetch proposer data")
+		}
 	case core.DutyAttester:
 		unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, argSet)
 		if err != nil {
@@ -82,6 +86,12 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchAr
 	}
 
 	return nil
+}
+
+// RegisterAggSigDB registers a function to get resolved aggregated signed data from the AggSigDB.
+// Note: This is not thread safe should be called *before* Fetch.
+func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.AggSignedData, error)) {
+	f.aggSigDBFunc = fn
 }
 
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.
@@ -115,6 +125,39 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core
 		dutyData, err := core.EncodeAttesterUnsignedData(attData)
 		if err != nil {
 			return nil, errors.Wrap(err, "unmarhsal json")
+		}
+
+		resp[pubkey] = dutyData
+	}
+
+	return resp, nil
+}
+
+func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core.FetchArgSet) (core.UnsignedDataSet, error) {
+	resp := make(core.UnsignedDataSet)
+	for pubkey := range argSet {
+		// Fetch previously aggregated randao reveal from AggSigDB
+		dutyRandao := core.Duty{
+			Slot: slot,
+			Type: core.DutyRandao,
+		}
+		randao, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
+		if err != nil {
+			return nil, err
+		}
+		randaoEth2 := core.DecodeRandaoAggSignedData(randao)
+
+		// TODO(dhruv): what to do with graffiti?
+		// passing empty graffiti since it is not required in API
+		var graffiti [32]byte
+		block, err := f.eth2Cl.BeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randaoEth2, graffiti[:])
+		if err != nil {
+			return nil, err
+		}
+
+		dutyData, err := core.EncodeProposerUnsignedData(block)
+		if err != nil {
+			return nil, errors.Wrap(err, "encode proposer data")
 		}
 
 		resp[pubkey] = dutyData

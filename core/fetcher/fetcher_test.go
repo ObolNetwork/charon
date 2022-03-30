@@ -98,3 +98,82 @@ func TestFetchAttester(t *testing.T) {
 	err = fetch.Fetch(ctx, duty, argSet)
 	require.NoError(t, err)
 }
+
+func TestFetchProposer(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		slot  = 1
+		vIdxA = 2
+		vIdxB = 3
+	)
+
+	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
+		vIdxA: testutil.RandomCorePubKey(t),
+		vIdxB: testutil.RandomCorePubKey(t),
+	}
+
+	dutyA := eth2v1.ProposerDuty{
+		Slot:           slot,
+		ValidatorIndex: vIdxA,
+	}
+	fetchArgA, err := core.EncodeProposerFetchArg(&dutyA)
+	require.NoError(t, err)
+
+	dutyB := eth2v1.ProposerDuty{
+		Slot:           slot,
+		ValidatorIndex: vIdxB,
+	}
+	fetchArgB, err := core.EncodeProposerFetchArg(&dutyB)
+	require.NoError(t, err)
+
+	argSet := core.FetchArgSet{
+		pubkeysByIdx[vIdxA]: fetchArgA,
+		pubkeysByIdx[vIdxB]: fetchArgB,
+	}
+	duty := core.Duty{Type: core.DutyProposer, Slot: slot}
+
+	randaoA := core.AggSignedData{
+		Data:      nil,
+		Signature: testutil.RandomCoreSignature(),
+	}
+	randaoB := core.AggSignedData{
+		Data:      nil,
+		Signature: testutil.RandomCoreSignature(),
+	}
+	randaoByPubKey := map[core.PubKey]core.AggSignedData{
+		pubkeysByIdx[vIdxA]: randaoA,
+		pubkeysByIdx[vIdxB]: randaoB,
+	}
+
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+	fetch, err := fetcher.New(bmock)
+	require.NoError(t, err)
+
+	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.AggSignedData, error) {
+		return randaoByPubKey[key], nil
+	})
+
+	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+		require.Equal(t, duty, resDuty)
+		require.Len(t, resDataSet, 2)
+
+		dataA := resDataSet[pubkeysByIdx[vIdxA]]
+		dutyDataA, err := core.DecodeProposerUnsignedData(dataA)
+		require.NoError(t, err)
+		require.EqualValues(t, slot, dutyDataA.Phase0.Slot)
+		require.EqualValues(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature.ToETH2(), dutyDataA.Phase0.Body.RANDAOReveal)
+
+		dataB := resDataSet[pubkeysByIdx[vIdxB]]
+		dutyDataB, err := core.DecodeProposerUnsignedData(dataB)
+		require.NoError(t, err)
+		require.EqualValues(t, slot, dutyDataB.Phase0.Slot)
+		require.EqualValues(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature.ToETH2(), dutyDataB.Phase0.Body.RANDAOReveal)
+
+		return nil
+	})
+
+	err = fetch.Fetch(ctx, duty, argSet)
+	require.NoError(t, err)
+}

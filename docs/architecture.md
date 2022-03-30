@@ -214,7 +214,7 @@ type Fetcher interface {
   // Subscribe registers a callback for proposed duty data sets.
   Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
 
-  // RegisterAggDB registers a function to resolved aggregated
+  // RegisterAggSigDB registers a function to resolved aggregated
   // signed data from the AggSigDB (e.g., randao reveals).
   RegisterAggSigDB(func(context.Context, Duty, PubKey) (AggSignedData, error))
 }

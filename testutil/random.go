@@ -77,6 +77,33 @@ func RandomAttestationData() *eth2p0.AttestationData {
 	}
 }
 
+func RandomBeaconBlock() *eth2p0.BeaconBlock {
+	return &eth2p0.BeaconBlock{
+		Slot:          RandomSlot(),
+		ProposerIndex: RandomVIdx(),
+		ParentRoot:    RandomRoot(),
+		StateRoot:     RandomRoot(),
+		Body:          RandomBeaconBlockBody(),
+	}
+}
+
+func RandomBeaconBlockBody() *eth2p0.BeaconBlockBody {
+	return &eth2p0.BeaconBlockBody{
+		RANDAOReveal: RandomEth2Signature(),
+		ETH1Data: &eth2p0.ETH1Data{
+			DepositRoot:  RandomRoot(),
+			DepositCount: 0,
+			BlockHash:    RandomBytes(),
+		},
+		Graffiti:          RandomBytes(),
+		ProposerSlashings: []*eth2p0.ProposerSlashing{},
+		AttesterSlashings: []*eth2p0.AttesterSlashing{},
+		Attestations:      []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Deposits:          []*eth2p0.Deposit{},
+		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
+	}
+}
+
 func RandomAttestationDuty(t *testing.T) *eth2v1.AttesterDuty {
 	t.Helper()
 	return &eth2v1.AttesterDuty{
@@ -144,6 +171,13 @@ func RandomCommIdx() eth2p0.CommitteeIndex {
 
 func RandomVIdx() eth2p0.ValidatorIndex {
 	return eth2p0.ValidatorIndex(rand.Uint64())
+}
+
+func RandomBytes() []byte {
+	var resp [32]byte
+	_, _ = rand.Read(resp[:])
+
+	return resp[:]
 }
 
 func RandomBitList() bitfield.Bitlist {

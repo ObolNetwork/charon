@@ -26,6 +26,7 @@ import (
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 // Option defines a functional option to configure the mock beacon client.
@@ -288,6 +290,15 @@ func WithDeterministicDuties(factor int) Option {
 	}
 }
 
+// WithNoProposerDuties configures the mock to override ProposerDutiesFunc to return nothing.
+func WithNoProposerDuties() Option {
+	return func(mock *Mock) {
+		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			return nil, nil
+		}
+	}
+}
+
 // WithClock configures the mock with the provided clock.
 func WithClock(clock clockwork.Clock) Option {
 	return func(mock *Mock) {
@@ -301,6 +312,28 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		clock:      clock,
 		HTTPMock:   httpMock,
 		httpServer: httpServer,
+		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
+			return &spec.VersionedBeaconBlock{
+				Version: spec.DataVersionPhase0,
+				Phase0: &eth2p0.BeaconBlock{
+					Slot: slot,
+					Body: &eth2p0.BeaconBlockBody{
+						RANDAOReveal: randaoReveal,
+						ETH1Data: &eth2p0.ETH1Data{
+							DepositRoot:  testutil.RandomRoot(),
+							DepositCount: 0,
+							BlockHash:    testutil.RandomBytes(),
+						},
+						Graffiti:          testutil.RandomBytes(),
+						ProposerSlashings: []*eth2p0.ProposerSlashing{},
+						AttesterSlashings: []*eth2p0.AttesterSlashing{},
+						Attestations:      []*eth2p0.Attestation{testutil.RandomAttestation(), testutil.RandomAttestation()},
+						Deposits:          []*eth2p0.Deposit{},
+						VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
+					},
+				},
+			}, nil
+		},
 		ProposerDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return []*eth2v1.ProposerDuty{}, nil
 		},
