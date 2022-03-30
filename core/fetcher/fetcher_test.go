@@ -162,16 +162,14 @@ func TestFetchProposer(t *testing.T) {
 		dataA := resDataSet[pubkeysByIdx[vIdxA]]
 		dutyDataA, err := core.DecodeProposerUnsignedData(dataA)
 		require.NoError(t, err)
-		require.EqualValues(t, slot, dutyDataA.Data.Slot)
-		require.EqualValues(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature.ToETH2(), dutyDataA.Data.Body.RANDAOReveal)
-		require.EqualValues(t, dutyA, dutyDataA.Duty)
+		require.EqualValues(t, slot, dutyDataA.Phase0.Slot)
+		require.EqualValues(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature.ToETH2(), dutyDataA.Phase0.Body.RANDAOReveal)
 
 		dataB := resDataSet[pubkeysByIdx[vIdxB]]
 		dutyDataB, err := core.DecodeProposerUnsignedData(dataB)
 		require.NoError(t, err)
-		require.EqualValues(t, slot, dutyDataB.Data.Slot)
-		require.EqualValues(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature.ToETH2(), dutyDataB.Data.Body.RANDAOReveal)
-		require.EqualValues(t, dutyB, dutyDataB.Duty)
+		require.EqualValues(t, slot, dutyDataB.Phase0.Slot)
+		require.EqualValues(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature.ToETH2(), dutyDataB.Phase0.Body.RANDAOReveal)
 
 		return nil
 	})

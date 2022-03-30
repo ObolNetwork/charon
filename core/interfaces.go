@@ -143,7 +143,6 @@ func Wire(
 ) {
 	sched.Subscribe(fetch.Fetch)
 	fetch.Subscribe(cons.Propose)
-
 	cons.Subscribe(dutyDB.Store)
 	vapi.RegisterAwaitAttestation(dutyDB.AwaitAttestation)
 	vapi.RegisterPubKeyByAttestation(dutyDB.PubKeyByAttestation)

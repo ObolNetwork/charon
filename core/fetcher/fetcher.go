@@ -135,12 +135,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core
 
 func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core.FetchArgSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
-	for pubkey, fetchArg := range argSet {
-		proDuty, err := core.DecodeProposerFetchArg(fetchArg)
-		if err != nil {
-			return nil, err
-		}
-
+	for pubkey := range argSet {
 		// Fetch previously aggregated randao reveal from AggSigDB
 		dutyRandao := core.Duty{
 			Slot: slot,
@@ -155,13 +150,9 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core
 		// TODO(dhruv): what to do with graffiti?
 		// passing empty graffiti since it is not required in API
 		var graffiti [32]byte
-		eth2ProData, err := f.eth2Cl.BeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randaoEth2, graffiti[:])
+		proData, err := f.eth2Cl.BeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randaoEth2, graffiti[:])
 		if err != nil {
 			return nil, err
-		}
-		proData := &core.ProposerData{
-			Data: *eth2ProData.Phase0,
-			Duty: *proDuty,
 		}
 
 		dutyData, err := core.EncodeProposerUnsignedData(proData)

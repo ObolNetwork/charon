@@ -17,6 +17,7 @@ package core_test
 import (
 	"testing"
 
+	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -129,9 +130,9 @@ func TestEncodeProposerFetchArg(t *testing.T) {
 }
 
 func TestEncodeProposerUnsignedData(t *testing.T) {
-	proData1 := &core.ProposerData{
-		Data: *testutil.RandomBeaconBlock(),
-		Duty: *testutil.RandomProposerDuty(t),
+	proData1 := &spec.VersionedBeaconBlock{
+		Version: spec.DataVersionPhase0,
+		Phase0:  testutil.RandomBeaconBlock(),
 	}
 
 	data1, err := core.EncodeProposerUnsignedData(proData1)

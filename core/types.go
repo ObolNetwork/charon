@@ -165,13 +165,6 @@ type AttestationData struct {
 	Duty eth2v1.AttesterDuty
 }
 
-// ProposerData wraps the eth2 beacon block data and adds the original duty.
-// The original duty allows mapping the partial signed response from the VC.
-type ProposerData struct {
-	Data eth2p0.BeaconBlock
-	Duty eth2v1.ProposerDuty
-}
-
 // ParSignedData is a partially signed duty data.
 // Partial refers to it being signed by a single share of the BLS threshold signing scheme.
 type ParSignedData struct {
