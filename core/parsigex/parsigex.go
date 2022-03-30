@@ -22,6 +22,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -63,6 +64,10 @@ func (m *ParSigEx) handle(s network.Stream) {
 		log.Error(ctx, "decode parsigex message", err)
 		return
 	}
+
+	var span trace.Span
+	ctx, span = core.StartDutyTrace(ctx, msg.Duty, "core/parsigex.Handle")
+	defer span.End()
 
 	for _, sub := range m.subs {
 		err := sub(ctx, msg.Duty, msg.Data)

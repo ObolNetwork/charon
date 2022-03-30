@@ -22,9 +22,11 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/tbls"
@@ -167,14 +169,24 @@ func (c *Component) RegisterParSigDB(fn func(context.Context, core.Duty, core.Pa
 }
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
-func (c Component) AttestationData(ctx context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+func (c Component) AttestationData(parent context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+	ctx, span := core.StartDutyTrace(parent, core.NewAttesterDuty(int64(slot)), "core/validatorapi.AttestationData")
+	defer span.End()
+
 	return c.awaitAttFunc(ctx, int64(slot), int64(committeeIndex))
 }
 
 // SubmitAttestations implements the eth2client.AttestationsSubmitter for the router.
 func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
-	setsBySlot := make(map[int64]core.ParSignedDataSet)
+	if len(attestations) > 0 {
+		// Pick the first attestation slot to use as trace root.
+		duty := core.NewAttesterDuty(int64(attestations[0].Data.Slot))
+		var span trace.Span
+		ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitAttestations")
+		defer span.End()
+	}
 
+	setsBySlot := make(map[int64]core.ParSignedDataSet)
 	for _, att := range attestations {
 		slot := int64(att.Data.Slot)
 
@@ -217,10 +229,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 
 	// Send sets to subscriptions.
 	for slot, set := range setsBySlot {
-		duty := core.Duty{
-			Slot: slot,
-			Type: core.DutyAttester,
-		}
+		duty := core.NewAttesterDuty(slot)
 
 		log.Debug(ctx, "Attestation submitted by VC", z.I64("slot", slot))
 
@@ -236,12 +245,14 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 }
 
 // verifyParSig verifies the partial signature against the root and validator.
-func (c Component) verifyParSig(ctx context.Context, typ core.DutyType, epoch eth2p0.Epoch,
+func (c Component) verifyParSig(parent context.Context, typ core.DutyType, epoch eth2p0.Epoch,
 	pubkey core.PubKey, sigRoot eth2p0.Root, sig eth2p0.BLSSignature,
 ) error {
 	if c.skipVerify {
 		return nil
 	}
+	ctx, span := tracer.Start(parent, "core/validatorapi.VerifyParSig")
+	defer span.End()
 
 	// Wrap the signing root with the domain and serialise it.
 	sigData, err := prepSigningData(ctx, c.eth2Cl, typ, epoch, sigRoot)

@@ -24,6 +24,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -142,15 +143,20 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 
 		instrumentDuty(duty, argSet)
 
+		var span trace.Span
+		ctx, span = core.StartDutyTrace(ctx, duty, "core/scheduler.scheduleSlot")
+
 		for _, sub := range s.subs {
 			err := sub(ctx, duty, argSet)
 			if err != nil {
 				// TODO(corver): Improve error handling; possibly call subscription async
 				//  with backoff until duty expires.
+				span.End()
 				return err
 			}
 		}
 
+		span.End()
 		delete(s.duties, duty)
 	}
 

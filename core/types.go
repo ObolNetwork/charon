@@ -16,17 +16,13 @@ package core
 
 import (
 	"bytes"
-	"context"
 	"encoding/hex"
 	"fmt"
-	"hash/fnv"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/tracer"
 )
 
 // DutyType enumerates the different types of duties.
@@ -206,16 +202,4 @@ type AggSignedData struct {
 
 func (a AggSignedData) Equal(b AggSignedData) bool {
 	return bytes.Equal(a.Data, b.Data) && bytes.Equal(a.Signature, b.Signature)
-}
-
-// DutyTraceRoot returns a copy of the parent context containing a tracing span context rooted
-// to the duty.
-func DutyTraceRoot(ctx context.Context, duty Duty) context.Context {
-	h := fnv.New128a()
-	_, _ = h.Write([]byte(duty.String()))
-
-	var traceID trace.TraceID
-	copy(traceID[:], h.Sum(nil))
-
-	return tracer.RootedCtx(ctx, traceID)
 }

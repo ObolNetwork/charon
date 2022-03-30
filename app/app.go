@@ -322,7 +322,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	core.Wire(sched, fetch, consensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster)
+	core.Wire(sched, fetch, consensus, dutyDB, vapi,
+		parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster,
+		core.WithTracing())
 
 	err = wireValidatorMock(conf, pubshares, sched)
 	if err != nil {
