@@ -1,7 +1,7 @@
 Referencing charon binary in scripts: charon
 Created a simnet cluster:
 
-testdata/simnet/
+charon-simnet/
 ├─ manifest.json	Cluster manifest defines the cluster; used by all nodes
 ├─ run_cluster.sh	Convenience script to run all nodes
 ├─ teamocil.yml		Configuration for teamocil utility to show output in different tmux panes

@@ -18,32 +18,29 @@ import (
 	"crypto/ecdsa"
 	"os"
 	"path"
-	"path/filepath"
 
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// LoadOrCreatePrivKey returns a k1 (secp256k1) private key and true from the provided folder.
-// If it doesn't exist, a new key is generated and stored and returned with false.
-func LoadOrCreatePrivKey(dataDir string) (*ecdsa.PrivateKey, bool, error) {
-	keyPath := path.Join(dataDir, "p2pkey")
-
-	key, err := crypto.LoadECDSA(keyPath)
-	if errors.Is(err, os.ErrNotExist) {
-		key, err = newSavedPrivKey(keyPath)
-		return key, false, err
-	} else if err != nil {
-		return nil, false, errors.Wrap(err, "load key")
-	}
-
-	return key, true, nil
+func p2pKeyPath(datadir string) string {
+	return path.Join(datadir, "p2pkey")
 }
 
-// newSavedPrivKey generates a new key and saves the new node identity.
-func newSavedPrivKey(keyPath string) (*ecdsa.PrivateKey, error) {
-	if err := os.MkdirAll(filepath.Dir(keyPath), 0o755); err != nil {
+// LoadPrivKey returns the ecdsa k1 key saved in the directory.
+func LoadPrivKey(dataDir string) (*ecdsa.PrivateKey, error) {
+	key, err := crypto.LoadECDSA(p2pKeyPath(dataDir))
+	if err != nil {
+		return nil, errors.Wrap(err, "load key")
+	}
+
+	return key, nil
+}
+
+// NewSavedPrivKey generates a new ecdsa k1 key and saves it to the directory.
+func NewSavedPrivKey(datadir string) (*ecdsa.PrivateKey, error) {
+	if err := os.MkdirAll(datadir, 0o755); err != nil {
 		return nil, errors.Wrap(err, "mkdir")
 	}
 
@@ -52,7 +49,7 @@ func newSavedPrivKey(keyPath string) (*ecdsa.PrivateKey, error) {
 		return nil, errors.Wrap(err, "gen key")
 	}
 
-	err = crypto.SaveECDSA(keyPath, key)
+	err = crypto.SaveECDSA(p2pKeyPath(datadir), key)
 	if err != nil {
 		return nil, errors.Wrap(err, "save key")
 	}

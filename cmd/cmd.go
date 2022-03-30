@@ -41,6 +41,7 @@ func New() *cobra.Command {
 	return newRootCmd(
 		newVersionCmd(runVersionCmd),
 		newEnrCmd(runNewENR),
+		newGenP2PKeyCmd(runGenP2PKey),
 		newRunCmd(app.Run),
 		newGenSimnetCmd(runGenSimnet),
 	)

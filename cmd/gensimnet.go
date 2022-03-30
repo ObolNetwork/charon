@@ -220,7 +220,7 @@ func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func()
 		Port: nextPort(),
 	}
 
-	p2pKey, _, err := p2p.LoadOrCreatePrivKey(nodeDir)
+	p2pKey, err := p2p.NewSavedPrivKey(nodeDir)
 	if err != nil {
 		return p2p.Peer{}, errors.Wrap(err, "create p2p key")
 	}

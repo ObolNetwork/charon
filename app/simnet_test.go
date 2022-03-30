@@ -202,7 +202,13 @@ func testSimnet(t *testing.T, args simnetArgs) {
 		}
 	})
 
-	require.NoError(t, eg.Wait())
+	err = eg.Wait()
+	if err != nil && strings.Contains(err.Error(), "bind: address already in use") {
+		// This sometimes happens, not sure how to lock available ports...
+		t.Skip("couldn't bind to available port")
+		return
+	}
+	require.NoError(t, err)
 }
 
 // startTeku starts a teku validator client for the provided node and returns updated args.
