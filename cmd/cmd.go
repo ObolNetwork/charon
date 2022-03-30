@@ -43,6 +43,7 @@ func New() *cobra.Command {
 		newEnrCmd(runNewENR),
 		newGenP2PKeyCmd(runGenP2PKey),
 		newRunCmd(app.Run),
+		newBootnodeCmd(runBootnode),
 		newGenSimnetCmd(runGenSimnet),
 	)
 }
