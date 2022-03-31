@@ -102,10 +102,10 @@ func TestPingCluster(t *testing.T) {
 		external := startExtBootnode(t)
 
 		pingCluster(t, pingTest{
-			Slow:         true,
-			BindENRAddrs: false,
-			BootManifest: true,
-			Bootnodes:    []string{external.URLv4()},
+			Slow:          true,
+			BindLocalhost: false,
+			BootManifest:  true,
+			Bootnodes:     []string{external.URLv4()},
 		})
 	})
 }
