@@ -190,6 +190,10 @@ func RandomBitList() bitfield.Bitlist {
 }
 
 // AvailableAddr returns an available local tcp address.
+//
+// Note that this is unfortunately only best-effort. Since the port is not
+// "locked" or "reserved", other processes sometimes grab the port.
+// Suggest checking errors for "bind: address already in use" and skipping the test in that case.
 func AvailableAddr(t *testing.T) *net.TCPAddr {
 	t.Helper()
 
