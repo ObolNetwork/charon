@@ -78,7 +78,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 // AwaitBeaconBlock implements core.DutyDB, see its godoc.
 func (db *MemDB) AwaitBeaconBlock(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error) {
 	db.mu.Lock()
-	response := make(chan *proValue)
+	response := make(chan *proValue, 1)
 	db.proQueries = append(db.proQueries, proQuery{
 		Key:      eth2p0.Slot(slot),
 		Response: response,
