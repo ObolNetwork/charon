@@ -22,8 +22,8 @@ import (
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/spf13/cobra"
 
-	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/keystore"
@@ -69,7 +69,6 @@ func runSplitKeyCluster(w io.Writer, config splitKeyConfig) error {
 		}
 	}
 
-	nodeDir := nodeDirFunc(config.ClusterDir)
 	nextPort := nextPortFunc(config.PortStart)
 
 	secrets, err := keystore.LoadKeys(config.KeyDir)
@@ -78,8 +77,8 @@ func runSplitKeyCluster(w io.Writer, config splitKeyConfig) error {
 	}
 
 	var (
-		manifest app.Manifest
-		splits   [][]*bls_sig.SecretKeyShare
+		dvs    []tbls.TSS
+		splits [][]*bls_sig.SecretKeyShare
 	)
 	for _, secret := range secrets {
 		shares, verifier, err := tbls.SplitSecret(secret, config.Threshold, config.NumNodes, rand.Reader)
@@ -94,16 +93,17 @@ func runSplitKeyCluster(w io.Writer, config splitKeyConfig) error {
 			return err
 		}
 
-		manifest.DVs = append(manifest.DVs, tss)
+		dvs = append(dvs, tss)
 	}
 
+	var peers []p2p.Peer
 	for i := 0; i < config.NumNodes; i++ {
-		peer, err := newPeer(config.ClusterDir, nodeDir(i), charonBin, i, nextPort)
+		peer, err := newPeer(config.ClusterDir, nodeDir(config.ClusterDir, i), charonBin, i, nextPort)
 		if err != nil {
 			return err
 		}
 
-		manifest.Peers = append(manifest.Peers, peer)
+		peers = append(peers, peer)
 
 		var secrets []*bls_sig.SecretKey
 		for _, split := range splits {
@@ -114,9 +114,13 @@ func runSplitKeyCluster(w io.Writer, config splitKeyConfig) error {
 			secrets = append(secrets, secret)
 		}
 
-		if err := keystore.StoreKeys(secrets, nodeDir(i)); err != nil {
+		if err := keystore.StoreKeys(secrets, nodeDir(config.ClusterDir, i)); err != nil {
 			return err
 		}
+	}
+
+	if err := writeManifest(config.simnetConfig, dvs, peers); err != nil {
+		return err
 	}
 
 	writeOutput(w, config.simnetConfig, charonBin, "split key cluster")

@@ -141,12 +141,11 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		}
 	}
 
-	nodeDir := nodeDirFunc(config.ClusterDir)
 	nextPort := nextPortFunc(config.PortStart)
 
 	var peers []p2p.Peer
 	for i := 0; i < config.NumNodes; i++ {
-		peer, err := newPeer(config.ClusterDir, nodeDir(i), charonBin, i, nextPort)
+		peer, err := newPeer(config.ClusterDir, nodeDir(config.ClusterDir, i), charonBin, i, nextPort)
 		if err != nil {
 			return errors.Wrap(err, "new peer", z.Int("i", i))
 		}
@@ -159,7 +158,7 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "generate tss")
 	}
 
-	if err := writeManifest(config, tss, peers); err != nil {
+	if err := writeManifest(config, []tbls.TSS{tss}, peers); err != nil {
 		return err
 	}
 
@@ -170,7 +169,7 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 			return err
 		}
 
-		err = keystore.StoreKeys([]*bls_sig.SecretKey{secret}, nodeDir(i))
+		err = keystore.StoreKeys([]*bls_sig.SecretKey{secret}, nodeDir(config.ClusterDir, i))
 		if err != nil {
 			return err
 		}
@@ -191,9 +190,9 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 	return nil
 }
 
-func writeManifest(config simnetConfig, tss tbls.TSS, peers []p2p.Peer) error {
+func writeManifest(config simnetConfig, tss []tbls.TSS, peers []p2p.Peer) error {
 	manifest := app.Manifest{
-		DVs:   []tbls.TSS{tss},
+		DVs:   tss,
 		Peers: peers,
 	}
 	manifestJSON, err := json.MarshalIndent(manifest, "", " ")
@@ -370,11 +369,9 @@ func writeTeamocilYML(clusterDir string, n int) error {
 	return nil
 }
 
-// nodeDirFunc returns a node dir function.
-func nodeDirFunc(clusterDir string) func(i int) string {
-	return func(i int) string {
-		return fmt.Sprintf("%s/node%d", clusterDir, i)
-	}
+// nodeDir returns a node directory.
+func nodeDir(clusterDir string, i int) string {
+	return fmt.Sprintf("%s/node%d", clusterDir, i)
 }
 
 // nextPortFunc returns a next port function starting at start port.
