@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -35,6 +36,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -117,7 +119,8 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	for i := 0; i < n; i++ {
 		conf := app.Config{
-			Simnet:           true,
+			Log:              log.DefaultConfig(),
+			SimnetBMock:      true,
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: testutil.AvailableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
@@ -148,7 +151,14 @@ func pingCluster(t *testing.T, test pingTest) {
 	asserter.Await(t)
 	cancel()
 
-	require.NoError(t, eg.Wait())
+	err := eg.Wait()
+	if err != nil && strings.Contains(err.Error(), "bind: address already in use") {
+		// This sometimes happens, not sure how to lock available ports...
+		t.Skip("couldn't bind to available port")
+		return
+	}
+
+	require.NoError(t, err)
 }
 
 // startExtBootnode creates a new discv5 listener and returns its local enode.

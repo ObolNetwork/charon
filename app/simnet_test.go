@@ -33,6 +33,7 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/leadercast"
 	"github.com/obolnetwork/charon/core/parsigex"
@@ -125,7 +126,8 @@ func testSimnet(t *testing.T, args simnetArgs) {
 	)
 	for i := 0; i < args.N; i++ {
 		conf := app.Config{
-			Simnet:           true,
+			Log:              log.DefaultConfig(),
+			SimnetBMock:      true,
 			SimnetVMock:      args.VMocks[i],
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: args.VAPIAddrs[i],
@@ -200,7 +202,13 @@ func testSimnet(t *testing.T, args simnetArgs) {
 		}
 	})
 
-	require.NoError(t, eg.Wait())
+	err = eg.Wait()
+	if err != nil && strings.Contains(err.Error(), "bind: address already in use") {
+		// This sometimes happens, not sure how to lock available ports...
+		t.Skip("couldn't bind to available port")
+		return
+	}
+	require.NoError(t, err)
 }
 
 // startTeku starts a teku validator client for the provided node and returns updated args.
@@ -213,7 +221,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	// Write private share keystore and password
 	tempDir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
-	err = keystore.StoreSimnetKeys([]*bls_sig.SecretKey{args.SimnetKeys[node]}, tempDir)
+	err = keystore.StoreKeys([]*bls_sig.SecretKey{args.SimnetKeys[node]}, tempDir)
 	require.NoError(t, err)
 	err = os.WriteFile(path.Join(tempDir, "keystore-simnet-0.txt"), []byte("simnet"), 0o644)
 	require.NoError(t, err)

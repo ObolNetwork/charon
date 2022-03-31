@@ -15,37 +15,19 @@
 package cmd
 
 import (
-	"bytes"
+	"io"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/p2p"
 )
 
-//go:generate go test . -run=TestGenSimnet -update
-
-func TestGenSimnet(t *testing.T) {
-	dir := "testdata/simnet"
-	require.NoError(t, os.RemoveAll(dir))
-	err := os.MkdirAll(dir, 0o755)
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
-
-	var buf bytes.Buffer
-	conf := simnetConfig{
-		clusterDir: dir,
-		numNodes:   4,
-		threshold:  3,
-		portStart:  8000,
-		testBinary: "charon",
-	}
-
-	err = runGenSimnet(&buf, conf)
+func TestRunGenP2P(t *testing.T) {
+	temp, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	testutil.RequireGoldenBytes(t, buf.Bytes())
-
-	// TODO(corver): Assert generated files.
+	err = runGenP2PKey(io.Discard, p2p.Config{}, temp)
+	require.NoError(t, err)
 }

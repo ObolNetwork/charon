@@ -18,6 +18,7 @@ linters-settings:
     enable-all: true
     disable:
       - fieldalignment
+      - shadow
   nlreturn:
     block-size: 2
   revive:

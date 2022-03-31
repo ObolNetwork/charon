@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -160,4 +161,25 @@ func EncodeRandaoAggSignedData(randao eth2p0.BLSSignature) AggSignedData {
 // DecodeRandaoAggSignedData returns the RANDAO reveal from the encoded AggSignedData as BLS Signature.
 func DecodeRandaoAggSignedData(data AggSignedData) eth2p0.BLSSignature {
 	return data.Signature.ToETH2()
+}
+
+// EncodeProposerUnsignedData returns the proposer data as an encoded UnsignedData.
+func EncodeProposerUnsignedData(proData *spec.VersionedBeaconBlock) (UnsignedData, error) {
+	b, err := json.Marshal(proData)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal proposer data")
+	}
+
+	return b, nil
+}
+
+// DecodeProposerUnsignedData returns the proposer data as an encoded UnsignedData.
+func DecodeProposerUnsignedData(unsignedData UnsignedData) (*spec.VersionedBeaconBlock, error) {
+	proData := new(spec.VersionedBeaconBlock)
+	err := json.Unmarshal(unsignedData, proData)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal proposer data")
+	}
+
+	return proData, nil
 }

@@ -27,6 +27,9 @@ Flags:
       --data-dir string                The directory where charon will store all its internal data (default "./charon/data")
   -h, --help                           help for run
       --jaeger-address string          Listening address for jaeger tracing
+      --jaeger-service string          Service name used for jaeger tracing (default "charon")
+      --log-format string              Log format; console, logfmt or json (default "console")
+      --log-level string               Log level; debug, info, warn or error (default "info")
       --manifest-file string           The path to the manifest file defining distributed validator cluster (default "./charon/manifest.json")
       --monitoring-address string      Listening address (ip and port) for the monitoring API (prometheus, pprof) (default "127.0.0.1:8088")
       --p2p-allowlist string           Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.
@@ -36,8 +39,8 @@ Flags:
       --p2p-peerdb string              Path to store a discv5 peer database. Empty default results in in-memory database.
       --p2p-tcp-address strings        Comma-separated list of listening TCP addresses (ip and port) for LibP2P traffic (default [127.0.0.1:13900])
       --p2p-udp-address string         Listening UDP address (ip and port) for Discv5 discovery (default "127.0.0.1:30309")
-      --simnet                         Enables simnet, starts and connects to an internal mock beacon node.
-      --simnet-validator-mock          Enables an internal mock validator client when running simnet.
+      --simnet-beacon-mock             Enables an internal mock beacon node for running a simnet.
+      --simnet-validator-mock          Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.
       --validator-api-address string   Listening address (ip and port) for validator-facing traffic proxying the beacon-node API (default "127.0.0.1:3500")
 
 ````

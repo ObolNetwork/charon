@@ -1,5 +1,5 @@
 Referencing charon binary in scripts: charon
-Created simnet cluster:
+Created split key cluster:
 
 charon-simnet/
 ├─ manifest.json	Cluster manifest defines the cluster; used by all nodes

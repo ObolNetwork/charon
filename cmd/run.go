@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -42,8 +43,9 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 	}
 
 	bindRunFlags(cmd.Flags(), &conf)
-	bindGeneralFlags(cmd.Flags(), &conf.DataDir)
+	bindDataDirFlag(cmd.Flags(), &conf.DataDir)
 	bindP2PFlags(cmd.Flags(), &conf.P2P)
+	bindLogFlags(cmd.Flags(), &conf.Log)
 
 	return cmd
 }
@@ -54,12 +56,22 @@ func bindRunFlags(flags *pflag.FlagSet, config *app.Config) {
 	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:3500", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API")
 	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:8088", "Listening address (ip and port) for the monitoring API (prometheus, pprof)")
 	flags.StringVar(&config.JaegerAddr, "jaeger-address", "", "Listening address for jaeger tracing")
-	flags.BoolVar(&config.Simnet, "simnet", false, "Enables simnet, starts and connects to an internal mock beacon node.")
-	flags.BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running simnet.")
+	flags.StringVar(&config.JaegerService, "jaeger-service", "charon", "Service name used for jaeger tracing")
+	flags.BoolVar(&config.SimnetBMock, "simnet-beacon-mock", false, "Enables an internal mock beacon node for running a simnet.")
+	flags.BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.")
 }
 
-func bindGeneralFlags(flags *pflag.FlagSet, dataDir *string) {
+func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
+	flags.StringVar(&config.Format, "log-format", "console", "Log format; console, logfmt or json")
+	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
+}
+
+func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
 	flags.StringVar(dataDir, "data-dir", "./charon/data", "The directory where charon will store all its internal data")
+}
+
+func bindBootnodeFlag(flags *pflag.FlagSet, httpAddr *string) {
+	flags.StringVar(httpAddr, "bootnode-http-address", "127.0.0.1:8088", "Listening address for the bootnode http server serving runtime ENR")
 }
 
 func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {

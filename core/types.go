@@ -70,6 +70,18 @@ func (d Duty) String() string {
 	return fmt.Sprintf("%d/%s", d.Slot, d.Type)
 }
 
+// NewAttesterDuty returns a new attester duty. It is a convenience function that is
+// slightly more readable and concise than the struct literal equivalent:
+//   core.Duty{Slot: slot, Type: core.DutyAttester}
+//   vs
+//   core.NewAttesterDuty(slot)
+func NewAttesterDuty(slot int64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutyAttester,
+	}
+}
+
 const (
 	pkLen  = 98 // "0x" + hex.Encode([48]byte) = 2+2*48
 	sigLen = 96

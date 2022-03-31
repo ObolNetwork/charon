@@ -16,42 +16,93 @@ package log
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"go.uber.org/zap"
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
-var logger = newConsoleLogger()
+// logger is the global logger.
+var logger = newConsoleLogger(zapcore.DebugLevel)
 
-func newConsoleLogger() *zap.Logger {
-	writer, _, _ := zap.Open("stderr")
-	return buildConsoleLogger(writer)
+// Config defines the logging configuration.
+type Config struct {
+	Level  string // debug, info, warn or error
+	Format string // console or json
 }
 
-// InitJSONLogger initialises a JSON logger for production usage.
-func InitJSONLogger() error {
-	var err error
-	logger, err = zap.NewProduction()
+// ZapLevel returns the zapcore level.
+func (c Config) ZapLevel() (zapcore.Level, error) {
+	level, err := zapcore.ParseLevel(c.Level)
 	if err != nil {
-		return errors.Wrap(err, "zap logger")
+		return 0, errors.Wrap(err, "parse level")
 	}
+
+	return level, nil
+}
+
+// DefaultConfig returns the default logging config.
+func DefaultConfig() Config {
+	return Config{
+		Level:  zapcore.DebugLevel.String(),
+		Format: "console",
+	}
+}
+
+// InitLogger initialises the global logger based on the provided config.
+func InitLogger(config Config) error {
+	level, err := config.ZapLevel()
+	if err != nil {
+		return err
+	}
+
+	if config.Format == "console" {
+		logger = newConsoleLogger(level)
+		return nil
+	}
+
+	encConfig := zap.NewProductionEncoderConfig()
+	encoder := zapcore.NewJSONEncoder(encConfig)
+	if config.Format == "logfmt" {
+		encConfig.EncodeTime = zapcore.RFC3339NanoTimeEncoder
+		encoder = zaplogfmt.NewEncoder(encConfig)
+	} else if config.Format != "json" {
+		return errors.New("logger format not console, logfmt or json", z.Str("format", config.Format))
+	}
+
+	logger = zap.New(
+		zapcore.NewCore(
+			encoder,
+			os.Stderr,
+			zap.NewAtomicLevelAt(level),
+		),
+		zap.WithCaller(true),
+		zap.AddCallerSkip(1),
+	)
 
 	return nil
 }
 
 // InitLoggerForT initialises a console logger for testing purposes.
 func InitLoggerForT(_ *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
-	logger = buildConsoleLogger(ws, opts...)
+	logger = buildConsoleLogger(zapcore.DebugLevel, ws, opts...)
+}
+
+func newConsoleLogger(level zapcore.Level) *zap.Logger {
+	writer, _, _ := zap.Open("stderr")
+	return buildConsoleLogger(level, writer)
 }
 
 // buildConsoleLogger returns an opinionated console logger.
-func buildConsoleLogger(ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) *zap.Logger {
+func buildConsoleLogger(level zapcore.Level, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) *zap.Logger {
 	encConfig := zap.NewDevelopmentEncoderConfig()
 	encConfig.ConsoleSeparator = " "
 	encConfig.EncodeLevel = level4CharEncoder
@@ -66,7 +117,7 @@ func buildConsoleLogger(ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderCon
 	return zap.New(
 		zapcore.NewCore(
 			encoder, ws,
-			zap.NewAtomicLevelAt(zapcore.DebugLevel),
+			zap.NewAtomicLevelAt(level),
 		),
 		zap.WithCaller(true),
 		zap.AddCallerSkip(1),

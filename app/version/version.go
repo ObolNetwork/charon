@@ -16,4 +16,4 @@ package version
 
 // Version is the release version of the codebase.
 // Usually overridden by tag names when building binaries.
-const Version = "v0.1.0-dirty"
+const Version = "v0.2.0"

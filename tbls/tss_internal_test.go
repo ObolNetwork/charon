@@ -34,7 +34,7 @@ func TestGenerateSecretShares(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, secret)
 
-			shares, verifiers, err := generateSecretShares(*secret, 3, 5, rand.Reader)
+			shares, verifiers, err := SplitSecret(secret, 3, 5, rand.Reader)
 			require.NoError(t, err)
 			require.NotNil(t, shares)
 			require.NotNil(t, verifiers)

@@ -60,13 +60,15 @@ import (
 
 type Config struct {
 	P2P              p2p.Config
+	Log              log.Config
 	ManifestFile     string
 	DataDir          string
 	MonitoringAddr   string
 	ValidatorAPIAddr string
 	BeaconNodeAddr   string
 	JaegerAddr       string
-	Simnet           bool
+	JaegerService    string
+	SimnetBMock      bool
 	SimnetVMock      bool
 
 	TestConfig TestConfig
@@ -105,10 +107,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}()
 
-	log.Info(ctx, "Charon starting", z.Str("version", version.Version))
-
 	_, _ = maxprocs.Set()
 	initStartupMetrics()
+	if err := log.InitLogger(conf.Log); err != nil {
+		return err
+	}
+
+	log.Info(ctx, "Charon starting", z.Str("version", version.Version))
 
 	// Wire processes and their dependencies
 	life := new(lifecycle.Manager)
@@ -122,7 +127,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	tcpNode, localEnode, err := wireP2P(ctx, life, conf, manifest)
+	tcpNode, localEnode, err := wireP2P(life, conf, manifest)
 	if err != nil {
 		return err
 	}
@@ -135,7 +140,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Info(ctx, "Manifest loaded",
 		z.Int("peers", len(manifest.Peers)),
 		z.Str("peer_id", p2p.ShortID(tcpNode.ID())),
-		z.Int("peer_index", nodeIdx.PeerIdx))
+		z.Int("peer_index", nodeIdx.PeerIdx),
+		z.Str("enr", localEnode.Node().String()))
 
 	wireMonitoringAPI(life, conf.MonitoringAddr, localEnode)
 
@@ -148,21 +154,14 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
-func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest Manifest,
+func wireP2P(life *lifecycle.Manager, conf Config, manifest Manifest,
 ) (host.Host, *enode.LocalNode, error) {
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
 		var err error
-		var loaded bool
-		p2pKey, loaded, err = p2p.LoadOrCreatePrivKey(conf.DataDir)
+		p2pKey, err = p2p.LoadPrivKey(conf.DataDir)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "load or create peer ID")
-		}
-
-		if loaded {
-			log.Info(ctx, "Loaded p2p key", z.Str("dir", conf.DataDir))
-		} else {
-			log.Info(ctx, "Generated new p2p key", z.Str("dir", conf.DataDir))
+			return nil, nil, errors.Wrap(err, "load p2p key")
 		}
 	}
 
@@ -241,11 +240,13 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	// Configure the beacon node api.
 	var eth2Cl eth2client.Service
-	if conf.Simnet {
+	if conf.SimnetBMock {
 		// Configure the beacon mock.
 		opts := []beaconmock.Option{
 			beaconmock.WithSlotDuration(time.Second),
 			beaconmock.WithDeterministicDuties(100),
+			// TODO(dhruv): remove this when DutyProposer is in place
+			beaconmock.WithNoProposerDuties(),
 			beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
 		}
 		opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
@@ -308,14 +309,16 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	sigAgg := sigagg.New(threshold)
 
-	aggSigDB := aggsigdb.Stub{}
+	aggSigDB := aggsigdb.NewMemDB()
 
 	broadcaster, err := bcast.New(eth2Cl)
 	if err != nil {
 		return err
 	}
 
-	core.Wire(sched, fetch, consensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster)
+	core.Wire(sched, fetch, consensus, dutyDB, vapi,
+		parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster,
+		core.WithTracing())
 
 	err = wireValidatorMock(conf, pubshares, sched)
 	if err != nil {
@@ -328,6 +331,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartLeaderCast, lifecycle.HookFunc(consensus.Run))
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartScheduler, lifecycle.HookFuncErr(sched.Run))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartAggSigDB, lifecycle.HookFuncCtx(aggSigDB.Run))
 	life.RegisterStop(lifecycle.StopScheduler, lifecycle.HookFuncMin(sched.Stop))
 
 	return nil
@@ -401,7 +405,10 @@ func wireVAPIRouter(life *lifecycle.Manager, conf Config, handler validatorapi.H
 
 // wireTracing constructs the global tracer and registers it with the life cycle manager.
 func wireTracing(life *lifecycle.Manager, conf Config) error {
-	stopjaeger, err := tracer.Init(tracer.WithJaegerOrNoop(conf.JaegerAddr))
+	stopjaeger, err := tracer.Init(
+		tracer.WithJaegerOrNoop(conf.JaegerAddr),
+		tracer.WithJaegerService(conf.JaegerService),
+	)
 	if err != nil {
 		return errors.Wrap(err, "init jaeger tracing")
 	}
@@ -428,14 +435,14 @@ func (h httpServeHook) Call(context.Context) error {
 // wireValidatorMock wires the validator mock if enabled. The validator mock attestions
 // will be triggered by scheduler's DutyAttester. It connects via http validatorapi.Router.
 func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
-	if !conf.Simnet || !conf.SimnetVMock {
+	if !conf.SimnetBMock || !conf.SimnetVMock {
 		return nil
 	}
 
 	secrets := conf.TestConfig.SimnetKeys
 	if len(secrets) == 0 {
 		var err error
-		secrets, err = keystore.LoadSimnetKeys(conf.DataDir)
+		secrets, err = keystore.LoadKeys(conf.DataDir)
 		if err != nil {
 			return err
 		}

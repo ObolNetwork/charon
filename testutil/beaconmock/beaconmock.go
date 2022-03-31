@@ -43,6 +43,7 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 
@@ -51,13 +52,14 @@ import (
 
 // Interface assertions.
 var (
-	_ HTTPMock                           = (*Mock)(nil)
-	_ eth2client.AttestationDataProvider = (*Mock)(nil)
-	_ eth2client.AttestationsSubmitter   = (*Mock)(nil)
-	_ eth2client.AttesterDutiesProvider  = (*Mock)(nil)
-	_ eth2client.ProposerDutiesProvider  = (*Mock)(nil)
-	_ eth2client.Service                 = (*Mock)(nil)
-	_ eth2client.ValidatorsProvider      = (*Mock)(nil)
+	_ HTTPMock                               = (*Mock)(nil)
+	_ eth2client.AttestationDataProvider     = (*Mock)(nil)
+	_ eth2client.AttestationsSubmitter       = (*Mock)(nil)
+	_ eth2client.AttesterDutiesProvider      = (*Mock)(nil)
+	_ eth2client.BeaconBlockProposalProvider = (*Mock)(nil)
+	_ eth2client.ProposerDutiesProvider      = (*Mock)(nil)
+	_ eth2client.Service                     = (*Mock)(nil)
+	_ eth2client.ValidatorsProvider          = (*Mock)(nil)
 )
 
 // New returns a new beacon client mock configured with the default and provided options.
@@ -120,14 +122,15 @@ type Mock struct {
 	overrides  []staticOverride
 	clock      clockwork.Clock
 
-	AttestationDataFunc    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
-	AttesterDutiesFunc     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
-	ProposerDutiesFunc     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
-	SubmitAttestationsFunc func(context.Context, []*eth2p0.Attestation) error
-	ValidatorsByPubKeyFunc func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	ValidatorsFunc         func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	GenesisTimeFunc        func(ctx context.Context) (time.Time, error)
-	NodeSyncingFunc        func(context.Context) (*eth2v1.SyncState, error)
+	AttestationDataFunc     func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
+	AttesterDutiesFunc      func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	BeaconBlockProposalFunc func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
+	ProposerDutiesFunc      func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	SubmitAttestationsFunc  func(context.Context, []*eth2p0.Attestation) error
+	ValidatorsByPubKeyFunc  func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	ValidatorsFunc          func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	GenesisTimeFunc         func(ctx context.Context) (time.Time, error)
+	NodeSyncingFunc         func(context.Context) (*eth2v1.SyncState, error)
 }
 
 func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
@@ -136,6 +139,10 @@ func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Att
 
 func (m Mock) AttestationData(ctx context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 	return m.AttestationDataFunc(ctx, slot, committeeIndex)
+}
+
+func (m Mock) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
+	return m.BeaconBlockProposalFunc(ctx, slot, randaoReveal, graffiti)
 }
 
 func (m Mock) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {

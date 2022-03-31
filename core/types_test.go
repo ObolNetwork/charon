@@ -15,10 +15,13 @@
 package core_test
 
 import (
+	"context"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -53,4 +56,26 @@ func TestAggSignedData_Equal(t *testing.T) {
 	require.False(t, testAggSignedData1.Equal(testAggSignedData3))
 	require.False(t, testAggSignedData1.Equal(testAggSignedData4))
 	require.False(t, testAggSignedData1.Equal(testAggSignedData5))
+}
+
+func TestWithDutySpanCtx(t *testing.T) {
+	ctx := context.Background()
+	stop, err := tracer.Init(tracer.WithStdOut(io.Discard))
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, stop(ctx))
+	}()
+
+	_, span1 := core.StartDutyTrace(ctx, core.Duty{}, "span1")
+	_, span2 := core.StartDutyTrace(ctx, core.Duty{}, "span2")
+
+	require.Equal(t, "7d0b160d5b04eac85dd1eaf0585c5b82", span1.SpanContext().TraceID().String())
+	require.Equal(t, span1.SpanContext().TraceID(), span2.SpanContext().TraceID())
+	require.NotEqual(t, span1.SpanContext().SpanID(), span2.SpanContext().SpanID())
+
+	require.True(t, span1.SpanContext().IsValid())
+	require.True(t, span1.SpanContext().IsSampled())
+
+	require.True(t, span2.SpanContext().IsValid())
+	require.True(t, span2.SpanContext().IsSampled())
 }

@@ -165,12 +165,12 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 		writeResponse(ctx, w, endpoint, res)
 	}
 
-	return trace(endpoint, wrap)
+	return wrapTrace(endpoint, wrap)
 }
 
-// trace wraps the passed handler in a OpenTelemetry tracing span.
-func trace(endpoint string, handler http.HandlerFunc) http.Handler {
-	return otelhttp.NewHandler(handler, "validator."+endpoint)
+// wrapTrace wraps the passed handler in a OpenTelemetry tracing span.
+func wrapTrace(endpoint string, handler http.HandlerFunc) http.Handler {
+	return otelhttp.NewHandler(handler, "core/validatorapi."+endpoint)
 }
 
 // getValidator returns a handler function for the get validators by pubkey or index endpoint.

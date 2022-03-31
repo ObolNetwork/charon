@@ -25,6 +25,7 @@ import (
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -66,7 +67,6 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 		if err != nil {
 			return err
 		}
-
 		if i == 0 {
 			firstParSig = parSig
 			firstRoot = root
@@ -86,7 +86,9 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 	}
 
 	// Aggregate signatures
+	_, span := tracer.Start(ctx, "tbls.Aggregate")
 	sig, err := tbls.Aggregate(blsSigs)
+	span.End()
 	if err != nil {
 		return err
 	}

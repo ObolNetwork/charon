@@ -33,6 +33,10 @@ type Fetcher interface {
 
 	// Subscribe registers a callback for proposed unsigned duty data sets.
 	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
+
+	// RegisterAggSigDB registers a function to get resolved aggregated
+	// signed data from the AggSigDB (e.g., randao reveals).
+	RegisterAggSigDB(func(context.Context, Duty, PubKey) (AggSignedData, error))
 }
 
 // DutyDB persists unsigned duty data sets and makes it available for querying. It also acts
@@ -124,9 +128,38 @@ type Broadcaster interface {
 	Broadcast(context.Context, Duty, PubKey, AggSignedData) error
 }
 
+// wireFuncs defines the core workflow components as a list input and output functions
+// instead as interfaces, since functions are easier to wrap than interfaces.
+type wireFuncs struct {
+	SchedulerSubscribe              func(func(context.Context, Duty, FetchArgSet) error)
+	FetcherFetch                    func(context.Context, Duty, FetchArgSet) error
+	FetcherSubscribe                func(func(context.Context, Duty, UnsignedDataSet) error)
+	ConsensusPropose                func(context.Context, Duty, UnsignedDataSet) error
+	ConsensusSubscribe              func(func(context.Context, Duty, UnsignedDataSet) error)
+	DutyDBStore                     func(context.Context, Duty, UnsignedDataSet) error
+	DutyDBAwaitAttestation          func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
+	DutyDBPubKeyByAttestation       func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
+	VAPIRegisterAwaitAttestation    func(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
+	VAPIRegisterPubKeyByAttestation func(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
+	VAPIRegisterParSigDB            func(func(context.Context, Duty, ParSignedDataSet) error)
+	ParSigDBStoreInternal           func(context.Context, Duty, ParSignedDataSet) error
+	ParSigDBStoreExternal           func(context.Context, Duty, ParSignedDataSet) error
+	ParSigDBSubscribeInternal       func(func(context.Context, Duty, ParSignedDataSet) error)
+	ParSigDBSubscribeThreshold      func(func(context.Context, Duty, PubKey, []ParSignedData) error)
+	ParSigExBroadcast               func(context.Context, Duty, ParSignedDataSet) error
+	ParSigExSubscribe               func(func(context.Context, Duty, ParSignedDataSet) error)
+	SigAggAggregate                 func(context.Context, Duty, PubKey, []ParSignedData) error
+	SigAggSubscribe                 func(func(context.Context, Duty, PubKey, AggSignedData) error)
+	AggSigDBStore                   func(context.Context, Duty, PubKey, AggSignedData) error
+	AggSigDBAwait                   func(context.Context, Duty, PubKey) (AggSignedData, error)
+	BroadcasterBroadcast            func(context.Context, Duty, PubKey, AggSignedData) error
+}
+
+// WireOption defines a functional option to configure wiring.
+type WireOption func(*wireFuncs)
+
 // Wire wires the workflow components together.
-func Wire(
-	sched Scheduler,
+func Wire(sched Scheduler,
 	fetch Fetcher,
 	cons Consensus,
 	dutyDB DutyDB,
@@ -136,16 +169,46 @@ func Wire(
 	sigAgg SigAgg,
 	aggSigDB AggSigDB,
 	bcast Broadcaster,
+	opts ...WireOption,
 ) {
-	sched.Subscribe(fetch.Fetch)
-	fetch.Subscribe(cons.Propose)
-	cons.Subscribe(dutyDB.Store)
-	vapi.RegisterAwaitAttestation(dutyDB.AwaitAttestation)
-	vapi.RegisterPubKeyByAttestation(dutyDB.PubKeyByAttestation)
-	vapi.RegisterParSigDB(parSigDB.StoreInternal)
-	parSigDB.SubscribeInternal(parSigEx.Broadcast)
-	parSigEx.Subscribe(parSigDB.StoreExternal)
-	parSigDB.SubscribeThreshold(sigAgg.Aggregate)
-	sigAgg.Subscribe(aggSigDB.Store)
-	sigAgg.Subscribe(bcast.Broadcast)
+	w := wireFuncs{
+		SchedulerSubscribe:              sched.Subscribe,
+		FetcherFetch:                    fetch.Fetch,
+		FetcherSubscribe:                fetch.Subscribe,
+		ConsensusPropose:                cons.Propose,
+		ConsensusSubscribe:              cons.Subscribe,
+		DutyDBStore:                     dutyDB.Store,
+		DutyDBAwaitAttestation:          dutyDB.AwaitAttestation,
+		DutyDBPubKeyByAttestation:       dutyDB.PubKeyByAttestation,
+		VAPIRegisterAwaitAttestation:    vapi.RegisterAwaitAttestation,
+		VAPIRegisterPubKeyByAttestation: vapi.RegisterPubKeyByAttestation,
+		VAPIRegisterParSigDB:            vapi.RegisterParSigDB,
+		ParSigDBStoreInternal:           parSigDB.StoreInternal,
+		ParSigDBStoreExternal:           parSigDB.StoreExternal,
+		ParSigDBSubscribeInternal:       parSigDB.SubscribeInternal,
+		ParSigDBSubscribeThreshold:      parSigDB.SubscribeThreshold,
+		ParSigExBroadcast:               parSigEx.Broadcast,
+		ParSigExSubscribe:               parSigEx.Subscribe,
+		SigAggAggregate:                 sigAgg.Aggregate,
+		SigAggSubscribe:                 sigAgg.Subscribe,
+		AggSigDBStore:                   aggSigDB.Store,
+		AggSigDBAwait:                   aggSigDB.Await,
+		BroadcasterBroadcast:            bcast.Broadcast,
+	}
+
+	for _, opt := range opts {
+		opt(&w)
+	}
+
+	w.SchedulerSubscribe(w.FetcherFetch)
+	w.FetcherSubscribe(w.ConsensusPropose)
+	w.ConsensusSubscribe(w.DutyDBStore)
+	w.VAPIRegisterAwaitAttestation(w.DutyDBAwaitAttestation)
+	w.VAPIRegisterPubKeyByAttestation(w.DutyDBPubKeyByAttestation)
+	w.VAPIRegisterParSigDB(w.ParSigDBStoreInternal)
+	w.ParSigDBSubscribeInternal(w.ParSigExBroadcast)
+	w.ParSigExSubscribe(w.ParSigDBStoreExternal)
+	w.ParSigDBSubscribeThreshold(w.SigAggAggregate)
+	w.SigAggSubscribe(w.AggSigDBStore)
+	w.SigAggSubscribe(w.BroadcasterBroadcast)
 }

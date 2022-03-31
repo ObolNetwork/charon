@@ -12,35 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package keystore_test
+package cmd
 
 import (
+	"bytes"
 	"os"
 	"testing"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/testutil/keystore"
+	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestStoreLoad(t *testing.T) {
+//go:generate go test . -run=TestGenSimnet -update
+
+func TestGenSimnet(t *testing.T) {
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	var secrets []*bls_sig.SecretKey
-	for i := 0; i < 2; i++ {
-		_, secret, err := bls_sig.NewSigEth2().Keygen()
-		require.NoError(t, err)
-
-		secrets = append(secrets, secret)
+	var buf bytes.Buffer
+	conf := simnetConfig{
+		ClusterDir: dir,
+		NumNodes:   4,
+		Threshold:  3,
+		PortStart:  8000,
+		TestBinary: "charon",
 	}
 
-	err = keystore.StoreKeys(secrets, dir)
+	err = runGenSimnet(&buf, conf)
 	require.NoError(t, err)
 
-	actual, err := keystore.LoadKeys(dir)
-	require.NoError(t, err)
+	out := buf.Bytes()
+	out = bytes.Replace(out, []byte(dir), []byte("charon-simnet"), 1)
+	testutil.RequireGoldenBytes(t, out)
 
-	require.Equal(t, secrets, actual)
+	// TODO(corver): Assert generated files.
 }
