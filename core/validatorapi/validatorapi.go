@@ -20,6 +20,7 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"go.opentelemetry.io/otel/trace"
@@ -242,6 +243,10 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 	}
 
 	return nil
+}
+
+func (Component) BeaconBlockProposal(_ context.Context, _ eth2p0.Slot, _ eth2p0.BLSSignature, _ []byte) (*spec.VersionedBeaconBlock, error) {
+	return nil, errors.New("not implemented")
 }
 
 // verifyParSig verifies the partial signature against the root and validator.

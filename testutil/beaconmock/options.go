@@ -322,9 +322,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 						ETH1Data: &eth2p0.ETH1Data{
 							DepositRoot:  testutil.RandomRoot(),
 							DepositCount: 0,
-							BlockHash:    testutil.RandomBytes(),
+							BlockHash:    testutil.RandomBytes32(),
 						},
-						Graffiti:          testutil.RandomBytes(),
+						Graffiti:          testutil.RandomBytes32(),
 						ProposerSlashings: []*eth2p0.ProposerSlashing{},
 						AttesterSlashings: []*eth2p0.AttesterSlashing{},
 						Attestations:      []*eth2p0.Attestation{testutil.RandomAttestation(), testutil.RandomAttestation()},

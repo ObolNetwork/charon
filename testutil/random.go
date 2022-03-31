@@ -93,9 +93,9 @@ func RandomBeaconBlockBody() *eth2p0.BeaconBlockBody {
 		ETH1Data: &eth2p0.ETH1Data{
 			DepositRoot:  RandomRoot(),
 			DepositCount: 0,
-			BlockHash:    RandomBytes(),
+			BlockHash:    RandomBytes32(),
 		},
-		Graffiti:          RandomBytes(),
+		Graffiti:          RandomBytes32(),
 		ProposerSlashings: []*eth2p0.ProposerSlashing{},
 		AttesterSlashings: []*eth2p0.AttesterSlashing{},
 		Attestations:      []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
@@ -173,7 +173,7 @@ func RandomVIdx() eth2p0.ValidatorIndex {
 	return eth2p0.ValidatorIndex(rand.Uint64())
 }
 
-func RandomBytes() []byte {
+func RandomBytes32() []byte {
 	var resp [32]byte
 	_, _ = rand.Read(resp[:])
 

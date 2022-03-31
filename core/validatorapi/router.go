@@ -20,6 +20,7 @@ package validatorapi
 import (
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -50,6 +51,7 @@ type Handler interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
+	eth2client.BeaconBlockProposalProvider
 	eth2client.ProposerDutiesProvider
 	eth2client.ValidatorsProvider
 	// Above sorted alphabetically.
@@ -94,6 +96,11 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 			Name:    "get_validator",
 			Path:    "/eth/v1/beacon/states/{state_id}/validators/{validator_id}",
 			Handler: getValidator(h),
+		},
+		{
+			Name:    "submit_randao",
+			Path:    "/eth/v2/validator/blocks/{slot}",
+			Handler: submitRandao(h),
 		},
 		// TODO(corver): Add more endpoints
 	}
@@ -311,6 +318,43 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 	}
 }
 
+// submitRandao receives the randao from the validator.
+// TODO(leo): rename to proposeBlock when adding dutyProposer support.
+func submitRandao(p eth2client.BeaconBlockProposalProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		slot, err := uintParam(params, "slot")
+		if err != nil {
+			return nil, err
+		}
+
+		var randao eth2p0.BLSSignature
+		b, err := hexQuery(query, "randao_reveal")
+		if err != nil {
+			return nil, err
+		}
+		if len(b) != len(randao) {
+			return nil, errors.New("input randao_reveal has wrong length")
+		}
+		copy(randao[:], b)
+
+		graffiti, err := hexQuery(query, "graffiti")
+		if err != nil {
+			return nil, errors.Wrap(err, "hexadecimal decoding")
+		}
+		// TODO(leo): where should we put this constant?
+		if len(graffiti) > 32 {
+			return nil, errors.New("above graffiti length max of 32")
+		}
+
+		_, err = p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, graffiti)
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, errors.New("duty proposer not implemented yet")
+	}
+}
+
 // proxyHandler returns a reverse proxy handler.
 func proxyHandler(target string) (http.HandlerFunc, error) {
 	targetURL, err := url.Parse(target)
@@ -464,6 +508,21 @@ func uintQuery(query url.Values, name string) (uint64, error) {
 	}
 
 	return res, nil
+}
+
+func hexQuery(query url.Values, name string) ([]byte, error) {
+	valueA, ok := query[name]
+	if !ok || len(valueA) != 1 {
+		return nil, errors.New("key not present in query")
+	}
+	value := valueA[0]
+
+	resp, err := hex.DecodeString(strings.TrimPrefix(value, "0x"))
+	if err != nil {
+		return nil, errors.Wrap(err, "decode hex")
+	}
+
+	return resp, nil
 }
 
 // proxyResponseWriter wraps a http response writer and instruments errors.
