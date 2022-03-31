@@ -326,38 +326,27 @@ func submitRandao(p Handler) handlerFunc {
 			return nil, err
 		}
 
-		randaoA, ok := query["randao_reveal"]
-		if !ok || len(randaoA) != 1 {
-			return nil, errors.New("randao_reveal is required")
+		var randao eth2p0.BLSSignature
+		b, err := hexQuery(query, "randao_reveal")
+		if err != nil {
+			return nil, err
 		}
-		randaoS := randaoA[0]
+		if len(b) != len(randao) {
+			return nil, errors.New("input randao_reveal has wrong length")
+		}
+		copy(randao[:], b)
 
-		// TODO perhaps this should a function in core/types.go
-		var sig core.Signature = make([]byte, 96) // TODO: 96 from where? sigLen is private
-		_, err = hex.Decode(sig, []byte(randaoS))
+		graffiti, err := hexQuery(query, "graffiti")
 		if err != nil {
 			return nil, errors.Wrap(err, "hexadecimal decoding")
 		}
 
-		// TODO perhaps we should have a graffiti function somewhere to do this
-		graffitiA, ok := query["graffiti"]
-		if !ok || len(graffitiA) != 1 {
-			return nil, errors.New("graffiti is required")
-		}
-		graffitiS := graffitiA[0]
-
-		graffiti := make([]byte, len(graffitiS)/2)
-		_, err = hex.Decode(graffiti, []byte(graffitiS))
-		if err != nil {
-			return nil, errors.Wrap(err, "hexadecimal decoding")
-		}
-
-		_, err = p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), sig.ToETH2(), graffiti)
+		_, err = p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, graffiti)
 		if err != nil {
 			return nil, err
 		}
 
-		return nil, errors.New("not implemented yet")
+		return nil, errors.New("duty proposer not implemented yet")
 	}
 }
 
@@ -514,6 +503,21 @@ func uintQuery(query url.Values, name string) (uint64, error) {
 	}
 
 	return res, nil
+}
+
+func hexQuery(query url.Values, name string) ([]byte, error) {
+	valueA, ok := query[name]
+	if !ok || len(valueA) != 1 {
+		return nil, errors.New("key not present in query")
+	}
+	value := valueA[0]
+
+	result, err := hex.DecodeString(strings.TrimPrefix(value, "0x"))
+	if err != nil {
+		return nil, errors.Wrap(err, "hexQuery")
+	}
+
+	return result, nil
 }
 
 // proxyResponseWriter wraps a http response writer and instruments errors.
