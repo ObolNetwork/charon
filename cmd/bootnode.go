@@ -75,7 +75,7 @@ func runBootnode(ctx context.Context, config bootnodeConfig) error {
 	}
 	defer db.Close()
 
-	udpNode, err := p2p.NewUDPNode(config.P2PConfig, localEnode, key, nil)
+	udpNode, err := p2p.NewUDPNode(ctx, config.P2PConfig, localEnode, key, nil)
 	if err != nil {
 		return errors.Wrap(err, "")
 	}

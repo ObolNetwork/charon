@@ -26,8 +26,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 func TestQueryBootnodeENR(t *testing.T) {
