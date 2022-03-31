@@ -134,14 +134,8 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		}
 	}
 
-	port := config.portStart
-	nextPort := func() int {
-		port++
-		return port
-	}
-	nodeDir := func(i int) string {
-		return fmt.Sprintf("%s/node%d", config.clusterDir, i)
-	}
+	nodeDir := nodeDirFunc(config.clusterDir)
+	nextPort := nextPortFunc(config.portStart)
 
 	var peers []p2p.Peer
 	for i := 0; i < config.numNodes; i++ {
@@ -169,7 +163,7 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 			return err
 		}
 
-		err = keystore.StoreSimnetKeys([]*bls_sig.SecretKey{secret}, nodeDir(i))
+		err = keystore.StoreKeys([]*bls_sig.SecretKey{secret}, nodeDir(i))
 		if err != nil {
 			return err
 		}
@@ -185,7 +179,7 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		return errors.Wrap(err, "write teamocil.yml")
 	}
 
-	writeOutput(out, config, charonBin)
+	writeOutput(out, config, charonBin, "simnet cluster")
 
 	return nil
 }
@@ -250,17 +244,18 @@ func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func()
 }
 
 // writeOutput writes the gen_simnet output.
-func writeOutput(out io.Writer, config simnetConfig, charonBin string) {
+func writeOutput(out io.Writer, config simnetConfig, charonBin string, name string) {
 	var sb strings.Builder
 	_, _ = sb.WriteString(fmt.Sprintf("Referencing charon binary in scripts: %s\n", charonBin))
-	_, _ = sb.WriteString("Created a simnet cluster:\n\n")
+	_, _ = sb.WriteString(fmt.Sprintf("Created %s:\n\n", name))
 	_, _ = sb.WriteString(strings.TrimSuffix(config.clusterDir, "/") + "/\n")
 	_, _ = sb.WriteString("├─ manifest.json\tCluster manifest defines the cluster; used by all nodes\n")
 	_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")
 	_, _ = sb.WriteString("├─ teamocil.yml\t\tConfiguration for teamocil utility to show output in different tmux panes\n")
 	_, _ = sb.WriteString("├─ node[0-3]/\t\tDirectory for each node\n")
 	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key for node authentication\n")
-	_, _ = sb.WriteString("│  ├─ keystore-simnet-0.json\tSimnet mock validator private share key for duty signing\n")
+	_, _ = sb.WriteString("│  ├─ keystore-*.json\tValidator private share key for duty signing\n")
+	_, _ = sb.WriteString("│  ├─ keystore-*.txt\tBuddy password file for keystore-0.json\n")
 	_, _ = sb.WriteString("│  ├─ run.sh\t\tScript to run the node\n")
 
 	_, _ = fmt.Fprint(out, sb.String())
@@ -366,4 +361,20 @@ func writeTeamocilYML(clusterDir string, n int) error {
 	}
 
 	return nil
+}
+
+// nodeDirFunc returns a node dir function.
+func nodeDirFunc(clusterDir string) func(i int) string {
+	return func(i int) string {
+		return fmt.Sprintf("%s/node%d", clusterDir, i)
+	}
+}
+
+// nextPortFunc returns a next port function starting at start port.
+func nextPortFunc(startPort int) func() int {
+	port := startPort
+	return func() int {
+		port++
+		return port
+	}
 }

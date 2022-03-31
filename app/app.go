@@ -442,7 +442,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	secrets := conf.TestConfig.SimnetKeys
 	if len(secrets) == 0 {
 		var err error
-		secrets, err = keystore.LoadSimnetKeys(conf.DataDir)
+		secrets, err = keystore.LoadKeys(conf.DataDir)
 		if err != nil {
 			return err
 		}

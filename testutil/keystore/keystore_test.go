@@ -36,10 +36,10 @@ func TestStoreLoad(t *testing.T) {
 		secrets = append(secrets, secret)
 	}
 
-	err = keystore.StoreSimnetKeys(secrets, dir)
+	err = keystore.StoreKeys(secrets, dir)
 	require.NoError(t, err)
 
-	actual, err := keystore.LoadSimnetKeys(dir)
+	actual, err := keystore.LoadKeys(dir)
 	require.NoError(t, err)
 
 	require.Equal(t, secrets, actual)

@@ -44,6 +44,7 @@ func New() *cobra.Command {
 		newGenP2PKeyCmd(runGenP2PKey),
 		newRunCmd(app.Run),
 		newGenSimnetCmd(runGenSimnet),
+		newSplitKeyClusterCmd(runSplitKeyCluster),
 	)
 }
 
