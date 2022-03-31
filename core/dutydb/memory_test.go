@@ -126,14 +126,16 @@ func TestMemDBProposer(t *testing.T) {
 	const queries = 3
 	slots := [queries]int64{123, 456, 789}
 
-	awaitBlockResponse := make(chan *spec.VersionedBeaconBlock)
-	awaitPubKeyResponse := make(chan core.PubKey)
+	type response struct {
+		block  *spec.VersionedBeaconBlock
+		pubkey core.PubKey
+	}
+	awaitResponse := make(chan response)
 	for i := 0; i < queries; i++ {
 		go func(slot int) {
 			pubkey, block, err := db.AwaitBeaconBlock(ctx, slots[slot])
 			require.NoError(t, err)
-			awaitBlockResponse <- block
-			awaitPubKeyResponse <- pubkey
+			awaitResponse <- response{block: block, pubkey: pubkey}
 		}(i)
 	}
 
@@ -167,9 +169,8 @@ func TestMemDBProposer(t *testing.T) {
 
 	// Get and assert the proQuery responses
 	for i := 0; i < queries; i++ {
-		actualBlock := <-awaitBlockResponse
-		actualPubKey := <-awaitPubKeyResponse
-		require.Equal(t, blocks[i], actualBlock)
-		require.Equal(t, pubkeysByIdx[eth2p0.ValidatorIndex(i)], actualPubKey)
+		actualData := <-awaitResponse
+		require.Equal(t, blocks[i], actualData.block)
+		require.Equal(t, pubkeysByIdx[eth2p0.ValidatorIndex(i)], actualData.pubkey)
 	}
 }
