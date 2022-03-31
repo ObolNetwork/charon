@@ -53,7 +53,6 @@ type Handler interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockProposalProvider
 	eth2client.ProposerDutiesProvider
-	eth2client.SlotsPerEpochProvider
 	eth2client.ValidatorsProvider
 	// Above sorted alphabetically.
 }
@@ -319,7 +318,9 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 	}
 }
 
-func submitRandao(p Handler) handlerFunc {
+// submitRandao receives the randao from the validator.
+// TODO(leo): rename to proposeBlock when adding dutyProposer support.
+func submitRandao(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
 		slot, err := uintParam(params, "slot")
 		if err != nil {
