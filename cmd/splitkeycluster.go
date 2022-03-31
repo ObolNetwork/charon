@@ -41,7 +41,7 @@ func newSplitKeyClusterCmd(runFunc func(io.Writer, splitKeyConfig) error) *cobra
 		Use:   "split-key-cluster",
 		Short: "Generates a new cluster by splitting standard validator key(s)",
 		Long: "Generates a new charon distributed validator cluster by " +
-			"splitting standard validator key(s) into t-of-n threshold BLS keys. " +
+			"splitting standard validator key(s) into t-of-n Threshold BLS keys. " +
 			"P2P keys and a cluster manifest are also generated. " +
 			"This command is similar to gen-simnet, except that new keys are not generated " +
 			"but split from existing validator keys",
@@ -60,7 +60,7 @@ func newSplitKeyClusterCmd(runFunc func(io.Writer, splitKeyConfig) error) *cobra
 }
 
 func runSplitKeyCluster(w io.Writer, config splitKeyConfig) error {
-	charonBin := config.testBinary
+	charonBin := config.TestBinary
 	if charonBin == "" {
 		var err error
 		charonBin, err = os.Executable()
@@ -69,8 +69,8 @@ func runSplitKeyCluster(w io.Writer, config splitKeyConfig) error {
 		}
 	}
 
-	nodeDir := nodeDirFunc(config.clusterDir)
-	nextPort := nextPortFunc(config.portStart)
+	nodeDir := nodeDirFunc(config.ClusterDir)
+	nextPort := nextPortFunc(config.PortStart)
 
 	secrets, err := keystore.LoadKeys(config.KeyDir)
 	if err != nil {
@@ -82,7 +82,7 @@ func runSplitKeyCluster(w io.Writer, config splitKeyConfig) error {
 		splits   [][]*bls_sig.SecretKeyShare
 	)
 	for _, secret := range secrets {
-		shares, verifier, err := tbls.SplitSecret(secret, config.threshold, config.numNodes, rand.Reader)
+		shares, verifier, err := tbls.SplitSecret(secret, config.Threshold, config.NumNodes, rand.Reader)
 		if err != nil {
 			return err
 		}
@@ -97,8 +97,8 @@ func runSplitKeyCluster(w io.Writer, config splitKeyConfig) error {
 		manifest.DVs = append(manifest.DVs, tss)
 	}
 
-	for i := 0; i < config.numNodes; i++ {
-		peer, err := newPeer(config.clusterDir, nodeDir(i), charonBin, i, nextPort)
+	for i := 0; i < config.NumNodes; i++ {
+		peer, err := newPeer(config.ClusterDir, nodeDir(i), charonBin, i, nextPort)
 		if err != nil {
 			return err
 		}

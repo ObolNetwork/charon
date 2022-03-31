@@ -46,11 +46,11 @@ func TestSplitKeyCluster(t *testing.T) {
 	var buf bytes.Buffer
 	conf := splitKeyConfig{
 		simnetConfig: simnetConfig{
-			clusterDir: clusterDir,
-			numNodes:   4,
-			threshold:  3,
-			portStart:  8000,
-			testBinary: "charon",
+			ClusterDir: clusterDir,
+			NumNodes:   4,
+			Threshold:  3,
+			PortStart:  8000,
+			TestBinary: "charon",
 		},
 		KeyDir: keyDir,
 	}

@@ -32,11 +32,11 @@ func TestGenSimnet(t *testing.T) {
 
 	var buf bytes.Buffer
 	conf := simnetConfig{
-		clusterDir: dir,
-		numNodes:   4,
-		threshold:  3,
-		portStart:  8000,
-		testBinary: "charon",
+		ClusterDir: dir,
+		NumNodes:   4,
+		Threshold:  3,
+		PortStart:  8000,
+		TestBinary: "charon",
 	}
 
 	err = runGenSimnet(&buf, conf)
