@@ -16,7 +16,6 @@ package validatorapi
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -352,7 +351,7 @@ func TestRouter(t *testing.T) {
 		callback := func(ctx context.Context, cl *eth2http.Service) {
 			slot := eth2p0.Slot(1)
 			randaoReveal := testutil.RandomEth2Signature()
-			graffiti, _ := hex.DecodeString("0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2")
+			graffiti := testutil.RandomBytes32()
 
 			res, err := cl.BeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
 			require.Error(t, err)
