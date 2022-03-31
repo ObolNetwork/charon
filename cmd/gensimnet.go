@@ -96,7 +96,10 @@ func newGenSimnetCmd(runFunc func(io.Writer, simnetConfig) error) *cobra.Command
 	cmd := &cobra.Command{
 		Use:   "gen-simnet",
 		Short: "Generates local charon simnet cluster",
-		Long:  "Generate local charon simnet cluster. A simnet is a simulated network that doesn't use actual beacon nodes or validator clients but mocks them instead. It showcases a running charon in isolation.",
+		Long: "Generate local charon simnet cluster. A simnet is a " +
+			"simulated network that doesn't use actual beacon " +
+			"nodes or validator clients but mocks them instead. " +
+			"It showcases a running charon in isolation.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), conf)
 		},

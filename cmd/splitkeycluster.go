@@ -42,7 +42,9 @@ func newSplitKeyClusterCmd(runFunc func(io.Writer, splitKeyConfig) error) *cobra
 		Short: "Generates a new cluster by splitting standard validator key(s)",
 		Long: "Generates a new charon distributed validator cluster by " +
 			"splitting standard validator key(s) into t-of-n threshold BLS keys. " +
-			"P2P keys and a cluster manifest are also generated.",
+			"P2P keys and a cluster manifest are also generated. " +
+			"This command is similar to gen-simnet, except that new keys are not generated " +
+			"but split from existing validator keys",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), config)
@@ -50,7 +52,9 @@ func newSplitKeyClusterCmd(runFunc func(io.Writer, splitKeyConfig) error) *cobra
 	}
 
 	bindSimnetFlags(cmd.Flags(), &config.simnetConfig)
-	cmd.Flags().StringVar(&config.KeyDir, "key-dir", ".", "The directory containing the standard validator keys to split. Note password are expected in buddy *.txt files")
+	cmd.Flags().StringVar(&config.KeyDir, "key-dir", ".",
+		"The directory containing the standard validator keys (keystore-*.json) to split. "+
+			"Note keystore passwords are expected in buddy keystore-*.txt files")
 
 	return cmd
 }
