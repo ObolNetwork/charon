@@ -81,13 +81,14 @@ windows:
 `
 
 type simnetConfig struct {
-	clusterDir string
-	numNodes   int
-	threshold  int
-	portStart  int
+	ClusterDir string
+	NumNodes   int
+	Threshold  int
+	PortStart  int
+	Clean      bool
 
-	// testBinary overrides the charon binary for testing.
-	testBinary string
+	// TestBinary overrides the charon binary for testing.
+	TestBinary string
 }
 
 func newGenSimnetCmd(runFunc func(io.Writer, simnetConfig) error) *cobra.Command {
@@ -96,7 +97,10 @@ func newGenSimnetCmd(runFunc func(io.Writer, simnetConfig) error) *cobra.Command
 	cmd := &cobra.Command{
 		Use:   "gen-simnet",
 		Short: "Generates local charon simnet cluster",
-		Long:  "Generate local charon simnet cluster. A simnet is a simulated network that doesn't use actual beacon nodes or validator clients but mocks them instead. It showcases a running charon in isolation.",
+		Long: "Generate local charon simnet cluster. A simnet is a " +
+			"simulated network that doesn't use actual beacon " +
+			"nodes or validator clients but mocks them instead. " +
+			"It showcases a running charon in isolation.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), conf)
 		},
@@ -108,24 +112,27 @@ func newGenSimnetCmd(runFunc func(io.Writer, simnetConfig) error) *cobra.Command
 }
 
 func bindSimnetFlags(flags *pflag.FlagSet, config *simnetConfig) {
-	flags.StringVar(&config.clusterDir, "cluster-dir", "/tmp/charon-simnet", "The root folder to create the cluster files and scripts")
-	flags.IntVarP(&config.numNodes, "nodes", "n", 4, "The number of charon nodes in the cluster")
-	flags.IntVarP(&config.threshold, "threshold", "t", 3, "The threshold required for signatures")
-	flags.IntVar(&config.portStart, "port-start", 15000, "Starting port number for nodes in cluster")
+	flags.StringVar(&config.ClusterDir, "cluster-dir", "/tmp/charon-simnet", "The root folder to create the cluster files and scripts")
+	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster")
+	flags.IntVarP(&config.Threshold, "Threshold", "t", 3, "The Threshold required for signatures")
+	flags.IntVar(&config.PortStart, "port-start", 15000, "Starting port number for nodes in cluster")
+	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it")
 }
 
 func runGenSimnet(out io.Writer, config simnetConfig) error {
-	// Remove previous directories
-	if err := os.RemoveAll(config.clusterDir); err != nil {
-		return errors.Wrap(err, "remove cluster dir")
+	if config.Clean {
+		// Remove previous directories
+		if err := os.RemoveAll(config.ClusterDir); err != nil {
+			return errors.Wrap(err, "remove cluster dir")
+		}
 	}
 
 	// Create cluster directory at given location
-	if err := os.Mkdir(config.clusterDir, 0o755); err != nil {
+	if err := os.MkdirAll(config.ClusterDir, 0o755); err != nil {
 		return errors.Wrap(err, "mkdir")
 	}
 
-	charonBin := config.testBinary
+	charonBin := config.TestBinary
 	if charonBin == "" {
 		var err error
 		charonBin, err = os.Executable()
@@ -134,18 +141,11 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		}
 	}
 
-	port := config.portStart
-	nextPort := func() int {
-		port++
-		return port
-	}
-	nodeDir := func(i int) string {
-		return fmt.Sprintf("%s/node%d", config.clusterDir, i)
-	}
+	nextPort := nextPortFunc(config.PortStart)
 
 	var peers []p2p.Peer
-	for i := 0; i < config.numNodes; i++ {
-		peer, err := newPeer(config.clusterDir, nodeDir(i), charonBin, i, nextPort)
+	for i := 0; i < config.NumNodes; i++ {
+		peer, err := newPeer(config.ClusterDir, nodeDir(config.ClusterDir, i), charonBin, i, nextPort)
 		if err != nil {
 			return errors.Wrap(err, "new peer", z.Int("i", i))
 		}
@@ -153,12 +153,12 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 		peers = append(peers, peer)
 	}
 
-	tss, shares, err := tbls.GenerateTSS(config.threshold, config.numNodes, rand.Reader)
+	tss, shares, err := tbls.GenerateTSS(config.Threshold, config.NumNodes, rand.Reader)
 	if err != nil {
 		return errors.Wrap(err, "generate tss")
 	}
 
-	if err := writeManifest(config, tss, peers); err != nil {
+	if err := writeManifest(config, []tbls.TSS{tss}, peers); err != nil {
 		return err
 	}
 
@@ -169,30 +169,30 @@ func runGenSimnet(out io.Writer, config simnetConfig) error {
 			return err
 		}
 
-		err = keystore.StoreSimnetKeys([]*bls_sig.SecretKey{secret}, nodeDir(i))
+		err = keystore.StoreKeys([]*bls_sig.SecretKey{secret}, nodeDir(config.ClusterDir, i))
 		if err != nil {
 			return err
 		}
 	}
 
-	err = writeClusterScript(config.clusterDir, config.numNodes)
+	err = writeClusterScript(config.ClusterDir, config.NumNodes)
 	if err != nil {
 		return errors.Wrap(err, "write cluster script")
 	}
 
-	err = writeTeamocilYML(config.clusterDir, config.numNodes)
+	err = writeTeamocilYML(config.ClusterDir, config.NumNodes)
 	if err != nil {
 		return errors.Wrap(err, "write teamocil.yml")
 	}
 
-	writeOutput(out, config, charonBin)
+	writeOutput(out, config, charonBin, "simnet cluster")
 
 	return nil
 }
 
-func writeManifest(config simnetConfig, tss tbls.TSS, peers []p2p.Peer) error {
+func writeManifest(config simnetConfig, tss []tbls.TSS, peers []p2p.Peer) error {
 	manifest := app.Manifest{
-		DVs:   []tbls.TSS{tss},
+		DVs:   tss,
 		Peers: peers,
 	}
 	manifestJSON, err := json.MarshalIndent(manifest, "", " ")
@@ -200,7 +200,7 @@ func writeManifest(config simnetConfig, tss tbls.TSS, peers []p2p.Peer) error {
 		return errors.Wrap(err, "json marshal manifest")
 	}
 
-	manifestPath := path.Join(config.clusterDir, "manifest.json")
+	manifestPath := path.Join(config.ClusterDir, "manifest.json")
 	if err = os.WriteFile(manifestPath, manifestJSON, 0o600); err != nil {
 		return errors.Wrap(err, "write manifest.json")
 	}
@@ -250,17 +250,18 @@ func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func()
 }
 
 // writeOutput writes the gen_simnet output.
-func writeOutput(out io.Writer, config simnetConfig, charonBin string) {
+func writeOutput(out io.Writer, config simnetConfig, charonBin string, name string) {
 	var sb strings.Builder
 	_, _ = sb.WriteString(fmt.Sprintf("Referencing charon binary in scripts: %s\n", charonBin))
-	_, _ = sb.WriteString("Created a simnet cluster:\n\n")
-	_, _ = sb.WriteString(strings.TrimSuffix(config.clusterDir, "/") + "/\n")
+	_, _ = sb.WriteString(fmt.Sprintf("Created %s:\n\n", name))
+	_, _ = sb.WriteString(strings.TrimSuffix(config.ClusterDir, "/") + "/\n")
 	_, _ = sb.WriteString("├─ manifest.json\tCluster manifest defines the cluster; used by all nodes\n")
 	_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")
 	_, _ = sb.WriteString("├─ teamocil.yml\t\tConfiguration for teamocil utility to show output in different tmux panes\n")
 	_, _ = sb.WriteString("├─ node[0-3]/\t\tDirectory for each node\n")
 	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key for node authentication\n")
-	_, _ = sb.WriteString("│  ├─ keystore-simnet-0.json\tSimnet mock validator private share key for duty signing\n")
+	_, _ = sb.WriteString("│  ├─ keystore-*.json\tValidator private share key for duty signing\n")
+	_, _ = sb.WriteString("│  ├─ keystore-*.txt\tBuddy password file for keystore-0.json\n")
 	_, _ = sb.WriteString("│  ├─ run.sh\t\tScript to run the node\n")
 
 	_, _ = fmt.Fprint(out, sb.String())
@@ -366,4 +367,18 @@ func writeTeamocilYML(clusterDir string, n int) error {
 	}
 
 	return nil
+}
+
+// nodeDir returns a node directory.
+func nodeDir(clusterDir string, i int) string {
+	return fmt.Sprintf("%s/node%d", clusterDir, i)
+}
+
+// nextPortFunc returns a next port function starting at start port.
+func nextPortFunc(startPort int) func() int {
+	port := startPort
+	return func() int {
+		port++
+		return port
+	}
 }

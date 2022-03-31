@@ -19,31 +19,47 @@ import (
 	"os"
 	"testing"
 
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
-//go:generate go test . -run=TestGenSimnet -update
+//go:generate go test . -run=TestSplitKeyCluster -update
 
-func TestGenSimnet(t *testing.T) {
-	dir, err := os.MkdirTemp("", "")
+func TestSplitKeyCluster(t *testing.T) {
+	keyDir, err := os.MkdirTemp("", "")
+	require.NoError(t, err)
+
+	_, secret1, err := bls_sig.NewSigEth2().Keygen()
+	require.NoError(t, err)
+	_, secret2, err := bls_sig.NewSigEth2().Keygen()
+	require.NoError(t, err)
+
+	err = keystore.StoreKeys([]*bls_sig.SecretKey{secret1, secret2}, keyDir)
+	require.NoError(t, err)
+
+	clusterDir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
 	var buf bytes.Buffer
-	conf := simnetConfig{
-		ClusterDir: dir,
-		NumNodes:   4,
-		Threshold:  3,
-		PortStart:  8000,
-		TestBinary: "charon",
+	conf := splitKeyConfig{
+		simnetConfig: simnetConfig{
+			ClusterDir: clusterDir,
+			NumNodes:   4,
+			Threshold:  3,
+			PortStart:  8000,
+			TestBinary: "charon",
+		},
+		KeyDir: keyDir,
 	}
 
-	err = runGenSimnet(&buf, conf)
+	err = runSplitKeyCluster(&buf, conf)
 	require.NoError(t, err)
 
 	out := buf.Bytes()
-	out = bytes.Replace(out, []byte(dir), []byte("charon-simnet"), 1)
+	out = bytes.Replace(out, []byte(clusterDir), []byte("charon-simnet"), 1)
 	testutil.RequireGoldenBytes(t, out)
 
 	// TODO(corver): Assert generated files.

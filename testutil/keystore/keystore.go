@@ -25,6 +25,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
@@ -33,12 +34,16 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-const passphrase = "simnet"
-
-// StoreSimnetKeys stores the secrets in dir/keystore-simnet-%d.json files with empty passwords.
-func StoreSimnetKeys(secrets []*bls_sig.SecretKey, dir string) error {
+// StoreKeys stores the secrets in dir/keystore-%d.json EIP 2335 keystore files
+// with new random passwords stored in dir/keystore-%d.txt.
+func StoreKeys(secrets []*bls_sig.SecretKey, dir string) error {
 	for i, secret := range secrets {
-		store, err := encrypt(secret, passphrase, rand.Reader)
+		password, err := randomHex32()
+		if err != nil {
+			return err
+		}
+
+		store, err := encrypt(secret, password, rand.Reader)
 		if err != nil {
 			return err
 		}
@@ -48,17 +53,22 @@ func StoreSimnetKeys(secrets []*bls_sig.SecretKey, dir string) error {
 			return errors.Wrap(err, "marshal keystore")
 		}
 
-		filename := path.Join(dir, fmt.Sprintf("keystore-simnet-%d.json", i))
-		if err := os.WriteFile(filename, b, 0o600); err != nil {
+		filename := path.Join(dir, fmt.Sprintf("keystore-%d.json", i))
+		if err := os.WriteFile(filename, b, 0o400); err != nil {
 			return errors.Wrap(err, "write keystore")
+		}
+
+		if err := storePassword(filename, password); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-// LoadSimnetKeys returns all secrets stores in dir/keystore-*.json files using empty passwords.
-func LoadSimnetKeys(dir string) ([]*bls_sig.SecretKey, error) {
+// LoadKeys returns all secrets stored in dir/keystore-*.json 2335 keystore files
+// using password stored in dir/keystore-*.txt.
+func LoadKeys(dir string) ([]*bls_sig.SecretKey, error) {
 	files, err := filepath.Glob(path.Join(dir, "keystore-*.json"))
 	if err != nil {
 		return nil, errors.Wrap(err, "read files")
@@ -76,7 +86,12 @@ func LoadSimnetKeys(dir string) ([]*bls_sig.SecretKey, error) {
 			return nil, errors.Wrap(err, "unmarshal keystore")
 		}
 
-		secret, err := decrypt(store, passphrase)
+		password, err := loadPassword(f)
+		if err != nil {
+			return nil, err
+		}
+
+		secret, err := decrypt(store, password)
 		if err != nil {
 			return nil, err
 		}
@@ -144,4 +159,42 @@ func uuid(random io.Reader) string {
 	_, _ = random.Read(b)
 
 	return fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+// loadPassword loads a keystore password from the keystore's associated password file.
+func loadPassword(keyFile string) (string, error) {
+	if _, err := os.Stat(keyFile); errors.Is(err, os.ErrNotExist) {
+		return "", errors.New("keystore password file not found " + keyFile)
+	}
+
+	passwordFile := strings.Replace(keyFile, ".json", ".txt", 1)
+	b, err := os.ReadFile(passwordFile)
+	if err != nil {
+		return "", errors.Wrap(err, "read password file")
+	}
+
+	return string(b), nil
+}
+
+// storePassword stores a password to the keystore's associated password file.
+func storePassword(keyFile string, password string) error {
+	passwordFile := strings.Replace(keyFile, ".json", ".txt", 1)
+
+	err := os.WriteFile(passwordFile, []byte(password), 0o400)
+	if err != nil {
+		return errors.Wrap(err, "write password file")
+	}
+
+	return nil
+}
+
+// randomHex32 returns a random 32 character hex string.
+func randomHex32() (string, error) {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", errors.Wrap(err, "read random")
+	}
+
+	return hex.EncodeToString(b), nil
 }

@@ -88,7 +88,7 @@ func GenerateTSS(t, n int, reader io.Reader) (TSS, []*bls_sig.SecretKeyShare, er
 		return TSS{}, nil, errors.Wrap(err, "bls key generation")
 	}
 
-	sks, verifier, err := generateSecretShares(*secret, t, n, reader)
+	sks, verifier, err := SplitSecret(secret, t, n, reader)
 	if err != nil {
 		return TSS{}, nil, errors.Wrap(err, "generate secret shares")
 	}
@@ -182,8 +182,8 @@ func Sign(sk *bls_sig.SecretKey, msg []byte) (*bls_sig.Signature, error) {
 	return sig, nil
 }
 
-// generateSecretShares splits the secret and returns n secret shares and t verifiers.
-func generateSecretShares(secret bls_sig.SecretKey, t, n int, reader io.Reader) ([]*bls_sig.SecretKeyShare, *share.FeldmanVerifier, error) {
+// SplitSecret splits the secret and returns n secret shares and t verifiers.
+func SplitSecret(secret *bls_sig.SecretKey, t, n int, reader io.Reader) ([]*bls_sig.SecretKeyShare, *share.FeldmanVerifier, error) {
 	scheme, err := share.NewFeldman(uint32(t), uint32(n), curves.BLS12381G1())
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new Feldman VSS")
