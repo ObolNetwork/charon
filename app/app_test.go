@@ -57,23 +57,48 @@ func TestPingCluster(t *testing.T) {
 		})
 	})
 
-	// Nodes bind to non-ENR addresses, with only single external bootnode.
-	// Discv5 will resolve peers via external node.
-	t.Run("exteral_bootnode_only", func(t *testing.T) {
+	// Nodes bind to random localhost ports (not the manifest ENRs), with only single bootnode.
+	// Discv5 will resolve peers via bootnode.
+	t.Run("bootnode_only", func(t *testing.T) {
+		bootnode := startExtBootnode(t)
+
+		pingCluster(t, pingTest{
+			BindLocalhost: true,
+			BootManifest:  false,
+			Bootnodes:     []string{bootnode.URLv4()},
+		})
+	})
+
+	// Nodes bind to random 0.0.0.0 ports (but use 127.0.0.1 as external IP), with only single bootnode.
+	// Discv5 will resolve peers via bootnode and external IP.
+	t.Run("external_ip", func(t *testing.T) {
+		bootnode := startExtBootnode(t)
+
+		pingCluster(t, pingTest{
+			ExternalIP:   "127.0.0.1",
+			BindZero:     true,
+			BootManifest: false,
+			Bootnodes:    []string{bootnode.URLv4()},
+		})
+	})
+
+	// Nodes bind to random 0.0.0.0 ports (but use localhost as external host), with only single bootnode.
+	// Discv5 will resolve peers via bootnode and external host.
+	t.Run("external_host", func(t *testing.T) {
 		external := startExtBootnode(t)
 
 		pingCluster(t, pingTest{
-			Slow:         false,
-			BindENRAddrs: false,
+			ExternalHost: "localhost",
+			BindZero:     true,
 			BootManifest: false,
 			Bootnodes:    []string{external.URLv4()},
 		})
 	})
 
-	// Nodes bind to non-ENR addresses, with external bootnode AS WELL AS stale ENRs.
+	// Nodes bind to non-ENR addresses, with single bootnode AS WELL AS stale ENRs.
 	// Discv5 times out resolving stale ENRs, then resolves peers via external node.
 	// This is slow due to discv5 internal timeouts, run with -slow.
-	t.Run("external_and_stale_enrs", func(t *testing.T) {
+	t.Run("bootnode_and_stale_enrs", func(t *testing.T) {
 		external := startExtBootnode(t)
 
 		pingCluster(t, pingTest{
@@ -86,10 +111,14 @@ func TestPingCluster(t *testing.T) {
 }
 
 type pingTest struct {
-	Slow         bool
-	BindENRAddrs bool
-	BootManifest bool
-	Bootnodes    []string
+	Slow          bool
+	BindENRAddrs  bool
+	BindLocalhost bool
+	BindZero      bool
+	BootManifest  bool
+	Bootnodes     []string
+	ExternalIP    string
+	ExternalHost  string
 }
 
 func pingCluster(t *testing.T, test pingTest) {
@@ -131,6 +160,8 @@ func pingCluster(t *testing.T, test pingTest) {
 			P2P: p2p.Config{
 				UDPBootnodes:    test.Bootnodes,
 				UDPBootManifest: test.BootManifest,
+				ExteranlHost:    test.ExternalHost,
+				ExternalIP:      test.ExternalIP,
 			},
 		}
 
@@ -138,9 +169,18 @@ func pingCluster(t *testing.T, test pingTest) {
 		if test.BindENRAddrs {
 			conf.P2P.TCPAddrs = []string{tcpAddrFromENR(t, manifest.Peers[i].ENR)}
 			conf.P2P.UDPAddr = udpAddrFromENR(t, manifest.Peers[i].ENR)
-		} else {
+		} else if test.BindLocalhost {
 			conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
 			conf.P2P.UDPAddr = testutil.AvailableAddr(t).String()
+		} else if test.BindZero {
+			addr1 := testutil.AvailableAddr(t)
+			addr2 := testutil.AvailableAddr(t)
+			addr1.IP = net.IPv4zero
+			addr2.IP = net.IPv4zero
+			conf.P2P.TCPAddrs = []string{addr1.String()}
+			conf.P2P.UDPAddr = addr2.String()
+		} else {
+			require.Fail(t, "no bind flag set")
 		}
 
 		eg.Go(func() error {

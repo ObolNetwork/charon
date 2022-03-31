@@ -116,5 +116,31 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 	node.SetFallbackIP(udpAddr.IP)
 	node.SetFallbackUDP(udpAddr.Port)
 
+	if config.ExternalIP != "" {
+		ip := net.ParseIP(config.ExternalIP)
+		if ip.To4() == nil && ip.To16() == nil {
+			return nil, nil, errors.New("invalid p2p external ip")
+		}
+
+		node.SetFallbackIP(ip)
+		node.SetStaticIP(ip)
+	}
+
+	if config.ExteranlHost != "" {
+		ips, err := net.LookupIP(config.ExteranlHost)
+		if err != nil || len(ips) == 0 {
+			return nil, nil, errors.Wrap(err, "could not resolve p2p external host")
+		}
+
+		// Use first IPv4 returned from the resolver.
+		// TODO(corver): Figure out how to get ipv6 to work
+		for _, ip := range ips {
+			if ip.To4() == nil {
+				continue
+			}
+			node.SetFallbackIP(ip)
+		}
+	}
+
 	return node, db, nil
 }
