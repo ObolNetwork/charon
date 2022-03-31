@@ -43,7 +43,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 	}
 
 	bindRunFlags(cmd.Flags(), &conf)
-	bindGeneralFlags(cmd.Flags(), &conf.DataDir)
+	bindDataDirFlag(cmd.Flags(), &conf.DataDir)
 	bindP2PFlags(cmd.Flags(), &conf.P2P)
 	bindLogFlags(cmd.Flags(), &conf.Log)
 
@@ -66,8 +66,12 @@ func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
 }
 
-func bindGeneralFlags(flags *pflag.FlagSet, dataDir *string) {
+func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
 	flags.StringVar(dataDir, "data-dir", "./charon/data", "The directory where charon will store all its internal data")
+}
+
+func bindBootnodeFlag(flags *pflag.FlagSet, httpAddr *string) {
+	flags.StringVar(httpAddr, "bootnode-http-address", "127.0.0.1:8088", "Listening address for the bootnode http server serving runtime ENR")
 }
 
 func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {

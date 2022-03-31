@@ -40,7 +40,7 @@ func newGenP2PKeyCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.C
 		},
 	}
 
-	bindGeneralFlags(cmd.Flags(), &dataDir)
+	bindDataDirFlag(cmd.Flags(), &dataDir)
 	bindP2PFlags(cmd.Flags(), &config)
 
 	return cmd
