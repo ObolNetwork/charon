@@ -130,12 +130,13 @@ func TestMemDBProposer(t *testing.T) {
 		block  *spec.VersionedBeaconBlock
 		pubkey core.PubKey
 	}
-	awaitResponse := make(chan response)
+	var awaitResponse [queries]chan response
 	for i := 0; i < queries; i++ {
+		awaitResponse[i] = make(chan response)
 		go func(slot int) {
 			pubkey, block, err := db.AwaitBeaconBlock(ctx, slots[slot])
 			require.NoError(t, err)
-			awaitResponse <- response{block: block, pubkey: pubkey}
+			awaitResponse[slot] <- response{block: block, pubkey: pubkey}
 		}(i)
 	}
 
@@ -169,7 +170,7 @@ func TestMemDBProposer(t *testing.T) {
 
 	// Get and assert the proQuery responses
 	for i := 0; i < queries; i++ {
-		actualData := <-awaitResponse
+		actualData := <-awaitResponse[i]
 		require.Equal(t, blocks[i], actualData.block)
 		require.Equal(t, pubkeysByIdx[eth2p0.ValidatorIndex(i)], actualData.pubkey)
 	}
