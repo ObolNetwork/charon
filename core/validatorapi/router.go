@@ -517,12 +517,12 @@ func hexQuery(query url.Values, name string) ([]byte, error) {
 	}
 	value := valueA[0]
 
-	result, err := hex.DecodeString(strings.TrimPrefix(value, "0x"))
+	resp, err := hex.DecodeString(strings.TrimPrefix(value, "0x"))
 	if err != nil {
-		return nil, errors.Wrap(err, "hexQuery")
+		return nil, errors.Wrap(err, "decode hex")
 	}
 
-	return result, nil
+	return resp, nil
 }
 
 // proxyResponseWriter wraps a http response writer and instruments errors.
