@@ -31,7 +31,7 @@ func NewMemDB() *MemDB {
 	return &MemDB{
 		attDuties:  make(map[attKey]*eth2p0.AttestationData),
 		attPubKeys: make(map[pkKey]core.PubKey),
-		proDuties:  make(map[eth2p0.Slot]*proValue),
+		proDuties:  make(map[int64]*proValue),
 	}
 }
 
@@ -42,7 +42,7 @@ type MemDB struct {
 	attDuties  map[attKey]*eth2p0.AttestationData
 	attPubKeys map[pkKey]core.PubKey
 	attQueries []attQuery
-	proDuties  map[eth2p0.Slot]*proValue
+	proDuties  map[int64]*proValue
 	proQueries []proQuery
 }
 
@@ -80,7 +80,7 @@ func (db *MemDB) AwaitBeaconBlock(ctx context.Context, slot int64) (core.PubKey,
 	db.mu.Lock()
 	response := make(chan *proValue, 1)
 	db.proQueries = append(db.proQueries, proQuery{
-		Key:      eth2p0.Slot(slot),
+		Key:      slot,
 		Response: response,
 	})
 	db.resolveProQueriesUnsafe()
@@ -190,12 +190,12 @@ func (db *MemDB) storeBeaconBlockUnsafe(pubkey core.PubKey, unsignedData core.Un
 		Block:  block,
 	}
 
-	if value, ok := db.proDuties[slot]; ok {
-		if value.PubKey != pubkey {
+	if value, ok := db.proDuties[int64(slot)]; ok {
+		if value.PubKey != pubkey || value.Block != block {
 			return errors.New("clashing block proposer")
 		}
 	} else {
-		db.proDuties[slot] = &data
+		db.proDuties[int64(slot)] = &data
 	}
 
 	return nil
@@ -256,7 +256,7 @@ type attQuery struct {
 
 // proQuery is a waiting proQuery with a response channel.
 type proQuery struct {
-	Key      eth2p0.Slot
+	Key      int64
 	Response chan<- *proValue
 }
 

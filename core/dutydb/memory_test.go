@@ -145,14 +145,10 @@ func TestMemDBProposer(t *testing.T) {
 	for i := 0; i < queries; i++ {
 		blocks[i] = &spec.VersionedBeaconBlock{
 			Version: spec.DataVersionPhase0,
-			Phase0: &eth2p0.BeaconBlock{
-				Slot:          eth2p0.Slot(slots[i]),
-				ProposerIndex: eth2p0.ValidatorIndex(i),
-				ParentRoot:    testutil.RandomRoot(),
-				StateRoot:     testutil.RandomRoot(),
-				Body:          testutil.RandomBeaconBlockBody(),
-			},
+			Phase0:  testutil.RandomBeaconBlock(),
 		}
+		blocks[i].Phase0.Slot = eth2p0.Slot(slots[i])
+		blocks[i].Phase0.ProposerIndex = eth2p0.ValidatorIndex(i)
 		pubkeysByIdx[eth2p0.ValidatorIndex(i)] = testutil.RandomCorePubKey(t)
 	}
 
