@@ -46,7 +46,7 @@ func TestRunBootnode(t *testing.T) {
 	cancel()
 
 	err = runBootnode(ctx, config)
-	if err != nil && strings.Contains(err.Error(), "bind: address already in use") {
+	if err != nil && strings.Contains(err.Error(), "bind: permission denied") {
 		t.Skip("Skipping due to sporadic bind: address already in use")
 		return
 	}
