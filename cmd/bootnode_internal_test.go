@@ -18,11 +18,14 @@ import (
 	"context"
 	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestRunBootnode(t *testing.T) {
@@ -32,6 +35,7 @@ func TestRunBootnode(t *testing.T) {
 	config := bootnodeConfig{
 		DataDir:   temp,
 		LogConfig: log.DefaultConfig(),
+		P2PConfig: p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},
 	}
 
 	err = runGenP2PKey(io.Discard, config.P2PConfig, temp)
@@ -41,5 +45,9 @@ func TestRunBootnode(t *testing.T) {
 	cancel()
 
 	err = runBootnode(ctx, config)
+	if err != nil && strings.Contains(err.Error(), "bind: address already in use") {
+		t.Skip("Skipping due to sporadic bind: address already in use")
+		return
+	}
 	require.NoError(t, err)
 }
