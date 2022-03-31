@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -33,10 +34,6 @@ func TestMemDB(t *testing.T) {
 
 	// Nothing in the DB, so expect error
 	_, err := db.PubKeyByAttestation(ctx, 0, 0, 0)
-	require.Error(t, err)
-
-	// Unsupported duty type
-	err = db.Store(ctx, core.Duty{Type: core.DutyProposer}, nil)
 	require.Error(t, err)
 
 	const (
@@ -106,7 +103,7 @@ func TestMemDB(t *testing.T) {
 	err = db.Store(ctx, duty, core.UnsignedDataSet{pubkeysByIdx[vIdxA]: unsignedA})
 	require.NoError(t, err)
 
-	// Get and assert the query responses.
+	// Get and assert the attQuery responses.
 	for i := 0; i < queries; i++ {
 		actual := <-awaitResponse
 		require.Equal(t, attData.String(), actual.String())
@@ -120,4 +117,59 @@ func TestMemDB(t *testing.T) {
 	pkB, err := db.PubKeyByAttestation(ctx, int64(attData.Slot), int64(attData.Index), valCommIdxB)
 	require.NoError(t, err)
 	require.Equal(t, pubkeysByIdx[vIdxB], pkB)
+}
+
+func TestMemDBProposer(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB()
+
+	const queries = 3
+	slots := [queries]int64{123, 456, 789}
+
+	awaitBlockResponse := make(chan *spec.VersionedBeaconBlock)
+	awaitPubKeyResponse := make(chan core.PubKey)
+	for i := 0; i < queries; i++ {
+		go func(slot int) {
+			pubkey, block, err := db.AwaitBeaconBlock(ctx, slots[slot])
+			require.NoError(t, err)
+			awaitBlockResponse <- block
+			awaitPubKeyResponse <- pubkey
+		}(i)
+	}
+
+	blocks := make([]*spec.VersionedBeaconBlock, queries)
+	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
+	for i := 0; i < queries; i++ {
+		blocks[i] = &spec.VersionedBeaconBlock{
+			Version: spec.DataVersionPhase0,
+			Phase0: &eth2p0.BeaconBlock{
+				Slot:          eth2p0.Slot(slots[i]),
+				ProposerIndex: eth2p0.ValidatorIndex(i),
+				ParentRoot:    testutil.RandomRoot(),
+				StateRoot:     testutil.RandomRoot(),
+				Body:          testutil.RandomBeaconBlockBody(),
+			},
+		}
+		pubkeysByIdx[eth2p0.ValidatorIndex(i)] = testutil.RandomCorePubKey(t)
+	}
+
+	// Store the Blocks
+	for i := 0; i < queries; i++ {
+		unsigned, err := core.EncodeProposerUnsignedData(blocks[i])
+		require.NoError(t, err)
+
+		duty := core.Duty{Slot: slots[i], Type: core.DutyProposer}
+		err = db.Store(ctx, duty, core.UnsignedDataSet{
+			pubkeysByIdx[eth2p0.ValidatorIndex(i)]: unsigned,
+		})
+		require.NoError(t, err)
+	}
+
+	// Get and assert the proQuery responses
+	for i := 0; i < queries; i++ {
+		actualBlock := <-awaitBlockResponse
+		actualPubKey := <-awaitPubKeyResponse
+		require.Equal(t, blocks[i], actualBlock)
+		require.Equal(t, pubkeysByIdx[eth2p0.ValidatorIndex(i)], actualPubKey)
+	}
 }
