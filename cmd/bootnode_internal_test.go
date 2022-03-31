@@ -36,6 +36,7 @@ func TestRunBootnode(t *testing.T) {
 		DataDir:   temp,
 		LogConfig: log.DefaultConfig(),
 		P2PConfig: p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},
+		HTTPAddr:  testutil.AvailableAddr(t).String(),
 	}
 
 	err = runGenP2PKey(io.Discard, config.P2PConfig, temp)
