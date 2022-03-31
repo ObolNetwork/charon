@@ -341,6 +341,10 @@ func submitRandao(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 		if err != nil {
 			return nil, errors.Wrap(err, "hexadecimal decoding")
 		}
+		// TODO(leo): where should we put this constant?
+		if len(graffiti) > 32 {
+			return nil, errors.New("above graffiti length max of 32")
+		}
 
 		_, err = p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, graffiti)
 		if err != nil {
