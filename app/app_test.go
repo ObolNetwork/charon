@@ -103,7 +103,7 @@ func TestPingCluster(t *testing.T) {
 
 		pingCluster(t, pingTest{
 			Slow:          true,
-			BindLocalhost: false,
+			BindLocalhost: true,
 			BootManifest:  true,
 			Bootnodes:     []string{external.URLv4()},
 		})
