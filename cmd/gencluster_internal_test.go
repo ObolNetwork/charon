@@ -57,6 +57,8 @@ func TestGenCluster(t *testing.T) {
 				SplitKeys: true,
 			},
 			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
+				t.Helper()
+
 				keyDir, err := os.MkdirTemp("", "")
 				require.NoError(t, err)
 
