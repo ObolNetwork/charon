@@ -37,6 +37,7 @@ func TestCmdFlags(t *testing.T) {
 		VersionConfig *versionConfig
 		AppConfig     *app.Config
 		P2PConfig     *p2p.Config
+		Envs          map[string]string
 		Datadir       string
 	}{
 		{
@@ -50,8 +51,15 @@ func TestCmdFlags(t *testing.T) {
 			VersionConfig: &versionConfig{Verbose: false},
 		},
 		{
+			Name:          "version verbose env",
+			Args:          slice("version"),
+			Envs:          map[string]string{"CHARON_VERBOSE": "true"},
+			VersionConfig: &versionConfig{Verbose: true},
+		},
+		{
 			Name: "run command",
 			Args: slice("run"),
+			Envs: map[string]string{"CHARON_DATA_DIR": "from_env"},
 			AppConfig: &app.Config{
 				Log: log.Config{
 					Level:  "info",
@@ -65,7 +73,7 @@ func TestCmdFlags(t *testing.T) {
 					DBPath:    "",
 				},
 				ManifestFile:     "./charon/manifest.json",
-				DataDir:          "./charon/data",
+				DataDir:          "from_env",
 				MonitoringAddr:   "127.0.0.1:8088",
 				ValidatorAPIAddr: "127.0.0.1:3500",
 				BeaconNodeAddr:   "http://localhost/",
@@ -108,6 +116,16 @@ func TestCmdFlags(t *testing.T) {
 					return nil
 				}),
 			)
+
+			// Set envs (only for duration of the test)
+			for k, v := range test.Envs {
+				require.NoError(t, os.Setenv(k, v))
+			}
+			t.Cleanup(func() {
+				for k := range test.Envs {
+					require.NoError(t, os.Unsetenv(k))
+				}
+			})
 
 			root.SetArgs(test.Args)
 			require.NoError(t, root.Execute())
