@@ -192,10 +192,11 @@ func (db *MemDB) storeBeaconBlockUnsafe(pubkey core.PubKey, unsignedData core.Un
 		Block:  block,
 	}
 
-	value, ok := db.proDuties[int64(slot)]
-	if ok && value.PubKey != pubkey {
-		return errors.New("clashing block proposer")
-	} else if ok {
+	if value, ok := db.proDuties[int64(slot)]; ok {
+		if value.PubKey != pubkey {
+			return errors.New("clashing block proposer")
+		}
+
 		b, err := json.Marshal(value.Block)
 		if err != nil {
 			return errors.Wrap(err, "marshalling block")
