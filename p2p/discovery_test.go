@@ -47,7 +47,7 @@ func TestExternalHost(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	udpNode, err := p2p.NewUDPNode(context.Background(), config, localNode, p2pKey, nil)
+	udpNode, err := p2p.NewUDPNode(ctx, config, localNode, p2pKey, nil)
 	if err != nil && strings.Contains(err.Error(), "bind: address already in use") {
 		// This sometimes happens, not sure how to lock available ports...
 		t.Skip("couldn't bind to available port")
