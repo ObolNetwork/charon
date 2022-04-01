@@ -127,7 +127,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	tcpNode, localEnode, err := wireP2P(life, conf, manifest)
+	tcpNode, localEnode, err := wireP2P(ctx, life, conf, manifest)
 	if err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
-func wireP2P(life *lifecycle.Manager, conf Config, manifest Manifest,
+func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest Manifest,
 ) (host.Host, *enode.LocalNode, error) {
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
@@ -170,7 +170,7 @@ func wireP2P(life *lifecycle.Manager, conf Config, manifest Manifest,
 		return nil, nil, errors.Wrap(err, "create local enode")
 	}
 
-	udpNode, err := p2p.NewUDPNode(conf.P2P, localEnode, p2pKey, manifest.ENRs())
+	udpNode, err := p2p.NewUDPNode(ctx, conf.P2P, localEnode, p2pKey, manifest.ENRs())
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "start discv5 listener")
 	}
