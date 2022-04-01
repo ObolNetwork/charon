@@ -28,6 +28,7 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/validatorapi"
+	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -153,7 +154,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	ctx := context.Background()
 
 	// Create keys (just use normal keys, not split tbls)
-	pubkey, secret, err := bls_sig.NewSigEth2().Keygen()
+	pubkey, secret, err := tbls.Keygen()
 	require.NoError(t, err)
 
 	// Configure validator

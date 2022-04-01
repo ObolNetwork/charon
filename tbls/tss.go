@@ -29,6 +29,28 @@ import (
 // see: https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature-03#section-4.2.3
 var blsScheme = bls_sig.NewSigEth2()
 
+// Keygen returns a new BLS key pair.
+func Keygen() (*bls_sig.PublicKey, *bls_sig.SecretKey, error) {
+	pubkey, secret, err := blsScheme.Keygen()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "generate key")
+	}
+
+	return pubkey, secret, nil
+}
+
+// KeygenWithSeed returns a new BLS key pair seeded from the reader.
+func KeygenWithSeed(reader io.Reader) (*bls_sig.PublicKey, *bls_sig.SecretKey, error) {
+	ikm := make([]byte, 32)
+	_, _ = reader.Read(ikm)
+	pubkey, secret, err := blsScheme.KeygenWithSeed(ikm)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "generate key")
+	}
+
+	return pubkey, secret, nil
+}
+
 // TSS (threshold signing scheme) wraps PubKey (PublicKey), Verifiers (the public shares corresponding to each secret share)
 // and threshold (number of shares).
 type TSS struct {

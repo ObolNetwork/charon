@@ -1,0 +1,21 @@
+
+***************** WARNING: Splitting keys **********************
+ Please make sure any existing validator has been shut down for
+ at least 2 finalised epochs before starting the charon cluster,
+ otherwise slashing could occur.                               
+****************************************************************
+
+Referencing charon binary in scripts: charon
+Created charon cluster:
+ --simnet=false
+ --split-existing-keys=true
+
+charon/
+├─ manifest.json	Cluster manifest defines the cluster; used by all nodes
+├─ run_cluster.sh	Convenience script to run all nodes
+├─ teamocil.yml		Teamocil config for splitting logs in tmux panes
+├─ node[0-3]/		Directory for each node
+│  ├─ p2pkey		P2P networking private key for node authentication
+│  ├─ keystore-*.json	Validator private share key for duty signing
+│  ├─ keystore-*.txt	Keystore password files for keystore-*.json
+│  ├─ run.sh		Script to run the node

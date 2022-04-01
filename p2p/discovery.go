@@ -35,7 +35,7 @@ import (
 )
 
 // NewUDPNode starts and returns a discv5 UDP implementation.
-//nolint:revive
+
 func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey,
 	enrs []enr.Record,
 ) (*discover.UDPv5, error) {
