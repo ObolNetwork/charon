@@ -171,3 +171,71 @@ func TestMemDBProposer(t *testing.T) {
 		require.Equal(t, pubkeysByIdx[eth2p0.ValidatorIndex(i)], actualData.pubkey)
 	}
 }
+
+func TestMemDBClashingBlocks(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB()
+
+	const slot = 123
+	block1 := &spec.VersionedBeaconBlock{
+		Version: spec.DataVersionPhase0,
+		Phase0:  testutil.RandomBeaconBlock(),
+	}
+	block1.Phase0.Slot = eth2p0.Slot(slot)
+	block2 := &spec.VersionedBeaconBlock{
+		Version: spec.DataVersionPhase0,
+		Phase0:  testutil.RandomBeaconBlock(),
+	}
+	block2.Phase0.Slot = eth2p0.Slot(slot)
+	pubkey := testutil.RandomCorePubKey(t)
+
+	// Encode the Blocks
+	unsigned1, err := core.EncodeProposerUnsignedData(block1)
+	require.NoError(t, err)
+
+	unsigned2, err := core.EncodeProposerUnsignedData(block2)
+	require.NoError(t, err)
+
+	// Store the Blocks
+	duty := core.Duty{Slot: slot, Type: core.DutyProposer}
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkey: unsigned1,
+	})
+	require.NoError(t, err)
+
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkey: unsigned2,
+	})
+	require.ErrorContains(t, err, "clashing blocks")
+}
+
+func TestMemDBClashProposer(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB()
+
+	const slot = 123
+
+	block := &spec.VersionedBeaconBlock{
+		Version: spec.DataVersionPhase0,
+		Phase0:  testutil.RandomBeaconBlock(),
+	}
+	block.Phase0.Slot = eth2p0.Slot(slot)
+	pubkeyA := testutil.RandomCorePubKey(t)
+	pubkeyB := testutil.RandomCorePubKey(t)
+
+	// Encode the block
+	unsigned, err := core.EncodeProposerUnsignedData(block)
+	require.NoError(t, err)
+
+	// Store the Blocks
+	duty := core.Duty{Slot: slot, Type: core.DutyProposer}
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkeyA: unsigned,
+	})
+	require.NoError(t, err)
+
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkeyB: unsigned,
+	})
+	require.ErrorContains(t, err, "clashing block proposer")
+}

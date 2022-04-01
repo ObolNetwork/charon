@@ -15,7 +15,9 @@
 package dutydb
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"sync"
 
 	"github.com/attestantio/go-eth2-client/spec"
@@ -190,9 +192,17 @@ func (db *MemDB) storeBeaconBlockUnsafe(pubkey core.PubKey, unsignedData core.Un
 		Block:  block,
 	}
 
-	if value, ok := db.proDuties[int64(slot)]; ok {
-		if value.PubKey != pubkey || value.Block != block {
-			return errors.New("clashing block proposer")
+	value, ok := db.proDuties[int64(slot)]
+	if ok && value.PubKey != pubkey {
+		return errors.New("clashing block proposer")
+	} else if ok {
+		b, err := json.Marshal(value.Block)
+		if err != nil {
+			return errors.Wrap(err, "marshalling block")
+		}
+
+		if !bytes.Equal(b, unsignedData) {
+			return errors.New("clashing blocks")
 		}
 	} else {
 		db.proDuties[int64(slot)] = &data
