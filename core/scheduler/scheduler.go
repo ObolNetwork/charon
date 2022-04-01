@@ -171,7 +171,6 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 }
 
 // resolveDuties resolves the duties for the slot's epoch, caching the results.
-//nolint:revive
 func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.pubkeys, slot.Slot)
 	if err != nil {

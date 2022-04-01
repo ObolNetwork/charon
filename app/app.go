@@ -199,7 +199,6 @@ func wireP2P(life *lifecycle.Manager, conf Config, manifest Manifest,
 }
 
 // wireCoreWorkflow wires the core workflow components.
-//nolint:cyclop,revive
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config, manifest Manifest, nodeIdx NodeIdx, tcpNode host.Host) error {
 	// Convert and prep public keys and public shares
 	var (
