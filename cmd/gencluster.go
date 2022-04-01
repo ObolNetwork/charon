@@ -99,8 +99,8 @@ func newGenClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Comma
 	cmd := &cobra.Command{
 		Use:   "gen-cluster",
 		Short: "Generate local charon cluster",
-		Long: "Generate local charon cluster including run scripts, cluster manifest " +
-			"and node keys and config. See flags for supported features.",
+		Long: "Generate local charon cluster including validator keys, charon p2p keys, and a cluster manifest. " +
+			"See flags for supported features.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), conf)
 		},
@@ -112,13 +112,13 @@ func newGenClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Comma
 }
 
 func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
-	flags.StringVar(&config.ClusterDir, "cluster-dir", "/tmp/charon", "The target folder to create the cluster in.")
+	flags.StringVar(&config.ClusterDir, "cluster-dir", "./charon/cluster", "The target folder to create the cluster in.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster.")
-	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signatures.")
+	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
 	flags.IntVar(&config.PortStart, "port-start", 16000, "Starting port number for nodes in cluster.")
-	flags.BoolVar(&config.Simnet, "simnet", true, "Configures a simnet cluster with mock beacon node and mock validator clients. It showcases a running charon in isolation.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
-	flags.BoolVar(&config.SplitKeys, "split-validator-keys", false, "Enables splitting of existing non-dvt validator keys into distributed threshold private shares (instead of creating new random keys).")
+	flags.BoolVar(&config.Simnet, "simnet", true, "Configures a simulated network cluster with mock beacon node and mock validator clients. It showcases a running charon in isolation.")
+	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Enables splitting of existing non-dvt validator keys into distributed threshold private shares (instead of creating new random keys).")
 	flags.StringVar(&config.KeysDir, "keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-validator-keys.")
 }
 
@@ -213,9 +213,26 @@ func runGenCluster(w io.Writer, conf clusterConfig) error {
 		return errors.Wrap(err, "write teamocil.yml")
 	}
 
+	if conf.SplitKeys {
+		writeWarning(w)
+	}
+
 	writeOutput(w, conf, charonBin)
 
 	return nil
+}
+
+func writeWarning(w io.Writer) {
+	var sb strings.Builder
+	_, _ = sb.WriteString("\n")
+	_, _ = sb.WriteString("***************** WARNING: Splitting keys **********************\n")
+	_, _ = sb.WriteString(" Please make sure any existing validator has been shut down for\n")
+	_, _ = sb.WriteString(" at least 2 finalised epochs before starting the charon cluster,\n")
+	_, _ = sb.WriteString(" otherwise slashing could occur.                               \n")
+	_, _ = sb.WriteString("****************************************************************\n")
+	_, _ = sb.WriteString("\n")
+
+	_, _ = w.Write([]byte(sb.String()))
 }
 
 func getKeys(conf clusterConfig) ([]*bls_sig.SecretKey, error) {
@@ -300,15 +317,18 @@ func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func()
 func writeOutput(out io.Writer, config clusterConfig, charonBin string) {
 	var sb strings.Builder
 	_, _ = sb.WriteString(fmt.Sprintf("Referencing charon binary in scripts: %s\n", charonBin))
-	_, _ = sb.WriteString("Created charon cluster:\n\n")
+	_, _ = sb.WriteString("Created charon cluster:\n")
+	_, _ = sb.WriteString(fmt.Sprintf(" --simnet=%v\n", config.Simnet))
+	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", config.SplitKeys))
+	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString(strings.TrimSuffix(config.ClusterDir, "/") + "/\n")
 	_, _ = sb.WriteString("├─ manifest.json\tCluster manifest defines the cluster; used by all nodes\n")
 	_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")
-	_, _ = sb.WriteString("├─ teamocil.yml\t\tConfiguration for teamocil utility to show output in different tmux panes\n")
+	_, _ = sb.WriteString("├─ teamocil.yml\t\tTeamocil config for splitting logs in tmux panes\n")
 	_, _ = sb.WriteString("├─ node[0-3]/\t\tDirectory for each node\n")
 	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ keystore-*.json\tValidator private share key for duty signing\n")
-	_, _ = sb.WriteString("│  ├─ keystore-*.txt\tBuddy password file for keystore-0.json\n")
+	_, _ = sb.WriteString("│  ├─ keystore-*.txt\tKeystore password files for keystore-*.json\n")
 	_, _ = sb.WriteString("│  ├─ run.sh\t\tScript to run the node\n")
 
 	_, _ = fmt.Fprint(out, sb.String())

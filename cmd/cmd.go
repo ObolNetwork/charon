@@ -60,6 +60,8 @@ func newRootCmd(cmds ...*cobra.Command) *cobra.Command {
 
 	root.AddCommand(cmds...)
 
+	titledHelp(root)
+
 	return root
 }
 
@@ -121,4 +123,15 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
 	})
 
 	return lastErr
+}
+
+// titledHelp updates the command (and child commands) help flag usage to title case.
+func titledHelp(cmd *cobra.Command) {
+	cmd.InitDefaultHelpFlag()
+	f := cmd.Flags().Lookup("help")
+	f.Usage = strings.ToUpper(f.Usage[:1]) + f.Usage[1:]
+
+	for _, child := range cmd.Commands() {
+		titledHelp(child)
+	}
 }

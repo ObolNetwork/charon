@@ -25,7 +25,7 @@ Usage:
 Flags:
       --beacon-node-endpoint string    Beacon node endpoint URL (default "http://localhost/")
       --data-dir string                The directory where charon will store all its internal data (default "./charon/data")
-  -h, --help                           help for run
+  -h, --help                           Help for run
       --jaeger-address string          Listening address for jaeger tracing
       --jaeger-service string          Service name used for jaeger tracing (default "charon")
       --log-format string              Log format; console, logfmt or json (default "console")
