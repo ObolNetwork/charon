@@ -33,6 +33,7 @@ RUN chown charon /usr/local/bin/charon
 RUN chmod u+x /usr/local/bin/charon
 WORKDIR "/opt/$USER"
 USER charon
-CMD ["/usr/local/bin/charon","run"]
+ENTRYPOINT ["/usr/local/bin/charon"]
+CMD ["run"]
 # Used by GitHub to associate container with repo.
 LABEL org.opencontainers.image.source="https://github.com/obolnetwork/charon"
