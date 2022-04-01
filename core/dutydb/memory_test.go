@@ -234,6 +234,12 @@ func TestMemDBClashProposer(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Store same block from same validator to test idempotent inserts
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkeyA: unsigned,
+	})
+	require.NoError(t, err)
+
 	err = db.Store(ctx, duty, core.UnsignedDataSet{
 		pubkeyB: unsigned,
 	})
