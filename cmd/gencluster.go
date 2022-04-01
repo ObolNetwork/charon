@@ -33,7 +33,6 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -80,117 +79,165 @@ windows:
 {{end}}
 `
 
-type simnetConfig struct {
+type clusterConfig struct {
 	ClusterDir string
 	NumNodes   int
 	Threshold  int
 	PortStart  int
+	Simnet     bool
 	Clean      bool
+	SplitKeys  bool
+	KeysDir    string
 
 	// TestBinary overrides the charon binary for testing.
 	TestBinary string
 }
 
-func newGenSimnetCmd(runFunc func(io.Writer, simnetConfig) error) *cobra.Command {
-	var conf simnetConfig
+func newGenClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Command {
+	var conf clusterConfig
 
 	cmd := &cobra.Command{
-		Use:   "gen-simnet",
-		Short: "Generates local charon simnet cluster",
-		Long: "Generate local charon simnet cluster. A simnet is a " +
-			"simulated network that doesn't use actual beacon " +
-			"nodes or validator clients but mocks them instead. " +
-			"It showcases a running charon in isolation.",
+		Use:   "gen-cluster",
+		Short: "Generate local charon cluster",
+		Long: "Generate local charon cluster including run scripts, cluster manifest " +
+			"and node keys and config. See flags for supported features.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), conf)
 		},
 	}
 
-	bindSimnetFlags(cmd.Flags(), &conf)
+	bindClusterFlags(cmd.Flags(), &conf)
 
 	return cmd
 }
 
-func bindSimnetFlags(flags *pflag.FlagSet, config *simnetConfig) {
-	flags.StringVar(&config.ClusterDir, "cluster-dir", "/tmp/charon-simnet", "The root folder to create the cluster files and scripts")
-	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster")
-	flags.IntVarP(&config.Threshold, "Threshold", "t", 3, "The Threshold required for signatures")
-	flags.IntVar(&config.PortStart, "port-start", 15000, "Starting port number for nodes in cluster")
-	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it")
+func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
+	flags.StringVar(&config.ClusterDir, "cluster-dir", "/tmp/charon", "The target folder to create the cluster in.")
+	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster.")
+	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signatures.")
+	flags.IntVar(&config.PortStart, "port-start", 16000, "Starting port number for nodes in cluster.")
+	flags.BoolVar(&config.Simnet, "simnet", true, "Configures a simnet cluster with mock beacon node and mock validator clients. It showcases a running charon in isolation.")
+	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
+	flags.BoolVar(&config.SplitKeys, "split-validator-keys", false, "Enables splitting of existing non-dvt validator keys into distributed threshold private shares (instead of creating new random keys).")
+	flags.StringVar(&config.KeysDir, "keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-validator-keys.")
 }
 
-func runGenSimnet(out io.Writer, config simnetConfig) error {
-	if config.Clean {
+func runGenCluster(w io.Writer, conf clusterConfig) error {
+	if conf.Clean {
 		// Remove previous directories
-		if err := os.RemoveAll(config.ClusterDir); err != nil {
+		if err := os.RemoveAll(conf.ClusterDir); err != nil {
 			return errors.Wrap(err, "remove cluster dir")
 		}
 	}
 
 	// Create cluster directory at given location
-	if err := os.MkdirAll(config.ClusterDir, 0o755); err != nil {
+	if err := os.MkdirAll(conf.ClusterDir, 0o755); err != nil {
 		return errors.Wrap(err, "mkdir")
 	}
 
-	charonBin := config.TestBinary
-	if charonBin == "" {
-		var err error
-		charonBin, err = os.Executable()
-		if err != nil {
-			return errors.Wrap(err, "get charon binary")
-		}
-	}
-
-	nextPort := nextPortFunc(config.PortStart)
-
-	var peers []p2p.Peer
-	for i := 0; i < config.NumNodes; i++ {
-		peer, err := newPeer(config.ClusterDir, nodeDir(config.ClusterDir, i), charonBin, i, nextPort)
-		if err != nil {
-			return errors.Wrap(err, "new peer", z.Int("i", i))
-		}
-
-		peers = append(peers, peer)
-	}
-
-	tss, shares, err := tbls.GenerateTSS(config.Threshold, config.NumNodes, rand.Reader)
+	// Get charon binary to include in run scripts
+	charonBin, err := os.Executable()
 	if err != nil {
-		return errors.Wrap(err, "generate tss")
+		return errors.Wrap(err, "get charon binary")
+	} else if conf.TestBinary != "" {
+		charonBin = conf.TestBinary
 	}
 
-	if err := writeManifest(config, []tbls.TSS{tss}, peers); err != nil {
+	// Get root bls key
+	secrets, err := getKeys(conf)
+	if err != nil {
 		return err
 	}
 
-	// Write shares
-	for i, share := range shares {
-		secret, err := tblsconv.ShareToSecret(share)
+	// Get function to create sequential ports
+	nextPort := nextPortFunc(conf.PortStart)
+
+	// Generate threshold bls key shares
+	var (
+		dvs    []tbls.TSS
+		splits [][]*bls_sig.SecretKeyShare
+	)
+	for _, secret := range secrets {
+		shares, verifier, err := tbls.SplitSecret(secret, conf.Threshold, conf.NumNodes, rand.Reader)
 		if err != nil {
 			return err
 		}
 
-		err = keystore.StoreKeys([]*bls_sig.SecretKey{secret}, nodeDir(config.ClusterDir, i))
+		splits = append(splits, shares)
+
+		tss, err := tbls.NewTSS(verifier, len(shares))
 		if err != nil {
+			return err
+		}
+
+		dvs = append(dvs, tss)
+	}
+
+	// Create p2p peers
+	var peers []p2p.Peer
+	for i := 0; i < conf.NumNodes; i++ {
+		peer, err := newPeer(conf.ClusterDir, nodeDir(conf.ClusterDir, i), charonBin, i, nextPort)
+		if err != nil {
+			return err
+		}
+
+		peers = append(peers, peer)
+
+		var secrets []*bls_sig.SecretKey
+		for _, split := range splits {
+			secret, err := tblsconv.ShareToSecret(split[i])
+			if err != nil {
+				return err
+			}
+			secrets = append(secrets, secret)
+		}
+
+		if err := keystore.StoreKeys(secrets, nodeDir(conf.ClusterDir, i)); err != nil {
 			return err
 		}
 	}
 
-	err = writeClusterScript(config.ClusterDir, config.NumNodes)
+	// TODO(corver): Write deposit datas if not simnet
+
+	if err := writeManifest(conf, dvs, peers); err != nil {
+		return err
+	}
+
+	err = writeClusterScript(conf.ClusterDir, conf.NumNodes)
 	if err != nil {
 		return errors.Wrap(err, "write cluster script")
 	}
 
-	err = writeTeamocilYML(config.ClusterDir, config.NumNodes)
+	err = writeTeamocilYML(conf.ClusterDir, conf.NumNodes)
 	if err != nil {
 		return errors.Wrap(err, "write teamocil.yml")
 	}
 
-	writeOutput(out, config, charonBin, "simnet cluster")
+	writeOutput(w, conf, charonBin)
 
 	return nil
 }
 
-func writeManifest(config simnetConfig, tss []tbls.TSS, peers []p2p.Peer) error {
+func getKeys(conf clusterConfig) ([]*bls_sig.SecretKey, error) {
+	if conf.SplitKeys {
+		if conf.KeysDir == "" {
+			return nil, errors.New("--keys-dir required when splitting keys")
+		}
+
+		return keystore.LoadKeys(conf.KeysDir)
+	}
+
+	// TODO(corver): Add flag to generate more distributed-validators than 1
+
+	_, secret, err := tbls.KeygenWithSeed(rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return []*bls_sig.SecretKey{secret}, nil
+}
+
+func writeManifest(config clusterConfig, tss []tbls.TSS, peers []p2p.Peer) error {
 	manifest := app.Manifest{
 		DVs:   tss,
 		Peers: peers,
@@ -249,11 +296,11 @@ func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func()
 	return peer, nil
 }
 
-// writeOutput writes the gen_simnet output.
-func writeOutput(out io.Writer, config simnetConfig, charonBin string, name string) {
+// writeOutput writes the gen_cluster output.
+func writeOutput(out io.Writer, config clusterConfig, charonBin string) {
 	var sb strings.Builder
 	_, _ = sb.WriteString(fmt.Sprintf("Referencing charon binary in scripts: %s\n", charonBin))
-	_, _ = sb.WriteString(fmt.Sprintf("Created %s:\n\n", name))
+	_, _ = sb.WriteString("Created charon cluster:\n\n")
 	_, _ = sb.WriteString(strings.TrimSuffix(config.ClusterDir, "/") + "/\n")
 	_, _ = sb.WriteString("├─ manifest.json\tCluster manifest defines the cluster; used by all nodes\n")
 	_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")

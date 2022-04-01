@@ -27,7 +27,7 @@ import (
 )
 
 func TestCoreKey(t *testing.T) {
-	tblsKey1, _, err := bls_sig.NewSigEth2().Keygen()
+	tblsKey1, _, err := tbls.Keygen()
 	require.NoError(t, err)
 
 	coreKey, err := tblsconv.KeyToCore(tblsKey1)
@@ -45,7 +45,7 @@ func TestCoreKey(t *testing.T) {
 }
 
 func TestETHKey(t *testing.T) {
-	tblsKey1, _, err := bls_sig.NewSigEth2().Keygen()
+	tblsKey1, _, err := tbls.Keygen()
 	require.NoError(t, err)
 
 	eth2Key, err := tblsconv.KeyToETH2(tblsKey1)
@@ -63,11 +63,10 @@ func TestETHKey(t *testing.T) {
 }
 
 func TestSig(t *testing.T) {
-	scheme := bls_sig.NewSigEth2()
-	_, secret, err := scheme.Keygen()
+	_, secret, err := tbls.Keygen()
 	require.NoError(t, err)
 
-	sig1, err := scheme.Sign(secret, []byte("msg"))
+	sig1, err := tbls.Sign(secret, []byte("msg"))
 	require.NoError(t, err)
 
 	eth2Sig := tblsconv.SigToETH2(sig1)

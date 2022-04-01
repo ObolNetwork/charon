@@ -44,8 +44,7 @@ func New() *cobra.Command {
 		newGenP2PKeyCmd(runGenP2PKey),
 		newRunCmd(app.Run),
 		newBootnodeCmd(runBootnode),
-		newGenSimnetCmd(runGenSimnet),
-		newSplitKeyClusterCmd(runSplitKeyCluster),
+		newGenClusterCmd(runGenCluster),
 	)
 }
 
@@ -53,7 +52,7 @@ func newRootCmd(cmds ...*cobra.Command) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "charon",
 		Short: "Charon - The Ethereum DVT middleware client",
-		Long:  `Charon enables the operation of Ethereum validators in a fault tolerant manner by splitting the validating keys across a group of trusted parties using Threshold cryptography.`,
+		Long:  `Charon enables the operation of Ethereum validators in a fault tolerant manner by splitting the validating keys across a group of trusted parties using threshold cryptography.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return initializeConfig(cmd)
 		},
