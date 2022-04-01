@@ -17,6 +17,7 @@ package core
 import (
 	"context"
 
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 )
 
@@ -44,6 +45,10 @@ type Fetcher interface {
 type DutyDB interface {
 	// Store stores the unsigned duty data set.
 	Store(context.Context, Duty, UnsignedDataSet) error
+
+	// AwaitBeaconBlock blocks and returns the proposed beacon block
+	// for the slot when available. It also returns the DV public key.
+	AwaitBeaconBlock(ctx context.Context, slot int64) (PubKey, *spec.VersionedBeaconBlock, error)
 
 	// AwaitAttestation blocks and returns the attestation data
 	// for the slot and committee index when available.
