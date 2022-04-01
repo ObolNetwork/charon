@@ -10,5 +10,3 @@ charon run \
   --validator-api-address="127.0.0.1:8004" \
   --p2p-tcp-address=127.0.0.1:8001 \
   --p2p-udp-address=127.0.0.1:8002 \
-  --simnet-beacon-mock \
-  --simnet-validator-mock \

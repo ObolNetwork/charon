@@ -176,7 +176,7 @@ func runGenCluster(w io.Writer, conf clusterConfig) error {
 	// Create p2p peers
 	var peers []p2p.Peer
 	for i := 0; i < conf.NumNodes; i++ {
-		peer, err := newPeer(conf.ClusterDir, nodeDir(conf.ClusterDir, i), charonBin, i, nextPort)
+		peer, err := newPeer(conf.ClusterDir, nodeDir(conf.ClusterDir, i), charonBin, i, nextPort, conf.Simnet)
 		if err != nil {
 			return err
 		}
@@ -256,7 +256,7 @@ func writeManifest(config clusterConfig, tss []tbls.TSS, peers []p2p.Peer) error
 }
 
 // newPeer returns a new peer, generating a p2pkey and ENR and node directory and run script in the process.
-func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func() int) (p2p.Peer, error) {
+func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func() int, simnet bool) (p2p.Peer, error) {
 	tcp := net.TCPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
 		Port: nextPort(),
@@ -289,7 +289,7 @@ func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func()
 	}
 
 	if err := writeRunScript(clusterDir, nodeDir, charonBin, nextPort(),
-		tcp.String(), udp.String(), nextPort()); err != nil {
+		tcp.String(), udp.String(), nextPort(), simnet); err != nil {
 		return p2p.Peer{}, errors.Wrap(err, "write run script")
 	}
 
@@ -316,7 +316,7 @@ func writeOutput(out io.Writer, config clusterConfig, charonBin string) {
 
 // writeRunScript creates run script for a node.
 func writeRunScript(clusterDir string, nodeDir string, charonBin string, monitoringPort int,
-	tcpAddr string, udpAddr string, validatorAPIPort int,
+	tcpAddr string, udpAddr string, validatorAPIPort int, simnet bool,
 ) error {
 	f, err := os.Create(nodeDir + "/run.sh")
 	if err != nil {
@@ -332,8 +332,10 @@ func writeRunScript(clusterDir string, nodeDir string, charonBin string, monitor
 	flags = append(flags, fmt.Sprintf("--validator-api-address=\"127.0.0.1:%d\"", validatorAPIPort))
 	flags = append(flags, fmt.Sprintf("--p2p-tcp-address=%s", tcpAddr))
 	flags = append(flags, fmt.Sprintf("--p2p-udp-address=%s", udpAddr))
-	flags = append(flags, "--simnet-beacon-mock")
-	flags = append(flags, "--simnet-validator-mock")
+	if simnet {
+		flags = append(flags, "--simnet-beacon-mock")
+		flags = append(flags, "--simnet-validator-mock")
+	}
 
 	tmpl, err := template.New("").Parse(scriptTmpl)
 	if err != nil {
