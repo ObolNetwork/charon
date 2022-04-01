@@ -84,7 +84,7 @@ func initializeConfig(cmd *cobra.Command) error {
 
 	v.SetEnvPrefix(envPrefix)
 	v.AutomaticEnv()
-	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
 	// Bind the current command's flags to viper
 	return bindFlags(cmd, v)
