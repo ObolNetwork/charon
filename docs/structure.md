@@ -61,8 +61,9 @@ charon/             # project root
 - `cmd/`: Command line interface
   - Defines cobra cli commands
     - `run`: Runs the charon node
-    - `gen-simnet`: Generate local charon simnet cluster
-    - `enr`: Prints ENR based on provided manifest and networking config
+    - `gen-cluster`: Generate local charon cluster
+    - `gen-p2p`: Generates a new P2P key
+    - `enr`: Prints ENR based on provided p2pkey, manifest and networking config
   - Defines and parses [viper](https://github.com/spf13/viper) configuration parameters for required by each command.
 - `app/`: Application run entrypoint
   - wires application state and process lifecycle.

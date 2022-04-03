@@ -21,6 +21,7 @@ import (
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
@@ -30,7 +31,7 @@ func TestStoreLoad(t *testing.T) {
 
 	var secrets []*bls_sig.SecretKey
 	for i := 0; i < 2; i++ {
-		_, secret, err := bls_sig.NewSigEth2().Keygen()
+		_, secret, err := tbls.Keygen()
 		require.NoError(t, err)
 
 		secrets = append(secrets, secret)

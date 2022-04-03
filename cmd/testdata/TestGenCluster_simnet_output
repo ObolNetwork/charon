@@ -1,12 +1,14 @@
 Referencing charon binary in scripts: charon
-Created simnet cluster:
+Created charon cluster:
+ --simnet=true
+ --split-existing-keys=false
 
-charon-simnet/
+charon/
 ├─ manifest.json	Cluster manifest defines the cluster; used by all nodes
 ├─ run_cluster.sh	Convenience script to run all nodes
-├─ teamocil.yml		Configuration for teamocil utility to show output in different tmux panes
+├─ teamocil.yml		Teamocil config for splitting logs in tmux panes
 ├─ node[0-3]/		Directory for each node
 │  ├─ p2pkey		P2P networking private key for node authentication
 │  ├─ keystore-*.json	Validator private share key for duty signing
-│  ├─ keystore-*.txt	Buddy password file for keystore-0.json
+│  ├─ keystore-*.txt	Keystore password files for keystore-*.json
 │  ├─ run.sh		Script to run the node

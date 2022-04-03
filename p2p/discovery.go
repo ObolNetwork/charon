@@ -15,8 +15,14 @@
 package p2p
 
 import (
+	"context"
 	"crypto/ecdsa"
+	"io"
 	"net"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -24,10 +30,13 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 // NewUDPNode starts and returns a discv5 UDP implementation.
-func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey,
+
+func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey,
 	enrs []enr.Record,
 ) (*discover.UDPv5, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
@@ -47,8 +56,18 @@ func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey,
 
 	var bootnodes []*enode.Node
 
-	for _, seed := range config.UDPBootnodes {
-		node, err := enode.Parse(enode.V4ID{}, seed)
+	for _, bootnode := range config.UDPBootnodes {
+		if strings.HasPrefix(bootnode, "http") {
+			// Query bootnode ENR via http, retry for 1min with 5sec backoff.
+			inner, cancel := context.WithTimeout(ctx, time.Minute)
+			bootnode, err = queryBootnodeENR(inner, bootnode, time.Second*5)
+			cancel()
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		node, err := enode.Parse(enode.V4ID{}, bootnode)
 		if err != nil {
 			return nil, errors.Wrap(err, "invalid bootnode url")
 		}
@@ -85,6 +104,51 @@ func NewUDPNode(config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey,
 	return node, nil
 }
 
+// queryBootnodeENR returns the bootnode ENR via a http GET query to the url.
+//
+// This supports resolving bootnode ENR from known http URLs which is handy
+// when bootnodes are deployed in docker-compose or kubernetes
+//
+// It retries until the context is cancelled.
+func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Duration) (string, error) {
+	parsedURL, err := url.Parse(bootnodeURL)
+	if err != nil {
+		return "", errors.Wrap(err, "parse bootnode url")
+	} else if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return "", errors.New("invalid bootnode url")
+	}
+
+	var client http.Client
+	for ctx.Err() == nil {
+		req, err := http.NewRequestWithContext(ctx, "GET", bootnodeURL, nil)
+		if err != nil {
+			return "", errors.Wrap(err, "new request")
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Warn(ctx, "Failure querying bootnode ENR, trying again in 5s...", z.Err(err))
+			time.Sleep(backoff)
+
+			continue
+		} else if resp.StatusCode/100 != 2 {
+			return "", errors.Wrap(err, "non-200 response querying bootnode ENR")
+		}
+
+		b, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if err != nil {
+			return "", errors.Wrap(err, "read response body")
+		}
+
+		log.Info(ctx, "Queried bootnode ENR", z.Str("url", bootnodeURL), z.Str("enr", string(b)))
+
+		return string(b), nil
+	}
+
+	return "", errors.Wrap(ctx.Err(), "timeout querying bootnode ENR")
+}
+
 // NewLocalEnode returns a local enode and a peer DB or an error.
 func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *enode.DB, error) {
 	db, err := enode.OpenDB(config.DBPath)
@@ -115,6 +179,32 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 
 	node.SetFallbackIP(udpAddr.IP)
 	node.SetFallbackUDP(udpAddr.Port)
+
+	if config.ExternalIP != "" {
+		ip := net.ParseIP(config.ExternalIP)
+		if ip.To4() == nil && ip.To16() == nil {
+			return nil, nil, errors.New("invalid p2p external ip")
+		}
+
+		node.SetFallbackIP(ip)
+		node.SetStaticIP(ip)
+	}
+
+	if config.ExteranlHost != "" {
+		ips, err := net.LookupIP(config.ExteranlHost)
+		if err != nil || len(ips) == 0 {
+			return nil, nil, errors.Wrap(err, "could not resolve p2p external host")
+		}
+
+		// Use first IPv4 returned from the resolver.
+		// TODO(corver): Figure out how to get ipv6 to work
+		for _, ip := range ips {
+			if ip.To4() == nil {
+				continue
+			}
+			node.SetFallbackIP(ip)
+		}
+	}
 
 	return node, db, nil
 }

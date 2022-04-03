@@ -25,7 +25,7 @@ Usage:
 Flags:
       --beacon-node-endpoint string    Beacon node endpoint URL (default "http://localhost/")
       --data-dir string                The directory where charon will store all its internal data (default "./charon/data")
-  -h, --help                           help for run
+  -h, --help                           Help for run
       --jaeger-address string          Listening address for jaeger tracing
       --jaeger-service string          Service name used for jaeger tracing (default "charon")
       --log-format string              Log format; console, logfmt or json (default "console")
@@ -33,12 +33,14 @@ Flags:
       --manifest-file string           The path to the manifest file defining distributed validator cluster (default "./charon/manifest.json")
       --monitoring-address string      Listening address (ip and port) for the monitoring API (prometheus, pprof) (default "127.0.0.1:8088")
       --p2p-allowlist string           Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.
-      --p2p-bootmanifest               Enables using manifest ENRs as discv5 boot nodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs
-      --p2p-bootnodes strings          Comma-separated list of discv5 bootnode URLs or ENRs. Manifest ENRs are used if empty. Example URL: enode://<hex node id>@10.3.58.6:30303?discport=30301
+      --p2p-bootmanifest               Enables using manifest ENRs as discv5 boot nodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs.
+      --p2p-bootnodes strings          Comma-separated list of discv5 bootnode URLs or ENRs. Manifest ENRs are used if empty. Example URL: enode://<hex node id>@10.3.58.6:30303?discport=30301.
       --p2p-denylist string            Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.
+      --p2p-external-host string       The DNS address advertised by libp2p. This may be used to advertise an external DNS.
+      --p2p-external-ip string         The IP address advertised by libp2p. This may be used to advertise an external IP.
       --p2p-peerdb string              Path to store a discv5 peer database. Empty default results in in-memory database.
-      --p2p-tcp-address strings        Comma-separated list of listening TCP addresses (ip and port) for LibP2P traffic (default [127.0.0.1:13900])
-      --p2p-udp-address string         Listening UDP address (ip and port) for Discv5 discovery (default "127.0.0.1:30309")
+      --p2p-tcp-address strings        Comma-separated list of listening TCP addresses (ip and port) for LibP2P traffic. (default [127.0.0.1:13900])
+      --p2p-udp-address string         Listening UDP address (ip and port) for Discv5 discovery. (default "127.0.0.1:30309")
       --simnet-beacon-mock             Enables an internal mock beacon node for running a simnet.
       --simnet-validator-mock          Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.
       --validator-api-address string   Listening address (ip and port) for validator-facing traffic proxying the beacon-node API (default "127.0.0.1:3500")

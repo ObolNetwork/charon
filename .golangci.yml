@@ -44,10 +44,10 @@ linters-settings:
         disabled: true
       - name: function-length
         disabled: true
+      - name: cognitive-complexity
+        disabled: true
 
       # Some configured revive rules
-      - name: cognitive-complexity
-        arguments: [20]
       - name: imports-blacklist
         arguments: ["errors", "github.com/pkg/errors"] # Prefer ./app/errors
   staticcheck:
@@ -83,6 +83,7 @@ linters:
   disable:
     # Keep disabled
     - containedctx
+    - cyclop
     - exhaustivestruct
     - funlen
     - forcetypeassert

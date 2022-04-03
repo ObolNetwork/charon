@@ -15,9 +15,12 @@
 package dutydb
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"sync"
 
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -30,6 +33,7 @@ func NewMemDB() *MemDB {
 	return &MemDB{
 		attDuties:  make(map[attKey]*eth2p0.AttestationData),
 		attPubKeys: make(map[pkKey]core.PubKey),
+		proDuties:  make(map[int64]*proValue),
 	}
 }
 
@@ -39,7 +43,9 @@ type MemDB struct {
 	mu         sync.Mutex
 	attDuties  map[attKey]*eth2p0.AttestationData
 	attPubKeys map[pkKey]core.PubKey
-	attQueries []query
+	attQueries []attQuery
+	proDuties  map[int64]*proValue
+	proQueries []proQuery
 }
 
 // Store implements core.DutyDB, see its godoc.
@@ -48,6 +54,14 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 	defer db.mu.Unlock()
 
 	switch duty.Type {
+	case core.DutyProposer:
+		for pubkey, unsignedData := range unsignedSet {
+			err := db.storeBeaconBlockUnsafe(pubkey, unsignedData)
+			if err != nil {
+				return err
+			}
+		}
+		db.resolveProQueriesUnsafe()
 	case core.DutyAttester:
 		for pubkey, unsignedData := range unsignedSet {
 			err := db.storeAttestationUnsafe(pubkey, unsignedData)
@@ -55,27 +69,45 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 				return err
 			}
 		}
+		db.resolveAttQueriesUnsafe()
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
 	}
 
-	db.resolveQueriesUnsafe()
-
 	return nil
+}
+
+// AwaitBeaconBlock implements core.DutyDB, see its godoc.
+func (db *MemDB) AwaitBeaconBlock(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error) {
+	db.mu.Lock()
+	response := make(chan *proValue, 1)
+	db.proQueries = append(db.proQueries, proQuery{
+		Key:      slot,
+		Response: response,
+	})
+	db.resolveProQueriesUnsafe()
+	db.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		return "", nil, ctx.Err()
+	case value := <-response:
+		return value.PubKey, value.Block, nil
+	}
 }
 
 // AwaitAttestation implements core.DutyDB, see its godoc.
 func (db *MemDB) AwaitAttestation(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error) {
 	db.mu.Lock()
 	response := make(chan *eth2p0.AttestationData, 1) // Buffer of one so resolving never blocks
-	db.attQueries = append(db.attQueries, query{
+	db.attQueries = append(db.attQueries, attQuery{
 		Key: attKey{
 			Slot:    slot,
 			CommIdx: commIdx,
 		},
 		Response: response,
 	})
-	db.resolveQueriesUnsafe()
+	db.resolveAttQueriesUnsafe()
 	db.mu.Unlock()
 
 	select {
@@ -143,10 +175,47 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 	return nil
 }
 
-// resolveQueriesUnsafe resolve any query to a result if found.
+// storeBeaconBlockUnsafe stores the unsigned BeaconBlock. It is unsafe since it assumes the lock is held.
+func (db *MemDB) storeBeaconBlockUnsafe(pubkey core.PubKey, unsignedData core.UnsignedData) error {
+	block, err := core.DecodeProposerUnsignedData(unsignedData)
+	if err != nil {
+		return err
+	}
+
+	slot, err := block.Slot()
+	if err != nil {
+		return err
+	}
+
+	data := proValue{
+		PubKey: pubkey,
+		Block:  block,
+	}
+
+	if value, ok := db.proDuties[int64(slot)]; ok {
+		if value.PubKey != pubkey {
+			return errors.New("clashing block proposer")
+		}
+
+		b, err := json.Marshal(value.Block)
+		if err != nil {
+			return errors.Wrap(err, "marshalling block")
+		}
+
+		if !bytes.Equal(b, unsignedData) {
+			return errors.New("clashing blocks")
+		}
+	} else {
+		db.proDuties[int64(slot)] = &data
+	}
+
+	return nil
+}
+
+// resolveAttQueriesUnsafe resolve any attQuery to a result if found.
 // It is unsafe since it assume that the lock is held.
-func (db *MemDB) resolveQueriesUnsafe() {
-	var unresolved []query
+func (db *MemDB) resolveAttQueriesUnsafe() {
+	var unresolved []attQuery
 	for _, query := range db.attQueries {
 		value, ok := db.attDuties[query.Key]
 		if !ok {
@@ -158,6 +227,23 @@ func (db *MemDB) resolveQueriesUnsafe() {
 	}
 
 	db.attQueries = unresolved
+}
+
+// resolveProQueriesUnsafe resolve any proQuery to a result if found.
+// It is unsafe since it assume that the lock is held.
+func (db *MemDB) resolveProQueriesUnsafe() {
+	var unresolved []proQuery
+	for _, query := range db.proQueries {
+		value, ok := db.proDuties[query.Key]
+		if !ok {
+			unresolved = append(unresolved, query)
+			continue
+		}
+
+		query.Response <- value
+	}
+
+	db.proQueries = unresolved
 }
 
 // attKey is the key to lookup an attester value in the DB.
@@ -173,8 +259,20 @@ type pkKey struct {
 	ValCommIdx int64
 }
 
-// query is a waiting query with a response channel.
-type query struct {
+// attQuery is a waiting attQuery with a response channel.
+type attQuery struct {
 	Key      attKey
 	Response chan<- *eth2p0.AttestationData
+}
+
+// proQuery is a waiting proQuery with a response channel.
+type proQuery struct {
+	Key      int64
+	Response chan<- *proValue
+}
+
+// proValue is a propser duty value with Public key and Beacon Block.
+type proValue struct {
+	PubKey core.PubKey
+	Block  *spec.VersionedBeaconBlock
 }

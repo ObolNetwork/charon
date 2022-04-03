@@ -24,7 +24,6 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -33,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
@@ -51,7 +51,7 @@ func RandomCorePubKey(t *testing.T) core.PubKey {
 // RandomEth2PubKey returns a random eth2 phase0 bls pubkey.
 func RandomEth2PubKey(t *testing.T) eth2p0.BLSPubKey {
 	t.Helper()
-	pubkey, _, err := bls_sig.NewSigEth2().Keygen()
+	pubkey, _, err := tbls.Keygen()
 	require.NoError(t, err)
 	resp, err := tblsconv.KeyToETH2(pubkey)
 	require.NoError(t, err)
