@@ -23,6 +23,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	ssz "github.com/ferranbt/fastssz"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -245,7 +246,51 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 	return nil
 }
 
-func (Component) BeaconBlockProposal(_ context.Context, _ eth2p0.Slot, _ eth2p0.BLSSignature, _ []byte) (*spec.VersionedBeaconBlock, error) {
+func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*spec.VersionedBeaconBlock, error) {
+	// TODO(leo): get VC public key
+	pubKey := core.PubKey("TODO")
+
+	// TODO(leo): perhaps we should cache this?
+	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "getting slots per epoch")
+	}
+
+	epoch := eth2p0.Epoch(int64(slot) / int64(slotsPerEpoch))
+	domain, err := GetDomain(ctx, c.eth2Cl, DomainRandao, epoch)
+	if err != nil {
+		return nil, errors.Wrap(err, "getting domain")
+	}
+
+	var root [32]byte
+	ssz.MarshalUint64(root[:], uint64(epoch))
+	signingRoot, err := (&eth2p0.SigningData{ObjectRoot: eth2p0.Root(root), Domain: domain}).HashTreeRoot()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal signing data")
+	}
+
+	// Convert the signature
+	randaoETH2, err := tblsconv.SigFromETH2(randao)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert signature")
+	}
+
+	// Verify using public share
+	pubShare, err := c.getVerifyShareFunc(pubKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "get public share")
+	}
+
+	verified, err := tbls.Verify(pubShare, signingRoot[:], randaoETH2)
+	if err != nil {
+		return nil, errors.Wrap(err, "BLS verification")
+	}
+	if !verified {
+		return nil, errors.New("randao signature not verified")
+	}
+
+	// TODO(leo): store randao
+
 	return nil, errors.New("not implemented")
 }
 
