@@ -37,6 +37,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/retry"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
@@ -315,9 +316,15 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
+	retryer, err := retry.New(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
 	core.Wire(sched, fetch, consensus, dutyDB, vapi,
 		parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster,
-		core.WithTracing())
+		core.WithTracing(),
+		core.WithAsyncRetry(retryer))
 
 	err = wireValidatorMock(conf, pubshares, sched)
 	if err != nil {
@@ -332,6 +339,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartScheduler, lifecycle.HookFuncErr(sched.Run))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartAggSigDB, lifecycle.HookFuncCtx(aggSigDB.Run))
 	life.RegisterStop(lifecycle.StopScheduler, lifecycle.HookFuncMin(sched.Stop))
+	life.RegisterStop(lifecycle.StopRetryer, lifecycle.HookFuncCtx(retryer.Shutdown))
 
 	return nil
 }
@@ -458,7 +466,11 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 		ctx = log.WithTopic(ctx, "vmock")
 		go func() {
 			addr := "http://" + conf.ValidatorAPIAddr
-			cl, err := eth2http.New(ctx, eth2http.WithLogLevel(1), eth2http.WithAddress(addr))
+			cl, err := eth2http.New(ctx,
+				eth2http.WithLogLevel(1),
+				eth2http.WithAddress(addr),
+				eth2http.WithTimeout(time.Second*10), // Allow sufficient time to block while fetching duties.
+			)
 			if err != nil {
 				log.Warn(ctx, "Cannot connect to validatorapi", z.Err(err))
 				return
