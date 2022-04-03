@@ -21,7 +21,6 @@ import (
 	"flag"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -188,15 +187,15 @@ func pingCluster(t *testing.T, test pingTest) {
 		})
 	}
 
-	asserter.Await(t)
-	cancel()
+	eg.Go(func() error {
+		asserter.Await(t)
+		cancel()
+
+		return nil
+	})
 
 	err := eg.Wait()
-	if err != nil && strings.Contains(err.Error(), "bind: address already in use") {
-		// This sometimes happens, not sure how to lock available ports...
-		t.Skip("couldn't bind to available port")
-		return
-	}
+	testutil.SkipIfBindErr(t, err)
 
 	require.NoError(t, err)
 }
