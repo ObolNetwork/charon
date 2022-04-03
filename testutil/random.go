@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"strings"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -189,11 +190,21 @@ func RandomBitList() bitfield.Bitlist {
 	return resp
 }
 
+// SkipIfBindErr skips the test if the error is "bind: address already in use".
+// This is a workaround for the issue related to AvailableAddr.
+func SkipIfBindErr(t *testing.T, err error) {
+	t.Helper()
+
+	if err != nil && strings.Contains(err.Error(), "bind: address already in use") {
+		t.Skip("Skipping test as workaround to sporadic port bind issue")
+	}
+}
+
 // AvailableAddr returns an available local tcp address.
 //
 // Note that this is unfortunately only best-effort. Since the port is not
 // "locked" or "reserved", other processes sometimes grab the port.
-// Suggest checking errors for "bind: address already in use" and skipping the test in that case.
+// Remember to call SkipIfBindErr as workaround for this issue.
 func AvailableAddr(t *testing.T) *net.TCPAddr {
 	t.Helper()
 
