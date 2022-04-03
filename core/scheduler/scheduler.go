@@ -277,6 +277,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 	}
 
 	s.resolvedEpoch = int64(slot.Epoch())
+
 	return nil
 }
 
