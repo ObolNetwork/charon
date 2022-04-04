@@ -56,23 +56,23 @@ Core Workflow
 ─────────────┴───────────────────────────
 
              │                ┌─────────┐
-  *Schedule* │                │Scheduler│
-        duty │                └─&┌──────┘
-                                 │
-             │                ┌──▼────┐
+  *Schedule* │          ┌─────►Scheduler│
+        duty │          |     └─&┌──────┘
+                        |        │
+             │          |     ┌──▼────┐
              │  ┌──----------─┤Fetcher│
-             │  │             └─&┌────┘
-    *Decide* │  |                │
-        what │  |             ┌──▼──────┐
-        data │  |             │Consensus│
-          to │  |             └─*┌──────┘
-        sign │  |                │
-             │  |             ┌──▼───┐
-             │  |             │DutyDB│
-             │  |             └──▲───┘
-                |                │           │
-      *Sign* │  |             ┌──┴─┐         │
-        duty │  |             │VAPI◄─────────│── VC
+             │  │       |     └─&┌────┘
+    *Decide* │  |       |        │
+        what │  |       |     ┌──▼──────┐
+        data │  |       |     │Consensus│
+          to │  |       |     └─*┌──────┘
+        sign │  |       |        │
+             │  |       |     ┌──▼───┐
+             │  |       |     │DutyDB│
+             │  |       |     └──▲───┘
+                |       |        │           │
+      *Sign* │  |       |     ┌──┴─┐         │
+        duty │  |       └----─┤VAPI◄─────────│── VC
         data │  |             └──┬─┘         │ Query, sign, submit
                 |                │           │
      *Share* │  | ┌────────┐  ┌──▼─────┐
@@ -168,6 +168,9 @@ The scheduler interface is defined as:
 type Scheduler interface {
   // Subscribe registers a callback for triggering a duty.
   Subscribe(func(context.Context, Duty, FetchArgSet) error)
+
+  // AwaitProposer returns the block proposer for the slot (if in the cluster).
+  AwaitProposer(context.Context, slot int64) (Pubkey, error)
 }
 ```
 > ℹ️ Components of the workflow are decoupled from each other. They are stitched together by callback subscriptions.
@@ -339,8 +342,10 @@ The validator API provides the following beacon-node endpoints relating to dutie
   - Serve response
 - `GET /eth/v2/validator/blocks/{slot}` Produce a new block, without signature.
   - The request arguments are: `slot` and `randao_reveal`
-  - Ignore `randao_reveal`
-  - Query the `DutyDB` `AwaitProposer` with the `slot`
+  - Lookup `PubKey` by querying the `Scheduler` `AwaitProposer` with the slot in the request body.
+  - Verify `randao_reveal` signature.
+  - Construct a `DutyRandao` `ParSignedData` and submit it to `ParSigDB` for async aggregation and inclusion in block consensus.
+  - Query the `DutyDB` `AwaitBeaconBlock` with the `slot`
   - Serve response
 - `POST /eth/v1/beacon/pool/attestations` Submit Attestation objects to node
   - Construct a `ParSignedData` for each attestation object in request body.
@@ -350,11 +355,8 @@ The validator API provides the following beacon-node endpoints relating to dutie
   - Store `SignedDutyDataSet` in the `SigDB`
 - `POST /eth/v1/beacon/blocks` Publish a signed block
   - The request body contains `SignedBeaconBlock` object composed of `BeaconBlock` object (produced by beacon node) and validator signature.
-  - Construct a `ParSignedData` for the block object in request body.
-  - Lookup `PubKey` by querying the `DutyDB` `AwaitProposer` with the slot in the request body.
-  - Set the BLS private share `identifier` to charon node index.
-  - Create a `SignedDutyDataSet` with only a single element.
-  - Store `SignedDutyDataSet` in the `SigDB`
+  - Lookup `PubKey` by querying the `Scheduler` `AwaitProposer` with the slot in the request body.
+  - Construct a `DutyProposer` `ParSignedData` and submit it to `ParSigDB` for async aggregation and broadcast to beacon node.
 
 Note that the VC is configured with one or more private key shares (output of the DKG).
 The VC infers its public keys from those private shares, but those public keys does not exist on the beacon chain.
@@ -368,8 +370,11 @@ The validator api interface is defined as:
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the
 // DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
-	// RegisterAwaitBeaconBlock registers a function to query proposed beacon blocks.
-	RegisterAwaitBeaconBlock(func(context.Context, slot int) (PubKey, beaconapi.BeaconBlock, error))
+	// RegisterAwaitBeaconBlock registers a function to query a unsigned beacon block by slot.
+	RegisterAwaitBeaconBlock(func(context.Context, slot int) (beaconapi.BeaconBlock, error))
+
+	// RegisterAwaitProposer registers a function to query the block proposer by slot.
+	RegisterAwaitProposer(func(context.Context, slot int) (PubKey, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error))
