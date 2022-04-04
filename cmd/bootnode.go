@@ -18,9 +18,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -29,10 +31,11 @@ import (
 )
 
 type bootnodeConfig struct {
-	DataDir   string
-	HTTPAddr  string
-	P2PConfig p2p.Config
-	LogConfig log.Config
+	DataDir    string
+	HTTPAddr   string
+	P2PConfig  p2p.Config
+	LogConfig  log.Config
+	AutoP2PKey bool
 }
 
 func newBootnodeCmd(runFunc func(context.Context, bootnodeConfig) error) *cobra.Command {
@@ -49,11 +52,16 @@ func newBootnodeCmd(runFunc func(context.Context, bootnodeConfig) error) *cobra.
 	}
 
 	bindDataDirFlag(cmd.Flags(), &config.DataDir)
-	bindBootnodeFlag(cmd.Flags(), &config.HTTPAddr)
+	bindBootnodeFlag(cmd.Flags(), &config.HTTPAddr, &config.AutoP2PKey)
 	bindP2PFlags(cmd.Flags(), &config.P2PConfig)
 	bindLogFlags(cmd.Flags(), &config.LogConfig)
 
 	return cmd
+}
+
+func bindBootnodeFlag(flags *pflag.FlagSet, httpAddr *string, autoP2PKey *bool) {
+	flags.StringVar(httpAddr, "bootnode-http-address", "127.0.0.1:8088", "Listening address for the bootnode http server serving runtime ENR")
+	flags.BoolVar(autoP2PKey, "auto-p2pkey", false, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory")
 }
 
 // runBootnode starts a p2p-udp discv5 bootnode.
@@ -65,7 +73,18 @@ func runBootnode(ctx context.Context, config bootnodeConfig) error {
 	}
 
 	key, err := p2p.LoadPrivKey(config.DataDir)
-	if err != nil {
+	if errors.Is(err, os.ErrNotExist) {
+		if !config.AutoP2PKey {
+			return errors.New("p2pkey not found in data dir (run with --auto-p2pkey to auto generate)")
+		}
+
+		log.Info(ctx, "Auto creating p2pkey", z.Str("path", p2p.KeyPath(config.DataDir)))
+
+		key, err = p2p.NewSavedPrivKey(config.DataDir)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
 		return err
 	}
 

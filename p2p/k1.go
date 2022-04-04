@@ -24,13 +24,14 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-func p2pKeyPath(datadir string) string {
+// KeyPath returns the p2pkey path relative to the data dir.
+func KeyPath(datadir string) string {
 	return path.Join(datadir, "p2pkey")
 }
 
 // LoadPrivKey returns the ecdsa k1 key saved in the directory.
 func LoadPrivKey(dataDir string) (*ecdsa.PrivateKey, error) {
-	key, err := crypto.LoadECDSA(p2pKeyPath(dataDir))
+	key, err := crypto.LoadECDSA(KeyPath(dataDir))
 	if err != nil {
 		return nil, errors.Wrap(err, "load key")
 	}
@@ -49,7 +50,7 @@ func NewSavedPrivKey(datadir string) (*ecdsa.PrivateKey, error) {
 		return nil, errors.Wrap(err, "gen key")
 	}
 
-	err = crypto.SaveECDSA(p2pKeyPath(datadir), key)
+	err = crypto.SaveECDSA(KeyPath(datadir), key)
 	if err != nil {
 		return nil, errors.Wrap(err, "save key")
 	}
