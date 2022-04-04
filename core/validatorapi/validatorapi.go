@@ -261,7 +261,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 	return nil
 }
 
-// BeaconBlockProposal submits the randao for consensus and aggregation and then queries the dutyDB for an unsigned beacon block.
+// BeaconBlockProposal submits the randao for aggregation and inclusion in DutyProposer and then queries the dutyDB for an unsigned beacon block.
 func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*spec.VersionedBeaconBlock, error) {
 	// Get proposer pubkey (this is a blocking query).
 	pubkey, err := c.awaitProposerFunc(ctx, int64(slot))
@@ -301,6 +301,18 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 			}
 		}
 	}
+
+	// In the background, the following needs to happen before the
+	// unsigned beacon block will be returned below:
+	//  - Threshold number of VCs need to submit their partial randao reveals.
+	//  - These signatures will be exchanged and aggregated.
+	//  - The aggregated signature will be stored in AggSigDB.
+	//  - Scheduler (in the mean time) will schedule a DutyProposer (to create a unsigned block).
+	//  - Fetcher will then block waiting for an aggregated randao reveal.
+	//  - Once it is found, Fetcher will fetch an unsigned block from the beacon
+	//    node including the aggregated randao in the request.
+	//  - Consensus will agree upon the unsigned block and insert the resulting block in the DutyDB.
+	//  - Once inserted, the query below will return.
 
 	// Query unsigned block (this is blocking).
 	_, block, err := c.awaitBlockFunc(ctx, int64(slot))
