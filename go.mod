@@ -9,6 +9,7 @@ require (
 	github.com/attestantio/go-eth2-client v0.11.3
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/ethereum/go-ethereum v1.10.16
+	github.com/ferranbt/fastssz v0.0.0-20220103083642-bc5fefefa28b
 	github.com/gorilla/mux v1.8.0
 	github.com/jonboulle/clockwork v0.2.3
 	github.com/jsternberg/zap-logfmt v1.2.0
@@ -52,7 +53,6 @@ require (
 	github.com/elastic/gosigar v0.12.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/felixge/httpsnoop v1.0.2 // indirect
-	github.com/ferranbt/fastssz v0.0.0-20220103083642-bc5fefefa28b // indirect
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect

@@ -23,6 +23,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	ssz "github.com/ferranbt/fastssz"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -142,9 +143,11 @@ type Component struct {
 
 	// Registered input functions
 
-	pubKeyByAttFunc func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
-	awaitAttFunc    func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
-	parSigDBFuncs   []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	pubKeyByAttFunc   func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
+	awaitAttFunc      func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
+	awaitBlockFunc    func(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error)
+	awaitProposerFunc func(ctx context.Context, slot int64) (core.PubKey, error) // TODO(corver): Since we have this, we can drop pubkey from awaitBlockFunc.
+	parSigDBFuncs     []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
 func (*Component) ProposerDuties(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -163,10 +166,23 @@ func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slo
 	c.pubKeyByAttFunc = fn
 }
 
+// RegisterAwaitProposer registers a function to query proposer PubKey by slot.
+// It supports a single function, since it is an input of the component.
+// TODO(corver): Best place to get this is probably Scheduler.
+func (c *Component) RegisterAwaitProposer(fn func(ctx context.Context, slot int64) (core.PubKey, error)) {
+	c.awaitProposerFunc = fn
+}
+
 // RegisterParSigDB registers a partial signed data set store function.
-// It supports functions multiple since it is the output of the component.
+// It supports multiple functions since it is the output of the component.
 func (c *Component) RegisterParSigDB(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
 	c.parSigDBFuncs = append(c.parSigDBFuncs, fn)
+}
+
+// RegisterAwaitBeaconBlock registers a function to query unsigned block.
+// It supports multiple functions since it is the output of the component.
+func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error)) {
+	c.awaitBlockFunc = fn
 }
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
@@ -245,8 +261,61 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 	return nil
 }
 
-func (Component) BeaconBlockProposal(_ context.Context, _ eth2p0.Slot, _ eth2p0.BLSSignature, _ []byte) (*spec.VersionedBeaconBlock, error) {
-	return nil, errors.New("not implemented")
+// BeaconBlockProposal submits the randao for aggregation and inclusion in DutyProposer and then queries the dutyDB for an unsigned beacon block.
+func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*spec.VersionedBeaconBlock, error) {
+	// Get proposer pubkey (this is a blocking query).
+	pubKey, err := c.awaitProposerFunc(ctx, int64(slot))
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify randao partial signature
+	err = c.verifyRandaoParSig(ctx, pubKey, slot, randao)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.sumbitRandaoDuty(ctx, pubKey, slot, randao)
+	if err != nil {
+		return nil, err
+	}
+
+	// In the background, the following needs to happen before the
+	// unsigned beacon block will be returned below:
+	//  - Threshold number of VCs need to submit their partial randao reveals.
+	//  - These signatures will be exchanged and aggregated.
+	//  - The aggregated signature will be stored in AggSigDB.
+	//  - Scheduler (in the mean time) will schedule a DutyProposer (to create a unsigned block).
+	//  - Fetcher will then block waiting for an aggregated randao reveal.
+	//  - Once it is found, Fetcher will fetch an unsigned block from the beacon
+	//    node including the aggregated randao in the request.
+	//  - Consensus will agree upon the unsigned block and insert the resulting block in the DutyDB.
+	//  - Once inserted, the query below will return.
+
+	// Query unsigned block (this is blocking).
+	_, block, err := c.awaitBlockFunc(ctx, int64(slot))
+	if err != nil {
+		return nil, err
+	}
+
+	return block, nil
+}
+
+func (c Component) verifyRandaoParSig(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
+	// Calculate slot epoch
+	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return errors.Wrap(err, "getting slots per epoch")
+	}
+	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
+
+	// Randao signing root is the epoch.
+	sigRoot, err := merkleEpoch(epoch).HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	return c.verifyParSig(ctx, core.DutyRandao, epoch, pubKey, sigRoot, randao)
 }
 
 // verifyParSig verifies the partial signature against the root and validator.
@@ -282,6 +351,21 @@ func (c Component) verifyParSig(parent context.Context, typ core.DutyType, epoch
 		return err
 	} else if !ok {
 		return errors.New("invalid signature")
+	}
+
+	return nil
+}
+
+func (c Component) sumbitRandaoDuty(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
+	parsigSet := core.ParSignedDataSet{
+		pubKey: core.EncodeRandaoParSignedData(randao, c.shareIdx),
+	}
+
+	for _, dbFunc := range c.parSigDBFuncs {
+		err := dbFunc(ctx, core.NewRandaoDuty(int64(slot)), parsigSet)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -348,4 +432,27 @@ func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Vali
 	}
 
 	return resp, nil
+}
+
+// merkleEpoch wraps epoch to implement ssz.HashRoot.
+type merkleEpoch eth2p0.Epoch
+
+func (m merkleEpoch) HashTreeRoot() ([32]byte, error) {
+	b, err := ssz.HashWithDefaultHasher(m)
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash default epoch")
+	}
+
+	return b, nil
+}
+
+func (m merkleEpoch) HashTreeRootWith(hh *ssz.Hasher) error {
+	indx := hh.Index()
+
+	// Field (1) 'Epoch'
+	hh.PutUint64(uint64(m))
+
+	hh.Merkleize(indx)
+
+	return nil
 }

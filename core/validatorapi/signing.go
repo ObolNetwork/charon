@@ -31,7 +31,7 @@ type DomainName string
 const (
 	DomainBeaconProposer DomainName = "DOMAIN_BEACON_PROPOSER"
 	DomainBeaconAttester DomainName = "DOMAIN_BEACON_ATTESTER"
-	// DomainRandao                      DomainName = "DOMAIN_RANDAO"
+	DomainRandao         DomainName = "DOMAIN_RANDAO"
 	// DomainDeposit                     DomainName = "DOMAIN_DEPOSIT"
 	// DomainVoluntaryExit               DomainName = "DOMAIN_VOLUNTARY_EXIT"
 	// DomainSelectionProof              DomainName = "DOMAIN_SELECTION_PROOF"

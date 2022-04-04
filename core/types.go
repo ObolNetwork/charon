@@ -82,6 +82,18 @@ func NewAttesterDuty(slot int64) Duty {
 	}
 }
 
+// NewRandaoDuty returns a new randao duty. It is a convenience function that is
+// slightly more readable and concise than the struct literal equivalent:
+//   core.Duty{Slot: slot, Type: core.DutyRandao}
+//   vs
+//   core.NewRandaoDuty(slot)
+func NewRandaoDuty(slot int64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutyRandao,
+	}
+}
+
 const (
 	pkLen  = 98 // "0x" + hex.Encode([48]byte) = 2+2*48
 	sigLen = 96
