@@ -19,7 +19,6 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/rand"
-	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -48,11 +47,7 @@ func TestExternalHost(t *testing.T) {
 	defer db.Close()
 
 	udpNode, err := p2p.NewUDPNode(ctx, config, localNode, p2pKey, nil)
-	if err != nil && strings.Contains(err.Error(), "bind: address already in use") {
-		// This sometimes happens, not sure how to lock available ports...
-		t.Skip("couldn't bind to available port")
-		return
-	}
+	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 	defer udpNode.Close()
 }

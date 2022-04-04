@@ -18,7 +18,6 @@ import (
 	"context"
 	"io"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -46,9 +45,6 @@ func TestRunBootnode(t *testing.T) {
 	cancel()
 
 	err = runBootnode(ctx, config)
-	if err != nil && strings.Contains(err.Error(), "bind: address already in use") {
-		t.Skip("Skipping due to sporadic bind: address already in use")
-		return
-	}
+	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 }
