@@ -70,10 +70,6 @@ func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
 	flags.StringVar(dataDir, "data-dir", "./charon/data", "The directory where charon will store all its internal data")
 }
 
-func bindBootnodeFlag(flags *pflag.FlagSet, httpAddr *string) {
-	flags.StringVar(httpAddr, "bootnode-http-address", "127.0.0.1:8088", "Listening address for the bootnode http server serving runtime ENR")
-}
-
 func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {
 	flags.StringVar(&config.DBPath, "p2p-peerdb", "", "Path to store a discv5 peer database. Empty default results in in-memory database.")
 	flags.StringSliceVar(&config.UDPBootnodes, "p2p-bootnodes", nil, "Comma-separated list of discv5 bootnode URLs or ENRs. Manifest ENRs are used if empty. Example URL: enode://<hex node id>@10.3.58.6:30303?discport=30301.")
