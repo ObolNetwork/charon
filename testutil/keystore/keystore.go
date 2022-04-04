@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package keystore provides functions to store and load simnet private keys
-// to/from EIP 2335 compatible keystore files with "simnet" as passwords.
+// Package keystore provides functions to store and load private keys
+// to/from EIP 2335 compatible keystore files. Password are expected/created
+// in files with same identical names as the keystores, except with txt extension.
 package keystore
 
 import (
@@ -74,6 +75,10 @@ func LoadKeys(dir string) ([]*bls_sig.SecretKey, error) {
 		return nil, errors.Wrap(err, "read files")
 	}
 
+	if len(files) == 0 {
+		return nil, errors.New("no keys found")
+	}
+
 	var resp []*bls_sig.SecretKey
 	for _, f := range files {
 		b, err := os.ReadFile(f)
@@ -111,7 +116,7 @@ type keystore struct {
 	Name    string                 `json:"name"`
 }
 
-// encrypt returns the secret as an encrypted keystore.
+// encrypt returns the secret as an encrypted keystore using pbkdf2 cipher.
 func encrypt(secret *bls_sig.SecretKey, password string, random io.Reader) (keystore, error) {
 	secretBytes, err := tblsconv.SecretToBytes(secret)
 	if err != nil {
@@ -127,7 +132,7 @@ func encrypt(secret *bls_sig.SecretKey, password string, random io.Reader) (keys
 		return keystore{}, errors.Wrap(err, "marshal pubkey")
 	}
 
-	encryptor := keystorev4.New(keystorev4.WithCipher("scrypt"))
+	encryptor := keystorev4.New()
 	fields, err := encryptor.Encrypt(secretBytes, password)
 	if err != nil {
 		return keystore{}, errors.Wrap(err, "encrypt keystore")
@@ -144,7 +149,13 @@ func encrypt(secret *bls_sig.SecretKey, password string, random io.Reader) (keys
 
 // decrypt returns the secret from the encrypted (empty password) keystore.
 func decrypt(store keystore, password string) (*bls_sig.SecretKey, error) {
-	encryptor := keystorev4.New(keystorev4.WithCipher("scrypt"))
+	// Ugly way to check if the untyped store.Crypto field contains a "scrypt" kdf function.
+	cipher := "pbkdf2"
+	if strings.Contains(fmt.Sprint(store.Crypto["kdf"]), "scrypt") {
+		cipher = "scrypt"
+	}
+
+	encryptor := keystorev4.New(keystorev4.WithCipher(cipher))
 	secretBytes, err := encryptor.Decrypt(store.Crypto, password)
 	if err != nil {
 		return nil, errors.Wrap(err, "decrypt keystore")

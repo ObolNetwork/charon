@@ -15,6 +15,7 @@
 package keystore_test
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -44,4 +45,20 @@ func TestStoreLoad(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, secrets, actual)
+}
+
+func TestLoadEmpty(t *testing.T) {
+	_, err := keystore.LoadKeys(".")
+	require.Error(t, err)
+}
+
+func TestLoadScrypt(t *testing.T) {
+	secrets, err := keystore.LoadKeys("testdata")
+	require.NoError(t, err)
+
+	require.Len(t, secrets, 1)
+
+	b, err := secrets[0].MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, "10b16fc552aa607fa1399027f7b86ab789077e470b5653b338693dc2dde02468", fmt.Sprintf("%x", b))
 }
