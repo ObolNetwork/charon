@@ -78,7 +78,7 @@ func runBootnode(ctx context.Context, config bootnodeConfig) error {
 			return errors.New("p2pkey not found in data dir (run with --auto-p2pkey to auto generate)")
 		}
 
-		log.Info(ctx, "Auto creating p2pkey", z.Str("path", p2p.KeyPath(config.DataDir)))
+		log.Info(ctx, "Automatically creating p2pkey", z.Str("path", p2p.KeyPath(config.DataDir)))
 
 		key, err = p2p.NewSavedPrivKey(config.DataDir)
 		if err != nil {
