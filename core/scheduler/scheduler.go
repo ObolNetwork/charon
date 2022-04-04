@@ -24,7 +24,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -63,11 +62,12 @@ func New(pubkeys []core.PubKey, eth2Svc eth2client.Service) (*Scheduler, error) 
 	}
 
 	return &Scheduler{
-		eth2Cl:  eth2Cl,
-		pubkeys: pubkeys,
-		quit:    make(chan struct{}),
-		duties:  make(map[core.Duty]core.FetchArgSet),
-		clock:   clockwork.NewRealClock(),
+		eth2Cl:        eth2Cl,
+		pubkeys:       pubkeys,
+		quit:          make(chan struct{}),
+		duties:        make(map[core.Duty]core.FetchArgSet),
+		clock:         clockwork.NewRealClock(),
+		resolvedEpoch: -1,
 	}, nil
 }
 
@@ -77,8 +77,9 @@ type Scheduler struct {
 	quit    chan struct{}
 	clock   clockwork.Clock
 
-	duties map[core.Duty]core.FetchArgSet
-	subs   []func(context.Context, core.Duty, core.FetchArgSet) error
+	resolvedEpoch int64
+	duties        map[core.Duty]core.FetchArgSet
+	subs          []func(context.Context, core.Duty, core.FetchArgSet) error
 }
 
 // Subscribe registers a callback for triggering a duty.
@@ -111,6 +112,8 @@ func (s *Scheduler) Run() error {
 			slotCtx := log.WithCtx(ctx, z.I64("slot", slot.Slot))
 			log.Debug(slotCtx, "Slot ticked")
 
+			instrumentSlot(slot)
+
 			err := s.scheduleSlot(slotCtx, slot)
 			if err != nil {
 				log.Error(ctx, "Scheduling slot error", err)
@@ -121,11 +124,10 @@ func (s *Scheduler) Run() error {
 
 // scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
 func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
-	instrumentSlot(slot)
-	if slot.Initial {
+	if s.resolvedEpoch != int64(slot.Epoch()) {
 		err := s.resolveDuties(ctx, slot)
 		if err != nil {
-			return err
+			log.Warn(ctx, "Resolving duties error (retrying next slot)", z.Err(err))
 		}
 	}
 
@@ -143,8 +145,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 
 		instrumentDuty(duty, argSet)
 
-		var span trace.Span
-		ctx, span = core.StartDutyTrace(ctx, duty, "core/scheduler.scheduleSlot")
+		ctx, span := core.StartDutyTrace(ctx, duty, "core/scheduler.scheduleSlot")
 
 		for _, sub := range s.subs {
 			err := sub(ctx, duty, argSet)
@@ -163,7 +164,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 	if slot.IsLastInEpoch() {
 		err := s.resolveDuties(ctx, slot.Next())
 		if err != nil {
-			return err
+			log.Warn(ctx, "Resolving duties error (retrying next slot)", z.Err(err))
 		}
 	}
 
@@ -213,6 +214,9 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 			if !ok {
 				log.Warn(ctx, "ignoring unexpected attester duty", z.U64("vidx", uint64(attDuty.ValidatorIndex)))
 				continue
+			} else if _, ok := argSet[pubkey]; ok {
+				log.Debug(ctx, "Ignoring previously resolved duty", z.Any("duty", duty))
+				continue
 			}
 
 			argSet[pubkey] = arg
@@ -256,6 +260,9 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 			if !ok {
 				log.Warn(ctx, "ignoring unexpected proposer duty", z.U64("vidx", uint64(proDuty.ValidatorIndex)))
 				continue
+			} else if _, ok := argSet[pubkey]; ok {
+				log.Debug(ctx, "Ignoring previously resolved duty", z.Any("duty", duty))
+				continue
 			}
 
 			argSet[pubkey] = arg
@@ -269,6 +276,8 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 		}
 	}
 
+	s.resolvedEpoch = int64(slot.Epoch())
+
 	return nil
 }
 
@@ -276,7 +285,6 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 type slot struct {
 	Slot          int64
 	Time          time.Time
-	Initial       bool
 	SlotsPerEpoch int64
 	SlotDuration  time.Duration
 }
@@ -285,7 +293,6 @@ func (s slot) Next() slot {
 	return slot{
 		Slot:          s.Slot + 1,
 		Time:          s.Time.Add(s.SlotDuration),
-		Initial:       false,
 		SlotsPerEpoch: s.SlotsPerEpoch,
 		SlotDuration:  s.SlotDuration,
 	}
@@ -320,7 +327,6 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 	chainAge := clock.Since(genesis)
 	height := int64(chainAge / slotDuration)
 	startTime := genesis.Add(time.Duration(height) * slotDuration)
-	initial := true
 
 	resp := make(chan slot)
 
@@ -329,13 +335,11 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 			resp <- slot{
 				Slot:          height,
 				Time:          startTime,
-				Initial:       initial,
 				SlotsPerEpoch: int64(slotsPerEpoch),
 				SlotDuration:  slotDuration,
 			}
 			height++
 			startTime = startTime.Add(slotDuration)
-			initial = false
 
 			clock.Sleep(startTime.Sub(clock.Now()))
 		}

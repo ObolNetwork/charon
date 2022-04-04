@@ -24,6 +24,7 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -192,8 +193,9 @@ func TestSchedulerWait(t *testing.T) {
 // TestSchedulerDuties tests the scheduled duties given a deterministic mock beacon node.
 func TestSchedulerDuties(t *testing.T) {
 	tests := []struct {
-		Name   string
-		Factor int // Determines how duties are spread per epoch
+		Name     string
+		Factor   int // Determines how duties are spread per epoch
+		PropErrs int
 	}{
 		{
 			Name:   "grouped",
@@ -201,6 +203,10 @@ func TestSchedulerDuties(t *testing.T) {
 		}, {
 			Name:   "spread",
 			Factor: 1,
+		}, {
+			Name:     "spread_errors",
+			Factor:   1,
+			PropErrs: 1,
 		},
 	}
 
@@ -216,6 +222,16 @@ func TestSchedulerDuties(t *testing.T) {
 				beaconmock.WithDeterministicDuties(test.Factor),
 			)
 			require.NoError(t, err)
+
+			origFunc := eth2Cl.ProposerDutiesFunc
+			eth2Cl.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+				if test.PropErrs > 0 {
+					test.PropErrs--
+					return nil, errors.New("test error")
+				}
+
+				return origFunc(ctx, epoch, indices)
+			}
 
 			slotDuration, err := eth2Cl.SlotDuration(context.Background())
 			require.NoError(t, err)
