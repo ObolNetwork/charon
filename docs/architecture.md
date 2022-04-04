@@ -169,7 +169,7 @@ type Scheduler interface {
   // Subscribe registers a callback for triggering a duty.
   Subscribe(func(context.Context, Duty, FetchArgSet) error)
 
-  // AwaitProposer returns the block proposer for the slot (if in the cluster).
+  // AwaitProposer returns the block proposer PubKey for the slot (if in the cluster).
   AwaitProposer(context.Context, slot int64) (Pubkey, error)
 }
 ```
@@ -379,7 +379,7 @@ type ValidatorAPI interface {
 	// RegisterAwaitBeaconBlock registers a function to query a unsigned beacon block by slot.
 	RegisterAwaitBeaconBlock(func(context.Context, slot int) (beaconapi.BeaconBlock, error))
 
-	// RegisterAwaitProposer registers a function to query the block proposer by slot.
+	// RegisterAwaitProposer registers a function to query the block proposer PubKey by slot.
 	RegisterAwaitProposer(func(context.Context, slot int) (PubKey, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
