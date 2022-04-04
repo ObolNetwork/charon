@@ -358,6 +358,12 @@ The validator API provides the following beacon-node endpoints relating to dutie
   - Lookup `PubKey` by querying the `Scheduler` `AwaitProposer` with the slot in the request body.
   - Construct a `DutyProposer` `ParSignedData` and submit it to `ParSigDB` for async aggregation and broadcast to beacon node.
 
+Note that `AwaitProposer` and `RegisterAwaitBeaconBlock` are closely related but has key differences.
+`AwaitBeaconBlock` returns an agreed-upon (consensus) unsigned beacon block, which in turn requires
+an aggregated randao reveal signature. Partial randao reveal signatures are submitted at the same time as
+unsigned beacon block are requested. `AwaitProposer` returns the public key required for `DutyRandao` which
+doesn't depend on consensus and can be obtained directly from the `Scheduler`.
+
 Note that the VC is configured with one or more private key shares (output of the DKG).
 The VC infers its public keys from those private shares, but those public keys does not exist on the beacon chain.
 The validatorapi therefore needs to intercept and map all endpoints containing the validator public key and map
