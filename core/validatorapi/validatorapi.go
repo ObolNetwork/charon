@@ -166,7 +166,7 @@ func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slo
 	c.pubKeyByAttFunc = fn
 }
 
-// RegisterAwaitProposer registers a function to query proposer by slot.
+// RegisterAwaitProposer registers a function to query proposer PubKey by slot.
 // It supports a single function, since it is an input of the component.
 // TODO(corver): Best place to get this is probably Scheduler.
 func (c *Component) RegisterAwaitProposer(fn func(ctx context.Context, slot int64) (core.PubKey, error)) {
@@ -264,42 +264,20 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 // BeaconBlockProposal submits the randao for aggregation and inclusion in DutyProposer and then queries the dutyDB for an unsigned beacon block.
 func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*spec.VersionedBeaconBlock, error) {
 	// Get proposer pubkey (this is a blocking query).
-	pubkey, err := c.awaitProposerFunc(ctx, int64(slot))
+	pubKey, err := c.awaitProposerFunc(ctx, int64(slot))
 	if err != nil {
 		return nil, err
 	}
 
 	// Verify randao partial signature
-	{
-		// Calculate slot epoch
-		slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
-		if err != nil {
-			return nil, errors.Wrap(err, "getting slots per epoch")
-		}
-		epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
-
-		// Randao signing root is the epoch.
-		sigRoot, err := merkleEpoch(epoch).HashTreeRoot()
-		if err != nil {
-			return nil, err
-		}
-
-		if err := c.verifyParSig(ctx, core.DutyRandao, epoch, pubkey, sigRoot, randao); err != nil {
-			return nil, err
-		}
+	err = c.verifyRandaoParSig(ctx, pubKey, slot, randao)
+	if err != nil {
+		return nil, err
 	}
 
-	// Submit randao duty
-	{
-		parsigSet := core.ParSignedDataSet{
-			pubkey: core.EncodeRandaoParSignedData(randao, c.shareIdx),
-		}
-
-		for _, dbFunc := range c.parSigDBFuncs {
-			if err := dbFunc(ctx, core.NewRandaoDuty(int64(slot)), parsigSet); err != nil {
-				return nil, err
-			}
-		}
+	err = c.sumbitRandaoDuty(ctx, pubKey, slot, randao)
+	if err != nil {
+		return nil, err
 	}
 
 	// In the background, the following needs to happen before the
@@ -321,6 +299,23 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	}
 
 	return block, nil
+}
+
+func (c Component) verifyRandaoParSig(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
+	// Calculate slot epoch
+	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return errors.Wrap(err, "getting slots per epoch")
+	}
+	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
+
+	// Randao signing root is the epoch.
+	sigRoot, err := merkleEpoch(epoch).HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	return c.verifyParSig(ctx, core.DutyRandao, epoch, pubKey, sigRoot, randao)
 }
 
 // verifyParSig verifies the partial signature against the root and validator.
@@ -356,6 +351,21 @@ func (c Component) verifyParSig(parent context.Context, typ core.DutyType, epoch
 		return err
 	} else if !ok {
 		return errors.New("invalid signature")
+	}
+
+	return nil
+}
+
+func (c Component) sumbitRandaoDuty(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
+	parsigSet := core.ParSignedDataSet{
+		pubKey: core.EncodeRandaoParSignedData(randao, c.shareIdx),
+	}
+
+	for _, dbFunc := range c.parSigDBFuncs {
+		err := dbFunc(ctx, core.NewRandaoDuty(int64(slot)), parsigSet)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
