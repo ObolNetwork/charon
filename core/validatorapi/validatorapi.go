@@ -250,43 +250,20 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	// TODO(leo): get VC public key
 	pubKey := core.PubKey("TODO")
 
-	// TODO(leo): perhaps we should cache this?
+	// TODO(leo): abstract this, somewhere else something similar is being done
+	// obtain epoch from slot
 	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "getting slots per epoch")
 	}
-
 	epoch := eth2p0.Epoch(int64(slot) / int64(slotsPerEpoch))
-	domain, err := GetDomain(ctx, c.eth2Cl, DomainRandao, epoch)
-	if err != nil {
-		return nil, errors.Wrap(err, "getting domain")
-	}
 
 	var root [32]byte
 	ssz.MarshalUint64(root[:], uint64(epoch))
-	signingRoot, err := (&eth2p0.SigningData{ObjectRoot: eth2p0.Root(root), Domain: domain}).HashTreeRoot()
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal signing data")
-	}
 
-	// Convert the signature
-	randaoETH2, err := tblsconv.SigFromETH2(randao)
+	err = c.verifyParSig(ctx, core.DutyRandao, epoch, pubKey, root, randao)
 	if err != nil {
-		return nil, errors.Wrap(err, "convert signature")
-	}
-
-	// Verify using public share
-	pubShare, err := c.getVerifyShareFunc(pubKey)
-	if err != nil {
-		return nil, errors.Wrap(err, "get public share")
-	}
-
-	verified, err := tbls.Verify(pubShare, signingRoot[:], randaoETH2)
-	if err != nil {
-		return nil, errors.Wrap(err, "BLS verification")
-	}
-	if !verified {
-		return nil, errors.New("randao signature not verified")
+		return nil, err
 	}
 
 	// TODO(leo): store randao
@@ -295,8 +272,13 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 }
 
 // verifyParSig verifies the partial signature against the root and validator.
-func (c Component) verifyParSig(parent context.Context, typ core.DutyType, epoch eth2p0.Epoch,
-	pubkey core.PubKey, sigRoot eth2p0.Root, sig eth2p0.BLSSignature,
+func (c Component) verifyParSig(
+	parent context.Context,
+	typ core.DutyType,
+	epoch eth2p0.Epoch,
+	pubkey core.PubKey,
+	sigRoot eth2p0.Root,
+	sig eth2p0.BLSSignature,
 ) error {
 	if c.skipVerify {
 		return nil

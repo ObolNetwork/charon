@@ -45,6 +45,7 @@ const (
 var dutyDomain = map[core.DutyType]DomainName{
 	core.DutyAttester: DomainBeaconAttester,
 	core.DutyProposer: DomainBeaconProposer,
+	core.DutyRandao:   DomainRandao,
 }
 
 // Eth2DomainProvider is the subset of eth2 beacon api provider required to get a signing domain.
