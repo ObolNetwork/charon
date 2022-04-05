@@ -227,9 +227,13 @@ func allChecksPassed(ctx context.Context, client *github.Client, pr PR) (bool, e
 	}
 
 	for _, check := range checkRuns.CheckRuns {
+		if check.GetName() == "merge-pr" {
+			// Skip our selves
+			continue
+		}
 		if !okConclusions[check.GetConclusion()] {
 			notOKChecks = append(notOKChecks, check.GetName())
-			log.Warn(ctx, "Failed check detected",
+			log.Warn(ctx, "Non-ok check detected",
 				z.Str("name", check.GetName()),
 				z.Str("conclusion", check.GetConclusion()),
 			)
