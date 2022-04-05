@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
 
@@ -72,6 +73,23 @@ func TestErrorWrapOther(t *testing.T) {
 	ctx := context.Background()
 	log.Error(ctx, "err1", err1)
 	log.Error(ctx, "err2", err2)
+
+	testutil.RequireGoldenBytes(t, buf.Bytes())
+}
+
+func TestCopyFields(t *testing.T) {
+	buf := setup(t)
+
+	ctx1, cancel := context.WithCancel(context.Background())
+	ctx1 = log.WithCtx(ctx1, z.Str("source", "source"))
+	ctx2 := log.CopyFields(context.Background(), ctx1)
+
+	cancel()
+	require.Error(t, ctx1.Err())
+	require.NoError(t, ctx2.Err())
+
+	log.Info(ctx1, "see source")
+	log.Info(ctx2, "also source")
 
 	testutil.RequireGoldenBytes(t, buf.Bytes())
 }

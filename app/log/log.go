@@ -45,6 +45,11 @@ func WithCtx(ctx context.Context, fields ...z.Field) context.Context {
 	return context.WithValue(ctx, ctxKey{}, append(fields, fieldsFromCtx(ctx)...))
 }
 
+// CopyFields returns a copy of the target with which the logging fields of the source context are associated.
+func CopyFields(target context.Context, source context.Context) context.Context {
+	return context.WithValue(target, ctxKey{}, fieldsFromCtx(source))
+}
+
 // WithTopic is a convenience function that adds the topic
 // contextual logging field to the returned child context.
 func WithTopic(ctx context.Context, component string) context.Context {
