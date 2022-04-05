@@ -30,9 +30,9 @@ import (
 )
 
 const (
-	DoNotMerge     = "do not merge"
-	WIP            = "wip"
-	MergeWhenReady = "merge when ready"
+	DoNotMerge = "do not merge"
+	WIP        = "wip"
+	MergeNow   = "merge now"
 )
 
 func main() {
@@ -184,13 +184,13 @@ func readyToMerge(ctx context.Context, pr PR) bool {
 			log.Warn(ctx, "Labels contains 'wip' or 'do not merge'")
 			return false
 		}
-		if label.Name == MergeWhenReady {
+		if label.Name == MergeNow {
 			ready = true
 		}
 	}
 
 	if !ready {
-		log.Warn(ctx, "Labels do not contain 'merge when ready'")
+		log.Warn(ctx, "Labels do not contain 'merge now'")
 		return false
 	}
 
