@@ -35,6 +35,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
@@ -183,15 +184,14 @@ func pingCluster(t *testing.T, test pingTest) {
 		}
 
 		eg.Go(func() error {
+			defer cancel()
 			return app.Run(ctx, conf)
 		})
 	}
 
 	eg.Go(func() error {
-		asserter.Await(t)
-		cancel()
-
-		return nil
+		defer cancel()
+		return asserter.Await(ctx, t)
 	})
 
 	err := eg.Wait()
@@ -270,12 +270,15 @@ type asserter struct {
 }
 
 // Await waits for all nodes to ping each other or time out.
-func (a *asserter) await(t *testing.T, expect int) {
+func (a *asserter) await(ctx context.Context, t *testing.T, expect int) error {
 	t.Helper()
 
 	var actual map[interface{}]bool
 
 	ok := assert.Eventually(t, func() bool {
+		if ctx.Err() != nil {
+			return true
+		}
 		actual = make(map[interface{}]bool)
 		a.callbacks.Range(func(k, v interface{}) bool {
 			actual[k] = true
@@ -286,9 +289,15 @@ func (a *asserter) await(t *testing.T, expect int) {
 		return len(actual) >= expect
 	}, a.Timeout, time.Millisecond*10)
 
-	if !ok {
-		t.Errorf("Timeout waiting for callbacks, expect=%d, actual=%d: %v", expect, len(actual), actual)
+	if ctx.Err() != nil {
+		return context.Canceled
 	}
+
+	if !ok {
+		return errors.New(fmt.Sprintf("Timeout waiting for callbacks, expect=%d, actual=%d: %v", expect, len(actual), actual))
+	}
+
+	return nil
 }
 
 // pingAsserter asserts that all nodes ping all other nodes.
@@ -299,7 +308,7 @@ type pingAsserter struct {
 }
 
 // Await waits for all nodes to ping each other or time out.
-func (a *pingAsserter) Await(t *testing.T) {
+func (a *pingAsserter) Await(ctx context.Context, t *testing.T) error {
 	t.Helper()
 
 	factorial := 1
@@ -309,7 +318,7 @@ func (a *pingAsserter) Await(t *testing.T) {
 		n--
 	}
 
-	a.await(t, factorial)
+	return a.await(ctx, t, factorial)
 }
 
 // Callback returns the PingCallback function for the ith node.
