@@ -10,6 +10,7 @@ require (
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/ethereum/go-ethereum v1.10.16
 	github.com/ferranbt/fastssz v0.0.0-20220103083642-bc5fefefa28b
+	github.com/google/go-github/v43 v43.0.0
 	github.com/gorilla/mux v1.8.0
 	github.com/jonboulle/clockwork v0.2.3
 	github.com/jsternberg/zap-logfmt v1.2.0
@@ -32,6 +33,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.6.1
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.21.0
+	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/tools v0.1.10
 )
@@ -65,6 +67,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d // indirect
@@ -162,6 +165,7 @@ require (
 	golang.org/x/sys v0.0.0-20220227234510-4e6760a101f9 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/grpc v1.44.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
