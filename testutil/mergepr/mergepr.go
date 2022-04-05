@@ -30,9 +30,9 @@ import (
 )
 
 const (
-	DoNotMerge     = "do not merge"
-	WIP            = "wip"
-	MergeWhenReady = "merge when ready"
+	DoNotMerge = "do not merge"
+	WIP        = "wip"
+	MergeNow   = "merge now"
 )
 
 func main() {
@@ -107,11 +107,12 @@ type PR struct {
 	Labels []struct {
 		Name string `json:"name"`
 	} `json:"labels"`
-	Body      string `json:"body"`
-	Title     string `json:"title"`
-	State     string `json:"state"`
-	Mergeable bool   `json:"mergeable"`
-	Merged    bool   `json:"merged"`
+	Body           string `json:"body"`
+	Title          string `json:"title"`
+	State          string `json:"state"`
+	Mergeable      bool   `json:"mergeable"`
+	MergeableState string `json:"mergeable_state"`
+	Merged         bool   `json:"merged"`
 }
 
 func (pr PR) Owner() string {
@@ -131,6 +132,9 @@ func attemptMerge(ctx context.Context, client *github.Client, pr PR) error {
 		return nil
 	} else if !pr.Mergeable {
 		log.Warn(ctx, "PR not mergeable")
+		return nil
+	} else if pr.MergeableState != "clean" {
+		log.Warn(ctx, "PR mergeable state != 'clean'", z.Str("state", pr.MergeableState))
 		return nil
 	}
 
@@ -184,13 +188,13 @@ func readyToMerge(ctx context.Context, pr PR) bool {
 			log.Warn(ctx, "Labels contains 'wip' or 'do not merge'")
 			return false
 		}
-		if label.Name == MergeWhenReady {
+		if label.Name == MergeNow {
 			ready = true
 		}
 	}
 
 	if !ready {
-		log.Warn(ctx, "Labels do not contain 'merge when ready'")
+		log.Warn(ctx, "Labels do not contain 'merge now'")
 		return false
 	}
 
