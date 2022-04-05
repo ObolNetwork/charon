@@ -324,7 +324,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	core.Wire(sched, fetch, consensus, dutyDB, vapi,
 		parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster,
 		core.WithTracing(),
-		core.WithAsyncRetry(retryer))
+		core.WithAsyncRetry(retryer),
+	)
 
 	err = wireValidatorMock(conf, pubshares, sched)
 	if err != nil {

@@ -20,6 +20,7 @@ package retry
 import (
 	"context"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +33,10 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 )
+
+// lateFactor defines the number of slots duties may be late.
+// See https://pintail.xyz/posts/modelling-the-impact-of-altair/#proposer-and-delay-rewards.
+const lateFactor = 5
 
 // slotTimeProvider defines eth2client interface for resolving slot start times.
 type slotTimeProvider interface {
@@ -58,24 +63,15 @@ func New(ctx context.Context, eth2Svc eth2client.Service) (*Retryer, error) {
 
 	// deadlineFunc returns the time after which duties for a slot have elapsed.
 	deadlineFunc := func(slot int64) time.Time {
-		const lateFactor = 5 // The number of slots duties may be late.
 		start := genesis.Add(duration * time.Duration(slot))
-
 		return start.Add(duration * time.Duration(lateFactor))
 	}
 
 	// backoffProvider is a naive constant 1s backoff function.
 	backoffProvider := func() func() <-chan time.Time {
-		const backoff = time.Second
-		timer := time.NewTimer(backoff)
-
 		return func() <-chan time.Time {
-			if !timer.Stop() {
-				<-timer.C
-			}
-			timer.Reset(backoff)
-
-			return timer.C
+			const backoff = time.Second
+			return time.After(backoff)
 		}
 	}
 
@@ -92,15 +88,19 @@ type Retryer struct {
 	deadlineFunc    func(slot int64) time.Time
 	backoffProvider func() func() <-chan time.Time
 
-	mu     sync.Mutex
-	active int
+	wg sync.WaitGroup
 }
 
 // DoAsync will execute the function including retries on network or context errors.
 // It is intended to be used asynchronously:
 //   go retryer.DoAsync(ctx, duty.Slot, "foo", fn)
 func (r *Retryer) DoAsync(parent context.Context, slot int64, name string, fn func(context.Context) error) {
-	defer r.wrapActive()()
+	if r.isShutdown() {
+		return
+	}
+
+	r.wg.Add(1)
+	defer r.wg.Done()
 
 	deadline := r.deadlineFunc(slot)
 	backoffFunc := r.backoffProvider()
@@ -126,10 +126,11 @@ func (r *Retryer) DoAsync(parent context.Context, slot int64, name string, fn fu
 
 		var nerr net.Error
 		isNetErr := errors.As(err, &nerr)
+		isTempErr := isTemporaryBeaconErr(err)
 		isCtxErr := errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 		// Note that the local context is not checked, since we care about downstream timeouts.
 
-		if !isCtxErr && !isNetErr {
+		if !isCtxErr && !isNetErr && !isTempErr {
 			log.Error(ctx, "Permanent failure calling "+name, err)
 			return
 		}
@@ -153,47 +154,37 @@ func (r *Retryer) DoAsync(parent context.Context, slot int64, name string, fn fu
 	}
 }
 
-// wrapActive increments the active count and returns a defer function that decrements is.
-func (r *Retryer) wrapActive() func() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.active++
+// isTemporaryBeaconErr returns true if the error is a temporary beacon node error.
+// eth2http doesn't return structured errors or error sentinels, so this is brittle.
+func isTemporaryBeaconErr(err error) bool {
+	// Check for timing errors like:
+	//  - Proposer duties were requested for a future epoch.
+	//  - Cannot create attestation for future slot.
+	return strings.Contains(err.Error(), "future")
+}
 
-	return func() {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		r.active--
+// isShutdown returns true if Shutdown has been called.
+func (r *Retryer) isShutdown() bool {
+	select {
+	case <-r.shutdown:
+		return true
+	default:
+		return false
 	}
 }
 
-// zeroActive returns true if active count is zero.
-func (r *Retryer) zeroActive() bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return r.active == 0
-}
-
-// Shutdown triggers graceful shutdown and waits for zero active count.
+// Shutdown triggers graceful shutdown and waits for all active function to complete or timeout.
 func (r *Retryer) Shutdown(ctx context.Context) {
 	close(r.shutdown)
 
-	if r.zeroActive() {
-		return
-	}
+	done := make(chan struct{})
+	go func() {
+		r.wg.Wait()
+		done <- struct{}{}
+	}()
 
-	// Retryer mostly does network IO, so 10ms is ballpark.
-	ticker := time.NewTicker(time.Millisecond * 10)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if r.zeroActive() {
-				return
-			}
-		}
+	select {
+	case <-ctx.Done():
+	case <-done:
 	}
 }
