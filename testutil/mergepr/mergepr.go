@@ -104,12 +104,14 @@ type PR struct {
 	Head   struct {
 		SHA string `json:"sha"`
 	} `json:"head"`
-	Labels    []string `json:"labels"`
-	Body      string   `json:"body"`
-	Title     string   `json:"title"`
-	State     string   `json:"state"`
-	Mergeable bool     `json:"mergeable"`
-	Merged    bool     `json:"merged"`
+	Labels []struct {
+		Name string `json:"name"`
+	} `json:"labels"`
+	Body      string `json:"body"`
+	Title     string `json:"title"`
+	State     string `json:"state"`
+	Mergeable bool   `json:"mergeable"`
+	Merged    bool   `json:"merged"`
 }
 
 func (pr PR) Owner() string {
@@ -178,11 +180,11 @@ func readyToMerge(ctx context.Context, pr PR) bool {
 
 	var ready bool
 	for _, label := range pr.Labels {
-		if label == WIP || label == DoNotMerge {
+		if label.Name == WIP || label.Name == DoNotMerge {
 			log.Warn(ctx, "Labels contains 'wip' or 'do not merge'")
 			return false
 		}
-		if label == MergeWhenReady {
+		if label.Name == MergeWhenReady {
 			ready = true
 		}
 	}
