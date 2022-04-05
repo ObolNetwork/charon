@@ -22,6 +22,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -61,10 +62,12 @@ func New(ctx context.Context, eth2Svc eth2client.Service) (*Retryer, error) {
 		return nil, err
 	}
 
-	// deadlineFunc returns the time after which duties for a slot have elapsed.
-	deadlineFunc := func(slot int64) time.Time {
+	// ctxTimeoutFunc returns a context that is cancelled when duties for a slot have elapsed.
+	ctxTimeoutFunc := func(ctx context.Context, slot int64) (context.Context, context.CancelFunc) {
 		start := genesis.Add(duration * time.Duration(slot))
-		return start.Add(duration * time.Duration(lateFactor))
+		end := start.Add(duration * time.Duration(lateFactor))
+
+		return context.WithTimeout(ctx, time.Until(end))
 	}
 
 	// backoffProvider is a naive constant 1s backoff function.
@@ -77,7 +80,20 @@ func New(ctx context.Context, eth2Svc eth2client.Service) (*Retryer, error) {
 
 	return &Retryer{
 		shutdown:        make(chan struct{}),
-		deadlineFunc:    deadlineFunc,
+		ctxTimeoutFunc:  ctxTimeoutFunc,
+		backoffProvider: backoffProvider,
+	}, nil
+}
+
+// NewForT returns a new Retryer instance for testing supporting a custom clock.
+func NewForT(
+	_ *testing.T,
+	ctxTimeoutFunc func(ctx context.Context, slot int64) (context.Context, context.CancelFunc),
+	backoffProvider func() func() <-chan time.Time,
+) (*Retryer, error) {
+	return &Retryer{
+		shutdown:        make(chan struct{}),
+		ctxTimeoutFunc:  ctxTimeoutFunc,
 		backoffProvider: backoffProvider,
 	}, nil
 }
@@ -85,7 +101,7 @@ func New(ctx context.Context, eth2Svc eth2client.Service) (*Retryer, error) {
 // Retryer provides execution of functions asynchronously with retry adding robustness to network errors.
 type Retryer struct {
 	shutdown        chan struct{}
-	deadlineFunc    func(slot int64) time.Time
+	ctxTimeoutFunc  func(ctx context.Context, slot int64) (context.Context, context.CancelFunc)
 	backoffProvider func() func() <-chan time.Time
 
 	wg sync.WaitGroup
@@ -102,14 +118,13 @@ func (r *Retryer) DoAsync(parent context.Context, slot int64, name string, fn fu
 	r.wg.Add(1)
 	defer r.wg.Done()
 
-	deadline := r.deadlineFunc(slot)
 	backoffFunc := r.backoffProvider()
 
 	// Switch to a new context since this is async and parent context may be closed.
 	ctx := log.CopyFields(context.Background(), parent)
 	ctx = log.WithTopic(ctx, "retry")
 	ctx = trace.ContextWithSpan(ctx, trace.SpanFromContext(parent))
-	ctx, cancel := context.WithDeadline(ctx, deadline)
+	ctx, cancel := r.ctxTimeoutFunc(ctx, slot)
 	defer cancel()
 
 	ctx, span := tracer.Start(ctx, "app/retry.DoAsync")
