@@ -39,7 +39,7 @@ var cleanOnce sync.Once
 func RequireGoldenBytes(t *testing.T, data []byte) {
 	t.Helper()
 
-	filename := path.Join("testdata", strings.ReplaceAll(t.Name(), "/", "_"))
+	filename := path.Join("testdata", strings.ReplaceAll(t.Name(), "/", "_")+".golden")
 
 	if *update {
 		if *clean {
