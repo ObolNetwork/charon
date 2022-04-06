@@ -151,6 +151,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 		}
 
 		eg.Go(func() error {
+			defer cancel()
 			return app.Run(ctx, conf)
 		})
 	}
@@ -166,7 +167,13 @@ func testSimnet(t *testing.T, args simnetArgs) {
 			datas     = make(map[core.Duty]core.AggSignedData)
 		)
 		for {
-			res := <-results
+			var res simResult
+			select {
+			case <-ctx.Done():
+				return
+			case res = <-results:
+			}
+
 			require.Equal(t, pubkey, res.Pubkey)
 
 			// Assert the data and signature from all nodes are the same per duty.
