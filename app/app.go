@@ -35,6 +35,7 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/retry"
@@ -45,7 +46,6 @@ import (
 	"github.com/obolnetwork/charon/core/aggsigdb"
 	"github.com/obolnetwork/charon/core/bcast"
 	"github.com/obolnetwork/charon/core/dutydb"
-	"github.com/obolnetwork/charon/core/eth2wrap"
 	"github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/core/leadercast"
 	"github.com/obolnetwork/charon/core/parsigdb"

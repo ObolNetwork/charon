@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"go/ast"
-	"go/format"
 	"go/printer"
 	"go/token"
 	"os"
@@ -32,8 +31,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-
 	"golang.org/x/tools/go/packages"
+	"golang.org/x/tools/imports"
 )
 
 var (
@@ -44,7 +43,7 @@ var (
 import (
 	"github.com/obolnetwork/charon/app/errors"
 	eth2client "github.com/attestantio/go-eth2-client"
-{{range .Imports}}
+{{- range .Imports}}
 	{{.}}
 {{- end}}
 )
@@ -222,7 +221,7 @@ func parseImports(pkg *packages.Package) ([]string, error) {
 	return resp, nil
 }
 
-func writeTemplate(methods []Method, imports []string) error {
+func writeTemplate(methods []Method, imprts []string) error {
 	t, err := template.New("").Parse(tpl)
 	if err != nil {
 		return errors.Wrap(err, "parse template")
@@ -234,18 +233,19 @@ func writeTemplate(methods []Method, imports []string) error {
 		Imports []string
 	}{
 		Methods: methods,
-		Imports: imports,
+		Imports: imprts,
 	})
 	if err != nil {
 		return errors.Wrap(err, "exec template")
 	}
 
-	out, err := format.Source(b.Bytes())
+	filename := "eth2wrap_gen.go"
+	out, err := imports.Process(filename, b.Bytes(), nil)
 	if err != nil {
 		return errors.Wrap(err, "format")
 	}
 
-	err = os.WriteFile("eth2wrap_gen.go", out, 0o644) //nolint:gosec
+	err = os.WriteFile(filename, out, 0o644) //nolint:gosec
 	if err != nil {
 		return errors.Wrap(err, "write file")
 	}
@@ -341,8 +341,6 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, error) {
 						for _, line := range strings.Split(strings.TrimSpace(method.Doc.Text()), "\n") {
 							doc += "// " + line + "\n"
 						}
-
-						fmt.Printf("🔥!! resp.Doc=%v\n", doc)
 					}
 
 					resp = append(resp, Method{
@@ -351,7 +349,6 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, error) {
 						params:  params,
 						results: results,
 					})
-
 				}
 			}
 		}
