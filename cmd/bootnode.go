@@ -61,7 +61,7 @@ func newBootnodeCmd(runFunc func(context.Context, bootnodeConfig) error) *cobra.
 }
 
 func bindBootnodeFlag(flags *pflag.FlagSet, httpAddr *string, autoP2PKey *bool) {
-	flags.StringVar(httpAddr, "bootnode-http-address", "127.0.0.1:8088", "Listening address for the bootnode http server serving runtime ENR")
+	flags.StringVar(httpAddr, "bootnode-http-address", "127.0.0.1:16005", "Listening address (ip and port) for the bootnode http server serving runtime ENR")
 	flags.BoolVar(autoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory")
 }
 

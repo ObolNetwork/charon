@@ -33,9 +33,9 @@ import (
 	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
-//go:generate go test . -run=TestGenCluster -update -clean
+//go:generate go test . -run=TestCreateCluster -update -clean
 
-func TestGenCluster(t *testing.T) {
+func TestCreateCluster(t *testing.T) {
 	tests := []struct {
 		Name   string
 		Config clusterConfig
@@ -82,12 +82,12 @@ func TestGenCluster(t *testing.T) {
 			if test.Prep != nil {
 				test.Config = test.Prep(t, test.Config)
 			}
-			testGenCluster(t, test.Config)
+			testCreateCluster(t, test.Config)
 		})
 	}
 }
 
-func testGenCluster(t *testing.T, conf clusterConfig) {
+func testCreateCluster(t *testing.T, conf clusterConfig) {
 	t.Helper()
 
 	conf.TestBinary = "charon"
@@ -97,7 +97,7 @@ func testGenCluster(t *testing.T, conf clusterConfig) {
 	conf.ClusterDir = dir
 
 	var buf bytes.Buffer
-	err = runGenCluster(&buf, conf)
+	err = runCreateCluster(&buf, conf)
 	if err != nil {
 		log.Error(context.Background(), "", err)
 	}
