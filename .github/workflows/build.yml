@@ -41,5 +41,3 @@ jobs:
         push: true
         build-args: GITHUB_SHA=${{ github.sha }}
         tags: ${{ steps.meta.outputs.tags }}
-
-    - run: echo ${{ steps.docker_build.outputs.digest }}
