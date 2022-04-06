@@ -16,6 +16,8 @@
 package app
 
 import (
+	"runtime/debug"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -29,6 +31,12 @@ var (
 		Help:      "Constant gauge with label set to current app version",
 	}, []string{"version"})
 
+	gitGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Name:      "git_commit",
+		Help:      "Constant gauge with label set to current git commit hash",
+	}, []string{"hash"})
+
 	startGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "app",
 		Name:      "start_time_secs",
@@ -39,4 +47,23 @@ var (
 func initStartupMetrics() {
 	versionGauge.WithLabelValues(version.Version).Set(1)
 	startGauge.SetToCurrentTime()
+
+	hash, _ := GitCommit()
+	gitGauge.WithLabelValues(hash).Set(1)
+}
+
+// GitCommit returns the git commit hash and timestamp from build info.
+func GitCommit() (hash string, timestamp string) {
+	hash, timestamp = "unknown", "unknown"
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, s := range info.Settings {
+			if s.Key == "vcs.revision" {
+				hash = s.Value[:7]
+			} else if s.Key == "vcs.time" {
+				timestamp = s.Value
+			}
+		}
+	}
+
+	return hash, timestamp
 }
