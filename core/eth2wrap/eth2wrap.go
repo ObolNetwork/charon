@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package eth2metrics
+// Package eth2wrap provides a wrapper for eth2http.Service adding prometheus metrics and error wrapping.
+package eth2wrap
 
 import (
 	"context"
@@ -25,7 +26,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-//go:generate go run genmetrics/genmetrics.go
+//go:generate go run genwrap/genwrap.go
 
 var (
 	latencyHist = promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -58,20 +59,22 @@ func NewHTTPService(ctx context.Context, params ...eth2http.Parameter) (*Service
 	return &Service{Service: eth2Cl}, nil
 }
 
-// Service wraps an eth2http.Service adding prometheus metrics.
+// Service wraps an eth2http.Service adding prometheus metrics and error wrapping.
 type Service struct {
 	*eth2http.Service
 }
 
-// instrument instruments the endpoint.
+// latency measures endpoint latency.
 // Usage:
-//  defer instrument("endpoint")(err)
-func instrument(endpoint string) func(err error) {
+//  defer latency("endpoint")()
+func latency(endpoint string) func() {
 	t0 := time.Now()
-	return func(err error) {
+	return func() {
 		latencyHist.WithLabelValues(endpoint).Observe(time.Since(t0).Seconds())
-		if err != nil {
-			errorCount.WithLabelValues(endpoint).Inc()
-		}
 	}
+}
+
+// incError increments the error counter.
+func incError(endpoint string) {
+	errorCount.WithLabelValues(endpoint).Inc()
 }

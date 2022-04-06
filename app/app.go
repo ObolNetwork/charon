@@ -45,7 +45,7 @@ import (
 	"github.com/obolnetwork/charon/core/aggsigdb"
 	"github.com/obolnetwork/charon/core/bcast"
 	"github.com/obolnetwork/charon/core/dutydb"
-	"github.com/obolnetwork/charon/core/eth2metrics"
+	"github.com/obolnetwork/charon/core/eth2wrap"
 	"github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/core/leadercast"
 	"github.com/obolnetwork/charon/core/parsigdb"
@@ -255,12 +255,13 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		if err != nil {
 			return err
 		}
+
 		conf.BeaconNodeAddr = bmock.HTTPAddr()
 		eth2Cl = bmock
 		life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
 	} else {
 		var err error
-		eth2Cl, err = eth2metrics.NewHTTPService(ctx,
+		eth2Cl, err = eth2wrap.NewHTTPService(ctx,
 			eth2http.WithLogLevel(1),
 			eth2http.WithAddress(conf.BeaconNodeAddr),
 		)
