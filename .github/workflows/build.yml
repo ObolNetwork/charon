@@ -1,5 +1,4 @@
 on:
-  pull_request:
   push:
     branches:
       - main
@@ -10,20 +9,16 @@ jobs:
     runs-on: ubuntu-latest
     name: Build Docker Image
     steps:
+    - uses: actions/checkout@v2
 
-    - name: Checkout
-      uses: actions/checkout@v2
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
+    - uses: docker/setup-buildx-action@v1
 
     - id: get-version
       run: |
         version=$(echo "${{ github.sha }}" | cut -c1-8)
         echo "::set-output name=version::$version"
 
-    - name: Docker meta
-      id: meta
+    - id: meta
       uses: docker/metadata-action@v3
       with:
         images: |
