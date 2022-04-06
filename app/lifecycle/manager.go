@@ -158,7 +158,6 @@ func (m *Manager) Run(appCtx context.Context) error {
 }
 
 // run starts and stops all the provided hooks.
-//nolint:contextcheck // Explicit context wrangling.
 func run(appCtx context.Context, startHooks, stopHooks []hook) error {
 	// Collect any first error, to return at the end.
 	firstErr := make(chan error, 1)

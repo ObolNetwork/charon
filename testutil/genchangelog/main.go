@@ -170,7 +170,7 @@ func run(gitRange string, output string, token string) error {
 func makeIssueFunc(token string) func(int) (string, error) {
 	return func(number int) (string, error) {
 		u := fmt.Sprintf("https://api.github.com/repos/obolnetwork/charon/issues/%d", number)
-		req, err := http.NewRequest("GET", u, nil) //nolint:noctx
+		req, err := http.NewRequest("GET", u, nil)
 		if err != nil {
 			return "", errors.Wrap(err, "new request")
 		}

@@ -176,7 +176,7 @@ func isTemporaryBeaconErr(err error) bool {
 	// Check for timing errors like:
 	//  - Proposer duties were requested for a future epoch.
 	//  - Cannot create attestation for future slot.
-	if strings.Contains(err.Error(), "future") { //nolint:gosimple // More checks will be added below.
+	if strings.Contains(err.Error(), "future") {
 		return true
 	}
 
