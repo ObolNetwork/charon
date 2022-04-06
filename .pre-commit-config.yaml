@@ -6,6 +6,7 @@ repos:
       - id: trailing-whitespace # trims trailing whitespace
         exclude: "testdata"
       - id: end-of-file-fixer # ensures that a file is either empty, or ends with one newline
+        exclude_types: ["proto"]
         exclude: "testdata"
       - id: mixed-line-ending # ensures that a file doesn't contain a mix of LF and CRLF
       - id: no-commit-to-branch # Protect specific branches (default: main/master) from direct checkins
@@ -19,6 +20,7 @@ repos:
         additional_dependencies: [ packaging ]
       - id: check-licence-header
         types: [ file, go ]
+        exclude: ".pb.go"
 
   - repo: https://github.com/corverroos/fiximports
     rev: 496e5392530966aa8f12e88a289c07782075cf91
@@ -52,3 +54,8 @@ repos:
         language: script
         entry: .pre-commit/run_tests.sh
         types: [ file, go ]
+      - id: run-buf
+        name: run-buf
+        language: script
+        entry: .pre-commit/run_buf.sh
+        types: [ file, proto ]

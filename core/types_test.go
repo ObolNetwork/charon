@@ -27,6 +27,23 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
+func TestBackwardsCompatability(t *testing.T) {
+	require.EqualValues(t, 0, core.DutyUnknown)
+	require.EqualValues(t, 1, core.DutyProposer)
+	require.EqualValues(t, 2, core.DutyAttester)
+	require.EqualValues(t, 3, core.DutyRandao)
+	// Add more types here.
+
+	const sentinel = core.DutyType(4)
+	for i := core.DutyUnknown; i <= sentinel; i++ {
+		if i == core.DutyUnknown || i == sentinel {
+			require.False(t, i.Valid())
+		} else {
+			require.True(t, i.Valid())
+		}
+	}
+}
+
 func TestAggSignedData_Equal(t *testing.T) {
 	testAggSignedData1 := core.AggSignedData{
 		Data:      []byte("test data"),

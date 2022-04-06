@@ -17,9 +17,10 @@ package parsigex
 
 import (
 	"context"
-	"encoding/json"
+	"io"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -29,6 +30,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
 const protocol = "/charon/parsigex/1.0.0"
@@ -59,19 +61,27 @@ func (m *ParSigEx) handle(s network.Stream) {
 	defer cancel()
 	defer s.Close()
 
-	var msg p2pMsg
-	err := json.NewDecoder(s).Decode(&msg)
+	b, err := io.ReadAll(s)
 	if err != nil {
-		log.Error(ctx, "decode parsigex message", err)
+		log.Error(ctx, "read proto bytes", err)
 		return
 	}
 
+	var pb pbv1.ParSigExMsg
+	if err := proto.Unmarshal(b, &pb); err != nil {
+		log.Error(ctx, "unmarshal parsigex proto", err)
+		return
+	}
+
+	duty := core.DutyFromProto(pb.Duty)
+	set := core.ParSignedDataSetFromProto(pb.DataSet)
+
 	var span trace.Span
-	ctx, span = core.StartDutyTrace(ctx, msg.Duty, "core/parsigex.Handle")
+	ctx, span = core.StartDutyTrace(ctx, duty, "core/parsigex.Handle")
 	defer span.End()
 
 	for _, sub := range m.subs {
-		err := sub(ctx, msg.Duty, msg.Data)
+		err := sub(ctx, duty, set)
 		if err != nil {
 			log.Error(ctx, "subscribe error", err)
 		}
@@ -79,13 +89,13 @@ func (m *ParSigEx) handle(s network.Stream) {
 }
 
 // Broadcast broadcasts the partially signed duty data set to all peers.
-func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
-	b, err := json.Marshal(p2pMsg{
-		Duty: duty,
-		Data: data,
+func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+	b, err := proto.Marshal(&pbv1.ParSigExMsg{
+		Duty:    core.DutyToProto(duty),
+		DataSet: core.ParSignedDataSetToProto(set),
 	})
 	if err != nil {
-		return errors.Wrap(err, "marshal tcpNode msg")
+		return errors.Wrap(err, "marshal msg proto")
 	}
 
 	var errs []error
@@ -135,9 +145,4 @@ func sendData(ctx context.Context, tcpNode host.Host, p peer.ID, b []byte) error
 	}
 
 	return nil
-}
-
-type p2pMsg struct {
-	Duty core.Duty
-	Data core.ParSignedDataSet
 }

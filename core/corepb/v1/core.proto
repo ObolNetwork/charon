@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package core.corepb.v1;
+
+option go_package = "github.com/obolnetwork/charon/core/corepb/v1";
+
+message Duty {         // core.Duty
+  int64 slot = 1;      // int64
+  int32 type = 2; // core.DutyType
+}
+
+message ParSignedDataSet {           // core.ParSignedDataSet
+  map<string,ParSignedData> set = 1; // map[core.PubKey]core.ParSignedData
+}
+
+message ParSignedData { // core.ParSignedData
+  bytes data = 1;       // []byte
+  bytes signature = 2;  // core.Signature
+  int32 share_idx = 3;  // int
+}
