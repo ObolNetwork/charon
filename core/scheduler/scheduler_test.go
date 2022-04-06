@@ -92,7 +92,7 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, s.Run())
 }
 
-//go:generate go test . -run=TestSchedulerWait-count=100
+//go:generate go test . -run=TestSchedulerWait -count=20
 
 // TestSchedulerWait tests the waitChainStart and waitBeaconSync functions.
 func TestSchedulerWait(t *testing.T) {
@@ -302,4 +302,4 @@ func TestSchedulerDuties(t *testing.T) {
 }
 
 // gosched sleeps momentarily so that other goroutines can process.
-func gosched() { time.Sleep(10 * time.Millisecond) }
+func gosched() { time.Sleep(time.Millisecond) }
