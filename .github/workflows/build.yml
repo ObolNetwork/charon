@@ -25,15 +25,13 @@ jobs:
           ghcr.io/obolnetwork/charon/charon
         tags: "latest,${{steps.get-version.outputs.version}}"
 
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v1
+    - uses: docker/login-action@v1
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.CONTAINER_REGISTRY_SECRET }}
 
-    - name: Publish to registry
-      uses: docker/build-push-action@v2
+    - uses: docker/build-push-action@v2
       with:
         context: .
         platforms: linux/amd64,linux/arm64
@@ -41,5 +39,4 @@ jobs:
         build-args: GITHUB_SHA=${{ github.sha }}
         tags: ${{ steps.meta.outputs.tags }}
 
-    - name: Image digest
-      run: echo ${{ steps.docker_build.outputs.digest }}
+    - run: echo ${{ steps.docker_build.outputs.digest }}
