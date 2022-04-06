@@ -14,7 +14,7 @@ repos:
     rev: v0.0.2
     hooks:
       - id: check-go-version
-        args: [ -v=go1.17 ]
+        args: [ -v=go1.18 ]
         pass_filenames: false
         additional_dependencies: [ packaging ]
       - id: check-licence-header
