@@ -35,6 +35,7 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/retry"
@@ -254,12 +255,13 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		if err != nil {
 			return err
 		}
+
 		conf.BeaconNodeAddr = bmock.HTTPAddr()
 		eth2Cl = bmock
 		life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
 	} else {
 		var err error
-		eth2Cl, err = eth2http.New(ctx,
+		eth2Cl, err = eth2wrap.NewHTTPService(ctx,
 			eth2http.WithLogLevel(1),
 			eth2http.WithAddress(conf.BeaconNodeAddr),
 		)

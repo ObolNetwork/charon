@@ -19,6 +19,7 @@ charon/             # project root
 │  ├─ version/      # app version
 │  ├─ lifecycle/    # lifecycle manager
 │  ├─ dbindex/      # badger DB index helper
+│  ├─ eth2wrap/     # wrapper for eth2http beacon node client (adds metrics and error wrapping)
 │
 ├─ core/            # core workflow; charon business logic (see architecture doc for details)
 │  ├─ interfaces.go # component interfaces: Scheduler, Fetcher, Consensus, etc.
