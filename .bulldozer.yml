@@ -3,11 +3,10 @@ version: 1
 merge:
   trigger:
     labels: ["merge when ready"]
-    comment_substrings: ["==MERGE_WHEN_READY=="]
-    branches: ["main"]
+    comment_substrings: ["MERGE WHEN READY"]
   ignore:
     labels: ["do not merge"]
-    comment_substrings: ["==DO_NOT_MERGE=="]
+    comment_substrings: ["DO NOT MERGE"]
   method: squash
   options:
     squash:
