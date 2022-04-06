@@ -195,7 +195,7 @@ func newHTTPMock(overrides ...staticOverride) (HTTPMock, *http.Server, error) {
 
 	// Wait for server to be up
 	for {
-		resp, err := http.Get(addr + "/up") //nolint:bodyclose,noctx
+		resp, err := http.Get(addr + "/up")
 		if err == nil && resp.StatusCode == http.StatusOK {
 			break
 		}

@@ -56,7 +56,7 @@ func (l *LeaderCast) Run(ctx context.Context) error {
 	for {
 		source, duty, data, err := l.transport.AwaitNext(ctx)
 		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
-			return nil //nolint:nilerr
+			return nil
 		} else if err != nil {
 			log.Error(ctx, "await next leader duty", err)
 			continue
