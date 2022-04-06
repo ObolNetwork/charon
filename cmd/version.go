@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/version"
 )
 
@@ -53,7 +54,8 @@ func bindVersionFlags(flags *pflag.FlagSet, config *versionConfig) {
 }
 
 func runVersionCmd(out io.Writer, config versionConfig) {
-	_, _ = fmt.Fprintln(out, version.Version)
+	hash, timestamp := app.GitCommit()
+	_, _ = fmt.Fprintf(out, "%s [git_commit_hash=%s,git_commit_time=%s]\n", version.Version, hash, timestamp)
 
 	if !config.Verbose {
 		return

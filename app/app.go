@@ -116,7 +116,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	log.Info(ctx, "Charon starting", z.Str("version", version.Version))
+	hash, timestamp := GitCommit()
+	log.Info(ctx, "Charon starting",
+		z.Str("version", version.Version),
+		z.Str("git_commit_hash", hash),
+		z.Str("git_commit_time", timestamp),
+	)
 
 	// Wire processes and their dependencies
 	life := new(lifecycle.Manager)
