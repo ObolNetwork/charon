@@ -1,15 +1,15 @@
 # Container for building Go binary.
 FROM golang:1.18-alpine AS builder
-# Cgo support
-RUN apk add --no-cache build-base
-# Copy app.
+# Install dependencies
+RUN apk add --no-cache build-base git
+# Prep and copy source
 WORKDIR /app
 COPY . .
 # Build with Go module and Go build caches.
 RUN \
    --mount=type=cache,target=/go/pkg \
    --mount=type=cache,target=/root/.cache/go-build \
-   go build -o charon main.go
+   go build -o charon .
 
 # Copy final binary into light stage.
 FROM alpine:3
