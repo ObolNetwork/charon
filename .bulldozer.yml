@@ -10,7 +10,7 @@ merge:
   method: squash
   options:
     squash:
-      title: "github_default_title"
+      title: pull_request_title
       body: pull_request_body
   delete_after_merge: true
   allow_merge_with_no_checks: false
