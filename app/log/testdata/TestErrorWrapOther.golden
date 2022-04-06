@@ -1,4 +1,4 @@
-00:00 [31mERRO[0m err1: EOF {"caller": "log_test.go:74"}
-	app/log/log_test.go:74 .TestErrorWrapOther
-00:00 [31mERRO[0m err2: wrap: EOF {"caller": "log_test.go:75"}
-	app/log/log_test.go:71 .TestErrorWrapOther
+00:00 [31mERRO[0m err1: EOF {"caller": "log_test.go:75"}
+	app/log/log_test.go:75 .TestErrorWrapOther
+00:00 [31mERRO[0m err2: wrap: EOF {"caller": "log_test.go:76"}
+	app/log/log_test.go:72 .TestErrorWrapOther
