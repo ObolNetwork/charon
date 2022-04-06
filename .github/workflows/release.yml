@@ -9,6 +9,11 @@ jobs:
     name: Build docker image
     steps:
     - uses: actions/checkout@v2
+      -
+    - id: get-tag
+      run: |
+        tag=$(echo "${{ github.ref }}" | cut -d / -f 3)
+        echo "::set-output name=tag::$tag"
 
     - run: docker run ghcr.io/obolnetwork/charon/charon:${{steps.get-tag.outputs.tag}} charon run --help > cli-reference.txt
 

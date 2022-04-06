@@ -20,7 +20,7 @@ jobs:
         images: ghcr.io/obolnetwork/charon/charon
         tags: |
           # Tag "git short sha" on push to branch (main)
-          type=sha,event=branch
+          type=sha,event=branch,prefix=
 
           # Tag "latest" on all events
           type=raw,value=latest
