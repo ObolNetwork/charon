@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -x
-
 if ! which buf 1>/dev/null; then
   echo "Installing tools"
   go generate tools.go
