@@ -30,15 +30,19 @@ import (
 type DutyType int
 
 const (
-	DutyUnknown = DutyType(iota)
-	DutyProposer
-	DutyAttester
-	DutyRandao
-	dutySentinal // Must always be last
+	// DutyType enums MUST not change, it will break backwards compatibility.
+
+	DutyUnknown  DutyType = 0
+	DutyProposer DutyType = 1
+	DutyAttester DutyType = 2
+	DutyRandao   DutyType = 3
+	// Only ever append new types here...
+
+	dutySentinel DutyType = 4 // Must always be last
 )
 
 func (d DutyType) Valid() bool {
-	return d > DutyUnknown && d < dutySentinal
+	return d > DutyUnknown && d < dutySentinel
 }
 
 func (d DutyType) String() string {
