@@ -55,13 +55,17 @@ func initStartupMetrics() {
 // GitCommit returns the git commit hash and timestamp from build info.
 func GitCommit() (hash string, timestamp string) {
 	hash, timestamp = "unknown", "unknown"
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, s := range info.Settings {
-			if s.Key == "vcs.revision" {
-				hash = s.Value[:7]
-			} else if s.Key == "vcs.time" {
-				timestamp = s.Value
-			}
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return hash, timestamp
+	}
+
+	for _, s := range info.Settings {
+		if s.Key == "vcs.revision" {
+			hash = s.Value[:7]
+		} else if s.Key == "vcs.time" {
+			timestamp = s.Value
 		}
 	}
 
