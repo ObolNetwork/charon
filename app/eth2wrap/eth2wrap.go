@@ -31,14 +31,14 @@ import (
 
 var (
 	latencyHist = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "core",
+		Namespace: "app",
 		Subsystem: "eth2",
 		Name:      "latency_seconds",
 		Help:      "Latency in seconds for eth2 beacon node requests",
 	}, []string{"endpoint"})
 
 	errorCount = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "core",
+		Namespace: "app",
 		Subsystem: "eth2",
 		Name:      "errors_total",
 		Help:      "Total number of errors returned by eth2 beacon node requests",
