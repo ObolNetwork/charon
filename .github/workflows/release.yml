@@ -9,7 +9,7 @@ jobs:
     name: Build docker image
     steps:
     - uses: actions/checkout@v2
-      -
+
     - id: get-tag
       run: |
         tag=$(echo "${{ github.ref }}" | cut -d / -f 3)
