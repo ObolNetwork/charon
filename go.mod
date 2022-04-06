@@ -1,6 +1,6 @@
 module github.com/obolnetwork/charon
 
-go 1.17
+go 1.18
 
 // See https://github.com/prysmaticlabs/grpc-gateway/issues/2
 replace github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/prysmaticlabs/grpc-gateway/v2 v2.3.1-0.20210702154020-550e1cd83ec1

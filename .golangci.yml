@@ -51,7 +51,7 @@ linters-settings:
       - name: imports-blacklist
         arguments: ["errors", "github.com/pkg/errors"] # Prefer ./app/errors
   staticcheck:
-    go: "1.17"
+    go: "1.18"
     checks:
      - "all"
      - "-SA1019" # Ignoring since github.com/drand/kyber/sign/bls uses Proof Of Possession as does Ethereum.

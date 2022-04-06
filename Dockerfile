@@ -1,5 +1,5 @@
 # Container for building Go binary.
-FROM golang:1.17-alpine AS builder
+FROM golang:1.18-alpine AS builder
 # Cgo support
 RUN apk add --no-cache build-base
 # Copy app.
