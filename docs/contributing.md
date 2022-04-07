@@ -46,6 +46,9 @@ unsure what to update, open the PR, and we'll discuss during review.
 
 Note that PRs updating dependencies and new Go versions are not accepted. Please file an issue instead.
 
+Note: PRs can only be merged by obol-bulldozer bot. It is author's responsibility to add label `merge when ready`
+after getting approval.
+
 > TL;DR: Open an Issue with details and motivation behind a PR.
 
 ### Core Dev Contributions
