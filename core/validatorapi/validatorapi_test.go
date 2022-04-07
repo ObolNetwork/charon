@@ -347,6 +347,7 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 	block1.Phase0.ProposerIndex = vIdx
 	block1.Phase0.Body.RANDAOReveal = randao
 
+	// TODO(dhruv): Will be replaced by RegisterGetDutyFunc from scheduler
 	component.RegisterAwaitProposer(func(ctx context.Context, slot int64) (core.PubKey, error) {
 		return pubkey, nil
 	})
