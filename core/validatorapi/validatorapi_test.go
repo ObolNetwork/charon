@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/mock"
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/prysmaticlabs/go-bitfield"
@@ -312,4 +313,59 @@ func padTo(b []byte, size int) []byte {
 	}
 
 	return append(b, make([]byte, size-len(b))...)
+}
+
+func TestComponent_BeaconBlockProposal(t *testing.T) {
+	ctx := context.Background()
+	eth2Svc, err := mock.New(ctx)
+	require.NoError(t, err)
+
+	const (
+		slot = 123
+		vIdx = 1
+	)
+
+	component, err := validatorapi.NewComponentInsecure(eth2Svc, vIdx)
+	require.NoError(t, err)
+
+	pk, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	msg := []byte("randao reveal")
+	sig, err := tbls.Sign(secret, msg)
+	require.NoError(t, err)
+
+	randao := tblsconv.SigToETH2(sig)
+	pubkey, err := tblsconv.KeyToCore(pk)
+	require.NoError(t, err)
+
+	block1 := &spec.VersionedBeaconBlock{
+		Version: spec.DataVersionPhase0,
+		Phase0:  testutil.RandomBeaconBlock(),
+	}
+	block1.Phase0.Slot = slot
+	block1.Phase0.ProposerIndex = vIdx
+	block1.Phase0.Body.RANDAOReveal = randao
+
+	component.RegisterAwaitProposer(func(ctx context.Context, slot int64) (core.PubKey, error) {
+		return pubkey, nil
+	})
+
+	component.RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error) {
+		return pubkey, block1, nil
+	})
+
+	component.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		randaoEncoded := core.EncodeRandaoParSignedData(randao, vIdx)
+		require.Equal(t, set, core.ParSignedDataSet{
+			pubkey: randaoEncoded,
+		})
+		require.Equal(t, duty, core.NewRandaoDuty(slot))
+
+		return nil
+	})
+
+	block2, err := component.BeaconBlockProposal(ctx, slot, randao, []byte{})
+	require.NoError(t, err)
+	require.Equal(t, block1, block2)
 }
