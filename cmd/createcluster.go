@@ -123,9 +123,9 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-validator-keys.")
 
 	flags.BoolVar(&config.ConfigEnabled, "config", false, "Enables creation of local non-docker config files.")
-	flags.BoolVar(&config.ConfigSimnet, "config-simnet", true, "Configures a simulated network cluster with mock beacon node and mock validator clients. It showcases a running charon in isolation.")
-	flags.StringVar(&config.ConfigBinary, "config-binary", "", "Path of the charon binary to use in the config files. Defaults to this binary if empty.")
-	flags.IntVar(&config.ConfigPortStart, "config-port-start", 16000, "Starting port number used in config files.")
+	flags.BoolVar(&config.ConfigSimnet, "config-simnet", true, "Configures a simulated network cluster with mock beacon node and mock validator clients. It showcases a running charon in isolation. Requires --config.")
+	flags.StringVar(&config.ConfigBinary, "config-binary", "", "Path of the charon binary to use in the config files. Defaults to this binary if empty. Requires --config.")
+	flags.IntVar(&config.ConfigPortStart, "config-port-start", 16000, "Starting port number used in config files. Requires --config.")
 }
 
 func runCreateCluster(w io.Writer, conf clusterConfig) error {
