@@ -58,7 +58,7 @@ if (type -P tmux >/dev/null && type -P teamocil >/dev/null); then
   echo "Commands tmux and teamocil are installed"
   tmux new-session 'teamocil --layout teamocil.yml'
 else
-  echo "Commands tmux and teamocil are not installed, output will be merged"
+  echo "⚠️ Commands tmux and teamocil are not installed, output will be merged"
 
   trap "exit" INT TERM ERR
   trap "kill 0" EXIT

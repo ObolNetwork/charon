@@ -35,10 +35,6 @@ go build -o charon
 /tmp/charon-simnet/run_cluster.sh
 ```
 
-### Better simnet output
-
-If you install [tmux](https://github.com/tmux/tmux/wiki) and [teamocil](https://github.com/remi/teamocil), you will get the output of the nodes in different tmux panes when you run `run_cluster.sh`. Otherwise the output from all the nodes will be merged as the script output.
-
 ## Documentation
 
 The [Obol Docs](https://docs.obol.tech/) website it best place to get started.
