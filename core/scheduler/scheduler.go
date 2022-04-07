@@ -18,6 +18,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -80,6 +81,7 @@ type Scheduler struct {
 
 	resolvedEpoch int64
 	duties        map[core.Duty]core.FetchArgSet
+	dutiesMutex   sync.Mutex
 	subs          []func(context.Context, core.Duty, core.FetchArgSet) error
 }
 
@@ -123,8 +125,42 @@ func (s *Scheduler) Run() error {
 	}
 }
 
+func (s *Scheduler) GetDuty(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
+	slotsPerEpoch, err := s.eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	epoch := uint64(duty.Slot) / slotsPerEpoch
+	if !s.isEpochResolved(epoch) {
+		slotInternal, err := newSlot(ctx, s.eth2Cl, uint64(duty.Slot))
+		if err != nil {
+			return nil, errors.Wrap(err, "creating slot")
+		}
+		err = s.resolveDuties(ctx, slotInternal)
+		if err != nil {
+			return nil, errors.Wrap(err, "resolving duties")
+		}
+	}
+
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	return s.duties[duty], nil
+}
+
+func (s *Scheduler) isEpochResolved(epoch uint64) bool {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	return uint64(s.resolvedEpoch) >= epoch
+}
+
 // scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
 func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
 	if s.resolvedEpoch != int64(slot.Epoch()) {
 		err := s.resolveDuties(ctx, slot)
 		if err != nil {
@@ -173,6 +209,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 }
 
 // resolveDuties resolves the duties for the slot's epoch, caching the results.
+// Do not call if you do not hold the dutiesMutex.
 func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.pubkeys, slot.Slot)
 	if err != nil {
@@ -288,6 +325,32 @@ type slot struct {
 	Time          time.Time
 	SlotsPerEpoch int64
 	SlotDuration  time.Duration
+}
+
+func newSlot(ctx context.Context, eth2Cl eth2Provider, height uint64) (slot, error) {
+	genesis, err := eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return slot{}, err
+	}
+
+	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return slot{}, err
+	}
+
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return slot{}, err
+	}
+
+	startTime := genesis.Add(time.Duration(height) * slotDuration)
+
+	return slot{
+		Slot:          int64(height),
+		Time:          startTime,
+		SlotsPerEpoch: int64(slotsPerEpoch),
+		SlotDuration:  slotDuration,
+	}, nil
 }
 
 func (s slot) Next() slot {
