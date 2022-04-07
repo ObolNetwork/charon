@@ -31,7 +31,7 @@ go build
 
 # Run the charon command to generate a local simnet.
 ./charon --help
-./charon gen-cluster --simnet
+./charon create-cluster --simnet
 /tmp/charon/run_cluster.sh
 ```
 

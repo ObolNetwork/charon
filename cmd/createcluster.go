@@ -94,13 +94,13 @@ type clusterConfig struct {
 	TestBinary string
 }
 
-func newGenClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Command {
+func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Command {
 	var conf clusterConfig
 
 	cmd := &cobra.Command{
-		Use:   "gen-cluster",
-		Short: "Generate local charon cluster",
-		Long: "Generate local charon cluster including validator keys, charon p2p keys, and a cluster manifest. " +
+		Use:   "create-cluster",
+		Short: "Create a local charon cluster",
+		Long: "Create a local charon cluster including validator keys, charon p2p keys, and a cluster manifest. " +
 			"See flags for supported features.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), conf)
@@ -123,7 +123,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.KeysDir, "keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-validator-keys.")
 }
 
-func runGenCluster(w io.Writer, conf clusterConfig) error {
+func runCreateCluster(w io.Writer, conf clusterConfig) error {
 	if conf.Clean {
 		// Remove previous directories
 		if err := os.RemoveAll(conf.ClusterDir); err != nil {

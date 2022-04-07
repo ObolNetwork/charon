@@ -45,7 +45,7 @@ func New() *cobra.Command {
 		newGenP2PKeyCmd(runGenP2PKey),
 		newRunCmd(app.Run),
 		newBootnodeCmd(runBootnode),
-		newGenClusterCmd(runGenCluster),
+		newCreateClusterCmd(runCreateCluster),
 	)
 }
 
