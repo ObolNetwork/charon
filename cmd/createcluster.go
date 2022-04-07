@@ -162,7 +162,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 	nextPort := nextPortFunc(conf.ConfigPortStart)
 
 	// Generate threshold bls key shares
-	dvs, splits, err2 := getTSSShares(secrets, conf)
+	dvs, shareSets, err2 := getTSSShares(secrets, conf)
 	if err2 != nil {
 		return err2
 	}
@@ -178,8 +178,8 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		peers = append(peers, peer)
 
 		var secrets []*bls_sig.SecretKey
-		for _, split := range splits {
-			secret, err := tblsconv.ShareToSecret(split[i])
+		for _, shares := range shareSets {
+			secret, err := tblsconv.ShareToSecret(shares[i])
 			if err != nil {
 				return err
 			}
