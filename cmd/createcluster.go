@@ -170,8 +170,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 	// Create p2p peers
 	var peers []p2p.Peer
 	for i := 0; i < conf.NumNodes; i++ {
-		peer, err := newPeer(conf.ClusterDir, nodeDir(conf.ClusterDir, i),
-			conf.ConfigBinary, i, nextPort, conf.ConfigSimnet)
+		peer, err := newPeer(conf, i, nextPort)
 		if err != nil {
 			return err
 		}
@@ -259,7 +258,7 @@ func writeWarning(w io.Writer) {
 func getKeys(conf clusterConfig) ([]*bls_sig.SecretKey, error) {
 	if conf.SplitKeys {
 		if conf.SplitKeysDir == "" {
-			return nil, errors.New("--keys-dir required when splitting keys")
+			return nil, errors.New("--split-keys-dir required when splitting keys")
 		}
 
 		return keystore.LoadKeys(conf.SplitKeysDir)
@@ -294,7 +293,7 @@ func writeManifest(config clusterConfig, tss []tbls.TSS, peers []p2p.Peer) error
 }
 
 // newPeer returns a new peer, generating a p2pkey and ENR and node directory and run script in the process.
-func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func() int, simnet bool) (p2p.Peer, error) {
+func newPeer(conf clusterConfig, peerIdx int, nextPort func() int) (p2p.Peer, error) {
 	tcp := net.TCPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
 		Port: nextPort(),
@@ -305,7 +304,9 @@ func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func()
 		Port: nextPort(),
 	}
 
-	p2pKey, err := p2p.NewSavedPrivKey(nodeDir)
+	dir := nodeDir(conf.ClusterDir, peerIdx)
+
+	p2pKey, err := p2p.NewSavedPrivKey(dir)
 	if err != nil {
 		return p2p.Peer{}, errors.Wrap(err, "create p2p key")
 	}
@@ -326,9 +327,10 @@ func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func()
 		return p2p.Peer{}, errors.Wrap(err, "new peer")
 	}
 
-	if err := writeRunScript(clusterDir, nodeDir, charonBin, nextPort(),
-		tcp.String(), udp.String(), nextPort(), simnet); err != nil {
-		return p2p.Peer{}, errors.Wrap(err, "write run script")
+	if conf.ConfigEnabled {
+		if err := writeRunScript(conf, dir, nextPort(), tcp.String(), udp.String(), nextPort()); err != nil {
+			return p2p.Peer{}, errors.Wrap(err, "write run script")
+		}
 	}
 
 	return peer, nil
@@ -363,8 +365,8 @@ func writeOutput(out io.Writer, conf clusterConfig) {
 }
 
 // writeRunScript creates run script for a node.
-func writeRunScript(clusterDir string, nodeDir string, charonBin string, monitoringPort int,
-	tcpAddr string, udpAddr string, validatorAPIPort int, simnet bool,
+func writeRunScript(conf clusterConfig, nodeDir string, monitoringPort int,
+	tcpAddr string, udpAddr string, validatorAPIPort int,
 ) error {
 	f, err := os.Create(nodeDir + "/run.sh")
 	if err != nil {
@@ -375,12 +377,12 @@ func writeRunScript(clusterDir string, nodeDir string, charonBin string, monitor
 	// Flags for running a node
 	var flags []string
 	flags = append(flags, fmt.Sprintf("--data-dir=\"%s\"", nodeDir))
-	flags = append(flags, fmt.Sprintf("--manifest-file=\"%s/manifest.json\"", clusterDir))
+	flags = append(flags, fmt.Sprintf("--manifest-file=\"%s/manifest.json\"", conf.ClusterDir))
 	flags = append(flags, fmt.Sprintf("--monitoring-address=\"127.0.0.1:%d\"", monitoringPort))
 	flags = append(flags, fmt.Sprintf("--validator-api-address=\"127.0.0.1:%d\"", validatorAPIPort))
 	flags = append(flags, fmt.Sprintf("--p2p-tcp-address=%s", tcpAddr))
 	flags = append(flags, fmt.Sprintf("--p2p-udp-address=%s", udpAddr))
-	if simnet {
+	if conf.ConfigSimnet {
 		flags = append(flags, "--simnet-beacon-mock")
 		flags = append(flags, "--simnet-validator-mock")
 	}
@@ -393,7 +395,7 @@ func writeRunScript(clusterDir string, nodeDir string, charonBin string, monitor
 	err = tmpl.Execute(f, struct {
 		CharonBin string
 		Flags     []string
-	}{CharonBin: charonBin, Flags: flags})
+	}{CharonBin: conf.ConfigBinary, Flags: flags})
 	if err != nil {
 		return errors.Wrap(err, "execute template")
 	}

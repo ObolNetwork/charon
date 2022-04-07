@@ -125,6 +125,10 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 
 	t.Run("runsh", func(t *testing.T) {
 		b, err := os.ReadFile(path.Join(dir, "node0", "run.sh"))
+		if !conf.ConfigSimnet {
+			require.Error(t, err)
+			return
+		}
 		require.NoError(t, err)
 
 		b = bytes.ReplaceAll(b, []byte(dir), []byte("charon"))
