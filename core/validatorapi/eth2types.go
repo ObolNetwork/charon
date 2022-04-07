@@ -22,6 +22,9 @@ import (
 	"strconv"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -79,6 +82,21 @@ type attesterDutiesResponse struct {
 type proposerDutiesResponse struct {
 	DependentRoot root                   `json:"dependent_root"`
 	Data          []*eth2v1.ProposerDuty `json:"data"`
+}
+
+type proposeBlockResponsePhase0 struct {
+	Version spec.DataVersion    `json:"version"`
+	Data    *eth2p0.BeaconBlock `json:"data"`
+}
+
+type proposeBlockResponseAltair struct {
+	Version spec.DataVersion    `json:"version"`
+	Data    *altair.BeaconBlock `json:"data"`
+}
+
+type proposeBlockResponseBellatrix struct {
+	Version spec.DataVersion       `json:"version"`
+	Data    *bellatrix.BeaconBlock `json:"data"`
 }
 
 type validatorsResponse struct {
