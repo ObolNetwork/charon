@@ -4,8 +4,6 @@
  "node1",
  "node2",
  "node3",
- "run_cluster.sh",
- "teamocil.yml",
  "node0/keystore-0.json",
  "node0/keystore-0.txt",
  "node0/keystore-1.json",

@@ -82,16 +82,17 @@ windows:
 
 type clusterConfig struct {
 	ClusterDir string
+	Clean      bool
 	NumNodes   int
 	Threshold  int
-	PortStart  int
-	Simnet     bool
-	Clean      bool
-	SplitKeys  bool
-	KeysDir    string
 
-	// TestBinary overrides the charon binary for testing.
-	TestBinary string
+	SplitKeys    bool
+	SplitKeysDir string
+
+	ConfigEnabled   bool
+	ConfigSimnet    bool
+	ConfigPortStart int
+	ConfigBinary    string
 }
 
 func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Command {
@@ -116,11 +117,15 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.ClusterDir, "cluster-dir", "./charon/cluster", "The target folder to create the cluster in.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
-	flags.IntVar(&config.PortStart, "port-start", 16000, "Starting port number for nodes in cluster.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
-	flags.BoolVar(&config.Simnet, "simnet", true, "Configures a simulated network cluster with mock beacon node and mock validator clients. It showcases a running charon in isolation.")
+
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Enables splitting of existing non-dvt validator keys into distributed threshold private shares (instead of creating new random keys).")
-	flags.StringVar(&config.KeysDir, "keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-validator-keys.")
+	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-validator-keys.")
+
+	flags.BoolVar(&config.ConfigEnabled, "config", false, "Enables creation of local non-docker config files.")
+	flags.BoolVar(&config.ConfigSimnet, "config-simnet", true, "Configures a simulated network cluster with mock beacon node and mock validator clients. It showcases a running charon in isolation.")
+	flags.StringVar(&config.ConfigBinary, "config-binary", "", "Path of the charon binary to use in the config files. Defaults to this binary if empty.")
+	flags.IntVar(&config.ConfigPortStart, "config-port-start", 16000, "Starting port number used in config files.")
 }
 
 func runCreateCluster(w io.Writer, conf clusterConfig) error {
@@ -129,6 +134,8 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		if err := os.RemoveAll(conf.ClusterDir); err != nil {
 			return errors.Wrap(err, "remove cluster dir")
 		}
+	} else if _, err := os.Stat(path.Join(conf.ClusterDir, "manifest.json")); err == nil {
+		return errors.New("existing cluster found. Try again with --clean")
 	}
 
 	// Create cluster directory at given location
@@ -136,12 +143,13 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		return errors.Wrap(err, "mkdir")
 	}
 
-	// Get charon binary to include in run scripts
-	charonBin, err := os.Executable()
-	if err != nil {
-		return errors.Wrap(err, "get charon binary")
-	} else if conf.TestBinary != "" {
-		charonBin = conf.TestBinary
+	if conf.ConfigBinary == "" {
+		// Get charon binary to include in run scripts
+		var err error
+		conf.ConfigBinary, err = os.Executable()
+		if err != nil {
+			return errors.Wrap(err, "get charon binary")
+		}
 	}
 
 	// Get root bls key
@@ -151,33 +159,19 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 	}
 
 	// Get function to create sequential ports
-	nextPort := nextPortFunc(conf.PortStart)
+	nextPort := nextPortFunc(conf.ConfigPortStart)
 
 	// Generate threshold bls key shares
-	var (
-		dvs    []tbls.TSS
-		splits [][]*bls_sig.SecretKeyShare
-	)
-	for _, secret := range secrets {
-		shares, verifier, err := tbls.SplitSecret(secret, conf.Threshold, conf.NumNodes, rand.Reader)
-		if err != nil {
-			return err
-		}
-
-		splits = append(splits, shares)
-
-		tss, err := tbls.NewTSS(verifier, len(shares))
-		if err != nil {
-			return err
-		}
-
-		dvs = append(dvs, tss)
+	dvs, splits, err2 := getTSSShares(secrets, conf)
+	if err2 != nil {
+		return err2
 	}
 
 	// Create p2p peers
 	var peers []p2p.Peer
 	for i := 0; i < conf.NumNodes; i++ {
-		peer, err := newPeer(conf.ClusterDir, nodeDir(conf.ClusterDir, i), charonBin, i, nextPort, conf.Simnet)
+		peer, err := newPeer(conf.ClusterDir, nodeDir(conf.ClusterDir, i),
+			conf.ConfigBinary, i, nextPort, conf.ConfigSimnet)
 		if err != nil {
 			return err
 		}
@@ -204,23 +198,49 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		return err
 	}
 
-	err = writeClusterScript(conf.ClusterDir, conf.NumNodes)
-	if err != nil {
-		return errors.Wrap(err, "write cluster script")
-	}
+	if conf.ConfigEnabled {
+		err = writeClusterScript(conf.ClusterDir, conf.NumNodes)
+		if err != nil {
+			return errors.Wrap(err, "write cluster script")
+		}
 
-	err = writeTeamocilYML(conf.ClusterDir, conf.NumNodes)
-	if err != nil {
-		return errors.Wrap(err, "write teamocil.yml")
+		err = writeTeamocilYML(conf.ClusterDir, conf.NumNodes)
+		if err != nil {
+			return errors.Wrap(err, "write teamocil.yml")
+		}
 	}
 
 	if conf.SplitKeys {
 		writeWarning(w)
 	}
 
-	writeOutput(w, conf, charonBin)
+	writeOutput(w, conf)
 
 	return nil
+}
+
+func getTSSShares(secrets []*bls_sig.SecretKey, conf clusterConfig) ([]tbls.TSS, [][]*bls_sig.SecretKeyShare, error) {
+	var (
+		dvs    []tbls.TSS
+		splits [][]*bls_sig.SecretKeyShare
+	)
+	for _, secret := range secrets {
+		shares, verifier, err := tbls.SplitSecret(secret, conf.Threshold, conf.NumNodes, rand.Reader)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		splits = append(splits, shares)
+
+		tss, err := tbls.NewTSS(verifier, len(shares))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		dvs = append(dvs, tss)
+	}
+
+	return dvs, splits, nil
 }
 
 func writeWarning(w io.Writer) {
@@ -238,11 +258,11 @@ func writeWarning(w io.Writer) {
 
 func getKeys(conf clusterConfig) ([]*bls_sig.SecretKey, error) {
 	if conf.SplitKeys {
-		if conf.KeysDir == "" {
+		if conf.SplitKeysDir == "" {
 			return nil, errors.New("--keys-dir required when splitting keys")
 		}
 
-		return keystore.LoadKeys(conf.KeysDir)
+		return keystore.LoadKeys(conf.SplitKeysDir)
 	}
 
 	// TODO(corver): Add flag to generate more distributed-validators than 1
@@ -315,22 +335,29 @@ func newPeer(clusterDir, nodeDir, charonBin string, peerIdx int, nextPort func()
 }
 
 // writeOutput writes the gen_cluster output.
-func writeOutput(out io.Writer, config clusterConfig, charonBin string) {
+func writeOutput(out io.Writer, conf clusterConfig) {
 	var sb strings.Builder
-	_, _ = sb.WriteString(fmt.Sprintf("Referencing charon binary in scripts: %s\n", charonBin))
 	_, _ = sb.WriteString("Created charon cluster:\n")
-	_, _ = sb.WriteString(fmt.Sprintf(" --simnet=%v\n", config.Simnet))
-	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", config.SplitKeys))
+	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", conf.SplitKeys))
+	_, _ = sb.WriteString(fmt.Sprintf(" --config=%v\n", conf.ConfigEnabled))
+	if conf.ConfigEnabled {
+		_, _ = sb.WriteString(fmt.Sprintf(" --config-simnet=%v\n", conf.ConfigSimnet))
+		_, _ = sb.WriteString(fmt.Sprintf(" --config-binary=%v\n", conf.ConfigBinary))
+	}
 	_, _ = sb.WriteString("\n")
-	_, _ = sb.WriteString(strings.TrimSuffix(config.ClusterDir, "/") + "/\n")
+	_, _ = sb.WriteString(strings.TrimSuffix(conf.ClusterDir, "/") + "/\n")
 	_, _ = sb.WriteString("├─ manifest.json\tCluster manifest defines the cluster; used by all nodes\n")
-	_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")
-	_, _ = sb.WriteString("├─ teamocil.yml\t\tTeamocil config for splitting logs in tmux panes\n")
+	if conf.ConfigEnabled {
+		_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")
+		_, _ = sb.WriteString("├─ teamocil.yml\t\tTeamocil config for splitting logs in tmux panes\n")
+	}
 	_, _ = sb.WriteString("├─ node[0-3]/\t\tDirectory for each node\n")
 	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ keystore-*.json\tValidator private share key for duty signing\n")
 	_, _ = sb.WriteString("│  ├─ keystore-*.txt\tKeystore password files for keystore-*.json\n")
-	_, _ = sb.WriteString("│  ├─ run.sh\t\tScript to run the node\n")
+	if conf.ConfigEnabled {
+		_, _ = sb.WriteString("│  ├─ run.sh\t\tConfig script to run the node\n")
+	}
 
 	_, _ = fmt.Fprint(out, sb.String())
 }

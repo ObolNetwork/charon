@@ -27,12 +27,12 @@ If however, you want to build from source with this repo directly, you can get s
 brew install go
 
 # Build the charon binary
-go build
+go build -o charon
 
-# Run the charon command to generate a local simnet.
+# Use charon's create-cluster command to generate a local simnet cluster.
 ./charon --help
-./charon create-cluster --simnet
-/tmp/charon/run_cluster.sh
+./charon create-cluster --cluster-dir=/tmp/charon-simnet --config=true --config-simnet
+/tmp/charon-simnet/run_cluster.sh
 ```
 
 ### Better simnet output
