@@ -18,6 +18,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -69,7 +70,7 @@ func New(pubkeys []core.PubKey, eth2Svc eth2client.Service) (*Scheduler, error) 
 		quit:          make(chan struct{}),
 		duties:        make(map[core.Duty]core.FetchArgSet),
 		clock:         clockwork.NewRealClock(),
-		resolvedEpoch: -1,
+		resolvedEpoch: math.MaxUint64,
 	}, nil
 }
 
@@ -79,7 +80,7 @@ type Scheduler struct {
 	quit    chan struct{}
 	clock   clockwork.Clock
 
-	resolvedEpoch int64
+	resolvedEpoch uint64
 	duties        map[core.Duty]core.FetchArgSet
 	dutiesMutex   sync.Mutex
 	subs          []func(context.Context, core.Duty, core.FetchArgSet) error
@@ -125,6 +126,7 @@ func (s *Scheduler) Run() error {
 	}
 }
 
+// GetDuty returns the argSet for a duty if resolved already, otherwise an error.
 func (s *Scheduler) GetDuty(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
 	slotsPerEpoch, err := s.eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
@@ -133,35 +135,20 @@ func (s *Scheduler) GetDuty(ctx context.Context, duty core.Duty) (core.FetchArgS
 
 	epoch := uint64(duty.Slot) / slotsPerEpoch
 	if !s.isEpochResolved(epoch) {
-		slotInternal, err := newSlot(ctx, s.eth2Cl, uint64(duty.Slot))
-		if err != nil {
-			return nil, errors.Wrap(err, "creating slot")
-		}
-		err = s.resolveDuties(ctx, slotInternal)
-		if err != nil {
-			return nil, errors.Wrap(err, "resolving duties")
-		}
+		return nil, errors.New("epoch not resolved yet")
 	}
 
-	s.dutiesMutex.Lock()
-	defer s.dutiesMutex.Unlock()
+	argSet, ok := s.getFetchArgSet(duty)
+	if !ok {
+		return nil, errors.New("duty not resolved although epoch is marked as resolved")
+	}
 
-	return s.duties[duty], nil
-}
-
-func (s *Scheduler) isEpochResolved(epoch uint64) bool {
-	s.dutiesMutex.Lock()
-	defer s.dutiesMutex.Unlock()
-
-	return uint64(s.resolvedEpoch) >= epoch
+	return argSet, nil
 }
 
 // scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
 func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
-	s.dutiesMutex.Lock()
-	defer s.dutiesMutex.Unlock()
-
-	if s.resolvedEpoch != int64(slot.Epoch()) {
+	if s.getResolvedEpoch() != uint64(slot.Epoch()) {
 		err := s.resolveDuties(ctx, slot)
 		if err != nil {
 			log.Warn(ctx, "Resolving duties error (retrying next slot)", z.Err(err))
@@ -314,9 +301,54 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 		}
 	}
 
-	s.resolvedEpoch = int64(slot.Epoch())
+	s.setResolvedEpoch(uint64(slot.Epoch()))
 
 	return nil
+}
+
+func (s *Scheduler) getFetchArgSet(duty core.Duty) (core.FetchArgSet, bool) {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	argSet, ok := s.duties[duty]
+
+	return argSet, ok
+}
+
+func (s *Scheduler) setFetchArg(duty core.Duty, pubkey core.PubKey, set core.FetchArg) bool {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	argSet, ok := s.duties[duty]
+	if !ok {
+		argSet = make(core.FetchArgSet)
+	}
+	if _, ok := argSet[pubkey]; ok {
+		return false
+	}
+
+	argSet[pubkey] = set
+	s.duties[duty] = argSet
+
+	return true
+}
+
+func (s *Scheduler) getResolvedEpoch() uint64 {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	return s.resolvedEpoch
+}
+
+func (s *Scheduler) setResolvedEpoch(epoch uint64) {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	s.resolvedEpoch = epoch
+}
+
+func (s *Scheduler) isEpochResolved(epoch uint64) bool {
+	return s.getResolvedEpoch() >= epoch
 }
 
 // slot is a beacon chain slot and includes chain metadata to infer epoch and next slot.
@@ -325,32 +357,6 @@ type slot struct {
 	Time          time.Time
 	SlotsPerEpoch int64
 	SlotDuration  time.Duration
-}
-
-func newSlot(ctx context.Context, eth2Cl eth2Provider, height uint64) (slot, error) {
-	genesis, err := eth2Cl.GenesisTime(ctx)
-	if err != nil {
-		return slot{}, err
-	}
-
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
-	if err != nil {
-		return slot{}, err
-	}
-
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return slot{}, err
-	}
-
-	startTime := genesis.Add(time.Duration(height) * slotDuration)
-
-	return slot{
-		Slot:          int64(height),
-		Time:          startTime,
-		SlotsPerEpoch: int64(slotsPerEpoch),
-		SlotDuration:  slotDuration,
-	}, nil
 }
 
 func (s slot) Next() slot {
