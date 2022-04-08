@@ -53,16 +53,17 @@ For source code documentation, there is always the [charon godocs](https://pkg.g
 
 ## Supported Consensus Layer Clients
 
-As charon integrates into the Ethereum consensus stack as middleware between the validator client
-and the beacon node, all consensus clients that support the [REST Eth Beacon Node API](https://ethereum.github.io/beacon-APIs/#/)
-and that provide standalone validator clients are supported.
+Charon integrates into the Ethereum consensus stack as middleware between the validator client
+and the beacon node via the official [Eth Beacon Node REST API](https://ethereum.github.io/beacon-APIs/#/).
+Charon supports any upstream beacon node that serves the Beacon API.
+Charon supports any downstream standalone validator client that consumes the Beacon API.
 
-|Client| Beacon Node | Validator Client  | Notes                                       |
-|-----|---------------|----------------|---------------------------------------------|
-|*Teku*| ✅ |   ✅   | Fully supported                             |
-|*Lighthouse*| ✅  |✅  | Fully supported                              |
-|*Prysm*| 🛑 | 🛑 | Doesn't support REST API                    |
-|*Nimbus*| ✅| 🛑 | Doesn't provide standalone validator client |
+|Client| Beacon Node | Validator Client  | Notes                                   |
+|-----|---------------|----------------|-----------------------------------------|
+|*Teku*| ✅ |   ✅   | Fully supported                         |
+|*Lighthouse*| ✅  |✅  | Fully supported                         |
+|*Prysm*| ✅ | 🛑 | Validator client requires gRPC API      |
+|*Nimbus*| ✅| 🛑 | No standalone validator client provided |
 
 ## Project Status
 
@@ -72,11 +73,11 @@ We are moving fast so check back in regularly to track the progress.
 Charon is a distributed validator, so its main responsibility is performing validation duties.
 The status of supported duties are (🚧 means "under construction"):
 
-| Duty | Teku | Lighthouse    |
-|------|------|---------------|
-| *Attestation* | ✅|      ✅         |
-| *Attestation Aggregation* | ✅|     ✅          |
-| *Block Proposal* |🚧 |    🚧           |
-| *Blinded Block Proposal (mev-boost)* |🚧 |  🚧             |
-| *Sync Committee Attestation* | 🚧|  🚧             |
-| *Sync Committee Aggregation* | 🚧|  🚧             |
+| Duty | Teku VC | Lighthouse VC |
+|------|--------|---------------|
+| *Attestation* | ✅      | ✅             |
+| *Attestation Aggregation* | 🚧     | 🚧            |
+| *Block Proposal* | 🚧     | 🚧            |
+| *Blinded Block Proposal (mev-boost)* | 🚧     | 🚧            |
+| *Sync Committee Attestation* | 🚧     | 🚧            |
+| *Sync Committee Aggregation* | 🚧     | 🚧            |
