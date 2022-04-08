@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"flag"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -226,14 +227,13 @@ func TestSchedulerDuties(t *testing.T) {
 				return nil
 			})
 
-			stop := sched.Stop
+			var stopOnce sync.Once
 			clock.SetCallback(func(ts time.Time) {
 				// Stop after 3 slots
 				if ts.Before(t0.Add(3 * slotDuration)) {
 					return
 				}
-				stop()
-				stop = func() {}
+				stopOnce.Do(sched.Stop)
 			})
 
 			require.NoError(t, sched.Run())
