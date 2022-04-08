@@ -58,10 +58,11 @@ Layer (CL) clients on the basis on types of duties:
 
 ### Attestation
 
-| EL \ CL       | Teku | Prysm | Lighthouse | Nimbus | Lodestar |
-|---------------|------| ----- | ---------- | ------ | -------- |
-| Mock          | ✅ | 🚧    | ✅ | 🚧 | 🚧 |
-| Geth          | 🚧 | 🚧    | 🚧 | 🚧 | 🚧 |
-| Nethermind    | 🚧 | 🚧    | 🚧 | 🚧 | 🚧 |
-| Erigon        | 🚧 | 🚧    | 🚧 | 🚧 | 🚧 |
-| OpenEthereum  | 🚧 | 🚧    | 🚧 | 🚧 | 🚧 |
+| EL \ CL     | Teku | Prysm | Lighthouse | Nimbus | Lodestar |
+|-------------|------| ----- | ---------- | ------ | -------- |
+| Mock        | ✅ | 🚧    | ✅ | 🚧 | 🚧 |
+| Geth        | 🚧 | 🚧    | 🚧 | 🚧 | 🚧 |
+| Nethermind  | 🚧 | 🚧    | 🚧 | 🚧 | 🚧 |
+| Besu        | 🚧 | 🚧    | 🚧 | 🚧 | 🚧 |
+| Erigon      | 🚧 | 🚧    | 🚧 | 🚧 | 🚧 |
+| OpenEthereum | 🚧 | 🚧    | 🚧 | 🚧 | 🚧 |
