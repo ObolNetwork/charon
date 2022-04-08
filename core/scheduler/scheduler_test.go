@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"flag"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
@@ -178,12 +177,17 @@ func TestSchedulerDuties(t *testing.T) {
 		PropErrs int
 	}{
 		{
+			// All duties grouped in first slot of epoch
 			Name:   "grouped",
 			Factor: 0,
-		}, {
+		},
+		{
+			// All duties spread in first N slots of epoch (N is number of validators)
 			Name:   "spread",
 			Factor: 1,
-		}, {
+		},
+		{
+			// All duties spread in first N slots of epoch (except first proposer errors)
 			Name:     "spread_errors",
 			Factor:   1,
 			PropErrs: 1,
@@ -192,6 +196,7 @@ func TestSchedulerDuties(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
+			// Configure beacon mock
 			var t0 time.Time
 			valSet := beaconmock.ValidatorSetA
 			eth2Cl, err := beaconmock.New(
@@ -201,6 +206,7 @@ func TestSchedulerDuties(t *testing.T) {
 			)
 			require.NoError(t, err)
 
+			// Wrap ProposerDuties to returns some errors
 			origFunc := eth2Cl.ProposerDutiesFunc
 			eth2Cl.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 				if test.PropErrs > 0 {
@@ -211,74 +217,74 @@ func TestSchedulerDuties(t *testing.T) {
 				return origFunc(ctx, epoch, indices)
 			}
 
-			slotDuration, err := eth2Cl.SlotDuration(context.Background())
-			require.NoError(t, err)
-
-			clock := NewSleepClock(t0)
-
+			// Get pubkeys for validators to schedule
 			pubkeys, err := valSet.CorePubKeys()
 			require.NoError(t, err)
 
+			// Construct scheduler
+			clock := NewSleepClock(t0)
 			sched := scheduler.NewForT(t, clock, pubkeys, eth2Cl)
 
-			dutyChan := make(chan map[core.Duty]core.FetchArgSet, 999)
-			sched.Subscribe(func(ctx context.Context, duty core.Duty, set core.FetchArgSet) error {
-				dutyChan <- map[core.Duty]core.FetchArgSet{duty: set}
-				return nil
+			// Stop scheduler (and slotTicker) after 3 slots
+			const stopAfter = 3
+			slotDuration, err := eth2Cl.SlotDuration(context.Background())
+			require.NoError(t, err)
+			clock.CallbackAfter(t0.Add(time.Duration(stopAfter)*slotDuration), func() {
+				sched.Stop()
+				time.Sleep(time.Hour) // Do not let the slot ticker tick anymore.
 			})
 
-			var stopOnce sync.Once
-			clock.SetCallback(func(ts time.Time) {
-				// Stop after 3 slots
-				if ts.Before(t0.Add(3 * slotDuration)) {
-					return
-				}
-				stopOnce.Do(sched.Stop)
-			})
-
-			require.NoError(t, sched.Run())
-			close(dutyChan)
-
-			type tuple struct {
+			// Collect results
+			type result struct {
 				Duty       string
 				DutyArgSet map[core.PubKey]string
 			}
-			var tuples []tuple
-			for dmap := range dutyChan {
-				for duty, set := range dmap {
-					dset := make(map[core.PubKey]string)
-					for pubkey, args := range set {
-						dset[pubkey] = string(args)
-					}
-
-					tuples = append(tuples, tuple{
-						Duty:       duty.String(),
-						DutyArgSet: dset,
-					})
+			var results []result
+			sched.Subscribe(func(ctx context.Context, duty core.Duty, set core.FetchArgSet) error {
+				// Make result human-readable
+				resultSet := make(map[core.PubKey]string)
+				for pubkey, args := range set {
+					resultSet[pubkey] = string(args)
 				}
-			}
 
-			testutil.RequireGoldenJSON(t, tuples)
+				// Add result
+				results = append(results, result{
+					Duty:       duty.String(),
+					DutyArgSet: resultSet,
+				})
+
+				return nil
+			})
+
+			// Run scheduler
+			require.NoError(t, sched.Run())
+
+			// Assert results
+			testutil.RequireGoldenJSON(t, results)
 		})
 	}
 }
 
 func NewSleepClock(now time.Time) *SleepClock {
 	return &SleepClock{
-		now:      now,
-		callback: func(t time.Time) {},
+		now: now,
 	}
 }
 
-// SleepClock implements clockwork.Clock and proviies a deterministic clock
+// SleepClock implements clockwork.Clock and provides a deterministic mock clock
 // that is advanced by calls to Sleep or After.
 // Note this *does not* support concurrency.
 type SleepClock struct {
-	now      time.Time
-	callback func(time.Time)
+	now           time.Time
+	callbackAfter time.Time
+	callback      func()
 }
 
-func (c *SleepClock) SetCallback(callback func(time.Time)) {
+// CallbackAfter sets a callback function that is called once
+// before Sleep returns at or after the time has been reached.
+// It is useful to trigger logic "when a certain time has been reached".
+func (c *SleepClock) CallbackAfter(after time.Time, callback func()) {
+	c.callbackAfter = after
 	c.callback = callback
 }
 
@@ -293,7 +299,11 @@ func (c *SleepClock) After(d time.Duration) <-chan time.Time {
 
 func (c *SleepClock) Sleep(d time.Duration) {
 	c.now = c.now.Add(d)
-	c.callback(c.now)
+	if c.callback == nil || c.now.Before(c.callbackAfter) {
+		return
+	}
+	c.callback()
+	c.callback = nil
 }
 
 func (c *SleepClock) Now() time.Time {
