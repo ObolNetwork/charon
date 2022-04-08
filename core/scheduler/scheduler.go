@@ -182,7 +182,10 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 		}
 
 		span.End()
-		s.deleteDuty(duty)
+		// TODO(leo): This had to be commented out because the scheduler doesn't need the duty anymore,
+		// but the validatorAPI will need the duty when verifying a randao. Solved when we have the shared
+		// component to resolve duties.
+		// s.deleteDuty(duty)
 	}
 
 	if slot.IsLastInEpoch() {
