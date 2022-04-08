@@ -50,3 +50,33 @@ For detailed documentation on this repo, see the [docs](docs) folder:
 - [Contributing](contributing.md): How to contribute to charon; githooks, PR templates, etc.
 
 For source code documentation, there is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/charon).
+
+## Supported Consensus Layer Clients
+
+As charon integrates into the Ethereum consensus stack as middleware between the validator client
+and the beacon node, all consensus clients that support the [REST Eth Beacon Node API](https://ethereum.github.io/beacon-APIs/#/)
+and all standalone validator clients are supported.
+
+|Client| Status                                          |
+|-----|-------------------------------------------------|
+|*Teku*| ✅ Supported                                     |
+|*Lighthouse*| ✅  Supported                                    |
+|*Prysm*| 🛑 Doesn't support REST API                     |
+|*Nimbus*| 🛑 Doesn't support standalone validator clients |
+
+## Project Status
+
+It is still early days for the Obol Network and things are under active development.
+We are moving fast so check back in regularly to track the progress.
+
+Charon is a distributed validator, so its main responsibility is performing validation duties.
+The status of supported duties are:
+
+| Duty | Teku | Lighthouse    |
+|------|------|---------------|
+| *Attestation* | ✅|      ✅         |
+| *Attestation Aggregation* | ✅|     ✅          |
+| *Block Proposal* |🚧 |    🚧           |
+| *Blinded Block Proposal (mev-boost)* |🚧 |  🚧             |
+| *Sync Committee Attestation* | 🚧|  🚧             |
+| *Sync Committee Aggregation* | 🚧|  🚧             |
