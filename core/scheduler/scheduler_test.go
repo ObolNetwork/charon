@@ -133,7 +133,7 @@ func TestSchedulerWait(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			var t0 time.Time
-			clock := clockwork.NewFakeClockAt(t0)
+			clock := NewSleepClock(t0)
 			eth2Cl, err := beaconmock.New()
 			require.NoError(t, err)
 
@@ -161,36 +161,8 @@ func TestSchedulerWait(t *testing.T) {
 
 			sched := scheduler.NewForT(t, clock, nil, eth2Cl)
 			sched.Stop() // Just run wait functions, then quit.
-
-			done := make(chan struct{})
-			go func() {
-				err := sched.Run()
-				require.NoError(t, err)
-				close(done)
-			}()
-
-			var elapsed int
-			for {
-				gosched() // Wait for scheduler goroutine to sleep or complete
-
-				select {
-				case <-done:
-					break
-				default:
-					clock.Advance(time.Second)
-					elapsed++
-
-					continue
-				}
-
-				break
-			}
-
-			// Timing isn't deterministic :(
-			min := test.WaitSecs - 1
-			max := test.WaitSecs + 1
-			require.LessOrEqual(t, elapsed, max)
-			require.GreaterOrEqual(t, elapsed, min)
+			require.NoError(t, sched.Run())
+			require.EqualValues(t, test.WaitSecs, clock.Since(t0).Seconds())
 		})
 	}
 }
@@ -220,8 +192,6 @@ func TestSchedulerDuties(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			var t0 time.Time
-			clock := clockwork.NewFakeClockAt(t0)
-
 			valSet := beaconmock.ValidatorSetA
 			eth2Cl, err := beaconmock.New(
 				beaconmock.WithValidatorSet(valSet),
@@ -243,57 +213,49 @@ func TestSchedulerDuties(t *testing.T) {
 			slotDuration, err := eth2Cl.SlotDuration(context.Background())
 			require.NoError(t, err)
 
+			clock := NewSleepClock(t0)
+
 			pubkeys, err := valSet.CorePubKeys()
 			require.NoError(t, err)
 
 			sched := scheduler.NewForT(t, clock, pubkeys, eth2Cl)
 
-			dutyChan := make(chan map[core.Duty]core.FetchArgSet)
+			dutyChan := make(chan map[core.Duty]core.FetchArgSet, 999)
 			sched.Subscribe(func(ctx context.Context, duty core.Duty, set core.FetchArgSet) error {
 				dutyChan <- map[core.Duty]core.FetchArgSet{duty: set}
 				return nil
 			})
 
-			go func() {
-				err := sched.Run()
-				require.NoError(t, err)
-			}()
+			stop := sched.Stop
+			clock.SetCallback(func(ts time.Time) {
+				// Stop after 3 slots
+				if ts.Before(t0.Add(3 * slotDuration)) {
+					return
+				}
+				stop()
+				stop = func() {}
+			})
+
+			require.NoError(t, sched.Run())
+			close(dutyChan)
 
 			type tuple struct {
 				Duty       string
 				DutyArgSet map[core.PubKey]string
 			}
 			var tuples []tuple
-
-			stopAt := clock.Now().Add(slotDuration * 3) // See duties for 3 slots.
-			for {
-				gosched() // Wait for scheduler goroutine to sleep or complete
-
-				select {
-				case dmap := <-dutyChan:
-					for duty, set := range dmap {
-						dset := make(map[core.PubKey]string)
-						for pubkey, args := range set {
-							dset[pubkey] = string(args)
-						}
-
-						tuples = append(tuples, tuple{
-							Duty:       duty.String(),
-							DutyArgSet: dset,
-						})
+			for dmap := range dutyChan {
+				for duty, set := range dmap {
+					dset := make(map[core.PubKey]string)
+					for pubkey, args := range set {
+						dset[pubkey] = string(args)
 					}
 
-					continue
-				default:
-					if !clock.Now().Before(stopAt) {
-						break
-					}
-					clock.Advance(slotDuration)
-
-					continue
+					tuples = append(tuples, tuple{
+						Duty:       duty.String(),
+						DutyArgSet: dset,
+					})
 				}
-
-				break
 			}
 
 			testutil.RequireGoldenJSON(t, tuples)
@@ -301,5 +263,47 @@ func TestSchedulerDuties(t *testing.T) {
 	}
 }
 
-// gosched sleeps momentarily so that other goroutines can process.
-func gosched() { time.Sleep(time.Millisecond) }
+func NewSleepClock(now time.Time) *SleepClock {
+	return &SleepClock{
+		now:      now,
+		callback: func(t time.Time) {},
+	}
+}
+
+// SleepClock implements clockwork.Clock and proviies a deterministic clock
+// that is advanced by calls to Sleep or After.
+// Note this *does not* support concurrency.
+type SleepClock struct {
+	now      time.Time
+	callback func(time.Time)
+}
+
+func (c *SleepClock) SetCallback(callback func(time.Time)) {
+	c.callback = callback
+}
+
+func (c *SleepClock) After(d time.Duration) <-chan time.Time {
+	c.Sleep(d)
+
+	resp := make(chan time.Time, 1)
+	resp <- c.Now()
+
+	return resp
+}
+
+func (c *SleepClock) Sleep(d time.Duration) {
+	c.now = c.now.Add(d)
+	c.callback(c.now)
+}
+
+func (c *SleepClock) Now() time.Time {
+	return c.now
+}
+
+func (c *SleepClock) Since(t time.Time) time.Duration {
+	return c.now.Sub(t)
+}
+
+func (c *SleepClock) NewTicker(time.Duration) clockwork.Ticker {
+	panic("not supported")
+}
