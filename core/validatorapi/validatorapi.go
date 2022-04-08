@@ -302,6 +302,71 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	return block, nil
 }
 
+func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+	// Calculate slot epoch
+	slot, err := block.Slot()
+	if err != nil {
+		return err
+	}
+	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return errors.Wrap(err, "getting slots per epoch")
+	}
+	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
+
+	pubkey, _, err := c.awaitBlockFunc(ctx, int64(slot))
+	if err != nil {
+		return err
+	}
+
+	var sig eth2p0.BLSSignature
+	switch block.Version {
+	case spec.DataVersionPhase0:
+		if block.Phase0 == nil {
+			return errors.New("no phase0 block")
+		}
+		sig = block.Phase0.Signature
+	case spec.DataVersionAltair:
+		if block.Altair == nil {
+			return errors.New("no altair block")
+		}
+		sig = block.Altair.Signature
+	case spec.DataVersionBellatrix:
+		if block.Bellatrix == nil {
+			return errors.New("no bellatrix block")
+		}
+		sig = block.Bellatrix.Signature
+	default:
+		return errors.New("invalid block")
+	}
+
+	// Verify partial signature
+	sigRoot, err := block.Root()
+	if err != nil {
+		return err
+	}
+	err = c.verifyParSig(ctx, core.DutyProposer, epoch, pubkey, sigRoot, sig)
+	if err != nil {
+		return err
+	}
+
+	// Save Partially Signed Block to ParSigDB
+	duty := core.NewProposerDuty(int64(slot))
+	signedData, err := core.EncodeBlockParSignedData(block, c.shareIdx)
+	if err != nil {
+		return err
+	}
+	set := core.ParSignedDataSet{pubkey: signedData}
+	for _, dbFunc := range c.parSigDBFuncs {
+		err = dbFunc(ctx, duty, set)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (c Component) verifyRandaoParSig(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
 	// Calculate slot epoch
 	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
