@@ -17,7 +17,7 @@ jobs:
     - id: meta
       uses: docker/metadata-action@v3
       with:
-        images: ghcr.io/obolnetwork/charon/charon
+        images: ghcr.io/obolnetwork/charon
         tags: |
           # Tag "git short sha" on push to branch (main)
           type=sha,event=branch,prefix=
