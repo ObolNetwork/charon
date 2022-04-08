@@ -57,12 +57,12 @@ As charon integrates into the Ethereum consensus stack as middleware between the
 and the beacon node, all consensus clients that support the [REST Eth Beacon Node API](https://ethereum.github.io/beacon-APIs/#/)
 and that provide standalone validator clients are supported.
 
-|Client| Status                                         |
-|-----|------------------------------------------------|
-|*Teku*| ✅ Supported                                    |
-|*Lighthouse*| ✅  Supported                                   |
-|*Prysm*| 🛑 Doesn't support REST API                    |
-|*Nimbus*| 🛑 Doesn't support standalone validator client |
+|Client| Beacon Node | Validator Client  | Notes                                       |
+|-----|---------------|----------------|---------------------------------------------|
+|*Teku*| ✅ |   ✅   | Both supported                              |
+|*Lighthouse*| ✅  |✅  | Both supported                              |
+|*Prysm*| 🛑 | 🛑 | Doesn't support REST API                    |
+|*Nimbus*| ✅| 🛑 | Doesn't provide standalone validator client |
 
 ## Project Status
 
