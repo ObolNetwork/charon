@@ -50,3 +50,18 @@ For detailed documentation on this repo, see the [docs](docs) folder:
 - [Contributing](contributing.md): How to contribute to charon; githooks, PR templates, etc.
 
 For source code documentation, there is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/charon).
+
+## Project Status
+
+The following matrix includes the status of charon's integration with Execution Layer (EL) Clients as well as with Consensus
+Layer (CL) clients on the basis on types of duties:
+
+### Attestation
+
+| EL \ CL       | Teku | Prysm | Lighthouse | Nimbus | Lodestar |
+|---------------|------| ----- | ---------- | ------ | -------- |
+| Mock          | ✅ | 🚧    | ✅ | 🚧 | 🚧 |
+| Geth          | 🚧 | 🚧    | 🚧 | 🚧 | 🚧 |
+| Nethermind    | 🚧 | 🚧    | 🚧 | 🚧 | 🚧 |
+| Erigon        | 🚧 | 🚧    | 🚧 | 🚧 | 🚧 |
+| OpenEthereum  | 🚧 | 🚧    | 🚧 | 🚧 | 🚧 |
