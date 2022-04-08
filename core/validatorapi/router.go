@@ -456,7 +456,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err
 		}
 	}
 
-	if aerr.StatusCode/100 == 4 {
+	if 400 <= aerr.StatusCode || aerr.StatusCode < 500 {
 		// 4xx status codes are client errors (not server), so log as debug only.
 		log.Debug(ctx, "Validator api 4xx response",
 			z.Int("status_code", aerr.StatusCode),
@@ -464,7 +464,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err
 			z.Err(err),
 			getCtxDuration(ctx))
 	} else {
-		// 5xx status codes are server errors, so log as error.
+		// 5xx status codes (or other weird ranges) are server errors, so log as error.
 		log.Error(ctx, "Validator api 5xx response", err,
 			z.Int("status_code", aerr.StatusCode),
 			z.Str("message", aerr.Message),
