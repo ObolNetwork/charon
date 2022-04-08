@@ -59,8 +59,8 @@ and that provide standalone validator clients are supported.
 
 |Client| Beacon Node | Validator Client  | Notes                                       |
 |-----|---------------|----------------|---------------------------------------------|
-|*Teku*| ✅ |   ✅   | Both supported                              |
-|*Lighthouse*| ✅  |✅  | Both supported                              |
+|*Teku*| ✅ |   ✅   | Fully supported                             |
+|*Lighthouse*| ✅  |✅  | Fully supported                              |
 |*Prysm*| 🛑 | 🛑 | Doesn't support REST API                    |
 |*Nimbus*| ✅| 🛑 | Doesn't provide standalone validator client |
 
