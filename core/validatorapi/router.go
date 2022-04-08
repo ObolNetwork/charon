@@ -464,7 +464,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err
 			z.Err(err),
 			getCtxDuration(ctx))
 	} else {
-		// 5xx status codes are server errors, so as error.
+		// 5xx status codes are server errors, so log as error.
 		log.Error(ctx, "Validator api 5xx response", err,
 			z.Int("status_code", aerr.StatusCode),
 			z.Str("message", aerr.Message),
