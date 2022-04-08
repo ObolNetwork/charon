@@ -70,7 +70,7 @@ It is still early days for the Obol Network and things are under active developm
 We are moving fast so check back in regularly to track the progress.
 
 Charon is a distributed validator, so its main responsibility is performing validation duties.
-The status of supported duties are (🚧 means under construction):
+The status of supported duties are (🚧 means "under construction"):
 
 | Duty | Teku | Lighthouse    |
 |------|------|---------------|
