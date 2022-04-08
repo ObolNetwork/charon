@@ -139,6 +139,30 @@ func TestRawRouter(t *testing.T) {
 		testRawRouter(t, handler, callback)
 	})
 
+	t.Run("client timeout", func(t *testing.T) {
+		cctx, cancel := context.WithCancel(context.Background())
+		handler := testHandler{
+			ValidatorsFunc: func(sctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+				cancel()      // Ensure that cancelling client context (cctx)
+				<-sctx.Done() // Results in server context (sctx) being closed.
+
+				return nil, sctx.Err()
+			},
+		}
+
+		callback := func(_ context.Context, baseURL string) {
+			req, err := http.NewRequestWithContext(cctx, "GET", baseURL+"/eth/v1/beacon/states/head/validators/12", nil)
+			require.NoError(t, err)
+
+			_, err = new(http.Client).Do(req)
+			if !errors.Is(err, context.Canceled) {
+				require.NoError(t, err)
+			}
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
 	t.Run("get_single_validators", func(t *testing.T) {
 		handler := testHandler{
 			ValidatorsFunc: func(_ context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {

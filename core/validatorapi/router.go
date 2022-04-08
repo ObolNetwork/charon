@@ -90,7 +90,7 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 			Handler: submitAttestations(h),
 		},
 		{
-			Name:    "get_validator",
+			Name:    "get_validators",
 			Path:    "/eth/v1/beacon/states/{state_id}/validators",
 			Handler: getValidators(h),
 		},
@@ -134,7 +134,7 @@ type apiError struct {
 }
 
 func (a apiError) Error() string {
-	return fmt.Sprintf("validator api error[status=%d,msg=%s]: %v", a.StatusCode, a.Message, a.Err)
+	return fmt.Sprintf("api error[status=%d,msg=%s]: %v", a.StatusCode, a.Message, a.Err)
 }
 
 // handlerFunc is a convenient handler function providing a context, parsed path parameters,
@@ -438,6 +438,15 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, 
 
 // writeError writes a http json error response object.
 func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err error) {
+	if ctx.Err() != nil {
+		// Client cancelled the request
+		err = apiError{
+			StatusCode: http.StatusRequestTimeout,
+			Message:    "client cancelled request",
+			Err:        ctx.Err(),
+		}
+	}
+
 	var aerr apiError
 	if !errors.As(err, &aerr) {
 		aerr = apiError{
@@ -447,10 +456,21 @@ func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err
 		}
 	}
 
-	log.Error(ctx, "Validator api error response", err,
-		z.Int("status_code", aerr.StatusCode),
-		z.Str("message", aerr.Message),
-		getCtxDuration(ctx))
+	if 400 <= aerr.StatusCode || aerr.StatusCode < 500 {
+		// 4xx status codes are client errors (not server), so log as debug only.
+		log.Debug(ctx, "Validator api 4xx response",
+			z.Int("status_code", aerr.StatusCode),
+			z.Str("message", aerr.Message),
+			z.Err(err),
+			getCtxDuration(ctx))
+	} else {
+		// 5xx status codes (or other weird ranges) are server errors, so log as error.
+		log.Error(ctx, "Validator api 5xx response", err,
+			z.Int("status_code", aerr.StatusCode),
+			z.Str("message", aerr.Message),
+			getCtxDuration(ctx))
+	}
+
 	incAPIErrors(endpoint, aerr.StatusCode)
 
 	res := errorResponse{
