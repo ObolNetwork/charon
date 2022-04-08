@@ -15,7 +15,7 @@ jobs:
         tag=$(echo "${{ github.ref }}" | cut -d / -f 3)
         echo "::set-output name=tag::$tag"
 
-    - run: docker run ghcr.io/obolnetwork/charon/charon:${{steps.get-tag.outputs.tag}} charon run --help > cli-reference.txt
+    - run: docker run ghcr.io/obolnetwork/charon:${{steps.get-tag.outputs.tag}} charon run --help > cli-reference.txt
 
     - run: cat cli-reference.txt
 
