@@ -161,7 +161,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 			Type: dutyType,
 		}
 
-		argSet, ok := s.duties[duty]
+		argSet, ok := s.getFetchArgSet(duty)
 		if !ok {
 			// Nothing for this duty.
 			continue
@@ -182,7 +182,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 		}
 
 		span.End()
-		delete(s.duties, duty)
+		s.deleteDuty(duty)
 	}
 
 	if slot.IsLastInEpoch() {
@@ -230,7 +230,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 
 			duty := core.Duty{Slot: int64(attDuty.Slot), Type: core.DutyAttester}
 
-			argSet, ok := s.duties[duty]
+			argSet, ok := s.getFetchArgSet(duty)
 			if !ok {
 				argSet = make(core.FetchArgSet)
 			}
@@ -245,7 +245,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 			}
 
 			argSet[pubkey] = arg
-			s.duties[duty] = argSet
+			s.setFetchArg(duty, pubkey, arg)
 
 			log.Debug(ctx, "Resolved attester duty",
 				z.U64("epoch", uint64(slot.Epoch())),
@@ -276,7 +276,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 
 			duty := core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
 
-			argSet, ok := s.duties[duty]
+			argSet, ok := s.getFetchArgSet(duty)
 			if !ok {
 				argSet = make(core.FetchArgSet)
 			}
@@ -291,7 +291,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 			}
 
 			argSet[pubkey] = arg
-			s.duties[duty] = argSet
+			s.setFetchArg(duty, pubkey, arg)
 
 			log.Debug(ctx, "Resolved proposer duty",
 				z.U64("epoch", uint64(slot.Epoch())),
@@ -331,6 +331,13 @@ func (s *Scheduler) setFetchArg(duty core.Duty, pubkey core.PubKey, set core.Fet
 	s.duties[duty] = argSet
 
 	return true
+}
+
+func (s *Scheduler) deleteDuty(duty core.Duty) {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	delete(s.duties, duty)
 }
 
 func (s *Scheduler) getResolvedEpoch() uint64 {
