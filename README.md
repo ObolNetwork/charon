@@ -62,7 +62,7 @@ Charon supports any downstream standalone validator client that consumes the Bea
 |---------------------------------------------------|-------------|------------------|-----------------------------------------|
 | [Teku](https://github.com/ConsenSys/teku)         | ✅           | ✅                | Fully supported                         |
 | [Lighthouse](https://github.com/sigp/lighthouse)  | ✅           | ✅                | Fully supported                         |
-| [Loadstar](https://github.com/ChainSafe/lodestar) | ✅           | ✅                | Fully supported                         |
+| [Lodestar](https://github.com/ChainSafe/lodestar) | ✅           | ✅                | Fully supported                         |
 | [Vouch](https://github.com/attestantio/vouch)     | *️⃣         | ✅                | Only validator client provided          |
 | [Prysm](https://github.com/prysmaticlabs/prysm)   | ✅           | 🛑               | Validator client requires gRPC API      |
 | [Nimbus](https://github.com/status-im/nimbus-eth2) | ✅           | *️⃣              | No standalone validator client provided |
