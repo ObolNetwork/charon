@@ -58,12 +58,14 @@ and the beacon node via the official [Eth Beacon Node REST API](https://ethereum
 Charon supports any upstream beacon node that serves the Beacon API.
 Charon supports any downstream standalone validator client that consumes the Beacon API.
 
-|Client| Beacon Node | Validator Client  | Notes                                   |
-|-----|---------------|----------------|-----------------------------------------|
-|*Teku*| ✅ |   ✅   | Fully supported                         |
-|*Lighthouse*| ✅  |✅  | Fully supported                         |
-|*Prysm*| ✅ | 🛑 | Validator client requires gRPC API      |
-|*Nimbus*| ✅| 🛑 | No standalone validator client provided |
+| Client                                            | Beacon Node | Validator Client  | Notes                                   |
+|---------------------------------------------------|---------------|----------------|-----------------------------------------|
+| [Teku](https://github.com/ConsenSys/teku)         | ✅ |   ✅   | Fully supported                         |
+| [Lighthouse](https://github.com/sigp/lighthouse)  | ✅  |✅  | Fully supported                         |
+| [Loadstar](https://github.com/ChainSafe/lodestar) | *️⃣  |✅  | Only validator client provided |
+| [Vouch](https://github.com/attestantio/vouch)     | *️⃣  |✅  | Only validator client provided |
+| [Prysm](https://github.com/prysmaticlabs/prysm)   | ✅ | 🛑 | Validator client requires gRPC API      |
+| [Nimbus](https://github.com/status-im/nimbus-eth2) | ✅| *️⃣ | No standalone validator client provided |
 
 ## Project Status
 
