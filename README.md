@@ -54,7 +54,7 @@ For source code documentation, there is always the [charon godocs](https://pkg.g
 ## Project Status
 
 The following matrix includes the status of charon's integration with Execution Layer (EL) Clients as well as with Consensus
-Layer (CL) clients on the basis on types of duties:
+Layer (CL) clients on the basis of duties on beacon chain:
 
 ### Attestation
 
