@@ -196,7 +196,6 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 }
 
 // resolveDuties resolves the duties for the slot's epoch, caching the results.
-// Do not call if you do not hold the dutiesMutex.
 func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.pubkeys, slot.Slot)
 	if err != nil {
@@ -230,22 +229,16 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 
 			duty := core.Duty{Slot: int64(attDuty.Slot), Type: core.DutyAttester}
 
-			argSet, ok := s.getFetchArgSet(duty)
-			if !ok {
-				argSet = make(core.FetchArgSet)
-			}
-
 			pubkey, ok := vals.PubKeyFromIndex(attDuty.ValidatorIndex)
 			if !ok {
 				log.Warn(ctx, "ignoring unexpected attester duty", z.U64("vidx", uint64(attDuty.ValidatorIndex)))
 				continue
-			} else if _, ok := argSet[pubkey]; ok {
+			}
+
+			if !s.setFetchArg(duty, pubkey, arg) {
 				log.Debug(ctx, "Ignoring previously resolved duty", z.Any("duty", duty))
 				continue
 			}
-
-			argSet[pubkey] = arg
-			s.setFetchArg(duty, pubkey, arg)
 
 			log.Debug(ctx, "Resolved attester duty",
 				z.U64("epoch", uint64(slot.Epoch())),
@@ -276,22 +269,16 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 
 			duty := core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
 
-			argSet, ok := s.getFetchArgSet(duty)
-			if !ok {
-				argSet = make(core.FetchArgSet)
-			}
-
 			pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
 			if !ok {
 				log.Warn(ctx, "ignoring unexpected proposer duty", z.U64("vidx", uint64(proDuty.ValidatorIndex)))
 				continue
-			} else if _, ok := argSet[pubkey]; ok {
+			}
+
+			if !s.setFetchArg(duty, pubkey, arg) {
 				log.Debug(ctx, "Ignoring previously resolved duty", z.Any("duty", duty))
 				continue
 			}
-
-			argSet[pubkey] = arg
-			s.setFetchArg(duty, pubkey, arg)
 
 			log.Debug(ctx, "Resolved proposer duty",
 				z.U64("epoch", uint64(slot.Epoch())),
