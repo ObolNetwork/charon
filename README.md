@@ -55,14 +55,14 @@ For source code documentation, there is always the [charon godocs](https://pkg.g
 
 As charon integrates into the Ethereum consensus stack as middleware between the validator client
 and the beacon node, all consensus clients that support the [REST Eth Beacon Node API](https://ethereum.github.io/beacon-APIs/#/)
-and all standalone validator clients are supported.
+and that provide standalone validator clients are supported.
 
-|Client| Status                                          |
-|-----|-------------------------------------------------|
-|*Teku*| ✅ Supported                                     |
-|*Lighthouse*| ✅  Supported                                    |
-|*Prysm*| 🛑 Doesn't support REST API                     |
-|*Nimbus*| 🛑 Doesn't support standalone validator clients |
+|Client| Status                                         |
+|-----|------------------------------------------------|
+|*Teku*| ✅ Supported                                    |
+|*Lighthouse*| ✅  Supported                                   |
+|*Prysm*| 🛑 Doesn't support REST API                    |
+|*Nimbus*| 🛑 Doesn't support standalone validator client |
 
 ## Project Status
 
@@ -70,7 +70,7 @@ It is still early days for the Obol Network and things are under active developm
 We are moving fast so check back in regularly to track the progress.
 
 Charon is a distributed validator, so its main responsibility is performing validation duties.
-The status of supported duties are:
+The status of supported duties are (🚧 means under construction):
 
 | Duty | Teku | Lighthouse    |
 |------|------|---------------|
