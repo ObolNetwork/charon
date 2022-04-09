@@ -314,34 +314,31 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 	}
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 
-	pubkey, _, err := c.awaitBlockFunc(ctx, int64(slot))
-	if err != nil {
-		return err
-	}
-
 	var sig eth2p0.BLSSignature
 	switch block.Version {
 	case spec.DataVersionPhase0:
-		if block.Phase0 == nil {
-			return errors.New("no phase0 block")
+		if block.Phase0.Signature == sig {
+			return errors.New("no phase0 signature")
 		}
 		sig = block.Phase0.Signature
 	case spec.DataVersionAltair:
-		if block.Altair == nil {
-			return errors.New("no altair block")
+		if block.Altair.Signature == sig {
+			return errors.New("no altair signature")
 		}
 		sig = block.Altair.Signature
 	case spec.DataVersionBellatrix:
-		if block.Bellatrix == nil {
-			return errors.New("no bellatrix block")
+		if block.Bellatrix.Signature == sig {
+			return errors.New("no bellatrix signature")
 		}
 		sig = block.Bellatrix.Signature
-	default:
-		return errors.New("invalid block")
 	}
 
 	// Verify partial signature
 	sigRoot, err := block.Root()
+	if err != nil {
+		return err
+	}
+	pubkey, _, err := c.awaitBlockFunc(ctx, int64(slot))
 	if err != nil {
 		return err
 	}

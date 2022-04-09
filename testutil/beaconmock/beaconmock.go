@@ -58,6 +58,7 @@ var (
 	_ eth2client.AttestationsSubmitter       = (*Mock)(nil)
 	_ eth2client.AttesterDutiesProvider      = (*Mock)(nil)
 	_ eth2client.BeaconBlockProposalProvider = (*Mock)(nil)
+	_ eth2client.BeaconBlockSubmitter        = (*Mock)(nil)
 	_ eth2client.ProposerDutiesProvider      = (*Mock)(nil)
 	_ eth2client.Service                     = (*Mock)(nil)
 	_ eth2client.ValidatorsProvider          = (*Mock)(nil)
@@ -128,6 +129,7 @@ type Mock struct {
 	BeaconBlockProposalFunc func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
 	ProposerDutiesFunc      func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	SubmitAttestationsFunc  func(context.Context, []*eth2p0.Attestation) error
+	SubmitBeaconBlockFunc   func(context.Context, *spec.VersionedSignedBeaconBlock) error
 	ValidatorsByPubKeyFunc  func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	ValidatorsFunc          func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	GenesisTimeFunc         func(ctx context.Context) (time.Time, error)
@@ -136,6 +138,10 @@ type Mock struct {
 
 func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
 	return m.SubmitAttestationsFunc(ctx, attestations)
+}
+
+func (m Mock) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+	return m.SubmitBeaconBlockFunc(ctx, block)
 }
 
 func (m Mock) AttestationData(ctx context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
