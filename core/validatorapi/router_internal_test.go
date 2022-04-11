@@ -31,6 +31,8 @@ import (
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2mock "github.com/attestantio/go-eth2-client/mock"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -385,6 +387,75 @@ func TestRouter(t *testing.T) {
 
 		testRouter(t, handler, callback)
 	})
+
+	t.Run("submit_block_phase0", func(t *testing.T) {
+		block1 := &spec.VersionedSignedBeaconBlock{
+			Version: spec.DataVersionPhase0,
+			Phase0: &eth2p0.SignedBeaconBlock{
+				Message:   testutil.RandomPhase0BeaconBlock(),
+				Signature: testutil.RandomEth2Signature(),
+			},
+		}
+		handler := testHandler{
+			SubmitBeaconBlockFunc: func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+				require.Equal(t, block, block1)
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			err := cl.SubmitBeaconBlock(ctx, block1)
+			require.NoError(t, err)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
+	t.Run("submit_block_altair", func(t *testing.T) {
+		block1 := &spec.VersionedSignedBeaconBlock{
+			Version: spec.DataVersionAltair,
+			Altair: &altair.SignedBeaconBlock{
+				Message:   testutil.RandomAltairBeaconBlock(t),
+				Signature: testutil.RandomEth2Signature(),
+			},
+		}
+		handler := testHandler{
+			SubmitBeaconBlockFunc: func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+				require.Equal(t, block, block1)
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			err := cl.SubmitBeaconBlock(ctx, block1)
+			require.NoError(t, err)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
+	t.Run("submit_block_bellatrix", func(t *testing.T) {
+		block1 := &spec.VersionedSignedBeaconBlock{
+			Version: spec.DataVersionBellatrix,
+			Bellatrix: &bellatrix.SignedBeaconBlock{
+				Message:   testutil.RandomBellatrixBeaconBlock(t),
+				Signature: testutil.RandomEth2Signature(),
+			},
+		}
+		handler := testHandler{
+			SubmitBeaconBlockFunc: func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+				require.Equal(t, block, block1)
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			err := cl.SubmitBeaconBlock(ctx, block1)
+			require.NoError(t, err)
+		}
+
+		testRouter(t, handler, callback)
+	})
 }
 
 // testRouter is a helper function to test router endpoints with an eth2http client. The outer test
@@ -433,6 +504,7 @@ type testHandler struct {
 	AttestationDataFunc     func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc      func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	BeaconBlockProposalFunc func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
+	SubmitBeaconBlockFunc   func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error
 	ProposerDutiesFunc      func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	ValidatorsFunc          func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	ValidatorsByPubKeyFunc  func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
@@ -448,6 +520,10 @@ func (h testHandler) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, il 
 
 func (h testHandler) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
 	return h.BeaconBlockProposalFunc(ctx, slot, randaoReveal, graffiti)
+}
+
+func (h testHandler) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+	return h.SubmitBeaconBlockFunc(ctx, block)
 }
 
 func (h testHandler) Validators(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {

@@ -25,6 +25,8 @@ import (
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
@@ -41,13 +43,12 @@ import (
 // RandomCorePubKey returns a random core workflow pubkey.
 func RandomCorePubKey(t *testing.T) core.PubKey {
 	t.Helper()
-	buf := make([]byte, 48)
-	_, _ = rand.Read(buf)
-
-	pubkey, err := core.PubKeyFromBytes(buf)
+	pubkey, _, err := tbls.Keygen()
+	require.NoError(t, err)
+	resp, err := tblsconv.KeyToCore(pubkey)
 	require.NoError(t, err)
 
-	return pubkey
+	return resp
 }
 
 // RandomEth2PubKey returns a random eth2 phase0 bls pubkey.
@@ -79,17 +80,17 @@ func RandomAttestationData() *eth2p0.AttestationData {
 	}
 }
 
-func RandomBeaconBlock() *eth2p0.BeaconBlock {
+func RandomPhase0BeaconBlock() *eth2p0.BeaconBlock {
 	return &eth2p0.BeaconBlock{
 		Slot:          RandomSlot(),
 		ProposerIndex: RandomVIdx(),
 		ParentRoot:    RandomRoot(),
 		StateRoot:     RandomRoot(),
-		Body:          RandomBeaconBlockBody(),
+		Body:          RandomPhase0BeaconBlockBody(),
 	}
 }
 
-func RandomBeaconBlockBody() *eth2p0.BeaconBlockBody {
+func RandomPhase0BeaconBlockBody() *eth2p0.BeaconBlockBody {
 	return &eth2p0.BeaconBlockBody{
 		RANDAOReveal: RandomEth2Signature(),
 		ETH1Data: &eth2p0.ETH1Data{
@@ -103,6 +104,102 @@ func RandomBeaconBlockBody() *eth2p0.BeaconBlockBody {
 		Attestations:      []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
 		Deposits:          []*eth2p0.Deposit{},
 		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
+	}
+}
+
+func RandomAltairBeaconBlock(t *testing.T) *altair.BeaconBlock {
+	t.Helper()
+
+	return &altair.BeaconBlock{
+		Slot:          RandomSlot(),
+		ProposerIndex: RandomVIdx(),
+		ParentRoot:    RandomRoot(),
+		StateRoot:     RandomRoot(),
+		Body:          RandomAltairBeaconBlockBody(t),
+	}
+}
+
+func RandomAltairBeaconBlockBody(t *testing.T) *altair.BeaconBlockBody {
+	t.Helper()
+
+	return &altair.BeaconBlockBody{
+		RANDAOReveal: RandomEth2Signature(),
+		ETH1Data: &eth2p0.ETH1Data{
+			DepositRoot:  RandomRoot(),
+			DepositCount: 0,
+			BlockHash:    RandomBytes32(),
+		},
+		Graffiti:          RandomBytes32(),
+		ProposerSlashings: []*eth2p0.ProposerSlashing{},
+		AttesterSlashings: []*eth2p0.AttesterSlashing{},
+		Attestations:      []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Deposits:          []*eth2p0.Deposit{},
+		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
+		SyncAggregate:     RandomSyncAggregate(t),
+	}
+}
+
+func RandomBellatrixBeaconBlock(t *testing.T) *bellatrix.BeaconBlock {
+	t.Helper()
+
+	return &bellatrix.BeaconBlock{
+		Slot:          RandomSlot(),
+		ProposerIndex: RandomVIdx(),
+		ParentRoot:    RandomRoot(),
+		StateRoot:     RandomRoot(),
+		Body:          RandomBellatrixBeaconBlockBody(t),
+	}
+}
+
+func RandomBellatrixBeaconBlockBody(t *testing.T) *bellatrix.BeaconBlockBody {
+	t.Helper()
+
+	return &bellatrix.BeaconBlockBody{
+		RANDAOReveal: RandomEth2Signature(),
+		ETH1Data: &eth2p0.ETH1Data{
+			DepositRoot:  RandomRoot(),
+			DepositCount: 0,
+			BlockHash:    RandomBytes32(),
+		},
+		Graffiti:          RandomBytes32(),
+		ProposerSlashings: []*eth2p0.ProposerSlashing{},
+		AttesterSlashings: []*eth2p0.AttesterSlashing{},
+		Attestations:      []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Deposits:          []*eth2p0.Deposit{},
+		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
+		SyncAggregate:     RandomSyncAggregate(t),
+		ExecutionPayload:  RandomExecutionPayLoad(),
+	}
+}
+
+func RandomSyncAggregate(t *testing.T) *altair.SyncAggregate {
+	t.Helper()
+
+	var syncSSZ [160]byte
+	_, _ = rand.Read(syncSSZ[:])
+	sync := new(altair.SyncAggregate)
+	err := sync.UnmarshalSSZ(syncSSZ[:])
+	require.NoError(t, err)
+
+	return sync
+}
+
+func RandomExecutionPayLoad() *bellatrix.ExecutionPayload {
+	return &bellatrix.ExecutionPayload{
+		ParentHash:    RandomArray32(),
+		FeeRecipient:  bellatrix.ExecutionAddress{},
+		StateRoot:     RandomArray32(),
+		ReceiptsRoot:  RandomArray32(),
+		LogsBloom:     [256]byte{},
+		PrevRandao:    RandomArray32(),
+		BlockNumber:   0,
+		GasLimit:      0,
+		GasUsed:       0,
+		Timestamp:     0,
+		ExtraData:     RandomBytes32(),
+		BaseFeePerGas: RandomArray32(),
+		BlockHash:     RandomArray32(),
+		Transactions:  []bellatrix.Transaction{},
 	}
 }
 
@@ -180,6 +277,13 @@ func RandomBytes32() []byte {
 	_, _ = rand.Read(resp[:])
 
 	return resp[:]
+}
+
+func RandomArray32() [32]byte {
+	var resp [32]byte
+	_, _ = rand.Read(resp[:])
+
+	return resp
 }
 
 func RandomBitList() bitfield.Bitlist {

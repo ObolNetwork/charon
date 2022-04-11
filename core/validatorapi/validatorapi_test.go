@@ -23,6 +23,8 @@ import (
 
 	"github.com/attestantio/go-eth2-client/mock"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/prysmaticlabs/go-bitfield"
@@ -341,7 +343,7 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 
 	block1 := &spec.VersionedBeaconBlock{
 		Version: spec.DataVersionPhase0,
-		Phase0:  testutil.RandomBeaconBlock(),
+		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	block1.Phase0.Slot = slot
 	block1.Phase0.ProposerIndex = vIdx
@@ -369,4 +371,245 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 	block2, err := component.BeaconBlockProposal(ctx, slot, randao, []byte{})
 	require.NoError(t, err)
 	require.Equal(t, block1, block2)
+}
+
+func TestComponent_SubmitBeaconBlock(t *testing.T) {
+	ctx := context.Background()
+
+	// Create keys (just use normal keys, not split tbls)
+	pubkey, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	const (
+		vIdx  = 1
+		slot  = 123
+		epoch = eth2p0.Epoch(3)
+	)
+
+	// Convert pubkey
+	corePubKey, err := tblsconv.KeyToCore(pubkey)
+	require.NoError(t, err)
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
+
+	// Configure beacon mock
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
+	require.NoError(t, err)
+
+	// Prepare unsigned beacon block
+	msg := []byte("randao reveal")
+	sig, err := tbls.Sign(secret, msg)
+	require.NoError(t, err)
+
+	randao := tblsconv.SigToETH2(sig)
+	unsignedBlock := &spec.VersionedBeaconBlock{
+		Version: spec.DataVersionPhase0,
+		Phase0:  testutil.RandomPhase0BeaconBlock(),
+	}
+	unsignedBlock.Phase0.Body.RANDAOReveal = randao
+	unsignedBlock.Phase0.Slot = slot
+	unsignedBlock.Phase0.ProposerIndex = vIdx
+
+	vapi.RegisterAwaitProposer(func(ctx context.Context, slot int64) (core.PubKey, error) {
+		return corePubKey, nil
+	})
+
+	// Sign beacon block
+	sigRoot, err := unsignedBlock.Root()
+	require.NoError(t, err)
+
+	domain, err := validatorapi.GetDomain(ctx, bmock, validatorapi.DomainBeaconProposer, epoch)
+	require.NoError(t, err)
+
+	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
+	require.NoError(t, err)
+
+	s, err := tbls.Sign(secret, sigData[:])
+	require.NoError(t, err)
+
+	sigEth2 := tblsconv.SigToETH2(s)
+	signedBlock := &spec.VersionedSignedBeaconBlock{
+		Version: spec.DataVersionPhase0,
+		Phase0: &eth2p0.SignedBeaconBlock{
+			Message:   unsignedBlock.Phase0,
+			Signature: sigEth2,
+		},
+	}
+
+	// Register parsigdb funcs
+	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		data, err := core.DecodeBlockParSignedData(set[corePubKey])
+		require.NoError(t, err)
+		require.Equal(t, data, signedBlock)
+
+		return nil
+	})
+
+	err = vapi.SubmitBeaconBlock(ctx, signedBlock)
+	require.NoError(t, err)
+}
+
+func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
+	ctx := context.Background()
+
+	// Create keys (just use normal keys, not split tbls)
+	pubkey, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	const (
+		vIdx = 1
+		slot = 123
+	)
+
+	// Convert pubkey
+	corePubKey, err := tblsconv.KeyToCore(pubkey)
+	require.NoError(t, err)
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
+
+	// Configure beacon mock
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
+	require.NoError(t, err)
+
+	// Prepare unsigned beacon block
+	msg := []byte("randao reveal")
+	sig, err := tbls.Sign(secret, msg)
+	require.NoError(t, err)
+
+	randao := tblsconv.SigToETH2(sig)
+	unsignedBlock := &spec.VersionedBeaconBlock{
+		Version: spec.DataVersionPhase0,
+		Phase0:  testutil.RandomPhase0BeaconBlock(),
+	}
+	unsignedBlock.Phase0.Body.RANDAOReveal = randao
+	unsignedBlock.Phase0.Slot = slot
+	unsignedBlock.Phase0.ProposerIndex = vIdx
+
+	vapi.RegisterAwaitProposer(func(ctx context.Context, slot int64) (core.PubKey, error) {
+		return corePubKey, nil
+	})
+
+	// Add invalid Signature to beacon block
+
+	s, err := tbls.Sign(secret, []byte("invalid msg"))
+	require.NoError(t, err)
+
+	sigEth2 := tblsconv.SigToETH2(s)
+	signedBlock := &spec.VersionedSignedBeaconBlock{
+		Version: spec.DataVersionPhase0,
+		Phase0: &eth2p0.SignedBeaconBlock{
+			Message:   unsignedBlock.Phase0,
+			Signature: sigEth2,
+		},
+	}
+
+	// Register parsigdb funcs
+	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		data, err := core.DecodeBlockParSignedData(set[corePubKey])
+		require.NoError(t, err)
+		require.Equal(t, data, signedBlock)
+
+		return nil
+	})
+
+	err = vapi.SubmitBeaconBlock(ctx, signedBlock)
+	require.ErrorContains(t, err, "invalid signature")
+}
+
+func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
+	ctx := context.Background()
+
+	// Create keys (just use normal keys, not split tbls)
+	pubkey := testutil.RandomCorePubKey(t)
+
+	// Convert pubkey
+	pk, err := tblsconv.KeyFromCore(pubkey)
+	require.NoError(t, err)
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pk: pk} // Maps self to self since not tbls
+
+	// Configure beacon mock
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
+	require.NoError(t, err)
+
+	vapi.RegisterAwaitProposer(func(ctx context.Context, slot int64) (core.PubKey, error) {
+		return pubkey, nil
+	})
+
+	// invalid block scenarios
+	tests := []struct {
+		name   string
+		block  *spec.VersionedSignedBeaconBlock
+		errMsg string
+	}{
+		{
+			name:   "no phase 0 block",
+			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersionPhase0},
+			errMsg: "no phase0 block",
+		},
+		{
+			name:   "no altair block",
+			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersionAltair},
+			errMsg: "no altair block",
+		},
+		{
+			name:   "no bellatrix block",
+			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersionBellatrix},
+			errMsg: "no bellatrix block",
+		},
+		{
+			name:   "none",
+			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersion(3)},
+			errMsg: "unknown version",
+		},
+		{
+			name: "no phase 0 sig",
+			block: &spec.VersionedSignedBeaconBlock{
+				Version: spec.DataVersionPhase0,
+				Phase0: &eth2p0.SignedBeaconBlock{
+					Message:   &eth2p0.BeaconBlock{Slot: eth2p0.Slot(123)},
+					Signature: eth2p0.BLSSignature{},
+				},
+			},
+			errMsg: "no phase0 signature",
+		},
+		{
+			name: "no altair sig",
+			block: &spec.VersionedSignedBeaconBlock{
+				Version: spec.DataVersionAltair,
+				Altair: &altair.SignedBeaconBlock{
+					Message:   &altair.BeaconBlock{Slot: eth2p0.Slot(123)},
+					Signature: eth2p0.BLSSignature{},
+				},
+			},
+			errMsg: "no altair signature",
+		},
+		{
+			name: "no bellatrix sig",
+			block: &spec.VersionedSignedBeaconBlock{
+				Version: spec.DataVersionBellatrix,
+				Bellatrix: &bellatrix.SignedBeaconBlock{
+					Message:   &bellatrix.BeaconBlock{Slot: eth2p0.Slot(123)},
+					Signature: eth2p0.BLSSignature{},
+				},
+			},
+			errMsg: "no bellatrix signature",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err = vapi.SubmitBeaconBlock(ctx, test.block)
+			require.ErrorContains(t, err, test.errMsg)
+		})
+	}
 }
