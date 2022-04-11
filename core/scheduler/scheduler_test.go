@@ -225,7 +225,7 @@ func TestSchedulerDuties(t *testing.T) {
 			clock := newTestClock(t0)
 			sched := scheduler.NewForT(t, clock, pubkeys, eth2Cl)
 
-			// Stop scheduler (and slotTicker) after 3 slots
+			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
 			slotDuration, err := eth2Cl.SlotDuration(context.Background())
 			require.NoError(t, err)
