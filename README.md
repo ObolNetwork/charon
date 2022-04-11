@@ -27,17 +27,13 @@ If however, you want to build from source with this repo directly, you can get s
 brew install go
 
 # Build the charon binary
-go build
+go build -o charon
 
-# Run the charon command to generate a local simnet.
+# Use charon's create-cluster command to generate a local simnet cluster.
 ./charon --help
-./charon create-cluster --simnet
-/tmp/charon/run_cluster.sh
+./charon create-cluster --cluster-dir=/tmp/charon-simnet --config=true --config-simnet
+/tmp/charon-simnet/run_cluster.sh
 ```
-
-### Better simnet output
-
-If you install [tmux](https://github.com/tmux/tmux/wiki) and [teamocil](https://github.com/remi/teamocil), you will get the output of the nodes in different tmux panes when you run `run_cluster.sh`. Otherwise the output from all the nodes will be merged as the script output.
 
 ## Documentation
 
@@ -54,3 +50,36 @@ For detailed documentation on this repo, see the [docs](docs) folder:
 - [Contributing](contributing.md): How to contribute to charon; githooks, PR templates, etc.
 
 For source code documentation, there is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/charon).
+
+## Supported Consensus Layer Clients
+
+Charon integrates into the Ethereum consensus stack as middleware between the validator client
+and the beacon node via the official [Eth Beacon Node REST API](https://ethereum.github.io/beacon-APIs/#/).
+Charon supports any upstream beacon node that serves the Beacon API.
+Charon supports any downstream standalone validator client that consumes the Beacon API.
+
+| Client                                            | Beacon Node | Validator Client | Notes                                   |
+|---------------------------------------------------|-------------|------------------|-----------------------------------------|
+| [Teku](https://github.com/ConsenSys/teku)         | ✅           | ✅                | Fully supported                         |
+| [Lighthouse](https://github.com/sigp/lighthouse)  | ✅           | ✅                | Fully supported                         |
+| [Lodestar](https://github.com/ChainSafe/lodestar) | ✅           | ✅                | Fully supported                         |
+| [Vouch](https://github.com/attestantio/vouch)     | *️⃣         | ✅                | Only validator client provided          |
+| [Prysm](https://github.com/prysmaticlabs/prysm)   | ✅           | 🛑               | Validator client requires gRPC API      |
+| [Nimbus](https://github.com/status-im/nimbus-eth2) | ✅           | *️⃣              | No standalone validator client provided |
+
+## Project Status
+
+It is still early days for the Obol Network and things are under active development.
+We are moving fast so check back in regularly to track the progress.
+
+Charon is a distributed validator, so its main responsibility is performing validation duties.
+The status of supported duties are (🚧 means "under construction"):
+
+| Duty | Teku VC | Lighthouse VC |
+|------|--------|---------------|
+| *Attestation* | ✅      | ✅             |
+| *Attestation Aggregation* | 🚧     | 🚧            |
+| *Block Proposal* | 🚧     | 🚧            |
+| *Blinded Block Proposal (mev-boost)* | 🚧     | 🚧            |
+| *Sync Committee Attestation* | 🚧     | 🚧            |
+| *Sync Committee Aggregation* | 🚧     | 🚧            |

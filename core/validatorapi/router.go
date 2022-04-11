@@ -35,6 +35,7 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -89,7 +90,7 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 			Handler: submitAttestations(h),
 		},
 		{
-			Name:    "get_validator",
+			Name:    "get_validators",
 			Path:    "/eth/v1/beacon/states/{state_id}/validators",
 			Handler: getValidators(h),
 		},
@@ -99,9 +100,9 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 			Handler: getValidator(h),
 		},
 		{
-			Name:    "submit_randao",
+			Name:    "propose_block",
 			Path:    "/eth/v2/validator/blocks/{slot}",
-			Handler: submitRandao(h),
+			Handler: proposeBlock(h),
 		},
 		// TODO(corver): Add more endpoints
 	}
@@ -133,7 +134,7 @@ type apiError struct {
 }
 
 func (a apiError) Error() string {
-	return fmt.Sprintf("validator api error[status=%d,msg=%s]: %v", a.StatusCode, a.Message, a.Err)
+	return fmt.Sprintf("api error[status=%d,msg=%s]: %v", a.StatusCode, a.Message, a.Err)
 }
 
 // handlerFunc is a convenient handler function providing a context, parsed path parameters,
@@ -319,9 +320,8 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 	}
 }
 
-// submitRandao receives the randao from the validator.
-// TODO(leo): rename to proposeBlock when adding dutyProposer support.
-func submitRandao(p eth2client.BeaconBlockProposalProvider) handlerFunc {
+// proposeBlock receives the randao from the validator and returns the unsigned BeaconBlock.
+func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
 		slot, err := uintParam(params, "slot")
 		if err != nil {
@@ -347,12 +347,42 @@ func submitRandao(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 			return nil, errors.New("above graffiti length max of 32")
 		}
 
-		_, err = p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, graffiti)
+		block, err := p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, graffiti)
 		if err != nil {
 			return nil, err
 		}
 
-		return nil, errors.New("duty proposer not implemented yet")
+		switch block.Version {
+		case spec.DataVersionPhase0:
+			if block.Phase0 == nil {
+				return 0, errors.New("no phase0 block")
+			}
+
+			return proposeBlockResponsePhase0{
+				Version: block.Version,
+				Data:    block.Phase0,
+			}, nil
+		case spec.DataVersionAltair:
+			if block.Altair == nil {
+				return 0, errors.New("no altair block")
+			}
+
+			return proposeBlockResponseAltair{
+				Version: block.Version,
+				Data:    block.Altair,
+			}, nil
+		case spec.DataVersionBellatrix:
+			if block.Bellatrix == nil {
+				return 0, errors.New("no bellatrix block")
+			}
+
+			return proposeBlockResponseBellatrix{
+				Version: block.Version,
+				Data:    block.Bellatrix,
+			}, nil
+		default:
+			return 0, errors.New("invalid block")
+		}
 	}
 }
 
@@ -408,6 +438,15 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, 
 
 // writeError writes a http json error response object.
 func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err error) {
+	if ctx.Err() != nil {
+		// Client cancelled the request
+		err = apiError{
+			StatusCode: http.StatusRequestTimeout,
+			Message:    "client cancelled request",
+			Err:        ctx.Err(),
+		}
+	}
+
 	var aerr apiError
 	if !errors.As(err, &aerr) {
 		aerr = apiError{
@@ -417,10 +456,21 @@ func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err
 		}
 	}
 
-	log.Error(ctx, "Validator api error response", err,
-		z.Int("status_code", aerr.StatusCode),
-		z.Str("message", aerr.Message),
-		getCtxDuration(ctx))
+	if 400 <= aerr.StatusCode || aerr.StatusCode < 500 {
+		// 4xx status codes are client errors (not server), so log as debug only.
+		log.Debug(ctx, "Validator api 4xx response",
+			z.Int("status_code", aerr.StatusCode),
+			z.Str("message", aerr.Message),
+			z.Err(err),
+			getCtxDuration(ctx))
+	} else {
+		// 5xx status codes (or other weird ranges) are server errors, so log as error.
+		log.Error(ctx, "Validator api 5xx response", err,
+			z.Int("status_code", aerr.StatusCode),
+			z.Str("message", aerr.Message),
+			getCtxDuration(ctx))
+	}
+
 	incAPIErrors(endpoint, aerr.StatusCode)
 
 	res := errorResponse{
