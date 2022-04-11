@@ -308,11 +308,39 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 	if err != nil {
 		return err
 	}
-	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
+
+	pubkey, err := c.awaitProposerFunc(ctx, int64(slot))
 	if err != nil {
-		return errors.Wrap(err, "getting slots per epoch")
+		return err
 	}
-	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
+
+	err = c.verifyBlockSignature(ctx, block, pubkey, slot)
+	if err != nil {
+		return err
+	}
+
+	// Save Partially Signed Block to ParSigDB
+	duty := core.NewProposerDuty(int64(slot))
+	signedData, err := core.EncodeBlockParSignedData(block, c.shareIdx)
+	if err != nil {
+		return err
+	}
+	set := core.ParSignedDataSet{pubkey: signedData}
+	for _, dbFunc := range c.parSigDBFuncs {
+		err = dbFunc(ctx, duty, set)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c Component) verifyBlockSignature(ctx context.Context, block *spec.VersionedSignedBeaconBlock, pubkey core.PubKey, slot eth2p0.Slot) error {
+	epoch, err := c.epochFromSlot(ctx, slot)
+	if err != nil {
+		return err
+	}
 
 	var sig eth2p0.BLSSignature
 	switch block.Version {
@@ -338,39 +366,16 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 	if err != nil {
 		return err
 	}
-	pubkey, _, err := c.awaitBlockFunc(ctx, int64(slot))
-	if err != nil {
-		return err
-	}
-	err = c.verifyParSig(ctx, core.DutyProposer, epoch, pubkey, sigRoot, sig)
-	if err != nil {
-		return err
-	}
 
-	// Save Partially Signed Block to ParSigDB
-	duty := core.NewProposerDuty(int64(slot))
-	signedData, err := core.EncodeBlockParSignedData(block, c.shareIdx)
-	if err != nil {
-		return err
-	}
-	set := core.ParSignedDataSet{pubkey: signedData}
-	for _, dbFunc := range c.parSigDBFuncs {
-		err = dbFunc(ctx, duty, set)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return c.verifyParSig(ctx, core.DutyProposer, epoch, pubkey, sigRoot, sig)
 }
 
 func (c Component) verifyRandaoParSig(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
 	// Calculate slot epoch
-	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
+	epoch, err := c.epochFromSlot(ctx, slot)
 	if err != nil {
-		return errors.Wrap(err, "getting slots per epoch")
+		return err
 	}
-	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 
 	// Randao signing root is the epoch.
 	sigRoot, err := merkleEpoch(epoch).HashTreeRoot()
@@ -518,4 +523,13 @@ func (m merkleEpoch) HashTreeRootWith(hh *ssz.Hasher) error {
 	hh.Merkleize(indx)
 
 	return nil
+}
+
+func (c Component) epochFromSlot(ctx context.Context, slot eth2p0.Slot) (eth2p0.Epoch, error) {
+	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "getting slots per epoch")
+	}
+
+	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }

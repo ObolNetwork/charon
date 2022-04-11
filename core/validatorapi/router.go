@@ -396,19 +396,19 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 
 func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
-		var phase0Block *eth2p0.SignedBeaconBlock
-		err := phase0Block.UnmarshalJSON(body)
+		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
+		err := bellatrixBlock.UnmarshalJSON(body)
 		if err == nil {
 			block := &spec.VersionedSignedBeaconBlock{
-				Version: spec.DataVersionPhase0,
-				Phase0:  phase0Block,
+				Version:   spec.DataVersionBellatrix,
+				Bellatrix: bellatrixBlock,
 			}
 			err = p.SubmitBeaconBlock(ctx, block)
 
 			return nil, err
 		}
 
-		var altairBlock *altair.SignedBeaconBlock
+		altairBlock := new(altair.SignedBeaconBlock)
 		err = altairBlock.UnmarshalJSON(body)
 		if err == nil {
 			block := &spec.VersionedSignedBeaconBlock{
@@ -420,12 +420,12 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 			return nil, err
 		}
 
-		var bellatrixBlock *bellatrix.SignedBeaconBlock
-		err = bellatrixBlock.UnmarshalJSON(body)
+		phase0Block := new(eth2p0.SignedBeaconBlock)
+		err = phase0Block.UnmarshalJSON(body)
 		if err == nil {
 			block := &spec.VersionedSignedBeaconBlock{
-				Version:   spec.DataVersionBellatrix,
-				Bellatrix: bellatrixBlock,
+				Version: spec.DataVersionPhase0,
+				Phase0:  phase0Block,
 			}
 			err = p.SubmitBeaconBlock(ctx, block)
 

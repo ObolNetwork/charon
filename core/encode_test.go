@@ -134,7 +134,7 @@ func TestEncodeProposerFetchArg(t *testing.T) {
 func TestEncodeProposerUnsignedData(t *testing.T) {
 	proData1 := &spec.VersionedBeaconBlock{
 		Version: spec.DataVersionPhase0,
-		Phase0:  testutil.RandomBeaconBlock(),
+		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 
 	data1, err := core.EncodeProposerUnsignedData(proData1)
@@ -154,7 +154,7 @@ func TestEncodeBlockParSignedData(t *testing.T) {
 	block1 := &spec.VersionedSignedBeaconBlock{
 		Version: spec.DataVersionPhase0,
 		Phase0: &eth2p0.SignedBeaconBlock{
-			Message:   testutil.RandomBeaconBlock(),
+			Message:   testutil.RandomPhase0BeaconBlock(),
 			Signature: testutil.RandomEth2Signature(),
 		},
 	}

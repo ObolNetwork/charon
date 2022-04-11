@@ -343,7 +343,7 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 
 	block1 := &spec.VersionedBeaconBlock{
 		Version: spec.DataVersionPhase0,
-		Phase0:  testutil.RandomBeaconBlock(),
+		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	block1.Phase0.Slot = slot
 	block1.Phase0.ProposerIndex = vIdx
@@ -407,14 +407,14 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	randao := tblsconv.SigToETH2(sig)
 	unsignedBlock := &spec.VersionedBeaconBlock{
 		Version: spec.DataVersionPhase0,
-		Phase0:  testutil.RandomBeaconBlock(),
+		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	unsignedBlock.Phase0.Body.RANDAOReveal = randao
 	unsignedBlock.Phase0.Slot = slot
 	unsignedBlock.Phase0.ProposerIndex = vIdx
 
-	vapi.RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error) {
-		return corePubKey, unsignedBlock, nil
+	vapi.RegisterAwaitProposer(func(ctx context.Context, slot int64) (core.PubKey, error) {
+		return corePubKey, nil
 	})
 
 	// Sign beacon block
@@ -485,14 +485,14 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	randao := tblsconv.SigToETH2(sig)
 	unsignedBlock := &spec.VersionedBeaconBlock{
 		Version: spec.DataVersionPhase0,
-		Phase0:  testutil.RandomBeaconBlock(),
+		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	unsignedBlock.Phase0.Body.RANDAOReveal = randao
 	unsignedBlock.Phase0.Slot = slot
 	unsignedBlock.Phase0.ProposerIndex = vIdx
 
-	vapi.RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error) {
-		return corePubKey, unsignedBlock, nil
+	vapi.RegisterAwaitProposer(func(ctx context.Context, slot int64) (core.PubKey, error) {
+		return corePubKey, nil
 	})
 
 	// Add invalid Signature to beacon block
@@ -540,6 +540,10 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 	// Construct the validator api component
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
 	require.NoError(t, err)
+
+	vapi.RegisterAwaitProposer(func(ctx context.Context, slot int64) (core.PubKey, error) {
+		return pubkey, nil
+	})
 
 	// invalid block scenarios
 	tests := []struct {
