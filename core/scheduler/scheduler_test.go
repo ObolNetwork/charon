@@ -133,7 +133,7 @@ func TestSchedulerWait(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			var t0 time.Time
-			clock := clockwork.NewFakeClockAt(t0)
+			clock := newTestClock(t0)
 			eth2Cl, err := beaconmock.New()
 			require.NoError(t, err)
 
@@ -161,36 +161,8 @@ func TestSchedulerWait(t *testing.T) {
 
 			sched := scheduler.NewForT(t, clock, nil, eth2Cl)
 			sched.Stop() // Just run wait functions, then quit.
-
-			done := make(chan struct{})
-			go func() {
-				err := sched.Run()
-				require.NoError(t, err)
-				close(done)
-			}()
-
-			var elapsed int
-			for {
-				gosched() // Wait for scheduler goroutine to sleep or complete
-
-				select {
-				case <-done:
-					break
-				default:
-					clock.Advance(time.Second)
-					elapsed++
-
-					continue
-				}
-
-				break
-			}
-
-			// Timing isn't deterministic :(
-			min := test.WaitSecs - 1
-			max := test.WaitSecs + 1
-			require.LessOrEqual(t, elapsed, max)
-			require.GreaterOrEqual(t, elapsed, min)
+			require.NoError(t, sched.Run())
+			require.EqualValues(t, test.WaitSecs, clock.Since(t0).Seconds())
 		})
 	}
 }
@@ -205,12 +177,17 @@ func TestSchedulerDuties(t *testing.T) {
 		PropErrs int
 	}{
 		{
+			// All duties grouped in first slot of epoch
 			Name:   "grouped",
 			Factor: 0,
-		}, {
+		},
+		{
+			// All duties spread in first N slots of epoch (N is number of validators)
 			Name:   "spread",
 			Factor: 1,
-		}, {
+		},
+		{
+			// All duties spread in first N slots of epoch (except first proposer errors)
 			Name:     "spread_errors",
 			Factor:   1,
 			PropErrs: 1,
@@ -219,9 +196,8 @@ func TestSchedulerDuties(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
+			// Configure beacon mock
 			var t0 time.Time
-			clock := clockwork.NewFakeClockAt(t0)
-
 			valSet := beaconmock.ValidatorSetA
 			eth2Cl, err := beaconmock.New(
 				beaconmock.WithValidatorSet(valSet),
@@ -230,6 +206,7 @@ func TestSchedulerDuties(t *testing.T) {
 			)
 			require.NoError(t, err)
 
+			// Wrap ProposerDuties to returns some errors
 			origFunc := eth2Cl.ProposerDutiesFunc
 			eth2Cl.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 				if test.PropErrs > 0 {
@@ -240,66 +217,103 @@ func TestSchedulerDuties(t *testing.T) {
 				return origFunc(ctx, epoch, indices)
 			}
 
-			slotDuration, err := eth2Cl.SlotDuration(context.Background())
-			require.NoError(t, err)
-
+			// Get pubkeys for validators to schedule
 			pubkeys, err := valSet.CorePubKeys()
 			require.NoError(t, err)
 
+			// Construct scheduler
+			clock := newTestClock(t0)
 			sched := scheduler.NewForT(t, clock, pubkeys, eth2Cl)
 
-			dutyChan := make(chan map[core.Duty]core.FetchArgSet)
-			sched.Subscribe(func(ctx context.Context, duty core.Duty, set core.FetchArgSet) error {
-				dutyChan <- map[core.Duty]core.FetchArgSet{duty: set}
-				return nil
+			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
+			const stopAfter = 3
+			slotDuration, err := eth2Cl.SlotDuration(context.Background())
+			require.NoError(t, err)
+			clock.CallbackAfter(t0.Add(time.Duration(stopAfter)*slotDuration), func() {
+				sched.Stop()
+				time.Sleep(time.Hour) // Do not let the slot ticker tick anymore.
 			})
 
-			go func() {
-				err := sched.Run()
-				require.NoError(t, err)
-			}()
-
-			type tuple struct {
+			// Collect results
+			type result struct {
 				Duty       string
 				DutyArgSet map[core.PubKey]string
 			}
-			var tuples []tuple
-
-			stopAt := clock.Now().Add(slotDuration * 3) // See duties for 3 slots.
-			for {
-				gosched() // Wait for scheduler goroutine to sleep or complete
-
-				select {
-				case dmap := <-dutyChan:
-					for duty, set := range dmap {
-						dset := make(map[core.PubKey]string)
-						for pubkey, args := range set {
-							dset[pubkey] = string(args)
-						}
-
-						tuples = append(tuples, tuple{
-							Duty:       duty.String(),
-							DutyArgSet: dset,
-						})
-					}
-
-					continue
-				default:
-					if !clock.Now().Before(stopAt) {
-						break
-					}
-					clock.Advance(slotDuration)
-
-					continue
+			var results []result
+			sched.Subscribe(func(ctx context.Context, duty core.Duty, set core.FetchArgSet) error {
+				// Make result human-readable
+				resultSet := make(map[core.PubKey]string)
+				for pubkey, args := range set {
+					resultSet[pubkey] = string(args)
 				}
 
-				break
-			}
+				// Add result
+				results = append(results, result{
+					Duty:       duty.String(),
+					DutyArgSet: resultSet,
+				})
 
-			testutil.RequireGoldenJSON(t, tuples)
+				return nil
+			})
+
+			// Run scheduler
+			require.NoError(t, sched.Run())
+
+			// Assert results
+			testutil.RequireGoldenJSON(t, results)
 		})
 	}
 }
 
-// gosched sleeps momentarily so that other goroutines can process.
-func gosched() { time.Sleep(time.Millisecond) }
+func newTestClock(now time.Time) *testClock {
+	return &testClock{
+		now: now,
+	}
+}
+
+// testClock implements clockwork.Clock and provides a deterministic mock clock
+// that is advanced by calls to Sleep or After.
+// Note this *does not* support concurrency.
+type testClock struct {
+	now           time.Time
+	callbackAfter time.Time
+	callback      func()
+}
+
+// CallbackAfter sets a callback function that is called once
+// before Sleep returns at or after the time has been reached.
+// It is useful to trigger logic "when a certain time has been reached".
+func (c *testClock) CallbackAfter(after time.Time, callback func()) {
+	c.callbackAfter = after
+	c.callback = callback
+}
+
+func (c *testClock) After(d time.Duration) <-chan time.Time {
+	c.Sleep(d)
+
+	resp := make(chan time.Time, 1)
+	resp <- c.Now()
+
+	return resp
+}
+
+func (c *testClock) Sleep(d time.Duration) {
+	c.now = c.now.Add(d)
+	if c.callback == nil || c.now.Before(c.callbackAfter) {
+		return
+	}
+	c.callback()
+	c.callback = nil
+}
+
+func (c *testClock) Now() time.Time {
+	return c.now
+}
+
+func (c *testClock) Since(t time.Time) time.Duration {
+	return c.now.Sub(t)
+}
+
+func (c *testClock) NewTicker(time.Duration) clockwork.Ticker {
+	panic("not supported")
+}
