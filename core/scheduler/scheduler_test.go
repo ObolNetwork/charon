@@ -133,7 +133,7 @@ func TestSchedulerWait(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			var t0 time.Time
-			clock := NewSleepClock(t0)
+			clock := newTestClock(t0)
 			eth2Cl, err := beaconmock.New()
 			require.NoError(t, err)
 
@@ -222,7 +222,7 @@ func TestSchedulerDuties(t *testing.T) {
 			require.NoError(t, err)
 
 			// Construct scheduler
-			clock := NewSleepClock(t0)
+			clock := newTestClock(t0)
 			sched := scheduler.NewForT(t, clock, pubkeys, eth2Cl)
 
 			// Stop scheduler (and slotTicker) after 3 slots
@@ -265,16 +265,16 @@ func TestSchedulerDuties(t *testing.T) {
 	}
 }
 
-func NewSleepClock(now time.Time) *SleepClock {
-	return &SleepClock{
+func newTestClock(now time.Time) *testClock {
+	return &testClock{
 		now: now,
 	}
 }
 
-// SleepClock implements clockwork.Clock and provides a deterministic mock clock
+// testClock implements clockwork.Clock and provides a deterministic mock clock
 // that is advanced by calls to Sleep or After.
 // Note this *does not* support concurrency.
-type SleepClock struct {
+type testClock struct {
 	now           time.Time
 	callbackAfter time.Time
 	callback      func()
@@ -283,12 +283,12 @@ type SleepClock struct {
 // CallbackAfter sets a callback function that is called once
 // before Sleep returns at or after the time has been reached.
 // It is useful to trigger logic "when a certain time has been reached".
-func (c *SleepClock) CallbackAfter(after time.Time, callback func()) {
+func (c *testClock) CallbackAfter(after time.Time, callback func()) {
 	c.callbackAfter = after
 	c.callback = callback
 }
 
-func (c *SleepClock) After(d time.Duration) <-chan time.Time {
+func (c *testClock) After(d time.Duration) <-chan time.Time {
 	c.Sleep(d)
 
 	resp := make(chan time.Time, 1)
@@ -297,7 +297,7 @@ func (c *SleepClock) After(d time.Duration) <-chan time.Time {
 	return resp
 }
 
-func (c *SleepClock) Sleep(d time.Duration) {
+func (c *testClock) Sleep(d time.Duration) {
 	c.now = c.now.Add(d)
 	if c.callback == nil || c.now.Before(c.callbackAfter) {
 		return
@@ -306,14 +306,14 @@ func (c *SleepClock) Sleep(d time.Duration) {
 	c.callback = nil
 }
 
-func (c *SleepClock) Now() time.Time {
+func (c *testClock) Now() time.Time {
 	return c.now
 }
 
-func (c *SleepClock) Since(t time.Time) time.Duration {
+func (c *testClock) Since(t time.Time) time.Duration {
 	return c.now.Sub(t)
 }
 
-func (c *SleepClock) NewTicker(time.Duration) clockwork.Ticker {
+func (c *testClock) NewTicker(time.Duration) clockwork.Ticker {
 	panic("not supported")
 }
