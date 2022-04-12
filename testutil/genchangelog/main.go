@@ -42,10 +42,11 @@ import (
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 var (
-	rangeFlag  = flag.String("range", "", "Git commit range to create changelog from. Defaults to '<latest_tag>..HEAD'")
+	rangeFlag  = flag.String("range", "", "Git commit range to create changelog from. Defaults to '<second_latest_tag>..<latest_tag>'")
 	outputFlag = flag.String("output", "changelog.md", "Output markdown file path")
 	tokenFlag  = flag.String("github_token", "", "GitHub personal access token. Defaults to GITHUB_TOKEN env var")
 
@@ -60,6 +61,10 @@ var (
 		"docs":     4,
 		"test":     5,
 		"misc":     6,
+	}
+
+	skippedCategories = map[string]bool{
+		"fixbuild": true,
 	}
 
 	numberRegex   = regexp.MustCompile(`[#/](\d{2,})`)
@@ -85,6 +90,7 @@ type log struct {
 
 // tplData is the changelog template data structure.
 type tplData struct {
+	Tag        string
 	Date       string
 	RangeText  string
 	RangeLink  string
@@ -135,12 +141,12 @@ func main() {
 // run runs the command.
 func run(gitRange string, output string, token string) error {
 	if gitRange == "" {
-		tag, err := getLatestTag()
+		tags, err := getLatestTags(2)
 		if err != nil {
 			return err
 		}
 
-		gitRange = fmt.Sprintf("%s..HEAD", tag)
+		gitRange = fmt.Sprintf("%s..%s", tags[1], tags[0])
 		fmt.Printf("Flag --range empty, defaulting to %s\n", gitRange)
 	}
 
@@ -166,38 +172,41 @@ func run(gitRange string, output string, token string) error {
 	return nil
 }
 
-// makeIssueFunc returns a function that resolves issue titles via the github API.
-func makeIssueFunc(token string) func(int) (string, error) {
-	return func(number int) (string, error) {
+// makeIssueFunc returns a function that resolves closed issue titles via the github API.
+func makeIssueFunc(token string) func(int) (string, bool, error) {
+	return func(number int) (string, bool, error) {
 		u := fmt.Sprintf("https://api.github.com/repos/obolnetwork/charon/issues/%d", number)
 		req, err := http.NewRequest("GET", u, nil)
 		if err != nil {
-			return "", errors.Wrap(err, "new request")
+			return "", false, errors.Wrap(err, "new request")
 		}
 		req.SetBasicAuth(token, "x-oauth-basic")
 
 		resp, err := new(http.Client).Do(req)
 		if err != nil {
-			return "", errors.Wrap(err, "query github issue")
+			return "", false, errors.Wrap(err, "query github issue")
 		}
 		defer resp.Body.Close()
 
 		b, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return "", errors.Wrap(err, "read body")
+			return "", false, errors.Wrap(err, "read body")
 		}
 
-		var title struct {
+		var issue struct {
 			Title string `json:"title"`
+			State string `json:"state"`
 		}
-		err = json.Unmarshal(b, &title)
+		err = json.Unmarshal(b, &issue)
 		if err != nil {
-			return "", errors.Wrap(err, "unmarshal issue")
-		} else if title.Title == "" {
-			return "", errors.New("github api error: " + string(b))
+			return "", false, errors.Wrap(err, "unmarshal issue")
+		} else if issue.Title == "" {
+			return "", false, errors.New("github api error: " + string(b))
+		} else if issue.State != "closed" {
+			return issue.Title, false, nil
 		}
 
-		return title.Title, nil
+		return issue.Title, true, nil
 	}
 }
 
@@ -216,7 +225,7 @@ func execTemplate(data tplData) ([]byte, error) {
 }
 
 // tplDataFromPRs builds the template data from the provides PRs, git range, issue title func.
-func tplDataFromPRs(prs []pullRequest, gitRange string, issueTitle func(int) (string, error)) (tplData, error) {
+func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (string, bool, error)) (tplData, error) {
 	issues := make(map[int]tplIssue)
 	for _, pr := range prs {
 		issue := issues[pr.Issue]
@@ -229,9 +238,12 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueTitle func(int) (st
 
 	cats := make(map[string]tplCategory)
 	for _, issue := range issues {
-		title, err := issueTitle(issue.Number)
+		title, closed, err := issueData(issue.Number)
 		if err != nil {
 			return tplData{}, err
+		} else if !closed {
+			fmt.Printf("Skipping non-closed issue #%d: %s (PRs=%d)\n", issue.Number, title, len(issue.PRs))
+			continue
 		}
 		issue.Title = title
 
@@ -254,7 +266,14 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueTitle func(int) (st
 		return categoryOrder[catSlice[i].Name] < categoryOrder[catSlice[j].Name]
 	})
 
+	tag := "v0.0.0"
+	split := strings.Split(gitRange, "..")
+	if len(split) > 1 && strings.HasPrefix(split[1], "v") {
+		tag = split[1]
+	}
+
 	return tplData{
+		Tag:        tag,
 		Date:       time.Now().Format("2006-01-02"),
 		RangeText:  gitRange,
 		RangeLink:  fmt.Sprintf("https://github.com/obolnetwork/charon/compare/%s", gitRange),
@@ -264,7 +283,7 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueTitle func(int) (st
 
 // selectCategory returns the current or the candidate category based on categoryOrder.
 func selectCategory(current, candidate string) string {
-	optionOrder, ok := categoryOrder[candidate]
+	candidateOrder, ok := categoryOrder[candidate]
 	if !ok {
 		return current
 	}
@@ -274,7 +293,7 @@ func selectCategory(current, candidate string) string {
 		return candidate
 	}
 
-	if currentOrder >= optionOrder {
+	if currentOrder <= candidateOrder {
 		return current
 	}
 
@@ -341,6 +360,9 @@ func prFromLog(l log) (pullRequest, bool) {
 	if !ok {
 		fmt.Printf("Failed parsing category from git body (%v): %s\n", l.Commit, l.Subject)
 		return pullRequest{}, false
+	} else if skippedCategories[category] {
+		fmt.Printf("Skipping PR with '%s' category (%v): %s\n", category, l.Commit, l.Subject)
+		return pullRequest{}, false
 	} else if categoryOrder[category] == 0 {
 		fmt.Printf("Unsupported category %s (%v): %s\n", category, l.Commit, l.Subject)
 		return pullRequest{}, false
@@ -394,22 +416,25 @@ func getFirstMatch(r *regexp.Regexp, s string) (string, bool) {
 	return matches[1], true
 }
 
-// getLatestTag returns the latest git tag.
-func getLatestTag() (string, error) {
+// getLatestTags returns the latest N git tags.
+func getLatestTags(n int) ([]string, error) {
 	err := exec.Command("git", "fetch", "--tags").Run()
 	if err != nil {
-		return "", errors.Wrap(err, "git fetch")
+		return nil, errors.Wrap(err, "git fetch")
 	}
 
-	out, err := exec.Command("git", "rev-list", "--tags", "--max-count=1").CombinedOutput()
+	out, err := exec.Command("git", "rev-list", "--tags", "--max-count="+fmt.Sprint(n)).CombinedOutput()
 	if err != nil {
-		return "", errors.Wrap(err, "git rev-list")
+		return nil, errors.Wrap(err, "git rev-list")
 	}
 
-	out, err = exec.Command("git", "describe", "--tags", strings.TrimSpace(string(out))).CombinedOutput()
+	args := []string{"describe", "--tags", "--abbrev=0"}
+	args = append(args, strings.Fields(string(out))...)
+
+	out, err = exec.Command("git", args...).CombinedOutput()
 	if err != nil {
-		return "", errors.Wrap(err, "git describe")
+		return nil, errors.Wrap(err, "git describe", z.Str("out", string(out)))
 	}
 
-	return strings.TrimSpace(string(out)), nil
+	return strings.Fields(string(out)), nil
 }

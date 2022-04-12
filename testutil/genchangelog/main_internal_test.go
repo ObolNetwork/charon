@@ -25,6 +25,8 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
+var git = flag.Bool("git", false, "Enables tests that require git and a full checkout")
+
 func TestPRFromLog(t *testing.T) {
 	tests := []struct {
 		in  log
@@ -91,9 +93,31 @@ func TestPRFromLog(t *testing.T) {
 	}
 }
 
-//go:generate go test . -v -run=TestParsePRs -git # -update
+func TestSelectCategory(t *testing.T) {
+	const f = "feature"
+	const r = "refactor"
 
-var git = flag.Bool("git", false, "Enables git log parsing, requires full checkout")
+	require.Equal(t, f, selectCategory(f, r))
+	require.Equal(t, f, selectCategory(r, f))
+	require.Equal(t, f, selectCategory(f, f))
+	require.Equal(t, r, selectCategory(r, r))
+}
+
+//go:generate go test . -v -run=TestLatestTags -git
+
+func TestLatestTags(t *testing.T) {
+	if !*git {
+		t.Skip("Skipping since --git flag not enabled")
+		return
+	}
+
+	tags, err := getLatestTags(2)
+	require.NoError(t, err)
+	require.Len(t, tags, 2)
+	t.Log(tags)
+}
+
+//go:generate go test . -v -run=TestParsePRs -git -update -clean
 
 func TestParsePRs(t *testing.T) {
 	if !*git {
@@ -105,8 +129,8 @@ func TestParsePRs(t *testing.T) {
 	prs, err := parsePRs(gitRange)
 	require.NoError(t, err)
 
-	data, err := tplDataFromPRs(prs, gitRange, func(i int) (string, error) {
-		return fmt.Sprintf("Issue#%d", i), nil
+	data, err := tplDataFromPRs(prs, gitRange, func(i int) (string, bool, error) {
+		return fmt.Sprintf("Issue#%d", i), true, nil
 	})
 	require.NoError(t, err)
 
