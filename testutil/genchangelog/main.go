@@ -266,8 +266,9 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 		return categoryOrder[catSlice[i].Name] < categoryOrder[catSlice[j].Name]
 	})
 
-	var tag string
-	if split := strings.Split(gitRange, ".."); len(split) > 1 {
+	tag := "v0.0.0"
+	split := strings.Split(gitRange, "..")
+	if len(split) > 1 && strings.HasPrefix(split[1], "v") {
 		tag = split[1]
 	}
 
