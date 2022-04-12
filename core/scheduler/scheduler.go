@@ -18,6 +18,8 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"math"
+	"sync"
 	"testing"
 	"time"
 
@@ -68,7 +70,7 @@ func New(pubkeys []core.PubKey, eth2Svc eth2client.Service) (*Scheduler, error) 
 		quit:          make(chan struct{}),
 		duties:        make(map[core.Duty]core.FetchArgSet),
 		clock:         clockwork.NewRealClock(),
-		resolvedEpoch: -1,
+		resolvedEpoch: math.MaxUint64,
 	}, nil
 }
 
@@ -78,8 +80,9 @@ type Scheduler struct {
 	quit    chan struct{}
 	clock   clockwork.Clock
 
-	resolvedEpoch int64
+	resolvedEpoch uint64
 	duties        map[core.Duty]core.FetchArgSet
+	dutiesMutex   sync.Mutex
 	subs          []func(context.Context, core.Duty, core.FetchArgSet) error
 }
 
@@ -123,9 +126,29 @@ func (s *Scheduler) Run() error {
 	}
 }
 
+// GetDuty returns the argSet for a duty if resolved already, otherwise an error.
+func (s *Scheduler) GetDuty(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
+	slotsPerEpoch, err := s.eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	epoch := uint64(duty.Slot) / slotsPerEpoch
+	if !s.isEpochResolved(epoch) {
+		return nil, errors.New("epoch not resolved yet")
+	}
+
+	argSet, ok := s.getFetchArgSet(duty)
+	if !ok {
+		return nil, errors.New("duty not resolved although epoch is marked as resolved")
+	}
+
+	return argSet, nil
+}
+
 // scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
 func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
-	if s.resolvedEpoch != int64(slot.Epoch()) {
+	if s.getResolvedEpoch() != uint64(slot.Epoch()) {
 		err := s.resolveDuties(ctx, slot)
 		if err != nil {
 			log.Warn(ctx, "Resolving duties error (retrying next slot)", z.Err(err))
@@ -138,7 +161,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 			Type: dutyType,
 		}
 
-		argSet, ok := s.duties[duty]
+		argSet, ok := s.getFetchArgSet(duty)
 		if !ok {
 			// Nothing for this duty.
 			continue
@@ -159,7 +182,10 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 		}
 
 		span.End()
-		delete(s.duties, duty)
+		// TODO(leo): This had to be commented out because the scheduler doesn't need the duty anymore,
+		// but the validatorAPI will need the duty when verifying a randao. Solved when we have the shared
+		// component to resolve duties.
+		// s.deleteDuty(duty)
 	}
 
 	if slot.IsLastInEpoch() {
@@ -206,22 +232,16 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 
 			duty := core.Duty{Slot: int64(attDuty.Slot), Type: core.DutyAttester}
 
-			argSet, ok := s.duties[duty]
-			if !ok {
-				argSet = make(core.FetchArgSet)
-			}
-
 			pubkey, ok := vals.PubKeyFromIndex(attDuty.ValidatorIndex)
 			if !ok {
 				log.Warn(ctx, "ignoring unexpected attester duty", z.U64("vidx", uint64(attDuty.ValidatorIndex)))
 				continue
-			} else if _, ok := argSet[pubkey]; ok {
+			}
+
+			if !s.setFetchArg(duty, pubkey, arg) {
 				log.Debug(ctx, "Ignoring previously resolved duty", z.Any("duty", duty))
 				continue
 			}
-
-			argSet[pubkey] = arg
-			s.duties[duty] = argSet
 
 			log.Debug(ctx, "Resolved attester duty",
 				z.U64("epoch", uint64(slot.Epoch())),
@@ -252,22 +272,16 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 
 			duty := core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
 
-			argSet, ok := s.duties[duty]
-			if !ok {
-				argSet = make(core.FetchArgSet)
-			}
-
 			pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
 			if !ok {
 				log.Warn(ctx, "ignoring unexpected proposer duty", z.U64("vidx", uint64(proDuty.ValidatorIndex)))
 				continue
-			} else if _, ok := argSet[pubkey]; ok {
+			}
+
+			if !s.setFetchArg(duty, pubkey, arg) {
 				log.Debug(ctx, "Ignoring previously resolved duty", z.Any("duty", duty))
 				continue
 			}
-
-			argSet[pubkey] = arg
-			s.duties[duty] = argSet
 
 			log.Debug(ctx, "Resolved proposer duty",
 				z.U64("epoch", uint64(slot.Epoch())),
@@ -277,9 +291,65 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 		}
 	}
 
-	s.resolvedEpoch = int64(slot.Epoch())
+	s.setResolvedEpoch(uint64(slot.Epoch()))
 
 	return nil
+}
+
+func (s *Scheduler) getFetchArgSet(duty core.Duty) (core.FetchArgSet, bool) {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	argSet, ok := s.duties[duty]
+
+	return argSet, ok
+}
+
+func (s *Scheduler) setFetchArg(duty core.Duty, pubkey core.PubKey, set core.FetchArg) bool {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	argSet, ok := s.duties[duty]
+	if !ok {
+		argSet = make(core.FetchArgSet)
+	}
+	if _, ok := argSet[pubkey]; ok {
+		return false
+	}
+
+	argSet[pubkey] = set
+	s.duties[duty] = argSet
+
+	return true
+}
+
+func (s *Scheduler) deleteDuty(duty core.Duty) {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	delete(s.duties, duty)
+}
+
+func (s *Scheduler) getResolvedEpoch() uint64 {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	return s.resolvedEpoch
+}
+
+func (s *Scheduler) setResolvedEpoch(epoch uint64) {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	s.resolvedEpoch = epoch
+}
+
+func (s *Scheduler) isEpochResolved(epoch uint64) bool {
+	if s.getResolvedEpoch() == math.MaxUint64 {
+		return false
+	}
+
+	return s.getResolvedEpoch() >= epoch
 }
 
 // slot is a beacon chain slot and includes chain metadata to infer epoch and next slot.

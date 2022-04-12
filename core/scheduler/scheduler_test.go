@@ -265,6 +265,52 @@ func TestSchedulerDuties(t *testing.T) {
 	}
 }
 
+func TestScheduler_GetDuty(t *testing.T) {
+	// Configure beacon mock
+	var t0 time.Time
+	valSet := beaconmock.ValidatorSetA
+	eth2Cl, err := beaconmock.New(
+		beaconmock.WithValidatorSet(valSet),
+		beaconmock.WithGenesisTime(t0),
+		beaconmock.WithDeterministicDuties(0),
+	)
+	require.NoError(t, err)
+
+	// Get pubkeys for validators to schedule
+	pubkeys, err := valSet.CorePubKeys()
+	require.NoError(t, err)
+
+	// Construct scheduler
+	clock := newTestClock(t0)
+	sched := scheduler.NewForT(t, clock, pubkeys, eth2Cl)
+
+	_, err = sched.GetDuty(context.Background(), core.Duty{Slot: 0, Type: core.DutyAttester})
+	// due to current design we will return an error if we request the duty of a slot that has not been resolved
+	// by the scheduler yet. With DutyResolver, we will have always an answer
+	require.Error(t, err, "epoch not resolved yet")
+
+	slotDuration, err := eth2Cl.SlotDuration(context.Background())
+	require.NoError(t, err)
+
+	clock.CallbackAfter(t0.Add(slotDuration).Add(time.Second), func() {
+		res, err := sched.GetDuty(context.Background(), core.Duty{Slot: 0, Type: core.DutyAttester})
+
+		require.NoError(t, err)
+
+		pubKeys, err := valSet.CorePubKeys()
+		require.NoError(t, err)
+
+		for _, pubKey := range pubKeys {
+			require.NotNil(t, res[pubKey])
+		}
+
+		sched.Stop()
+	})
+
+	// Run scheduler
+	require.NoError(t, sched.Run())
+}
+
 func newTestClock(now time.Time) *testClock {
 	return &testClock{
 		now: now,
