@@ -241,7 +241,7 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 		if err != nil {
 			return tplData{}, err
 		} else if !closed {
-			fmt.Printf("Skipping non-closed issue #%d: %s (PR count=%d)\n", issue.Number, title, len(issue.PRs))
+			fmt.Printf("Skipping non-closed issue #%d: %s (PRs=%d)\n", issue.Number, title, len(issue.PRs))
 			continue
 		}
 		issue.Title = title
