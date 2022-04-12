@@ -29,6 +29,7 @@ import (
 
 type eth2Provider interface {
 	eth2client.AttestationsSubmitter
+	eth2client.BeaconBlockSubmitter
 }
 
 // New returns a new broadcaster instance.
@@ -63,7 +64,14 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		}
 
 		return b.eth2Cl.SubmitAttestations(ctx, []*eth2p0.Attestation{att})
+	case core.DutyProposer:
+		block, err := core.DecodeBlockAggSignedData(aggData)
+		if err != nil {
+			return err
+		}
+
+		return b.eth2Cl.SubmitBeaconBlock(ctx, block)
 	default:
-		return errors.New("unsuppered duty type")
+		return errors.New("unsupported duty type")
 	}
 }
