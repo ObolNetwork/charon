@@ -218,7 +218,6 @@ func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 		errChan <- cmd.RunBootnode(ctx, cmd.BootnodeConfig{
 			DataDir:  dir,
 			HTTPAddr: addr,
-			P2PRelay: true,
 			P2PConfig: p2p.Config{
 				UDPAddr:  testutil.AvailableAddr(t).String(),
 				TCPAddrs: []string{testutil.AvailableAddr(t).String()},

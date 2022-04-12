@@ -35,7 +35,6 @@ import (
 type BootnodeConfig struct {
 	DataDir    string
 	HTTPAddr   string
-	P2PRelay   bool
 	P2PConfig  p2p.Config
 	LogConfig  log.Config
 	AutoP2PKey bool
@@ -102,14 +101,6 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		return errors.Wrap(err, "")
 	}
 	defer udpNode.Close()
-
-	if config.P2PRelay {
-		tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.ConnGater{}, udpNode, nil)
-		if err != nil {
-			return err
-		}
-		defer tcpNode.Close()
-	}
 
 	serverErr := make(chan error, 1)
 	go func() {
