@@ -36,6 +36,8 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -54,6 +56,7 @@ type Handler interface {
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockProposalProvider
+	eth2client.BeaconBlockSubmitter
 	eth2client.ProposerDutiesProvider
 	eth2client.ValidatorsProvider
 	// Above sorted alphabetically.
@@ -103,6 +106,11 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 			Name:    "propose_block",
 			Path:    "/eth/v2/validator/blocks/{slot}",
 			Handler: proposeBlock(h),
+		},
+		{
+			Name:    "submit_block",
+			Path:    "/eth/v1/beacon/blocks",
+			Handler: submitBlock(h),
 		},
 		// TODO(corver): Add more endpoints
 	}
@@ -383,6 +391,48 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 		default:
 			return 0, errors.New("invalid block")
 		}
+	}
+}
+
+func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
+		err := bellatrixBlock.UnmarshalJSON(body)
+		if err == nil {
+			block := &spec.VersionedSignedBeaconBlock{
+				Version:   spec.DataVersionBellatrix,
+				Bellatrix: bellatrixBlock,
+			}
+			err = p.SubmitBeaconBlock(ctx, block)
+
+			return nil, err
+		}
+
+		altairBlock := new(altair.SignedBeaconBlock)
+		err = altairBlock.UnmarshalJSON(body)
+		if err == nil {
+			block := &spec.VersionedSignedBeaconBlock{
+				Version: spec.DataVersionAltair,
+				Altair:  altairBlock,
+			}
+			err = p.SubmitBeaconBlock(ctx, block)
+
+			return nil, err
+		}
+
+		phase0Block := new(eth2p0.SignedBeaconBlock)
+		err = phase0Block.UnmarshalJSON(body)
+		if err == nil {
+			block := &spec.VersionedSignedBeaconBlock{
+				Version: spec.DataVersionPhase0,
+				Phase0:  phase0Block,
+			}
+			err = p.SubmitBeaconBlock(ctx, block)
+
+			return nil, err
+		}
+
+		return nil, errors.New("invalid block")
 	}
 }
 

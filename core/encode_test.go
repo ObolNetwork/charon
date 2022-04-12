@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/spec"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -133,7 +134,7 @@ func TestEncodeProposerFetchArg(t *testing.T) {
 func TestEncodeProposerUnsignedData(t *testing.T) {
 	proData1 := &spec.VersionedBeaconBlock{
 		Version: spec.DataVersionPhase0,
-		Phase0:  testutil.RandomBeaconBlock(),
+		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 
 	data1, err := core.EncodeProposerUnsignedData(proData1)
@@ -146,5 +147,27 @@ func TestEncodeProposerUnsignedData(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, proData1, proData2)
+	require.Equal(t, data1, data2)
+}
+
+func TestEncodeBlockParSignedData(t *testing.T) {
+	block1 := &spec.VersionedSignedBeaconBlock{
+		Version: spec.DataVersionPhase0,
+		Phase0: &eth2p0.SignedBeaconBlock{
+			Message:   testutil.RandomPhase0BeaconBlock(),
+			Signature: testutil.RandomEth2Signature(),
+		},
+	}
+
+	data1, err := core.EncodeBlockParSignedData(block1, 0)
+	require.NoError(t, err)
+
+	block2, err := core.DecodeBlockParSignedData(data1)
+	require.NoError(t, err)
+
+	data2, err := core.EncodeBlockParSignedData(block2, 0)
+	require.NoError(t, err)
+
+	require.Equal(t, block1, block2)
 	require.Equal(t, data1, data2)
 }

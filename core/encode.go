@@ -174,7 +174,7 @@ func EncodeProposerUnsignedData(proData *spec.VersionedBeaconBlock) (UnsignedDat
 	return b, nil
 }
 
-// DecodeProposerUnsignedData returns the proposer data as an encoded UnsignedData.
+// DecodeProposerUnsignedData returns the proposer data from the encoded UnsignedData.
 func DecodeProposerUnsignedData(unsignedData UnsignedData) (*spec.VersionedBeaconBlock, error) {
 	proData := new(spec.VersionedBeaconBlock)
 	err := json.Unmarshal(unsignedData, proData)
@@ -183,4 +183,50 @@ func DecodeProposerUnsignedData(unsignedData UnsignedData) (*spec.VersionedBeaco
 	}
 
 	return proData, nil
+}
+
+// EncodeBlockParSignedData returns the partially signed block data as an encoded ParSignedData.
+func EncodeBlockParSignedData(block *spec.VersionedSignedBeaconBlock, shareIdx int) (ParSignedData, error) {
+	data, err := json.Marshal(block)
+	if err != nil {
+		return ParSignedData{}, errors.Wrap(err, "marshal block")
+	}
+
+	var sig Signature
+	switch block.Version {
+	case spec.DataVersionPhase0:
+		if block.Phase0 == nil {
+			return ParSignedData{}, errors.New("no phase0 block")
+		}
+		sig = SigFromETH2(block.Phase0.Signature)
+	case spec.DataVersionAltair:
+		if block.Altair == nil {
+			return ParSignedData{}, errors.New("no altair block")
+		}
+		sig = SigFromETH2(block.Altair.Signature)
+	case spec.DataVersionBellatrix:
+		if block.Bellatrix == nil {
+			return ParSignedData{}, errors.New("no bellatrix block")
+		}
+		sig = SigFromETH2(block.Bellatrix.Signature)
+	default:
+		return ParSignedData{}, errors.New("invalid block")
+	}
+
+	return ParSignedData{
+		Data:      data,
+		Signature: sig,
+		ShareIdx:  shareIdx,
+	}, nil
+}
+
+// DecodeBlockParSignedData returns the partially signed block data from the encoded ParSignedData.
+func DecodeBlockParSignedData(data ParSignedData) (*spec.VersionedSignedBeaconBlock, error) {
+	block := new(spec.VersionedSignedBeaconBlock)
+	err := json.Unmarshal(data.Data, block)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal block")
+	}
+
+	return block, nil
 }

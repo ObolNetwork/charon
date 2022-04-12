@@ -146,7 +146,7 @@ func TestMemDBProposer(t *testing.T) {
 	for i := 0; i < queries; i++ {
 		blocks[i] = &spec.VersionedBeaconBlock{
 			Version: spec.DataVersionPhase0,
-			Phase0:  testutil.RandomBeaconBlock(),
+			Phase0:  testutil.RandomPhase0BeaconBlock(),
 		}
 		blocks[i].Phase0.Slot = eth2p0.Slot(slots[i])
 		blocks[i].Phase0.ProposerIndex = eth2p0.ValidatorIndex(i)
@@ -180,12 +180,12 @@ func TestMemDBClashingBlocks(t *testing.T) {
 	const slot = 123
 	block1 := &spec.VersionedBeaconBlock{
 		Version: spec.DataVersionPhase0,
-		Phase0:  testutil.RandomBeaconBlock(),
+		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	block1.Phase0.Slot = eth2p0.Slot(slot)
 	block2 := &spec.VersionedBeaconBlock{
 		Version: spec.DataVersionPhase0,
-		Phase0:  testutil.RandomBeaconBlock(),
+		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	block2.Phase0.Slot = eth2p0.Slot(slot)
 	pubkey := testutil.RandomCorePubKey(t)
@@ -218,7 +218,7 @@ func TestMemDBClashProposer(t *testing.T) {
 
 	block := &spec.VersionedBeaconBlock{
 		Version: spec.DataVersionPhase0,
-		Phase0:  testutil.RandomBeaconBlock(),
+		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	block.Phase0.Slot = eth2p0.Slot(slot)
 	pubkeyA := testutil.RandomCorePubKey(t)

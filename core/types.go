@@ -99,6 +99,18 @@ func NewRandaoDuty(slot int64) Duty {
 	}
 }
 
+// NewProposerDuty returns a new proposer duty. It is a convenience function that is
+// slightly more readable and concise than the struct literal equivalent:
+//   core.Duty{Slot: slot, Type: core.DutyProposer}
+//   vs
+//   core.NewProposerDuty(slot)
+func NewProposerDuty(slot int64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutyProposer,
+	}
+}
+
 const (
 	pkLen  = 98 // "0x" + hex.Encode([48]byte) = 2+2*48
 	sigLen = 96
