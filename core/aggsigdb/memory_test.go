@@ -66,10 +66,11 @@ func TestCoreAggsigdb_MemDB_WriteUnblocks(t *testing.T) {
 	wg.Add(1)
 
 	go func() {
+		defer wg.Done()
+
 		result, err := db.Await(context.Background(), testDuty, testPubKey)
 		require.NoError(t, err)
 		require.EqualValues(t, testAggSignedData, result)
-		wg.Done()
 	}()
 
 	runtime.Gosched()
@@ -83,6 +84,7 @@ func TestCoreAggsigdb_MemDB_WriteUnblocks(t *testing.T) {
 func TestCoreAggsigdb_MemDB_CancelAwait(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	db := aggsigdb.NewMemDB()
 	go db.Run(ctx)
 
@@ -92,24 +94,44 @@ func TestCoreAggsigdb_MemDB_CancelAwait(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
+	ctx2, cancel2 := context.WithCancel(context.Background())
 	go func() {
-		_, err := db.Await(ctx, testDuty, testPubKey)
+		defer wg.Done()
+
+		_, err := db.Await(ctx2, testDuty, testPubKey)
 		require.Error(t, err)
 		require.Equal(t, err.Error(), "context canceled")
-		wg.Done()
 	}()
 
 	runtime.Gosched()
 
-	cancel()
+	cancel2()
 	wg.Wait()
+}
+
+func TestCoreAggsigdb_MemDB_CancelledAwait(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	db := aggsigdb.NewMemDB()
+	go db.Run(ctx)
+
+	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
+	testPubKey := core.PubKey("pubkey")
+
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	cancel2()
+
+	_, err := db.Await(ctx2, testDuty, testPubKey)
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "context canceled")
 }
 
 func TestCoreAggsigdb_MemDB_CancelAwaitDoesnotblock(t *testing.T) {
 	// A naive implementation with channels might cause that the main execution loop
 	// to block after a await query has been canceled
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+
 	db := aggsigdb.NewMemDB()
 	go db.Run(ctx)
 
@@ -125,17 +147,17 @@ func TestCoreAggsigdb_MemDB_CancelAwaitDoesnotblock(t *testing.T) {
 	wg.Add(1)
 
 	go func() {
-		_, err := db.Await(ctx, testDuty, testPubKey)
+		defer wg.Done()
+
+		_, err := db.Await(context.Background(), testDuty, testPubKey)
 		require.Error(t, err)
-		require.Equal(t, err.Error(), "context canceled")
-		wg.Done()
+		require.Equal(t, err.Error(), "database stopped")
 	}()
 
 	runtime.Gosched()
-
 	cancel()
-
 	wg.Wait()
+
 	err := db.Store(context.Background(), testDuty, testPubKey, testAggSignedData)
 	require.Error(t, err)
 
