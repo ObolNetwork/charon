@@ -348,6 +348,7 @@ func (s *Scheduler) isEpochResolved(epoch uint64) bool {
 	if s.getResolvedEpoch() == math.MaxUint64 {
 		return false
 	}
+
 	return s.getResolvedEpoch() >= epoch
 }
 
