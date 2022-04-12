@@ -63,7 +63,7 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 		// Set listen addresses.
 		libp2p.ListenAddrs(addrs...),
 		// Set up user-agent.
-		libp2p.UserAgent("ObolNetwork-Charon/" + version.Version),
+		libp2p.UserAgent("obolnetwork-charon/" + version.Version),
 		// Limit connections to DV peers.
 		libp2p.ConnectionGater(connGater),
 

@@ -17,18 +17,14 @@ package app_test
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/rand"
 	"flag"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/p2p/discover"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/assert"
@@ -38,6 +34,7 @@ import (
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/cmd"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -55,44 +52,40 @@ func TestPingCluster(t *testing.T) {
 			Slow:         false,
 			BootManifest: true,
 			BindENRAddrs: true,
+			Bootnode:     false,
 		})
 	})
 
 	// Nodes bind to random localhost ports (not the manifest ENRs), with only single bootnode.
 	// Discv5 will resolve peers via bootnode.
 	t.Run("bootnode_only", func(t *testing.T) {
-		bootnode := startExtBootnode(t)
-
 		pingCluster(t, pingTest{
 			BindLocalhost: true,
 			BootManifest:  false,
-			Bootnodes:     []string{bootnode.URLv4()},
+			Bootnode:      true,
 		})
 	})
 
 	// Nodes bind to random 0.0.0.0 ports (but use 127.0.0.1 as external IP), with only single bootnode.
 	// Discv5 will resolve peers via bootnode and external IP.
 	t.Run("external_ip", func(t *testing.T) {
-		bootnode := startExtBootnode(t)
 
 		pingCluster(t, pingTest{
 			ExternalIP:   "127.0.0.1",
 			BindZero:     true,
 			BootManifest: false,
-			Bootnodes:    []string{bootnode.URLv4()},
+			Bootnode:     true,
 		})
 	})
 
 	// Nodes bind to random 0.0.0.0 ports (but use localhost as external host), with only single bootnode.
 	// Discv5 will resolve peers via bootnode and external host.
 	t.Run("external_host", func(t *testing.T) {
-		external := startExtBootnode(t)
-
 		pingCluster(t, pingTest{
 			ExternalHost: "localhost",
 			BindZero:     true,
 			BootManifest: false,
-			Bootnodes:    []string{external.URLv4()},
+			Bootnode:     true,
 		})
 	})
 
@@ -100,13 +93,11 @@ func TestPingCluster(t *testing.T) {
 	// Discv5 times out resolving stale ENRs, then resolves peers via external node.
 	// This is slow due to discv5 internal timeouts, run with -slow.
 	t.Run("bootnode_and_stale_enrs", func(t *testing.T) {
-		external := startExtBootnode(t)
-
 		pingCluster(t, pingTest{
 			Slow:          true,
 			BindLocalhost: true,
 			BootManifest:  true,
-			Bootnodes:     []string{external.URLv4()},
+			Bootnode:      true,
 		})
 	})
 }
@@ -117,7 +108,7 @@ type pingTest struct {
 	BindLocalhost bool
 	BindZero      bool
 	BootManifest  bool
-	Bootnodes     []string
+	Bootnode      bool
 	ExternalIP    string
 	ExternalHost  string
 }
@@ -135,8 +126,15 @@ func pingCluster(t *testing.T, test pingTest) {
 		timeout = time.Minute
 	}
 
-	const n = 3
 	ctx, cancel := context.WithCancel(context.Background())
+
+	bootAddr, bootErr := startBootnode(ctx, t)
+	var bootnodes []string
+	if test.Bootnode {
+		bootnodes = append(bootnodes, "http://"+bootAddr+"/enr")
+	}
+
+	const n = 3
 	manifest, p2pKeys, _ := app.NewClusterForT(t, 1, n, n, 0)
 	asserter := &pingAsserter{
 		asserter: asserter{
@@ -159,7 +157,7 @@ func pingCluster(t *testing.T, test pingTest) {
 				PingCallback: asserter.Callback(t, i),
 			},
 			P2P: p2p.Config{
-				UDPBootnodes:    test.Bootnodes,
+				UDPBootnodes:    bootnodes,
 				UDPBootManifest: test.BootManifest,
 				ExteranlHost:    test.ExternalHost,
 				ExternalIP:      test.ExternalIP,
@@ -195,43 +193,45 @@ func pingCluster(t *testing.T, test pingTest) {
 		return asserter.Await(ctx, t)
 	})
 
+	eg.Go(func() error {
+		defer cancel()
+		return <-bootErr
+	})
+
 	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 
 	require.NoError(t, err)
 }
 
-// startExtBootnode creates a new discv5 listener and returns its local enode.
-// This can be used as external bootnode for testing.
-func startExtBootnode(t *testing.T) *enode.Node {
+// startBootnode starts a charon bootnode and returns its http address.
+func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 	t.Helper()
 
-	privkey, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
+	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	db, err := enode.OpenDB("")
-	require.NoError(t, err)
+	addr := testutil.AvailableAddr(t).String()
 
-	addr := testutil.AvailableAddr(t)
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- cmd.RunBootnode(ctx, cmd.BootnodeConfig{
+			DataDir:  dir,
+			HTTPAddr: addr,
+			P2PRelay: true,
+			P2PConfig: p2p.Config{
+				UDPAddr:  testutil.AvailableAddr(t).String(),
+				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
+			},
+			LogConfig: log.Config{
+				Level:  "error",
+				Format: "console",
+			},
+			AutoP2PKey: true,
+		})
+	}()
 
-	ln := enode.NewLocalNode(db, privkey)
-	ln.Set(enr.IPv4(addr.IP))
-	ln.Set(enr.UDP(addr.Port))
-
-	udpAddr, err := net.ResolveUDPAddr("udp", addr.String())
-	require.NoError(t, err)
-
-	conn, err := net.ListenUDP("udp", udpAddr)
-	require.NoError(t, err)
-
-	listener, err := discover.ListenV5(conn, ln, discover.Config{
-		PrivateKey: privkey,
-	})
-	require.NoError(t, err)
-
-	t.Cleanup(listener.Close)
-
-	return ln.Node()
+	return addr, errChan
 }
 
 // tcpAddrFromENR returns the "<ip4>:<tcp>" address stored in the ENR.
