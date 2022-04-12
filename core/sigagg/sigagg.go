@@ -139,6 +139,8 @@ func getAggSignedData(typ core.DutyType, data core.ParSignedData, aggSig *bls_si
 			block.Altair.Signature = eth2Sig
 		case spec.DataVersionBellatrix:
 			block.Bellatrix.Signature = eth2Sig
+		default:
+			return core.AggSignedData{}, errors.New("invalid block version")
 		}
 
 		return core.EncodeBlockAggSignedData(block)
