@@ -1,4 +1,4 @@
-# v0.0.0 - {{.Date}}
+# {{.Tag}} - {{.Date}}
 
 This release introduces general fixes and improvements including progress on great new features.
 

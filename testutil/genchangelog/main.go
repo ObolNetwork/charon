@@ -90,6 +90,7 @@ type log struct {
 
 // tplData is the changelog template data structure.
 type tplData struct {
+	Tag        string
 	Date       string
 	RangeText  string
 	RangeLink  string
@@ -265,7 +266,13 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 		return categoryOrder[catSlice[i].Name] < categoryOrder[catSlice[j].Name]
 	})
 
+	var tag string
+	if split := strings.Split(gitRange, ".."); len(split) > 1 {
+		tag = split[1]
+	}
+
 	return tplData{
+		Tag:        tag,
 		Date:       time.Now().Format("2006-01-02"),
 		RangeText:  gitRange,
 		RangeLink:  fmt.Sprintf("https://github.com/obolnetwork/charon/compare/%s", gitRange),

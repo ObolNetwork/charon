@@ -31,8 +31,8 @@ Charon is set up to create a release with Github Actions triggered by a tag. To 
 
 1. Ensure all tests are passing
 1. Do a quick smoke test by running charon-docker-compose
-1. Identify what is the version of the release.
+1. Identify the version of the release, e.g. `v0.1.2` (note the `v`).
 1. Push a PR that bumps charon version global variable, see example https://github.com/ObolNetwork/charon/pull/312
 1. Merge above PR, checkout latest main, and tag it: `git tag <version> && git push --tags`
-1. Generate changelog: `go run testutil/genchangelog/main.go -range=<prev_version>..<version>`
+1. Generate changelog: `go run testutil/genchangelog/main.go`
 1. Edit the auto-generated release on github: `https://github.com/ObolNetwork/charon/releases/tag/<version>`
