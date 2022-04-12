@@ -42,10 +42,11 @@ import (
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 var (
-	rangeFlag  = flag.String("range", "", "Git commit range to create changelog from. Defaults to '<latest_tag>..HEAD'")
+	rangeFlag  = flag.String("range", "", "Git commit range to create changelog from. Defaults to '<second_latest_tag>..<latest_tag>'")
 	outputFlag = flag.String("output", "changelog.md", "Output markdown file path")
 	tokenFlag  = flag.String("github_token", "", "GitHub personal access token. Defaults to GITHUB_TOKEN env var")
 
@@ -60,6 +61,10 @@ var (
 		"docs":     4,
 		"test":     5,
 		"misc":     6,
+	}
+
+	skippedCategories = map[string]bool{
+		"fixbuild": true,
 	}
 
 	numberRegex   = regexp.MustCompile(`[#/](\d{2,})`)
@@ -135,12 +140,12 @@ func main() {
 // run runs the command.
 func run(gitRange string, output string, token string) error {
 	if gitRange == "" {
-		tag, err := getLatestTag()
+		tags, err := getLatestTags(2)
 		if err != nil {
 			return err
 		}
 
-		gitRange = fmt.Sprintf("%s..HEAD", tag)
+		gitRange = fmt.Sprintf("%s..%s", tags[1], tags[0])
 		fmt.Printf("Flag --range empty, defaulting to %s\n", gitRange)
 	}
 
@@ -264,7 +269,7 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueTitle func(int) (st
 
 // selectCategory returns the current or the candidate category based on categoryOrder.
 func selectCategory(current, candidate string) string {
-	optionOrder, ok := categoryOrder[candidate]
+	candidateOrder, ok := categoryOrder[candidate]
 	if !ok {
 		return current
 	}
@@ -274,7 +279,7 @@ func selectCategory(current, candidate string) string {
 		return candidate
 	}
 
-	if currentOrder >= optionOrder {
+	if currentOrder <= candidateOrder {
 		return current
 	}
 
@@ -341,6 +346,9 @@ func prFromLog(l log) (pullRequest, bool) {
 	if !ok {
 		fmt.Printf("Failed parsing category from git body (%v): %s\n", l.Commit, l.Subject)
 		return pullRequest{}, false
+	} else if skippedCategories[category] {
+		fmt.Printf("Skipping PR with '%s' category (%v): %s\n", category, l.Commit, l.Subject)
+		return pullRequest{}, false
 	} else if categoryOrder[category] == 0 {
 		fmt.Printf("Unsupported category %s (%v): %s\n", category, l.Commit, l.Subject)
 		return pullRequest{}, false
@@ -394,22 +402,25 @@ func getFirstMatch(r *regexp.Regexp, s string) (string, bool) {
 	return matches[1], true
 }
 
-// getLatestTag returns the latest git tag.
-func getLatestTag() (string, error) {
+// getLatestTags returns the latest N git tag.
+func getLatestTags(n int) ([]string, error) {
 	err := exec.Command("git", "fetch", "--tags").Run()
 	if err != nil {
-		return "", errors.Wrap(err, "git fetch")
+		return nil, errors.Wrap(err, "git fetch")
 	}
 
-	out, err := exec.Command("git", "rev-list", "--tags", "--max-count=1").CombinedOutput()
+	out, err := exec.Command("git", "rev-list", "--tags", "--max-count="+fmt.Sprint(n)).CombinedOutput()
 	if err != nil {
-		return "", errors.Wrap(err, "git rev-list")
+		return nil, errors.Wrap(err, "git rev-list")
 	}
 
-	out, err = exec.Command("git", "describe", "--tags", strings.TrimSpace(string(out))).CombinedOutput()
+	args := []string{"describe", "--tags", "--abbrev=0"}
+	args = append(args, strings.Fields(string(out))...)
+
+	out, err = exec.Command("git", args...).CombinedOutput()
 	if err != nil {
-		return "", errors.Wrap(err, "git describe")
+		return nil, errors.Wrap(err, "git describe", z.Str("out", string(out)))
 	}
 
-	return strings.TrimSpace(string(out)), nil
+	return strings.Fields(string(out)), nil
 }
