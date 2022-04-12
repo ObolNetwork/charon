@@ -200,6 +200,7 @@ func TestRawRouter(t *testing.T) {
 	})
 }
 
+//nolint:maintidx // This function a test of tests, so analyses as "complex".
 func TestRouter(t *testing.T) {
 	t.Run("attesterduty", func(t *testing.T) {
 		handler := testHandler{
