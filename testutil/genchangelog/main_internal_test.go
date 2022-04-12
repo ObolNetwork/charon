@@ -129,8 +129,8 @@ func TestParsePRs(t *testing.T) {
 	prs, err := parsePRs(gitRange)
 	require.NoError(t, err)
 
-	data, err := tplDataFromPRs(prs, gitRange, func(i int) (string, error) {
-		return fmt.Sprintf("Issue#%d", i), nil
+	data, err := tplDataFromPRs(prs, gitRange, func(i int) (string, bool, error) {
+		return fmt.Sprintf("Issue#%d", i), true, nil
 	})
 	require.NoError(t, err)
 

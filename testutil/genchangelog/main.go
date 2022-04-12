@@ -171,38 +171,41 @@ func run(gitRange string, output string, token string) error {
 	return nil
 }
 
-// makeIssueFunc returns a function that resolves issue titles via the github API.
-func makeIssueFunc(token string) func(int) (string, error) {
-	return func(number int) (string, error) {
+// makeIssueFunc returns a function that resolves closed issue titles via the github API.
+func makeIssueFunc(token string) func(int) (string, bool, error) {
+	return func(number int) (string, bool, error) {
 		u := fmt.Sprintf("https://api.github.com/repos/obolnetwork/charon/issues/%d", number)
 		req, err := http.NewRequest("GET", u, nil)
 		if err != nil {
-			return "", errors.Wrap(err, "new request")
+			return "", false, errors.Wrap(err, "new request")
 		}
 		req.SetBasicAuth(token, "x-oauth-basic")
 
 		resp, err := new(http.Client).Do(req)
 		if err != nil {
-			return "", errors.Wrap(err, "query github issue")
+			return "", false, errors.Wrap(err, "query github issue")
 		}
 		defer resp.Body.Close()
 
 		b, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return "", errors.Wrap(err, "read body")
+			return "", false, errors.Wrap(err, "read body")
 		}
 
-		var title struct {
+		var issue struct {
 			Title string `json:"title"`
+			State string `json:"state"`
 		}
-		err = json.Unmarshal(b, &title)
+		err = json.Unmarshal(b, &issue)
 		if err != nil {
-			return "", errors.Wrap(err, "unmarshal issue")
-		} else if title.Title == "" {
-			return "", errors.New("github api error: " + string(b))
+			return "", false, errors.Wrap(err, "unmarshal issue")
+		} else if issue.Title == "" {
+			return "", false, errors.New("github api error: " + string(b))
+		} else if issue.State != "closed" {
+			return issue.Title, false, nil
 		}
 
-		return title.Title, nil
+		return issue.Title, true, nil
 	}
 }
 
@@ -221,7 +224,7 @@ func execTemplate(data tplData) ([]byte, error) {
 }
 
 // tplDataFromPRs builds the template data from the provides PRs, git range, issue title func.
-func tplDataFromPRs(prs []pullRequest, gitRange string, issueTitle func(int) (string, error)) (tplData, error) {
+func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (string, bool, error)) (tplData, error) {
 	issues := make(map[int]tplIssue)
 	for _, pr := range prs {
 		issue := issues[pr.Issue]
@@ -234,9 +237,12 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueTitle func(int) (st
 
 	cats := make(map[string]tplCategory)
 	for _, issue := range issues {
-		title, err := issueTitle(issue.Number)
+		title, closed, err := issueData(issue.Number)
 		if err != nil {
 			return tplData{}, err
+		} else if !closed {
+			fmt.Printf("Skipping non-closed issue #%d: %s (PR count=%d)\n", issue.Number, title, len(issue.PRs))
+			continue
 		}
 		issue.Title = title
 
