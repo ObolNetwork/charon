@@ -171,3 +171,25 @@ func TestEncodeBlockParSignedData(t *testing.T) {
 	require.Equal(t, block1, block2)
 	require.Equal(t, data1, data2)
 }
+
+func TestEncodeBlockAggSignedData(t *testing.T) {
+	block1 := &spec.VersionedSignedBeaconBlock{
+		Version: spec.DataVersionPhase0,
+		Phase0: &eth2p0.SignedBeaconBlock{
+			Message:   testutil.RandomPhase0BeaconBlock(),
+			Signature: testutil.RandomEth2Signature(),
+		},
+	}
+
+	data1, err := core.EncodeBlockAggSignedData(block1)
+	require.NoError(t, err)
+
+	block2, err := core.DecodeBlockAggSignedData(data1)
+	require.NoError(t, err)
+
+	data2, err := core.EncodeBlockAggSignedData(block2)
+	require.NoError(t, err)
+
+	require.Equal(t, block1, block2)
+	require.Equal(t, data1, data2)
+}

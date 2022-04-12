@@ -230,3 +230,48 @@ func DecodeBlockParSignedData(data ParSignedData) (*spec.VersionedSignedBeaconBl
 
 	return block, nil
 }
+
+// EncodeBlockAggSignedData returns the partially signed block data as an encoded AggSignedData.
+func EncodeBlockAggSignedData(block *spec.VersionedSignedBeaconBlock) (AggSignedData, error) {
+	data, err := json.Marshal(block)
+	if err != nil {
+		return AggSignedData{}, errors.Wrap(err, "marshal signed block")
+	}
+
+	var sig Signature
+	switch block.Version {
+	case spec.DataVersionPhase0:
+		if block.Phase0 == nil {
+			return AggSignedData{}, errors.New("no phase0 block")
+		}
+		sig = SigFromETH2(block.Phase0.Signature)
+	case spec.DataVersionAltair:
+		if block.Altair == nil {
+			return AggSignedData{}, errors.New("no altair block")
+		}
+		sig = SigFromETH2(block.Altair.Signature)
+	case spec.DataVersionBellatrix:
+		if block.Bellatrix == nil {
+			return AggSignedData{}, errors.New("no bellatrix block")
+		}
+		sig = SigFromETH2(block.Bellatrix.Signature)
+	default:
+		return AggSignedData{}, errors.New("invalid block")
+	}
+
+	return AggSignedData{
+		Data:      data,
+		Signature: sig,
+	}, nil
+}
+
+// DecodeBlockAggSignedData returns the partially signed block data from the encoded AggSignedData.
+func DecodeBlockAggSignedData(data AggSignedData) (*spec.VersionedSignedBeaconBlock, error) {
+	block := new(spec.VersionedSignedBeaconBlock)
+	err := json.Unmarshal(data.Data, block)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal signed block")
+	}
+
+	return block, nil
+}

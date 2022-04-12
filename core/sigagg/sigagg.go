@@ -22,6 +22,7 @@ package sigagg
 import (
 	"context"
 
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
@@ -94,7 +95,7 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 		return err
 	}
 
-	// Inject signature into resulting aggregate singed data.
+	// Inject signature into resulting aggregate signed data.
 	aggSig, err := getAggSignedData(duty.Type, firstParSig, sig)
 	if err != nil {
 		return err
@@ -126,6 +127,21 @@ func getAggSignedData(typ core.DutyType, data core.ParSignedData, aggSig *bls_si
 		return core.EncodeAttestationAggSignedData(att)
 	case core.DutyRandao:
 		return core.EncodeRandaoAggSignedData(eth2Sig), nil
+	case core.DutyProposer:
+		block, err := core.DecodeBlockParSignedData(data)
+		if err != nil {
+			return core.AggSignedData{}, err
+		}
+		switch block.Version {
+		case spec.DataVersionPhase0:
+			block.Phase0.Signature = eth2Sig
+		case spec.DataVersionAltair:
+			block.Altair.Signature = eth2Sig
+		case spec.DataVersionBellatrix:
+			block.Bellatrix.Signature = eth2Sig
+		}
+
+		return core.EncodeBlockAggSignedData(block)
 	default:
 		return core.AggSignedData{}, errors.New("unsupported duty type")
 	}
@@ -149,6 +165,13 @@ func getSignedRoot(typ core.DutyType, data core.ParSignedData) (eth2p0.Root, err
 	case core.DutyRandao:
 		// randao is just a signature, it doesn't have other data to check
 		return eth2p0.Root{}, nil
+	case core.DutyProposer:
+		block, err := core.DecodeBlockParSignedData(data)
+		if err != nil {
+			return eth2p0.Root{}, err
+		}
+
+		return block.Root()
 	default:
 		return eth2p0.Root{}, errors.New("unsupported duty type")
 	}
