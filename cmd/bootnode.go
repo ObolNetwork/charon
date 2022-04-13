@@ -31,7 +31,8 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-type bootnodeConfig struct {
+// BootnodeConfig defines the config of the bootnode.
+type BootnodeConfig struct {
 	DataDir    string
 	HTTPAddr   string
 	P2PConfig  p2p.Config
@@ -39,8 +40,8 @@ type bootnodeConfig struct {
 	AutoP2PKey bool
 }
 
-func newBootnodeCmd(runFunc func(context.Context, bootnodeConfig) error) *cobra.Command {
-	var config bootnodeConfig
+func newBootnodeCmd(runFunc func(context.Context, BootnodeConfig) error) *cobra.Command {
+	var config BootnodeConfig
 
 	cmd := &cobra.Command{
 		Use:   "bootnode",
@@ -65,8 +66,8 @@ func bindBootnodeFlag(flags *pflag.FlagSet, httpAddr *string, autoP2PKey *bool) 
 	flags.BoolVar(autoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory")
 }
 
-// runBootnode starts a p2p-udp discv5 bootnode.
-func runBootnode(ctx context.Context, config bootnodeConfig) error {
+// RunBootnode starts a p2p-udp discv5 bootnode.
+func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	ctx = log.WithTopic(ctx, "bootnode")
 
 	if err := log.InitLogger(config.LogConfig); err != nil {

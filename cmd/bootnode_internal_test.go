@@ -32,7 +32,7 @@ func TestRunBootnode(t *testing.T) {
 	temp, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	config := bootnodeConfig{
+	config := BootnodeConfig{
 		DataDir:   temp,
 		LogConfig: log.DefaultConfig(),
 		P2PConfig: p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},
@@ -45,7 +45,7 @@ func TestRunBootnode(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err = runBootnode(ctx, config)
+	err = RunBootnode(ctx, config)
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 }
@@ -54,7 +54,7 @@ func TestRunBootnodeAutoP2P(t *testing.T) {
 	temp, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	config := bootnodeConfig{
+	config := BootnodeConfig{
 		DataDir:   temp,
 		LogConfig: log.DefaultConfig(),
 		P2PConfig: p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},
@@ -64,12 +64,12 @@ func TestRunBootnodeAutoP2P(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err = runBootnode(ctx, config)
+	err = RunBootnode(ctx, config)
 	testutil.SkipIfBindErr(t, err)
 	require.Error(t, err)
 
 	config.AutoP2PKey = true
-	err = runBootnode(ctx, config)
+	err = RunBootnode(ctx, config)
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 }

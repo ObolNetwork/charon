@@ -133,7 +133,8 @@ func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Dura
 
 			continue
 		} else if resp.StatusCode/100 != 2 {
-			return "", errors.Wrap(err, "non-200 response querying bootnode ENR")
+			return "", errors.New("non-200 response querying bootnode ENR",
+				z.Int("status_code", resp.StatusCode))
 		}
 
 		b, err := io.ReadAll(resp.Body)
