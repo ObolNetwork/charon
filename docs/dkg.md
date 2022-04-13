@@ -59,7 +59,8 @@ Once all clients in the cluster can establish a connection with one another and 
 No user input is required, charon does the work and outputs the following files to each machine and then exits.
 
 ```sh
-./cluster_manifest.lock     # New lockfile based on cluster_manifest.yaml with validator group public keys and tnreshold BLS verifiers included with the initial cluster config
+./cluster_manifest.yaml     # The original manifest file from the DV Launchpad
+./cluster_manifest.lock     # New lockfile based on cluster_manifest.yaml with validator group public keys and threshold BLS verifiers included with the initial cluster config
 ./charon/enr_private_key    # Created before the ceremony took place [Back this up]
 ./charon/validator_keys/    # Folder of key shares to be backed up and moved to validator client [Back this up]
 ./charon/deposit_data       # JSON file of deposit data for the distributed validators
