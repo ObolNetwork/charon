@@ -35,28 +35,35 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// NewUDPNode starts and returns a discv5 UDP implementation.
+// UDPNode wraps a discv5 udp node and adds the bootnodes relays.
+type UDPNode struct {
+	*discover.UDPv5
+	Relays []Peer
+}
 
+// NewUDPNode starts and returns a discv5 UDP implementation.
 func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey,
-	enrs []enr.Record,
-) (*discover.UDPv5, error) {
+	peers []Peer,
+) (UDPNode, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
-		return nil, errors.Wrap(err, "resolve udp address")
+		return UDPNode{}, errors.Wrap(err, "resolve udp address")
 	}
 
 	conn, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
-		return nil, errors.Wrap(err, "parse udp address")
+		return UDPNode{}, errors.Wrap(err, "parse udp address")
 	}
 
 	netlist, err := netutil.ParseNetlist(config.Allowlist)
 	if err != nil {
-		return nil, errors.Wrap(err, "parse allow list")
+		return UDPNode{}, errors.Wrap(err, "parse allow list")
 	}
 
-	var bootnodes []*enode.Node
-
+	var (
+		bootnodes  []*enode.Node
+		bootRelays []Peer
+	)
 	for _, bootnode := range config.UDPBootnodes {
 		if strings.HasPrefix(bootnode, "http") {
 			// Query bootnode ENR via http, retry for 1min with 5sec backoff.
@@ -64,32 +71,30 @@ func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode, key *ec
 			bootnode, err = queryBootnodeENR(inner, bootnode, time.Second*5)
 			cancel()
 			if err != nil {
-				return nil, err
+				return UDPNode{}, err
 			}
 		}
 
-		node, err := enode.Parse(enode.V4ID{}, bootnode)
+		peer, err := newRelayPeer(bootnode)
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid bootnode url")
+			return UDPNode{}, err
 		}
 
-		bootnodes = append(bootnodes, node)
+		bootnodes = append(bootnodes, &peer.Enode)
+
+		if config.BootnodeRelay {
+			bootRelays = append(bootRelays, peer)
+		}
 	}
 
 	if config.UDPBootManifest {
-		for _, record := range enrs {
-			record := record
-			node, err := enode.New(enode.V4ID{}, &record)
-			if err != nil {
-				return nil, errors.Wrap(err, "new enode")
-			}
-
-			if ln.ID() == node.ID() {
+		for _, p := range peers {
+			if ln.ID() == p.Enode.ID() {
 				// Do not add local node as bootnode
 				continue
 			}
-
-			bootnodes = append(bootnodes, node)
+			node := p.Enode // Copy loop variable
+			bootnodes = append(bootnodes, &node)
 		}
 	}
 
@@ -99,10 +104,13 @@ func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode, key *ec
 		Bootnodes:   bootnodes,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "discv5 listen")
+		return UDPNode{}, errors.Wrap(err, "discv5 listen")
 	}
 
-	return node, nil
+	return UDPNode{
+		UDPv5:  node,
+		Relays: bootRelays,
+	}, nil
 }
 
 // queryBootnodeENR returns the bootnode ENR via a http GET query to the url.

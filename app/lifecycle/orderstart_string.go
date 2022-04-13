@@ -24,17 +24,18 @@ func _() {
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
 	_ = x[StartAggSigDB-0]
-	_ = x[StartMonitoringAPI-1]
-	_ = x[StartValidatorAPI-2]
-	_ = x[StartP2PPing-3]
-	_ = x[StartLeaderCast-4]
-	_ = x[StartSimulator-5]
-	_ = x[StartScheduler-6]
+	_ = x[StartRelay-1]
+	_ = x[StartMonitoringAPI-2]
+	_ = x[StartValidatorAPI-3]
+	_ = x[StartP2PPing-4]
+	_ = x[StartLeaderCast-5]
+	_ = x[StartSimulator-6]
+	_ = x[StartScheduler-7]
 }
 
-const _OrderStart_name = "AggSigDBMonitoringAPIValidatorAPIP2PPingLeaderCastSimulatorScheduler"
+const _OrderStart_name = "AggSigDBRelayMonitoringAPIValidatorAPIP2PPingLeaderCastSimulatorScheduler"
 
-var _OrderStart_index = [...]uint8{0, 8, 21, 33, 40, 50, 59, 68}
+var _OrderStart_index = [...]uint8{0, 8, 13, 26, 38, 45, 55, 64, 73}
 
 func (i OrderStart) String() string {
 	if i < 0 || i >= OrderStart(len(_OrderStart_index)-1) {

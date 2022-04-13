@@ -23,23 +23,37 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-// ConnGater filters incoming connections by the cluster peers.
-type ConnGater struct {
-	peerIDs map[peer.ID]bool
-}
-
 var _ connmgr.ConnectionGater = ConnGater{}
 
-// NewConnGater return a new connection gater that limits access to the cluster peers.
-func NewConnGater(peers []peer.ID) (ConnGater, error) {
+// NewConnGater return a new connection gater that limits access to the cluster peers and relays.
+func NewConnGater(peers []peer.ID, relays []Peer) (ConnGater, error) {
 	peerMap := make(map[peer.ID]bool)
 	for _, peerID := range peers {
 		peerMap[peerID] = true
 	}
 
+	// Allow connections to/from relays.
+	for _, bootnode := range relays {
+		peerMap[bootnode.ID] = true
+	}
+
 	return ConnGater{
 		peerIDs: peerMap,
+		open:    false,
 	}, nil
+}
+
+// NewOpenGater returns a connection gater that is open, not gating any connections.
+func NewOpenGater() ConnGater {
+	return ConnGater{
+		open: true,
+	}
+}
+
+// ConnGater filters incoming connections by the cluster peers.
+type ConnGater struct {
+	peerIDs map[peer.ID]bool
+	open    bool
 }
 
 // InterceptPeerDial does nothing.
@@ -59,6 +73,10 @@ func (ConnGater) InterceptAccept(_ network.ConnMultiaddrs) (allow bool) {
 
 // InterceptSecured rejects nodes with a peer ID that isn't part of any known DV.
 func (c ConnGater) InterceptSecured(_ network.Direction, id peer.ID, _ network.ConnMultiaddrs) bool {
+	if c.open {
+		return true
+	}
+
 	return c.peerIDs[id]
 }
 

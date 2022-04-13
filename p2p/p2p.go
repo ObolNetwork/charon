@@ -18,9 +18,9 @@ package p2p
 import (
 	"context"
 	"crypto/ecdsa"
+	"fmt"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
@@ -38,17 +38,8 @@ import (
 
 // NewTCPNode returns a started tcp-based libp2p node.
 func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
-	udpNode *discover.UDPv5, peers []Peer) (host.Host, error,
+	udpNode UDPNode, peers []Peer) (host.Host, error,
 ) {
-	peerMap := make(map[peer.ID]enode.Node)
-	for _, p := range peers {
-		node, err := enode.New(new(enode.V4ID), &p.ENR)
-		if err != nil {
-			return nil, errors.Wrap(err, "new peer enode")
-		}
-		peerMap[p.ID] = *node
-	}
-
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
 		return nil, err
@@ -68,16 +59,16 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 		libp2p.ConnectionGater(connGater),
 
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
-			return logWrapRouting(adaptDiscRouting(udpNode, peerMap)), nil
+			return logWrapRouting(adaptDiscRouting(udpNode, peers)), nil
 		}),
 	}
 
-	res, err := libp2p.New(opts...)
+	tcpNode, err := libp2p.New(opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new libp2p node")
 	}
 
-	return res, nil
+	return tcpNode, nil
 }
 
 // logWrapRouting wraps a peerRoutingFunc in debug logging.
@@ -104,9 +95,18 @@ func logWrapRouting(fn peerRoutingFunc) peerRoutingFunc {
 }
 
 // adaptDiscRouting returns a function that adapts p2p routing requests to discv5 lookups.
-func adaptDiscRouting(udpNode *discover.UDPv5, peers map[peer.ID]enode.Node) peerRoutingFunc {
-	return func(ctx context.Context, p peer.ID) (peer.AddrInfo, error) {
-		node, ok := peers[p]
+func adaptDiscRouting(udpNode UDPNode, peers []Peer) peerRoutingFunc {
+	peerMap := make(map[peer.ID]enode.Node)
+	for _, p := range peers {
+		peerMap[p.ID] = p.Enode
+	}
+
+	for _, bootnode := range udpNode.Relays {
+		peerMap[bootnode.ID] = bootnode.Enode
+	}
+
+	return func(ctx context.Context, peerID peer.ID) (peer.AddrInfo, error) {
+		node, ok := peerMap[peerID]
 		if !ok {
 			return peer.AddrInfo{}, errors.New("unknown peer")
 		}
@@ -116,16 +116,56 @@ func adaptDiscRouting(udpNode *discover.UDPv5, peers map[peer.ID]enode.Node) pee
 			return peer.AddrInfo{}, errors.New("peer not resolved")
 		}
 
-		mAddr, err := multiAddrFromIPPort(resolved.IP(), resolved.TCP())
-		if err != nil {
-			return peer.AddrInfo{}, err
+		var mAddrs []ma.Multiaddr
+
+		// If tcp port is 0, this node isn't bound to a port.
+		if resolved.TCP() != 0 {
+			mAddr, err := multiAddrFromIPPort(resolved.IP(), resolved.TCP())
+			if err != nil {
+				return peer.AddrInfo{}, err
+			}
+			mAddrs = append(mAddrs, mAddr)
+		}
+
+		// Add any circuit relays
+		for _, relay := range udpNode.Relays {
+			if relay.Enode.TCP() == 0 {
+				continue
+			}
+
+			relayAddr, err := multiAddrViaRelay(relay, peerID)
+			if err != nil {
+				return peer.AddrInfo{}, err
+			}
+			mAddrs = append(mAddrs, relayAddr)
+		}
+
+		if len(mAddrs) == 0 {
+			return peer.AddrInfo{}, errors.New("peer not accessible")
 		}
 
 		return peer.AddrInfo{
-			ID:    p,
-			Addrs: []ma.Multiaddr{mAddr},
+			ID:    peerID,
+			Addrs: mAddrs,
 		}, nil
 	}
+}
+
+// multiAddrViaRelay returns a multiaddr to the peer via the relay.
+// See https://github.com/libp2p/go-libp2p/blob/master/examples/relay/main.go.
+func multiAddrViaRelay(relayPeer Peer, peerID peer.ID) (ma.Multiaddr, error) {
+	transportAddr, err := multiAddrFromIPPort(relayPeer.Enode.IP(), relayPeer.Enode.TCP())
+	if err != nil {
+		return nil, err
+	}
+
+	addr := fmt.Sprintf("/p2p/%s/p2p-circuit/p2p/%s", relayPeer.ID.Pretty(), peerID.Pretty())
+	relayAddr, err := ma.NewMultiaddr(addr)
+	if err != nil {
+		return nil, errors.Wrap(err, "new multiaddr")
+	}
+
+	return transportAddr.Encapsulate(relayAddr), nil
 }
 
 // peerRoutingFunc wraps a function to implement routing.PeerRouting.
