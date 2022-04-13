@@ -49,7 +49,7 @@ For detailed documentation on this repo, see the [docs](docs) folder:
 - [Go Guidelines](goguidelines.md): Guidelines and principals relating to go development
 - [Contributing](contributing.md): How to contribute to charon; githooks, PR templates, etc.
 
-For source code documentation, there is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/charon).
+There is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/charon) for the source code documentation.
 
 ## Supported Consensus Layer Clients
 
