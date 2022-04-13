@@ -19,6 +19,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -50,6 +51,37 @@ func TestBroadcastAttestation(t *testing.T) {
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyAttester}, "", aggData)
+	require.ErrorIs(t, err, context.Canceled)
+
+	<-ctx.Done()
+}
+
+func TestBroadcastBeaconBlock(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	block1 := &spec.VersionedSignedBeaconBlock{
+		Version: spec.DataVersionPhase0,
+		Phase0: &eth2p0.SignedBeaconBlock{
+			Message:   testutil.RandomPhase0BeaconBlock(),
+			Signature: testutil.RandomEth2Signature(),
+		},
+	}
+	aggData, err := core.EncodeBlockAggSignedData(block1)
+	require.NoError(t, err)
+
+	mock.SubmitBeaconBlockFunc = func(ctx context.Context, block2 *spec.VersionedSignedBeaconBlock) error {
+		require.Equal(t, block1, block2)
+		cancel()
+
+		return ctx.Err()
+	}
+
+	bcaster, err := bcast.New(mock)
+	require.NoError(t, err)
+
+	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyProposer}, "", aggData)
 	require.ErrorIs(t, err, context.Canceled)
 
 	<-ctx.Done()
