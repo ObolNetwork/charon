@@ -276,7 +276,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 		return nil, err
 	}
 
-	err = c.sumbitRandaoDuty(ctx, pubKey, slot, randao)
+	err = c.submitRandaoDuty(ctx, pubKey, slot, randao)
 	if err != nil {
 		return nil, err
 	}
@@ -378,7 +378,7 @@ func (c Component) verifyRandaoParSig(ctx context.Context, pubKey core.PubKey, s
 	}
 
 	// Randao signing root is the epoch.
-	sigRoot, err := merkleEpoch(epoch).HashTreeRoot()
+	sigRoot, err := MerkleEpoch(epoch).HashTreeRoot()
 	if err != nil {
 		return err
 	}
@@ -424,7 +424,7 @@ func (c Component) verifyParSig(parent context.Context, typ core.DutyType, epoch
 	return nil
 }
 
-func (c Component) sumbitRandaoDuty(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
+func (c Component) submitRandaoDuty(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
 	parsigSet := core.ParSignedDataSet{
 		pubKey: core.EncodeRandaoParSignedData(randao, c.shareIdx),
 	}
@@ -502,10 +502,10 @@ func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Vali
 	return resp, nil
 }
 
-// merkleEpoch wraps epoch to implement ssz.HashRoot.
-type merkleEpoch eth2p0.Epoch
+// MerkleEpoch wraps epoch to implement ssz.HashRoot.
+type MerkleEpoch eth2p0.Epoch
 
-func (m merkleEpoch) HashTreeRoot() ([32]byte, error) {
+func (m MerkleEpoch) HashTreeRoot() ([32]byte, error) {
 	b, err := ssz.HashWithDefaultHasher(m)
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "hash default epoch")
@@ -514,7 +514,7 @@ func (m merkleEpoch) HashTreeRoot() ([32]byte, error) {
 	return b, nil
 }
 
-func (m merkleEpoch) HashTreeRootWith(hh *ssz.Hasher) error {
+func (m MerkleEpoch) HashTreeRootWith(hh *ssz.Hasher) error {
 	indx := hh.Index()
 
 	// Field (1) 'Epoch'
