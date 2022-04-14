@@ -38,7 +38,7 @@ go build -o charon
 ## Documentation
 
 The [Obol Docs](https://docs.obol.tech/) website is the best place to get started.
-The important sections are the [intro](https://docs.obol.tech/docs/intro),
+The important sections are [intro](https://docs.obol.tech/docs/intro),
 [key concepts](https://docs.obol.tech/docs/key-concepts) and [charon](https://docs.obol.tech/docs/dv/introducing-charon).
 
 For detailed documentation on this repo, see the [docs](docs) folder:
