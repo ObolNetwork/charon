@@ -9,9 +9,9 @@
 
 This repo contains the source code for the distributed validator client *Charon*; a HTTP middleware client for Ethereum Staking that enables you to safely run a single validator across a group of independent nodes.
 
-Charon is accompanied by webapp called the [Distributed Validator Launchpad](https://github.com/obolnetwork/dv-launchpad), for distributed validator key creation.
+Charon is accompanied by a webapp called the [Distributed Validator Launchpad](https://github.com/obolnetwork/dv-launchpad) for distributed validator key creation.
 
-Charon is used by Enterprises and DAOs to distribute the responsibility of running Ethereum Validators across a number of different running instances and client implementations.
+Charon is used by Enterprises and DAOs to distribute the responsibility of running Ethereum Validators across a number of different instances and client implementations.
 
 ![Example Obol Cluster](https://obol.tech/ObolCluster.png)
 ###### A validator deployment that uses the Charon client to hedge client and hardware failure risks
@@ -37,8 +37,8 @@ go build -o charon
 
 ## Documentation
 
-The [Obol Docs](https://docs.obol.tech/) website it best place to get started.
-Import sections are the [intro](https://docs.obol.tech/docs/intro),
+The [Obol Docs](https://docs.obol.tech/) website is the best place to get started.
+The important sections are [intro](https://docs.obol.tech/docs/intro),
 [key concepts](https://docs.obol.tech/docs/key-concepts) and [charon](https://docs.obol.tech/docs/dv/introducing-charon).
 
 For detailed documentation on this repo, see the [docs](docs) folder:
@@ -49,11 +49,11 @@ For detailed documentation on this repo, see the [docs](docs) folder:
 - [Go Guidelines](goguidelines.md): Guidelines and principals relating to go development
 - [Contributing](contributing.md): How to contribute to charon; githooks, PR templates, etc.
 
-For source code documentation, there is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/charon).
+There is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/charon) for the source code documentation.
 
 ## Supported Consensus Layer Clients
 
-Charon integrates into the Ethereum consensus stack as middleware between the validator client
+Charon integrates into the Ethereum consensus stack as a middleware between the validator client
 and the beacon node via the official [Eth Beacon Node REST API](https://ethereum.github.io/beacon-APIs/#/).
 Charon supports any upstream beacon node that serves the Beacon API.
 Charon supports any downstream standalone validator client that consumes the Beacon API.
