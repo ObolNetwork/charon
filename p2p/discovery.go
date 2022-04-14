@@ -171,6 +171,7 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 
 	node := enode.NewLocalNode(db, key)
 
+	// Configure enode with ip and port for tcp libp2p
 	tcpAddrs, err := config.ParseTCPAddrs()
 	if err != nil {
 		return nil, nil, err
@@ -185,6 +186,7 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 		node.Set(enr.TCP(addr.Port))
 	}
 
+	// Configure enode with ip and port for udp discv5
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "resolve udp address")
@@ -192,6 +194,7 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 	node.SetFallbackIP(udpAddr.IP)
 	node.SetFallbackUDP(udpAddr.Port)
 
+	// Configure enode with external (advertised) IP
 	if config.ExternalIP != "" {
 		ip := net.ParseIP(config.ExternalIP)
 		if ip.To4() == nil && ip.To16() == nil {
@@ -202,6 +205,7 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 		node.SetStaticIP(ip)
 	}
 
+	// Configure enode with external (advertised) hostname
 	if config.ExteranlHost != "" {
 		ips, err := net.LookupIP(config.ExteranlHost)
 		if err != nil || len(ips) == 0 {
