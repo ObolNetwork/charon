@@ -169,8 +169,8 @@ type Scheduler interface {
   // Subscribe registers a callback for triggering a duty.
   Subscribe(func(context.Context, Duty, FetchArgSet) error)
 
-  // AwaitProposer returns the block proposer PubKey for the slot (if in the cluster).
-  AwaitProposer(context.Context, slot int64) (Pubkey, error)
+  // GetDuty returns the argSet for a duty if resolved already.
+  GetDuty(context.Context, Duty) (FetchArgSet, error)
 }
 ```
 > ℹ️ Components of the workflow are decoupled from each other. They are stitched together by callback subscriptions.
@@ -358,11 +358,9 @@ The validator API provides the following beacon-node endpoints relating to dutie
   - Lookup `PubKey` by querying the `Scheduler` `AwaitProposer` with the slot in the request body.
   - Construct a `DutyProposer` `ParSignedData` and submit it to `ParSigDB` for async aggregation and broadcast to beacon node.
 
-Note that `AwaitProposer` and `AwaitBeaconBlock` are closely related but have key differences.
 `AwaitBeaconBlock` returns an agreed-upon (consensus) unsigned beacon block, which in turn requires
 an aggregated randao reveal signature. Partial randao reveal signatures are submitted at the same time as
-unsigned beacon block is requested. `AwaitProposer` returns the public key required for `DutyRandao` which
-doesn't depend on consensus and can be obtained directly from the `Scheduler`.
+unsigned beacon block is requested. `getDutyFunc` returns the duty data corresponding to the duty provided and can be obtained directly from the `Scheduler`.
 
 Note that the VC is configured with one or more private key shares (output of the DKG).
 The VC infers its public keys from those private shares, but those public keys does not exist on the beacon chain.
@@ -379,8 +377,8 @@ type ValidatorAPI interface {
 	// RegisterAwaitBeaconBlock registers a function to query a unsigned beacon block by slot.
 	RegisterAwaitBeaconBlock(func(context.Context, slot int) (beaconapi.BeaconBlock, error))
 
-	// RegisterAwaitProposer registers a function to query the block proposer PubKey by slot.
-	RegisterAwaitProposer(func(context.Context, slot int) (PubKey, error))
+	// RegisterGetDutyFunc registers a function to query duty data.
+	RegisterGetDutyFunc(func(ctx context.Context, duty Duty) (FetchArgSet, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error))

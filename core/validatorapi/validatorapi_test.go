@@ -349,9 +349,8 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 	block1.Phase0.ProposerIndex = vIdx
 	block1.Phase0.Body.RANDAOReveal = randao
 
-	// TODO(dhruv): Will be replaced by RegisterGetDutyFunc from scheduler
-	component.RegisterAwaitProposer(func(ctx context.Context, slot int64) (core.PubKey, error) {
-		return pubkey, nil
+	component.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
+		return core.FetchArgSet{pubkey: core.FetchArg{}}, nil
 	})
 
 	component.RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error) {
@@ -413,8 +412,8 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	unsignedBlock.Phase0.Slot = slot
 	unsignedBlock.Phase0.ProposerIndex = vIdx
 
-	vapi.RegisterAwaitProposer(func(ctx context.Context, slot int64) (core.PubKey, error) {
-		return corePubKey, nil
+	vapi.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
+		return core.FetchArgSet{corePubKey: core.FetchArg{}}, nil
 	})
 
 	// Sign beacon block
@@ -491,8 +490,8 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	unsignedBlock.Phase0.Slot = slot
 	unsignedBlock.Phase0.ProposerIndex = vIdx
 
-	vapi.RegisterAwaitProposer(func(ctx context.Context, slot int64) (core.PubKey, error) {
-		return corePubKey, nil
+	vapi.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
+		return core.FetchArgSet{corePubKey: core.FetchArg{}}, nil
 	})
 
 	// Add invalid Signature to beacon block
@@ -541,8 +540,8 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
 	require.NoError(t, err)
 
-	vapi.RegisterAwaitProposer(func(ctx context.Context, slot int64) (core.PubKey, error) {
-		return pubkey, nil
+	vapi.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
+		return core.FetchArgSet{pubkey: core.FetchArg{}}, nil
 	})
 
 	// invalid block scenarios

@@ -144,11 +144,11 @@ type Component struct {
 
 	// Registered input functions
 
-	pubKeyByAttFunc   func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
-	awaitAttFunc      func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
-	awaitBlockFunc    func(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error)
-	awaitProposerFunc func(ctx context.Context, slot int64) (core.PubKey, error) // TODO(corver): Since we have this, we can drop pubkey from awaitBlockFunc.
-	parSigDBFuncs     []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	pubKeyByAttFunc func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
+	awaitAttFunc    func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
+	awaitBlockFunc  func(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error)
+	getDutyFunc     func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error)
+	parSigDBFuncs   []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
 func (*Component) ProposerDuties(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -167,11 +167,9 @@ func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slo
 	c.pubKeyByAttFunc = fn
 }
 
-// RegisterAwaitProposer registers a function to query proposer PubKey by slot.
-// It supports a single function, since it is an input of the component.
-// TODO(corver): Best place to get this is probably Scheduler.
-func (c *Component) RegisterAwaitProposer(fn func(ctx context.Context, slot int64) (core.PubKey, error)) {
-	c.awaitProposerFunc = fn
+// RegisterGetDutyFunc registers a function to query duty data by duty.
+func (c *Component) RegisterGetDutyFunc(fn func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error)) {
+	c.getDutyFunc = fn
 }
 
 // RegisterParSigDB registers a partial signed data set store function.
@@ -265,18 +263,24 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 // BeaconBlockProposal submits the randao for aggregation and inclusion in DutyProposer and then queries the dutyDB for an unsigned beacon block.
 func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*spec.VersionedBeaconBlock, error) {
 	// Get proposer pubkey (this is a blocking query).
-	pubKey, err := c.awaitProposerFunc(ctx, int64(slot))
+	dutySet, err := c.getDutyFunc(ctx, core.Duty{Slot: int64(slot), Type: core.DutyProposer})
 	if err != nil {
 		return nil, err
+	}
+
+	// There should be single duty proposer for the slot
+	var pubkey core.PubKey
+	for pk := range dutySet {
+		pubkey = pk
 	}
 
 	// Verify randao partial signature
-	err = c.verifyRandaoParSig(ctx, pubKey, slot, randao)
+	err = c.verifyRandaoParSig(ctx, pubkey, slot, randao)
 	if err != nil {
 		return nil, err
 	}
 
-	err = c.submitRandaoDuty(ctx, pubKey, slot, randao)
+	err = c.submitRandaoDuty(ctx, pubkey, slot, randao)
 	if err != nil {
 		return nil, err
 	}
@@ -309,9 +313,16 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 		return err
 	}
 
-	pubkey, err := c.awaitProposerFunc(ctx, int64(slot))
+	// Get proposer pubkey (this is a blocking query).
+	dutySet, err := c.getDutyFunc(ctx, core.Duty{Slot: int64(slot), Type: core.DutyProposer})
 	if err != nil {
 		return err
+	}
+
+	// There should be single duty proposer for the slot
+	var pubkey core.PubKey
+	for pk := range dutySet {
+		pubkey = pk
 	}
 
 	err = c.verifyBlockSignature(ctx, block, pubkey, slot)
