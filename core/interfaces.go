@@ -28,7 +28,7 @@ type Scheduler interface {
 	Subscribe(func(context.Context, Duty, FetchArgSet) error)
 
 	// GetDuty returns the argSet for a duty if resolved already.
-	GetDuty(ctx context.Context, duty Duty) (FetchArgSet, error)
+	GetDuty(context.Context, Duty) (FetchArgSet, error)
 }
 
 // Fetcher fetches proposed unsigned duty data.
@@ -86,7 +86,7 @@ type ValidatorAPI interface {
 	RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
 
 	// RegisterGetDutyFunc registers a function to query duty data.
-	RegisterGetDutyFunc(func(ctx context.Context, duty Duty) (FetchArgSet, error))
+	RegisterGetDutyFunc(func(context.Context, Duty) (FetchArgSet, error))
 
 	// RegisterParSigDB registers a function to store partially signed data sets.
 	RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error)
@@ -147,7 +147,7 @@ type Broadcaster interface {
 // instead as interfaces, since functions are easier to wrap than interfaces.
 type wireFuncs struct {
 	SchedulerSubscribe              func(func(context.Context, Duty, FetchArgSet) error)
-	SchedulerGetDuty                func(ctx context.Context, duty Duty) (FetchArgSet, error)
+	SchedulerGetDuty                func(context.Context, Duty) (FetchArgSet, error)
 	FetcherFetch                    func(context.Context, Duty, FetchArgSet) error
 	FetcherSubscribe                func(func(context.Context, Duty, UnsignedDataSet) error)
 	FetcherRegisterAggSigDB         func(func(context.Context, Duty, PubKey) (AggSignedData, error))
@@ -159,7 +159,7 @@ type wireFuncs struct {
 	DutyDBPubKeyByAttestation       func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
 	VAPIRegisterAwaitAttestation    func(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
 	VAPIRegisterAwaitBeaconBlock    func(func(ctx context.Context, slot int64) (PubKey, *spec.VersionedBeaconBlock, error))
-	VAPIRegisterGetDutyFunc         func(func(ctx context.Context, duty Duty) (FetchArgSet, error))
+	VAPIRegisterGetDutyFunc         func(func(context.Context, Duty) (FetchArgSet, error))
 	VAPIRegisterPubKeyByAttestation func(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
 	VAPIRegisterParSigDB            func(func(context.Context, Duty, ParSignedDataSet) error)
 	ParSigDBStoreInternal           func(context.Context, Duty, ParSignedDataSet) error

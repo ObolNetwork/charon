@@ -168,6 +168,7 @@ func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slo
 }
 
 // RegisterGetDutyFunc registers a function to query duty data by duty.
+// It supports a single function, since it is an input of the component.
 func (c *Component) RegisterGetDutyFunc(fn func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error)) {
 	c.getDutyFunc = fn
 }
@@ -263,15 +264,9 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 // BeaconBlockProposal submits the randao for aggregation and inclusion in DutyProposer and then queries the dutyDB for an unsigned beacon block.
 func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*spec.VersionedBeaconBlock, error) {
 	// Get proposer pubkey (this is a blocking query).
-	dutySet, err := c.getDutyFunc(ctx, core.Duty{Slot: int64(slot), Type: core.DutyProposer})
+	pubkey, err := c.getProposerPubkey(ctx, slot)
 	if err != nil {
 		return nil, err
-	}
-
-	// There should be single duty proposer for the slot
-	var pubkey core.PubKey
-	for pk := range dutySet {
-		pubkey = pk
 	}
 
 	// Verify randao partial signature
@@ -313,16 +308,9 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 		return err
 	}
 
-	// Get proposer pubkey (this is a blocking query).
-	dutySet, err := c.getDutyFunc(ctx, core.Duty{Slot: int64(slot), Type: core.DutyProposer})
+	pubkey, err := c.getProposerPubkey(ctx, slot)
 	if err != nil {
 		return err
-	}
-
-	// There should be single duty proposer for the slot
-	var pubkey core.PubKey
-	for pk := range dutySet {
-		pubkey = pk
 	}
 
 	err = c.verifyBlockSignature(ctx, block, pubkey, slot)
@@ -513,6 +501,33 @@ func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Vali
 	return resp, nil
 }
 
+func (c Component) epochFromSlot(ctx context.Context, slot eth2p0.Slot) (eth2p0.Epoch, error) {
+	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "getting slots per epoch")
+	}
+
+	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
+}
+
+func (c Component) getProposerPubkey(ctx context.Context, slot eth2p0.Slot) (core.PubKey, error) {
+	// Get proposer pubkey (this is a blocking query).
+	dutySet, err := c.getDutyFunc(ctx, core.Duty{Slot: int64(slot), Type: core.DutyProposer})
+	if err != nil {
+		return "", err
+	} else if len(dutySet) != 1 {
+		return "", errors.New("unexpected amount of proposer duties")
+	}
+
+	// There should be single duty proposer for the slot
+	var pubkey core.PubKey
+	for pk := range dutySet {
+		pubkey = pk
+	}
+
+	return pubkey, nil
+}
+
 // MerkleEpoch wraps epoch to implement ssz.HashRoot.
 type MerkleEpoch eth2p0.Epoch
 
@@ -534,13 +549,4 @@ func (m MerkleEpoch) HashTreeRootWith(hh *ssz.Hasher) error {
 	hh.Merkleize(indx)
 
 	return nil
-}
-
-func (c Component) epochFromSlot(ctx context.Context, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, errors.Wrap(err, "getting slots per epoch")
-	}
-
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }
