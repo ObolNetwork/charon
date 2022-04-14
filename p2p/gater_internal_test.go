@@ -65,7 +65,7 @@ func TestP2PConnGating(t *testing.T) {
 	if err != nil {
 		t.Fatal("private key generation for A failed", err)
 	}
-	nodeA, err := NewTCPNode(p2pConfigA, convertPrivKey(prvKeyA), c, UDPNode{}, nil)
+	nodeA, err := NewTCPNode(p2pConfigA, convertPrivKey(prvKeyA), c, UDPNode{}, nil, DefaultAdvertisedAddrs)
 	if err != nil {
 		t.Fatal("couldn't instantiate new node A", err)
 	}
@@ -76,7 +76,7 @@ func TestP2PConnGating(t *testing.T) {
 	if err != nil {
 		t.Fatal("private key generation for B failed", err)
 	}
-	nodeB, err := NewTCPNode(p2pConfigB, convertPrivKey(prvKeyB), c, UDPNode{}, nil)
+	nodeB, err := NewTCPNode(p2pConfigB, convertPrivKey(prvKeyB), c, UDPNode{}, nil, DefaultAdvertisedAddrs)
 	if err != nil {
 		t.Fatal("couldn't instantiate new node B", err)
 	}

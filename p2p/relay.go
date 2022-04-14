@@ -62,13 +62,18 @@ func NewRelayReserver(tcpNode host.Host, relay Peer) lifecycle.HookFunc {
 			}
 
 			log.Debug(ctx, "Relay circuit reserved",
-				z.Any("expire", resv.Expiration))
+				z.Any("expire", resv.Expiration),
+				z.Any("limit_duration", resv.LimitDuration),
+				z.Any("limit_data_mb", resv.LimitData/(1<<20)),
+			)
 
 			select {
 			case <-ctx.Done():
+				return nil
+			case <-time.After(resv.LimitDuration - time.Second*10):
 			case <-time.After(time.Until(resv.Expiration.Add(-time.Minute))):
-				log.Debug(ctx, "Refreshing relay circuit reservation")
 			}
+			log.Debug(ctx, "Refreshing relay circuit reservation")
 		}
 
 		return nil

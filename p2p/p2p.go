@@ -28,6 +28,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/routing"
 	noise "github.com/libp2p/go-libp2p-noise"
+	p2pcfg "github.com/libp2p/go-libp2p/config"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -36,9 +37,17 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// NewTCPNode returns a started tcp-based libp2p node.
+// EmptyAdvertisedAddrs defines a p2pcfg.AddrsFactory that does not advertise
+// addresses via libp2p, since we use discv5 for peer discovery.
+var EmptyAdvertisedAddrs = func([]ma.Multiaddr) []ma.Multiaddr { return nil }
+
+// DefaultAdvertisedAddrs defines the default p2pcfg.AddrsFactory that advertises
+// the bind addresses.
+var DefaultAdvertisedAddrs = func(addrs []ma.Multiaddr) []ma.Multiaddr { return addrs }
+
+// NewTCPNode returns a started tcp-based libp2p host.
 func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
-	udpNode UDPNode, peers []Peer) (host.Host, error,
+	udpNode UDPNode, peers []Peer, factory p2pcfg.AddrsFactory) (host.Host, error,
 ) {
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
@@ -57,6 +66,8 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 		libp2p.UserAgent("obolnetwork-charon/" + version.Version),
 		// Limit connections to DV peers.
 		libp2p.ConnectionGater(connGater),
+
+		libp2p.AddrsFactory(factory),
 
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
 			return logWrapRouting(adaptDiscRouting(udpNode, peers)), nil

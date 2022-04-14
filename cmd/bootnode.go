@@ -113,7 +113,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	p2pErr := make(chan error, 1)
 	go func() {
 		if config.P2PRelay {
-			tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), udpNode, nil)
+			tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), udpNode, nil, p2p.EmptyAdvertisedAddrs)
 			if err != nil {
 				p2pErr <- err
 				return

@@ -188,7 +188,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 		return nil, nil, errors.Wrap(err, "connection gater")
 	}
 
-	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode, manifest.Peers)
+	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode, manifest.Peers, p2p.EmptyAdvertisedAddrs)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
 	}
