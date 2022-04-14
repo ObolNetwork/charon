@@ -254,7 +254,10 @@ func WithDeterministicDuties(factor int) Option {
 			return resp, nil
 		}
 
-		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			indices := []eth2p0.ValidatorIndex{
+				eth2p0.ValidatorIndex(0),
+			}
 			vals, err := mock.Validators(ctx, "", indices)
 			if err != nil {
 				return nil, err
