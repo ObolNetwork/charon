@@ -26,6 +26,9 @@ import (
 type Scheduler interface {
 	// Subscribe registers a callback for fetching a duty.
 	Subscribe(func(context.Context, Duty, FetchArgSet) error)
+
+	// GetDuty returns the argSet for a duty if resolved already.
+	GetDuty(context.Context, Duty) (FetchArgSet, error)
 }
 
 // Fetcher fetches proposed unsigned duty data.
@@ -81,6 +84,9 @@ type ValidatorAPI interface {
 
 	// RegisterPubKeyByAttestation registers a function to query validator by attestation.
 	RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
+
+	// RegisterGetDutyFunc registers a function to query duty data.
+	RegisterGetDutyFunc(func(context.Context, Duty) (FetchArgSet, error))
 
 	// RegisterParSigDB registers a function to store partially signed data sets.
 	RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error)
@@ -141,14 +147,19 @@ type Broadcaster interface {
 // instead as interfaces, since functions are easier to wrap than interfaces.
 type wireFuncs struct {
 	SchedulerSubscribe              func(func(context.Context, Duty, FetchArgSet) error)
+	SchedulerGetDuty                func(context.Context, Duty) (FetchArgSet, error)
 	FetcherFetch                    func(context.Context, Duty, FetchArgSet) error
 	FetcherSubscribe                func(func(context.Context, Duty, UnsignedDataSet) error)
+	FetcherRegisterAggSigDB         func(func(context.Context, Duty, PubKey) (AggSignedData, error))
 	ConsensusPropose                func(context.Context, Duty, UnsignedDataSet) error
 	ConsensusSubscribe              func(func(context.Context, Duty, UnsignedDataSet) error)
 	DutyDBStore                     func(context.Context, Duty, UnsignedDataSet) error
+	DutyDBAwaitBeaconBlock          func(ctx context.Context, slot int64) (PubKey, *spec.VersionedBeaconBlock, error)
 	DutyDBAwaitAttestation          func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
 	DutyDBPubKeyByAttestation       func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
 	VAPIRegisterAwaitAttestation    func(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
+	VAPIRegisterAwaitBeaconBlock    func(func(ctx context.Context, slot int64) (PubKey, *spec.VersionedBeaconBlock, error))
+	VAPIRegisterGetDutyFunc         func(func(context.Context, Duty) (FetchArgSet, error))
 	VAPIRegisterPubKeyByAttestation func(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
 	VAPIRegisterParSigDB            func(func(context.Context, Duty, ParSignedDataSet) error)
 	ParSigDBStoreInternal           func(context.Context, Duty, ParSignedDataSet) error
@@ -182,14 +193,19 @@ func Wire(sched Scheduler,
 ) {
 	w := wireFuncs{
 		SchedulerSubscribe:              sched.Subscribe,
+		SchedulerGetDuty:                sched.GetDuty,
 		FetcherFetch:                    fetch.Fetch,
 		FetcherSubscribe:                fetch.Subscribe,
+		FetcherRegisterAggSigDB:         fetch.RegisterAggSigDB,
 		ConsensusPropose:                cons.Propose,
 		ConsensusSubscribe:              cons.Subscribe,
 		DutyDBStore:                     dutyDB.Store,
 		DutyDBAwaitAttestation:          dutyDB.AwaitAttestation,
+		DutyDBAwaitBeaconBlock:          dutyDB.AwaitBeaconBlock,
 		DutyDBPubKeyByAttestation:       dutyDB.PubKeyByAttestation,
+		VAPIRegisterAwaitBeaconBlock:    vapi.RegisterAwaitBeaconBlock,
 		VAPIRegisterAwaitAttestation:    vapi.RegisterAwaitAttestation,
+		VAPIRegisterGetDutyFunc:         vapi.RegisterGetDutyFunc,
 		VAPIRegisterPubKeyByAttestation: vapi.RegisterPubKeyByAttestation,
 		VAPIRegisterParSigDB:            vapi.RegisterParSigDB,
 		ParSigDBStoreInternal:           parSigDB.StoreInternal,
@@ -211,8 +227,11 @@ func Wire(sched Scheduler,
 
 	w.SchedulerSubscribe(w.FetcherFetch)
 	w.FetcherSubscribe(w.ConsensusPropose)
+	w.FetcherRegisterAggSigDB(w.AggSigDBAwait)
 	w.ConsensusSubscribe(w.DutyDBStore)
+	w.VAPIRegisterAwaitBeaconBlock(w.DutyDBAwaitBeaconBlock)
 	w.VAPIRegisterAwaitAttestation(w.DutyDBAwaitAttestation)
+	w.VAPIRegisterGetDutyFunc(w.SchedulerGetDuty)
 	w.VAPIRegisterPubKeyByAttestation(w.DutyDBPubKeyByAttestation)
 	w.VAPIRegisterParSigDB(w.ParSigDBStoreInternal)
 	w.ParSigDBSubscribeInternal(w.ParSigExBroadcast)
