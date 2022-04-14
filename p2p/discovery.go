@@ -45,24 +45,11 @@ type UDPNode struct {
 func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey,
 	peers []Peer,
 ) (UDPNode, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
-	if err != nil {
-		return UDPNode{}, errors.Wrap(err, "resolve udp address")
-	}
-
-	conn, err := net.ListenUDP("udp", udpAddr)
-	if err != nil {
-		return UDPNode{}, errors.Wrap(err, "parse udp address")
-	}
-
-	netlist, err := netutil.ParseNetlist(config.Allowlist)
-	if err != nil {
-		return UDPNode{}, errors.Wrap(err, "parse allow list")
-	}
-
+	// Setup bootnodes and relays
 	var (
 		bootnodes  []*enode.Node
 		bootRelays []Peer
+		err        error
 	)
 	for _, bootnode := range config.UDPBootnodes {
 		if strings.HasPrefix(bootnode, "http") {
@@ -96,6 +83,22 @@ func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode, key *ec
 			node := p.Enode // Copy loop variable
 			bootnodes = append(bootnodes, &node)
 		}
+	}
+
+	// Setup discv5 udp listener.
+	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
+	if err != nil {
+		return UDPNode{}, errors.Wrap(err, "resolve udp address")
+	}
+
+	conn, err := net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		return UDPNode{}, errors.Wrap(err, "parse udp address")
+	}
+
+	netlist, err := netutil.ParseNetlist(config.Allowlist)
+	if err != nil {
+		return UDPNode{}, errors.Wrap(err, "parse allow list")
 	}
 
 	node, err := discover.ListenV5(conn, ln, discover.Config{
@@ -166,17 +169,12 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 		return nil, nil, errors.Wrap(err, "open peer db")
 	}
 
-	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "resolve udp address")
-	}
+	node := enode.NewLocalNode(db, key)
 
 	tcpAddrs, err := config.ParseTCPAddrs()
 	if err != nil {
 		return nil, nil, err
 	}
-
-	node := enode.NewLocalNode(db, key)
 
 	for _, addr := range tcpAddrs {
 		if v4 := addr.IP.To4(); v4 != nil {
@@ -187,6 +185,10 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 		node.Set(enr.TCP(addr.Port))
 	}
 
+	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "resolve udp address")
+	}
 	node.SetFallbackIP(udpAddr.IP)
 	node.SetFallbackUDP(udpAddr.Port)
 

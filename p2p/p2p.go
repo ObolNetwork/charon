@@ -112,14 +112,15 @@ func adaptDiscRouting(udpNode UDPNode, peers []Peer) peerRoutingFunc {
 		}
 
 		resolved := udpNode.Resolve(&node)
-		if resolved == nil || resolved.Seq() == 0 {
+		if resolved == nil {
 			return peer.AddrInfo{}, errors.New("peer not resolved")
 		}
 
 		var mAddrs []ma.Multiaddr
 
+		// If sequence is 0, we haven't discovered it yet.
 		// If tcp port is 0, this node isn't bound to a port.
-		if resolved.TCP() != 0 {
+		if resolved.Seq() != 0 && resolved.TCP() != 0 {
 			mAddr, err := multiAddrFromIPPort(resolved.IP(), resolved.TCP())
 			if err != nil {
 				return peer.AddrInfo{}, err

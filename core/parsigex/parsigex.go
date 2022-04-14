@@ -130,7 +130,8 @@ func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedD
 }
 
 func sendData(ctx context.Context, tcpNode host.Host, p peer.ID, b []byte) error {
-	s, err := tcpNode.NewStream(ctx, p, protocol)
+	// Circuit relay connections are transient
+	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, "parsigex"), p, protocol)
 	if err != nil {
 		return errors.Wrap(err, "tcpNode stream")
 	}

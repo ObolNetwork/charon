@@ -124,7 +124,8 @@ func (t *p2pTransport) AwaitNext(ctx context.Context) (int, core.Duty, core.Unsi
 }
 
 func sendData(ctx context.Context, t *p2pTransport, p peer.ID, b []byte) error {
-	s, err := t.tcpNode.NewStream(ctx, p, protocol)
+	// Circuit relay connections are transient
+	s, err := t.tcpNode.NewStream(network.WithUseTransient(ctx, "leadercast"), p, protocol)
 	if err != nil {
 		return errors.Wrap(err, "tcpNode stream")
 	}

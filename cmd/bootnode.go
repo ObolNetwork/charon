@@ -71,6 +71,9 @@ func bindBootnodeFlag(flags *pflag.FlagSet, httpAddr *string, autoP2PKey, p2pRel
 
 // RunBootnode starts a p2p-udp discv5 bootnode.
 func RunBootnode(ctx context.Context, config BootnodeConfig) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	ctx = log.WithTopic(ctx, "bootnode")
 
 	if err := log.InitLogger(config.LogConfig); err != nil {
@@ -93,6 +96,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		return err
 	}
 
+	// Setup p2p udp discovery
 	localEnode, db, err := p2p.NewLocalEnode(config.P2PConfig, key)
 	if err != nil {
 		return errors.Wrap(err, "failed to open enode")
@@ -105,20 +109,28 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	}
 	defer udpNode.Close()
 
-	if config.P2PRelay {
-		tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), udpNode, nil)
-		if err != nil {
-			return err
-		}
-		defer tcpNode.Close()
+	// Setup p2p tcp relay (async for snappy startup)
+	p2pErr := make(chan error, 1)
+	go func() {
+		if config.P2PRelay {
+			tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), udpNode, nil)
+			if err != nil {
+				p2pErr <- err
+				return
+			}
 
-		relayService, err := relay.New(tcpNode)
-		if err != nil {
-			return errors.Wrap(err, "new relay service")
+			relayService, err := relay.New(tcpNode)
+			if err != nil {
+				p2pErr <- err
+				return
+			}
+			<-ctx.Done()
+			_ = tcpNode.Close()
+			_ = relayService.Close()
 		}
-		defer relayService.Close()
-	}
+	}()
 
+	// Start serving http
 	serverErr := make(chan error, 1)
 	go func() {
 		mux := http.NewServeMux()
@@ -142,6 +154,8 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	for {
 		select {
 		case err := <-serverErr:
+			return err
+		case err := <-p2pErr:
 			return err
 		case <-ticker.C:
 			log.Info(ctx, "Connected node count", z.Int("n", len(udpNode.AllNodes())))
