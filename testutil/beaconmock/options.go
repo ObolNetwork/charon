@@ -212,9 +212,9 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 	}
 }
 
-// WithDeterministicDuties configures the mock to provide deterministic duties based on provided arguments and config.
+// WithDeterministicAttesterDuties configures the mock to provide deterministic attester duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
-func WithDeterministicDuties(factor int) Option {
+func WithDeterministicAttesterDuties(factor int) Option {
 	return func(mock *Mock) {
 		mock.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			vals, err := mock.Validators(ctx, "", indices)
@@ -253,7 +253,13 @@ func WithDeterministicDuties(factor int) Option {
 
 			return resp, nil
 		}
+	}
+}
 
+// WithDeterministicProposerDuties configures the mock to provide deterministic proposer duties based on provided arguments and config.
+// Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
+func WithDeterministicProposerDuties(factor int) Option {
+	return func(mock *Mock) {
 		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			indices := []eth2p0.ValidatorIndex{
 				eth2p0.ValidatorIndex(0),
@@ -289,15 +295,6 @@ func WithDeterministicDuties(factor int) Option {
 			}
 
 			return resp, nil
-		}
-	}
-}
-
-// WithNoProposerDuties configures the mock to override ProposerDutiesFunc to return nothing.
-func WithNoProposerDuties() Option {
-	return func(mock *Mock) {
-		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-			return nil, nil
 		}
 	}
 }

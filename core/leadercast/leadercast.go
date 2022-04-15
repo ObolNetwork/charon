@@ -44,7 +44,7 @@ func New(transport Transport, peerIdx, peers int) *LeaderCast {
 // Note this is neither HA nor BFT.
 type LeaderCast struct {
 	peers     int // total number of peers in the cluster
-	peerIdx   int // index of this peers in the cluster
+	peerIdx   int // index of this peer in the cluster
 	transport Transport
 
 	subs []func(context.Context, core.Duty, core.UnsignedDataSet) error

@@ -53,13 +53,17 @@ func TestSimnetNoNetwork_TekuVC(t *testing.T) {
 		t.Skip("Skipping Teku integration test")
 	}
 
-	args := newSimnetArgs(t)
+	args := newSimnetArgs(t, false)
 	args = startTeku(t, args, 0)
 	testSimnet(t, args)
 }
 
-func TestSimnetNoNetwork_MockVCs(t *testing.T) {
-	testSimnet(t, newSimnetArgs(t))
+func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
+	testSimnet(t, newSimnetArgs(t, true))
+}
+
+func TestSimnetNoNetwork_WithoutProposerMockVCs(t *testing.T) {
+	testSimnet(t, newSimnetArgs(t, false))
 }
 
 type simnetArgs struct {
@@ -69,11 +73,12 @@ type simnetArgs struct {
 	P2PKeys    []*ecdsa.PrivateKey
 	SimnetKeys []*bls_sig.SecretKey
 	Manifest   app.Manifest
+	Proposer   bool
 	ErrChan    chan error
 }
 
 // newSimnetArgs defines the default simnet test args.
-func newSimnetArgs(t *testing.T) simnetArgs {
+func newSimnetArgs(t *testing.T, proposer bool) simnetArgs {
 	t.Helper()
 
 	const n = 3
@@ -102,6 +107,7 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 		P2PKeys:    p2pKeys,
 		SimnetKeys: secrets,
 		Manifest:   manifest,
+		Proposer:   proposer,
 		ErrChan:    make(chan error, 1),
 	}
 }
@@ -139,6 +145,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 				SimnetKeys:         []*bls_sig.SecretKey{args.SimnetKeys[i]},
 				ParSigExFunc:       parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
+				Proposer:           args.Proposer,
 				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.AggSignedData) error {
 					results <- simResult{Duty: duty, Pubkey: key, Data: data}
 					return nil

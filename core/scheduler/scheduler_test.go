@@ -202,7 +202,8 @@ func TestSchedulerDuties(t *testing.T) {
 			eth2Cl, err := beaconmock.New(
 				beaconmock.WithValidatorSet(valSet),
 				beaconmock.WithGenesisTime(t0),
-				beaconmock.WithDeterministicDuties(test.Factor),
+				beaconmock.WithDeterministicAttesterDuties(test.Factor),
+				beaconmock.WithDeterministicProposerDuties(test.Factor),
 			)
 			require.NoError(t, err)
 
@@ -272,7 +273,8 @@ func TestScheduler_GetDuty(t *testing.T) {
 	eth2Cl, err := beaconmock.New(
 		beaconmock.WithValidatorSet(valSet),
 		beaconmock.WithGenesisTime(t0),
-		beaconmock.WithDeterministicDuties(0),
+		beaconmock.WithDeterministicAttesterDuties(0),
+		beaconmock.WithDeterministicProposerDuties(0),
 	)
 	require.NoError(t, err)
 

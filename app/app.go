@@ -97,6 +97,8 @@ type TestConfig struct {
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.AggSignedData) error
+	// Proposer is boolean flag to enable/disable block proposer flow
+	Proposer bool
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -257,8 +259,11 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		// Configure the beacon mock.
 		opts := []beaconmock.Option{
 			beaconmock.WithSlotDuration(time.Second),
-			beaconmock.WithDeterministicDuties(100),
+			beaconmock.WithDeterministicAttesterDuties(100),
 			beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
+		}
+		if conf.TestConfig.Proposer {
+			opts = append(opts, beaconmock.WithDeterministicProposerDuties(100))
 		}
 		opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
 		bmock, err := beaconmock.New(opts...)
@@ -494,7 +499,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 					log.Info(ctx, "Attestation success", z.I64("slot", duty.Slot))
 				}
 			case core.DutyProposer:
-				err = validatormock.ProposeBlock(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot))
+				err = validatormock.ProposeBlock(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), addr)
 				if err != nil {
 					log.Warn(ctx, "Failed to propose block", z.Err(err))
 				} else {

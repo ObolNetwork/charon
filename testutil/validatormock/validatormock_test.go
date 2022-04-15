@@ -56,7 +56,7 @@ func TestAttest(t *testing.T) {
 			beaconMock, err := beaconmock.New(
 				beaconmock.WithClock(clock),
 				beaconmock.WithValidatorSet(valSet),
-				beaconmock.WithDeterministicDuties(test.DutyFactor),
+				beaconmock.WithDeterministicAttesterDuties(test.DutyFactor),
 			)
 			require.NoError(t, err)
 
