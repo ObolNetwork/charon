@@ -169,13 +169,13 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 		var err error
 		p2pKey, err = p2p.LoadPrivKey(conf.DataDir)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "load p2p key")
+			return nil, nil, err
 		}
 	}
 
 	localEnode, peerDB, err := p2p.NewLocalEnode(conf.P2P, p2pKey)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "create local enode")
+		return nil, nil, err
 	}
 
 	bootnodes, err := p2p.NewUDPBootnodes(ctx, conf.P2P, manifest.Peers, localEnode.ID())
@@ -185,7 +185,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 
 	udpNode, err := p2p.NewUDPNode(conf.P2P, localEnode, p2pKey, bootnodes)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "start discv5 listener")
+		return nil, nil, err
 	}
 
 	relays, err := p2p.NewRelays(conf.P2P, bootnodes)
@@ -195,12 +195,12 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 
 	connGater, err := p2p.NewConnGater(manifest.PeerIDs(), relays)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "connection gater")
+		return nil, nil, err
 	}
 
 	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode, manifest.Peers, relays)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
+		return nil, nil, err
 	}
 
 	if !conf.TestConfig.DisablePing {
