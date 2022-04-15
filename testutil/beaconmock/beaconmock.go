@@ -140,8 +140,8 @@ func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Att
 	return m.SubmitAttestationsFunc(ctx, attestations)
 }
 
-func (Mock) SubmitBeaconBlock(context.Context, *spec.VersionedSignedBeaconBlock) error {
-	return nil
+func (m Mock) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+	return m.SubmitBeaconBlockFunc(ctx, block)
 }
 
 func (m Mock) AttestationData(ctx context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {

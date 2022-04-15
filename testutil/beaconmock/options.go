@@ -377,6 +377,16 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 
 			return nil
 		},
+		SubmitBeaconBlockFunc: func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+			slot, err := block.Slot()
+			if err != nil {
+				return err
+			}
+			log.Info(ctx, "Block submitted to beacon node",
+				z.U64("slot", uint64(slot)))
+
+			return nil
+		},
 		GenesisTimeFunc: func(ctx context.Context) (time.Time, error) {
 			return httpMock.GenesisTime(ctx)
 		},
