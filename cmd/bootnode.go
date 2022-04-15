@@ -22,6 +22,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -38,6 +39,7 @@ type BootnodeConfig struct {
 	P2PConfig  p2p.Config
 	LogConfig  log.Config
 	AutoP2PKey bool
+	P2PRelay   bool
 }
 
 func newBootnodeCmd(runFunc func(context.Context, BootnodeConfig) error) *cobra.Command {
@@ -54,20 +56,24 @@ func newBootnodeCmd(runFunc func(context.Context, BootnodeConfig) error) *cobra.
 	}
 
 	bindDataDirFlag(cmd.Flags(), &config.DataDir)
-	bindBootnodeFlag(cmd.Flags(), &config.HTTPAddr, &config.AutoP2PKey)
+	bindBootnodeFlag(cmd.Flags(), &config.HTTPAddr, &config.AutoP2PKey, &config.P2PRelay)
 	bindP2PFlags(cmd.Flags(), &config.P2PConfig)
 	bindLogFlags(cmd.Flags(), &config.LogConfig)
 
 	return cmd
 }
 
-func bindBootnodeFlag(flags *pflag.FlagSet, httpAddr *string, autoP2PKey *bool) {
+func bindBootnodeFlag(flags *pflag.FlagSet, httpAddr *string, autoP2PKey, p2pRelay *bool) {
 	flags.StringVar(httpAddr, "bootnode-http-address", "127.0.0.1:16005", "Listening address (ip and port) for the bootnode http server serving runtime ENR")
 	flags.BoolVar(autoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory")
+	flags.BoolVar(p2pRelay, "p2p-relay", true, "Enable libp2p tcp host providing circuit relay to charon clusters")
 }
 
 // RunBootnode starts a p2p-udp discv5 bootnode.
 func RunBootnode(ctx context.Context, config BootnodeConfig) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	ctx = log.WithTopic(ctx, "bootnode")
 
 	if err := log.InitLogger(config.LogConfig); err != nil {
@@ -90,6 +96,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		return err
 	}
 
+	// Setup p2p udp discovery
 	localEnode, db, err := p2p.NewLocalEnode(config.P2PConfig, key)
 	if err != nil {
 		return errors.Wrap(err, "failed to open enode")
@@ -102,6 +109,28 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	}
 	defer udpNode.Close()
 
+	// Setup p2p tcp relay (async for snappy startup)
+	p2pErr := make(chan error, 1)
+	go func() {
+		if config.P2PRelay {
+			tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), udpNode, nil, p2p.EmptyAdvertisedAddrs)
+			if err != nil {
+				p2pErr <- err
+				return
+			}
+
+			relayService, err := relay.New(tcpNode)
+			if err != nil {
+				p2pErr <- err
+				return
+			}
+			<-ctx.Done()
+			_ = tcpNode.Close()
+			_ = relayService.Close()
+		}
+	}()
+
+	// Start serving http
 	serverErr := make(chan error, 1)
 	go func() {
 		mux := http.NewServeMux()
@@ -125,6 +154,8 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	for {
 		select {
 		case err := <-serverErr:
+			return err
+		case err := <-p2pErr:
 			return err
 		case <-ticker.C:
 			log.Info(ctx, "Connected node count", z.Int("n", len(udpNode.AllNodes())))

@@ -43,6 +43,9 @@ type Config struct {
 	Allowlist string
 	// Allowlist defines csv CIDR blocks for lib-p2p denied connections.
 	Denylist string
+	// BootnodeRelay enables circuit relay via bootnodes if direct connections fail.
+	// Only applicable to charon nodes not bootnodes.
+	BootnodeRelay bool
 }
 
 // ParseTCPAddrs returns the configured tcp addresses as typed net tcp addresses.

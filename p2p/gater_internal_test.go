@@ -65,7 +65,7 @@ func TestP2PConnGating(t *testing.T) {
 	if err != nil {
 		t.Fatal("private key generation for A failed", err)
 	}
-	nodeA, err := NewTCPNode(p2pConfigA, convertPrivKey(prvKeyA), c, nil, nil)
+	nodeA, err := NewTCPNode(p2pConfigA, convertPrivKey(prvKeyA), c, UDPNode{}, nil, DefaultAdvertisedAddrs)
 	if err != nil {
 		t.Fatal("couldn't instantiate new node A", err)
 	}
@@ -76,7 +76,7 @@ func TestP2PConnGating(t *testing.T) {
 	if err != nil {
 		t.Fatal("private key generation for B failed", err)
 	}
-	nodeB, err := NewTCPNode(p2pConfigB, convertPrivKey(prvKeyB), c, nil, nil)
+	nodeB, err := NewTCPNode(p2pConfigB, convertPrivKey(prvKeyB), c, UDPNode{}, nil, DefaultAdvertisedAddrs)
 	if err != nil {
 		t.Fatal("couldn't instantiate new node B", err)
 	}
@@ -85,6 +85,11 @@ func TestP2PConnGating(t *testing.T) {
 	err = nodeB.Connect(context.Background(), peer.AddrInfo{ID: nodeA.ID(), Addrs: nodeA.Addrs()})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), fmt.Sprintf("gater rejected connection with peer %s and addr %s", nodeA.ID(), nodeA.Addrs()[0]))
+}
+
+func TestOpenGater(t *testing.T) {
+	gater := NewOpenGater()
+	require.True(t, gater.InterceptSecured(0, "", nil))
 }
 
 func convertPrivKey(privkey crypto.PrivKey) *ecdsa.PrivateKey {

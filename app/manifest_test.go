@@ -62,7 +62,16 @@ func TestManifestJSON(t *testing.T) {
 		require.NoError(t, err)
 
 		// TODO(corver): Figure out how a better way to compare manifest structs.
-		require.Equal(t, manifest.Peers, manifest2.Peers)
+		require.Equal(t, len(manifest.Peers), len(manifest2.Peers))
+		for i := 0; i < len(manifest.Peers); i++ {
+			p1 := manifest.Peers[i]
+			p2 := manifest.Peers[i]
+			require.Equal(t, p1.ID, p2.ID)
+			require.Equal(t, p1.Index, p2.Index)
+			require.Equal(t, p1.ENR, p2.ENR)
+			require.Equal(t, p1.Enode.String(), p2.Enode.String())
+		}
+
 		require.Equal(t, len(manifest.DVs), len(manifest2.DVs))
 		for i := 0; i < len(manifest.DVs); i++ {
 			tss1 := manifest.DVs[i]

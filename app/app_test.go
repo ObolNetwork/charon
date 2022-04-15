@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"sync"
 	"testing"
@@ -72,20 +73,33 @@ func TestPingCluster(t *testing.T) {
 
 		pingCluster(t, pingTest{
 			ExternalIP:   "127.0.0.1",
-			BindZero:     true,
+			BindZeroIP:   true,
 			BootManifest: false,
 			Bootnode:     true,
 		})
 	})
 
-	// Nodes bind to random 0.0.0.0 ports (but use localhost as external host), with only single bootnode.
+	// Nodes bind to 0.0.0.0 (but use localhost as external host), with only single bootnode.
 	// Discv5 will resolve peers via bootnode and external host.
 	t.Run("external_host", func(t *testing.T) {
 		pingCluster(t, pingTest{
 			ExternalHost: "localhost",
-			BindZero:     true,
+			BindZeroIP:   true,
 			BootManifest: false,
 			Bootnode:     true,
+		})
+	})
+
+	// Nodes are not accessible (bind to random 0.0.0.0 ports and use incorrect external IP),
+	// but relay via single bootnode.
+	// Node discv5 will not resolve direct address, nodes will connect to bootnode,
+	// and libp2p will relay via bootnode.
+	t.Run("bootnode_relay", func(t *testing.T) {
+		pingCluster(t, pingTest{
+			BootnodeRelay: true,
+			BindZeroPort:  true,
+			Bootnode:      true,
+			ExternalIP:    "222.222.222.222", // Random IP, so nodes are not reachable.
 		})
 	})
 
@@ -103,14 +117,20 @@ func TestPingCluster(t *testing.T) {
 }
 
 type pingTest struct {
-	Slow          bool
+	Slow bool
+
 	BindENRAddrs  bool
 	BindLocalhost bool
-	BindZero      bool
+	BindZeroIP    bool
+	BindZeroPort  bool
+	BindNoTCP     bool
+
 	BootManifest  bool
 	Bootnode      bool
-	ExternalIP    string
-	ExternalHost  string
+	BootnodeRelay bool
+
+	ExternalIP   string
+	ExternalHost string
 }
 
 func pingCluster(t *testing.T, test pingTest) {
@@ -131,7 +151,7 @@ func pingCluster(t *testing.T, test pingTest) {
 	bootAddr, bootErr := startBootnode(ctx, t)
 	var bootnodes []string
 	if test.Bootnode {
-		bootnodes = append(bootnodes, "http://"+bootAddr+"/enr")
+		bootnodes = append(bootnodes, bootAddr)
 	}
 
 	const n = 3
@@ -161,6 +181,7 @@ func pingCluster(t *testing.T, test pingTest) {
 				UDPBootManifest: test.BootManifest,
 				ExteranlHost:    test.ExternalHost,
 				ExternalIP:      test.ExternalIP,
+				BootnodeRelay:   test.BootnodeRelay,
 			},
 		}
 
@@ -171,13 +192,16 @@ func pingCluster(t *testing.T, test pingTest) {
 		} else if test.BindLocalhost {
 			conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
 			conf.P2P.UDPAddr = testutil.AvailableAddr(t).String()
-		} else if test.BindZero {
+		} else if test.BindZeroIP {
 			addr1 := testutil.AvailableAddr(t)
 			addr2 := testutil.AvailableAddr(t)
 			addr1.IP = net.IPv4zero
 			addr2.IP = net.IPv4zero
 			conf.P2P.TCPAddrs = []string{addr1.String()}
 			conf.P2P.UDPAddr = addr2.String()
+		} else if test.BindZeroPort {
+			conf.P2P.TCPAddrs = []string{"0.0.0.0:0"}
+			conf.P2P.UDPAddr = "0.0.0.0:0"
 		} else {
 			require.Fail(t, "no bind flag set")
 		}
@@ -204,7 +228,7 @@ func pingCluster(t *testing.T, test pingTest) {
 	require.NoError(t, err)
 }
 
-// startBootnode starts a charon bootnode and returns its http address.
+// startBootnode starts a charon bootnode and returns its http ENR endpoint.
 func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 	t.Helper()
 
@@ -227,10 +251,22 @@ func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 				Format: "console",
 			},
 			AutoP2PKey: true,
+			P2PRelay:   true,
 		})
 	}()
 
-	return addr, errChan
+	endpoint := "http://" + addr + "/enr"
+
+	// Wait for bootnode to become available.
+	for ctx.Err() == nil {
+		_, err := http.Get(endpoint)
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+
+	return endpoint, errChan
 }
 
 // tcpAddrFromENR returns the "<ip4>:<tcp>" address stored in the ENR.
