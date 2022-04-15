@@ -13,88 +13,68 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package p2p
+package p2p_test
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/rand"
 	"fmt"
 	"testing"
 
-	gcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/p2p"
 )
 
 func TestInterceptSecured(t *testing.T) {
-	c := ConnGater{
-		peerIDs: map[peer.ID]bool{},
-	}
-	tests := map[string]struct {
-		peerID         peer.ID
-		expected       bool
-		setPeerToKnown bool
-		logMsg         string
+	tests := []struct {
+		config peer.ID
+		query  peer.ID
+		allow  bool
 	}{
-		"unknown peer": {"unknown_peer_id", false, false, "should reject connection attempt from unknown peers"},
-		"known peer":   {"known_peer_id", true, true, "should accept connection attempt from known peers"},
+		{"peer", "unknown", false},
+		{"peer", "peer", true},
 	}
 
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			if tc.setPeerToKnown {
-				c.peerIDs[tc.peerID] = true
-			}
-			allow := c.InterceptSecured(0, tc.peerID, nil)
-			require.Equal(t, tc.expected, allow, tc.logMsg)
+	for i, test := range tests {
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			c, err := p2p.NewConnGater([]peer.ID{test.config}, nil)
+			require.NoError(t, err)
+
+			allow := c.InterceptSecured(0, test.query, nil)
+			require.Equal(t, test.allow, allow)
 		})
 	}
 }
 
-// Tests if node A rejects connection attempt from unknown node B.
 func TestP2PConnGating(t *testing.T) {
-	c := ConnGater{
-		peerIDs: map[peer.ID]bool{},
+	c, err := p2p.NewConnGater(nil, nil)
+	require.NoError(t, err)
+
+	keyA, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
+	require.NoError(t, err)
+	nodeA, err := libp2p.New(libp2p.Identity(keyA), libp2p.ConnectionGater(c))
+	require.NoError(t, err)
+
+	keyB, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
+	require.NoError(t, err)
+	nodeB, err := libp2p.New(libp2p.Identity(keyB))
+	require.NoError(t, err)
+
+	addr := peer.AddrInfo{
+		ID:    nodeB.ID(),
+		Addrs: nodeB.Addrs(),
 	}
 
-	// create node A
-	p2pConfigA := Config{TCPAddrs: []string{"127.0.0.1:3030"}}
-	prvKeyA, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
-	if err != nil {
-		t.Fatal("private key generation for A failed", err)
-	}
-	nodeA, err := NewTCPNode(p2pConfigA, convertPrivKey(prvKeyA), c, UDPNode{}, nil, DefaultAdvertisedAddrs)
-	if err != nil {
-		t.Fatal("couldn't instantiate new node A", err)
-	}
-
-	// create node B
-	p2pConfigB := Config{TCPAddrs: []string{"127.0.0.1:3031"}}
-	prvKeyB, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
-	if err != nil {
-		t.Fatal("private key generation for B failed", err)
-	}
-	nodeB, err := NewTCPNode(p2pConfigB, convertPrivKey(prvKeyB), c, UDPNode{}, nil, DefaultAdvertisedAddrs)
-	if err != nil {
-		t.Fatal("couldn't instantiate new node B", err)
-	}
-
-	// Let B attempt connection to A
-	err = nodeB.Connect(context.Background(), peer.AddrInfo{ID: nodeA.ID(), Addrs: nodeA.Addrs()})
+	err = nodeA.Connect(context.Background(), addr)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), fmt.Sprintf("gater rejected connection with peer %s and addr %s", nodeA.ID(), nodeA.Addrs()[0]))
+	require.Contains(t, err.Error(), fmt.Sprintf("gater rejected connection with peer %s and addr %s", addr.ID, addr.Addrs[0]))
 }
 
 func TestOpenGater(t *testing.T) {
-	gater := NewOpenGater()
+	gater := p2p.NewOpenGater()
 	require.True(t, gater.InterceptSecured(0, "", nil))
-}
-
-func convertPrivKey(privkey crypto.PrivKey) *ecdsa.PrivateKey {
-	typeAssertedKey := (*ecdsa.PrivateKey)(privkey.(*crypto.Secp256k1PrivateKey))
-	typeAssertedKey.Curve = gcrypto.S256() // Temporary hack, so libp2p Secp256k1 is recognized as geth Secp256k1 in disc v5.1.
-
-	return typeAssertedKey
 }

@@ -103,7 +103,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	}
 	defer db.Close()
 
-	udpNode, err := p2p.NewUDPNode(ctx, config.P2PConfig, localEnode, key, nil)
+	udpNode, err := p2p.NewUDPNode(config.P2PConfig, localEnode, key, nil)
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
@@ -113,7 +113,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	p2pErr := make(chan error, 1)
 	go func() {
 		if config.P2PRelay {
-			tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), udpNode, nil, p2p.EmptyAdvertisedAddrs)
+			tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), udpNode, nil, nil)
 			if err != nil {
 				p2pErr <- err
 				return

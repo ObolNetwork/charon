@@ -178,25 +178,29 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 		return nil, nil, errors.Wrap(err, "create local enode")
 	}
 
-	udpNode, err := p2p.NewUDPNode(ctx, conf.P2P, localEnode, p2pKey, manifest.Peers)
+	bootnodes, err := p2p.NewUDPBootnodes(ctx, conf.P2P, manifest.Peers, localEnode.ID())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	udpNode, err := p2p.NewUDPNode(conf.P2P, localEnode, p2pKey, bootnodes)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "start discv5 listener")
 	}
 
-	connGater, err := p2p.NewConnGater(manifest.PeerIDs(), udpNode.Relays)
+	relays, err := p2p.NewRelays(conf.P2P, bootnodes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	connGater, err := p2p.NewConnGater(manifest.PeerIDs(), relays)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "connection gater")
 	}
 
-	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode, manifest.Peers, p2p.EmptyAdvertisedAddrs)
+	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode, manifest.Peers, relays)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new p2p node", z.Str("allowlist", conf.P2P.Allowlist))
-	}
-
-	if conf.P2P.BootnodeRelay {
-		for _, relay := range udpNode.Relays {
-			life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(tcpNode, relay))
-		}
 	}
 
 	if !conf.TestConfig.DisablePing {
@@ -208,6 +212,10 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 	life.RegisterStop(lifecycle.StopP2PPeerDB, lifecycle.HookFuncMin(peerDB.Close))
 	life.RegisterStop(lifecycle.StopP2PTCPNode, lifecycle.HookFuncErr(tcpNode.Close))
 	life.RegisterStop(lifecycle.StopP2PUDPNode, lifecycle.HookFuncMin(udpNode.Close))
+
+	for _, relay := range relays {
+		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(tcpNode, relay))
+	}
 
 	return tcpNode, localEnode, nil
 }

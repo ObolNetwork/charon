@@ -16,7 +16,6 @@
 package p2p_test
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"fmt"
 	"math/rand"
@@ -30,7 +29,6 @@ import (
 )
 
 func TestExternalHost(t *testing.T) {
-	ctx := context.Background()
 	p2pKey, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(0)))
 	require.NoError(t, err)
 
@@ -47,7 +45,7 @@ func TestExternalHost(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	udpNode, err := p2p.NewUDPNode(ctx, config, localNode, p2pKey, nil)
+	udpNode, err := p2p.NewUDPNode(config, localNode, p2pKey, nil)
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 	defer udpNode.Close()

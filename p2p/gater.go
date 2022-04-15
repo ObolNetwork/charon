@@ -33,8 +33,8 @@ func NewConnGater(peers []peer.ID, relays []Peer) (ConnGater, error) {
 	}
 
 	// Allow connections to/from relays.
-	for _, bootnode := range relays {
-		peerMap[bootnode.ID] = true
+	for _, relay := range relays {
+		peerMap[relay.ID] = true
 	}
 
 	return ConnGater{
