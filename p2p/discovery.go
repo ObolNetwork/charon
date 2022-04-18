@@ -16,14 +16,8 @@
 package p2p
 
 import (
-	"context"
 	"crypto/ecdsa"
-	"io"
 	"net"
-	"net/http"
-	"net/url"
-	"strings"
-	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -31,8 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 )
 
 // UDPNode wraps a discv5 udp node and adds the bootnodes relays.
@@ -42,63 +34,23 @@ type UDPNode struct {
 }
 
 // NewUDPNode starts and returns a discv5 UDP implementation.
-func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode, key *ecdsa.PrivateKey,
-	peers []Peer,
-) (UDPNode, error) {
-	// Setup bootnodes and relays
-	var (
-		bootnodes  []*enode.Node
-		bootRelays []Peer
-		err        error
-	)
-	for _, bootnode := range config.UDPBootnodes {
-		if strings.HasPrefix(bootnode, "http") {
-			// Query bootnode ENR via http, retry for 1min with 5sec backoff.
-			inner, cancel := context.WithTimeout(ctx, time.Minute)
-			bootnode, err = queryBootnodeENR(inner, bootnode, time.Second*5)
-			cancel()
-			if err != nil {
-				return UDPNode{}, err
-			}
-		}
-
-		peer, err := newRelayPeer(bootnode)
-		if err != nil {
-			return UDPNode{}, err
-		}
-
-		bootnodes = append(bootnodes, &peer.Enode)
-
-		if config.BootnodeRelay {
-			bootRelays = append(bootRelays, peer)
-		}
-	}
-
-	if config.UDPBootManifest {
-		for _, p := range peers {
-			if ln.ID() == p.Enode.ID() {
-				// Do not add local node as bootnode
-				continue
-			}
-			node := p.Enode // Copy loop variable
-			bootnodes = append(bootnodes, &node)
-		}
-	}
-
+func NewUDPNode(config Config, ln *enode.LocalNode,
+	key *ecdsa.PrivateKey, bootnodes []*enode.Node,
+) (*discover.UDPv5, error) {
 	// Setup discv5 udp listener.
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
-		return UDPNode{}, errors.Wrap(err, "resolve udp address")
+		return nil, errors.Wrap(err, "resolve udp address")
 	}
 
 	conn, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
-		return UDPNode{}, errors.Wrap(err, "parse udp address")
+		return nil, errors.Wrap(err, "parse udp address")
 	}
 
 	netlist, err := netutil.ParseNetlist(config.Allowlist)
 	if err != nil {
-		return UDPNode{}, errors.Wrap(err, "parse allow list")
+		return nil, errors.Wrap(err, "parse allow list")
 	}
 
 	node, err := discover.ListenV5(conn, ln, discover.Config{
@@ -107,59 +59,10 @@ func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode, key *ec
 		Bootnodes:   bootnodes,
 	})
 	if err != nil {
-		return UDPNode{}, errors.Wrap(err, "discv5 listen")
+		return nil, errors.Wrap(err, "discv5 listen")
 	}
 
-	return UDPNode{
-		UDPv5:  node,
-		Relays: bootRelays,
-	}, nil
-}
-
-// queryBootnodeENR returns the bootnode ENR via a http GET query to the url.
-//
-// This supports resolving bootnode ENR from known http URLs which is handy
-// when bootnodes are deployed in docker-compose or kubernetes
-//
-// It retries until the context is cancelled.
-func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Duration) (string, error) {
-	parsedURL, err := url.Parse(bootnodeURL)
-	if err != nil {
-		return "", errors.Wrap(err, "parse bootnode url")
-	} else if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return "", errors.New("invalid bootnode url")
-	}
-
-	var client http.Client
-	for ctx.Err() == nil {
-		req, err := http.NewRequestWithContext(ctx, "GET", bootnodeURL, nil)
-		if err != nil {
-			return "", errors.Wrap(err, "new request")
-		}
-
-		resp, err := client.Do(req)
-		if err != nil {
-			log.Warn(ctx, "Failure querying bootnode ENR, trying again in 5s...", z.Err(err))
-			time.Sleep(backoff)
-
-			continue
-		} else if resp.StatusCode/100 != 2 {
-			return "", errors.New("non-200 response querying bootnode ENR",
-				z.Int("status_code", resp.StatusCode))
-		}
-
-		b, err := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
-		if err != nil {
-			return "", errors.Wrap(err, "read response body")
-		}
-
-		log.Info(ctx, "Queried bootnode ENR", z.Str("url", bootnodeURL), z.Str("enr", string(b)))
-
-		return string(b), nil
-	}
-
-	return "", errors.Wrap(ctx.Err(), "timeout querying bootnode ENR")
+	return node, nil
 }
 
 // NewLocalEnode returns a local enode and a peer DB or an error.

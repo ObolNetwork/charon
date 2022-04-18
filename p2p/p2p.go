@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
@@ -28,7 +29,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/routing"
 	noise "github.com/libp2p/go-libp2p-noise"
-	p2pcfg "github.com/libp2p/go-libp2p/config"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -37,17 +37,9 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// EmptyAdvertisedAddrs defines a p2pcfg.AddrsFactory that does not advertise
-// addresses via libp2p, since we use discv5 for peer discovery.
-var EmptyAdvertisedAddrs = func([]ma.Multiaddr) []ma.Multiaddr { return nil }
-
-// DefaultAdvertisedAddrs defines the default p2pcfg.AddrsFactory that advertises
-// the bind addresses.
-var DefaultAdvertisedAddrs = func(addrs []ma.Multiaddr) []ma.Multiaddr { return addrs }
-
 // NewTCPNode returns a started tcp-based libp2p host.
 func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
-	udpNode UDPNode, peers []Peer, factory p2pcfg.AddrsFactory) (host.Host, error,
+	udpNode *discover.UDPv5, peers, relays []Peer) (host.Host, error,
 ) {
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
@@ -67,10 +59,12 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 		// Limit connections to DV peers.
 		libp2p.ConnectionGater(connGater),
 
-		libp2p.AddrsFactory(factory),
+		// Define p2pcfg.AddrsFactory that does not advertise
+		// addresses via libp2p, since we use discv5 for peer discovery.
+		libp2p.AddrsFactory(func([]ma.Multiaddr) []ma.Multiaddr { return nil }),
 
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
-			return logWrapRouting(adaptDiscRouting(udpNode, peers)), nil
+			return logWrapRouting(adaptDiscRouting(udpNode, peers, relays)), nil
 		}),
 	}
 
@@ -106,14 +100,14 @@ func logWrapRouting(fn peerRoutingFunc) peerRoutingFunc {
 }
 
 // adaptDiscRouting returns a function that adapts p2p routing requests to discv5 lookups.
-func adaptDiscRouting(udpNode UDPNode, peers []Peer) peerRoutingFunc {
+func adaptDiscRouting(udpNode *discover.UDPv5, peers, relays []Peer) peerRoutingFunc {
 	peerMap := make(map[peer.ID]enode.Node)
 	for _, p := range peers {
 		peerMap[p.ID] = p.Enode
 	}
 
-	for _, bootnode := range udpNode.Relays {
-		peerMap[bootnode.ID] = bootnode.Enode
+	for _, relay := range relays {
+		peerMap[relay.ID] = relay.Enode
 	}
 
 	return func(ctx context.Context, peerID peer.ID) (peer.AddrInfo, error) {
@@ -140,7 +134,7 @@ func adaptDiscRouting(udpNode UDPNode, peers []Peer) peerRoutingFunc {
 		}
 
 		// Add any circuit relays
-		for _, relay := range udpNode.Relays {
+		for _, relay := range relays {
 			if relay.Enode.TCP() == 0 {
 				continue
 			}

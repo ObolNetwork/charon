@@ -19,6 +19,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	circuit "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/client"
@@ -29,6 +30,28 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
+
+// NewRelays returns the libp2p circuit relays from bootnodes if enabled.
+func NewRelays(conf Config, bootnodes []*enode.Node) ([]Peer, error) {
+	if !conf.BootnodeRelay {
+		return nil, nil
+	} else if conf.UDPBootManifest {
+		// Relays not supported via manifest bootnodes yet.
+		return nil, nil
+	}
+
+	var resp []Peer
+	for _, bootnode := range bootnodes {
+		record := bootnode.Record()
+		p, err := NewPeer(*record, -1)
+		if err != nil {
+			return nil, err
+		}
+		resp = append(resp, p)
+	}
+
+	return resp, nil
+}
 
 // NewRelayReserver returns a life cycle hook function that continuously
 // reserves a relay circuit until the context is closed.

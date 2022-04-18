@@ -40,27 +40,6 @@ type Peer struct {
 	Index int
 }
 
-// newRelayPeer returns a new relay peer.
-func newRelayPeer(nodeAddr string) (Peer, error) {
-	node, err := enode.Parse(enode.V4ID{}, nodeAddr)
-	if err != nil {
-		return Peer{}, errors.Wrap(err, "invalid relay address")
-	}
-
-	p2pPubkey := libp2pcrypto.Secp256k1PublicKey(*node.Pubkey())
-	id, err := peer.IDFromPublicKey(&p2pPubkey)
-	if err != nil {
-		return Peer{}, errors.Wrap(err, "p2p id from pubkey")
-	}
-
-	return Peer{
-		ENR:   *node.Record(),
-		Enode: *node,
-		ID:    id,
-		Index: -1,
-	}, nil
-}
-
 // NewPeer returns a new charon peer.
 func NewPeer(record enr.Record, index int) (Peer, error) {
 	var pubkey enode.Secp256k1
