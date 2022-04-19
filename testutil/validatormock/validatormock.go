@@ -230,17 +230,20 @@ func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, s
 	signedBlock.Version = block.Version
 	switch block.Version {
 	case spec.DataVersionPhase0:
-		signedBlock.Phase0 = new(eth2p0.SignedBeaconBlock)
-		signedBlock.Phase0.Message = block.Phase0
-		signedBlock.Phase0.Signature = sig
+		signedBlock.Phase0 = &eth2p0.SignedBeaconBlock{
+			Message:   block.Phase0,
+			Signature: sig,
+		}
 	case spec.DataVersionAltair:
-		signedBlock.Altair = new(altair.SignedBeaconBlock)
-		signedBlock.Altair.Message = block.Altair
-		signedBlock.Altair.Signature = sig
+		signedBlock.Altair = &altair.SignedBeaconBlock{
+			Message:   block.Altair,
+			Signature: sig,
+		}
 	case spec.DataVersionBellatrix:
-		signedBlock.Bellatrix = new(bellatrix.SignedBeaconBlock)
-		signedBlock.Bellatrix.Message = block.Bellatrix
-		signedBlock.Bellatrix.Signature = sig
+		signedBlock.Bellatrix = &bellatrix.SignedBeaconBlock{
+			Message:   block.Bellatrix,
+			Signature: sig,
+		}
 	default:
 		return errors.New("invalid block")
 	}
@@ -307,6 +310,8 @@ type bellatrixBeaconBlockProposalJSON struct {
 	Data *bellatrix.BeaconBlock `json:"data"`
 }
 
+// beaconBlockProposal is used rather than go-eth2-client's BeaconBlockProposal to avoid the randao reveal check
+// refer: https://github.com/attestantio/go-eth2-client/blob/906db73739859de06f46dfa91384675ed9300af0/http/beaconblockproposal.go#L87
 func beaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte, addr string) (*spec.VersionedBeaconBlock, error) {
 	url := fmt.Sprintf("/eth/v2/validator/blocks/%d?randao_reveal=%#x&graffiti=%#x", slot, randaoReveal, graffiti)
 	respBodyReader, err := getBlock(url, addr)
