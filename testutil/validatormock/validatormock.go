@@ -188,12 +188,7 @@ func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, s
 		}
 
 		// Get Unsigned beacon block with given randao and slot
-		if addr == "" {
-			// For testing purposes assuming beaconmock is used in place of validatorapi
-			block, err = eth2Cl.BeaconBlockProposal(ctx, slot, randao, nil)
-		} else {
-			block, err = beaconBlockProposal(ctx, slot, randao, nil, addr)
-		}
+		block, err = beaconBlockProposal(ctx, slot, randao, nil, addr)
 		if err != nil {
 			return errors.Wrap(err, "vmock beacon block proposal")
 		}

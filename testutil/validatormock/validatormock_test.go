@@ -18,6 +18,8 @@ package validatormock_test
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -96,12 +98,10 @@ func TestAttest(t *testing.T) {
 
 func TestProposeBlock(t *testing.T) {
 	ctx := context.Background()
-	clock := clockwork.NewFakeClockAt(time.Date(2022, 0o3, 20, 0o1, 0, 0, 0, time.UTC))
 
 	// Configure beacon mock
 	valSet := beaconmock.ValidatorSetA
 	beaconMock, err := beaconmock.New(
-		beaconmock.WithClock(clock),
 		beaconmock.WithValidatorSet(valSet),
 		beaconmock.WithDeterministicProposerDuties(0),
 	)
@@ -115,11 +115,27 @@ func TestProposeBlock(t *testing.T) {
 		return sig, nil
 	}
 
-	// Get first slot in epoch 1
 	slotsPerEpoch, err := beaconMock.SlotsPerEpoch(ctx)
 	require.NoError(t, err)
 
+	block := testutil.RandomPhase0BeaconBlock()
+	block.Slot = eth2p0.Slot(slotsPerEpoch)
+
+	mockVAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		testResponse := []byte(`{"version":"phase0","data":`)
+		blockJSON, err := block.MarshalJSON()
+		require.NoError(t, err)
+
+		testResponse = append(testResponse, blockJSON...)
+		testResponse = append(testResponse, []byte(`}`)...)
+		require.NoError(t, err)
+
+		_, _ = w.Write(testResponse)
+	}))
+	defer mockVAPI.Close()
+
 	// Call propose block function
-	err = validatormock.ProposeBlock(ctx, beaconMock, signFunc, eth2p0.Slot(slotsPerEpoch), "", valSet.PublicKeys()...)
+	addr := mockVAPI.URL
+	err = validatormock.ProposeBlock(ctx, beaconMock, signFunc, eth2p0.Slot(slotsPerEpoch), addr, valSet.PublicKeys()...)
 	require.NoError(t, err)
 }
