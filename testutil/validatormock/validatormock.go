@@ -132,7 +132,6 @@ func Attest(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 }
 
 // ProposeBlock proposes block for the given slot.
-
 func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, slot eth2p0.Slot, addr string, pubkeys ...eth2p0.BLSPubKey) error {
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
