@@ -265,7 +265,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		// Configure the beacon mock.
 		opts := []beaconmock.Option{
 			beaconmock.WithSlotDuration(time.Second),
-			beaconmock.WithDeterministicDuties(100),
+			beaconmock.WithDeterministicAttesterDuties(100),
 			// TODO(dhruv): remove this when DutyProposer is in place
 			beaconmock.WithNoProposerDuties(),
 			beaconmock.WithValidatorSet(createMockValidators(pubkeys)),

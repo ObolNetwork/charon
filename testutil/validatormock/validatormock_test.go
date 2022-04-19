@@ -56,7 +56,7 @@ func TestAttest(t *testing.T) {
 			beaconMock, err := beaconmock.New(
 				beaconmock.WithClock(clock),
 				beaconmock.WithValidatorSet(valSet),
-				beaconmock.WithDeterministicDuties(test.DutyFactor),
+				beaconmock.WithDeterministicAttesterDuties(test.DutyFactor),
 			)
 			require.NoError(t, err)
 
@@ -92,4 +92,34 @@ func TestAttest(t *testing.T) {
 			testutil.RequireGoldenJSON(t, atts)
 		})
 	}
+}
+
+func TestProposeBlock(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClockAt(time.Date(2022, 0o3, 20, 0o1, 0, 0, 0, time.UTC))
+
+	// Configure beacon mock
+	valSet := beaconmock.ValidatorSetA
+	beaconMock, err := beaconmock.New(
+		beaconmock.WithClock(clock),
+		beaconmock.WithValidatorSet(valSet),
+		beaconmock.WithDeterministicProposerDuties(0),
+	)
+	require.NoError(t, err)
+
+	// Signature stub function
+	signFunc := func(ctx context.Context, key eth2p0.BLSPubKey, _ eth2p0.SigningData) (eth2p0.BLSSignature, error) {
+		var sig eth2p0.BLSSignature
+		copy(sig[:], key[:])
+
+		return sig, nil
+	}
+
+	// Get first slot in epoch 1
+	slotsPerEpoch, err := beaconMock.SlotsPerEpoch(ctx)
+	require.NoError(t, err)
+
+	// Call propose block function
+	err = validatormock.ProposeBlock(ctx, beaconMock, signFunc, eth2p0.Slot(slotsPerEpoch), "", valSet.PublicKeys()...)
+	require.NoError(t, err)
 }

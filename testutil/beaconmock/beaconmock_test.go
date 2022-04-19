@@ -33,7 +33,7 @@ import (
 func TestDeterministicDuties(t *testing.T) {
 	bmock, err := beaconmock.New(
 		beaconmock.WithValidatorSet(beaconmock.ValidatorSetA),
-		beaconmock.WithDeterministicDuties(1),
+		beaconmock.WithDeterministicAttesterDuties(1),
 	)
 	require.NoError(t, err)
 
