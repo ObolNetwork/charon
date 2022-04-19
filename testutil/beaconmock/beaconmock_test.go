@@ -30,7 +30,7 @@ import (
 
 //go:generate go test . -update
 
-func TestDeterministicDuties(t *testing.T) {
+func TestDeterministicAttesterDuties(t *testing.T) {
 	bmock, err := beaconmock.New(
 		beaconmock.WithValidatorSet(beaconmock.ValidatorSetA),
 		beaconmock.WithDeterministicAttesterDuties(1),
@@ -40,6 +40,18 @@ func TestDeterministicDuties(t *testing.T) {
 	attDuty, err := bmock.AttesterDuties(context.Background(), 1, []eth2p0.ValidatorIndex{2})
 	require.NoError(t, err)
 	testutil.RequireGoldenJSON(t, attDuty)
+}
+
+func TestDeterministicProposerDuties(t *testing.T) {
+	bmock, err := beaconmock.New(
+		beaconmock.WithValidatorSet(beaconmock.ValidatorSetA),
+		beaconmock.WithDeterministicProposerDuties(1),
+	)
+	require.NoError(t, err)
+
+	proDuty, err := bmock.ProposerDuties(context.Background(), 1, []eth2p0.ValidatorIndex{2})
+	require.NoError(t, err)
+	testutil.RequireGoldenJSON(t, proDuty)
 }
 
 func TestAttestationData(t *testing.T) {
