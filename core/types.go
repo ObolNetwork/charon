@@ -50,6 +50,7 @@ func (d DutyType) String() string {
 		DutyUnknown:  "unknown",
 		DutyAttester: "attester",
 		DutyProposer: "proposer",
+		DutyRandao:   "randao",
 	}[d]
 }
 
