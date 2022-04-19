@@ -212,9 +212,9 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 	}
 }
 
-// WithDeterministicDuties configures the mock to provide deterministic duties based on provided arguments and config.
+// WithDeterministicAttesterDuties configures the mock to provide deterministic duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
-func WithDeterministicDuties(factor int) Option {
+func WithDeterministicAttesterDuties(factor int) Option {
 	return func(mock *Mock) {
 		mock.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			vals, err := mock.Validators(ctx, "", indices)
@@ -253,7 +253,13 @@ func WithDeterministicDuties(factor int) Option {
 
 			return resp, nil
 		}
+	}
+}
 
+// WithDeterministicProposerDuties configures the mock to provide deterministic duties based on provided arguments and config.
+// Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
+func WithDeterministicProposerDuties(factor int) Option {
+	return func(mock *Mock) {
 		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			vals, err := mock.Validators(ctx, "", indices)
 			if err != nil {
@@ -283,6 +289,11 @@ func WithDeterministicDuties(factor int) Option {
 					Slot:           eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(offset)),
 					ValidatorIndex: index,
 				})
+
+				// there can be only one proposer per slot, in this case it would be the first validator who will propose
+				if factor == 0 {
+					break
+				}
 			}
 
 			return resp, nil
@@ -375,6 +386,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 				)
 			}
 
+			return nil
+		},
+		SubmitBeaconBlockFunc: func(context.Context, *spec.VersionedSignedBeaconBlock) error {
 			return nil
 		},
 		GenesisTimeFunc: func(ctx context.Context) (time.Time, error) {
