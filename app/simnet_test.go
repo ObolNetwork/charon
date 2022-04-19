@@ -53,17 +53,20 @@ func TestSimnetNoNetwork_TekuVC(t *testing.T) {
 		t.Skip("Skipping Teku integration test")
 	}
 
-	args := newSimnetArgs(t, false)
+	args := newSimnetArgs(t)
+	args.Proposer = false // proposer flow is not supported for this integration test
 	args = startTeku(t, args, 0)
 	testSimnet(t, args)
 }
 
 func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
-	testSimnet(t, newSimnetArgs(t, true))
+	args := newSimnetArgs(t)
+	args.Proposer = true
+	testSimnet(t, args)
 }
 
 func TestSimnetNoNetwork_WithoutProposerMockVCs(t *testing.T) {
-	testSimnet(t, newSimnetArgs(t, false))
+	testSimnet(t, newSimnetArgs(t))
 }
 
 type simnetArgs struct {
@@ -78,7 +81,7 @@ type simnetArgs struct {
 }
 
 // newSimnetArgs defines the default simnet test args.
-func newSimnetArgs(t *testing.T, proposer bool) simnetArgs {
+func newSimnetArgs(t *testing.T) simnetArgs {
 	t.Helper()
 
 	const n = 3
@@ -107,7 +110,6 @@ func newSimnetArgs(t *testing.T, proposer bool) simnetArgs {
 		P2PKeys:    p2pKeys,
 		SimnetKeys: secrets,
 		Manifest:   manifest,
-		Proposer:   proposer,
 		ErrChan:    make(chan error, 1),
 	}
 }
@@ -132,6 +134,12 @@ func testSimnet(t *testing.T, args simnetArgs) {
 		results = make(chan simResult)
 	)
 	for i := 0; i < args.N; i++ {
+		beaconmockOpts := []beaconmock.Option{
+			beaconmock.WithSlotsPerEpoch(1),
+		}
+		if args.Proposer {
+			beaconmockOpts = append(beaconmockOpts, beaconmock.WithDeterministicProposerDuties(100))
+		}
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
 			SimnetBMock:      true,
@@ -145,14 +153,11 @@ func testSimnet(t *testing.T, args simnetArgs) {
 				SimnetKeys:         []*bls_sig.SecretKey{args.SimnetKeys[i]},
 				ParSigExFunc:       parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
-				Proposer:           args.Proposer,
 				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.AggSignedData) error {
 					results <- simResult{Duty: duty, Pubkey: key, Data: data}
 					return nil
 				},
-				SimnetBMockOpts: []beaconmock.Option{
-					beaconmock.WithSlotsPerEpoch(1),
-				},
+				SimnetBMockOpts: beaconmockOpts,
 			},
 			P2P: p2p.Config{},
 		}

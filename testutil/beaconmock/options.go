@@ -81,8 +81,8 @@ func (s ValidatorSet) PublicKeys() []eth2p0.BLSPubKey {
 
 // ValidatorSetA defines a set 3 validators.
 var ValidatorSetA = ValidatorSet{
-	1: {
-		Index:   1,
+	0: {
+		Index:   0,
 		Balance: 1,
 		Status:  eth2v1.ValidatorStateActiveOngoing,
 		Validator: &eth2p0.Validator{
@@ -92,8 +92,8 @@ var ValidatorSetA = ValidatorSet{
 			ActivationEpoch:            2,
 		},
 	},
-	2: {
-		Index:   2,
+	1: {
+		Index:   1,
 		Balance: 2,
 		Status:  eth2v1.ValidatorStateActiveOngoing,
 		Validator: &eth2p0.Validator{
@@ -103,8 +103,8 @@ var ValidatorSetA = ValidatorSet{
 			ActivationEpoch:            3,
 		},
 	},
-	3: {
-		Index:   3,
+	2: {
+		Index:   2,
 		Balance: 3,
 		Status:  eth2v1.ValidatorStateActiveOngoing,
 		Validator: &eth2p0.Validator{

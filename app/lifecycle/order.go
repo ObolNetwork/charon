@@ -41,7 +41,7 @@ const (
 	StopP2PTCPNode
 	StopP2PUDPNode
 	StopMonitoringAPI
-	StopRetryer
 	StopBeaconMock // Need to close this before validator API, since it can hold long lived connections.
 	StopValidatorAPI
+	StopRetryer
 )

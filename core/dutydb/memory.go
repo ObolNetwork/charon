@@ -65,7 +65,6 @@ func (db *MemDB) Store(ctx context.Context, duty core.Duty, unsignedSet core.Uns
 				return err
 			}
 		}
-		log.Debug(ctx, "proposer data stored successfully")
 		db.resolveProQueriesUnsafe()
 	case core.DutyAttester:
 		for pubkey, unsignedData := range unsignedSet {

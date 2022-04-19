@@ -29,14 +29,14 @@ func _() {
 	_ = x[StopP2PTCPNode-11]
 	_ = x[StopP2PUDPNode-12]
 	_ = x[StopMonitoringAPI-13]
-	_ = x[StopRetryer-14]
-	_ = x[StopBeaconMock-15]
-	_ = x[StopValidatorAPI-16]
+	_ = x[StopBeaconMock-14]
+	_ = x[StopValidatorAPI-15]
+	_ = x[StopRetryer-16]
 }
 
-const _OrderStop_name = "TracingSchedulerP2PPeerDBP2PTCPNodeP2PUDPNodeMonitoringAPIRetryerBeaconMockValidatorAPI"
+const _OrderStop_name = "TracingSchedulerP2PPeerDBP2PTCPNodeP2PUDPNodeMonitoringAPIBeaconMockValidatorAPIRetryer"
 
-var _OrderStop_index = [...]uint8{0, 7, 16, 25, 35, 45, 58, 65, 75, 87}
+var _OrderStop_index = [...]uint8{0, 7, 16, 25, 35, 45, 58, 68, 80, 87}
 
 func (i OrderStop) String() string {
 	i -= 8

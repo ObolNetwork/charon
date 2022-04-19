@@ -254,7 +254,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 
 	// resolve proposer duties
 	{
-		proDuties, err := s.eth2Cl.ProposerDuties(ctx, slot.Epoch(), vals.Indexes())
+		proDuties, err := s.eth2Cl.ProposerDuties(ctx, slot.Epoch(), nil)
 		if err != nil {
 			return err
 		}

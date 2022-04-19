@@ -366,28 +366,28 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 				return 0, errors.New("no phase0 block")
 			}
 
-			return proposeBlockResponsePhase0{
-				Version: "PHASE0",
-				Data:    block.Phase0,
-			}, nil
+			res := new(proposeBlockResponsePhase0)
+			res.Init(block.Phase0)
+
+			return *res, nil
 		case spec.DataVersionAltair:
 			if block.Altair == nil {
 				return 0, errors.New("no altair block")
 			}
 
-			return proposeBlockResponseAltair{
-				Version: "ALTAIR",
-				Data:    block.Altair,
-			}, nil
+			res := new(proposeBlockResponseAltair)
+			res.Init(block.Altair)
+
+			return *res, nil
 		case spec.DataVersionBellatrix:
 			if block.Bellatrix == nil {
 				return 0, errors.New("no bellatrix block")
 			}
 
-			return proposeBlockResponseBellatrix{
-				Version: "BELLATRIX",
-				Data:    block.Bellatrix,
-			}, nil
+			res := new(proposeBlockResponseBellatrix)
+			res.Init(block.Bellatrix)
+
+			return *res, nil
 		default:
 			return 0, errors.New("invalid block")
 		}

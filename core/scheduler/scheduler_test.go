@@ -25,7 +25,6 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -206,17 +205,6 @@ func TestSchedulerDuties(t *testing.T) {
 				beaconmock.WithDeterministicProposerDuties(test.Factor),
 			)
 			require.NoError(t, err)
-
-			// Wrap ProposerDuties to returns some errors
-			origFunc := eth2Cl.ProposerDutiesFunc
-			eth2Cl.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-				if test.PropErrs > 0 {
-					test.PropErrs--
-					return nil, errors.New("test error")
-				}
-
-				return origFunc(ctx, epoch, indices)
-			}
 
 			// Get pubkeys for validators to schedule
 			pubkeys, err := valSet.CorePubKeys()

@@ -97,8 +97,6 @@ type TestConfig struct {
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.AggSignedData) error
-	// Proposer is boolean flag to enable/disable block proposer flow
-	Proposer bool
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -261,9 +259,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			beaconmock.WithSlotDuration(time.Second),
 			beaconmock.WithDeterministicAttesterDuties(100),
 			beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
-		}
-		if conf.TestConfig.Proposer {
-			opts = append(opts, beaconmock.WithDeterministicProposerDuties(100))
 		}
 		opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
 		bmock, err := beaconmock.New(opts...)
@@ -457,8 +452,7 @@ func (h httpServeHook) Call(context.Context) error {
 	return nil
 }
 
-// wireValidatorMock wires the validator mock if enabled. The validator mock attestations
-// will be triggered by scheduler's DutyAttester. It connects via http validatorapi.Router.
+// wireValidatorMock wires the validator mock if enabled. It connects via http validatorapi.Router.
 func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
 	if !conf.SimnetBMock || !conf.SimnetVMock {
 		return nil
@@ -489,29 +483,33 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 				log.Warn(ctx, "Cannot connect to validatorapi", z.Err(err))
 				return
 			}
-
-			switch duty.Type {
-			case core.DutyAttester:
-				err = validatormock.Attest(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), pubshares...)
-				if err != nil {
-					log.Warn(ctx, "Attestation failed", z.Err(err))
-				} else {
-					log.Info(ctx, "Attestation success", z.I64("slot", duty.Slot))
-				}
-			case core.DutyProposer:
-				err = validatormock.ProposeBlock(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), addr)
-				if err != nil {
-					log.Warn(ctx, "Failed to propose block", z.Err(err))
-				} else {
-					log.Info(ctx, "Block proposed successfully", z.I64("slot", duty.Slot))
-				}
-			default:
-				log.Warn(ctx, "Invalid duty type")
-			}
+			callValidatorMock(ctx, duty, cl, signer, pubshares, addr)
 		}()
 
 		return nil
 	})
 
 	return nil
+}
+
+// callValidatorMock calls appropriate validatormock function to attestation and block proposal.
+func callValidatorMock(ctx context.Context, duty core.Duty, cl eth2client.Service, signer validatormock.SignFunc, pubshares []eth2p0.BLSPubKey, addr string) {
+	switch duty.Type {
+	case core.DutyAttester:
+		err := validatormock.Attest(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), pubshares...)
+		if err != nil {
+			log.Warn(ctx, "Attestation failed", z.Err(err))
+		} else {
+			log.Info(ctx, "Attestation success", z.I64("slot", duty.Slot))
+		}
+	case core.DutyProposer:
+		err := validatormock.ProposeBlock(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), addr)
+		if err != nil {
+			log.Warn(ctx, "Failed to propose block", z.Err(err))
+		} else {
+			log.Info(ctx, "Block proposed successfully", z.I64("slot", duty.Slot))
+		}
+	default:
+		log.Warn(ctx, "Invalid duty type")
+	}
 }

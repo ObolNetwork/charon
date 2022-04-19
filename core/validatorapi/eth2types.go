@@ -84,19 +84,40 @@ type proposerDutiesResponse struct {
 	Data          []*eth2v1.ProposerDuty `json:"data"`
 }
 
+// proposeBlockResponsePhase0 defines the phase0 Version response to the proposeBlock endpoint
+// see https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV2
 type proposeBlockResponsePhase0 struct {
 	Version string              `json:"version"`
 	Data    *eth2p0.BeaconBlock `json:"data"`
 }
 
+func (p *proposeBlockResponsePhase0) Init(data *eth2p0.BeaconBlock) {
+	p.Version = "PHASE0"
+	p.Data = data
+}
+
+// proposeBlockResponseAltair defines the altair Version response to the proposeBlock endpoint
+// see https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV2
 type proposeBlockResponseAltair struct {
 	Version string              `json:"version"`
 	Data    *altair.BeaconBlock `json:"data"`
 }
 
+func (p *proposeBlockResponseAltair) Init(data *altair.BeaconBlock) {
+	p.Version = "ALTAIR"
+	p.Data = data
+}
+
+// proposeBlockResponseBellatrix defines the phase0 Version response to the proposeBlock endpoint
+// see https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV2
 type proposeBlockResponseBellatrix struct {
 	Version string                 `json:"version"`
 	Data    *bellatrix.BeaconBlock `json:"data"`
+}
+
+func (p *proposeBlockResponseBellatrix) Init(data *bellatrix.BeaconBlock) {
+	p.Version = "BELLATRIX"
+	p.Data = data
 }
 
 type validatorsResponse struct {

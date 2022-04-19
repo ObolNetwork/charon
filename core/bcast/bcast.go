@@ -72,6 +72,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 
 		return b.eth2Cl.SubmitBeaconBlock(ctx, block)
 	case core.DutyRandao:
+		// Randao is an internal duty, not broadcasted to beacon chain
 		return nil
 	default:
 		return errors.New("unsupported duty type")
