@@ -70,7 +70,6 @@ func TestPingCluster(t *testing.T) {
 	// Nodes bind to random 0.0.0.0 ports (but use 127.0.0.1 as external IP), with only single bootnode.
 	// Discv5 will resolve peers via bootnode and external IP.
 	t.Run("external_ip", func(t *testing.T) {
-
 		pingCluster(t, pingTest{
 			ExternalIP:   "127.0.0.1",
 			BindZeroIP:   true,

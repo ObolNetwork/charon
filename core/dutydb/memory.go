@@ -25,7 +25,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
@@ -51,11 +50,9 @@ type MemDB struct {
 }
 
 // Store implements core.DutyDB, see its godoc.
-func (db *MemDB) Store(ctx context.Context, duty core.Duty, unsignedSet core.UnsignedDataSet) error {
+func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.UnsignedDataSet) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-
-	ctx = log.WithTopic(ctx, "dutydb")
 
 	switch duty.Type {
 	case core.DutyProposer:
