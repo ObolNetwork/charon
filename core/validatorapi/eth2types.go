@@ -22,7 +22,6 @@ import (
 	"strconv"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -86,17 +85,17 @@ type proposerDutiesResponse struct {
 }
 
 type proposeBlockResponsePhase0 struct {
-	Version spec.DataVersion    `json:"version"`
+	Version string              `json:"version"`
 	Data    *eth2p0.BeaconBlock `json:"data"`
 }
 
 type proposeBlockResponseAltair struct {
-	Version spec.DataVersion    `json:"version"`
+	Version string              `json:"version"`
 	Data    *altair.BeaconBlock `json:"data"`
 }
 
 type proposeBlockResponseBellatrix struct {
-	Version spec.DataVersion       `json:"version"`
+	Version string                 `json:"version"`
 	Data    *bellatrix.BeaconBlock `json:"data"`
 }
 

@@ -17,6 +17,7 @@ package validatorapi_test
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"sync"
 	"testing"
@@ -611,4 +612,44 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 			require.ErrorContains(t, err, test.errMsg)
 		})
 	}
+}
+
+func TestComponent_ProposerDuties(t *testing.T) {
+	ctx := context.Background()
+
+	// Configure validator
+	const vIdx = 1
+
+	tss, _, err := tbls.GenerateTSS(3, 4, rand.Reader)
+	require.NoError(t, err)
+
+	// Create keys (just use normal keys, not split tbls)
+	pubkey := tss.PublicKey()
+	pubshare, err := tss.PublicShare(vIdx)
+	require.NoError(t, err)
+
+	eth2Share, err := tblsconv.KeyToETH2(pubshare)
+	require.NoError(t, err)
+
+	validator := beaconmock.ValidatorSetA[vIdx]
+	validator.Validator.PublicKey, err = tblsconv.KeyToETH2(pubkey)
+	require.NoError(t, err)
+
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubshare} // Maps self to self since not tbls
+
+	// Configure beacon mock
+	bmock, err := beaconmock.New(
+		beaconmock.WithValidatorSet(beaconmock.ValidatorSet{vIdx: validator}),
+		beaconmock.WithDeterministicProposerDuties(0), // All duties in first slot of epoch.
+	)
+	require.NoError(t, err)
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
+	require.NoError(t, err)
+
+	duties, err := vapi.ProposerDuties(ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
+	require.NoError(t, err)
+	require.Len(t, duties, 1)
+	require.Equal(t, duties[0].PubKey, eth2Share)
 }

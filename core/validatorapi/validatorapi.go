@@ -37,7 +37,10 @@ import (
 
 type eth2Provider interface {
 	eth2client.AttesterDutiesProvider
+	eth2client.BeaconBlockProposalProvider
+	eth2client.BeaconBlockSubmitter
 	eth2client.DomainProvider
+	eth2client.ProposerDutiesProvider
 	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
 	eth2client.ValidatorsProvider
@@ -150,8 +153,22 @@ type Component struct {
 	parSigDBFuncs   []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
-func (*Component) ProposerDuties(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-	return []*eth2v1.ProposerDuty{}, nil // No proposer duties for now.
+func (c *Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+	duties, err := c.eth2Cl.ProposerDuties(ctx, epoch, validatorIndices)
+	if err != nil {
+		return nil, err
+	}
+
+	// Replace root public keys with public shares
+	for i := 0; i < len(duties); i++ {
+		pubshare, err := c.getPubShareFunc(duties[i].PubKey)
+		if err != nil {
+			return nil, err
+		}
+		duties[i].PubKey = pubshare
+	}
+
+	return duties, nil
 }
 
 // RegisterAwaitAttestation registers a function to query attestation data.
