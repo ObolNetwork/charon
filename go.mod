@@ -16,7 +16,7 @@ require (
 	github.com/jonboulle/clockwork v0.2.3
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/libp2p/go-libp2p v0.18.0
-	github.com/libp2p/go-libp2p-core v0.15.0
+	github.com/libp2p/go-libp2p-core v0.15.1
 	github.com/libp2p/go-libp2p-noise v0.3.0
 	github.com/multiformats/go-multiaddr v0.5.0
 	github.com/prometheus/client_golang v1.12.1
