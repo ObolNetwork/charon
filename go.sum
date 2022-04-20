@@ -632,8 +632,9 @@ github.com/libp2p/go-libp2p-mplex v0.6.0 h1:5ubK4/vLE2JkogKlJ2JLeXcSfA6qY6mE2HMJ
 github.com/libp2p/go-libp2p-mplex v0.6.0/go.mod h1:i3usuPrBbh9FD2fLZjGpotyNkwr42KStYZQY7BeTiu4=
 github.com/libp2p/go-libp2p-nat v0.1.0 h1:vigUi2MEN+fwghe5ijpScxtbbDz+L/6y8XwlzYOJgSY=
 github.com/libp2p/go-libp2p-nat v0.1.0/go.mod h1:DQzAG+QbDYjN1/C3B6vXucLtz3u9rEonLVPtZVzQqks=
-github.com/libp2p/go-libp2p-noise v0.3.0 h1:NCVH7evhVt9njbTQshzT7N1S3Q6fjj9M11FCgfH5+cA=
 github.com/libp2p/go-libp2p-noise v0.3.0/go.mod h1:JNjHbociDJKHD64KTkzGnzqJ0FEV5gHJa6AB00kbCNQ=
+github.com/libp2p/go-libp2p-noise v0.4.0 h1:khcMsGhHNdGqKE5LDLrnHwZvdGVMsrnD4GTkTWkwmLU=
+github.com/libp2p/go-libp2p-noise v0.4.0/go.mod h1:BzzY5pyzCYSyJbQy9oD8z5oP2idsafjt4/X42h9DjZU=
 github.com/libp2p/go-libp2p-peerstore v0.4.0/go.mod h1:rDJUFyzEWPpXpEwywkcTYYzDHlwza8riYMaUzaN6hX0=
 github.com/libp2p/go-libp2p-peerstore v0.6.0 h1:HJminhQSGISBIRb93N6WK3t6Fa8OOTnHd/VBjL4mY5A=
 github.com/libp2p/go-libp2p-peerstore v0.6.0/go.mod h1:DGEmKdXrcYpK9Jha3sS7MhqYdInxJy84bIPtSu65bKc=
