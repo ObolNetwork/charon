@@ -33,8 +33,10 @@ import (
 // joinKeyCast returns the output for a keycast participant identified by the libp2p peer ID.
 //nolint:deadcode // Will be tested and wired in subsequent PRs.
 func joinKeyCast(ctx context.Context, tcpNode host.Host) (output, error) {
-	outCh := make(chan output, 1)
-	errCh := make(chan error, 1)
+	var (
+		outCh = make(chan output, 1)
+		errCh = make(chan error, 1)
+	)
 	tcpNode.SetStreamHandler(protocol, func(s network.Stream) {
 		defer s.Close()
 
