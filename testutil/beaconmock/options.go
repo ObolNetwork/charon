@@ -261,6 +261,10 @@ func WithDeterministicAttesterDuties(factor int) Option {
 func WithDeterministicProposerDuties(factor int) Option {
 	return func(mock *Mock) {
 		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			if indices == nil || len(indices) == 0 {
+				indices = []eth2p0.ValidatorIndex{0}
+			}
+
 			vals, err := mock.Validators(ctx, "", indices)
 			if err != nil {
 				return nil, err
@@ -304,7 +308,16 @@ func WithDeterministicProposerDuties(factor int) Option {
 // WithNoProposerDuties configures the mock to override ProposerDutiesFunc to return nothing.
 func WithNoProposerDuties() Option {
 	return func(mock *Mock) {
-		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		mock.ProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			return nil, nil
+		}
+	}
+}
+
+// WithNoAttesterDuties configures the mock to override AttesterDutiesFunc to return nothing.
+func WithNoAttesterDuties() Option {
+	return func(mock *Mock) {
+		mock.AttesterDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return nil, nil
 		}
 	}
@@ -388,7 +401,13 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 
 			return nil
 		},
-		SubmitBeaconBlockFunc: func(context.Context, *spec.VersionedSignedBeaconBlock) error {
+		SubmitBeaconBlockFunc: func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+			slot, err := block.Slot()
+			if err != nil {
+				return err
+			}
+
+			log.Info(ctx, "Block submitted to beacon node", z.U64("slot", uint64(slot)))
 			return nil
 		},
 		GenesisTimeFunc: func(ctx context.Context) (time.Time, error) {

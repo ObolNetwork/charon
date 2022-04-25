@@ -55,11 +55,15 @@ func TestSimnetNoNetwork_TekuVC(t *testing.T) {
 
 	args := newSimnetArgs(t)
 	args = startTeku(t, args, 0)
-	testSimnet(t, args)
+	testSimnet(t, args, false)
+}
+
+func TestSimnetNoNetwork_WithOnlyProposerMockVCs(t *testing.T) {
+	testSimnet(t, newSimnetArgs(t), true)
 }
 
 func TestSimnetNoNetwork_MockVCs(t *testing.T) {
-	testSimnet(t, newSimnetArgs(t))
+	testSimnet(t, newSimnetArgs(t), false)
 }
 
 type simnetArgs struct {
@@ -108,7 +112,7 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 
 // testSimnet spins of a simnet cluster or N charon nodes connected via in-memory transports.
 // It asserts successful end-2-end attestation broadcast from all nodes for 2 slots.
-func testSimnet(t *testing.T, args simnetArgs) {
+func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -148,6 +152,12 @@ func testSimnet(t *testing.T, args simnetArgs) {
 				},
 			},
 			P2P: p2p.Config{},
+		}
+
+		if propose {
+			conf.TestConfig.SimnetBMockOpts = append(conf.TestConfig.SimnetBMockOpts, beaconmock.WithNoAttesterDuties())
+		} else {
+			conf.TestConfig.SimnetBMockOpts = append(conf.TestConfig.SimnetBMockOpts, beaconmock.WithNoProposerDuties())
 		}
 
 		eg.Go(func() error {
