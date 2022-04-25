@@ -576,8 +576,9 @@ func StitchFlow(
   cons     Consensus,
   dutyDB   DutyDB,
   vapi     ValidatorAPI,
-  sigDB    SigDB,
-  sigEx    SigEx,
+  signer   Signer,
+  parSigDB ParSigDB,
+  parSigEx ParSigEx,
   sigAgg   SigAgg,
   aggSigDB AggSigDB,
   bcast    Broadcaster,
@@ -587,10 +588,12 @@ func StitchFlow(
   fetch.RegisterAgg(aggSigDB.Get)
   cons.Subscribe(dutyDB.Store)
   vapi.RegisterSource(dutyDB.Await)
-  vapi.Subscribe(sigDB.StoreInternal)
-  sigDB.SubscribeInternal(sigEx.Broadcast)
-  sigEx.Subscribe(sigDB.StoreExternal)
-  sigDB.SubscribeThreshold(sigAgg.Aggregate)
+  vapi.Subscribe(parSigDB.StoreInternal)
+  cons.Subscribe(signer.Sign)
+  signer.Subscribe(parSigDB.StoreInternal)
+  parSigDB.SubscribeInternal(parSigEx.Broadcast)
+  parSigEx.Subscribe(parSigDB.StoreExternal)
+  parSigDB.SubscribeThreshold(sigAgg.Aggregate)
   sigAgg.Subscribe(aggSigDB.Store)
   sigAgg.Subscribe(bcast.Broadcast)
 }
