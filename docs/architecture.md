@@ -52,8 +52,8 @@ Charon core business logic is modelled as a workflow, with a duty being performe
 ```
 Core Workflow
 
-      Phases │ Components
-─────────────┴───────────────────────────
+      Phases │ Components                              │ External
+─────────────┴─────────────────────────────────────────┴──────────────────────
 
              │                ┌─────────┐
   *Schedule* │          ┌─────►Scheduler│
@@ -66,15 +66,15 @@ Core Workflow
         what │  |       |     ┌──▼──────┐
         data │  |       |     │Consensus│
           to │  |       |     └─*┌──────┘
-        sign │  |       |        │
-             │  |       |     ┌──▼───┐
-             │  |       |     │DutyDB│
-             │  |       |     └──▲───┘
-                |       |        │           │
-      *Sign* │  |       |     ┌──┴─┐         │
-        duty │  |       └----─┤VAPI◄─────────│── VC
-        data │  |             └──┬─┘         │ Query, sign, submit
-                |                │           │
+        sign │  |       |        ├────────────┐
+             │  |       |     ┌──▼───┐     ┌──▼───┐    │
+             │  |       |     │DutyDB│     │Signer├────│─► RS
+             │  |       |     └──▲───┘     └──┬───┘    │ Remote signer
+                |       |        │            │        │
+      *Sign* │  |       |     ┌──┴─┐          │        │
+        duty │  |       └----─┤VAPI◄───────────────────│── VC
+        data │  |             └──┬─┘          │        │ Query, sign, submit
+                |                ├────────────┘        │
      *Share* │  | ┌────────┐  ┌──▼─────┐
      partial │  | │ParSigEx◄──►ParSigDB│
         sigs │  | └─────*──┘  └──┬─────┘
@@ -391,6 +391,34 @@ type ValidatorAPI interface {
 }
 ```
 
+### Signer
+The signer provides support the alternative _Remote Signature_ architecture
+which authorises charon to request adhoc signatures from a [remote signer instance](https://lighthouse-book.sigmaprime.io/validator-web3signer.html).
+In the _middleware_ architecture charon cannot initiate signatures itself and has to
+wait for the VC to submit signatures.
+
+Duties originating in the `scheduler` (`DutyAttester`, `DutyProposer`) are not significantly affected by this change in architecture.
+Instead of waiting for the `validatorapi` to submit signatures, these duties directly request
+signatures from the remote signer instance. The flow is otherwise unaffected.
+
+Duties originating in the `validatorapi` (`DutyRandao`, `DutyAggregator`) has to refactored to
+originate in the `scheduler`, since charon is in full control of the duties in this architecture.
+
+The overall core workflow remains the same, `scheduler` just schedules all the duties.
+
+> 🏗️ TODO: Figure out if signer should query DutyDB for slashing, or if DutyDB should push to signer.
+
+```go
+// Signer signs unsigned duty data sets via one or more remote signer instances.
+type Signer interface {
+    // Sign signs the unsigned duty data set.
+    Sign(context.Context, Duty, UnsignedDataSet) error
+
+    // RegisterParSigDB registers a function to store partially signed data sets.
+    RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error))
+}
+```
+
 ### ParSigDB
 The partial signature database persists partial BLS threshold signatures received internally (from the local Charon node's VC(s))
 as well as externally (from other nodes in cluster).
@@ -548,8 +576,9 @@ func StitchFlow(
   cons     Consensus,
   dutyDB   DutyDB,
   vapi     ValidatorAPI,
-  sigDB    SigDB,
-  sigEx    SigEx,
+  signer   Signer,
+  parSigDB ParSigDB,
+  parSigEx ParSigEx,
   sigAgg   SigAgg,
   aggSigDB AggSigDB,
   bcast    Broadcaster,
@@ -559,10 +588,12 @@ func StitchFlow(
   fetch.RegisterAgg(aggSigDB.Get)
   cons.Subscribe(dutyDB.Store)
   vapi.RegisterSource(dutyDB.Await)
-  vapi.Subscribe(sigDB.StoreInternal)
-  sigDB.SubscribeInternal(sigEx.Broadcast)
-  sigEx.Subscribe(sigDB.StoreExternal)
-  sigDB.SubscribeThreshold(sigAgg.Aggregate)
+  vapi.Subscribe(parSigDB.StoreInternal)
+  cons.Subscribe(signer.Sign)
+  signer.Subscribe(parSigDB.StoreInternal)
+  parSigDB.SubscribeInternal(parSigEx.Broadcast)
+  parSigEx.Subscribe(parSigDB.StoreExternal)
+  parSigDB.SubscribeThreshold(sigAgg.Aggregate)
   sigAgg.Subscribe(aggSigDB.Store)
   sigAgg.Subscribe(bcast.Broadcast)
 }
