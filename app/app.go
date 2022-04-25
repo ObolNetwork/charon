@@ -266,8 +266,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		opts := []beaconmock.Option{
 			beaconmock.WithSlotDuration(time.Second),
 			beaconmock.WithDeterministicAttesterDuties(100),
-			// TODO(dhruv): remove this when DutyProposer is in place
-			beaconmock.WithNoProposerDuties(),
+			beaconmock.WithDeterministicProposerDuties(100),
 			beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
 		}
 		opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
@@ -482,10 +481,6 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 
 	// Trigger validatormock when scheduler triggers new slot.
 	sched.Subscribe(func(ctx context.Context, duty core.Duty, _ core.FetchArgSet) error {
-		if duty.Type != core.DutyAttester {
-			return nil
-		}
-
 		ctx = log.WithTopic(ctx, "vmock")
 		go func() {
 			addr := "http://" + conf.ValidatorAPIAddr
@@ -499,16 +494,33 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 				return
 			}
 
-			err = validatormock.Attest(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), pubshares...)
-			if err != nil {
-				log.Warn(ctx, "Attestation failed", z.Err(err))
-			} else {
-				log.Info(ctx, "Attestation success", z.I64("slot", duty.Slot))
-			}
+			callValidatorMock(ctx, duty, cl, signer, pubshares, addr)
 		}()
 
 		return nil
 	})
 
 	return nil
+}
+
+// callValidatorMock calls appropriate validatormock function to attestation and block proposal.
+func callValidatorMock(ctx context.Context, duty core.Duty, cl eth2client.Service, signer validatormock.SignFunc, pubshares []eth2p0.BLSPubKey, addr string) {
+	switch duty.Type {
+	case core.DutyAttester:
+		err := validatormock.Attest(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), pubshares...)
+		if err != nil {
+			log.Warn(ctx, "Attestation failed", z.Err(err))
+		} else {
+			log.Info(ctx, "Attestation success", z.I64("slot", duty.Slot))
+		}
+	case core.DutyProposer:
+		err := validatormock.ProposeBlock(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), addr, pubshares...)
+		if err != nil {
+			log.Warn(ctx, "Failed to propose block", z.Err(err))
+		} else {
+			log.Info(ctx, "Block proposed successfully", z.I64("slot", duty.Slot))
+		}
+	default:
+		log.Warn(ctx, "Invalid duty type")
+	}
 }
