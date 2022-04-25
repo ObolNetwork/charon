@@ -13,7 +13,7 @@ require (
 	github.com/ferranbt/fastssz v0.0.0-20220103083642-bc5fefefa28b
 	github.com/golang/protobuf v1.5.2
 	github.com/gorilla/mux v1.8.0
-	github.com/jonboulle/clockwork v0.2.3
+	github.com/jonboulle/clockwork v0.3.0
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/libp2p/go-libp2p v0.18.0
 	github.com/libp2p/go-libp2p-core v0.15.1
