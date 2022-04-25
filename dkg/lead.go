@@ -57,6 +57,7 @@ func Lead(ctx context.Context, conf LeadConfig) error {
 
 	var outs []output
 	for i := 0; i < conf.ClusterConfig.Validators; i++ {
+		// TODO(corver): DKG needs to distinguish between multiple validator rounds.
 		t := conf.ClusterConfig.Threshold
 		out, err := leadKeyCast(ctx, tcpNode, manifest.Peers, t, rand.Reader)
 		if err != nil {
