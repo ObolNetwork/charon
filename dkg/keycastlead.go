@@ -53,7 +53,7 @@ type msg struct {
 
 // leadKeyCast generates a new key pair, splits it into shares, and broadcasts one to each participant.
 // It returns the leaders output.
-//nolint:deadcode // Will be tested and wired in subsequent PRs.
+
 func leadKeyCast(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, t int, r io.Reader) (output, error) {
 	pubkey, secret, err := tbls.Keygen()
 	if err != nil {
