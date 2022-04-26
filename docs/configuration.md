@@ -17,7 +17,7 @@ The `charon create cluster` command combines both steps into one and just output
 The schema of the `cluster.json` is defined as:
 ```json
 {
-  "version": "1.0.0",                   // Schema version
+  "version": "v1.0.0",                   // Schema version
   "num_validators": 100,                // Number of validators to create in cluster.lock
   "threshold": 3,                       // Optional threshold required for signature reconstruction
   "uuid": "1234-abcdef-1234-abcdef",    // Random unique identifier
