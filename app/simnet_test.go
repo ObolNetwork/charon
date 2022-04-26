@@ -62,15 +62,6 @@ func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
 	testSimnet(t, newSimnetArgs(t), true)
 }
 
-func TestMultipleProposers(t *testing.T) {
-	// This test runs TestSimnetNoNetwork_WithProposerMockVCs for multiple iterations to catch the flappy one
-	for i := 0; i < 100; i++ {
-		t.Run("", func(t *testing.T) {
-			testSimnet(t, newSimnetArgs(t), true)
-		})
-	}
-}
-
 func TestSimnetNoNetwork_WithOnlyAttesterMockVCs(t *testing.T) {
 	testSimnet(t, newSimnetArgs(t), false)
 }
