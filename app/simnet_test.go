@@ -58,11 +58,11 @@ func TestSimnetNoNetwork_TekuVC(t *testing.T) {
 	testSimnet(t, args, false)
 }
 
-func TestSimnetNoNetwork_WithOnlyProposerMockVCs(t *testing.T) {
+func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
 	testSimnet(t, newSimnetArgs(t), true)
 }
 
-func TestSimnetNoNetwork_MockVCs(t *testing.T) {
+func TestSimnetNoNetwork_WithOnlyAttesterMockVCs(t *testing.T) {
 	testSimnet(t, newSimnetArgs(t), false)
 }
 
@@ -144,6 +144,9 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 				ParSigExFunc:       parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
 				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.AggSignedData) error {
+					if duty.Type == core.DutyRandao {
+						return nil
+					}
 					results <- simResult{Duty: duty, Pubkey: key, Data: data}
 					return nil
 				},
@@ -155,9 +158,8 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 		}
 
 		if propose {
+			conf.TestConfig.SimnetBMockOpts = append(conf.TestConfig.SimnetBMockOpts, beaconmock.WithDeterministicProposerDuties(100))
 			conf.TestConfig.SimnetBMockOpts = append(conf.TestConfig.SimnetBMockOpts, beaconmock.WithNoAttesterDuties())
-		} else {
-			conf.TestConfig.SimnetBMockOpts = append(conf.TestConfig.SimnetBMockOpts, beaconmock.WithNoProposerDuties())
 		}
 
 		eg.Go(func() error {
