@@ -133,6 +133,7 @@ func verifyBody(body string) error {
 		prevLineEmpty bool
 		foundCategory bool
 		foundTicket   bool
+		foundFeature  bool
 	)
 	for i, line := range strings.Split(body, "\n") {
 		if i == 0 && strings.TrimSpace(line) == "" {
@@ -202,6 +203,31 @@ func verifyBody(body string) error {
 			}
 
 			foundTicket = true
+		}
+
+		const featureTag = "feature_set:"
+		if strings.HasPrefix(line, featureTag) {
+			if foundFeature {
+				return errors.New("multiple ticket tag lines")
+			}
+
+			set := strings.TrimSpace(strings.TrimPrefix(line, featureTag))
+
+			if set == "" {
+				return errors.New("feature_set tag empty")
+			}
+
+			sets := map[string]bool{
+				"alpha":  true,
+				"beta":   true,
+				"stable": true,
+			}
+
+			if !sets[set] {
+				return errors.New("invalid feature_set tag not one of: alpha, beta, stable")
+			}
+
+			foundFeature = true
 		}
 
 		prevLineEmpty = strings.TrimSpace(line) == ""
