@@ -37,6 +37,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/retry"
@@ -64,6 +65,7 @@ import (
 type Config struct {
 	P2P              p2p.Config
 	Log              log.Config
+	Feature          featureset.Config
 	ManifestFile     string
 	DataDir          string
 	MonitoringAddr   string
@@ -113,6 +115,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	_, _ = maxprocs.Set()
 	initStartupMetrics()
 	if err := log.InitLogger(conf.Log); err != nil {
+		return err
+	}
+
+	if err := featureset.Init(ctx, conf.Feature); err != nil {
 		return err
 	}
 
