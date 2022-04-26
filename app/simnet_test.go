@@ -65,7 +65,7 @@ func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
 func TestMultipleProposers(t *testing.T) {
 	t.Skip("Skipping this test to bypass pre-commit hook")
 	// This test runs TestSimnetNoNetwork_WithProposerMockVCs for multiple iterations to catch the flappy one
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 100; i++ {
 		t.Run("", func(t *testing.T) {
 			testSimnet(t, newSimnetArgs(t), true)
 		})
@@ -166,6 +166,8 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 
 		if !propose {
 			conf.TestConfig.SimnetBMockOpts = append(conf.TestConfig.SimnetBMockOpts, beaconmock.WithNoProposerDuties())
+		} else {
+			conf.TestConfig.SimnetBMockOpts = append(conf.TestConfig.SimnetBMockOpts, beaconmock.WithNoAttesterDuties())
 		}
 
 		eg.Go(func() error {
