@@ -33,11 +33,11 @@ const (
 
 // Config configures the feature set package.
 type Config struct {
-	// MinStatus defines the minimum enabled phase.
+	// MinStatus defines the minimum enabled status.
 	MinStatus string
-	// Enabled overrides defaults and enables a list of features.
+	// Enabled overrides min status and enables a list of features.
 	Enabled []string
-	// Disabled overrides defaults and disables a list of features.
+	// Disabled overrides min status and disables a list of features.
 	Disabled []string
 }
 
@@ -45,8 +45,6 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		MinStatus: statusStable.String(),
-		Enabled:   nil,
-		Disabled:  nil,
 	}
 }
 
@@ -106,7 +104,7 @@ func EnableForT(t *testing.T, feature Feature) {
 	state[feature] = enable
 }
 
-// DisableForT enables a feature for testing.
+// DisableForT disables a feature for testing.
 func DisableForT(t *testing.T, feature Feature) {
 	t.Helper()
 
