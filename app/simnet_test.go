@@ -63,7 +63,6 @@ func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
 }
 
 func TestMultipleProposers(t *testing.T) {
-	t.Skip("Skipping this test to bypass pre-commit hook")
 	// This test runs TestSimnetNoNetwork_WithProposerMockVCs for multiple iterations to catch the flappy one
 	for i := 0; i < 100; i++ {
 		t.Run("", func(t *testing.T) {
@@ -154,6 +153,9 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 				ParSigExFunc:       parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
 				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.AggSignedData) error {
+					if duty.Type == core.DutyRandao {
+						return nil
+					}
 					results <- simResult{Duty: duty, Pubkey: key, Data: data}
 					return nil
 				},
