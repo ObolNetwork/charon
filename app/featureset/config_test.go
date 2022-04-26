@@ -24,12 +24,32 @@ import (
 	"github.com/obolnetwork/charon/app/featureset"
 )
 
-func TestConfig(t *testing.T) {
+// setup initialises global variable per test.
+func setup(t *testing.T) {
+	t.Helper()
+
 	err := featureset.Init(context.Background(), featureset.DefaultConfig())
 	require.NoError(t, err)
 }
 
+func TestConfig(t *testing.T) {
+	setup(t)
+
+	err := featureset.Init(context.Background(), featureset.DefaultConfig())
+	require.NoError(t, err)
+
+	err = featureset.Init(context.Background(), featureset.Config{
+		MinStatus: "alpha",
+		Enabled:   []string{"ignored"},
+	})
+	require.NoError(t, err)
+
+	require.True(t, featureset.Enabled(featureset.QBFTConsensus))
+}
+
 func TestEnableForT(t *testing.T) {
+	setup(t)
+
 	testFeature := featureset.Feature("test")
 	require.False(t, featureset.Enabled(testFeature))
 
@@ -41,6 +61,8 @@ func TestEnableForT(t *testing.T) {
 }
 
 func TestQBFT(t *testing.T) {
+	setup(t)
+
 	require.False(t, featureset.Enabled(featureset.QBFTConsensus))
 
 	featureset.EnableForT(t, featureset.QBFTConsensus)
