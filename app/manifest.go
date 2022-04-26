@@ -22,9 +22,7 @@ import (
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/sharing"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
-	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -165,22 +163,12 @@ func (m *Manifest) UnmarshalJSON(data []byte) error {
 			return err
 		}
 
-		var pubkey enode.Secp256k1
-		if err := record.Load(&pubkey); err != nil {
-			return errors.Wrap(err, "pubkey from enr")
-		}
-
-		p2pPubkey := libp2pcrypto.Secp256k1PublicKey(pubkey)
-		id, err := peer.IDFromPublicKey(&p2pPubkey)
+		p, err := p2p.NewPeer(record, i)
 		if err != nil {
-			return errors.Wrap(err, "p2p id from pubkey")
+			return err
 		}
 
-		peers = append(peers, p2p.Peer{
-			ENR:   record,
-			ID:    id,
-			Index: i,
-		})
+		peers = append(peers, p)
 	}
 
 	var dvs []tbls.TSS
