@@ -2,6 +2,66 @@
 
 This document describes the configuration options for running a charon node and cluster locally or in production.
 
+## Cluster Config Files
+
+> Note this is for Charon V1 and extends on [DKG](dkg.md) docs. Charon V0 still uses old manifest files.
+
+A charon cluster is configured in two steps:
+- `cluster.json` which defines the cluster parameters without validator keys.
+- `cluster.lock` which includes `cluster.json` and includes distributed validator keys.
+
+The `charon create dkg` command is used to create `cluster.json` file which is used as input to `charon dkg`.
+
+The `charon create cluster` command combines both steps into one and just outputs the final `cluster.lock` without a DKG step.
+
+The schema of the `cluster.json` is defined as:
+```json
+{
+  "version": "v1.0.0",                   // Schema version
+  "num_validators": 100,                // Number of validators to create in cluster.lock
+  "threshold": 3,                       // Optional threshold required for signature reconstruction
+  "uuid": "1234-abcdef-1234-abcdef",    // Random unique identifier
+  "name": "best cluster",               // Optional name field, cosmetic.
+  "fee_recipient_address":"0x123..abfc",// ETH1 fee_recipient address
+  "withdrawal_address": "0x123..abfc",  // ETH1 withdrawal address
+  "algorithm": "foo_dkg_v1" ,           // Optional DKG algorithm
+  "fork_version": "0x00112233",         // Fork version lock, enum of known values
+  "operators": [
+    {
+      "address": "0x123..abfc",         // ETH1 operator identify address
+      "enr": "enr://abcdef...12345",    // charon node ENR
+      "signature": "123456...abcdef",   // Signature of enr by ETH1 address priv key
+      "nonce": 1                        // Nonce of signature
+    }
+  ],
+  "config_hash": "abcdef...abcedef"     // Hash of above field (except free text)
+}
+```
+
+The above `cluster.json` is provided as input to the DKG which generates keys and the `cluster.lock` file.
+
+The `cluster.lock` has the following schema:
+```json
+{
+  "cluster_config": {...},  // Cluster json config, identical schema to above,
+  "distributed_validators": [                               // Length equaled to num_validators.
+    {
+      "distributed_public_key":  "0x123..abfc",             // DV root pubkey
+      "threshold_verifiers": [ "oA8Z...2XyT", "g1q...icu"], // length of threshold
+      "fee_recipient": "0x123..abfc"                        // Defaults to withdrawal address if not set, can be edited manually
+    }
+  ],
+  "lock_hash": "abcdef...abcedef",                          // Config_hash plus distributed_validators
+  "config_hash_signature_aggregate": "abcdef...abcedef",    // DKG signs config with each DV pubkey, aggregates those for all DVs
+}
+```
+
+`charon run` just requires a `cluster.lock` file to define the cluster.
+
+Future work:
+ - To add validators to a `cluster.lock`: look at adding migrations list `cluster.lock`?
+ - Unique identifiers: each cluster.lock has path then derive ENRs from root `cluster.json` ENRs.
+
 ## Flag Precedence
 
 Charon uses [viper](https://github.com/spf13/viper) for configuration combined with [cobra](https://github.com/spf13/cobra)
