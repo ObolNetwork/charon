@@ -166,9 +166,8 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 			P2P: p2p.Config{},
 		}
 
-		if !propose {
-			conf.TestConfig.SimnetBMockOpts = append(conf.TestConfig.SimnetBMockOpts, beaconmock.WithNoProposerDuties())
-		} else {
+		if propose {
+			conf.TestConfig.SimnetBMockOpts = append(conf.TestConfig.SimnetBMockOpts, beaconmock.WithDeterministicProposerDuties(100))
 			conf.TestConfig.SimnetBMockOpts = append(conf.TestConfig.SimnetBMockOpts, beaconmock.WithNoAttesterDuties())
 		}
 
