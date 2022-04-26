@@ -48,7 +48,7 @@ The `cluster.lock` has the following schema:
     {
       "distributed_public_key":  "0x123..abfc",             // DV root pubkey
       "threshold_verifiers": [ "oA8Z...2XyT", "g1q...icu"], // length of threshold
-      "fee_recipient": "0x123..abfc"                        // Empty by default, can be edited manually
+      "fee_recipient": "0x123..abfc"                        // Defaults to withdrawal address if not set, can be edited manually
     }
   ],
   "lock_hash": "abcdef...abcedef",                          // Config_hash plus distributed_validators
