@@ -22,9 +22,13 @@ package featureset
 type status int
 
 const (
+	// statusAlpha is for internal devnet testing.
 	statusAlpha status = iota + 1
+	// statusBeta is for internal and external testnet testing.
 	statusBeta
+	// statusStable is for stable feature ready for production.
 	statusStable
+	// statusSentinel is an internal tail-end placeholder.
 	statusSentinel // Must always be last
 )
 
@@ -32,14 +36,14 @@ const (
 type Feature string
 
 const (
-	// QBFTConsensus introduces qbft consensus to foo, see https://github.com/ObolNetwork/charon/issues/445.
+	// QBFTConsensus introduces qbft consensus, see https://github.com/ObolNetwork/charon/issues/445.
 	QBFTConsensus Feature = "qbft_consensus"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		QBFTConsensus: statusBeta,
+		QBFTConsensus: statusAlpha,
 		// Add all features and there status here.
 	}
 
