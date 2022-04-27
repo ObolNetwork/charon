@@ -85,7 +85,7 @@ Note: PRs can only be merged by obol-bulldozer bot. It is author's responsibilit
   - Ends with a list of tags (some required, others optional) (`^tag: value of this tag\n`):
   - `category`: required; one of: `refactor`, `bug`, `feature`, `docs`, `release`, `tidy`, `fixbuild`.
   - `ticket`: required; URL of the Github issue just a reference, E.g. `#123` or `none`.
-  - `phase`: optional; identifies the highest release cycle phase targeted by the change; `aplha`, `beta`, `gold`
+  - `feature_set`: optional; identifies the highest rollout status targeted by the change; `alpha`, `beta`, `stable`
 - Example:
 ```
 runner/tracer: add jaeger otel exporter
@@ -94,7 +94,7 @@ Adds the jaeger exporter to our opentelemetery infra.
 
 category: feature
 ticket: #206
-phase: gold
+feature_set: stable
 ```
 
 ### Dev tools, git hooks and linters.

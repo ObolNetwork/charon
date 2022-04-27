@@ -141,6 +141,22 @@ func TestBody(t *testing.T) {
 			Body:  "<!--\n\ncategory: bug\nticket: none",
 			Error: "instructions not deleted (markdown comments present)",
 		},
+		{
+			Body:  "Foo\n\ncategory: bug\nticket: none\nfeature_set: alpha",
+			Error: "",
+		},
+		{
+			Body:  "Foo\n\ncategory: bug\nticket: none\nfeature_set: beta",
+			Error: "",
+		},
+		{
+			Body:  "Foo\n\ncategory: bug\nticket: none\nfeature_set: stable",
+			Error: "",
+		},
+		{
+			Body:  "Foo\n\ncategory: bug\nticket: none\nfeature_set: bad set",
+			Error: "invalid feature_set tag not one of",
+		},
 	}
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
