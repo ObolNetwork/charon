@@ -410,6 +410,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			}
 
 			log.Info(ctx, "Block submitted to beacon node", z.U64("slot", uint64(slot)))
+
 			return nil
 		},
 		GenesisTimeFunc: func(ctx context.Context) (time.Time, error) {
