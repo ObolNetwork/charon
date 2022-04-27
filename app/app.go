@@ -427,6 +427,18 @@ func wireVAPIRouter(life *lifecycle.Manager, conf Config, handler validatorapi.H
 		return errors.Wrap(err, "new monitoring server")
 	}
 
+	// var active sync.Map
+	// wrapper := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	//	active.Store(r.URL.Path, true)
+	//	defer active.Delete(r.URL.Path)
+	//
+	//	vrouter.ServeHTTP(w, r)
+	// })
+	//
+	// server := &http.Server{
+	//	Addr:    conf.ValidatorAPIAddr,
+	//	Handler: wrapper,
+	//}
 	server := &http.Server{
 		Addr:    conf.ValidatorAPIAddr,
 		Handler: vrouter,
@@ -434,6 +446,15 @@ func wireVAPIRouter(life *lifecycle.Manager, conf Config, handler validatorapi.H
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartValidatorAPI, httpServeHook(server.ListenAndServe))
 	life.RegisterStop(lifecycle.StopValidatorAPI, lifecycle.HookFunc(server.Shutdown))
+	// life.RegisterStop(lifecycle.StopValidatorAPI, lifecycle.HookFunc(func(ctx context.Context) error {
+	//	active.Range(func(path, _ any) bool {
+	//		log.Debug(ctx, "Waiting for active ValidatorAPI connection", z.Any("path", path))
+	//
+	//		return true
+	//	})
+	//
+	//	return errors.Wrap(server.Shutdown(ctx), "Stop ValidatorAPI")
+	// }))
 
 	return nil
 }

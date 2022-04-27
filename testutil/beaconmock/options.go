@@ -28,8 +28,10 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
+	"github.com/prysmaticlabs/go-bitfield"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -340,11 +342,11 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		httpServer: httpServer,
 		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
 			return &spec.VersionedBeaconBlock{
-				Version: spec.DataVersionPhase0,
-				Phase0: &eth2p0.BeaconBlock{
+				Version: spec.DataVersionAltair,
+				Altair: &altair.BeaconBlock{
 					Slot: slot,
-					Body: &eth2p0.BeaconBlockBody{
-						RANDAOReveal: randaoReveal,
+					Body: &altair.BeaconBlockBody{
+						RANDAOReveal: eth2p0.BLSSignature{},
 						ETH1Data: &eth2p0.ETH1Data{
 							DepositRoot:  testutil.RandomRoot(),
 							DepositCount: 0,
@@ -356,6 +358,10 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 						Attestations:      []*eth2p0.Attestation{testutil.RandomAttestation(), testutil.RandomAttestation()},
 						Deposits:          []*eth2p0.Deposit{},
 						VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
+						SyncAggregate: &altair.SyncAggregate{
+							SyncCommitteeBits:      bitfield.NewBitvector512(),
+							SyncCommitteeSignature: testutil.RandomEth2Signature(),
+						},
 					},
 				},
 			}, nil

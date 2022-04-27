@@ -346,10 +346,10 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 		}
 		copy(randao[:], b)
 
-		graffiti, err := hexQuery(query, "graffiti")
-		if err != nil {
-			return nil, errors.Wrap(err, "hexadecimal decoding")
-		}
+		graffiti, _ := hexQuery(query, "graffiti")
+		// if err != nil {
+		//	return nil, errors.Wrap(err, "hexadecimal decoding")
+		//}
 		// TODO(leo): where should we put this constant?
 		if len(graffiti) > 32 {
 			return nil, errors.New("above graffiti length max of 32")

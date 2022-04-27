@@ -59,6 +59,16 @@ func TestSimnetNoNetwork_TekuVC(t *testing.T) {
 	testSimnet(t, args, false)
 }
 
+func TestSimnetNoNetwork_WithProposerTekuVC(t *testing.T) {
+	if !*integration {
+		t.Skip("Skipping Teku integration test")
+	}
+
+	args := newSimnetArgs(t)
+	args = startTeku(t, args, 0)
+	testSimnet(t, args, true)
+}
+
 func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
 	testSimnet(t, newSimnetArgs(t), true)
 }
