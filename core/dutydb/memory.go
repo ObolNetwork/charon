@@ -63,6 +63,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 
 	switch duty.Type {
 	case core.DutyProposer:
+		// Sanity check max one proposer per slot 
 		if len(unsignedSet) > 1 {
 			return errors.New("unexpected proposer data set length", z.Int("n", len(unsignedSet)))
 		}
