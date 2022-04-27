@@ -23,25 +23,25 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
-	_ = x[StopTracing-8]
-	_ = x[StopScheduler-9]
-	_ = x[StopP2PPeerDB-10]
-	_ = x[StopP2PTCPNode-11]
-	_ = x[StopP2PUDPNode-12]
-	_ = x[StopMonitoringAPI-13]
-	_ = x[StopBeaconMock-14]
-	_ = x[StopValidatorAPI-15]
-	_ = x[StopRetryer-16]
+	_ = x[StopScheduler-0]
+	_ = x[StopRetryer-1]
+	_ = x[StopDutyDB-2]
+	_ = x[StopBeaconMock-3]
+	_ = x[StopValidatorAPI-4]
+	_ = x[StopTracing-5]
+	_ = x[StopP2PPeerDB-6]
+	_ = x[StopP2PTCPNode-7]
+	_ = x[StopP2PUDPNode-8]
+	_ = x[StopMonitoringAPI-9]
 }
 
-const _OrderStop_name = "TracingSchedulerP2PPeerDBP2PTCPNodeP2PUDPNodeMonitoringAPIBeaconMockValidatorAPIRetryer"
+const _OrderStop_name = "SchedulerRetryerDutyDBBeaconMockValidatorAPITracingP2PPeerDBP2PTCPNodeP2PUDPNodeMonitoringAPI"
 
-var _OrderStop_index = [...]uint8{0, 7, 16, 25, 35, 45, 58, 68, 80, 87}
+var _OrderStop_index = [...]uint8{0, 9, 16, 22, 32, 44, 51, 60, 70, 80, 93}
 
 func (i OrderStop) String() string {
-	i -= 8
 	if i < 0 || i >= OrderStop(len(_OrderStop_index)-1) {
-		return "OrderStop(" + strconv.FormatInt(int64(i+8), 10) + ")"
+		return "OrderStop(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
 	return _OrderStop_name[_OrderStop_index[i]:_OrderStop_index[i+1]]
 }

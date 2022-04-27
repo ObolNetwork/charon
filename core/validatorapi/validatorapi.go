@@ -148,7 +148,7 @@ type Component struct {
 
 	pubKeyByAttFunc func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
 	awaitAttFunc    func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
-	awaitBlockFunc  func(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error)
+	awaitBlockFunc  func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
 	getDutyFunc     func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error)
 	parSigDBFuncs   []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
@@ -196,8 +196,8 @@ func (c *Component) RegisterParSigDB(fn func(context.Context, core.Duty, core.Pa
 }
 
 // RegisterAwaitBeaconBlock registers a function to query unsigned block.
-// It supports multiple functions since it is the output of the component.
-func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error)) {
+// It supports a single function, since it is an input of the component.
+func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)) {
 	c.awaitBlockFunc = fn
 }
 
@@ -309,7 +309,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	//  - Once inserted, the query below will return.
 
 	// Query unsigned block (this is blocking).
-	_, block, err := c.awaitBlockFunc(ctx, int64(slot))
+	block, err := c.awaitBlockFunc(ctx, int64(slot))
 	if err != nil {
 		return nil, err
 	}

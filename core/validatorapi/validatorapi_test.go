@@ -354,8 +354,8 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 		return core.FetchArgSet{pubkey: core.FetchArg{}}, nil
 	})
 
-	component.RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error) {
-		return pubkey, block1, nil
+	component.RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error) {
+		return block1, nil
 	})
 
 	component.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {

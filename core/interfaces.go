@@ -51,8 +51,8 @@ type DutyDB interface {
 	Store(context.Context, Duty, UnsignedDataSet) error
 
 	// AwaitBeaconBlock blocks and returns the proposed beacon block
-	// for the slot when available. It also returns the DV public key.
-	AwaitBeaconBlock(ctx context.Context, slot int64) (PubKey, *spec.VersionedBeaconBlock, error)
+	// for the slot when available.
+	AwaitBeaconBlock(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
 
 	// AwaitAttestation blocks and returns the attestation data
 	// for the slot and committee index when available.
@@ -77,7 +77,7 @@ type Consensus interface {
 // DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
 	// RegisterAwaitBeaconBlock registers a function to query a unsigned beacon block by slot.
-	RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (PubKey, *spec.VersionedBeaconBlock, error))
+	RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
@@ -154,11 +154,11 @@ type wireFuncs struct {
 	ConsensusPropose                func(context.Context, Duty, UnsignedDataSet) error
 	ConsensusSubscribe              func(func(context.Context, Duty, UnsignedDataSet) error)
 	DutyDBStore                     func(context.Context, Duty, UnsignedDataSet) error
-	DutyDBAwaitBeaconBlock          func(ctx context.Context, slot int64) (PubKey, *spec.VersionedBeaconBlock, error)
+	DutyDBAwaitBeaconBlock          func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
 	DutyDBAwaitAttestation          func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
 	DutyDBPubKeyByAttestation       func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
 	VAPIRegisterAwaitAttestation    func(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
-	VAPIRegisterAwaitBeaconBlock    func(func(ctx context.Context, slot int64) (PubKey, *spec.VersionedBeaconBlock, error))
+	VAPIRegisterAwaitBeaconBlock    func(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error))
 	VAPIRegisterGetDutyFunc         func(func(context.Context, Duty) (FetchArgSet, error))
 	VAPIRegisterPubKeyByAttestation func(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
 	VAPIRegisterParSigDB            func(func(context.Context, Duty, ParSignedDataSet) error)
