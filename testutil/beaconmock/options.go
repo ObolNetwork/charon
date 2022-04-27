@@ -346,7 +346,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 				Altair: &altair.BeaconBlock{
 					Slot: slot,
 					Body: &altair.BeaconBlockBody{
-						RANDAOReveal: eth2p0.BLSSignature{},
+						RANDAOReveal: randaoReveal,
 						ETH1Data: &eth2p0.ETH1Data{
 							DepositRoot:  testutil.RandomRoot(),
 							DepositCount: 0,
