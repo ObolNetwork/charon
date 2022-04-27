@@ -24,7 +24,7 @@ type OrderStart int
 // OrderStop defines the order hooks are stopped.
 type OrderStop int
 
-// Global ordering of start and stop hooks.
+// Global ordering of start hooks.
 const (
 	StartAggSigDB OrderStart = iota
 	StartRelay
@@ -34,14 +34,18 @@ const (
 	StartLeaderCast
 	StartSimulator
 	StartScheduler
+)
 
-	StopTracing OrderStop = iota
-	StopScheduler
+// Global ordering of stop hooks; follows dependency tree from root to leaves.
+const (
+	StopScheduler OrderStop = iota // High level components...
+	StopRetryer
+	StopDutyDB
+	StopBeaconMock // Close this before validator API, since it can hold long-lived connections.
+	StopValidatorAPI
+	StopTracing // Low level services...
 	StopP2PPeerDB
 	StopP2PTCPNode
 	StopP2PUDPNode
 	StopMonitoringAPI
-	StopBeaconMock // Need to close this before validator API, since it can hold long lived connections.
-	StopValidatorAPI
-	StopRetryer
 )

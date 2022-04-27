@@ -17,6 +17,7 @@ package dutydb_test
 
 import (
 	"context"
+	"runtime"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -28,6 +29,23 @@ import (
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/testutil"
 )
+
+func TestShutdown(t *testing.T) {
+	db := dutydb.NewMemDB()
+
+	errChan := make(chan error, 1)
+	go func() {
+		_, err := db.AwaitBeaconBlock(context.Background(), 999)
+		errChan <- err
+	}()
+
+	runtime.Gosched()
+	db.Shutdown()
+
+	err := <-errChan
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "shutdown")
+}
 
 func TestMemDB(t *testing.T) {
 	ctx := context.Background()
@@ -128,16 +146,15 @@ func TestMemDBProposer(t *testing.T) {
 	slots := [queries]int64{123, 456, 789}
 
 	type response struct {
-		block  *spec.VersionedBeaconBlock
-		pubkey core.PubKey
+		block *spec.VersionedBeaconBlock
 	}
 	var awaitResponse [queries]chan response
 	for i := 0; i < queries; i++ {
 		awaitResponse[i] = make(chan response)
 		go func(slot int) {
-			pubkey, block, err := db.AwaitBeaconBlock(ctx, slots[slot])
+			block, err := db.AwaitBeaconBlock(ctx, slots[slot])
 			require.NoError(t, err)
-			awaitResponse[slot] <- response{block: block, pubkey: pubkey}
+			awaitResponse[slot] <- response{block: block}
 		}(i)
 	}
 
@@ -169,7 +186,6 @@ func TestMemDBProposer(t *testing.T) {
 	for i := 0; i < queries; i++ {
 		actualData := <-awaitResponse[i]
 		require.Equal(t, blocks[i], actualData.block)
-		require.Equal(t, pubkeysByIdx[eth2p0.ValidatorIndex(i)], actualData.pubkey)
 	}
 }
 
@@ -221,8 +237,7 @@ func TestMemDBClashProposer(t *testing.T) {
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	block.Phase0.Slot = eth2p0.Slot(slot)
-	pubkeyA := testutil.RandomCorePubKey(t)
-	pubkeyB := testutil.RandomCorePubKey(t)
+	pubkey := testutil.RandomCorePubKey(t)
 
 	// Encode the block
 	unsigned, err := core.EncodeProposerUnsignedData(block)
@@ -231,18 +246,22 @@ func TestMemDBClashProposer(t *testing.T) {
 	// Store the Blocks
 	duty := core.Duty{Slot: slot, Type: core.DutyProposer}
 	err = db.Store(ctx, duty, core.UnsignedDataSet{
-		pubkeyA: unsigned,
+		pubkey: unsigned,
 	})
 	require.NoError(t, err)
 
 	// Store same block from same validator to test idempotent inserts
 	err = db.Store(ctx, duty, core.UnsignedDataSet{
-		pubkeyA: unsigned,
+		pubkey: unsigned,
 	})
 	require.NoError(t, err)
 
+	// Store a different block for the same slot
+	block.Phase0.ProposerIndex++
+	unsignedB, err := core.EncodeProposerUnsignedData(block)
+	require.NoError(t, err)
 	err = db.Store(ctx, duty, core.UnsignedDataSet{
-		pubkeyB: unsigned,
+		pubkey: unsignedB,
 	})
-	require.ErrorContains(t, err, "clashing block proposer")
+	require.ErrorContains(t, err, "clashing blocks")
 }

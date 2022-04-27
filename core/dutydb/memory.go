@@ -18,7 +18,6 @@ package dutydb
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"sync"
 
 	"github.com/attestantio/go-eth2-client/spec"
@@ -34,7 +33,8 @@ func NewMemDB() *MemDB {
 	return &MemDB{
 		attDuties:  make(map[attKey]*eth2p0.AttestationData),
 		attPubKeys: make(map[pkKey]core.PubKey),
-		proDuties:  make(map[int64]*proValue),
+		proDuties:  make(map[int64]*spec.VersionedBeaconBlock),
+		shutdown:   make(chan struct{}),
 	}
 }
 
@@ -45,8 +45,15 @@ type MemDB struct {
 	attDuties  map[attKey]*eth2p0.AttestationData
 	attPubKeys map[pkKey]core.PubKey
 	attQueries []attQuery
-	proDuties  map[int64]*proValue
+	proDuties  map[int64]*spec.VersionedBeaconBlock
 	proQueries []proQuery
+	shutdown   chan struct{}
+}
+
+// Shutdown results in all blocking queries to return shutdown errors.
+// Note this may once be called *once*.
+func (db *MemDB) Shutdown() {
+	close(db.shutdown)
 }
 
 // Store implements core.DutyDB, see its godoc.
@@ -56,8 +63,11 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 
 	switch duty.Type {
 	case core.DutyProposer:
-		for pubkey, unsignedData := range unsignedSet {
-			err := db.storeBeaconBlockUnsafe(pubkey, unsignedData)
+		if len(unsignedSet) > 1 {
+			return errors.New("unexpected proposer data set length", z.Int("n", len(unsignedSet)))
+		}
+		for _, unsignedData := range unsignedSet {
+			err := db.storeBeaconBlockUnsafe(unsignedData)
 			if err != nil {
 				return err
 			}
@@ -79,9 +89,9 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 }
 
 // AwaitBeaconBlock implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitBeaconBlock(ctx context.Context, slot int64) (core.PubKey, *spec.VersionedBeaconBlock, error) {
+func (db *MemDB) AwaitBeaconBlock(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error) {
 	db.mu.Lock()
-	response := make(chan *proValue, 1)
+	response := make(chan *spec.VersionedBeaconBlock, 1)
 	db.proQueries = append(db.proQueries, proQuery{
 		Key:      slot,
 		Response: response,
@@ -90,10 +100,12 @@ func (db *MemDB) AwaitBeaconBlock(ctx context.Context, slot int64) (core.PubKey,
 	db.mu.Unlock()
 
 	select {
+	case <-db.shutdown:
+		return nil, errors.New("dutydb shutdown")
 	case <-ctx.Done():
-		return "", nil, ctx.Err()
-	case value := <-response:
-		return value.PubKey, value.Block, nil
+		return nil, ctx.Err()
+	case block := <-response:
+		return block, nil
 	}
 }
 
@@ -112,6 +124,8 @@ func (db *MemDB) AwaitAttestation(ctx context.Context, slot int64, commIdx int64
 	db.mu.Unlock()
 
 	select {
+	case <-db.shutdown:
+		return nil, errors.New("dutydb shutdown")
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case value := <-response:
@@ -177,7 +191,7 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 }
 
 // storeBeaconBlockUnsafe stores the unsigned BeaconBlock. It is unsafe since it assumes the lock is held.
-func (db *MemDB) storeBeaconBlockUnsafe(pubkey core.PubKey, unsignedData core.UnsignedData) error {
+func (db *MemDB) storeBeaconBlockUnsafe(unsignedData core.UnsignedData) error {
 	block, err := core.DecodeProposerUnsignedData(unsignedData)
 	if err != nil {
 		return err
@@ -188,26 +202,17 @@ func (db *MemDB) storeBeaconBlockUnsafe(pubkey core.PubKey, unsignedData core.Un
 		return err
 	}
 
-	data := proValue{
-		PubKey: pubkey,
-		Block:  block,
-	}
-
-	if value, ok := db.proDuties[int64(slot)]; ok {
-		if value.PubKey != pubkey {
-			return errors.New("clashing block proposer")
-		}
-
-		b, err := json.Marshal(value.Block)
+	if actualBlock, ok := db.proDuties[int64(slot)]; ok {
+		actualData, err := core.EncodeProposerUnsignedData(actualBlock)
 		if err != nil {
 			return errors.Wrap(err, "marshalling block")
 		}
 
-		if !bytes.Equal(b, unsignedData) {
+		if !bytes.Equal(actualData, unsignedData) {
 			return errors.New("clashing blocks")
 		}
 	} else {
-		db.proDuties[int64(slot)] = &data
+		db.proDuties[int64(slot)] = block
 	}
 
 	return nil
@@ -269,11 +274,5 @@ type attQuery struct {
 // proQuery is a waiting proQuery with a response channel.
 type proQuery struct {
 	Key      int64
-	Response chan<- *proValue
-}
-
-// proValue is a propser duty value with Public key and Beacon Block.
-type proValue struct {
-	PubKey core.PubKey
-	Block  *spec.VersionedBeaconBlock
+	Response chan<- *spec.VersionedBeaconBlock
 }
