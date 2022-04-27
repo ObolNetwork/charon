@@ -65,7 +65,7 @@ func TestManifestJSON(t *testing.T) {
 		require.Equal(t, len(manifest.Peers), len(manifest2.Peers))
 		for i := 0; i < len(manifest.Peers); i++ {
 			p1 := manifest.Peers[i]
-			p2 := manifest.Peers[i]
+			p2 := manifest2.Peers[i]
 			require.Equal(t, p1.ID, p2.ID)
 			require.Equal(t, p1.Index, p2.Index)
 			require.Equal(t, p1.ENR, p2.ENR)

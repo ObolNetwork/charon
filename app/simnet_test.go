@@ -148,6 +148,7 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 						return nil
 					}
 					results <- simResult{Duty: duty, Pubkey: key, Data: data}
+
 					return nil
 				},
 				SimnetBMockOpts: []beaconmock.Option{
