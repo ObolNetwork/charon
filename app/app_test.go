@@ -34,6 +34,7 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cmd"
 	"github.com/obolnetwork/charon/p2p"
@@ -167,6 +168,7 @@ func pingCluster(t *testing.T, test pingTest) {
 	for i := 0; i < n; i++ {
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
+			Feature:          featureset.DefaultConfig(),
 			SimnetBMock:      true,
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: testutil.AvailableAddr(t).String(), // Random validatorapi address

@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -72,6 +73,11 @@ func TestCmdFlags(t *testing.T) {
 					Allowlist: "",
 					Denylist:  "",
 					DBPath:    "",
+				},
+				Feature: featureset.Config{
+					MinStatus: "stable",
+					Enabled:   nil,
+					Disabled:  nil,
 				},
 				ManifestFile:     "./charon/manifest.json",
 				DataDir:          "from_env",

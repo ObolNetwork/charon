@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -47,6 +48,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 	bindDataDirFlag(cmd.Flags(), &conf.DataDir)
 	bindP2PFlags(cmd.Flags(), &conf.P2P)
 	bindLogFlags(cmd.Flags(), &conf.Log)
+	bindFeatureFlags(cmd.Flags(), &conf.Feature)
 
 	return cmd
 }
@@ -82,4 +84,10 @@ func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {
 	flags.StringSliceVar(&config.TCPAddrs, "p2p-tcp-address", []string{"127.0.0.1:16003"}, "Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic.")
 	flags.StringVar(&config.Allowlist, "p2p-allowlist", "", "Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.")
 	flags.StringVar(&config.Denylist, "p2p-denylist", "", "Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.")
+}
+
+func bindFeatureFlags(flags *pflag.FlagSet, config *featureset.Config) {
+	flags.StringSliceVar(&config.Enabled, "feature-set-enable", nil, "Comma-separated list of features to enable, overriding the default minimum feature set.")
+	flags.StringSliceVar(&config.Disabled, "feature-set-disable", nil, "Comma-separated list of features to disable, overriding the default minimum feature set.")
+	flags.StringVar(&config.MinStatus, "feature-set", "stable", "Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk.")
 }
