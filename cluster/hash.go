@@ -17,13 +17,13 @@ package cluster
 
 import ssz "github.com/ferranbt/fastssz"
 
-// HashTreeRoot ssz hashes the Spec object.
-func (s Spec) HashTreeRoot() ([32]byte, error) {
+// HashTreeRoot ssz hashes the Params object.
+func (s Params) HashTreeRoot() ([32]byte, error) {
 	return ssz.HashWithDefaultHasher(s) //nolint:wrapcheck
 }
 
-// HashTreeRootWith ssz hashes the Spec object with a hasher.
-func (s Spec) HashTreeRootWith(hh *ssz.Hasher) error {
+// HashTreeRootWith ssz hashes the Params object with a hasher.
+func (s Params) HashTreeRootWith(hh *ssz.Hasher) error {
 	indx := hh.Index()
 
 	// Field (0) 'UUID'
@@ -65,7 +65,7 @@ func (s Spec) HashTreeRootWith(hh *ssz.Hasher) error {
 	return nil
 }
 
-// HashTreeRoot ssz hashes the Spec object.
+// HashTreeRoot ssz hashes the Params object.
 func (o Operator) HashTreeRoot() ([32]byte, error) {
 	return ssz.HashWithDefaultHasher(o) //nolint:wrapcheck
 }
@@ -100,8 +100,8 @@ func (l Lock) HashTreeRoot() ([32]byte, error) {
 func (l Lock) HashTreeRootWith(hh *ssz.Hasher) error {
 	indx := hh.Index()
 
-	// Field (0) 'Spec'
-	if err := l.Spec.HashTreeRootWith(hh); err != nil {
+	// Field (0) 'Params'
+	if err := l.Params.HashTreeRootWith(hh); err != nil {
 		return err
 	}
 

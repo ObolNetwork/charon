@@ -1,5 +1,5 @@
 {
- "name": "test spec",
+ "name": "test params",
  "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
  "version": "v1.0.0",
  "num_validators": 2,
@@ -22,5 +22,5 @@
    "signature": "7OC4t8GWXZGBJRt8nJylIFr8FqI2ou/N0tEtKnnQdKg="
   }
  ],
- "spec_hash": "px6Qu+/5CwpNyVH6bSkZJ+PbdxbShl8xP/LRof0mmv4="
+ "params_hash": "/PmnRxcUwujNlI+8EgtN9hXwZgTDOyKYlTM3d8qNrrE="
 }

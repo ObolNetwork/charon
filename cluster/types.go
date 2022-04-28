@@ -15,15 +15,15 @@
 
 package cluster
 
-// Spec defines an intended charon cluster configuration.
-type Spec struct {
+// Params defines an intended charon cluster configuration.
+type Params struct {
 	// Name is optional cosmetic identifier
 	Name string `json:"name,omitempty"`
 
 	// UUID is a random unique identifier
 	UUID string `json:"uuid"`
 
-	// Version is the schema version of this spec.
+	// Version is the schema version of this params.
 	Version string `json:"version"`
 
 	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
@@ -41,7 +41,7 @@ type Spec struct {
 	// DKGAlgorithm to use for key generation.
 	DKGAlgorithm string `json:"dkg_algorithm"`
 
-	// ForkVersion defines the cluster's beacon chain hex fork specVersion (network/chain identifier).
+	// ForkVersion defines the cluster's beacon chain hex fork paramsVersion (network/chain identifier).
 	ForkVersion string `json:"fork_version"`
 
 	// Operators define the charon nodes in the cluster and their operators.
@@ -63,10 +63,10 @@ type Operator struct {
 	Signature []byte `json:"signature"`
 }
 
-// Lock extends the cluster config Spec with bls threshold public keys and checksums.
+// Lock extends the cluster config Params with bls threshold public keys and checksums.
 type Lock struct {
-	// Spec is embedded and extended by Lock.
-	Spec
+	// Params is embedded and extended by Lock.
+	Params
 
 	// Validators are the distributed validators (n*32ETH) managed by the cluster.
 	Validators []DistValidator
@@ -84,6 +84,6 @@ type DistValidator struct {
 	// Verifiers are the public shares.
 	Verifiers [][]byte `json:"threshold_verifiers"`
 
-	// FeeRecipientAddress Ethereum address override for this validator, defaults to spec withdrawal address.
+	// FeeRecipientAddress Ethereum address override for this validator, defaults to params withdrawal address.
 	FeeRecipientAddress string `json:"fee_recipient_address,omitempty"`
 }

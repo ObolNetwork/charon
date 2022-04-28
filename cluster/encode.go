@@ -23,77 +23,77 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-func (s Spec) MarshalJSON() ([]byte, error) {
-	type fieldsOnly Spec // Marshal fields-only version of spec
-	specBytes, err := json.Marshal(fieldsOnly(s))
+func (s Params) MarshalJSON() ([]byte, error) {
+	type fieldsOnly Params // Marshal fields-only version of params
+	paramsBytes, err := json.Marshal(fieldsOnly(s))
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal spec")
+		return nil, errors.Wrap(err, "marshal params")
 	}
 
-	// Marshal spec hash
+	// Marshal params hash
 	hash, err := s.HashTreeRoot()
 	if err != nil {
-		return nil, errors.Wrap(err, "hash spec")
+		return nil, errors.Wrap(err, "hash params")
 	}
 
 	hashBytes, err := json.Marshal(struct {
-		Hash []byte `json:"spec_hash"`
+		Hash []byte `json:"params_hash"`
 	}{Hash: hash[:]})
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal spec hash")
+		return nil, errors.Wrap(err, "marshal params hash")
 	}
 
-	// Manually append spec hash field to retain json field order.
-	resp := strings.TrimSuffix(string(specBytes), "}")
+	// Manually append params hash field to retain json field order.
+	resp := strings.TrimSuffix(string(paramsBytes), "}")
 	resp += ","
 	resp += strings.TrimPrefix(string(hashBytes), "{")
 
 	return []byte(resp), nil
 }
 
-func (s *Spec) UnmarshalJSON(data []byte) error {
+func (s *Params) UnmarshalJSON(data []byte) error {
 	// Get the version directly
 	version := struct {
 		Version string `json:"version"`
 	}{}
 	if err := json.Unmarshal(data, &version); err != nil {
 		return errors.Wrap(err, "unmarshal version")
-	} else if version.Version != specVersion {
-		return errors.Wrap(err, "invalid spec version")
+	} else if version.Version != paramsVersion {
+		return errors.Wrap(err, "invalid params version")
 	}
 
-	// Unmarshal a fields-only spec version.
-	type fieldsOnly Spec
+	// Unmarshal a fields-only params version.
+	type fieldsOnly Params
 	var fields fieldsOnly
 	if err := json.Unmarshal(data, &fields); err != nil {
-		return errors.Wrap(err, "unmarshal spec")
+		return errors.Wrap(err, "unmarshal params")
 	}
 
-	// Get the spec hash directly
-	specHash := struct {
-		Hash []byte `json:"spec_hash"`
+	// Get the params hash directly
+	paramsHash := struct {
+		Hash []byte `json:"params_hash"`
 	}{}
-	if err := json.Unmarshal(data, &specHash); err != nil {
-		return errors.Wrap(err, "unmarshal spec hash")
+	if err := json.Unmarshal(data, &paramsHash); err != nil {
+		return errors.Wrap(err, "unmarshal params hash")
 	}
 
-	// Validate spec hash
-	hash, err := Spec(fields).HashTreeRoot()
+	// Validate params hash
+	hash, err := Params(fields).HashTreeRoot()
 	if err != nil {
-		return errors.Wrap(err, "hash spec")
+		return errors.Wrap(err, "hash params")
 	}
-	if !bytes.Equal(specHash.Hash, hash[:]) {
-		return errors.New("invalid spec hash")
+	if !bytes.Equal(paramsHash.Hash, hash[:]) {
+		return errors.New("invalid params hash")
 	}
 
-	*s = Spec(fields)
+	*s = Params(fields)
 
 	return nil
 }
 
 // lockJSON is the json formatter of Lock.
 type lockJSON struct {
-	Spec               Spec            `json:"cluster_spec"`
+	Params             Params          `json:"cluster_params"`
 	Validators         []DistValidator `json:"distributed_validators"`
 	SignatureAggregate []byte          `json:"signature_aggregate"`
 	LockHash           []byte          `json:"lock_hash"`
@@ -108,7 +108,7 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 
 	// Marshal json version of lock
 	resp, err := json.Marshal(lockJSON{
-		Spec:               l.Spec,
+		Params:             l.Params,
 		Validators:         l.Validators,
 		SignatureAggregate: l.SignatureAggregate,
 		LockHash:           hash[:],
@@ -123,23 +123,23 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 func (l *Lock) UnmarshalJSON(data []byte) error {
 	// Get the version directly
 	version := struct {
-		Spec struct { //nolint:revive // Nested struct is read-only.
+		Params struct { //nolint:revive // Nested struct is read-only.
 			Version string `json:"version"`
-		} `json:"cluster_spec"`
+		} `json:"cluster_params"`
 	}{}
 	if err := json.Unmarshal(data, &version); err != nil {
 		return errors.Wrap(err, "unmarshal version")
-	} else if version.Spec.Version != specVersion {
-		return errors.Wrap(err, "invalid spec version")
+	} else if version.Params.Version != paramsVersion {
+		return errors.Wrap(err, "invalid params version")
 	}
 
 	var lockJSON lockJSON
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
-		return errors.Wrap(err, "unmarshal spec")
+		return errors.Wrap(err, "unmarshal params")
 	}
 
 	lock := Lock{
-		Spec:               lockJSON.Spec,
+		Params:             lockJSON.Params,
 		Validators:         lockJSON.Validators,
 		SignatureAggregate: lockJSON.SignatureAggregate,
 	}

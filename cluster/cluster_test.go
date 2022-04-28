@@ -32,8 +32,8 @@ import (
 func TestEncode(t *testing.T) {
 	rand.Seed(0)
 
-	spec := cluster.NewSpec(
-		"test spec",
+	params := cluster.NewParams(
+		"test params",
 		2,
 		3,
 		testutil.RandomETHAddress(),
@@ -56,31 +56,31 @@ func TestEncode(t *testing.T) {
 		rand.New(rand.NewSource(0)),
 	)
 
-	t.Run("spec_json", func(t *testing.T) {
-		testutil.RequireGoldenJSON(t, spec)
+	t.Run("params_json", func(t *testing.T) {
+		testutil.RequireGoldenJSON(t, params)
 	})
 
-	hash1, err := spec.HashTreeRoot()
+	hash1, err := params.HashTreeRoot()
 	require.NoError(t, err)
-	hash2, err := spec.HashTreeRoot()
+	hash2, err := params.HashTreeRoot()
 	require.NoError(t, err)
 	require.Equal(t, hash1, hash2)
 
-	b1, err := json.Marshal(spec)
+	b1, err := json.Marshal(params)
 	require.NoError(t, err)
 
-	var spec2 cluster.Spec
-	err = json.Unmarshal(b1, &spec2)
+	var params2 cluster.Params
+	err = json.Unmarshal(b1, &params2)
 	require.NoError(t, err)
 
-	b2, err := json.Marshal(spec2)
+	b2, err := json.Marshal(params2)
 	require.NoError(t, err)
 
 	require.Equal(t, b1, b2)
-	require.Equal(t, spec, spec2)
+	require.Equal(t, params, params2)
 
 	lock := cluster.Lock{
-		Spec:               spec,
+		Params:             params,
 		SignatureAggregate: testutil.RandomBytes32(),
 		Validators: []cluster.DistValidator{
 			{

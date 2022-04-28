@@ -21,17 +21,17 @@ import (
 )
 
 const (
-	specVersion = "v1.0.0"
-	dkgAlgo     = "default"
+	paramsVersion = "v1.0.0"
+	dkgAlgo       = "default"
 )
 
-// NewSpec returns a new spec with populated version and UUID.
-func NewSpec(name string, numVals int, threshold int,
+// NewParams returns a new params with populated version and UUID.
+func NewParams(name string, numVals int, threshold int,
 	feeRecipient string, withdrawalAddress string, forkVersionHex string,
 	operators []Operator, random io.Reader,
-) Spec {
-	s := Spec{
-		Version:             specVersion,
+) Params {
+	s := Params{
+		Version:             paramsVersion,
 		Name:                name,
 		UUID:                uuid(random),
 		NumValidators:       numVals,

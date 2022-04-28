@@ -1,6 +1,6 @@
 {
- "cluster_spec": {
-  "name": "test spec",
+ "cluster_params": {
+  "name": "test params",
   "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
   "version": "v1.0.0",
   "num_validators": 2,
@@ -23,7 +23,7 @@
     "signature": "7OC4t8GWXZGBJRt8nJylIFr8FqI2ou/N0tEtKnnQdKg="
    }
   ],
-  "spec_hash": "px6Qu+/5CwpNyVH6bSkZJ+PbdxbShl8xP/LRof0mmv4="
+  "params_hash": "/PmnRxcUwujNlI+8EgtN9hXwZgTDOyKYlTM3d8qNrrE="
  },
  "distributed_validators": [
   {
@@ -42,5 +42,5 @@
   }
  ],
  "signature_aggregate": "KArpQ56w1q7KCCOuAtZ9hmrCxP5KclBT2hGbnU9RUUA=",
- "lock_hash": "RElWrHw4gYIcHC34J268kjupho3dPghK3yHfVZYYkxU="
+ "lock_hash": "t8NjcXqWEHFbUSCcVZPIuhe2U28Ix0VP56SV0D2peRM="
 }
