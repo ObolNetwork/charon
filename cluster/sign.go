@@ -26,7 +26,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// Sealed returns true of all operator signatures are populated and valid.
+// Sealed returns true if all operator signatures are populated and valid.
 func (p Params) Sealed() (bool, error) {
 	paramHash, err := p.HashTreeRoot()
 	if err != nil {

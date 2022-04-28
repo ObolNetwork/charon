@@ -13,6 +13,16 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Package cluster provides the cluster configuration API. It defines the `Params` type that is
+// the output of the Launchpad and `charon create dkg` commands.
+// `Params` is also the input to `charon dkg`. If defines the `Lock` type that is
+// the output of the `charon dkg` and `charon create cluster` commands. `Lock` is also the input
+// to `charon run` command.
+//
+//          LaunchPad─┐
+//                    ├─►cluster_params.json───►charon dkg─┐
+//  charon create dkg─┘                                    ├─►cluster_lock.json───►charon run
+//                                   charon create cluster─┘
 package cluster
 
 import (
