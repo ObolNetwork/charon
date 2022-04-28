@@ -272,6 +272,10 @@ func RandomVIdx() eth2p0.ValidatorIndex {
 	return eth2p0.ValidatorIndex(rand.Uint64())
 }
 
+func RandomETHAddress() string {
+	return fmt.Sprintf("%#x", RandomBytes32()[:20])
+}
+
 func RandomBytes32() []byte {
 	var resp [32]byte
 	_, _ = rand.Read(resp[:])

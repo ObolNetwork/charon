@@ -1,0 +1,46 @@
+{
+ "cluster_spec": {
+  "name": "test spec",
+  "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
+  "version": "v1.0.0",
+  "num_validators": 2,
+  "threshold": 3,
+  "fee_recipient_address": "0x0194fdc2fa2ffcc041d3ff12045b73c86e4ff95f",
+  "withdrawal_address": "0xfb180daf48a79ee0b10d394651850fd4a178892e",
+  "dkg_algorithm": "default",
+  "fork_version": "0x00000002",
+  "operators": [
+   {
+    "address": "0xe2d3d0d0de6bf8f9b44ce85ff044c6b1f83b8e88",
+    "enr": "enr://32f3a8aeb79ef856f659c18f0dcecc77c75e7a81bfde275f67cfe242cf3cc354",
+    "nonce": 0,
+    "signature": "8+3i1r7MTqOuXohSap9KV4vLnvLUplMUdo1tKZdh6p4="
+   },
+   {
+    "address": "0x4f5aa6aec3fc78c6aae081ac8120c720efcd6cea",
+    "enr": "enr://cdd01d75045c3f000f8a796bce6c512c3801aacaeedfad5b506664e8c0e4a771",
+    "nonce": 1,
+    "signature": "7OC4t8GWXZGBJRt8nJylIFr8FqI2ou/N0tEtKnnQdKg="
+   }
+  ],
+  "spec_hash": "px6Qu+/5CwpNyVH6bSkZJ+PbdxbShl8xP/LRof0mmv4="
+ },
+ "distributed_validators": [
+  {
+   "distributed_public_key": "0x280ae9439eb0d6aeca0823ae02d67d866ac2c4fe",
+   "threshold_verifiers": [
+    "otcjnEC0WsOVDZQfxP4cDLlq0yLWIoIpX7/hHiakMwc=",
+    "bbXBREw6NNMqXEp/++jRgfftO4z+kE+T+PBtKbzZ7YQ="
+   ]
+  },
+  {
+   "distributed_public_key": "0x7b182e046410f44bc4b0f3f03a0d06820a30f257",
+   "threshold_verifiers": [
+    "NCyLgFXEZtiGRB0lmQbWms2JS5aK6fDrnZZc5qRpPE4=",
+    "vogVAbfZhGtm6wK1flzae2y6aJHWFr1obDe4NGE6yLo="
+   ]
+  }
+ ],
+ "signature_aggregate": null,
+ "lock_hash": "nDisOlieXfLx8wZLCCUKUSQMfTYPjlVDNWfCbj6cG4k="
+}

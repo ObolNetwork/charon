@@ -7,14 +7,14 @@ This document describes the configuration options for running a charon node and 
 > Note this is for Charon V1 and extends on [DKG](dkg.md) docs. Charon V0 still uses old manifest files.
 
 A charon cluster is configured in two steps:
-- `cluster.json` which defines the cluster parameters without validator keys.
-- `cluster.lock` which includes `cluster.json` and includes distributed validator keys.
+- `cluster_spec.json` which defines the intended cluster configuration without validator keys.
+- `cluster_lock.json` which includes and extends `cluster_spec.json` with distributed validator bls public key shares and verifiers.
 
-The `charon create dkg` command is used to create `cluster.json` file which is used as input to `charon dkg`.
+The `charon create dkg` command is used to create `cluster_spec.json` file which is used as input to `charon dkg`.
 
 The `charon create cluster` command combines both steps into one and just outputs the final `cluster.lock` without a DKG step.
 
-The schema of the `cluster.json` is defined as:
+The schema of the `cluster_spec.json` is defined as:
 ```json
 {
   "version": "v1.0.0",                   // Schema version
@@ -34,16 +34,16 @@ The schema of the `cluster.json` is defined as:
       "nonce": 1                        // Nonce of signature
     }
   ],
-  "config_hash": "abcdef...abcedef"     // Hash of above field (except free text)
+  "spec_hash": "abcdef...abcedef"     // Hash of above field (except free text)
 }
 ```
 
-The above `cluster.json` is provided as input to the DKG which generates keys and the `cluster.lock` file.
+The above `cluster_spec.json` is provided as input to the DKG which generates keys and the `cluster_lock.json` file.
 
-The `cluster.lock` has the following schema:
+The `cluster_lock.json` has the following schema:
 ```json
 {
-  "cluster_config": {...},  // Cluster json config, identical schema to above,
+  "cluster_spec": {...},                                    // Cluster spec json, identical schema to above,
   "distributed_validators": [                               // Length equaled to num_validators.
     {
       "distributed_public_key":  "0x123..abfc",             // DV root pubkey
@@ -56,11 +56,11 @@ The `cluster.lock` has the following schema:
 }
 ```
 
-`charon run` just requires a `cluster.lock` file to define the cluster.
+`charon run` just requires a `cluster_lock.json` file to configure the cluster.
 
 Future work:
- - To add validators to a `cluster.lock`: look at adding migrations list `cluster.lock`?
- - Unique identifiers: each cluster.lock has path then derive ENRs from root `cluster.json` ENRs.
+ - To add validators to an existing `cluster_lock.json`: look at adding migrations list to `cluster_lock.json`?
+ - Unique operator identifiers: each cluster_lock has a path that derive ENRs from root `cluster_spec.json` ENRs.
 
 ## Flag Precedence
 
