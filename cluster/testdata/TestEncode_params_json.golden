@@ -22,6 +22,6 @@
    "enr_signature": "7OC4t8GWXZGBJRt8nJylIFr8FqI2ou/N0tEtKnnQdKg="
   }
  ],
- "OperatorSignatures": null,
+ "operator_signatures": null,
  "params_hash": "/PmnRxcUwujNlI+8EgtN9hXwZgTDOyKYlTM3d8qNrrE="
 }

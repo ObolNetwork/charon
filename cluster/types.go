@@ -47,9 +47,9 @@ type Params struct {
 	// Operators define the charon nodes in the cluster and their operators.
 	Operators []Operator `json:"operators"`
 
-	// OperatorSignatures are signatures of the params hash by each operator Ethereum address.
+	// OperatorSignatures are EIP712 signatures of the params hash by each operator Ethereum address.
 	// Fully populated operator signatures results in "sealed" params ready for use in DKG.
-	OperatorSignatures [][]byte
+	OperatorSignatures [][]byte `json:"operator_signatures"`
 }
 
 // Operator identifies a charon node and its operator.
@@ -63,7 +63,7 @@ type Operator struct {
 	// Nonce is incremented each time the ENR is signed.
 	Nonce int `json:"nonce"`
 
-	// ENRSignature is signature of the ENR by the Address, authorising the charon node to act on behalf of the operator in the cluster.
+	// ENRSignature is a EIP712 signature of the ENR by the Address, authorising the charon node to act on behalf of the operator in the cluster.
 	ENRSignature []byte `json:"enr_signature"`
 }
 
