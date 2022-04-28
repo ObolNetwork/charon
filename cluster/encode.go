@@ -23,15 +23,15 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-func (s Params) MarshalJSON() ([]byte, error) {
+func (p Params) MarshalJSON() ([]byte, error) {
 	type fieldsOnly Params // Marshal fields-only version of params
-	paramsBytes, err := json.Marshal(fieldsOnly(s))
+	paramsBytes, err := json.Marshal(fieldsOnly(p))
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal params")
 	}
 
 	// Marshal params hash
-	hash, err := s.HashTreeRoot()
+	hash, err := p.HashTreeRoot()
 	if err != nil {
 		return nil, errors.Wrap(err, "hash params")
 	}
@@ -51,7 +51,7 @@ func (s Params) MarshalJSON() ([]byte, error) {
 	return []byte(resp), nil
 }
 
-func (s *Params) UnmarshalJSON(data []byte) error {
+func (p *Params) UnmarshalJSON(data []byte) error {
 	// Get the version directly
 	version := struct {
 		Version string `json:"version"`
@@ -86,7 +86,7 @@ func (s *Params) UnmarshalJSON(data []byte) error {
 		return errors.New("invalid params hash")
 	}
 
-	*s = Params(fields)
+	*p = Params(fields)
 
 	return nil
 }

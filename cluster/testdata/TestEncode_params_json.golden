@@ -13,14 +13,15 @@
    "address": "0xe2d3d0d0de6bf8f9b44ce85ff044c6b1f83b8e88",
    "enr": "enr://32f3a8aeb79ef856f659c18f0dcecc77c75e7a81bfde275f67cfe242cf3cc354",
    "nonce": 0,
-   "signature": "8+3i1r7MTqOuXohSap9KV4vLnvLUplMUdo1tKZdh6p4="
+   "enr_signature": "8+3i1r7MTqOuXohSap9KV4vLnvLUplMUdo1tKZdh6p4="
   },
   {
    "address": "0x4f5aa6aec3fc78c6aae081ac8120c720efcd6cea",
    "enr": "enr://cdd01d75045c3f000f8a796bce6c512c3801aacaeedfad5b506664e8c0e4a771",
    "nonce": 1,
-   "signature": "7OC4t8GWXZGBJRt8nJylIFr8FqI2ou/N0tEtKnnQdKg="
+   "enr_signature": "7OC4t8GWXZGBJRt8nJylIFr8FqI2ou/N0tEtKnnQdKg="
   }
  ],
+ "OperatorSignatures": null,
  "params_hash": "/PmnRxcUwujNlI+8EgtN9hXwZgTDOyKYlTM3d8qNrrE="
 }

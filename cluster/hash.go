@@ -18,43 +18,43 @@ package cluster
 import ssz "github.com/ferranbt/fastssz"
 
 // HashTreeRoot ssz hashes the Params object.
-func (s Params) HashTreeRoot() ([32]byte, error) {
-	return ssz.HashWithDefaultHasher(s) //nolint:wrapcheck
+func (p Params) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(p) //nolint:wrapcheck
 }
 
 // HashTreeRootWith ssz hashes the Params object with a hasher.
-func (s Params) HashTreeRootWith(hh *ssz.Hasher) error {
+func (p Params) HashTreeRootWith(hh *ssz.Hasher) error {
 	indx := hh.Index()
 
 	// Field (0) 'UUID'
-	hh.PutBytes([]byte(s.UUID))
+	hh.PutBytes([]byte(p.UUID))
 
 	// Field (1) 'Name'
-	hh.PutBytes([]byte(s.Name))
+	hh.PutBytes([]byte(p.Name))
 
 	// Field (2) 'Version'
-	hh.PutBytes([]byte(s.Version))
+	hh.PutBytes([]byte(p.Version))
 
 	// Field (3) 'NumValidators'
-	hh.PutUint64(uint64(s.NumValidators))
+	hh.PutUint64(uint64(p.NumValidators))
 
 	// Field (4) 'Threshold'
-	hh.PutUint64(uint64(s.Threshold))
+	hh.PutUint64(uint64(p.Threshold))
 
 	// Field (5) 'FeeRecipientAddress'
-	hh.PutBytes([]byte(s.FeeRecipientAddress))
+	hh.PutBytes([]byte(p.FeeRecipientAddress))
 
 	// Field (6) 'WithdrawalAddress'
-	hh.PutBytes([]byte(s.WithdrawalAddress))
+	hh.PutBytes([]byte(p.WithdrawalAddress))
 
 	// Field (7) 'DKGAlgorithm'
-	hh.PutBytes([]byte(s.DKGAlgorithm))
+	hh.PutBytes([]byte(p.DKGAlgorithm))
 
 	// Field (8) 'ForkVersion'
-	hh.PutBytes([]byte(s.ForkVersion))
+	hh.PutBytes([]byte(p.ForkVersion))
 
-	for _, operator := range s.Operators {
-		// Field (9+i) 'Target'
+	for _, operator := range p.Operators {
+		// Field (9+i) 'Operator'
 		if err := operator.HashTreeRootWith(hh); err != nil {
 			return err
 		}
@@ -83,8 +83,8 @@ func (o Operator) HashTreeRootWith(hh *ssz.Hasher) error {
 	// Field (2) 'Nonce'
 	hh.PutUint64(uint64(o.Nonce))
 
-	// Field (3) 'Signature'
-	hh.PutBytes(o.Signature)
+	// Field (3) 'ENRSignature'
+	hh.PutBytes(o.ENRSignature)
 
 	hh.Merkleize(indx)
 
