@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -163,18 +164,39 @@ func TestFetchProposer(t *testing.T) {
 		dataA := resDataSet[pubkeysByIdx[vIdxA]]
 		dutyDataA, err := core.DecodeProposerUnsignedData(dataA)
 		require.NoError(t, err)
-		require.EqualValues(t, slot, dutyDataA.Phase0.Slot)
-		require.EqualValues(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature.ToETH2(), dutyDataA.Phase0.Body.RANDAOReveal)
+
+		slotA, err := dutyDataA.Slot()
+		require.NoError(t, err)
+		require.EqualValues(t, slot, slotA)
+		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature.ToETH2(), dutyDataA)
 
 		dataB := resDataSet[pubkeysByIdx[vIdxB]]
 		dutyDataB, err := core.DecodeProposerUnsignedData(dataB)
 		require.NoError(t, err)
-		require.EqualValues(t, slot, dutyDataB.Phase0.Slot)
-		require.EqualValues(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature.ToETH2(), dutyDataB.Phase0.Body.RANDAOReveal)
+
+		slotB, err := dutyDataB.Slot()
+		require.NoError(t, err)
+		require.EqualValues(t, slot, slotB)
+		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature.ToETH2(), dutyDataB)
 
 		return nil
 	})
 
 	err = fetch.Fetch(ctx, duty, argSet)
 	require.NoError(t, err)
+}
+
+func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block *spec.VersionedBeaconBlock) {
+	t.Helper()
+
+	switch block.Version {
+	case spec.DataVersionPhase0:
+		require.EqualValues(t, randao, block.Phase0.Body.RANDAOReveal)
+	case spec.DataVersionAltair:
+		require.EqualValues(t, randao, block.Altair.Body.RANDAOReveal)
+	case spec.DataVersionBellatrix:
+		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
+	default:
+		require.Fail(t, "invalid block")
+	}
 }
