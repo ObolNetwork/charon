@@ -25,6 +25,7 @@ const (
 	dkgAlgo     = "default"
 )
 
+// NewSpec returns a new spec with populated version and UUID.
 func NewSpec(name string, numVals int, threshold int,
 	feeRecipient string, withdrawalAddress string, forkVersionHex string,
 	operators []Operator, random io.Reader,

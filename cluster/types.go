@@ -63,7 +63,7 @@ type Operator struct {
 	Signature []byte `json:"signature"`
 }
 
-// Lock extends the cluster config Spec with generated public keys and checksums.
+// Lock extends the cluster config Spec with bls threshold public keys and checksums.
 type Lock struct {
 	// Spec is embedded and extended by Lock.
 	Spec

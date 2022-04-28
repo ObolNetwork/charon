@@ -80,7 +80,8 @@ func TestEncode(t *testing.T) {
 	require.Equal(t, spec, spec2)
 
 	lock := cluster.Lock{
-		Spec: spec,
+		Spec:               spec,
+		SignatureAggregate: testutil.RandomBytes32(),
 		Validators: []cluster.DistValidator{
 			{
 				PubKey: testutil.RandomETHAddress(),

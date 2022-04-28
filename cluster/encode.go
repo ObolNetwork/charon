@@ -91,6 +91,7 @@ func (s *Spec) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// lockJSON is the json formatter of Lock.
 type lockJSON struct {
 	Spec               Spec            `json:"cluster_spec"`
 	Validators         []DistValidator `json:"distributed_validators"`
