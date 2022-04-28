@@ -24,7 +24,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/testutil"
@@ -169,7 +168,7 @@ func TestFetchProposer(t *testing.T) {
 		slotA, err := dutyDataA.Slot()
 		require.NoError(t, err)
 		require.EqualValues(t, slot, slotA)
-		require.NoError(t, compareRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature.ToETH2(), dutyDataA))
+		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature.ToETH2(), dutyDataA)
 
 		dataB := resDataSet[pubkeysByIdx[vIdxB]]
 		dutyDataB, err := core.DecodeProposerUnsignedData(dataB)
@@ -178,7 +177,7 @@ func TestFetchProposer(t *testing.T) {
 		slotB, err := dutyDataB.Slot()
 		require.NoError(t, err)
 		require.EqualValues(t, slot, slotB)
-		require.NoError(t, compareRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature.ToETH2(), dutyDataB))
+		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature.ToETH2(), dutyDataB)
 
 		return nil
 	})
@@ -187,7 +186,7 @@ func TestFetchProposer(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func compareRandao(t *testing.T, randao eth2p0.BLSSignature, block *spec.VersionedBeaconBlock) error {
+func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block *spec.VersionedBeaconBlock) {
 	t.Helper()
 
 	switch block.Version {
@@ -198,8 +197,6 @@ func compareRandao(t *testing.T, randao eth2p0.BLSSignature, block *spec.Version
 	case spec.DataVersionBellatrix:
 		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
 	default:
-		return errors.New("invalid block")
+		require.Fail(t, "invalid block")
 	}
-
-	return nil
 }
