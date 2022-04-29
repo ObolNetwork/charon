@@ -21,60 +21,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
-	signtypes "github.com/ethereum/go-ethereum/signer/core/apitypes"
+	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
-
-// Sealed returns true if all operator signatures are populated and valid.
-func (d Definition) Sealed() (bool, error) {
-	paramHash, err := d.HashTreeRoot()
-	if err != nil {
-		return false, errors.Wrap(err, "param hash")
-	}
-
-	// Check that we a operator signature for each operator.
-	for _, o := range d.Operators {
-		digest, err := digestEIP712(o.Address, paramHash[:], 0)
-		if err != nil {
-			return false, err
-		}
-
-		var found bool
-		for _, sig := range d.OperatorSignatures {
-			if ok, err := verifySig(o.Address, digest[:], sig); err != nil {
-				return false, err
-			} else if ok {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return false, nil
-		}
-	}
-
-	// TODO(corver): Also validate all operator sigs are valid
-
-	return true, nil
-}
-
-// VerifySignature returns an error if the ENR signature doesn't match the address and enr fields.
-func (o Operator) VerifySignature() error {
-	digest, err := digestEIP712(o.Address, []byte(o.ENR), o.Nonce)
-	if err != nil {
-		return err
-	}
-
-	if ok, err := verifySig(o.Address, digest[:], o.ENRSignature); err != nil {
-		return err
-	} else if !ok {
-		return errors.New("invalid operator enr signature")
-	}
-
-	return nil
-}
 
 // verifySig returns true if the signature matches the digest and address.
 func verifySig(addr string, digest []byte, sig []byte) (bool, error) {
@@ -95,14 +45,14 @@ func verifySig(addr string, digest []byte, sig []byte) (bool, error) {
 // digestEIP712 returns EIP712 digest hash.
 // See reference https://medium.com/alpineintel/issuing-and-verifying-eip-712-challenges-with-go-32635ca78aaf.
 func digestEIP712(address string, message []byte, nonce int) ([32]byte, error) {
-	signerData := signtypes.TypedData{
-		Types: signtypes.Types{
-			"Challenge": []signtypes.Type{
+	signerData := apitypes.TypedData{
+		Types: apitypes.Types{
+			"Challenge": []apitypes.Type{
 				{Name: "address", Type: "address"},
 				{Name: "nonce", Type: "uint256"},
 				{Name: "message", Type: "bytes"},
 			},
-			"EIP712Domain": []signtypes.Type{
+			"EIP712Domain": []apitypes.Type{
 				{Name: "name", Type: "string"},
 				{Name: "chainId", Type: "uint256"},
 				{Name: "version", Type: "string"},
@@ -110,13 +60,13 @@ func digestEIP712(address string, message []byte, nonce int) ([32]byte, error) {
 			},
 		},
 		PrimaryType: "Challenge",
-		Domain: signtypes.TypedDataDomain{
+		Domain: apitypes.TypedDataDomain{
 			Name:    "ETHChallenger",
 			Version: "1",
 			Salt:    "charon_salt",              // Fixed for now.
 			ChainId: math.NewHexOrDecimal256(1), // Fixed for now.
 		},
-		Message: signtypes.TypedDataMessage{
+		Message: apitypes.TypedDataMessage{
 			"address": address,
 			"nonce":   math.NewHexOrDecimal256(int64(nonce)),
 			"message": message,

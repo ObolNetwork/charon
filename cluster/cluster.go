@@ -35,33 +35,6 @@ const (
 	dkgAlgo           = "default"
 )
 
-// NewDefinition returns a new definition with populated version and UUID.
-func NewDefinition(
-	name string,
-	numVals int,
-	threshold int,
-	feeRecipient string,
-	withdrawalAddress string,
-	forkVersionHex string,
-	operators []Operator,
-	random io.Reader,
-) Definition {
-	s := Definition{
-		Version:             definitionVersion,
-		Name:                name,
-		UUID:                uuid(random),
-		NumValidators:       numVals,
-		Threshold:           threshold,
-		FeeRecipientAddress: feeRecipient,
-		WithdrawalAddress:   withdrawalAddress,
-		DKGAlgorithm:        dkgAlgo,
-		ForkVersion:         forkVersionHex,
-		Operators:           operators,
-	}
-
-	return s
-}
-
 // uuid returns a random uuid.
 func uuid(random io.Reader) string {
 	b := make([]byte, 16)
