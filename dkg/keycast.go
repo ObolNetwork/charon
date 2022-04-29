@@ -35,8 +35,8 @@ import (
 type transport interface {
 	// ServeShares registers a function that serves node share messages until the context is closed.
 	ServeShares(context.Context, func(nodeIdx int) (msg []byte, err error))
-	// GetShares returns the shares served by a dealer.
-	GetShares(ctx context.Context) ([]byte, error)
+	// GetShares returns the shares served by a dealer or a permanent error.
+	GetShares(ctx context.Context, nodeIdx int) ([]byte, error)
 }
 
 // share is the co-validator public key, tbls verifiers, and private key share.
@@ -61,13 +61,13 @@ func runKeyCast(ctx context.Context, def cluster.Definition, tx transport, nodeI
 		return leadKeyCast(ctx, tx, def, random)
 	}
 
-	return joinKeyCast(ctx, tx)
+	return joinKeyCast(ctx, tx, nodeIdx)
 }
 
-func joinKeyCast(ctx context.Context, tx transport) ([]share, error) {
+func joinKeyCast(ctx context.Context, tx transport, nodeIdx int) ([]share, error) {
 	log.Info(ctx, "Requesting shares from dealer...")
 
-	payload, err := tx.GetShares(ctx)
+	payload, err := tx.GetShares(ctx, nodeIdx)
 	if err != nil {
 		return nil, errors.Wrap(err, "get shares")
 	}

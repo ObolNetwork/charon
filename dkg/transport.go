@@ -73,7 +73,7 @@ func (t p2pTransport) ServeShares(ctx context.Context, handler func(nodeIdx int)
 }
 
 // GetShares returns the shares requested from the dealer or a context error. It retries all other errors.
-func (t p2pTransport) GetShares(ctx context.Context) ([]byte, error) {
+func (t p2pTransport) GetShares(ctx context.Context, _ int) ([]byte, error) {
 	for {
 		resp, err := getSharesOnce(ctx, t.tcpNode, t.peers[0].ID, t.clusterID)
 		if ctx.Err() != nil {
@@ -89,6 +89,7 @@ func (t p2pTransport) GetShares(ctx context.Context) ([]byte, error) {
 	}
 }
 
+// getSharesOnce returns the message sent from the dealer.
 func getSharesOnce(ctx context.Context, tcpNode host.Host, dealer peer.ID, clusterID string) ([]byte, error) {
 	s, err := tcpNode.NewStream(ctx, dealer, getProtocol(clusterID))
 	if err != nil {
@@ -104,6 +105,7 @@ func getSharesOnce(ctx context.Context, tcpNode host.Host, dealer peer.ID, clust
 	return resp, nil
 }
 
+// getProtocol returns the protocol ID including the cluster ID.
 func getProtocol(clusterID string) protocol.ID {
 	return protocol.ID(fmt.Sprintf("/charon/dealer_dgk/1.0.0/%s", clusterID))
 }
