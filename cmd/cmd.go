@@ -26,7 +26,6 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/dkg"
 )
 
 const (
@@ -47,10 +46,6 @@ func New() *cobra.Command {
 		newRunCmd(app.Run),
 		newBootnodeCmd(RunBootnode),
 		newCreateClusterCmd(runCreateCluster),
-		newDKGCmd(
-			newDKGJoinCommand(dkg.Join),
-			newDKGLeadCommand(dkg.Lead),
-		),
 	)
 }
 
