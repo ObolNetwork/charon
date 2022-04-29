@@ -25,6 +25,11 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
+const (
+	definitionVersion = "v1.0.0"
+	dkgAlgo           = "default"
+)
+
 // NewDefinition returns a new definition with populated version and UUID.
 func NewDefinition(
 	name string,

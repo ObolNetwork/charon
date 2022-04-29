@@ -17,6 +17,7 @@ package cluster
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/math"
@@ -25,6 +26,14 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 )
+
+// uuid returns a random uuid.
+func uuid(random io.Reader) string {
+	b := make([]byte, 16)
+	_, _ = random.Read(b)
+
+	return fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
 
 // verifySig returns true if the signature matches the digest and address.
 func verifySig(addr string, digest []byte, sig []byte) (bool, error) {

@@ -24,21 +24,3 @@
 //   charon create dkg ─┘                                           ├─► cluster_lock.json ──► charon run
 //                                           charon create cluster ─┘
 package cluster
-
-import (
-	"fmt"
-	"io"
-)
-
-const (
-	definitionVersion = "v1.0.0"
-	dkgAlgo           = "default"
-)
-
-// uuid returns a random uuid.
-func uuid(random io.Reader) string {
-	b := make([]byte, 16)
-	_, _ = random.Read(b)
-
-	return fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
-}
