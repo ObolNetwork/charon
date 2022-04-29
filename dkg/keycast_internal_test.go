@@ -91,17 +91,19 @@ func (m *memTransport) ServeShares(ctx context.Context, f func(nodeIdx int) (msg
 	m.mu.Unlock()
 }
 
-func (m *memTransport) GetShares(_ context.Context, nodeIdx int) ([]byte, error) {
+func (m *memTransport) GetShares(ctx context.Context, nodeIdx int) ([]byte, error) {
 	// Wait for servFunc to be populated.
-	for {
+	for ctx.Err() == nil {
 		m.mu.Lock()
 		if m.servFunc != nil {
-			break
+			resp, err := m.servFunc(nodeIdx)
+			m.mu.Unlock()
+
+			return resp, err
 		}
 		m.mu.Unlock()
 		time.Sleep(time.Millisecond)
 	}
-	defer m.mu.Unlock()
 
-	return m.servFunc(nodeIdx)
+	return nil, ctx.Err()
 }
