@@ -18,9 +18,9 @@ package dkg
 import (
 	"context"
 	"math/rand"
-	"runtime"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -99,7 +99,7 @@ func (m *memTransport) GetShares(_ context.Context, nodeIdx int) ([]byte, error)
 			break
 		}
 		m.mu.Unlock()
-		runtime.Gosched()
+		time.Sleep(time.Millisecond)
 	}
 	defer m.mu.Unlock()
 
