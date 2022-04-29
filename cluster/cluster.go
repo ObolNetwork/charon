@@ -36,9 +36,15 @@ const (
 )
 
 // NewDefinition returns a new definition with populated version and UUID.
-func NewDefinition(name string, numVals int, threshold int,
-	feeRecipient string, withdrawalAddress string, forkVersionHex string,
-	operators []Operator, random io.Reader,
+func NewDefinition(
+	name string,
+	numVals int,
+	threshold int,
+	feeRecipient string,
+	withdrawalAddress string,
+	forkVersionHex string,
+	operators []Operator,
+	random io.Reader,
 ) Definition {
 	s := Definition{
 		Version:             definitionVersion,
