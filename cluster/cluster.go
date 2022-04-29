@@ -19,10 +19,10 @@
 // the output of the `charon dkg` and `charon create cluster` commands. `Lock` is also the input
 // to `charon run` command.
 //
-//          LaunchPad ─┐
-//                     ├─► cluster_definition.json ──► charon dkg ─┐
-//  charon create dkg ─┘                                       ├─► cluster_lock.json ──► charon run
-//                                      charon create cluster ─┘
+//  launchpad.obol.net ─┐
+//                      ├─► cluster_definition.json ──► charon dkg ─┐
+//   charon create dkg ─┘                                           ├─► cluster_lock.json ──► charon run
+//                                           charon create cluster ─┘
 package cluster
 
 import (
