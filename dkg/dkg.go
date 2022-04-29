@@ -73,7 +73,7 @@ func Run(ctx context.Context, conf Config) error {
 
 	tx := p2pTransport{
 		tcpNode:   tcpNode,
-		dealer:    peers[0].ID, // NodeIdx==0 is leader.
+		peers:     peers,
 		clusterID: fmt.Sprintf("%x", defHash[:]),
 	}
 

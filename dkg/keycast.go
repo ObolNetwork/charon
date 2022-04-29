@@ -36,9 +36,11 @@ type transport interface {
 	// ServeShares registers a function that serves node share messages until the context is closed.
 	ServeShares(context.Context, func(nodeIdx int) (msg []byte, err error))
 	// GetShares returns the shares served by a dealer.
-	GetShares(ctx context.Context, nodeIdx int) ([]byte, error)
+	GetShares(ctx context.Context) ([]byte, error)
 }
 
+// share is the co-validator public key, tbls verifiers, and private key share.
+// Each node in the cluster will receive one for each distributed validator.
 type share struct {
 	PubKey   *bls_sig.PublicKey
 	Verifier *sharing.FeldmanVerifier
@@ -56,16 +58,16 @@ func runKeyCast(ctx context.Context, def cluster.Definition, tx transport, nodeI
 	ctx = log.WithTopic(ctx, "dkg")
 
 	if nodeIdx == 0 {
-		return leadKeyCast(ctx, tx, def, nodeIdx, random)
+		return leadKeyCast(ctx, tx, def, random)
 	}
 
-	return joinKeyCast(ctx, tx, nodeIdx)
+	return joinKeyCast(ctx, tx)
 }
 
-func joinKeyCast(ctx context.Context, tx transport, nodeIdx int) ([]share, error) {
+func joinKeyCast(ctx context.Context, tx transport) ([]share, error) {
 	log.Info(ctx, "Requesting shares from dealer...")
 
-	payload, err := tx.GetShares(ctx, nodeIdx)
+	payload, err := tx.GetShares(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "get shares")
 	}
@@ -90,7 +92,8 @@ func joinKeyCast(ctx context.Context, tx transport, nodeIdx int) ([]share, error
 	return resp, nil
 }
 
-func leadKeyCast(ctx context.Context, tx transport, def cluster.Definition, nodeIdx int, random io.Reader) ([]share, error) {
+// leadKeyCast creates all shares for the cluster, then serves them via requests until done.
+func leadKeyCast(ctx context.Context, tx transport, def cluster.Definition, random io.Reader) ([]share, error) {
 	numNodes := len(def.Operators)
 
 	// Create shares for all nodes.
@@ -110,7 +113,7 @@ func leadKeyCast(ctx context.Context, tx transport, def cluster.Definition, node
 		resp     []share
 	)
 	for idx, shares := range allShares {
-		if idx == nodeIdx {
+		if idx == 0 {
 			// Store our own shares as the function response.
 			resp = shares
 			continue
@@ -130,7 +133,7 @@ func leadKeyCast(ctx context.Context, tx transport, def cluster.Definition, node
 		if err != nil {
 			return nil, errors.Wrap(err, "marshal msgs")
 		}
-		payloads[nodeIdx] = payload
+		payloads[idx] = payload
 	}
 
 	ctx, cancel := context.WithCancel(ctx)

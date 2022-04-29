@@ -17,7 +17,6 @@ package dkg
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -29,16 +28,14 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 type p2pTransport struct {
 	tcpNode   host.Host
-	dealer    peer.ID
+	peers     []p2p.Peer
 	clusterID string
-}
-
-type reqMsg struct {
-	NodeIdx int
 }
 
 // ServeShares serves the dealer shares to other nodes on request. It returns when the context is closed.
@@ -46,13 +43,21 @@ func (t p2pTransport) ServeShares(ctx context.Context, handler func(nodeIdx int)
 	t.tcpNode.SetStreamHandler(getProtocol(t.clusterID), func(s network.Stream) {
 		defer s.Close()
 
-		var req reqMsg
-		if err := json.NewDecoder(s).Decode(&req); err != nil {
-			log.Error(ctx, "Failure reading request", err)
+		var (
+			nodeIdx int
+			found   bool
+		)
+		for i, p := range t.peers {
+			if p.ID == s.Conn().RemotePeer() {
+				nodeIdx = i
+			}
+		}
+		if !found {
+			log.Warn(ctx, "Ignoring unknown peer", z.Str("peer", p2p.ShortID(s.Conn().RemotePeer())))
 			return
 		}
 
-		msg, err := handler(req.NodeIdx)
+		msg, err := handler(nodeIdx)
 		if err != nil {
 			log.Error(ctx, "Handler failure", err)
 			return
@@ -68,9 +73,9 @@ func (t p2pTransport) ServeShares(ctx context.Context, handler func(nodeIdx int)
 }
 
 // GetShares returns the shares requested from the dealer or a context error. It retries all other errors.
-func (t p2pTransport) GetShares(ctx context.Context, nodeIdx int) ([]byte, error) {
+func (t p2pTransport) GetShares(ctx context.Context) ([]byte, error) {
 	for {
-		resp, err := getSharesOnce(ctx, t.tcpNode, t.dealer, t.clusterID, nodeIdx)
+		resp, err := getSharesOnce(ctx, t.tcpNode, t.peers[0].ID, t.clusterID)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		} else if err != nil {
@@ -84,26 +89,12 @@ func (t p2pTransport) GetShares(ctx context.Context, nodeIdx int) ([]byte, error
 	}
 }
 
-func getSharesOnce(ctx context.Context, tcpNode host.Host, pID peer.ID, clusterID string, nodeIdx int) ([]byte, error) {
-	s, err := tcpNode.NewStream(ctx, pID, getProtocol(clusterID))
+func getSharesOnce(ctx context.Context, tcpNode host.Host, dealer peer.ID, clusterID string) ([]byte, error) {
+	s, err := tcpNode.NewStream(ctx, dealer, getProtocol(clusterID))
 	if err != nil {
 		return nil, errors.Wrap(err, "new stream")
 	}
 	defer s.Close()
-
-	req, err := json.Marshal(reqMsg{NodeIdx: nodeIdx})
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal request message")
-	}
-
-	_, err = s.Write(req)
-	if err != nil {
-		return nil, errors.Wrap(err, "send request")
-	}
-
-	if err := s.CloseWrite(); err != nil {
-		return nil, errors.Wrap(err, "close write")
-	}
 
 	resp, err := io.ReadAll(s)
 	if err != nil {
