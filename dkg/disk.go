@@ -22,41 +22,41 @@ import (
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
-	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
-// loadManifest loads and returns the manifest from the file on disk.
-func loadManifest(filename string) (app.Manifest, error) {
-	buf, err := os.ReadFile(filename)
-	if err != nil {
-		return app.Manifest{}, errors.Wrap(err, "read manifest")
+// loadDefinition returns the cluster definition from disk (or the test definition if configured).
+func loadDefinition(conf Config) (cluster.Definition, error) {
+	if conf.TestDef != nil {
+		return *conf.TestDef, nil
 	}
 
-	var res app.Manifest
+	buf, err := os.ReadFile(conf.DefFile)
+	if err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "read manifest")
+	}
+
+	var res cluster.Definition
 	err = json.Unmarshal(buf, &res)
 	if err != nil {
-		return app.Manifest{}, errors.Wrap(err, "unmarshal manifest")
+		return cluster.Definition{}, errors.Wrap(err, "unmarshal manifest")
 	}
 
 	return res, nil
 }
 
-// writeOutput writes the updated manifest lock file and private share keystores to disk.
-func writeOutput(manifest app.Manifest, datadir string, outs []output) error {
-	clone := manifest
+// writeKeystores writes the private share keystores to disk.
+func writeKeystores(datadir string, shares []share) error {
 	var secrets []*bls_sig.SecretKey
-	for _, out := range outs {
-		tss, err := tbls.NewTSS(out.Verifier, len(manifest.Peers))
+	for _, s := range shares {
+		secret, err := tblsconv.ShareToSecret(s.Share)
 		if err != nil {
 			return err
 		}
-
-		clone.DVs = append(clone.DVs, tss)
-
-		secrets = append(secrets, out.Share)
+		secrets = append(secrets, secret)
 	}
 
 	err := keystore.StoreKeys(secrets, datadir)
@@ -64,14 +64,19 @@ func writeOutput(manifest app.Manifest, datadir string, outs []output) error {
 		return err
 	}
 
-	b, err := json.Marshal(clone)
+	return nil
+}
+
+// writeLock writes the lock file to disk.
+func writeLock(datadir string, lock cluster.Lock) error {
+	b, err := json.Marshal(lock)
 	if err != nil {
-		return errors.Wrap(err, "marshal manifest")
+		return errors.Wrap(err, "marshal lock")
 	}
 
-	err = os.WriteFile(path.Join(datadir, "manifest.lock"), b, 0o600)
+	err = os.WriteFile(path.Join(datadir, "cluster_lock.json"), b, 0o600)
 	if err != nil {
-		return errors.Wrap(err, "write manifest lock")
+		return errors.Wrap(err, "write lock")
 	}
 
 	return nil

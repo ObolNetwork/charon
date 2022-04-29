@@ -21,14 +21,24 @@ import (
 	"io"
 
 	ssz "github.com/ferranbt/fastssz"
+	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 const (
 	definitionVersion = "v1.0.0"
 	dkgAlgo           = "default"
 )
+
+// NodeIdx represents the index of a node/peer/share in the cluster as operator order in cluster definition.
+type NodeIdx struct {
+	// PeerIdx is the index of a peer in the peer list (it 0-indexed).
+	PeerIdx int
+	// ShareIdx is the tbls share identifier (it is 1-indexed).
+	ShareIdx int
+}
 
 // NewDefinition returns a new definition with populated version and UUID.
 func NewDefinition(
@@ -92,6 +102,27 @@ type Definition struct {
 	// OperatorSignatures are EIP712 signatures of the definition hash by each operator Ethereum address.
 	// Fully populated operator signatures results in "sealed" definition ready for use in DKG.
 	OperatorSignatures [][]byte
+}
+
+// NodeIdx returns the node index for the peer.
+func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
+	peers, err := d.Peers()
+	if err != nil {
+		return NodeIdx{}, err
+	}
+
+	for i, p := range peers {
+		if p.ID != pID {
+			continue
+		}
+
+		return NodeIdx{
+			PeerIdx:  i,     // 0-indexed
+			ShareIdx: i + 1, // 1-indexed
+		}, nil
+	}
+
+	return NodeIdx{}, errors.New("unknown peer id")
 }
 
 // Sealed returns true if all operator signatures are populated and valid.
@@ -247,6 +278,26 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 	*d = def
 
 	return nil
+}
+
+// Peers returns the operators as a slice of p2p peers.
+func (d Definition) Peers() ([]p2p.Peer, error) {
+	var resp []p2p.Peer
+	for i, operator := range d.Operators {
+		record, err := p2p.DecodeENR(operator.ENR)
+		if err != nil {
+			return nil, err
+		}
+
+		peer, err := p2p.NewPeer(record, i)
+		if err != nil {
+			return nil, err
+		}
+
+		resp = append(resp, peer)
+	}
+
+	return resp, nil
 }
 
 // defFmt is the json formatter of Definition.
