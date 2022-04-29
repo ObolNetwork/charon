@@ -17,43 +17,43 @@ package cluster
 
 import ssz "github.com/ferranbt/fastssz"
 
-// HashTreeRoot ssz hashes the Params object.
-func (p Params) HashTreeRoot() ([32]byte, error) {
-	return ssz.HashWithDefaultHasher(p) //nolint:wrapcheck
+// HashTreeRoot ssz hashes the Definition object.
+func (d Definition) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(d) //nolint:wrapcheck
 }
 
-// HashTreeRootWith ssz hashes the Params object with a hasher.
-func (p Params) HashTreeRootWith(hh *ssz.Hasher) error {
+// HashTreeRootWith ssz hashes the Definition object with a hasher.
+func (d Definition) HashTreeRootWith(hh *ssz.Hasher) error {
 	indx := hh.Index()
 
 	// Field (0) 'UUID'
-	hh.PutBytes([]byte(p.UUID))
+	hh.PutBytes([]byte(d.UUID))
 
 	// Field (1) 'Name'
-	hh.PutBytes([]byte(p.Name))
+	hh.PutBytes([]byte(d.Name))
 
 	// Field (2) 'Version'
-	hh.PutBytes([]byte(p.Version))
+	hh.PutBytes([]byte(d.Version))
 
 	// Field (3) 'NumValidators'
-	hh.PutUint64(uint64(p.NumValidators))
+	hh.PutUint64(uint64(d.NumValidators))
 
 	// Field (4) 'Threshold'
-	hh.PutUint64(uint64(p.Threshold))
+	hh.PutUint64(uint64(d.Threshold))
 
 	// Field (5) 'FeeRecipientAddress'
-	hh.PutBytes([]byte(p.FeeRecipientAddress))
+	hh.PutBytes([]byte(d.FeeRecipientAddress))
 
 	// Field (6) 'WithdrawalAddress'
-	hh.PutBytes([]byte(p.WithdrawalAddress))
+	hh.PutBytes([]byte(d.WithdrawalAddress))
 
 	// Field (7) 'DKGAlgorithm'
-	hh.PutBytes([]byte(p.DKGAlgorithm))
+	hh.PutBytes([]byte(d.DKGAlgorithm))
 
 	// Field (8) 'ForkVersion'
-	hh.PutBytes([]byte(p.ForkVersion))
+	hh.PutBytes([]byte(d.ForkVersion))
 
-	for _, operator := range p.Operators {
+	for _, operator := range d.Operators {
 		// Field (9+i) 'Operator'
 		if err := operator.HashTreeRootWith(hh); err != nil {
 			return err
@@ -65,7 +65,7 @@ func (p Params) HashTreeRootWith(hh *ssz.Hasher) error {
 	return nil
 }
 
-// HashTreeRoot ssz hashes the Params object.
+// HashTreeRoot ssz hashes the Definition object.
 func (o Operator) HashTreeRoot() ([32]byte, error) {
 	return ssz.HashWithDefaultHasher(o) //nolint:wrapcheck
 }
@@ -100,8 +100,8 @@ func (l Lock) HashTreeRoot() ([32]byte, error) {
 func (l Lock) HashTreeRootWith(hh *ssz.Hasher) error {
 	indx := hh.Index()
 
-	// Field (0) 'Params'
-	if err := l.Params.HashTreeRootWith(hh); err != nil {
+	// Field (0) 'Definition'
+	if err := l.Definition.HashTreeRootWith(hh); err != nil {
 		return err
 	}
 

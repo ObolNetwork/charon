@@ -32,8 +32,8 @@ import (
 func TestEncode(t *testing.T) {
 	rand.Seed(0)
 
-	params := cluster.NewParams(
-		"test params",
+	definition := cluster.NewDefinition(
+		"test definition",
 		2,
 		3,
 		testutil.RandomETHAddress(),
@@ -56,31 +56,36 @@ func TestEncode(t *testing.T) {
 		rand.New(rand.NewSource(0)),
 	)
 
-	t.Run("params_json", func(t *testing.T) {
-		testutil.RequireGoldenJSON(t, params)
+	definition.OperatorSignatures = [][]byte{
+		testutil.RandomBytes32(),
+		testutil.RandomBytes32(),
+	}
+
+	t.Run("definition_json", func(t *testing.T) {
+		testutil.RequireGoldenJSON(t, definition)
 	})
 
-	hash1, err := params.HashTreeRoot()
+	hash1, err := definition.HashTreeRoot()
 	require.NoError(t, err)
-	hash2, err := params.HashTreeRoot()
+	hash2, err := definition.HashTreeRoot()
 	require.NoError(t, err)
 	require.Equal(t, hash1, hash2)
 
-	b1, err := json.Marshal(params)
+	b1, err := json.Marshal(definition)
 	require.NoError(t, err)
 
-	var params2 cluster.Params
-	err = json.Unmarshal(b1, &params2)
+	var definition2 cluster.Definition
+	err = json.Unmarshal(b1, &definition2)
 	require.NoError(t, err)
 
-	b2, err := json.Marshal(params2)
+	b2, err := json.Marshal(definition2)
 	require.NoError(t, err)
 
 	require.Equal(t, b1, b2)
-	require.Equal(t, params, params2)
+	require.Equal(t, definition, definition2)
 
 	lock := cluster.Lock{
-		Params:             params,
+		Definition:         definition,
 		SignatureAggregate: testutil.RandomBytes32(),
 		Validators: []cluster.DistValidator{
 			{

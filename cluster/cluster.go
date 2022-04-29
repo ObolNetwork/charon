@@ -13,14 +13,14 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package cluster provides the cluster configuration API. It defines the `Params` type that is
+// Package cluster provides the cluster configuration API. It defines the `Definition` type that is
 // the output of the Launchpad and `charon create dkg` commands.
-// `Params` is also the input to `charon dkg`. If defines the `Lock` type that is
+// `Definition` is also the input to `charon dkg`. If defines the `Lock` type that is
 // the output of the `charon dkg` and `charon create cluster` commands. `Lock` is also the input
 // to `charon run` command.
 //
 //          LaunchPad ─┐
-//                     ├─► cluster_params.json ──► charon dkg ─┐
+//                     ├─► cluster_definition.json ──► charon dkg ─┐
 //  charon create dkg ─┘                                       ├─► cluster_lock.json ──► charon run
 //                                      charon create cluster ─┘
 package cluster
@@ -31,17 +31,17 @@ import (
 )
 
 const (
-	paramsVersion = "v1.0.0"
-	dkgAlgo       = "default"
+	definitionVersion = "v1.0.0"
+	dkgAlgo           = "default"
 )
 
-// NewParams returns a new params with populated version and UUID.
-func NewParams(name string, numVals int, threshold int,
+// NewDefinition returns a new definition with populated version and UUID.
+func NewDefinition(name string, numVals int, threshold int,
 	feeRecipient string, withdrawalAddress string, forkVersionHex string,
 	operators []Operator, random io.Reader,
-) Params {
-	s := Params{
-		Version:             paramsVersion,
+) Definition {
+	s := Definition{
+		Version:             definitionVersion,
 		Name:                name,
 		UUID:                uuid(random),
 		NumValidators:       numVals,

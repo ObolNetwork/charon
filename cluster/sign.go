@@ -27,21 +27,21 @@ import (
 )
 
 // Sealed returns true if all operator signatures are populated and valid.
-func (p Params) Sealed() (bool, error) {
-	paramHash, err := p.HashTreeRoot()
+func (d Definition) Sealed() (bool, error) {
+	paramHash, err := d.HashTreeRoot()
 	if err != nil {
 		return false, errors.Wrap(err, "param hash")
 	}
 
 	// Check that we a operator signature for each operator.
-	for _, o := range p.Operators {
+	for _, o := range d.Operators {
 		digest, err := digestEIP712(o.Address, paramHash[:], 0)
 		if err != nil {
 			return false, err
 		}
 
 		var found bool
-		for _, sig := range p.OperatorSignatures {
+		for _, sig := range d.OperatorSignatures {
 			if ok, err := verifySig(o.Address, digest[:], sig); err != nil {
 				return false, err
 			} else if ok {

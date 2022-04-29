@@ -15,41 +15,41 @@
 
 package cluster
 
-// Params defines an intended charon cluster configuration.
-type Params struct {
-	// Name is optional cosmetic identifier
-	Name string `json:"name,omitempty"`
+// Definition defines an intended charon cluster configuration.
+type Definition struct {
+	// Name is an optional cosmetic identifier
+	Name string
 
 	// UUID is a random unique identifier
-	UUID string `json:"uuid"`
+	UUID string
 
-	// Version is the schema version of this params.
-	Version string `json:"version"`
+	// Version is the schema version of this definition.
+	Version string
 
 	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
-	NumValidators int `json:"num_validators"`
+	NumValidators int
 
 	// Threshold required for signature reconstruction. Defaults to safe value for number of nodes/peers.
-	Threshold int `json:"threshold"`
+	Threshold int
 
 	// FeeRecipientAddress Ethereum address.
-	FeeRecipientAddress string `json:"fee_recipient_address,omitempty"`
+	FeeRecipientAddress string
 
 	// WithdrawalAddress Ethereum address.
-	WithdrawalAddress string `json:"withdrawal_address,omitempty"`
+	WithdrawalAddress string
 
 	// DKGAlgorithm to use for key generation.
-	DKGAlgorithm string `json:"dkg_algorithm"`
+	DKGAlgorithm string
 
-	// ForkVersion defines the cluster's beacon chain hex fork paramsVersion (network/chain identifier).
-	ForkVersion string `json:"fork_version"`
+	// ForkVersion defines the cluster's beacon chain hex fork definitionVersion (network/chain identifier).
+	ForkVersion string
 
 	// Operators define the charon nodes in the cluster and their operators.
-	Operators []Operator `json:"operators"`
+	Operators []Operator
 
-	// OperatorSignatures are EIP712 signatures of the params hash by each operator Ethereum address.
-	// Fully populated operator signatures results in "sealed" params ready for use in DKG.
-	OperatorSignatures [][]byte `json:"operator_signatures"`
+	// OperatorSignatures are EIP712 signatures of the definition hash by each operator Ethereum address.
+	// Fully populated operator signatures results in "sealed" definition ready for use in DKG.
+	OperatorSignatures [][]byte
 }
 
 // Operator identifies a charon node and its operator.
@@ -67,10 +67,10 @@ type Operator struct {
 	ENRSignature []byte `json:"enr_signature"`
 }
 
-// Lock extends the cluster config Params with bls threshold public keys and checksums.
+// Lock extends the cluster config Definition with bls threshold public keys and checksums.
 type Lock struct {
-	// Params is embedded and extended by Lock.
-	Params
+	// Definition is embedded and extended by Lock.
+	Definition
 
 	// Validators are the distributed validators (n*32ETH) managed by the cluster.
 	Validators []DistValidator
@@ -88,6 +88,6 @@ type DistValidator struct {
 	// Verifiers are the public shares.
 	Verifiers [][]byte `json:"threshold_verifiers"`
 
-	// FeeRecipientAddress Ethereum address override for this validator, defaults to params withdrawal address.
+	// FeeRecipientAddress Ethereum address override for this validator, defaults to definition withdrawal address.
 	FeeRecipientAddress string `json:"fee_recipient_address,omitempty"`
 }

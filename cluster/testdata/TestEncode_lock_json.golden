@@ -1,14 +1,6 @@
 {
- "cluster_params": {
-  "name": "test params",
-  "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
-  "version": "v1.0.0",
-  "num_validators": 2,
-  "threshold": 3,
-  "fee_recipient_address": "0x0194fdc2fa2ffcc041d3ff12045b73c86e4ff95f",
-  "withdrawal_address": "0xfb180daf48a79ee0b10d394651850fd4a178892e",
-  "dkg_algorithm": "default",
-  "fork_version": "0x00000002",
+ "cluster_definition": {
+  "name": "test definition",
   "operators": [
    {
     "address": "0xe2d3d0d0de6bf8f9b44ce85ff044c6b1f83b8e88",
@@ -23,25 +15,36 @@
     "enr_signature": "7OC4t8GWXZGBJRt8nJylIFr8FqI2ou/N0tEtKnnQdKg="
    }
   ],
-  "operator_signatures": null,
-  "params_hash": "/PmnRxcUwujNlI+8EgtN9hXwZgTDOyKYlTM3d8qNrrE="
+  "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
+  "version": "v1.0.0",
+  "num_validators": 2,
+  "threshold": 3,
+  "fee_recipient_address": "0x0194fdc2fa2ffcc041d3ff12045b73c86e4ff95f",
+  "withdrawal_address": "0xfb180daf48a79ee0b10d394651850fd4a178892e",
+  "dkg_algorithm": "default",
+  "fork_version": "0x00000002",
+  "definition_hash": "7EEI29e0I9C2ZfqIPXlHf1swxE5mmPTHHVykeuZ5q50=",
+  "operator_signatures": [
+   "KArpQ56w1q7KCCOuAtZ9hmrCxP5KclBT2hGbnU9RUUA=",
+   "otcjnEC0WsOVDZQfxP4cDLlq0yLWIoIpX7/hHiakMwc="
+  ]
  },
  "distributed_validators": [
   {
-   "distributed_public_key": "0xa2d7239c40b45ac3950d941fc4fe1c0cb96ad322",
+   "distributed_public_key": "0x7b182e046410f44bc4b0f3f03a0d06820a30f257",
    "threshold_verifiers": [
-    "bbXBREw6NNMqXEp/++jRgfftO4z+kE+T+PBtKbzZ7YQ=",
-    "exguBGQQ9EvEsPPwOg0Gggow8lf4EUEwZ4rARYbB48k="
+    "NCyLgFXEZtiGRB0lmQbWms2JS5aK6fDrnZZc5qRpPE4=",
+    "vogVAbfZhGtm6wK1flzae2y6aJHWFr1obDe4NGE6yLo="
    ]
   },
   {
-   "distributed_public_key": "0x342c8b8055c466d886441d259906d69acd894b96",
+   "distributed_public_key": "0xa22c008ffe688352734ae4e3f1217acd5f832708",
    "threshold_verifiers": [
-    "vogVAbfZhGtm6wK1flzae2y6aJHWFr1obDe4NGE6yLo=",
-    "oiwAj/5og1JzSuTj8SF6zV+DJwgUMBhntdBnEbI4ABw="
+    "eVeydxnOPzGI3+V97r9vgllaEPe7ViygTVw9J5QpWMY=",
+    "2zJiZwZJ87yX2aIxZzXt5oKl3+bxoBH7yYrQ++eQADw="
    ]
   }
  ],
- "signature_aggregate": "KArpQ56w1q7KCCOuAtZ9hmrCxP5KclBT2hGbnU9RUUA=",
- "lock_hash": "t8NjcXqWEHFbUSCcVZPIuhe2U28Ix0VP56SV0D2peRM="
+ "signature_aggregate": "bbXBREw6NNMqXEp/++jRgfftO4z+kE+T+PBtKbzZ7YQ=",
+ "lock_hash": "wcS2qPDhSo0jvYr6tM+7pk4H+nsglA/cf8+baqBnuK0="
 }

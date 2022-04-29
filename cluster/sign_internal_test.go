@@ -32,19 +32,19 @@ func TestENRSignature(t *testing.T) {
 	require.NoError(t, op.VerifySignature())
 }
 
-func TestParamsSealed(t *testing.T) {
+func TestDefinitionSealed(t *testing.T) {
 	secret1, op1 := randomOperator(t)
 	secret2, op2 := randomOperator(t)
 
-	params := NewParams("test params", 1, 2,
+	definition := NewDefinition("test definition", 1, 2,
 		"", "", "", []Operator{op1, op2},
 		rand.New(rand.NewSource(1)))
 
-	sealed, err := params.Sealed()
+	sealed, err := definition.Sealed()
 	require.NoError(t, err)
 	require.False(t, sealed)
 
-	paramHash, err := params.HashTreeRoot()
+	paramHash, err := definition.HashTreeRoot()
 	require.NoError(t, err)
 
 	digest1, err := digestEIP712(op1.Address, paramHash[:], 0)
@@ -57,8 +57,8 @@ func TestParamsSealed(t *testing.T) {
 	sig2, err := crypto.Sign(digest2[:], secret2)
 	require.NoError(t, err)
 
-	params.OperatorSignatures = append(params.OperatorSignatures, sig1)
-	params.OperatorSignatures = append(params.OperatorSignatures, sig2)
+	definition.OperatorSignatures = append(definition.OperatorSignatures, sig1)
+	definition.OperatorSignatures = append(definition.OperatorSignatures, sig2)
 }
 
 // randomOperator returns a random ETH1 private key and populated and signed operator struct.
