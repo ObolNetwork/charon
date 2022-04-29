@@ -21,13 +21,14 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/testutil"
 )
 
-//go:generate go test . -clean -update
+//go:generate go test . -v -clean -update
 
 func TestEncode(t *testing.T) {
 	rand.Seed(0)
@@ -60,6 +61,14 @@ func TestEncode(t *testing.T) {
 		testutil.RandomBytes32(),
 		testutil.RandomBytes32(),
 	}
+
+	t.Run("definition_yaml", func(t *testing.T) {
+		jsonBytes, err := json.Marshal(definition)
+		require.NoError(t, err)
+		yamlBytes, err := yaml.JSONToYAML(jsonBytes)
+		require.NoError(t, err)
+		testutil.RequireGoldenBytes(t, yamlBytes)
+	})
 
 	t.Run("definition_json", func(t *testing.T) {
 		testutil.RequireGoldenJSON(t, definition)
@@ -106,6 +115,14 @@ func TestEncode(t *testing.T) {
 
 	t.Run("lock_json", func(t *testing.T) {
 		testutil.RequireGoldenJSON(t, lock)
+	})
+
+	t.Run("lock_yaml", func(t *testing.T) {
+		jsonBytes, err := json.Marshal(lock)
+		require.NoError(t, err)
+		yamlBytes, err := yaml.JSONToYAML(jsonBytes)
+		require.NoError(t, err)
+		testutil.RequireGoldenBytes(t, yamlBytes)
 	})
 
 	hash1, err = lock.HashTreeRoot()
