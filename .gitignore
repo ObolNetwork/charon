@@ -151,6 +151,8 @@ ormconfig.json
 charon
 !charon/
 keys/
+data/
+charon-cluster/
 coverage.out
 cli-reference.txt
 changelog.md
