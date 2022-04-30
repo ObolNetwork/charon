@@ -1,3 +1,4 @@
+![bg](#abc123)
 ![Obol Logo](https://obol.tech/obolnetwork.png)
 # Charon - The Distributed Validator middleware client
 [![Tag](https://img.shields.io/github/tag/obolnetwork/charon.svg)](https://github.com/obolnetwork/charon/releases/)
