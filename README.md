@@ -1,11 +1,8 @@
-![Obol Logo](https://obol.tech/obolnetwork.png)
-
-<h1 align="center">Charon - The Distributed Validator middleware client</h1>
 [![Tag](https://img.shields.io/github/tag/obolnetwork/charon.svg)](https://github.com/obolnetwork/charon/releases/)
 [![License](https://img.shields.io/github/license/obolnetwork/charon.svg)](LICENSE)
 [![GoDoc](https://godoc.org/github.com/obolnetwork/charon?status.svg)](https://godoc.org/github.com/obolnetwork/charon)
-![Lint](https://github.com/obolnetwork/charon/workflows/golangci-lint/badge.svg)
 [![Go Report Card](https://goreportcard.com/badge/github.com/obolnetwork/charon)](https://goreportcard.com/report/github.com/obolnetwork/charon)
+![Lint](https://github.com/obolnetwork/charon/workflows/golangci-lint/badge.svg)
 
 This repo contains the source code for the distributed validator client *Charon*; a HTTP middleware client for Ethereum Staking that enables you to safely run a single validator across a group of independent nodes.
 
