@@ -54,7 +54,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 }
 
 func bindRunFlags(flags *pflag.FlagSet, config *app.Config) {
-	flags.StringVar(&config.ManifestFile, "manifest-file", "manifest.json", "The path to the manifest file defining distributed validator cluster")
+	flags.StringVar(&config.ManifestFile, "manifest-file", "./.charon/manifest.json", "The path to the manifest file defining distributed validator cluster")
 	flags.StringVar(&config.BeaconNodeAddr, "beacon-node-endpoint", "http://localhost/", "Beacon node endpoint URL")
 	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:16002", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API")
 	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:16001", "Listening address (ip and port) for the monitoring API (prometheus, pprof)")
@@ -70,7 +70,7 @@ func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 }
 
 func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
-	flags.StringVar(dataDir, "data-dir", "data", "The directory where charon will store all its internal data")
+	flags.StringVar(dataDir, "data-dir", "./.charon/data", "The directory where charon will store all its internal data")
 }
 
 func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {

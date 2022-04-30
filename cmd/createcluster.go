@@ -114,7 +114,7 @@ func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Co
 }
 
 func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
-	flags.StringVar(&config.ClusterDir, "cluster-dir", "charon-cluster", "The target folder to create the cluster in.")
+	flags.StringVar(&config.ClusterDir, "cluster-dir", "./.charon/cluster", "The target folder to create the cluster in.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")

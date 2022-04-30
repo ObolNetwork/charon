@@ -88,7 +88,7 @@ Usage:
 
 Flags:
       --beacon-node-endpoint string    Beacon node endpoint URL (default "http://localhost/")
-      --data-dir string                The directory where charon will store all its internal data (default "data")
+      --data-dir string                The directory where charon will store all its internal data (default "./.charon/data")
       --feature-set string             Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
       --feature-set-disable strings    Comma-separated list of features to disable, overriding the default minimum feature set.
       --feature-set-enable strings     Comma-separated list of features to enable, overriding the default minimum feature set.
@@ -97,7 +97,7 @@ Flags:
       --jaeger-service string          Service name used for jaeger tracing (default "charon")
       --log-format string              Log format; console, logfmt or json (default "console")
       --log-level string               Log level; debug, info, warn or error (default "info")
-      --manifest-file string           The path to the manifest file defining distributed validator cluster (default "manifest.json")
+      --manifest-file string           The path to the manifest file defining distributed validator cluster (default "./.charon/manifest.json")
       --monitoring-address string      Listening address (ip and port) for the monitoring API (prometheus, pprof) (default "127.0.0.1:16001")
       --p2p-allowlist string           Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.
       --p2p-bootmanifest               Enables using manifest ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs.
