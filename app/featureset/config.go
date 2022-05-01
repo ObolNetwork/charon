@@ -72,7 +72,7 @@ func Init(ctx context.Context, config Config) error {
 			}
 		}
 		if !ok {
-			log.Warn(ctx, "Ignoring unknown enabled feature", z.Str("feature", f))
+			log.Warn(ctx, "Ignoring unknown enabled feature", nil, z.Str("feature", f))
 		}
 	}
 
@@ -85,7 +85,7 @@ func Init(ctx context.Context, config Config) error {
 			}
 		}
 		if !ok {
-			log.Warn(ctx, "Ignoring unknown disabled feature", z.Str("feature", f))
+			log.Warn(ctx, "Ignoring unknown disabled feature", nil, z.Str("feature", f))
 		}
 	}
 

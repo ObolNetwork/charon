@@ -33,7 +33,6 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/tracer"
-	"github.com/obolnetwork/charon/app/z"
 )
 
 // lateFactor defines the number of slots duties may be late.
@@ -152,7 +151,7 @@ func (r *Retryer) DoAsync(parent context.Context, slot int64, name string, fn fu
 		}
 
 		if ctx.Err() == nil {
-			log.Warn(ctx, "Temporary failure (will retry) calling "+name, z.Err(err))
+			log.Warn(ctx, "Temporary failure (will retry) calling "+name, err)
 			span.AddEvent("retry.backoff.start")
 			select {
 			case <-backoffFunc():

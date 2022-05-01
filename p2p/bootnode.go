@@ -92,7 +92,7 @@ func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Dura
 
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Warn(ctx, "Failure querying bootnode ENR, trying again in 5s...", z.Err(err))
+			log.Warn(ctx, "Failure querying bootnode ENR, trying again in 5s...", err)
 			time.Sleep(backoff)
 
 			continue

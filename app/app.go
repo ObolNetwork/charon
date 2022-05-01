@@ -496,7 +496,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 				eth2http.WithTimeout(time.Second*10), // Allow sufficient time to block while fetching duties.
 			)
 			if err != nil {
-				log.Warn(ctx, "Cannot connect to validatorapi", z.Err(err))
+				log.Warn(ctx, "Cannot connect to validatorapi", err)
 				return
 			}
 
@@ -515,18 +515,18 @@ func callValidatorMock(ctx context.Context, duty core.Duty, cl eth2client.Servic
 	case core.DutyAttester:
 		err := validatormock.Attest(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), pubshares...)
 		if err != nil {
-			log.Warn(ctx, "Attestation failed", z.Err(err))
+			log.Warn(ctx, "Attestation failed", err)
 		} else {
 			log.Info(ctx, "Attestation success", z.I64("slot", duty.Slot))
 		}
 	case core.DutyProposer:
 		err := validatormock.ProposeBlock(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), addr, pubshares...)
 		if err != nil {
-			log.Warn(ctx, "Failed to propose block", z.Err(err))
+			log.Warn(ctx, "Failed to propose block", err)
 		} else {
 			log.Info(ctx, "Block proposed successfully", z.I64("slot", duty.Slot))
 		}
 	default:
-		log.Warn(ctx, "Invalid duty type")
+		log.Warn(ctx, "Invalid duty type", nil)
 	}
 }
