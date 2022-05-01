@@ -60,12 +60,20 @@ func TestKeyCastNoNetwork(t *testing.T) {
 	for i := 0; i < nodes; i++ {
 		i := i // Copy loop variable.
 		eg.Go(func() error {
+<<<<<<< HEAD
 			defer cancel()
 			shares, err := runKeyCast(ctx, def, tp, i, random)
 			require.NoError(t, err)
+=======
+			shares, err := runKeyCast(ctx, def, tx, i, random)
+			if err != nil {
+				cancel()
+				return err
+			}
+>>>>>>> d0774c7 (cleanup)
 			require.Len(t, shares, vals)
 
-			return err
+			return nil
 		})
 	}
 

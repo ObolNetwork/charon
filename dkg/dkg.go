@@ -55,7 +55,7 @@ func Run(ctx context.Context, conf Config) error {
 		return err
 	}
 
-	tcpNode, shutdown, err := setupP2P(conf.DataDir, conf.P2P, peers)
+	tcpNode, shutdown, err := setupP2P(ctx, conf.DataDir, conf.P2P, peers)
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func Run(ctx context.Context, conf Config) error {
 }
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
-func setupP2P(datadir string, p2pConf p2p.Config, peers []p2p.Peer) (host.Host, func(), error) {
+func setupP2P(ctx context.Context, datadir string, p2pConf p2p.Config, peers []p2p.Peer) (host.Host, func(), error) {
 	key, err := p2p.LoadPrivKey(datadir)
 	if err != nil {
 		return nil, nil, err
@@ -124,7 +124,12 @@ func setupP2P(datadir string, p2pConf p2p.Config, peers []p2p.Peer) (host.Host, 
 		return nil, nil, errors.Wrap(err, "failed to open enode")
 	}
 
-	udpNode, err := p2p.NewUDPNode(p2pConf, localEnode, key, nil)
+	bootnodes, err := p2p.NewUDPBootnodes(ctx, p2pConf, peers, localEnode.ID())
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "new bootnodes")
+	}
+
+	udpNode, err := p2p.NewUDPNode(p2pConf, localEnode, key, bootnodes)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "")
 	}

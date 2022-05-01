@@ -5,7 +5,11 @@ This document outlines the project structure.
 ```
 charon/             # project root
 ├─ main.go          # charon main package, it just calls cmd/
-├─ cmd/             # command line interface, binary entrypoint, parses config
+├─ cmd/             # command line interface, binary entrypoint, parses flags
+│
+├─ cluster/         # cluster config definition and file formats.
+│
+├─ dkg/             # distributed key generation command logic.
 │
 ├─ app/             # application run entrypoint
 │  ├─ app.go        # wires state and process lifecycle.
@@ -66,12 +70,17 @@ charon/             # project root
     - `gen-p2p`: Generates a new P2P key
     - `enr`: Prints ENR based on provided p2pkey, manifest and networking config
   - Defines and parses [viper](https://github.com/spf13/viper) configuration parameters for required by each command.
+- `cluster/`: Cluster config definition and files formats
+  - `cluster_definition.json` defines the intended cluster including confutation including operators.
+  - `cluster_lock.json` extends cluster definition adding distributed validator public keys and threshold verifiers.
+- `dkg/`: Distributed Key Generation command
+  - Runs the dkg command that takes a cluster definition as input and generates a cluster lock file and private shares as output.
 - `app/`: Application run entrypoint
   - wires application state and process lifecycle.
   - Receives parsed config as input
   - Loads p2p private key from disk
   - Runs life cycle manager which starts processes and does graceful shutdown.
-  - `manifest.go` defines the cluster manifest; BLS threshold signature scheme and peer networking.
+  - `manifest.go` defines the cluster manifest; BLS threshold signature scheme and peer networking (deprecated).
 - `app/{subdirectory}/`: Application infrastructure libraries
   - Libraries that provide low level infrastructure level features and utilities. Avoid business logic and stateful services.
   - `log/`, `errors/`, `z/` provide structured logging and structured errors using [zap](https://github.com/uber-go/zap) fields
@@ -107,28 +116,28 @@ The package import hierarchy can be illustrated as follows:
                   ┌──────┐
                   │ main │
                   └──┬───┘
-                     │                               app/*
-                  ┌──▼───┐                      ┌───────────────┐
-                  │ cmd  ├──────────────────────► ┌─────────┐   │
-                  └──┬───┘                      │ │ version │   │
-                     │                          │ └─────────┘   │
-                  ┌──▼───┐                      │ ┌─────────┐   │
-                  │ app  ├──────────────────────► │    z    ◄─┐ │
-   core/*         └──┬───┘                      │ └─▲───────┘ │ │
-  ┌──────┐           │                          │ ┌─┴───────┐ │ │
-  │sched │◄──────┬───┴───────┬────────┐         │ │ errors  ◄─┤ │
-  ├──────┤       │           │        │         │ └─────────┘ │ │
-  │fetch │    ┌──▼───┐       │        │         │ ┌─────────┐ │ │
-  ├──────┼────► core ├───────┼────────┼─────────► │  log    ◄─► │
-  │dutydb│    └──────┘       │        │         │ └─────────┘ │ │
-  ├──────┤                   │        │         │ ┌─────────┐ │ │
-  │...   │              ┌────▼───┐    │         │ │ tracer  ├─┤ │
-  ├──────┼──────────────►  tbls  ├────┼─────────► └─────────┘ │ │
-  │sigagg│              ├────▲───┤    │         │ ┌─────────┐ │ │
-  ├──────┤              │tblsconv│  ┌─▼─┐       │ │lifecycle├─┘ │
-  │bcast │              └────────┘  │p2p├───────► └─────────┘   │
-  └──┬───┘                          └─▲─┘       └──────▲────────┘
-     │                                │                │
-     └────────────────────────────────┴────────────────┘
+                     │                                           app/*
+                  ┌──▼───┐       ┌──────┐                  ┌───────────────┐
+                  │ cmd  ├───────► dkg  ├───────┬──────────► ┌─────────┐   │
+                  └──┬───┘       └────┬─┘       │          │ │ version │   │
+                     │                │         │          │ └─────────┘   │
+                  ┌──▼───┐            │    ┌────▼────┐     │ ┌─────────┐   │
+                  │ app  ├─────────────────► cluster │─────► │    z    ◄─┐ │
+   core/*         └─┬──┬─┘            │    └─────────┘     │ └─▲───────┘ │ │
+  ┌──────┐          │  │              │                    │ ┌─┴───────┐ │ │
+  │sched │◄──────┬──┘  └─────┬────────┤                    │ │ errors  ◄─┤ │
+  ├──────┤       │           │        │                    │ └─────────┘ │ │
+  │fetch │    ┌──▼───┐       │        │                    │ ┌─────────┐ │ │
+  ├──────┼────► core ├───────┼────────┼────────────────────► │  log    ◄─► │
+  │dutydb│    └──────┘       │        │                    │ └─────────┘ │ │
+  ├──────┤                   │        │                    │ ┌─────────┐ │ │
+  │...   │              ┌────▼───┐    │                    │ │ tracer  ├─┤ │
+  ├──────┼──────────────►  tbls  ├────┼────────────────────► └─────────┘ │ │
+  │sigagg│              ├────▲───┤    │                    │ ┌─────────┐ │ │
+  ├──────┤              │tblsconv│  ┌─▼─┐                  │ │lifecycle├─┘ │
+  │bcast │              └────────┘  │p2p├──────────────────► └─────────┘   │
+  └──┬───┘                          └─▲─┘                  └──────▲────────┘
+     │                                │                           │
+     └────────────────────────────────┴───────────────────────────┘
 
 ```
