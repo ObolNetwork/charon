@@ -107,5 +107,5 @@ func getSharesOnce(ctx context.Context, tcpNode host.Host, dealer peer.ID, clust
 
 // getProtocol returns the protocol ID including the cluster ID.
 func getProtocol(clusterID string) protocol.ID {
-	return protocol.ID(fmt.Sprintf("/charon/dealer_dgk/1.0.0/%s", clusterID))
+	return protocol.ID(fmt.Sprintf("/charon/dealer_dkg/1.0.0/%s", clusterID))
 }
