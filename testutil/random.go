@@ -17,8 +17,10 @@
 package testutil
 
 import (
+	"crypto/ecdsa"
 	crand "crypto/rand"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"strings"
@@ -28,8 +30,11 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/crypto"
+	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/prysmaticlabs/go-bitfield"
@@ -329,7 +334,7 @@ func AvailableAddr(t *testing.T) *net.TCPAddr {
 
 func CreateHost(t *testing.T, addr *net.TCPAddr) host.Host {
 	t.Helper()
-	pkey, _, err := crypto.GenerateSecp256k1Key(crand.Reader)
+	pkey, _, err := p2pcrypto.GenerateSecp256k1Key(crand.Reader)
 	require.NoError(t, err)
 
 	addrs, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", addr.IP, addr.Port))
@@ -339,4 +344,17 @@ func CreateHost(t *testing.T, addr *net.TCPAddr) host.Host {
 	require.NoError(t, err)
 
 	return h
+}
+
+func RandomENR(t *testing.T, random io.Reader) (*ecdsa.PrivateKey, enr.Record) {
+	t.Helper()
+
+	p2pKey, err := ecdsa.GenerateKey(crypto.S256(), random)
+	require.NoError(t, err)
+
+	var r enr.Record
+	err = enode.SignV4(&r, p2pKey)
+	require.NoError(t, err)
+
+	return p2pKey, r
 }
