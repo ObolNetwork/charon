@@ -55,7 +55,6 @@ type shareMsg struct {
 }
 
 func runKeyCast(ctx context.Context, def cluster.Definition, tx transport, nodeIdx int, random io.Reader) ([]share, error) {
-	ctx = log.WithTopic(ctx, "dkg")
 
 	if nodeIdx == 0 {
 		return leadKeyCast(ctx, tx, def, random)
