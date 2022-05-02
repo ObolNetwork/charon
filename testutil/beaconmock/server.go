@@ -153,7 +153,7 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 
 		resp, ok := staticResponses[r.URL.Path]
 		if !ok {
-			log.Warn(ctx, "Unsupported path")
+			log.Warn(ctx, "Unsupported path", nil)
 			w.WriteHeader(http.StatusNotFound)
 
 			return

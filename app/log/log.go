@@ -88,18 +88,39 @@ func Info(ctx context.Context, msg string, fields ...z.Field) {
 	logger.Info(msg, zfl...)
 }
 
-// Warn logs the message and fields (incl fields in the context) at Warn level.
+// Warn wraps err with msg and fields and logs it (incl fields in the context) at Warn level.
+// Nil err is supported and results in similar behaviour to Info, just at Warn level.
 // Warn should only be used when a problem is encountered that *does not* require any action to be taken.
-func Warn(ctx context.Context, msg string, fields ...z.Field) {
-	zfl := unwrapDedup(ctx, fields...)
-	trace.SpanFromContext(ctx).AddEvent("log.Warn: "+msg, toAttributes(zfl))
-	logger.Warn(msg, zfl...)
-	incWarnCounter(ctx)
+func Warn(ctx context.Context, msg string, err error, fields ...z.Field) {
+	if err == nil {
+		zfl := unwrapDedup(ctx, fields...)
+		trace.SpanFromContext(ctx).AddEvent("log.Warn: "+msg, toAttributes(zfl))
+		logger.Warn(msg, zfl...)
+		incErrorCounter(ctx)
+
+		return
+	}
+
+	err = errors.SkipWrap(err, msg, 2, fields...)
+	zfl := unwrapDedup(ctx, errFields(err))
+	trace.SpanFromContext(ctx).RecordError(err, trace.WithStackTrace(true), toAttributes(zfl))
+	logger.Warn(err.Error(), zfl...)
+	incErrorCounter(ctx)
 }
 
 // Error wraps err with msg and fields and logs it (incl fields in the context) at Error level.
+// Nil err is supported and results in similar behaviour to Info, just at Error level.
 // Error should only be used when a problem is encountered that *does* require action to be taken.
 func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
+	if err == nil {
+		zfl := unwrapDedup(ctx, fields...)
+		trace.SpanFromContext(ctx).AddEvent("log.Error: "+msg, toAttributes(zfl))
+		logger.Error(msg, zfl...)
+		incErrorCounter(ctx)
+
+		return
+	}
+
 	err = errors.SkipWrap(err, msg, 2, fields...)
 	zfl := unwrapDedup(ctx, errFields(err))
 	trace.SpanFromContext(ctx).RecordError(err, trace.WithStackTrace(true), toAttributes(zfl))

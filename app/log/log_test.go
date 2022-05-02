@@ -44,8 +44,8 @@ func TestWithContext(t *testing.T) {
 
 	log.Debug(ctx1, "msg1", z.Int("ctx1", 1))
 	log.Info(ctx2, "msg2", z.Int("ctx2", 2))
-	log.Warn(ctx3a, "msg3a")
-	log.Warn(ctx3b, "msg3b")
+	log.Warn(ctx3a, "msg3a", nil)
+	log.Warn(ctx3b, "msg3b", nil)
 
 	testutil.RequireGoldenBytes(t, buf.Bytes())
 }
@@ -58,7 +58,7 @@ func TestErrorWrap(t *testing.T) {
 	err3 := errors.Wrap(err2, "third", z.F64("3", 3))
 
 	ctx := context.Background()
-	log.Error(ctx, "err1", err1)
+	log.Warn(ctx, "err1", err1)
 	log.Error(ctx, "err2", err2)
 	log.Error(ctx, "err3", err3)
 

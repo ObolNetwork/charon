@@ -111,7 +111,7 @@ func newPingLogger(peers []peer.ID) func(context.Context, peer.ID, error) {
 		ok := state[p]
 
 		if prev > 0 && now == 0 && ok {
-			log.Warn(ctx, "Peer ping failing", z.Str("peer", ShortID(p)), z.Str("error", err.Error()))
+			log.Warn(ctx, "Peer ping failing", nil, z.Str("peer", ShortID(p)), z.Str("error", err.Error()))
 			state[p] = false
 			first[p] = true
 		} else if prev < hysteresis && now == hysteresis && !ok {

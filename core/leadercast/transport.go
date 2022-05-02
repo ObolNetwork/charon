@@ -69,13 +69,13 @@ func (t *p2pTransport) handle(s network.Stream) {
 	var msg p2pMsg
 	err := json.NewDecoder(s).Decode(&msg)
 	if err != nil {
-		log.Error(ctx, "decode leadercast message", err)
+		log.Error(ctx, "Decode leadercast message", err)
 		return
 	}
 	select {
 	case t.ch <- msg:
 	case <-ctx.Done():
-		log.Warn(ctx, "leadercast transport buffer full")
+		log.Warn(ctx, "Leadercast transport buffer full", nil)
 	}
 }
 
@@ -104,11 +104,11 @@ func (t *p2pTransport) Broadcast(ctx context.Context, fromIdx int, d core.Duty, 
 	}
 
 	if len(errs) == 0 {
-		log.Debug(ctx, "leader broadcast duty success", z.Any("duty", d))
+		log.Debug(ctx, "Leader broadcast duty success", z.Any("duty", d))
 	} else {
 		// len(t.peers)-len(errs)-1 is total number of errors excluding broadcast to self case
-		log.Warn(ctx, "broadcast duty with errors", z.Int("success", len(t.peers)-len(errs)-1),
-			z.Int("errors", len(errs)), z.Str("err_0", errs[0].Error()))
+		log.Warn(ctx, "Broadcast duty with errors", errs[0], z.Int("success", len(t.peers)-len(errs)-1),
+			z.Int("errors", len(errs)))
 	}
 
 	return nil

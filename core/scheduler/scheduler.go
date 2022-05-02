@@ -151,7 +151,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 	if s.getResolvedEpoch() != uint64(slot.Epoch()) {
 		err := s.resolveDuties(ctx, slot)
 		if err != nil {
-			log.Warn(ctx, "Resolving duties error (retrying next slot)", z.Err(err))
+			log.Warn(ctx, "Resolving duties error (retrying next slot)", err)
 		}
 	}
 
@@ -191,7 +191,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 	if slot.IsLastInEpoch() {
 		err := s.resolveDuties(ctx, slot.Next())
 		if err != nil {
-			log.Warn(ctx, "Resolving duties error (retrying next slot)", z.Err(err))
+			log.Warn(ctx, "Resolving duties error (retrying next slot)", err)
 		}
 	}
 
@@ -234,7 +234,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 
 			pubkey, ok := vals.PubKeyFromIndex(attDuty.ValidatorIndex)
 			if !ok {
-				log.Warn(ctx, "ignoring unexpected attester duty", z.U64("vidx", uint64(attDuty.ValidatorIndex)))
+				log.Warn(ctx, "Ignoring unexpected attester duty", nil, z.U64("vidx", uint64(attDuty.ValidatorIndex)))
 				continue
 			}
 
@@ -274,7 +274,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 
 			pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
 			if !ok {
-				log.Warn(ctx, "ignoring unexpected proposer duty", z.U64("vidx", uint64(proDuty.ValidatorIndex)))
+				log.Warn(ctx, "Ignoring unexpected proposer duty", nil, z.U64("vidx", uint64(proDuty.ValidatorIndex)))
 				continue
 			}
 

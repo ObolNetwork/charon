@@ -58,23 +58,23 @@ func (l *LeaderCast) Run(ctx context.Context) error {
 		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
 			return nil
 		} else if err != nil {
-			log.Error(ctx, "await next leader duty", err)
+			log.Error(ctx, "Await next leader duty", err)
 			continue
 		}
 
 		if !isLeader(source, l.peers, duty) {
-			log.Warn(ctx, "received duty from non-leader", z.Int("peer", source))
+			log.Warn(ctx, "Received duty from non-leader", nil, z.Int("peer", source))
 			continue
 		}
 
-		log.Debug(ctx, "received duty from leader", z.Int("peer", source), z.Any("duty", duty))
+		log.Debug(ctx, "Received duty from leader", z.Int("peer", source), z.Any("duty", duty))
 
 		var span trace.Span
 		ctx, span = core.StartDutyTrace(ctx, duty, "core/leadercast.Handle")
 
 		for _, sub := range l.subs {
 			if err := sub(ctx, duty, data); err != nil {
-				log.Error(ctx, "subscriber error", err)
+				log.Error(ctx, "Subscriber error", err)
 				continue
 			}
 		}
