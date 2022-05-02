@@ -71,7 +71,7 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "hash definition")
 	}
 
-	tx := p2pTransport{
+	tp := p2pTransport{
 		tcpNode:   tcpNode,
 		peers:     peers,
 		clusterID: fmt.Sprintf("%x", defHash[:]),
@@ -80,7 +80,7 @@ func Run(ctx context.Context, conf Config) error {
 	var shares []share
 	switch def.DKGAlgorithm {
 	case "default", "keycast":
-		shares, err = runKeyCast(ctx, def, tx, nodeIdx.PeerIdx, crand.Reader)
+		shares, err = runKeyCast(ctx, def, tp, nodeIdx.PeerIdx, crand.Reader)
 		if err != nil {
 			return err
 		}
@@ -102,7 +102,7 @@ func Run(ctx context.Context, conf Config) error {
 		Validators: dvs,
 	}
 
-	aggsig, err := aggSignLockHash(ctx, tx, lock)
+	aggsig, err := aggSignLockHash(ctx, tp, lock)
 	if err != nil {
 		return err
 	}

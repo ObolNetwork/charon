@@ -54,14 +54,14 @@ func TestKeyCastNoNetwork(t *testing.T) {
 
 	def := cluster.NewDefinition("test def", vals, nodes, "", "", "", ops, random)
 
-	tx := new(memTransport)
+	tp := new(memTransport)
 
 	var eg errgroup.Group
 	for i := 0; i < nodes; i++ {
 		i := i // Copy loop variable.
 		eg.Go(func() error {
 			defer cancel()
-			shares, err := runKeyCast(ctx, def, tx, i, random)
+			shares, err := runKeyCast(ctx, def, tp, i, random)
 			require.NoError(t, err)
 			require.Len(t, shares, vals)
 

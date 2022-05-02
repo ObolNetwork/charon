@@ -63,10 +63,10 @@ func runKeyCast(ctx context.Context, def cluster.Definition, tx transport, nodeI
 	return joinKeyCast(ctx, tx, nodeIdx)
 }
 
-func joinKeyCast(ctx context.Context, tx transport, nodeIdx int) ([]share, error) {
+func joinKeyCast(ctx context.Context, tp transport, nodeIdx int) ([]share, error) {
 	log.Info(ctx, "Requesting shares from dealer...")
 
-	payload, err := tx.GetShares(ctx, nodeIdx)
+	payload, err := tp.GetShares(ctx, nodeIdx)
 	if err != nil {
 		return nil, errors.Wrap(err, "get shares")
 	}
@@ -92,7 +92,7 @@ func joinKeyCast(ctx context.Context, tx transport, nodeIdx int) ([]share, error
 }
 
 // leadKeyCast creates all shares for the cluster, then serves them via requests until done.
-func leadKeyCast(ctx context.Context, tx transport, def cluster.Definition, random io.Reader) ([]share, error) {
+func leadKeyCast(ctx context.Context, tp transport, def cluster.Definition, random io.Reader) ([]share, error) {
 	numNodes := len(def.Operators)
 
 	// Create shares for all nodes.
@@ -140,7 +140,7 @@ func leadKeyCast(ctx context.Context, tx transport, def cluster.Definition, rand
 
 	log.Info(ctx, "Node selected as dealer, serving shares...")
 
-	tx.ServeShares(ctx, func(nodeIdx int) ([]byte, error) {
+	tp.ServeShares(ctx, func(nodeIdx int) ([]byte, error) {
 		payload, ok := payloads[nodeIdx]
 		if !ok {
 			return nil, errors.New("unknown node index", z.Int("nodeIdx", nodeIdx))
