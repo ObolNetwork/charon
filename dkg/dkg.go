@@ -146,13 +146,13 @@ func aggSignLockHash(_ context.Context, _ transport, _ cluster.Lock) ([]byte, er
 	return nil, nil
 }
 
-// dvsFromShares returns the shares a slice of cluster distributed validator types.
+// dvsFromShares returns the shares as a slice of cluster distributed validator types.
 func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 	var dvs []cluster.DistValidator
 	for _, s := range shares {
 		msg, err := msgFromShare(s)
 		if err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, err
 		}
 
 		dvs = append(dvs, cluster.DistValidator{

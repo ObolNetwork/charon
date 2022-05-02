@@ -36,13 +36,13 @@ func loadDefinition(conf Config) (cluster.Definition, error) {
 
 	buf, err := os.ReadFile(conf.DefFile)
 	if err != nil {
-		return cluster.Definition{}, errors.Wrap(err, "read manifest")
+		return cluster.Definition{}, errors.Wrap(err, "read definition")
 	}
 
 	var res cluster.Definition
 	err = json.Unmarshal(buf, &res)
 	if err != nil {
-		return cluster.Definition{}, errors.Wrap(err, "unmarshal manifest")
+		return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
 	}
 
 	return res, nil
