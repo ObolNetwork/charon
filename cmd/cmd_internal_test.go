@@ -79,7 +79,7 @@ func TestCmdFlags(t *testing.T) {
 					Enabled:   nil,
 					Disabled:  nil,
 				},
-				ManifestFile:     "./charon/manifest.json",
+				ManifestFile:     ".charon/manifest.json",
 				DataDir:          "from_env",
 				MonitoringAddr:   "127.0.0.1:16001",
 				ValidatorAPIAddr: "127.0.0.1:16002",
@@ -91,7 +91,7 @@ func TestCmdFlags(t *testing.T) {
 		{
 			Name:    "gen p2p",
 			Args:    slice("gen-p2pkey"),
-			Datadir: "./charon/data",
+			Datadir: ".charon/data",
 			P2PConfig: &p2p.Config{
 				UDPAddr:   "127.0.0.1:16004",
 				TCPAddrs:  []string{"127.0.0.1:16003"},

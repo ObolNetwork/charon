@@ -151,6 +151,7 @@ ormconfig.json
 charon
 !charon/
 keys/
+.charon/
 coverage.out
 cli-reference.txt
 changelog.md
