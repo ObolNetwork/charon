@@ -8,6 +8,8 @@
 - Carrying out the DKG ceremony
 - Backing up ceremony artifacts
 - Preparing for validator activation
+- DKG verification
+- Appendix
 
 ## Overview
 
@@ -78,6 +80,24 @@ Once the ceremony is complete, and secure backups of key shares have been made b
 All operators should confirm that their charon client logs indicate all nodes are online and connected. They should also verify the readiness of their beacon clients and validator clients. Charon's grafana dashboard is a good way to see the readiness of the full cluster from its perspective.
 
 Once all operators are satisfied with network connectivity, one member can use the Obol Distributed Validator deposit flow to send the required ether and deposit data to the deposit contract, beginning the process of a distributed validator activation. Good luck.
+
+## DKG Verification
+
+For many use cases of distributed validators, the funder/depositor of the validator may not be the same person as the key creators/node operators, as (outside of the base protocol) stake delegation is a common phenomenon. This handover of information introduces a point of trust. How does someone verify that a proposed validator `deposit data` corresponds to a real, fair, DKG with participants the depositor expects?
+
+There are a number of aspects to this trust surface that can be mitigated with a "Don't trust, verify" model. Verification for the time-being is easier off chain, until things like a [BLS precompile](https://eips.ethereum.org/EIPS/eip-2537) are brought into the EVM, along with cheap ZKP verification on chain. Some of the questions that can be asked of Distributed Validator Key Generation Ceremonies include:
+- Does each public key share combine to form the group public key?
+  - This can be checked on chain due to not requiring a pairing operation
+  - This can give confidence that a BLS pubkey is a Distributed Validator, but does not say anything about the custody of the keys. (e.g. Was the ceremony sybil attacked, did they collude to reconstitute the group private key etc.)
+- Do the created BLS public keys attest to their `manifest_configuration_hash`?
+  - This is to create a backwards link between newly created BLS public keys and the operator's eth1 addresses that took part in their creation.
+  - If a proposed distributed validator BLS group public key can produce a signature of the `manifest_configuration_hash`, it can be inferred that at least a threshold of the operators signed this data.
+  - As the `manifest_configuration_hash` is the same for all distributed validators created in the ceremony, the signatures can be aggregated into a group signature that verifies all created group keys at once. This makes it cheaper to verify a number of validators at once on chain.
+- Is there either a VSS or PVSS proof of a fair DKG ceremony?
+  - VSS (Verifiable Secret Sharing) means only operators can verify fairness, as the proof requires knowledge of one of the secrets.
+  - PVSS (Publicly Verifiable Secret Sharing) means anyone can verify fairness, as the proof is usually a Zero Knowledge Proof.
+  - A PVSS of a fair DKG would make it more difficult for operators to collude and undermine the security of the Distributed Validator.
+  - Zero Knowledge Proof verification on chain is currently expensive, but is becoming achievable through the hard work and research of the many ZK based teams in the industry.
 
 ## Appendix
 
