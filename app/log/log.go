@@ -92,11 +92,12 @@ func Info(ctx context.Context, msg string, fields ...z.Field) {
 // Nil err is supported and results in similar behaviour to Info, just at Warn level.
 // Warn should only be used when a problem is encountered that *does not* require any action to be taken.
 func Warn(ctx context.Context, msg string, err error, fields ...z.Field) {
+	incWarnCounter(ctx)
+
 	if err == nil {
 		zfl := unwrapDedup(ctx, fields...)
 		trace.SpanFromContext(ctx).AddEvent("log.Warn: "+msg, toAttributes(zfl))
 		logger.Warn(msg, zfl...)
-		incErrorCounter(ctx)
 
 		return
 	}
@@ -105,18 +106,18 @@ func Warn(ctx context.Context, msg string, err error, fields ...z.Field) {
 	zfl := unwrapDedup(ctx, errFields(err))
 	trace.SpanFromContext(ctx).RecordError(err, trace.WithStackTrace(true), toAttributes(zfl))
 	logger.Warn(err.Error(), zfl...)
-	incErrorCounter(ctx)
 }
 
 // Error wraps err with msg and fields and logs it (incl fields in the context) at Error level.
 // Nil err is supported and results in similar behaviour to Info, just at Error level.
 // Error should only be used when a problem is encountered that *does* require action to be taken.
 func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
+	incErrorCounter(ctx)
+
 	if err == nil {
 		zfl := unwrapDedup(ctx, fields...)
 		trace.SpanFromContext(ctx).AddEvent("log.Error: "+msg, toAttributes(zfl))
 		logger.Error(msg, zfl...)
-		incErrorCounter(ctx)
 
 		return
 	}
@@ -125,7 +126,6 @@ func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
 	zfl := unwrapDedup(ctx, errFields(err))
 	trace.SpanFromContext(ctx).RecordError(err, trace.WithStackTrace(true), toAttributes(zfl))
 	logger.Error(err.Error(), zfl...)
-	incErrorCounter(ctx)
 }
 
 // unwrapDedup returns the wrapped zap fields from the slice and from the context. Duplicate fields are dropped.
