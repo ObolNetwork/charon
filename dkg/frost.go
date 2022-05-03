@@ -27,32 +27,39 @@ import (
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/cluster"
 )
+
+// msgKey identifies the source and target nodes and validator index the message belongs to.
+type msgKey struct {
+	// ValIdx identifies the distributed validator (Ith parallel participant) the message belongs to.
+	ValIdx uint32
+
+	// SourceID identifies the source node/participant ID of the message.
+	// It is 1-indexed and equivalent to `cluster.NodeIdx.ShareIdx`.
+	SourceID uint32
+
+	// TargetID identifies the target node/participant ID of the message.
+	// It is 1-indexed and equivalent to `cluster.NodeIdx.ShareIdx`.
+	// The zero value indicates outgoing broadcast messages.
+	TargetID uint32
+}
 
 // fTransport abstracts the transport of frost DKG messages.
 type fTransport interface {
 	// Round1 returns results of all round 1 communication; the received round 1 broadcasts from all other nodes
 	// and the round 1 P2P sends to this node.
-	Round1(
-		context.Context,
-		[]frost.Round1Bcast,
-		[]frost.Round1P2PSend,
-	) (
-		map[uint32][]frost.Round1Bcast,
-		map[uint32][]sharing.ShamirShare,
-		error,
-	)
+	Round1(context.Context, map[msgKey]frost.Round1Bcast, map[msgKey]sharing.ShamirShare) (
+		map[msgKey]frost.Round1Bcast, map[msgKey]sharing.ShamirShare, error)
 
 	// Round2 returns results of all round 2 communication; the received round 2 broadcasts from all other nodes.
-	Round2(context.Context, []frost.Round2Bcast) (map[uint32][]frost.Round2Bcast, error)
+	Round2(context.Context, map[msgKey]frost.Round2Bcast) (map[msgKey]frost.Round2Bcast, error)
 }
 
-// runFrostParallel runs def.NumValidator Frost DKG processes in parallel (sharing transport rounds)
+// runFrostParallel runs numValidators Frost DKG processes in parallel (sharing transport rounds)
 // and returns a list of shares (one for each distributed validator).
 //nolint:deadcode // Will be tested and integrated in subsequent PRs.
-func runFrostParallel(ctx context.Context, def cluster.Definition, tp fTransport, shareIdx int, random io.Reader) ([]share, error) {
-	validators, err := newFrostParticipants(def, shareIdx, random)
+func runFrostParallel(ctx context.Context, tp fTransport, numValidators, numNodes, threshold, shareIdx uint32, random io.Reader) ([]share, error) {
+	validators, err := newFrostParticipants(numValidators, numNodes, threshold, shareIdx, random)
 	if err != nil {
 		return nil, err
 	}
@@ -62,19 +69,9 @@ func runFrostParallel(ctx context.Context, def cluster.Definition, tp fTransport
 		return nil, err
 	}
 
-	if len(castR1) != def.NumValidators ||
-		len(p2pR1) != def.NumValidators {
-		return nil, errors.New("bug: round 1 message count incorrect")
-	}
-
 	castR1Result, p2pR1Result, err := tp.Round1(ctx, castR1, p2pR1)
 	if err != nil {
 		return nil, errors.Wrap(err, "transport round 1")
-	}
-
-	if len(castR1Result) != len(def.Operators) ||
-		len(p2pR1Result) != len(def.Operators) {
-		return nil, errors.New("bug: round 1 result count incorrect")
 	}
 
 	castR2, err := round2(validators, castR1Result, p2pR1Result)
@@ -82,37 +79,68 @@ func runFrostParallel(ctx context.Context, def cluster.Definition, tp fTransport
 		return nil, errors.Wrap(err, "exec round 2")
 	}
 
-	if len(castR2) != def.NumValidators {
-		return nil, errors.New("bug: round 2 message count incorrect")
-	}
-
 	castR2Result, err := tp.Round2(ctx, castR2)
 	if err != nil {
 		return nil, errors.Wrap(err, "transport round 1")
 	}
 
-	if len(castR2Result) != len(def.Operators) {
-		return nil, errors.New("bug: round 2 result count incorrect")
+	return makeShares(validators, castR2Result)
+}
+
+// newFrostParticipant returns multiple frost dkg participants (one for each parallel validator).
+func newFrostParticipants(numValidators, numNodes, threshold, shareIdx uint32, random io.Reader) (map[uint32]*frost.DkgParticipant, error) {
+	var otherIDs []uint32
+	for i := uint32(1); i <= numNodes; i++ {
+		if i == shareIdx {
+			continue
+		}
+		otherIDs = append(otherIDs, i)
 	}
 
-	return makeShares(validators, castR2Result)
+	resp := make(map[uint32]*frost.DkgParticipant)
+	for i := uint32(0); i < numValidators; i++ {
+		p, err := frost.NewDkgParticipant(
+			shareIdx,
+			threshold,
+			randomNumber(random),
+			curves.BLS12381G1(),
+			otherIDs...)
+		if err != nil {
+			return nil, errors.Wrap(err, "new participant")
+		}
+
+		resp[i] = p
+	}
+
+	return resp, nil
 }
 
 // round1 executes round 1 for each validator and returns all round 1
 // broadcast and p2p messages for all validators.
-func round1(validators []*frost.DkgParticipant) ([]frost.Round1Bcast, []frost.Round1P2PSend, error) {
+func round1(validators map[uint32]*frost.DkgParticipant) (map[msgKey]frost.Round1Bcast, map[msgKey]sharing.ShamirShare, error) {
 	var (
-		castResults []frost.Round1Bcast
-		p2pResults  []frost.Round1P2PSend
+		castResults = make(map[msgKey]frost.Round1Bcast)
+		p2pResults  = make(map[msgKey]sharing.ShamirShare)
 	)
-	for _, v := range validators {
+	for vIdx, v := range validators {
 		cast, p2p, err := v.Round1(nil)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "exec round 1")
 		}
 
-		castResults = append(castResults, *cast)
-		p2pResults = append(p2pResults, p2p)
+		castResults[msgKey{
+			ValIdx:   vIdx,
+			SourceID: v.Id,
+			TargetID: 0, // Broadcast
+		}] = *cast
+
+		for targetID, shamirShare := range p2p {
+			p2pResults[msgKey{
+				ValIdx:   vIdx,
+				SourceID: v.Id,
+				TargetID: targetID,
+			}] = *shamirShare
+		}
 	}
 
 	return castResults, p2pResults, nil
@@ -121,57 +149,67 @@ func round1(validators []*frost.DkgParticipant) ([]frost.Round1Bcast, []frost.Ro
 // round2 executes round 2 for each validator and returns all round 2
 // broadcast messages for all validators.
 func round2(
-	validators []*frost.DkgParticipant,
-	castR1 map[uint32][]frost.Round1Bcast,
-	p2pR1 map[uint32][]sharing.ShamirShare,
-) ([]frost.Round2Bcast, error) {
-	var castResults []frost.Round2Bcast
-	for i, v := range validators {
-		// Extract Ith validator round 2 inputs.
+	validators map[uint32]*frost.DkgParticipant,
+	castR1 map[msgKey]frost.Round1Bcast,
+	p2pR1 map[msgKey]sharing.ShamirShare,
+) (map[msgKey]frost.Round2Bcast, error) {
+	castResults := make(map[msgKey]frost.Round2Bcast)
+	for vIdx, v := range validators {
+		// Extract vIdx'th validator round 2 inputs.
 		var (
-			cast = make(map[uint32]*frost.Round1Bcast)
-			p2p  = make(map[uint32]*sharing.ShamirShare)
+			castMap  = make(map[uint32]*frost.Round1Bcast)
+			shareMap = make(map[uint32]*sharing.ShamirShare)
 		)
-		for id, casts := range castR1 {
-			if len(casts) >= i {
-				return nil, errors.New("too few round 1 broadcast inputs")
+		for key, cast := range castR1 {
+			if key.ValIdx != vIdx {
+				continue
 			}
-			cast[id] = &casts[i]
+			if key.TargetID != v.Id {
+				return nil, errors.New("invalid key target")
+			}
+			cast := cast // Copy loop variable
+			castMap[key.SourceID] = &cast
 		}
-		for id, p2ps := range p2pR1 {
-			if len(p2ps) >= i {
-				return nil, errors.New("too few round 1 p2p inputs")
+		for key, share := range p2pR1 {
+			if key.ValIdx != vIdx {
+				continue
 			}
-			p2p[id] = &p2ps[i]
+			if key.TargetID != v.Id {
+				return nil, errors.New("invalid key target")
+			}
+			share := share // Copy loop variable
+			shareMap[key.SourceID] = &share
 		}
 
-		castR2, err := v.Round2(cast, p2p)
+		castR2, err := v.Round2(castMap, shareMap)
 		if err != nil {
 			return nil, errors.Wrap(err, "exec round 1")
 		}
 
-		castResults = append(castResults, *castR2)
+		castResults[msgKey{
+			ValIdx:   vIdx,
+			SourceID: v.Id,
+			TargetID: 0, // Broadcast
+		}] = *castR2
 	}
 
 	return castResults, nil
 }
 
 // makeShares returns a slice of shares (one for each validator) from the DKG participants and round 2 results.
-func makeShares(validators []*frost.DkgParticipant, r2Result map[uint32][]frost.Round2Bcast) ([]share, error) {
+func makeShares(validators map[uint32]*frost.DkgParticipant, r2Result map[msgKey]frost.Round2Bcast) ([]share, error) {
 	// Get set of public shares for each validator.
-	pubShares := make([][]*bls_sig.PublicKey, len(validators))
-	for _, results := range r2Result {
-		for i, result := range results {
-			pubShare, err := pointToPubKey(result.VkShare)
-			if err != nil {
-				return nil, err
-			}
-			pubShares[i] = append(pubShares[i], pubShare)
+	pubShares := make(map[uint32][]*bls_sig.PublicKey)
+	for key, result := range r2Result {
+		pubShare, err := pointToPubKey(result.VkShare)
+		if err != nil {
+			return nil, err
 		}
+		pubShares[key.ValIdx] = append(pubShares[key.ValIdx], pubShare)
 	}
 
 	var shares []share
-	for i, v := range validators {
+	for vIdx, v := range validators {
 		pubkey, err := pointToPubKey(v.VerificationKey)
 		if err != nil {
 			return nil, err
@@ -185,41 +223,13 @@ func makeShares(validators []*frost.DkgParticipant, r2Result map[uint32][]frost.
 		share := share{
 			PubKey:       pubkey,
 			Share:        secretShare,
-			PublicShares: pubShares[i],
+			PublicShares: pubShares[vIdx],
 		}
 
 		shares = append(shares, share)
 	}
 
 	return shares, nil
-}
-
-// newFrostParticipant returns multiple frost dkg participants (one for each parallel validator).
-func newFrostParticipants(def cluster.Definition, shareIdx int, random io.Reader) ([]*frost.DkgParticipant, error) {
-	var otherIDs []uint32
-	for i := 1; i <= len(def.Operators); i++ {
-		if i == shareIdx {
-			continue
-		}
-		otherIDs = append(otherIDs, uint32(i))
-	}
-
-	var resp []*frost.DkgParticipant
-	for i := 0; i < def.NumValidators; i++ {
-		p, err := frost.NewDkgParticipant(
-			uint32(shareIdx),
-			uint32(def.Threshold),
-			randomNumber(random),
-			curves.BLS12381G1(),
-			otherIDs...)
-		if err != nil {
-			return nil, errors.Wrap(err, "new participant")
-		}
-
-		resp = append(resp, p)
-	}
-
-	return resp, nil
 }
 
 // randomNumber return a random 8 byte number as a string.
