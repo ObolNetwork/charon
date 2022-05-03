@@ -21,7 +21,7 @@ The charon client has the responsibility of securely completing a distributed ke
 
 A distributed key generation ceremony involves `Operators` and their `Charon clients`.
 
-- An `Operator` is identified by their Ethereum address. They will sign with this address's private key to authenticate their charon client ahead of the ceremony. The signature will be of; a hash of the charon clients ENR public key, the `manifest_configuration_hash`, and an incrementing `nonce`, allowing for a direct linkage between a user, their charon client, and the cluster this client is intended to service, while retaining the ability to update the charon client by incrementing the nonce value and re-signing like the standard ENR spec.
+- An `Operator` is identified by their Ethereum address. They will sign with this address's private key to authenticate their charon client ahead of the ceremony. The signature will be of; a hash of the charon clients ENR public key, the `cluster_definition_hash`, and an incrementing `nonce`, allowing for a direct linkage between a user, their charon client, and the cluster this client is intended to service, while retaining the ability to update the charon client by incrementing the nonce value and re-signing like the standard ENR spec.
 
 - A `Charon client` is also identified by a public/private key pair, in this instance, the public key is represented as an [Ethereum Node Record](https://eips.ethereum.org/EIPS/eip-778) (ENR). This is a standard identity format for both EL and CL clients. These ENRs are used by each charon node to identify its cluster peers over the internet, and to communicate with one another in an [end to end encrypted manner](https://github.com/libp2p/go-libp2p-noise). These keys need to be created by each operator before they can participate in a cluster creation.
 
@@ -37,15 +37,15 @@ This manifest file is created with the help of the [Distributed Validator Launch
   - The list of participants in the cluster specified by Ethereum address(/ENS)
   - The threshold of fault tolerance required (if not choosing the safe default)
   - The network (fork_version/chainId) that this cluster will validate on
-- These key pieces of information form the basis of the cluster configuration. These fields (and some technical fields like DKG algorithm to use) are serialised and merklised to produce the manifests `manifest_configuration_hash`. This merkle root will be used to confirm that their is no ambiguity or deviation between manifests when they are provided to charon nodes.
+- These key pieces of information form the basis of the cluster configuration. These fields (and some technical fields like DKG algorithm to use) are serialised and merklised to produce the manifests `cluster_definition_hash`. This merkle root will be used to confirm that their is no ambiguity or deviation between manifests when they are provided to charon nodes.
 - Once the leader is satisfied with the configuration they publish it to the launchpad's data availability layer for the other participants to access. (For early development the launchpad will use a centralised backend db to store the cluster configuration. Near production, solutions like IPFS or arweave may be more suitable for the long term decentralisation of the launchpad.)
 - The leader will then share the URL to this ceremony with their intended participants.
-- Anyone that clicks the ceremony url, or inputs the `manifest_configuration_hash` when prompted on the landing page will be brought to the ceremony status page. (After completing all disclaimers and advisories)
+- Anyone that clicks the ceremony url, or inputs the `cluster_definition_hash` when prompted on the landing page will be brought to the ceremony status page. (After completing all disclaimers and advisories)
 - A "Connect Wallet" button will be visible beneath the ceremony status container, a participant can click on it to connect their wallet to the site
   - If the participant connects a wallet that is not in the participant list, the button disables, as there is nothing to do
   - If the participant connects a wallet that is in the participant list, they get prompted to input the ENR of their charon node.
   - If the ENR field is populated and validated the participant can now see a "Confirm Cluster Configuration" button. This button triggers one/two signatures.
-    - The participant signs the `manifest_configuration_hash`, to prove they are consensting to this exact configuration.
+    - The participant signs the `cluster_definition_hash`, to prove they are consensting to this exact configuration.
     - The participant signs their charon node's ENR, to authenticate and authorise that specific charon node to participate on their behalf in the distributed validator cluster.
   - These/this signature is sent to the data availability layer, where it verifies the signatures are correct for the given participants ethereum address. If the signatures pass validation, the signature of the manifest hash and the the ENR + signature get saved to the manifest object.
 - All participants in the list must sign the manifest hash and submit a signed ENR before a DKG ceremony can begin. The outstanding signatures can be easily displayed on the status page.
@@ -56,7 +56,7 @@ This manifest file is created with the help of the [Distributed Validator Launch
 
 Once participant has their manifest file prepared, they will pass the file to charon's `dkg` command. Charon will read the ENRs in the manifest, confirm that its ENR is present, and then will reach out to bootnodes that are deployed to find the other ENRs on the network. (Fresh ENRs just have a public key and an IP address of 0.0.0.0 until they are loaded into a live charon client, which will update the IP address and increment the ENRs nonce and resign with the clients private key. If an ENR with a higher nonce is seen be a charon client, they will update the IP address of that ENR in their address book.)
 
-Once all clients in the cluster can establish a connection with one another and they each complete a handshake (confirm everyone has a matching `manifest_configuration_hash`), the ceremony begins.
+Once all clients in the cluster can establish a connection with one another and they each complete a handshake (confirm everyone has a matching `cluster_definition_hash`), the ceremony begins.
 
 No user input is required, charon does the work and outputs the following files to each machine and then exits.
 
@@ -85,14 +85,15 @@ Once all operators are satisfied with network connectivity, one member can use t
 
 For many use cases of distributed validators, the funder/depositor of the validator may not be the same person as the key creators/node operators, as (outside of the base protocol) stake delegation is a common phenomenon. This handover of information introduces a point of trust. How does someone verify that a proposed validator `deposit data` corresponds to a real, fair, DKG with participants the depositor expects?
 
-There are a number of aspects to this trust surface that can be mitigated with a "Don't trust, verify" model. Verification for the time-being is easier off chain, until things like a [BLS precompile](https://eips.ethereum.org/EIPS/eip-2537) are brought into the EVM, along with cheap ZKP verification on chain. Some of the questions that can be asked of Distributed Validator Key Generation Ceremonies include:
-- Does each public key share combine to form the group public key?
-  - This can be checked on chain due to not requiring a pairing operation
-  - This can give confidence that a BLS pubkey is a Distributed Validator, but does not say anything about the custody of the keys. (e.g. Was the ceremony sybil attacked, did they collude to reconstitute the group private key etc.)
-- Do the created BLS public keys attest to their `manifest_configuration_hash`?
+There are a number of aspects to this trust surface that can be mitigated with a "Don't trust, verify" model. Verification for the time being is easier off chain, until things like a [BLS precompile](https://eips.ethereum.org/EIPS/eip-2537) are brought into the EVM, along with cheap ZKP verification on chain. Some of the questions that can be asked of Distributed Validator Key Generation Ceremonies include:
+
+- Do the public key shares combine together to form the group public key?
+  - This can be checked on chain as it doe not require a pairing operation
+  - This can give confidence that a BLS pubkey represents a Distributed Validator, but does not say anything about the custody of the keys. (e.g. Was the ceremony sybil attacked, did they collude to reconstitute the group private key etc.)
+- Do the created BLS public keys attest to their `cluster_definition_hash`?
   - This is to create a backwards link between newly created BLS public keys and the operator's eth1 addresses that took part in their creation.
-  - If a proposed distributed validator BLS group public key can produce a signature of the `manifest_configuration_hash`, it can be inferred that at least a threshold of the operators signed this data.
-  - As the `manifest_configuration_hash` is the same for all distributed validators created in the ceremony, the signatures can be aggregated into a group signature that verifies all created group keys at once. This makes it cheaper to verify a number of validators at once on chain.
+  - If a proposed distributed validator BLS group public key can produce a signature of the `cluster_definition_hash`, it can be inferred that at least a threshold of the operators signed this data.
+  - As the `cluster_definition_hash` is the same for all distributed validators created in the ceremony, the signatures can be aggregated into a group signature that verifies all created group keys at once. This makes it cheaper to verify a number of validators at once on chain.
 - Is there either a VSS or PVSS proof of a fair DKG ceremony?
   - VSS (Verifiable Secret Sharing) means only operators can verify fairness, as the proof requires knowledge of one of the secrets.
   - PVSS (Publicly Verifiable Secret Sharing) means anyone can verify fairness, as the proof is usually a Zero Knowledge Proof.
@@ -105,43 +106,9 @@ There are a number of aspects to this trust surface that can be mitigated with a
 
 Charon clients can do a DKG with a manifest file that does not contain operator signatures if you pass a `--no-verify` flag to `charon dkg`. This can be used for testing purposes when strict signature verification is not of the utmost importance.
 
-### Sample Manifest File [TBC]
+### Sample Configuration and Lock Files
 
-Before any participants add ENRs or signatures of the root.
-
-```yaml
-version: v1
-name: Test #Free text is needed to setup many clusters with the exact same config, otherwise hashes would be identical.
-grafitti:
-manifest_configuration_hash: 0x1234abc
-withdrawal_address: 0x0dead
-feeRecipient: 0x0
-validator_count: 100
-participants:
-  - 0x0
-  - 0x1
-  - 0x2
-  - 0x3
-threshold: 3
-dkg_algorithm: adkg_1_0_0
-```
-
-With some participants having submitted signed manifest_configuration_hash-es and signed ENRs. [To Do]
-
-```yaml
-version: v1
-manifest_configuration_hash: 0x1234abc
-withdrawal_address: 0x0dead
-feeRecipient: 0x0
-validator_count: 100
-participants:
-  - 0x0
-  - 0x1
-  - 0x2
-  - 0x3
-threshold: 3
-dkg_algorithm: adkg_1_0_0
-```
+Refer to the details [here](./configuration.md).
 
 ### Concerns
 
