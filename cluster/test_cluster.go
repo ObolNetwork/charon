@@ -13,11 +13,12 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package app
+package cluster
 
 import (
 	"crypto/ecdsa"
 	crand "crypto/rand"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
@@ -30,22 +31,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/p2p"
-	crypto2 "github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 )
 
-// NewClusterForT returns a new cluster manifest with dv number of distributed validators, k threshold and n peers.
+// NewForT returns a new cluster lock with dv number of distributed validators, k threshold and n peers.
 // It also returns the peer p2p keys and BLS secret shares. If the seed is zero a random cluster on available loopback
 // ports is generated, else a deterministic cluster is generated.
-// Note this is not defined in testutil since it is tightly coupled with the app package.
-func NewClusterForT(t *testing.T, dv, k, n, seed int) (Manifest, []*ecdsa.PrivateKey, [][]*bls_sig.SecretKeyShare) {
+// Note this is not defined in testutil since it is tightly coupled with the cluster package.
+func NewForT(t *testing.T, dv, k, n, seed int) (Lock, []*ecdsa.PrivateKey, [][]*bls_sig.SecretKeyShare) {
 	t.Helper()
 
 	var (
-		dvs      []crypto2.TSS
-		dvShares [][]*bls_sig.SecretKeyShare
+		vals     []DistValidator
 		p2pKeys  []*ecdsa.PrivateKey
-		peers    []p2p.Peer
+		ops      []Operator
+		dvShares [][]*bls_sig.SecretKeyShare
 	)
 
 	addrFunc := getAddrFunc(seed)
@@ -53,13 +54,26 @@ func NewClusterForT(t *testing.T, dv, k, n, seed int) (Manifest, []*ecdsa.Privat
 	random := io.Reader(rand.New(rand.NewSource(int64(seed)))) //nolint:gosec // Explicit use of weak random generator for determinism.
 	if seed == 0 {
 		random = crand.Reader
+	} else {
+		rand.Seed(int64(seed))
 	}
 
 	for i := 0; i < dv; i++ {
-		tss, shares, err := crypto2.GenerateTSS(k, n, random)
+		tss, shares, err := tbls.GenerateTSS(k, n, random)
 		require.NoError(t, err)
 
-		dvs = append(dvs, tss)
+		pk, err := tss.PublicKey().MarshalBinary()
+		require.NoError(t, err)
+
+		var verifiers [][]byte
+		for _, commitment := range tss.Verifier().Commitments {
+			verifiers = append(verifiers, commitment.ToAffineCompressed())
+		}
+
+		vals = append(vals, DistValidator{
+			PubKey:    fmt.Sprintf("%#x", pk),
+			Verifiers: verifiers,
+		})
 		dvShares = append(dvShares, shares)
 	}
 
@@ -80,16 +94,26 @@ func NewClusterForT(t *testing.T, dv, k, n, seed int) (Manifest, []*ecdsa.Privat
 		err = enode.SignV4(&r, p2pKey)
 		require.NoError(t, err)
 
-		peer, err := p2p.NewPeer(r, i)
+		enrStr, err := p2p.EncodeENR(r)
 		require.NoError(t, err)
 
-		peers = append(peers, peer)
+		ops = append(ops, Operator{
+			Address: crypto.PubkeyToAddress(p2pKey.PublicKey).String(),
+			ENR:     enrStr,
+		})
+
 		p2pKeys = append(p2pKeys, p2pKey)
 	}
 
-	return Manifest{
-		DVs:   dvs,
-		Peers: peers,
+	// TODO(corver): Add signatures.
+
+	return Lock{
+		Definition: NewDefinition(
+			"test cluster", dv, k,
+			testutil.RandomETHAddress(), testutil.RandomETHAddress(),
+			"0x0000000", ops, random),
+		Validators:         vals,
+		SignatureAggregate: nil,
 	}, p2pKeys, dvShares
 }
 

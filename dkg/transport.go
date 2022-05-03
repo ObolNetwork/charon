@@ -50,10 +50,13 @@ func (t p2pTransport) ServeShares(ctx context.Context, handler func(nodeIdx int)
 		for i, p := range t.peers {
 			if p.ID == s.Conn().RemotePeer() {
 				nodeIdx = i
+				found = true
+
+				break
 			}
 		}
 		if !found {
-			log.Warn(ctx, "Ignoring unknown peer", nil, z.Str("peer", p2p.ShortID(s.Conn().RemotePeer())))
+			log.Warn(ctx, "Ignoring stream from unknown peer", nil, z.Str("peer", p2p.ShortID(s.Conn().RemotePeer())))
 			return
 		}
 
