@@ -66,10 +66,10 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		}
 
 		err = b.eth2Cl.SubmitAttestations(ctx, []*eth2p0.Attestation{att})
-		if err == nil {
-			log.Info(ctx, "Attestation submitted successfully to beacon node", z.Int("slot", int(duty.Slot)))
-		} else {
+		if err != nil {
 			log.Error(ctx, "Failed to submit attestation to beacon node", err, z.Int("slot", int(duty.Slot)))
+		} else {
+			log.Info(ctx, "Attestation submitted successfully to beacon node", z.Int("slot", int(duty.Slot)))
 		}
 
 		return err
@@ -81,9 +81,9 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 
 		err = b.eth2Cl.SubmitBeaconBlock(ctx, block)
 		if err != nil {
-			log.Info(ctx, "Block submitted successfully to beacon node", z.Int("slot", int(duty.Slot)))
-		} else {
 			log.Error(ctx, "Failed to submit block to beacon node", err, z.Int("slot", int(duty.Slot)))
+		} else {
+			log.Info(ctx, "Block submitted successfully to beacon node", z.Int("slot", int(duty.Slot)))
 		}
 
 		return b.eth2Cl.SubmitBeaconBlock(ctx, block)
