@@ -24,6 +24,8 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
 
@@ -63,11 +65,25 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 			return err
 		}
 
-		return b.eth2Cl.SubmitAttestations(ctx, []*eth2p0.Attestation{att})
+		err = b.eth2Cl.SubmitAttestations(ctx, []*eth2p0.Attestation{att})
+		if err == nil {
+			log.Info(ctx, "Attestation submitted successfully to beacon node", z.Int("slot", int(duty.Slot)))
+		} else {
+			log.Error(ctx, "Failed to submit attestation to beacon node", err, z.Int("slot", int(duty.Slot)))
+		}
+
+		return err
 	case core.DutyProposer:
 		block, err := core.DecodeBlockAggSignedData(aggData)
 		if err != nil {
 			return err
+		}
+
+		err = b.eth2Cl.SubmitBeaconBlock(ctx, block)
+		if err != nil {
+			log.Info(ctx, "Block submitted successfully to beacon node", z.Int("slot", int(duty.Slot)))
+		} else {
+			log.Error(ctx, "Failed to submit block to beacon node", err, z.Int("slot", int(duty.Slot)))
 		}
 
 		return b.eth2Cl.SubmitBeaconBlock(ctx, block)
