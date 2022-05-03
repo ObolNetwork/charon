@@ -17,9 +17,6 @@ package dkg
 
 import (
 	"context"
-	"encoding/binary"
-	"io"
-	"strconv"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/dkg/frost"
@@ -58,8 +55,8 @@ type fTransport interface {
 // runFrostParallel runs numValidators Frost DKG processes in parallel (sharing transport rounds)
 // and returns a list of shares (one for each distributed validator).
 //nolint:deadcode // Will be tested and integrated in subsequent PRs.
-func runFrostParallel(ctx context.Context, tp fTransport, numValidators, numNodes, threshold, shareIdx uint32, random io.Reader) ([]share, error) {
-	validators, err := newFrostParticipants(numValidators, numNodes, threshold, shareIdx, random)
+func runFrostParallel(ctx context.Context, tp fTransport, numValidators, numNodes, threshold, shareIdx uint32, dgkCtx string) ([]share, error) {
+	validators, err := newFrostParticipants(numValidators, numNodes, threshold, shareIdx, dgkCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -76,19 +73,19 @@ func runFrostParallel(ctx context.Context, tp fTransport, numValidators, numNode
 
 	castR2, err := round2(validators, castR1Result, p2pR1Result)
 	if err != nil {
-		return nil, errors.Wrap(err, "exec round 2")
+		return nil, err
 	}
 
 	castR2Result, err := tp.Round2(ctx, castR2)
 	if err != nil {
-		return nil, errors.Wrap(err, "transport round 1")
+		return nil, errors.Wrap(err, "transport round 2")
 	}
 
 	return makeShares(validators, castR2Result)
 }
 
 // newFrostParticipant returns multiple frost dkg participants (one for each parallel validator).
-func newFrostParticipants(numValidators, numNodes, threshold, shareIdx uint32, random io.Reader) (map[uint32]*frost.DkgParticipant, error) {
+func newFrostParticipants(numValidators, numNodes, threshold, shareIdx uint32, dgkCtx string) (map[uint32]*frost.DkgParticipant, error) {
 	var otherIDs []uint32
 	for i := uint32(1); i <= numNodes; i++ {
 		if i == shareIdx {
@@ -102,7 +99,7 @@ func newFrostParticipants(numValidators, numNodes, threshold, shareIdx uint32, r
 		p, err := frost.NewDkgParticipant(
 			shareIdx,
 			threshold,
-			randomNumber(random),
+			dgkCtx,
 			curves.BLS12381G1(),
 			otherIDs...)
 		if err != nil {
@@ -165,7 +162,7 @@ func round2(
 				continue
 			}
 			if key.TargetID != v.Id {
-				return nil, errors.New("invalid key target")
+				continue
 			}
 			cast := cast // Copy loop variable
 			castMap[key.SourceID] = &cast
@@ -175,7 +172,7 @@ func round2(
 				continue
 			}
 			if key.TargetID != v.Id {
-				return nil, errors.New("invalid key target")
+				continue
 			}
 			share := share // Copy loop variable
 			shareMap[key.SourceID] = &share
@@ -183,7 +180,7 @@ func round2(
 
 		castR2, err := v.Round2(castMap, shareMap)
 		if err != nil {
-			return nil, errors.Wrap(err, "exec round 1")
+			return nil, errors.Wrap(err, "exec round 2")
 		}
 
 		castResults[msgKey{
@@ -198,14 +195,25 @@ func round2(
 
 // makeShares returns a slice of shares (one for each validator) from the DKG participants and round 2 results.
 func makeShares(validators map[uint32]*frost.DkgParticipant, r2Result map[msgKey]frost.Round2Bcast) ([]share, error) {
+	targetID := validators[0].Id
+
 	// Get set of public shares for each validator.
-	pubShares := make(map[uint32][]*bls_sig.PublicKey)
+	pubShares := make(map[uint32]map[uint32]*bls_sig.PublicKey) // map[ValIdx]map[SourceID]*bls_sig.PublicKey
 	for key, result := range r2Result {
+		if key.TargetID != targetID {
+			continue
+		}
 		pubShare, err := pointToPubKey(result.VkShare)
 		if err != nil {
 			return nil, err
 		}
-		pubShares[key.ValIdx] = append(pubShares[key.ValIdx], pubShare)
+
+		m, ok := pubShares[key.ValIdx]
+		if !ok {
+			m = make(map[uint32]*bls_sig.PublicKey)
+			pubShares[key.ValIdx] = m
+		}
+		m[key.SourceID] = pubShare
 	}
 
 	var shares []share
@@ -220,6 +228,7 @@ func makeShares(validators map[uint32]*frost.DkgParticipant, r2Result map[msgKey
 			return nil, err
 		}
 
+		vIdx := vIdx // Copy loop variable
 		share := share{
 			PubKey:       pubkey,
 			Share:        secretShare,
@@ -230,15 +239,6 @@ func makeShares(validators map[uint32]*frost.DkgParticipant, r2Result map[msgKey
 	}
 
 	return shares, nil
-}
-
-// randomNumber return a random 8 byte number as a string.
-func randomNumber(random io.Reader) string {
-	var bytes [8]byte
-	_, _ = random.Read(bytes[:])
-	i := binary.BigEndian.Uint64(bytes[:])
-
-	return strconv.FormatUint(i, 10)
 }
 
 func pointToPubKey(point curves.Point) (*bls_sig.PublicKey, error) {

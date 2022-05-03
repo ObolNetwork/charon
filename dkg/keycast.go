@@ -47,7 +47,7 @@ type share struct {
 
 	// One of the two below will be populated,
 	Verifier     *sharing.FeldmanVerifier
-	PublicShares []*bls_sig.PublicKey
+	PublicShares map[uint32]*bls_sig.PublicKey // map[shareIdx]*bls_sig.PublicKey
 }
 
 // shareMsg is the share message wire format sent by the dealer.
