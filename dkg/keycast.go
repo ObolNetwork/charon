@@ -31,20 +31,23 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 )
 
-// transport provides secure transport abstraction to keycast.
-type transport interface {
+// kcTransport provides secure transport abstraction to keycast.
+type kcTransport interface {
 	// ServeShares registers a function that serves node share messages until the context is closed.
 	ServeShares(context.Context, func(nodeIdx int) (msg []byte, err error))
 	// GetShares returns the shares served by a dealer or a permanent error.
 	GetShares(ctx context.Context, nodeIdx int) ([]byte, error)
 }
 
-// share is the co-validator public key, tbls verifiers, and private key share.
+// share is the co-validator public key, tbls verifiers or tbls publis shares, and private key share.
 // Each node in the cluster will receive one for each distributed validator.
 type share struct {
-	PubKey   *bls_sig.PublicKey
-	Verifier *sharing.FeldmanVerifier
-	Share    *bls_sig.SecretKeyShare
+	PubKey *bls_sig.PublicKey
+	Share  *bls_sig.SecretKeyShare
+
+	// One of the two below will be populated,
+	Verifier     *sharing.FeldmanVerifier
+	PublicShares []*bls_sig.PublicKey
 }
 
 // shareMsg is the share message wire format sent by the dealer.
@@ -54,7 +57,7 @@ type shareMsg struct {
 	Share     []byte
 }
 
-func runKeyCast(ctx context.Context, def cluster.Definition, tx transport, nodeIdx int, random io.Reader) ([]share, error) {
+func runKeyCast(ctx context.Context, def cluster.Definition, tx kcTransport, nodeIdx int, random io.Reader) ([]share, error) {
 	if nodeIdx == 0 {
 		return leadKeyCast(ctx, tx, def, random)
 	}
@@ -62,7 +65,7 @@ func runKeyCast(ctx context.Context, def cluster.Definition, tx transport, nodeI
 	return joinKeyCast(ctx, tx, nodeIdx)
 }
 
-func joinKeyCast(ctx context.Context, tp transport, nodeIdx int) ([]share, error) {
+func joinKeyCast(ctx context.Context, tp kcTransport, nodeIdx int) ([]share, error) {
 	log.Info(ctx, "Requesting shares from dealer...")
 
 	payload, err := tp.GetShares(ctx, nodeIdx)
@@ -91,7 +94,7 @@ func joinKeyCast(ctx context.Context, tp transport, nodeIdx int) ([]share, error
 }
 
 // leadKeyCast creates all shares for the cluster, then serves them via requests until done.
-func leadKeyCast(ctx context.Context, tp transport, def cluster.Definition, random io.Reader) ([]share, error) {
+func leadKeyCast(ctx context.Context, tp kcTransport, def cluster.Definition, random io.Reader) ([]share, error) {
 	numNodes := len(def.Operators)
 
 	// Create shares for all nodes.

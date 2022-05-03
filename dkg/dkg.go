@@ -146,7 +146,7 @@ func setupP2P(ctx context.Context, datadir string, p2pConf p2p.Config, peers []p
 	}, nil
 }
 
-func aggSignLockHash(_ context.Context, _ transport, _ cluster.Lock) ([]byte, error) {
+func aggSignLockHash(_ context.Context, _ kcTransport, _ cluster.Lock) ([]byte, error) {
 	// TODO(corver): Implement lock hash signing by all DVs and aggregation.
 	return nil, nil
 }
