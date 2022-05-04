@@ -74,7 +74,7 @@ func TestKeyCastNoNetwork(t *testing.T) {
 	require.NoError(t, eg.Wait())
 }
 
-// memTransport is a very simple in-memory transport for testing.
+// memTransport is a very simple in-memory kcTransport for testing.
 // The dealers servFunc is called directly by participants.
 type memTransport struct {
 	mu       sync.Mutex
