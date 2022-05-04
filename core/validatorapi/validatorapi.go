@@ -106,13 +106,10 @@ func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicK
 		return pubshare, nil
 	}
 
-	getPubShareFunc := func(pubkey eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error) {
+	getPubShareFunc := func(pubkey eth2p0.BLSPubKey) (eth2p0.BLSPubKey, bool) {
 		share, ok := sharesByKey[pubkey]
-		if !ok {
-			return eth2p0.BLSPubKey{}, errors.New("unknown public key")
-		}
 
-		return share, nil
+		return share, ok
 	}
 
 	getPubKeyFunc := func(share eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error) {
@@ -141,7 +138,7 @@ type Component struct {
 	// Mapping public shares (what the VC thinks as its public key) to public keys (the DV root public key)
 
 	getVerifyShareFunc func(core.PubKey) (*bls_sig.PublicKey, error)
-	getPubShareFunc    func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error)
+	getPubShareFunc    func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, bool)
 	getPubKeyFunc      func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error)
 
 	// Registered input functions
@@ -161,9 +158,9 @@ func (c *Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, vali
 
 	// Replace root public keys with public shares
 	for i := 0; i < len(duties); i++ {
-		pubshare, err := c.getPubShareFunc(duties[i].PubKey)
-		if err != nil {
-			// pubshare errors can be ignored since proposer duties are rare ones
+		pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
+		if !ok {
+			// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
 			continue
 		}
 		duties[i].PubKey = pubshare
@@ -463,9 +460,9 @@ func (c Component) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, valid
 
 	// Replace root public keys with public shares.
 	for i := 0; i < len(duties); i++ {
-		pubshare, err := c.getPubShareFunc(duties[i].PubKey)
-		if err != nil {
-			return nil, err
+		pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
+		if !ok {
+			return nil, errors.New("pubshare not found")
 		}
 		duties[i].PubKey = pubshare
 	}
@@ -507,10 +504,10 @@ func (c Component) ValidatorsByPubKey(ctx context.Context, stateID string, pubsh
 func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Validator) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 	resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
 	for vIdx, val := range vals {
-		var err error
-		val.Validator.PublicKey, err = c.getPubShareFunc(val.Validator.PublicKey)
-		if err != nil {
-			return nil, err
+		var ok bool
+		val.Validator.PublicKey, ok = c.getPubShareFunc(val.Validator.PublicKey)
+		if !ok {
+			return nil, errors.New("pubshare not found")
 		}
 		resp[vIdx] = val
 	}
