@@ -32,14 +32,14 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-type p2pTransport struct {
+type keycastP2P struct {
 	tcpNode   host.Host
 	peers     []p2p.Peer
 	clusterID string
 }
 
 // ServeShares serves the dealer shares to other nodes on request. It returns when the context is closed.
-func (t p2pTransport) ServeShares(ctx context.Context, handler func(nodeIdx int) (msg []byte, err error)) {
+func (t keycastP2P) ServeShares(ctx context.Context, handler func(nodeIdx int) (msg []byte, err error)) {
 	t.tcpNode.SetStreamHandler(getProtocol(t.clusterID), func(s network.Stream) {
 		defer s.Close()
 
@@ -76,7 +76,7 @@ func (t p2pTransport) ServeShares(ctx context.Context, handler func(nodeIdx int)
 }
 
 // GetShares returns the shares requested from the dealer or a context error. It retries all other errors.
-func (t p2pTransport) GetShares(ctx context.Context, _ int) ([]byte, error) {
+func (t keycastP2P) GetShares(ctx context.Context, _ int) ([]byte, error) {
 	for {
 		resp, err := getSharesOnce(ctx, t.tcpNode, t.peers[0].ID, t.clusterID)
 		if ctx.Err() != nil {
@@ -110,5 +110,5 @@ func getSharesOnce(ctx context.Context, tcpNode host.Host, dealer peer.ID, clust
 
 // getProtocol returns the protocol ID including the cluster ID.
 func getProtocol(clusterID string) protocol.ID {
-	return protocol.ID(fmt.Sprintf("/charon/dealer_dkg/1.0.0/%s", clusterID))
+	return protocol.ID(fmt.Sprintf("/charon/dkg/keycast/1.0.0/%s", clusterID))
 }
