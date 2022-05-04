@@ -163,7 +163,7 @@ func (c *Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, vali
 	for i := 0; i < len(duties); i++ {
 		pubshare, err := c.getPubShareFunc(duties[i].PubKey)
 		if err != nil {
-			// pubshare errors can be ignored since proposer duties are a rare one
+			// pubshare errors can be ignored since proposer duties are rare ones
 			continue
 		}
 		duties[i].PubKey = pubshare
