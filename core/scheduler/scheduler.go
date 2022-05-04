@@ -114,7 +114,7 @@ func (s *Scheduler) Run() error {
 			return nil
 		case slot := <-slotTicker:
 			slotCtx := log.WithCtx(ctx, z.I64("slot", slot.Slot))
-			log.Info(slotCtx, "Slot ticked")
+			log.Debug(slotCtx, "Slot ticked")
 
 			instrumentSlot(slot)
 
@@ -444,7 +444,6 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2Provider,
 	var resp []validator
 	for index, val := range vals {
 		if !val.Status.IsActive() {
-			log.Info(ctx, "skipping inactive validator", z.U64("index", uint64(index)))
 			continue
 		}
 
