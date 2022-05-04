@@ -206,7 +206,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 	}
 
 	if len(vals) == 0 {
-		log.Debug(ctx, "No active DVs for slot", z.I64("slot", slot.Slot))
+		log.Info(ctx, "No active DVs for slot", z.I64("slot", slot.Slot))
 		return nil
 	}
 
@@ -239,11 +239,10 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 			}
 
 			if !s.setFetchArg(duty, pubkey, arg) {
-				log.Debug(ctx, "Ignoring previously resolved duty", z.Any("duty", duty))
 				continue
 			}
 
-			log.Debug(ctx, "Resolved attester duty",
+			log.Info(ctx, "Resolved attester duty",
 				z.U64("epoch", uint64(slot.Epoch())),
 				z.U64("vidx", uint64(attDuty.ValidatorIndex)),
 				z.U64("slot", uint64(attDuty.Slot)),
@@ -279,11 +278,10 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 			}
 
 			if !s.setFetchArg(duty, pubkey, arg) {
-				log.Debug(ctx, "Ignoring previously resolved duty", z.Any("duty", duty))
 				continue
 			}
 
-			log.Debug(ctx, "Resolved proposer duty",
+			log.Info(ctx, "Resolved proposer duty",
 				z.U64("epoch", uint64(slot.Epoch())),
 				z.U64("vidx", uint64(proDuty.ValidatorIndex)),
 				z.U64("slot", uint64(proDuty.Slot)),
@@ -446,7 +444,6 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2Provider,
 	var resp []validator
 	for index, val := range vals {
 		if !val.Status.IsActive() {
-			log.Debug(ctx, "skipping inactive validator", z.U64("index", uint64(index)))
 			continue
 		}
 
