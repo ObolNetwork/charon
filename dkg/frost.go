@@ -195,6 +195,7 @@ func round2(
 
 // makeShares returns a slice of shares (one for each validator) from the DKG participants and round 2 results.
 func makeShares(validators map[uint32]*frost.DkgParticipant, r2Result map[msgKey]frost.Round2Bcast) ([]share, error) {
+	// Get our ID from any validator (they all have our ID). 
 	targetID := validators[0].Id
 
 	// Get set of public shares for each validator.
