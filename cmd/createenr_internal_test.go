@@ -29,6 +29,6 @@ func TestRunGenP2P(t *testing.T) {
 	temp, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	err = runGenP2PKey(io.Discard, p2p.Config{}, temp)
+	err = runCreateEnrCmd(io.Discard, p2p.Config{}, temp)
 	require.NoError(t, err)
 }

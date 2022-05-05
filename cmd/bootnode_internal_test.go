@@ -39,7 +39,7 @@ func TestRunBootnode(t *testing.T) {
 		HTTPAddr:  testutil.AvailableAddr(t).String(),
 	}
 
-	err = runGenP2PKey(io.Discard, config.P2PConfig, temp)
+	err = runCreateEnrCmd(io.Discard, config.P2PConfig, temp)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())

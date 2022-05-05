@@ -43,13 +43,13 @@ func New() *cobra.Command {
 	return newRootCmd(
 		newVersionCmd(runVersionCmd),
 		newEnrCmd(runNewENR),
-		newGenP2PKeyCmd(runGenP2PKey),
 		newRunCmd(app.Run),
 		newBootnodeCmd(RunBootnode),
-		newCreateClusterCmd(runCreateCluster),
 		newDKGCmd(dkg.Run),
 		newCreateCmd(
 			newCreateDKGCmd(runCreateDKG),
+			newCreateEnrCmd(runCreateEnrCmd),
+			newCreateClusterCmd(runCreateCluster),
 		),
 	)
 }

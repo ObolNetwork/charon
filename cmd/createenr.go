@@ -25,16 +25,16 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-func newGenP2PKeyCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.Command {
+func newCreateEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.Command {
 	var (
 		config  p2p.Config
 		dataDir string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "gen-p2pkey",
-		Short: "Generates a new p2p key",
-		Long:  `Generates a new p2p authentication key (ecdsa-k1) and saves it to the data directory`,
+		Use:   "enr",
+		Short: "Creates a new enr private key",
+		Long:  `Creates an Ethereum Node Record (ENR) private key to identify charon`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), config, dataDir)
@@ -47,8 +47,8 @@ func newGenP2PKeyCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.C
 	return cmd
 }
 
-// runGenP2PKey stores a new p2pkey to disk and prints the ENR for the provided config.
-func runGenP2PKey(w io.Writer, config p2p.Config, dataDir string) error {
+// runCreateEnrCmd stores a new p2pkey to disk and prints the ENR for the provided config.
+func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 	key, err := p2p.NewSavedPrivKey(dataDir)
 	if err != nil {
 		return err
@@ -60,7 +60,7 @@ func runGenP2PKey(w io.Writer, config p2p.Config, dataDir string) error {
 	}
 	defer db.Close()
 
-	_, _ = fmt.Fprintf(w, "Created key: %s/p2pkey\n", dataDir)
+	_, _ = fmt.Fprintf(w, "Created ENR private key: %s/p2pkey\n", dataDir)
 	_, _ = fmt.Fprintln(w, localEnode.Node().String())
 
 	return nil

@@ -45,7 +45,7 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 
 	cmd := &cobra.Command{
 		Use:   "dkg",
-		Short: "Configure DKG by creating a cluster definition file",
+		Short: "Creates a charon DKG configuration file for charon dkg",
 		Long:  `Create a cluster definition file that will be used by all participants of a DKG.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
