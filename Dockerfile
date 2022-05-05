@@ -37,3 +37,7 @@ ENTRYPOINT ["/usr/local/bin/charon"]
 CMD ["run"]
 # Used by GitHub to associate container with repo.
 LABEL org.opencontainers.image.source="https://github.com/obolnetwork/charon"
+LABEL org.opencontainers.image.title="charon"
+LABEL org.opencontainers.image.description="Proof of Stake Ethereum Distributed Validator Client"
+LABEL org.opencontainers.image.licenses="GPL v3"
+LABEL org.opencontainers.image.documentation="https://github.com/ObolNetwork/charon/tree/main/docs"
