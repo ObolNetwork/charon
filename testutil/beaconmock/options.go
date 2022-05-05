@@ -432,12 +432,12 @@ func mustPKFromHex(pubkeyHex string) eth2p0.BLSPubKey {
 	pubkeyHex = strings.TrimPrefix(pubkeyHex, "0x")
 	b, err := hex.DecodeString(pubkeyHex)
 	if err != nil {
-		panic(err)
+		panic(any(err))
 	}
 	var resp eth2p0.BLSPubKey
 	n := copy(resp[:], b)
 	if n != 48 {
-		panic("invalid pubkey hex")
+		panic(any("invalid pubkey hex"))
 	}
 
 	return resp

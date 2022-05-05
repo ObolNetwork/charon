@@ -187,7 +187,7 @@ func newHTTPMock(overrides ...staticOverride) (HTTPMock, *http.Server, error) {
 	go func() {
 		err = srv.Serve(l)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			panic(err)
+			panic(any(err))
 		}
 	}()
 

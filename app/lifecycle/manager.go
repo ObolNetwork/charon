@@ -47,7 +47,7 @@ func (m *Manager) RegisterStart(typ HookStartType, order OrderStart, fn IHookFun
 	defer m.mu.Unlock()
 
 	if m.started {
-		panic("cycle already started")
+		panic(any("cycle already started"))
 	}
 
 	m.startHooks = append(m.startHooks, hook{
@@ -64,7 +64,7 @@ func (m *Manager) RegisterStop(order OrderStop, fn IHookFunc) {
 	defer m.mu.Unlock()
 
 	if m.started {
-		panic("cycle already started")
+		panic(any("cycle already started"))
 	}
 
 	m.stopHooks = append(m.stopHooks, hook{

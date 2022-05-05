@@ -362,9 +362,9 @@ func (c *testClock) Since(t time.Time) time.Duration {
 }
 
 func (c *testClock) NewTicker(time.Duration) clockwork.Ticker {
-	panic("not supported")
+	panic(any("not supported"))
 }
 
 func (c *testClock) NewTimer(time.Duration) clockwork.Timer {
-	panic("not supported")
+	panic(any("not supported"))
 }
