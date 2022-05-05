@@ -26,9 +26,12 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
+var curve = curves.BLS12381G1()
+
 // msgKey identifies the source and target nodes and validator index the message belongs to.
 type msgKey struct {
 	// ValIdx identifies the distributed validator (Ith parallel participant) the message belongs to.
+	// It is 0-indexed.
 	ValIdx uint32
 
 	// SourceID identifies the source node/participant ID of the message.
@@ -54,7 +57,6 @@ type fTransport interface {
 
 // runFrostParallel runs numValidators Frost DKG processes in parallel (sharing transport rounds)
 // and returns a list of shares (one for each distributed validator).
-
 func runFrostParallel(ctx context.Context, tp fTransport, numValidators, numNodes, threshold, shareIdx uint32, dgkCtx string) ([]share, error) {
 	validators, err := newFrostParticipants(numValidators, numNodes, threshold, shareIdx, dgkCtx)
 	if err != nil {
@@ -81,7 +83,7 @@ func runFrostParallel(ctx context.Context, tp fTransport, numValidators, numNode
 		return nil, errors.Wrap(err, "transport round 2")
 	}
 
-	return makeShares(validators, castR2Result)
+	return makeShares(validators, castR2Result, shareIdx)
 }
 
 // newFrostParticipant returns multiple frost dkg participants (one for each parallel validator).
@@ -95,18 +97,18 @@ func newFrostParticipants(numValidators, numNodes, threshold, shareIdx uint32, d
 	}
 
 	resp := make(map[uint32]*frost.DkgParticipant)
-	for i := uint32(0); i < numValidators; i++ {
+	for vIdx := uint32(0); vIdx < numValidators; vIdx++ {
 		p, err := frost.NewDkgParticipant(
 			shareIdx,
 			threshold,
 			dgkCtx,
-			curves.BLS12381G1(),
+			curve,
 			otherIDs...)
 		if err != nil {
 			return nil, errors.Wrap(err, "new participant")
 		}
 
-		resp[i] = p
+		resp[vIdx] = p
 	}
 
 	return resp, nil
@@ -152,33 +154,7 @@ func round2(
 ) (map[msgKey]frost.Round2Bcast, error) {
 	castResults := make(map[msgKey]frost.Round2Bcast)
 	for vIdx, v := range validators {
-		// Extract vIdx'th validator round 2 inputs.
-		var (
-			castMap  = make(map[uint32]*frost.Round1Bcast)
-			shareMap = make(map[uint32]*sharing.ShamirShare)
-		)
-		for key, cast := range castR1 {
-			if key.ValIdx != vIdx {
-				continue
-			}
-			if key.TargetID != v.Id {
-				continue
-			}
-			cast := cast // Copy loop variable
-			castMap[key.SourceID] = &cast
-		}
-		for key, share := range p2pR1 {
-			if key.ValIdx != vIdx {
-				continue
-			}
-			if key.TargetID != v.Id {
-				continue
-			}
-			share := share // Copy loop variable
-			shareMap[key.SourceID] = &share
-		}
-
-		castR2, err := v.Round2(castMap, shareMap)
+		castR2, err := v.Round2(getRound2Inputs(castR1, p2pR1, vIdx, v.Id))
 		if err != nil {
 			return nil, errors.Wrap(err, "exec round 2")
 		}
@@ -193,15 +169,50 @@ func round2(
 	return castResults, nil
 }
 
-// makeShares returns a slice of shares (one for each validator) from the DKG participants and round 2 results.
-func makeShares(validators map[uint32]*frost.DkgParticipant, r2Result map[msgKey]frost.Round2Bcast) ([]share, error) {
-	// Get our ID from any validator (they all have our ID).
-	targetID := validators[0].Id
+// getRound2Inputs returns the round 2 inputs of the vIdx'th validator.
+func getRound2Inputs(
+	castR1 map[msgKey]frost.Round1Bcast,
+	p2pR1 map[msgKey]sharing.ShamirShare,
+	vIdx, targetID uint32,
+) (map[uint32]*frost.Round1Bcast, map[uint32]*sharing.ShamirShare) {
+	castMap := make(map[uint32]*frost.Round1Bcast)
+	for key, cast := range castR1 {
+		if key.ValIdx != vIdx {
+			continue
+		}
+		if key.TargetID != targetID {
+			continue
+		}
+		cast := cast // Copy loop variable
+		castMap[key.SourceID] = &cast
+	}
 
+	shareMap := make(map[uint32]*sharing.ShamirShare)
+	for key, share := range p2pR1 {
+		if key.ValIdx != vIdx {
+			continue
+		}
+		if key.TargetID != targetID {
+			continue
+		}
+		share := share // Copy loop variable
+		shareMap[key.SourceID] = &share
+	}
+
+	return castMap, shareMap
+}
+
+// makeShares returns a slice of shares (one for each validator) from the DKG participants and round 2 results.
+func makeShares(
+	validators map[uint32]*frost.DkgParticipant,
+	r2Result map[msgKey]frost.Round2Bcast,
+	targetID uint32,
+) ([]share, error) {
 	// Get set of public shares for each validator.
 	pubShares := make(map[uint32]map[uint32]*bls_sig.PublicKey) // map[ValIdx]map[SourceID]*bls_sig.PublicKey
 	for key, result := range r2Result {
 		if key.TargetID != targetID {
+			// Not for us.
 			continue
 		}
 		pubShare, err := pointToPubKey(result.VkShare)
@@ -217,6 +228,7 @@ func makeShares(validators map[uint32]*frost.DkgParticipant, r2Result map[msgKey
 		m[key.SourceID] = pubShare
 	}
 
+	// Construct DKG result shares.
 	var shares []share
 	for vIdx, v := range validators {
 		pubkey, err := pointToPubKey(v.VerificationKey)
@@ -229,19 +241,17 @@ func makeShares(validators map[uint32]*frost.DkgParticipant, r2Result map[msgKey
 			return nil, err
 		}
 
-		vIdx := vIdx // Copy loop variable
-		share := share{
+		shares = append(shares, share{
 			PubKey:       pubkey,
 			Share:        secretShare,
 			PublicShares: pubShares[vIdx],
-		}
-
-		shares = append(shares, share)
+		})
 	}
 
 	return shares, nil
 }
 
+// pointToPubKey returns the point as a public key.
 func pointToPubKey(point curves.Point) (*bls_sig.PublicKey, error) {
 	pk := new(bls_sig.PublicKey)
 	err := pk.UnmarshalBinary(point.ToAffineCompressed())

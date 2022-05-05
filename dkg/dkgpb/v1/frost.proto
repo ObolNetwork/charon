@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package dkg.dkgpb.v1;
+
+option go_package = "github.com/obolnetwork/charon/dkg/dkgpb/v1";
+
+message FrostMsgKey {    // dkg.msgKey
+  uint32 val_idx = 1;
+  uint32 source_id = 2;
+  uint32 target_id = 3;
+}
+
+message FrostRound1Cast {
+  FrostMsgKey key  = 1;
+  bytes wi = 2;
+  bytes ci = 3;
+  repeated bytes commitments = 4;
+}
+
+message ShamirShare {
+  FrostMsgKey key  = 1;
+  uint32 id = 2;
+  bytes value = 3;
+}
+
+message FrostRound1Msg {
+  repeated FrostRound1Cast casts = 1;
+  repeated ShamirShare p2ps = 2;
+}
+
+message FrostRound2Cast {
+  FrostMsgKey key  = 1;
+  bytes verification_key = 2;
+  bytes vk_share = 3;
+}
+
+message FrostRound2Msg {
+  repeated FrostRound2Cast casts = 1;
+}

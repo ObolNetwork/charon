@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -70,17 +71,35 @@ func Run(ctx context.Context, conf Config) error {
 	if err != nil {
 		return errors.Wrap(err, "hash definition")
 	}
-
-	tp := p2pTransport{
-		tcpNode:   tcpNode,
-		peers:     peers,
-		clusterID: fmt.Sprintf("%x", defHash[:]),
-	}
+	clusterID := fmt.Sprintf("%x", defHash[:])
 
 	var shares []share
 	switch def.DKGAlgorithm {
 	case "default", "keycast":
+		tp := keycastP2P{
+			tcpNode:   tcpNode,
+			peers:     peers,
+			clusterID: clusterID,
+		}
+
 		shares, err = runKeyCast(ctx, def, tp, nodeIdx.PeerIdx, crand.Reader)
+		if err != nil {
+			return err
+		}
+	case "frost":
+		// Construct peer map
+		peerMap := make(map[uint32]peer.ID)
+		for _, p := range peers {
+			nodeIdx, err := def.NodeIdx(p.ID)
+			if err != nil {
+				return err
+			}
+			peerMap[uint32(nodeIdx.ShareIdx)] = p.ID
+		}
+		tp := newFrostP2P(ctx, tcpNode, peerMap, clusterID)
+
+		shares, err = runFrostParallel(ctx, tp, uint32(def.NumValidators), uint32(len(peerMap)),
+			uint32(def.Threshold), uint32(nodeIdx.ShareIdx), clusterID)
 		if err != nil {
 			return err
 		}
@@ -102,7 +121,7 @@ func Run(ctx context.Context, conf Config) error {
 		Validators: dvs,
 	}
 
-	aggsig, err := aggSignLockHash(ctx, tp, lock)
+	aggsig, err := aggSignLockHash(ctx, nil, lock)
 	if err != nil {
 		return err
 	}
