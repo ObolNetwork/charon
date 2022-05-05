@@ -180,9 +180,9 @@ func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 		}
 
 		dvs = append(dvs, cluster.DistValidator{
-			PubKey:       fmt.Sprintf("%#x", msg.PubKey),
-			Verifiers:    msg.Verifiers,
-			PublicShares: msg.PubShares,
+			PubKey:    fmt.Sprintf("%#x", msg.PubKey),
+			Verifiers: msg.Verifiers,
+			PubShares: msg.PubShares,
 		})
 	}
 

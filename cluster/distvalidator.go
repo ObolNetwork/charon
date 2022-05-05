@@ -22,12 +22,12 @@ type DistValidator struct {
 	// PubKey is the root distributed public key.
 	PubKey string `json:"distributed_public_key"`
 
-	// PublicShares are the public keys of each node's secret key share.
+	// PubShares are the public keys corresponding to each node's secret key share.
 	// It can be used to verify a partial signature created by any node in the cluster.
-	PublicShares [][]byte `json:"public_shares,omitempty"`
+	PubShares [][]byte `json:"public_shares,omitempty"`
 
 	// Verifiers are the threshold verifier commitments.
-	// Deprecated: Use PublicShares.
+	// Deprecated: Use PubShares.
 	Verifiers [][]byte `json:"threshold_verifiers,omitempty"`
 
 	// FeeRecipientAddress Ethereum address override for this validator, defaults to definition withdrawal address.

@@ -26,7 +26,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// KeyFromBytes unmarshalls the bytes into a kryptology bls public key.
+// KeyFromBytes unmarshals the bytes into a kryptology bls public key.
 func KeyFromBytes(bytes []byte) (*bls_sig.PublicKey, error) {
 	resp := new(bls_sig.PublicKey)
 	if err := resp.UnmarshalBinary(bytes); err != nil {
