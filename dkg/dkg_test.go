@@ -17,6 +17,7 @@ package dkg_test
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -36,25 +37,40 @@ import (
 	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
 func TestDKG(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	const (
 		nodes = 3
 		vals  = 2
 	)
 
+	t.Run("keycast", func(t *testing.T) {
+		lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0)
+		lock.Definition.DKGAlgorithm = "keycast"
+		testDKG(t, lock.Definition, keys)
+	})
+
+	t.Run("frost", func(t *testing.T) {
+		lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0)
+		lock.Definition.DKGAlgorithm = "frost"
+		testDKG(t, lock.Definition, keys)
+	})
+}
+
+func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Start bootnode
 	bootnode, errChan := startBootnode(ctx, t)
 
 	// Setup
-	lock, keys, _ := cluster.NewForT(t, vals, 3, 3, 0)
-
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
@@ -64,19 +80,19 @@ func TestDKG(t *testing.T) {
 			UDPBootnodes: []string{bootnode},
 		},
 		Log:     log.DefaultConfig(),
-		TestDef: &lock.Definition,
+		TestDef: &def,
 	}
 
 	// Run dkg for each node
 	var eg errgroup.Group
-	for i := 0; i < nodes; i++ {
+	for i := 0; i < len(def.Operators); i++ {
 		conf := conf
 		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
 		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
 		conf.P2P.UDPAddr = testutil.AvailableAddr(t).String()
 
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
-		err := crypto.SaveECDSA(p2p.KeyPath(conf.DataDir), keys[i])
+		err := crypto.SaveECDSA(p2p.KeyPath(conf.DataDir), p2pKeys[i])
 		require.NoError(t, err)
 
 		eg.Go(func() error {
@@ -97,9 +113,10 @@ func TestDKG(t *testing.T) {
 
 	select {
 	case err := <-errChan:
+		// If this returns first, something went wrong with the bootnode and the test will fail.
 		cancel()
 		testutil.SkipIfBindErr(t, err)
-		require.NoError(t, err)
+		require.Fail(t, "bootnode error: %v", err)
 	case err := <-runChan:
 		cancel()
 		testutil.SkipIfBindErr(t, err)
@@ -108,17 +125,17 @@ func TestDKG(t *testing.T) {
 
 	// Read generated lock and keystores from disk
 	var (
-		shares = make([][]*bls_sig.SecretKey, vals)
-		locks  []cluster.Lock
+		secretShares = make([][]*bls_sig.SecretKey, def.NumValidators)
+		locks        []cluster.Lock
 	)
-	for i := 0; i < nodes; i++ {
+	for i := 0; i < len(def.Operators); i++ {
 		dataDir := path.Join(dir, fmt.Sprintf("node%d", i))
 		keyShares, err := keystore.LoadKeys(dataDir)
 		require.NoError(t, err)
-		require.Len(t, keyShares, vals)
+		require.Len(t, keyShares, def.NumValidators)
 
 		for i, key := range keyShares {
-			shares[i] = append(shares[i], key)
+			secretShares[i] = append(secretShares[i], key)
 		}
 
 		lockFile, err := os.ReadFile(path.Join(dataDir, "cluster_lock.json"))
@@ -142,15 +159,29 @@ func TestDKG(t *testing.T) {
 	}
 
 	// 	Ensure keystores can generate valid tbls aggregate signature.
-	for i := 0; i < vals; i++ {
+	for i := 0; i < def.NumValidators; i++ {
 		var sigs []*bls_sig.PartialSignature
-		for j := 0; j < nodes; j++ {
-			sig, err := tbls.Sign(shares[i][j], []byte("data"))
+		for j := 0; j < len(def.Operators); j++ {
+			msg := []byte("data")
+			sig, err := tbls.Sign(secretShares[i][j], msg)
 			require.NoError(t, err)
 			sigs = append(sigs, &bls_sig.PartialSignature{
 				Identifier: byte(j),
 				Signature:  sig.Value,
 			})
+
+			// Ensure all public shares can verify the partial signature
+			for _, lock := range locks {
+				if len(lock.Validators[i].PublicShares) == 0 {
+					// TODO(corver): convert keycast to use public shares, not verifiers.
+					continue
+				}
+				pk, err := tblsconv.KeyFromBytes(lock.Validators[i].PublicShares[j])
+				require.NoError(t, err)
+				ok, err := tbls.Verify(pk, msg, sig)
+				require.NoError(t, err)
+				require.True(t, ok)
+			}
 		}
 		_, err := tbls.Aggregate(sigs)
 		require.NoError(t, err)

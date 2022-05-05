@@ -26,6 +26,16 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+// KeyFromBytes unmarshalls the bytes into a kryptology bls public key.
+func KeyFromBytes(bytes []byte) (*bls_sig.PublicKey, error) {
+	resp := new(bls_sig.PublicKey)
+	if err := resp.UnmarshalBinary(bytes); err != nil {
+		return nil, errors.Wrap(err, "unmarshal pubkey")
+	}
+
+	return resp, nil
+}
+
 // KeyFromETH2 converts an eth2 phase0 public key into a kryptology bls public key.
 func KeyFromETH2(key eth2p0.BLSPubKey) (*bls_sig.PublicKey, error) {
 	resp := new(bls_sig.PublicKey)
@@ -118,7 +128,7 @@ func ShareToSecret(share *bls_sig.SecretKeyShare) (*bls_sig.SecretKey, error) {
 		return nil, errors.Wrap(err, "marshal share")
 	}
 
-	// shamir.Share.Bytes() strips leading zeros...
+	// shamir.SecretShare.Bytes() strips leading zeros...
 	const sksLen = 33
 	if len(b) < sksLen {
 		b = append(make([]byte, sksLen-len(b)), b...)

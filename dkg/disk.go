@@ -52,7 +52,7 @@ func loadDefinition(conf Config) (cluster.Definition, error) {
 func writeKeystores(datadir string, shares []share) error {
 	var secrets []*bls_sig.SecretKey
 	for _, s := range shares {
-		secret, err := tblsconv.ShareToSecret(s.Share)
+		secret, err := tblsconv.ShareToSecret(s.SecretShare)
 		if err != nil {
 			return err
 		}
