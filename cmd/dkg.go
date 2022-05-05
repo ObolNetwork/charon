@@ -29,7 +29,7 @@ func newDKGCmd(runFunc func(context.Context, dkg.Config) error) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "dkg",
-		Short: "Create distributed validator key shares by participating in a DKG ceremony",
+		Short: "Participate in a Distributed Key Generation ceremony",
 		Long: `Participate in a distributed key generation ceremony for a specific cluster definition that creates
 distributed validator key shares and a final cluster lock configuration. Note that all other cluster operators should run
 this command at the same time.`,

@@ -33,8 +33,7 @@ func newCreateEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.C
 
 	cmd := &cobra.Command{
 		Use:   "enr",
-		Short: "Creates a new enr private key",
-		Long:  `Creates an Ethereum Node Record (ENR) private key to identify charon`,
+		Short: "Create an Ethereum Node Record (ENR) private key to identify this charon client",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), config, dataDir)

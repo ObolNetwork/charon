@@ -33,7 +33,7 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.Command
 
 	cmd := &cobra.Command{
 		Use:   "enr",
-		Short: "Return this node's ENR",
+		Short: "Print this client's Ethereum Node Record",
 		Long:  `Return information on this node's Ethereum Node Record (ENR)`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
