@@ -90,11 +90,11 @@ func Run(ctx context.Context, conf Config) error {
 		// Construct peer map
 		peerMap := make(map[uint32]peer.ID)
 		for _, p := range peers {
-			peerIdx, err := def.NodeIdx(p.ID)
+			nodeIdx, err := def.NodeIdx(p.ID)
 			if err != nil {
 				return err
 			}
-			peerMap[uint32(peerIdx.ShareIdx)] = p.ID
+			peerMap[uint32(nodeIdx.ShareIdx)] = p.ID
 		}
 		tp := newFrostP2P(ctx, tcpNode, peerMap, clusterID)
 

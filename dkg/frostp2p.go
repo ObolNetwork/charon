@@ -36,7 +36,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-// newFrostP2P returns a p2p front transport implementation.
+// newFrostP2P returns a p2p frost transport implementation.
 func newFrostP2P(ctx context.Context, tcpNode host.Host, peers map[uint32]peer.ID, clusterID string) *frostP2P {
 	var (
 		round1Recv  = make(chan *pb.FrostRound1Msg, len(peers))
@@ -122,6 +122,8 @@ type frostP2P struct {
 	round2Recv chan *pb.FrostRound2Msg
 }
 
+// Round1 returns results of all round 1 communication; the received round 1 broadcasts from all other nodes
+// and the round 1 P2P sends to this node.
 func (f *frostP2P) Round1(ctx context.Context, castR1 map[msgKey]frost.Round1Bcast, p2pR1 map[msgKey]sharing.ShamirShare,
 ) (map[msgKey]frost.Round1Bcast, map[msgKey]sharing.ShamirShare, error) {
 	// Build peer messages
@@ -182,6 +184,7 @@ func (f *frostP2P) Round1(ctx context.Context, castR1 map[msgKey]frost.Round1Bca
 	return makeRound1Response(recvs)
 }
 
+// Round2 returns results of all round 2 communication; the received round 2 broadcasts from all other nodes.
 func (f *frostP2P) Round2(ctx context.Context, castR2 map[msgKey]frost.Round2Bcast) (map[msgKey]frost.Round2Bcast, error) {
 	// Build peer messages
 	peerMsgs := make(map[peer.ID]*pb.FrostRound2Msg)
