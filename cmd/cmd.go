@@ -48,6 +48,9 @@ func New() *cobra.Command {
 		newBootnodeCmd(RunBootnode),
 		newCreateClusterCmd(runCreateCluster),
 		newDKGCmd(dkg.Run),
+		newCreateCmd(
+			newCreateDKGCmd(runCreateDKG),
+		),
 	)
 }
 
