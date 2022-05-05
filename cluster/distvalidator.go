@@ -26,7 +26,7 @@ type DistValidator struct {
 	// It can be used to verify a partial signature created by any node in the cluster.
 	PublicShares [][]byte `json:"public_shares,omitempty"`
 
-	// Verifiers are the public shares.
+	// Verifiers are the threshold verifier commitments.
 	// Deprecated: Use PublicShares.
 	Verifiers [][]byte `json:"threshold_verifiers,omitempty"`
 
