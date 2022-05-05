@@ -26,6 +26,7 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/dkg"
 )
 
 const (
@@ -46,13 +47,14 @@ func New() *cobra.Command {
 		newRunCmd(app.Run),
 		newBootnodeCmd(RunBootnode),
 		newCreateClusterCmd(runCreateCluster),
+		newDKGCmd(dkg.Run),
 	)
 }
 
 func newRootCmd(cmds ...*cobra.Command) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "charon",
-		Short: "Charon - The Ethereum DVT middleware client",
+		Short: "Charon - Proof of Stake Ethereum Distributed Validator Client",
 		Long:  `Charon enables the operation of Ethereum validators in a fault tolerant manner by splitting the validating keys across a group of trusted parties using threshold cryptography.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return initializeConfig(cmd)
