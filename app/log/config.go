@@ -120,8 +120,6 @@ func buildConsoleLogger(level zapcore.Level, ws zapcore.WriteSyncer, opts ...fun
 			encoder, ws,
 			zap.NewAtomicLevelAt(level),
 		),
-		zap.WithCaller(true),
-		zap.AddCallerSkip(1),
 	)
 }
 
