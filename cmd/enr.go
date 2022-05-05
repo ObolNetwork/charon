@@ -51,7 +51,7 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.Command
 func runNewENR(w io.Writer, config p2p.Config, dataDir string) error {
 	key, err := p2p.LoadPrivKey(dataDir)
 	if err != nil {
-		return err
+		return errors.New(fmt.Sprintf("No ENR private key found in %s. If this is your first time running this client, create one with `charon create enr`.", p2p.KeyPath(dataDir)))
 	}
 
 	localEnode, db, err := p2p.NewLocalEnode(config, key)
