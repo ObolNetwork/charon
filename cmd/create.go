@@ -20,7 +20,8 @@ import "github.com/spf13/cobra"
 func newCreateCmd(cmds ...*cobra.Command) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "create",
-		Short: "Create different artifacts required for running a Charon cluster",
+		Short: "Create artifacts for a distributed validator cluster",
+		Long:  "Create artifacts for a distributed validator cluster. These commands can be used to facilitate the creation of a distributed validator cluster between a group of operators by performing a distributed key generation ceremony, or they can be used to create a local cluster for single operator use cases.",
 	}
 
 	root.AddCommand(cmds...)

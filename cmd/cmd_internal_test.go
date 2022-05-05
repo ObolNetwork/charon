@@ -89,8 +89,8 @@ func TestCmdFlags(t *testing.T) {
 			},
 		},
 		{
-			Name:    "gen p2p",
-			Args:    slice("gen-p2pkey"),
+			Name:    "create enr",
+			Args:    slice("create", "enr"),
 			Datadir: ".charon/data",
 			P2PConfig: &p2p.Config{
 				UDPAddr:   "127.0.0.1:16004",
@@ -115,13 +115,15 @@ func TestCmdFlags(t *testing.T) {
 
 					return nil
 				}),
-				newGenP2PKeyCmd(func(_ io.Writer, config p2p.Config, datadir string) error {
-					require.NotNil(t, test.P2PConfig)
-					require.Equal(t, *test.P2PConfig, config)
-					require.Equal(t, test.Datadir, datadir)
+				newCreateCmd(
+					newCreateEnrCmd(func(_ io.Writer, config p2p.Config, datadir string) error {
+						require.NotNil(t, test.P2PConfig)
+						require.Equal(t, *test.P2PConfig, config)
+						require.Equal(t, test.Datadir, datadir)
 
-					return nil
-				}),
+						return nil
+					}),
+				),
 			)
 
 			// Set envs (only for duration of the test)

@@ -47,8 +47,8 @@ func newBootnodeCmd(runFunc func(context.Context, BootnodeConfig) error) *cobra.
 
 	cmd := &cobra.Command{
 		Use:   "bootnode",
-		Short: "Starts a p2p-udp discv5 bootnode",
-		Long:  `Starts a p2p-udp discv5 bootnode that charon nodes can use to bootstrap their p2p cluster`,
+		Short: "Start a discv5 bootnode server",
+		Long:  `Starts a discv5 bootnode that charon nodes can use to bootstrap their p2p cluster`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.Context(), config)

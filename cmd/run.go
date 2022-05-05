@@ -34,7 +34,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Runs the Charon middleware",
+		Short: "Run the charon middleware client",
 		Long:  "Starts the long-running Charon middleware process to perform distributed validator duties.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
