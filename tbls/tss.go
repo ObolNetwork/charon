@@ -84,7 +84,7 @@ func (t TSS) Threshold() int {
 
 // PublicShare returns a share's public key by share index (identifier).
 func (t TSS) PublicShare(shareIdx int) (*bls_sig.PublicKey, error) {
-	return getPubShare(shareIdx, t.verifier)
+	return GetPubShare(shareIdx, t.verifier)
 }
 
 func NewTSS(verifier *share.FeldmanVerifier, numShares int) (TSS, error) {
@@ -242,7 +242,8 @@ func SplitSecret(secret *bls_sig.SecretKey, t, n int, reader io.Reader) ([]*bls_
 	return sks, verifier, nil
 }
 
-func getPubShare(identifier int, verifier *share.FeldmanVerifier) (*bls_sig.PublicKey, error) {
+// GetPubShare returns the public key share for the i'th/identifier/shareIdx share from the verifier commitments.
+func GetPubShare(identifier int, verifier *share.FeldmanVerifier) (*bls_sig.PublicKey, error) {
 	curve := curves.GetCurveByName(verifier.Commitments[0].CurveName())
 	if curve != curves.BLS12381G1() {
 		return nil, errors.New("curve mismatch")

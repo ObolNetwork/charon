@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"sort"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/sharing"
@@ -42,8 +43,8 @@ type kcTransport interface {
 // share is the co-validator public key, tbls verifiers or tbls publis shares, and private key share.
 // Each node in the cluster will receive one for each distributed validator.
 type share struct {
-	PubKey *bls_sig.PublicKey
-	Share  *bls_sig.SecretKeyShare
+	PubKey      *bls_sig.PublicKey
+	SecretShare *bls_sig.SecretKeyShare
 
 	// One of the two below will be populated,
 	Verifier     *sharing.FeldmanVerifier
@@ -52,9 +53,10 @@ type share struct {
 
 // shareMsg is the share message wire format sent by the dealer.
 type shareMsg struct {
-	PubKey    []byte
-	Verifiers [][]byte
-	Share     []byte
+	PubKey      []byte
+	PubShares   [][]byte
+	Verifiers   [][]byte
+	SecretShare []byte
 }
 
 func runKeyCast(ctx context.Context, def cluster.Definition, tx kcTransport, nodeIdx int, random io.Reader) ([]share, error) {
@@ -183,9 +185,9 @@ func createShares(numValidators, numNodes, threshold int, random io.Reader) ([][
 
 		for ni := 0; ni < numNodes; ni++ {
 			resp[ni] = append(resp[ni], share{
-				PubKey:   pubkey,
-				Verifier: verifier,
-				Share:    shares[ni],
+				PubKey:      pubkey,
+				Verifier:    verifier,
+				SecretShare: shares[ni],
 			})
 		}
 	}
@@ -195,25 +197,44 @@ func createShares(numValidators, numNodes, threshold int, random io.Reader) ([][
 
 // msgFromShare returns a new share message to send over the wire.
 func msgFromShare(s share) (shareMsg, error) {
-	pk, err := s.PubKey.MarshalBinary()
+	pubkey, err := s.PubKey.MarshalBinary()
 	if err != nil {
 		return shareMsg{}, errors.Wrap(err, "marshal pubkey")
 	}
 
 	var verifiers [][]byte
-	for _, commitment := range s.Verifier.Commitments {
-		verifiers = append(verifiers, commitment.ToAffineCompressed())
+	if s.Verifier != nil {
+		for _, commitment := range s.Verifier.Commitments {
+			verifiers = append(verifiers, commitment.ToAffineCompressed())
+		}
 	}
 
-	b, err := s.Share.MarshalBinary()
+	// Sort pub shares by id/index.
+	var pubSharesIDs []int
+	for id := range s.PublicShares {
+		pubSharesIDs = append(pubSharesIDs, int(id))
+	}
+	sort.Ints(pubSharesIDs)
+
+	var pubShares [][]byte
+	for _, id := range pubSharesIDs {
+		b, err := s.PublicShares[uint32(id)].MarshalBinary()
+		if err != nil {
+			return shareMsg{}, errors.Wrap(err, "marshal public share")
+		}
+		pubShares = append(pubShares, b)
+	}
+
+	secretShare, err := s.SecretShare.MarshalBinary()
 	if err != nil {
-		return shareMsg{}, errors.Wrap(err, "marshal share")
+		return shareMsg{}, errors.Wrap(err, "marshal secretShare share")
 	}
 
 	return shareMsg{
-		PubKey:    pk,
-		Verifiers: verifiers,
-		Share:     b,
+		PubKey:      pubkey,
+		Verifiers:   verifiers,
+		SecretShare: secretShare,
+		PubShares:   pubShares,
 	}, nil
 }
 
@@ -234,14 +255,25 @@ func shareFromMsg(msg shareMsg) (share, error) {
 		commitments = append(commitments, c)
 	}
 
+	pubShares := make(map[uint32]*bls_sig.PublicKey)
+	for id, bytes := range msg.PubShares {
+		pubShare := new(bls_sig.PublicKey)
+		if err := pubShare.UnmarshalBinary(bytes); err != nil {
+			return share{}, errors.Wrap(err, "unmarshal public share")
+		}
+
+		pubShares[uint32(id+1)] = pubShare // Public shares IDs are 1-indexed.
+	}
+
 	secretShare := new(bls_sig.SecretKeyShare)
-	if err := secretShare.UnmarshalBinary(msg.Share); err != nil {
+	if err := secretShare.UnmarshalBinary(msg.SecretShare); err != nil {
 		return share{}, errors.Wrap(err, "unmarshal pubkey")
 	}
 
 	return share{
-		PubKey:   pubKey,
-		Verifier: &sharing.FeldmanVerifier{Commitments: commitments},
-		Share:    secretShare,
+		PubKey:       pubKey,
+		Verifier:     &sharing.FeldmanVerifier{Commitments: commitments},
+		SecretShare:  secretShare,
+		PublicShares: pubShares,
 	}, nil
 }

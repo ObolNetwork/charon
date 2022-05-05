@@ -17,6 +17,7 @@ package dkg
 
 import (
 	"context"
+	"sort"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/dkg/frost"
@@ -228,9 +229,18 @@ func makeShares(
 		m[key.SourceID] = pubShare
 	}
 
+	// Sort shares by vIdx
+	var vIdxs []int
+	for vIdx := range validators {
+		vIdxs = append(vIdxs, int(vIdx))
+	}
+	sort.Ints(vIdxs)
+
 	// Construct DKG result shares.
 	var shares []share
-	for vIdx, v := range validators {
+	for _, vIdx := range vIdxs {
+		v := validators[uint32(vIdx)]
+
 		pubkey, err := pointToPubKey(v.VerificationKey)
 		if err != nil {
 			return nil, err
@@ -243,8 +253,8 @@ func makeShares(
 
 		shares = append(shares, share{
 			PubKey:       pubkey,
-			Share:        secretShare,
-			PublicShares: pubShares[vIdx],
+			SecretShare:  secretShare,
+			PublicShares: pubShares[uint32(vIdx)],
 		})
 	}
 
