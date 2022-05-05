@@ -69,12 +69,12 @@ func writeKeystores(datadir string, shares []share) error {
 
 // writeLock writes the lock file to disk.
 func writeLock(datadir string, lock cluster.Lock) error {
-	b, err := json.Marshal(lock)
+	b, err := json.MarshalIndent(lock, "", " ")
 	if err != nil {
 		return errors.Wrap(err, "marshal lock")
 	}
 
-	err = os.WriteFile(path.Join(datadir, "cluster_lock.json"), b, 0o600)
+	err = os.WriteFile(path.Join(datadir, "cluster_lock.json"), b, 0o444) // Read-only
 	if err != nil {
 		return errors.Wrap(err, "write lock")
 	}
