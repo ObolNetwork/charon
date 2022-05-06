@@ -69,7 +69,7 @@ charon/             # project root
     - `create`: Create artifacts for a distributed validator cluster
       - `cluster`: Create private keys and configuration files needed to run a distributed validator cluster locally
       - `enr`: Create an Ethereum Node Record (ENR) private key to identify this charon client
-      - `dkg`: Create the configuration for a new Distributed Key Generation ceremony using charon dkg
+      - `dkg`: Create the configuration for a new Distributed Key Generation ceremony used by charon dkg
     - `dkg`: Participate in a Distributed Key Generation ceremony
     - `enr`: Prints ENR based on provided p2pkey, manifest and networking config
     - `run`: Runs the charon node
