@@ -31,6 +31,7 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -45,6 +46,13 @@ type eth2Provider interface {
 	eth2client.SpecProvider
 	eth2client.ValidatorsProvider
 	// Above sorted alphabetically
+}
+
+// dutyDomain maps domains to duties.
+var dutyDomain = map[core.DutyType]signing.DomainName{
+	core.DutyAttester: signing.DomainBeaconAttester,
+	core.DutyProposer: signing.DomainBeaconProposer,
+	core.DutyRandao:   signing.DomainRandao,
 }
 
 // PubShareFunc abstracts the mapping of validator root public key to tbls public share.
@@ -410,7 +418,7 @@ func (c Component) verifyParSig(parent context.Context, typ core.DutyType, epoch
 	defer span.End()
 
 	// Wrap the signing root with the domain and serialise it.
-	sigData, err := prepSigningData(ctx, c.eth2Cl, typ, epoch, sigRoot)
+	sigData, err := signing.GetDataRoot(ctx, c.eth2Cl, dutyDomain[typ], epoch, sigRoot)
 	if err != nil {
 		return err
 	}

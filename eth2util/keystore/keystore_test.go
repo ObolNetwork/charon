@@ -23,8 +23,8 @@ import (
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
 func TestStoreLoad(t *testing.T) {

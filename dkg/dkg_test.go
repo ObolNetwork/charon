@@ -35,11 +35,11 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cmd"
 	"github.com/obolnetwork/charon/dkg"
+	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
-	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
 func TestDKG(t *testing.T) {

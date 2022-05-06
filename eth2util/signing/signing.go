@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package validatorapi
+package signing
 
 import (
 	"context"
@@ -22,7 +22,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/core"
 )
 
 // DomainName as defined in eth2 spec.
@@ -41,13 +40,6 @@ const (
 	// DomainSyncCommitteeSelectionProof DomainName = "DOMAIN_SYNC_COMMITTEE_SELECTION_PROOF"
 	// DomainContributionAndProof        DomainName = "DOMAIN_CONTRIBUTION_AND_PROOF".
 )
-
-// dutyDomain maps domains to duties.
-var dutyDomain = map[core.DutyType]DomainName{
-	core.DutyAttester: DomainBeaconAttester,
-	core.DutyProposer: DomainBeaconProposer,
-	core.DutyRandao:   DomainRandao,
-}
 
 // Eth2DomainProvider is the subset of eth2 beacon api provider required to get a signing domain.
 type Eth2DomainProvider interface {
@@ -75,10 +67,10 @@ func GetDomain(ctx context.Context, eth2Cl Eth2DomainProvider, name DomainName, 
 	return eth2Cl.Domain(ctx, domainTyped, epoch)
 }
 
-// prepSigningData wraps the signing root with the domain and returns hash tree root to sign.
+// GetDataRoot wraps the signing root with the domain and returns signing data hash tree root.
 // The result should be identical to what was signed by the VC.
-func prepSigningData(ctx context.Context, eth2Cl eth2Provider, typ core.DutyType, epoch eth2p0.Epoch, root eth2p0.Root) ([32]byte, error) {
-	domain, err := GetDomain(ctx, eth2Cl, dutyDomain[typ], epoch)
+func GetDataRoot(ctx context.Context, eth2Cl Eth2DomainProvider, name DomainName, epoch eth2p0.Epoch, root eth2p0.Root) ([32]byte, error) {
+	domain, err := GetDomain(ctx, eth2Cl, name, epoch)
 	if err != nil {
 		return [32]byte{}, err
 	}
