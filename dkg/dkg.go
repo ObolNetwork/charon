@@ -207,6 +207,9 @@ func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 
 // waitPeers blocks until all peers are connected or the context is cancelled.
 func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) error {
+	// TODO(corver): This can be improved by returning a context that is
+	//  cancelled as soon as the connection to a single peer is lost.
+
 	type tuple struct {
 		Peer peer.ID
 		RTT  time.Duration
