@@ -17,8 +17,10 @@ package p2p
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"os"
 	"path"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/crypto"
 
@@ -33,8 +35,11 @@ func KeyPath(datadir string) string {
 // LoadPrivKey returns the ecdsa k1 key saved in the directory.
 func LoadPrivKey(dataDir string) (*ecdsa.PrivateKey, error) {
 	key, err := crypto.LoadECDSA(KeyPath(dataDir))
+	fmt.Println(reflect.TypeOf(err))
+	fmt.Println(reflect.TypeOf(errors.Wrap(err, "").Error()))
+
 	if err != nil {
-		return nil, errors.Wrap(err, "load key")
+		return nil, err
 	}
 
 	return key, nil
