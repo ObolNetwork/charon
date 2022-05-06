@@ -19,12 +19,15 @@ import (
 	"context"
 	crand "crypto/rand"
 	"fmt"
+	"time"
 
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -96,7 +99,15 @@ func Run(ctx context.Context, conf Config) error {
 			}
 			peerMap[uint32(nodeIdx.ShareIdx)] = p.ID
 		}
+
 		tp := newFrostP2P(ctx, tcpNode, peerMap, clusterID)
+
+		err := waitPeers(ctx, tcpNode, peers)
+		if err != nil {
+			return err
+		}
+
+		log.Info(ctx, "Starting Frost DKG ceremony")
 
 		shares, err = runFrostParallel(ctx, tp, uint32(def.NumValidators), uint32(len(peerMap)),
 			uint32(def.Threshold), uint32(nodeIdx.ShareIdx), clusterID)
@@ -106,6 +117,8 @@ func Run(ctx context.Context, conf Config) error {
 	default:
 		return errors.New("unsupported dkg algorithm")
 	}
+
+	log.Info(ctx, "Successfully completed DKG ceremony, writing output")
 
 	if err := writeKeystores(conf.DataDir, shares); err != nil {
 		return err
@@ -158,6 +171,9 @@ func setupP2P(ctx context.Context, datadir string, p2pConf p2p.Config, peers []p
 		return nil, nil, errors.Wrap(err, "")
 	}
 
+	// Register ping service handler
+	_ = ping.NewPingService(tcpNode)
+
 	return tcpNode, func() {
 		db.Close()
 		udpNode.Close()
@@ -187,4 +203,68 @@ func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 	}
 
 	return dvs, nil
+}
+
+// waitPeers blocks until all peers are connected or the context is cancelled.
+func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) error {
+	// TODO(corver): This can be improved by returning a context that is
+	//  cancelled as soon as the connection to a single peer is lost.
+
+	type tuple struct {
+		Peer peer.ID
+		RTT  time.Duration
+	}
+
+	var (
+		tuples = make(chan tuple, len(peers))
+		total  int
+	)
+	for _, p := range peers {
+		if tcpNode.ID() == p.ID {
+			continue // Do not connect to self.
+		}
+		total++
+		go func(pID peer.ID) {
+			rtt := waitConnect(ctx, tcpNode, pID)
+			if ctx.Err() == nil {
+				tuples <- tuple{Peer: pID, RTT: rtt}
+			}
+		}(p.ID)
+	}
+
+	var i int
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case tuple := <-tuples:
+			i++
+			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", i, total),
+				z.Str("peer", p2p.ShortID(tuple.Peer)),
+				z.Str("rtt", tuple.RTT.String()),
+			)
+			if i == total {
+				return nil
+			}
+		}
+	}
+}
+
+// waitConnect blocks until a libp2p connection (ping) is established with the peer or the context is cancelled.
+func waitConnect(ctx context.Context, tcpNode host.Host, p peer.ID) time.Duration {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	for result := range ping.Ping(ctx, tcpNode, p) {
+		if result.Error == nil {
+			return result.RTT
+		} else if ctx.Err() != nil {
+			return 0
+		}
+
+		log.Warn(ctx, "Failed connecting to peer (will retry)", result.Error, z.Str("peer", p2p.ShortID(p)))
+		time.Sleep(time.Second * 5) // TODO(corver): Improve backoff.
+	}
+
+	return 0
 }
