@@ -33,8 +33,8 @@ func newGenP2PKeyCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.C
 
 	cmd := &cobra.Command{
 		Use:   "gen-p2pkey",
-		Short: "Generates a new p2p key",
-		Long:  `Generates a new p2p authentication key (ecdsa-k1) and saves it to the data directory`,
+		Short: "Generates a new p2p key [DEPRECATED]",
+		Long:  "Generates a new p2p authentication key (ecdsa-k1) and saves it to the data directory [DEPRECATED]",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), config, dataDir)

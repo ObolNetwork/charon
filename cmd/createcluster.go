@@ -100,8 +100,8 @@ func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Co
 
 	cmd := &cobra.Command{
 		Use:   "create-cluster",
-		Short: "Create a local charon cluster",
-		Long: "Create a local charon cluster including validator keys, charon p2p keys, and a cluster manifest. " +
+		Short: "Create a local charon cluster [DEPRECATED]",
+		Long: "Create a local charon cluster including validator keys, charon p2p keys, and a cluster manifest. [DEPRECATED]" +
 			"See flags for supported features.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), conf)
