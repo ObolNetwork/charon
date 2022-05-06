@@ -65,10 +65,15 @@ charon/             # project root
   - Contains `main.go` that just calls the [cobra](https://github.com/spf13/cobra) root command defined in `/cmd` package.
 - `cmd/`: Command line interface
   - Defines cobra cli commands
-    - `run`: Runs the charon node
-    - `create-cluster`: Creates a local charon cluster
-    - `gen-p2p`: Generates a new P2P key
+    - `bootnode`: Start a discv5 bootnode server
+    - `create`: Create artifacts for a distributed validator cluster
+      - `cluster`: Create private keys and configuration files needed to run a distributed validator cluster locally
+      - `enr`: Create an Ethereum Node Record (ENR) private key to identify this charon client
+      - `dkg`: Create the configuration for a new Distributed Key Generation ceremony using charon dkg
+    - `dkg`: Participate in a Distributed Key Generation ceremony
     - `enr`: Prints ENR based on provided p2pkey, manifest and networking config
+    - `run`: Runs the charon node
+    - `version`: Print charon version
   - Defines and parses [viper](https://github.com/spf13/viper) configuration parameters for required by each command.
 - `cluster/`: Cluster config definition and files formats
   - `cluster_definition.json` defines the intended cluster including confutation including operators.
