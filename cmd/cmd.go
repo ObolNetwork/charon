@@ -43,13 +43,17 @@ func New() *cobra.Command {
 	return newRootCmd(
 		newVersionCmd(runVersionCmd),
 		newEnrCmd(runNewENR),
+		// TODO(dhruv): remove genp2pkey command once charon-docker-compose and docs are updated
+		newGenP2PKeyCmd(runGenP2PKey),
 		newRunCmd(app.Run),
 		newBootnodeCmd(RunBootnode),
+		// TODO(dhruv): replace newCreateClusterCmdNew with newCreateClusterCmd once charon-docker-compose and docs are updated
+		newCreateClusterCmd(runCreateCluster),
 		newDKGCmd(dkg.Run),
 		newCreateCmd(
 			newCreateDKGCmd(runCreateDKG),
 			newCreateEnrCmd(runCreateEnrCmd),
-			newCreateClusterCmd(runCreateCluster),
+			newCreateClusterCmdNew(runCreateCluster),
 		),
 	)
 }
