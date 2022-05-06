@@ -99,6 +99,25 @@ func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Co
 	var conf clusterConfig
 
 	cmd := &cobra.Command{
+		Use:   "create-cluster",
+		Short: "Create a local charon cluster [DEPRECATED]",
+		Long: "Create a local charon cluster including validator keys, charon p2p keys, and a cluster manifest. [DEPRECATED]" +
+			"See flags for supported features.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runFunc(cmd.OutOrStdout(), conf)
+		},
+	}
+
+	bindClusterFlags(cmd.Flags(), &conf)
+
+	return cmd
+}
+
+// TODO(dhruv): replace newCreateClusterCmd with newCreateClusterCmdNew once charon-docker-compose are updated.
+func newCreateClusterCmdNew(runFunc func(io.Writer, clusterConfig) error) *cobra.Command {
+	var conf clusterConfig
+
+	cmd := &cobra.Command{
 		Use:   "cluster",
 		Short: "Create private keys and configuration files needed to run a distributed validator cluster locally",
 		Long: "Creates a local charon cluster configuration including validator keys, charon p2p keys, and a cluster manifest. " +
