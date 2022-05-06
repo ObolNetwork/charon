@@ -18,7 +18,7 @@ package cmd
 import (
 	"fmt"
 	"io"
-	"os"
+	"io/fs"
 
 	"github.com/spf13/cobra"
 
@@ -52,9 +52,8 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.Command
 // runNewENR loads the p2pkey from disk and prints the ENR for the provided config.
 func runNewENR(w io.Writer, config p2p.Config, dataDir string) error {
 	key, err := p2p.LoadPrivKey(dataDir)
-	if os.IsNotExist(err) {
-		errMsg := fmt.Sprintf("No ENR private key found in %s. If this is your first time running this client, create one with `charon create enr`.", p2p.KeyPath(dataDir))
-		return errors.New(errMsg, z.Str("enr_path", p2p.KeyPath(dataDir)))
+	if errors.Is(err, fs.ErrNotExist) {
+		return errors.New("ENR private key not found. If this is your first time running this client, create one with `charon create enr`.", z.Str("enr_path", p2p.KeyPath(dataDir))) //nolint:revive
 	} else if err != nil {
 		return err
 	}
