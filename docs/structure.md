@@ -50,7 +50,7 @@ charon/             # project root
 ├─ tbls/            # bls threshold signature scheme; verify, aggregate partial signatures
 │  ├─ tblsconv/     # bls threshold type conversion (tbls to/from core and eth2 types)
 │
-├─ eth2util/        # Ethereum consensus (ETH2) libraries and functionality
+├─ eth2util/        # Ethereum consensus layer (ETH2) libraries and functionality
 │  ├─ signing/      # ETH2 signature creation
 │  ├─ deposit/      # ETH2 deposit data file creation
 │  ├─ keystore/     # EIP 2335 keystore files
@@ -114,7 +114,7 @@ charon/             # project root
   - Supports validating individual partial signatures received from VC.
   - Supports aggregating partial signatures.
   - Support generating scheme and private shares for testing (done by DKG in prod).
-- `eth2util/`: Ethereum consensus (ETH2) libraries and functionality
+- `eth2util/`: Ethereum consensus layer (ETH2) libraries and functionality
   - `signing/`: ETH2 signature creation including domain and data structures.
   - `deposit/`: ETH2 deposit data file creation
   - `keystore/`: EIP 2335 keystore files
