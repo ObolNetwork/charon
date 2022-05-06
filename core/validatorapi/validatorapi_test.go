@@ -33,6 +33,7 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/validatorapi"
+	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
@@ -234,7 +235,7 @@ func TestSignAndVerify(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get and assert domain
-	domain, err := validatorapi.GetDomain(ctx, bmock, validatorapi.DomainBeaconAttester, 0)
+	domain, err := signing.GetDomain(ctx, bmock, signing.DomainBeaconAttester, 0)
 	require.NoError(t, err)
 	require.Equal(t, "0x0100000011b4296f38fa573d05f00854d452e120725b4d24b5587a472c6c4258", fmt.Sprintf("%#x", domain))
 
@@ -268,7 +269,7 @@ func TestSignAndVerify(t *testing.T) {
 	require.NoError(t, err)
 
 	// Sign
-	sig, err := validatormock.NewSigner(secretKey)(ctx, eth2Pubkey, sigData)
+	sig, err := validatormock.NewSigner(secretKey)(ctx, eth2Pubkey, sigDataBytes[:])
 	require.NoError(t, err)
 
 	// Assert signature
@@ -421,7 +422,7 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	sigRoot, err := unsignedBlock.Root()
 	require.NoError(t, err)
 
-	domain, err := validatorapi.GetDomain(ctx, bmock, validatorapi.DomainBeaconProposer, epoch)
+	domain, err := signing.GetDomain(ctx, bmock, signing.DomainBeaconProposer, epoch)
 	require.NoError(t, err)
 
 	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()

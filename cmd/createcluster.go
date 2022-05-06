@@ -34,10 +34,10 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
 const scriptTmpl = `#!/usr/bin/env bash
@@ -96,6 +96,25 @@ type clusterConfig struct {
 }
 
 func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Command {
+	var conf clusterConfig
+
+	cmd := &cobra.Command{
+		Use:   "create-cluster",
+		Short: "Create a local charon cluster [DEPRECATED]",
+		Long: "Create a local charon cluster including validator keys, charon p2p keys, and a cluster manifest. [DEPRECATED]" +
+			"See flags for supported features.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runFunc(cmd.OutOrStdout(), conf)
+		},
+	}
+
+	bindClusterFlags(cmd.Flags(), &conf)
+
+	return cmd
+}
+
+// TODO(dhruv): replace newCreateClusterCmd with newCreateClusterCmdNew once charon-docker-compose are updated.
+func newCreateClusterCmdNew(runFunc func(io.Writer, clusterConfig) error) *cobra.Command {
 	var conf clusterConfig
 
 	cmd := &cobra.Command{

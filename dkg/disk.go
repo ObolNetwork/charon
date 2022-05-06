@@ -24,8 +24,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
 // loadDefinition returns the cluster definition from disk (or the test definition if configured).
@@ -69,12 +69,12 @@ func writeKeystores(datadir string, shares []share) error {
 
 // writeLock writes the lock file to disk.
 func writeLock(datadir string, lock cluster.Lock) error {
-	b, err := json.Marshal(lock)
+	b, err := json.MarshalIndent(lock, "", " ")
 	if err != nil {
 		return errors.Wrap(err, "marshal lock")
 	}
 
-	err = os.WriteFile(path.Join(datadir, "cluster_lock.json"), b, 0o600)
+	err = os.WriteFile(path.Join(datadir, "cluster_lock.json"), b, 0o444) // Read-only
 	if err != nil {
 		return errors.Wrap(err, "write lock")
 	}

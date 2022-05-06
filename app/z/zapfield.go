@@ -109,10 +109,11 @@ func F64(key string, val float64) Field {
 	}
 }
 
-// Any returns a wrapped zap any field.
+// Any returns a wrapped zap string field with the string version of value.
+// Note we are not using zap.Any since logfmt formatter doesn't support it.
 func Any(key string, val interface{}) Field {
 	return func(add func(zap.Field)) {
-		add(zap.Any(key, val))
+		add(zap.String(key, fmt.Sprint(val)))
 	}
 }
 

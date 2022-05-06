@@ -50,11 +50,15 @@ charon/             # project root
 ├─ tbls/            # bls threshold signature scheme; verify, aggregate partial signatures
 │  ├─ tblsconv/     # bls threshold type conversion (tbls to/from core and eth2 types)
 │
+├─ eth2util/        # Ethereum consensus layer (ETH2) libraries and functionality
+│  ├─ signing/      # ETH2 signature creation
+│  ├─ deposit/      # ETH2 deposit data file creation
+│  ├─ keystore/     # EIP 2335 keystore files
+│
 ├─ testutil/        # testing libraries (unit, integration, simnet)
 │  ├─ golden.go     # golden file testing
 │  ├─ beaconmock/   # beacon client mock
 │  ├─ validatormock/# validator client mock
-│  ├─ keystore/     # Simnet EIP 2335 keystore files
 │  ├─ verifypr/     # Github PR template verifier
 │  ├─ genchangelog/ # Generate changelog markdown
 │
@@ -65,10 +69,15 @@ charon/             # project root
   - Contains `main.go` that just calls the [cobra](https://github.com/spf13/cobra) root command defined in `/cmd` package.
 - `cmd/`: Command line interface
   - Defines cobra cli commands
-    - `run`: Runs the charon node
-    - `create-cluster`: Creates a local charon cluster
-    - `gen-p2p`: Generates a new P2P key
+    - `bootnode`: Start a discv5 bootnode server
+    - `create`: Create artifacts for a distributed validator cluster
+      - `cluster`: Create private keys and configuration files needed to run a distributed validator cluster locally
+      - `enr`: Create an Ethereum Node Record (ENR) private key to identify this charon client
+      - `dkg`: Create the configuration for a new Distributed Key Generation ceremony used by charon dkg
+    - `dkg`: Participate in a Distributed Key Generation ceremony
     - `enr`: Prints ENR based on provided p2pkey, manifest and networking config
+    - `run`: Runs the charon node
+    - `version`: Print charon version
   - Defines and parses [viper](https://github.com/spf13/viper) configuration parameters for required by each command.
 - `cluster/`: Cluster config definition and files formats
   - `cluster_definition.json` defines the intended cluster including confutation including operators.
@@ -105,6 +114,10 @@ charon/             # project root
   - Supports validating individual partial signatures received from VC.
   - Supports aggregating partial signatures.
   - Support generating scheme and private shares for testing (done by DKG in prod).
+- `eth2util/`: Ethereum consensus layer (ETH2) libraries and functionality
+  - `signing/`: ETH2 signature creation including domain and data structures.
+  - `deposit/`: ETH2 deposit data file creation
+  - `keystore/`: EIP 2335 keystore files
 - `testutil/`: Test utilities
   - `beaconmock/`: Beacon-node client mock used for testing and simnet.
   - `validatormock/`: Validator client mock used for testing and simnet.
@@ -122,22 +135,22 @@ The package import hierarchy can be illustrated as follows:
                   └──┬───┘       └────┬─┘       │          │ │ version │   │
                      │                │         │          │ └─────────┘   │
                   ┌──▼───┐            │    ┌────▼────┐     │ ┌─────────┐   │
-                  │ app  ├─────────────────► cluster │─────► │    z    ◄─┐ │
+                  │ app  ├─────────────────► cluster ├─────► │    z    ◄─┐ │
    core/*         └─┬──┬─┘            │    └─────────┘     │ └─▲───────┘ │ │
   ┌──────┐          │  │              │                    │ ┌─┴───────┐ │ │
   │sched │◄──────┬──┘  └─────┬────────┤                    │ │ errors  ◄─┤ │
   ├──────┤       │           │        │                    │ └─────────┘ │ │
   │fetch │    ┌──▼───┐       │        │                    │ ┌─────────┐ │ │
-  ├──────┼────► core ├───────┼────────┼────────────────────► │  log    ◄─► │
-  │dutydb│    └──────┘       │        │                    │ └─────────┘ │ │
-  ├──────┤                   │        │                    │ ┌─────────┐ │ │
-  │...   │              ┌────▼───┐    │                    │ │ tracer  ├─┤ │
-  ├──────┼──────────────►  tbls  ├────┼────────────────────► └─────────┘ │ │
-  │sigagg│              ├────▲───┤    │                    │ ┌─────────┐ │ │
-  ├──────┤              │tblsconv│  ┌─▼─┐                  │ │lifecycle├─┘ │
-  │bcast │              └────────┘  │p2p├──────────────────► └─────────┘   │
-  └──┬───┘                          └─▲─┘                  └──────▲────────┘
-     │                                │                           │
-     └────────────────────────────────┴───────────────────────────┘
+  ├──────┼────► core ├───────┼────────┼────────┬───────────► │  log    ◄─► │
+  │dutydb│    └──────┘       │        │        │           │ └─────────┘ │ │
+  ├──────┤              ┌────▼───┐    │        │           │ ┌─────────┐ │ │
+  │...   ├──────────────►  tbls  ├─────────────────────────► │ tracer  ├─┤ │
+  ├──────┼              ├────▲───┤  ┌─▼─┐      │           │ └─────────┘ │ │
+  │sigagg│              │tblsconv│  │p2p├──────────────────► ┌─────────┐ │ │
+  ├──────┤              └────────┘  └─▲─┘ ┌────▼───────┐   │ │lifecycle├─┘ │
+  │bcast │                            │   │ eth2util/* ├── ► └─────────┘   │
+  └──┬───┘                            │   └────▲───────┘   └──────▲────────┘
+     │                                │        │                  │
+     └────────────────────────────────┴────────┴──────────────────┘
 
 ```
