@@ -34,10 +34,10 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
 const scriptTmpl = `#!/usr/bin/env bash

@@ -55,10 +55,10 @@ import (
 	"github.com/obolnetwork/charon/core/scheduler"
 	"github.com/obolnetwork/charon/core/sigagg"
 	"github.com/obolnetwork/charon/core/validatorapi"
+	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
-	"github.com/obolnetwork/charon/testutil/keystore"
 	"github.com/obolnetwork/charon/testutil/validatormock"
 )
 

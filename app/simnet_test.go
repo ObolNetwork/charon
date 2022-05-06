@@ -39,11 +39,11 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/leadercast"
 	"github.com/obolnetwork/charon/core/parsigex"
+	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
-	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
 //go:generate go test . -run=TestSimnetNoNetwork_TekuVC -integration -v

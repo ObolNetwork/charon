@@ -38,6 +38,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core/validatorapi"
+	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -58,7 +59,7 @@ type Eth2Provider interface {
 }
 
 // SignFunc abstract signing done by the validator client.
-type SignFunc func(context.Context, eth2p0.BLSPubKey, eth2p0.SigningData) (eth2p0.BLSSignature, error)
+type SignFunc func(context.Context, eth2p0.BLSPubKey, []byte) (eth2p0.BLSSignature, error)
 
 // Attest performs attestation duties for the provided slot and pubkeys (validators).
 func Attest(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
@@ -100,20 +101,17 @@ func Attest(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 			return err
 		}
 
-		domain, err := validatorapi.GetDomain(ctx, eth2Cl, validatorapi.DomainBeaconAttester, data.Target.Epoch)
-		if err != nil {
-			return err
-		}
-
 		root, err := data.HashTreeRoot()
 		if err != nil {
 			return errors.Wrap(err, "hash attestation")
 		}
 
-		sig, err := signFunc(ctx, duty.PubKey, eth2p0.SigningData{
-			ObjectRoot: root,
-			Domain:     domain,
-		})
+		sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconAttester, data.Target.Epoch, root)
+		if err != nil {
+			return err
+		}
+
+		sig, err := signFunc(ctx, duty.PubKey, sigData[:])
 		if err != nil {
 			return err
 		}
@@ -172,16 +170,12 @@ func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, s
 			return err
 		}
 
-		domain, err := validatorapi.GetDomain(ctx, eth2Cl, validatorapi.DomainRandao, epoch)
+		sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainRandao, epoch, sigRoot)
 		if err != nil {
 			return err
 		}
 
-		msg := eth2p0.SigningData{
-			ObjectRoot: sigRoot,
-			Domain:     domain,
-		}
-		randao, err := signFunc(ctx, duty.PubKey, msg)
+		randao, err := signFunc(ctx, duty.PubKey, sigData[:])
 		if err != nil {
 			return err
 		}
@@ -206,15 +200,12 @@ func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, s
 		return err
 	}
 
-	domain, err := validatorapi.GetDomain(ctx, eth2Cl, validatorapi.DomainBeaconProposer, epoch)
+	sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, sigRoot)
 	if err != nil {
 		return err
 	}
 
-	sig, err := signFunc(ctx, pubkey, eth2p0.SigningData{
-		ObjectRoot: sigRoot,
-		Domain:     domain,
-	})
+	sig, err := signFunc(ctx, pubkey, sigData[:])
 	if err != nil {
 		return err
 	}
@@ -247,15 +238,10 @@ func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, s
 
 // NewSigner returns a singing function supporting the provided private keys.
 func NewSigner(secrets ...*bls_sig.SecretKey) SignFunc {
-	return func(ctx context.Context, pubkey eth2p0.BLSPubKey, data eth2p0.SigningData) (eth2p0.BLSSignature, error) {
+	return func(ctx context.Context, pubkey eth2p0.BLSPubKey, msg []byte) (eth2p0.BLSSignature, error) {
 		secret, err := getSecret(secrets, pubkey)
 		if err != nil {
 			return eth2p0.BLSSignature{}, err
-		}
-
-		msg, err := data.HashTreeRoot()
-		if err != nil {
-			return eth2p0.BLSSignature{}, errors.Wrap(err, "marshal signing data")
 		}
 
 		sig, err := tbls.Sign(secret, msg[:])

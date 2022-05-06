@@ -28,9 +28,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
-	"github.com/obolnetwork/charon/testutil/keystore"
 )
 
 //go:generate go test . -run=TestCreateCluster -update -clean
