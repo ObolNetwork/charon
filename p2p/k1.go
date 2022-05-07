@@ -34,7 +34,7 @@ func KeyPath(datadir string) string {
 func LoadPrivKey(dataDir string) (*ecdsa.PrivateKey, error) {
 	key, err := crypto.LoadECDSA(KeyPath(dataDir))
 	if err != nil {
-		return nil, errors.Wrap(err, "load key")
+		return nil, errors.Wrap(err, "load priv key")
 	}
 
 	return key, nil
