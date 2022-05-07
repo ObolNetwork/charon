@@ -18,8 +18,10 @@ package qbft_test
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
-	"runtime"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,7 +47,7 @@ func TestQBFT(t *testing.T) {
 		})
 	})
 
-	t.Run("leader late", func(t *testing.T) {
+	t.Run("leader late exp", func(t *testing.T) {
 		testQBFT(t, test{
 			Instance:   0,
 			StartDelay: map[int64]time.Duration{1: time.Second * 2},
@@ -53,9 +55,18 @@ func TestQBFT(t *testing.T) {
 		})
 	})
 
-	t.Run("very late", func(t *testing.T) {
+	t.Run("leader late const", func(t *testing.T) {
 		testQBFT(t, test{
-			Instance: 0,
+			Instance:    0,
+			StartDelay:  map[int64]time.Duration{1: time.Second * 2},
+			ConstPeriod: true,
+			Result:      2,
+		})
+	})
+
+	t.Run("very late exp", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance: 3,
 			StartDelay: map[int64]time.Duration{
 				1: time.Second * 5,
 				2: time.Second * 10,
@@ -64,7 +75,19 @@ func TestQBFT(t *testing.T) {
 		})
 	})
 
-	t.Run("stagger start", func(t *testing.T) {
+	t.Run("very late const", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance: 1,
+			StartDelay: map[int64]time.Duration{
+				1: time.Second * 5,
+				2: time.Second * 10,
+			},
+			ConstPeriod:  true,
+			ResultRandom: true,
+		})
+	})
+
+	t.Run("stagger start exp", func(t *testing.T) {
 		testQBFT(t, test{
 			Instance: 0,
 			StartDelay: map[int64]time.Duration{
@@ -77,21 +100,45 @@ func TestQBFT(t *testing.T) {
 		})
 	})
 
-	t.Run("500ms jitter", func(t *testing.T) {
+	t.Run("stagger start const", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance: 0,
+			StartDelay: map[int64]time.Duration{
+				0: time.Second * 0,
+				1: time.Second * 1,
+				2: time.Second * 2,
+				3: time.Second * 3,
+			},
+			ConstPeriod:  true,
+			ResultRandom: true, // Takes 1 or 2 rounds.
+		})
+	})
+
+	t.Run("500ms jitter exp", func(t *testing.T) {
 		testQBFT(t, test{
 			Instance:      3,
 			BCastJitterMS: 500,
 			ResultRandom:  true,
 		})
 	})
+
+	t.Run("200ms jitter const", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance:      3,
+			BCastJitterMS: 200, // 0.2-0.4s network delay * 3msgs/round == 0.6-1.2s delay per 1s round.
+			ConstPeriod:   true,
+			ResultRandom:  true,
+		})
+	})
 }
 
 type test struct {
-	Instance      int64
-	StartDelay    map[int64]time.Duration
-	BCastJitterMS int
-	Result        int
-	ResultRandom  bool
+	Instance      int64                   // Consensus instance, only affects leader election.
+	ConstPeriod   bool                    // ConstPeriod results in 1s round timeout, otherwise exponential (1s,2s,4s...)
+	StartDelay    map[int64]time.Duration // Delays start of certain processes
+	BCastJitterMS int                     // Add random delays to broadcast of messages.
+	Result        int                     // Deterministic consensus result
+	ResultRandom  bool                    // Non-deterministic consensus result
 }
 
 func testQBFT(t *testing.T, test test) {
@@ -114,17 +161,31 @@ func testQBFT(t *testing.T, test test) {
 	defer cancel()
 
 	defs := qbft.Definition{
-		IsLeader: func(instance, round int64, process int64) bool {
-			return (instance+round)%n == process
+		IsLeader: func(instance []byte, round int64, process int64) bool {
+			i, err := strconv.ParseInt(string(instance), 10, 64)
+			require.NoError(t, err)
+
+			return (i+round)%n == process
 		},
 		NewTimer: func(round int64) (<-chan time.Time, func()) {
-			return clock.NewTimer(time.Duration(round*round) * time.Second)
+			d := time.Second
+			if !test.ConstPeriod { // If not constant periods, then exponential.
+				d = time.Duration(math.Pow(2, float64(round-1))) * time.Second
+			}
+
+			return clock.NewTimer(d)
 		},
-		IsValid: func(instance int64, msg qbft.Msg) bool {
-			return true
+		Decide: func(instance []byte, value []byte, qcommit []qbft.Msg) {
+			resultChan <- string(value)
 		},
-		LogUponRule: func(instance, process, round int64, msg qbft.Msg, rule string) {
-			t.Logf("%d -> %v@%d -> %v@%d ~= %v", msg.Source, msg.Type, msg.Round, process, round, rule)
+		LogUponRule: func(instance []byte, process, round int64, msg qbft.Msg, rule string) {
+			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source, msg.Type, msg.Round, process, round, rule)
+			if round > 50 {
+				cancel()
+			} else if strings.Contains(rule, "Unjust") {
+				t.Logf("Unjustified PRE-PREPARE: %#v", msg)
+				cancel()
+			}
 		},
 		Quorum: q,
 		Faulty: f,
@@ -137,6 +198,11 @@ func testQBFT(t *testing.T, test test) {
 			Broadcast: func(msg qbft.Msg) {
 				bcastJitter(broadcast, msg, test.BCastJitterMS, clock)
 			},
+			SendQCommit: func(_ int64, qCommit []qbft.Msg) {
+				for _, msg := range qCommit {
+					broadcast <- msg // Just broadcast
+				}
+			},
 			Receive: receive,
 		}
 
@@ -144,25 +210,34 @@ func testQBFT(t *testing.T, test test) {
 			if d, ok := test.StartDelay[i]; ok {
 				ch, _ := clock.NewTimer(d)
 				<-ch
+
+				// Drain any buffered messages
+				for {
+					select {
+					case <-receive:
+						continue
+					default:
+					}
+
+					break
+				}
 			}
 
-			result, err := qbft.Run(ctx, defs, trans, test.Instance, i, []byte(fmt.Sprint(i)))
+			instance := strconv.FormatInt(test.Instance, 10)
+			err := qbft.Run(ctx, defs, trans, []byte(instance), i, []byte(fmt.Sprint(i)))
 			if err != nil {
 				errChan <- err
 				return
 			}
-			resultChan <- string(result)
 		}(i)
 	}
 
 	var results []string
 
 	for {
-		runtime.Gosched()
-
 		select {
 		case msg := <-broadcast:
-			t.Logf("%v -> %v@%d", msg.Source, msg.Type, msg.Round)
+			t.Logf("%s %v => %v@%d", clock.NowStr(), msg.Source, msg.Type, msg.Round)
 			for _, out := range receives {
 				out <- msg
 				if rand.Float64() < 0.1 { // Send 10% messages twice
@@ -187,6 +262,7 @@ func testQBFT(t *testing.T, test test) {
 		case err := <-errChan:
 			require.Fail(t, err.Error())
 		default:
+			time.Sleep(time.Microsecond)
 			clock.Advance(time.Millisecond * 1)
 		}
 	}

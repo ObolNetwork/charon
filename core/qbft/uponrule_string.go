@@ -23,17 +23,19 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
-	_ = x[uponUnknown-0]
-	_ = x[uponValidPrePrepare-1]
-	_ = x[uponQuorumPrepare-2]
-	_ = x[uponQuorumCommit-3]
-	_ = x[uponMinRoundChange-4]
-	_ = x[uponQuorumRoundChange-5]
+	_ = x[uponNothing-0]
+	_ = x[uponJustifiedPrePrepare-1]
+	_ = x[uponUnjustPrePrepare-2]
+	_ = x[uponQuorumPrepares-3]
+	_ = x[uponQuorumCommits-4]
+	_ = x[uponUnjustRoundChange-5]
+	_ = x[uponFPlus1RoundChanges-6]
+	_ = x[uponQuorumRoundChanges-7]
 }
 
-const _uponRule_name = "UnknownValidPrePrepareQuorumPrepareQuorumCommitMinRoundChangeQuorumRoundChange"
+const _uponRule_name = "NothingJustifiedPrePrepareUnjustPrePrepareQuorumPreparesQuorumCommitsUnjustRoundChangeFPlus1RoundChangesQuorumRoundChanges"
 
-var _uponRule_index = [...]uint8{0, 7, 22, 35, 47, 61, 78}
+var _uponRule_index = [...]uint8{0, 7, 26, 42, 56, 69, 86, 104, 122}
 
 func (i uponRule) String() string {
 	if i < 0 || i >= uponRule(len(_uponRule_index)-1) {
