@@ -17,7 +17,6 @@ package deposit
 
 import (
 	"encoding/hex"
-
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/ethereum/go-ethereum/common"
 	ssz "github.com/ferranbt/fastssz"
@@ -26,7 +25,10 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-const ETH1_ADDRESS_WITHDRAWAL_PREFIX = "01"
+var (
+	eth1AddressWithdrawalPrefix = byte(1)
+	elevenZeroes                = []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+)
 
 // WithdrawalCredentials is the 0x01 withdrawal credentials. See spec:
 // https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#withdrawal-credentials
@@ -49,24 +51,20 @@ func withdrawalCredentialsFromAddr(addr string) (WithdrawalCredentials, error) {
 		return WithdrawalCredentials{}, errors.New("invalid withdrawal address", z.Str("address", addr))
 	}
 
-	withdrawalCreds := make([]byte, 0, 32)
+	var withdrawalCreds []byte
 
-	prefix, err := hex.DecodeString(ETH1_ADDRESS_WITHDRAWAL_PREFIX)
-	if err != nil {
-		return WithdrawalCredentials{}, errors.Wrap(err, "decode prefix")
-	}
 	// Append the single byte ETH1_ADDRESS_WITHDRAWAL_PREFIX as prefix.
-	withdrawalCreds = append(withdrawalCreds, prefix...)
+	withdrawalCreds = append(withdrawalCreds, eth1AddressWithdrawalPrefix)
 
-	zeroes, err := hex.DecodeString("0000000000000000000000")
-	if err != nil {
-		return WithdrawalCredentials{}, errors.Wrap(err, "decode zero string")
-	}
 	// Append 11 bytes of 0.
-	withdrawalCreds = append(withdrawalCreds, zeroes...)
+	withdrawalCreds = append(withdrawalCreds, elevenZeroes...)
 
+	addrBytes, err := hex.DecodeString(addr)
+	if err != nil {
+		return WithdrawalCredentials{}, errors.Wrap(err, "decode address")
+	}
 	// Finally, append 20 bytes of ethereum address.
-	withdrawalCreds = append(withdrawalCreds, addr...)
+	withdrawalCreds = append(withdrawalCreds, addrBytes...)
 
 	var resp WithdrawalCredentials
 	copy(resp[:], withdrawalCreds)
