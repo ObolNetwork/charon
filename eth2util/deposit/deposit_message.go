@@ -17,6 +17,7 @@ package deposit
 
 import (
 	"encoding/hex"
+
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/ethereum/go-ethereum/common"
 	ssz "github.com/ferranbt/fastssz"
@@ -26,7 +27,7 @@ import (
 )
 
 var (
-	eth1AddressWithdrawalPrefix = byte(1)
+	eth1AddressWithdrawalPrefix = byte(0x01)
 	elevenZeroes                = []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 )
 

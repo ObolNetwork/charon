@@ -54,29 +54,37 @@ func GenerateDepositData(addr string, forkVersion string, pubkey eth2p0.BLSPubKe
 		return DepositData{}, err
 	}
 
-	// TODO(xenowits): The following section is incomplete.
 	depositMessage := depositMessage{
 		pubKey:                pubkey,
 		amount:                amount,
 		withdrawalCredentials: withdrawalCreds,
 	}
-	depositMessageRoot := "" // calculate the hash tree root of depositMessage
-	signature := ""          // sign depositMsgRoot. Note that this is done in a distributed environment.
 
-	deposit_data := DepositData{
+	// calculate the hash tree root of depositMessage
+	depositMessageRoot, err := depositMessage.HashTreeRoot()
+	if err != nil {
+		return DepositData{}, err
+	}
+
+	// TODO(xenowits): sign depositMsgRoot. Note that this is done in a distributed environment.
+	signature := eth2p0.BLSSignature{}
+
+	var version eth2p0.Version
+	copy(version[:], forkVersion)
+
+	depositData := DepositData{
 		PubKey:                pubkey,
 		Amount:                amount,
 		Eth1WithdrawalAddress: addr,
 		DepositMessageRoot:    depositMessageRoot,
 		Signature:             signature,
-		ForkVersion:           forkVersion,
+		ForkVersion:           version,
 	}
 
-	return deposit_data, nil
+	return depositData, nil
 }
 
-// forkVersionToNetwork returns the name of the ethereum network corresponding
-// to a given fork version.
+// forkVersionToNetwork returns the name of the ethereum network corresponding to a given fork version.
 func forkVersionToNetwork(forkVersion string) string {
 	switch forkVersion {
 	case "00000000":
