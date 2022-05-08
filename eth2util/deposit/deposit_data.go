@@ -26,7 +26,7 @@ import (
 )
 
 // DepositData contains all the information required for activating validators on the Ethereum Network.
-type DepositData struct {
+type DepositData struct { //nolint:revive
 	// PubKey is the group public key for a Distributed Validator.
 	PubKey eth2p0.BLSPubKey
 
