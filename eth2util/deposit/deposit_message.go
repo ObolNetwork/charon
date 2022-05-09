@@ -17,6 +17,7 @@ package deposit
 
 import (
 	"encoding/hex"
+	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/ethereum/go-ethereum/common"
@@ -31,51 +32,15 @@ var (
 	elevenZeroes                = []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 )
 
-// WithdrawalCredentials is the 0x01 withdrawal credentials. See spec:
-// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#withdrawal-credentials
-type WithdrawalCredentials [32]byte
-
 // depositMessage contains all the basic information necessary to activate a validator. The fields are
 // hashed to get the DepositMessageRoot. This root is signed and then the signature is added to DepositData.
 type depositMessage struct {
 	pubKey eth2p0.BLSPubKey
 	amount eth2p0.Gwei
 
-	// WithdrawalCredentials is the 0x01 withdrawal credentials
-	withdrawalCredentials WithdrawalCredentials
-}
-
-// withdrawalCredentialsFromAddr returns the WithdrawalCredentials corresponding to a '0x01' Ethereum withdrawal address.
-func withdrawalCredentialsFromAddr(addr string) (WithdrawalCredentials, error) {
-	// Check for validity of address.
-	if !common.IsHexAddress(addr) {
-		return WithdrawalCredentials{}, errors.New("invalid withdrawal address", z.Str("address", addr))
-	}
-
-	var withdrawalCreds []byte
-
-	// Append the single byte ETH1_ADDRESS_WITHDRAWAL_PREFIX as prefix.
-	withdrawalCreds = append(withdrawalCreds, eth1AddressWithdrawalPrefix)
-
-	// Append 11 bytes of 0.
-	withdrawalCreds = append(withdrawalCreds, elevenZeroes...)
-
-	addrBytes, err := hex.DecodeString(addr)
-	if err != nil {
-		return WithdrawalCredentials{}, errors.Wrap(err, "decode address")
-	}
-	// Finally, append 20 bytes of ethereum address.
-	withdrawalCreds = append(withdrawalCreds, addrBytes...)
-
-	var resp WithdrawalCredentials
-	copy(resp[:], withdrawalCreds)
-
-	return resp, nil
-}
-
-func withdrawalAddressFromCreds(credentials WithdrawalCredentials) (string, error) {
-	// TODO(xenowits): refine this method
-	return string(credentials[12:]), nil
+	// WithdrawalCredentials is the 0x01 withdrawal credentials. See spec:
+	// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#withdrawal-credentials
+	withdrawalCredentials [32]byte
 }
 
 func (d depositMessage) HashTreeRoot() ([32]byte, error) {
@@ -102,4 +67,55 @@ func (d depositMessage) HashTreeRootWith(hh *ssz.Hasher) error {
 	hh.Merkleize(idx)
 
 	return nil
+}
+
+// MessageRoot returns the hash tree root of the deposit message.
+func MessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.Root, error) {
+	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
+	if err != nil {
+		return eth2p0.Root{}, err
+	}
+
+	depositMessage := depositMessage{
+		pubKey:                pubkey,
+		amount:                depositAmt,
+		withdrawalCredentials: creds,
+	}
+
+	root, err := depositMessage.HashTreeRoot()
+	if err != nil {
+		return eth2p0.Root{}, err
+	}
+
+	return root, nil
+}
+
+// withdrawalCredsFromAddr returns the Withdrawal Credentials corresponding to a '0x01' Ethereum withdrawal address.
+func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
+	// Check for validity of address.
+	if !common.IsHexAddress(addr) {
+		return [32]byte{}, errors.New("invalid withdrawal address", z.Str("address", addr))
+	}
+
+	var creds []byte
+
+	// Append the single byte ETH1_ADDRESS_WITHDRAWAL_PREFIX as prefix.
+	creds = append(creds, eth1AddressWithdrawalPrefix)
+
+	// Append 11 bytes of 0.
+	creds = append(creds, elevenZeroes...)
+
+	addr = strings.TrimPrefix(addr, "0x")
+	addrBytes, err := hex.DecodeString(addr)
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "decode address")
+	}
+
+	// Finally, append 20 bytes of ethereum address.
+	creds = append(creds, addrBytes...)
+
+	var resp [32]byte
+	copy(resp[:], creds)
+
+	return resp, nil
 }

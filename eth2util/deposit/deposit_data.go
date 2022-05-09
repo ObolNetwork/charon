@@ -16,7 +16,7 @@
 package deposit
 
 import (
-	"bytes"
+	"encoding/hex"
 	"encoding/json"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -24,6 +24,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 )
+
+const depositAmt = 32000000000
 
 // DepositData contains all the information required for activating validators on the Ethereum Network.
 type DepositData struct { //nolint:revive
@@ -44,62 +46,6 @@ type DepositData struct { //nolint:revive
 
 	// ForkVersion identifies the network/chainID.
 	ForkVersion eth2p0.Version
-}
-
-// GenerateDepositData generates a deposit data object by populating the required fields.
-func GenerateDepositData(addr string, forkVersion string, pubkey eth2p0.BLSPubKey) (DepositData, error) {
-	amount := eth2p0.Gwei(32000000000)
-	withdrawalCreds, err := withdrawalCredentialsFromAddr(addr)
-	if err != nil {
-		return DepositData{}, err
-	}
-
-	depositMessage := depositMessage{
-		pubKey:                pubkey,
-		amount:                amount,
-		withdrawalCredentials: withdrawalCreds,
-	}
-
-	// calculate the hash tree root of depositMessage
-	depositMessageRoot, err := depositMessage.HashTreeRoot()
-	if err != nil {
-		return DepositData{}, err
-	}
-
-	// TODO(xenowits): sign depositMsgRoot. Note that this is done in a distributed environment.
-	signature := eth2p0.BLSSignature{}
-
-	var version eth2p0.Version
-	copy(version[:], forkVersion)
-
-	depositData := DepositData{
-		PubKey:                pubkey,
-		Amount:                amount,
-		Eth1WithdrawalAddress: addr,
-		DepositMessageRoot:    depositMessageRoot,
-		Signature:             signature,
-		ForkVersion:           version,
-	}
-
-	return depositData, nil
-}
-
-// forkVersionToNetwork returns the name of the ethereum network corresponding to a given fork version.
-func forkVersionToNetwork(forkVersion string) string {
-	switch forkVersion {
-	case "00000000":
-		return "mainnet"
-	case "00001020":
-		return "prater"
-	case "60000069":
-		return "kintsugi"
-	case "70000069":
-		return "kiln"
-	case "00000064":
-		return "gnosis"
-	default:
-		return "mainnet"
-	}
 }
 
 func (d DepositData) HashTreeRoot() ([32]byte, error) {
@@ -137,28 +83,39 @@ func (d DepositData) HashTreeRootWith(hh *ssz.Hasher) error {
 	return nil
 }
 
-func (d DepositData) MarshalJSON() ([]byte, error) {
-	// Marshal definition hash
-	hash, err := d.HashTreeRoot()
-	if err != nil {
-		return nil, errors.Wrap(err, "hash deposit data")
-	}
-
-	creds, err := withdrawalCredentialsFromAddr(d.Eth1WithdrawalAddress)
+// MarshalDepositData returns the json serialised deposit data bytes to be written to disk.
+func MarshalDepositData(pubkey eth2p0.BLSPubKey, msgRoot eth2p0.Root, sig eth2p0.BLSSignature, withdrawalAddr, forkVersion string) ([]byte, error) {
+	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	// Marshal json version of deposit data
-	resp, err := json.Marshal(ddFmt{
-		PubKey:                d.PubKey[:],
+	// construct DepositData and then calculate the hash.
+	var version eth2p0.Version
+	copy(version[:], forkVersion)
+	d := DepositData{
+		PubKey:                pubkey,
+		Amount:                depositAmt,
+		Eth1WithdrawalAddress: withdrawalAddr,
+		DepositMessageRoot:    msgRoot,
+		Signature:             sig,
+		ForkVersion:           version,
+	}
+	hash, err := d.HashTreeRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	// Marshal json version of deposit data.
+	resp, err := json.Marshal(ddJSON{
+		PubKey:                hex.EncodeToString(pubkey[:]),
 		Amount:                uint64(d.Amount),
-		WithdrawalCredentials: creds[:],
-		DepositDataRoot:       hash[:],
-		DepositMessageRoot:    d.DepositMessageRoot[:],
-		Signature:             d.Signature[:],
-		ForkVersion:           d.ForkVersion[:],
-		NetworkName:           forkVersionToNetwork(string(d.ForkVersion[:])),
+		WithdrawalCredentials: hex.EncodeToString(creds[:]),
+		DepositDataRoot:       hex.EncodeToString(hash[:]),
+		DepositMessageRoot:    hex.EncodeToString(msgRoot[:]),
+		Signature:             hex.EncodeToString(sig[:]),
+		ForkVersion:           forkVersion,
+		NetworkName:           forkVersionToNetwork(forkVersion),
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal deposit data")
@@ -167,63 +124,32 @@ func (d DepositData) MarshalJSON() ([]byte, error) {
 	return resp, nil
 }
 
-func (d *DepositData) UnmarshalJSON(data []byte) error {
-	var ddFmt ddFmt
-	if err := json.Unmarshal(data, &ddFmt); err != nil {
-		return errors.Wrap(err, "unmarshal deposit data")
+// forkVersionToNetwork returns the name of the ethereum network corresponding to a given fork version.
+func forkVersionToNetwork(forkVersion string) string {
+	switch forkVersion {
+	case "00000000":
+		return "mainnet"
+	case "00001020":
+		return "prater"
+	case "60000069":
+		return "kintsugi"
+	case "70000069":
+		return "kiln"
+	case "00000064":
+		return "gnosis"
+	default:
+		return "mainnet"
 	}
-
-	var pubkey eth2p0.BLSPubKey
-	copy(pubkey[:], ddFmt.PubKey)
-
-	var depositMessageRoot eth2p0.Root
-	copy(depositMessageRoot[:], ddFmt.DepositMessageRoot)
-
-	var signature eth2p0.BLSSignature
-	copy(signature[:], ddFmt.Signature)
-
-	var forkVersion eth2p0.Version
-	copy(forkVersion[:], ddFmt.ForkVersion)
-
-	var withdrawalCreds WithdrawalCredentials
-	copy(withdrawalCreds[:], ddFmt.WithdrawalCredentials)
-
-	withdrawalAddr, err := withdrawalAddressFromCreds(withdrawalCreds)
-	if err != nil {
-		return err
-	}
-
-	dd := DepositData{
-		PubKey:                pubkey,
-		Amount:                eth2p0.Gwei(ddFmt.Amount),
-		Eth1WithdrawalAddress: withdrawalAddr,
-		DepositMessageRoot:    depositMessageRoot,
-		Signature:             signature,
-		ForkVersion:           forkVersion,
-	}
-
-	hash, err := dd.HashTreeRoot()
-	if err != nil {
-		return errors.Wrap(err, "hash deposit data")
-	}
-
-	if !bytes.Equal(ddFmt.DepositDataRoot, hash[:]) {
-		return errors.New("invalid deposit data hash")
-	}
-
-	*d = dd
-
-	return nil
 }
 
-// ddFmt is the json formatter for DepositData.
-type ddFmt struct {
-	PubKey                []byte `json:"pubkey"`
+// ddJSON is the json formatter for DepositData.
+type ddJSON struct {
+	PubKey                string `json:"pubkey"`
 	Amount                uint64 `json:"amount"`
-	WithdrawalCredentials []byte `json:"withdrawal_credentials"`
-	DepositDataRoot       []byte `json:"deposit_data_root"`
-	DepositMessageRoot    []byte `json:"deposit_message_root"`
-	Signature             []byte `json:"signature"`
-	ForkVersion           []byte `json:"fork_version"`
+	WithdrawalCredentials string `json:"withdrawal_credentials"`
+	DepositDataRoot       string `json:"deposit_data_root"`
+	DepositMessageRoot    string `json:"deposit_message_root"`
+	Signature             string `json:"signature"`
+	ForkVersion           string `json:"fork_version"`
 	NetworkName           string `json:"network_name"`
 }
