@@ -23,7 +23,7 @@ repos:
         exclude: ".pb.go"
 
   - repo: https://github.com/corverroos/fiximports
-    rev: 496e5392530966aa8f12e88a289c07782075cf91
+    rev: 886071dd81a69ab030db85d65803fb2048aa0722
     hooks:
       - id: go-fiximports # format imports for go source files
 
