@@ -52,6 +52,7 @@ type Transport[I any, V Value[V]] struct {
 // Definition defines the consensus system parameters that are external to the qbft algorithm.
 // This remains constant across multiple instances of consensus (calls to Run).
 type Definition[I any, V Value[V]] struct {
+	// NewMsg returns a new message instance.
 	NewMsg func(typ MsgType, instance I, source int64, round int64, value V, pr int64, pv V, justify []Msg[I, V]) Msg[I, V]
 	// IsLeader is a deterministic leader election function.
 	IsLeader func(instance I, round, process int64) bool
@@ -155,30 +156,14 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 
 	// broadcastMsg broadcasts a non-ROUND-CHANGE message for current round.
 	broadcastMsg := func(typ MsgType, value V, justify []Msg[I, V]) {
-		t.Broadcast(d.NewMsg(
-			typ,
-			instance,
-			process,
-			round,
-			value,
-			0,
-			zeroVal[V](),
-			justify,
-		))
+		t.Broadcast(d.NewMsg(typ, instance, process, round,
+			value, 0, zeroVal[V](), justify))
 	}
 
 	// broadcastRoundChange broadcasts a ROUND-CHANGE message with current state.
 	broadcastRoundChange := func() {
-		t.Broadcast(d.NewMsg(
-			MsgRoundChange,
-			instance,
-			process,
-			round,
-			zeroVal[V](),
-			preparedRound,
-			preparedValue,
-			preparedJustify,
-		))
+		t.Broadcast(d.NewMsg(MsgRoundChange, instance, process, round,
+			zeroVal[V](), preparedRound, preparedValue, preparedJustify))
 	}
 
 	// sendQCommit sends qCommit to the target process.
