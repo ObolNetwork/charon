@@ -48,6 +48,14 @@ func (c *fakeClock) NewTimer(d time.Duration) (<-chan time.Time, func()) {
 	}
 }
 
+// NowStr returns the current time as a debug string.
+func (c *fakeClock) NowStr() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.now.Format("04:05.000")
+}
+
 // SinceT0 returns the duration since zero time.
 func (c *fakeClock) SinceT0() time.Duration {
 	c.mu.Lock()

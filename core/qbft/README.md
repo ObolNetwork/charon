@@ -10,8 +10,8 @@ as referenced by the [QBFT spec](https://github.com/ConsenSys/qbft-formal-spec-a
 - Transport abstracted and not provided.
 - Decoupled from process authentication and message signing (not provided).
 - No dependencies.
-- Core algorithm under 500 lines of code.
+- Explicit justifications.
 
 ## TODO
- - Refactor from implicit to explicit justification.
+ - Add dropped messages tests.
  - Add Byzantium tests.
