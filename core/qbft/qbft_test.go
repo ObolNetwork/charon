@@ -28,6 +28,33 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
+func TestFormulas(t *testing.T) {
+	assert := func(t *testing.T, n, q, f int) {
+		t.Helper()
+		d := qbft.Definition[any, value]{Nodes: n}
+		require.Equalf(t, q, d.Quorum(), "%d", n)
+		require.Equalf(t, f, d.Faulty(), "%d", n)
+	}
+
+	assert(t, 1, 1, 0)
+	assert(t, 2, 2, 0)
+	assert(t, 3, 2, 0)
+	assert(t, 4, 3, 1)
+	assert(t, 5, 4, 1)
+	assert(t, 6, 4, 1)
+	assert(t, 7, 5, 2)
+	assert(t, 8, 6, 2)
+	assert(t, 9, 6, 2)
+	assert(t, 10, 7, 3)
+	assert(t, 11, 8, 3)
+	assert(t, 12, 8, 3)
+	assert(t, 13, 9, 4)
+	assert(t, 15, 10, 4)
+	assert(t, 17, 12, 5)
+	assert(t, 19, 13, 6)
+	assert(t, 21, 14, 6)
+}
+
 func TestQBFT(t *testing.T) {
 	t.Run("happy 0", func(t *testing.T) {
 		testQBFT(t, test{
@@ -142,11 +169,7 @@ type test struct {
 func testQBFT(t *testing.T, test test) {
 	t.Helper()
 
-	const (
-		n = 4
-		q = 3
-		f = 1
-	)
+	const n = 4
 
 	var (
 		ctx, cancel = context.WithCancel(context.Background())
@@ -182,8 +205,7 @@ func testQBFT(t *testing.T, test test) {
 				cancel()
 			}
 		},
-		Quorum: q,
-		Faulty: f,
+		Nodes: n,
 	}
 
 	for i := int64(1); i <= n; i++ {

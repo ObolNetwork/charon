@@ -60,10 +60,20 @@ type Definition[I any, V Value[V]] struct {
 	Decide func(instance I, value V, qcommit []Msg[I, V])
 	// LogUponRule allows debug logging of triggered upon rules on message receipt.
 	LogUponRule func(instance I, process, round int64, msg Msg[I, V], uponRule string)
-	// Quorum is the quorum count for the system.
-	Quorum int
-	// Faulty is the maximum faulty process count for the system.
-	Faulty int
+	// Nodes is the total number of nodes/processes participating in consensus.
+	Nodes int
+}
+
+// Quorum returns the quorum count for the system.
+// See IBFT 2.0 paper for correct formula: https://arxiv.org/pdf/1909.10194.pdf
+func (d Definition[I, V]) Quorum() int {
+	return int(math.Ceil(float64(d.Nodes*2) / 3))
+}
+
+// Faulty returns the maximum number of faulty/byzantium nodes supported in the system.
+// See IBFT 2.0 paper for correct formula: https://arxiv.org/pdf/1909.10194.pdf
+func (d Definition[I, V]) Faulty() int {
+	return int(math.Floor(float64(d.Nodes-1) / 3))
 }
 
 //go:generate stringer -type=MsgType
@@ -339,14 +349,14 @@ func classify[I any, V Value[V]](d Definition[I, V], instance I, round, process 
 			return uponNothing, nil
 		}
 		prepares := filterByRoundAndValue(buffer, MsgPrepare, msg.Round(), msg.Value())
-		if len(prepares) >= d.Quorum {
+		if len(prepares) >= d.Quorum() {
 			return uponQuorumPrepares, prepares
 		}
 
 	case MsgCommit:
 		// Don't ignore any rounds, since COMMIT may be justified with Qcommit.
 		commits := filterByRoundAndValue(buffer, MsgCommit, msg.Round(), msg.Value())
-		if len(commits) >= d.Quorum {
+		if len(commits) >= d.Quorum() {
 			return uponQuorumCommits, commits
 		}
 
@@ -447,7 +457,7 @@ func isJustifiedRoundChange[I any, V Value[V]](d Definition[I, V], msg Msg[I, V]
 
 	// No need to check for all possible combinations, since justified should only contain a one.
 
-	if len(msg.Justify()) < d.Quorum {
+	if len(msg.Justify()) < d.Quorum() {
 		return false
 	}
 
@@ -491,7 +501,7 @@ func isJustifiedPrePrepare[I any, V Value[V]](d Definition[I, V], instance I, ms
 // the messages contains a justified quorum ROUND_CHANGEs (Qrc).
 func containsJustifiedQrc[I any, V Value[V]](d Definition[I, V], justify []Msg[I, V], round int64) (V, bool) {
 	qrc := filterRoundChange(justify, round)
-	if len(qrc) < d.Quorum {
+	if len(qrc) < d.Quorum() {
 		return zeroVal[V](), false
 	}
 
@@ -520,7 +530,7 @@ func containsJustifiedQrc[I any, V Value[V]](d Definition[I, V], justify []Msg[I
 
 	prepares := filterMsgs(justify, MsgPrepare, pr, &pv, nil, nil)
 
-	return pv, len(prepares) >= d.Quorum
+	return pv, len(prepares) >= d.Quorum()
 }
 
 // getJustifiedQrc implements algorithm 4:1 and returns a justified quorum ROUND_CHANGEs (Qrc).
@@ -551,7 +561,7 @@ func getJustifiedQrc[I any, V Value[V]](d Definition[I, V], all []Msg[I, V], rou
 			}
 			qrc = append(qrc, msg)
 		}
-		if len(qrc) >= d.Quorum && hasHighestPrepared {
+		if len(qrc) >= d.Quorum() && hasHighestPrepared {
 			return append(qrc, prepares...), true
 		}
 	}
@@ -577,12 +587,12 @@ func getFPlus1RoundChanges[I any, V Value[V]](d Definition[I, V], msgs []Msg[I, 
 
 		highestBySource[msg.Source()] = msg
 
-		if len(highestBySource) == d.Faulty+1 {
+		if len(highestBySource) == d.Faulty()+1 {
 			break
 		}
 	}
 
-	if len(highestBySource) < d.Faulty+1 {
+	if len(highestBySource) < d.Faulty()+1 {
 		return nil, false
 	}
 
@@ -635,7 +645,7 @@ func getPrepareQuorums[I any, V Value[V]](d Definition[I, V], msgs []Msg[I, V]) 
 	// Return all quorums
 	var quorums [][]Msg[I, V]
 	for _, set := range sets {
-		if len(set.msgs) < d.Quorum {
+		if len(set.msgs) < d.Quorum() {
 			continue
 		}
 		var quorum []Msg[I, V]
@@ -657,7 +667,7 @@ func quorumNullPrepared[I any, V Value[V]](d Definition[I, V], all []Msg[I, V], 
 	)
 	justify := filterMsgs(all, MsgRoundChange, round, nil, &nullPr, &nullPv)
 
-	return justify, len(justify) >= d.Quorum
+	return justify, len(justify) >= d.Quorum()
 }
 
 // filterByRoundAndValue returns the messages matching the type and value.
