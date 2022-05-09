@@ -92,7 +92,7 @@ func MarshalDepositData(pubkey eth2p0.BLSPubKey, msgRoot eth2p0.Root, sig eth2p0
 	var version eth2p0.Version
 	forkVersionBytes, err := hex.DecodeString(forkVersion)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "decode fork version")
 	}
 	copy(version[:], forkVersionBytes)
 
