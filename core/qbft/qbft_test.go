@@ -159,26 +159,6 @@ func testQBFT(t *testing.T, test test) {
 	defer cancel()
 
 	defs := qbft.Definition[int64, value]{
-		NewMsg: func(typ qbft.MsgType, instance int64, source int64, round int64, value value,
-			pr int64, pv value, justify []qbft.Msg[int64, value],
-		) qbft.Msg[int64, value] {
-			var msgs []msg
-			for _, j := range justify {
-				m := j.(msg)
-				msgs = append(msgs, m)
-			}
-
-			return msg{
-				msgType:  typ,
-				instance: instance,
-				peerIdx:  source,
-				round:    round,
-				value:    int64(value),
-				pr:       pr,
-				pv:       int64(pv),
-				justify:  msgs,
-			}
-		},
 		IsLeader: func(instance int64, round int64, process int64) bool {
 			return (instance+round)%n == process
 		},
@@ -210,7 +190,10 @@ func testQBFT(t *testing.T, test test) {
 		receive := make(chan qbft.Msg[int64, value], 1000)
 		receives = append(receives, receive)
 		trans := qbft.Transport[int64, value]{
-			Broadcast: func(msg qbft.Msg[int64, value]) {
+			Broadcast: func(typ qbft.MsgType, instance int64, source int64, round int64, value value,
+				pr int64, pv value, justify []qbft.Msg[int64, value],
+			) {
+				msg := newMsg(typ, instance, source, round, value, pr, pv, justify)
 				bcastJitter(broadcast, msg, test.BCastJitterMS, clock)
 			},
 			SendQCommit: func(_ int64, qCommit []qbft.Msg[int64, value]) {
@@ -295,6 +278,28 @@ func bcastJitter[I any, V qbft.Value[V]](broadcast chan qbft.Msg[I, V], msg qbft
 		<-ch
 		broadcast <- msg
 	}()
+}
+
+// newMsg returns a new message to be broadcast.
+func newMsg(typ qbft.MsgType, instance int64, source int64, round int64, value value,
+	pr int64, pv value, justify []qbft.Msg[int64, value],
+) qbft.Msg[int64, value] {
+	var msgs []msg
+	for _, j := range justify {
+		m := j.(msg)
+		msgs = append(msgs, m)
+	}
+
+	return msg{
+		msgType:  typ,
+		instance: instance,
+		peerIdx:  source,
+		round:    round,
+		value:    int64(value),
+		pr:       pr,
+		pv:       int64(pv),
+		justify:  msgs,
+	}
 }
 
 var _ qbft.Msg[int64, value] = msg{}

@@ -26,8 +26,8 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// Value defines the generic value type constraint
-// that provides an equality method.
+// Value defines the constraints of the generic value type.
+// The only constraint is an equality method.
 type Value[V any] interface {
 	Equal(V) bool
 }
@@ -37,9 +37,9 @@ type Value[V any] interface {
 // Note that broadcasting doesn't return an error. Since this algorithm is idempotent
 // it is suggested to just retry broadcasting indefinitely until it succeeds or times out.
 type Transport[I any, V Value[V]] struct {
-	// Broadcast sends the message to all other
+	// Broadcast sends a message with the provided fields to all other
 	// processes in the system (including this process).
-	Broadcast func(Msg[I, V])
+	Broadcast func(typ MsgType, instance I, source int64, round int64, value V, pr int64, pv V, justify []Msg[I, V])
 
 	// SendQCommit sends the commit messages to a specific process.
 	SendQCommit func(target int64, qCommit []Msg[I, V])
@@ -52,8 +52,6 @@ type Transport[I any, V Value[V]] struct {
 // Definition defines the consensus system parameters that are external to the qbft algorithm.
 // This remains constant across multiple instances of consensus (calls to Run).
 type Definition[I any, V Value[V]] struct {
-	// NewMsg returns a new message instance.
-	NewMsg func(typ MsgType, instance I, source int64, round int64, value V, pr int64, pv V, justify []Msg[I, V]) Msg[I, V]
 	// IsLeader is a deterministic leader election function.
 	IsLeader func(instance I, round, process int64) bool
 	// NewTimer returns a new timer channel and stop function for the round.
@@ -124,7 +122,10 @@ const (
 )
 
 // Run executes the consensus algorithm until the context closed.
-//nolint:gocognit // If is indeed a complex algorithm.
+// The generic type I is the instance of consensus and can be anything.
+// The generic type V is the arbitrary data value being proposed; it only requires an Equal method.
+//
+//nolint:gocognit // It is indeed a complex algorithm.
 func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport[I, V], instance I, process int64, inputValue V) (err error) {
 	if isZeroVal(inputValue) {
 		return errors.New("zero input value not supported")
@@ -156,14 +157,14 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 
 	// broadcastMsg broadcasts a non-ROUND-CHANGE message for current round.
 	broadcastMsg := func(typ MsgType, value V, justify []Msg[I, V]) {
-		t.Broadcast(d.NewMsg(typ, instance, process, round,
-			value, 0, zeroVal[V](), justify))
+		t.Broadcast(typ, instance, process, round,
+			value, 0, zeroVal[V](), justify)
 	}
 
 	// broadcastRoundChange broadcasts a ROUND-CHANGE message with current state.
 	broadcastRoundChange := func() {
-		t.Broadcast(d.NewMsg(MsgRoundChange, instance, process, round,
-			zeroVal[V](), preparedRound, preparedValue, preparedJustify))
+		t.Broadcast(MsgRoundChange, instance, process, round,
+			zeroVal[V](), preparedRound, preparedValue, preparedJustify)
 	}
 
 	// sendQCommit sends qCommit to the target process.
@@ -275,7 +276,7 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 
 			case uponFPlus1RoundChanges: // Algorithm 3:5
 				// Only applicable to future rounds
-				round = nextMinRound(d, justify, round /* < msg.Round*/)
+				round = nextMinRound(d, justify, round /* < msg.Round */)
 				trimBuffer()
 
 				stopTimer()
@@ -285,7 +286,7 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 
 			case uponQuorumRoundChanges: // Algorithm 3:11
 				// Only applicable to current round
-				qrc := filterRoundChange(justify, round /* == msg.Round*/)
+				qrc := filterRoundChange(justify, round /* == msg.Round */)
 				_, pv := highestPrepared(qrc)
 
 				value := pv
