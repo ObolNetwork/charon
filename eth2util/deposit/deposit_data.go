@@ -27,8 +27,9 @@ import (
 
 const depositAmt = 32000000000
 
-// DepositData contains all the information required for activating validators on the Ethereum Network.
-type DepositData struct { //nolint:revive
+// depositData contains all the information required for activating validators on the Ethereum Network.
+// Ref: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#depositdata
+type depositData struct {
 	// PubKey is the group public key for a Distributed Validator.
 	PubKey eth2p0.BLSPubKey
 
@@ -48,7 +49,7 @@ type DepositData struct { //nolint:revive
 	ForkVersion eth2p0.Version
 }
 
-func (d DepositData) HashTreeRoot() ([32]byte, error) {
+func (d depositData) HashTreeRoot() ([32]byte, error) {
 	b, err := ssz.HashWithDefaultHasher(d)
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "hash deposit data")
@@ -57,26 +58,24 @@ func (d DepositData) HashTreeRoot() ([32]byte, error) {
 	return b, nil
 }
 
-func (d DepositData) HashTreeRootWith(hh *ssz.Hasher) error {
+func (d depositData) HashTreeRootWith(hh *ssz.Hasher) error {
 	idx := hh.Index()
 
 	// Field 0 'PubKey`
 	hh.PutBytes(d.PubKey[:])
 
-	// Field 1 'Amount'
+	// Field 1 'WithdrawalCredentials
+	creds, err := withdrawalCredsFromAddr(d.Eth1WithdrawalAddress)
+	if err != nil {
+		return errors.Wrap(err, "withdrawal credentials")
+	}
+	hh.PutBytes(creds[:])
+
+	// Field 2 'Amount'
 	hh.PutUint64(uint64(d.Amount))
-
-	// Field 2 'Eth1WithdrawalAddress'
-	hh.PutBytes([]byte(d.Eth1WithdrawalAddress))
-
-	// Field 3 'DepositMessageRoot'
-	hh.PutBytes(d.DepositMessageRoot[:])
 
 	// Field 4 'Signature'
 	hh.PutBytes(d.Signature[:])
-
-	// Field 5 'ForkVersion'
-	hh.PutBytes(d.ForkVersion[:])
 
 	hh.Merkleize(idx)
 
@@ -90,10 +89,15 @@ func MarshalDepositData(pubkey eth2p0.BLSPubKey, msgRoot eth2p0.Root, sig eth2p0
 		return nil, err
 	}
 
-	// construct DepositData and then calculate the hash.
 	var version eth2p0.Version
-	copy(version[:], forkVersion)
-	d := DepositData{
+	forkVersionBytes, err := hex.DecodeString(forkVersion)
+	if err != nil {
+		return nil, err
+	}
+	copy(version[:], forkVersionBytes)
+
+	// construct DepositData and then calculate the hash.
+	d := depositData{
 		PubKey:                pubkey,
 		Amount:                depositAmt,
 		Eth1WithdrawalAddress: withdrawalAddr,
@@ -142,7 +146,7 @@ func forkVersionToNetwork(forkVersion string) string {
 	}
 }
 
-// ddJSON is the json formatter for DepositData.
+// ddJSON is the json formatter for depositData.
 type ddJSON struct {
 	PubKey                string `json:"pubkey"`
 	Amount                uint64 `json:"amount"`

@@ -34,13 +34,15 @@ var (
 
 // depositMessage contains all the basic information necessary to activate a validator. The fields are
 // hashed to get the DepositMessageRoot. This root is signed and then the signature is added to DepositData.
+// Ref: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#depositmessage
 type depositMessage struct {
 	pubKey eth2p0.BLSPubKey
-	amount eth2p0.Gwei
 
 	// WithdrawalCredentials is the 0x01 withdrawal credentials. See spec:
 	// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#withdrawal-credentials
 	withdrawalCredentials [32]byte
+
+	amount eth2p0.Gwei
 }
 
 func (d depositMessage) HashTreeRoot() ([32]byte, error) {
@@ -58,11 +60,11 @@ func (d depositMessage) HashTreeRootWith(hh *ssz.Hasher) error {
 	// Field 0 'pubKey`
 	hh.PutBytes(d.pubKey[:])
 
-	// Field 1 'amount'
-	hh.PutUint64(uint64(d.amount))
-
-	// Field 2 'withdrawalCredentials'
+	// Field 1 'withdrawalCredentials'
 	hh.PutBytes(d.withdrawalCredentials[:])
+
+	// Field 2 'amount'
+	hh.PutUint64(uint64(d.amount))
 
 	hh.Merkleize(idx)
 
