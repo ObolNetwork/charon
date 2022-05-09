@@ -366,7 +366,7 @@ func (m msg) PreparedValue() value {
 	return value(m.pv)
 }
 
-func (m msg) Justify() []qbft.Msg[int64, value] {
+func (m msg) Justification() []qbft.Msg[int64, value] {
 	var resp []qbft.Msg[int64, value]
 	for _, msg := range m.justify {
 		resp = append(resp, msg)
