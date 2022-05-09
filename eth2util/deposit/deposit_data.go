@@ -16,16 +16,17 @@
 package deposit
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
+	"os"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/eth2util/signing"
 )
-
-const depositAmt = 32000000000
 
 // DepositData contains all the information required for activating validators on the Ethereum Network.
 type DepositData struct { //nolint:revive
@@ -83,6 +84,35 @@ func (d DepositData) HashTreeRootWith(hh *ssz.Hasher) error {
 	return nil
 }
 
+// SaveDepositData generates DepositData and saves it to a file.
+func SaveDepositData(pubkey eth2p0.BLSPubKey, eth2Cl signing.Eth2DomainProvider, withdrawalAddr, forkVersion string) error {
+	msgRoot, err := MessageRoot(pubkey, withdrawalAddr)
+	if err != nil {
+		return err
+	}
+
+	_, err = signing.GetDataRoot(context.Background(), eth2Cl, signing.DomainDeposit, 0, msgRoot)
+	if err != nil {
+		return err
+	}
+
+	// TODO(): sign the above root. This takes place in a distributed environment.
+	sig := eth2p0.BLSSignature{}
+	bytes, err := MarshalDepositData(pubkey, msgRoot, sig, withdrawalAddr, forkVersion)
+	if err != nil {
+		return err
+	}
+
+	// save bytes to disk
+	depositFile := "deposit_data.json"
+	err = os.WriteFile(depositFile, bytes, 0o400)
+	if err != nil {
+		return errors.Wrap(err, "write deposit data file")
+	}
+
+	return nil
+}
+
 // MarshalDepositData returns the json serialised deposit data bytes to be written to disk.
 func MarshalDepositData(pubkey eth2p0.BLSPubKey, msgRoot eth2p0.Root, sig eth2p0.BLSSignature, withdrawalAddr, forkVersion string) ([]byte, error) {
 	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
@@ -90,7 +120,7 @@ func MarshalDepositData(pubkey eth2p0.BLSPubKey, msgRoot eth2p0.Root, sig eth2p0
 		return nil, err
 	}
 
-	// construct DepositData and then calculate the hash.
+	// construct DepositData and then calculate its hash.
 	var version eth2p0.Version
 	copy(version[:], forkVersion)
 	d := DepositData{

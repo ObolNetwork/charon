@@ -30,6 +30,7 @@ import (
 var (
 	eth1AddressWithdrawalPrefix = byte(0x01)
 	elevenZeroes                = []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	depositAmt                  = eth2p0.Gwei(32000000000)
 )
 
 // depositMessage contains all the basic information necessary to activate a validator. The fields are
