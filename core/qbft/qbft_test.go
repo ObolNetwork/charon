@@ -29,11 +29,12 @@ import (
 )
 
 func TestFormulas(t *testing.T) {
+	// assert given N asserts Q and F.
 	assert := func(t *testing.T, n, q, f int) {
 		t.Helper()
 		d := qbft.Definition[any, value]{Nodes: n}
-		require.Equalf(t, q, d.Quorum(), "%d", n)
-		require.Equalf(t, f, d.Faulty(), "%d", n)
+		require.Equalf(t, q, d.Quorum(), "Quorum given N=%d", n)
+		require.Equalf(t, f, d.Faulty(), "Faulty given N=%d", n)
 	}
 
 	assert(t, 1, 1, 0)
