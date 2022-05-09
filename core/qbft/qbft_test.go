@@ -17,10 +17,8 @@ package qbft_test
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"math/rand"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -153,19 +151,16 @@ func testQBFT(t *testing.T, test test) {
 	var (
 		ctx, cancel = context.WithCancel(context.Background())
 		clock       = new(fakeClock)
-		receives    []chan qbft.Msg
-		broadcast   = make(chan qbft.Msg)
-		resultChan  = make(chan string, n)
+		receives    []chan qbft.Msg[int64, value]
+		broadcast   = make(chan qbft.Msg[int64, value])
+		resultChan  = make(chan value, n)
 		errChan     = make(chan error, n)
 	)
 	defer cancel()
 
-	defs := qbft.Definition{
-		IsLeader: func(instance []byte, round int64, process int64) bool {
-			i, err := strconv.ParseInt(string(instance), 10, 64)
-			require.NoError(t, err)
-
-			return (i+round)%n == process
+	defs := qbft.Definition[int64, value]{
+		IsLeader: func(instance int64, round int64, process int64) bool {
+			return (instance+round)%n == process
 		},
 		NewTimer: func(round int64) (<-chan time.Time, func()) {
 			d := time.Second
@@ -175,11 +170,11 @@ func testQBFT(t *testing.T, test test) {
 
 			return clock.NewTimer(d)
 		},
-		Decide: func(instance []byte, value []byte, qcommit []qbft.Msg) {
-			resultChan <- string(value)
+		Decide: func(instance int64, value value, qcommit []qbft.Msg[int64, value]) {
+			resultChan <- value
 		},
-		LogUponRule: func(instance []byte, process, round int64, msg qbft.Msg, rule string) {
-			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source, msg.Type, msg.Round, process, round, rule)
+		LogUponRule: func(instance int64, process, round int64, msg qbft.Msg[int64, value], rule string) {
+			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
 			if round > 50 {
 				cancel()
 			} else if strings.Contains(rule, "Unjust") {
@@ -191,14 +186,17 @@ func testQBFT(t *testing.T, test test) {
 		Faulty: f,
 	}
 
-	for i := int64(0); i < n; i++ {
-		receive := make(chan qbft.Msg, 1000)
+	for i := int64(1); i <= n; i++ {
+		receive := make(chan qbft.Msg[int64, value], 1000)
 		receives = append(receives, receive)
-		trans := qbft.Transport{
-			Broadcast: func(msg qbft.Msg) {
+		trans := qbft.Transport[int64, value]{
+			Broadcast: func(typ qbft.MsgType, instance int64, source int64, round int64, value value,
+				pr int64, pv value, justify []qbft.Msg[int64, value],
+			) {
+				msg := newMsg(typ, instance, source, round, value, pr, pv, justify)
 				bcastJitter(broadcast, msg, test.BCastJitterMS, clock)
 			},
-			SendQCommit: func(_ int64, qCommit []qbft.Msg) {
+			SendQCommit: func(_ int64, qCommit []qbft.Msg[int64, value]) {
 				for _, msg := range qCommit {
 					broadcast <- msg // Just broadcast
 				}
@@ -223,8 +221,7 @@ func testQBFT(t *testing.T, test test) {
 				}
 			}
 
-			instance := strconv.FormatInt(test.Instance, 10)
-			err := qbft.Run(ctx, defs, trans, []byte(instance), i, []byte(fmt.Sprint(i)))
+			err := qbft.Run(ctx, defs, trans, test.Instance, i, value(i))
 			if err != nil {
 				errChan <- err
 				return
@@ -232,12 +229,12 @@ func testQBFT(t *testing.T, test test) {
 		}(i)
 	}
 
-	var results []string
+	var results []value
 
 	for {
 		select {
 		case msg := <-broadcast:
-			t.Logf("%s %v => %v@%d", clock.NowStr(), msg.Source, msg.Type, msg.Round)
+			t.Logf("%s %v => %v@%d", clock.NowStr(), msg.Source(), msg.Type(), msg.Round())
 			for _, out := range receives {
 				out <- msg
 				if rand.Float64() < 0.1 { // Send 10% messages twice
@@ -248,10 +245,10 @@ func testQBFT(t *testing.T, test test) {
 			if test.ResultRandom {
 				// Ensure that all results are the same at least
 				for _, previous := range results {
-					require.Equal(t, previous, result)
+					require.EqualValues(t, previous, result)
 				}
 			} else {
-				require.Equal(t, fmt.Sprint(test.Result), result)
+				require.EqualValues(t, test.Result, result)
 			}
 
 			results = append(results, result)
@@ -269,7 +266,7 @@ func testQBFT(t *testing.T, test test) {
 }
 
 // bcastJitter delays the message broadcast by between 1x and 2x jitterMS.
-func bcastJitter(broadcast chan qbft.Msg, msg qbft.Msg, jitterMS int, clock *fakeClock) {
+func bcastJitter[I any, V qbft.Value[V]](broadcast chan qbft.Msg[I, V], msg qbft.Msg[I, V], jitterMS int, clock *fakeClock) {
 	if jitterMS == 0 {
 		broadcast <- msg
 		return
@@ -281,4 +278,84 @@ func bcastJitter(broadcast chan qbft.Msg, msg qbft.Msg, jitterMS int, clock *fak
 		<-ch
 		broadcast <- msg
 	}()
+}
+
+// newMsg returns a new message to be broadcast.
+func newMsg(typ qbft.MsgType, instance int64, source int64, round int64, value value,
+	pr int64, pv value, justify []qbft.Msg[int64, value],
+) qbft.Msg[int64, value] {
+	var msgs []msg
+	for _, j := range justify {
+		m := j.(msg)
+		msgs = append(msgs, m)
+	}
+
+	return msg{
+		msgType:  typ,
+		instance: instance,
+		peerIdx:  source,
+		round:    round,
+		value:    int64(value),
+		pr:       pr,
+		pv:       int64(pv),
+		justify:  msgs,
+	}
+}
+
+var _ qbft.Msg[int64, value] = msg{}
+
+type msg struct {
+	msgType  qbft.MsgType
+	instance int64
+	peerIdx  int64
+	round    int64
+	value    int64
+	pr       int64
+	pv       int64
+	justify  []msg
+}
+
+func (m msg) Type() qbft.MsgType {
+	return m.msgType
+}
+
+func (m msg) Instance() int64 {
+	return m.instance
+}
+
+func (m msg) Source() int64 {
+	return m.peerIdx
+}
+
+func (m msg) Round() int64 {
+	return m.round
+}
+
+func (m msg) Value() value {
+	return value(m.value)
+}
+
+func (m msg) PreparedRound() int64 {
+	return m.pr
+}
+
+func (m msg) PreparedValue() value {
+	return value(m.pv)
+}
+
+func (m msg) Justify() []qbft.Msg[int64, value] {
+	var resp []qbft.Msg[int64, value]
+	for _, msg := range m.justify {
+		resp = append(resp, msg)
+	}
+
+	return resp
+}
+
+var _ qbft.Value[value] = value(0)
+
+type value int64
+
+func (v value) Equal(v2 value) bool {
+	return int64(v) == int64(v2)
 }
