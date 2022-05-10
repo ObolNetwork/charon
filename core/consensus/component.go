@@ -53,7 +53,7 @@ func NewComponent(ctx context.Context, tcpNode host.Host, peers []p2p.Peer,
 		recvChans: make(map[core.Duty]chan msgImpl),
 	}
 
-	// Create qbft definition
+	// Create qbft definition (this is constant across all consensus instances)
 	c.def = qbft.Definition[core.Duty, [32]byte]{
 		// IsLeader is a deterministic leader election function.
 		IsLeader: func(duty core.Duty, round, process int64) bool {
@@ -94,12 +94,16 @@ func NewComponent(ctx context.Context, tcpNode host.Host, peers []p2p.Peer,
 }
 
 type Component struct {
+	// Immutable state
+
 	tcpNode host.Host
 	peers   []p2p.Peer
 	p2pKey  *ecdsa.PrivateKey
 	peerIdx int64
 	def     qbft.Definition[core.Duty, [32]byte]
 	subs    []func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error
+
+	// Mutable state
 
 	recvMu    sync.Mutex
 	recvChans map[core.Duty]chan msgImpl
@@ -218,9 +222,11 @@ func (c *Component) deleteRecvChan(duty core.Duty) {
 
 // instanceWrap encapsulates receiving and broadcasting for a consensus instance/duty.
 type instanceWrap struct {
+	// Immutable state
 	component *Component
 	recvChan  chan qbft.Msg[core.Duty, [32]byte]
 
+	// Mutable state
 	valueMu sync.Mutex
 	values  map[[32]byte]*pbv1.UnsignedDataSet // maps proposed values to their hashes
 }
