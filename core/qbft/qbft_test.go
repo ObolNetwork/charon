@@ -182,6 +182,7 @@ type test struct {
 	RandomRound   bool                    // Non-deterministic consensus at random round.
 }
 
+//nolint:gocognit
 func testQBFT(t *testing.T, test test) {
 	t.Helper()
 

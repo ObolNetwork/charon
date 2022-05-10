@@ -244,7 +244,7 @@ func NewSigner(secrets ...*bls_sig.SecretKey) SignFunc {
 			return eth2p0.BLSSignature{}, err
 		}
 
-		sig, err := tbls.Sign(secret, msg[:])
+		sig, err := tbls.Sign(secret, msg)
 		if err != nil {
 			return eth2p0.BLSSignature{}, err
 		}
