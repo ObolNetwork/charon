@@ -41,9 +41,6 @@ type Transport[I any, V Value[V]] struct {
 	// processes in the system (including this process).
 	Broadcast func(typ MsgType, instance I, source int64, round int64, value V, pr int64, pv V, justification []Msg[I, V])
 
-	// SendQCommit sends the commit messages to a specific process.
-	SendQCommit func(target int64, qCommit []Msg[I, V])
-
 	// Receive returns a stream of messages received
 	// from other processes in the system (including this process).
 	Receive <-chan Msg[I, V]
@@ -88,7 +85,8 @@ const (
 	MsgPrepare     MsgType = 2
 	MsgCommit      MsgType = 3
 	MsgRoundChange MsgType = 4
-	msgSentinel    MsgType = 5
+	MsgDecided     MsgType = 5
+	msgSentinel    MsgType = 6
 )
 
 func (i MsgType) Valid() bool {
@@ -129,6 +127,8 @@ const (
 	uponUnjustRoundChange
 	uponFPlus1RoundChanges
 	uponQuorumRoundChanges
+	uponJustifiedDecided
+	uponUnjustDecided
 )
 
 // Run executes the consensus algorithm until the context closed.
@@ -175,14 +175,6 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 	broadcastRoundChange := func() {
 		t.Broadcast(MsgRoundChange, instance, process, round,
 			zeroVal[V](), preparedRound, preparedValue, preparedJustification)
-	}
-
-	// sendQCommit sends qCommit to the target process.
-	sendQCommit := func(target int64) {
-		if len(qCommit) == 0 {
-			panic("bug: send empty Qcommit")
-		}
-		t.SendQCommit(target, qCommit)
 	}
 
 	// bufferMsg returns true if the message is unique and was added to the buffer.
@@ -233,7 +225,7 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 			// Just send Qcommit if consensus already decided
 			if len(qCommit) > 0 {
 				if msg.Source() != process && msg.Type() == MsgRoundChange { // Algorithm 3:17
-					sendQCommit(msg.Source())
+					broadcastMsg(MsgDecided, qCommit[0].Value(), qCommit)
 				}
 
 				continue
@@ -270,8 +262,10 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 
 				broadcastMsg(MsgCommit, preparedValue, nil)
 
-			case uponQuorumCommits: // Algorithm 2:8
+			case uponQuorumCommits, uponJustifiedDecided: // Algorithm 2:8
 				// Applicable to any round (since can be justified)
+				round = msg.Round()
+
 				stopTimer()
 				qCommit = justification
 
@@ -299,7 +293,7 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 
 				broadcastMsg(MsgPrePrepare, value, justification)
 
-			case uponUnjustPrePrepare, uponUnjustRoundChange:
+			case uponUnjustPrePrepare, uponUnjustRoundChange, uponUnjustDecided:
 				// Ignore bug or byzantium.
 
 			default:
@@ -324,6 +318,13 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 // classify returns the rule triggered upon receipt of the last message and its justifications.
 func classify[I any, V Value[V]](d Definition[I, V], instance I, round, process int64, buffer []Msg[I, V], msg Msg[I, V]) (uponRule, []Msg[I, V]) {
 	switch msg.Type() {
+	case MsgDecided:
+		if isJustifiedDecided(d, msg) {
+			return uponJustifiedDecided, msg.Justification()
+		}
+
+		return uponUnjustDecided, nil
+
 	case MsgPrePrepare:
 		if !isJustifiedPrePrepare(d, instance, msg) {
 			return uponUnjustPrePrepare, nil
@@ -468,7 +469,11 @@ func isJustifiedRoundChange[I any, V Value[V]](d Definition[I, V], msg Msg[I, V]
 		return false
 	}
 
+	uniq := uniqSource[I, V]()
 	for _, prepare := range prepares {
+		if !uniq(prepare) {
+			return false
+		}
 		if prepare.Type() != MsgPrepare {
 			return false
 		}
@@ -481,6 +486,19 @@ func isJustifiedRoundChange[I any, V Value[V]](d Definition[I, V], msg Msg[I, V]
 	}
 
 	return true
+}
+
+// isJustifiedDecided returns true if the decided message is justified by quorum COMMIT messages
+// of identical round and value.
+func isJustifiedDecided[I any, V Value[V]](d Definition[I, V], msg Msg[I, V]) bool {
+	if msg.Type() != MsgDecided {
+		panic("bug: not a decided message")
+	}
+
+	v := msg.Value()
+	commits := filterMsgs(msg.Justification(), MsgCommit, msg.Round(), &v, nil, nil)
+
+	return len(commits) >= d.Quorum()
 }
 
 // isJustifiedPrePrepare returns true if the PRE-PREPARE message is justified.
@@ -561,9 +579,13 @@ func getJustifiedQrc[I any, V Value[V]](d Definition[I, V], buffer []Msg[I, V], 
 			hasHighestPrepared bool
 			pr                 = prepares[0].Round()
 			pv                 = prepares[0].Value()
+			uniq               = uniqSource[I, V]()
 		)
 		for _, rc := range roundChanges {
 			if rc.PreparedRound() > pr {
+				continue
+			}
+			if !uniq(rc) {
 				continue
 			}
 			if rc.PreparedRound() == pr && rc.PreparedValue().Equal(pv) {
@@ -695,7 +717,7 @@ func filterRoundChange[I any, V Value[V]](msgs []Msg[I, V], round int64) []Msg[I
 func filterMsgs[I any, V Value[V]](msgs []Msg[I, V], typ MsgType, round int64, value *V, pr *int64, pv *V) []Msg[I, V] {
 	var (
 		resp []Msg[I, V]
-		dups = make(map[dedupKey]bool)
+		uniq = uniqSource[I, V]()
 	)
 	for _, msg := range msgs {
 		if typ != msg.Type() {
@@ -718,11 +740,9 @@ func filterMsgs[I any, V Value[V]](msgs []Msg[I, V], typ MsgType, round int64, v
 			continue
 		}
 
-		if dups[key(msg)] {
-			continue
+		if uniq(msg) {
+			resp = append(resp, msg)
 		}
-		dups[key(msg)] = true
-		resp = append(resp, msg)
 	}
 
 	return resp
@@ -765,4 +785,24 @@ func flatten[I any, V Value[V]](buffer []Msg[I, V]) []Msg[I, V] {
 	}
 
 	return resp
+}
+
+// uniqSource returns a function that returns true if the message is from a unique source.
+func uniqSource[I any, V Value[V]](msgs ...Msg[I, V]) func(Msg[I, V]) bool {
+	dedup := make(map[int64]bool)
+	for _, msg := range msgs {
+		if dedup[msg.Source()] {
+			panic("bug: seeding uniq with duplicates")
+		}
+		dedup[msg.Source()] = true
+	}
+
+	return func(msg Msg[I, V]) bool {
+		if dedup[msg.Source()] {
+			return false
+		}
+		dedup[msg.Source()] = true
+
+		return true
+	}
 }

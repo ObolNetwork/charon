@@ -28,6 +28,9 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
+// Suggest running tests continuously until cancelled with Ctrl-C.
+//go:generate while go test . -count=1 -timeout=5s; do; done
+
 func TestQBFT(t *testing.T) {
 	t.Run("happy 0", func(t *testing.T) {
 		testQBFT(t, test{
@@ -142,6 +145,20 @@ func TestQBFT(t *testing.T) {
 			RandomRound: true,
 		})
 	})
+
+	t.Run("drop 30% const", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance: 1,
+			DropProb: map[int64]float64{
+				0: 0.3,
+				1: 0.3,
+				2: 0.3,
+				3: 0.3,
+			},
+			ConstPeriod: true,
+			RandomRound: true,
+		})
+	})
 }
 
 type test struct {
@@ -158,7 +175,10 @@ type test struct {
 func testQBFT(t *testing.T, test test) {
 	t.Helper()
 
-	const n = 4
+	const (
+		n        = 4
+		maxRound = 50
+	)
 
 	var (
 		ctx, cancel = context.WithCancel(context.Background())
@@ -187,7 +207,7 @@ func testQBFT(t *testing.T, test test) {
 		},
 		LogUponRule: func(instance int64, process, round int64, msg qbft.Msg[int64, value], rule string) {
 			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
-			if round > 50 {
+			if round > maxRound {
 				cancel()
 			} else if strings.Contains(rule, "Unjust") {
 				t.Logf("%s: %#v", rule, msg)
@@ -204,22 +224,24 @@ func testQBFT(t *testing.T, test test) {
 			Broadcast: func(typ qbft.MsgType, instance int64, source int64, round int64, value value,
 				pr int64, pv value, justify []qbft.Msg[int64, value],
 			) {
+				if round > maxRound {
+					cancel()
+					return
+				}
+				t.Logf("%s %v => %v@%d", clock.NowStr(), source, typ, round)
 				msg := newMsg(typ, instance, source, round, value, pr, pv, justify)
 				receive <- msg // Always send to self first (no jitter, no drops).
-				bcast(broadcast, msg, test.BCastJitterMS, clock)
-			},
-			SendQCommit: func(_ int64, qCommit []qbft.Msg[int64, value]) {
-				for _, msg := range qCommit {
-					broadcast <- msg // Just broadcast
-				}
+				bcast(t, broadcast, msg, test.BCastJitterMS, clock)
 			},
 			Receive: receive,
 		}
 
 		go func(i int64) {
 			if d, ok := test.StartDelay[i]; ok {
+				t.Logf("%s Node %d start delay %s", clock.NowStr(), i, d)
 				ch, _ := clock.NewTimer(d)
 				<-ch
+				t.Logf("%s Node %d starting %s", clock.NowStr(), i, d)
 
 				// Drain any buffered messages
 				for {
@@ -247,13 +269,13 @@ func testQBFT(t *testing.T, test test) {
 	for {
 		select {
 		case msg := <-broadcast:
-			t.Logf("%s %v => %v@%d", clock.NowStr(), msg.Source(), msg.Type(), msg.Round())
 			for target, out := range receives {
 				if target == msg.Source() {
 					continue // Do not broadcast to self, we sent to self already.
 				}
 				if p, ok := test.DropProb[msg.Source()]; ok {
 					if rand.Float64() < p {
+						t.Logf("%s %v => %v@%d => %d (dropped)", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), target)
 						continue // Drop
 					}
 				}
@@ -291,16 +313,19 @@ func testQBFT(t *testing.T, test test) {
 }
 
 // bcast delays the message broadcast by between 1x and 2x jitterMS and drops messages.
-func bcast[I any, V qbft.Value[V]](broadcast chan qbft.Msg[I, V], msg qbft.Msg[I, V], jitterMS int, clock *fakeClock) {
+func bcast[I any, V qbft.Value[V]](t *testing.T, broadcast chan qbft.Msg[I, V], msg qbft.Msg[I, V], jitterMS int, clock *fakeClock) {
+	t.Helper()
+
 	if jitterMS == 0 {
 		broadcast <- msg
-
 		return
 	}
 
 	go func() {
 		deltaMS := int(float64(jitterMS) * rand.Float64())
-		ch, _ := clock.NewTimer(time.Duration(jitterMS+deltaMS) * time.Millisecond)
+		delay := time.Duration(jitterMS+deltaMS) * time.Millisecond
+		t.Logf("%s %v => %v@%d (bcast delay %s)", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), delay)
+		ch, _ := clock.NewTimer(delay)
 		<-ch
 		broadcast <- msg
 	}()
