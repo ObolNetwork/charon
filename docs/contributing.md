@@ -108,6 +108,12 @@ To install githooks:
 - Once installed, run `pre-commit install` in the project's root directory. This will setup the hooks.
 - Note you can skip the hooks by committing with `-n`: `git commit -n -m "look mom no githooks"`
 
+To update githooks:
+```sh
+pre-commit clean
+pre-commit autoupdate
+```
+
 The **linter** used is [golangci-lint](https://golangci-lint.run/). It runs as part of the githooks and is configured in [.golangci.yml](../.golangci.yml)
 
 Different **dev tools** are used in throughout the code base and are defined and installed from [tools.go](../tools.go). To install the dev tools run: `go generate tools.go`
