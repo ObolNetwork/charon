@@ -49,7 +49,7 @@ type Definition[I any, V comparable] struct {
 	// Decide is called when consensus has been reached on a value.
 	Decide func(instance I, value V, qcommit []Msg[I, V])
 	// LogUponRule allows debug logging of triggered upon rules on message receipt.
-	LogUponRule func(instance I, process, round int64, msg Msg[I, V], uponRule string)
+	LogUponRule func(ctx context.Context, instance I, process, round int64, msg Msg[I, V], uponRule string)
 	// Nodes is the total number of nodes/processes participating in consensus.
 	Nodes int
 }
@@ -237,7 +237,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 				break
 			}
 
-			d.LogUponRule(instance, process, round, msg, rule.String())
+			d.LogUponRule(ctx, instance, process, round, msg, rule.String())
 
 			switch rule {
 			case uponJustifiedPrePrepare: // Algorithm 2:1
