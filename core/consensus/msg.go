@@ -60,7 +60,7 @@ func newMsgImpl(msg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg) (msgImpl, erro
 	}, nil
 }
 
-// msgImpl wraps *pbv1.ConsensusMsg and implements qbft.Msg[core.Duty, [32]byte].
+// msgImpl wraps *pbv1.QBFTMsg and justifications and implements qbft.Msg[core.Duty, [32]byte].
 type msgImpl struct {
 	msg               *pbv1.QBFTMsg
 	valueHash         [32]byte
@@ -102,14 +102,7 @@ func (m msgImpl) Justification() []qbft.Msg[core.Duty, [32]byte] {
 	return m.justificationImpls
 }
 
-func (m msgImpl) ToConsensusMsg() *pbv1.ConsensusMsg {
-	return &pbv1.ConsensusMsg{
-		Msg:           m.msg,
-		Justification: m.justification,
-	}
-}
-
-// hashProto returns a ssz hash root of the proto message.
+// hashProto returns a deterministic ssz hash root of the proto message.
 func hashProto(msg proto.Message) ([32]byte, error) {
 	if msg == nil {
 		return [32]byte{}, nil
@@ -118,6 +111,7 @@ func hashProto(msg proto.Message) ([32]byte, error) {
 	hh := ssz.DefaultHasherPool.Get()
 	defer ssz.DefaultHasherPool.Put(hh)
 
+	// Do deterministic marshalling.
 	b, err := proto.MarshalOptions{Deterministic: true}.Marshal(msg)
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "marshal proto")

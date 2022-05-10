@@ -43,7 +43,9 @@ const (
 )
 
 // NewComponent returns a new consensus QBFT component.
-func NewComponent(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey) *Component {
+func NewComponent(ctx context.Context, tcpNode host.Host, peers []p2p.Peer,
+	peerIdx int64, p2pKey *ecdsa.PrivateKey,
+) *Component {
 	c := &Component{
 		tcpNode:   tcpNode,
 		peers:     peers,
@@ -51,55 +53,12 @@ func NewComponent(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, p2pK
 		recvChans: make(map[core.Duty]chan msgImpl),
 	}
 
-	tcpNode.SetStreamHandler(protocolID, c.makeHandler(ctx))
-
-	return c
-}
-
-type Component struct {
-	tcpNode host.Host
-	peers   []p2p.Peer
-	p2pKey  *ecdsa.PrivateKey
-	peerIdx int64
-	subs    []func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error
-
-	recvMu    sync.Mutex
-	recvChans map[core.Duty]chan msgImpl
-}
-
-// Subscribe registers a callback for unsigned duty data proposals from leaders.
-// Note this function is not thread safe, it should be called *before* Run or Propose.
-func (c *Component) Subscribe(fn func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error) {
-	c.subs = append(c.subs, fn)
-}
-
-// Propose participants in a consensus instance proposing the provided data.
-// It returns on error or when the context is cancelled.
-func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
-	ctx = log.WithTopic(ctx, "qbft")
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	value := core.UnsignedDataSetToProto(data)
-	hash, err := hashProto(value)
-	if err != nil {
-		return err
-	}
-
-	wrap := instanceWrap{
-		component: c,
-		values:    map[[32]byte]*pbv1.UnsignedDataSet{hash: value},
-		recvChan:  make(chan qbft.Msg[core.Duty, [32]byte]),
-	}
-
-	go wrap.ReceiveForever(ctx, c.getRecvChan(duty))
-	defer c.deleteRecvChan(duty)
-
-	d := qbft.Definition[core.Duty, [32]byte]{
+	// Create qbft definition
+	c.def = qbft.Definition[core.Duty, [32]byte]{
 		// IsLeader is a deterministic leader election function.
-		IsLeader: func(instance core.Duty, round, process int64) bool {
-			mod := ((duty.Slot) + int64(duty.Type) + round) % int64(len(c.peers))
-			return mod == c.peerIdx
+		IsLeader: func(duty core.Duty, round, process int64) bool {
+			mod := ((duty.Slot) + int64(duty.Type) + round) % int64(len(peers))
+			return mod == peerIdx
 		},
 
 		// Decide sends consensus output to subscribes.
@@ -126,16 +85,65 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 		},
 
 		// Nodes is the number of nodes.
-		Nodes: len(c.peers),
+		Nodes: len(peers),
 	}
 
+	tcpNode.SetStreamHandler(protocolID, c.makeHandler(ctx))
+
+	return c
+}
+
+type Component struct {
+	tcpNode host.Host
+	peers   []p2p.Peer
+	p2pKey  *ecdsa.PrivateKey
+	peerIdx int64
+	def     qbft.Definition[core.Duty, [32]byte]
+	subs    []func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error
+
+	recvMu    sync.Mutex
+	recvChans map[core.Duty]chan msgImpl
+}
+
+// Subscribe registers a callback for unsigned duty data proposals from leaders.
+// Note this function is not thread safe, it should be called *before* Run or Propose.
+func (c *Component) Subscribe(fn func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error) {
+	c.subs = append(c.subs, fn)
+}
+
+// Propose participants in a consensus instance proposing the provided data.
+// It returns on error or when the context is cancelled.
+func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
+	ctx = log.WithTopic(ctx, "qbft")
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Hash the proposed data, since qbft ony support simple comparable values.
+	value := core.UnsignedDataSetToProto(data)
+	hash, err := hashProto(value)
+	if err != nil {
+		return err
+	}
+
+	// instanceWrap handles sending and receiving for this instance.
+	wrap := instanceWrap{
+		component: c,
+		values:    map[[32]byte]*pbv1.UnsignedDataSet{hash: value},
+		recvChan:  make(chan qbft.Msg[core.Duty, [32]byte]),
+	}
+
+	// Start a receiving goroutine.
+	go wrap.ReceiveForever(ctx, c.getRecvChan(duty))
+	defer c.deleteRecvChan(duty)
+
+	// Create a transport from the wrap
 	t := qbft.Transport[core.Duty, [32]byte]{
 		Broadcast: wrap.Broadcast,
 		Receive:   wrap.recvChan,
 	}
 
 	// Run and block until context is cancelled.
-	err = qbft.Run[core.Duty, [32]byte](ctx, d, t, duty, c.peerIdx, hash)
+	err = qbft.Run[core.Duty, [32]byte](ctx, c.def, t, duty, c.peerIdx, hash)
 	if !errors.Is(err, context.Canceled) {
 		return err
 	}
@@ -186,7 +194,7 @@ func (c *Component) makeHandler(ctx context.Context) func(s network.Stream) {
 	}
 }
 
-// getRecvChan returns a receive channel the duty.
+// getRecvChan returns a receive channel for the duty.
 func (c *Component) getRecvChan(duty core.Duty) chan msgImpl {
 	c.recvMu.Lock()
 	defer c.recvMu.Unlock()
@@ -200,7 +208,7 @@ func (c *Component) getRecvChan(duty core.Duty) chan msgImpl {
 	return ch
 }
 
-// deleteRecvChan deletes the receive channel for a duty.
+// deleteRecvChan deletes the receive channel for the duty.
 func (c *Component) deleteRecvChan(duty core.Duty) {
 	c.recvMu.Lock()
 	defer c.recvMu.Unlock()
@@ -208,15 +216,16 @@ func (c *Component) deleteRecvChan(duty core.Duty) {
 	delete(c.recvChans, duty)
 }
 
-// instanceWrap encapsulates receiving and broadcasting for a consensus instance.
+// instanceWrap encapsulates receiving and broadcasting for a consensus instance/duty.
 type instanceWrap struct {
 	component *Component
 	recvChan  chan qbft.Msg[core.Duty, [32]byte]
 
 	valueMu sync.Mutex
-	values  map[[32]byte]*pbv1.UnsignedDataSet
+	values  map[[32]byte]*pbv1.UnsignedDataSet // maps proposed values to their hashes
 }
 
+// setValues caches the values and their hashes.
 func (w *instanceWrap) setValues(msg msgImpl) {
 	w.valueMu.Lock()
 	defer w.valueMu.Unlock()
@@ -225,6 +234,7 @@ func (w *instanceWrap) setValues(msg msgImpl) {
 	w.values[msg.PreparedValue()] = msg.msg.PreparedValue
 }
 
+// getValue returns the value by its hash.
 func (w *instanceWrap) getValue(hash [32]byte) (*pbv1.UnsignedDataSet, error) {
 	w.valueMu.Lock()
 	defer w.valueMu.Unlock()
@@ -237,14 +247,12 @@ func (w *instanceWrap) getValue(hash [32]byte) (*pbv1.UnsignedDataSet, error) {
 	return data, nil
 }
 
-func (*instanceWrap) waitQuorum() {
-	// TODO(corver): Implement protocol to block until quorum peers are proposing this instance.
-}
-
+// Broadcast creates a msg and sends it to all peers (including self).
 func (w *instanceWrap) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.Duty,
 	peerIdx int64, round int64, value [32]byte, pr int64, pv [32]byte,
 	justification []qbft.Msg[core.Duty, [32]byte],
 ) error {
+	// Get the values by their hashes.
 	valueHash, err := w.getValue(value)
 	if err != nil {
 		return err
@@ -254,6 +262,7 @@ func (w *instanceWrap) Broadcast(ctx context.Context, typ qbft.MsgType, duty cor
 		return err
 	}
 
+	// Create a msg impl
 	msg := &pbv1.QBFTMsg{
 		Type:          int64(typ),
 		Duty:          core.DutyToProto(duty),
@@ -300,6 +309,7 @@ func (w *instanceWrap) Broadcast(ctx context.Context, typ qbft.MsgType, duty cor
 	return nil
 }
 
+// ReceiveForever processes received messages until the context is closed.
 func (w *instanceWrap) ReceiveForever(ctx context.Context, recv chan msgImpl) {
 	for {
 		select {
