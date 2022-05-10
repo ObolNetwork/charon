@@ -302,6 +302,7 @@ func testQBFT(t *testing.T, test test) {
 			if count == n {
 				round := qCommit[0].Round()
 				t.Logf("Got all results in round %d after %s: %#v", round, clock.SinceT0(), results)
+
 				return
 			}
 		case err := <-errChan:
@@ -317,6 +318,7 @@ func testQBFT(t *testing.T, test test) {
 func bcast[I any, V qbft.Value[V]](broadcast chan qbft.Msg[I, V], msg qbft.Msg[I, V], jitterMS int, clock *fakeClock) {
 	if jitterMS == 0 {
 		broadcast <- msg
+
 		return
 	}
 
