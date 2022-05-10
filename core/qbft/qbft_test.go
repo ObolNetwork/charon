@@ -25,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
@@ -199,10 +200,10 @@ func testQBFT(t *testing.T, test test) {
 
 			return clock.NewTimer(d)
 		},
-		Decide: func(instance int64, value int64, qcommit []qbft.Msg[int64, int64]) {
+		Decide: func(_ context.Context, instance int64, value int64, qcommit []qbft.Msg[int64, int64]) {
 			resultChan <- qcommit
 		},
-		LogUponRule: func(instance int64, process, round int64, msg qbft.Msg[int64, int64], rule string) {
+		LogUponRule: func(_ context.Context, instance int64, process, round int64, msg qbft.Msg[int64, int64], rule string) {
 			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
 			if round > maxRound {
 				cancel()
@@ -218,17 +219,18 @@ func testQBFT(t *testing.T, test test) {
 		receive := make(chan qbft.Msg[int64, int64], 1000)
 		receives[i] = receive
 		trans := qbft.Transport[int64, int64]{
-			Broadcast: func(typ qbft.MsgType, instance int64, source int64, round int64, value int64,
+			Broadcast: func(ctx context.Context, typ qbft.MsgType, instance int64, source int64, round int64, value int64,
 				pr int64, pv int64, justify []qbft.Msg[int64, int64],
-			) {
+			) error {
 				if round > maxRound {
-					cancel()
-					return
+					return errors.New("max round reach")
 				}
 				t.Logf("%s %v => %v@%d", clock.NowStr(), source, typ, round)
 				msg := newMsg(typ, instance, source, round, value, pr, pv, justify)
 				receive <- msg // Always send to self first (no jitter, no drops).
 				bcast(t, broadcast, msg, test.BCastJitterMS, clock)
+
+				return nil
 			},
 			Receive: receive,
 		}

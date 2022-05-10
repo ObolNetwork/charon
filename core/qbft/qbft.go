@@ -27,13 +27,12 @@ import (
 )
 
 // Transport abstracts the transport layer between processes in the consensus system.
-//
-// Note that broadcasting doesn't return an error. Since this algorithm is idempotent
-// it is suggested to just retry broadcasting indefinitely until it succeeds or times out.
 type Transport[I any, V comparable] struct {
 	// Broadcast sends a message with the provided fields to all other
 	// processes in the system (including this process).
-	Broadcast func(typ MsgType, instance I, source int64, round int64, value V, pr int64, pv V, justification []Msg[I, V])
+	//
+	// Note that a non-nil error exits the algorithm.
+	Broadcast func(ctx context.Context, typ MsgType, instance I, source int64, round int64, value V, pr int64, pv V, justification []Msg[I, V]) error
 
 	// Receive returns a stream of messages received
 	// from other processes in the system (including this process).
@@ -48,9 +47,9 @@ type Definition[I any, V comparable] struct {
 	// NewTimer returns a new timer channel and stop function for the round.
 	NewTimer func(round int64) (<-chan time.Time, func())
 	// Decide is called when consensus has been reached on a value.
-	Decide func(instance I, value V, qcommit []Msg[I, V])
+	Decide func(ctx context.Context, instance I, value V, qcommit []Msg[I, V])
 	// LogUponRule allows debug logging of triggered upon rules on message receipt.
-	LogUponRule func(instance I, process, round int64, msg Msg[I, V], uponRule string)
+	LogUponRule func(ctx context.Context, instance I, process, round int64, msg Msg[I, V], uponRule string)
 	// Nodes is the total number of nodes/processes participating in consensus.
 	Nodes int
 }
@@ -160,14 +159,14 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	// === Helpers ==
 
 	// broadcastMsg broadcasts a non-ROUND-CHANGE message for current round.
-	broadcastMsg := func(typ MsgType, value V, justification []Msg[I, V]) {
-		t.Broadcast(typ, instance, process, round,
+	broadcastMsg := func(typ MsgType, value V, justification []Msg[I, V]) error {
+		return t.Broadcast(ctx, typ, instance, process, round,
 			value, 0, zeroVal[V](), justification)
 	}
 
 	// broadcastRoundChange broadcasts a ROUND-CHANGE message with current state.
-	broadcastRoundChange := func() {
-		t.Broadcast(MsgRoundChange, instance, process, round,
+	broadcastRoundChange := func() error {
+		return t.Broadcast(ctx, MsgRoundChange, instance, process, round,
 			zeroVal[V](), preparedRound, preparedValue, preparedJustification)
 	}
 
@@ -206,7 +205,10 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 	{ // Algorithm 1:11
 		if d.IsLeader(instance, round, process) { // Note round==1 at this point.
-			broadcastMsg(MsgPrePrepare, inputValue, nil) // Justification is round==1
+			err := broadcastMsg(MsgPrePrepare, inputValue, nil) // Justification is round==1
+			if err != nil {
+				return err
+			}
 		}
 
 		timerChan, stopTimer = d.NewTimer(round)
@@ -214,28 +216,28 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 	// Handle events until cancelled.
 	for {
+		var err error
 		select {
 		case msg := <-t.Receive:
 			// Just send Qcommit if consensus already decided
 			if len(qCommit) > 0 {
 				if msg.Source() != process && msg.Type() == MsgRoundChange { // Algorithm 3:17
-					broadcastMsg(MsgDecided, qCommit[0].Value(), qCommit)
+					err = broadcastMsg(MsgDecided, qCommit[0].Value(), qCommit)
 				}
 
-				continue
+				break
 			}
 
-			// Buffer message
 			if !bufferMsg(msg) {
-				continue
+				break
 			}
 
 			rule, justification := classify(d, instance, round, process, buffer, msg)
 			if rule == uponNothing {
-				continue
+				break
 			}
 
-			d.LogUponRule(instance, process, round, msg, rule.String())
+			d.LogUponRule(ctx, instance, process, round, msg, rule.String())
 
 			switch rule {
 			case uponJustifiedPrePrepare: // Algorithm 2:1
@@ -246,7 +248,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 				stopTimer()
 				timerChan, stopTimer = d.NewTimer(round)
 
-				broadcastMsg(MsgPrepare, msg.Value(), nil)
+				err = broadcastMsg(MsgPrepare, msg.Value(), nil)
 
 			case uponQuorumPrepares: // Algorithm 2:4
 				// Only applicable to current round
@@ -254,7 +256,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 				preparedValue = msg.Value()
 				preparedJustification = justification
 
-				broadcastMsg(MsgCommit, preparedValue, nil)
+				err = broadcastMsg(MsgCommit, preparedValue, nil)
 
 			case uponQuorumCommits, uponJustifiedDecided: // Algorithm 2:8
 				// Applicable to any round (since can be justified)
@@ -263,7 +265,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 				stopTimer()
 				qCommit = justification
 
-				d.Decide(instance, msg.Value(), justification)
+				d.Decide(ctx, instance, msg.Value(), justification)
 
 			case uponFPlus1RoundChanges: // Algorithm 3:5
 				// Only applicable to future rounds
@@ -273,7 +275,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 				stopTimer()
 				timerChan, stopTimer = d.NewTimer(round)
 
-				broadcastRoundChange()
+				err = broadcastRoundChange()
 
 			case uponQuorumRoundChanges: // Algorithm 3:11
 				// Only applicable to current round
@@ -285,7 +287,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 					value = inputValue
 				}
 
-				broadcastMsg(MsgPrePrepare, value, justification)
+				err = broadcastMsg(MsgPrePrepare, value, justification)
 
 			case uponUnjustPrePrepare, uponUnjustRoundChange, uponUnjustDecided:
 				// Ignore bug or byzantium.
@@ -301,10 +303,14 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			stopTimer()
 			timerChan, stopTimer = d.NewTimer(round)
 
-			broadcastRoundChange()
+			err = broadcastRoundChange()
 
 		case <-ctx.Done(): // Cancelled
 			return ctx.Err()
+		}
+
+		if err != nil {
+			return err
 		}
 	}
 }
