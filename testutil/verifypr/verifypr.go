@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +29,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/obolnetwork/charon/app/featureset"
 )
 
 var titlePrefix = regexp.MustCompile(`^[*\w]+(/[*\w]+)?$`)
@@ -46,6 +49,10 @@ type PR struct {
 }
 
 func run() error {
+	if err := featureset.Init(context.Background(), featureset.Config{MinStatus: "alpha"}); err != nil {
+		return err
+	}
+
 	const prenv = "GITHUB_PR"
 	fmt.Println("Verifying charon PR against template")
 	fmt.Printf("Parsing %s\n", prenv)
@@ -183,6 +190,8 @@ func verifyBody(body string) error {
 
 			if ticket == "" {
 				return errors.New("ticket tag empty")
+			} else if ticket == "#000" {
+				return errors.New("invalid #000 ticket")
 			}
 
 			if strings.HasPrefix(ticket, "https://") {
@@ -205,26 +214,24 @@ func verifyBody(body string) error {
 			foundTicket = true
 		}
 
-		const featureTag = "feature_set:"
+		const featureTag = "feature_flag:"
 		if strings.HasPrefix(line, featureTag) {
 			if foundFeature {
-				return errors.New("multiple ticket tag lines")
+				return errors.New("multiple feature_flag tag lines")
 			}
 
-			set := strings.TrimSpace(strings.TrimPrefix(line, featureTag))
+			flag := strings.TrimSpace(strings.TrimPrefix(line, featureTag))
 
-			if set == "" {
-				return errors.New("feature_set tag empty")
+			if flag == "" {
+				return errors.New("feature_flag tag empty")
+			} else if flag == "?" {
+				return errors.New("invalid ? feature_flag")
 			}
 
-			sets := map[string]bool{
-				"alpha":  true,
-				"beta":   true,
-				"stable": true,
-			}
-
-			if !sets[set] {
-				return errors.New("invalid feature_set tag not one of: alpha, beta, stable")
+			if strings.Contains(flag, " ") || strings.Contains(flag, "-") || strings.ToLower(flag) != flag {
+				return errors.New("feature flags are snake case, see app/featureset/featureset.go")
+			} else if !featureset.Enabled(featureset.Feature(flag)) {
+				return errors.New("unknown feature flag, see app/featureset/featureset.go")
 			}
 
 			foundFeature = true
