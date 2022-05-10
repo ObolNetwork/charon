@@ -789,19 +789,19 @@ func flatten[I any, V Value[V]](buffer []Msg[I, V]) []Msg[I, V] {
 
 // uniqSource returns a function that returns true if the message is from a unique source.
 func uniqSource[I any, V Value[V]](msgs ...Msg[I, V]) func(Msg[I, V]) bool {
-	duplicate := make(map[int64]bool)
+	dedup := make(map[int64]bool)
 	for _, msg := range msgs {
-		if duplicate[msg.Source()] {
-			panic("seeding uniq with duplicates")
+		if dedup[msg.Source()] {
+			panic("bug: seeding uniq with duplicates")
 		}
-		duplicate[msg.Source()] = true
+		dedup[msg.Source()] = true
 	}
 
 	return func(msg Msg[I, V]) bool {
-		if duplicate[msg.Source()] {
+		if dedup[msg.Source()] {
 			return false
 		}
-		duplicate[msg.Source()] = true
+		dedup[msg.Source()] = true
 
 		return true
 	}
