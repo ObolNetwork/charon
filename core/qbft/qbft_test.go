@@ -28,34 +28,6 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
-func TestFormulas(t *testing.T) {
-	// assert given N asserts Q and F.
-	assert := func(t *testing.T, n, q, f int) {
-		t.Helper()
-		d := qbft.Definition[any, value]{Nodes: n}
-		require.Equalf(t, q, d.Quorum(), "Quorum given N=%d", n)
-		require.Equalf(t, f, d.Faulty(), "Faulty given N=%d", n)
-	}
-
-	assert(t, 1, 1, 0)
-	assert(t, 2, 2, 0)
-	assert(t, 3, 2, 0)
-	assert(t, 4, 3, 1)
-	assert(t, 5, 4, 1)
-	assert(t, 6, 4, 1)
-	assert(t, 7, 5, 2)
-	assert(t, 8, 6, 2)
-	assert(t, 9, 6, 2)
-	assert(t, 10, 7, 3)
-	assert(t, 11, 8, 3)
-	assert(t, 12, 8, 3)
-	assert(t, 13, 9, 4)
-	assert(t, 15, 10, 4)
-	assert(t, 17, 12, 5)
-	assert(t, 19, 13, 6)
-	assert(t, 21, 14, 6)
-}
-
 func TestQBFT(t *testing.T) {
 	t.Run("happy 0", func(t *testing.T) {
 		testQBFT(t, test{
@@ -191,7 +163,7 @@ func testQBFT(t *testing.T, test test) {
 	var (
 		ctx, cancel = context.WithCancel(context.Background())
 		clock       = new(fakeClock)
-		receives    []chan qbft.Msg[int64, value]
+		receives    = make(map[int64]chan qbft.Msg[int64, value])
 		broadcast   = make(chan qbft.Msg[int64, value])
 		resultChan  = make(chan []qbft.Msg[int64, value], n)
 		errChan     = make(chan error, n)
@@ -218,7 +190,7 @@ func testQBFT(t *testing.T, test test) {
 			if round > 50 {
 				cancel()
 			} else if strings.Contains(rule, "Unjust") {
-				t.Logf("Unjustified PRE-PREPARE: %#v", msg)
+				t.Logf("%s: %#v", rule, msg)
 				cancel()
 			}
 		},
@@ -227,12 +199,13 @@ func testQBFT(t *testing.T, test test) {
 
 	for i := int64(1); i <= n; i++ {
 		receive := make(chan qbft.Msg[int64, value], 1000)
-		receives = append(receives, receive)
+		receives[i] = receive
 		trans := qbft.Transport[int64, value]{
 			Broadcast: func(typ qbft.MsgType, instance int64, source int64, round int64, value value,
 				pr int64, pv value, justify []qbft.Msg[int64, value],
 			) {
 				msg := newMsg(typ, instance, source, round, value, pr, pv, justify)
+				receive <- msg // Always send to self first (no jitter, no drops).
 				bcast(broadcast, msg, test.BCastJitterMS, clock)
 			},
 			SendQCommit: func(_ int64, qCommit []qbft.Msg[int64, value]) {
@@ -275,7 +248,10 @@ func testQBFT(t *testing.T, test test) {
 		select {
 		case msg := <-broadcast:
 			t.Logf("%s %v => %v@%d", clock.NowStr(), msg.Source(), msg.Type(), msg.Round())
-			for _, out := range receives {
+			for target, out := range receives {
+				if target == msg.Source() {
+					continue // Do not broadcast to self, we sent to self already.
+				}
 				if p, ok := test.DropProb[msg.Source()]; ok {
 					if rand.Float64() < p {
 						continue // Drop
@@ -408,4 +384,32 @@ type value int64
 
 func (v value) Equal(v2 value) bool {
 	return int64(v) == int64(v2)
+}
+
+func TestFormulas(t *testing.T) {
+	// assert given N asserts Q and F.
+	assert := func(t *testing.T, n, q, f int) {
+		t.Helper()
+		d := qbft.Definition[any, value]{Nodes: n}
+		require.Equalf(t, q, d.Quorum(), "Quorum given N=%d", n)
+		require.Equalf(t, f, d.Faulty(), "Faulty given N=%d", n)
+	}
+
+	assert(t, 1, 1, 0)
+	assert(t, 2, 2, 0)
+	assert(t, 3, 2, 0)
+	assert(t, 4, 3, 1)
+	assert(t, 5, 4, 1)
+	assert(t, 6, 4, 1)
+	assert(t, 7, 5, 2)
+	assert(t, 8, 6, 2)
+	assert(t, 9, 6, 2)
+	assert(t, 10, 7, 3)
+	assert(t, 11, 8, 3)
+	assert(t, 12, 8, 3)
+	assert(t, 13, 9, 4)
+	assert(t, 15, 10, 4)
+	assert(t, 17, 12, 5)
+	assert(t, 19, 13, 6)
+	assert(t, 21, 14, 6)
 }

@@ -199,22 +199,21 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 
 	// trimBuffer drops all older round's buffered messages.
 	trimBuffer := func() {
-		// TODO(corver): Fix trimming.
-		// var selected []Msg[I, V]
-		// for _, msg := range buffer {
-		//	if msg.Round() >= round-1 {
-		//		selected = append(selected, msg)
-		//	}
-		// }
-		// buffer = selected
-		//
-		// dedup := make(map[dedupKey]bool)
-		// for k := range dedupIn {
-		//	if k.Round >= round {
-		//		dedup[k] = true
-		//	}
-		// }
-		// dedupIn = dedup
+		var selected []Msg[I, V]
+		for _, msg := range buffer {
+			if msg.Round() >= round-1 {
+				selected = append(selected, msg)
+			}
+		}
+		buffer = selected
+
+		dedup := make(map[dedupKey]bool)
+		for k := range dedupIn {
+			if k.Round >= round {
+				dedup[k] = true
+			}
+		}
+		dedupIn = dedup
 	}
 
 	// === Algorithm ===
@@ -243,13 +242,6 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 			// Buffer message
 			if !bufferMsg(msg) {
 				continue
-			}
-
-			// Buffer justifications
-			for _, j := range msg.Justification() {
-				if !bufferMsg(j) {
-					continue
-				}
 			}
 
 			rule, justification := classify(d, instance, round, process, buffer, msg)
@@ -386,15 +378,16 @@ func classify[I any, V Value[V]](d Definition[I, V], instance I, round, process 
 			return uponNothing, nil
 		}
 
+		qrc, ok := getJustifiedQrc(d, buffer, msg.Round())
+		if !ok {
+			panic("bug: unjust Qrc")
+		}
+
 		if !d.IsLeader(instance, msg.Round(), process) {
 			return uponNothing, nil
 		}
 
-		if qrc, ok := getJustifiedQrc(d, buffer, msg.Round()); ok {
-			return uponQuorumRoundChanges, qrc
-		}
-
-		panic("bug: unjust Qrc")
+		return uponQuorumRoundChanges, qrc
 
 	default:
 		panic("bug: invalid type")
@@ -428,23 +421,25 @@ func highestPrepared[I any, V Value[V]](qrc []Msg[I, V]) (int64, V) {
 
 // nextMinRound implements algorithm 3:6 and returns the next minimum round
 // from received round change messages.
-func nextMinRound[I any, V Value[V]](d Definition[I, V], msgs []Msg[I, V], round int64) int64 {
+func nextMinRound[I any, V Value[V]](d Definition[I, V], frc []Msg[I, V], round int64) int64 {
 	// Get all RoundChange messages with round (rj) higher than current round (ri)
-	frc, ok := getFPlus1RoundChanges(d, msgs, round)
-	if !ok {
-		panic("bug: too few round change messages")
+
+	if len(frc) < d.Faulty()+1 {
+		panic("bug: Frc too short")
 	}
 
 	// Get the smallest round in the set.
 	rmin := int64(math.MaxInt64)
 	for _, msg := range frc {
+		if msg.Type() != MsgRoundChange {
+			panic("bug: Frc contain non-round change")
+		} else if msg.Round() <= round {
+			panic("bug: Frc round not in future")
+		}
+
 		if rmin > msg.Round() {
 			rmin = msg.Round()
 		}
-	}
-
-	if rmin <= round {
-		panic("bug: next rmin not after round")
 	}
 
 	return rmin
@@ -457,21 +452,35 @@ func isJustifiedRoundChange[I any, V Value[V]](d Definition[I, V], msg Msg[I, V]
 		panic("bug: not a round change message")
 	}
 
-	if msg.PreparedRound() == 0 && isZeroVal(msg.PreparedValue()) && len(msg.Justification()) == 0 {
-		// No need to justify null prepared round and value.
-		return true
+	// ROUND-CHANGE justification contains quorum PREPARE messages that justifies Pr and Pv.
+	prepares := msg.Justification()
+	pr := msg.PreparedRound()
+	pv := msg.PreparedValue()
+
+	if len(prepares) == 0 {
+		// If no justification, ensure null prepared round and value.
+		return pr == 0 && isZeroVal(pv)
 	}
 
 	// No need to check for all possible combinations, since justified should only contain a one.
 
-	if len(msg.Justification()) < d.Quorum() {
+	if len(prepares) < d.Quorum() {
 		return false
 	}
 
-	pv := msg.PreparedValue()
-	prepares := filterMsgs(msg.Justification(), MsgPrepare, msg.PreparedRound(), &pv, nil, nil)
+	for _, prepare := range prepares {
+		if prepare.Type() != MsgPrepare {
+			return false
+		}
+		if prepare.Round() != pr {
+			return false
+		}
+		if !prepare.Value().Equal(pv) {
+			return false
+		}
+	}
 
-	return len(msg.Justification()) == len(prepares)
+	return true
 }
 
 // isJustifiedPrePrepare returns true if the PRE-PREPARE message is justified.
@@ -497,11 +506,7 @@ func isJustifiedPrePrepare[I any, V Value[V]](d Definition[I, V], instance I, ms
 		return true // New value being proposed
 	}
 
-	if msg.Value().Equal(pv) {
-		return true
-	}
-
-	return false
+	return msg.Value().Equal(pv) // Ensure Pv is being proposed
 }
 
 // containsJustifiedQrc implements algorithm 4:1 and returns true and pv if
@@ -541,14 +546,15 @@ func containsJustifiedQrc[I any, V Value[V]](d Definition[I, V], justification [
 }
 
 // getJustifiedQrc implements algorithm 4:1 and returns a justified quorum ROUND_CHANGEs (Qrc).
-func getJustifiedQrc[I any, V Value[V]](d Definition[I, V], all []Msg[I, V], round int64) ([]Msg[I, V], bool) {
-	if qrc, ok := quorumNullPrepared(d, all, round); ok {
+func getJustifiedQrc[I any, V Value[V]](d Definition[I, V], buffer []Msg[I, V], round int64) ([]Msg[I, V], bool) {
+	if qrc, ok := quorumNullPrepared(d, buffer, round); ok {
 		// Return any quorum null pv ROUND_CHANGE messages as Qrc.
 		return qrc, true
 	}
 
-	rc := filterRoundChange(all, round)
-	for _, prepares := range getPrepareQuorums(d, all) {
+	roundChanges := filterRoundChange(buffer, round)
+
+	for _, prepares := range getPrepareQuorums(d, buffer) {
 		// See if we have quorum ROUND-CHANGE with HIGHEST_PREPARED(qrc) == prepares.Round.
 		var (
 			qrc                []Msg[I, V]
@@ -556,14 +562,14 @@ func getJustifiedQrc[I any, V Value[V]](d Definition[I, V], all []Msg[I, V], rou
 			pr                 = prepares[0].Round()
 			pv                 = prepares[0].Value()
 		)
-		for _, msg := range rc {
-			if msg.PreparedRound() > pr {
+		for _, rc := range roundChanges {
+			if rc.PreparedRound() > pr {
 				continue
 			}
-			if msg.PreparedRound() == pr && msg.PreparedValue().Equal(pv) {
+			if rc.PreparedRound() == pr && rc.PreparedValue().Equal(pv) {
 				hasHighestPrepared = true
 			}
-			qrc = append(qrc, msg)
+			qrc = append(qrc, rc)
 		}
 		if len(qrc) >= d.Quorum() && hasHighestPrepared {
 			return append(qrc, prepares...), true
@@ -576,9 +582,9 @@ func getJustifiedQrc[I any, V Value[V]](d Definition[I, V], all []Msg[I, V], rou
 // getFPlus1RoundChanges returns true and Faulty+1 ROUND-CHANGE messages (Frc) with
 // the rounds higher than the provided round. It returns the highest round
 // per process in order to jump furthest.
-func getFPlus1RoundChanges[I any, V Value[V]](d Definition[I, V], msgs []Msg[I, V], round int64) ([]Msg[I, V], bool) {
+func getFPlus1RoundChanges[I any, V Value[V]](d Definition[I, V], buffer []Msg[I, V], round int64) ([]Msg[I, V], bool) {
 	highestBySource := make(map[int64]Msg[I, V])
-	for _, msg := range msgs {
+	for _, msg := range buffer {
 		if msg.Type() != MsgRoundChange {
 			continue
 		}
@@ -618,9 +624,9 @@ type prepareSet[I any, V Value[V]] struct {
 
 // getPrepareQuorums returns all sets of quorum PREPARE messages
 // with identical rounds and values.
-func getPrepareQuorums[I any, V Value[V]](d Definition[I, V], msgs []Msg[I, V]) [][]Msg[I, V] {
+func getPrepareQuorums[I any, V Value[V]](d Definition[I, V], buffer []Msg[I, V]) [][]Msg[I, V] {
 	var sets []prepareSet[I, V]
-	for _, msg := range msgs {
+	for _, msg := range flatten(buffer) { // Flatten to get PREPARES included as ROUND-CHANGE justifications.
 		if msg.Type() != MsgPrepare {
 			continue
 		}
@@ -745,4 +751,18 @@ func zeroVal[V Value[V]]() V {
 
 func isZeroVal[V Value[V]](v V) bool {
 	return v.Equal(zeroVal[V]())
+}
+
+// flatten returns a new list of messages containing all the buffered messages
+// as well as all their justifications.
+func flatten[I any, V Value[V]](buffer []Msg[I, V]) []Msg[I, V] {
+	var resp []Msg[I, V]
+	for _, msg := range buffer {
+		resp = append(resp, msg)
+		for _, j := range msg.Justification() {
+			resp = append(resp, j)
+		}
+	}
+
+	return resp
 }
