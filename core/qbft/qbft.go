@@ -199,21 +199,22 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 
 	// trimBuffer drops all older round's buffered messages.
 	trimBuffer := func() {
-		var selected []Msg[I, V]
-		for _, msg := range buffer {
-			if msg.Round() >= round {
-				selected = append(selected, msg)
-			}
-		}
-		buffer = selected
-
-		dedup := make(map[dedupKey]bool)
-		for k := range dedupIn {
-			if k.Round >= round {
-				dedup[k] = true
-			}
-		}
-		dedupIn = dedup
+		// TODO(corver): Fix trimming.
+		// var selected []Msg[I, V]
+		// for _, msg := range buffer {
+		//	if msg.Round() >= round-1 {
+		//		selected = append(selected, msg)
+		//	}
+		// }
+		// buffer = selected
+		//
+		// dedup := make(map[dedupKey]bool)
+		// for k := range dedupIn {
+		//	if k.Round >= round {
+		//		dedup[k] = true
+		//	}
+		// }
+		// dedupIn = dedup
 	}
 
 	// === Algorithm ===
@@ -381,6 +382,10 @@ func classify[I any, V Value[V]](d Definition[I, V], instance I, round, process 
 
 		/* else msg.Round == round */
 
+		if qrc := filterRoundChange(buffer, msg.Round()); len(qrc) < d.Quorum() {
+			return uponNothing, nil
+		}
+
 		if !d.IsLeader(instance, msg.Round(), process) {
 			return uponNothing, nil
 		}
@@ -388,6 +393,8 @@ func classify[I any, V Value[V]](d Definition[I, V], instance I, round, process 
 		if qrc, ok := getJustifiedQrc(d, buffer, msg.Round()); ok {
 			return uponQuorumRoundChanges, qrc
 		}
+
+		panic("bug: unjust Qrc")
 
 	default:
 		panic("bug: invalid type")
@@ -550,13 +557,10 @@ func getJustifiedQrc[I any, V Value[V]](d Definition[I, V], all []Msg[I, V], rou
 			pv                 = prepares[0].Value()
 		)
 		for _, msg := range rc {
-			if !msg.PreparedValue().Equal(pv) {
-				continue
-			}
 			if msg.PreparedRound() > pr {
 				continue
 			}
-			if msg.PreparedRound() == pr {
+			if msg.PreparedRound() == pr && msg.PreparedValue().Equal(pv) {
 				hasHighestPrepared = true
 			}
 			qrc = append(qrc, msg)
@@ -649,7 +653,7 @@ func getPrepareQuorums[I any, V Value[V]](d Definition[I, V], msgs []Msg[I, V]) 
 			continue
 		}
 		var quorum []Msg[I, V]
-		for _, msg := range msgs {
+		for _, msg := range set.msgs {
 			quorum = append(quorum, msg)
 		}
 		quorums = append(quorums, quorum)

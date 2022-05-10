@@ -59,34 +59,34 @@ func TestFormulas(t *testing.T) {
 func TestQBFT(t *testing.T) {
 	t.Run("happy 0", func(t *testing.T) {
 		testQBFT(t, test{
-			Instance:   0,
-			StartDelay: nil,
-			Result:     1,
+			Instance:    0,
+			StartDelay:  nil,
+			DecideRound: 1,
 		})
 	})
 
 	t.Run("happy 1", func(t *testing.T) {
 		testQBFT(t, test{
-			Instance:   1,
-			StartDelay: nil,
-			Result:     2,
+			Instance:    1,
+			StartDelay:  nil,
+			DecideRound: 1,
 		})
 	})
 
 	t.Run("leader late exp", func(t *testing.T) {
 		testQBFT(t, test{
-			Instance:   0,
-			StartDelay: map[int64]time.Duration{1: time.Second * 2},
-			Result:     2,
+			Instance:    0,
+			StartDelay:  map[int64]time.Duration{1: time.Second * 2},
+			DecideRound: 2,
 		})
 	})
 
-	t.Run("leader late const", func(t *testing.T) {
+	t.Run("leader down const", func(t *testing.T) {
 		testQBFT(t, test{
 			Instance:    0,
 			StartDelay:  map[int64]time.Duration{1: time.Second * 2},
 			ConstPeriod: true,
-			Result:      2,
+			DecideRound: 2,
 		})
 	})
 
@@ -97,7 +97,7 @@ func TestQBFT(t *testing.T) {
 				1: time.Second * 5,
 				2: time.Second * 10,
 			},
-			Result: 3,
+			DecideRound: 4,
 		})
 	})
 
@@ -108,8 +108,8 @@ func TestQBFT(t *testing.T) {
 				1: time.Second * 5,
 				2: time.Second * 10,
 			},
-			ConstPeriod:  true,
-			ResultRandom: true,
+			ConstPeriod: true,
+			RandomRound: true,
 		})
 	})
 
@@ -122,7 +122,7 @@ func TestQBFT(t *testing.T) {
 				2: time.Second * 2,
 				3: time.Second * 3,
 			},
-			ResultRandom: true, // Takes 1 or 2 rounds.
+			RandomRound: true, // Takes 1 or 2 rounds.
 		})
 	})
 
@@ -135,8 +135,8 @@ func TestQBFT(t *testing.T) {
 				2: time.Second * 2,
 				3: time.Second * 3,
 			},
-			ConstPeriod:  true,
-			ResultRandom: true, // Takes 1 or 2 rounds.
+			ConstPeriod: true,
+			RandomRound: true, // Takes 1 or 2 rounds.
 		})
 	})
 
@@ -144,7 +144,7 @@ func TestQBFT(t *testing.T) {
 		testQBFT(t, test{
 			Instance:      3,
 			BCastJitterMS: 500,
-			ResultRandom:  true,
+			RandomRound:   true,
 		})
 	})
 
@@ -153,7 +153,21 @@ func TestQBFT(t *testing.T) {
 			Instance:      3,
 			BCastJitterMS: 200, // 0.2-0.4s network delay * 3msgs/round == 0.6-1.2s delay per 1s round.
 			ConstPeriod:   true,
-			ResultRandom:  true,
+			RandomRound:   true,
+		})
+	})
+
+	t.Run("drop 10% const", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance: 1,
+			DropProb: map[int64]float64{
+				0: 0.1,
+				1: 0.1,
+				2: 0.1,
+				3: 0.1,
+			},
+			ConstPeriod: true,
+			RandomRound: true,
 		})
 	})
 }
@@ -162,9 +176,10 @@ type test struct {
 	Instance      int64                   // Consensus instance, only affects leader election.
 	ConstPeriod   bool                    // ConstPeriod results in 1s round timeout, otherwise exponential (1s,2s,4s...)
 	StartDelay    map[int64]time.Duration // Delays start of certain processes
+	DropProb      map[int64]float64       // DropProb [0..1] probability of dropped messages per processes
 	BCastJitterMS int                     // Add random delays to broadcast of messages.
-	Result        int                     // Deterministic consensus result
-	ResultRandom  bool                    // Non-deterministic consensus result
+	DecideRound   int                     // Deterministic consensus at specific round
+	RandomRound   bool                    // Non-deterministic consensus at random round.
 }
 
 func testQBFT(t *testing.T, test test) {
@@ -177,7 +192,7 @@ func testQBFT(t *testing.T, test test) {
 		clock       = new(fakeClock)
 		receives    []chan qbft.Msg[int64, value]
 		broadcast   = make(chan qbft.Msg[int64, value])
-		resultChan  = make(chan value, n)
+		resultChan  = make(chan []qbft.Msg[int64, value], n)
 		errChan     = make(chan error, n)
 	)
 	defer cancel()
@@ -195,7 +210,7 @@ func testQBFT(t *testing.T, test test) {
 			return clock.NewTimer(d)
 		},
 		Decide: func(instance int64, value value, qcommit []qbft.Msg[int64, value]) {
-			resultChan <- value
+			resultChan <- qcommit
 		},
 		LogUponRule: func(instance int64, process, round int64, msg qbft.Msg[int64, value], rule string) {
 			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
@@ -217,7 +232,7 @@ func testQBFT(t *testing.T, test test) {
 				pr int64, pv value, justify []qbft.Msg[int64, value],
 			) {
 				msg := newMsg(typ, instance, source, round, value, pr, pv, justify)
-				bcastJitter(broadcast, msg, test.BCastJitterMS, clock)
+				bcast(broadcast, msg, test.BCastJitterMS, clock)
 			},
 			SendQCommit: func(_ int64, qCommit []qbft.Msg[int64, value]) {
 				for _, msg := range qCommit {
@@ -252,31 +267,40 @@ func testQBFT(t *testing.T, test test) {
 		}(i)
 	}
 
-	var results []value
+	results := make(map[int64]qbft.Msg[int64, value])
+	var count int
 
 	for {
 		select {
 		case msg := <-broadcast:
 			t.Logf("%s %v => %v@%d", clock.NowStr(), msg.Source(), msg.Type(), msg.Round())
 			for _, out := range receives {
+				if p, ok := test.DropProb[msg.Source()]; ok {
+					if rand.Float64() < p {
+						continue // Drop
+					}
+				}
 				out <- msg
 				if rand.Float64() < 0.1 { // Send 10% messages twice
 					out <- msg
 				}
 			}
-		case result := <-resultChan:
-			if test.ResultRandom {
-				// Ensure that all results are the same at least
+		case qCommit := <-resultChan:
+			for _, commit := range qCommit {
+				// Ensure that all results are the same
 				for _, previous := range results {
-					require.EqualValues(t, previous, result)
+					require.EqualValues(t, previous.Value(), commit.Value())
 				}
-			} else {
-				require.EqualValues(t, test.Result, result)
+				if !test.RandomRound {
+					require.EqualValues(t, test.DecideRound, commit.Round())
+				}
+				results[commit.Source()] = commit
 			}
 
-			results = append(results, result)
-			if len(results) == n {
-				t.Logf("Got all results after %v: %v", clock.SinceT0(), results)
+			count++
+			if count == n {
+				round := qCommit[0].Round()
+				t.Logf("Got all results in round %d after %s: %#v", round, clock.SinceT0(), results)
 				return
 			}
 		case err := <-errChan:
@@ -288,8 +312,8 @@ func testQBFT(t *testing.T, test test) {
 	}
 }
 
-// bcastJitter delays the message broadcast by between 1x and 2x jitterMS.
-func bcastJitter[I any, V qbft.Value[V]](broadcast chan qbft.Msg[I, V], msg qbft.Msg[I, V], jitterMS int, clock *fakeClock) {
+// bcast delays the message broadcast by between 1x and 2x jitterMS and drops messages.
+func bcast[I any, V qbft.Value[V]](broadcast chan qbft.Msg[I, V], msg qbft.Msg[I, V], jitterMS int, clock *fakeClock) {
 	if jitterMS == 0 {
 		broadcast <- msg
 		return
