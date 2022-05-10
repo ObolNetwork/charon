@@ -139,6 +139,7 @@ type test struct {
 	ResultRandom  bool                    // Non-deterministic consensus result
 }
 
+//nolint:gocognit
 func testQBFT(t *testing.T, test test) {
 	t.Helper()
 
