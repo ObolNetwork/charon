@@ -25,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
@@ -218,17 +219,18 @@ func testQBFT(t *testing.T, test test) {
 		receive := make(chan qbft.Msg[int64, int64], 1000)
 		receives[i] = receive
 		trans := qbft.Transport[int64, int64]{
-			Broadcast: func(typ qbft.MsgType, instance int64, source int64, round int64, value int64,
+			Broadcast: func(ctx context.Context, typ qbft.MsgType, instance int64, source int64, round int64, value int64,
 				pr int64, pv int64, justify []qbft.Msg[int64, int64],
-			) {
+			) error {
 				if round > maxRound {
-					cancel()
-					return
+					return errors.New("max round reach")
 				}
 				t.Logf("%s %v => %v@%d", clock.NowStr(), source, typ, round)
 				msg := newMsg(typ, instance, source, round, value, pr, pv, justify)
 				receive <- msg // Always send to self first (no jitter, no drops).
 				bcast(t, broadcast, msg, test.BCastJitterMS, clock)
+
+				return nil
 			},
 			Receive: receive,
 		}
