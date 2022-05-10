@@ -28,6 +28,9 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
+// Suggest running tests continuously until cancelled with Ctrl-C.
+//go:generate while go test . -count=1 -timeout=5s; do; done
+
 func TestQBFT(t *testing.T) {
 	t.Run("happy 0", func(t *testing.T) {
 		testQBFT(t, test{
