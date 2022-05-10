@@ -13,5 +13,5 @@ as referenced by the [QBFT spec](https://github.com/ConsenSys/qbft-formal-spec-a
 - Explicit justifications.
 
 ## TODO
- - Add dropped messages tests.
- - Add Byzantium tests.
+ - Add specific Byzantium tests.
+ - Add long-running tests. Workaround for now: while go test . -count=10 -timeout=5s; do; done
