@@ -189,7 +189,7 @@ func testQBFT(t *testing.T, test test) {
 			if round > 50 {
 				cancel()
 			} else if strings.Contains(rule, "Unjust") {
-				t.Logf("Unjustified PRE-PREPARE: %#v", msg)
+				t.Logf("%s: %#v", rule, msg)
 				cancel()
 			}
 		},

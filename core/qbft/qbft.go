@@ -244,13 +244,6 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 				continue
 			}
 
-			// Buffer justifications
-			for _, j := range msg.Justification() {
-				if !bufferMsg(j) {
-					continue
-				}
-			}
-
 			rule, justification := classify(d, instance, round, process, buffer, msg)
 			if rule == uponNothing {
 				continue
@@ -361,7 +354,7 @@ func classify[I any, V Value[V]](d Definition[I, V], instance I, round, process 
 		}
 
 	case MsgRoundChange:
-		if !isJustifiedRoundChange(d, msg) {
+		if !IsJustifiedRoundChange(d, msg) {
 			return uponUnjustRoundChange, nil
 		}
 
@@ -452,28 +445,42 @@ func nextMinRound[I any, V Value[V]](d Definition[I, V], frc []Msg[I, V], round 
 	return rmin
 }
 
-// isJustifiedRoundChange returns true if the ROUND_CHANGE message's
+// IsJustifiedRoundChange returns true if the ROUND_CHANGE message's
 // prepared round and value is justified.
-func isJustifiedRoundChange[I any, V Value[V]](d Definition[I, V], msg Msg[I, V]) bool {
+func IsJustifiedRoundChange[I any, V Value[V]](d Definition[I, V], msg Msg[I, V]) bool {
 	if msg.Type() != MsgRoundChange {
 		panic("bug: not a round change message")
 	}
 
-	if msg.PreparedRound() == 0 && isZeroVal(msg.PreparedValue()) && len(msg.Justification()) == 0 {
-		// No need to justify null prepared round and value.
-		return true
+	// ROUND-CHANGE justification contains PREPARE messages that justifies Pr and Pv.
+	prepares := msg.Justification()
+	pr := msg.PreparedRound()
+	pv := msg.PreparedValue()
+
+	if len(prepares) == 0 {
+		// If no justification, ensure null prepared round and value.
+		return pr == 0 && isZeroVal(pv)
 	}
 
 	// No need to check for all possible combinations, since justified should only contain a one.
 
-	if len(msg.Justification()) < d.Quorum() {
+	if len(prepares) < d.Quorum() {
 		return false
 	}
 
-	pv := msg.PreparedValue()
-	prepares := filterMsgs(msg.Justification(), MsgPrepare, msg.PreparedRound(), &pv, nil, nil)
+	for _, prepare := range prepares {
+		if prepare.Type() != MsgPrepare {
+			return false
+		}
+		if prepare.Round() != pr {
+			return false
+		}
+		if !prepare.Value().Equal(pv) {
+			return false
+		}
+	}
 
-	return len(msg.Justification()) == len(prepares)
+	return true
 }
 
 // isJustifiedPrePrepare returns true if the PRE-PREPARE message is justified.
@@ -499,11 +506,7 @@ func isJustifiedPrePrepare[I any, V Value[V]](d Definition[I, V], instance I, ms
 		return true // New value being proposed
 	}
 
-	if msg.Value().Equal(pv) {
-		return true
-	}
-
-	return false
+	return msg.Value().Equal(pv) // Ensure Pv is being proposed
 }
 
 // containsJustifiedQrc implements algorithm 4:1 and returns true and pv if
@@ -750,11 +753,11 @@ func isZeroVal[V Value[V]](v V) bool {
 	return v.Equal(zeroVal[V]())
 }
 
-// flatten returns a new list of messages containing all the input messages
+// flatten returns a new list of messages containing all the buffered messages
 // as well as all their justifications.
-func flatten[I any, V Value[V]](msgs []Msg[I, V]) []Msg[I, V] {
+func flatten[I any, V Value[V]](buffer []Msg[I, V]) []Msg[I, V] {
 	var resp []Msg[I, V]
-	for _, msg := range msgs {
+	for _, msg := range buffer {
 		resp = append(resp, msg)
 		for _, j := range msg.Justification() {
 			resp = append(resp, j)
