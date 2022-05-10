@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/obolnetwork/charon/app/featureset"
 )
 
 func TestTitle(t *testing.T) {
@@ -92,6 +94,9 @@ func TestTitle(t *testing.T) {
 }
 
 func TestBody(t *testing.T) {
+	featureset.EnableForT(t, "foo")
+	featureset.EnableForT(t, "bar")
+
 	tests := []struct {
 		Body  string
 		Error string
@@ -141,20 +146,28 @@ func TestBody(t *testing.T) {
 			Error: "instructions not deleted (markdown comments present)",
 		},
 		{
-			Body:  "Foo\n\ncategory: bug\nticket: none\nfeature_set: alpha",
+			Body:  "Foo\n\ncategory: bug\nticket: #000",
+			Error: "invalid #000 ticket",
+		},
+		{
+			Body:  "Foo\n\ncategory: bug\nticket: none\nfeature_flag: foo",
 			Error: "",
 		},
 		{
-			Body:  "Foo\n\ncategory: bug\nticket: none\nfeature_set: beta",
+			Body:  "Foo\n\ncategory: bug\nticket: none\nfeature_flag: bar",
 			Error: "",
 		},
 		{
-			Body:  "Foo\n\ncategory: bug\nticket: none\nfeature_set: stable",
-			Error: "",
+			Body:  "Foo\n\ncategory: bug\nticket: none\nfeature_flag: ?",
+			Error: "invalid ? feature_flag",
 		},
 		{
-			Body:  "Foo\n\ncategory: bug\nticket: none\nfeature_set: bad set",
-			Error: "invalid feature_set tag not one of",
+			Body:  "Foo\n\ncategory: bug\nticket: none\nfeature_flag: CAPS",
+			Error: "feature flags are snake case",
+		},
+		{
+			Body:  "Foo\n\ncategory: bug\nticket: none\nfeature_flag: unknown",
+			Error: "unknown feature flag",
 		},
 	}
 	for i, test := range tests {
