@@ -200,7 +200,7 @@ func testQBFT(t *testing.T, test test) {
 
 			return clock.NewTimer(d)
 		},
-		Decide: func(instance int64, value int64, qcommit []qbft.Msg[int64, int64]) {
+		Decide: func(_ context.Context, instance int64, value int64, qcommit []qbft.Msg[int64, int64]) {
 			resultChan <- qcommit
 		},
 		LogUponRule: func(_ context.Context, instance int64, process, round int64, msg qbft.Msg[int64, int64], rule string) {

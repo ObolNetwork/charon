@@ -47,7 +47,7 @@ type Definition[I any, V comparable] struct {
 	// NewTimer returns a new timer channel and stop function for the round.
 	NewTimer func(round int64) (<-chan time.Time, func())
 	// Decide is called when consensus has been reached on a value.
-	Decide func(instance I, value V, qcommit []Msg[I, V])
+	Decide func(ctx context.Context, instance I, value V, qcommit []Msg[I, V])
 	// LogUponRule allows debug logging of triggered upon rules on message receipt.
 	LogUponRule func(ctx context.Context, instance I, process, round int64, msg Msg[I, V], uponRule string)
 	// Nodes is the total number of nodes/processes participating in consensus.
@@ -265,7 +265,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 				stopTimer()
 				qCommit = justification
 
-				d.Decide(instance, msg.Value(), justification)
+				d.Decide(ctx, instance, msg.Value(), justification)
 
 			case uponFPlus1RoundChanges: // Algorithm 3:5
 				// Only applicable to future rounds
