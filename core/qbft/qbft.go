@@ -262,9 +262,10 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			case uponQuorumCommits, uponJustifiedDecided: // Algorithm 2:8
 				// Applicable to any round (since can be justified)
 				round = msg.Round()
+				qCommit = justification
 
 				stopTimer()
-				qCommit = justification
+				timerChan = nil
 
 				d.Decide(ctx, instance, msg.Value(), justification)
 
