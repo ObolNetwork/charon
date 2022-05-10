@@ -128,6 +128,7 @@ func verifyTitle(title string) error {
 	return nil
 }
 
+//nolint:gocyclo
 func verifyBody(body string) error {
 	if strings.TrimSpace(body) == "" {
 		return errors.New("body empty")
