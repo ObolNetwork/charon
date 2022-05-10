@@ -39,7 +39,7 @@ type Value[V any] interface {
 type Transport[I any, V Value[V]] struct {
 	// Broadcast sends a message with the provided fields to all other
 	// processes in the system (including this process).
-	Broadcast func(typ MsgType, instance I, source int64, round int64, value V, pr int64, pv V, justify []Msg[I, V])
+	Broadcast func(typ MsgType, instance I, source int64, round int64, value V, pr int64, pv V, justification []Msg[I, V])
 
 	// SendQCommit sends the commit messages to a specific process.
 	SendQCommit func(target int64, qCommit []Msg[I, V])
@@ -60,10 +60,20 @@ type Definition[I any, V Value[V]] struct {
 	Decide func(instance I, value V, qcommit []Msg[I, V])
 	// LogUponRule allows debug logging of triggered upon rules on message receipt.
 	LogUponRule func(instance I, process, round int64, msg Msg[I, V], uponRule string)
-	// Quorum is the quorum count for the system.
-	Quorum int
-	// Faulty is the maximum faulty process count for the system.
-	Faulty int
+	// Nodes is the total number of nodes/processes participating in consensus.
+	Nodes int
+}
+
+// Quorum returns the quorum count for the system.
+// See IBFT 2.0 paper for correct formula: https://arxiv.org/pdf/1909.10194.pdf
+func (d Definition[I, V]) Quorum() int {
+	return int(math.Ceil(float64(d.Nodes*2) / 3))
+}
+
+// Faulty returns the maximum number of faulty/byzantium nodes supported in the system.
+// See IBFT 2.0 paper for correct formula: https://arxiv.org/pdf/1909.10194.pdf
+func (d Definition[I, V]) Faulty() int {
+	return int(math.Floor(float64(d.Nodes-1) / 3))
 }
 
 //go:generate stringer -type=MsgType
@@ -101,8 +111,8 @@ type Msg[I any, V Value[V]] interface {
 	PreparedRound() int64
 	// PreparedValue is the justified prepared value.
 	PreparedValue() V
-	// Justify is the set of messages that explicitly justifies this message.
-	Justify() []Msg[I, V]
+	// Justification is the set of messages that explicitly justifies this message.
+	Justification() []Msg[I, V]
 }
 
 //go:generate stringer -type=uponRule -trimprefix=upon
@@ -142,29 +152,29 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 	// === State ===
 
 	var (
-		round           int64 = 1
-		preparedRound   int64
-		preparedValue   V
-		preparedJustify []Msg[I, V]
-		qCommit         []Msg[I, V]
-		buffer          []Msg[I, V]
-		dedupIn         = make(map[dedupKey]bool)
-		timerChan       <-chan time.Time
-		stopTimer       func()
+		round                 int64 = 1
+		preparedRound         int64
+		preparedValue         V
+		preparedJustification []Msg[I, V]
+		qCommit               []Msg[I, V]
+		buffer                []Msg[I, V]
+		dedupIn               = make(map[dedupKey]bool)
+		timerChan             <-chan time.Time
+		stopTimer             func()
 	)
 
 	// === Helpers ==
 
 	// broadcastMsg broadcasts a non-ROUND-CHANGE message for current round.
-	broadcastMsg := func(typ MsgType, value V, justify []Msg[I, V]) {
+	broadcastMsg := func(typ MsgType, value V, justification []Msg[I, V]) {
 		t.Broadcast(typ, instance, process, round,
-			value, 0, zeroVal[V](), justify)
+			value, 0, zeroVal[V](), justification)
 	}
 
 	// broadcastRoundChange broadcasts a ROUND-CHANGE message with current state.
 	broadcastRoundChange := func() {
 		t.Broadcast(MsgRoundChange, instance, process, round,
-			zeroVal[V](), preparedRound, preparedValue, preparedJustify)
+			zeroVal[V](), preparedRound, preparedValue, preparedJustification)
 	}
 
 	// sendQCommit sends qCommit to the target process.
@@ -235,13 +245,13 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 			}
 
 			// Buffer justifications
-			for _, j := range msg.Justify() {
+			for _, j := range msg.Justification() {
 				if !bufferMsg(j) {
 					continue
 				}
 			}
 
-			rule, justify := classify(d, instance, round, process, buffer, msg)
+			rule, justification := classify(d, instance, round, process, buffer, msg)
 			if rule == uponNothing {
 				continue
 			}
@@ -263,20 +273,20 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 				// Only applicable to current round
 				preparedRound = round /* == msg.Round*/
 				preparedValue = msg.Value()
-				preparedJustify = justify
+				preparedJustification = justification
 
 				broadcastMsg(MsgCommit, preparedValue, nil)
 
 			case uponQuorumCommits: // Algorithm 2:8
 				// Applicable to any round (since can be justified)
 				stopTimer()
-				qCommit = justify
+				qCommit = justification
 
-				d.Decide(instance, msg.Value(), justify)
+				d.Decide(instance, msg.Value(), justification)
 
 			case uponFPlus1RoundChanges: // Algorithm 3:5
 				// Only applicable to future rounds
-				round = nextMinRound(d, justify, round /* < msg.Round */)
+				round = nextMinRound(d, justification, round /* < msg.Round */)
 				trimBuffer()
 
 				stopTimer()
@@ -286,7 +296,7 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 
 			case uponQuorumRoundChanges: // Algorithm 3:11
 				// Only applicable to current round
-				qrc := filterRoundChange(justify, round /* == msg.Round */)
+				qrc := filterRoundChange(justification, round /* == msg.Round */)
 				_, pv := highestPrepared(qrc)
 
 				value := pv
@@ -294,7 +304,7 @@ func Run[I any, V Value[V]](ctx context.Context, d Definition[I, V], t Transport
 					value = inputValue
 				}
 
-				broadcastMsg(MsgPrePrepare, value, justify)
+				broadcastMsg(MsgPrePrepare, value, justification)
 
 			case uponUnjustPrePrepare, uponUnjustRoundChange:
 				// Ignore bug or byzantium.
@@ -339,14 +349,14 @@ func classify[I any, V Value[V]](d Definition[I, V], instance I, round, process 
 			return uponNothing, nil
 		}
 		prepares := filterByRoundAndValue(buffer, MsgPrepare, msg.Round(), msg.Value())
-		if len(prepares) >= d.Quorum {
+		if len(prepares) >= d.Quorum() {
 			return uponQuorumPrepares, prepares
 		}
 
 	case MsgCommit:
 		// Don't ignore any rounds, since COMMIT may be justified with Qcommit.
 		commits := filterByRoundAndValue(buffer, MsgCommit, msg.Round(), msg.Value())
-		if len(commits) >= d.Quorum {
+		if len(commits) >= d.Quorum() {
 			return uponQuorumCommits, commits
 		}
 
@@ -440,21 +450,21 @@ func isJustifiedRoundChange[I any, V Value[V]](d Definition[I, V], msg Msg[I, V]
 		panic("bug: not a round change message")
 	}
 
-	if msg.PreparedRound() == 0 && isZeroVal(msg.PreparedValue()) && len(msg.Justify()) == 0 {
+	if msg.PreparedRound() == 0 && isZeroVal(msg.PreparedValue()) && len(msg.Justification()) == 0 {
 		// No need to justify null prepared round and value.
 		return true
 	}
 
 	// No need to check for all possible combinations, since justified should only contain a one.
 
-	if len(msg.Justify()) < d.Quorum {
+	if len(msg.Justification()) < d.Quorum() {
 		return false
 	}
 
 	pv := msg.PreparedValue()
-	prepares := filterMsgs(msg.Justify(), MsgPrepare, msg.PreparedRound(), &pv, nil, nil)
+	prepares := filterMsgs(msg.Justification(), MsgPrepare, msg.PreparedRound(), &pv, nil, nil)
 
-	return len(msg.Justify()) == len(prepares)
+	return len(msg.Justification()) == len(prepares)
 }
 
 // isJustifiedPrePrepare returns true if the PRE-PREPARE message is justified.
@@ -471,7 +481,7 @@ func isJustifiedPrePrepare[I any, V Value[V]](d Definition[I, V], instance I, ms
 		return true
 	}
 
-	pv, ok := containsJustifiedQrc(d, msg.Justify(), msg.Round())
+	pv, ok := containsJustifiedQrc(d, msg.Justification(), msg.Round())
 	if !ok {
 		return false
 	}
@@ -489,9 +499,9 @@ func isJustifiedPrePrepare[I any, V Value[V]](d Definition[I, V], instance I, ms
 
 // containsJustifiedQrc implements algorithm 4:1 and returns true and pv if
 // the messages contains a justified quorum ROUND_CHANGEs (Qrc).
-func containsJustifiedQrc[I any, V Value[V]](d Definition[I, V], justify []Msg[I, V], round int64) (V, bool) {
-	qrc := filterRoundChange(justify, round)
-	if len(qrc) < d.Quorum {
+func containsJustifiedQrc[I any, V Value[V]](d Definition[I, V], justification []Msg[I, V], round int64) (V, bool) {
+	qrc := filterRoundChange(justification, round)
+	if len(qrc) < d.Quorum() {
 		return zeroVal[V](), false
 	}
 
@@ -518,9 +528,9 @@ func containsJustifiedQrc[I any, V Value[V]](d Definition[I, V], justify []Msg[I
 		panic("bug: highest pr=0, but all not null")
 	}
 
-	prepares := filterMsgs(justify, MsgPrepare, pr, &pv, nil, nil)
+	prepares := filterMsgs(justification, MsgPrepare, pr, &pv, nil, nil)
 
-	return pv, len(prepares) >= d.Quorum
+	return pv, len(prepares) >= d.Quorum()
 }
 
 // getJustifiedQrc implements algorithm 4:1 and returns a justified quorum ROUND_CHANGEs (Qrc).
@@ -551,7 +561,7 @@ func getJustifiedQrc[I any, V Value[V]](d Definition[I, V], all []Msg[I, V], rou
 			}
 			qrc = append(qrc, msg)
 		}
-		if len(qrc) >= d.Quorum && hasHighestPrepared {
+		if len(qrc) >= d.Quorum() && hasHighestPrepared {
 			return append(qrc, prepares...), true
 		}
 	}
@@ -577,12 +587,12 @@ func getFPlus1RoundChanges[I any, V Value[V]](d Definition[I, V], msgs []Msg[I, 
 
 		highestBySource[msg.Source()] = msg
 
-		if len(highestBySource) == d.Faulty+1 {
+		if len(highestBySource) == d.Faulty()+1 {
 			break
 		}
 	}
 
-	if len(highestBySource) < d.Faulty+1 {
+	if len(highestBySource) < d.Faulty()+1 {
 		return nil, false
 	}
 
@@ -635,7 +645,7 @@ func getPrepareQuorums[I any, V Value[V]](d Definition[I, V], msgs []Msg[I, V]) 
 	// Return all quorums
 	var quorums [][]Msg[I, V]
 	for _, set := range sets {
-		if len(set.msgs) < d.Quorum {
+		if len(set.msgs) < d.Quorum() {
 			continue
 		}
 		var quorum []Msg[I, V]
@@ -655,9 +665,9 @@ func quorumNullPrepared[I any, V Value[V]](d Definition[I, V], all []Msg[I, V], 
 		nullPr int64
 		nullPv V
 	)
-	justify := filterMsgs(all, MsgRoundChange, round, nil, &nullPr, &nullPv)
+	justification := filterMsgs(all, MsgRoundChange, round, nil, &nullPr, &nullPv)
 
-	return justify, len(justify) >= d.Quorum
+	return justification, len(justification) >= d.Quorum()
 }
 
 // filterByRoundAndValue returns the messages matching the type and value.
