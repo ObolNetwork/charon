@@ -118,6 +118,7 @@ const (
 	uponQuorumPrepares
 	uponQuorumCommits
 	uponUnjustRoundChange
+	uponUnjustQuorumRoundChanges
 	uponFPlus1RoundChanges
 	uponQuorumRoundChanges
 	uponJustifiedDecided
@@ -289,7 +290,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 				err = broadcastMsg(MsgPrePrepare, value, justification)
 
-			case uponUnjustPrePrepare, uponUnjustRoundChange, uponUnjustDecided:
+			case uponUnjustPrePrepare, uponUnjustRoundChange, uponUnjustDecided, uponUnjustQuorumRoundChanges:
 				// Ignore bug or byzantium.
 
 			default:
@@ -381,7 +382,7 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 
 		qrc, ok := getJustifiedQrc(d, buffer, msg.Round())
 		if !ok {
-			panic("bug: unjust Qrc")
+			return uponUnjustQuorumRoundChanges, nil
 		}
 
 		if !d.IsLeader(instance, msg.Round(), process) {

@@ -90,10 +90,10 @@ func TestQBFT(t *testing.T) {
 		testQBFT(t, test{
 			Instance: 0,
 			StartDelay: map[int64]time.Duration{
-				0: time.Second * 0,
-				1: time.Second * 1,
-				2: time.Second * 2,
-				3: time.Second * 3,
+				1: time.Second * 0,
+				2: time.Second * 1,
+				3: time.Second * 2,
+				4: time.Second * 3,
 			},
 			RandomRound: true, // Takes 1 or 2 rounds.
 		})
@@ -103,10 +103,10 @@ func TestQBFT(t *testing.T) {
 		testQBFT(t, test{
 			Instance: 0,
 			StartDelay: map[int64]time.Duration{
-				0: time.Second * 0,
-				1: time.Second * 1,
-				2: time.Second * 2,
-				3: time.Second * 3,
+				1: time.Second * 0,
+				2: time.Second * 1,
+				3: time.Second * 2,
+				4: time.Second * 3,
 			},
 			ConstPeriod: true,
 			RandomRound: true, // Takes 1 or 2 rounds.
@@ -134,10 +134,10 @@ func TestQBFT(t *testing.T) {
 		testQBFT(t, test{
 			Instance: 1,
 			DropProb: map[int64]float64{
-				0: 0.1,
 				1: 0.1,
 				2: 0.1,
 				3: 0.1,
+				4: 0.1,
 			},
 			ConstPeriod: true,
 			RandomRound: true,
@@ -148,10 +148,45 @@ func TestQBFT(t *testing.T) {
 		testQBFT(t, test{
 			Instance: 1,
 			DropProb: map[int64]float64{
-				0: 0.3,
 				1: 0.3,
 				2: 0.3,
 				3: 0.3,
+				4: 0.3,
+			},
+			ConstPeriod: true,
+			RandomRound: true,
+		})
+	})
+
+	t.Run("fuzz", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance:    1,
+			Fuzz:        true,
+			ConstPeriod: true,
+			DecideRound: 1,
+		})
+	})
+
+	t.Run("fuzz with late leader", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance: 1,
+			Fuzz:     true,
+			StartDelay: map[int64]time.Duration{
+				1: time.Second * 2,
+				2: time.Second * 2,
+			},
+			ConstPeriod: true,
+			RandomRound: true,
+		})
+	})
+
+	t.Run("fuzz with very late leader", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance: 1,
+			Fuzz:     true,
+			StartDelay: map[int64]time.Duration{
+				1: time.Second * 10,
+				2: time.Second * 10,
 			},
 			ConstPeriod: true,
 			RandomRound: true,
@@ -167,6 +202,7 @@ type test struct {
 	BCastJitterMS int                     // Add random delays to broadcast of messages.
 	DecideRound   int                     // Deterministic consensus at specific round
 	RandomRound   bool                    // Non-deterministic consensus at random round.
+	Fuzz          bool                    // Enables fuzzing by Node 1.
 }
 
 //nolint:gocognit
@@ -207,7 +243,7 @@ func testQBFT(t *testing.T, test test) {
 			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
 			if round > maxRound {
 				cancel()
-			} else if strings.Contains(rule, "Unjust") {
+			} else if !test.Fuzz && strings.Contains(rule, "Unjust") {
 				t.Logf("%s: %#v", rule, msg)
 				cancel()
 			}
@@ -262,6 +298,10 @@ func testQBFT(t *testing.T, test test) {
 		}(i)
 	}
 
+	if test.Fuzz {
+		go fuzz(ctx, clock, broadcast, test.Instance, 1)
+	}
+
 	results := make(map[int64]qbft.Msg[int64, int64])
 	var count int
 
@@ -308,6 +348,33 @@ func testQBFT(t *testing.T, test test) {
 			time.Sleep(time.Microsecond)
 			clock.Advance(time.Millisecond * 1)
 		}
+	}
+}
+
+// fuzz broadcasts random messages from the peer every 100ms (10/round).
+func fuzz(ctx context.Context, clock *fakeClock, broadcast chan qbft.Msg[int64, int64], instance, peerIdx int64) {
+	for {
+		timer, stop := clock.NewTimer(time.Millisecond * 100)
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer:
+			broadcast <- randomMsg(instance, peerIdx)
+		}
+		stop()
+	}
+}
+
+func randomMsg(instance, peerIdx int64) msg {
+	return msg{
+		msgType:  1 + qbft.MsgType(rand.Intn(int(qbft.MsgDecided))),
+		instance: instance,
+		peerIdx:  peerIdx,
+		round:    int64(rand.Intn(10)),
+		value:    int64(rand.Intn(10)),
+		pr:       int64(rand.Intn(10)),
+		pv:       int64(rand.Intn(10)),
+		justify:  nil,
 	}
 }
 

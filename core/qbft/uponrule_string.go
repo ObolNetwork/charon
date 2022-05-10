@@ -29,15 +29,16 @@ func _() {
 	_ = x[uponQuorumPrepares-3]
 	_ = x[uponQuorumCommits-4]
 	_ = x[uponUnjustRoundChange-5]
-	_ = x[uponFPlus1RoundChanges-6]
-	_ = x[uponQuorumRoundChanges-7]
-	_ = x[uponJustifiedDecided-8]
-	_ = x[uponUnjustDecided-9]
+	_ = x[uponUnjustQuorumRoundChanges-6]
+	_ = x[uponFPlus1RoundChanges-7]
+	_ = x[uponQuorumRoundChanges-8]
+	_ = x[uponJustifiedDecided-9]
+	_ = x[uponUnjustDecided-10]
 }
 
-const _uponRule_name = "NothingJustifiedPrePrepareUnjustPrePrepareQuorumPreparesQuorumCommitsUnjustRoundChangeFPlus1RoundChangesQuorumRoundChangesJustifiedDecidedUnjustDecided"
+const _uponRule_name = "NothingJustifiedPrePrepareUnjustPrePrepareQuorumPreparesQuorumCommitsUnjustRoundChangeUnjustQuorumRoundChangesFPlus1RoundChangesQuorumRoundChangesJustifiedDecidedUnjustDecided"
 
-var _uponRule_index = [...]uint8{0, 7, 26, 42, 56, 69, 86, 104, 122, 138, 151}
+var _uponRule_index = [...]uint8{0, 7, 26, 42, 56, 69, 86, 110, 128, 146, 162, 175}
 
 func (i uponRule) String() string {
 	if i < 0 || i >= uponRule(len(_uponRule_index)-1) {
