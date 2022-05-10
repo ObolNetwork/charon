@@ -354,7 +354,7 @@ func classify[I any, V Value[V]](d Definition[I, V], instance I, round, process 
 		}
 
 	case MsgRoundChange:
-		if !IsJustifiedRoundChange(d, msg) {
+		if !isJustifiedRoundChange(d, msg) {
 			return uponUnjustRoundChange, nil
 		}
 
@@ -445,14 +445,14 @@ func nextMinRound[I any, V Value[V]](d Definition[I, V], frc []Msg[I, V], round 
 	return rmin
 }
 
-// IsJustifiedRoundChange returns true if the ROUND_CHANGE message's
+// isJustifiedRoundChange returns true if the ROUND_CHANGE message's
 // prepared round and value is justified.
-func IsJustifiedRoundChange[I any, V Value[V]](d Definition[I, V], msg Msg[I, V]) bool {
+func isJustifiedRoundChange[I any, V Value[V]](d Definition[I, V], msg Msg[I, V]) bool {
 	if msg.Type() != MsgRoundChange {
 		panic("bug: not a round change message")
 	}
 
-	// ROUND-CHANGE justification contains PREPARE messages that justifies Pr and Pv.
+	// ROUND-CHANGE justification contains quorum PREPARE messages that justifies Pr and Pv.
 	prepares := msg.Justification()
 	pr := msg.PreparedRound()
 	pv := msg.PreparedValue()
