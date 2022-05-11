@@ -45,14 +45,18 @@ type eth2Provider interface {
 	eth2client.ProposerDutiesProvider
 }
 
+// delayFunc abstracts slot offset delaying/sleeping for deterministic tests.
+type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
+
 // NewForT returns a new scheduler for testing supporting a fake clock.
-func NewForT(t *testing.T, clock clockwork.Clock, pubkeys []core.PubKey, eth2Svc eth2client.Service) *Scheduler {
+func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys []core.PubKey, eth2Svc eth2client.Service) *Scheduler {
 	t.Helper()
 
 	s, err := New(pubkeys, eth2Svc)
 	require.NoError(t, err)
 
 	s.clock = clock
+	s.delayFunc = delayFunc
 
 	return s
 }
@@ -65,21 +69,24 @@ func New(pubkeys []core.PubKey, eth2Svc eth2client.Service) (*Scheduler, error) 
 	}
 
 	return &Scheduler{
-		eth2Cl:        eth2Cl,
-		pubkeys:       pubkeys,
-		quit:          make(chan struct{}),
-		duties:        make(map[core.Duty]core.FetchArgSet),
-		clock:         clockwork.NewRealClock(),
+		eth2Cl:  eth2Cl,
+		pubkeys: pubkeys,
+		quit:    make(chan struct{}),
+		duties:  make(map[core.Duty]core.FetchArgSet),
+		clock:   clockwork.NewRealClock(),
+		delayFunc: func(_ core.Duty, deadline time.Time) <-chan time.Time {
+			return time.After(time.Until(deadline))
+		},
 		resolvedEpoch: math.MaxUint64,
 	}, nil
 }
 
 type Scheduler struct {
-	eth2Cl  eth2Provider
-	pubkeys []core.PubKey
-	quit    chan struct{}
-	clock   clockwork.Clock
-
+	eth2Cl        eth2Provider
+	pubkeys       []core.PubKey
+	quit          chan struct{}
+	clock         clockwork.Clock
+	delayFunc     delayFunc
 	resolvedEpoch uint64
 	duties        map[core.Duty]core.FetchArgSet
 	dutiesMutex   sync.Mutex
@@ -99,6 +106,8 @@ func (s *Scheduler) Stop() {
 // Run blocks and runs the scheduler until Stop is called.
 func (s *Scheduler) Run() error {
 	ctx := log.WithTopic(context.Background(), "sched")
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	waitChainStart(ctx, s.eth2Cl, s.clock)
 	waitBeaconSync(ctx, s.eth2Cl, s.clock)
@@ -118,10 +127,7 @@ func (s *Scheduler) Run() error {
 
 			instrumentSlot(slot)
 
-			err := s.scheduleSlot(slotCtx, slot)
-			if err != nil {
-				log.Error(ctx, "Scheduling slot error", err)
-			}
+			s.scheduleSlot(slotCtx, slot)
 		}
 	}
 }
@@ -147,7 +153,7 @@ func (s *Scheduler) GetDuty(ctx context.Context, duty core.Duty) (core.FetchArgS
 }
 
 // scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
-func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
+func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) {
 	if s.getResolvedEpoch() != uint64(slot.Epoch()) {
 		err := s.resolveDuties(ctx, slot)
 		if err != nil {
@@ -167,25 +173,21 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 			continue
 		}
 
-		instrumentDuty(duty, argSet)
-
-		ctx, span := core.StartDutyTrace(ctx, duty, "core/scheduler.scheduleSlot")
-
-		for _, sub := range s.subs {
-			err := sub(ctx, duty, argSet)
-			if err != nil {
-				// TODO(corver): Improve error handling; possibly call subscription async
-				//  with backoff until duty expires.
-				span.End()
-				return err
+		// Trigger duty async
+		go func() {
+			if !delaySlotOffset(ctx, slot, duty, s.delayFunc) {
+				return // context cancelled
 			}
-		}
 
-		span.End()
-		// TODO(leo): This had to be commented out because the scheduler doesn't need the duty anymore,
-		// but the validatorAPI will need the duty when verifying a randao. Solved when we have the shared
-		// component to resolve duties.
-		// s.deleteDuty(duty)
+			ctx, span := core.StartDutyTrace(ctx, duty, "core/scheduler.scheduleSlot")
+			defer span.End()
+
+			for _, sub := range s.subs {
+				if err := sub(ctx, duty, argSet); err != nil {
+					log.Error(ctx, "Trigger duty subscriber error", err)
+				}
+			}
+		}()
 	}
 
 	if slot.IsLastInEpoch() {
@@ -194,8 +196,26 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) error {
 			log.Warn(ctx, "Resolving duties error (retrying next slot)", err)
 		}
 	}
+}
 
-	return nil
+// delaySlotOffset blocks until the slot offset for the duty has been reached and return true.
+// It returns false if the context is cancelled.
+func delaySlotOffset(ctx context.Context, slot slot, duty core.Duty, delayFunc delayFunc) bool {
+	fn, ok := slotOffsets[duty.Type]
+	if !ok {
+		return true
+	}
+
+	// Calculate delay until slot offset
+	offset := fn(slot.SlotDuration)
+	deadline := slot.Time.Add(offset)
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-delayFunc(duty, deadline):
+		return true
+	}
 }
 
 // resolveDuties resolves the duties for the slot's epoch, caching the results.
@@ -321,6 +341,8 @@ func (s *Scheduler) setFetchArg(duty core.Duty, pubkey core.PubKey, set core.Fet
 	return true
 }
 
+// deleteDuty deletes the duty from the cache.
+// TODO(corver): Call this on duty deadline to trim duties.
 func (s *Scheduler) deleteDuty(duty core.Duty) {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
@@ -410,7 +432,11 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 			height++
 			startTime = startTime.Add(slotDuration)
 
-			clock.Sleep(startTime.Sub(clock.Now()))
+			select {
+			case <-ctx.Done():
+				return
+			case <-clock.After(startTime.Sub(clock.Now())):
+			}
 		}
 	}()
 

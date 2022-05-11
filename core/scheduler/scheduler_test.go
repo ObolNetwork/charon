@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"flag"
 	"os"
+	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -159,7 +161,7 @@ func TestSchedulerWait(t *testing.T) {
 				}, err
 			}
 
-			sched := scheduler.NewForT(t, clock, nil, eth2Cl)
+			sched := scheduler.NewForT(t, clock, new(delayer).Delay, nil, eth2Cl)
 			sched.Stop() // Just run wait functions, then quit.
 			require.NoError(t, sched.Run())
 			require.EqualValues(t, test.WaitSecs, clock.Since(t0).Seconds())
@@ -175,22 +177,26 @@ func TestSchedulerDuties(t *testing.T) {
 		Name     string
 		Factor   int // Determines how duties are spread per epoch
 		PropErrs int
+		Results  int
 	}{
 		{
 			// All duties grouped in first slot of epoch
-			Name:   "grouped",
-			Factor: 0,
+			Name:    "grouped",
+			Factor:  0,
+			Results: 2,
 		},
 		{
 			// All duties spread in first N slots of epoch (N is number of validators)
-			Name:   "spread",
-			Factor: 1,
+			Name:    "spread",
+			Factor:  1,
+			Results: 6,
 		},
 		{
 			// All duties spread in first N slots of epoch (except first proposer errors)
 			Name:     "spread_errors",
 			Factor:   1,
 			PropErrs: 1,
+			Results:  5,
 		},
 	}
 
@@ -198,6 +204,8 @@ func TestSchedulerDuties(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			// Configure beacon mock
 			var t0 time.Time
+			t0 = t0.Add(time.Minute * 8) // Nice round slot numbers.
+
 			valSet := beaconmock.ValidatorSetA
 			eth2Cl, err := beaconmock.New(
 				beaconmock.WithValidatorSet(valSet),
@@ -224,23 +232,28 @@ func TestSchedulerDuties(t *testing.T) {
 
 			// Construct scheduler
 			clock := newTestClock(t0)
-			sched := scheduler.NewForT(t, clock, pubkeys, eth2Cl)
+			delayer := new(delayer)
+			sched := scheduler.NewForT(t, clock, delayer.Delay, pubkeys, eth2Cl)
 
 			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
 			slotDuration, err := eth2Cl.SlotDuration(context.Background())
 			require.NoError(t, err)
 			clock.CallbackAfter(t0.Add(time.Duration(stopAfter)*slotDuration), func() {
-				sched.Stop()
 				time.Sleep(time.Hour) // Do not let the slot ticker tick anymore.
 			})
 
 			// Collect results
 			type result struct {
-				Duty       string
+				Time       string
+				DutyStr    string    `json:"duty"`
+				Duty       core.Duty `json:"-"`
 				DutyArgSet map[core.PubKey]string
 			}
-			var results []result
+			var (
+				results []result
+				mu      sync.Mutex
+			)
 			sched.Subscribe(func(ctx context.Context, duty core.Duty, set core.FetchArgSet) error {
 				// Make result human-readable
 				resultSet := make(map[core.PubKey]string)
@@ -249,16 +262,38 @@ func TestSchedulerDuties(t *testing.T) {
 				}
 
 				// Add result
+				mu.Lock()
+				defer mu.Unlock()
+
 				results = append(results, result{
-					Duty:       duty.String(),
+					Duty:       duty,
+					DutyStr:    duty.String(),
 					DutyArgSet: resultSet,
 				})
+
+				if len(results) == test.Results {
+					sched.Stop()
+				}
 
 				return nil
 			})
 
 			// Run scheduler
 			require.NoError(t, sched.Run())
+
+			// Add deadlines to results
+			deadlines := delayer.Get()
+			for i := 0; i < len(results); i++ {
+				results[i].Time = deadlines[results[i].Duty].Format("04:05.000")
+			}
+			// Make result order deterministic
+			sort.Slice(results, func(i, j int) bool {
+				if results[i].Duty.Slot == results[j].Duty.Slot {
+					return results[i].Duty.Type < results[j].Duty.Type
+				}
+
+				return results[i].Duty.Slot < results[j].Duty.Slot
+			})
 
 			// Assert results
 			testutil.RequireGoldenJSON(t, results)
@@ -283,7 +318,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 
 	// Construct scheduler
 	clock := newTestClock(t0)
-	sched := scheduler.NewForT(t, clock, pubkeys, eth2Cl)
+	sched := scheduler.NewForT(t, clock, new(delayer).Delay, pubkeys, eth2Cl)
 
 	_, err = sched.GetDuty(context.Background(), core.Duty{Slot: 0, Type: core.DutyAttester})
 	// due to current design we will return an error if we request the duty of a slot that has not been resolved
@@ -310,6 +345,34 @@ func TestScheduler_GetDuty(t *testing.T) {
 
 	// Run scheduler
 	require.NoError(t, sched.Run())
+}
+
+// delayer implements scheduler.delayFunc and records the deadline and returns it immediately.
+type delayer struct {
+	mu        sync.Mutex
+	deadlines map[core.Duty]time.Time
+}
+
+func (d *delayer) Get() map[core.Duty]time.Time {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	return d.deadlines
+}
+
+// Delay implements scheduler.delayFunc and records the deadline and returns it immediately.
+func (d *delayer) Delay(duty core.Duty, deadline time.Time) <-chan time.Time {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.deadlines == nil {
+		d.deadlines = make(map[core.Duty]time.Time)
+	}
+	d.deadlines[duty] = deadline
+
+	resp := make(chan time.Time, 1)
+	resp <- deadline
+
+	return resp
 }
 
 func newTestClock(now time.Time) *testClock {
