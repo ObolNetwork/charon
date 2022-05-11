@@ -122,14 +122,14 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Hash the proposed data, since qbft ony support simple comparable values.
+	// Hash the proposed data, since qbft ony supports simple comparable values.
 	value := core.UnsignedDataSetToProto(data)
 	hash, err := hashProto(value)
 	if err != nil {
 		return err
 	}
 
-	// transport handles sending and receiving for this instance.
+	// Create a transport handles sending and receiving for this instance.
 	t := transport{
 		component:  c,
 		values:     map[[32]byte]*pbv1.UnsignedDataSet{hash: value},
@@ -146,7 +146,7 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 		Receive:   t.recvBuffer,
 	}
 
-	// Run blocks until context is cancelled.
+	// Run the algo, blocking until the context is cancelled.
 	return qbft.Run[core.Duty, [32]byte](ctx, c.def, qt, duty, c.peerIdx, hash)
 }
 

@@ -152,7 +152,7 @@ func createMsg(typ qbft.MsgType, duty core.Duty,
 	for _, j := range justification {
 		impl, ok := j.(msg)
 		if !ok {
-			return msg{}, errors.New("invalid justification")
+			return msg{}, errors.New("invalid justificationProtos")
 		}
 		justMsgs = append(justMsgs, impl.msg) // Note nested justifications are ignored.
 	}

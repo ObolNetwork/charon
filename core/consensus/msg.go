@@ -25,8 +25,6 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
-var _ qbft.Msg[core.Duty, [32]byte] = msg{} // Interface assertion
-
 // newMsg returns a new msg.
 func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg) (msg, error) {
 	// Do all possible error conversions first.
@@ -52,11 +50,11 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg) (msg, error) {
 	}
 
 	return msg{
-		msg:                pbMsg,
-		valueHash:          valueHash,
-		preparedValueHash:  preparedValueHash,
-		justification:      justification,
-		justificationImpls: justImpls,
+		msg:                 pbMsg,
+		valueHash:           valueHash,
+		preparedValueHash:   preparedValueHash,
+		justificationProtos: justification,
+		justification:       justImpls,
 	}, nil
 }
 
@@ -66,8 +64,8 @@ type msg struct {
 	valueHash         [32]byte
 	preparedValueHash [32]byte
 
-	justification      []*pbv1.QBFTMsg
-	justificationImpls []qbft.Msg[core.Duty, [32]byte]
+	justificationProtos []*pbv1.QBFTMsg
+	justification       []qbft.Msg[core.Duty, [32]byte]
 }
 
 func (m msg) Type() qbft.MsgType {
@@ -99,13 +97,13 @@ func (m msg) PreparedValue() [32]byte {
 }
 
 func (m msg) Justification() []qbft.Msg[core.Duty, [32]byte] {
-	return m.justificationImpls
+	return m.justification
 }
 
 func (m msg) ToConsensusMsg() *pbv1.ConsensusMsg {
 	return &pbv1.ConsensusMsg{
 		Msg:           m.msg,
-		Justification: m.justification,
+		Justification: m.justificationProtos,
 	}
 }
 
@@ -132,3 +130,5 @@ func hashProto(msg proto.Message) ([32]byte, error) {
 
 	return hash, nil
 }
+
+var _ qbft.Msg[core.Duty, [32]byte] = msg{} // Interface assertion
