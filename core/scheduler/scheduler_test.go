@@ -204,7 +204,6 @@ func TestSchedulerDuties(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			// Configure beacon mock
 			var t0 time.Time
-			t0 = t0.Add(time.Minute * 8) // Nice round slot numbers.
 
 			valSet := beaconmock.ValidatorSetA
 			eth2Cl, err := beaconmock.New(
@@ -284,7 +283,7 @@ func TestSchedulerDuties(t *testing.T) {
 			// Add deadlines to results
 			deadlines := delayer.Get()
 			for i := 0; i < len(results); i++ {
-				results[i].Time = deadlines[results[i].Duty].Format("04:05.000")
+				results[i].Time = deadlines[results[i].Duty].UTC().Format("04:05.000")
 			}
 			// Make result order deterministic
 			sort.Slice(results, func(i, j int) bool {
