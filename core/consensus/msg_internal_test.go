@@ -20,9 +20,11 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -30,19 +32,7 @@ import (
 
 func TestHashProto(t *testing.T) {
 	rand.Seed(0)
-
-	duty := testutil.RandomAttestationDuty(t)
-	data := testutil.RandomAttestationData()
-	unsigned, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
-		Data: *data,
-		Duty: *duty,
-	})
-	require.NoError(t, err)
-
-	set := core.UnsignedDataSet{
-		testutil.RandomCorePubKey(t): unsigned,
-	}
-
+	set := testutil.RandomUnsignedDataSet(t)
 	testutil.RequireGoldenJSON(t, set)
 
 	setPB := core.UnsignedDataSetToProto(set)
@@ -53,4 +43,33 @@ func TestHashProto(t *testing.T) {
 		"2629f0aaf0f78c37ad7aeae4cc3ee0ff05741a9b341e0002c03b257d62b2e237",
 		hex.EncodeToString(hash[:]),
 	)
+}
+
+func TestSigning(t *testing.T) {
+	privkey, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	msg := &pbv1.QBFTMsg{
+		Type:          rand.Int63(),
+		Duty:          core.DutyToProto(core.Duty{Type: core.DutyType(rand.Int()), Slot: rand.Int63()}),
+		PeerIdx:       rand.Int63(),
+		Round:         rand.Int63(),
+		Value:         core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t)),
+		PreparedRound: rand.Int63(),
+		PreparedValue: core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t)),
+		Signature:     nil,
+	}
+
+	signed, err := signMsg(msg, privkey)
+	require.NoError(t, err)
+
+	ok, err := verifyMsgSig(signed, &privkey.PublicKey)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	privkey2, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	ok, err = verifyMsgSig(signed, &privkey2.PublicKey)
+	require.NoError(t, err)
+	require.False(t, ok)
 }

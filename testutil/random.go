@@ -360,3 +360,19 @@ func RandomENR(t *testing.T, random io.Reader) (*ecdsa.PrivateKey, enr.Record) {
 
 	return p2pKey, r
 }
+
+func RandomUnsignedDataSet(t *testing.T) core.UnsignedDataSet {
+	t.Helper()
+
+	duty := RandomAttestationDuty(t)
+	data := RandomAttestationData()
+	unsigned, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
+		Data: *data,
+		Duty: *duty,
+	})
+	require.NoError(t, err)
+
+	return core.UnsignedDataSet{
+		RandomCorePubKey(t): unsigned,
+	}
+}
