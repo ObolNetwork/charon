@@ -25,34 +25,34 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
-var _ qbft.Msg[core.Duty, [32]byte] = msgImpl{} // Interface assertion
+var _ qbft.Msg[core.Duty, [32]byte] = msg{} // Interface assertion
 
-// newMsgImpl returns a new msgImpl.
-func newMsgImpl(msg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg) (msgImpl, error) {
+// newMsg returns a new msg.
+func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg) (msg, error) {
 	// Do all possible error conversions first.
 
-	valueHash, err := hashProto(msg.Value)
+	valueHash, err := hashProto(pbMsg.Value)
 	if err != nil {
-		return msgImpl{}, err
+		return msg{}, err
 	}
 
-	preparedValueHash, err := hashProto(msg.PreparedValue)
+	preparedValueHash, err := hashProto(pbMsg.PreparedValue)
 	if err != nil {
-		return msgImpl{}, err
+		return msg{}, err
 	}
 
 	var justImpls []qbft.Msg[core.Duty, [32]byte]
-	for _, msg := range justification {
-		impl, err := newMsgImpl(msg, nil)
+	for _, j := range justification {
+		impl, err := newMsg(j, nil)
 		if err != nil {
-			return msgImpl{}, err
+			return msg{}, err
 		}
 
 		justImpls = append(justImpls, impl)
 	}
 
-	return msgImpl{
-		msg:                msg,
+	return msg{
+		msg:                pbMsg,
 		valueHash:          valueHash,
 		preparedValueHash:  preparedValueHash,
 		justification:      justification,
@@ -60,8 +60,8 @@ func newMsgImpl(msg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg) (msgImpl, erro
 	}, nil
 }
 
-// msgImpl wraps *pbv1.QBFTMsg and justifications and implements qbft.Msg[core.Duty, [32]byte].
-type msgImpl struct {
+// msg wraps *pbv1.QBFTMsg and justifications and implements qbft.Msg[core.Duty, [32]byte].
+type msg struct {
 	msg               *pbv1.QBFTMsg
 	valueHash         [32]byte
 	preparedValueHash [32]byte
@@ -70,36 +70,43 @@ type msgImpl struct {
 	justificationImpls []qbft.Msg[core.Duty, [32]byte]
 }
 
-func (m msgImpl) Type() qbft.MsgType {
+func (m msg) Type() qbft.MsgType {
 	return qbft.MsgType(m.msg.Type)
 }
 
-func (m msgImpl) Instance() core.Duty {
+func (m msg) Instance() core.Duty {
 	return core.DutyFromProto(m.msg.Duty)
 }
 
-func (m msgImpl) Source() int64 {
+func (m msg) Source() int64 {
 	return m.msg.PeerIdx
 }
 
-func (m msgImpl) Round() int64 {
+func (m msg) Round() int64 {
 	return m.msg.Round
 }
 
-func (m msgImpl) Value() [32]byte {
+func (m msg) Value() [32]byte {
 	return m.valueHash
 }
 
-func (m msgImpl) PreparedRound() int64 {
+func (m msg) PreparedRound() int64 {
 	return m.msg.PreparedRound
 }
 
-func (m msgImpl) PreparedValue() [32]byte {
+func (m msg) PreparedValue() [32]byte {
 	return m.preparedValueHash
 }
 
-func (m msgImpl) Justification() []qbft.Msg[core.Duty, [32]byte] {
+func (m msg) Justification() []qbft.Msg[core.Duty, [32]byte] {
 	return m.justificationImpls
+}
+
+func (m msg) ToConsensusMsg() *pbv1.ConsensusMsg {
+	return &pbv1.ConsensusMsg{
+		Msg:           m.msg,
+		Justification: m.justification,
+	}
 }
 
 // hashProto returns a deterministic ssz hash root of the proto message.

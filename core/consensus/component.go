@@ -25,9 +25,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -43,14 +41,14 @@ const (
 )
 
 // NewComponent returns a new consensus QBFT component.
-func NewComponent(ctx context.Context, tcpNode host.Host, peers []p2p.Peer,
+func NewComponent(tcpNode host.Host, peers []p2p.Peer,
 	peerIdx int64, p2pKey *ecdsa.PrivateKey,
 ) *Component {
 	c := &Component{
-		tcpNode:   tcpNode,
-		peers:     peers,
-		p2pKey:    p2pKey,
-		recvChans: make(map[core.Duty]chan msgImpl),
+		tcpNode:     tcpNode,
+		peers:       peers,
+		p2pKey:      p2pKey,
+		recvBuffers: make(map[core.Duty]chan msg),
 	}
 
 	// Create qbft definition (this is constant across all consensus instances)
@@ -61,9 +59,9 @@ func NewComponent(ctx context.Context, tcpNode host.Host, peers []p2p.Peer,
 			return mod == peerIdx
 		},
 
-		// Decide sends consensus output to subscribes.
+		// Decide sends consensus output to subscribers.
 		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
-			set := core.UnsignedDataSetFromProto(qcommit[0].(msgImpl).msg.Value)
+			set := core.UnsignedDataSetFromProto(qcommit[0].(msg).msg.Value)
 			for _, sub := range c.subs {
 				if err := sub(ctx, duty, set); err != nil {
 					log.Warn(ctx, "Subscriber error", err)
@@ -88,14 +86,12 @@ func NewComponent(ctx context.Context, tcpNode host.Host, peers []p2p.Peer,
 		Nodes: len(peers),
 	}
 
-	tcpNode.SetStreamHandler(protocolID, c.makeHandler(ctx))
-
 	return c
 }
 
+// Component implements core.Consensus.
 type Component struct {
 	// Immutable state
-
 	tcpNode host.Host
 	peers   []p2p.Peer
 	p2pKey  *ecdsa.PrivateKey
@@ -104,15 +100,19 @@ type Component struct {
 	subs    []func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error
 
 	// Mutable state
-
-	recvMu    sync.Mutex
-	recvChans map[core.Duty]chan msgImpl
+	recvMu      sync.Mutex
+	recvBuffers map[core.Duty]chan msg // Instance outer receive buffers.
 }
 
 // Subscribe registers a callback for unsigned duty data proposals from leaders.
-// Note this function is not thread safe, it should be called *before* Run or Propose.
+// Note this function is not thread safe, it should be called *before* Start and Propose.
 func (c *Component) Subscribe(fn func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error) {
 	c.subs = append(c.subs, fn)
+}
+
+// Start registers the libp2p receive handler.
+func (c *Component) Start(ctx context.Context) {
+	c.tcpNode.SetStreamHandler(protocolID, c.makeHandler(ctx))
 }
 
 // Propose participants in a consensus instance proposing the provided data.
@@ -129,30 +129,25 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 		return err
 	}
 
-	// instanceWrap handles sending and receiving for this instance.
-	wrap := instanceWrap{
-		component: c,
-		values:    map[[32]byte]*pbv1.UnsignedDataSet{hash: value},
-		recvChan:  make(chan qbft.Msg[core.Duty, [32]byte]),
+	// transport handles sending and receiving for this instance.
+	t := transport{
+		component:  c,
+		values:     map[[32]byte]*pbv1.UnsignedDataSet{hash: value},
+		recvBuffer: make(chan qbft.Msg[core.Duty, [32]byte]),
 	}
 
 	// Start a receiving goroutine.
-	go wrap.ReceiveForever(ctx, c.getRecvChan(duty))
+	go t.ProcessReceives(ctx, c.getRecvBuffer(duty))
 	defer c.deleteRecvChan(duty)
 
-	// Create a transport from the wrap
-	t := qbft.Transport[core.Duty, [32]byte]{
-		Broadcast: wrap.Broadcast,
-		Receive:   wrap.recvChan,
+	// Create a qbft transport from the transport
+	qt := qbft.Transport[core.Duty, [32]byte]{
+		Broadcast: t.Broadcast,
+		Receive:   t.recvBuffer,
 	}
 
-	// Run and block until context is cancelled.
-	err = qbft.Run[core.Duty, [32]byte](ctx, c.def, t, duty, c.peerIdx, hash)
-	if !errors.Is(err, context.Canceled) {
-		return err
-	}
-
-	return nil
+	// Run blocks until context is cancelled.
+	return qbft.Run[core.Duty, [32]byte](ctx, c.def, qt, duty, c.peerIdx, hash)
 }
 
 // makeHandler returns a consensus libp2p handler.
@@ -166,31 +161,32 @@ func (c *Component) makeHandler(ctx context.Context) func(s network.Stream) {
 			return
 		}
 
-		msg := new(pbv1.ConsensusMsg)
-		if err := proto.Unmarshal(b, msg); err != nil {
+		pbMsg := new(pbv1.ConsensusMsg)
+		if err := proto.Unmarshal(b, pbMsg); err != nil {
 			log.Error(ctx, "Failed unmarshalling proto", err)
 			return
 		}
 
-		if msg.Msg == nil || msg.Msg.Duty == nil {
+		if pbMsg.Msg == nil || pbMsg.Msg.Duty == nil {
 			log.Error(ctx, "Invalid consensus message", err)
 			return
 		}
 
-		duty := core.DutyFromProto(msg.Msg.Duty)
+		duty := core.DutyFromProto(pbMsg.Msg.Duty)
 		if !duty.Type.Valid() {
 			log.Error(ctx, "Invalid duty type", err)
 			return
 		}
 
-		impl, err := newMsgImpl(msg.Msg, msg.Justification)
+		msg, err := newMsg(pbMsg.Msg, pbMsg.Justification)
 		if err != nil {
-			log.Error(ctx, "Create message impl", err)
+			log.Error(ctx, "Create message pbMsg", err)
 			return
 		}
 
 		select {
-		case c.getRecvChan(duty) <- impl:
+		case c.getRecvBuffer(duty) <- msg:
+			// TODO(corver): Trim channels on duty deadline.
 		default:
 			log.Error(ctx, "Receive buffer full", err)
 			return
@@ -198,15 +194,15 @@ func (c *Component) makeHandler(ctx context.Context) func(s network.Stream) {
 	}
 }
 
-// getRecvChan returns a receive channel for the duty.
-func (c *Component) getRecvChan(duty core.Duty) chan msgImpl {
+// getRecvBuffer returns a receive buffer for the duty.
+func (c *Component) getRecvBuffer(duty core.Duty) chan msg {
 	c.recvMu.Lock()
 	defer c.recvMu.Unlock()
 
-	ch, ok := c.recvChans[duty]
+	ch, ok := c.recvBuffers[duty]
 	if !ok {
-		ch = make(chan msgImpl, recvBuffer)
-		c.recvChans[duty] = ch
+		ch = make(chan msg, recvBuffer)
+		c.recvBuffers[duty] = ch
 	}
 
 	return ch
@@ -217,149 +213,5 @@ func (c *Component) deleteRecvChan(duty core.Duty) {
 	c.recvMu.Lock()
 	defer c.recvMu.Unlock()
 
-	delete(c.recvChans, duty)
-}
-
-// instanceWrap encapsulates receiving and broadcasting for a consensus instance/duty.
-type instanceWrap struct {
-	// Immutable state
-	component *Component
-	recvChan  chan qbft.Msg[core.Duty, [32]byte]
-
-	// Mutable state
-	valueMu sync.Mutex
-	values  map[[32]byte]*pbv1.UnsignedDataSet // maps proposed values to their hashes
-}
-
-// setValues caches the values and their hashes.
-func (w *instanceWrap) setValues(msg msgImpl) {
-	w.valueMu.Lock()
-	defer w.valueMu.Unlock()
-
-	w.values[msg.Value()] = msg.msg.Value
-	w.values[msg.PreparedValue()] = msg.msg.PreparedValue
-}
-
-// getValue returns the value by its hash.
-func (w *instanceWrap) getValue(hash [32]byte) (*pbv1.UnsignedDataSet, error) {
-	w.valueMu.Lock()
-	defer w.valueMu.Unlock()
-
-	data, ok := w.values[hash]
-	if !ok {
-		return nil, errors.New("unknown value")
-	}
-
-	return data, nil
-}
-
-// Broadcast creates a msg and sends it to all peers (including self).
-func (w *instanceWrap) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.Duty,
-	peerIdx int64, round int64, value [32]byte, pr int64, pv [32]byte,
-	justification []qbft.Msg[core.Duty, [32]byte],
-) error {
-	// Get the values by their hashes.
-	valueHash, err := w.getValue(value)
-	if err != nil {
-		return err
-	}
-	pvHash, err := w.getValue(pv)
-	if err != nil {
-		return err
-	}
-
-	// Create a msg impl
-	msg := &pbv1.QBFTMsg{
-		Type:          int64(typ),
-		Duty:          core.DutyToProto(duty),
-		PeerIdx:       peerIdx,
-		Round:         round,
-		Value:         valueHash,
-		PreparedRound: pr,
-		PreparedValue: pvHash,
-	}
-
-	var justMsgs []*pbv1.QBFTMsg
-	for _, j := range justification {
-		impl, ok := j.(msgImpl)
-		if !ok {
-			return errors.New("invalid justification")
-		}
-		justMsgs = append(justMsgs, impl.msg)
-	}
-
-	impl, err := newMsgImpl(msg, justMsgs)
-	if err != nil {
-		return err
-	}
-
-	// First send to self.
-	select {
-	case <-ctx.Done():
-		return nil
-	case w.recvChan <- impl:
-	}
-
-	for i, p := range w.component.peers {
-		if int64(i) == w.component.peerIdx {
-			// Do not broadcast to self
-			continue
-		}
-
-		err := send(ctx, w.component.tcpNode, p.ID, &pbv1.ConsensusMsg{Msg: msg, Justification: justMsgs})
-		if err != nil {
-			log.Warn(ctx, "Failed sending message", err)
-		}
-	}
-
-	return nil
-}
-
-// ReceiveForever processes received messages until the context is closed.
-func (w *instanceWrap) ReceiveForever(ctx context.Context, recv chan msgImpl) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg := <-recv:
-			if err := validateMsg(msg); err != nil {
-				log.Warn(ctx, "Dropping invalid message", err)
-				continue
-			}
-			w.setValues(msg)
-
-			select {
-			case <-ctx.Done():
-				return
-			case w.recvChan <- msg:
-			}
-		}
-	}
-}
-
-// validateMsg returns an error if the message is invalid.
-func validateMsg(_ msgImpl) error {
-	// TODO(corver): implement
-	return nil
-}
-
-// send sends the protobuf message to the peer.
-func send(ctx context.Context, tcpNode host.Host, id peer.ID, pb proto.Message) error {
-	s, err := tcpNode.NewStream(ctx, id, protocolID)
-	if err != nil {
-		return errors.Wrap(err, "new stream")
-	}
-	defer s.Close()
-
-	b, err := proto.Marshal(pb)
-	if err != nil {
-		return errors.Wrap(err, "marshal protobuf")
-	}
-
-	_, err = s.Write(b)
-	if err != nil {
-		return errors.Wrap(err, "write protobuf")
-	}
-
-	return nil
+	delete(c.recvBuffers, duty)
 }
