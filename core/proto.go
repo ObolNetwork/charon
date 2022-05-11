@@ -72,3 +72,25 @@ func ParSignedDataSetFromProto(set *pbv1.ParSignedDataSet) ParSignedDataSet {
 
 	return resp
 }
+
+// UnsignedDataSetToProto returns the set as a protobuf.
+func UnsignedDataSetToProto(set UnsignedDataSet) *pbv1.UnsignedDataSet {
+	inner := make(map[string][]byte)
+	for pubkey, data := range set {
+		inner[string(pubkey)] = data
+	}
+
+	return &pbv1.UnsignedDataSet{
+		Set: inner,
+	}
+}
+
+// UnsignedDataSetFromProto returns the set from a protobuf.
+func UnsignedDataSetFromProto(set *pbv1.UnsignedDataSet) UnsignedDataSet {
+	resp := make(UnsignedDataSet)
+	for pubkey, data := range set.Set {
+		resp[PubKey(pubkey)] = data
+	}
+
+	return resp
+}

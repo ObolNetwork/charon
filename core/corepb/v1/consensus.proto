@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package core.corepb.v1;
+
+option go_package = "github.com/obolnetwork/charon/core/corepb/v1";
+
+import "core/corepb/v1/core.proto";
+
+message QBFTMsg {
+  int64                          type           = 1;
+  core.corepb.v1.Duty            duty           = 2;
+  int64                          peer_idx       = 3;
+  int64                          round          = 4;
+  core.corepb.v1.UnsignedDataSet value          = 5;
+  int64                          prepared_round = 6;
+  core.corepb.v1.UnsignedDataSet prepared_value = 7;
+}
+
+message ConsensusMsg {
+  QBFTMsg          msg           = 1;
+  repeated QBFTMsg justification = 2;
+}

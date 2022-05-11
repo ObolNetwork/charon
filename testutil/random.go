@@ -48,7 +48,8 @@ import (
 // RandomCorePubKey returns a random core workflow pubkey.
 func RandomCorePubKey(t *testing.T) core.PubKey {
 	t.Helper()
-	pubkey, _, err := tbls.Keygen()
+	random := rand.New(rand.NewSource(rand.Int63()))
+	pubkey, _, err := tbls.KeygenWithSeed(random)
 	require.NoError(t, err)
 	resp, err := tblsconv.KeyToCore(pubkey)
 	require.NoError(t, err)
@@ -59,7 +60,8 @@ func RandomCorePubKey(t *testing.T) core.PubKey {
 // RandomEth2PubKey returns a random eth2 phase0 bls pubkey.
 func RandomEth2PubKey(t *testing.T) eth2p0.BLSPubKey {
 	t.Helper()
-	pubkey, _, err := tbls.Keygen()
+	random := rand.New(rand.NewSource(rand.Int63()))
+	pubkey, _, err := tbls.KeygenWithSeed(random)
 	require.NoError(t, err)
 	resp, err := tblsconv.KeyToETH2(pubkey)
 	require.NoError(t, err)
