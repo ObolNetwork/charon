@@ -17,6 +17,7 @@ package consensus
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"sync"
 
 	"github.com/libp2p/go-libp2p-core/host"
@@ -79,7 +80,7 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 	}
 
 	// Make the message
-	msg, err := createMsg(typ, duty, peerIdx, round, value, pr, pv, justification)
+	msg, err := createMsg(typ, duty, peerIdx, round, value, pr, pv, justification, t.component.privkey)
 	if err != nil {
 		return err
 	}
@@ -133,7 +134,7 @@ func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
 func createMsg(typ qbft.MsgType, duty core.Duty,
 	peerIdx int64, round int64, value *pbv1.UnsignedDataSet,
 	pr int64, pv *pbv1.UnsignedDataSet,
-	justification []qbft.Msg[core.Duty, [32]byte],
+	justification []qbft.Msg[core.Duty, [32]byte], privkey *ecdsa.PrivateKey,
 ) (msg, error) {
 	pbMsg := &pbv1.QBFTMsg{
 		Type:          int64(typ),
@@ -145,14 +146,17 @@ func createMsg(typ qbft.MsgType, duty core.Duty,
 		PreparedValue: pv,
 	}
 
-	// TODO(corver): Sign message.
+	pbMsg, err := signMsg(pbMsg, privkey)
+	if err != nil {
+		return msg{}, err
+	}
 
 	// Transform justifications into protobufs
 	var justMsgs []*pbv1.QBFTMsg
 	for _, j := range justification {
 		impl, ok := j.(msg)
 		if !ok {
-			return msg{}, errors.New("invalid justificationProtos")
+			return msg{}, errors.New("invalid justification")
 		}
 		justMsgs = append(justMsgs, impl.msg) // Note nested justifications are ignored.
 	}

@@ -22,10 +22,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/golang/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -43,11 +45,25 @@ const (
 // NewComponent returns a new consensus QBFT component.
 func NewComponent(tcpNode host.Host, peers []p2p.Peer,
 	peerIdx int64, p2pKey *ecdsa.PrivateKey,
-) *Component {
+) (*Component, error) {
+	// Extract peer pubkeys.
+	keys := make(map[int64]*ecdsa.PublicKey)
+	for i, p := range peers {
+		var pk enode.Secp256k1
+		if err := p.ENR.Load(&pk); err != nil {
+			if err != nil {
+				return nil, errors.Wrap(err, "load pubkey")
+			}
+		}
+		epk := ecdsa.PublicKey(pk)
+		keys[int64(i)] = &epk
+	}
+
 	c := &Component{
 		tcpNode:     tcpNode,
 		peers:       peers,
-		p2pKey:      p2pKey,
+		privkey:     p2pKey,
+		pubkeys:     keys,
 		recvBuffers: make(map[core.Duty]chan msg),
 	}
 
@@ -86,7 +102,7 @@ func NewComponent(tcpNode host.Host, peers []p2p.Peer,
 		Nodes: len(peers),
 	}
 
-	return c
+	return c, nil
 }
 
 // Component implements core.Consensus.
@@ -94,7 +110,8 @@ type Component struct {
 	// Immutable state
 	tcpNode host.Host
 	peers   []p2p.Peer
-	p2pKey  *ecdsa.PrivateKey
+	pubkeys map[int64]*ecdsa.PublicKey
+	privkey *ecdsa.PrivateKey
 	peerIdx int64
 	def     qbft.Definition[core.Duty, [32]byte]
 	subs    []func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error
@@ -176,6 +193,18 @@ func (c *Component) makeHandler(ctx context.Context) func(s network.Stream) {
 		if !duty.Type.Valid() {
 			log.Error(ctx, "Invalid duty type", err)
 			return
+		}
+
+		if ok, err := verifyMsgSig(pbMsg.Msg, c.pubkeys[pbMsg.Msg.PeerIdx]); err != nil || !ok {
+			log.Error(ctx, "Invalid message signature", err)
+			return
+		}
+
+		for _, msg := range pbMsg.Justification {
+			if ok, err := verifyMsgSig(msg, c.pubkeys[msg.PeerIdx]); err != nil || !ok {
+				log.Error(ctx, "Invalid justification signature", err)
+				return
+			}
 		}
 
 		msg, err := newMsg(pbMsg.Msg, pbMsg.Justification)

@@ -134,7 +134,7 @@ func hashProto(msg proto.Message) ([32]byte, error) {
 	return hash, nil
 }
 
-// verifyMsgSig returns true if the message with signed by the pubkey.
+// verifyMsgSig returns true if the message was signed by pubkey.
 func verifyMsgSig(msg *pbv1.QBFTMsg, pubkey *ecdsa.PublicKey) (bool, error) {
 	clone := proto.Clone(msg).(*pbv1.QBFTMsg)
 	clone.Signature = nil
