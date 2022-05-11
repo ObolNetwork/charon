@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	recvBuffer = 100
+	recvBuffer = 100 // Allow buffering some initial messages when this node is late to start an instance.
 	period     = time.Second
 	protocolID = "/charon/consensus/1.0.0"
 )
