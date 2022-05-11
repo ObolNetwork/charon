@@ -16,6 +16,9 @@
 package consensus
 
 import (
+	"crypto/ecdsa"
+
+	"github.com/ethereum/go-ethereum/crypto"
 	ssz "github.com/ferranbt/fastssz"
 	"google.golang.org/protobuf/proto"
 
@@ -129,6 +132,43 @@ func hashProto(msg proto.Message) ([32]byte, error) {
 	}
 
 	return hash, nil
+}
+
+// verifyMsgSig returns true if the message was signed by pubkey.
+func verifyMsgSig(msg *pbv1.QBFTMsg, pubkey *ecdsa.PublicKey) (bool, error) {
+	clone := proto.Clone(msg).(*pbv1.QBFTMsg)
+	clone.Signature = nil
+
+	hash, err := hashProto(clone)
+	if err != nil {
+		return false, err
+	}
+
+	actual, err := crypto.SigToPub(hash[:], msg.Signature)
+	if err != nil {
+		return false, errors.Wrap(err, "sig to pub")
+	}
+
+	return pubkey.Equal(actual), nil
+}
+
+// signMsg signs the proto message with the private key.
+func signMsg(msg *pbv1.QBFTMsg, privkey *ecdsa.PrivateKey) (*pbv1.QBFTMsg, error) {
+	msg.Signature = nil
+
+	hash, err := hashProto(msg)
+	if err != nil {
+		return nil, err
+	}
+
+	sig, err := crypto.Sign(hash[:], privkey)
+	if err != nil {
+		return nil, errors.Wrap(err, "sign")
+	}
+
+	msg.Signature = sig
+
+	return msg, nil
 }
 
 var _ qbft.Msg[core.Duty, [32]byte] = msg{} // Interface assertion

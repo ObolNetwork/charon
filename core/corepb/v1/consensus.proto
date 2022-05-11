@@ -14,6 +14,7 @@ message QBFTMsg {
   core.corepb.v1.UnsignedDataSet value          = 5;
   int64                          prepared_round = 6;
   core.corepb.v1.UnsignedDataSet prepared_value = 7;
+  bytes                          signature      = 8;
 }
 
 message ConsensusMsg {
