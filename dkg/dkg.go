@@ -205,14 +205,14 @@ func aggSignLockHash(ctx context.Context, tcpNode host.Host, peerIdx int,
 
 	// Wire some core workflow components.
 	sigChan := make(chan *bls_sig.Signature, len(lock.Validators))
-	db := parsigdb.NewMemDB(lock.Threshold)
+	sigdb := parsigdb.NewMemDB(lock.Threshold)
 	exchange := parsigex.NewParSigEx(tcpNode, peerIdx, peers)
-	db.SubscribeInternal(exchange.Broadcast)
-	db.SubscribeThreshold(makeSigAgg(sigChan))
-	exchange.Subscribe(db.StoreExternal)
+	sigdb.SubscribeInternal(exchange.Broadcast)
+	sigdb.SubscribeThreshold(makeSigAgg(sigChan))
+	exchange.Subscribe(sigdb.StoreExternal)
 
 	// Start the process by inserting the partial signatures
-	err = db.StoreInternal(ctx, core.Duty{}, signedSet)
+	err = sigdb.StoreInternal(ctx, core.Duty{}, signedSet)
 	if err != nil {
 		return nil, err
 	}
