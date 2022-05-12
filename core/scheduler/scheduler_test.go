@@ -161,7 +161,7 @@ func TestSchedulerWait(t *testing.T) {
 				}, err
 			}
 
-			sched := scheduler.NewForT(t, clock, new(delayer).Delay, nil, eth2Cl)
+			sched := scheduler.NewForT(t, clock, new(delayer).delay, nil, eth2Cl)
 			sched.Stop() // Just run wait functions, then quit.
 			require.NoError(t, sched.Run())
 			require.EqualValues(t, test.WaitSecs, clock.Since(t0).Seconds())
@@ -225,14 +225,14 @@ func TestSchedulerDuties(t *testing.T) {
 				return origFunc(ctx, epoch, indices)
 			}
 
-			// Get pubkeys for validators to schedule
+			// get pubkeys for validators to schedule
 			pubkeys, err := valSet.CorePubKeys()
 			require.NoError(t, err)
 
 			// Construct scheduler
 			clock := newTestClock(t0)
 			delayer := new(delayer)
-			sched := scheduler.NewForT(t, clock, delayer.Delay, pubkeys, eth2Cl)
+			sched := scheduler.NewForT(t, clock, delayer.delay, pubkeys, eth2Cl)
 
 			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
@@ -281,7 +281,7 @@ func TestSchedulerDuties(t *testing.T) {
 			require.NoError(t, sched.Run())
 
 			// Add deadlines to results
-			deadlines := delayer.Get()
+			deadlines := delayer.get()
 			for i := 0; i < len(results); i++ {
 				results[i].Time = deadlines[results[i].Duty].UTC().Format("04:05.000")
 			}
@@ -311,13 +311,13 @@ func TestScheduler_GetDuty(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Get pubkeys for validators to schedule
+	// get pubkeys for validators to schedule
 	pubkeys, err := valSet.CorePubKeys()
 	require.NoError(t, err)
 
 	// Construct scheduler
 	clock := newTestClock(t0)
-	sched := scheduler.NewForT(t, clock, new(delayer).Delay, pubkeys, eth2Cl)
+	sched := scheduler.NewForT(t, clock, new(delayer).delay, pubkeys, eth2Cl)
 
 	_, err = sched.GetDuty(context.Background(), core.Duty{Slot: 0, Type: core.DutyAttester})
 	// due to current design we will return an error if we request the duty of a slot that has not been resolved
@@ -352,15 +352,15 @@ type delayer struct {
 	deadlines map[core.Duty]time.Time
 }
 
-func (d *delayer) Get() map[core.Duty]time.Time {
+func (d *delayer) get() map[core.Duty]time.Time {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	return d.deadlines
 }
 
-// Delay implements scheduler.delayFunc and records the deadline and returns it immediately.
-func (d *delayer) Delay(duty core.Duty, deadline time.Time) <-chan time.Time {
+// delay implements scheduler.delayFunc and records the deadline and returns it immediately.
+func (d *delayer) delay(duty core.Duty, deadline time.Time) <-chan time.Time {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.deadlines == nil {
