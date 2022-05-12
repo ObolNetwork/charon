@@ -30,6 +30,11 @@ import (
 // see: https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature-03#section-4.2.3
 var blsScheme = bls_sig.NewSigEth2()
 
+// Scheme returns the BLS12-381 ETH2 signature scheme.
+func Scheme() *bls_sig.SigEth2 {
+	return blsScheme
+}
+
 // Keygen returns a new BLS key pair.
 func Keygen() (*bls_sig.PublicKey, *bls_sig.SecretKey, error) {
 	pubkey, secret, err := blsScheme.Keygen()
