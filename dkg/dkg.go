@@ -197,11 +197,13 @@ func setupP2P(ctx context.Context, datadir string, p2pConf p2p.Config, peers []p
 func aggSignLockHash(ctx context.Context, tcpNode host.Host, peerIdx int,
 	peers []peer.ID, lock cluster.Lock, shares []share,
 ) (*bls_sig.MultiSignature, error) {
+	// Create partial signatures of lock hash
 	signedSet, err := signLockHash(lock, shares)
 	if err != nil {
 		return nil, err
 	}
 
+	// Wire some core workflow components.
 	sigChan := make(chan *bls_sig.Signature, len(lock.Validators))
 	db := parsigdb.NewMemDB(lock.Threshold)
 	exchange := parsigex.NewParSigEx(tcpNode, peerIdx, peers)
@@ -209,11 +211,13 @@ func aggSignLockHash(ctx context.Context, tcpNode host.Host, peerIdx int,
 	db.SubscribeThreshold(makeSigAgg(sigChan))
 	exchange.Subscribe(db.StoreExternal)
 
+	// Start the process by inserting the partial signatures
 	err = db.StoreInternal(ctx, core.Duty{}, signedSet)
 	if err != nil {
 		return nil, err
 	}
 
+	// Wait until all group signatures pop out.
 	var sigs []*bls_sig.Signature
 	for {
 		select {
@@ -227,6 +231,7 @@ func aggSignLockHash(ctx context.Context, tcpNode host.Host, peerIdx int,
 		}
 	}
 
+	// Aggregate all group signatures.
 	b, err := tbls.Scheme().AggregateSignatures(sigs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "aggregate signature")
