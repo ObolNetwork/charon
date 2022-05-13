@@ -35,6 +35,7 @@ import (
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 type Config struct {
@@ -141,7 +142,7 @@ func Run(ctx context.Context, conf Config) error {
 	}
 
 	if conf.TestSigning {
-		sig, err := aggSignLockHash(ctx, tcpNode, nodeIdx.PeerIdx, nil, lock, shares)
+		sig, err := aggSignLockHash(ctx, tcpNode, nodeIdx, nil, lock, shares)
 		if err != nil {
 			return err
 		}
@@ -194,22 +195,29 @@ func setupP2P(ctx context.Context, datadir string, p2pConf p2p.Config, peers []p
 
 // aggSignLockHash returns the aggregated multi signature of the lock hash
 // signed by all the distributed validator group private keys.
-func aggSignLockHash(ctx context.Context, tcpNode host.Host, peerIdx int,
+func aggSignLockHash(ctx context.Context, tcpNode host.Host, nodeIdx cluster.NodeIdx,
 	peers []peer.ID, lock cluster.Lock, shares []share,
 ) (*bls_sig.MultiSignature, error) {
 	// Create partial signatures of lock hash
-	signedSet, err := signLockHash(lock, shares)
+	signedSet, err := signLockHash(lock, nodeIdx.ShareIdx, shares)
 	if err != nil {
 		return nil, err
 	}
 
-	// Wire some core workflow components.
-	sigChan := make(chan *bls_sig.Signature, len(lock.Validators))
-	sigdb := parsigdb.NewMemDB(lock.Threshold)
-	exchange := parsigex.NewParSigEx(tcpNode, peerIdx, peers)
-	sigdb.SubscribeInternal(exchange.Broadcast)
-	sigdb.SubscribeThreshold(makeSigAgg(sigChan))
-	exchange.Subscribe(sigdb.StoreExternal)
+	// Wire core workflow components:
+	//  - parsigdb: stores our and other's partial signatures.
+	//  - parsigex: exchanges signatures between all nodes' parsigdb
+	//  - makeSigAgg: aggregates threshold signatures once enough has been received.
+	//
+	// Note that these components do not contain goroutines (so nothing is started or stopped)
+	// These components are driven by the call to sigdb.StoreInternal below and
+	// by libp2p messages received from other peers.
+	sigChan := make(chan *bls_sig.Signature, len(lock.Validators))    // Make output of sig aggregation
+	sigdb := parsigdb.NewMemDB(lock.Threshold)                        // Make parsigdb
+	exchange := parsigex.NewParSigEx(tcpNode, nodeIdx.PeerIdx, peers) // Make parsigex
+	sigdb.SubscribeInternal(exchange.Broadcast)                       // Wire parsigex to parsigdb
+	sigdb.SubscribeThreshold(makeSigAgg(sigChan))                     // Wire sigagg to parsigdb output
+	exchange.Subscribe(sigdb.StoreExternal)                           // Wire parsigdb to parsigex
 
 	// Start the process by inserting the partial signatures
 	err = sigdb.StoreInternal(ctx, core.Duty{}, signedSet)
@@ -241,17 +249,69 @@ func aggSignLockHash(ctx context.Context, tcpNode host.Host, peerIdx int,
 }
 
 // makeSigAgg returns a function that aggregates partial signatures.
-func makeSigAgg(_ <-chan *bls_sig.Signature) func(context.Context, core.Duty, core.PubKey, []core.ParSignedData) error {
-	return func(ctx context.Context, duty core.Duty, key core.PubKey, data []core.ParSignedData) error {
-		// TODO(corver): Aggregate partial signatures and send aggregate via the resp channel.
+func makeSigAgg(sigChan chan<- *bls_sig.Signature) func(context.Context, core.Duty, core.PubKey, []core.ParSignedData) error {
+	return func(ctx context.Context, duty core.Duty, key core.PubKey, parSigs []core.ParSignedData) error {
+		var sigs []*bls_sig.PartialSignature
+		for _, parSig := range parSigs {
+			s, err := tblsconv.SigFromCore(parSig.Signature)
+			if err != nil {
+				return errors.Wrap(err, "convert signature")
+			}
+
+			sigs = append(sigs, &bls_sig.PartialSignature{
+				Identifier: byte(parSig.ShareIdx),
+				Signature:  s.Value,
+			})
+		}
+
+		agg, err := tbls.Aggregate(sigs)
+		if err != nil {
+			return err
+		}
+
+		sigChan <- agg
+
 		return nil
 	}
 }
 
 // signLockHash returns a partially signed dataset containing signatures of the lock hash be each DV.
-func signLockHash(_ cluster.Lock, _ []share) (core.ParSignedDataSet, error) {
-	// TODO(corver): Implement simple signing of the lock hash by each secret share.
-	return nil, nil
+func signLockHash(lock cluster.Lock, shareIdx int, shares []share) (core.ParSignedDataSet, error) {
+	hash, err := lock.HashTreeRoot()
+	if err != nil {
+		return nil, errors.Wrap(err, "hash lock")
+	}
+
+	set := make(core.ParSignedDataSet)
+	for _, share := range shares {
+		pk, err := tblsconv.KeyToCore(share.PubKey)
+		if err != nil {
+			return nil, err
+		}
+
+		secret, err := tblsconv.ShareToSecret(share.SecretShare)
+		if err != nil {
+			return nil, err
+		}
+
+		sig, err := tbls.Sign(secret, hash[:])
+		if err != nil {
+			return nil, err
+		}
+
+		sigBytes, err := sig.MarshalBinary()
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal sig")
+		}
+
+		set[pk] = core.ParSignedData{
+			Data:      nil,
+			Signature: sigBytes,
+			ShareIdx:  shareIdx,
+		}
+	}
+
+	return set, nil
 }
 
 // dvsFromShares returns the shares as a slice of cluster distributed validator types.
