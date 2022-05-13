@@ -4,7 +4,7 @@ on:
       - main
     tags:
       - 'v*'
-name: Build docker image
+name: Build
 jobs:
   build-docker:
     runs-on: ubuntu-latest
