@@ -195,12 +195,14 @@ func makeIssueFunc(token string) func(int) (issue string, status string, err err
 			return "", "", errors.Wrap(err, "read body")
 		}
 
+		// Common error fields
 		opts := []z.Field{
 			z.Str("url", u),
 			z.Str("body", string(b)),
 			z.Int("issue", number),
 		}
 
+		// Check if it is an error response
 		var errResp struct {
 			Message string `json:"message"`
 			Docs    string `json:"documentation_url"`
@@ -211,6 +213,7 @@ func makeIssueFunc(token string) func(int) (issue string, status string, err err
 			return "", errResp.Message, nil
 		}
 
+		// Else parse the issue response
 		var issueResp struct {
 			Title string `json:"title"`
 			State string `json:"state"`
