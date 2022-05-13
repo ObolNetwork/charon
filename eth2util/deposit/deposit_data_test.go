@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package deposit
+package deposit_test
 
 import (
 	"encoding/hex"
@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -60,13 +61,13 @@ func TestDepositData(t *testing.T) {
 
 	require.Equal(t, expectedPubkey, pubkey)
 
-	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
+	creds, err := deposit.WithdrawalCredsFromAddr(withdrawalAddr)
 	require.NoError(t, err)
 
-	forkVersion := networkToForkVersion(network)
+	forkVersion := deposit.NetworkToForkVersion(network)
 
 	// Check deposit message root
-	msgRoot, msgSigningRoot, err := GetMessageRoot(pubkey, creds, forkVersion)
+	msgRoot, msgSigningRoot, err := deposit.GetMessageRoot(pubkey, creds, forkVersion)
 	require.NoError(t, err)
 
 	expectedMsgRootBytes, err := hex.DecodeString(depositData.DepositMessageRoot)
@@ -85,8 +86,8 @@ func TestDepositData(t *testing.T) {
 	require.Equal(t, depositData.Signature, sig)
 
 	// check deposit data root
-	sig2 := tblsconv.SigToETH2(s)
-	depositDataRoot, _, err := GetDataRoot(pubkey, creds, sig2, forkVersion)
+	sigEth2 := tblsconv.SigToETH2(s)
+	depositDataRoot, _, err := deposit.GetDataRoot(pubkey, creds, sigEth2, forkVersion)
 	require.NoError(t, err)
 
 	expectedDepositDataBytes, err := hex.DecodeString(depositData.DepositDataRoot)
@@ -95,7 +96,7 @@ func TestDepositData(t *testing.T) {
 	require.Equal(t, expectedDepositDataBytes, depositDataRoot[:])
 
 	// finally, check if serialized versions match.
-	serializedDepositData, err := NewDepositData(pubkey, withdrawalAddr, sig2, network)
+	serializedDepositData, err := deposit.NewDepositData(pubkey, withdrawalAddr, sigEth2, network)
 	require.NoError(t, err)
 
 	testutil.RequireGoldenBytes(t, serializedDepositData)
@@ -105,7 +106,7 @@ func TestWithdrawalCredentials(t *testing.T) {
 	depositData, err := DepositDataFromFile(t, depositDataFile)
 	require.NoError(t, err)
 
-	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
+	creds, err := deposit.WithdrawalCredsFromAddr(withdrawalAddr)
 	require.NoError(t, err)
 
 	credsHex := hex.EncodeToString(creds[:])
@@ -123,22 +124,22 @@ func TestForkVersion(t *testing.T) {
 	var forkVersionExpected eth2p0.Version
 	copy(forkVersionExpected[:], fv)
 
-	forkVersionGot := networkToForkVersion(network)
+	forkVersionGot := deposit.NetworkToForkVersion(network)
 
 	assert.Equal(t, forkVersionExpected, forkVersionGot)
 	assert.Equal(t, depositData.NetworkName, network)
 }
 
-func DepositDataFromFile(t *testing.T, filename string) (ddJSON, error) {
+func DepositDataFromFile(t *testing.T, filename string) (deposit.DepositDataJSON, error) {
 	t.Helper()
 
 	expectedBytes, err := os.ReadFile(filename)
 	require.NoError(t, err)
 
-	var d ddJSON
+	var d deposit.DepositDataJSON
 	err = json.Unmarshal(expectedBytes, &d)
 	if err != nil {
-		return ddJSON{}, errors.Wrap(err, "read deposit data from file")
+		return deposit.DepositDataJSON{}, errors.Wrap(err, "read deposit data from file")
 	}
 
 	return d, nil

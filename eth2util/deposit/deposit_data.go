@@ -91,9 +91,9 @@ func GetDataRoot(pubkey eth2p0.BLSPubKey, withdrawalCreds [32]byte, sig eth2p0.B
 
 // NewDepositData returns the json serialized DepositData.
 func NewDepositData(pubkey eth2p0.BLSPubKey, withdrawalAddr string, sig eth2p0.BLSSignature, network string) ([]byte, error) {
-	forkVersion := networkToForkVersion(network)
+	forkVersion := NetworkToForkVersion(network)
 
-	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
+	creds, err := WithdrawalCredsFromAddr(withdrawalAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "withdrawal credentials")
 	}
@@ -110,7 +110,7 @@ func NewDepositData(pubkey eth2p0.BLSPubKey, withdrawalAddr string, sig eth2p0.B
 		return nil, errors.Wrap(err, "deposit data root")
 	}
 
-	bytes, err := json.MarshalIndent(&ddJSON{
+	bytes, err := json.MarshalIndent(&DepositDataJSON{
 		PubKey:                fmt.Sprintf("%x", pubkey),
 		WithdrawalCredentials: fmt.Sprintf("%x", creds),
 		Amount:                validatorAmt,
@@ -167,8 +167,8 @@ func GetSigningRoot(forkVersion eth2p0.Version, root eth2p0.Root) ([32]byte, err
 	return msg, nil
 }
 
-// withdrawalCredsFromAddr returns the Withdrawal Credentials corresponding to a '0x01' Ethereum withdrawal address.
-func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
+// WithdrawalCredsFromAddr returns the Withdrawal Credentials corresponding to a '0x01' Ethereum withdrawal address.
+func WithdrawalCredsFromAddr(addr string) ([32]byte, error) {
 	// Check for validity of address.
 	if !common.IsHexAddress(addr) {
 		return [32]byte{}, errors.New("invalid withdrawal address", z.Str("address", addr))
@@ -197,9 +197,9 @@ func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 	return resp, nil
 }
 
-// networkToForkVersion returns the fork version corresponding to a given network. If no known network found,
+// NetworkToForkVersion returns the fork version corresponding to a given network. If no known network found,
 // simply returns the mainnet fork version.
-func networkToForkVersion(network string) eth2p0.Version {
+func NetworkToForkVersion(network string) eth2p0.Version {
 	var fvBytes []byte
 
 	switch network {
@@ -223,8 +223,8 @@ func networkToForkVersion(network string) eth2p0.Version {
 	return forkVersion
 }
 
-// ddJSON is the json formatter for depositData.
-type ddJSON struct {
+// DepositDataJSON is the json representation of Deposit Data.
+type DepositDataJSON struct { // nolint: revive
 	PubKey                string `json:"pubkey"`
 	WithdrawalCredentials string `json:"withdrawal_credentials"`
 	Amount                uint64 `json:"amount"`
