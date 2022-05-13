@@ -19,7 +19,6 @@
 //  - The commit subject contains the PR number '(#123)'.
 //  - Each commit contains a 'category: foo' line in the body.
 //  - Each commit is linked to a Github Issue via a 'ticket: #321' line in the body.
-//  - A GITHUB_TOKEN env var is present to download the issue title.
 //  - Only PRs with supported categories linked to Issues will be included in the changelog.
 //nolint:forbidigo,gosec,revive
 package main
@@ -50,7 +49,6 @@ import (
 var (
 	rangeFlag  = flag.String("range", "", "Git commit range to create changelog from. Defaults to '<second_latest_tag>..<latest_tag>'")
 	outputFlag = flag.String("output", "changelog.md", "Output markdown file path")
-	tokenFlag  = flag.String("github_token", "", "GitHub personal access token. Defaults to GITHUB_TOKEN env var")
 
 	//go:embed template.md
 	tpl string
@@ -123,17 +121,7 @@ type tplPR struct {
 func main() {
 	flag.Parse()
 
-	token := *tokenFlag
-	if token == "" {
-		var ok bool
-		token, ok = os.LookupEnv("GITHUB_TOKEN")
-		if !ok {
-			fmt.Println("Github access token not found, either specify --token flag or set GITHUB_TOKEN env var")
-			os.Exit(1)
-		}
-	}
-
-	err := run(*rangeFlag, *outputFlag, token)
+	err := run(*rangeFlag, *outputFlag)
 	if err != nil {
 		applog.Error(context.Background(), "Run error", err)
 		os.Exit(1)
@@ -141,7 +129,7 @@ func main() {
 }
 
 // run runs the command.
-func run(gitRange string, output string, token string) error {
+func run(gitRange string, output string) error {
 	if gitRange == "" {
 		tags, err := getLatestTags(2)
 		if err != nil {
@@ -157,7 +145,7 @@ func run(gitRange string, output string, token string) error {
 		return err
 	}
 
-	data, err := tplDataFromPRs(prs, gitRange, makeIssueFunc(token))
+	data, err := tplDataFromPRs(prs, gitRange, getIssueTitle)
 	if err != nil {
 		return err
 	}
@@ -174,59 +162,51 @@ func run(gitRange string, output string, token string) error {
 	return nil
 }
 
-// makeIssueFunc returns a function that resolves an issue's title and status via the github API.
-func makeIssueFunc(token string) func(int) (issue string, status string, err error) {
-	return func(number int) (issue string, status string, err error) {
-		u := fmt.Sprintf("https://api.github.com/repos/obolnetwork/charon/issues/%d", number)
-		req, err := http.NewRequest("GET", u, nil)
-		if err != nil {
-			return "", "", errors.Wrap(err, "new request")
-		}
-		req.SetBasicAuth(token, "x-oauth-basic")
-
-		resp, err := new(http.Client).Do(req)
-		if err != nil {
-			return "", "", errors.Wrap(err, "query github issue")
-		}
-		defer resp.Body.Close()
-
-		b, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return "", "", errors.Wrap(err, "read body")
-		}
-
-		// Common error fields
-		opts := []z.Field{
-			z.Str("url", u),
-			z.Str("body", string(b)),
-			z.Int("issue", number),
-		}
-
-		// Check if it is an error response
-		var errResp struct {
-			Message string `json:"message"`
-			Docs    string `json:"documentation_url"`
-		}
-		if err = json.Unmarshal(b, &errResp); err != nil {
-			return "", "", errors.Wrap(err, "unmarshal issue", opts...)
-		} else if errResp.Message != "" && errResp.Docs != "" {
-			return "", errResp.Message, nil
-		}
-
-		// Else parse the issue response
-		var issueResp struct {
-			Title string `json:"title"`
-			State string `json:"state"`
-		}
-		err = json.Unmarshal(b, &issueResp)
-		if err != nil {
-			return "", "", errors.Wrap(err, "unmarshal issue", opts...)
-		} else if issueResp.Title == "" {
-			return "", "", errors.New("invalid issue response, missing title", opts...)
-		}
-
-		return issueResp.Title, issueResp.State, nil
+// getIssueTitle returns the issue title and status via the github API.
+func getIssueTitle(number int) (string, string, error) {
+	u := fmt.Sprintf("https://api.github.com/repos/obolnetwork/charon/issues/%d", number)
+	resp, err := http.Get(u)
+	if err != nil {
+		return "", "", errors.Wrap(err, "query github issue")
 	}
+	defer resp.Body.Close()
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", errors.Wrap(err, "read body")
+	}
+
+	// Common error fields
+	opts := []z.Field{
+		z.Str("url", u),
+		z.Str("body", string(b)),
+		z.Int("issue", number),
+	}
+
+	// Check if it is an error response
+	var errResp struct {
+		Message string `json:"message"`
+		Docs    string `json:"documentation_url"`
+	}
+	if err = json.Unmarshal(b, &errResp); err != nil {
+		return "", "", errors.Wrap(err, "unmarshal issue", opts...)
+	} else if errResp.Message != "" && errResp.Docs != "" {
+		return "", errResp.Message, nil
+	}
+
+	// Else parse the issue response
+	var issueResp struct {
+		Title string `json:"title"`
+		State string `json:"state"`
+	}
+	err = json.Unmarshal(b, &issueResp)
+	if err != nil {
+		return "", "", errors.Wrap(err, "unmarshal issue", opts...)
+	} else if issueResp.Title == "" {
+		return "", "", errors.New("invalid issue response, missing title", opts...)
+	}
+
+	return issueResp.Title, issueResp.State, nil
 }
 
 // execTemplate returns the executed changelog template.
