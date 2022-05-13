@@ -179,6 +179,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) {
 				return // context cancelled
 			}
 
+			instrumentDuty(duty, argSet)
 			ctx, span := core.StartDutyTrace(ctx, duty, "core/scheduler.scheduleSlot")
 			defer span.End()
 
