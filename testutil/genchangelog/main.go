@@ -26,6 +26,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
 	"encoding/json"
 	"flag"
@@ -42,6 +43,7 @@ import (
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
+	applog "github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
 
@@ -133,7 +135,7 @@ func main() {
 
 	err := run(*rangeFlag, *outputFlag, token)
 	if err != nil {
-		fmt.Println(err.Error())
+		applog.Error(context.Background(), "Run error", err)
 		os.Exit(1)
 	}
 }
@@ -172,41 +174,58 @@ func run(gitRange string, output string, token string) error {
 	return nil
 }
 
-// makeIssueFunc returns a function that resolves closed issue titles via the github API.
-func makeIssueFunc(token string) func(int) (string, bool, error) {
-	return func(number int) (string, bool, error) {
+// makeIssueFunc returns a function that resolves an issue's title and status via the github API.
+func makeIssueFunc(token string) func(int) (issue string, status string, err error) {
+	return func(number int) (issue string, status string, err error) {
 		u := fmt.Sprintf("https://api.github.com/repos/obolnetwork/charon/issues/%d", number)
 		req, err := http.NewRequest("GET", u, nil)
 		if err != nil {
-			return "", false, errors.Wrap(err, "new request")
+			return "", "", errors.Wrap(err, "new request")
 		}
 		req.SetBasicAuth(token, "x-oauth-basic")
 
 		resp, err := new(http.Client).Do(req)
 		if err != nil {
-			return "", false, errors.Wrap(err, "query github issue")
+			return "", "", errors.Wrap(err, "query github issue")
 		}
 		defer resp.Body.Close()
 
 		b, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return "", false, errors.Wrap(err, "read body")
+			return "", "", errors.Wrap(err, "read body")
 		}
 
-		var issue struct {
+		// Common error fields
+		opts := []z.Field{
+			z.Str("url", u),
+			z.Str("body", string(b)),
+			z.Int("issue", number),
+		}
+
+		// Check if it is an error response
+		var errResp struct {
+			Message string `json:"message"`
+			Docs    string `json:"documentation_url"`
+		}
+		if err = json.Unmarshal(b, &errResp); err != nil {
+			return "", "", errors.Wrap(err, "unmarshal issue", opts...)
+		} else if errResp.Message != "" && errResp.Docs != "" {
+			return "", errResp.Message, nil
+		}
+
+		// Else parse the issue response
+		var issueResp struct {
 			Title string `json:"title"`
 			State string `json:"state"`
 		}
-		err = json.Unmarshal(b, &issue)
+		err = json.Unmarshal(b, &issueResp)
 		if err != nil {
-			return "", false, errors.Wrap(err, "unmarshal issue")
-		} else if issue.Title == "" {
-			return "", false, errors.New("github api error: " + string(b))
-		} else if issue.State != "closed" {
-			return issue.Title, false, nil
+			return "", "", errors.Wrap(err, "unmarshal issue", opts...)
+		} else if issueResp.Title == "" {
+			return "", "", errors.New("invalid issue response, missing title", opts...)
 		}
 
-		return issue.Title, true, nil
+		return issueResp.Title, issueResp.State, nil
 	}
 }
 
@@ -225,7 +244,7 @@ func execTemplate(data tplData) ([]byte, error) {
 }
 
 // tplDataFromPRs builds the template data from the provides PRs, git range, issue title func.
-func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (string, bool, error)) (tplData, error) {
+func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (string, string, error)) (tplData, error) {
 	issues := make(map[int]tplIssue)
 	for _, pr := range prs {
 		issue := issues[pr.Issue]
@@ -238,11 +257,11 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 
 	cats := make(map[string]tplCategory)
 	for _, issue := range issues {
-		title, closed, err := issueData(issue.Number)
+		title, status, err := issueData(issue.Number)
 		if err != nil {
 			return tplData{}, err
-		} else if !closed {
-			fmt.Printf("Skipping non-closed issue #%d: %s (PRs=%d)\n", issue.Number, title, len(issue.PRs))
+		} else if status != "closed" {
+			fmt.Printf("Skipping '%s' issue #%d: %s (PRs=%d)\n", status, issue.Number, title, len(issue.PRs))
 			continue
 		}
 		issue.Title = title
