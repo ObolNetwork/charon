@@ -350,7 +350,10 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 		}
 
 	case MsgCommit:
-		// Don't ignore any rounds, since COMMIT may be justified with Qcommit.
+		// Ignore other rounds, since COMMIT isn't justified.
+		if msg.Round() != round {
+			return uponNothing, nil
+		}
 		commits := filterByRoundAndValue(buffer, MsgCommit, msg.Round(), msg.Value())
 		if len(commits) >= d.Quorum() {
 			return uponQuorumCommits, commits
