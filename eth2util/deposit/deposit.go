@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Package deposit provides functions to create deposit data files.
 package deposit
 
 import (
@@ -30,34 +31,27 @@ import (
 
 var (
 	// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#eth1_address_withdrawal_prefix
-	eth1AddressWithdrawalPrefix = byte(0x01)
+	eth1AddressWithdrawalPrefix = []byte{0x01}
 
 	// the amount of ether in gwei required to activate a validator.
 	validatorAmt = eth2p0.Gwei(32000000000)
-
-	// zeroes11 refers to a zeroed out 11 byte array.
-	zeroBytes11 = []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-
-	// zeroes refers to a zeroed out 32 byte array.
-	zeroBytes32 = []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 
 	// DOMAIN_DEPOSIT. See spec: https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#domain-types
 	depositDomainType = eth2p0.DomainType([4]byte{0x03, 0x00, 0x00, 0x00})
 )
 
-// GetMessageRoot returns the hash root of the deposit message.
-func GetMessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.Root, error) {
+// getMessageRoot returns a deposit message hash root created by the parameters.
+func getMessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.Root, error) {
 	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
 	if err != nil {
-		return eth2p0.Root{}, errors.Wrap(err, "withdrawal credentials")
+		return eth2p0.Root{}, err
 	}
 
 	dm := eth2p0.DepositMessage{
 		PublicKey:             pubkey,
 		WithdrawalCredentials: creds[:],
-		Amount:                eth2p0.Gwei(validatorAmt),
+		Amount:                validatorAmt,
 	}
-
 	hashRoot, err := dm.HashTreeRoot()
 	if err != nil {
 		return eth2p0.Root{}, errors.Wrap(err, "deposit message hash root")
@@ -66,75 +60,56 @@ func GetMessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.Root
 	return hashRoot, nil
 }
 
-// GetDataRoot returns the hash root of the deposit data.
-func GetDataRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string, sig eth2p0.BLSSignature) (eth2p0.Root, error) {
-	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
-	if err != nil {
-		return eth2p0.Root{}, errors.Wrap(err, "withdrawal credentials")
-	}
-
-	dd := eth2p0.DepositData{
-		PublicKey:             pubkey,
-		WithdrawalCredentials: creds[:],
-		Amount:                eth2p0.Gwei(validatorAmt),
-		Signature:             sig,
-	}
-
-	hashRoot, err := dd.HashTreeRoot()
-	if err != nil {
-		return eth2p0.Root{}, errors.Wrap(err, "deposit data hash root")
-	}
-
-	return hashRoot, nil
-}
-
-// MarshalDepositData returns the json serialized DepositData.
-func MarshalDepositData(pubkey eth2p0.BLSPubKey, withdrawalAddr string, sig eth2p0.BLSSignature, network string) ([]byte, error) {
+// MarshalDepositData returns a json serialized deposit data.
+func MarshalDepositData(pubkey eth2p0.BLSPubKey, withdrawalAddr string, network string, msgSig eth2p0.BLSSignature) ([]byte, error) {
 	forkVersion := networkToForkVersion(network)
 
 	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
 	if err != nil {
-		return nil, errors.Wrap(err, "withdrawal credentials")
+		return nil, err
 	}
 
 	// calculate depositMessage root
-	dmHashRoot, err := GetMessageRoot(pubkey, withdrawalAddr)
+	msgRoot, err := getMessageRoot(pubkey, withdrawalAddr)
 	if err != nil {
-		return nil, errors.Wrap(err, "deposit message root")
+		return nil, err
 	}
 
-	// calculate depositData root
-	ddHashRoot, err := GetDataRoot(pubkey, withdrawalAddr, sig)
+	// TODO(corver): Verify signature matches msgRoot.
+
+	dd := eth2p0.DepositData{
+		PublicKey:             pubkey,
+		WithdrawalCredentials: creds[:],
+		Amount:                validatorAmt,
+		Signature:             msgSig,
+	}
+	dataRoot, err := dd.HashTreeRoot()
 	if err != nil {
-		return nil, errors.Wrap(err, "deposit data root")
+		return nil, errors.Wrap(err, "deposit data hash root")
 	}
 
 	bytes, err := json.MarshalIndent(&depositDataJSON{
 		PubKey:                fmt.Sprintf("%x", pubkey),
 		WithdrawalCredentials: fmt.Sprintf("%x", creds),
 		Amount:                uint64(validatorAmt),
-		Signature:             fmt.Sprintf("%x", sig),
-		DepositMessageRoot:    fmt.Sprintf("%x", dmHashRoot),
-		DepositDataRoot:       fmt.Sprintf("%x", ddHashRoot),
+		Signature:             fmt.Sprintf("%x", msgSig),
+		DepositMessageRoot:    fmt.Sprintf("%x", msgRoot),
+		DepositDataRoot:       fmt.Sprintf("%x", dataRoot),
 		ForkVersion:           fmt.Sprintf("%x", forkVersion),
 		NetworkName:           network,
 	}, "", " ")
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal deposit data json")
+		return nil, errors.Wrap(err, "marshal deposit data")
 	}
 
 	return bytes, nil
 }
 
-// GetDomain returns the Signature Domain.
-func GetDomain(forkVersion eth2p0.Version, domainType eth2p0.DomainType) (eth2p0.Domain, error) {
-	// For deposit, genesisValidatorsRoot is a fixed value.
-	var genesisValidatorsRoot eth2p0.Root
-	copy(genesisValidatorsRoot[:], zeroBytes32)
-
+// getDepositDomain returns the deposit signature domain.
+func getDepositDomain(forkVersion eth2p0.Version) (eth2p0.Domain, error) {
 	forkData := &eth2p0.ForkData{
 		CurrentVersion:        forkVersion,
-		GenesisValidatorsRoot: genesisValidatorsRoot,
+		GenesisValidatorsRoot: eth2p0.Root{}, // GenesisValidatorsRoot is zero for deposit domain.
 	}
 	root, err := forkData.HashTreeRoot()
 	if err != nil {
@@ -142,25 +117,30 @@ func GetDomain(forkVersion eth2p0.Version, domainType eth2p0.DomainType) (eth2p0
 	}
 
 	var domain eth2p0.Domain
-	copy(domain[:], domainType[:])
+	copy(domain[0:], depositDomainType[:])
 	copy(domain[4:], root[:])
 
 	return domain, nil
 }
 
-// GetSigningRoot returns the signing root by combining a hash root with the deposit domain.
-func GetSigningRoot(forkVersion eth2p0.Version, root eth2p0.Root) ([32]byte, error) {
-	domain, err := GetDomain(forkVersion, depositDomainType)
+// GetMessageSigningRoot returns the deposit message signing root created by the provided parameters.
+func GetMessageSigningRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string, network string) ([32]byte, error) {
+	msgRoot, err := getMessageRoot(pubkey, withdrawalAddr)
 	if err != nil {
 		return [32]byte{}, err
 	}
 
-	msg, err := (&eth2p0.SigningData{ObjectRoot: root, Domain: domain}).HashTreeRoot()
+	domain, err := getDepositDomain(networkToForkVersion(network))
+	if err != nil {
+		return [32]byte{}, err
+	}
+
+	resp, err := (&eth2p0.SigningData{ObjectRoot: msgRoot, Domain: domain}).HashTreeRoot()
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "signing data root")
 	}
 
-	return msg, nil
+	return resp, nil
 }
 
 // WithdrawalCredsFromAddr returns the Withdrawal Credentials corresponding to a '0x01' Ethereum withdrawal address.
@@ -170,35 +150,22 @@ func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 		return [32]byte{}, errors.New("invalid withdrawal address", z.Str("address", addr))
 	}
 
-	var creds []byte
-
-	// Append the single byte ETH1_ADDRESS_WITHDRAWAL_PREFIX as prefix.
-	creds = append(creds, eth1AddressWithdrawalPrefix)
-
-	// Append 11 bytes of 0.
-	creds = append(creds, zeroBytes11...)
-
-	addr = strings.TrimPrefix(addr, "0x")
-	addrBytes, err := hex.DecodeString(addr)
+	addrBytes, err := hex.DecodeString(strings.TrimPrefix(addr, "0x"))
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "decode address")
 	}
 
-	// Finally, append 20 bytes of ethereum address.
-	creds = append(creds, addrBytes...)
+	var creds [32]byte
+	copy(creds[0:], eth1AddressWithdrawalPrefix) // Add 1 byte prefix.
+	copy(creds[12:], addrBytes)                  // Add 20 bytes of ethereum address suffix.
 
-	var resp [32]byte
-	copy(resp[:], creds)
-
-	return resp, nil
+	return creds, nil
 }
 
 // networkToForkVersion returns the fork version corresponding to a given network. If no known network found,
 // simply returns the mainnet fork version.
 func networkToForkVersion(network string) eth2p0.Version {
 	switch network {
-	case "mainnet":
-		return [4]byte{0x00, 0x00, 0x00, 0x00}
 	case "prater":
 		return [4]byte{0x00, 0x00, 0x10, 0x20}
 	case "kintsugi":
@@ -207,6 +174,8 @@ func networkToForkVersion(network string) eth2p0.Version {
 		return [4]byte{0x70, 0x00, 0x00, 0x69}
 	case "gnosis":
 		return [4]byte{0x00, 0x00, 0x00, 0x64}
+	case "mainnet": // Default to mainnet
+		fallthrough
 	default:
 		return [4]byte{0x00, 0x00, 0x00, 0x00}
 	}

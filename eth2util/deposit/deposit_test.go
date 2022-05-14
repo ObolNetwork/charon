@@ -17,53 +17,50 @@ package deposit_test
 
 import (
 	"encoding/hex"
+	"os"
 	"testing"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util/deposit"
+	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"github.com/obolnetwork/charon/testutil"
 )
 
-var (
+const (
+	// Test output file and it's input values.
+	testfile       = "testdata/deposit_data.json"
 	privKey        = "07e0355752a16fdc473d01676f7f82594991ea830eea928d8e2254dfd98d4beb"
 	withdrawalAddr = "0xc0404ed740a69d11201f5ed297c5732f562c6e4e"
 	network        = "prater"
 )
 
 func TestDepositData(t *testing.T) {
-	// Get the pubkey
+	// Get the private and public keys
 	privKeyBytes, err := hex.DecodeString(privKey)
 	require.NoError(t, err)
 	sk, err := tblsconv.SecretFromBytes(privKeyBytes)
 	require.NoError(t, err)
 	pk, err := sk.GetPublicKey()
 	require.NoError(t, err)
-
 	pubkey, err := tblsconv.KeyToETH2(pk)
 	require.NoError(t, err)
 
-	// Get deposit message root
-	msgRoot, err := deposit.GetMessageRoot(pubkey, withdrawalAddr)
+	// Get deposit message signing root
+	msgSigningRoot, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, network)
 	require.NoError(t, err)
 
-	forkVersion := eth2p0.Version([4]byte{0x00, 0x00, 0x10, 0x20})
-	msgSigningRoot, err := deposit.GetSigningRoot(forkVersion, msgRoot)
+	// Sign it
+	s, err := tbls.Sign(sk, msgSigningRoot[:])
 	require.NoError(t, err)
-
-	// sign the message signing root
-	blsScheme := bls_sig.NewSigEth2()
-	s, err := blsScheme.Sign(sk, msgSigningRoot[:])
-	require.NoError(t, err)
-
 	sigEth2 := tblsconv.SigToETH2(s)
 
-	// check if serialized versions match.
-	serializedDepositData, err := deposit.MarshalDepositData(pubkey, withdrawalAddr, sigEth2, network)
+	// Check if serialized versions match.
+	actual, err := deposit.MarshalDepositData(pubkey, withdrawalAddr, network, sigEth2)
 	require.NoError(t, err)
 
-	testutil.RequireGoldenBytes(t, serializedDepositData)
+	// Not using golden file since output MUST never change.
+	expected, err := os.ReadFile(testfile)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
 }

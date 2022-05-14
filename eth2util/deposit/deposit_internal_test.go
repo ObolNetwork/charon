@@ -24,15 +24,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	withdrawalAddr = "0xc0404ed740a69d11201f5ed297c5732f562c6e4e"
-	network        = "prater"
-)
-
 func TestWithdrawalCredentials(t *testing.T) {
 	expectedWithdrawalCreds := "010000000000000000000000c0404ed740a69d11201f5ed297c5732f562c6e4e"
-
-	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
+	creds, err := withdrawalCredsFromAddr("0xc0404ed740a69d11201f5ed297c5732f562c6e4e")
 	require.NoError(t, err)
 
 	credsHex := hex.EncodeToString(creds[:])
@@ -40,9 +34,7 @@ func TestWithdrawalCredentials(t *testing.T) {
 	require.Equal(t, expectedWithdrawalCreds, credsHex)
 }
 
-func TestForkVersion(t *testing.T) {
-	forkVersionExpected := eth2p0.Version([4]byte{0x00, 0x00, 0x10, 0x20})
-	forkVersionGot := networkToForkVersion(network)
-
-	assert.Equal(t, forkVersionExpected, forkVersionGot)
+func TestNetworkToForkVersion(t *testing.T) {
+	actual := networkToForkVersion("prater")
+	assert.EqualValues(t, eth2p0.Version([4]byte{0x00, 0x00, 0x10, 0x20}), actual)
 }
