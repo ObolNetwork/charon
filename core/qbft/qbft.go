@@ -114,15 +114,12 @@ type uponRule int64
 const (
 	uponNothing uponRule = iota
 	uponJustifiedPrePrepare
-	uponUnjustPrePrepare
 	uponQuorumPrepares
 	uponQuorumCommits
-	uponUnjustRoundChange
 	uponUnjustQuorumRoundChanges
 	uponFPlus1RoundChanges
 	uponQuorumRoundChanges
 	uponJustifiedDecided
-	uponUnjustDecided
 )
 
 // Run executes the consensus algorithm until the context closed.
@@ -229,6 +226,11 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 				break
 			}
 
+			justified := isJustified(d, instance, msg)
+			if !justified {
+				break
+			}
+
 			if !bufferMsg(msg) {
 				break
 			}
@@ -291,8 +293,8 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 				err = broadcastMsg(MsgPrePrepare, value, justification)
 
-			case uponUnjustPrePrepare, uponUnjustRoundChange, uponUnjustDecided, uponUnjustQuorumRoundChanges:
-				// Ignore bug or byzantium.
+			case uponUnjustQuorumRoundChanges:
+				// Ignore bug or byzantine
 
 			default:
 				panic("bug: invalid rule")
@@ -321,16 +323,9 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 func classify[I any, V comparable](d Definition[I, V], instance I, round, process int64, buffer []Msg[I, V], msg Msg[I, V]) (uponRule, []Msg[I, V]) {
 	switch msg.Type() {
 	case MsgDecided:
-		if isJustifiedDecided(d, msg) {
-			return uponJustifiedDecided, msg.Justification()
-		}
-
-		return uponUnjustDecided, nil
+		return uponJustifiedDecided, msg.Justification()
 
 	case MsgPrePrepare:
-		if !isJustifiedPrePrepare(d, instance, msg) {
-			return uponUnjustPrePrepare, nil
-		}
 
 		// Only ignore old rounds, since PRE-PREPARE is justified we may jump ahead.
 		if msg.Round() < round {
@@ -360,10 +355,6 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 		}
 
 	case MsgRoundChange:
-		if !isJustifiedRoundChange(d, msg) {
-			return uponUnjustRoundChange, nil
-		}
-
 		// Only ignore old rounds.
 		if msg.Round() < round {
 			return uponNothing, nil
@@ -449,6 +440,24 @@ func nextMinRound[I any, V comparable](d Definition[I, V], frc []Msg[I, V], roun
 	}
 
 	return rmin
+}
+
+// isJustified returns true if message is justified or if it does not need justification
+func isJustified[I any, V comparable](d Definition[I, V], instance I, msg Msg[I, V]) bool {
+	switch msg.Type() {
+	case MsgPrePrepare:
+		return isJustifiedPrePrepare(d, instance, msg)
+	case MsgPrepare:
+		return true
+	case MsgCommit:
+		return true
+	case MsgRoundChange:
+		return isJustifiedRoundChange(d, msg)
+	case MsgDecided:
+		return isJustifiedDecided(d, msg)
+	default:
+		return false
+	}
 }
 
 // isJustifiedRoundChange returns true if the ROUND_CHANGE message's
