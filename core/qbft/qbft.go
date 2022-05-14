@@ -155,6 +155,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		dedupIn               = make(map[dedupKey]bool)
 		timerChan             <-chan time.Time
 		stopTimer             func()
+		dedupRules            = make(map[uponRule]bool)
 	)
 
 	// === Helpers ==
@@ -202,6 +203,28 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		dedupIn = dedup
 	}
 
+	// isDuplicatedRule returns true if the rule has been already executed since last round change.
+	// As an exception for uponJustifiedDecided always returns false, so it can be executed multiple times per round.
+	isDuplicatedRule := func(rule uponRule) bool {
+		if rule == uponJustifiedDecided {
+			return false
+		}
+		if dedupRules[rule] {
+			return true
+		}
+
+		// first time for this rule
+		dedupRules[rule] = true
+
+		return false
+	}
+
+	// changeRound changes round and resets the rules deduplication memory.
+	changeRound := func(newRound int64) {
+		dedupRules = make(map[uponRule]bool)
+		round = newRound
+	}
+
 	// === Algorithm ===
 
 	{ // Algorithm 1:11
@@ -237,13 +260,16 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			if rule == uponNothing {
 				break
 			}
+			if isDuplicatedRule(rule) {
+				break
+			}
 
 			d.LogUponRule(ctx, instance, process, round, msg, rule.String())
 
 			switch rule {
 			case uponJustifiedPrePrepare: // Algorithm 2:1
 				// Applicable to current or future rounds (since justified)
-				round = msg.Round()
+				changeRound(msg.Round())
 				trimBuffer()
 
 				stopTimer()
@@ -261,7 +287,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 			case uponQuorumCommits, uponJustifiedDecided: // Algorithm 2:8
 				// Applicable to any round (since can be justified)
-				round = msg.Round()
+				changeRound(msg.Round())
 				qCommit = justification
 
 				stopTimer()
@@ -271,7 +297,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 			case uponFPlus1RoundChanges: // Algorithm 3:5
 				// Only applicable to future rounds
-				round = nextMinRound(d, justification, round /* < msg.Round */)
+				changeRound(nextMinRound(d, justification, round /* < msg.Round */))
 				trimBuffer()
 
 				stopTimer()
