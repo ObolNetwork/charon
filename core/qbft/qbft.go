@@ -386,29 +386,6 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 	return uponNothing, nil
 }
 
-// highestPrepared implements algorithm 4:5 and returns
-// the highest prepared round (and pv) from the set of quorum
-// round change messages (Qrc).
-func highestPrepared[I any, V comparable](qrc []Msg[I, V]) (int64, V) {
-	if len(qrc) == 0 {
-		// Expect: len(Qrc) >= quorum
-		panic("bug: qrc empty")
-	}
-
-	var (
-		pr int64
-		pv V
-	)
-	for _, msg := range qrc {
-		if pr < msg.PreparedRound() {
-			pr = msg.PreparedRound()
-			pv = msg.PreparedValue()
-		}
-	}
-
-	return pr, pv
-}
-
 // nextMinRound implements algorithm 3:6 and returns the next minimum round
 // from received round change messages.
 func nextMinRound[I any, V comparable](d Definition[I, V], frc []Msg[I, V], round int64) int64 {
