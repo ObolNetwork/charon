@@ -243,7 +243,7 @@ func testQBFT(t *testing.T, test test) {
 			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
 			if round > maxRound {
 				cancel()
-			} else if !test.Fuzz && strings.Contains(rule, "Unjust") {
+			} else if !test.Fuzz && strings.HasPrefix(rule, "unjust") {
 				t.Logf("%s: %#v", rule, msg)
 				cancel()
 			}
