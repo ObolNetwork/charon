@@ -550,7 +550,7 @@ func containsJustifiedQrc[I any, V comparable](d Definition[I, V], justification
 		if rc.PreparedRound() > pr {
 			return zeroVal[V](), false
 		}
-		// Ensure one ROUND-CHANGE with pr and pv
+		// Ensure at least one ROUND-CHANGE with pr and pv
 		if rc.PreparedRound() == pr && rc.PreparedValue() == pv {
 			found = true
 		}
