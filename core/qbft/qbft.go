@@ -152,10 +152,10 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		preparedJustification []Msg[I, V]
 		qCommit               []Msg[I, V]
 		buffer                []Msg[I, V]
-		dedupIn               = make(map[dedupKey]bool)
+		dedupMsgs             = make(map[dedupKey]bool)
+		dedupRules            = make(map[uponRule]bool)
 		timerChan             <-chan time.Time
 		stopTimer             func()
-		dedupRules            = make(map[uponRule]bool)
 	)
 
 	// === Helpers ==
@@ -175,10 +175,10 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	// bufferMsg returns true if the message is unique and was added to the buffer.
 	// It returns false if the message is a duplicate and should be discarded.
 	bufferMsg := func(msg Msg[I, V]) bool {
-		if dedupIn[key(msg)] {
+		if dedupMsgs[key(msg)] {
 			return false
 		}
-		dedupIn[key(msg)] = true
+		dedupMsgs[key(msg)] = true
 		buffer = append(buffer, msg)
 
 		return true
@@ -195,25 +195,22 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		buffer = selected
 
 		dedup := make(map[dedupKey]bool)
-		for k := range dedupIn {
+		for k := range dedupMsgs {
 			if k.Round >= round {
 				dedup[k] = true
 			}
 		}
-		dedupIn = dedup
+		dedupMsgs = dedup
 	}
 
 	// isDuplicatedRule returns true if the rule has been already executed since last round change.
 	// As an exception for uponJustifiedDecided always returns false, so it can be executed multiple times per round.
 	isDuplicatedRule := func(rule uponRule) bool {
-		if rule == uponJustifiedDecided {
-			return false
-		}
 		if dedupRules[rule] {
 			return true
 		}
 
-		// first time for this rule
+		// First time for this rule
 		dedupRules[rule] = true
 
 		return false
