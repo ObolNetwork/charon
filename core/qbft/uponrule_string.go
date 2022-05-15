@@ -25,20 +25,17 @@ func _() {
 	var x [1]struct{}
 	_ = x[uponNothing-0]
 	_ = x[uponJustifiedPrePrepare-1]
-	_ = x[uponUnjustPrePrepare-2]
-	_ = x[uponQuorumPrepares-3]
-	_ = x[uponQuorumCommits-4]
-	_ = x[uponUnjustRoundChange-5]
-	_ = x[uponUnjustQuorumRoundChanges-6]
-	_ = x[uponFPlus1RoundChanges-7]
-	_ = x[uponQuorumRoundChanges-8]
-	_ = x[uponJustifiedDecided-9]
-	_ = x[uponUnjustDecided-10]
+	_ = x[uponQuorumPrepares-2]
+	_ = x[uponQuorumCommits-3]
+	_ = x[uponUnjustQuorumRoundChanges-4]
+	_ = x[uponFPlus1RoundChanges-5]
+	_ = x[uponQuorumRoundChanges-6]
+	_ = x[uponJustifiedDecided-7]
 }
 
-const _uponRule_name = "NothingJustifiedPrePrepareUnjustPrePrepareQuorumPreparesQuorumCommitsUnjustRoundChangeUnjustQuorumRoundChangesFPlus1RoundChangesQuorumRoundChangesJustifiedDecidedUnjustDecided"
+const _uponRule_name = "NothingJustifiedPrePrepareQuorumPreparesQuorumCommitsUnjustQuorumRoundChangesFPlus1RoundChangesQuorumRoundChangesJustifiedDecided"
 
-var _uponRule_index = [...]uint8{0, 7, 26, 42, 56, 69, 86, 110, 128, 146, 162, 175}
+var _uponRule_index = [...]uint8{0, 7, 26, 40, 53, 77, 95, 113, 129}
 
 func (i uponRule) String() string {
 	if i < 0 || i >= uponRule(len(_uponRule_index)-1) {
