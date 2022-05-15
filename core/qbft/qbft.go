@@ -278,12 +278,9 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 			case uponQuorumRoundChanges: // Algorithm 3:11
 				// Only applicable to current round
-				qrc := filterRoundChange(justification, round /* == msg.Round */)
-				_, pv := highestPrepared(qrc)
-
-				value := pv
-				if isZeroVal(value) {
-					value = inputValue
+				value := inputValue
+				if _, pv, ok := getSingleJustifiedPrPv(d, justification); ok {
+					value = pv
 				}
 
 				err = broadcastMsg(MsgPrePrepare, value, justification)
@@ -563,14 +560,53 @@ func containsJustifiedQrc[I any, V comparable](d Definition[I, V], justification
 
 	// J2: if the justification has a quorum of valid prepare messages
 	// with pr and pv equaled to highest pr and pv in qrc (other than null).
-	pr, pv := highestPrepared(qrc)
-	if pr == 0 {
-		panic("bug: highest pr=0, but all not null")
+
+	// Get pr and pv from quorum PREPARES
+	pr, pv, ok := getSingleJustifiedPrPv(d, justification)
+	if !ok {
+		return zeroVal[V](), false
 	}
 
-	prepares := filterMsgs(justification, MsgPrepare, pr, &pv, nil, nil)
+	var found bool
+	for _, rc := range qrc {
+		// Ensure no ROUND-CHANGE with higher pr
+		if rc.PreparedRound() > pr {
+			return zeroVal[V](), false
+		}
+		// Ensure one ROUND-CHANGE with pr and pv
+		if rc.PreparedRound() == pr && rc.PreparedValue() == pv {
+			found = true
+		}
+	}
 
-	return pv, len(prepares) >= d.Quorum()
+	return pv, found
+}
+
+// getSingleJustifiedPrPv extracts the single justified Pr and Pv from quorum PREPARES in list of messages.
+func getSingleJustifiedPrPv[I any, V comparable](d Definition[I, V], msgs []Msg[I, V]) (int64, V, bool) {
+	var (
+		pr    int64
+		pv    V
+		count int
+		uniq  = uniqSource[I, V]()
+	)
+	for _, msg := range msgs {
+		if msg.Type() != MsgPrepare {
+			continue
+		}
+		if !uniq(msg) {
+			return 0, zeroVal[V](), false
+		}
+		if count == 0 {
+			pr = msg.Round()
+			pv = msg.Value()
+		} else if pr != msg.Round() || pv != msg.Value() {
+			return 0, zeroVal[V](), false
+		}
+		count++
+	}
+
+	return pr, pv, count >= d.Quorum()
 }
 
 // getJustifiedQrc implements algorithm 4:1 and returns a justified quorum ROUND_CHANGEs (Qrc).

@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package qbft_test
+package qbft
 
 import (
 	"context"
@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/core/qbft"
 )
 
 func TestQBFT(t *testing.T) {
@@ -218,17 +217,15 @@ func testQBFT(t *testing.T, test test) {
 	var (
 		ctx, cancel = context.WithCancel(context.Background())
 		clock       = new(fakeClock)
-		receives    = make(map[int64]chan qbft.Msg[int64, int64])
-		broadcast   = make(chan qbft.Msg[int64, int64])
-		resultChan  = make(chan []qbft.Msg[int64, int64], n)
+		receives    = make(map[int64]chan Msg[int64, int64])
+		broadcast   = make(chan Msg[int64, int64])
+		resultChan  = make(chan []Msg[int64, int64], n)
 		errChan     = make(chan error, n)
 	)
 	defer cancel()
 
-	defs := qbft.Definition[int64, int64]{
-		IsLeader: func(instance int64, round int64, process int64) bool {
-			return (instance+round)%n == process
-		},
+	defs := Definition[int64, int64]{
+		IsLeader: makeIsLeader(n),
 		NewTimer: func(round int64) (<-chan time.Time, func()) {
 			d := time.Second
 			if !test.ConstPeriod { // If not constant periods, then exponential.
@@ -237,10 +234,10 @@ func testQBFT(t *testing.T, test test) {
 
 			return clock.NewTimer(d)
 		},
-		Decide: func(_ context.Context, instance int64, value int64, qcommit []qbft.Msg[int64, int64]) {
+		Decide: func(_ context.Context, instance int64, value int64, qcommit []Msg[int64, int64]) {
 			resultChan <- qcommit
 		},
-		LogUponRule: func(_ context.Context, instance int64, process, round int64, msg qbft.Msg[int64, int64], rule string) {
+		LogUponRule: func(_ context.Context, instance int64, process, round int64, msg Msg[int64, int64], rule string) {
 			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
 			if round > maxRound {
 				cancel()
@@ -254,11 +251,11 @@ func testQBFT(t *testing.T, test test) {
 	}
 
 	for i := int64(1); i <= n; i++ {
-		receive := make(chan qbft.Msg[int64, int64], 1000)
+		receive := make(chan Msg[int64, int64], 1000)
 		receives[i] = receive
-		trans := qbft.Transport[int64, int64]{
-			Broadcast: func(ctx context.Context, typ qbft.MsgType, instance int64, source int64, round int64, value int64,
-				pr int64, pv int64, justify []qbft.Msg[int64, int64],
+		trans := Transport[int64, int64]{
+			Broadcast: func(ctx context.Context, typ MsgType, instance int64, source int64, round int64, value int64,
+				pr int64, pv int64, justify []Msg[int64, int64],
 			) error {
 				if round > maxRound {
 					return errors.New("max round reach")
@@ -292,7 +289,7 @@ func testQBFT(t *testing.T, test test) {
 				}
 			}
 
-			err := qbft.Run(ctx, defs, trans, test.Instance, i, i)
+			err := Run(ctx, defs, trans, test.Instance, i, i)
 			if err != nil {
 				errChan <- err
 				return
@@ -304,7 +301,7 @@ func testQBFT(t *testing.T, test test) {
 		go fuzz(ctx, clock, broadcast, test.Instance, 1)
 	}
 
-	results := make(map[int64]qbft.Msg[int64, int64])
+	results := make(map[int64]Msg[int64, int64])
 	var count int
 
 	for {
@@ -354,7 +351,7 @@ func testQBFT(t *testing.T, test test) {
 }
 
 // fuzz broadcasts random messages from the peer every 100ms (10/round).
-func fuzz(ctx context.Context, clock *fakeClock, broadcast chan qbft.Msg[int64, int64], instance, peerIdx int64) {
+func fuzz(ctx context.Context, clock *fakeClock, broadcast chan Msg[int64, int64], instance, peerIdx int64) {
 	for {
 		timer, stop := clock.NewTimer(time.Millisecond * 100)
 		select {
@@ -369,7 +366,7 @@ func fuzz(ctx context.Context, clock *fakeClock, broadcast chan qbft.Msg[int64, 
 
 func randomMsg(instance, peerIdx int64) msg {
 	return msg{
-		msgType:  1 + qbft.MsgType(rand.Intn(int(qbft.MsgDecided))),
+		msgType:  1 + MsgType(rand.Intn(int(MsgDecided))),
 		instance: instance,
 		peerIdx:  peerIdx,
 		round:    int64(rand.Intn(10)),
@@ -381,7 +378,7 @@ func randomMsg(instance, peerIdx int64) msg {
 }
 
 // bcast delays the message broadcast by between 1x and 2x jitterMS and drops messages.
-func bcast(t *testing.T, broadcast chan qbft.Msg[int64, int64], msg qbft.Msg[int64, int64], jitterMS int, clock *fakeClock) {
+func bcast(t *testing.T, broadcast chan Msg[int64, int64], msg Msg[int64, int64], jitterMS int, clock *fakeClock) {
 	t.Helper()
 
 	if jitterMS == 0 {
@@ -400,9 +397,9 @@ func bcast(t *testing.T, broadcast chan qbft.Msg[int64, int64], msg qbft.Msg[int
 }
 
 // newMsg returns a new message to be broadcast.
-func newMsg(typ qbft.MsgType, instance int64, source int64, round int64, value int64,
-	pr int64, pv int64, justify []qbft.Msg[int64, int64],
-) qbft.Msg[int64, int64] {
+func newMsg(typ MsgType, instance int64, source int64, round int64, value int64,
+	pr int64, pv int64, justify []Msg[int64, int64],
+) Msg[int64, int64] {
 	var msgs []msg
 	for _, j := range justify {
 		m := j.(msg)
@@ -422,10 +419,10 @@ func newMsg(typ qbft.MsgType, instance int64, source int64, round int64, value i
 	}
 }
 
-var _ qbft.Msg[int64, int64] = msg{}
+var _ Msg[int64, int64] = msg{}
 
 type msg struct {
-	msgType  qbft.MsgType
+	msgType  MsgType
 	instance int64
 	peerIdx  int64
 	round    int64
@@ -435,7 +432,7 @@ type msg struct {
 	justify  []msg
 }
 
-func (m msg) Type() qbft.MsgType {
+func (m msg) Type() MsgType {
 	return m.msgType
 }
 
@@ -463,8 +460,8 @@ func (m msg) PreparedValue() int64 {
 	return m.pv
 }
 
-func (m msg) Justification() []qbft.Msg[int64, int64] {
-	var resp []qbft.Msg[int64, int64]
+func (m msg) Justification() []Msg[int64, int64] {
+	var resp []Msg[int64, int64]
 	for _, msg := range m.justify {
 		resp = append(resp, msg)
 	}
@@ -472,11 +469,37 @@ func (m msg) Justification() []qbft.Msg[int64, int64] {
 	return resp
 }
 
+func TestIsJustifiedPrePrepare(t *testing.T) {
+	const (
+		n        = 4
+		instance = 1
+	)
+
+	// Preprepare with identical Pr but different Pvs.
+	preprepare := msg{msgType: 1, instance: 1, peerIdx: 3, round: 6, value: 2, pr: 0, pv: 0, justify: []msg{
+		{msgType: 4, instance: 1, peerIdx: 2, round: 6, value: 0, pr: 2, pv: 3},
+		{msgType: 4, instance: 1, peerIdx: 3, round: 6, value: 0, pr: 2, pv: 3},
+		{msgType: 4, instance: 1, peerIdx: 1, round: 6, value: 0, pr: 2, pv: 2},
+		{msgType: 2, instance: 1, peerIdx: 3, round: 2, value: 2, pr: 0, pv: 0},
+		{msgType: 2, instance: 1, peerIdx: 4, round: 2, value: 2, pr: 0, pv: 0},
+		{msgType: 2, instance: 1, peerIdx: 1, round: 2, value: 2, pr: 0, pv: 0},
+		{msgType: 2, instance: 1, peerIdx: 2, round: 2, value: 2, pr: 0, pv: 0},
+	}}
+
+	def := Definition[int64, int64]{
+		IsLeader: makeIsLeader(n),
+		Nodes:    n,
+	}
+
+	ok := IsJustifiedPrePrepare[int64, int64](def, instance, preprepare)
+	require.True(t, ok)
+}
+
 func TestFormulas(t *testing.T) {
 	// assert given N asserts Q and F.
 	assert := func(t *testing.T, n, q, f int) {
 		t.Helper()
-		d := qbft.Definition[any, int64]{Nodes: n}
+		d := Definition[any, int64]{Nodes: n}
 		require.Equalf(t, q, d.Quorum(), "Quorum given N=%d", n)
 		require.Equalf(t, f, d.Faulty(), "Faulty given N=%d", n)
 	}
@@ -498,4 +521,11 @@ func TestFormulas(t *testing.T) {
 	assert(t, 17, 12, 5)
 	assert(t, 19, 13, 6)
 	assert(t, 21, 14, 6)
+}
+
+// makeIsLeader returns a leader election function.
+func makeIsLeader(n int64) func(int64, int64, int64) bool {
+	return func(instance int64, round int64, process int64) bool {
+		return (instance+round)%n == process
+	}
 }
