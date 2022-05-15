@@ -226,8 +226,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 				break
 			}
 
-			justified := isJustified(d, instance, msg)
-			if !justified {
+			if !isJustified(d, instance, msg) {
 				break
 			}
 
@@ -456,7 +455,7 @@ func isJustified[I any, V comparable](d Definition[I, V], instance I, msg Msg[I,
 	case MsgDecided:
 		return isJustifiedDecided(d, msg)
 	default:
-		return false
+		panic("invalid message type")
 	}
 }
 
