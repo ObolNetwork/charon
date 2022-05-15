@@ -152,7 +152,8 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		preparedJustification []Msg[I, V]
 		qCommit               []Msg[I, V]
 		buffer                []Msg[I, V]
-		dedupIn               = make(map[dedupKey]bool)
+		dedupMsgs             = make(map[dedupKey]bool)
+		dedupRules            = make(map[uponRule]bool)
 		timerChan             <-chan time.Time
 		stopTimer             func()
 	)
@@ -174,10 +175,10 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	// bufferMsg returns true if the message is unique and was added to the buffer.
 	// It returns false if the message is a duplicate and should be discarded.
 	bufferMsg := func(msg Msg[I, V]) bool {
-		if dedupIn[key(msg)] {
+		if dedupMsgs[key(msg)] {
 			return false
 		}
-		dedupIn[key(msg)] = true
+		dedupMsgs[key(msg)] = true
 		buffer = append(buffer, msg)
 
 		return true
@@ -194,12 +195,31 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		buffer = selected
 
 		dedup := make(map[dedupKey]bool)
-		for k := range dedupIn {
+		for k := range dedupMsgs {
 			if k.Round >= round {
 				dedup[k] = true
 			}
 		}
-		dedupIn = dedup
+		dedupMsgs = dedup
+	}
+
+	// isDuplicatedRule returns true if the rule has been already executed since last round change.
+	// As an exception for uponJustifiedDecided always returns false, so it can be executed multiple times per round.
+	isDuplicatedRule := func(rule uponRule) bool {
+		if dedupRules[rule] {
+			return true
+		}
+
+		// First time for this rule
+		dedupRules[rule] = true
+
+		return false
+	}
+
+	// changeRound changes round and resets the rules deduplication memory.
+	changeRound := func(newRound int64) {
+		dedupRules = make(map[uponRule]bool)
+		round = newRound
 	}
 
 	// === Algorithm ===
@@ -237,13 +257,16 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			if rule == uponNothing {
 				break
 			}
+			if isDuplicatedRule(rule) {
+				break
+			}
 
 			d.LogUponRule(ctx, instance, process, round, msg, rule.String())
 
 			switch rule {
 			case uponJustifiedPrePrepare: // Algorithm 2:1
 				// Applicable to current or future rounds (since justified)
-				round = msg.Round()
+				changeRound(msg.Round())
 				trimBuffer()
 
 				stopTimer()
@@ -261,7 +284,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 			case uponQuorumCommits, uponJustifiedDecided: // Algorithm 2:8
 				// Applicable to any round (since can be justified)
-				round = msg.Round()
+				changeRound(msg.Round())
 				qCommit = justification
 
 				stopTimer()
@@ -271,7 +294,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 			case uponFPlus1RoundChanges: // Algorithm 3:5
 				// Only applicable to future rounds
-				round = nextMinRound(d, justification, round /* < msg.Round */)
+				changeRound(nextMinRound(d, justification, round /* < msg.Round */))
 				trimBuffer()
 
 				stopTimer()
