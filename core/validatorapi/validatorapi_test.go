@@ -98,17 +98,17 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 		return pubkeysByIdx[eth2p0.ValidatorIndex(valCommIdx)], nil
 	})
 
-	component.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+	component.RegisterShareSigDB(func(ctx context.Context, duty core.Duty, set core.ShareSignedDataSet) error {
 		require.Equal(t, core.DutyAttester, duty.Type)
 		require.Equal(t, int64(slot), duty.Slot)
 
 		parSignedDataA := set[pubkeysByIdx[vIdxA]]
-		actAttA, err := core.DecodeAttestationParSignedData(parSignedDataA)
+		actAttA, err := core.DecodeAttestationShareSignedData(parSignedDataA)
 		require.NoError(t, err)
 		require.Equal(t, attA, actAttA)
 
 		parSignedDataB := set[pubkeysByIdx[vIdxB]]
-		actAttB, err := core.DecodeAttestationParSignedData(parSignedDataB)
+		actAttB, err := core.DecodeAttestationShareSignedData(parSignedDataB)
 		require.NoError(t, err)
 		require.Equal(t, attB, actAttB)
 
@@ -198,9 +198,9 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	})
 
 	// Collect submitted partial signature.
-	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+	vapi.RegisterShareSigDB(func(ctx context.Context, duty core.Duty, set core.ShareSignedDataSet) error {
 		require.Len(t, set, 1)
-		_, err := core.DecodeAttestationParSignedData(set[corePubKey])
+		_, err := core.DecodeAttestationShareSignedData(set[corePubKey])
 		require.NoError(t, err)
 
 		return nil
@@ -288,7 +288,7 @@ func TestSignAndVerify(t *testing.T) {
 	// Assert output
 	var wg sync.WaitGroup
 	wg.Add(1)
-	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+	vapi.RegisterShareSigDB(func(ctx context.Context, duty core.Duty, set core.ShareSignedDataSet) error {
 		require.Equal(t, core.DutyAttester, duty.Type)
 		require.Len(t, set, 1)
 		wg.Done()
@@ -351,17 +351,17 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 	block1.Phase0.ProposerIndex = vIdx
 	block1.Phase0.Body.RANDAOReveal = randao
 
-	component.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
-		return core.FetchArgSet{pubkey: core.FetchArg{}}, nil
+	component.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{pubkey: core.DutyDefinition{}}, nil
 	})
 
 	component.RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error) {
 		return block1, nil
 	})
 
-	component.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		randaoEncoded := core.EncodeRandaoParSignedData(randao, vIdx)
-		require.Equal(t, set, core.ParSignedDataSet{
+	component.RegisterShareSigDB(func(ctx context.Context, duty core.Duty, set core.ShareSignedDataSet) error {
+		randaoEncoded := core.EncodeRandaoShareSignedData(randao, vIdx)
+		require.Equal(t, set, core.ShareSignedDataSet{
 			pubkey: randaoEncoded,
 		})
 		require.Equal(t, duty, core.NewRandaoDuty(slot))
@@ -414,8 +414,8 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	unsignedBlock.Phase0.Slot = slot
 	unsignedBlock.Phase0.ProposerIndex = vIdx
 
-	vapi.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
-		return core.FetchArgSet{corePubKey: core.FetchArg{}}, nil
+	vapi.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{corePubKey: core.DutyDefinition{}}, nil
 	})
 
 	// Sign beacon block
@@ -441,8 +441,8 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	}
 
 	// Register parsigdb funcs
-	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		data, err := core.DecodeBlockParSignedData(set[corePubKey])
+	vapi.RegisterShareSigDB(func(ctx context.Context, duty core.Duty, set core.ShareSignedDataSet) error {
+		data, err := core.DecodeBlockShareSignedData(set[corePubKey])
 		require.NoError(t, err)
 		require.Equal(t, data, signedBlock)
 
@@ -492,8 +492,8 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	unsignedBlock.Phase0.Slot = slot
 	unsignedBlock.Phase0.ProposerIndex = vIdx
 
-	vapi.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
-		return core.FetchArgSet{corePubKey: core.FetchArg{}}, nil
+	vapi.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{corePubKey: core.DutyDefinition{}}, nil
 	})
 
 	// Add invalid Signature to beacon block
@@ -511,8 +511,8 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	}
 
 	// Register parsigdb funcs
-	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		data, err := core.DecodeBlockParSignedData(set[corePubKey])
+	vapi.RegisterShareSigDB(func(ctx context.Context, duty core.Duty, set core.ShareSignedDataSet) error {
+		data, err := core.DecodeBlockShareSignedData(set[corePubKey])
 		require.NoError(t, err)
 		require.Equal(t, data, signedBlock)
 
@@ -542,8 +542,8 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
 	require.NoError(t, err)
 
-	vapi.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
-		return core.FetchArgSet{pubkey: core.FetchArg{}}, nil
+	vapi.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{pubkey: core.DutyDefinition{}}, nil
 	})
 
 	// invalid block scenarios

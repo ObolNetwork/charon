@@ -186,12 +186,12 @@ func SigFromETH2(sig eth2p0.BLSSignature) Signature {
 	return s
 }
 
-// FetchArg contains the arguments required to fetch the duty data,
+// DutyDefinition contains the arguments required to fetch the duty data,
 // it is the result of resolving duties at the start of an epoch.
-type FetchArg []byte
+type DutyDefinition []byte
 
-// FetchArgSet is a set of fetch args, one per validator.
-type FetchArgSet map[PubKey]FetchArg
+// DutyDefinitionSet is a set of fetch args, one per validator.
+type DutyDefinitionSet map[PubKey]DutyDefinition
 
 // UnsignedData represents an unsigned duty data object.
 type UnsignedData []byte
@@ -207,9 +207,9 @@ type AttestationData struct {
 	Duty eth2v1.AttesterDuty
 }
 
-// ParSignedData is a partially signed duty data.
+// ShareSignedData is a partially signed duty data.
 // Partial refers to it being signed by a single share of the BLS threshold signing scheme.
-type ParSignedData struct {
+type ShareSignedData struct {
 	// Data is the partially signed duty data received from VC.
 	Data []byte
 	// Signature of tbls share extracted from data.
@@ -218,18 +218,18 @@ type ParSignedData struct {
 	ShareIdx int
 }
 
-// ParSignedDataSet is a set of partially signed duty data objects, one per validator.
-type ParSignedDataSet map[PubKey]ParSignedData
+// ShareSignedDataSet is a set of partially signed duty data objects, one per validator.
+type ShareSignedDataSet map[PubKey]ShareSignedData
 
-// AggSignedData is an aggregated signed duty data.
+// GroupSignedData is an aggregated signed duty data.
 // Aggregated refers to it being signed by the aggregated BLS threshold signing scheme.
-type AggSignedData struct {
+type GroupSignedData struct {
 	// Data is the signed duty data to be sent to beacon chain.
 	Data []byte
 	// Signature is the result of tbls aggregation and is inserted into the data.
 	Signature Signature
 }
 
-func (a AggSignedData) Equal(b AggSignedData) bool {
+func (a GroupSignedData) Equal(b GroupSignedData) bool {
 	return bytes.Equal(a.Data, b.Data) && bytes.Equal(a.Signature, b.Signature)
 }

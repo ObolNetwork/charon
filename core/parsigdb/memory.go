@@ -27,7 +27,7 @@ import (
 // NewMemDB returns a new in-memory partial signature database instance.
 func NewMemDB(threshold int) *MemDB {
 	return &MemDB{
-		entries:   make(map[key][]core.ParSignedData),
+		entries:   make(map[key][]core.ShareSignedData),
 		threshold: threshold,
 	}
 }
@@ -36,16 +36,16 @@ func NewMemDB(threshold int) *MemDB {
 // It will be replaced with a BadgerDB implementation.
 type MemDB struct {
 	mu           sync.Mutex
-	internalSubs []func(context.Context, core.Duty, core.ParSignedDataSet) error
-	threshSubs   []func(context.Context, core.Duty, core.PubKey, []core.ParSignedData) error
+	internalSubs []func(context.Context, core.Duty, core.ShareSignedDataSet) error
+	threshSubs   []func(context.Context, core.Duty, core.PubKey, []core.ShareSignedData) error
 
-	entries   map[key][]core.ParSignedData
+	entries   map[key][]core.ShareSignedData
 	threshold int
 }
 
 // SubscribeInternal registers a callback when an internal
 // partially signed duty set is stored.
-func (db *MemDB) SubscribeInternal(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
+func (db *MemDB) SubscribeInternal(fn func(context.Context, core.Duty, core.ShareSignedDataSet) error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	db.internalSubs = append(db.internalSubs, fn)
@@ -53,19 +53,19 @@ func (db *MemDB) SubscribeInternal(fn func(context.Context, core.Duty, core.ParS
 
 // SubscribeThreshold registers a callback when *threshold*
 // partially signed duty is reached for a DV.
-func (db *MemDB) SubscribeThreshold(fn func(context.Context, core.Duty, core.PubKey, []core.ParSignedData) error) {
+func (db *MemDB) SubscribeThreshold(fn func(context.Context, core.Duty, core.PubKey, []core.ShareSignedData) error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	db.threshSubs = append(db.threshSubs, fn)
 }
 
 // StoreInternal stores an internally received partially signed duty data set.
-func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet core.ParSignedDataSet) error {
+func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet core.ShareSignedDataSet) error {
 	if err := db.StoreExternal(ctx, duty, signedSet); err != nil {
 		return err
 	}
 
-	// Call internalSubs (which includes ParSigEx to exchange partial signed data with all peers).
+	// Call internalSubs (which includes ParSigExchange to exchange partial signed data with all peers).
 	for _, sub := range db.internalSubs {
 		err := sub(ctx, duty, signedSet)
 		if err != nil {
@@ -77,7 +77,7 @@ func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet co
 }
 
 // StoreExternal stores an externally received partially signed duty data set.
-func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet core.ParSignedDataSet) error {
+func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet core.ShareSignedDataSet) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -100,7 +100,7 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 		log.Debug(ctx, "Stored partial signed data", z.Any("duty", duty),
 			z.Any("pubkey", pubkey), z.Int("count", len(sigs)))
 
-		// Call the threshSubs (which includes SigAgg component) if sufficient signatures have been received.
+		// Call the threshSubs (which includes SigCombiner component) if sufficient signatures have been received.
 		if len(sigs) != db.threshold {
 			continue
 		}

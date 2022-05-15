@@ -48,7 +48,7 @@ func New(eth2Svc eth2client.Service) (*Fetcher, error) {
 type Fetcher struct {
 	eth2Cl       eth2Provider
 	subs         []func(context.Context, core.Duty, core.UnsignedDataSet) error
-	aggSigDBFunc func(context.Context, core.Duty, core.PubKey) (core.AggSignedData, error)
+	aggSigDBFunc func(context.Context, core.Duty, core.PubKey) (core.GroupSignedData, error)
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -58,7 +58,7 @@ func (f *Fetcher) Subscribe(fn func(context.Context, core.Duty, core.UnsignedDat
 }
 
 // Fetch triggers fetching of a proposed duty data set.
-func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchArgSet) error {
+func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.DutyDefinitionSet) error {
 	var (
 		unsignedSet core.UnsignedDataSet
 		err         error
@@ -89,21 +89,21 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchAr
 	return nil
 }
 
-// RegisterAggSigDB registers a function to get resolved aggregated signed data from the AggSigDB.
+// RegisterGroupSigDB registers a function to get resolved aggregated signed data from the GroupSigDB.
 // Note: This is not thread safe should be called *before* Fetch.
-func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.AggSignedData, error)) {
+func (f *Fetcher) RegisterGroupSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.GroupSignedData, error)) {
 	f.aggSigDBFunc = fn
 }
 
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.
-func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core.FetchArgSet,
+func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core.DutyDefinitionSet,
 ) (core.UnsignedDataSet, error) {
 	// We may have multiple validators in the same committee, use the same attestation data in that case.
 	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
 
 	resp := make(core.UnsignedDataSet)
 	for pubkey, fetchArg := range argSet {
-		attDuty, err := core.DecodeAttesterFetchArg(fetchArg)
+		attDuty, err := core.DecodeAttesterDutyDefinition(fetchArg)
 		if err != nil {
 			return nil, err
 		}
@@ -134,10 +134,10 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core
 	return resp, nil
 }
 
-func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core.FetchArgSet) (core.UnsignedDataSet, error) {
+func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
 	for pubkey := range argSet {
-		// Fetch previously aggregated randao reveal from AggSigDB
+		// Fetch previously aggregated randao reveal from GroupSigDB
 		dutyRandao := core.Duty{
 			Slot: slot,
 			Type: core.DutyRandao,
@@ -146,7 +146,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core
 		if err != nil {
 			return nil, err
 		}
-		randaoEth2 := core.DecodeRandaoAggSignedData(randao)
+		randaoEth2 := core.DecodeRandaoGroupSignedData(randao)
 
 		// TODO(dhruv): what to do with graffiti?
 		// passing empty graffiti since it is not required in API

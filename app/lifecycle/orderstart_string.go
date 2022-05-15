@@ -23,7 +23,7 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
-	_ = x[StartAggSigDB-0]
+	_ = x[StartGroupSigDB-0]
 	_ = x[StartRelay-1]
 	_ = x[StartMonitoringAPI-2]
 	_ = x[StartValidatorAPI-3]
@@ -33,7 +33,7 @@ func _() {
 	_ = x[StartScheduler-7]
 }
 
-const _OrderStart_name = "AggSigDBRelayMonitoringAPIValidatorAPIP2PPingLeaderCastSimulatorScheduler"
+const _OrderStart_name = "GroupSigDBRelayMonitoringAPIValidatorAPIP2PPingLeaderCastSimulatorScheduler"
 
 var _OrderStart_index = [...]uint8{0, 8, 13, 26, 38, 45, 55, 64, 73}
 

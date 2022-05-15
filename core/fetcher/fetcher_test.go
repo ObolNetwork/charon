@@ -52,7 +52,7 @@ func TestFetchAttester(t *testing.T) {
 		CommitteeLength:  notZero,
 		CommitteesAtSlot: notZero,
 	}
-	fetchArgA, err := core.EncodeAttesterFetchArg(&dutyA)
+	fetchArgA, err := core.EncodeAttesterDutyDefinition(&dutyA)
 	require.NoError(t, err)
 
 	dutyB := eth2v1.AttesterDuty{
@@ -62,10 +62,10 @@ func TestFetchAttester(t *testing.T) {
 		CommitteeLength:  notZero,
 		CommitteesAtSlot: notZero,
 	}
-	fetchArgB, err := core.EncodeAttesterFetchArg(&dutyB)
+	fetchArgB, err := core.EncodeAttesterDutyDefinition(&dutyB)
 	require.NoError(t, err)
 
-	argSet := core.FetchArgSet{
+	argSet := core.DutyDefinitionSet{
 		pubkeysByIdx[vIdxA]: fetchArgA,
 		pubkeysByIdx[vIdxB]: fetchArgB,
 	}
@@ -119,31 +119,31 @@ func TestFetchProposer(t *testing.T) {
 		Slot:           slot,
 		ValidatorIndex: vIdxA,
 	}
-	fetchArgA, err := core.EncodeProposerFetchArg(&dutyA)
+	fetchArgA, err := core.EncodeProposerDutyDefinition(&dutyA)
 	require.NoError(t, err)
 
 	dutyB := eth2v1.ProposerDuty{
 		Slot:           slot,
 		ValidatorIndex: vIdxB,
 	}
-	fetchArgB, err := core.EncodeProposerFetchArg(&dutyB)
+	fetchArgB, err := core.EncodeProposerDutyDefinition(&dutyB)
 	require.NoError(t, err)
 
-	argSet := core.FetchArgSet{
+	argSet := core.DutyDefinitionSet{
 		pubkeysByIdx[vIdxA]: fetchArgA,
 		pubkeysByIdx[vIdxB]: fetchArgB,
 	}
 	duty := core.Duty{Type: core.DutyProposer, Slot: slot}
 
-	randaoA := core.AggSignedData{
+	randaoA := core.GroupSignedData{
 		Data:      nil,
 		Signature: testutil.RandomCoreSignature(),
 	}
-	randaoB := core.AggSignedData{
+	randaoB := core.GroupSignedData{
 		Data:      nil,
 		Signature: testutil.RandomCoreSignature(),
 	}
-	randaoByPubKey := map[core.PubKey]core.AggSignedData{
+	randaoByPubKey := map[core.PubKey]core.GroupSignedData{
 		pubkeysByIdx[vIdxA]: randaoA,
 		pubkeysByIdx[vIdxB]: randaoB,
 	}
@@ -153,7 +153,7 @@ func TestFetchProposer(t *testing.T) {
 	fetch, err := fetcher.New(bmock)
 	require.NoError(t, err)
 
-	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.AggSignedData, error) {
+	fetch.RegisterGroupSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.GroupSignedData, error) {
 		return randaoByPubKey[key], nil
 	})
 

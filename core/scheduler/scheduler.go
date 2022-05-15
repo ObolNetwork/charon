@@ -72,7 +72,7 @@ func New(pubkeys []core.PubKey, eth2Svc eth2client.Service) (*Scheduler, error) 
 		eth2Cl:  eth2Cl,
 		pubkeys: pubkeys,
 		quit:    make(chan struct{}),
-		duties:  make(map[core.Duty]core.FetchArgSet),
+		duties:  make(map[core.Duty]core.DutyDefinitionSet),
 		clock:   clockwork.NewRealClock(),
 		delayFunc: func(_ core.Duty, deadline time.Time) <-chan time.Time {
 			return time.After(time.Until(deadline))
@@ -88,14 +88,14 @@ type Scheduler struct {
 	clock         clockwork.Clock
 	delayFunc     delayFunc
 	resolvedEpoch uint64
-	duties        map[core.Duty]core.FetchArgSet
+	duties        map[core.Duty]core.DutyDefinitionSet
 	dutiesMutex   sync.Mutex
-	subs          []func(context.Context, core.Duty, core.FetchArgSet) error
+	subs          []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 }
 
 // Subscribe registers a callback for triggering a duty.
 // Note this should be called *before* Start.
-func (s *Scheduler) Subscribe(fn func(context.Context, core.Duty, core.FetchArgSet) error) {
+func (s *Scheduler) Subscribe(fn func(context.Context, core.Duty, core.DutyDefinitionSet) error) {
 	s.subs = append(s.subs, fn)
 }
 
@@ -133,7 +133,7 @@ func (s *Scheduler) Run() error {
 }
 
 // GetDuty returns the argSet for a duty if resolved already, otherwise an error.
-func (s *Scheduler) GetDuty(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
+func (s *Scheduler) GetDuty(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 	slotsPerEpoch, err := s.eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func (s *Scheduler) GetDuty(ctx context.Context, duty core.Duty) (core.FetchArgS
 		return nil, errors.New("epoch not resolved yet")
 	}
 
-	argSet, ok := s.getFetchArgSet(duty)
+	argSet, ok := s.getDutyDefinitionSet(duty)
 	if !ok {
 		return nil, errors.New("duty not resolved although epoch is marked as resolved")
 	}
@@ -167,7 +167,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) {
 			Type: dutyType,
 		}
 
-		argSet, ok := s.getFetchArgSet(duty)
+		argSet, ok := s.getDutyDefinitionSet(duty)
 		if !ok {
 			// Nothing for this duty.
 			continue
@@ -246,7 +246,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				continue
 			}
 
-			arg, err := core.EncodeAttesterFetchArg(attDuty)
+			arg, err := core.EncodeAttesterDutyDefinition(attDuty)
 			if err != nil {
 				return errors.Wrap(err, "encode attester duty")
 			}
@@ -259,7 +259,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				continue
 			}
 
-			if !s.setFetchArg(duty, pubkey, arg) {
+			if !s.setDutyDefinition(duty, pubkey, arg) {
 				continue
 			}
 
@@ -285,7 +285,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				continue
 			}
 
-			arg, err := core.EncodeProposerFetchArg(proDuty)
+			arg, err := core.EncodeProposerDutyDefinition(proDuty)
 			if err != nil {
 				return errors.Wrap(err, "encode proposer duty")
 			}
@@ -298,7 +298,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 				continue
 			}
 
-			if !s.setFetchArg(duty, pubkey, arg) {
+			if !s.setDutyDefinition(duty, pubkey, arg) {
 				continue
 			}
 
@@ -315,7 +315,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 	return nil
 }
 
-func (s *Scheduler) getFetchArgSet(duty core.Duty) (core.FetchArgSet, bool) {
+func (s *Scheduler) getDutyDefinitionSet(duty core.Duty) (core.DutyDefinitionSet, bool) {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
 
@@ -324,13 +324,13 @@ func (s *Scheduler) getFetchArgSet(duty core.Duty) (core.FetchArgSet, bool) {
 	return argSet, ok
 }
 
-func (s *Scheduler) setFetchArg(duty core.Duty, pubkey core.PubKey, set core.FetchArg) bool {
+func (s *Scheduler) setDutyDefinition(duty core.Duty, pubkey core.PubKey, set core.DutyDefinition) bool {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
 
 	argSet, ok := s.duties[duty]
 	if !ok {
-		argSet = make(core.FetchArgSet)
+		argSet = make(core.DutyDefinitionSet)
 	}
 	if _, ok := argSet[pubkey]; ok {
 		return false

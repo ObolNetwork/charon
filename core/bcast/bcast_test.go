@@ -35,7 +35,7 @@ func TestBroadcastAttestation(t *testing.T) {
 	require.NoError(t, err)
 
 	att := testutil.RandomAttestation()
-	aggData, err := core.EncodeAttestationAggSignedData(att)
+	aggData, err := core.EncodeAttestationGroupSignedData(att)
 	require.NoError(t, err)
 
 	// Assert output and cancel context
@@ -68,7 +68,7 @@ func TestBroadcastBeaconBlock(t *testing.T) {
 			Signature: testutil.RandomEth2Signature(),
 		},
 	}
-	aggData, err := core.EncodeBlockAggSignedData(block1)
+	aggData, err := core.EncodeBlockGroupSignedData(block1)
 	require.NoError(t, err)
 
 	mock.SubmitBeaconBlockFunc = func(ctx context.Context, block2 *spec.VersionedSignedBeaconBlock) error {

@@ -33,41 +33,41 @@ func DutyFromProto(duty *pbv1.Duty) Duty {
 	}
 }
 
-// ParSignedDataToProto returns the data as a protobuf.
-func ParSignedDataToProto(data ParSignedData) *pbv1.ParSignedData {
-	return &pbv1.ParSignedData{
+// ShareSignedDataToProto returns the data as a protobuf.
+func ShareSignedDataToProto(data ShareSignedData) *pbv1.ShareSignedData {
+	return &pbv1.ShareSignedData{
 		Data:      data.Data,
 		Signature: data.Signature,
 		ShareIdx:  int32(data.ShareIdx),
 	}
 }
 
-// ParSignedDataFromProto returns the data from a protobuf.
-func ParSignedDataFromProto(data *pbv1.ParSignedData) ParSignedData {
-	return ParSignedData{
+// ShareSignedDataFromProto returns the data from a protobuf.
+func ShareSignedDataFromProto(data *pbv1.ShareSignedData) ShareSignedData {
+	return ShareSignedData{
 		Data:      data.Data,
 		Signature: data.Signature,
 		ShareIdx:  int(data.ShareIdx),
 	}
 }
 
-// ParSignedDataSetToProto returns the set as a protobuf.
-func ParSignedDataSetToProto(set ParSignedDataSet) *pbv1.ParSignedDataSet {
-	inner := make(map[string]*pbv1.ParSignedData)
+// ShareSignedDataSetToProto returns the set as a protobuf.
+func ShareSignedDataSetToProto(set ShareSignedDataSet) *pbv1.ShareSignedDataSet {
+	inner := make(map[string]*pbv1.ShareSignedData)
 	for pubkey, data := range set {
-		inner[string(pubkey)] = ParSignedDataToProto(data)
+		inner[string(pubkey)] = ShareSignedDataToProto(data)
 	}
 
-	return &pbv1.ParSignedDataSet{
+	return &pbv1.ShareSignedDataSet{
 		Set: inner,
 	}
 }
 
-// ParSignedDataSetFromProto returns the set from a protobuf.
-func ParSignedDataSetFromProto(set *pbv1.ParSignedDataSet) ParSignedDataSet {
-	resp := make(ParSignedDataSet)
+// ShareSignedDataSetFromProto returns the set from a protobuf.
+func ShareSignedDataSetFromProto(set *pbv1.ShareSignedDataSet) ShareSignedDataSet {
+	resp := make(ShareSignedDataSet)
 	for pubkey, data := range set.Set {
-		resp[PubKey(pubkey)] = ParSignedDataFromProto(data)
+		resp[PubKey(pubkey)] = ShareSignedDataFromProto(data)
 	}
 
 	return resp

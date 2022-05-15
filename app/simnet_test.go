@@ -133,7 +133,7 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 	type simResult struct {
 		Duty   core.Duty
 		Pubkey core.PubKey
-		Data   core.AggSignedData
+		Data   core.GroupSignedData
 	}
 
 	var (
@@ -153,9 +153,9 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 				P2PKey:             args.P2PKeys[i],
 				DisablePing:        true,
 				SimnetKeys:         []*bls_sig.SecretKey{args.SimnetKeys[i]},
-				ParSigExFunc:       parSigExFunc,
+				ParSigExchangeFunc: parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
-				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.AggSignedData) error {
+				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.GroupSignedData) error {
 					if duty.Type == core.DutyRandao {
 						return nil
 					}
@@ -189,7 +189,7 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 		var (
 			remaining = 2
 			counts    = make(map[core.Duty]int)
-			datas     = make(map[core.Duty]core.AggSignedData)
+			datas     = make(map[core.Duty]core.GroupSignedData)
 		)
 		for {
 			var res simResult

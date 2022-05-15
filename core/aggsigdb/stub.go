@@ -22,13 +22,13 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// Stub implements core.AggSigDB without any logic.
+// Stub implements core.GroupSigDB without any logic.
 type Stub struct{}
 
-func (Stub) Store(context.Context, core.Duty, core.PubKey, core.AggSignedData) error {
+func (Stub) Store(context.Context, core.Duty, core.PubKey, core.GroupSignedData) error {
 	return nil
 }
 
-func (Stub) Await(context.Context, core.Duty, core.PubKey) (core.AggSignedData, error) {
-	return core.AggSignedData{}, errors.New("not implemented")
+func (Stub) Await(context.Context, core.Duty, core.PubKey) (core.GroupSignedData, error) {
+	return core.GroupSignedData{}, errors.New("not implemented")
 }

@@ -25,7 +25,7 @@ import (
 func WithAsyncRetry(retryer *retry.Retryer) WireOption {
 	return func(w *wireFuncs) {
 		clone := *w
-		w.FetcherFetch = func(ctx context.Context, duty Duty, set FetchArgSet) error {
+		w.FetcherFetch = func(ctx context.Context, duty Duty, set DutyDefinitionSet) error {
 			go retryer.DoAsync(ctx, duty.Slot, "fetcher fetch", func(ctx context.Context) error {
 				return clone.FetcherFetch(ctx, duty, set)
 			})
@@ -39,14 +39,14 @@ func WithAsyncRetry(retryer *retry.Retryer) WireOption {
 
 			return nil
 		}
-		w.ParSigExBroadcast = func(ctx context.Context, duty Duty, set ParSignedDataSet) error {
+		w.ParSigExchangeBroadcast = func(ctx context.Context, duty Duty, set ShareSignedDataSet) error {
 			go retryer.DoAsync(ctx, duty.Slot, "parsigex broadcast", func(ctx context.Context) error {
-				return clone.ParSigExBroadcast(ctx, duty, set)
+				return clone.ParSigExchangeBroadcast(ctx, duty, set)
 			})
 
 			return nil
 		}
-		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, key PubKey, data AggSignedData) error {
+		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, key PubKey, data GroupSignedData) error {
 			go retryer.DoAsync(ctx, duty.Slot, "bcast broadcast", func(ctx context.Context) error {
 				return clone.BroadcasterBroadcast(ctx, duty, key, data)
 			})

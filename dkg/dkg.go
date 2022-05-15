@@ -207,17 +207,17 @@ func aggSignLockHash(ctx context.Context, tcpNode host.Host, nodeIdx cluster.Nod
 	// Wire core workflow components:
 	//  - parsigdb: stores our and other's partial signatures.
 	//  - parsigex: exchanges signatures between all nodes' parsigdb
-	//  - makeSigAgg: aggregates threshold signatures once enough has been received.
+	//  - makeSigCombiner: aggregates threshold signatures once enough has been received.
 	//
 	// Note that these components do not contain goroutines (so nothing is started or stopped)
 	// These components are driven by the call to sigdb.StoreInternal below and
 	// by libp2p messages received from other peers.
-	sigChan := make(chan *bls_sig.Signature, len(lock.Validators))    // Make output of sig aggregation
-	sigdb := parsigdb.NewMemDB(lock.Threshold)                        // Make parsigdb
-	exchange := parsigex.NewParSigEx(tcpNode, nodeIdx.PeerIdx, peers) // Make parsigex
-	sigdb.SubscribeInternal(exchange.Broadcast)                       // Wire parsigex to parsigdb
-	sigdb.SubscribeThreshold(makeSigAgg(sigChan))                     // Wire sigagg to parsigdb output
-	exchange.Subscribe(sigdb.StoreExternal)                           // Wire parsigdb to parsigex
+	sigChan := make(chan *bls_sig.Signature, len(lock.Validators))          // Make output of sig aggregation
+	sigdb := parsigdb.NewMemDB(lock.Threshold)                              // Make parsigdb
+	exchange := parsigex.NewParSigExchange(tcpNode, nodeIdx.PeerIdx, peers) // Make parsigex
+	sigdb.SubscribeInternal(exchange.Broadcast)                             // Wire parsigex to parsigdb
+	sigdb.SubscribeThreshold(makeSigCombiner(sigChan))                      // Wire sigagg to parsigdb output
+	exchange.Subscribe(sigdb.StoreExternal)                                 // Wire parsigdb to parsigex
 
 	// Start the process by inserting the partial signatures
 	err = sigdb.StoreInternal(ctx, core.Duty{}, signedSet)
@@ -248,9 +248,9 @@ func aggSignLockHash(ctx context.Context, tcpNode host.Host, nodeIdx cluster.Nod
 	return b, nil
 }
 
-// makeSigAgg returns a function that aggregates partial signatures.
-func makeSigAgg(sigChan chan<- *bls_sig.Signature) func(context.Context, core.Duty, core.PubKey, []core.ParSignedData) error {
-	return func(ctx context.Context, duty core.Duty, key core.PubKey, parSigs []core.ParSignedData) error {
+// makeSigCombiner returns a function that aggregates partial signatures.
+func makeSigCombiner(sigChan chan<- *bls_sig.Signature) func(context.Context, core.Duty, core.PubKey, []core.ShareSignedData) error {
+	return func(ctx context.Context, duty core.Duty, key core.PubKey, parSigs []core.ShareSignedData) error {
 		var sigs []*bls_sig.PartialSignature
 		for _, parSig := range parSigs {
 			s, err := tblsconv.SigFromCore(parSig.Signature)
@@ -276,13 +276,13 @@ func makeSigAgg(sigChan chan<- *bls_sig.Signature) func(context.Context, core.Du
 }
 
 // signLockHash returns a partially signed dataset containing signatures of the lock hash be each DV.
-func signLockHash(lock cluster.Lock, shareIdx int, shares []share) (core.ParSignedDataSet, error) {
+func signLockHash(lock cluster.Lock, shareIdx int, shares []share) (core.ShareSignedDataSet, error) {
 	hash, err := lock.HashTreeRoot()
 	if err != nil {
 		return nil, errors.Wrap(err, "hash lock")
 	}
 
-	set := make(core.ParSignedDataSet)
+	set := make(core.ShareSignedDataSet)
 	for _, share := range shares {
 		pk, err := tblsconv.KeyToCore(share.PubKey)
 		if err != nil {
@@ -304,7 +304,7 @@ func signLockHash(lock cluster.Lock, shareIdx int, shares []share) (core.ParSign
 			return nil, errors.Wrap(err, "marshal sig")
 		}
 
-		set[pk] = core.ParSignedData{
+		set[pk] = core.ShareSignedData{
 			Data:      nil,
 			Signature: sigBytes,
 			ShareIdx:  shareIdx,

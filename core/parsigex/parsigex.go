@@ -35,8 +35,8 @@ import (
 
 const protocol = "/charon/parsigex/1.0.0"
 
-func NewParSigEx(tcpNode host.Host, peerIdx int, peers []peer.ID) *ParSigEx {
-	parSigEx := &ParSigEx{
+func NewParSigExchange(tcpNode host.Host, peerIdx int, peers []peer.ID) *ParSigExchange {
+	parSigEx := &ParSigExchange{
 		tcpNode: tcpNode,
 		peerIdx: peerIdx,
 		peers:   peers,
@@ -46,16 +46,16 @@ func NewParSigEx(tcpNode host.Host, peerIdx int, peers []peer.ID) *ParSigEx {
 	return parSigEx
 }
 
-// ParSigEx exchanges partially signed duty data sets.
+// ParSigExchange exchanges partially signed duty data sets.
 // It ensures that all partial signatures are persisted by all peers.
-type ParSigEx struct {
+type ParSigExchange struct {
 	tcpNode host.Host
 	peerIdx int
 	peers   []peer.ID
-	subs    []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	subs    []func(context.Context, core.Duty, core.ShareSignedDataSet) error
 }
 
-func (m *ParSigEx) handle(s network.Stream) {
+func (m *ParSigExchange) handle(s network.Stream) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	ctx = log.WithTopic(ctx, "parsigex")
 	defer cancel()
@@ -67,14 +67,14 @@ func (m *ParSigEx) handle(s network.Stream) {
 		return
 	}
 
-	var pb pbv1.ParSigExMsg
+	var pb pbv1.ParSigExchangeMsg
 	if err := proto.Unmarshal(b, &pb); err != nil {
 		log.Error(ctx, "unmarshal parsigex proto", err)
 		return
 	}
 
 	duty := core.DutyFromProto(pb.Duty)
-	set := core.ParSignedDataSetFromProto(pb.DataSet)
+	set := core.ShareSignedDataSetFromProto(pb.DataSet)
 
 	var span trace.Span
 	ctx, span = core.StartDutyTrace(ctx, duty, "core/parsigex.Handle")
@@ -89,10 +89,10 @@ func (m *ParSigEx) handle(s network.Stream) {
 }
 
 // Broadcast broadcasts the partially signed duty data set to all peers.
-func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-	b, err := proto.Marshal(&pbv1.ParSigExMsg{
+func (m *ParSigExchange) Broadcast(ctx context.Context, duty core.Duty, set core.ShareSignedDataSet) error {
+	b, err := proto.Marshal(&pbv1.ParSigExchangeMsg{
 		Duty:    core.DutyToProto(duty),
-		DataSet: core.ParSignedDataSetToProto(set),
+		DataSet: core.ShareSignedDataSetToProto(set),
 	})
 	if err != nil {
 		return errors.Wrap(err, "marshal msg proto")
@@ -125,7 +125,7 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 
 // Subscribe registers a callback when a partially signed duty set
 // is received from a peer. This is not thread safe, it must be called before starting to use parsigex.
-func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
+func (m *ParSigExchange) Subscribe(fn func(context.Context, core.Duty, core.ShareSignedDataSet) error) {
 	m.subs = append(m.subs, fn)
 }
 

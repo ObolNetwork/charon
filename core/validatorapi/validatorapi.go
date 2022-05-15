@@ -154,8 +154,8 @@ type Component struct {
 	pubKeyByAttFunc func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
 	awaitAttFunc    func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
 	awaitBlockFunc  func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
-	getDutyFunc     func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error)
-	parSigDBFuncs   []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	getDutyFunc     func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
+	parSigDBFuncs   []func(context.Context, core.Duty, core.ShareSignedDataSet) error
 }
 
 func (c *Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -191,13 +191,13 @@ func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slo
 
 // RegisterGetDutyFunc registers a function to query duty data by duty.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterGetDutyFunc(fn func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error)) {
+func (c *Component) RegisterGetDutyFunc(fn func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)) {
 	c.getDutyFunc = fn
 }
 
-// RegisterParSigDB registers a partial signed data set store function.
+// RegisterShareSigDB registers a partial signed data set store function.
 // It supports multiple functions since it is the output of the component.
-func (c *Component) RegisterParSigDB(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
+func (c *Component) RegisterShareSigDB(fn func(context.Context, core.Duty, core.ShareSignedDataSet) error) {
 	c.parSigDBFuncs = append(c.parSigDBFuncs, fn)
 }
 
@@ -225,7 +225,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 		defer span.End()
 	}
 
-	setsBySlot := make(map[int64]core.ParSignedDataSet)
+	setsBySlot := make(map[int64]core.ShareSignedDataSet)
 	for _, att := range attestations {
 		slot := int64(att.Data.Slot)
 
@@ -254,11 +254,11 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 		// Encode partial signed data and add to a set
 		set, ok := setsBySlot[slot]
 		if !ok {
-			set = make(core.ParSignedDataSet)
+			set = make(core.ShareSignedDataSet)
 			setsBySlot[slot] = set
 		}
 
-		signedData, err := core.EncodeAttestationParSignedData(att, c.shareIdx)
+		signedData, err := core.EncodeAttestationShareSignedData(att, c.shareIdx)
 		if err != nil {
 			return err
 		}
@@ -306,7 +306,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	// unsigned beacon block will be returned below:
 	//  - Threshold number of VCs need to submit their partial randao reveals.
 	//  - These signatures will be exchanged and aggregated.
-	//  - The aggregated signature will be stored in AggSigDB.
+	//  - The aggregated signature will be stored in GroupSigDB.
 	//  - Scheduler (in the mean time) will schedule a DutyProposer (to create a unsigned block).
 	//  - Fetcher will then block waiting for an aggregated randao reveal.
 	//  - Once it is found, Fetcher will fetch an unsigned block from the beacon
@@ -340,13 +340,13 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 		return err
 	}
 
-	// Save Partially Signed Block to ParSigDB
+	// Save Partially Signed Block to ShareSigDB
 	duty := core.NewProposerDuty(int64(slot))
-	signedData, err := core.EncodeBlockParSignedData(block, c.shareIdx)
+	signedData, err := core.EncodeBlockShareSignedData(block, c.shareIdx)
 	if err != nil {
 		return err
 	}
-	set := core.ParSignedDataSet{pubkey: signedData}
+	set := core.ShareSignedDataSet{pubkey: signedData}
 	for _, dbFunc := range c.parSigDBFuncs {
 		err = dbFunc(ctx, duty, set)
 		if err != nil {
@@ -446,8 +446,8 @@ func (c Component) verifyParSig(parent context.Context, typ core.DutyType, epoch
 }
 
 func (c Component) submitRandaoDuty(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
-	parsigSet := core.ParSignedDataSet{
-		pubKey: core.EncodeRandaoParSignedData(randao, c.shareIdx),
+	parsigSet := core.ShareSignedDataSet{
+		pubKey: core.EncodeRandaoShareSignedData(randao, c.shareIdx),
 	}
 
 	for _, dbFunc := range c.parSigDBFuncs {

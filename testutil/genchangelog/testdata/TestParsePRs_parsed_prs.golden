@@ -48,7 +48,7 @@
   "Issue": 251
  },
  {
-  "Title": "core/aggsigdb: implement in-memory AggSigDB (#249)",
+  "Title": "core/aggsigdb: implement in-memory GroupSigDB (#249)",
   "Number": 249,
   "Category": "feature",
   "Issue": 220

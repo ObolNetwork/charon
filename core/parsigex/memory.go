@@ -22,18 +22,18 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-type sub func(context.Context, core.Duty, core.ParSignedDataSet) error
+type sub func(context.Context, core.Duty, core.ShareSignedDataSet) error
 
 // NewMemExFunc returns a function that itself returns in-memory exchange components
 // that exchange partial signatures.
-func NewMemExFunc() func() core.ParSigEx {
+func NewMemExFunc() func() core.ParSigExchange {
 	var (
 		mu    sync.Mutex
 		index int
 		subs  = make(map[int][]sub)
 	)
 
-	return func() core.ParSigEx {
+	return func() core.ParSigExchange {
 		mu.Lock()
 		defer mu.Unlock()
 		i := index
@@ -73,7 +73,7 @@ type MemEx struct {
 }
 
 // Broadcast broadcasts the partially signed duty data set to all peers.
-func (s MemEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+func (s MemEx) Broadcast(ctx context.Context, duty core.Duty, set core.ShareSignedDataSet) error {
 	for _, sub := range s.getSubs() {
 		err := sub(ctx, duty, set)
 		if err != nil {
@@ -86,6 +86,6 @@ func (s MemEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSigned
 
 // Subscribe registers a callback when a partially signed duty set
 // is received from a peer.
-func (s MemEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
+func (s MemEx) Subscribe(fn func(context.Context, core.Duty, core.ShareSignedDataSet) error) {
 	s.addSub(fn)
 }

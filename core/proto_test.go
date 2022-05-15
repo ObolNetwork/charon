@@ -33,35 +33,35 @@ func TestDutyProto(t *testing.T) {
 	require.Equal(t, pb1, pb2)
 }
 
-func TestParSignedDataProto(t *testing.T) {
-	data1 := core.ParSignedData{
+func TestShareSignedDataProto(t *testing.T) {
+	data1 := core.ShareSignedData{
 		Data:      testutil.RandomBytes32(),
 		Signature: testutil.RandomCoreSignature(),
 		ShareIdx:  99,
 	}
-	pb1 := core.ParSignedDataToProto(data1)
-	data2 := core.ParSignedDataFromProto(pb1)
-	pb2 := core.ParSignedDataToProto(data2)
+	pb1 := core.ShareSignedDataToProto(data1)
+	data2 := core.ShareSignedDataFromProto(pb1)
+	pb2 := core.ShareSignedDataToProto(data2)
 	require.Equal(t, data1, data2)
 	require.Equal(t, pb1, pb2)
 }
 
-func TestParSignedDataSetProto(t *testing.T) {
-	set1 := core.ParSignedDataSet{
-		testutil.RandomCorePubKey(t): core.ParSignedData{
+func TestShareSignedDataSetProto(t *testing.T) {
+	set1 := core.ShareSignedDataSet{
+		testutil.RandomCorePubKey(t): core.ShareSignedData{
 			Data:      testutil.RandomBytes32(),
 			Signature: testutil.RandomCoreSignature(),
 			ShareIdx:  99,
 		},
-		testutil.RandomCorePubKey(t): core.ParSignedData{
+		testutil.RandomCorePubKey(t): core.ShareSignedData{
 			Data:      testutil.RandomBytes32(),
 			Signature: testutil.RandomCoreSignature(),
 			ShareIdx:  123,
 		},
 	}
-	pb1 := core.ParSignedDataSetToProto(set1)
-	set2 := core.ParSignedDataSetFromProto(pb1)
-	pb2 := core.ParSignedDataSetToProto(set2)
+	pb1 := core.ShareSignedDataSetToProto(set1)
+	set2 := core.ShareSignedDataSetFromProto(pb1)
+	pb2 := core.ShareSignedDataSetToProto(set2)
 	require.Equal(t, set1, set2)
 	require.Equal(t, pb1, pb2)
 }

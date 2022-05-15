@@ -76,11 +76,11 @@ Core Workflow
         data │  |             └──┬─┘          │        │ Query, sign, submit
                 |                ├────────────┘        │
      *Share* │  | ┌────────┐  ┌──▼─────┐
-     partial │  | │ParSigEx◄──►ParSigDB│
+     partial │  | │ParSigExchange◄──►ShareSigDB│
         sigs │  | └─────*──┘  └──┬─────┘
                 |                │
  *Aggregate* │  │ ┌────────┐  ┌──▼───┐
-     partial │  └─►AggSigDB◄──┤SigAgg│
+     partial │  └─►GroupSigDB◄──┤SigCombiner│
         sigs │    └────────┘  └──┬───┘
                                  │
  *Broadcast* │                ┌──▼──────┐
@@ -145,17 +145,17 @@ and [Get block proposer](https://ethereum.github.io/beacon-APIs/#/ValidatorRequi
 at the end of each epoch for the next epoch. It then caches the results returned and triggers the duty
 when the associated slot starts.
 
-An abstract `FetchArg` type is defined that represents the json formatted responses returned by the beacon node above.
+An abstract `DutyDefinition` type is defined that represents the json formatted responses returned by the beacon node above.
 ```go
-// FetchArg contains the arguments required to fetch the duty data,
+// DutyDefinition contains the arguments required to fetch the duty data,
 // it is the result of resolving duties at the start of an epoch.
-type FetchArg []byte
+type DutyDefinition []byte
 ```
 Since a cluster can contain multiple DVs, it may have to perform multiple similar duties for the same slot, e.g. `DutyAttester`.
-Multiple `FetchArg`s are combined into a single `FetchArgSet` that is defined as:
+Multiple `DutyDefinition`s are combined into a single `DutyDefinitionSet` that is defined as:
 ```go
-// FetchArgSet is a set of fetch args, one per validator.
-type FetchArgSet map[PubKey]FetchArg
+// DutyDefinitionSet is a set of fetch args, one per validator.
+type DutyDefinitionSet map[PubKey]DutyDefinition
 ```
 
 Note the `DutyRandao` isn’t scheduled by the scheduler, since it is initiated directly by VC at the start of the epoch.
@@ -167,10 +167,10 @@ The scheduler interface is defined as:
 // Scheduler triggers the start of a duty workflow.
 type Scheduler interface {
   // Subscribe registers a callback for triggering a duty.
-  Subscribe(func(context.Context, Duty, FetchArgSet) error)
+  Subscribe(func(context.Context, Duty, DutyDefinitionSet) error)
 
   // GetDuty returns the argSet for a duty if resolved already.
-  GetDuty(context.Context, Duty) (FetchArgSet, error)
+  GetDuty(context.Context, Duty) (DutyDefinitionSet, error)
 }
 ```
 > ℹ️ Components of the workflow are decoupled from each other. They are stitched together by callback subscriptions.
@@ -182,7 +182,7 @@ The fetcher is responsible for fetching input data required to perform the duty.
 
 For `DutyAttester` it [fetches AttestationData](https://github.com/ethereum/beacon-APIs/blob/master/validator-flow.md#/ValidatorRequiredApi/produceAttestationData) from the beacon node.
 
-For `DutyProposer` it fetches a previously aggregated randao_reveal from the `AggSigDB` and then [fetches a BeaconBlock object](https://github.com/ethereum/beacon-APIs/blob/master/validator-flow.md#/Validator/produceBlock)
+For `DutyProposer` it fetches a previously aggregated randao_reveal from the `GroupSigDB` and then [fetches a BeaconBlock object](https://github.com/ethereum/beacon-APIs/blob/master/validator-flow.md#/Validator/produceBlock)
 from the beacon node.
 
 An abstract `UnsignedData` type is defined to represent either `AttestationData` or `BeaconBlock` depending on the `DutyType`.
@@ -193,7 +193,7 @@ It contains the standard serialised json format of the data as returned from bea
 type UnsignedData []byte
 ```
 
-Since the input to fetcher is a `FetchArgSet`, it fetches multiple `UnsignedData` objects for the same `Duty`.
+Since the input to fetcher is a `DutyDefinitionSet`, it fetches multiple `UnsignedData` objects for the same `Duty`.
 Multiple `UnsignedData`s are combined into a single `UnsignedDataSet` that is defined as:
 ```go
 // UnsignedDataSet is a set of unsigned duty data objects, one per validator.
@@ -212,14 +212,14 @@ The fetcher interface is defined as:
 // Fetcher fetches proposed duty data.
 type Fetcher interface {
   // Fetch triggers fetching of a proposed duty data set.
-  Fetch(context.Context, Duty, FetchArgSet) error
+  Fetch(context.Context, Duty, DutyDefinitionSet) error
 
   // Subscribe registers a callback for proposed duty data sets.
   Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
 
-  // RegisterAggSigDB registers a function to resolved aggregated
-  // signed data from the AggSigDB (e.g., randao reveals).
-  RegisterAggSigDB(func(context.Context, Duty, PubKey) (AggSignedData, error))
+  // RegisterGroupSigDB registers a function to resolved aggregated
+  // signed data from the GroupSigDB (e.g., randao reveals).
+  RegisterGroupSigDB(func(context.Context, Duty, PubKey) (GroupSignedData, error))
 }
 ```
 ### Consensus
@@ -313,13 +313,13 @@ type DutyDB interface {
 ### Validator API
 The validator API provides a [beacon-node API](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi) to downstream VCs,
 intercepting some calls and proxying others directly to the upstream beacon node.
-It mostly serves unsigned duty data requests from the `DutyDB` and sends the resulting partial signed duty objects to the `ParSigDB`.
+It mostly serves unsigned duty data requests from the `DutyDB` and sends the resulting partial signed duty objects to the `ShareSigDB`.
 
-Partial signed duty data objects are defined as `ParSignedData`:
+Partial signed duty data objects are defined as `ShareSignedData`:
 ```go
-// ParSignedData is a partially signed duty data.
+// ShareSignedData is a partially signed duty data.
 // Partial refers to it being signed by a single share of the BLS threshold signing scheme.
-type ParSignedData struct {
+type ShareSignedData struct {
   // Data is the partially signed duty data received from VC.
   Data []byte
   // Signature of tbls share extracted from data.
@@ -328,10 +328,10 @@ type ParSignedData struct {
   Index int
 }
 ```
-Multiple `ParSignedData` are combined into a single `ParSignedDataSet` defines as follows:
+Multiple `ShareSignedData` are combined into a single `ShareSignedDataSet` defines as follows:
 ```go
-// ParSignedDataSet is a set of partially signed duty data objects, one per validator.
-type ParSignedDataSet map[PubKey]ParSignedData
+// ShareSignedDataSet is a set of partially signed duty data objects, one per validator.
+type ShareSignedDataSet map[PubKey]ShareSignedData
 ```
 
 The validator API provides the following beacon-node endpoints relating to duties:
@@ -344,19 +344,19 @@ The validator API provides the following beacon-node endpoints relating to dutie
   - The request arguments are: `slot` and `randao_reveal`
   - Lookup `PubKey` by querying the `Scheduler` `AwaitProposer` with the slot in the request body.
   - Verify `randao_reveal` signature.
-  - Construct a `DutyRandao` `ParSignedData` and submit it to `ParSigDB` for async aggregation and inclusion in block consensus.
+  - Construct a `DutyRandao` `ShareSignedData` and submit it to `ShareSigDB` for async aggregation and inclusion in block consensus.
   - Query the `DutyDB` `AwaitBeaconBlock` with the `slot`
   - Serve response
 - `POST /eth/v1/beacon/pool/attestations` Submit Attestation objects to node
-  - Construct a `ParSignedData` for each attestation object in request body.
+  - Construct a `ShareSignedData` for each attestation object in request body.
   - Infer `PubKey` of the request by querying the `DutyDB` `PubKeyByAttestation` with the `slot`, `committee index` and `aggregation bits` provided in the request body.
   - Set the BLS private share `index` to charon node index.
-  - Combine `ParSignedData`s into a `SignedDutyDataSet`.
+  - Combine `ShareSignedData`s into a `SignedDutyDataSet`.
   - Store `SignedDutyDataSet` in the `SigDB`
 - `POST /eth/v1/beacon/blocks` Publish a signed block
   - The request body contains `SignedBeaconBlock` object composed of `BeaconBlock` object (produced by beacon node) and validator signature.
   - Lookup `PubKey` by querying the `Scheduler` `AwaitProposer` with the slot in the request body.
-  - Construct a `DutyProposer` `ParSignedData` and submit it to `ParSigDB` for async aggregation and broadcast to beacon node.
+  - Construct a `DutyProposer` `ShareSignedData` and submit it to `ShareSigDB` for async aggregation and broadcast to beacon node.
 
 `AwaitBeaconBlock` returns an agreed-upon (consensus) unsigned beacon block, which in turn requires
 an aggregated randao reveal signature. Partial randao reveal signatures are submitted at the same time as
@@ -372,13 +372,13 @@ the public share (what the VC thinks as its public key) to and from the DV root 
 The validator api interface is defined as:
 ```
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the
-// DutyDB and stores partial signed data in the ParSigDB.
+// DutyDB and stores partial signed data in the ShareSigDB.
 type ValidatorAPI interface {
 	// RegisterAwaitBeaconBlock registers a function to query a unsigned beacon block by slot.
 	RegisterAwaitBeaconBlock(func(context.Context, slot int) (beaconapi.BeaconBlock, error))
 
 	// RegisterGetDutyFunc registers a function to query duty data.
-	RegisterGetDutyFunc(func(ctx context.Context, duty Duty) (FetchArgSet, error))
+	RegisterGetDutyFunc(func(ctx context.Context, duty Duty) (DutyDefinitionSet, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error))
@@ -386,8 +386,8 @@ type ValidatorAPI interface {
 	// RegisterPubKeyByAttestation registers a function to query validator by attestation.
 	RegisterPubKeyByAttestation(func(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error))
 
-	// RegisterParSigDB registers a function to store partially signed data sets.
-	RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error))
+	// RegisterShareSigDB registers a function to store partially signed data sets.
+	RegisterShareSigDB(func(context.Context, Duty, ShareSignedDataSet) error))
 }
 ```
 
@@ -414,22 +414,22 @@ type Signer interface {
     // Sign signs the unsigned duty data set.
     Sign(context.Context, Duty, UnsignedDataSet) error
 
-    // RegisterParSigDB registers a function to store partially signed data sets.
-    RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error))
+    // RegisterShareSigDB registers a function to store partially signed data sets.
+    RegisterShareSigDB(func(context.Context, Duty, ShareSignedDataSet) error))
 }
 ```
 
-### ParSigDB
+### ShareSigDB
 The partial signature database persists partial BLS threshold signatures received internally (from the local Charon node's VC(s))
 as well as externally (from other nodes in cluster).
-It calls the `ParSigEx` component with signatures received internally to share them with all peers in the cluster.
-When sufficient partial signatures have been received for a duty, it calls the `SigAgg` component.
+It calls the `ParSigExchange` component with signatures received internally to share them with all peers in the cluster.
+When sufficient partial signatures have been received for a duty, it calls the `SigCombiner` component.
 
 Partial signatures in the database have one of the following states:
 
  - `Internal`: Received from local VC, not broadcasted yet.
  - `Broadcasted`: Received from peer, or broadcasted to peers.
- - `Aggregated`: Sent to `SigAgg` service.
+ - `Aggregated`: Sent to `SigCombiner` service.
  - `Expired`: Not eligible for aggregation anymore (too old).
 
 The data model for entries in this DB is defined as:
@@ -458,61 +458,61 @@ A `broadcaster` worker goroutine, triggered periodically and by `StoreInternal` 
 sends them to `ParSigEX` as a batch, then updates them to `Status=Broadcasted` in a transaction.
 
 An `aggregator` worker goroutine, triggered periodically and by `StoreExternal` and by `broadcaster`
-queries all `Status=Broadcasted` entries, and if sufficient entries exist for a duty, sends them to the `SigAgg` component
+queries all `Status=Broadcasted` entries, and if sufficient entries exist for a duty, sends them to the `SigCombiner` component
 and update them to `Status=Aggregated`. Entries older than `X?` epochs are set to `Status=Expired`.
 
 > ⁉️ What about the race condition where some partial signatures are received AFTER others of the same duty reached threshold and was aggregated? Currently, they will Expire.
 
 The partial signature database interface is defined as:
 ```go
-// ParSigDB persists partial signatures and sends them to the
+// ShareSigDB persists partial signatures and sends them to the
 // partial signature exchange and aggregation.
-type ParSigDB interface {
+type ShareSigDB interface {
   // StoreInternal stores an internally received partially signed duty data set.
-  StoreInternal(context.Context, Duty, ParSignedDataSet) error
+  StoreInternal(context.Context, Duty, ShareSignedDataSet) error
 
   // StoreExternal stores an externally received partially signed duty data set.
-  StoreExternal(context.Context, Duty, ParSignedDataSet) error
+  StoreExternal(context.Context, Duty, ShareSignedDataSet) error
 
   // SubscribeInternal registers a callback when an internal
   // partially signed duty set is stored.
-  SubscribeInternal(func(context.Context, Duty, ParSignedDataSet) error)
+  SubscribeInternal(func(context.Context, Duty, ShareSignedDataSet) error)
 
   // SubscribeThreshold registers a callback when *threshold*
   // partially signed duty is reached for a DV.
-  SubscribeThreshold(func(context.Context, Duty, PubKey, []ParSignedData) error)
+  SubscribeThreshold(func(context.Context, Duty, PubKey, []ShareSignedData) error)
 }
 ```
 
-### ParSigEx
+### ParSigExchange
 The partial signature exchange component ensures that all partial signatures are persisted by all peers.
-It registers with the `ParSigDB` for internally received partial signatures and broadcasts them in batches to all other peers.
-It listens and receives batches of partial signatures from other peers and stores them back to the `ParSigDB`.
+It registers with the `ShareSigDB` for internally received partial signatures and broadcasts them in batches to all other peers.
+It listens and receives batches of partial signatures from other peers and stores them back to the `ShareSigDB`.
 It implements a simple libp2p protocol leveraging direct p2p connections to all nodes (instead of gossip-style pubsub).
 This incurs higher network overhead (n^2), but improves latency.
 
 The partial signature exchange interface is defined as:
 ```go
-// ParSigEx exchanges partially signed duty data sets.
-type ParSigEx interface {
+// ParSigExchange exchanges partially signed duty data sets.
+type ParSigExchange interface {
   // Broadcast broadcasts the partially signed duty data set to all peers.
-  Broadcast(context.Context, Duty, ParSignedDataSet) error
+  Broadcast(context.Context, Duty, ShareSignedDataSet) error
 
   // Subscribe registers a callback when a partially signed duty set
   // is received from a peer.
-  Subscribe(func(context.Context, Duty, ParSignedDataSet) error)
+  Subscribe(func(context.Context, Duty, ShareSignedDataSet) error)
 }
 ```
 
-### SigAgg
-The signature aggregation service aggregates partial BLS signatures and sends them to the `bcast` component and persists them to the `AggSigDB`.
+### SigCombiner
+The signature aggregation service aggregates partial BLS signatures and sends them to the `bcast` component and persists them to the `GroupSigDB`.
 It is a stateless pure function.
 
-Aggregated signed duty data objects are defined as `AggSignedData`:
+Aggregated signed duty data objects are defined as `GroupSignedData`:
 ```go
-// AggSignedData is an aggregated signed duty data.
+// GroupSignedData is an aggregated signed duty data.
 // Aggregated refers to it being signed by the aggregated BLS threshold signing scheme.
-type AggSignedData struct {
+type GroupSignedData struct {
   // Data is the signed duty data to be sent to beacon chain.
   Data []byte
   // Signature is the result of tbls aggregation and is inserted into the data.
@@ -523,36 +523,36 @@ type AggSignedData struct {
 The signature aggregation interface is defined as:
 ```go
 
-// SigAgg aggregates threshold partial signatures.
-type SigAgg interface {
+// SigCombiner aggregates threshold partial signatures.
+type SigCombiner interface {
   // Aggregate aggregates the partially signed duty data for the DV.
-  Aggregate(context.Context, Duty, PubKey, []ParSignedData) error
+  Aggregate(context.Context, Duty, PubKey, []ShareSignedData) error
 
   // Subscribe registers a callback for aggregated signed duty data.
-  Subscribe(func(context.Context, Duty, PubKey, AggSignedData) error)
+  Subscribe(func(context.Context, Duty, PubKey, GroupSignedData) error)
 }
 ```
 
-### AggSigDB
+### GroupSigDB
 The aggregated signature database persists aggregated signed duty data and makes it available for querying.
 This database persists the final results of the core workflow; aggregate signatures.
 At this point, only `DutyRandao` is queried, but other use cases may yet present themselves.
 
 The data model of the database is:
 - Key: `Slot,DutyType,PubKey`
-- Value: `AggSignedData`
+- Value: `GroupSignedData`
 
 > ⁉️ When can old data be trimmed/deleted?
 
 The aggregated signature database interface is defined as:
 ```go
-// AggSigDB persists aggregated signed duty data.
-type AggSigDB interface {
+// GroupSigDB persists aggregated signed duty data.
+type GroupSigDB interface {
   // Store stores aggregated signed duty data.
-  Store(context.Context, Duty, PubKey, AggSignedData) error
+  Store(context.Context, Duty, PubKey, GroupSignedData) error
 
   // Await blocks and returns the aggregated signed duty data when available.
-  Await(context.Context, Duty, PubKey) (AggSignedData, error)
+  Await(context.Context, Duty, PubKey) (GroupSignedData, error)
 }
 ```
 ### Bcast
@@ -562,7 +562,7 @@ The broadcast interface is defined as:
 ```go
 // Bcast broadcasts aggregated signed duty data to the beacon node.
 type Bcast interface {
-  Broadcast(context.Context, Duty, PubKey, AggSignedData) error
+  Broadcast(context.Context, Duty, PubKey, GroupSignedData) error
 }
 ```
 ### Stitching the core workflow
@@ -577,10 +577,10 @@ func StitchFlow(
   dutyDB   DutyDB,
   vapi     ValidatorAPI,
   signer   Signer,
-  parSigDB ParSigDB,
-  parSigEx ParSigEx,
-  sigAgg   SigAgg,
-  aggSigDB AggSigDB,
+  parSigDB ShareSigDB,
+  parSigEx ParSigExchange,
+  sigAgg   SigCombiner,
+  aggSigDB GroupSigDB,
   bcast    Broadcaster,
 ) {
   sched.Subscribe(fetch.Fetch)

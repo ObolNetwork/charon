@@ -89,8 +89,8 @@ type TestConfig struct {
 	DisablePing bool
 	// PingCallback is called when a ping was completed to a peer.
 	PingCallback func(peer.ID)
-	// ParSigExFunc provides an in-memory partial signature exchange.
-	ParSigExFunc func() core.ParSigEx
+	// ParSigExchangeFunc provides an in-memory partial signature exchange.
+	ParSigExchangeFunc func() core.ParSigExchange
 	// LcastTransportFunc provides an in-memory leader cast transport.
 	LcastTransportFunc func() leadercast.Transport
 	// SimnetKeys provides private key shares for the simnet validatormock signer.
@@ -98,7 +98,7 @@ type TestConfig struct {
 	// SimnetBMockOpts defines additional simnet beacon mock options.
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
-	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.AggSignedData) error
+	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.GroupSignedData) error
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -326,11 +326,11 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	parSigDB := parsigdb.NewMemDB(threshold)
 
-	var parSigEx core.ParSigEx
-	if conf.TestConfig.ParSigExFunc != nil {
-		parSigEx = conf.TestConfig.ParSigExFunc()
+	var parSigEx core.ParSigExchange
+	if conf.TestConfig.ParSigExchangeFunc != nil {
+		parSigEx = conf.TestConfig.ParSigExchangeFunc()
 	} else {
-		parSigEx = parsigex.NewParSigEx(tcpNode, nodeIdx.PeerIdx, manifest.PeerIDs())
+		parSigEx = parsigex.NewParSigExchange(tcpNode, nodeIdx.PeerIdx, manifest.PeerIDs())
 	}
 
 	sigAgg := sigagg.New(threshold)
@@ -364,7 +364,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartLeaderCast, lifecycle.HookFunc(consensus.Run))
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartScheduler, lifecycle.HookFuncErr(sched.Run))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartAggSigDB, lifecycle.HookFuncCtx(aggSigDB.Run))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartGroupSigDB, lifecycle.HookFuncCtx(aggSigDB.Run))
 	life.RegisterStop(lifecycle.StopScheduler, lifecycle.HookFuncMin(sched.Stop))
 	life.RegisterStop(lifecycle.StopDutyDB, lifecycle.HookFuncMin(dutyDB.Shutdown))
 	life.RegisterStop(lifecycle.StopRetryer, lifecycle.HookFuncCtx(retryer.Shutdown))
@@ -486,7 +486,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	signer := validatormock.NewSigner(secrets...)
 
 	// Trigger validatormock when scheduler triggers new slot.
-	sched.Subscribe(func(ctx context.Context, duty core.Duty, _ core.FetchArgSet) error {
+	sched.Subscribe(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
 		ctx = log.WithTopic(ctx, "vmock")
 		go func() {
 			addr := "http://" + conf.ValidatorAPIAddr

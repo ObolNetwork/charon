@@ -34,7 +34,7 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestSigAgg_DutyAttester(t *testing.T) {
+func TestSigCombiner_DutyAttester(t *testing.T) {
 	ctx := context.Background()
 
 	const (
@@ -54,7 +54,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 
 	// Create partial signatures (in two formats)
 	var (
-		parsigs []core.ParSignedData
+		parsigs []core.ShareSignedData
 		psigs   []*bls_sig.PartialSignature
 	)
 	for _, secret := range secrets {
@@ -63,7 +63,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 
 		att.Signature = tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
 
-		parsig, err := core.EncodeAttestationParSignedData(att, int(psig.Identifier))
+		parsig, err := core.EncodeAttestationShareSignedData(att, int(psig.Identifier))
 		require.NoError(t, err)
 
 		psigs = append(psigs, psig)
@@ -78,7 +78,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	agg := sigagg.New(threshold)
 
 	// Assert output
-	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.AggSignedData) error {
+	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.GroupSignedData) error {
 		require.Equal(t, expect, aggData.Signature)
 		sig, err := tblsconv.SigFromCore(aggData.Signature)
 		require.NoError(t, err)
@@ -95,7 +95,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSigAgg_DutyRandao(t *testing.T) {
+func TestSigCombiner_DutyRandao(t *testing.T) {
 	ctx := context.Background()
 
 	const (
@@ -111,7 +111,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 
 	// Create partial signatures (in two formats)
 	var (
-		parsigs []core.ParSignedData
+		parsigs []core.ShareSignedData
 		psigs   []*bls_sig.PartialSignature
 	)
 	for _, secret := range secrets {
@@ -120,7 +120,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 
 		sig := tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
 
-		parsig := core.EncodeRandaoParSignedData(sig, int(psig.Identifier))
+		parsig := core.EncodeRandaoShareSignedData(sig, int(psig.Identifier))
 
 		psigs = append(psigs, psig)
 		parsigs = append(parsigs, parsig)
@@ -134,7 +134,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	agg := sigagg.New(threshold)
 
 	// Assert output
-	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.AggSignedData) error {
+	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.GroupSignedData) error {
 		require.Equal(t, expect, aggData.Signature)
 		sig, err := tblsconv.SigFromCore(aggData.Signature)
 		require.NoError(t, err)
@@ -151,7 +151,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSigAgg_DutyProposer(t *testing.T) {
+func TestSigCombiner_DutyProposer(t *testing.T) {
 	ctx := context.Background()
 
 	const (
@@ -207,7 +207,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 
 			// Create partial signatures (in two formats)
 			var (
-				parsigs []core.ParSignedData
+				parsigs []core.ShareSignedData
 				psigs   []*bls_sig.PartialSignature
 			)
 			for _, secret := range secrets {
@@ -216,7 +216,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 
 				setSigToSignedBlock(test.block, tblsconv.SigToETH2(tblsconv.SigFromPartial(psig)))
 
-				parsig, err := core.EncodeBlockParSignedData(test.block, int(psig.Identifier))
+				parsig, err := core.EncodeBlockShareSignedData(test.block, int(psig.Identifier))
 				require.NoError(t, err)
 
 				psigs = append(psigs, psig)
@@ -231,7 +231,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			agg := sigagg.New(threshold)
 
 			// Assert output
-			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.AggSignedData) error {
+			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.GroupSignedData) error {
 				require.Equal(t, expect, aggData.Signature)
 				sig, err := tblsconv.SigFromCore(aggData.Signature)
 				require.NoError(t, err)

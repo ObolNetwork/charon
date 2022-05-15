@@ -66,7 +66,7 @@ func WithTracing() WireOption {
 	return func(w *wireFuncs) {
 		clone := *w
 
-		w.FetcherFetch = func(parent context.Context, duty Duty, set FetchArgSet) error {
+		w.FetcherFetch = func(parent context.Context, duty Duty, set DutyDefinitionSet) error {
 			ctx, span := tracer.Start(parent, "core/fetcher.Fetch")
 			defer span.End()
 
@@ -96,43 +96,43 @@ func WithTracing() WireOption {
 
 			return clone.DutyDBPubKeyByAttestation(ctx, slot, commIdx, valCommIdx)
 		}
-		w.ParSigDBStoreInternal = func(parent context.Context, duty Duty, set ParSignedDataSet) error {
+		w.ShareSigDBStoreInternal = func(parent context.Context, duty Duty, set ShareSignedDataSet) error {
 			ctx, span := tracer.Start(parent, "core/parsigdb.StoreInternal")
 			defer span.End()
 
-			return clone.ParSigDBStoreInternal(ctx, duty, set)
+			return clone.ShareSigDBStoreInternal(ctx, duty, set)
 		}
-		w.ParSigDBStoreExternal = func(parent context.Context, duty Duty, set ParSignedDataSet) error {
+		w.ShareSigDBStoreExternal = func(parent context.Context, duty Duty, set ShareSignedDataSet) error {
 			ctx, span := tracer.Start(parent, "core/parsigdb.StoreExternal")
 			defer span.End()
 
-			return clone.ParSigDBStoreExternal(ctx, duty, set)
+			return clone.ShareSigDBStoreExternal(ctx, duty, set)
 		}
-		w.ParSigExBroadcast = func(parent context.Context, duty Duty, set ParSignedDataSet) error {
+		w.ParSigExchangeBroadcast = func(parent context.Context, duty Duty, set ShareSignedDataSet) error {
 			ctx, span := tracer.Start(parent, "core/parsigex.Broadcast")
 			defer span.End()
 
-			return clone.ParSigExBroadcast(ctx, duty, set)
+			return clone.ParSigExchangeBroadcast(ctx, duty, set)
 		}
-		w.SigAggAggregate = func(parent context.Context, duty Duty, key PubKey, data []ParSignedData) error {
+		w.SigCombinerAggregate = func(parent context.Context, duty Duty, key PubKey, data []ShareSignedData) error {
 			ctx, span := tracer.Start(parent, "core/sigagg.Aggregate")
 			defer span.End()
 
-			return clone.SigAggAggregate(ctx, duty, key, data)
+			return clone.SigCombinerAggregate(ctx, duty, key, data)
 		}
-		w.AggSigDBStore = func(parent context.Context, duty Duty, key PubKey, data AggSignedData) error {
+		w.GroupSigDBStore = func(parent context.Context, duty Duty, key PubKey, data GroupSignedData) error {
 			ctx, span := tracer.Start(parent, "core/aggsigdb.Store")
 			defer span.End()
 
-			return clone.AggSigDBStore(ctx, duty, key, data)
+			return clone.GroupSigDBStore(ctx, duty, key, data)
 		}
-		w.AggSigDBAwait = func(parent context.Context, duty Duty, key PubKey) (AggSignedData, error) {
+		w.GroupSigDBAwait = func(parent context.Context, duty Duty, key PubKey) (GroupSignedData, error) {
 			ctx, span := tracer.Start(parent, "core/aggsigdb.Await")
 			defer span.End()
 
-			return clone.AggSigDBAwait(ctx, duty, key)
+			return clone.GroupSigDBAwait(ctx, duty, key)
 		}
-		w.BroadcasterBroadcast = func(parent context.Context, duty Duty, key PubKey, data AggSignedData) error {
+		w.BroadcasterBroadcast = func(parent context.Context, duty Duty, key PubKey, data GroupSignedData) error {
 			ctx, span := tracer.Start(parent, "core/broadcaster.Broadcast")
 			defer span.End()
 

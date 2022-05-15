@@ -13,11 +13,11 @@ message UnsignedDataSet {    // core.UnsignedDataSet
   map<string,bytes> set = 1; // map[core.PubKey]core.UnsignedData
 }
 
-message ParSignedDataSet {           // core.ParSignedDataSet
-  map<string,ParSignedData> set = 1; // map[core.PubKey]core.ParSignedData
+message ShareSignedDataSet {           // core.ShareSignedDataSet
+  map<string,ShareSignedData> set = 1; // map[core.PubKey]core.ShareSignedData
 }
 
-message ParSignedData { // core.ParSignedData
+message ShareSignedData { // core.ShareSignedData
   bytes data = 1;       // []byte
   bytes signature = 2;  // core.Signature
   int32 share_idx = 3;  // int

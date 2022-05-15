@@ -26,16 +26,16 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestEncodeAttesterFetchArg(t *testing.T) {
+func TestEncodeAttesterDutyDefinition(t *testing.T) {
 	attDuty1 := testutil.RandomAttestationDuty(t)
 
-	arg1, err := core.EncodeAttesterFetchArg(attDuty1)
+	arg1, err := core.EncodeAttesterDutyDefinition(attDuty1)
 	require.NoError(t, err)
 
-	attDuty2, err := core.DecodeAttesterFetchArg(arg1)
+	attDuty2, err := core.DecodeAttesterDutyDefinition(arg1)
 	require.NoError(t, err)
 
-	arg2, err := core.EncodeAttesterFetchArg(attDuty2)
+	arg2, err := core.EncodeAttesterDutyDefinition(attDuty2)
 	require.NoError(t, err)
 
 	require.Equal(t, attDuty1, attDuty2)
@@ -61,70 +61,70 @@ func TestEncodeAttesterUnsignedData(t *testing.T) {
 	require.Equal(t, data1, data2)
 }
 
-func TestEncodeAttesterParSignedData(t *testing.T) {
+func TestEncodeAttesterShareSignedData(t *testing.T) {
 	att1 := testutil.RandomAttestation()
 
-	data1, err := core.EncodeAttestationParSignedData(att1, 1)
+	data1, err := core.EncodeAttestationShareSignedData(att1, 1)
 	require.NoError(t, err)
 
-	att2, err := core.DecodeAttestationParSignedData(data1)
+	att2, err := core.DecodeAttestationShareSignedData(data1)
 	require.NoError(t, err)
 
-	data2, err := core.EncodeAttestationParSignedData(att2, 1)
+	data2, err := core.EncodeAttestationShareSignedData(att2, 1)
 	require.NoError(t, err)
 
 	require.Equal(t, att1, att2)
 	require.Equal(t, data1, data2)
 }
 
-func TestEncodeAttesterAggSignedData(t *testing.T) {
+func TestEncodeAttesterGroupSignedData(t *testing.T) {
 	att1 := testutil.RandomAttestation()
 
-	data1, err := core.EncodeAttestationAggSignedData(att1)
+	data1, err := core.EncodeAttestationGroupSignedData(att1)
 	require.NoError(t, err)
 
-	att2, err := core.DecodeAttestationAggSignedData(data1)
+	att2, err := core.DecodeAttestationGroupSignedData(data1)
 	require.NoError(t, err)
 
-	data2, err := core.EncodeAttestationAggSignedData(att2)
+	data2, err := core.EncodeAttestationGroupSignedData(att2)
 	require.NoError(t, err)
 
 	require.Equal(t, att1, att2)
 	require.Equal(t, data1, data2)
 }
 
-func TestEncodeRandaoParSignedData(t *testing.T) {
+func TestEncodeRandaoShareSignedData(t *testing.T) {
 	randao1 := testutil.RandomEth2Signature()
 
-	data1 := core.EncodeRandaoParSignedData(randao1, 1)
-	randao2 := core.DecodeRandaoParSignedData(data1)
-	data2 := core.EncodeRandaoParSignedData(randao2, 1)
+	data1 := core.EncodeRandaoShareSignedData(randao1, 1)
+	randao2 := core.DecodeRandaoShareSignedData(data1)
+	data2 := core.EncodeRandaoShareSignedData(randao2, 1)
 
 	require.Equal(t, randao1, randao2)
 	require.Equal(t, data1, data2)
 }
 
-func TestEncodeRandaoAggSignedData(t *testing.T) {
+func TestEncodeRandaoGroupSignedData(t *testing.T) {
 	randao1 := testutil.RandomEth2Signature()
 
-	data1 := core.EncodeRandaoAggSignedData(randao1)
-	randao2 := core.DecodeRandaoAggSignedData(data1)
-	data2 := core.EncodeRandaoAggSignedData(randao2)
+	data1 := core.EncodeRandaoGroupSignedData(randao1)
+	randao2 := core.DecodeRandaoGroupSignedData(data1)
+	data2 := core.EncodeRandaoGroupSignedData(randao2)
 
 	require.Equal(t, randao1, randao2)
 	require.Equal(t, data1, data2)
 }
 
-func TestEncodeProposerFetchArg(t *testing.T) {
+func TestEncodeProposerDutyDefinition(t *testing.T) {
 	proDuty1 := testutil.RandomProposerDuty(t)
 
-	arg1, err := core.EncodeProposerFetchArg(proDuty1)
+	arg1, err := core.EncodeProposerDutyDefinition(proDuty1)
 	require.NoError(t, err)
 
-	proDuty2, err := core.DecodeProposerFetchArg(arg1)
+	proDuty2, err := core.DecodeProposerDutyDefinition(arg1)
 	require.NoError(t, err)
 
-	arg2, err := core.EncodeProposerFetchArg(proDuty2)
+	arg2, err := core.EncodeProposerDutyDefinition(proDuty2)
 	require.NoError(t, err)
 
 	require.Equal(t, arg1, arg2)
@@ -150,7 +150,7 @@ func TestEncodeProposerUnsignedData(t *testing.T) {
 	require.Equal(t, data1, data2)
 }
 
-func TestEncodeBlockParSignedData(t *testing.T) {
+func TestEncodeBlockShareSignedData(t *testing.T) {
 	block1 := &spec.VersionedSignedBeaconBlock{
 		Version: spec.DataVersionPhase0,
 		Phase0: &eth2p0.SignedBeaconBlock{
@@ -159,20 +159,20 @@ func TestEncodeBlockParSignedData(t *testing.T) {
 		},
 	}
 
-	data1, err := core.EncodeBlockParSignedData(block1, 0)
+	data1, err := core.EncodeBlockShareSignedData(block1, 0)
 	require.NoError(t, err)
 
-	block2, err := core.DecodeBlockParSignedData(data1)
+	block2, err := core.DecodeBlockShareSignedData(data1)
 	require.NoError(t, err)
 
-	data2, err := core.EncodeBlockParSignedData(block2, 0)
+	data2, err := core.EncodeBlockShareSignedData(block2, 0)
 	require.NoError(t, err)
 
 	require.Equal(t, block1, block2)
 	require.Equal(t, data1, data2)
 }
 
-func TestEncodeBlockAggSignedData(t *testing.T) {
+func TestEncodeBlockGroupSignedData(t *testing.T) {
 	block1 := &spec.VersionedSignedBeaconBlock{
 		Version: spec.DataVersionPhase0,
 		Phase0: &eth2p0.SignedBeaconBlock{
@@ -181,13 +181,13 @@ func TestEncodeBlockAggSignedData(t *testing.T) {
 		},
 	}
 
-	data1, err := core.EncodeBlockAggSignedData(block1)
+	data1, err := core.EncodeBlockGroupSignedData(block1)
 	require.NoError(t, err)
 
-	block2, err := core.DecodeBlockAggSignedData(data1)
+	block2, err := core.DecodeBlockGroupSignedData(data1)
 	require.NoError(t, err)
 
-	data2, err := core.EncodeBlockAggSignedData(block2)
+	data2, err := core.EncodeBlockGroupSignedData(block2)
 	require.NoError(t, err)
 
 	require.Equal(t, block1, block2)

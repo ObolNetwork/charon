@@ -44,36 +44,36 @@ func TestBackwardsCompatability(t *testing.T) {
 	}
 }
 
-func TestAggSignedData_Equal(t *testing.T) {
-	testAggSignedData1 := core.AggSignedData{
+func TestGroupSignedData_Equal(t *testing.T) {
+	testGroupSignedData1 := core.GroupSignedData{
 		Data:      []byte("test data"),
 		Signature: testutil.RandomCoreSignature(),
 	}
 
-	testAggSignedData2 := core.AggSignedData{
+	testGroupSignedData2 := core.GroupSignedData{
 		Data:      []byte("test data"),
-		Signature: testAggSignedData1.Signature,
+		Signature: testGroupSignedData1.Signature,
 	}
 
-	testAggSignedData3 := core.AggSignedData{
+	testGroupSignedData3 := core.GroupSignedData{
 		Data:      []byte("test data 3"),
 		Signature: testutil.RandomCoreSignature(),
 	}
 
-	testAggSignedData4 := core.AggSignedData{
+	testGroupSignedData4 := core.GroupSignedData{
 		Data:      []byte("test data"),
 		Signature: testutil.RandomCoreSignature(),
 	}
 
-	testAggSignedData5 := core.AggSignedData{
+	testGroupSignedData5 := core.GroupSignedData{
 		Data:      []byte("test data 5"),
 		Signature: testutil.RandomCoreSignature(),
 	}
 
-	require.True(t, testAggSignedData1.Equal(testAggSignedData2))
-	require.False(t, testAggSignedData1.Equal(testAggSignedData3))
-	require.False(t, testAggSignedData1.Equal(testAggSignedData4))
-	require.False(t, testAggSignedData1.Equal(testAggSignedData5))
+	require.True(t, testGroupSignedData1.Equal(testGroupSignedData2))
+	require.False(t, testGroupSignedData1.Equal(testGroupSignedData3))
+	require.False(t, testGroupSignedData1.Equal(testGroupSignedData4))
+	require.False(t, testGroupSignedData1.Equal(testGroupSignedData5))
 }
 
 func TestWithDutySpanCtx(t *testing.T) {

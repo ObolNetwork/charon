@@ -6,7 +6,7 @@ option go_package = "github.com/obolnetwork/charon/core/corepb/v1";
 
 import "core/corepb/v1/core.proto";
 
-message ParSigExMsg {
+message ParSigExchangeMsg {
   core.corepb.v1.Duty duty = 1;
-  core.corepb.v1.ParSignedDataSet data_set = 2;
+  core.corepb.v1.ShareSignedDataSet data_set = 2;
 }

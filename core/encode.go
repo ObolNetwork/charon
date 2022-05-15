@@ -25,8 +25,8 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// DecodeAttesterFetchArg return the attester duty from the encoded FetchArg.
-func DecodeAttesterFetchArg(fetchArg FetchArg) (*eth2v1.AttesterDuty, error) {
+// DecodeAttesterDutyDefinition return the attester duty from the encoded DutyDefinition.
+func DecodeAttesterDutyDefinition(fetchArg DutyDefinition) (*eth2v1.AttesterDuty, error) {
 	attDuty := new(eth2v1.AttesterDuty)
 	err := json.Unmarshal(fetchArg, attDuty)
 	if err != nil {
@@ -36,8 +36,8 @@ func DecodeAttesterFetchArg(fetchArg FetchArg) (*eth2v1.AttesterDuty, error) {
 	return attDuty, nil
 }
 
-// EncodeAttesterFetchArg return the attester duty as an encoded FetchArg.
-func EncodeAttesterFetchArg(attDuty *eth2v1.AttesterDuty) (FetchArg, error) {
+// EncodeAttesterDutyDefinition return the attester duty as an encoded DutyDefinition.
+func EncodeAttesterDutyDefinition(attDuty *eth2v1.AttesterDuty) (DutyDefinition, error) {
 	b, err := json.Marshal(attDuty)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal attester duty")
@@ -46,8 +46,8 @@ func EncodeAttesterFetchArg(attDuty *eth2v1.AttesterDuty) (FetchArg, error) {
 	return b, nil
 }
 
-// DecodeProposerFetchArg return the proposer duty from the encoded FetchArg.
-func DecodeProposerFetchArg(fetchArg FetchArg) (*eth2v1.ProposerDuty, error) {
+// DecodeProposerDutyDefinition return the proposer duty from the encoded DutyDefinition.
+func DecodeProposerDutyDefinition(fetchArg DutyDefinition) (*eth2v1.ProposerDuty, error) {
 	proDuty := new(eth2v1.ProposerDuty)
 	err := json.Unmarshal(fetchArg, proDuty)
 	if err != nil {
@@ -57,8 +57,8 @@ func DecodeProposerFetchArg(fetchArg FetchArg) (*eth2v1.ProposerDuty, error) {
 	return proDuty, nil
 }
 
-// EncodeProposerFetchArg return the proposer duty as an encoded FetchArg.
-func EncodeProposerFetchArg(proDuty *eth2v1.ProposerDuty) (FetchArg, error) {
+// EncodeProposerDutyDefinition return the proposer duty as an encoded DutyDefinition.
+func EncodeProposerDutyDefinition(proDuty *eth2v1.ProposerDuty) (DutyDefinition, error) {
 	b, err := json.Marshal(proDuty)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal proposer duty")
@@ -88,22 +88,22 @@ func EncodeAttesterUnsignedData(attData *AttestationData) (UnsignedData, error) 
 	return b, nil
 }
 
-// EncodeAttestationParSignedData returns the attestation as an encoded ParSignedData.
-func EncodeAttestationParSignedData(att *eth2p0.Attestation, shareIdx int) (ParSignedData, error) {
+// EncodeAttestationShareSignedData returns the attestation as an encoded ShareSignedData.
+func EncodeAttestationShareSignedData(att *eth2p0.Attestation, shareIdx int) (ShareSignedData, error) {
 	data, err := json.Marshal(att)
 	if err != nil {
-		return ParSignedData{}, errors.Wrap(err, "marshal attestation")
+		return ShareSignedData{}, errors.Wrap(err, "marshal attestation")
 	}
 
-	return ParSignedData{
+	return ShareSignedData{
 		Data:      data,
 		Signature: SigFromETH2(att.Signature), // Copy the signature
 		ShareIdx:  shareIdx,
 	}, nil
 }
 
-// DecodeAttestationParSignedData returns the attestation from the encoded ParSignedData.
-func DecodeAttestationParSignedData(data ParSignedData) (*eth2p0.Attestation, error) {
+// DecodeAttestationShareSignedData returns the attestation from the encoded ShareSignedData.
+func DecodeAttestationShareSignedData(data ShareSignedData) (*eth2p0.Attestation, error) {
 	att := new(eth2p0.Attestation)
 	err := json.Unmarshal(data.Data, att)
 	if err != nil {
@@ -113,21 +113,21 @@ func DecodeAttestationParSignedData(data ParSignedData) (*eth2p0.Attestation, er
 	return att, nil
 }
 
-// EncodeAttestationAggSignedData returns the attestation as an encoded AggSignedData.
-func EncodeAttestationAggSignedData(att *eth2p0.Attestation) (AggSignedData, error) {
+// EncodeAttestationGroupSignedData returns the attestation as an encoded GroupSignedData.
+func EncodeAttestationGroupSignedData(att *eth2p0.Attestation) (GroupSignedData, error) {
 	data, err := json.Marshal(att)
 	if err != nil {
-		return AggSignedData{}, errors.Wrap(err, "marshal attestation")
+		return GroupSignedData{}, errors.Wrap(err, "marshal attestation")
 	}
 
-	return AggSignedData{
+	return GroupSignedData{
 		Data:      data,
 		Signature: SigFromETH2(att.Signature), // Copy the signature
 	}, nil
 }
 
-// DecodeAttestationAggSignedData returns the attestation from the encoded AggSignedData.
-func DecodeAttestationAggSignedData(data AggSignedData) (*eth2p0.Attestation, error) {
+// DecodeAttestationGroupSignedData returns the attestation from the encoded GroupSignedData.
+func DecodeAttestationGroupSignedData(data GroupSignedData) (*eth2p0.Attestation, error) {
 	att := new(eth2p0.Attestation)
 	err := json.Unmarshal(data.Data, att)
 	if err != nil {
@@ -137,30 +137,30 @@ func DecodeAttestationAggSignedData(data AggSignedData) (*eth2p0.Attestation, er
 	return att, nil
 }
 
-// EncodeRandaoParSignedData returns the RANDAO reveal as an encoded ParSignedData.
-func EncodeRandaoParSignedData(randao eth2p0.BLSSignature, shareIdx int) ParSignedData {
-	return ParSignedData{
+// EncodeRandaoShareSignedData returns the RANDAO reveal as an encoded ShareSignedData.
+func EncodeRandaoShareSignedData(randao eth2p0.BLSSignature, shareIdx int) ShareSignedData {
+	return ShareSignedData{
 		Data:      nil, // Randao is just a signature, so keeping data nil.
 		Signature: SigFromETH2(randao),
 		ShareIdx:  shareIdx,
 	}
 }
 
-// DecodeRandaoParSignedData returns the RANDAO reveal from the encoded ParSignedData as BLS signature.
-func DecodeRandaoParSignedData(data ParSignedData) eth2p0.BLSSignature {
+// DecodeRandaoShareSignedData returns the RANDAO reveal from the encoded ShareSignedData as BLS signature.
+func DecodeRandaoShareSignedData(data ShareSignedData) eth2p0.BLSSignature {
 	return data.Signature.ToETH2()
 }
 
-// EncodeRandaoAggSignedData returns the RANDAO reveal as an encoded AggSignedData.
-func EncodeRandaoAggSignedData(randao eth2p0.BLSSignature) AggSignedData {
-	return AggSignedData{
+// EncodeRandaoGroupSignedData returns the RANDAO reveal as an encoded GroupSignedData.
+func EncodeRandaoGroupSignedData(randao eth2p0.BLSSignature) GroupSignedData {
+	return GroupSignedData{
 		Data:      nil, // Randao is just a signature, so keeping data nil.
 		Signature: SigFromETH2(randao),
 	}
 }
 
-// DecodeRandaoAggSignedData returns the RANDAO reveal from the encoded AggSignedData as BLS Signature.
-func DecodeRandaoAggSignedData(data AggSignedData) eth2p0.BLSSignature {
+// DecodeRandaoGroupSignedData returns the RANDAO reveal from the encoded GroupSignedData as BLS Signature.
+func DecodeRandaoGroupSignedData(data GroupSignedData) eth2p0.BLSSignature {
 	return data.Signature.ToETH2()
 }
 
@@ -185,43 +185,43 @@ func DecodeProposerUnsignedData(unsignedData UnsignedData) (*spec.VersionedBeaco
 	return proData, nil
 }
 
-// EncodeBlockParSignedData returns the partially signed block data as an encoded ParSignedData.
-func EncodeBlockParSignedData(block *spec.VersionedSignedBeaconBlock, shareIdx int) (ParSignedData, error) {
+// EncodeBlockShareSignedData returns the partially signed block data as an encoded ShareSignedData.
+func EncodeBlockShareSignedData(block *spec.VersionedSignedBeaconBlock, shareIdx int) (ShareSignedData, error) {
 	data, err := json.Marshal(block)
 	if err != nil {
-		return ParSignedData{}, errors.Wrap(err, "marshal block")
+		return ShareSignedData{}, errors.Wrap(err, "marshal block")
 	}
 
 	var sig Signature
 	switch block.Version {
 	case spec.DataVersionPhase0:
 		if block.Phase0 == nil {
-			return ParSignedData{}, errors.New("no phase0 block")
+			return ShareSignedData{}, errors.New("no phase0 block")
 		}
 		sig = SigFromETH2(block.Phase0.Signature)
 	case spec.DataVersionAltair:
 		if block.Altair == nil {
-			return ParSignedData{}, errors.New("no altair block")
+			return ShareSignedData{}, errors.New("no altair block")
 		}
 		sig = SigFromETH2(block.Altair.Signature)
 	case spec.DataVersionBellatrix:
 		if block.Bellatrix == nil {
-			return ParSignedData{}, errors.New("no bellatrix block")
+			return ShareSignedData{}, errors.New("no bellatrix block")
 		}
 		sig = SigFromETH2(block.Bellatrix.Signature)
 	default:
-		return ParSignedData{}, errors.New("invalid block")
+		return ShareSignedData{}, errors.New("invalid block")
 	}
 
-	return ParSignedData{
+	return ShareSignedData{
 		Data:      data,
 		Signature: sig,
 		ShareIdx:  shareIdx,
 	}, nil
 }
 
-// DecodeBlockParSignedData returns the partially signed block data from the encoded ParSignedData.
-func DecodeBlockParSignedData(data ParSignedData) (*spec.VersionedSignedBeaconBlock, error) {
+// DecodeBlockShareSignedData returns the partially signed block data from the encoded ShareSignedData.
+func DecodeBlockShareSignedData(data ShareSignedData) (*spec.VersionedSignedBeaconBlock, error) {
 	block := new(spec.VersionedSignedBeaconBlock)
 	err := json.Unmarshal(data.Data, block)
 	if err != nil {
@@ -231,42 +231,42 @@ func DecodeBlockParSignedData(data ParSignedData) (*spec.VersionedSignedBeaconBl
 	return block, nil
 }
 
-// EncodeBlockAggSignedData returns the partially signed block data as an encoded AggSignedData.
-func EncodeBlockAggSignedData(block *spec.VersionedSignedBeaconBlock) (AggSignedData, error) {
+// EncodeBlockGroupSignedData returns the partially signed block data as an encoded GroupSignedData.
+func EncodeBlockGroupSignedData(block *spec.VersionedSignedBeaconBlock) (GroupSignedData, error) {
 	data, err := json.Marshal(block)
 	if err != nil {
-		return AggSignedData{}, errors.Wrap(err, "marshal signed block")
+		return GroupSignedData{}, errors.Wrap(err, "marshal signed block")
 	}
 
 	var sig Signature
 	switch block.Version {
 	case spec.DataVersionPhase0:
 		if block.Phase0 == nil {
-			return AggSignedData{}, errors.New("no phase0 block")
+			return GroupSignedData{}, errors.New("no phase0 block")
 		}
 		sig = SigFromETH2(block.Phase0.Signature)
 	case spec.DataVersionAltair:
 		if block.Altair == nil {
-			return AggSignedData{}, errors.New("no altair block")
+			return GroupSignedData{}, errors.New("no altair block")
 		}
 		sig = SigFromETH2(block.Altair.Signature)
 	case spec.DataVersionBellatrix:
 		if block.Bellatrix == nil {
-			return AggSignedData{}, errors.New("no bellatrix block")
+			return GroupSignedData{}, errors.New("no bellatrix block")
 		}
 		sig = SigFromETH2(block.Bellatrix.Signature)
 	default:
-		return AggSignedData{}, errors.New("invalid block")
+		return GroupSignedData{}, errors.New("invalid block")
 	}
 
-	return AggSignedData{
+	return GroupSignedData{
 		Data:      data,
 		Signature: sig,
 	}, nil
 }
 
-// DecodeBlockAggSignedData returns the partially signed block data from the encoded AggSignedData.
-func DecodeBlockAggSignedData(data AggSignedData) (*spec.VersionedSignedBeaconBlock, error) {
+// DecodeBlockGroupSignedData returns the partially signed block data from the encoded GroupSignedData.
+func DecodeBlockGroupSignedData(data GroupSignedData) (*spec.VersionedSignedBeaconBlock, error) {
 	block := new(spec.VersionedSignedBeaconBlock)
 	err := json.Unmarshal(data.Data, block)
 	if err != nil {

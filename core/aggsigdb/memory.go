@@ -24,10 +24,10 @@ import (
 
 var ErrStopped = errors.New("database stopped")
 
-// NewMemDB creates a basic memory based AggSigDB.
+// NewMemDB creates a basic memory based GroupSigDB.
 func NewMemDB() *MemDB {
 	return &MemDB{
-		data:           make(map[memDBKey]core.AggSignedData),
+		data:           make(map[memDBKey]core.GroupSignedData),
 		commands:       make(chan writeCommand),
 		queries:        make(chan readQuery),
 		blockedQueries: []readQuery{},
@@ -35,9 +35,9 @@ func NewMemDB() *MemDB {
 	}
 }
 
-// MemDB is a basic memory implementation of core.AggSigDB.
+// MemDB is a basic memory implementation of core.GroupSigDB.
 type MemDB struct {
-	data map[memDBKey]core.AggSignedData
+	data map[memDBKey]core.GroupSignedData
 
 	commands       chan writeCommand
 	queries        chan readQuery
@@ -46,8 +46,8 @@ type MemDB struct {
 	closedCh chan struct{}
 }
 
-// Store implements core.AggSigDB, see its godoc.
-func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, data core.AggSignedData) error {
+// Store implements core.GroupSigDB, see its godoc.
+func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, data core.GroupSignedData) error {
 	response := make(chan error, 1)
 	cmd := writeCommand{
 		memDBKey: memDBKey{duty, pubKey},
@@ -73,9 +73,9 @@ func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 	}
 }
 
-// Await implements core.AggSigDB, see its godoc.
-func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.AggSignedData, error) {
-	response := make(chan core.AggSignedData, 1)
+// Await implements core.GroupSigDB, see its godoc.
+func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.GroupSignedData, error) {
+	response := make(chan core.GroupSignedData, 1)
 	query := readQuery{
 		memDBKey: memDBKey{duty, pubKey},
 		response: response,
@@ -83,17 +83,17 @@ func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) 
 
 	select {
 	case <-ctx.Done():
-		return core.AggSignedData{}, ctx.Err()
+		return core.GroupSignedData{}, ctx.Err()
 	case <-db.closedCh:
-		return core.AggSignedData{}, ErrStopped
+		return core.GroupSignedData{}, ErrStopped
 	case db.queries <- query:
 	}
 
 	select {
 	case <-ctx.Done():
-		return core.AggSignedData{}, ctx.Err()
+		return core.GroupSignedData{}, ctx.Err()
 	case <-db.closedCh:
-		return core.AggSignedData{}, ErrStopped
+		return core.GroupSignedData{}, ErrStopped
 	case value := <-response:
 		return value, nil
 	}
@@ -172,12 +172,12 @@ type memDBKey struct {
 // writeCommand holds the data to write into the database.
 type writeCommand struct {
 	memDBKey
-	data     core.AggSignedData
+	data     core.GroupSignedData
 	response chan<- error
 }
 
 // readQuery holds the query data and the response channel.
 type readQuery struct {
 	memDBKey
-	response chan<- core.AggSignedData
+	response chan<- core.GroupSignedData
 }
