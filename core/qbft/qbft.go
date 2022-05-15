@@ -134,9 +134,8 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		return errors.New("zero input value not supported")
 	}
 	defer func() {
-		// Errors are unexpected since this algorithm doesn't do IO
-		// or have other sources of errors. Panics are used for sanity
-		// checks to improve readability. Catch them here.
+		// Panics are used for assertions and sanity checks to reduce lines of code
+		// and to improve readability. Catch them here.
 		if r := recover(); r != nil {
 			err = fmt.Errorf("qbft sanity check: %v", r)
 		}
@@ -172,12 +171,12 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 	// bufferMsg adds the message to each process' FIFO queue.
 	bufferMsg := func(msg Msg[I, V]) {
-		msgs := buffer[msg.Source()]
-		msgs = append(msgs, msg)
-		if len(msgs) > d.FIFOLimit {
-			msgs = msgs[len(msgs)-d.FIFOLimit:]
+		fifo := buffer[msg.Source()]
+		fifo = append(fifo, msg)
+		if len(fifo) > d.FIFOLimit {
+			fifo = fifo[len(fifo)-d.FIFOLimit:]
 		}
-		buffer[msg.Source()] = msgs
+		buffer[msg.Source()] = fifo
 	}
 
 	// isDuplicatedRule returns true if the rule has been already executed since last round change.
@@ -234,6 +233,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 			rule, justification := classify(d, instance, round, process, buffer, msg)
 			if rule == uponNothing || isDuplicatedRule(rule) {
+				// Do nothing more if no rule or duplicate rule was triggered
 				break
 			}
 
@@ -307,7 +307,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			return ctx.Err()
 		}
 
-		if err != nil {
+		if err != nil { // Errors are considered fatal.
 			return err
 		}
 	}
@@ -354,9 +354,11 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 			return uponNothing, nil
 		}
 
+		all := flatten(buffer)
+
 		if msg.Round() > round {
 			// Jump ahead if we received F+1 higher ROUND-CHANGEs.
-			if frc, ok := getFPlus1RoundChanges(d, flatten(buffer), round); ok {
+			if frc, ok := getFPlus1RoundChanges(d, all, round); ok {
 				return uponFPlus1RoundChanges, frc
 			}
 
@@ -364,8 +366,6 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 		}
 
 		/* else msg.Round == round */
-
-		all := flatten(buffer)
 
 		if qrc := filterRoundChange(all, msg.Round()); len(qrc) < d.Quorum() {
 			return uponNothing, nil
@@ -442,7 +442,7 @@ func nextMinRound[I any, V comparable](d Definition[I, V], frc []Msg[I, V], roun
 func isJustified[I any, V comparable](d Definition[I, V], instance I, msg Msg[I, V]) bool {
 	switch msg.Type() {
 	case MsgPrePrepare:
-		return isJustifiedPrePrepare(d, instance, msg)
+		return IsJustifiedPrePrepare(d, instance, msg)
 	case MsgPrepare:
 		return true
 	case MsgCommit:
@@ -452,7 +452,7 @@ func isJustified[I any, V comparable](d Definition[I, V], instance I, msg Msg[I,
 	case MsgDecided:
 		return isJustifiedDecided(d, msg)
 	default:
-		panic("invalid message type")
+		panic("bug: invalid message type")
 	}
 }
 
@@ -511,8 +511,8 @@ func isJustifiedDecided[I any, V comparable](d Definition[I, V], msg Msg[I, V]) 
 	return len(commits) >= d.Quorum()
 }
 
-// isJustifiedPrePrepare returns true if the PRE-PREPARE message is justified.
-func isJustifiedPrePrepare[I any, V comparable](d Definition[I, V], instance I, msg Msg[I, V]) bool {
+// IsJustifiedPrePrepare returns true if the PRE-PREPARE message is justified.
+func IsJustifiedPrePrepare[I any, V comparable](d Definition[I, V], instance I, msg Msg[I, V]) bool {
 	if msg.Type() != MsgPrePrepare {
 		panic("bug: not a preprepare message")
 	}

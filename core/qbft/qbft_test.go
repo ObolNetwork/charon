@@ -244,7 +244,7 @@ func testQBFT(t *testing.T, test test) {
 			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
 			if round > maxRound {
 				cancel()
-			} else if !test.Fuzz && strings.HasPrefix(rule, "unjust") {
+			} else if !test.Fuzz && strings.Contains(strings.ToLower(rule), "unjust") {
 				t.Logf("%s: %#v", rule, msg)
 				cancel()
 			}
@@ -406,6 +406,7 @@ func newMsg(typ qbft.MsgType, instance int64, source int64, round int64, value i
 	var msgs []msg
 	for _, j := range justify {
 		m := j.(msg)
+		m.justify = nil // Clear nested justifications.
 		msgs = append(msgs, m)
 	}
 
