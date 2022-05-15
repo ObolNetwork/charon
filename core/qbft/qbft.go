@@ -364,13 +364,14 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 		}
 
 		/* else msg.Round == round */
-		msgs := flatten(buffer)
 
-		if qrc := filterRoundChange(msgs, msg.Round()); len(qrc) < d.Quorum() {
+		all := flatten(buffer)
+
+		if qrc := filterRoundChange(all, msg.Round()); len(qrc) < d.Quorum() {
 			return uponNothing, nil
 		}
 
-		qrc, ok := getJustifiedQrc(d, msgs, msg.Round())
+		qrc, ok := getJustifiedQrc(d, all, msg.Round())
 		if !ok {
 			return uponUnjustQuorumRoundChanges, nil
 		}
