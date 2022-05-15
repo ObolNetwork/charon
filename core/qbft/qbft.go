@@ -52,6 +52,8 @@ type Definition[I any, V comparable] struct {
 	LogUponRule func(ctx context.Context, instance I, process, round int64, msg Msg[I, V], uponRule string)
 	// Nodes is the total number of nodes/processes participating in consensus.
 	Nodes int
+	// FIFOLimit limits the amount of message buffered for each peer.
+	FIFOLimit int
 }
 
 // Quorum returns the quorum count for the system.
@@ -168,13 +170,12 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			zeroVal[V](), preparedRound, preparedValue, preparedJustification)
 	}
 
-	// bufferMsg returns true if the message is unique and was added to the buffer.
-	// It returns false if the message is a duplicate and should be discarded.
+	// bufferMsg adds the message to each process' FIFO queue.
 	bufferMsg := func(msg Msg[I, V]) {
 		msgs := buffer[msg.Source()]
 		msgs = append(msgs, msg)
-		if len(msgs) > 100 {
-			msgs = msgs[len(msgs)-100:]
+		if len(msgs) > d.FIFOLimit {
+			msgs = msgs[len(msgs)-d.FIFOLimit:]
 		}
 		buffer[msg.Source()] = msgs
 	}

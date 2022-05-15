@@ -210,8 +210,9 @@ func testQBFT(t *testing.T, test test) {
 	t.Helper()
 
 	const (
-		n        = 4
-		maxRound = 50
+		n         = 4
+		maxRound  = 50
+		fifoLimit = 100
 	)
 
 	var (
@@ -248,7 +249,8 @@ func testQBFT(t *testing.T, test test) {
 				cancel()
 			}
 		},
-		Nodes: n,
+		Nodes:     n,
+		FIFOLimit: fifoLimit,
 	}
 
 	for i := int64(1); i <= n; i++ {
