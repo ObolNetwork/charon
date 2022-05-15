@@ -100,6 +100,9 @@ func NewComponent(tcpNode host.Host, peers []p2p.Peer,
 
 		// Nodes is the number of nodes.
 		Nodes: len(peers),
+
+		// FIFOLimit caps the max buffered messages per peer.
+		FIFOLimit: recvBuffer,
 	}
 
 	return c, nil
