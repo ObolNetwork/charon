@@ -149,12 +149,12 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: args.VAPIAddrs[i],
 			TestConfig: app.TestConfig{
-				Manifest:           &args.Manifest,
-				P2PKey:             args.P2PKeys[i],
-				DisablePing:        true,
-				SimnetKeys:         []*bls_sig.SecretKey{args.SimnetKeys[i]},
-				ParSigExchangeFunc: parSigExFunc,
-				LcastTransportFunc: lcastTransportFunc,
+				Manifest:             &args.Manifest,
+				P2PKey:               args.P2PKeys[i],
+				DisablePing:          true,
+				SimnetKeys:           []*bls_sig.SecretKey{args.SimnetKeys[i]},
+				ShareSigExchangeFunc: parSigExFunc,
+				LcastTransportFunc:   lcastTransportFunc,
 				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.GroupSignedData) error {
 					if duty.Type == core.DutyRandao {
 						return nil

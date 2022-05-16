@@ -212,12 +212,12 @@ func aggSignLockHash(ctx context.Context, tcpNode host.Host, nodeIdx cluster.Nod
 	// Note that these components do not contain goroutines (so nothing is started or stopped)
 	// These components are driven by the call to sigdb.StoreInternal below and
 	// by libp2p messages received from other peers.
-	sigChan := make(chan *bls_sig.Signature, len(lock.Validators))          // Make output of sig aggregation
-	sigdb := parsigdb.NewMemDB(lock.Threshold)                              // Make parsigdb
-	exchange := parsigex.NewParSigExchange(tcpNode, nodeIdx.PeerIdx, peers) // Make parsigex
-	sigdb.SubscribeInternal(exchange.Broadcast)                             // Wire parsigex to parsigdb
-	sigdb.SubscribeThreshold(makeSigCombiner(sigChan))                      // Wire sigagg to parsigdb output
-	exchange.Subscribe(sigdb.StoreExternal)                                 // Wire parsigdb to parsigex
+	sigChan := make(chan *bls_sig.Signature, len(lock.Validators))            // Make output of sig aggregation
+	sigdb := parsigdb.NewMemDB(lock.Threshold)                                // Make parsigdb
+	exchange := parsigex.NewShareSigExchange(tcpNode, nodeIdx.PeerIdx, peers) // Make parsigex
+	sigdb.SubscribeInternal(exchange.Broadcast)                               // Wire parsigex to parsigdb
+	sigdb.SubscribeThreshold(makeSigCombiner(sigChan))                        // Wire sigagg to parsigdb output
+	exchange.Subscribe(sigdb.StoreExternal)                                   // Wire parsigdb to parsigex
 
 	// Start the process by inserting the partial signatures
 	err = sigdb.StoreInternal(ctx, core.Duty{}, signedSet)

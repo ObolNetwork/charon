@@ -26,14 +26,14 @@ type sub func(context.Context, core.Duty, core.ShareSignedDataSet) error
 
 // NewMemExFunc returns a function that itself returns in-memory exchange components
 // that exchange partial signatures.
-func NewMemExFunc() func() core.ParSigExchange {
+func NewMemExFunc() func() core.ShareSigExchange {
 	var (
 		mu    sync.Mutex
 		index int
 		subs  = make(map[int][]sub)
 	)
 
-	return func() core.ParSigExchange {
+	return func() core.ShareSigExchange {
 		mu.Lock()
 		defer mu.Unlock()
 		i := index

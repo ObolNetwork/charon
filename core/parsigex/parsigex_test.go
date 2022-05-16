@@ -30,7 +30,7 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestParSigExchange(t *testing.T) {
+func TestShareSigExchange(t *testing.T) {
 	n := 3
 	duty := core.Duty{
 		Slot: 123,
@@ -47,7 +47,7 @@ func TestParSigExchange(t *testing.T) {
 	}
 
 	var (
-		parsigexs []*parsigex.ParSigExchange
+		parsigexs []*parsigex.ShareSigExchange
 		peers     []peer.ID
 		hosts     []host.Host
 		hostsInfo []peer.AddrInfo
@@ -75,9 +75,9 @@ func TestParSigExchange(t *testing.T) {
 		}
 	}
 
-	// create ParSigExchange components for each host
+	// create ShareSigExchange components for each host
 	for i := 0; i < n; i++ {
-		sigex := parsigex.NewParSigExchange(hosts[i], i, peers)
+		sigex := parsigex.NewShareSigExchange(hosts[i], i, peers)
 		sigex.Subscribe(func(_ context.Context, d core.Duty, set core.ShareSignedDataSet) error {
 			require.Equal(t, duty, d)
 			require.Equal(t, data, set)

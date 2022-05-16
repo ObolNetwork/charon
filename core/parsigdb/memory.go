@@ -65,7 +65,7 @@ func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet co
 		return err
 	}
 
-	// Call internalSubs (which includes ParSigExchange to exchange partial signed data with all peers).
+	// Call internalSubs (which includes ShareSigExchange to exchange partial signed data with all peers).
 	for _, sub := range db.internalSubs {
 		err := sub(ctx, duty, signedSet)
 		if err != nil {

@@ -39,9 +39,9 @@ func WithAsyncRetry(retryer *retry.Retryer) WireOption {
 
 			return nil
 		}
-		w.ParSigExchangeBroadcast = func(ctx context.Context, duty Duty, set ShareSignedDataSet) error {
+		w.ShareSigExchangeBroadcast = func(ctx context.Context, duty Duty, set ShareSignedDataSet) error {
 			go retryer.DoAsync(ctx, duty.Slot, "parsigex broadcast", func(ctx context.Context) error {
-				return clone.ParSigExchangeBroadcast(ctx, duty, set)
+				return clone.ShareSigExchangeBroadcast(ctx, duty, set)
 			})
 
 			return nil

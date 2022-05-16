@@ -108,11 +108,11 @@ func WithTracing() WireOption {
 
 			return clone.ShareSigDBStoreExternal(ctx, duty, set)
 		}
-		w.ParSigExchangeBroadcast = func(parent context.Context, duty Duty, set ShareSignedDataSet) error {
+		w.ShareSigExchangeBroadcast = func(parent context.Context, duty Duty, set ShareSignedDataSet) error {
 			ctx, span := tracer.Start(parent, "core/parsigex.Broadcast")
 			defer span.End()
 
-			return clone.ParSigExchangeBroadcast(ctx, duty, set)
+			return clone.ShareSigExchangeBroadcast(ctx, duty, set)
 		}
 		w.SigCombinerAggregate = func(parent context.Context, duty Duty, key PubKey, data []ShareSignedData) error {
 			ctx, span := tracer.Start(parent, "core/sigagg.Aggregate")

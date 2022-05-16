@@ -39,7 +39,7 @@ func TestMemEx(t *testing.T) {
 
 	var received []tuple
 
-	var exes []core.ParSigExchange
+	var exes []core.ShareSigExchange
 	for i := 0; i < n; i++ {
 		i := i
 		ex := memExFunc()

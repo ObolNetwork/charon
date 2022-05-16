@@ -89,8 +89,8 @@ type TestConfig struct {
 	DisablePing bool
 	// PingCallback is called when a ping was completed to a peer.
 	PingCallback func(peer.ID)
-	// ParSigExchangeFunc provides an in-memory partial signature exchange.
-	ParSigExchangeFunc func() core.ParSigExchange
+	// ShareSigExchangeFunc provides an in-memory partial signature exchange.
+	ShareSigExchangeFunc func() core.ShareSigExchange
 	// LcastTransportFunc provides an in-memory leader cast transport.
 	LcastTransportFunc func() leadercast.Transport
 	// SimnetKeys provides private key shares for the simnet validatormock signer.
@@ -326,11 +326,11 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	parSigDB := parsigdb.NewMemDB(threshold)
 
-	var parSigEx core.ParSigExchange
-	if conf.TestConfig.ParSigExchangeFunc != nil {
-		parSigEx = conf.TestConfig.ParSigExchangeFunc()
+	var parSigEx core.ShareSigExchange
+	if conf.TestConfig.ShareSigExchangeFunc != nil {
+		parSigEx = conf.TestConfig.ShareSigExchangeFunc()
 	} else {
-		parSigEx = parsigex.NewParSigExchange(tcpNode, nodeIdx.PeerIdx, manifest.PeerIDs())
+		parSigEx = parsigex.NewShareSigExchange(tcpNode, nodeIdx.PeerIdx, manifest.PeerIDs())
 	}
 
 	sigAgg := sigagg.New(threshold)

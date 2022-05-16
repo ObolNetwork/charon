@@ -76,7 +76,7 @@ Core Workflow
         data │  |             └──┬─┘          │        │ Query, sign, submit
                 |                ├────────────┘        │
      *Share* │  | ┌────────┐  ┌──▼─────┐
-     partial │  | │ParSigExchange◄──►ShareSigDB│
+     partial │  | │ShareSigExchange◄──►ShareSigDB│
         sigs │  | └─────*──┘  └──┬─────┘
                 |                │
  *Aggregate* │  │ ┌────────┐  ┌──▼───┐
@@ -422,7 +422,7 @@ type Signer interface {
 ### ShareSigDB
 The partial signature database persists partial BLS threshold signatures received internally (from the local Charon node's VC(s))
 as well as externally (from other nodes in cluster).
-It calls the `ParSigExchange` component with signatures received internally to share them with all peers in the cluster.
+It calls the `ShareSigExchange` component with signatures received internally to share them with all peers in the cluster.
 When sufficient partial signatures have been received for a duty, it calls the `SigCombiner` component.
 
 Partial signatures in the database have one of the following states:
@@ -484,7 +484,7 @@ type ShareSigDB interface {
 }
 ```
 
-### ParSigExchange
+### ShareSigExchange
 The partial signature exchange component ensures that all partial signatures are persisted by all peers.
 It registers with the `ShareSigDB` for internally received partial signatures and broadcasts them in batches to all other peers.
 It listens and receives batches of partial signatures from other peers and stores them back to the `ShareSigDB`.
@@ -493,8 +493,8 @@ This incurs higher network overhead (n^2), but improves latency.
 
 The partial signature exchange interface is defined as:
 ```go
-// ParSigExchange exchanges partially signed duty data sets.
-type ParSigExchange interface {
+// ShareSigExchange exchanges partially signed duty data sets.
+type ShareSigExchange interface {
   // Broadcast broadcasts the partially signed duty data set to all peers.
   Broadcast(context.Context, Duty, ShareSignedDataSet) error
 
@@ -578,7 +578,7 @@ func StitchFlow(
   vapi     ValidatorAPI,
   signer   Signer,
   parSigDB ShareSigDB,
-  parSigEx ParSigExchange,
+  parSigEx ShareSigExchange,
   sigAgg   SigCombiner,
   aggSigDB GroupSigDB,
   bcast    Broadcaster,

@@ -35,8 +35,8 @@ import (
 
 const protocol = "/charon/parsigex/1.0.0"
 
-func NewParSigExchange(tcpNode host.Host, peerIdx int, peers []peer.ID) *ParSigExchange {
-	parSigEx := &ParSigExchange{
+func NewShareSigExchange(tcpNode host.Host, peerIdx int, peers []peer.ID) *ShareSigExchange {
+	parSigEx := &ShareSigExchange{
 		tcpNode: tcpNode,
 		peerIdx: peerIdx,
 		peers:   peers,
@@ -46,16 +46,16 @@ func NewParSigExchange(tcpNode host.Host, peerIdx int, peers []peer.ID) *ParSigE
 	return parSigEx
 }
 
-// ParSigExchange exchanges partially signed duty data sets.
+// ShareSigExchange exchanges partially signed duty data sets.
 // It ensures that all partial signatures are persisted by all peers.
-type ParSigExchange struct {
+type ShareSigExchange struct {
 	tcpNode host.Host
 	peerIdx int
 	peers   []peer.ID
 	subs    []func(context.Context, core.Duty, core.ShareSignedDataSet) error
 }
 
-func (m *ParSigExchange) handle(s network.Stream) {
+func (m *ShareSigExchange) handle(s network.Stream) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	ctx = log.WithTopic(ctx, "parsigex")
 	defer cancel()
@@ -67,7 +67,7 @@ func (m *ParSigExchange) handle(s network.Stream) {
 		return
 	}
 
-	var pb pbv1.ParSigExchangeMsg
+	var pb pbv1.ShareSigExchangeMsg
 	if err := proto.Unmarshal(b, &pb); err != nil {
 		log.Error(ctx, "unmarshal parsigex proto", err)
 		return
@@ -89,8 +89,8 @@ func (m *ParSigExchange) handle(s network.Stream) {
 }
 
 // Broadcast broadcasts the partially signed duty data set to all peers.
-func (m *ParSigExchange) Broadcast(ctx context.Context, duty core.Duty, set core.ShareSignedDataSet) error {
-	b, err := proto.Marshal(&pbv1.ParSigExchangeMsg{
+func (m *ShareSigExchange) Broadcast(ctx context.Context, duty core.Duty, set core.ShareSignedDataSet) error {
+	b, err := proto.Marshal(&pbv1.ShareSigExchangeMsg{
 		Duty:    core.DutyToProto(duty),
 		DataSet: core.ShareSignedDataSetToProto(set),
 	})
@@ -125,7 +125,7 @@ func (m *ParSigExchange) Broadcast(ctx context.Context, duty core.Duty, set core
 
 // Subscribe registers a callback when a partially signed duty set
 // is received from a peer. This is not thread safe, it must be called before starting to use parsigex.
-func (m *ParSigExchange) Subscribe(fn func(context.Context, core.Duty, core.ShareSignedDataSet) error) {
+func (m *ShareSigExchange) Subscribe(fn func(context.Context, core.Duty, core.ShareSignedDataSet) error) {
 	m.subs = append(m.subs, fn)
 }
 
