@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -137,6 +138,9 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		// Panics are used for assertions and sanity checks to reduce lines of code
 		// and to improve readability. Catch them here.
 		if r := recover(); r != nil {
+			if !strings.Contains(fmt.Sprint(r), "bug") {
+				panic(r) // Only catch internal sanity checks.
+			}
 			err = fmt.Errorf("qbft sanity check: %v", r)
 		}
 	}()
@@ -184,17 +188,15 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		if dedupRules[rule] {
 			return true
 		}
-
-		// First time for this rule
 		dedupRules[rule] = true
 
 		return false
 	}
 
-	// changeRound changes round and resets the rules deduplication memory.
+	// changeRound updates round and clears the rule dedup state.
 	changeRound := func(newRound int64) {
-		dedupRules = make(map[uponRule]bool)
 		round = newRound
+		dedupRules = make(map[uponRule]bool)
 	}
 
 	// === Algorithm ===
@@ -522,8 +524,7 @@ func containsJustifiedQrc[I any, V comparable](d Definition[I, V], justification
 	// No need to calculate J1 or J2 for all possible combinations,
 	// since justification should only contain one.
 
-	// J1: If qrc contains quorum round change messages
-	// with null pv and null pr.
+	// J1: If qrc contains quorum ROUND-CHANGEs with null pv and null pr.
 	allNull := true
 	for _, rc := range qrc {
 		if rc.PreparedRound() != 0 || !isZeroVal(rc.PreparedValue()) {
@@ -535,8 +536,8 @@ func containsJustifiedQrc[I any, V comparable](d Definition[I, V], justification
 		return zeroVal[V](), true
 	}
 
-	// J2: if the justification has a quorum of valid prepare messages
-	// with pr and pv equaled to highest pr and pv in qrc (other than null).
+	// J2: if the justification has a quorum of valid PREPARE messages
+	// with pr and pv equaled to highest pr and pv in Qrc (other than null).
 
 	// Get pr and pv from quorum PREPARES
 	pr, pv, ok := getSingleJustifiedPrPv(d, justification)
@@ -559,7 +560,8 @@ func containsJustifiedQrc[I any, V comparable](d Definition[I, V], justification
 	return pv, found
 }
 
-// getSingleJustifiedPrPv extracts the single justified Pr and Pv from quorum PREPARES in list of messages.
+// getSingleJustifiedPrPv extracts the single justified Pr and Pv from quorum
+// PREPARES in list of messages. It expects only one possible combination.
 func getSingleJustifiedPrPv[I any, V comparable](d Definition[I, V], msgs []Msg[I, V]) (int64, V, bool) {
 	var (
 		pr    int64
@@ -793,6 +795,9 @@ func flatten[I any, V comparable](buffer map[int64][]Msg[I, V]) []Msg[I, V] {
 			resp = append(resp, msg)
 			for _, j := range msg.Justification() {
 				resp = append(resp, j)
+				if len(j.Justification()) > 0 {
+					panic("bug: nested justifications")
+				}
 			}
 		}
 	}
