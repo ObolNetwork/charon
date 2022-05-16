@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -137,6 +138,9 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		// Panics are used for assertions and sanity checks to reduce lines of code
 		// and to improve readability. Catch them here.
 		if r := recover(); r != nil {
+			if !strings.Contains(fmt.Sprint(r), "bug") {
+				panic(r) // Only catch internal sanity checks.
+			}
 			err = fmt.Errorf("qbft sanity check: %v", r)
 		}
 	}()
@@ -184,17 +188,15 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		if dedupRules[rule] {
 			return true
 		}
-
-		// First time for this rule
 		dedupRules[rule] = true
 
 		return false
 	}
 
-	// changeRound changes round and resets the rules deduplication memory.
+	// changeRound updates round and clears the rule dedup state.
 	changeRound := func(newRound int64) {
-		dedupRules = make(map[uponRule]bool)
 		round = newRound
+		dedupRules = make(map[uponRule]bool)
 	}
 
 	// === Algorithm ===
@@ -278,12 +280,9 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 			case uponQuorumRoundChanges: // Algorithm 3:11
 				// Only applicable to current round
-				qrc := filterRoundChange(justification, round /* == msg.Round */)
-				_, pv := highestPrepared(qrc)
-
-				value := pv
-				if isZeroVal(value) {
-					value = inputValue
+				value := inputValue
+				if _, pv, ok := getSingleJustifiedPrPv(d, justification); ok {
+					value = pv
 				}
 
 				err = broadcastMsg(MsgPrePrepare, value, justification)
@@ -387,29 +386,6 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 	}
 
 	return uponNothing, nil
-}
-
-// highestPrepared implements algorithm 4:5 and returns
-// the highest prepared round (and pv) from the set of quorum
-// round change messages (Qrc).
-func highestPrepared[I any, V comparable](qrc []Msg[I, V]) (int64, V) {
-	if len(qrc) == 0 {
-		// Expect: len(Qrc) >= quorum
-		panic("bug: qrc empty")
-	}
-
-	var (
-		pr int64
-		pv V
-	)
-	for _, msg := range qrc {
-		if pr < msg.PreparedRound() {
-			pr = msg.PreparedRound()
-			pv = msg.PreparedValue()
-		}
-	}
-
-	return pr, pv
 }
 
 // nextMinRound implements algorithm 3:6 and returns the next minimum round
@@ -548,8 +524,7 @@ func containsJustifiedQrc[I any, V comparable](d Definition[I, V], justification
 	// No need to calculate J1 or J2 for all possible combinations,
 	// since justification should only contain one.
 
-	// J1: If qrc contains quorum round change messages
-	// with null pv and null pr.
+	// J1: If qrc contains quorum ROUND-CHANGEs with null pv and null pr.
 	allNull := true
 	for _, rc := range qrc {
 		if rc.PreparedRound() != 0 || !isZeroVal(rc.PreparedValue()) {
@@ -561,16 +536,56 @@ func containsJustifiedQrc[I any, V comparable](d Definition[I, V], justification
 		return zeroVal[V](), true
 	}
 
-	// J2: if the justification has a quorum of valid prepare messages
-	// with pr and pv equaled to highest pr and pv in qrc (other than null).
-	pr, pv := highestPrepared(qrc)
-	if pr == 0 {
-		panic("bug: highest pr=0, but all not null")
+	// J2: if the justification has a quorum of valid PREPARE messages
+	// with pr and pv equaled to highest pr and pv in Qrc (other than null).
+
+	// Get pr and pv from quorum PREPARES
+	pr, pv, ok := getSingleJustifiedPrPv(d, justification)
+	if !ok {
+		return zeroVal[V](), false
 	}
 
-	prepares := filterMsgs(justification, MsgPrepare, pr, &pv, nil, nil)
+	var found bool
+	for _, rc := range qrc {
+		// Ensure no ROUND-CHANGE with higher pr
+		if rc.PreparedRound() > pr {
+			return zeroVal[V](), false
+		}
+		// Ensure at least one ROUND-CHANGE with pr and pv
+		if rc.PreparedRound() == pr && rc.PreparedValue() == pv {
+			found = true
+		}
+	}
 
-	return pv, len(prepares) >= d.Quorum()
+	return pv, found
+}
+
+// getSingleJustifiedPrPv extracts the single justified Pr and Pv from quorum
+// PREPARES in list of messages. It expects only one possible combination.
+func getSingleJustifiedPrPv[I any, V comparable](d Definition[I, V], msgs []Msg[I, V]) (int64, V, bool) {
+	var (
+		pr    int64
+		pv    V
+		count int
+		uniq  = uniqSource[I, V]()
+	)
+	for _, msg := range msgs {
+		if msg.Type() != MsgPrepare {
+			continue
+		}
+		if !uniq(msg) {
+			return 0, zeroVal[V](), false
+		}
+		if count == 0 {
+			pr = msg.Round()
+			pv = msg.Value()
+		} else if pr != msg.Round() || pv != msg.Value() {
+			return 0, zeroVal[V](), false
+		}
+		count++
+	}
+
+	return pr, pv, count >= d.Quorum()
 }
 
 // getJustifiedQrc implements algorithm 4:1 and returns a justified quorum ROUND_CHANGEs (Qrc).
@@ -780,6 +795,9 @@ func flatten[I any, V comparable](buffer map[int64][]Msg[I, V]) []Msg[I, V] {
 			resp = append(resp, msg)
 			for _, j := range msg.Justification() {
 				resp = append(resp, j)
+				if len(j.Justification()) > 0 {
+					panic("bug: nested justifications")
+				}
 			}
 		}
 	}
