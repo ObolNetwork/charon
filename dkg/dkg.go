@@ -60,7 +60,7 @@ func newExchanger(vals int, tcpNode host.Host, peerIdx int, peers []peer.ID) exc
 	}
 
 	// Wiring core workflow components
-	ex.sigex.Subscribe(ex.getSets) // Wire parsigdb to parsigex
+	ex.sigex.Subscribe(ex.getSets)
 
 	return ex
 }
