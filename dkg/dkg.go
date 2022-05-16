@@ -48,6 +48,52 @@ type Config struct {
 	TestSigning bool
 }
 
+type exchanger struct {
+	setChan chan core.ParSignedDataSet
+	sigex   *parsigex.ParSigEx
+}
+
+func newExchanger(vals int, tcpNode host.Host, peerIdx int, peers []peer.ID) exchanger {
+	ex := exchanger{
+		sigex:   parsigex.NewParSigEx(tcpNode, peerIdx, peers),
+		setChan: make(chan core.ParSignedDataSet, vals),
+	}
+
+	// Wiring core workflow components
+	ex.sigex.Subscribe(ex.getSets) // Wire parsigdb to parsigex
+
+	return ex
+}
+
+func (e *exchanger) exchange(ctx context.Context, set core.ParSignedDataSet) ([]core.ParSignedDataSet, error) {
+	err := e.sigex.Broadcast(ctx, core.Duty{}, set)
+	if err != nil {
+		return nil, err
+	}
+
+	var sets []core.ParSignedDataSet
+	sets = append(sets, set)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, err
+		case peerSet := <-e.setChan:
+			sets = append(sets, peerSet)
+		}
+		if len(sets) == len(e.setChan) {
+			break
+		}
+	}
+
+	return sets, nil
+}
+
+func (e *exchanger) getSets(_ context.Context, _ core.Duty, set core.ParSignedDataSet) error {
+	e.setChan <- set
+
+	return nil
+}
+
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output.
 func Run(ctx context.Context, conf Config) error {
 	ctx = log.WithTopic(ctx, "dkg")
@@ -82,6 +128,8 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "hash definition")
 	}
 	clusterID := fmt.Sprintf("%x", defHash[:])
+
+	_ = newExchanger(def.NumValidators, tcpNode, nodeIdx.PeerIdx, nil)
 
 	var shares []share
 	switch def.DKGAlgorithm {
@@ -242,7 +290,7 @@ func aggSignLockHash(ctx context.Context, tcpNode host.Host, nodeIdx cluster.Nod
 	// Aggregate all group signatures.
 	b, err := tbls.Scheme().AggregateSignatures(sigs...)
 	if err != nil {
-		return nil, errors.Wrap(err, "aggregate signature")
+		return nil, errors.Wrap(err, "exchangeSigs signature")
 	}
 
 	return b, nil
