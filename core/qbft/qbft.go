@@ -744,22 +744,6 @@ func filterMsgs[I any, V comparable](msgs []Msg[I, V], typ MsgType, round int64,
 	return resp
 }
 
-// key returns the message dedup key.
-func key[I any, V comparable](msg Msg[I, V]) dedupKey {
-	return dedupKey{
-		Source: msg.Source(),
-		Type:   msg.Type(),
-		Round:  msg.Round(),
-	}
-}
-
-// dedupKey provides the key to dedup received messages.
-type dedupKey struct {
-	Source int64
-	Type   MsgType
-	Round  int64
-}
-
 // zeroVal returns a zero value.
 func zeroVal[V comparable]() V {
 	var zero V
