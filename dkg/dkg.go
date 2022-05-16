@@ -81,6 +81,8 @@ func (e *exchanger) exchange(ctx context.Context, set core.ParSignedDataSet) ([]
 		case peerSet := <-e.setChan:
 			sets = append(sets, peerSet)
 		}
+
+		// We are done when we have ParSignedDataSet from all the peers including the current one
 		if len(sets) == cap(e.setChan) {
 			break
 		}
