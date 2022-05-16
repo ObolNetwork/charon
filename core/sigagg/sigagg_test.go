@@ -34,7 +34,7 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestSigCombiner_DutyAttester(t *testing.T) {
+func TestSigAgg_DutyAttester(t *testing.T) {
 	ctx := context.Background()
 
 	const (
@@ -95,7 +95,7 @@ func TestSigCombiner_DutyAttester(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSigCombiner_DutyRandao(t *testing.T) {
+func TestSigAgg_DutyRandao(t *testing.T) {
 	ctx := context.Background()
 
 	const (
@@ -151,7 +151,7 @@ func TestSigCombiner_DutyRandao(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSigCombiner_DutyProposer(t *testing.T) {
+func TestSigAgg_DutyProposer(t *testing.T) {
 	ctx := context.Background()
 
 	const (

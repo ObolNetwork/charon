@@ -120,8 +120,8 @@ type ShareSigExchange interface {
 	Subscribe(func(context.Context, Duty, ShareSignedDataSet) error)
 }
 
-// SigCombiner aggregates threshold partial signatures.
-type SigCombiner interface {
+// SigAgg aggregates threshold partial signatures.
+type SigAgg interface {
 	// Aggregate aggregates the partially signed duty data for the DV.
 	Aggregate(context.Context, Duty, PubKey, []ShareSignedData) error
 
@@ -168,8 +168,8 @@ type wireFuncs struct {
 	ShareSigDBSubscribeThreshold    func(func(context.Context, Duty, PubKey, []ShareSignedData) error)
 	ShareSigExchangeBroadcast       func(context.Context, Duty, ShareSignedDataSet) error
 	ShareSigExchangeSubscribe       func(func(context.Context, Duty, ShareSignedDataSet) error)
-	SigCombinerAggregate            func(context.Context, Duty, PubKey, []ShareSignedData) error
-	SigCombinerSubscribe            func(func(context.Context, Duty, PubKey, GroupSignedData) error)
+	SigAggAggregate                 func(context.Context, Duty, PubKey, []ShareSignedData) error
+	SigAggSubscribe                 func(func(context.Context, Duty, PubKey, GroupSignedData) error)
 	GroupSigDBStore                 func(context.Context, Duty, PubKey, GroupSignedData) error
 	GroupSigDBAwait                 func(context.Context, Duty, PubKey) (GroupSignedData, error)
 	BroadcasterBroadcast            func(context.Context, Duty, PubKey, GroupSignedData) error
@@ -186,7 +186,7 @@ func Wire(sched Scheduler,
 	vapi ValidatorAPI,
 	parSigDB ShareSigDB,
 	parSigEx ShareSigExchange,
-	sigAgg SigCombiner,
+	sigAgg SigAgg,
 	aggSigDB GroupSigDB,
 	bcast Broadcaster,
 	opts ...WireOption,
@@ -214,8 +214,8 @@ func Wire(sched Scheduler,
 		ShareSigDBSubscribeThreshold:    parSigDB.SubscribeThreshold,
 		ShareSigExchangeBroadcast:       parSigEx.Broadcast,
 		ShareSigExchangeSubscribe:       parSigEx.Subscribe,
-		SigCombinerAggregate:            sigAgg.Aggregate,
-		SigCombinerSubscribe:            sigAgg.Subscribe,
+		SigAggAggregate:                 sigAgg.Aggregate,
+		SigAggSubscribe:                 sigAgg.Subscribe,
 		GroupSigDBStore:                 aggSigDB.Store,
 		GroupSigDBAwait:                 aggSigDB.Await,
 		BroadcasterBroadcast:            bcast.Broadcast,
@@ -236,7 +236,7 @@ func Wire(sched Scheduler,
 	w.VAPIRegisterShareSigDB(w.ShareSigDBStoreInternal)
 	w.ShareSigDBSubscribeInternal(w.ShareSigExchangeBroadcast)
 	w.ShareSigExchangeSubscribe(w.ShareSigDBStoreExternal)
-	w.ShareSigDBSubscribeThreshold(w.SigCombinerAggregate)
-	w.SigCombinerSubscribe(w.GroupSigDBStore)
-	w.SigCombinerSubscribe(w.BroadcasterBroadcast)
+	w.ShareSigDBSubscribeThreshold(w.SigAggAggregate)
+	w.SigAggSubscribe(w.GroupSigDBStore)
+	w.SigAggSubscribe(w.BroadcasterBroadcast)
 }

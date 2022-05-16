@@ -207,7 +207,7 @@ func aggSignLockHash(ctx context.Context, tcpNode host.Host, nodeIdx cluster.Nod
 	// Wire core workflow components:
 	//  - parsigdb: stores our and other's partial signatures.
 	//  - parsigex: exchanges signatures between all nodes' parsigdb
-	//  - makeSigCombiner: aggregates threshold signatures once enough has been received.
+	//  - makeSigAgg: aggregates threshold signatures once enough has been received.
 	//
 	// Note that these components do not contain goroutines (so nothing is started or stopped)
 	// These components are driven by the call to sigdb.StoreInternal below and
@@ -216,7 +216,7 @@ func aggSignLockHash(ctx context.Context, tcpNode host.Host, nodeIdx cluster.Nod
 	sigdb := parsigdb.NewMemDB(lock.Threshold)                                // Make parsigdb
 	exchange := parsigex.NewShareSigExchange(tcpNode, nodeIdx.PeerIdx, peers) // Make parsigex
 	sigdb.SubscribeInternal(exchange.Broadcast)                               // Wire parsigex to parsigdb
-	sigdb.SubscribeThreshold(makeSigCombiner(sigChan))                        // Wire sigagg to parsigdb output
+	sigdb.SubscribeThreshold(makeSigAgg(sigChan))                             // Wire sigagg to parsigdb output
 	exchange.Subscribe(sigdb.StoreExternal)                                   // Wire parsigdb to parsigex
 
 	// Start the process by inserting the partial signatures
@@ -248,8 +248,8 @@ func aggSignLockHash(ctx context.Context, tcpNode host.Host, nodeIdx cluster.Nod
 	return b, nil
 }
 
-// makeSigCombiner returns a function that aggregates partial signatures.
-func makeSigCombiner(sigChan chan<- *bls_sig.Signature) func(context.Context, core.Duty, core.PubKey, []core.ShareSignedData) error {
+// makeSigAgg returns a function that aggregates partial signatures.
+func makeSigAgg(sigChan chan<- *bls_sig.Signature) func(context.Context, core.Duty, core.PubKey, []core.ShareSignedData) error {
 	return func(ctx context.Context, duty core.Duty, key core.PubKey, parSigs []core.ShareSignedData) error {
 		var sigs []*bls_sig.PartialSignature
 		for _, parSig := range parSigs {

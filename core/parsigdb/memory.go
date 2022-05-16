@@ -100,7 +100,7 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 		log.Debug(ctx, "Stored partial signed data", z.Any("duty", duty),
 			z.Any("pubkey", pubkey), z.Int("count", len(sigs)))
 
-		// Call the threshSubs (which includes SigCombiner component) if sufficient signatures have been received.
+		// Call the threshSubs (which includes SigAgg component) if sufficient signatures have been received.
 		if len(sigs) != db.threshold {
 			continue
 		}

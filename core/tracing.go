@@ -114,11 +114,11 @@ func WithTracing() WireOption {
 
 			return clone.ShareSigExchangeBroadcast(ctx, duty, set)
 		}
-		w.SigCombinerAggregate = func(parent context.Context, duty Duty, key PubKey, data []ShareSignedData) error {
+		w.SigAggAggregate = func(parent context.Context, duty Duty, key PubKey, data []ShareSignedData) error {
 			ctx, span := tracer.Start(parent, "core/sigagg.Aggregate")
 			defer span.End()
 
-			return clone.SigCombinerAggregate(ctx, duty, key, data)
+			return clone.SigAggAggregate(ctx, duty, key, data)
 		}
 		w.GroupSigDBStore = func(parent context.Context, duty Duty, key PubKey, data GroupSignedData) error {
 			ctx, span := tracer.Start(parent, "core/aggsigdb.Store")

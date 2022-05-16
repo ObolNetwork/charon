@@ -80,7 +80,7 @@ Core Workflow
         sigs │  | └─────*──┘  └──┬─────┘
                 |                │
  *Aggregate* │  │ ┌────────┐  ┌──▼───┐
-     partial │  └─►GroupSigDB◄──┤SigCombiner│
+     partial │  └─►GroupSigDB◄──┤SigAgg│
         sigs │    └────────┘  └──┬───┘
                                  │
  *Broadcast* │                ┌──▼──────┐
@@ -423,13 +423,13 @@ type Signer interface {
 The partial signature database persists partial BLS threshold signatures received internally (from the local Charon node's VC(s))
 as well as externally (from other nodes in cluster).
 It calls the `ShareSigExchange` component with signatures received internally to share them with all peers in the cluster.
-When sufficient partial signatures have been received for a duty, it calls the `SigCombiner` component.
+When sufficient partial signatures have been received for a duty, it calls the `SigAgg` component.
 
 Partial signatures in the database have one of the following states:
 
  - `Internal`: Received from local VC, not broadcasted yet.
  - `Broadcasted`: Received from peer, or broadcasted to peers.
- - `Aggregated`: Sent to `SigCombiner` service.
+ - `Aggregated`: Sent to `SigAgg` service.
  - `Expired`: Not eligible for aggregation anymore (too old).
 
 The data model for entries in this DB is defined as:
@@ -458,7 +458,7 @@ A `broadcaster` worker goroutine, triggered periodically and by `StoreInternal` 
 sends them to `ParSigEX` as a batch, then updates them to `Status=Broadcasted` in a transaction.
 
 An `aggregator` worker goroutine, triggered periodically and by `StoreExternal` and by `broadcaster`
-queries all `Status=Broadcasted` entries, and if sufficient entries exist for a duty, sends them to the `SigCombiner` component
+queries all `Status=Broadcasted` entries, and if sufficient entries exist for a duty, sends them to the `SigAgg` component
 and update them to `Status=Aggregated`. Entries older than `X?` epochs are set to `Status=Expired`.
 
 > ⁉️ What about the race condition where some partial signatures are received AFTER others of the same duty reached threshold and was aggregated? Currently, they will Expire.
@@ -504,7 +504,7 @@ type ShareSigExchange interface {
 }
 ```
 
-### SigCombiner
+### SigAgg
 The signature aggregation service aggregates partial BLS signatures and sends them to the `bcast` component and persists them to the `GroupSigDB`.
 It is a stateless pure function.
 
@@ -523,8 +523,8 @@ type GroupSignedData struct {
 The signature aggregation interface is defined as:
 ```go
 
-// SigCombiner aggregates threshold partial signatures.
-type SigCombiner interface {
+// SigAgg aggregates threshold partial signatures.
+type SigAgg interface {
   // Aggregate aggregates the partially signed duty data for the DV.
   Aggregate(context.Context, Duty, PubKey, []ShareSignedData) error
 
@@ -579,7 +579,7 @@ func StitchFlow(
   signer   Signer,
   parSigDB ShareSigDB,
   parSigEx ShareSigExchange,
-  sigAgg   SigCombiner,
+  sigAgg   SigAgg,
   aggSigDB GroupSigDB,
   bcast    Broadcaster,
 ) {
