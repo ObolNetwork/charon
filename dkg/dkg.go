@@ -53,10 +53,10 @@ type exchanger struct {
 	sigex   *parsigex.ParSigEx
 }
 
-func newExchanger(vals int, tcpNode host.Host, peerIdx int, peers []peer.ID) exchanger {
+func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID) exchanger {
 	ex := exchanger{
 		sigex:   parsigex.NewParSigEx(tcpNode, peerIdx, peers),
-		setChan: make(chan core.ParSignedDataSet, vals),
+		setChan: make(chan core.ParSignedDataSet, len(peers)),
 	}
 
 	// Wiring core workflow components
@@ -129,7 +129,7 @@ func Run(ctx context.Context, conf Config) error {
 	}
 	clusterID := fmt.Sprintf("%x", defHash[:])
 
-	_ = newExchanger(def.NumValidators, tcpNode, nodeIdx.PeerIdx, nil)
+	_ = newExchanger(tcpNode, nodeIdx.PeerIdx, nil)
 
 	var shares []share
 	switch def.DKGAlgorithm {
