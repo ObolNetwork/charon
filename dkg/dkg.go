@@ -48,6 +48,7 @@ type Config struct {
 	TestSigning bool
 }
 
+// exchanger is responsible for exchanging partial signatures between peers on libp2p.
 type exchanger struct {
 	setChan chan core.ParSignedDataSet
 	sigex   *parsigex.ParSigEx
@@ -290,7 +291,7 @@ func aggSignLockHash(ctx context.Context, tcpNode host.Host, nodeIdx cluster.Nod
 	// Aggregate all group signatures.
 	b, err := tbls.Scheme().AggregateSignatures(sigs...)
 	if err != nil {
-		return nil, errors.Wrap(err, "exchangeSigs signature")
+		return nil, errors.Wrap(err, "aggregate signature")
 	}
 
 	return b, nil
