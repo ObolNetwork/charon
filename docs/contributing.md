@@ -119,7 +119,6 @@ To install githooks:
 To update githooks:
 ```sh
 pre-commit clean
-pre-commit autoupdate
 ```
 
 The **linter** used is [golangci-lint](https://golangci-lint.run/). It runs as part of the githooks and is configured in [.golangci.yml](../.golangci.yml)
