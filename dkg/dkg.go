@@ -80,7 +80,7 @@ func (e *exchanger) exchange(ctx context.Context, set core.ParSignedDataSet) ([]
 		case peerSet := <-e.setChan:
 			sets = append(sets, peerSet)
 		}
-		if len(sets) == len(e.setChan) {
+		if len(sets) == cap(e.setChan) {
 			break
 		}
 	}
