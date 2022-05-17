@@ -11,6 +11,7 @@ Created charon cluster:
 
 charon/
 ├─ manifest.json	Cluster manifest defines the cluster; used by all nodes
+├─ deposit-data.json	Deposit data file used to activate the Distributed Validator
 ├─ node[0-3]/		Directory for each node
 │  ├─ p2pkey		P2P networking private key for node authentication
 │  ├─ keystore-*.json	Validator private share key for duty signing

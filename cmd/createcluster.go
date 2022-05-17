@@ -34,6 +34,7 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
@@ -84,6 +85,7 @@ type clusterConfig struct {
 	ClusterDir string
 	Clean      bool
 	NumNodes   int
+	NumDVs     int
 	Threshold  int
 
 	SplitKeys    bool
@@ -135,6 +137,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 			return errors.Wrap(err, "remove cluster dir")
 		}
 	} else if _, err := os.Stat(path.Join(conf.ClusterDir, "manifest.json")); err == nil {
+		// TODO(xenowits): replace "manifest.json" with "cluster_lock.json"
 		return errors.New("existing cluster found. Try again with --clean")
 	}
 
@@ -152,7 +155,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		}
 	}
 
-	// Get root bls key
+	// Get root bls secrets
 	secrets, err := getKeys(conf)
 	if err != nil {
 		return err
@@ -189,6 +192,47 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		if err := keystore.StoreKeys(secrets, nodeDir(conf.ClusterDir, i)); err != nil {
 			return err
 		}
+	}
+
+	// TODO(xenowits): add flag to specify the number of distributed validators in a cluster
+	// Currently, we assume that we create a cluster of ONLY 1 Distributed Validator
+	var depositDatas [][]byte
+	for i := 0; i < conf.NumDVs+1; i++ { // Note that default value of conf.NumDVs is 0
+		sk := secrets[i] // Group secret key for this DV
+		pubkey, err := sk.GetPublicKey()
+		if err != nil {
+			return err
+		}
+
+		pk, err := tblsconv.KeyToETH2(pubkey) // Group pubkey
+		if err != nil {
+			return err
+		}
+
+		withdrawalAddr := "0xc0404ed740a69d11201f5ed297c5732f562c6e4e"
+		network := "prater"
+
+		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddr, network)
+		if err != nil {
+			return err
+		}
+
+		sig, err := tbls.Sign(sk, msgRoot[:])
+		if err != nil {
+			return err
+		}
+
+		sigEth2 := tblsconv.SigToETH2(sig)
+		bytes, err := deposit.MarshalDepositData(pk, withdrawalAddr, network, sigEth2)
+		if err != nil {
+			return err
+		}
+
+		depositDatas = append(depositDatas, bytes)
+	}
+
+	if err := writeDepositData(conf, depositDatas); err != nil {
+		return err
 	}
 
 	// TODO(corver): Write deposit datas if not simnet
@@ -265,13 +309,34 @@ func getKeys(conf clusterConfig) ([]*bls_sig.SecretKey, error) {
 	}
 
 	// TODO(corver): Add flag to generate more distributed-validators than 1
+	var secrets []*bls_sig.SecretKey
+	for i := 0; i < conf.NumDVs+1; i++ { // Note that default value of conf.NumDVs is 0
+		_, secret, err := tbls.KeygenWithSeed(rand.Reader)
+		if err != nil {
+			return nil, err
+		}
 
-	_, secret, err := tbls.KeygenWithSeed(rand.Reader)
-	if err != nil {
-		return nil, err
+		secrets = append(secrets, secret)
 	}
 
-	return []*bls_sig.SecretKey{secret}, nil
+	return secrets, nil
+}
+
+// writeDepositData writes deposit data to disk for the DVs in a cluster.
+func writeDepositData(config clusterConfig, b [][]byte) error {
+	depositPath := path.Join(config.ClusterDir, "deposit-data.json")
+
+	bytes, err := deposit.MarshalDepositDatas(b)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(depositPath, bytes, 0o400) // read-only
+	if err != nil {
+		return errors.Wrap(err, "write deposit data")
+	}
+
+	return nil
 }
 
 func writeManifest(config clusterConfig, tss []tbls.TSS, peers []p2p.Peer) error {
@@ -349,6 +414,8 @@ func writeOutput(out io.Writer, conf clusterConfig) {
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString(strings.TrimSuffix(conf.ClusterDir, "/") + "/\n")
 	_, _ = sb.WriteString("├─ manifest.json\tCluster manifest defines the cluster; used by all nodes\n")
+	_, _ = sb.WriteString("├─ deposit-data.json\tDeposit data file used to activate the Distributed Validator\n")
+
 	if conf.ConfigEnabled {
 		_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")
 		_, _ = sb.WriteString("├─ teamocil.yml\t\tTeamocil config for splitting logs in tmux panes\n")

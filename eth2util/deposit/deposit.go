@@ -105,6 +105,27 @@ func MarshalDepositData(pubkey eth2p0.BLSPubKey, withdrawalAddr string, network 
 	return bytes, nil
 }
 
+// MarshalDepositDatas serializes a list of deposit data into a single file.
+func MarshalDepositDatas(depositDatas [][]byte) ([]byte, error) {
+	var ddList []depositDataJSON
+	ddLen := len(depositDatas)
+	for i := 0; i < ddLen; i++ {
+		var dd depositDataJSON
+		err := json.Unmarshal(depositDatas[i], &dd)
+		if err != nil {
+			return nil, errors.Wrap(err, "unmarshal deposit data")
+		}
+		ddList = append(ddList, dd)
+	}
+
+	bytes, err := json.MarshalIndent(ddList, "", " ")
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal deposit data")
+	}
+
+	return bytes, nil
+}
+
 // getDepositDomain returns the deposit signature domain.
 func getDepositDomain(forkVersion eth2p0.Version) (eth2p0.Domain, error) {
 	forkData := &eth2p0.ForkData{
