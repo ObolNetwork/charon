@@ -25,7 +25,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-func TestRunGenP2P(t *testing.T) {
+func TestRunCreateEnr(t *testing.T) {
 	temp, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 

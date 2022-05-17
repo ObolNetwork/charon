@@ -99,25 +99,6 @@ func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Co
 	var conf clusterConfig
 
 	cmd := &cobra.Command{
-		Use:   "create-cluster",
-		Short: "Create a local charon cluster [DEPRECATED]",
-		Long: "Create a local charon cluster including validator keys, charon p2p keys, and a cluster manifest. [DEPRECATED]" +
-			"See flags for supported features.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(cmd.OutOrStdout(), conf)
-		},
-	}
-
-	bindClusterFlags(cmd.Flags(), &conf)
-
-	return cmd
-}
-
-// TODO(dhruv): replace newCreateClusterCmd with newCreateClusterCmdNew once charon-docker-compose are updated.
-func newCreateClusterCmdNew(runFunc func(io.Writer, clusterConfig) error) *cobra.Command {
-	var conf clusterConfig
-
-	cmd := &cobra.Command{
 		Use:   "cluster",
 		Short: "Create private keys and configuration files needed to run a distributed validator cluster locally",
 		Long: "Creates a local charon cluster configuration including validator keys, charon p2p keys, and a cluster manifest. " +
@@ -372,7 +353,7 @@ func writeOutput(out io.Writer, conf clusterConfig) {
 		_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")
 		_, _ = sb.WriteString("├─ teamocil.yml\t\tTeamocil config for splitting logs in tmux panes\n")
 	}
-	_, _ = sb.WriteString("├─ node[0-3]/\t\tDirectory for each node\n")
+	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\tDirectory for each node\n", conf.NumNodes-1))
 	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ keystore-*.json\tValidator private share key for duty signing\n")
 	_, _ = sb.WriteString("│  ├─ keystore-*.txt\tKeystore password files for keystore-*.json\n")
