@@ -38,6 +38,11 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
+const (
+	DutyLock        core.DutyType = 101
+	DutyDepositData core.DutyType = 202
+)
+
 type Config struct {
 	DefFile string
 	DataDir string
@@ -48,42 +53,67 @@ type Config struct {
 	TestSigning bool
 }
 
+type sigData struct {
+	duty   core.DutyType
+	pubkey core.PubKey
+	psigs  []core.ParSignedData
+}
+
 // exchanger is responsible for exchanging partial signatures between peers on libp2p.
 type exchanger struct {
-	setChan chan core.ParSignedDataSet
+	sigChan chan sigData
 	sigex   *parsigex.ParSigEx
+	sigdb   *parsigdb.MemDB
 }
 
 func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID) exchanger {
 	ex := exchanger{
+		sigdb:   parsigdb.NewMemDB(len(peers)),
 		sigex:   parsigex.NewParSigEx(tcpNode, peerIdx, peers),
-		setChan: make(chan core.ParSignedDataSet, len(peers)),
+		sigChan: make(chan sigData, len(peers)),
 	}
 
 	// Wiring core workflow components
-	ex.sigex.Subscribe(ex.getSets)
+	ex.sigdb.SubscribeInternal(ex.sigex.Broadcast)
+	ex.sigdb.SubscribeThreshold(ex.pushPsigs)
+	ex.sigex.Subscribe(ex.sigdb.StoreExternal)
 
 	return ex
 }
 
-func (e *exchanger) exchange(ctx context.Context, set core.ParSignedDataSet) ([]core.ParSignedDataSet, error) {
-	err := e.sigex.Broadcast(ctx, core.Duty{}, set)
+// exchange exhanges partial signatures of lockhash/deposit-data among dkg participants and returns all the partial
+// signatures of the group according to public key of each DV.
+func (e *exchanger) exchange(ctx context.Context, duty core.DutyType, set core.ParSignedDataSet, shareIdx int) ([]core.ParSignedDataSet, error) {
+	err := e.sigdb.StoreInternal(ctx, core.Duty{Type: duty}, set)
 	if err != nil {
 		return nil, err
 	}
 
-	var sets []core.ParSignedDataSet
-	sets = append(sets, set)
+	// len(sets) is cap(e.sigChan) because of shareIdx being 1-indexed
+	sets := make([]core.ParSignedDataSet, cap(e.sigChan)+1)
+	sets[shareIdx] = set
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, err
-		case peerSet := <-e.setChan:
-			sets = append(sets, peerSet)
+			return nil, ctx.Err()
+		case peerSet := <-e.sigChan:
+			switch peerSet.duty {
+			case DutyLock, DutyDepositData:
+				if duty != peerSet.duty {
+					// Do nothing if duty doesn't match as deposit datas can also be exchanged
+					continue
+				}
+
+				for _, sig := range peerSet.psigs {
+					sets[sig.ShareIdx][peerSet.pubkey] = sig
+				}
+			default:
+				return nil, errors.New("invalid data")
+			}
 		}
 
 		// We are done when we have ParSignedDataSet from all the peers including the current one
-		if len(sets) == cap(e.setChan) {
+		if len(sets) == cap(e.sigChan) {
 			break
 		}
 	}
@@ -91,8 +121,12 @@ func (e *exchanger) exchange(ctx context.Context, set core.ParSignedDataSet) ([]
 	return sets, nil
 }
 
-func (e *exchanger) getSets(_ context.Context, _ core.Duty, set core.ParSignedDataSet) error {
-	e.setChan <- set
+func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, pk core.PubKey, psigs []core.ParSignedData) error {
+	e.sigChan <- sigData{
+		duty:   duty.Type,
+		pubkey: pk,
+		psigs:  psigs,
+	}
 
 	return nil
 }
