@@ -133,7 +133,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
 
-	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Enables splitting of existing non-dvt validator keys into distributed threshold private shares (instead of creating new random keys).")
+	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
 
 	flags.BoolVar(&config.ConfigEnabled, "config", false, "Enables creation of local non-docker config files.")
@@ -587,7 +587,7 @@ func validNetwork(conf clusterConfig) error {
 
 	// We cannot allow a zero withdrawal address on mainnet or gnosis.
 	if conf.WithdrawalAddr == defaultWithdrawalAddr && (conf.Network == "mainnet" || conf.Network == "gnosis") {
-		return errors.New("zero address", z.Str("network", conf.Network))
+		return errors.New("zero address forbidden on this network", z.Str("network", conf.Network))
 	}
 
 	for _, n := range validNetworks {
