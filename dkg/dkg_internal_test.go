@@ -17,6 +17,7 @@ package dkg
 
 import (
 	"context"
+	"reflect"
 	"sync"
 	"testing"
 
@@ -29,7 +30,7 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-// TODO(dhruv): need to tests for negative scenarios (take inspiration from core/qbft/qbft_internal_test).
+// TODO(dhruv): add tests for negative scenarios (take inspiration from core/qbft/qbft_internal_test).
 func TestExchanger(t *testing.T) {
 	ctx := context.Background()
 
@@ -45,17 +46,27 @@ func TestExchanger(t *testing.T) {
 	}
 
 	// Expected data is what is desired at the end of exchange
-	expectedData := make([]core.ParSignedDataSet, nodes+1)
-	for i := 1; i <= nodes; i++ {
-		set := make(core.ParSignedDataSet)
-		for j := 0; j < dvs; j++ {
-			set[pubkeys[j]] = core.ParSignedData{
-				Data:      nil,
+	expectedData := make(map[core.PubKey][]core.ParSignedData)
+	for i := 0; i < dvs; i++ {
+		set := make([]core.ParSignedData, nodes)
+		for j := 0; j < nodes; j++ {
+			set[j] = core.ParSignedData{
 				Signature: testutil.RandomCoreSignature(),
-				ShareIdx:  i,
+				ShareIdx:  j + 1,
 			}
 		}
-		expectedData[i] = set
+		expectedData[pubkeys[i]] = set
+	}
+
+	dataToBeSent := make(map[int]core.ParSignedDataSet)
+	for pk, psigs := range expectedData {
+		for _, psig := range psigs {
+			_, ok := dataToBeSent[psig.ShareIdx-1]
+			if !ok {
+				dataToBeSent[psig.ShareIdx-1] = make(core.ParSignedDataSet)
+			}
+			dataToBeSent[psig.ShareIdx-1][pk] = psig
+		}
 	}
 
 	var (
@@ -79,11 +90,11 @@ func TestExchanger(t *testing.T) {
 
 	// Connect each host with its peers
 	for i := 0; i < nodes; i++ {
-		for k := 0; k < nodes; k++ {
-			if i == k {
+		for j := 0; j < nodes; j++ {
+			if i == j {
 				continue
 			}
-			hosts[i].Peerstore().AddAddrs(hostsInfo[k].ID, hostsInfo[k].Addrs, peerstore.PermanentAddrTTL)
+			hosts[i].Peerstore().AddAddrs(hostsInfo[j].ID, hostsInfo[j].Addrs, peerstore.PermanentAddrTTL)
 		}
 	}
 
@@ -92,20 +103,22 @@ func TestExchanger(t *testing.T) {
 		exchangers = append(exchangers, ex)
 	}
 
-	var actual [][]core.ParSignedDataSet
+	var actual []map[core.PubKey][]core.ParSignedData
 	var wg sync.WaitGroup
 	for i := 0; i < nodes; i++ {
 		wg.Add(1)
 		go func(node int) {
 			defer wg.Done()
-			data, err := exchangers[node].exchange(ctx, DutyLock, expectedData[node+1])
+
+			data, err := exchangers[node].exchange(ctx, dutyLock, dataToBeSent[node])
 			require.NoError(t, err)
+
 			actual = append(actual, data)
 		}(i)
 	}
 	wg.Wait()
 
 	for i := 0; i < nodes; i++ {
-		require.Equal(t, expectedData, actual[i])
+		reflect.DeepEqual(actual[i], expectedData)
 	}
 }
