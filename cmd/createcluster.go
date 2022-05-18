@@ -228,12 +228,12 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 			return err
 		}
 
-		withdrawalAddr, err := validAddr(conf.WithdrawalAddr)
+		withdrawalAddr, err := checksumAddr(conf.WithdrawalAddr)
 		if err != nil {
 			return err
 		}
 
-		err = validNetwork(conf)
+		err = validNetwork(conf.WithdrawalAddr, conf.Network)
 		if err != nil {
 			return err
 		}
@@ -573,8 +573,8 @@ func nextPortFunc(startPort int) func() int {
 	}
 }
 
-// validAddr returns a valid checksummed ethereum address. Returns an error if a valid address cannot be constructed.
-func validAddr(a string) (string, error) {
+// checksumAddr returns a valid checksummed ethereum address. Returns an error if a valid address cannot be constructed.
+func checksumAddr(a string) (string, error) {
 	if !common.IsHexAddress(a) {
 		return "", errors.New("invalid address")
 	}
@@ -585,19 +585,19 @@ func validAddr(a string) (string, error) {
 }
 
 // validNetwork returns an error if the input network is not supported or certain conditions are not met.
-func validNetwork(conf clusterConfig) error {
+func validNetwork(addr, network string) error {
 	validNetworks := []string{"prater", "kintsugi", "kiln", "gnosis", "mainnet"}
 
 	// We cannot allow a zero withdrawal address on mainnet or gnosis.
-	if conf.WithdrawalAddr == defaultWithdrawalAddr && (conf.Network == "mainnet" || conf.Network == "gnosis") {
-		return errors.New("zero address forbidden on this network", z.Str("network", conf.Network))
+	if addr == defaultWithdrawalAddr && (network == "mainnet" || network == "gnosis") {
+		return errors.New("zero address forbidden on this network", z.Str("network", network))
 	}
 
 	for _, n := range validNetworks {
-		if n == conf.Network {
+		if n == network {
 			return nil
 		}
 	}
 
-	return errors.New("unsupported network", z.Str("network", conf.Network))
+	return errors.New("unsupported network", z.Str("network", network))
 }

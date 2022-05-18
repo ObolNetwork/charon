@@ -83,6 +83,10 @@ func TestCreateCluster(t *testing.T) {
 			if test.Prep != nil {
 				test.Config = test.Prep(t, test.Config)
 			}
+
+			test.Config.WithdrawalAddr = defaultWithdrawalAddr
+			test.Config.Network = defaultNetwork
+
 			testCreateCluster(t, test.Config)
 		})
 	}
@@ -134,4 +138,28 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 		b = bytes.ReplaceAll(b, []byte(dir), []byte("charon"))
 		testutil.RequireGoldenBytes(t, b)
 	})
+}
+
+func TestChecksumAddr(t *testing.T) {
+	expected := "0xC0404ed740a69d11201f5eD297c5732F562c6E4e"
+	got, err := checksumAddr(expected)
+	require.NoError(t, err)
+	require.Equal(t, got, expected)
+
+	expected = "0x32F562c6E4eexyzXYZ69d11201f5eD297c57C0404"
+	_, err = checksumAddr(expected)
+	require.Error(t, err, "invalid address")
+}
+
+func TestValidNetwork(t *testing.T) {
+	conf := clusterConfig{
+		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
+		Network:        "gnosis",
+	}
+	err := validNetwork(conf.WithdrawalAddr, conf.Network)
+	require.Error(t, err, "zero address")
+
+	conf.Network = "prater"
+	err = validNetwork(conf.WithdrawalAddr, conf.Network)
+	require.NoError(t, err)
 }
