@@ -85,7 +85,6 @@ type clusterConfig struct {
 	ClusterDir string
 	Clean      bool
 	NumNodes   int
-	NumDVs     int
 	Threshold  int
 
 	SplitKeys    bool
@@ -155,8 +154,12 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		}
 	}
 
+	// Currently, we assume that we create a cluster of ONLY 1 Distributed Validator
+	// TODO(xenowits): add flag to specify the number of distributed validators in a cluster
+	numDVs := 1
+
 	// Get root bls secrets
-	secrets, err := getKeys(conf)
+	secrets, err := getKeys(conf, numDVs)
 	if err != nil {
 		return err
 	}
@@ -194,10 +197,8 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		}
 	}
 
-	// TODO(xenowits): add flag to specify the number of distributed validators in a cluster
-	// Currently, we assume that we create a cluster of ONLY 1 Distributed Validator
 	var depositDatas [][]byte
-	for i := 0; i < conf.NumDVs+1; i++ { // Note that default value of conf.NumDVs is 0
+	for i := 0; i < numDVs; i++ {
 		sk := secrets[i] // Group secret key for this DV
 		pubkey, err := sk.GetPublicKey()
 		if err != nil {
@@ -299,7 +300,8 @@ func writeWarning(w io.Writer) {
 	_, _ = w.Write([]byte(sb.String()))
 }
 
-func getKeys(conf clusterConfig) ([]*bls_sig.SecretKey, error) {
+// getKeys fetches secret keys for each distributed validator.
+func getKeys(conf clusterConfig, numDVs int) ([]*bls_sig.SecretKey, error) {
 	if conf.SplitKeys {
 		if conf.SplitKeysDir == "" {
 			return nil, errors.New("--split-keys-dir required when splitting keys")
@@ -310,7 +312,7 @@ func getKeys(conf clusterConfig) ([]*bls_sig.SecretKey, error) {
 
 	// TODO(corver): Add flag to generate more distributed-validators than 1
 	var secrets []*bls_sig.SecretKey
-	for i := 0; i < conf.NumDVs+1; i++ { // Note that default value of conf.NumDVs is 0
+	for i := 0; i < numDVs; i++ { // Note that default value of conf.NumDVs is 0
 		_, secret, err := tbls.KeygenWithSeed(rand.Reader)
 		if err != nil {
 			return nil, err
@@ -414,7 +416,7 @@ func writeOutput(out io.Writer, conf clusterConfig) {
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString(strings.TrimSuffix(conf.ClusterDir, "/") + "/\n")
 	_, _ = sb.WriteString("├─ manifest.json\tCluster manifest defines the cluster; used by all nodes\n")
-	_, _ = sb.WriteString("├─ deposit-data.json\tDeposit data file used to activate the Distributed Validator\n")
+	_, _ = sb.WriteString("├─ deposit-data.json\tDeposit data file is used to activate a Distributed Validator on DV Launchpad\n")
 
 	if conf.ConfigEnabled {
 		_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")
