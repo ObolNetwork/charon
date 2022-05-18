@@ -201,7 +201,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		sk := secrets[i] // Group secret key for this DV
 		pubkey, err := sk.GetPublicKey()
 		if err != nil {
-			return err
+			return errors.Wrap(err, "secret to pubkey")
 		}
 
 		pk, err := tblsconv.KeyToETH2(pubkey) // Group pubkey
