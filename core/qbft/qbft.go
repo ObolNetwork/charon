@@ -414,7 +414,7 @@ func nextMinRound[I any, V comparable](d Definition[I, V], frc []Msg[I, V], roun
 	return rmin
 }
 
-// isJustified returns true if message is justified or if it does not need justification
+// isJustified returns true if message is justified or if it does not need justification.
 func isJustified[I any, V comparable](d Definition[I, V], instance I, msg Msg[I, V]) bool {
 	switch msg.Type() {
 	case MsgPrePrepare:
