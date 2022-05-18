@@ -311,7 +311,7 @@ func getKeys(conf clusterConfig, numDVs int) ([]*bls_sig.SecretKey, error) {
 	}
 
 	var secrets []*bls_sig.SecretKey
-	for i := 0; i < numDVs; i++ { // Note that default value of conf.NumDVs is 0
+	for i := 0; i < numDVs; i++ {
 		_, secret, err := tbls.KeygenWithSeed(rand.Reader)
 		if err != nil {
 			return nil, err
