@@ -130,7 +130,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
 	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", defaultWithdrawalAddr, "Ethereum address to receive the returned stake and accrued rewards.")
-	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for (default: mainnet). Options: mainnet, prater, kintsugi, kiln, gnosis.")
+	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
 
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Enables splitting of existing non-dvt validator keys into distributed threshold private shares (instead of creating new random keys).")
@@ -167,8 +167,12 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		}
 	}
 
+	// Currently, we assume that we create a cluster of ONLY 1 Distributed Validator
+	// TODO(xenowits): add flag to specify the number of distributed validators in a cluster
+	numDVs := 1
+
 	// Get root bls secrets
-	secrets, err := getKeys(conf)
+	secrets, err := getKeys(conf, numDVs)
 	if err != nil {
 		return err
 	}
@@ -206,17 +210,15 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		}
 	}
 
-	// TODO(xenowits): add flag to specify the number of distributed validators in a cluster
-	// Currently, we assume that we create a cluster of ONLY 1 Distributed Validator
 	var depositDatas [][]byte
-	for i := 0; i < conf.NumDVs+1; i++ { // Note that default value of conf.NumDVs is 0
-		sk := secrets[i] // Group secret key for this DV
-		pubkey, err := sk.GetPublicKey()
+	for i := 0; i < numDVs; i++ {
+		sk := secrets[i] // Secret key for this DV
+		pk, err := sk.GetPublicKey()
 		if err != nil {
 			return errors.Wrap(err, "secret to pubkey")
 		}
 
-		pk, err := tblsconv.KeyToETH2(pubkey) // Group pubkey
+		pubkey, err := tblsconv.KeyToETH2(pk)
 		if err != nil {
 			return err
 		}
@@ -231,7 +233,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 			return err
 		}
 
-		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddr, conf.Network)
+		msgRoot, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, conf.Network)
 		if err != nil {
 			return err
 		}
@@ -242,7 +244,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		}
 
 		sigEth2 := tblsconv.SigToETH2(sig)
-		bytes, err := deposit.MarshalDepositData(pk, withdrawalAddr, conf.Network, sigEth2)
+		bytes, err := deposit.MarshalDepositData(pubkey, withdrawalAddr, conf.Network, sigEth2)
 		if err != nil {
 			return err
 		}
@@ -318,7 +320,8 @@ func writeWarning(w io.Writer) {
 	_, _ = w.Write([]byte(sb.String()))
 }
 
-func getKeys(conf clusterConfig) ([]*bls_sig.SecretKey, error) {
+// getKeys fetches secret keys for each distributed validator.
+func getKeys(conf clusterConfig, numDVs int) ([]*bls_sig.SecretKey, error) {
 	if conf.SplitKeys {
 		if conf.SplitKeysDir == "" {
 			return nil, errors.New("--split-keys-dir required when splitting keys")
@@ -327,9 +330,8 @@ func getKeys(conf clusterConfig) ([]*bls_sig.SecretKey, error) {
 		return keystore.LoadKeys(conf.SplitKeysDir)
 	}
 
-	// TODO(corver): Add flag to generate more distributed-validators than 1
 	var secrets []*bls_sig.SecretKey
-	for i := 0; i < conf.NumDVs+1; i++ { // Note that default value of conf.NumDVs is 0
+	for i := 0; i < numDVs; i++ {
 		_, secret, err := tbls.KeygenWithSeed(rand.Reader)
 		if err != nil {
 			return nil, err
@@ -433,7 +435,7 @@ func writeOutput(out io.Writer, conf clusterConfig) {
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString(strings.TrimSuffix(conf.ClusterDir, "/") + "/\n")
 	_, _ = sb.WriteString("├─ manifest.json\tCluster manifest defines the cluster; used by all nodes\n")
-	_, _ = sb.WriteString("├─ deposit-data.json\tDeposit data file used to activate the Distributed Validator\n")
+	_, _ = sb.WriteString("├─ deposit-data.json\tDeposit data file is used to activate a Distributed Validator on DV Launchpad\n")
 
 	if conf.ConfigEnabled {
 		_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")
