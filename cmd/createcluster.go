@@ -19,7 +19,6 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"github.com/obolnetwork/charon/app/z"
 	"io"
 	"net"
 	"os"
@@ -36,6 +35,7 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
@@ -83,7 +83,10 @@ windows:
 {{end}}
 `
 
-const defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
+const (
+	defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
+	defaultNetwork        = "prater"
+)
 
 type clusterConfig struct {
 	ClusterDir string
@@ -127,7 +130,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
 	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", defaultWithdrawalAddr, "Ethereum address to receive the returned stake and accrued rewards.")
-	flags.StringVar(&config.Network, "network", "prater", "Ethereum network to create validators for (default: mainnet). Options: mainnet, prater, kintsugi, kiln, gnosis.")
+	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for (default: mainnet). Options: mainnet, prater, kintsugi, kiln, gnosis.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
 
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Enables splitting of existing non-dvt validator keys into distributed threshold private shares (instead of creating new random keys).")

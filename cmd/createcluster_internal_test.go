@@ -83,6 +83,10 @@ func TestCreateCluster(t *testing.T) {
 			if test.Prep != nil {
 				test.Config = test.Prep(t, test.Config)
 			}
+
+			test.Config.WithdrawalAddr = defaultWithdrawalAddr
+			test.Config.Network = defaultNetwork
+
 			testCreateCluster(t, test.Config)
 		})
 	}
