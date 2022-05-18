@@ -38,9 +38,12 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
+// Values of following constants should not change as it can break backwards compatibility.
 const (
-	DutyLock        core.DutyType = 101
-	DutyDepositData core.DutyType = 202
+	// dutyLock is responsible for lock hash signed partial signatures exchange and aggregation.
+	dutyLock core.DutyType = 101
+	// dutyDepositData is responsible for deposit data signed partial signatures exchange and aggregation.
+	dutyDepositData core.DutyType = 102
 )
 
 type Config struct {
@@ -53,6 +56,7 @@ type Config struct {
 	TestSigning bool
 }
 
+// sigData includes the fields obtained from sigdb when threshold is reached.
 type sigData struct {
 	duty   core.DutyType
 	pubkey core.PubKey
@@ -61,21 +65,19 @@ type sigData struct {
 
 // exchanger is responsible for exchanging partial signatures between peers on libp2p.
 type exchanger struct {
-	sigChan  chan sigData
-	sigex    *parsigex.ParSigEx
-	sigdb    *parsigdb.MemDB
-	numPeers int
-	numVals  int
+	sigChan chan sigData
+	sigex   *parsigex.ParSigEx
+	sigdb   *parsigdb.MemDB
+	numVals int
 }
 
 func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) *exchanger {
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
-		sigdb:    parsigdb.NewMemDB(len(peers)),
-		sigex:    parsigex.NewParSigEx(tcpNode, peerIdx, peers),
-		sigChan:  make(chan sigData, vals),
-		numPeers: len(peers),
-		numVals:  vals,
+		sigdb:   parsigdb.NewMemDB(len(peers)),
+		sigex:   parsigex.NewParSigEx(tcpNode, peerIdx, peers),
+		sigChan: make(chan sigData),
+		numVals: vals,
 	}
 
 	// Wiring core workflow components
@@ -88,51 +90,34 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) *ex
 
 // exchange exhanges partial signatures of lockhash/deposit-data among dkg participants and returns all the partial
 // signatures of the group according to public key of each DV.
-func (e *exchanger) exchange(ctx context.Context, duty core.DutyType, set core.ParSignedDataSet) ([]core.ParSignedDataSet, error) {
+func (e *exchanger) exchange(ctx context.Context, duty core.DutyType, set core.ParSignedDataSet) (map[core.PubKey][]core.ParSignedData, error) {
 	// Start the process by storing current peer's ParSignedDataSet
 	err := e.sigdb.StoreInternal(ctx, core.Duty{Type: duty}, set)
 	if err != nil {
 		return nil, err
 	}
 
-	// len(sets) is numPeers + 1 because of shareIdx being 1-indexed
-	sets := make([]core.ParSignedDataSet, e.numPeers+1)
-	// remaining is set to number of DVs because we are getting response with respect to each DV
-	remaining := e.numVals
+	sets := make(map[core.PubKey][]core.ParSignedData)
 	for {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case peerSet := <-e.sigChan:
-			switch peerSet.duty {
-			case DutyLock, DutyDepositData:
-				if duty != peerSet.duty {
-					// Do nothing if duty doesn't match
-					continue
-				}
+			if duty != peerSet.duty {
+				// Do nothing if duty doesn't match
+				continue
+			}
 
-				// Arranging ParSignedDataSet because we are getting data per DV (pubkey and psigs) while we need
-				// group per node and arrange with per DV wise, for example:
-				// sets[1] means data sent by peer 0:
-				// {
-				//   dv0_pubkey: psig_dv0_peer0,
-				//   dv1_pubkey: psig_dv1_peer0,
-				//   ...
-				// }
-				for _, sig := range peerSet.psigs {
-					if sets[sig.ShareIdx] == nil {
-						sets[sig.ShareIdx] = make(core.ParSignedDataSet)
-					}
-					sets[sig.ShareIdx][peerSet.pubkey] = sig
-				}
-				remaining--
+			switch peerSet.duty {
+			case dutyLock, dutyDepositData:
+				sets[peerSet.pubkey] = peerSet.psigs
 			default:
 				return nil, errors.New("invalid data")
 			}
 		}
 
-		// We are done when we have ParSignedDataSet from all the peers including the current one of all the DVs
-		if remaining == 0 {
+		// We are done when we have ParSignedData of all the DVs from all each peer
+		if len(sets) == e.numVals {
 			break
 		}
 	}
