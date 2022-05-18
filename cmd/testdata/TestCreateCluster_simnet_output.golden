@@ -6,6 +6,7 @@ Created charon cluster:
 
 charon/
 ├─ manifest.json	Cluster manifest defines the cluster; used by all nodes
+├─ deposit-data.json	Deposit data file is used to activate a Distributed Validator on DV Launchpad
 ├─ run_cluster.sh	Convenience script to run all nodes
 ├─ teamocil.yml		Teamocil config for splitting logs in tmux panes
 ├─ node[0-3]/		Directory for each node
