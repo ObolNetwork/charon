@@ -38,6 +38,8 @@ var (
 
 	// DOMAIN_DEPOSIT. See spec: https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#domain-types
 	depositDomainType = eth2p0.DomainType([4]byte{0x03, 0x00, 0x00, 0x00})
+
+	depositCliVersion = "2.1.0"
 )
 
 // getMessageRoot returns a deposit message hash root created by the parameters.
@@ -97,7 +99,8 @@ func MarshalDepositData(pubkey eth2p0.BLSPubKey, withdrawalAddr string, network 
 		DepositDataRoot:       fmt.Sprintf("%x", dataRoot),
 		ForkVersion:           fmt.Sprintf("%x", forkVersion),
 		NetworkName:           network,
-	}, "", " ")
+		DepositCliVersion:     depositCliVersion,
+	}, "", "  ") // use 2 space tabs
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal deposit data")
 	}
@@ -212,4 +215,5 @@ type depositDataJSON struct {
 	DepositDataRoot       string `json:"deposit_data_root"`
 	ForkVersion           string `json:"fork_version"`
 	NetworkName           string `json:"network_name"`
+	DepositCliVersion     string `json:"deposit_cli_version"`
 }
