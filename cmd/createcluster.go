@@ -249,7 +249,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		msgSigs = append(msgSigs, sigEth2)
 	}
 
-	if err := writeDepositData(conf, pubkeys, msgSigs, "", ""); err != nil {
+	if err := writeDepositData(conf, pubkeys, msgSigs, conf.WithdrawalAddr, conf.Network); err != nil {
 		return err
 	}
 
