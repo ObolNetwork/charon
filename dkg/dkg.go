@@ -231,17 +231,17 @@ func Run(ctx context.Context, conf Config) error {
 		Validators: dvs,
 	}
 
-	if conf.TestSigning {
-		sig, err := aggSignLockHash(ctx, tcpNode, nodeIdx, nil, lock, shares)
-		if err != nil {
-			return err
-		}
-
-		lock.SignatureAggregate, err = sig.MarshalBinary()
-		if err != nil {
-			return errors.Wrap(err, "marshal signature")
-		}
-	}
+	// if conf.TestSigning {
+	//	sig, err := aggSignLockHash(ctx, tcpNode, nodeIdx, nil, lock, shares)
+	//	if err != nil {
+	//		return err
+	//	}
+	//
+	//	lock.SignatureAggregate, err = sig.MarshalBinary()
+	//	if err != nil {
+	//		return errors.Wrap(err, "marshal signature")
+	//	}
+	//}
 
 	return writeLock(conf.DataDir, lock)
 }
@@ -283,86 +283,45 @@ func setupP2P(ctx context.Context, datadir string, p2pConf p2p.Config, peers []p
 	}, nil
 }
 
-// aggSignLockHash returns the aggregated multi signature of the lock hash
+// aggLockHashSigs returns the aggregated multi signature of the lock hash
 // signed by all the distributed validator group private keys.
-func aggSignLockHash(ctx context.Context, tcpNode host.Host, nodeIdx cluster.NodeIdx,
-	peers []peer.ID, lock cluster.Lock, shares []share,
-) (*bls_sig.MultiSignature, error) {
-	// Create partial signatures of lock hash
-	signedSet, err := signLockHash(lock, nodeIdx.ShareIdx, shares)
-	if err != nil {
-		return nil, err
-	}
-
-	// Wire core workflow components:
-	//  - parsigdb: stores our and other's partial signatures.
-	//  - parsigex: exchanges signatures between all nodes' parsigdb
-	//  - makeSigAgg: aggregates threshold signatures once enough has been received.
-	//
-	// Note that these components do not contain goroutines (so nothing is started or stopped)
-	// These components are driven by the call to sigdb.StoreInternal below and
-	// by libp2p messages received from other peers.
-	sigChan := make(chan *bls_sig.Signature, len(lock.Validators))    // Make output of sig aggregation
-	sigdb := parsigdb.NewMemDB(lock.Threshold)                        // Make parsigdb
-	exchange := parsigex.NewParSigEx(tcpNode, nodeIdx.PeerIdx, peers) // Make parsigex
-	sigdb.SubscribeInternal(exchange.Broadcast)                       // Wire parsigex to parsigdb
-	sigdb.SubscribeThreshold(makeSigAgg(sigChan))                     // Wire sigagg to parsigdb output
-	exchange.Subscribe(sigdb.StoreExternal)                           // Wire parsigdb to parsigex
-
-	// Start the process by inserting the partial signatures
-	err = sigdb.StoreInternal(ctx, core.Duty{}, signedSet)
-	if err != nil {
-		return nil, err
-	}
-
-	// Wait until all group signatures pop out.
-	var sigs []*bls_sig.Signature
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, err
-		case sig := <-sigChan:
-			sigs = append(sigs, sig)
+//nolint: deadcode
+func aggLockHashSigs(data map[core.PubKey][]core.ParSignedData) (*bls_sig.MultiSignature, *bls_sig.MultiPublicKey, error) {
+	var (
+		sigs    []*bls_sig.Signature
+		pubkeys []*bls_sig.PublicKey
+	)
+	for pk, psigs := range data {
+		pubkey, err := tblsconv.KeyFromCore(pk)
+		if err != nil {
+			return nil, nil, err
 		}
-		if len(sigs) == len(lock.Validators) {
-			break
-		}
-	}
+		pubkeys = append(pubkeys, pubkey)
 
-	// Aggregate all group signatures.
-	b, err := tbls.Scheme().AggregateSignatures(sigs...)
-	if err != nil {
-		return nil, errors.Wrap(err, "aggregate signature")
-	}
-
-	return b, nil
-}
-
-// makeSigAgg returns a function that aggregates partial signatures.
-func makeSigAgg(sigChan chan<- *bls_sig.Signature) func(context.Context, core.Duty, core.PubKey, []core.ParSignedData) error {
-	return func(ctx context.Context, duty core.Duty, key core.PubKey, parSigs []core.ParSignedData) error {
-		var sigs []*bls_sig.PartialSignature
-		for _, parSig := range parSigs {
-			s, err := tblsconv.SigFromCore(parSig.Signature)
+		for _, s := range psigs {
+			sig := &bls_sig.Signature{}
+			err = sig.UnmarshalBinary(s.Signature)
 			if err != nil {
-				return errors.Wrap(err, "convert signature")
+				return nil, nil, errors.Wrap(err, "Unmarshal signature")
 			}
 
-			sigs = append(sigs, &bls_sig.PartialSignature{
-				Identifier: byte(parSig.ShareIdx),
-				Signature:  s.Value,
-			})
+			sigs = append(sigs, sig)
 		}
-
-		agg, err := tbls.Aggregate(sigs)
-		if err != nil {
-			return err
-		}
-
-		sigChan <- agg
-
-		return nil
 	}
+
+	// Full BLS Signature Aggregation
+	aggSig, err := tbls.Scheme().AggregateSignatures(sigs...)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "BLS Aggregate Signatures")
+	}
+
+	// Aggregate Public Keys to verify aggregated signature
+	aggPubKey, err := tbls.Scheme().AggregatePublicKeys(pubkeys...)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "BLS Aggregate Public Keys")
+	}
+
+	return aggSig, aggPubKey, nil
 }
 
 // signLockHash returns a partially signed dataset containing signatures of the lock hash be each DV.
