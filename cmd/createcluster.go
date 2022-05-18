@@ -199,13 +199,13 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 
 	var depositDatas [][]byte
 	for i := 0; i < numDVs; i++ {
-		sk := secrets[i] // Group secret key for this DV
-		pubkey, err := sk.GetPublicKey()
+		sk := secrets[i] // Secret key for this DV
+		pk, err := sk.GetPublicKey()
 		if err != nil {
 			return errors.Wrap(err, "secret to pubkey")
 		}
 
-		pk, err := tblsconv.KeyToETH2(pubkey) // Group pubkey
+		pubkey, err := tblsconv.KeyToETH2(pk)
 		if err != nil {
 			return err
 		}
@@ -213,7 +213,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		withdrawalAddr := "0xc0404ed740a69d11201f5ed297c5732f562c6e4e"
 		network := "prater"
 
-		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddr, network)
+		msgRoot, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, network)
 		if err != nil {
 			return err
 		}
@@ -224,7 +224,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		}
 
 		sigEth2 := tblsconv.SigToETH2(sig)
-		bytes, err := deposit.MarshalDepositData(pk, withdrawalAddr, network, sigEth2)
+		bytes, err := deposit.MarshalDepositData(pubkey, withdrawalAddr, network, sigEth2)
 		if err != nil {
 			return err
 		}
