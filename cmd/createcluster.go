@@ -26,6 +26,7 @@ import (
 	"strings"
 	"text/template"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
@@ -196,8 +197,9 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 
 	// TODO(xenowits): add flag to specify the number of distributed validators in a cluster
 	// Currently, we assume that we create a cluster of ONLY 1 Distributed Validator
-	var depositDatas [][]byte
-	for i := 0; i < conf.NumDVs+1; i++ { // Note that default value of conf.NumDVs is 0
+	var pubkeys []eth2p0.BLSPubKey
+	var msgSigs []eth2p0.BLSSignature
+	for i := 0; i < conf.NumDVs+1; i++ {
 		sk := secrets[i] // Group secret key for this DV
 		pubkey, err := sk.GetPublicKey()
 		if err != nil {
@@ -223,15 +225,12 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		}
 
 		sigEth2 := tblsconv.SigToETH2(sig)
-		bytes, err := deposit.MarshalDepositData(pk, withdrawalAddr, network, sigEth2)
-		if err != nil {
-			return err
-		}
 
-		depositDatas = append(depositDatas, bytes)
+		pubkeys = append(pubkeys, pk)
+		msgSigs = append(msgSigs, sigEth2)
 	}
 
-	if err := writeDepositData(conf, depositDatas); err != nil {
+	if err := writeDepositData(conf, pubkeys, msgSigs, "", ""); err != nil {
 		return err
 	}
 
@@ -323,10 +322,11 @@ func getKeys(conf clusterConfig) ([]*bls_sig.SecretKey, error) {
 }
 
 // writeDepositData writes deposit data to disk for the DVs in a cluster.
-func writeDepositData(config clusterConfig, b [][]byte) error {
+func writeDepositData(config clusterConfig, pubkeys []eth2p0.BLSPubKey, msgSigs []eth2p0.BLSSignature, withdrawalAddr, network string) error {
 	depositPath := path.Join(config.ClusterDir, "deposit-data.json")
 
-	bytes, err := deposit.MarshalDepositDatas(b)
+	// serialize the deposit data into bytes
+	bytes, err := deposit.MarshalDepositData(pubkeys, msgSigs, withdrawalAddr, network)
 	if err != nil {
 		return err
 	}

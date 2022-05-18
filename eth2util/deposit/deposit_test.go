@@ -17,11 +17,11 @@ package deposit_test
 
 import (
 	"encoding/hex"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"os"
 	"testing"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util/deposit"
@@ -35,32 +35,7 @@ const (
 	network        = "prater"
 )
 
-func TestDepositData(t *testing.T) {
-	file := "testdata/deposit-data.json"
-	privKey := "07e0355752a16fdc473d01676f7f82594991ea830eea928d8e2254dfd98d4beb"
-
-	sk, pubkey := GetKeys(t, privKey)
-
-	// Get deposit message signing root
-	msgSigningRoot, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, network)
-	require.NoError(t, err)
-
-	// Sign it
-	s, err := tbls.Sign(sk, msgSigningRoot[:])
-	require.NoError(t, err)
-	sigEth2 := tblsconv.SigToETH2(s)
-
-	// Check if serialized versions match.
-	actual, err := deposit.MarshalDepositData(pubkey, withdrawalAddr, network, sigEth2)
-	require.NoError(t, err)
-
-	// Not using golden file since output MUST never change.
-	expected, err := os.ReadFile(file)
-	require.NoError(t, err)
-	require.Equal(t, expected, actual)
-}
-
-func TestMarshalDepositDatas(t *testing.T) {
+func TestMarshalDepositData(t *testing.T) {
 	file := "testdata/deposit-datas.json"
 	privKeys := []string{
 		"01477d4bfbbcebe1fef8d4d6f624ecbb6e3178558bb1b0d6286c816c66842a6d",
@@ -69,7 +44,8 @@ func TestMarshalDepositDatas(t *testing.T) {
 		"002ff4fd29d3deb6de9f5d115182a49c618c97acaa365ad66a0b240bd825c4ff",
 	}
 
-	var depositDatas [][]byte
+	var pubkeys []eth2p0.BLSPubKey
+	var msgsigs []eth2p0.BLSSignature
 
 	for i := 0; i < len(privKeys); i++ {
 		sk, pk := GetKeys(t, privKeys[i])
@@ -81,13 +57,12 @@ func TestMarshalDepositDatas(t *testing.T) {
 		require.NoError(t, err)
 
 		sigEth2 := tblsconv.SigToETH2(sig)
-		bytes, err := deposit.MarshalDepositData(pk, withdrawalAddr, network, sigEth2)
-		require.NoError(t, err)
 
-		depositDatas = append(depositDatas, bytes)
+		pubkeys = append(pubkeys, pk)
+		msgsigs = append(msgsigs, sigEth2)
 	}
 
-	actual, err := deposit.MarshalDepositDatas(depositDatas)
+	actual, err := deposit.MarshalDepositData(pubkeys, msgsigs, withdrawalAddr, network)
 	require.NoError(t, err)
 
 	// Not using golden file since output MUST never change.
