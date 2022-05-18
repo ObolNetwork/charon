@@ -27,6 +27,7 @@ import (
 	"text/template"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/spf13/cobra"
@@ -84,9 +85,12 @@ windows:
 type clusterConfig struct {
 	ClusterDir string
 	Clean      bool
-	NumNodes   int
-	NumDVs     int
-	Threshold  int
+
+	NumNodes       int
+	NumDVs         int
+	Threshold      int
+	WithdrawalAddr string
+	Network        string
 
 	SplitKeys    bool
 	SplitKeysDir string
@@ -119,6 +123,8 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
+	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", "0000000000000000000000000000000000000000", "Ethereum address to receive the returned stake and accrued rewards.")
+	flags.StringVar(&config.Network, "network", "prater", "Ethereum network to create validators for (default: mainnet). Options: mainnet, prater, kintsugi, kiln, gnosis.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
 
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Enables splitting of existing non-dvt validator keys into distributed threshold private shares (instead of creating new random keys).")
@@ -209,10 +215,16 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 			return err
 		}
 
-		withdrawalAddr := "0xc0404ed740a69d11201f5ed297c5732f562c6e4e"
-		network := "prater"
+		withdrawalAddr, err := validAddr(conf.WithdrawalAddr)
+		if err != nil {
+			return err
+		}
 
-		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddr, network)
+		if !validNetwork(conf.Network) {
+			return errors.New("invalid network")
+		}
+
+		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddr, conf.Network)
 		if err != nil {
 			return err
 		}
@@ -223,7 +235,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		}
 
 		sigEth2 := tblsconv.SigToETH2(sig)
-		bytes, err := deposit.MarshalDepositData(pk, withdrawalAddr, network, sigEth2)
+		bytes, err := deposit.MarshalDepositData(pk, withdrawalAddr, conf.Network, sigEth2)
 		if err != nil {
 			return err
 		}
@@ -547,4 +559,28 @@ func nextPortFunc(startPort int) func() int {
 		port++
 		return port
 	}
+}
+
+// validAddr returns a valid checksummed ethereum address. Returns an error if a valid address cannot be constructed.
+func validAddr(a string) (string, error) {
+	if !common.IsHexAddress(a) {
+		return "", errors.New("invalid address")
+	}
+
+	hexAddr := common.HexToAddress(a)
+
+	return hexAddr.Hex(), nil
+}
+
+// validNetwork returns true if the input network is supported. Returns false otherwise.
+func validNetwork(network string) bool {
+	validNetworks := []string{"prater", "kintsugi", "kiln", "gnosis", "mainnet"}
+
+	for _, n := range validNetworks {
+		if n == network {
+			return true
+		}
+	}
+
+	return false
 }
