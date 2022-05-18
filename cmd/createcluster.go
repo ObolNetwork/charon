@@ -28,6 +28,7 @@ import (
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/spf13/cobra"
@@ -35,6 +36,7 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
@@ -82,12 +84,20 @@ windows:
 {{end}}
 `
 
+const (
+	defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
+	defaultNetwork        = "prater"
+)
+
 type clusterConfig struct {
 	ClusterDir string
 	Clean      bool
-	NumNodes   int
-	NumDVs     int
-	Threshold  int
+
+	NumNodes       int
+	NumDVs         int
+	Threshold      int
+	WithdrawalAddr string
+	Network        string
 
 	SplitKeys    bool
 	SplitKeysDir string
@@ -120,6 +130,8 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
+	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", defaultWithdrawalAddr, "Ethereum address to receive the returned stake and accrued rewards.")
+	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for (default: mainnet). Options: mainnet, prater, kintsugi, kiln, gnosis.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
 
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Enables splitting of existing non-dvt validator keys into distributed threshold private shares (instead of creating new random keys).")
@@ -211,10 +223,17 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 			return err
 		}
 
-		withdrawalAddr := "0xc0404ed740a69d11201f5ed297c5732f562c6e4e"
-		network := "prater"
+		withdrawalAddr, err := validAddr(conf.WithdrawalAddr)
+		if err != nil {
+			return err
+		}
 
-		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddr, network)
+		err = validNetwork(conf)
+		if err != nil {
+			return err
+		}
+
+		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddr, conf.Network)
 		if err != nil {
 			return err
 		}
@@ -547,4 +566,33 @@ func nextPortFunc(startPort int) func() int {
 		port++
 		return port
 	}
+}
+
+// validAddr returns a valid checksummed ethereum address. Returns an error if a valid address cannot be constructed.
+func validAddr(a string) (string, error) {
+	if !common.IsHexAddress(a) {
+		return "", errors.New("invalid address")
+	}
+
+	hexAddr := common.HexToAddress(a)
+
+	return hexAddr.Hex(), nil
+}
+
+// validNetwork returns an error if the input network is not supported or certain conditions are not met.
+func validNetwork(conf clusterConfig) error {
+	validNetworks := []string{"prater", "kintsugi", "kiln", "gnosis", "mainnet"}
+
+	// We cannot allow a zero withdrawal address on mainnet or gnosis.
+	if conf.WithdrawalAddr == defaultWithdrawalAddr && (conf.Network == "mainnet" || conf.Network == "gnosis") {
+		return errors.New("zero address", z.Str("network", conf.Network))
+	}
+
+	for _, n := range validNetworks {
+		if n == conf.Network {
+			return nil
+		}
+	}
+
+	return errors.New("unsupported network", z.Str("network", conf.Network))
 }
