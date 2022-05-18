@@ -19,6 +19,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"github.com/obolnetwork/charon/app/z"
 	"io"
 	"net"
 	"os"
@@ -82,6 +83,8 @@ windows:
 {{end}}
 `
 
+const defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
+
 type clusterConfig struct {
 	ClusterDir string
 	Clean      bool
@@ -123,7 +126,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
-	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", "0000000000000000000000000000000000000000", "Ethereum address to receive the returned stake and accrued rewards.")
+	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", defaultWithdrawalAddr, "Ethereum address to receive the returned stake and accrued rewards.")
 	flags.StringVar(&config.Network, "network", "prater", "Ethereum network to create validators for (default: mainnet). Options: mainnet, prater, kintsugi, kiln, gnosis.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
 
@@ -220,8 +223,9 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 			return err
 		}
 
-		if !validNetwork(conf.Network) {
-			return errors.New("invalid network")
+		err = validNetwork(conf)
+		if err != nil {
+			return err
 		}
 
 		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddr, conf.Network)
@@ -572,15 +576,20 @@ func validAddr(a string) (string, error) {
 	return hexAddr.Hex(), nil
 }
 
-// validNetwork returns true if the input network is supported. Returns false otherwise.
-func validNetwork(network string) bool {
+// validNetwork returns an error if the input network is not supported or certain conditions are not met.
+func validNetwork(conf clusterConfig) error {
 	validNetworks := []string{"prater", "kintsugi", "kiln", "gnosis", "mainnet"}
 
+	// We cannot allow a zero withdrawal address on mainnet or gnosis.
+	if conf.WithdrawalAddr == defaultWithdrawalAddr && (conf.Network == "mainnet" || conf.Network == "gnosis") {
+		return errors.New("zero address", z.Str("network", conf.Network))
+	}
+
 	for _, n := range validNetworks {
-		if n == network {
-			return true
+		if n == conf.Network {
+			return nil
 		}
 	}
 
-	return false
+	return errors.New("unsupported network", z.Str("network", conf.Network))
 }

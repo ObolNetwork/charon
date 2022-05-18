@@ -135,3 +135,27 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 		testutil.RequireGoldenBytes(t, b)
 	})
 }
+
+func TestValidAddr(t *testing.T) {
+	expected := "0xC0404ed740a69d11201f5eD297c5732F562c6E4e"
+	got, err := validAddr(expected)
+	require.NoError(t, err)
+	require.Equal(t, got, expected)
+
+	expected = "0x32F562c6E4eexyzXYZ69d11201f5eD297c57C0404"
+	got, err = validAddr(expected)
+	require.Error(t, err, "invalid address")
+}
+
+func TestValidNetwork(t *testing.T) {
+	conf := clusterConfig{
+		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
+		Network:        "gnosis",
+	}
+	err := validNetwork(conf)
+	require.Error(t, err, "zero address")
+
+	conf.Network = "prater"
+	err = validNetwork(conf)
+	require.NoError(t, err)
+}
