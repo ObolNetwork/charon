@@ -140,14 +140,14 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 	})
 }
 
-func TestValidAddr(t *testing.T) {
+func TestChecksumAddr(t *testing.T) {
 	expected := "0xC0404ed740a69d11201f5eD297c5732F562c6E4e"
-	got, err := validAddr(expected)
+	got, err := checksumAddr(expected)
 	require.NoError(t, err)
 	require.Equal(t, got, expected)
 
 	expected = "0x32F562c6E4eexyzXYZ69d11201f5eD297c57C0404"
-	_, err = validAddr(expected)
+	_, err = checksumAddr(expected)
 	require.Error(t, err, "invalid address")
 }
 
@@ -156,10 +156,10 @@ func TestValidNetwork(t *testing.T) {
 		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
 		Network:        "gnosis",
 	}
-	err := validNetwork(conf)
+	err := validNetwork(conf.WithdrawalAddr, conf.Network)
 	require.Error(t, err, "zero address")
 
 	conf.Network = "prater"
-	err = validNetwork(conf)
+	err = validNetwork(conf.WithdrawalAddr, conf.Network)
 	require.NoError(t, err)
 }
