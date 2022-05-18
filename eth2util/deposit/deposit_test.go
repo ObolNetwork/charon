@@ -36,7 +36,7 @@ const (
 )
 
 func TestMarshalDepositData(t *testing.T) {
-	file := "testdata/deposit-datas.json"
+	file := "testdata/deposit-data.json"
 	privKeys := []string{
 		"01477d4bfbbcebe1fef8d4d6f624ecbb6e3178558bb1b0d6286c816c66842a6d",
 		"5b77c0f0ef7c4ddc123d55b8bd93daeefbd7116764a941c0061a496649e145b5",
