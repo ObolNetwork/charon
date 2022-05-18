@@ -310,7 +310,6 @@ func getKeys(conf clusterConfig, numDVs int) ([]*bls_sig.SecretKey, error) {
 		return keystore.LoadKeys(conf.SplitKeysDir)
 	}
 
-	// TODO(corver): Add flag to generate more distributed-validators than 1
 	var secrets []*bls_sig.SecretKey
 	for i := 0; i < numDVs; i++ { // Note that default value of conf.NumDVs is 0
 		_, secret, err := tbls.KeygenWithSeed(rand.Reader)
