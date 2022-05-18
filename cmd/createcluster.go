@@ -143,7 +143,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVar(&config.ConfigPortStart, "config-port-start", 16000, "Starting port number used in config files. Requires --config.")
 }
 
-func runCreateCluster(w io.Writer, conf clusterConfig) error {
+func runCreateCluster(w io.Writer, conf clusterConfig) error { //nolint:gocognit
 	if conf.Clean {
 		// Remove previous directories
 		if err := os.RemoveAll(conf.ClusterDir); err != nil {
