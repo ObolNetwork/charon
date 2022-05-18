@@ -107,7 +107,7 @@ func (e *exchanger) exchange(ctx context.Context, duty core.DutyType, set core.P
 			switch peerSet.duty {
 			case DutyLock, DutyDepositData:
 				if duty != peerSet.duty {
-					// Do nothing if duty doesn't match as deposit datas can also be exchanged
+					// Do nothing if duty doesn't match
 					continue
 				}
 
