@@ -147,7 +147,7 @@ func TestValidAddr(t *testing.T) {
 	require.Equal(t, got, expected)
 
 	expected = "0x32F562c6E4eexyzXYZ69d11201f5eD297c57C0404"
-	got, err = validAddr(expected)
+	_, err = validAddr(expected)
 	require.Error(t, err, "invalid address")
 }
 
