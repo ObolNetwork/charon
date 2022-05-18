@@ -61,16 +61,21 @@ type sigData struct {
 
 // exchanger is responsible for exchanging partial signatures between peers on libp2p.
 type exchanger struct {
-	sigChan chan sigData
-	sigex   *parsigex.ParSigEx
-	sigdb   *parsigdb.MemDB
+	sigChan  chan sigData
+	sigex    *parsigex.ParSigEx
+	sigdb    *parsigdb.MemDB
+	numPeers int
+	numVals  int
 }
 
-func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID) exchanger {
-	ex := exchanger{
-		sigdb:   parsigdb.NewMemDB(len(peers)),
-		sigex:   parsigex.NewParSigEx(tcpNode, peerIdx, peers),
-		sigChan: make(chan sigData, len(peers)),
+func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) *exchanger {
+	ex := &exchanger{
+		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
+		sigdb:    parsigdb.NewMemDB(len(peers)),
+		sigex:    parsigex.NewParSigEx(tcpNode, peerIdx, peers),
+		sigChan:  make(chan sigData, vals),
+		numPeers: len(peers),
+		numVals:  vals,
 	}
 
 	// Wiring core workflow components
@@ -83,15 +88,17 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID) exchanger {
 
 // exchange exhanges partial signatures of lockhash/deposit-data among dkg participants and returns all the partial
 // signatures of the group according to public key of each DV.
-func (e *exchanger) exchange(ctx context.Context, duty core.DutyType, set core.ParSignedDataSet, shareIdx int) ([]core.ParSignedDataSet, error) {
+func (e *exchanger) exchange(ctx context.Context, duty core.DutyType, set core.ParSignedDataSet) ([]core.ParSignedDataSet, error) {
+	// Start the process by storing current peer's ParSignedDataSet
 	err := e.sigdb.StoreInternal(ctx, core.Duty{Type: duty}, set)
 	if err != nil {
 		return nil, err
 	}
 
-	// len(sets) is cap(e.sigChan) because of shareIdx being 1-indexed
-	sets := make([]core.ParSignedDataSet, cap(e.sigChan)+1)
-	sets[shareIdx] = set
+	// len(sets) is numPeers + 1 because of shareIdx being 1-indexed
+	sets := make([]core.ParSignedDataSet, e.numPeers+1)
+	// remaining is set to number of DVs because we are getting response with respect to each DV
+	remaining := e.numVals
 	for {
 		select {
 		case <-ctx.Done():
@@ -104,16 +111,28 @@ func (e *exchanger) exchange(ctx context.Context, duty core.DutyType, set core.P
 					continue
 				}
 
+				// Arranging ParSignedDataSet because we are getting data per DV (pubkey and psigs) while we need
+				// group per node and arrange with per DV wise, for example:
+				// sets[1] means data sent by peer 0:
+				// {
+				//   dv0_pubkey: psig_dv0_peer0,
+				//   dv1_pubkey: psig_dv1_peer0,
+				//   ...
+				// }
 				for _, sig := range peerSet.psigs {
+					if sets[sig.ShareIdx] == nil {
+						sets[sig.ShareIdx] = make(core.ParSignedDataSet)
+					}
 					sets[sig.ShareIdx][peerSet.pubkey] = sig
 				}
+				remaining--
 			default:
 				return nil, errors.New("invalid data")
 			}
 		}
 
-		// We are done when we have ParSignedDataSet from all the peers including the current one
-		if len(sets) == cap(e.sigChan) {
+		// We are done when we have ParSignedDataSet from all the peers including the current one of all the DVs
+		if remaining == 0 {
 			break
 		}
 	}
@@ -121,6 +140,7 @@ func (e *exchanger) exchange(ctx context.Context, duty core.DutyType, set core.P
 	return sets, nil
 }
 
+// pushPsigs is responsible for writing partial signature data to sigChan obtained from other peers.
 func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, pk core.PubKey, psigs []core.ParSignedData) error {
 	e.sigChan <- sigData{
 		duty:   duty.Type,
@@ -166,7 +186,7 @@ func Run(ctx context.Context, conf Config) error {
 	}
 	clusterID := fmt.Sprintf("%x", defHash[:])
 
-	_ = newExchanger(tcpNode, nodeIdx.PeerIdx, nil)
+	_ = newExchanger(tcpNode, nodeIdx.PeerIdx, nil, def.NumValidators)
 
 	var shares []share
 	switch def.DKGAlgorithm {
