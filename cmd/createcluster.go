@@ -193,30 +193,28 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		return err
 	}
 
-	// Create public keys and message signatures to write as deposit data file
+	// Create public keys and message signatures to create deposit data file
 	pubkeys, msgSigs, err := createDepositData(secrets, conf.WithdrawalAddr, conf.Network, numDVs)
 	if err != nil {
 		return nil
 	}
 
-	if err := writeDepositData(conf, pubkeys, msgSigs, conf.WithdrawalAddr, conf.Network); err != nil {
+	if err = writeDepositData(conf, pubkeys, msgSigs, conf.WithdrawalAddr, conf.Network); err != nil {
 		return err
 	}
 
 	// TODO(corver): Write deposit datas if not simnet
 
-	if err := writeManifest(conf, dvs, peers); err != nil {
+	if err = writeManifest(conf, dvs, peers); err != nil {
 		return err
 	}
 
 	if conf.ConfigEnabled {
-		err = writeClusterScript(conf.ClusterDir, conf.NumNodes)
-		if err != nil {
+		if err = writeClusterScript(conf.ClusterDir, conf.NumNodes); err != nil {
 			return errors.Wrap(err, "write cluster script")
 		}
 
-		err = writeTeamocilYML(conf.ClusterDir, conf.NumNodes)
-		if err != nil {
+		if err = writeTeamocilYML(conf.ClusterDir, conf.NumNodes); err != nil {
 			return errors.Wrap(err, "write teamocil.yml")
 		}
 	}
@@ -230,7 +228,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 	return nil
 }
 
-func createDepositData(secrets []*bls_sig.SecretKey, withdrawalAddr string, network string, numDVs int) ([]eth2p0.BLSPubKey, []eth2p0.BLSSignature, error) {
+func createDepositData(secrets []*bls_sig.SecretKey, addr string, network string, numDVs int) ([]eth2p0.BLSPubKey, []eth2p0.BLSSignature, error) {
 	// TODO(xenowits): add flag to specify the number of distributed validators in a cluster
 	// Currently, we assume that we create a cluster of ONLY 1 Distributed Validator
 	var pubkeys []eth2p0.BLSPubKey
@@ -248,13 +246,12 @@ func createDepositData(secrets []*bls_sig.SecretKey, withdrawalAddr string, netw
 			return nil, nil, err
 		}
 
-		withdrawalAddr, err := checksumAddr(withdrawalAddr)
+		withdrawalAddr, err := checksumAddr(addr)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		err = validNetwork(withdrawalAddr, network)
-		if err != nil {
+		if err = validNetwork(withdrawalAddr, network); err != nil {
 			return nil, nil, err
 		}
 
