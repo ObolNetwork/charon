@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -104,6 +105,10 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 			DepositCliVersion:     depositCliVersion,
 		})
 	}
+
+	sort.Slice(ddList, func(i, j int) bool {
+		return ddList[i].PubKey < ddList[j].PubKey
+	})
 
 	bytes, err := json.MarshalIndent(ddList, "", " ")
 	if err != nil {
