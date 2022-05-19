@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -35,12 +36,15 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
+
+const clusterName = "local"
 
 const scriptTmpl = `#!/usr/bin/env bash
 
@@ -367,9 +371,71 @@ func writeDepositData(conf clusterConfig, secrets []*bls_sig.SecretKey) error {
 	return nil
 }
 
-func writeLock(_ clusterConfig, _ []tbls.TSS, _ []p2p.Peer) error {
-	// TODO(corver): Create lock file.
+// writeLock creates a cluster lock and writes it to disk.
+func writeLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) error {
+	lock, err := newLock(conf, dvs, peers)
+	if err != nil {
+		return err
+	}
+
+	b, err := json.MarshalIndent(lock, "", " ")
+	if err != nil {
+		return errors.Wrap(err, "marshal cluster lock")
+	}
+
+	lockPath := path.Join(conf.ClusterDir, "cluster-lock.json")
+	err = os.WriteFile(lockPath, b, 0o400) // read-only
+	if err != nil {
+		return errors.Wrap(err, "write cluster lock")
+	}
+
 	return nil
+}
+
+// newLock returns a new unsigned cluster lock.
+func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock, error) {
+	var ops []cluster.Operator
+	for _, p := range peers {
+		enrStr, err := p2p.EncodeENR(p.ENR)
+		if err != nil {
+			return cluster.Lock{}, err
+		}
+
+		ops = append(ops, cluster.Operator{ENR: enrStr})
+	}
+
+	var vals []cluster.DistValidator
+	for _, dv := range dvs {
+		pk, err := tblsconv.KeyToCore(dv.PublicKey())
+		if err != nil {
+			return cluster.Lock{}, err
+		}
+
+		var pubshares [][]byte
+		for i := 0; i < dv.NumShares(); i++ {
+			share, err := dv.PublicShare(i + 1) // Shares are 1-indexed.
+			if err != nil {
+				return cluster.Lock{}, err
+			}
+			b, err := share.MarshalBinary()
+			if err != nil {
+				return cluster.Lock{}, errors.Wrap(err, "marshal pubshare")
+			}
+			pubshares = append(pubshares, b)
+		}
+
+		vals = append(vals, cluster.DistValidator{
+			PubKey:    string(pk),
+			PubShares: pubshares,
+		})
+	}
+
+	def := cluster.NewDefinition(clusterName, len(dvs), conf.Threshold, "", "", "", ops, rand.Reader)
+
+	return cluster.Lock{
+		Definition: def,
+		Validators: vals,
+	}, nil
 }
 
 // newPeer returns a new peer, generating a p2pkey and ENR and node directory and run script in the process.
