@@ -20,20 +20,21 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/p2p"
 )
 
 func TestDecodeENR(t *testing.T) {
-	manifest, _, _ := app.NewClusterForT(t, 1, 3, 4, 0)
+	lock, _, _ := cluster.NewForT(t, 1, 3, 4, 0)
 
-	for _, p := range manifest.Peers {
-		enrStr, err := p2p.EncodeENR(p.ENR)
+	for _, o := range lock.Operators {
+		record, err := p2p.DecodeENR(o.ENR)
 		require.NoError(t, err)
 
-		record2, err := p2p.DecodeENR(enrStr)
+		enrStr, err := p2p.EncodeENR(record)
 		require.NoError(t, err)
-		require.Equal(t, p.ENR, record2)
+
+		require.Equal(t, o.ENR, enrStr)
 	}
 }
 

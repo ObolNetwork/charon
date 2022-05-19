@@ -95,9 +95,9 @@ Flags:
   -h, --help                           Help for run
       --jaeger-address string          Listening address for jaeger tracing
       --jaeger-service string          Service name used for jaeger tracing (default "charon")
+      --lock-file string               The path to the cluster lock file defining distributed validator cluster (default ".charon/cluster_lock.json")
       --log-format string              Log format; console, logfmt or json (default "console")
       --log-level string               Log level; debug, info, warn or error (default "info")
-      --manifest-file string           The path to the manifest file defining distributed validator cluster (default ".charon/manifest.json")
       --monitoring-address string      Listening address (ip and port) for the monitoring API (prometheus, pprof) (default "127.0.0.1:16001")
       --p2p-allowlist string           Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.
       --p2p-bootmanifest               Enables using manifest ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs.

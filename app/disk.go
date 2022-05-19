@@ -20,23 +20,24 @@ import (
 	"os"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/cluster"
 )
 
-// loadManifest reads the cluster manifest from the given file path.
-func loadManifest(conf Config) (Manifest, error) {
-	if conf.TestConfig.Manifest != nil {
-		return *conf.TestConfig.Manifest, nil
+// loadLock reads the cluster lock from the given file path.
+func loadLock(conf Config) (cluster.Lock, error) {
+	if conf.TestConfig.Lock != nil {
+		return *conf.TestConfig.Lock, nil
 	}
 
-	buf, err := os.ReadFile(conf.ManifestFile)
+	buf, err := os.ReadFile(conf.LockFile)
 	if err != nil {
-		return Manifest{}, errors.Wrap(err, "read manifest")
+		return cluster.Lock{}, errors.Wrap(err, "read manifest")
 	}
 
-	var res Manifest
+	var res cluster.Lock
 	err = json.Unmarshal(buf, &res)
 	if err != nil {
-		return Manifest{}, errors.Wrap(err, "unmarshal manifest")
+		return cluster.Lock{}, errors.Wrap(err, "unmarshal manifest")
 	}
 
 	return res, nil

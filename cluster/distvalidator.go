@@ -15,11 +15,17 @@
 
 package cluster
 
-import ssz "github.com/ferranbt/fastssz"
+import (
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	ssz "github.com/ferranbt/fastssz"
+
+	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
+)
 
 // DistValidator is a distributed validator (1x32ETH) managed by the cluster.
 type DistValidator struct {
-	// PubKey is the root distributed public key.
+	// PubKey is the distributed validator group public key.
 	PubKey string `json:"distributed_public_key"`
 
 	// PubShares are the public keys corresponding to each node's secret key share.
@@ -57,4 +63,14 @@ func (v DistValidator) HashTreeRootWith(hh *ssz.Hasher) error {
 	hh.Merkleize(indx)
 
 	return nil
+}
+
+// PublicKey returns the validator group public key.
+func (v DistValidator) PublicKey() (*bls_sig.PublicKey, error) {
+	return tblsconv.KeyFromCore(core.PubKey(v.PubKey))
+}
+
+// PublicShare returns a peer's threshold BLS public share.
+func (v DistValidator) PublicShare(peerIdx int) (*bls_sig.PublicKey, error) {
+	return tblsconv.KeyFromBytes(v.PubShares[peerIdx])
 }

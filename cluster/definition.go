@@ -289,12 +289,26 @@ func (d Definition) Peers() ([]p2p.Peer, error) {
 			return nil, err
 		}
 
-		peer, err := p2p.NewPeer(record, i)
+		p, err := p2p.NewPeer(record, i)
 		if err != nil {
 			return nil, err
 		}
 
-		resp = append(resp, peer)
+		resp = append(resp, p)
+	}
+
+	return resp, nil
+}
+
+// PeerIDs is a convenience function that returns the operators p2p peer IDs.
+func (d Definition) PeerIDs() ([]peer.ID, error) {
+	peers, err := d.Peers()
+	if err != nil {
+		return nil, err
+	}
+	var resp []peer.ID
+	for _, p := range peers {
+		resp = append(resp, p.ID)
 	}
 
 	return resp, nil
