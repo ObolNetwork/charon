@@ -143,7 +143,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVar(&config.ConfigPortStart, "config-port-start", 16000, "Starting port number used in config files. Requires --config.")
 }
 
-func runCreateCluster(w io.Writer, conf clusterConfig) error { //nolint:gocognit
+func runCreateCluster(w io.Writer, conf clusterConfig) error {
 	if conf.Clean {
 		// Remove previous directories
 		if err := os.RemoveAll(conf.ClusterDir); err != nil {
@@ -188,90 +188,33 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error { //nolint:gocognit
 	}
 
 	// Create p2p peers
-	var peers []p2p.Peer
-	for i := 0; i < conf.NumNodes; i++ {
-		peer, err := newPeer(conf, i, nextPort)
-		if err != nil {
-			return err
-		}
-
-		peers = append(peers, peer)
-
-		var secrets []*bls_sig.SecretKey
-		for _, shares := range shareSets {
-			secret, err := tblsconv.ShareToSecret(shares[i])
-			if err != nil {
-				return err
-			}
-			secrets = append(secrets, secret)
-		}
-
-		if err := keystore.StoreKeys(secrets, nodeDir(conf.ClusterDir, i)); err != nil {
-			return err
-		}
+	peers, err := createPeers(conf, nextPort, shareSets)
+	if err != nil {
+		return err
 	}
 
-	// TODO(xenowits): add flag to specify the number of distributed validators in a cluster
-	// Currently, we assume that we create a cluster of ONLY 1 Distributed Validator
-	var pubkeys []eth2p0.BLSPubKey
-	var msgSigs []eth2p0.BLSSignature
-
-	for i := 0; i < numDVs; i++ {
-		sk := secrets[i] // Secret key for this DV
-		pk, err := sk.GetPublicKey()
-		if err != nil {
-			return errors.Wrap(err, "secret to pubkey")
-		}
-
-		pubkey, err := tblsconv.KeyToETH2(pk)
-		if err != nil {
-			return err
-		}
-
-		withdrawalAddr, err := checksumAddr(conf.WithdrawalAddr)
-		if err != nil {
-			return err
-		}
-
-		err = validNetwork(conf.WithdrawalAddr, conf.Network)
-		if err != nil {
-			return err
-		}
-
-		msgRoot, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, conf.Network)
-		if err != nil {
-			return err
-		}
-
-		sig, err := tbls.Sign(sk, msgRoot[:])
-		if err != nil {
-			return err
-		}
-
-		sigEth2 := tblsconv.SigToETH2(sig)
-
-		pubkeys = append(pubkeys, pubkey)
-		msgSigs = append(msgSigs, sigEth2)
+	// Create public keys and message signatures to create deposit data file
+	pubkeys, msgSigs, err := createDepositData(secrets, conf.WithdrawalAddr, conf.Network, numDVs)
+	if err != nil {
+		return nil
 	}
 
-	if err := writeDepositData(conf, pubkeys, msgSigs, conf.WithdrawalAddr, conf.Network); err != nil {
+	if err = writeDepositData(conf, pubkeys, msgSigs, conf.WithdrawalAddr, conf.Network); err != nil {
 		return err
 	}
 
 	// TODO(corver): Write deposit datas if not simnet
 
-	if err := writeManifest(conf, dvs, peers); err != nil {
+	if err = writeManifest(conf, dvs, peers); err != nil {
 		return err
 	}
 
 	if conf.ConfigEnabled {
-		err = writeClusterScript(conf.ClusterDir, conf.NumNodes)
-		if err != nil {
+		if err = writeClusterScript(conf.ClusterDir, conf.NumNodes); err != nil {
 			return errors.Wrap(err, "write cluster script")
 		}
 
-		err = writeTeamocilYML(conf.ClusterDir, conf.NumNodes)
-		if err != nil {
+		if err = writeTeamocilYML(conf.ClusterDir, conf.NumNodes); err != nil {
 			return errors.Wrap(err, "write teamocil.yml")
 		}
 	}
@@ -283,6 +226,79 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error { //nolint:gocognit
 	writeOutput(w, conf)
 
 	return nil
+}
+
+func createDepositData(secrets []*bls_sig.SecretKey, addr string, network string, numDVs int) ([]eth2p0.BLSPubKey, []eth2p0.BLSSignature, error) {
+	// TODO(xenowits): add flag to specify the number of distributed validators in a cluster
+	// Currently, we assume that we create a cluster of ONLY 1 Distributed Validator
+	var pubkeys []eth2p0.BLSPubKey
+	var msgSigs []eth2p0.BLSSignature
+
+	for i := 0; i < numDVs; i++ {
+		sk := secrets[i] // Secret key for this DV
+		pk, err := sk.GetPublicKey()
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "secret to pubkey")
+		}
+
+		pubkey, err := tblsconv.KeyToETH2(pk)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		withdrawalAddr, err := checksumAddr(addr)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err = validNetwork(withdrawalAddr, network); err != nil {
+			return nil, nil, err
+		}
+
+		msgRoot, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, network)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		sig, err := tbls.Sign(sk, msgRoot[:])
+		if err != nil {
+			return nil, nil, err
+		}
+
+		sigEth2 := tblsconv.SigToETH2(sig)
+
+		pubkeys = append(pubkeys, pubkey)
+		msgSigs = append(msgSigs, sigEth2)
+	}
+
+	return pubkeys, msgSigs, nil
+}
+
+func createPeers(conf clusterConfig, nextPort func() int, shareSets [][]*bls_sig.SecretKeyShare) ([]p2p.Peer, error) {
+	var peers []p2p.Peer
+	for i := 0; i < conf.NumNodes; i++ {
+		peer, err := newPeer(conf, i, nextPort)
+		if err != nil {
+			return nil, err
+		}
+
+		peers = append(peers, peer)
+
+		var secrets []*bls_sig.SecretKey
+		for _, shares := range shareSets {
+			secret, err := tblsconv.ShareToSecret(shares[i])
+			if err != nil {
+				return nil, err
+			}
+			secrets = append(secrets, secret)
+		}
+
+		if err := keystore.StoreKeys(secrets, nodeDir(conf.ClusterDir, i)); err != nil {
+			return nil, err
+		}
+	}
+
+	return peers, nil
 }
 
 func getTSSShares(secrets []*bls_sig.SecretKey, conf clusterConfig) ([]tbls.TSS, [][]*bls_sig.SecretKeyShare, error) {
