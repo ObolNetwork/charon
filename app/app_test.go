@@ -48,23 +48,23 @@ var slow = flag.Bool("slow", false, "enable slow tests")
 // TestPingCluster starts a cluster of charon nodes and waits for each node to ping all the others.
 // It relies on discv5 for peer discovery.
 func TestPingCluster(t *testing.T) {
-	// Nodes bind to manifest ENR addresses.
+	// Nodes bind to lock ENR addresses.
 	// Discv5 can just use those as bootnodes.
 	t.Run("bind_enrs", func(t *testing.T) {
 		pingCluster(t, pingTest{
 			Slow:         false,
-			BootManifest: true,
+			BootLock:     true,
 			BindENRAddrs: true,
 			Bootnode:     false,
 		})
 	})
 
-	// Nodes bind to random localhost ports (not the manifest ENRs), with only single bootnode.
+	// Nodes bind to random localhost ports (not the lock ENRs), with only single bootnode.
 	// Discv5 will resolve peers via bootnode.
 	t.Run("bootnode_only", func(t *testing.T) {
 		pingCluster(t, pingTest{
 			BindLocalhost: true,
-			BootManifest:  false,
+			BootLock:      false,
 			Bootnode:      true,
 		})
 	})
@@ -73,10 +73,10 @@ func TestPingCluster(t *testing.T) {
 	// Discv5 will resolve peers via bootnode and external IP.
 	t.Run("external_ip", func(t *testing.T) {
 		pingCluster(t, pingTest{
-			ExternalIP:   "127.0.0.1",
-			BindZeroIP:   true,
-			BootManifest: false,
-			Bootnode:     true,
+			ExternalIP: "127.0.0.1",
+			BindZeroIP: true,
+			BootLock:   false,
+			Bootnode:   true,
 		})
 	})
 
@@ -86,7 +86,7 @@ func TestPingCluster(t *testing.T) {
 		pingCluster(t, pingTest{
 			ExternalHost: "localhost",
 			BindZeroIP:   true,
-			BootManifest: false,
+			BootLock:     false,
 			Bootnode:     true,
 		})
 	})
@@ -111,7 +111,7 @@ func TestPingCluster(t *testing.T) {
 		pingCluster(t, pingTest{
 			Slow:          true,
 			BindLocalhost: true,
-			BootManifest:  true,
+			BootLock:      true,
 			Bootnode:      true,
 		})
 	})
@@ -126,7 +126,7 @@ type pingTest struct {
 	BindZeroPort  bool
 	BindNoTCP     bool
 
-	BootManifest  bool
+	BootLock      bool
 	Bootnode      bool
 	BootnodeRelay bool
 
@@ -180,7 +180,7 @@ func pingCluster(t *testing.T, test pingTest) {
 			},
 			P2P: p2p.Config{
 				UDPBootnodes:    bootnodes,
-				UDPBootManifest: test.BootManifest,
+				UDPBootManifest: test.BootLock,
 				ExteranlHost:    test.ExternalHost,
 				ExternalIP:      test.ExternalIP,
 				BootnodeRelay:   test.BootnodeRelay,

@@ -31,13 +31,13 @@ func loadLock(conf Config) (cluster.Lock, error) {
 
 	buf, err := os.ReadFile(conf.LockFile)
 	if err != nil {
-		return cluster.Lock{}, errors.Wrap(err, "read manifest")
+		return cluster.Lock{}, errors.Wrap(err, "read lock")
 	}
 
 	var res cluster.Lock
 	err = json.Unmarshal(buf, &res)
 	if err != nil {
-		return cluster.Lock{}, errors.Wrap(err, "unmarshal manifest")
+		return cluster.Lock{}, errors.Wrap(err, "unmarshal lock")
 	}
 
 	return res, nil
