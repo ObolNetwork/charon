@@ -26,6 +26,7 @@ import (
 	"strings"
 	"text/template"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -142,7 +143,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVar(&config.ConfigPortStart, "config-port-start", 16000, "Starting port number used in config files. Requires --config.")
 }
 
-func runCreateCluster(w io.Writer, conf clusterConfig) error {
+func runCreateCluster(w io.Writer, conf clusterConfig) error { //nolint:gocognit
 	if conf.Clean {
 		// Remove previous directories
 		if err := os.RemoveAll(conf.ClusterDir); err != nil {
@@ -210,7 +211,11 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		}
 	}
 
-	var depositDatas [][]byte
+	// TODO(xenowits): add flag to specify the number of distributed validators in a cluster
+	// Currently, we assume that we create a cluster of ONLY 1 Distributed Validator
+	var pubkeys []eth2p0.BLSPubKey
+	var msgSigs []eth2p0.BLSSignature
+
 	for i := 0; i < numDVs; i++ {
 		sk := secrets[i] // Secret key for this DV
 		pk, err := sk.GetPublicKey()
@@ -244,15 +249,12 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		}
 
 		sigEth2 := tblsconv.SigToETH2(sig)
-		bytes, err := deposit.MarshalDepositData(pubkey, withdrawalAddr, conf.Network, sigEth2)
-		if err != nil {
-			return err
-		}
 
-		depositDatas = append(depositDatas, bytes)
+		pubkeys = append(pubkeys, pubkey)
+		msgSigs = append(msgSigs, sigEth2)
 	}
 
-	if err := writeDepositData(conf, depositDatas); err != nil {
+	if err := writeDepositData(conf, pubkeys, msgSigs, conf.WithdrawalAddr, conf.Network); err != nil {
 		return err
 	}
 
@@ -344,10 +346,11 @@ func getKeys(conf clusterConfig, numDVs int) ([]*bls_sig.SecretKey, error) {
 }
 
 // writeDepositData writes deposit data to disk for the DVs in a cluster.
-func writeDepositData(config clusterConfig, b [][]byte) error {
+func writeDepositData(config clusterConfig, pubkeys []eth2p0.BLSPubKey, msgSigs []eth2p0.BLSSignature, withdrawalAddr, network string) error {
 	depositPath := path.Join(config.ClusterDir, "deposit-data.json")
 
-	bytes, err := deposit.MarshalDepositDatas(b)
+	// serialize the deposit data into bytes
+	bytes, err := deposit.MarshalDepositData(pubkeys, msgSigs, withdrawalAddr, network)
 	if err != nil {
 		return err
 	}

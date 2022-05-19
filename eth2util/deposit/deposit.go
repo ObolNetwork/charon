@@ -38,6 +38,8 @@ var (
 
 	// DOMAIN_DEPOSIT. See spec: https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#domain-types
 	depositDomainType = eth2p0.DomainType([4]byte{0x03, 0x00, 0x00, 0x00})
+
+	depositCliVersion = "2.1.0"
 )
 
 // getMessageRoot returns a deposit message hash root created by the parameters.
@@ -60,62 +62,47 @@ func getMessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.Root
 	return hashRoot, nil
 }
 
-// MarshalDepositData returns a json serialized deposit data.
-func MarshalDepositData(pubkey eth2p0.BLSPubKey, withdrawalAddr string, network string, msgSig eth2p0.BLSSignature) ([]byte, error) {
-	forkVersion := networkToForkVersion(network)
-
+// MarshalDepositData serializes a list of deposit data into a single file.
+func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, msgSigs []eth2p0.BLSSignature, withdrawalAddr, network string) ([]byte, error) {
 	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	// calculate depositMessage root
-	msgRoot, err := getMessageRoot(pubkey, withdrawalAddr)
-	if err != nil {
-		return nil, err
-	}
+	forkVersion := networkToForkVersion(network)
 
-	// TODO(corver): Verify signature matches msgRoot.
-
-	dd := eth2p0.DepositData{
-		PublicKey:             pubkey,
-		WithdrawalCredentials: creds[:],
-		Amount:                validatorAmt,
-		Signature:             msgSig,
-	}
-	dataRoot, err := dd.HashTreeRoot()
-	if err != nil {
-		return nil, errors.Wrap(err, "deposit data hash root")
-	}
-
-	bytes, err := json.MarshalIndent(&depositDataJSON{
-		PubKey:                fmt.Sprintf("%x", pubkey),
-		WithdrawalCredentials: fmt.Sprintf("%x", creds),
-		Amount:                uint64(validatorAmt),
-		Signature:             fmt.Sprintf("%x", msgSig),
-		DepositMessageRoot:    fmt.Sprintf("%x", msgRoot),
-		DepositDataRoot:       fmt.Sprintf("%x", dataRoot),
-		ForkVersion:           fmt.Sprintf("%x", forkVersion),
-		NetworkName:           network,
-	}, "", " ")
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal deposit data")
-	}
-
-	return bytes, nil
-}
-
-// MarshalDepositDatas serializes a list of deposit data into a single file.
-func MarshalDepositDatas(depositDatas [][]byte) ([]byte, error) {
 	var ddList []depositDataJSON
-	ddLen := len(depositDatas)
-	for i := 0; i < ddLen; i++ {
-		var dd depositDataJSON
-		err := json.Unmarshal(depositDatas[i], &dd)
+	for i := 0; i < len(pubkeys); i++ {
+		// calculate depositMessage root
+		msgRoot, err := getMessageRoot(pubkeys[i], withdrawalAddr)
 		if err != nil {
-			return nil, errors.Wrap(err, "unmarshal deposit data")
+			return nil, err
 		}
-		ddList = append(ddList, dd)
+
+		// TODO(corver): Verify signature matches msgRoot.
+
+		dd := eth2p0.DepositData{
+			PublicKey:             pubkeys[i],
+			WithdrawalCredentials: creds[:],
+			Amount:                validatorAmt,
+			Signature:             msgSigs[i],
+		}
+		dataRoot, err := dd.HashTreeRoot()
+		if err != nil {
+			return nil, errors.Wrap(err, "deposit data hash root")
+		}
+
+		ddList = append(ddList, depositDataJSON{
+			PubKey:                fmt.Sprintf("%x", pubkeys[i]),
+			WithdrawalCredentials: fmt.Sprintf("%x", creds),
+			Amount:                uint64(validatorAmt),
+			Signature:             fmt.Sprintf("%x", msgSigs[i]),
+			DepositMessageRoot:    fmt.Sprintf("%x", msgRoot),
+			DepositDataRoot:       fmt.Sprintf("%x", dataRoot),
+			ForkVersion:           fmt.Sprintf("%x", forkVersion),
+			NetworkName:           network,
+			DepositCliVersion:     depositCliVersion,
+		})
 	}
 
 	bytes, err := json.MarshalIndent(ddList, "", " ")
@@ -212,4 +199,5 @@ type depositDataJSON struct {
 	DepositDataRoot       string `json:"deposit_data_root"`
 	ForkVersion           string `json:"fork_version"`
 	NetworkName           string `json:"network_name"`
+	DepositCliVersion     string `json:"deposit_cli_version"`
 }
