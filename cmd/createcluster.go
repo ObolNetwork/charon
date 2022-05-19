@@ -425,9 +425,8 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 		}
 
 		vals = append(vals, cluster.DistValidator{
-			PubKey:              string(pk),
-			PubShares:           pubshares,
-			FeeRecipientAddress: "",
+			PubKey:    string(pk),
+			PubShares: pubshares,
 		})
 	}
 
