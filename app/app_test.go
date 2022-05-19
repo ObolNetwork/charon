@@ -36,6 +36,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cmd"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
@@ -47,23 +48,23 @@ var slow = flag.Bool("slow", false, "enable slow tests")
 // TestPingCluster starts a cluster of charon nodes and waits for each node to ping all the others.
 // It relies on discv5 for peer discovery.
 func TestPingCluster(t *testing.T) {
-	// Nodes bind to manifest ENR addresses.
+	// Nodes bind to lock ENR addresses.
 	// Discv5 can just use those as bootnodes.
 	t.Run("bind_enrs", func(t *testing.T) {
 		pingCluster(t, pingTest{
 			Slow:         false,
-			BootManifest: true,
+			BootLock:     true,
 			BindENRAddrs: true,
 			Bootnode:     false,
 		})
 	})
 
-	// Nodes bind to random localhost ports (not the manifest ENRs), with only single bootnode.
+	// Nodes bind to random localhost ports (not the lock ENRs), with only single bootnode.
 	// Discv5 will resolve peers via bootnode.
 	t.Run("bootnode_only", func(t *testing.T) {
 		pingCluster(t, pingTest{
 			BindLocalhost: true,
-			BootManifest:  false,
+			BootLock:      false,
 			Bootnode:      true,
 		})
 	})
@@ -72,10 +73,10 @@ func TestPingCluster(t *testing.T) {
 	// Discv5 will resolve peers via bootnode and external IP.
 	t.Run("external_ip", func(t *testing.T) {
 		pingCluster(t, pingTest{
-			ExternalIP:   "127.0.0.1",
-			BindZeroIP:   true,
-			BootManifest: false,
-			Bootnode:     true,
+			ExternalIP: "127.0.0.1",
+			BindZeroIP: true,
+			BootLock:   false,
+			Bootnode:   true,
 		})
 	})
 
@@ -85,7 +86,7 @@ func TestPingCluster(t *testing.T) {
 		pingCluster(t, pingTest{
 			ExternalHost: "localhost",
 			BindZeroIP:   true,
-			BootManifest: false,
+			BootLock:     false,
 			Bootnode:     true,
 		})
 	})
@@ -110,7 +111,7 @@ func TestPingCluster(t *testing.T) {
 		pingCluster(t, pingTest{
 			Slow:          true,
 			BindLocalhost: true,
-			BootManifest:  true,
+			BootLock:      true,
 			Bootnode:      true,
 		})
 	})
@@ -125,7 +126,7 @@ type pingTest struct {
 	BindZeroPort  bool
 	BindNoTCP     bool
 
-	BootManifest  bool
+	BootLock      bool
 	Bootnode      bool
 	BootnodeRelay bool
 
@@ -155,12 +156,12 @@ func pingCluster(t *testing.T, test pingTest) {
 	}
 
 	const n = 3
-	manifest, p2pKeys, _ := app.NewClusterForT(t, 1, n, n, 0)
+	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, 0)
 	asserter := &pingAsserter{
 		asserter: asserter{
 			Timeout: timeout,
 		},
-		N: n, Manifest: manifest,
+		N: n, Lock: lock,
 	}
 
 	var eg errgroup.Group
@@ -173,13 +174,13 @@ func pingCluster(t *testing.T, test pingTest) {
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: testutil.AvailableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
-				Manifest:     &manifest,
+				Lock:         &lock,
 				P2PKey:       p2pKeys[i],
 				PingCallback: asserter.Callback(t, i),
 			},
 			P2P: p2p.Config{
 				UDPBootnodes:    bootnodes,
-				UDPBootManifest: test.BootManifest,
+				UDPBootManifest: test.BootLock,
 				ExteranlHost:    test.ExternalHost,
 				ExternalIP:      test.ExternalIP,
 				BootnodeRelay:   test.BootnodeRelay,
@@ -188,8 +189,8 @@ func pingCluster(t *testing.T, test pingTest) {
 
 		// Either bind to ENR addresses, or bind to random address resulting in stale ENRs
 		if test.BindENRAddrs {
-			conf.P2P.TCPAddrs = []string{tcpAddrFromENR(t, manifest.Peers[i].ENR)}
-			conf.P2P.UDPAddr = udpAddrFromENR(t, manifest.Peers[i].ENR)
+			conf.P2P.TCPAddrs = []string{tcpAddrFromENR(t, lock.Operators[i].ENR)}
+			conf.P2P.UDPAddr = udpAddrFromENR(t, lock.Operators[i].ENR)
 		} else if test.BindLocalhost {
 			conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
 			conf.P2P.UDPAddr = testutil.AvailableAddr(t).String()
@@ -271,31 +272,37 @@ func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 }
 
 // tcpAddrFromENR returns the "<ip4>:<tcp>" address stored in the ENR.
-func tcpAddrFromENR(t *testing.T, record enr.Record) string {
+func tcpAddrFromENR(t *testing.T, record string) string {
 	t.Helper()
+
+	r, err := p2p.DecodeENR(record)
+	require.NoError(t, err)
 
 	var (
 		ip   enr.IPv4
 		port enr.TCP
 	)
 
-	require.NoError(t, record.Load(&ip))
-	require.NoError(t, record.Load(&port))
+	require.NoError(t, r.Load(&ip))
+	require.NoError(t, r.Load(&port))
 
 	return fmt.Sprintf("%s:%d", net.IP(ip), port)
 }
 
 // udoAddrFromENR returns the "<ip4>:<udp>" address stored in the ENR.
-func udpAddrFromENR(t *testing.T, record enr.Record) string {
+func udpAddrFromENR(t *testing.T, record string) string {
 	t.Helper()
+
+	r, err := p2p.DecodeENR(record)
+	require.NoError(t, err)
 
 	var (
 		ip   enr.IPv4
 		port enr.UDP
 	)
 
-	require.NoError(t, record.Load(&ip))
-	require.NoError(t, record.Load(&port))
+	require.NoError(t, r.Load(&ip))
+	require.NoError(t, r.Load(&port))
 
 	return fmt.Sprintf("%s:%d", net.IP(ip), port)
 }
@@ -340,8 +347,8 @@ func (a *asserter) await(ctx context.Context, t *testing.T, expect int) error {
 // pingAsserter asserts that all nodes ping all other nodes.
 type pingAsserter struct {
 	asserter
-	N        int
-	Manifest app.Manifest
+	N    int
+	Lock cluster.Lock
 }
 
 // Await waits for all nodes to ping each other or time out.
@@ -362,8 +369,11 @@ func (a *pingAsserter) Await(ctx context.Context, t *testing.T) error {
 func (a *pingAsserter) Callback(t *testing.T, i int) func(peer.ID) {
 	t.Helper()
 
+	peerIDs, err := a.Lock.PeerIDs()
+	require.NoError(t, err)
+
 	return func(target peer.ID) {
-		for j, p := range a.Manifest.PeerIDs() {
+		for j, p := range peerIDs {
 			if p == target {
 				a.callbacks.Store(fmt.Sprint(i, "-", j), true)
 			}

@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -34,7 +33,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/deposit"
@@ -200,7 +198,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		return err
 	}
 
-	if err = writeManifest(conf, dvs, peers); err != nil {
+	if err = writeLock(conf, dvs, peers); err != nil {
 		return err
 	}
 
@@ -369,21 +367,8 @@ func writeDepositData(conf clusterConfig, secrets []*bls_sig.SecretKey) error {
 	return nil
 }
 
-func writeManifest(config clusterConfig, tss []tbls.TSS, peers []p2p.Peer) error {
-	manifest := app.Manifest{
-		DVs:   tss,
-		Peers: peers,
-	}
-	manifestJSON, err := json.MarshalIndent(manifest, "", " ")
-	if err != nil {
-		return errors.Wrap(err, "json marshal manifest")
-	}
-
-	manifestPath := path.Join(config.ClusterDir, "manifest.json")
-	if err = os.WriteFile(manifestPath, manifestJSON, 0o600); err != nil {
-		return errors.Wrap(err, "write manifest.json")
-	}
-
+func writeLock(_ clusterConfig, _ []tbls.TSS, _ []p2p.Peer) error {
+	// TODO(corver): Create lock file.
 	return nil
 }
 

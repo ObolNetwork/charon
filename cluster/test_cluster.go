@@ -70,8 +70,20 @@ func NewForT(t *testing.T, dv, k, n, seed int) (Lock, []*ecdsa.PrivateKey, [][]*
 			verifiers = append(verifiers, commitment.ToAffineCompressed())
 		}
 
+		var pubshares [][]byte
+		for i := 0; i < n; i++ {
+			share, err := tss.PublicShare(i + 1) // Share indexes are 1-indexed.
+			require.NoError(t, err)
+
+			b, err := share.MarshalBinary()
+			require.NoError(t, err)
+
+			pubshares = append(pubshares, b)
+		}
+
 		vals = append(vals, DistValidator{
 			PubKey:    fmt.Sprintf("%#x", pk),
+			PubShares: pubshares,
 			Verifiers: verifiers,
 		})
 		dvShares = append(dvShares, shares)

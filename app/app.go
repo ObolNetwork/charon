@@ -44,6 +44,7 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/aggsigdb"
 	"github.com/obolnetwork/charon/core/bcast"
@@ -66,7 +67,7 @@ type Config struct {
 	P2P              p2p.Config
 	Log              log.Config
 	Feature          featureset.Config
-	ManifestFile     string
+	LockFile         string
 	DataDir          string
 	MonitoringAddr   string
 	ValidatorAPIAddr string
@@ -81,8 +82,8 @@ type Config struct {
 
 // TestConfig defines additional test-only config.
 type TestConfig struct {
-	// Manifest provides the manifest explicitly, skips loading ManifestFile from disk.
-	Manifest *Manifest
+	// Lock provides the lock explicitly, skips loading from disk.
+	Lock *cluster.Lock
 	// P2PKey provides the p2p privkey explicitly, skips loading from keystore on disk.
 	P2PKey *ecdsa.PrivateKey
 	// DisablePing disables the ping service.
@@ -136,30 +137,30 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	manifest, err := loadManifest(conf)
+	lock, err := loadLock(conf)
 	if err != nil {
 		return err
 	}
 
-	tcpNode, localEnode, err := wireP2P(ctx, life, conf, manifest)
+	tcpNode, localEnode, err := wireP2P(ctx, life, conf, lock)
 	if err != nil {
 		return err
 	}
 
-	nodeIdx, err := manifest.NodeIdx(tcpNode.ID())
+	nodeIdx, err := lock.NodeIdx(tcpNode.ID())
 	if err != nil {
 		return err
 	}
 
-	log.Info(ctx, "Manifest loaded",
-		z.Int("peers", len(manifest.Peers)),
+	log.Info(ctx, "Lock loaded",
+		z.Int("peers", len(lock.Operators)),
 		z.Str("peer_id", p2p.ShortID(tcpNode.ID())),
 		z.Int("peer_index", nodeIdx.PeerIdx),
 		z.Str("enr", localEnode.Node().String()))
 
 	wireMonitoringAPI(life, conf.MonitoringAddr, localEnode)
 
-	if err := wireCoreWorkflow(ctx, life, conf, manifest, nodeIdx, tcpNode); err != nil {
+	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode); err != nil {
 		return err
 	}
 
@@ -168,7 +169,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
-func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest Manifest,
+func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, lock cluster.Lock,
 ) (host.Host, *enode.LocalNode, error) {
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
@@ -179,12 +180,21 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 		}
 	}
 
+	peers, err := lock.Peers()
+	if err != nil {
+		return nil, nil, err
+	}
+	peerIDs, err := lock.PeerIDs()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	localEnode, peerDB, err := p2p.NewLocalEnode(conf.P2P, p2pKey)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	bootnodes, err := p2p.NewUDPBootnodes(ctx, conf.P2P, manifest.Peers, localEnode.ID())
+	bootnodes, err := p2p.NewUDPBootnodes(ctx, conf.P2P, peers, localEnode.ID())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -199,18 +209,18 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 		return nil, nil, err
 	}
 
-	connGater, err := p2p.NewConnGater(manifest.PeerIDs(), relays)
+	connGater, err := p2p.NewConnGater(peerIDs, relays)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode, manifest.Peers, relays)
+	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode, peers, relays)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if !conf.TestConfig.DisablePing {
-		startPing := p2p.NewPingService(tcpNode, manifest.PeerIDs(), conf.TestConfig.PingCallback)
+		startPing := p2p.NewPingService(tcpNode, peerIDs, conf.TestConfig.PingCallback)
 
 		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, lifecycle.HookFuncCtx(startPing))
 	}
@@ -227,29 +237,33 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, manifest
 }
 
 // wireCoreWorkflow wires the core workflow components.
-func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config, manifest Manifest, nodeIdx NodeIdx, tcpNode host.Host) error {
+func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
+	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host,
+) error {
 	// Convert and prep public keys and public shares
 	var (
 		corePubkeys    []core.PubKey
 		pubkeys        []eth2p0.BLSPubKey
 		pubshares      []eth2p0.BLSPubKey
 		pubSharesByKey = make(map[*bls_sig.PublicKey]*bls_sig.PublicKey)
-		threshold      int
 	)
-	for _, dv := range manifest.DVs {
-		threshold = dv.Threshold()
-
-		corePubkey, err := tblsconv.KeyToCore(dv.PublicKey())
+	for _, dv := range lock.Validators {
+		pubkey, err := dv.PublicKey()
 		if err != nil {
 			return err
 		}
 
-		pubkey, err := tblsconv.KeyToETH2(dv.PublicKey())
+		corePubkey, err := tblsconv.KeyToCore(pubkey)
 		if err != nil {
 			return err
 		}
 
-		pubShare, err := dv.PublicShare(nodeIdx.ShareIdx)
+		pk, err := tblsconv.KeyToETH2(pubkey)
+		if err != nil {
+			return err
+		}
+
+		pubShare, err := dv.PublicShare(nodeIdx.PeerIdx)
 		if err != nil {
 			return err
 		}
@@ -260,9 +274,14 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		corePubkeys = append(corePubkeys, corePubkey)
-		pubkeys = append(pubkeys, pubkey)
-		pubSharesByKey[dv.PublicKey()] = pubShare
+		pubkeys = append(pubkeys, pk)
+		pubSharesByKey[pubkey] = pubShare
 		pubshares = append(pubshares, eth2Share)
+	}
+
+	peerIDs, err := lock.PeerIDs()
+	if err != nil {
+		return err
 	}
 
 	// Configure the beacon node api.
@@ -308,10 +327,10 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if conf.TestConfig.LcastTransportFunc != nil {
 		lcastTransport = conf.TestConfig.LcastTransportFunc()
 	} else {
-		lcastTransport = leadercast.NewP2PTransport(tcpNode, nodeIdx.PeerIdx, manifest.PeerIDs())
+		lcastTransport = leadercast.NewP2PTransport(tcpNode, nodeIdx.PeerIdx, peerIDs)
 	}
 
-	consensus := leadercast.New(lcastTransport, nodeIdx.PeerIdx, len(manifest.PeerIDs()))
+	consensus := leadercast.New(lcastTransport, nodeIdx.PeerIdx, len(peerIDs))
 
 	dutyDB := dutydb.NewMemDB()
 
@@ -324,16 +343,16 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	parSigDB := parsigdb.NewMemDB(threshold)
+	parSigDB := parsigdb.NewMemDB(lock.Threshold)
 
 	var parSigEx core.ParSigEx
 	if conf.TestConfig.ParSigExFunc != nil {
 		parSigEx = conf.TestConfig.ParSigExFunc()
 	} else {
-		parSigEx = parsigex.NewParSigEx(tcpNode, nodeIdx.PeerIdx, manifest.PeerIDs())
+		parSigEx = parsigex.NewParSigEx(tcpNode, nodeIdx.PeerIdx, peerIDs)
 	}
 
-	sigAgg := sigagg.New(threshold)
+	sigAgg := sigagg.New(lock.Threshold)
 
 	aggSigDB := aggsigdb.NewMemDB()
 

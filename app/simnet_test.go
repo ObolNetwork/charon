@@ -36,6 +36,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/leadercast"
 	"github.com/obolnetwork/charon/core/parsigex"
@@ -83,7 +84,7 @@ type simnetArgs struct {
 	VAPIAddrs  []string
 	P2PKeys    []*ecdsa.PrivateKey
 	SimnetKeys []*bls_sig.SecretKey
-	Manifest   app.Manifest
+	Lock       cluster.Lock
 	ErrChan    chan error
 }
 
@@ -92,7 +93,7 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 	t.Helper()
 
 	const n = 3
-	manifest, p2pKeys, secretShares := app.NewClusterForT(t, 1, n, n, 99)
+	lock, p2pKeys, secretShares := cluster.NewForT(t, 1, n, n, 99)
 
 	var secrets []*bls_sig.SecretKey
 	for _, share := range secretShares[0] {
@@ -116,7 +117,7 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 		VAPIAddrs:  vapiAddrs,
 		P2PKeys:    p2pKeys,
 		SimnetKeys: secrets,
-		Manifest:   manifest,
+		Lock:       lock,
 		ErrChan:    make(chan error, 1),
 	}
 }
@@ -149,7 +150,7 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: args.VAPIAddrs[i],
 			TestConfig: app.TestConfig{
-				Manifest:           &args.Manifest,
+				Lock:               &args.Lock,
 				P2PKey:             args.P2PKeys[i],
 				DisablePing:        true,
 				SimnetKeys:         []*bls_sig.SecretKey{args.SimnetKeys[i]},
@@ -181,9 +182,6 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 		})
 	}
 
-	pubkey, err := tblsconv.KeyToCore(args.Manifest.PublicKeys()[0])
-	require.NoError(t, err)
-
 	// Assert results
 	go func() {
 		var (
@@ -199,7 +197,7 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 			case res = <-results:
 			}
 
-			require.Equal(t, pubkey, res.Pubkey)
+			require.EqualValues(t, args.Lock.Validators[0].PubKey, res.Pubkey)
 
 			// Assert the data and signature from all nodes are the same per duty.
 			if counts[res.Duty] == 0 {
@@ -235,7 +233,7 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 		}
 	})
 
-	err = eg.Wait()
+	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 }

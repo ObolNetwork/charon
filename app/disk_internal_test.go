@@ -22,24 +22,26 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/cluster"
 )
 
-func TestLoadManifest(t *testing.T) {
-	manifest, _, _ := NewClusterForT(t, 1, 2, 3, 0)
+func TestLoadLock(t *testing.T) {
+	lock, _, _ := cluster.NewForT(t, 1, 2, 3, 0)
 
-	b, err := json.MarshalIndent(manifest, "", " ")
+	b, err := json.MarshalIndent(lock, "", " ")
 	require.NoError(t, err)
 
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	filename := path.Join(dir, "manifest.json")
+	filename := path.Join(dir, "cluster_lock.json")
 
 	err = os.WriteFile(filename, b, 0o644)
 	require.NoError(t, err)
 
-	conf := Config{ManifestFile: filename}
-	actual, err := loadManifest(conf)
+	conf := Config{LockFile: filename}
+	actual, err := loadLock(conf)
 	require.NoError(t, err)
 
 	b2, err := json.Marshal(actual)
