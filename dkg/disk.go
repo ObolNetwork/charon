@@ -74,7 +74,7 @@ func writeLock(datadir string, lock cluster.Lock) error {
 		return errors.Wrap(err, "marshal lock")
 	}
 
-	err = os.WriteFile(path.Join(datadir, "cluster_lock.json"), b, 0o444) // Read-only
+	err = os.WriteFile(path.Join(datadir, "cluster-lock.json"), b, 0o444) // Read-only
 	if err != nil {
 		return errors.Wrap(err, "write lock")
 	}

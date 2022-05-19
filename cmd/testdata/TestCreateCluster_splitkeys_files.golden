@@ -1,4 +1,5 @@
 [
+ "cluster-lock.json",
  "deposit-data.json",
  "node0",
  "node1",

@@ -138,7 +138,7 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 			secretShares[i] = append(secretShares[i], key)
 		}
 
-		lockFile, err := os.ReadFile(path.Join(dataDir, "cluster_lock.json"))
+		lockFile, err := os.ReadFile(path.Join(dataDir, "cluster-lock.json"))
 		require.NoError(t, err)
 
 		var lock cluster.Lock
