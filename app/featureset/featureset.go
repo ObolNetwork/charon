@@ -38,15 +38,12 @@ type Feature string
 const (
 	// QBFTConsensus introduces qbft consensus, see https://github.com/ObolNetwork/charon/issues/445.
 	QBFTConsensus Feature = "qbft_consensus"
-	// FrostDKG introduces Frost DKG algorithm into charon.
-	FrostDKG Feature = "frost_dkg"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
 		QBFTConsensus: statusAlpha,
-		FrostDKG:      statusAlpha,
 		// Add all features and there status here.
 	}
 
