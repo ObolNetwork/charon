@@ -197,9 +197,9 @@ func aggLockHashSigs(data map[core.PubKey][]core.ParSignedData) (*bls_sig.MultiS
 		pubkeys = append(pubkeys, pubkey)
 
 		for _, s := range psigs {
-			sig := &bls_sig.Signature{}
-			if err = sig.UnmarshalBinary(s.Signature); err != nil {
-				return nil, nil, errors.Wrap(err, "Unmarshal signature")
+			sig, err := tblsconv.SigFromCore(s.Signature)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "signature from core")
 			}
 
 			sigs = append(sigs, sig)
@@ -209,13 +209,13 @@ func aggLockHashSigs(data map[core.PubKey][]core.ParSignedData) (*bls_sig.MultiS
 	// Full BLS Signature Aggregation
 	aggSig, err := tbls.Scheme().AggregateSignatures(sigs...)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "BLS Aggregate Signatures")
+		return nil, nil, errors.Wrap(err, "bls aggregate Signatures")
 	}
 
 	// Aggregate Public Keys to verify aggregated signature
 	aggPubKey, err := tbls.Scheme().AggregatePublicKeys(pubkeys...)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "BLS Aggregate Public Keys")
+		return nil, nil, errors.Wrap(err, "bls aggregate Public Keys")
 	}
 
 	return aggSig, aggPubKey, nil
@@ -322,9 +322,9 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData) (map[*bls_sig
 
 		var psigs []*bls_sig.PartialSignature
 		for _, s := range psigsData {
-			sig := &bls_sig.Signature{}
-			if err = sig.UnmarshalBinary(s.Signature); err != nil {
-				return nil, errors.Wrap(err, "Unmarshal signature")
+			sig, err := tblsconv.SigFromCore(s.Signature)
+			if err != nil {
+				return nil, errors.Wrap(err, "signature from core")
 			}
 
 			psigs = append(psigs, &bls_sig.PartialSignature{
