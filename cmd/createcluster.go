@@ -94,7 +94,6 @@ type clusterConfig struct {
 	Clean      bool
 
 	NumNodes       int
-	NumDVs         int
 	Threshold      int
 	WithdrawalAddr string
 	Network        string
@@ -168,6 +167,10 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		}
 	}
 
+	if err := validateClusterConfig(conf); err != nil {
+		return err
+	}
+
 	// Currently, we assume that we create a cluster of ONLY 1 Distributed Validator
 	// TODO(xenowits): add flag to specify the number of distributed validators in a cluster
 	numDVs := 1
@@ -193,17 +196,9 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		return err
 	}
 
-	// Create public keys and message signatures to create deposit data file
-	pubkeys, msgSigs, err := createDepositData(secrets, conf.WithdrawalAddr, conf.Network, numDVs)
-	if err != nil {
-		return nil
-	}
-
-	if err = writeDepositData(conf, pubkeys, msgSigs, conf.WithdrawalAddr, conf.Network); err != nil {
+	if err = writeDepositData(conf, secrets); err != nil {
 		return err
 	}
-
-	// TODO(corver): Write deposit datas if not simnet
 
 	if err = writeManifest(conf, dvs, peers); err != nil {
 		return err
@@ -228,50 +223,39 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 	return nil
 }
 
-func createDepositData(secrets []*bls_sig.SecretKey, addr string, network string, numDVs int) ([]eth2p0.BLSPubKey, []eth2p0.BLSSignature, error) {
-	// TODO(xenowits): add flag to specify the number of distributed validators in a cluster
-	// Currently, we assume that we create a cluster of ONLY 1 Distributed Validator
-	var pubkeys []eth2p0.BLSPubKey
-	var msgSigs []eth2p0.BLSSignature
+// signDepositDatas returns a map of deposit data signatures by DV pubkey.
+func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddr string, network string) (map[eth2p0.BLSPubKey]eth2p0.BLSSignature, error) {
+	withdrawalAddr, err := checksumAddr(withdrawalAddr)
+	if err != nil {
+		return nil, err
+	}
 
-	for i := 0; i < numDVs; i++ {
-		sk := secrets[i] // Secret key for this DV
-		pk, err := sk.GetPublicKey()
+	resp := make(map[eth2p0.BLSPubKey]eth2p0.BLSSignature)
+	for _, secret := range secrets {
+		pk, err := secret.GetPublicKey()
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "secret to pubkey")
+			return nil, errors.Wrap(err, "secret to pubkey")
 		}
 
 		pubkey, err := tblsconv.KeyToETH2(pk)
 		if err != nil {
-			return nil, nil, err
-		}
-
-		withdrawalAddr, err := checksumAddr(addr)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if err = validNetwork(withdrawalAddr, network); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		msgRoot, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, network)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
-		sig, err := tbls.Sign(sk, msgRoot[:])
+		sig, err := tbls.Sign(secret, msgRoot[:])
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
-		sigEth2 := tblsconv.SigToETH2(sig)
-
-		pubkeys = append(pubkeys, pubkey)
-		msgSigs = append(msgSigs, sigEth2)
+		resp[pubkey] = tblsconv.SigToETH2(sig)
 	}
 
-	return pubkeys, msgSigs, nil
+	return resp, nil
 }
 
 func createPeers(conf clusterConfig, nextPort func() int, shareSets [][]*bls_sig.SecretKeyShare) ([]p2p.Peer, error) {
@@ -362,15 +346,21 @@ func getKeys(conf clusterConfig, numDVs int) ([]*bls_sig.SecretKey, error) {
 }
 
 // writeDepositData writes deposit data to disk for the DVs in a cluster.
-func writeDepositData(config clusterConfig, pubkeys []eth2p0.BLSPubKey, msgSigs []eth2p0.BLSSignature, withdrawalAddr, network string) error {
-	depositPath := path.Join(config.ClusterDir, "deposit-data.json")
+func writeDepositData(conf clusterConfig, secrets []*bls_sig.SecretKey) error {
+	// Create deposit message signatures
+	msgSigs, err := signDepositDatas(secrets, conf.WithdrawalAddr, conf.Network)
+	if err != nil {
+		return nil
+	}
 
-	// serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(pubkeys, msgSigs, withdrawalAddr, network)
+	// Serialize the deposit data into bytes
+	bytes, err := deposit.MarshalDepositData(msgSigs, conf.WithdrawalAddr, conf.Network)
 	if err != nil {
 		return err
 	}
 
+	// Write it to disk
+	depositPath := path.Join(conf.ClusterDir, "deposit-data.json")
 	err = os.WriteFile(depositPath, bytes, 0o400) // read-only
 	if err != nil {
 		return errors.Wrap(err, "write deposit data")
@@ -589,31 +579,35 @@ func nextPortFunc(startPort int) func() int {
 	}
 }
 
-// checksumAddr returns a valid checksummed ethereum address. Returns an error if a valid address cannot be constructed.
+// checksumAddr returns a valid EIP55-compliant checksummed ethereum address.
 func checksumAddr(a string) (string, error) {
 	if !common.IsHexAddress(a) {
 		return "", errors.New("invalid address")
 	}
 
-	hexAddr := common.HexToAddress(a)
-
-	return hexAddr.Hex(), nil
+	return common.HexToAddress(a).Hex(), nil
 }
 
-// validNetwork returns an error if the input network is not supported or certain conditions are not met.
-func validNetwork(addr, network string) error {
-	validNetworks := []string{"prater", "kintsugi", "kiln", "gnosis", "mainnet"}
+// validNetworks defines the set of valid networks.
+var validNetworks = map[string]bool{
+	"prater":   true,
+	"kintsugi": true,
+	"kiln":     true,
+	"gnosis":   true,
+	"mainnet":  true,
+}
+
+// validateClusterConfig returns an error if the cluster config is invalid.
+func validateClusterConfig(conf clusterConfig) error {
+	if !validNetworks[conf.Network] {
+		return errors.New("unsupported network", z.Str("network", conf.Network))
+	}
 
 	// We cannot allow a zero withdrawal address on mainnet or gnosis.
-	if addr == defaultWithdrawalAddr && (network == "mainnet" || network == "gnosis") {
-		return errors.New("zero address forbidden on this network", z.Str("network", network))
+	if (conf.Network == "mainnet" || conf.Network == "gnosis") &&
+		conf.WithdrawalAddr == defaultWithdrawalAddr {
+		return errors.New("zero address forbidden on this network", z.Str("network", conf.Network))
 	}
 
-	for _, n := range validNetworks {
-		if n == network {
-			return nil
-		}
-	}
-
-	return errors.New("unsupported network", z.Str("network", network))
+	return nil
 }

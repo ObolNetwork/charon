@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -63,7 +64,7 @@ func getMessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.Root
 }
 
 // MarshalDepositData serializes a list of deposit data into a single file.
-func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, msgSigs []eth2p0.BLSSignature, withdrawalAddr, network string) ([]byte, error) {
+func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdrawalAddr, network string) ([]byte, error) {
 	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
 	if err != nil {
 		return nil, err
@@ -72,9 +73,9 @@ func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, msgSigs []eth2p0.BLSSignatur
 	forkVersion := networkToForkVersion(network)
 
 	var ddList []depositDataJSON
-	for i := 0; i < len(pubkeys); i++ {
+	for pubkey, sig := range msgSigs {
 		// calculate depositMessage root
-		msgRoot, err := getMessageRoot(pubkeys[i], withdrawalAddr)
+		msgRoot, err := getMessageRoot(pubkey, withdrawalAddr)
 		if err != nil {
 			return nil, err
 		}
@@ -82,10 +83,10 @@ func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, msgSigs []eth2p0.BLSSignatur
 		// TODO(corver): Verify signature matches msgRoot.
 
 		dd := eth2p0.DepositData{
-			PublicKey:             pubkeys[i],
+			PublicKey:             pubkey,
 			WithdrawalCredentials: creds[:],
 			Amount:                validatorAmt,
-			Signature:             msgSigs[i],
+			Signature:             sig,
 		}
 		dataRoot, err := dd.HashTreeRoot()
 		if err != nil {
@@ -93,10 +94,10 @@ func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, msgSigs []eth2p0.BLSSignatur
 		}
 
 		ddList = append(ddList, depositDataJSON{
-			PubKey:                fmt.Sprintf("%x", pubkeys[i]),
+			PubKey:                fmt.Sprintf("%x", pubkey),
 			WithdrawalCredentials: fmt.Sprintf("%x", creds),
 			Amount:                uint64(validatorAmt),
-			Signature:             fmt.Sprintf("%x", msgSigs[i]),
+			Signature:             fmt.Sprintf("%x", sig),
 			DepositMessageRoot:    fmt.Sprintf("%x", msgRoot),
 			DepositDataRoot:       fmt.Sprintf("%x", dataRoot),
 			ForkVersion:           fmt.Sprintf("%x", forkVersion),
@@ -104,6 +105,10 @@ func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, msgSigs []eth2p0.BLSSignatur
 			DepositCliVersion:     depositCliVersion,
 		})
 	}
+
+	sort.Slice(ddList, func(i, j int) bool {
+		return ddList[i].PubKey < ddList[j].PubKey
+	})
 
 	bytes, err := json.MarshalIndent(ddList, "", " ")
 	if err != nil {
