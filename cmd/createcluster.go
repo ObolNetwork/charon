@@ -371,6 +371,7 @@ func writeDepositData(conf clusterConfig, secrets []*bls_sig.SecretKey) error {
 	return nil
 }
 
+// writeLock creates a cluster lock and writes it to disk.
 func writeLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) error {
 	lock, err := newLock(conf, dvs, peers)
 	if err != nil {
