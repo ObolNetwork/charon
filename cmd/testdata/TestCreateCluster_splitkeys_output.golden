@@ -7,7 +7,6 @@
 
 Created charon cluster:
  --split-existing-keys=true
- --config=false
 
 charon/
 ├─ manifest.json	Cluster manifest defines the cluster; used by all nodes

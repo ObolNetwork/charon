@@ -20,11 +20,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path"
 	"strings"
-	"text/template"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -44,48 +42,6 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-const clusterName = "local"
-
-const scriptTmpl = `#!/usr/bin/env bash
-
-# This script run a charon node using the p2pkey in the
-# local directory and the manifest in the parent directory
-
-{{.CharonBin}} run \
-{{range .Flags}}  {{.}} \
-{{end}}`
-
-const clusterTmpl = `#!/usr/bin/env bash
-
-# This script runs all the charon nodes in
-# the sub-directories; the whole cluster.
-
-if (type -P tmux >/dev/null && type -P teamocil >/dev/null); then
-  echo "Commands tmux and teamocil are installed"
-  tmux new-session 'teamocil --layout teamocil.yml'
-else
-  echo "⚠️ Commands tmux and teamocil are not installed, output will be merged"
-
-  trap "exit" INT TERM ERR
-  trap "kill 0" EXIT
-
-  {{range .}} {{.}} &
-  {{end}}
-
-  wait
-fi
-`
-
-const teamocilTmpl = `
-windows:
-  - name: charon-simnet
-    root: /tmp/charon-simnet
-    layout: tiled
-    panes: {{range .}}
-      -  {{.}}
-{{end}}
-`
-
 const (
 	defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
 	defaultNetwork        = "prater"
@@ -102,11 +58,6 @@ type clusterConfig struct {
 
 	SplitKeys    bool
 	SplitKeysDir string
-
-	ConfigEnabled   bool
-	ConfigSimnet    bool
-	ConfigPortStart int
-	ConfigBinary    string
 }
 
 func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Command {
@@ -137,11 +88,6 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
-
-	flags.BoolVar(&config.ConfigEnabled, "config", false, "Enables creation of local non-docker config files.")
-	flags.BoolVar(&config.ConfigSimnet, "config-simnet", true, "Configures a simulated network cluster with mock beacon node and mock validator clients. It showcases a running charon in isolation. Requires --config.")
-	flags.StringVar(&config.ConfigBinary, "config-binary", "", "Path of the charon binary to use in the config files. Defaults to this binary if empty. Requires --config.")
-	flags.IntVar(&config.ConfigPortStart, "config-port-start", 16000, "Starting port number used in config files. Requires --config.")
 }
 
 func runCreateCluster(w io.Writer, conf clusterConfig) error {
@@ -160,15 +106,6 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		return errors.Wrap(err, "mkdir")
 	}
 
-	if conf.ConfigBinary == "" {
-		// Get charon binary to include in run scripts
-		var err error
-		conf.ConfigBinary, err = os.Executable()
-		if err != nil {
-			return errors.Wrap(err, "get charon binary")
-		}
-	}
-
 	if err := validateClusterConfig(conf); err != nil {
 		return err
 	}
@@ -183,9 +120,6 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		return err
 	}
 
-	// Get function to create sequential ports
-	nextPort := nextPortFunc(conf.ConfigPortStart)
-
 	// Generate threshold bls key shares
 	dvs, shareSets, err2 := getTSSShares(secrets, conf)
 	if err2 != nil {
@@ -193,7 +127,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 	}
 
 	// Create p2p peers
-	peers, err := createPeers(conf, nextPort, shareSets)
+	peers, err := createPeers(conf, shareSets)
 	if err != nil {
 		return err
 	}
@@ -204,16 +138,6 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 
 	if err = writeLock(conf, dvs, peers); err != nil {
 		return err
-	}
-
-	if conf.ConfigEnabled {
-		if err = writeClusterScript(conf.ClusterDir, conf.NumNodes); err != nil {
-			return errors.Wrap(err, "write cluster script")
-		}
-
-		if err = writeTeamocilYML(conf.ClusterDir, conf.NumNodes); err != nil {
-			return errors.Wrap(err, "write teamocil.yml")
-		}
 	}
 
 	if conf.SplitKeys {
@@ -260,10 +184,10 @@ func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddr string, netwo
 	return resp, nil
 }
 
-func createPeers(conf clusterConfig, nextPort func() int, shareSets [][]*bls_sig.SecretKeyShare) ([]p2p.Peer, error) {
+func createPeers(conf clusterConfig, shareSets [][]*bls_sig.SecretKeyShare) ([]p2p.Peer, error) {
 	var peers []p2p.Peer
 	for i := 0; i < conf.NumNodes; i++ {
-		peer, err := newPeer(conf, i, nextPort)
+		peer, err := newPeer(conf, i)
 		if err != nil {
 			return nil, err
 		}
@@ -439,17 +363,7 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 }
 
 // newPeer returns a new peer, generating a p2pkey and ENR and node directory and run script in the process.
-func newPeer(conf clusterConfig, peerIdx int, nextPort func() int) (p2p.Peer, error) {
-	tcp := net.TCPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
-		Port: nextPort(),
-	}
-
-	udp := net.UDPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
-		Port: nextPort(),
-	}
-
+func newPeer(conf clusterConfig, peerIdx int) (p2p.Peer, error) {
 	dir := nodeDir(conf.ClusterDir, peerIdx)
 
 	p2pKey, err := p2p.NewSavedPrivKey(dir)
@@ -458,11 +372,6 @@ func newPeer(conf clusterConfig, peerIdx int, nextPort func() int) (p2p.Peer, er
 	}
 
 	var r enr.Record
-	r.Set(enr.IPv4(tcp.IP))
-	r.Set(enr.TCP(tcp.Port))
-	r.Set(enr.UDP(udp.Port))
-	r.SetSeq(0)
-
 	err = enode.SignV4(&r, p2pKey)
 	if err != nil {
 		return p2p.Peer{}, errors.Wrap(err, "enode sign")
@@ -473,12 +382,6 @@ func newPeer(conf clusterConfig, peerIdx int, nextPort func() int) (p2p.Peer, er
 		return p2p.Peer{}, errors.Wrap(err, "new peer")
 	}
 
-	if conf.ConfigEnabled {
-		if err := writeRunScript(conf, dir, nextPort(), tcp.String(), udp.String(), nextPort()); err != nil {
-			return p2p.Peer{}, errors.Wrap(err, "write run script")
-		}
-	}
-
 	return peer, nil
 }
 
@@ -487,133 +390,16 @@ func writeOutput(out io.Writer, conf clusterConfig) {
 	var sb strings.Builder
 	_, _ = sb.WriteString("Created charon cluster:\n")
 	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", conf.SplitKeys))
-	_, _ = sb.WriteString(fmt.Sprintf(" --config=%v\n", conf.ConfigEnabled))
-	if conf.ConfigEnabled {
-		_, _ = sb.WriteString(fmt.Sprintf(" --config-simnet=%v\n", conf.ConfigSimnet))
-		_, _ = sb.WriteString(fmt.Sprintf(" --config-binary=%v\n", conf.ConfigBinary))
-	}
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString(strings.TrimSuffix(conf.ClusterDir, "/") + "/\n")
 	_, _ = sb.WriteString("├─ manifest.json\tCluster manifest defines the cluster; used by all nodes\n")
 	_, _ = sb.WriteString("├─ deposit-data.json\tDeposit data file is used to activate a Distributed Validator on DV Launchpad\n")
-
-	if conf.ConfigEnabled {
-		_, _ = sb.WriteString("├─ run_cluster.sh\tConvenience script to run all nodes\n")
-		_, _ = sb.WriteString("├─ teamocil.yml\t\tTeamocil config for splitting logs in tmux panes\n")
-	}
 	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\tDirectory for each node\n", conf.NumNodes-1))
 	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ keystore-*.json\tValidator private share key for duty signing\n")
 	_, _ = sb.WriteString("│  ├─ keystore-*.txt\tKeystore password files for keystore-*.json\n")
-	if conf.ConfigEnabled {
-		_, _ = sb.WriteString("│  ├─ run.sh\t\tConfig script to run the node\n")
-	}
 
 	_, _ = fmt.Fprint(out, sb.String())
-}
-
-// writeRunScript creates run script for a node.
-func writeRunScript(conf clusterConfig, nodeDir string, monitoringPort int,
-	tcpAddr string, udpAddr string, validatorAPIPort int,
-) error {
-	f, err := os.Create(nodeDir + "/run.sh")
-	if err != nil {
-		return errors.Wrap(err, "create run.sh")
-	}
-	defer f.Close()
-
-	// Flags for running a node
-	var flags []string
-	flags = append(flags, fmt.Sprintf("--data-dir=\"%s\"", nodeDir))
-	flags = append(flags, fmt.Sprintf("--manifest-file=\"%s/manifest.json\"", conf.ClusterDir))
-	flags = append(flags, fmt.Sprintf("--monitoring-address=\"127.0.0.1:%d\"", monitoringPort))
-	flags = append(flags, fmt.Sprintf("--validator-api-address=\"127.0.0.1:%d\"", validatorAPIPort))
-	flags = append(flags, fmt.Sprintf("--p2p-tcp-address=%s", tcpAddr))
-	flags = append(flags, fmt.Sprintf("--p2p-udp-address=%s", udpAddr))
-	if conf.ConfigSimnet {
-		flags = append(flags, "--simnet-beacon-mock")
-		flags = append(flags, "--simnet-validator-mock")
-	}
-
-	tmpl, err := template.New("").Parse(scriptTmpl)
-	if err != nil {
-		return errors.Wrap(err, "new template")
-	}
-
-	err = tmpl.Execute(f, struct {
-		CharonBin string
-		Flags     []string
-	}{CharonBin: conf.ConfigBinary, Flags: flags})
-	if err != nil {
-		return errors.Wrap(err, "execute template")
-	}
-
-	err = os.Chmod(nodeDir+"/run.sh", 0o755)
-	if err != nil {
-		return errors.Wrap(err, "change permissions")
-	}
-
-	return nil
-}
-
-// writeClusterScript creates script to run all the nodes in the cluster.
-func writeClusterScript(clusterDir string, n int) error {
-	var cmds []string
-	for i := 0; i < n; i++ {
-		cmds = append(cmds, fmt.Sprintf("%s/node%d/run.sh", clusterDir, i))
-	}
-
-	f, err := os.Create(clusterDir + "/run_cluster.sh")
-	if err != nil {
-		return errors.Wrap(err, "create run cluster")
-	}
-
-	tmpl, err := template.New("").Parse(clusterTmpl)
-	if err != nil {
-		return errors.Wrap(err, "new template")
-	}
-
-	err = tmpl.Execute(f, cmds)
-	if err != nil {
-		return errors.Wrap(err, "execute template")
-	}
-
-	err = os.Chmod(clusterDir+"/run_cluster.sh", 0o755)
-	if err != nil {
-		return errors.Wrap(err, "change permissions")
-	}
-
-	return nil
-}
-
-// writeTeamocilYML creates teamocil configurations file to show the nodes output in different tmux panes.
-func writeTeamocilYML(clusterDir string, n int) error {
-	var cmds []string
-	for i := 0; i < n; i++ {
-		cmds = append(cmds, fmt.Sprintf("%s/node%d/run.sh", clusterDir, i))
-	}
-
-	f, err := os.Create(clusterDir + "/teamocil.yml")
-	if err != nil {
-		return errors.Wrap(err, "create teamocil.yml")
-	}
-
-	tmpl, err := template.New("").Parse(teamocilTmpl)
-	if err != nil {
-		return errors.Wrap(err, "new template")
-	}
-
-	err = tmpl.Execute(f, cmds)
-	if err != nil {
-		return errors.Wrap(err, "execute template")
-	}
-
-	err = os.Chmod(clusterDir+"/teamocil.yml", 0o644)
-	if err != nil {
-		return errors.Wrap(err, "change permissions")
-	}
-
-	return nil
 }
 
 // nodeDir returns a node directory.
@@ -621,16 +407,7 @@ func nodeDir(clusterDir string, i int) string {
 	return fmt.Sprintf("%s/node%d", clusterDir, i)
 }
 
-// nextPortFunc returns a next port function starting at start port.
-func nextPortFunc(startPort int) func() int {
-	port := startPort
-	return func() int {
-		port++
-		return port
-	}
-}
-
-// checksumAddr returns a valid EIP55-compliant checksummed ethereum address.
+// checksumAddr returns a valid checksummed ethereum address. Returns an error if a valid address cannot be constructed.
 func checksumAddr(a string) (string, error) {
 	if !common.IsHexAddress(a) {
 		return "", errors.New("invalid address")
