@@ -44,8 +44,7 @@ func TestMarshalDepositData(t *testing.T) {
 		"002ff4fd29d3deb6de9f5d115182a49c618c97acaa365ad66a0b240bd825c4ff",
 	}
 
-	var pubkeys []eth2p0.BLSPubKey
-	var msgsigs []eth2p0.BLSSignature
+	sigsByKeys := make(map[eth2p0.BLSPubKey]eth2p0.BLSSignature)
 
 	for i := 0; i < len(privKeys); i++ {
 		sk, pk := GetKeys(t, privKeys[i])
@@ -56,13 +55,10 @@ func TestMarshalDepositData(t *testing.T) {
 		sig, err := tbls.Sign(sk, msgRoot[:])
 		require.NoError(t, err)
 
-		sigEth2 := tblsconv.SigToETH2(sig)
-
-		pubkeys = append(pubkeys, pk)
-		msgsigs = append(msgsigs, sigEth2)
+		sigsByKeys[pk] = tblsconv.SigToETH2(sig)
 	}
 
-	actual, err := deposit.MarshalDepositData(pubkeys, msgsigs, withdrawalAddr, network)
+	actual, err := deposit.MarshalDepositData(sigsByKeys, withdrawalAddr, network)
 	require.NoError(t, err)
 
 	// Not using golden file since output MUST never change.
