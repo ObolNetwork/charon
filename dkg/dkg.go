@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
@@ -31,19 +32,10 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/parsigdb"
-	"github.com/obolnetwork/charon/core/parsigex"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-)
-
-// Values of following constants should not change as it can break backwards compatibility.
-const (
-	// dutyLock is responsible for lock hash signed partial signatures exchange and aggregation.
-	dutyLock core.DutyType = 101
-	// dutyDepositData is responsible for deposit data signed partial signatures exchange and aggregation.
-	dutyDepositData core.DutyType = 102
 )
 
 type Config struct {
@@ -54,86 +46,6 @@ type Config struct {
 
 	TestDef     *cluster.Definition
 	TestSigning bool
-}
-
-// sigData includes the fields obtained from sigdb when threshold is reached.
-type sigData struct {
-	duty   core.DutyType
-	pubkey core.PubKey
-	psigs  []core.ParSignedData
-}
-
-// exchanger is responsible for exchanging partial signatures between peers on libp2p.
-type exchanger struct {
-	sigChan chan sigData
-	sigex   *parsigex.ParSigEx
-	sigdb   *parsigdb.MemDB
-	numVals int
-}
-
-func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) *exchanger {
-	ex := &exchanger{
-		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
-		sigdb:   parsigdb.NewMemDB(len(peers)),
-		sigex:   parsigex.NewParSigEx(tcpNode, peerIdx, peers),
-		sigChan: make(chan sigData),
-		numVals: vals,
-	}
-
-	// Wiring core workflow components
-	ex.sigdb.SubscribeInternal(ex.sigex.Broadcast)
-	ex.sigdb.SubscribeThreshold(ex.pushPsigs)
-	ex.sigex.Subscribe(ex.sigdb.StoreExternal)
-
-	return ex
-}
-
-// exchange exhanges partial signatures of lockhash/deposit-data among dkg participants and returns all the partial
-// signatures of the group according to public key of each DV.
-func (e *exchanger) exchange(ctx context.Context, duty core.DutyType, set core.ParSignedDataSet) (map[core.PubKey][]core.ParSignedData, error) {
-	// Start the process by storing current peer's ParSignedDataSet
-	err := e.sigdb.StoreInternal(ctx, core.Duty{Type: duty}, set)
-	if err != nil {
-		return nil, err
-	}
-
-	sets := make(map[core.PubKey][]core.ParSignedData)
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case peerSet := <-e.sigChan:
-			if duty != peerSet.duty {
-				// Do nothing if duty doesn't match
-				continue
-			}
-
-			switch peerSet.duty {
-			case dutyLock, dutyDepositData:
-				sets[peerSet.pubkey] = peerSet.psigs
-			default:
-				return nil, errors.New("invalid data")
-			}
-		}
-
-		// We are done when we have ParSignedData of all the DVs from all each peer
-		if len(sets) == e.numVals {
-			break
-		}
-	}
-
-	return sets, nil
-}
-
-// pushPsigs is responsible for writing partial signature data to sigChan obtained from other peers.
-func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, pk core.PubKey, psigs []core.ParSignedData) error {
-	e.sigChan <- sigData{
-		duty:   duty.Type,
-		pubkey: pk,
-		psigs:  psigs,
-	}
-
-	return nil
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output.
@@ -170,8 +82,6 @@ func Run(ctx context.Context, conf Config) error {
 		return errors.Wrap(err, "hash definition")
 	}
 	clusterID := fmt.Sprintf("%x", defHash[:])
-
-	_ = newExchanger(tcpNode, nodeIdx.PeerIdx, nil, def.NumValidators)
 
 	var shares []share
 	switch def.DKGAlgorithm {
@@ -231,18 +141,6 @@ func Run(ctx context.Context, conf Config) error {
 		Validators: dvs,
 	}
 
-	// if conf.TestSigning {
-	//	sig, err := aggSignLockHash(ctx, tcpNode, nodeIdx, nil, lock, shares)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	lock.SignatureAggregate, err = sig.MarshalBinary()
-	//	if err != nil {
-	//		return errors.Wrap(err, "marshal signature")
-	//	}
-	//}
-
 	return writeLock(conf.DataDir, lock)
 }
 
@@ -300,8 +198,7 @@ func aggLockHashSigs(data map[core.PubKey][]core.ParSignedData) (*bls_sig.MultiS
 
 		for _, s := range psigs {
 			sig := &bls_sig.Signature{}
-			err = sig.UnmarshalBinary(s.Signature)
-			if err != nil {
+			if err = sig.UnmarshalBinary(s.Signature); err != nil {
 				return nil, nil, errors.Wrap(err, "Unmarshal signature")
 			}
 
@@ -324,7 +221,8 @@ func aggLockHashSigs(data map[core.PubKey][]core.ParSignedData) (*bls_sig.MultiS
 	return aggSig, aggPubKey, nil
 }
 
-// signLockHash returns a partially signed dataset containing signatures of the lock hash be each DV.
+// signLockHash returns a partially signed dataset containing signatures of the lock hash.
+//nolint: deadcode
 func signLockHash(lock cluster.Lock, shareIdx int, shares []share) (core.ParSignedDataSet, error) {
 	hash, err := lock.HashTreeRoot()
 	if err != nil {
@@ -354,13 +252,103 @@ func signLockHash(lock cluster.Lock, shareIdx int, shares []share) (core.ParSign
 		}
 
 		set[pk] = core.ParSignedData{
-			Data:      nil,
 			Signature: sigBytes,
 			ShareIdx:  shareIdx,
 		}
 	}
 
 	return set, nil
+}
+
+// signDepositData returns a partially signed dataset containing signatures of the deposit data signing root.
+//nolint: deadcode
+func signDepositData(shares []share, shareIdx int, withdrawalAddr string, network string) (core.ParSignedDataSet, error) {
+	withdrawalAddr, err := checksumAddr(withdrawalAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	set := make(core.ParSignedDataSet)
+	for _, share := range shares {
+		pubkey, err := tblsconv.KeyToETH2(share.PubKey)
+		if err != nil {
+			return nil, err
+		}
+
+		msg, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, network)
+		if err != nil {
+			return nil, err
+		}
+
+		secret, err := tblsconv.ShareToSecret(share.SecretShare)
+		if err != nil {
+			return nil, err
+		}
+
+		sig, err := tbls.Sign(secret, msg[:])
+		if err != nil {
+			return nil, err
+		}
+
+		sigBytes, err := sig.MarshalBinary()
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal sig")
+		}
+
+		pk, err := tblsconv.KeyToCore(share.PubKey)
+		if err != nil {
+			return nil, err
+		}
+
+		set[pk] = core.ParSignedData{
+			Signature: sigBytes,
+			ShareIdx:  shareIdx,
+		}
+	}
+
+	return set, nil
+}
+
+// aggDepositDataSigs returns the threshold aggregated signatures of the deposit data per DV
+//nolint: deadcode
+func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData) (map[*bls_sig.PublicKey]*bls_sig.Signature, error) {
+	resp := make(map[*bls_sig.PublicKey]*bls_sig.Signature)
+
+	for pk, psigsData := range data {
+		pubkey, err := tblsconv.KeyFromCore(pk)
+		if err != nil {
+			return nil, err
+		}
+
+		var psigs []*bls_sig.PartialSignature
+		for _, s := range psigsData {
+			sig := &bls_sig.Signature{}
+			if err = sig.UnmarshalBinary(s.Signature); err != nil {
+				return nil, errors.Wrap(err, "Unmarshal signature")
+			}
+
+			psigs = append(psigs, &bls_sig.PartialSignature{
+				Identifier: byte(s.ShareIdx),
+				Signature:  sig.Value,
+			})
+		}
+
+		// Aggregate signatures per DV
+		resp[pubkey], err = tbls.Aggregate(psigs)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return resp, nil
+}
+
+func checksumAddr(a string) (string, error) {
+	if !common.IsHexAddress(a) {
+		return "", errors.New("invalid address")
+	}
+
+	return common.HexToAddress(a).Hex(), nil
 }
 
 // dvsFromShares returns the shares as a slice of cluster distributed validator types.
