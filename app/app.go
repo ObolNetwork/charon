@@ -246,7 +246,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		pubkeys        []eth2p0.BLSPubKey
 		pubshares      []eth2p0.BLSPubKey
 		pubSharesByKey = make(map[*bls_sig.PublicKey]*bls_sig.PublicKey)
-		threshold      int
 	)
 	for _, dv := range lock.Validators {
 		pubkey, err := dv.PublicKey()
@@ -344,7 +343,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	parSigDB := parsigdb.NewMemDB(threshold)
+	parSigDB := parsigdb.NewMemDB(lock.Threshold)
 
 	var parSigEx core.ParSigEx
 	if conf.TestConfig.ParSigExFunc != nil {
@@ -353,7 +352,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		parSigEx = parsigex.NewParSigEx(tcpNode, nodeIdx.PeerIdx, peerIDs)
 	}
 
-	sigAgg := sigagg.New(threshold)
+	sigAgg := sigagg.New(lock.Threshold)
 
 	aggSigDB := aggsigdb.NewMemDB()
 
