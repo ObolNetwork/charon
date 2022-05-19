@@ -231,9 +231,8 @@ func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddr string, netwo
 	}
 
 	resp := make(map[eth2p0.BLSPubKey]eth2p0.BLSSignature)
-	for i := 0; i < len(secrets); i++ {
-		sk := secrets[i] // Secret key for this DV
-		pk, err := sk.GetPublicKey()
+	for _, secret := range secrets {
+		pk, err := secret.GetPublicKey()
 		if err != nil {
 			return nil, errors.Wrap(err, "secret to pubkey")
 		}
@@ -248,7 +247,7 @@ func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddr string, netwo
 			return nil, err
 		}
 
-		sig, err := tbls.Sign(sk, msgRoot[:])
+		sig, err := tbls.Sign(secret, msgRoot[:])
 		if err != nil {
 			return nil, err
 		}
