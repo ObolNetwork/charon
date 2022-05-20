@@ -234,7 +234,7 @@ func (f *frostP2P) Round2(ctx context.Context, castR2 map[msgKey]frost.Round2Bca
 
 // send sends the proto msg to the peer using the protocol id.
 func (f *frostP2P) send(ctx context.Context, p peer.ID, id protocol.ID, msg proto.Message) error {
-	s, err := f.tcpNode.NewStream(ctx, p, id)
+	s, err := f.tcpNode.NewStream(network.WithUseTransient(ctx, "frost"), p, id)
 	if err != nil {
 		return errors.Wrap(err, "new stream")
 	}

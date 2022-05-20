@@ -94,7 +94,7 @@ func (t keycastP2P) GetShares(ctx context.Context, _ int) ([]byte, error) {
 
 // getSharesOnce returns the message sent from the dealer.
 func getSharesOnce(ctx context.Context, tcpNode host.Host, dealer peer.ID, clusterID string) ([]byte, error) {
-	s, err := tcpNode.NewStream(ctx, dealer, getProtocol(clusterID))
+	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, "keycast"), dealer, getProtocol(clusterID))
 	if err != nil {
 		return nil, errors.Wrap(err, "new stream")
 	}

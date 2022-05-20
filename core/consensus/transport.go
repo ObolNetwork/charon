@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"google.golang.org/protobuf/proto"
 
@@ -172,7 +173,7 @@ func validateMsg(_ msg) error {
 
 // send sends the protobuf message to the peer.
 func send(ctx context.Context, tcpNode host.Host, id peer.ID, pb proto.Message) error {
-	s, err := tcpNode.NewStream(ctx, id, protocolID)
+	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, "qbft"), id, protocolID)
 	if err != nil {
 		return errors.Wrap(err, "new stream")
 	}
