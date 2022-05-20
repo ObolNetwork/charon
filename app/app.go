@@ -149,7 +149,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err != nil {
 		return err
 	}
-	lockHashHex := hex.EncodeToString(lockHash[:7])
+	lockHashHex := hex.EncodeToString(lockHash[:])[:7]
 
 	tcpNode, localEnode, err := wireP2P(ctx, life, conf, lock)
 	if err != nil {
