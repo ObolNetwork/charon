@@ -50,8 +50,13 @@ type Config struct {
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output.
-func Run(ctx context.Context, conf Config) error {
+func Run(ctx context.Context, conf Config) (err error) {
 	ctx = log.WithTopic(ctx, "dkg")
+	defer func() {
+		if err != nil {
+			log.Error(ctx, "Fatal run error", err)
+		}
+	}()
 
 	if err := log.InitLogger(conf.Log); err != nil {
 		return err
