@@ -20,6 +20,7 @@ package app
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/hex"
 	"net/http"
 	"net/http/pprof"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/automaxprocs/maxprocs"
 
@@ -100,6 +102,8 @@ type TestConfig struct {
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.AggSignedData) error
+	// DisablePromWrap disables wrapping prometheus metrics with cluster identifiers.
+	DisablePromWrap bool
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -114,7 +118,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}()
 
 	_, _ = maxprocs.Set()
-	initStartupMetrics()
 	if err := log.InitLogger(conf.Log); err != nil {
 		return err
 	}
@@ -142,6 +145,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	lockHash, err := lock.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+	lockHashHex := hex.EncodeToString(lockHash[:])[:7]
+
 	tcpNode, localEnode, err := wireP2P(ctx, life, conf, lock)
 	if err != nil {
 		return err
@@ -152,11 +161,24 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	log.Info(ctx, "Lock loaded",
+	log.Info(ctx, "Lock file loaded",
+		z.Str("cluster_hash", lockHashHex),
+		z.Str("cluster_name", lock.Name),
 		z.Int("peers", len(lock.Operators)),
 		z.Str("peer_id", p2p.ShortID(tcpNode.ID())),
 		z.Int("peer_index", nodeIdx.PeerIdx),
 		z.Str("enr", localEnode.Node().String()))
+
+	if !conf.TestConfig.DisablePromWrap {
+		// Wrap prometheus metrics with cluster and node identifiers.
+		prometheus.DefaultRegisterer = prometheus.WrapRegistererWith(prometheus.Labels{
+			"cluster_hash":    lockHashHex,
+			"cluster_name":    lock.Name,
+			"cluster_enr":     lock.Operators[nodeIdx.PeerIdx].ENR,
+			"cluster_peer_id": p2p.ShortID(tcpNode.ID()),
+		}, prometheus.DefaultRegisterer)
+	}
+	initStartupMetrics()
 
 	wireMonitoringAPI(life, conf.MonitoringAddr, localEnode)
 

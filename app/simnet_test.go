@@ -153,6 +153,7 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 				Lock:               &args.Lock,
 				P2PKey:             args.P2PKeys[i],
 				DisablePing:        true,
+				DisablePromWrap:    true,
 				SimnetKeys:         []*bls_sig.SecretKey{args.SimnetKeys[i]},
 				ParSigExFunc:       parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
