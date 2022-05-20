@@ -1,16 +1,10 @@
 Created charon cluster:
  --split-existing-keys=false
- --config=true
- --config-simnet=true
- --config-binary=charon
 
 charon/
 ├─ manifest.json	Cluster manifest defines the cluster; used by all nodes
 ├─ deposit-data.json	Deposit data file is used to activate a Distributed Validator on DV Launchpad
-├─ run_cluster.sh	Convenience script to run all nodes
-├─ teamocil.yml		Teamocil config for splitting logs in tmux panes
 ├─ node[0-3]/		Directory for each node
 │  ├─ p2pkey		P2P networking private key for node authentication
 │  ├─ keystore-*.json	Validator private share key for duty signing
 │  ├─ keystore-*.txt	Keystore password files for keystore-*.json
-│  ├─ run.sh		Config script to run the node

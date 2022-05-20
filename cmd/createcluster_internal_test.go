@@ -44,19 +44,15 @@ func TestCreateCluster(t *testing.T) {
 		{
 			Name: "simnet",
 			Config: clusterConfig{
-				NumNodes:        4,
-				Threshold:       3,
-				ConfigEnabled:   true,
-				ConfigPortStart: 8000,
-				ConfigSimnet:    true,
+				NumNodes:  4,
+				Threshold: 3,
 			},
 		}, {
 			Name: "splitkeys",
 			Config: clusterConfig{
-				NumNodes:      4,
-				Threshold:     3,
-				ConfigEnabled: false,
-				SplitKeys:     true,
+				NumNodes:  4,
+				Threshold: 3,
+				SplitKeys: true,
 			},
 			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
 				t.Helper()
@@ -95,8 +91,6 @@ func TestCreateCluster(t *testing.T) {
 func testCreateCluster(t *testing.T, conf clusterConfig) {
 	t.Helper()
 
-	conf.ConfigBinary = "charon"
-
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	conf.ClusterDir = dir
@@ -125,18 +119,6 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 		}
 
 		testutil.RequireGoldenJSON(t, files)
-	})
-
-	t.Run("runsh", func(t *testing.T) {
-		b, err := os.ReadFile(path.Join(dir, "node0", "run.sh"))
-		if !conf.ConfigSimnet {
-			require.Error(t, err)
-			return
-		}
-		require.NoError(t, err)
-
-		b = bytes.ReplaceAll(b, []byte(dir), []byte("charon"))
-		testutil.RequireGoldenBytes(t, b)
 	})
 }
 
