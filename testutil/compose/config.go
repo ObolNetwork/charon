@@ -24,6 +24,7 @@ const (
 	composeFile       = "compose.yml"
 	defaultImageTag   = "latest"
 	defaultBeaconNode = "mock"
+	defaultKeyGen     = keyGenDKG
 	defaultNumVals    = 1
 	defaultNumNodes   = 4
 	defaultThreshold  = 3
@@ -74,7 +75,7 @@ func newDefaultConfig() config {
 		Version:    version,
 		ImageTag:   defaultImageTag,
 		VCs:        []vcType{vcTeku, vcLighthouse, vcMock},
-		KeyGen:     keyGenDKG,
+		KeyGen:     defaultKeyGen,
 		BeaconNode: defaultBeaconNode,
 	}
 }
