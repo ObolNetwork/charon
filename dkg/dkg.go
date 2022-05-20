@@ -503,9 +503,14 @@ func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) error {
 		}
 		total++
 		go func(pID peer.ID) {
-			rtt := waitConnect(ctx, tcpNode, pID)
-			if ctx.Err() == nil {
-				tuples <- tuple{Peer: pID, RTT: rtt}
+			for {
+				rtt, ok := waitConnect(ctx, tcpNode, pID)
+				if ok {
+					tuples <- tuple{Peer: pID, RTT: rtt}
+					return
+				} else if ctx.Err() != nil {
+					return
+				}
 			}
 		}(p.ID)
 	}
@@ -529,20 +534,20 @@ func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) error {
 }
 
 // waitConnect blocks until a libp2p connection (ping) is established with the peer or the context is cancelled.
-func waitConnect(ctx context.Context, tcpNode host.Host, p peer.ID) time.Duration {
+func waitConnect(ctx context.Context, tcpNode host.Host, p peer.ID) (time.Duration, bool) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	for result := range ping.Ping(ctx, tcpNode, p) {
 		if result.Error == nil {
-			return result.RTT
+			return result.RTT, true
 		} else if ctx.Err() != nil {
-			return 0
+			return 0, false
 		}
 
 		log.Warn(ctx, "Failed connecting to peer (will retry)", result.Error, z.Str("peer", p2p.ShortID(p)))
 		time.Sleep(time.Second * 5) // TODO(corver): Improve backoff.
 	}
 
-	return 0
+	return 0, false
 }
