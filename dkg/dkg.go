@@ -88,10 +88,9 @@ func Run(ctx context.Context, conf Config) error {
 	}
 	clusterID := fmt.Sprintf("%x", defHash[:])
 
-	peerIds := make([]peer.ID, 0, len(peers))
-
-	for _, p := range peers {
-		peerIds = append(peerIds, p.ID)
+	peerIds, err := def.PeerIDs()
+	if err != nil {
+		return errors.Wrap(err, "get peer IDs")
 	}
 
 	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators)
