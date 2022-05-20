@@ -43,8 +43,8 @@ type keyGen string
 
 const (
 	keyGenDKG    keyGen = "dkg"
-	keyGenCreate keyGen = "create"
-	keyGenSplit  keyGen = "split"
+	keyGenCreate keyGen = "create" //nolint:deadcode,varcheck
+	keyGenSplit  keyGen = "split"  //nolint:deadcode,varcheck
 )
 
 // config defines a local compose cluster; including both keygen and running a cluster.

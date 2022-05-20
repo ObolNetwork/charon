@@ -84,7 +84,7 @@ func Define(ctx context.Context, dir string, clean bool, seed int) error {
 		return errors.Wrap(err, "yaml config")
 	}
 
-	err = os.WriteFile(path.Join(dir, composeFile), b, 0o755)
+	err = os.WriteFile(path.Join(dir, composeFile), b, 0o755) //nolint:gosec
 	if err != nil {
 		return errors.Wrap(err, "write config")
 	}
