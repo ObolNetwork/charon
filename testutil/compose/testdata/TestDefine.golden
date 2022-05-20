@@ -4,7 +4,7 @@ validator_clients:
 - teku
 - lighthouse
 - mock
-key_gen: dkg
+key_gen: create
 beacon_node: mock
 definition:
   name: compose

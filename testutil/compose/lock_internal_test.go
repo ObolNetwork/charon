@@ -13,29 +13,43 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package compose_test
+package compose
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path"
 	"testing"
+	"text/template"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/testutil"
-	"github.com/obolnetwork/charon/testutil/compose"
 )
 
-func TestDefine(t *testing.T) {
+//go:generate go test . -update -clean
+
+func TestLockCompose(t *testing.T) {
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	err = compose.Define(context.Background(), dir, false, 1)
+	conf, _ := newDefaultConfig(1)
+
+	err = writeConfig(dir, conf)
 	require.NoError(t, err)
 
-	conf, err := os.ReadFile(path.Join(dir, "charon-compose.yml"))
+	err = Lock(context.Background(), dir)
 	require.NoError(t, err)
 
-	testutil.RequireGoldenBytes(t, conf)
+	compose, err := os.ReadFile(path.Join(dir, "docker-compose.yml"))
+	require.NoError(t, err)
+	compose = bytes.ReplaceAll(compose, []byte(dir), []byte("testdir"))
+
+	testutil.RequireGoldenBytes(t, compose)
+}
+
+func TestParseTemplate(t *testing.T) {
+	_, err := template.New("").Parse(string(tmpl))
+	require.NoError(t, err)
 }

@@ -1,0 +1,77 @@
+version: "3.8"
+
+x-node-base: &node-base
+  image: ghcr.io/obolnetwork/charon:{{.CharonImageTag}}
+  entrypoint: {{.CharonEntrypoint}}
+  command: {{.CharonCommand}}
+  networks: [compose]
+  volumes: [{{.ComposeDir}}:/compose]
+  {{if not .NodeOnly }}depends_on: [bootnode] {{end}}
+
+services:
+  {{ range $i, $node := .Nodes}}
+  node{{$i}}:
+    <<: *node-base
+    environment:
+      {{- range $node.EnvVars}}
+      CHARON_{{.KeyUpper}}: {{.Value}}
+      {{- end}}
+    {{if .Ports}}
+    ports:
+      {{- range $node.Ports}}
+      - "{{.External}}:{{.Internal}}"
+      {{- end}}
+    {{- end}}
+  {{ end -}}
+
+  {{if not .NodeOnly }}
+  bootnode:
+    <<: *node-base
+    command: bootnode
+    depends_on: []
+    environment:
+      CHARON_BOOTNODE_HTTP_ADDRESS: 0.0.0.0:16000
+      CHARON_DATA_DIR: /compose/bootnode
+      CHARON_P2P_BOOTNODES: ""
+      CHARON_P2P_EXTERNAL_HOSTNAME: bootnode
+
+  {{- range $i, $vc := .VCs}}
+  vc{{$i}}-{{$vc.Label}}:
+    {{if $vc.Build}} build: {{$vc.Build}} {{end}}
+    {{if $vc.Image}} image: {{$vc.Image}} {{end}}
+    {{if $vc.Command}} command: {{$vc.Command}} {{end}}
+    networks: [compose]
+    depends_on: [node{{$i}}]
+    environment:
+      NODE: node{{$i}}
+    volumes:
+      - .:/compose
+  {{end}}
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    networks: [compose]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    networks: [compose]
+    volumes:
+      - ./grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/datasource.yml
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./grafana/simnet_dash.json:/etc/dashboards/simnet_dash.json
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    networks: [compose]
+    ports:
+      - "16686:16686"
+  {{end}}
+networks:
+  compose:

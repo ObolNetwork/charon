@@ -1,0 +1,22 @@
+version: "3.8"
+
+x-node-base: &node-base
+  image: ghcr.io/obolnetwork/charon:latest
+  entrypoint: /usr/local/bin/charon
+  command: [create,cluster]
+  networks: [compose]
+  volumes: [testdir:/compose]
+  
+
+services:
+  
+  node0:
+    <<: *node-base
+    environment:
+      CHARON_THRESHOLD: 3
+      CHARON_NODES: 4
+      CHARON_CLUSTER_DIR: /compose
+    
+  
+networks:
+  compose:
