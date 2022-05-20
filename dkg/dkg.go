@@ -180,7 +180,12 @@ func setupP2P(ctx context.Context, datadir string, p2pConf p2p.Config, peers []p
 		return nil, nil, errors.Wrap(err, "")
 	}
 
-	tcpNode, err := p2p.NewTCPNode(p2pConf, key, p2p.NewOpenGater(), udpNode, peers, nil)
+	relays, err := p2p.NewRelays(p2pConf, bootnodes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tcpNode, err := p2p.NewTCPNode(p2pConf, key, p2p.NewOpenGater(), udpNode, peers, relays)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "")
 	}
@@ -422,7 +427,7 @@ func signDepositData(shares []share, shareIdx int, withdrawalAddr string, networ
 	return set, msgs, nil
 }
 
-// aggDepositDataSigs returns the threshold aggregated signatures of the deposit data per DV
+// aggDepositDataSigs returns the threshold aggregated signatures of the deposit data per DV.
 func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData) (map[core.PubKey]*bls_sig.Signature, error) {
 	resp := make(map[core.PubKey]*bls_sig.Signature)
 
