@@ -35,7 +35,7 @@ import (
 )
 
 // Define defines a compose cluster; including both keygen and running definitions.
-func Define(ctx context.Context, dir string, clean bool, seed int) error {
+func Define(ctx context.Context, dir string, clean bool, seed int, keygen string) error {
 	ctx = log.WithTopic(ctx, "define")
 
 	if clean {
@@ -52,6 +52,10 @@ func Define(ctx context.Context, dir string, clean bool, seed int) error {
 	}
 
 	conf, p2pkeys := newDefaultConfig(seed)
+
+	if keygen != "" {
+		conf.KeyGen = keyGen(keygen)
+	}
 
 	// TODO(corver): Serve a web UI to allow configuration of default values.
 
