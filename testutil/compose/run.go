@@ -21,6 +21,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 )
 
+// Run creates a docker-compose.yml from charon-compose.yml to run the cluster.
 func Run(ctx context.Context, dir string) error {
 	ctx = log.WithTopic(ctx, "run")
 
