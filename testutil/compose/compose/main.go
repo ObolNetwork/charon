@@ -37,7 +37,7 @@ func main() {
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "compose",
-		Short: "Charon Compose - Run, test, and debug a local charon cluster using docker-compose",
+		Short: "Charon Compose - Run, test, and debug a developer-focussed insecure local charon cluster using docker-compose",
 	}
 
 	root.AddCommand(newDefineCmd())
@@ -51,9 +51,9 @@ func newDefineCmd() *cobra.Command {
 		Short: "Define a cluster; including both keygen and running definitions",
 	}
 
-	dir := cmd.Flags().String("compose-dir", "", "Folder to use for compose artifacts")
-	clean := cmd.Flags().Bool("clean", true, "Clean folder before defining a new cluster")
-	seed := cmd.Flags().Int("seed", int(time.Now().UnixNano()), "Seed randomness")
+	dir := cmd.Flags().String("compose-dir", "", "Directory to use for compose artifacts")
+	clean := cmd.Flags().Bool("clean", true, "Clean compose dir before defining a new cluster")
+	seed := cmd.Flags().Int("seed", int(time.Now().UnixNano()), "Randomness seed")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		return compose.Define(cmd.Context(), *dir, *clean, *seed)
