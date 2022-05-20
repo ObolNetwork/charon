@@ -43,6 +43,7 @@ import (
 )
 
 const (
+	clusterName           = "local"
 	defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
 	defaultNetwork        = "prater"
 )
