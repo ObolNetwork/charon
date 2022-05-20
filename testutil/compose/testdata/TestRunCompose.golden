@@ -1,0 +1,101 @@
+version: "3.8"
+
+x-node-base: &node-base
+  image: ghcr.io/obolnetwork/charon:latest
+  entrypoint: /usr/local/bin/charon
+  command: run
+  networks: [compose]
+  volumes: [testdir:/compose]
+  depends_on: [bootnode] 
+
+services:
+  
+  node0:
+    <<: *node-base
+    environment:
+      CHARON_DATA_DIR: /compose/node0
+      CHARON_JAEGER_SERVICE: node0
+      CHARON_JAEGER_ADDRESS: jaeger:6831
+      CHARON_DEFINITION_FILE: /compose/cluster-definition.json
+      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_MONITORING_ADDRESS: 0.0.0.0:16001
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:16002
+      CHARON_P2P_EXTERNAL_HOSTNAME: node0
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
+      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
+      CHARON_P2P_BOOTNODES: http://bootnode:16000/enr
+      CHARON_SIMNET_VALIDATOR_MOCK: "true"
+      CHARON_SIMNET_BEACON_MOCK: "true"
+      CHARON_LOG_LEVEL: info
+    
+  
+  node1:
+    <<: *node-base
+    environment:
+      CHARON_DATA_DIR: /compose/node1
+      CHARON_JAEGER_SERVICE: node1
+      CHARON_JAEGER_ADDRESS: jaeger:6831
+      CHARON_DEFINITION_FILE: /compose/cluster-definition.json
+      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_MONITORING_ADDRESS: 0.0.0.0:16001
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:16002
+      CHARON_P2P_EXTERNAL_HOSTNAME: node1
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
+      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
+      CHARON_P2P_BOOTNODES: http://bootnode:16000/enr
+      CHARON_SIMNET_VALIDATOR_MOCK: "true"
+      CHARON_SIMNET_BEACON_MOCK: "true"
+      CHARON_LOG_LEVEL: info
+    
+  
+  node2:
+    <<: *node-base
+    environment:
+      CHARON_DATA_DIR: /compose/node2
+      CHARON_JAEGER_SERVICE: node2
+      CHARON_JAEGER_ADDRESS: jaeger:6831
+      CHARON_DEFINITION_FILE: /compose/cluster-definition.json
+      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_MONITORING_ADDRESS: 0.0.0.0:16001
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:16002
+      CHARON_P2P_EXTERNAL_HOSTNAME: node2
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
+      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
+      CHARON_P2P_BOOTNODES: http://bootnode:16000/enr
+      CHARON_SIMNET_VALIDATOR_MOCK: "true"
+      CHARON_SIMNET_BEACON_MOCK: "true"
+      CHARON_LOG_LEVEL: info
+    
+  
+  node3:
+    <<: *node-base
+    environment:
+      CHARON_DATA_DIR: /compose/node3
+      CHARON_JAEGER_SERVICE: node3
+      CHARON_JAEGER_ADDRESS: jaeger:6831
+      CHARON_DEFINITION_FILE: /compose/cluster-definition.json
+      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_MONITORING_ADDRESS: 0.0.0.0:16001
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:16002
+      CHARON_P2P_EXTERNAL_HOSTNAME: node3
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
+      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
+      CHARON_P2P_BOOTNODES: http://bootnode:16000/enr
+      CHARON_SIMNET_VALIDATOR_MOCK: "true"
+      CHARON_SIMNET_BEACON_MOCK: "true"
+      CHARON_LOG_LEVEL: info
+    
+  
+  bootnode:
+    <<: *node-base
+    command: bootnode
+    depends_on: []
+    environment:
+      CHARON_BOOTNODE_HTTP_ADDRESS: 0.0.0.0:16000
+      CHARON_DATA_DIR: /compose/bootnode
+      CHARON_P2P_BOOTNODES: ""
+      CHARON_P2P_EXTERNAL_HOSTNAME: bootnode
+  
+  
+networks:
+  compose:

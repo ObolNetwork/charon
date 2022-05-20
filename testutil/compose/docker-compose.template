@@ -47,7 +47,8 @@ services:
     volumes:
       - .:/compose
   {{end}}
-
+  {{end}}
+  {{if .Monitoring}}
   prometheus:
     image: prom/prometheus:latest
     ports:
