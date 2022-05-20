@@ -407,7 +407,7 @@ func nodeDir(clusterDir string, i int) string {
 	return fmt.Sprintf("%s/node%d", clusterDir, i)
 }
 
-// checksumAddr returns a valid checksummed ethereum address. Returns an error if a valid address cannot be constructed.
+// checksumAddr returns a valid EIP55-compliant checksummed ethereum address. Returns an error if a valid address cannot be constructed.
 func checksumAddr(a string) (string, error) {
 	if !common.IsHexAddress(a) {
 		return "", errors.New("invalid address")
