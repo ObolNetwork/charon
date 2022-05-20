@@ -217,7 +217,17 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 		return cluster.Lock{}, err
 	}
 
-	aggSigLockHash, aggPkLockHash, err := aggLockHashSig(peerSigs, shares, def.DKGAlgorithm)
+	pubkeyToShares := make(map[core.PubKey]share)
+	for _, sh := range shares {
+		pk, err := tblsconv.KeyToCore(sh.PubKey)
+		if err != nil {
+			return cluster.Lock{}, err
+		}
+
+		pubkeyToShares[pk] = sh
+	}
+
+	aggSigLockHash, aggPkLockHash, err := aggLockHashSig(peerSigs, pubkeyToShares, def.DKGAlgorithm)
 	if err != nil {
 		return cluster.Lock{}, err
 	}
@@ -278,13 +288,12 @@ func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, w
 
 // aggLockHashSig returns the aggregated multi signature of the lock hash
 // signed by all the distributed validator group private keys.
-func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares []share, dkgAlgo string) (*bls_sig.MultiSignature, *bls_sig.MultiPublicKey, error) {
+func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.PubKey]share, dkgAlgo string) (*bls_sig.MultiSignature, *bls_sig.MultiPublicKey, error) {
 	var (
 		sigs    []*bls_sig.Signature
 		pubkeys []*bls_sig.PublicKey
 	)
-	dv := 0
-	for _, psigs := range data {
+	for pk, psigs := range data {
 		for _, s := range psigs {
 			sig, err := tblsconv.SigFromCore(s.Signature)
 			if err != nil {
@@ -296,19 +305,18 @@ func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares []share, d
 			var pubshare *bls_sig.PublicKey
 			switch dkgAlgo {
 			case "keycast":
-				pubshare, err = tbls.GetPubShare(s.ShareIdx, shares[dv].Verifier)
+				pubshare, err = tbls.GetPubShare(s.ShareIdx, shares[pk].Verifier)
 				if err != nil {
 					return nil, nil, errors.Wrap(err, "get pubshare from verifier")
 				}
 			case "frost":
-				pubshare = shares[dv].PublicShares[uint32(s.ShareIdx)]
+				pubshare = shares[pk].PublicShares[uint32(s.ShareIdx)]
 			default:
 				return nil, nil, errors.New("invalid dkg algo")
 			}
 
 			pubkeys = append(pubkeys, pubshare)
 		}
-		dv++
 	}
 
 	// Full BLS Signature Aggregation
