@@ -20,10 +20,13 @@ import (
 	"os"
 	"path"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -77,6 +80,41 @@ func writeLock(datadir string, lock cluster.Lock) error {
 	err = os.WriteFile(path.Join(datadir, "cluster-lock.json"), b, 0o444) // Read-only
 	if err != nil {
 		return errors.Wrap(err, "write lock")
+	}
+
+	return nil
+}
+
+// writeDepositData writes deposit data file to disk.
+func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr string, network string, dataDir string) error {
+	// Create deposit message signatures
+	aggSigsEth2 := make(map[eth2p0.BLSPubKey]eth2p0.BLSSignature)
+	for pk, sig := range aggSigs {
+		blsPubKey, err := tblsconv.KeyFromCore(pk)
+		if err != nil {
+			return nil
+		}
+
+		pubkey, err := tblsconv.KeyToETH2(blsPubKey)
+		if err != nil {
+			return err
+		}
+
+		sigEth2 := tblsconv.SigToETH2(sig)
+		aggSigsEth2[pubkey] = sigEth2
+	}
+
+	// Serialize the deposit data into bytes
+	bytes, err := deposit.MarshalDepositData(aggSigsEth2, withdrawalAddr, network)
+	if err != nil {
+		return err
+	}
+
+	// Write it to disk
+	depositPath := path.Join(dataDir, "deposit-data.json")
+	err = os.WriteFile(depositPath, bytes, 0o400) // read-only
+	if err != nil {
+		return errors.Wrap(err, "write deposit data")
 	}
 
 	return nil

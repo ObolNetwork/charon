@@ -34,8 +34,6 @@ const (
 	// dutyLock is responsible for lock hash signed partial signatures exchange and aggregation.
 	dutyLock core.DutyType = 101
 	// dutyDepositData is responsible for deposit data signed partial signatures exchange and aggregation.
-	// TODO(dhruv): get rid of this nolint in next PR
-	//nolint:deadcode,varcheck
 	dutyDepositData core.DutyType = 102
 )
 
@@ -59,7 +57,7 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) *ex
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:   parsigdb.NewMemDB(len(peers)),
 		sigex:   parsigex.NewParSigEx(tcpNode, peerIdx, peers),
-		sigChan: make(chan sigData),
+		sigChan: make(chan sigData, len(peers)),
 		numVals: vals,
 	}
 
