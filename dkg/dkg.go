@@ -190,6 +190,15 @@ func setupP2P(ctx context.Context, datadir string, p2pConf p2p.Config, peers []p
 		return nil, nil, errors.Wrap(err, "")
 	}
 
+	for _, relay := range relays {
+		go func(relay p2p.Peer) {
+			err := p2p.NewRelayReserver(tcpNode, relay)(ctx)
+			if err != nil {
+				log.Error(ctx, "Reserve relay error", err)
+			}
+		}(relay)
+	}
+
 	// Register ping service handler
 	_ = ping.NewPingService(tcpNode)
 
