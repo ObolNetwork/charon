@@ -40,7 +40,8 @@ type tmplData struct {
 	Nodes []node
 	VCs   []vc
 
-	NodeOnly bool
+	NodeOnly   bool
+	Monitoring bool
 }
 
 // vc represents a validator client service in a docker-compose.yml.
