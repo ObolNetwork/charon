@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//nolint:deadcode,varcheck // Busy implementing
 package compose
 
 import (
@@ -21,13 +22,18 @@ import (
 
 const (
 	version           = "obol/charon/compose/1.0.0"
-	composeFile       = "compose.yml"
+	composeFile       = "charon-compose.yml"
 	defaultImageTag   = "latest"
 	defaultBeaconNode = "mock"
-	defaultKeyGen     = keyGenDKG
+	defaultKeyGen     = keyGenCreate
 	defaultNumVals    = 1
 	defaultNumNodes   = 4
 	defaultThreshold  = 3
+
+	containerBinary  = "/usr/local/bin/charon"
+	cmdRun           = "run"
+	cmdDKG           = "dkg"
+	cmdCreateCluster = "[create,cluster]"
 )
 
 // vcType defines a validator client type.
@@ -44,8 +50,8 @@ type keyGen string
 
 const (
 	keyGenDKG    keyGen = "dkg"
-	keyGenCreate keyGen = "create" //nolint:deadcode,varcheck
-	keyGenSplit  keyGen = "split"  //nolint:deadcode,varcheck
+	keyGenCreate keyGen = "create"
+	keyGenSplit  keyGen = "split"
 )
 
 // config defines a local compose cluster; including both keygen and running a cluster.
@@ -69,8 +75,8 @@ type config struct {
 	Def cluster.Definition `json:"definition"`
 }
 
-// newDefaultConfig returns a new default config excluding cluster definition.
-func newDefaultConfig() config {
+// newBaseConfig returns a new base config excluding cluster definition.
+func newBaseConfig() config {
 	return config{
 		Version:    version,
 		ImageTag:   defaultImageTag,

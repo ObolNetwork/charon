@@ -17,6 +17,7 @@ package compose
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -50,19 +51,11 @@ func Define(ctx context.Context, dir string, clean bool, seed int) error {
 		}
 	}
 
+	conf, p2pkeys := newDefaultConfig(seed)
+
 	// TODO(corver): Serve a web UI to allow configuration of default values.
 
 	log.Info(ctx, "Using default config")
-
-	lock, p2pkeys, _ := cluster.NewForT(&testing.T{}, defaultNumVals, defaultThreshold, defaultNumNodes, seed)
-	conf := newDefaultConfig()
-	conf.Def = lock.Definition
-	conf.Def.Name = "compose"
-	conf.Def.FeeRecipientAddress = ""
-	conf.Def.WithdrawalAddress = ""
-	for i := 0; i < len(conf.Def.Operators); i++ {
-		conf.Def.Operators[i].Address = ""
-	}
 
 	for i, key := range p2pkeys {
 		// Best effort creation of folder, rather fail when saving p2pkey file next.
@@ -74,6 +67,37 @@ func Define(ctx context.Context, dir string, clean bool, seed int) error {
 		}
 	}
 
+	if err := writeConfig(dir, conf); err != nil {
+		return err
+	}
+
+	log.Info(ctx, "Created charon-compose.yml and node*/p2pkey")
+
+	return nil
+}
+
+func newDefaultConfig(seed int) (config, []*ecdsa.PrivateKey) {
+	lock, p2pkeys, _ := cluster.NewForT(&testing.T{}, defaultNumVals, defaultThreshold, defaultNumNodes, seed)
+
+	conf := newBaseConfig()
+	conf.Def = lock.Definition
+	conf.Def.Name = "compose"
+	conf.Def.FeeRecipientAddress = ""
+	conf.Def.WithdrawalAddress = ""
+	for i := 0; i < len(conf.Def.Operators); i++ {
+		conf.Def.Operators[i].Address = ""
+	}
+
+	return conf, p2pkeys
+}
+
+// nodeFile returns the path to a file in a node folder.
+func nodeFile(dir string, i int, file string) string {
+	return path.Join(dir, fmt.Sprintf("node%d", i), file)
+}
+
+// writeConfig writes the config as yaml to disk.
+func writeConfig(dir string, conf config) error {
 	b, err := json.MarshalIndent(conf, "", " ")
 	if err != nil {
 		return errors.Wrap(err, "marshal config")
@@ -89,12 +113,5 @@ func Define(ctx context.Context, dir string, clean bool, seed int) error {
 		return errors.Wrap(err, "write config")
 	}
 
-	log.Info(ctx, "Created config.yml and p2pkeys")
-
 	return nil
-}
-
-// nodeFile returns the path to a file in a node folder.
-func nodeFile(dir string, i int, file string) string {
-	return path.Join(dir, fmt.Sprintf("node%d", i), file)
 }

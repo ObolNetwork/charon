@@ -17,7 +17,7 @@
 // using docker-compose.
 //
 //  It consists of three steps:
-//   - compose define: Creates compose.yml (and p2pkeys) that defines a desired cluster including keygen.
+//   - compose define: Creates charon-compose.yml (and p2pkeys) that defines a desired cluster including keygen.
 //   - compose lock: Creates docker-compose.yml to generates keys and cluster lock file.
 //   - compose run: Creates docker-compose.yml that runs the cluster.
 package main
@@ -41,17 +41,33 @@ func newRootCmd() *cobra.Command {
 	}
 
 	root.AddCommand(newDefineCmd())
+	root.AddCommand(newLockCmd())
 
 	return root
+}
+
+func newLockCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "lock",
+		Short: "Create a docker-compose.yml from charon-compose.yml for generating keys and a cluster lock file.",
+	}
+
+	dir := cmd.Flags().String("compose-dir", ".", "Directory to use for compose artifacts")
+
+	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		return compose.Lock(cmd.Context(), *dir)
+	}
+
+	return cmd
 }
 
 func newDefineCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "define",
-		Short: "Define a cluster; including both keygen and running definitions",
+		Short: "Create a charon-compose.yml definition; including both keygen and running definitions",
 	}
 
-	dir := cmd.Flags().String("compose-dir", "", "Directory to use for compose artifacts")
+	dir := cmd.Flags().String("compose-dir", ".", "Directory to use for compose artifacts")
 	clean := cmd.Flags().Bool("clean", true, "Clean compose dir before defining a new cluster")
 	seed := cmd.Flags().Int("seed", int(time.Now().UnixNano()), "Randomness seed")
 
