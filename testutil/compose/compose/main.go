@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/testutil/compose"
 )
@@ -53,7 +54,7 @@ func newRunCmd() *cobra.Command {
 		Short: "Create a docker-compose.yml from charon-compose.yml to run the cluster.",
 	}
 
-	dir := addDirFlag(cmd)
+	dir := addDirFlag(cmd.Flags())
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		return compose.Run(cmd.Context(), *dir)
@@ -68,7 +69,7 @@ func newLockCmd() *cobra.Command {
 		Short: "Create a docker-compose.yml from charon-compose.yml for generating keys and a cluster lock file.",
 	}
 
-	dir := addDirFlag(cmd)
+	dir := addDirFlag(cmd.Flags())
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		return compose.Lock(cmd.Context(), *dir)
@@ -83,7 +84,7 @@ func newDefineCmd() *cobra.Command {
 		Short: "Create a charon-compose.yml definition; including both keygen and running definitions",
 	}
 
-	dir := addDirFlag(cmd)
+	dir := addDirFlag(cmd.Flags())
 	clean := cmd.Flags().Bool("clean", true, "Clean compose dir before defining a new cluster")
 	seed := cmd.Flags().Int("seed", int(time.Now().UnixNano()), "Randomness seed")
 
@@ -94,6 +95,6 @@ func newDefineCmd() *cobra.Command {
 	return cmd
 }
 
-func addDirFlag(cmd *cobra.Command) *string {
-	return cmd.Flags().String("compose-dir", ".", "Directory to use for compose artifacts")
+func addDirFlag(flags *pflag.FlagSet) *string {
+	return flags.String("compose-dir", ".", "Directory to use for compose artifacts")
 }
