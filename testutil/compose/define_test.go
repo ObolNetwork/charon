@@ -31,7 +31,7 @@ func TestDefine(t *testing.T) {
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	err = compose.Define(context.Background(), dir, false, 1)
+	err = compose.Define(context.Background(), dir, false, 1, "")
 	require.NoError(t, err)
 
 	conf, err := os.ReadFile(path.Join(dir, "charon-compose.yml"))

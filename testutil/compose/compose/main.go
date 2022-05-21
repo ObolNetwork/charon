@@ -87,9 +87,10 @@ func newDefineCmd() *cobra.Command {
 	dir := addDirFlag(cmd.Flags())
 	clean := cmd.Flags().Bool("clean", true, "Clean compose dir before defining a new cluster")
 	seed := cmd.Flags().Int("seed", int(time.Now().UnixNano()), "Randomness seed")
+	keygen := cmd.Flags().String("keygen", "", "Key generation process: create, split, dkg")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		return compose.Define(cmd.Context(), *dir, *clean, *seed)
+		return compose.Define(cmd.Context(), *dir, *clean, *seed, *keygen)
 	}
 
 	return cmd
