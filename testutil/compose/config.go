@@ -51,19 +51,19 @@ const (
 	keyGenSplit  KeyGen = "split"
 )
 
-// config defines a local compose cluster; including both keygen and running a cluster.
-type config struct {
-	// Version defines the compose config version.
+// Config defines a local compose cluster; including both keygen and running a cluster.
+type Config struct {
+	// Version defines the compose Config version.
 	Version string `json:"version"`
 
 	// NumNodes is the number of charon nodes in the cluster.
-	NumNodes int
+	NumNodes int `json:"num_nodes"`
 
 	// Threshold required for signature reconstruction. Defaults to safe value for number of nodes/peers.
-	Threshold int
+	Threshold int `json:"threshold"`
 
 	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
-	NumValidators int
+	NumValidators int `json:"num_validators"`
 
 	// ImageTag defines the charon docker image tag: ghcr.io/obolnetwork/charon:{ImageTag}.
 	ImageTag string `json:"image_tag"`
@@ -78,10 +78,9 @@ type config struct {
 	BeaconNode string `json:"beacon_node"`
 }
 
-// NewDefaultConfig returns a new default config. This return an unexported type explicitly, so external
-// packages needs to use this to construct a new instance.
-func NewDefaultConfig() config {
-	return config{
+// NewDefaultConfig returns a new default Config.
+func NewDefaultConfig() Config {
+	return Config{
 		Version:       version,
 		NumNodes:      defaultNumNodes,
 		Threshold:     defaultThreshold,

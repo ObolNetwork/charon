@@ -41,7 +41,7 @@ import (
 const zeroXDead = "0x000000000000000000000000000000000000dead"
 
 // Define defines a compose cluster; including both keygen and running definitions.
-func Define(ctx context.Context, dir string, clean bool, seed int, conf config) error {
+func Define(ctx context.Context, dir string, clean bool, seed int, conf Config) error {
 	ctx = log.WithTopic(ctx, "define")
 
 	if clean { // TODO(corver): Move clean to explicit own command.
@@ -111,7 +111,7 @@ func Define(ctx context.Context, dir string, clean bool, seed int, conf config) 
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: "echo",
-			CharonCommand:    fmt.Sprintf("No charon commands needed the define step of keygen=%s", conf.KeyGen),
+			CharonCommand:    fmt.Sprintf("No charon commands needed for keygen=%s define step", conf.KeyGen),
 			Nodes:            []node{{}},
 		}
 	}
@@ -142,7 +142,7 @@ func keyToENR(key *ecdsa.PrivateKey) (string, error) {
 
 // newP2PKeys returns a slice of newly generated ecdsa private keys.
 func newP2PKeys(n, seed int) ([]*ecdsa.PrivateKey, error) {
-	random := rand.New(rand.NewSource(int64(seed)))
+	random := rand.New(rand.NewSource(int64(seed))) //nolint:gosec // Weak random is fine for testing.
 	var resp []*ecdsa.PrivateKey
 	for i := 0; i < n; i++ {
 		key, err := ecdsa.GenerateKey(crypto.S256(), random)
@@ -160,21 +160,21 @@ func nodeFile(dir string, i int, file string) string {
 	return path.Join(dir, fmt.Sprintf("node%d", i), file)
 }
 
-// writeConfig writes the config as yaml to disk.
-func writeConfig(dir string, conf config) error {
-	b, err := json.MarshalIndent(conf, "", "  ")
+// writeConfig writes the Config as yaml to disk.
+func writeConfig(dir string, conf Config) error {
+	b, err := json.MarshalIndent(conf, "", " ")
 	if err != nil {
-		return errors.Wrap(err, "marshal config")
+		return errors.Wrap(err, "marshal Config")
 	}
 
 	b, err = yaml.JSONToYAML(b)
 	if err != nil {
-		return errors.Wrap(err, "yaml config")
+		return errors.Wrap(err, "yaml Config")
 	}
 
 	err = os.WriteFile(path.Join(dir, composeFile), b, 0o755) //nolint:gosec
 	if err != nil {
-		return errors.Wrap(err, "write config")
+		return errors.Wrap(err, "write Config")
 	}
 
 	return nil

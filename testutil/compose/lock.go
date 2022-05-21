@@ -100,21 +100,21 @@ func newNodeEnvs(index int, validatorMock, beaconMock bool) []kv {
 	}
 }
 
-// loadConfig returns the config loaded from disk.
-func loadConfig(dir string) (config, error) {
+// loadConfig returns the Config loaded from disk.
+func loadConfig(dir string) (Config, error) {
 	b, err := os.ReadFile(path.Join(dir, composeFile))
 	if err != nil {
-		return config{}, errors.Wrap(err, "load config")
+		return Config{}, errors.Wrap(err, "load Config")
 	}
 
 	b, err = yaml.YAMLToJSON(b)
 	if err != nil {
-		return config{}, errors.Wrap(err, "yaml config")
+		return Config{}, errors.Wrap(err, "yaml Config")
 	}
 
-	var resp config
+	var resp Config
 	if err := json.Unmarshal(b, &resp); err != nil {
-		return config{}, errors.Wrap(err, "unmarshal config")
+		return Config{}, errors.Wrap(err, "unmarshal Config")
 	}
 
 	return resp, nil
