@@ -26,7 +26,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/cluster"
 )
 
 // Lock creates a docker-compose.yml from a charon-compose.yml for generating keys and a cluster lock file.
@@ -43,8 +42,8 @@ func Lock(ctx context.Context, dir string) error {
 	case keyGenCreate:
 		// Only single node to call charon create cluster generate keys
 		n := node{EnvVars: []kv{
-			{"threshold", fmt.Sprint(conf.Def.Threshold)},
-			{"nodes", fmt.Sprint(len(conf.Def.Operators))},
+			{"threshold", fmt.Sprint(conf.Threshold)},
+			{"nodes", fmt.Sprint(conf.NumNodes)},
 			{"cluster_dir", "/compose"},
 		}}
 
@@ -58,12 +57,8 @@ func Lock(ctx context.Context, dir string) error {
 		}
 	case keyGenDKG:
 
-		if err := writeDefinition(dir, conf.Def); err != nil {
-			return err
-		}
-
 		var nodes []node
-		for i := 0; i < len(conf.Def.Operators); i++ {
+		for i := 0; i < conf.NumNodes; i++ {
 			n := node{EnvVars: newNodeEnvs(i, true, true)}
 			nodes = append(nodes, n)
 		}
@@ -79,28 +74,13 @@ func Lock(ctx context.Context, dir string) error {
 		return errors.New("supported keygen")
 	}
 
-	log.Info(ctx, "Created docker-compose.yml")
+	log.Info(ctx, "Creating docker-compose.yml")
 	log.Info(ctx, "Create keys and cluster lock with: docker-compose up")
 
 	return writeDockerCompose(dir, data)
 }
 
-func writeDefinition(dir string, def cluster.Definition) error {
-	b, err := json.MarshalIndent(def, "", " ")
-	if err != nil {
-		return errors.Wrap(err, "marshal definition")
-	}
-
-	err = os.WriteFile(path.Join(dir, "cluster-definition.json"), b, 0o755) //nolint:gosec
-	if err != nil {
-		return errors.Wrap(err, "write definition")
-	}
-
-	return nil
-}
-
 // newNodeEnvs returns the default node environment variable to run a charon docker container.
-
 func newNodeEnvs(index int, validatorMock, beaconMock bool) []kv {
 	return []kv{
 		{"data_dir", fmt.Sprintf("/compose/node%d", index)},

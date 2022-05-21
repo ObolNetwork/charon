@@ -34,7 +34,7 @@ func TestLockCompose(t *testing.T) {
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	conf, _ := newDefaultConfig(1)
+	conf := NewDefaultConfig()
 
 	err = writeConfig(dir, conf)
 	require.NoError(t, err)

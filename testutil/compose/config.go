@@ -16,10 +16,6 @@
 //nolint:deadcode,varcheck // Busy implementing
 package compose
 
-import (
-	"github.com/obolnetwork/charon/cluster"
-)
-
 const (
 	version           = "obol/charon/compose/1.0.0"
 	composeFile       = "charon-compose.yml"
@@ -34,6 +30,7 @@ const (
 	cmdRun           = "run"
 	cmdDKG           = "dkg"
 	cmdCreateCluster = "[create,cluster]"
+	cmdCreateDKG     = "[create,dkg]"
 )
 
 // vcType defines a validator client type.
@@ -45,13 +42,13 @@ const (
 	vcLighthouse vcType = "lighthouse"
 )
 
-// keyGen defines a key generation process.
-type keyGen string
+// KeyGen defines a key generation process.
+type KeyGen string
 
 const (
-	keyGenDKG    keyGen = "dkg"
-	keyGenCreate keyGen = "create"
-	keyGenSplit  keyGen = "split"
+	keyGenDKG    KeyGen = "dkg"
+	keyGenCreate KeyGen = "create"
+	keyGenSplit  KeyGen = "split"
 )
 
 // config defines a local compose cluster; including both keygen and running a cluster.
@@ -59,29 +56,39 @@ type config struct {
 	// Version defines the compose config version.
 	Version string `json:"version"`
 
+	// NumNodes is the number of charon nodes in the cluster.
+	NumNodes int
+
+	// Threshold required for signature reconstruction. Defaults to safe value for number of nodes/peers.
+	Threshold int
+
+	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
+	NumValidators int
+
 	// ImageTag defines the charon docker image tag: ghcr.io/obolnetwork/charon:{ImageTag}.
 	ImageTag string `json:"image_tag"`
 
 	// VCs define the types of validator clients to use.
 	VCs []vcType `json:"validator_clients"`
 
-	// keyGen defines the key generation process.
-	KeyGen keyGen `json:"key_gen"`
+	// KeyGen defines the key generation process.
+	KeyGen KeyGen `json:"key_gen"`
 
 	// BeaconNode url endpoint or "mock" for simnet.
 	BeaconNode string `json:"beacon_node"`
-
-	// Def is the cluster definition.
-	Def cluster.Definition `json:"definition"`
 }
 
-// newBaseConfig returns a new base config excluding cluster definition.
-func newBaseConfig() config {
+// NewDefaultConfig returns a new default config. This return an unexported type explicitly, so external
+// packages needs to use this to construct a new instance.
+func NewDefaultConfig() config {
 	return config{
-		Version:    version,
-		ImageTag:   defaultImageTag,
-		VCs:        []vcType{vcTeku, vcLighthouse, vcMock},
-		KeyGen:     defaultKeyGen,
-		BeaconNode: defaultBeaconNode,
+		Version:       version,
+		NumNodes:      defaultNumNodes,
+		Threshold:     defaultThreshold,
+		NumValidators: defaultNumVals,
+		ImageTag:      defaultImageTag,
+		VCs:           []vcType{vcTeku, vcLighthouse, vcMock},
+		KeyGen:        defaultKeyGen,
+		BeaconNode:    defaultBeaconNode,
 	}
 }

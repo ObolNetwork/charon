@@ -20,25 +20,31 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
-	"testing"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/goccy/go-yaml"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/p2p"
 )
 
+// zeroXDead is the 0x00..00dead Ethereum address.
+const zeroXDead = "0x000000000000000000000000000000000000dead"
+
 // Define defines a compose cluster; including both keygen and running definitions.
-func Define(ctx context.Context, dir string, clean bool, seed int, keygen string) error {
+func Define(ctx context.Context, dir string, clean bool, seed int, conf config) error {
 	ctx = log.WithTopic(ctx, "define")
 
-	if clean {
+	if clean { // TODO(corver): Move clean to explicit own command.
 		files, err := filepath.Glob(path.Join(dir, "*"))
 		if err != nil {
 			return errors.Wrap(err, "glob dir")
@@ -51,48 +57,102 @@ func Define(ctx context.Context, dir string, clean bool, seed int, keygen string
 		}
 	}
 
-	conf, p2pkeys := newDefaultConfig(seed)
+	var data tmplData
+	if conf.KeyGen == keyGenDKG {
+		log.Info(ctx, "Creating node*/p2pkey for ENRs required for charon create dkg")
 
-	if keygen != "" {
-		conf.KeyGen = keyGen(keygen)
-	}
-
-	// TODO(corver): Serve a web UI to allow configuration of default values.
-
-	log.Info(ctx, "Using default config")
-
-	for i, key := range p2pkeys {
-		// Best effort creation of folder, rather fail when saving p2pkey file next.
-		_ = os.MkdirAll(nodeFile(dir, i, ""), 0o755)
-
-		err := crypto.SaveECDSA(nodeFile(dir, i, "p2pkey"), key)
+		// charon create dkg requires operator ENRs, so we need to create p2pkeys now.
+		p2pkeys, err := newP2PKeys(conf.NumNodes, seed)
 		if err != nil {
-			return errors.Wrap(err, "save p2pkey")
+			return err
+		}
+
+		var enrs []string
+		for i, key := range p2pkeys {
+			// Best effort creation of folder, rather fail when saving p2pkey file next.
+			_ = os.MkdirAll(nodeFile(dir, i, ""), 0o755)
+
+			err := crypto.SaveECDSA(nodeFile(dir, i, "p2pkey"), key)
+			if err != nil {
+				return errors.Wrap(err, "save p2pkey")
+			}
+
+			enrStr, err := keyToENR(key)
+			if err != nil {
+				return err
+			}
+			enrs = append(enrs, enrStr)
+		}
+
+		n := node{EnvVars: []kv{
+			{"name", "compose"},
+			{"num_validators", fmt.Sprint(conf.NumValidators)},
+			{"operator_enrs", strings.Join(enrs, ",")},
+			{"threshold", fmt.Sprint(conf.Threshold)},
+			{"withdrawal_address", zeroXDead},
+			{"dkg_algorithm", "frost"},
+			{"output_dir", "/compose"},
+		}}
+
+		data = tmplData{
+			NodeOnly:         true,
+			ComposeDir:       dir,
+			CharonImageTag:   conf.ImageTag,
+			CharonEntrypoint: containerBinary,
+			CharonCommand:    cmdCreateDKG,
+			Nodes:            []node{n},
+		}
+	} else {
+		// Other keygens only need a noop docker-compose, since charon-compose.yml
+		// is used directly in their compose lock.
+
+		data = tmplData{
+			NodeOnly:         true,
+			ComposeDir:       dir,
+			CharonImageTag:   conf.ImageTag,
+			CharonEntrypoint: "echo",
+			CharonCommand:    fmt.Sprintf("No charon commands needed the define step of keygen=%s", conf.KeyGen),
+			Nodes:            []node{{}},
 		}
 	}
+
+	log.Info(ctx, "Creating charon-compose.yml")
 
 	if err := writeConfig(dir, conf); err != nil {
 		return err
 	}
 
-	log.Info(ctx, "Created charon-compose.yml and node*/p2pkey")
+	log.Info(ctx, "Creating docker-compose.yml")
+	log.Info(ctx, "Create cluster definition: docker-compose up")
 
-	return nil
+	return writeDockerCompose(dir, data)
 }
 
-func newDefaultConfig(seed int) (config, []*ecdsa.PrivateKey) {
-	lock, p2pkeys, _ := cluster.NewForT(&testing.T{}, defaultNumVals, defaultThreshold, defaultNumNodes, seed)
+func keyToENR(key *ecdsa.PrivateKey) (string, error) {
+	var r enr.Record
+	r.SetSeq(0)
 
-	conf := newBaseConfig()
-	conf.Def = lock.Definition
-	conf.Def.Name = "compose"
-	conf.Def.FeeRecipientAddress = ""
-	conf.Def.WithdrawalAddress = ""
-	for i := 0; i < len(conf.Def.Operators); i++ {
-		conf.Def.Operators[i].Address = ""
+	err := enode.SignV4(&r, key)
+	if err != nil {
+		return "", errors.Wrap(err, "sign enr")
 	}
 
-	return conf, p2pkeys
+	return p2p.EncodeENR(r)
+}
+
+// newP2PKeys returns a slice of newly generated ecdsa private keys.
+func newP2PKeys(n, seed int) ([]*ecdsa.PrivateKey, error) {
+	random := rand.New(rand.NewSource(int64(seed)))
+	var resp []*ecdsa.PrivateKey
+	for i := 0; i < n; i++ {
+		key, err := ecdsa.GenerateKey(crypto.S256(), random)
+		if err != nil {
+			return nil, errors.Wrap(err, "new key")
+		}
+		resp = append(resp, key)
+	}
+
+	return resp, nil
 }
 
 // nodeFile returns the path to a file in a node folder.
@@ -102,7 +162,7 @@ func nodeFile(dir string, i int, file string) string {
 
 // writeConfig writes the config as yaml to disk.
 func writeConfig(dir string, conf config) error {
-	b, err := json.MarshalIndent(conf, "", " ")
+	b, err := json.MarshalIndent(conf, "", "  ")
 	if err != nil {
 		return errors.Wrap(err, "marshal config")
 	}
