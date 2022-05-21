@@ -53,7 +53,7 @@ const (
 
 // Config defines a local compose cluster; including both keygen and running a cluster.
 type Config struct {
-	// Version defines the compose Config version.
+	// Version defines the compose config version.
 	Version string `json:"version"`
 
 	// NumNodes is the number of charon nodes in the cluster.
@@ -78,7 +78,7 @@ type Config struct {
 	BeaconNode string `json:"beacon_node"`
 }
 
-// NewDefaultConfig returns a new default Config.
+// NewDefaultConfig returns a new default config.
 func NewDefaultConfig() Config {
 	return Config{
 		Version:       version,

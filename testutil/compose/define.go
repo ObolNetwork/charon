@@ -160,7 +160,7 @@ func nodeFile(dir string, i int, file string) string {
 	return path.Join(dir, fmt.Sprintf("node%d", i), file)
 }
 
-// writeConfig writes the Config as yaml to disk.
+// writeConfig writes the config as yaml to disk.
 func writeConfig(dir string, conf Config) error {
 	b, err := json.MarshalIndent(conf, "", " ")
 	if err != nil {
@@ -169,12 +169,12 @@ func writeConfig(dir string, conf Config) error {
 
 	b, err = yaml.JSONToYAML(b)
 	if err != nil {
-		return errors.Wrap(err, "yaml Config")
+		return errors.Wrap(err, "yaml config")
 	}
 
 	err = os.WriteFile(path.Join(dir, composeFile), b, 0o755) //nolint:gosec
 	if err != nil {
-		return errors.Wrap(err, "write Config")
+		return errors.Wrap(err, "write config")
 	}
 
 	return nil
