@@ -23,11 +23,16 @@
 package main
 
 import (
+	"context"
+	"os"
+	"os/exec"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/testutil/compose"
 )
 
@@ -54,10 +59,21 @@ func newRunCmd() *cobra.Command {
 		Short: "Create a docker-compose.yml from charon-compose.yml to run the cluster.",
 	}
 
+	up := addUpFlag(cmd.Flags())
 	dir := addDirFlag(cmd.Flags())
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		return compose.Run(cmd.Context(), *dir)
+		if err := compose.Run(cmd.Context(), *dir); err != nil {
+			return err
+		}
+
+		if *up {
+			if err := execUp(cmd.Context(), *dir); err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}
 
 	return cmd
@@ -69,10 +85,21 @@ func newLockCmd() *cobra.Command {
 		Short: "Create a docker-compose.yml from charon-compose.yml for generating keys and a cluster lock file.",
 	}
 
+	up := addUpFlag(cmd.Flags())
 	dir := addDirFlag(cmd.Flags())
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		return compose.Lock(cmd.Context(), *dir)
+		if err := compose.Lock(cmd.Context(), *dir); err != nil {
+			return err
+		}
+
+		if *up {
+			if err := execUp(cmd.Context(), *dir); err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}
 
 	return cmd
@@ -86,6 +113,7 @@ func newDefineCmd() *cobra.Command {
 
 	conf := compose.NewDefaultConfig()
 
+	up := addUpFlag(cmd.Flags())
 	dir := addDirFlag(cmd.Flags())
 	clean := cmd.Flags().Bool("clean", true, "Clean compose dir before defining a new cluster")
 	seed := cmd.Flags().Int("seed", int(time.Now().UnixNano()), "Randomness seed")
@@ -93,7 +121,18 @@ func newDefineCmd() *cobra.Command {
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
-		return compose.Define(cmd.Context(), *dir, *clean, *seed, conf)
+
+		if err := compose.Define(cmd.Context(), *dir, *clean, *seed, conf); err != nil {
+			return err
+		}
+
+		if *up {
+			if err := execUp(cmd.Context(), *dir); err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}
 
 	return cmd
@@ -101,4 +140,25 @@ func newDefineCmd() *cobra.Command {
 
 func addDirFlag(flags *pflag.FlagSet) *string {
 	return flags.String("compose-dir", ".", "Directory to use for compose artifacts")
+}
+
+func addUpFlag(flags *pflag.FlagSet) *bool {
+	return flags.Bool("up", true, "Execute `docker-compose up` when compose command completes")
+}
+
+// maybeExecUp executes `docker-compose up`.
+func execUp(ctx context.Context, dir string) error {
+	ctx = log.WithTopic(ctx, "cmd")
+	log.Info(ctx, "Executing docker-compose up")
+
+	cmd := exec.CommandContext(ctx, "docker-compose", "up", "--remove-orphans")
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return errors.Wrap(err, "run up")
+	}
+
+	return nil
 }
