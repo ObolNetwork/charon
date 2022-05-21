@@ -146,7 +146,7 @@ func addUpFlag(flags *pflag.FlagSet) *bool {
 	return flags.Bool("up", true, "Execute `docker-compose up` when compose command completes")
 }
 
-// maybeExecUp executes `docker-compose up`.
+// execUp executes `docker-compose up`.
 func execUp(ctx context.Context, dir string) error {
 	ctx = log.WithTopic(ctx, "cmd")
 	log.Info(ctx, "Executing docker-compose up")
