@@ -25,6 +25,7 @@ import (
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 )
 
 var curve = curves.BLS12381G1()
@@ -69,20 +70,28 @@ func runFrostParallel(ctx context.Context, tp fTransport, numValidators, numNode
 		return nil, err
 	}
 
+	log.Debug(ctx, "Sending round 1 messages")
+
 	castR1Result, p2pR1Result, err := tp.Round1(ctx, castR1, p2pR1)
 	if err != nil {
 		return nil, errors.Wrap(err, "transport round 1")
 	}
+
+	log.Debug(ctx, "Received round 1 results")
 
 	castR2, err := round2(validators, castR1Result, p2pR1Result)
 	if err != nil {
 		return nil, err
 	}
 
+	log.Debug(ctx, "Sending round 2 messages")
+
 	castR2Result, err := tp.Round2(ctx, castR2)
 	if err != nil {
 		return nil, errors.Wrap(err, "transport round 2")
 	}
+
+	log.Debug(ctx, "Received round 2 results")
 
 	return makeShares(validators, castR2Result, shareIdx)
 }

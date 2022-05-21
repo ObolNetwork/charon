@@ -50,8 +50,13 @@ type Config struct {
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output.
-func Run(ctx context.Context, conf Config) error {
+func Run(ctx context.Context, conf Config) (err error) {
 	ctx = log.WithTopic(ctx, "dkg")
+	defer func() {
+		if err != nil {
+			log.Error(ctx, "Fatal run error", err)
+		}
+	}()
 
 	if err := log.InitLogger(conf.Log); err != nil {
 		return err
@@ -188,6 +193,15 @@ func setupP2P(ctx context.Context, datadir string, p2pConf p2p.Config, peers []p
 	tcpNode, err := p2p.NewTCPNode(p2pConf, key, p2p.NewOpenGater(), udpNode, peers, relays)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "")
+	}
+
+	for _, relay := range relays {
+		go func(relay p2p.Peer) {
+			err := p2p.NewRelayReserver(tcpNode, relay)(ctx)
+			if err != nil {
+				log.Error(ctx, "Reserve relay error", err)
+			}
+		}(relay)
 	}
 
 	// Register ping service handler
@@ -503,9 +517,14 @@ func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) error {
 		}
 		total++
 		go func(pID peer.ID) {
-			rtt := waitConnect(ctx, tcpNode, pID)
-			if ctx.Err() == nil {
-				tuples <- tuple{Peer: pID, RTT: rtt}
+			for {
+				rtt, ok := waitConnect(ctx, tcpNode, pID)
+				if ok {
+					tuples <- tuple{Peer: pID, RTT: rtt}
+					return
+				} else if ctx.Err() != nil {
+					return
+				}
 			}
 		}(p.ID)
 	}
@@ -529,20 +548,20 @@ func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) error {
 }
 
 // waitConnect blocks until a libp2p connection (ping) is established with the peer or the context is cancelled.
-func waitConnect(ctx context.Context, tcpNode host.Host, p peer.ID) time.Duration {
+func waitConnect(ctx context.Context, tcpNode host.Host, p peer.ID) (time.Duration, bool) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	for result := range ping.Ping(ctx, tcpNode, p) {
 		if result.Error == nil {
-			return result.RTT
+			return result.RTT, true
 		} else if ctx.Err() != nil {
-			return 0
+			return 0, false
 		}
 
 		log.Warn(ctx, "Failed connecting to peer (will retry)", result.Error, z.Str("peer", p2p.ShortID(p)))
 		time.Sleep(time.Second * 5) // TODO(corver): Improve backoff.
 	}
 
-	return 0
+	return 0, false
 }
