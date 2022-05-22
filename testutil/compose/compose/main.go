@@ -46,6 +46,7 @@ func newRootCmd() *cobra.Command {
 		Short: "Charon Compose - Run, test, and debug a developer-focussed insecure local charon cluster using docker-compose",
 	}
 
+	root.AddCommand(newCleanCmd())
 	root.AddCommand(newDefineCmd())
 	root.AddCommand(newLockCmd())
 	root.AddCommand(newRunCmd())
@@ -80,7 +81,7 @@ func newRunCmd() *cobra.Command {
 func newLockCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "lock",
-		Short: "Create a docker-compose.yml from charon-compose.yml for generating keys and a cluster lock file.",
+		Short: "Create a docker-compose.yml for generating keys and a cluster lock file.",
 	}
 
 	up := addUpFlag(cmd.Flags())
@@ -104,21 +105,20 @@ func newLockCmd() *cobra.Command {
 func newDefineCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "define",
-		Short: "Create a charon-compose.yml definition; including both keygen and running definitions",
+		Short: "Create a charon-compose.yml definition and a docker-compose.yml for generating a cluster definition file",
 	}
 
 	conf := compose.NewDefaultConfig()
 
 	up := addUpFlag(cmd.Flags())
 	dir := addDirFlag(cmd.Flags())
-	clean := cmd.Flags().Bool("clean", true, "Clean compose dir before defining a new cluster")
 	seed := cmd.Flags().Int("seed", int(time.Now().UnixNano()), "Randomness seed")
 	keygen := cmd.Flags().String("keygen", string(conf.KeyGen), "Key generation process: create, split, dkg")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
 
-		if err := compose.Define(cmd.Context(), *dir, *clean, *seed, conf); err != nil {
+		if err := compose.Define(cmd.Context(), *dir, *seed, conf); err != nil {
 			return err
 		}
 
@@ -127,6 +127,21 @@ func newDefineCmd() *cobra.Command {
 		}
 
 		return nil
+	}
+
+	return cmd
+}
+
+func newCleanCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "clean",
+		Short: "Cleans compose files and artifacts",
+	}
+
+	dir := addDirFlag(cmd.Flags())
+
+	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		return compose.Clean(cmd.Context(), *dir)
 	}
 
 	return cmd

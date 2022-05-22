@@ -32,6 +32,7 @@ func TestRunCompose(t *testing.T) {
 	require.NoError(t, err)
 
 	conf := NewDefaultConfig()
+	conf.Step = stepLocked
 
 	err = writeConfig(dir, conf)
 	require.NoError(t, err)

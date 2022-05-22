@@ -51,6 +51,14 @@ const (
 	keyGenSplit  KeyGen = "split"
 )
 
+// step defines the current completed compose step.
+type step string
+
+const (
+	stepDefined step = "defined"
+	stepLocked  step = "locked"
+)
+
 // Config defines a local compose cluster; including both keygen and running a cluster.
 type Config struct {
 	// Version defines the compose config version.
@@ -76,6 +84,8 @@ type Config struct {
 
 	// BeaconNode url endpoint or "mock" for simnet.
 	BeaconNode string `json:"beacon_node"`
+
+	Step step `json:"step"`
 }
 
 // NewDefaultConfig returns a new default config.
@@ -89,5 +99,6 @@ func NewDefaultConfig() Config {
 		VCs:           []vcType{vcTeku, vcLighthouse, vcMock},
 		KeyGen:        defaultKeyGen,
 		BeaconNode:    defaultBeaconNode,
+		Step:          stepDefined,
 	}
 }

@@ -9,3 +9,4 @@ validator_clients:
 - mock
 key_gen: create
 beacon_node: mock
+step: defined

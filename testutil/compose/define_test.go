@@ -32,7 +32,7 @@ func TestDefineCompose(t *testing.T) {
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	err = compose.Define(context.Background(), dir, false, 1, compose.NewDefaultConfig())
+	err = compose.Define(context.Background(), dir, 1, compose.NewDefaultConfig())
 	require.NoError(t, err)
 
 	conf, err := os.ReadFile(path.Join(dir, "charon-compose.yml"))
@@ -48,7 +48,7 @@ func TestDefineDKG(t *testing.T) {
 	conf := compose.NewDefaultConfig()
 	conf.KeyGen = "dkg"
 
-	err = compose.Define(context.Background(), dir, false, 1, conf)
+	err = compose.Define(context.Background(), dir, 1, conf)
 	require.NoError(t, err)
 
 	dc, err := os.ReadFile(path.Join(dir, "docker-compose.yml"))
@@ -65,7 +65,7 @@ func TestDefineCreate(t *testing.T) {
 	conf := compose.NewDefaultConfig()
 	conf.KeyGen = "create"
 
-	err = compose.Define(context.Background(), dir, false, 1, conf)
+	err = compose.Define(context.Background(), dir, 1, conf)
 	require.NoError(t, err)
 
 	dc, err := os.ReadFile(path.Join(dir, "docker-compose.yml"))

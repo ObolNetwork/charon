@@ -40,21 +40,32 @@ import (
 // zeroXDead is the 0x00..00dead Ethereum address.
 const zeroXDead = "0x000000000000000000000000000000000000dead"
 
+// Clean deletes all compose directory files and artifacts.
+func Clean(ctx context.Context, dir string) error {
+	ctx = log.WithTopic(ctx, "clean")
+
+	files, err := filepath.Glob(path.Join(dir, "*"))
+	if err != nil {
+		return errors.Wrap(err, "glob dir")
+	}
+
+	log.Info(ctx, "Cleaning compose dir", z.Int("files", len(files)))
+
+	for _, file := range files {
+		if err := os.RemoveAll(file); err != nil {
+			return errors.Wrap(err, "remove file")
+		}
+	}
+
+	return nil
+}
+
 // Define defines a compose cluster; including both keygen and running definitions.
-func Define(ctx context.Context, dir string, clean bool, seed int, conf Config) error {
+func Define(ctx context.Context, dir string, seed int, conf Config) error {
 	ctx = log.WithTopic(ctx, "define")
 
-	if clean { // TODO(corver): Move clean to explicit own command.
-		files, err := filepath.Glob(path.Join(dir, "*"))
-		if err != nil {
-			return errors.Wrap(err, "glob dir")
-		}
-		log.Info(ctx, "Cleaning compose dir", z.Int("files", len(files)))
-		for _, file := range files {
-			if err := os.RemoveAll(file); err != nil {
-				return errors.Wrap(err, "remove file")
-			}
-		}
+	if _, err := loadConfig(dir); err == nil {
+		return errors.New("compose config already defined; maybe try `compose clean` or `compose lock`")
 	}
 
 	var data tmplData
