@@ -5,7 +5,7 @@
  "threshold": 3,
  "num_validators": 1,
  "image_tag": "latest",
- "BuildLocal": false,
+ "build_local": false,
  "key_gen": "create",
  "beacon_node": "mock",
  "validator_clients": [

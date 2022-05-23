@@ -81,7 +81,7 @@ type Config struct {
 	ImageTag string `json:"image_tag"`
 
 	// BuildLocal enables building a local charon binary from source and using that in the containers.
-	BuildLocal bool
+	BuildLocal bool `json:"build_local"`
 
 	// KeyGen defines the key generation process.
 	KeyGen KeyGen `json:"key_gen"`
