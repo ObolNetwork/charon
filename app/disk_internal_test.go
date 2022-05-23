@@ -35,7 +35,7 @@ func TestLoadLock(t *testing.T) {
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	filename := path.Join(dir, "cluster_lock.json")
+	filename := path.Join(dir, "cluster-lock.json")
 
 	err = os.WriteFile(filename, b, 0o644)
 	require.NoError(t, err)

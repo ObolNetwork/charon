@@ -97,8 +97,7 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		if err := os.RemoveAll(conf.ClusterDir); err != nil {
 			return errors.Wrap(err, "remove cluster dir")
 		}
-	} else if _, err := os.Stat(path.Join(conf.ClusterDir, "manifest.json")); err == nil {
-		// TODO(xenowits): replace "manifest.json" with "cluster_lock.json"
+	} else if _, err := os.Stat(path.Join(conf.ClusterDir, "cluster-lock.json")); err == nil {
 		return errors.New("existing cluster found. Try again with --clean")
 	}
 
@@ -393,7 +392,7 @@ func writeOutput(out io.Writer, conf clusterConfig) {
 	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", conf.SplitKeys))
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString(strings.TrimSuffix(conf.ClusterDir, "/") + "/\n")
-	_, _ = sb.WriteString("├─ manifest.json\tCluster manifest defines the cluster; used by all nodes\n")
+	_, _ = sb.WriteString("├─ cluster-lock.json\tCluster lock defines the cluster lock file which is signed by all nodes\n")
 	_, _ = sb.WriteString("├─ deposit-data.json\tDeposit data file is used to activate a Distributed Validator on DV Launchpad\n")
 	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\tDirectory for each node\n", conf.NumNodes-1))
 	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key for node authentication\n")
