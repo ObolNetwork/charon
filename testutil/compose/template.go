@@ -18,7 +18,6 @@ package compose
 import (
 	"bytes"
 	"embed"
-	_ "embed"
 	"os"
 	"path"
 	"strings"
