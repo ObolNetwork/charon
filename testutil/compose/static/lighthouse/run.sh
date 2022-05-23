@@ -25,4 +25,3 @@ exec lighthouse validator \
   --testnet-dir "/tmp/testnet" \
   --beacon-node "http://${NODE}:16002" \
   --suggested-fee-recipient "0x0000000000000000000000000000000000000000"
-
