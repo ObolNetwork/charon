@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
-	"github.com/goccy/go-yaml"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -125,7 +124,7 @@ func Define(ctx context.Context, dir string, seed int, conf Config) error {
 		}
 	}
 
-	log.Info(ctx, "Creating charon-compose.yml")
+	log.Info(ctx, "Creating config.json")
 
 	if err := writeConfig(dir, conf); err != nil {
 		return err
@@ -225,12 +224,7 @@ func writeConfig(dir string, conf Config) error {
 		return errors.Wrap(err, "marshal config")
 	}
 
-	b, err = yaml.JSONToYAML(b)
-	if err != nil {
-		return errors.Wrap(err, "yaml config")
-	}
-
-	err = os.WriteFile(path.Join(dir, composeFile), b, 0o755) //nolint:gosec
+	err = os.WriteFile(path.Join(dir, configFile), b, 0o755) //nolint:gosec
 	if err != nil {
 		return errors.Wrap(err, "write config")
 	}

@@ -35,7 +35,7 @@ func TestDefineCompose(t *testing.T) {
 	err = compose.Define(context.Background(), dir, 1, compose.NewDefaultConfig())
 	require.NoError(t, err)
 
-	conf, err := os.ReadFile(path.Join(dir, "charon-compose.yml"))
+	conf, err := os.ReadFile(path.Join(dir, "config.json"))
 	require.NoError(t, err)
 
 	testutil.RequireGoldenBytes(t, conf)
