@@ -64,6 +64,9 @@ type Config struct {
 	// Version defines the compose config version.
 	Version string `json:"version"`
 
+	// Step defines the current completed compose step.
+	Step step `json:"step"`
+
 	// NumNodes is the number of charon nodes in the cluster.
 	NumNodes int `json:"num_nodes"`
 
@@ -76,16 +79,14 @@ type Config struct {
 	// ImageTag defines the charon docker image tag: ghcr.io/obolnetwork/charon:{ImageTag}.
 	ImageTag string `json:"image_tag"`
 
-	// VCs define the types of validator clients to use.
-	VCs []vcType `json:"validator_clients"`
-
 	// KeyGen defines the key generation process.
 	KeyGen KeyGen `json:"key_gen"`
 
 	// BeaconNode url endpoint or "mock" for simnet.
 	BeaconNode string `json:"beacon_node"`
 
-	Step step `json:"step"`
+	// VCs define the types of validator clients to use.
+	VCs []vcType `json:"validator_clients"`
 }
 
 // NewDefaultConfig returns a new default config.

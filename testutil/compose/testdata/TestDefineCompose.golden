@@ -1,15 +1,15 @@
 {
  "version": "obol/charon/compose/1.0.0",
+ "step": "defined",
  "num_nodes": 4,
  "threshold": 3,
  "num_validators": 1,
  "image_tag": "latest",
+ "key_gen": "create",
+ "beacon_node": "mock",
  "validator_clients": [
   "teku",
   "lighthouse",
   "mock"
- ],
- "key_gen": "create",
- "beacon_node": "mock",
- "step": "defined"
+ ]
 }
