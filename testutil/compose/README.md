@@ -6,7 +6,7 @@ Compose is a tool that generates `docker-compose.yml` files such that different 
 
 The aim is for developers to be able to debug features and check functionality of clusters on their local machines.
 
-The `compose` command should be executed in a sequential steps:
+The `compose` command should be executed in sequential steps:
  1. `compose clean`: Cleans the compose directory of existing artifacts.
  1. `compose define`: Define the target cluster and how keys are to be created.
     1. It outputs `config.json` which is the compose config
