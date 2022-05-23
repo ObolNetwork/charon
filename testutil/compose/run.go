@@ -48,6 +48,8 @@ func Run(ctx context.Context, dir string) error {
 		CharonEntrypoint: containerBinary,
 		CharonCommand:    cmdRun,
 		Nodes:            nodes,
+		Bootnode:         true,
+		Monitoring:       true,
 	}
 
 	log.Info(ctx, "Created docker-compose.yml")

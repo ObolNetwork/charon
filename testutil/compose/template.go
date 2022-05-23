@@ -17,6 +17,7 @@ package compose
 
 import (
 	"bytes"
+	"embed"
 	_ "embed"
 	"os"
 	"path"
@@ -29,6 +30,9 @@ import (
 //go:embed docker-compose.template
 var tmpl []byte
 
+//go:embed static
+var static embed.FS
+
 // tmplData is the docker-compose.yml template data.
 type tmplData struct {
 	ComposeDir string
@@ -40,7 +44,7 @@ type tmplData struct {
 	Nodes []node
 	VCs   []vc
 
-	NodeOnly   bool
+	Bootnode   bool
 	Monitoring bool
 }
 

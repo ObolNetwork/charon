@@ -1,0 +1,17 @@
+global:
+  scrape_interval:     15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  
+scrape_configs:
+  - job_name: 'node0'
+    static_configs:
+      - targets: ['node0:16001']
+  - job_name: 'node1'
+    static_configs:
+      - targets: ['node1:16001']
+  - job_name: 'node2'
+    static_configs:
+      - targets: ['node2:16001']
+  - job_name: 'node3'
+    static_configs:
+      - targets: ['node3:16001']
