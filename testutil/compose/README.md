@@ -8,7 +8,7 @@ The aim is for developers to be able to debug features and check functionality o
 
 The `compose` command should be executed in sequential steps:
  1. `compose clean`: Cleans the compose directory of existing artifacts.
- 1. `compose define`: Define the target cluster and how keys are to be created.
+ 2. `compose define`: Defines the target cluster and how keys are to be created.
     1. It outputs `config.json` which is the compose config
     1. It also creates `docker-compose.yml` in order to create `cluster-definition.json` if `keygen==dkg`.
  1. `compose lock`: Creates `docker-compose.yml` to create threshold key shares and the `cluster-lock.json` file.
