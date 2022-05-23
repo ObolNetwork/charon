@@ -164,7 +164,7 @@ func nodeFile(dir string, i int, file string) string {
 func writeConfig(dir string, conf Config) error {
 	b, err := json.MarshalIndent(conf, "", " ")
 	if err != nil {
-		return errors.Wrap(err, "marshal Config")
+		return errors.Wrap(err, "marshal config")
 	}
 
 	b, err = yaml.JSONToYAML(b)
