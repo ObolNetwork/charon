@@ -20,7 +20,7 @@
 // to `charon run` command.
 //
 //  launchpad.obol.net ─┐
-//                      ├─► cluster_definition.json ──► charon dkg ─┐
-//   charon create dkg ─┘                                           ├─► cluster_lock.json ──► charon run
+//                      ├─► cluster-definition.json ──► charon dkg ─┐
+//   charon create dkg ─┘                                           ├─► cluster-lock.json ──► charon run
 //                                           charon create cluster ─┘
 package cluster

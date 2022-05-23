@@ -61,7 +61,7 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 
 func bindCreateDKGFlags(flags *pflag.FlagSet, config *createDKGConfig) {
 	flags.StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
-	flags.StringVar(&config.OutputDir, "output-dir", ".", "The folder to write the output cluster_definition.json file to.")
+	flags.StringVar(&config.OutputDir, "output-dir", ".", "The folder to write the output cluster-definition.json file to.")
 	flags.IntVar(&config.NumValidators, "num-validators", 1, "The number of distributed validators the cluster will manage (32ETH staked for each).")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
@@ -92,7 +92,7 @@ func runCreateDKG(_ context.Context, conf createDKGConfig) error {
 	// Best effort creation of output dir, but error when writing the file.
 	_ = os.MkdirAll(conf.OutputDir, 0o755)
 
-	if err := os.WriteFile(path.Join(conf.OutputDir, "cluster_definition.json"), b, 0o444); err != nil {
+	if err := os.WriteFile(path.Join(conf.OutputDir, "cluster-definition.json"), b, 0o444); err != nil {
 		return errors.Wrap(err, "write definition")
 	}
 

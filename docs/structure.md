@@ -80,8 +80,8 @@ charon/             # project root
     - `version`: Print charon version
   - Defines and parses [viper](https://github.com/spf13/viper) configuration parameters for required by each command.
 - `cluster/`: Cluster config definition and files formats
-  - `cluster_definition.json` defines the intended cluster including confutation including operators.
-  - `cluster_lock.json` extends cluster definition adding distributed validator public keys and threshold verifiers.
+  - `cluster-definition.json` defines the intended cluster including confutation including operators.
+  - `cluster-lock.json` extends cluster definition adding distributed validator public keys and threshold verifiers.
 - `dkg/`: Distributed Key Generation command
   - Runs the dkg command that takes a cluster definition as input and generates a cluster lock file and private shares as output.
 - `app/`: Application run entrypoint
