@@ -39,7 +39,7 @@ func Lock(ctx context.Context, dir string) error {
 	} else if err != nil {
 		return err
 	} else if conf.Step == stepLocked {
-		return errors.New("compose config already locked, maybe try `compose clean` or `compose run`")
+		return errors.New("compose config already locked; maybe try `compose clean` or `compose run`")
 	}
 
 	var data tmplData
