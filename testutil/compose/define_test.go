@@ -16,6 +16,7 @@
 package compose_test
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path"
@@ -27,15 +28,49 @@ import (
 	"github.com/obolnetwork/charon/testutil/compose"
 )
 
-func TestDefine(t *testing.T) {
+func TestDefineCompose(t *testing.T) {
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	err = compose.Define(context.Background(), dir, false, 1, "")
+	err = compose.Define(context.Background(), dir, false, 1, compose.NewDefaultConfig())
 	require.NoError(t, err)
 
 	conf, err := os.ReadFile(path.Join(dir, "charon-compose.yml"))
 	require.NoError(t, err)
 
 	testutil.RequireGoldenBytes(t, conf)
+}
+
+func TestDefineDKG(t *testing.T) {
+	dir, err := os.MkdirTemp("", "")
+	require.NoError(t, err)
+
+	conf := compose.NewDefaultConfig()
+	conf.KeyGen = "dkg"
+
+	err = compose.Define(context.Background(), dir, false, 1, conf)
+	require.NoError(t, err)
+
+	dc, err := os.ReadFile(path.Join(dir, "docker-compose.yml"))
+	require.NoError(t, err)
+	dc = bytes.ReplaceAll(dc, []byte(dir), []byte("testdir"))
+
+	testutil.RequireGoldenBytes(t, dc)
+}
+
+func TestDefineCreate(t *testing.T) {
+	dir, err := os.MkdirTemp("", "")
+	require.NoError(t, err)
+
+	conf := compose.NewDefaultConfig()
+	conf.KeyGen = "create"
+
+	err = compose.Define(context.Background(), dir, false, 1, conf)
+	require.NoError(t, err)
+
+	dc, err := os.ReadFile(path.Join(dir, "docker-compose.yml"))
+	require.NoError(t, err)
+	dc = bytes.ReplaceAll(dc, []byte(dir), []byte("testdir"))
+
+	testutil.RequireGoldenBytes(t, dc)
 }

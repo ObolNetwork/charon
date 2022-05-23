@@ -31,7 +31,7 @@ func Run(ctx context.Context, dir string) error {
 	}
 
 	var nodes []node
-	for i := 0; i < len(conf.Def.Operators); i++ {
+	for i := 0; i < conf.NumNodes; i++ {
 		n := node{EnvVars: newNodeEnvs(i, true, true)}
 		nodes = append(nodes, n)
 	}

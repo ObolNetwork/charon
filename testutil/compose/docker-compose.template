@@ -12,10 +12,12 @@ services:
   {{ range $i, $node := .Nodes}}
   node{{$i}}:
     <<: *node-base
+    {{- if .EnvVars}}
     environment:
       {{- range $node.EnvVars}}
       CHARON_{{.KeyUpper}}: {{.Value}}
       {{- end}}
+    {{- end}}
     {{if .Ports}}
     ports:
       {{- range $node.Ports}}
