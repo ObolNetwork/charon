@@ -17,7 +17,7 @@
 // using docker-compose.
 //
 //  It consists of three steps:
-//   - compose define: Creates charon-compose.yml (and p2pkeys) that defines a desired cluster including keygen.
+//   - compose define: Creates config.json (and p2pkeys) and a docker-compose.yml to create a cluster definition file.
 //   - compose lock: Creates docker-compose.yml to generates keys and cluster lock file.
 //   - compose run: Creates docker-compose.yml that runs the cluster.
 package main
@@ -57,7 +57,7 @@ func newRootCmd() *cobra.Command {
 func newRunCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Create a docker-compose.yml from charon-compose.yml to run the cluster.",
+		Short: "Creates docker-compose.yml that runs the cluster.",
 	}
 
 	up := addUpFlag(cmd.Flags())
@@ -81,7 +81,7 @@ func newRunCmd() *cobra.Command {
 func newLockCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "lock",
-		Short: "Create a docker-compose.yml for generating keys and a cluster lock file.",
+		Short: "Creates docker-compose.yml to generates keys and cluster lock file.",
 	}
 
 	up := addUpFlag(cmd.Flags())
@@ -105,7 +105,7 @@ func newLockCmd() *cobra.Command {
 func newDefineCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "define",
-		Short: "Create a charon-compose.yml definition and a docker-compose.yml for generating a cluster definition file",
+		Short: "Creates config.json (and p2pkeys) and a docker-compose.yml to create a cluster definition file",
 	}
 
 	conf := compose.NewDefaultConfig()

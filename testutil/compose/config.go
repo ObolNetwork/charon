@@ -18,7 +18,7 @@ package compose
 
 const (
 	version           = "obol/charon/compose/1.0.0"
-	composeFile       = "charon-compose.yml"
+	configFile        = "config.json"
 	defaultImageTag   = "latest"
 	defaultBeaconNode = "mock"
 	defaultKeyGen     = keyGenCreate

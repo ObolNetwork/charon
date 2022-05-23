@@ -23,8 +23,6 @@ import (
 	"os"
 	"path"
 
-	"github.com/goccy/go-yaml"
-
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 )
@@ -112,14 +110,9 @@ func newNodeEnvs(index int, validatorMock, beaconMock bool) []kv {
 
 // loadConfig returns the config loaded from disk.
 func loadConfig(dir string) (Config, error) {
-	b, err := os.ReadFile(path.Join(dir, composeFile))
+	b, err := os.ReadFile(path.Join(dir, configFile))
 	if err != nil {
 		return Config{}, errors.Wrap(err, "load config")
-	}
-
-	b, err = yaml.YAMLToJSON(b)
-	if err != nil {
-		return Config{}, errors.Wrap(err, "yaml config")
 	}
 
 	var resp Config
