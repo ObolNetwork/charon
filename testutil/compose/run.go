@@ -36,10 +36,16 @@ func Run(ctx context.Context, dir string) error {
 		return errors.New("compose config not locked yet, maybe try `compose lock` first")
 	}
 
-	var nodes []node
+	var (
+		nodes []node
+		vcs   []vc
+	)
 	for i := 0; i < conf.NumNodes; i++ {
 		n := node{EnvVars: newNodeEnvs(i, true, true)}
 		nodes = append(nodes, n)
+
+		typ := conf.VCs[i%len(conf.VCs)]
+		vcs = append(vcs, vcByType[typ])
 	}
 
 	data := tmplData{
@@ -50,10 +56,28 @@ func Run(ctx context.Context, dir string) error {
 		Nodes:            nodes,
 		Bootnode:         true,
 		Monitoring:       true,
+		VCs:              vcs,
 	}
 
 	log.Info(ctx, "Created docker-compose.yml")
 	log.Info(ctx, "Run the cluster with: docker-compose up")
 
 	return writeDockerCompose(dir, data)
+}
+
+var vcByType = map[vcType]vc{
+	vcLighthouse: {
+		Label: string(vcLighthouse),
+		Build: "lighthouse",
+	},
+	vcTeku: {
+		Label: string(vcTeku),
+		Image: "consensys/teku:latest",
+		Command: `|
+      validator-client
+      --network=auto
+      --beacon-node-api-endpoint="http://node1:16002"
+      --validator-keys="/compose/node1:/compose/node1"
+      --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"`,
+	},
 }

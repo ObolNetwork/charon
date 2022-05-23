@@ -162,7 +162,7 @@ func execUp(ctx context.Context, dir string) error {
 	ctx = log.WithTopic(ctx, "cmd")
 	log.Info(ctx, "Executing docker-compose up")
 
-	cmd := exec.CommandContext(ctx, "docker-compose", "up", "--remove-orphans")
+	cmd := exec.CommandContext(ctx, "docker-compose", "up", "--remove-orphans", "--build")
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

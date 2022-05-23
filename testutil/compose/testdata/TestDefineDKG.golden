@@ -9,7 +9,6 @@ x-node-base: &node-base
   
 
 services:
-  
   node0:
     <<: *node-base
     environment:
@@ -21,7 +20,5 @@ services:
       CHARON_DKG_ALGORITHM: frost
       CHARON_OUTPUT_DIR: /compose
     
-  
-  
 networks:
   compose:

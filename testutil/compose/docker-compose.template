@@ -9,7 +9,7 @@ x-node-base: &node-base
   {{if .Bootnode }}depends_on: [bootnode] {{end}}
 
 services:
-  {{ range $i, $node := .Nodes}}
+  {{- range $i, $node := .Nodes}}
   node{{$i}}:
     <<: *node-base
     {{- if .EnvVars}}
@@ -17,15 +17,15 @@ services:
       {{- range $node.EnvVars}}
       CHARON_{{.KeyUpper}}: {{.Value}}
       {{- end}}
-    {{- end}}
+    {{end -}}
     {{if .Ports}}
     ports:
       {{- range $node.Ports}}
       - "{{.External}}:{{.Internal}}"
-      {{- end}}
-    {{- end}}
-  {{ end -}}
-  {{if .Bootnode }}
+      {{end -}}
+    {{end -}}
+  {{end -}}
+  {{- if .Bootnode }}
   bootnode:
     <<: *node-base
     command: bootnode
@@ -37,19 +37,24 @@ services:
       CHARON_P2P_EXTERNAL_HOSTNAME: bootnode
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
-  {{end}}
+  {{end -}}
   {{- range $i, $vc := .VCs}}
+  {{- if $vc.Label}}
   vc{{$i}}-{{$vc.Label}}:
-    {{if $vc.Build}} build: {{$vc.Build}} {{end}}
-    {{if $vc.Image}} image: {{$vc.Image}} {{end}}
-    {{if $vc.Command}} command: {{$vc.Command}} {{end}}
+    {{if $vc.Build}}build: {{$vc.Build}}
+    {{end -}}
+    {{if $vc.Image}}image: {{$vc.Image}}
+    {{end -}}
+    {{if $vc.Command}}command: {{$vc.Command}}
+    {{end -}}
     networks: [compose]
     depends_on: [node{{$i}}]
     environment:
       NODE: node{{$i}}
     volumes:
       - .:/compose
-  {{end}}
+  {{end -}}
+  {{end -}}
   {{if .Monitoring}}
   prometheus:
     image: prom/prometheus:latest

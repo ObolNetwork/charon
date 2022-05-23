@@ -9,7 +9,6 @@ x-node-base: &node-base
   depends_on: [bootnode] 
 
 services:
-  
   node0:
     <<: *node-base
     environment:
@@ -28,7 +27,6 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
     
-  
   node1:
     <<: *node-base
     environment:
@@ -47,7 +45,6 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
     
-  
   node2:
     <<: *node-base
     environment:
@@ -66,7 +63,6 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
     
-  
   node3:
     <<: *node-base
     environment:
@@ -85,7 +81,6 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
     
-  
   bootnode:
     <<: *node-base
     command: bootnode
@@ -98,6 +93,44 @@ services:
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
   
+  vc0-teku:
+    image: consensys/teku:latest
+    command: |
+      validator-client
+      --network=auto
+      --beacon-node-api-endpoint="http://node1:16002"
+      --validator-keys="/compose/node1:/compose/node1"
+      --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
+    networks: [compose]
+    depends_on: [node0]
+    environment:
+      NODE: node0
+    volumes:
+      - .:/compose
+  
+  vc1-lighthouse:
+    build: lighthouse
+    networks: [compose]
+    depends_on: [node1]
+    environment:
+      NODE: node1
+    volumes:
+      - .:/compose
+  
+  vc3-teku:
+    image: consensys/teku:latest
+    command: |
+      validator-client
+      --network=auto
+      --beacon-node-api-endpoint="http://node1:16002"
+      --validator-keys="/compose/node1:/compose/node1"
+      --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
+    networks: [compose]
+    depends_on: [node3]
+    environment:
+      NODE: node3
+    volumes:
+      - .:/compose
   
   prometheus:
     image: prom/prometheus:latest
