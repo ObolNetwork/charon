@@ -45,7 +45,7 @@ func Run(ctx context.Context, dir string) error {
 	data := tmplData{
 		ComposeDir:       dir,
 		CharonImageTag:   conf.ImageTag,
-		CharonEntrypoint: containerBinary,
+		CharonEntrypoint: conf.entrypoint(),
 		CharonCommand:    cmdRun,
 		Nodes:            nodes,
 		Bootnode:         true,

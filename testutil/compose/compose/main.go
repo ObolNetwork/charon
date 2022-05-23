@@ -114,9 +114,11 @@ func newDefineCmd() *cobra.Command {
 	dir := addDirFlag(cmd.Flags())
 	seed := cmd.Flags().Int("seed", int(time.Now().UnixNano()), "Randomness seed")
 	keygen := cmd.Flags().String("keygen", string(conf.KeyGen), "Key generation process: create, split, dkg")
+	buildLocal := cmd.Flags().Bool("build-local", conf.BuildLocal, "Enables building a local charon binary from source. Note this requires the CHARON_REPO env var.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
+		conf.BuildLocal = *buildLocal
 
 		if err := compose.Define(cmd.Context(), *dir, *seed, conf); err != nil {
 			return err
