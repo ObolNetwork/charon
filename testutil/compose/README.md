@@ -16,7 +16,7 @@ The `compose` command should be executed in sequential steps:
 
 Note that compose automatically runs `docker-compose up` at the end of each command. This can be disabled via `--up=false`.
 
-The `compose define` step configures the target cluster and key generation process, it supports the following flags:
+The `compose define` step configures the target cluster and key generation process. It supports the following flags:
  - `--keygen`: Key generation process: `create` or `dkg`.
    - create` creates keys locally via `charon create cluster`
    - or `dkg` to create keys via `charon create dkg` followed by `charon dkg`.
