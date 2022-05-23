@@ -1,6 +1,6 @@
 # Charon docs
 
-This page acts as an index for the charon markdown documentation.
+This page acts as an index for the charon (pronounced 'kharon') markdown documentation.
 
 - [Configuration](configuration.md): Configuring a charon node
 - [Architecture](architecture.md): Overview of charon cluster and node architecture
