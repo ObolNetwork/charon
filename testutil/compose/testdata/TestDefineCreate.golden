@@ -9,11 +9,7 @@ x-node-base: &node-base
   
 
 services:
-  
   node0:
     <<: *node-base
-    
-  
-  
 networks:
   compose:

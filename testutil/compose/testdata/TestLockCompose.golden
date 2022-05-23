@@ -9,7 +9,6 @@ x-node-base: &node-base
   
 
 services:
-  
   node0:
     <<: *node-base
     environment:
@@ -17,7 +16,5 @@ services:
       CHARON_NODES: 4
       CHARON_CLUSTER_DIR: /compose
     
-  
-  
 networks:
   compose:

@@ -11,7 +11,7 @@ mkdir /tmp/testnet/
 curl "http://${NODE}:16002/eth/v1/config/spec" | jq -r .data | yq -P > /tmp/testnet/config.yaml
 echo "0" > /tmp/testnet/deploy_block.txt
 
-for f in /charon/"${NODE}"/keystore-*.json; do
+for f in /compose/"${NODE}"/keystore-*.json; do
   echo "Importing key ${f}"
   cat "$(echo "${f}" | sed 's/json/txt/')" | lighthouse account validator import \
     --testnet-dir "/tmp/testnet" \

@@ -202,17 +202,17 @@ func copyStaticFolders(dir string) error {
 				return errors.New("child static dirs not supported")
 			}
 
-			info, err := f.Info()
-			if err != nil {
-				return errors.Wrap(err, "file info")
-			}
-
 			b, err := static.ReadFile(path.Join(staticRoot, d.Name(), f.Name()))
 			if err != nil {
 				return errors.Wrap(err, "read file")
 			}
 
-			if err := os.WriteFile(path.Join(dir, d.Name(), f.Name()), b, info.Mode()); err != nil {
+			var mode os.FileMode = 0o644
+			if strings.HasSuffix(f.Name(), ".sh") {
+				mode = 0o755
+			}
+
+			if err := os.WriteFile(path.Join(dir, d.Name(), f.Name()), b, mode); err != nil {
 				return errors.Wrap(err, "write file")
 			}
 		}
