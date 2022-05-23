@@ -68,9 +68,7 @@ func newRunCmd() *cobra.Command {
 		}
 
 		if *up {
-			if err := execUp(cmd.Context(), *dir); err != nil {
-				return err
-			}
+			return execUp(cmd.Context(), *dir)
 		}
 
 		return nil
@@ -94,9 +92,7 @@ func newLockCmd() *cobra.Command {
 		}
 
 		if *up {
-			if err := execUp(cmd.Context(), *dir); err != nil {
-				return err
-			}
+			return execUp(cmd.Context(), *dir)
 		}
 
 		return nil
@@ -127,9 +123,7 @@ func newDefineCmd() *cobra.Command {
 		}
 
 		if *up {
-			if err := execUp(cmd.Context(), *dir); err != nil {
-				return err
-			}
+			return execUp(cmd.Context(), *dir)
 		}
 
 		return nil
