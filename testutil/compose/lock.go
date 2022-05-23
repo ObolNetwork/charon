@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 
@@ -33,8 +34,12 @@ func Lock(ctx context.Context, dir string) error {
 	ctx = log.WithTopic(ctx, "lock")
 
 	conf, err := loadConfig(dir)
-	if err != nil {
+	if errors.Is(err, fs.ErrNotExist) {
+		return errors.New("compose config not found; maybe try `compose define` first")
+	} else if err != nil {
 		return err
+	} else if conf.Step == stepLocked {
+		return errors.New("compose config already locked; maybe try `compose clean` or `compose run`")
 	}
 
 	var data tmplData
@@ -76,6 +81,11 @@ func Lock(ctx context.Context, dir string) error {
 
 	log.Info(ctx, "Creating docker-compose.yml")
 	log.Info(ctx, "Create keys and cluster lock with: docker-compose up")
+
+	conf.Step = stepLocked
+	if err := writeConfig(dir, conf); err != nil {
+		return err
+	}
 
 	return writeDockerCompose(dir, data)
 }

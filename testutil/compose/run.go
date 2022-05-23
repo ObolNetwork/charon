@@ -17,7 +17,9 @@ package compose
 
 import (
 	"context"
+	"io/fs"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 )
 
@@ -26,8 +28,12 @@ func Run(ctx context.Context, dir string) error {
 	ctx = log.WithTopic(ctx, "run")
 
 	conf, err := loadConfig(dir)
-	if err != nil {
+	if errors.Is(err, fs.ErrNotExist) {
+		return errors.New("compose config not found; maybe try `compose define` first")
+	} else if err != nil {
 		return err
+	} else if conf.Step != stepLocked {
+		return errors.New("compose config not locked yet, maybe try `compose lock` first")
 	}
 
 	var nodes []node
