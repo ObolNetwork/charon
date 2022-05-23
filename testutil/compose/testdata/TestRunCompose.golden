@@ -26,7 +26,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:16000/enr
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_BEACON_MOCK: "true"
-      CHARON_LOG_LEVEL: info
+      CHARON_LOG_LEVEL: debug
     
   
   node1:
@@ -45,7 +45,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:16000/enr
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_BEACON_MOCK: "true"
-      CHARON_LOG_LEVEL: info
+      CHARON_LOG_LEVEL: debug
     
   
   node2:
@@ -64,7 +64,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:16000/enr
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_BEACON_MOCK: "true"
-      CHARON_LOG_LEVEL: info
+      CHARON_LOG_LEVEL: debug
     
   
   node3:
@@ -83,7 +83,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:16000/enr
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_BEACON_MOCK: "true"
-      CHARON_LOG_LEVEL: info
+      CHARON_LOG_LEVEL: debug
     
   
   bootnode:
@@ -95,7 +95,34 @@ services:
       CHARON_DATA_DIR: /compose/bootnode
       CHARON_P2P_BOOTNODES: ""
       CHARON_P2P_EXTERNAL_HOSTNAME: bootnode
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
+      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
   
+  
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    networks: [compose]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    networks: [compose]
+    volumes:
+      - ./grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/datasource.yml
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./grafana/simnet_dash.json:/etc/dashboards/simnet_dash.json
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    networks: [compose]
+    ports:
+      - "16686:16686"
   
 networks:
   compose:

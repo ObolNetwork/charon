@@ -6,7 +6,7 @@ x-node-base: &node-base
   command: {{.CharonCommand}}
   networks: [compose]
   volumes: [{{.ComposeDir}}:/compose]
-  {{if not .NodeOnly }}depends_on: [bootnode] {{end}}
+  {{if .Bootnode }}depends_on: [bootnode] {{end}}
 
 services:
   {{ range $i, $node := .Nodes}}
@@ -25,8 +25,7 @@ services:
       {{- end}}
     {{- end}}
   {{ end -}}
-
-  {{if not .NodeOnly }}
+  {{if .Bootnode }}
   bootnode:
     <<: *node-base
     command: bootnode
@@ -36,7 +35,9 @@ services:
       CHARON_DATA_DIR: /compose/bootnode
       CHARON_P2P_BOOTNODES: ""
       CHARON_P2P_EXTERNAL_HOSTNAME: bootnode
-
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
+      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
+  {{end}}
   {{- range $i, $vc := .VCs}}
   vc{{$i}}-{{$vc.Label}}:
     {{if $vc.Build}} build: {{$vc.Build}} {{end}}
@@ -48,7 +49,6 @@ services:
       NODE: node{{$i}}
     volumes:
       - .:/compose
-  {{end}}
   {{end}}
   {{if .Monitoring}}
   prometheus:

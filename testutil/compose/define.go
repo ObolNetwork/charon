@@ -106,7 +106,6 @@ func Define(ctx context.Context, dir string, seed int, conf Config) error {
 		}}
 
 		data = tmplData{
-			NodeOnly:         true,
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: containerBinary,
@@ -118,7 +117,6 @@ func Define(ctx context.Context, dir string, seed int, conf Config) error {
 		// is used directly in their compose lock.
 
 		data = tmplData{
-			NodeOnly:         true,
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: "echo",
@@ -133,10 +131,59 @@ func Define(ctx context.Context, dir string, seed int, conf Config) error {
 		return err
 	}
 
+	if err := copyStaticFolders(dir); err != nil {
+		return err
+	}
+
 	log.Info(ctx, "Creating docker-compose.yml")
 	log.Info(ctx, "Create cluster definition: docker-compose up")
 
 	return writeDockerCompose(dir, data)
+}
+
+// copyStaticFolders copies the embedded static folders to the compose dir.
+func copyStaticFolders(dir string) error {
+	const staticRoot = "static"
+	dirs, err := static.ReadDir(staticRoot)
+	if err != nil {
+		return errors.Wrap(err, "read dirs")
+	}
+	for _, d := range dirs {
+		if !d.IsDir() {
+			return errors.New("static files not supported")
+		}
+
+		if err := os.MkdirAll(path.Join(dir, d.Name()), 0o755); err != nil {
+			return errors.Wrap(err, "mkdir all")
+		}
+
+		files, err := static.ReadDir(path.Join(staticRoot, d.Name()))
+		if err != nil {
+			return errors.Wrap(err, "read files")
+		}
+
+		for _, f := range files {
+			if f.IsDir() {
+				return errors.New("child static dirs not supported")
+			}
+
+			info, err := f.Info()
+			if err != nil {
+				return errors.Wrap(err, "file info")
+			}
+
+			b, err := static.ReadFile(path.Join(staticRoot, d.Name(), f.Name()))
+			if err != nil {
+				return errors.Wrap(err, "read file")
+			}
+
+			if err := os.WriteFile(path.Join(dir, d.Name(), f.Name()), b, info.Mode()); err != nil {
+				return errors.Wrap(err, "write file")
+			}
+		}
+	}
+
+	return nil
 }
 
 func keyToENR(key *ecdsa.PrivateKey) (string, error) {

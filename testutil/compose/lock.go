@@ -53,7 +53,6 @@ func Lock(ctx context.Context, dir string) error {
 		}}
 
 		data = tmplData{
-			NodeOnly:         true,
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: containerBinary,
@@ -73,6 +72,7 @@ func Lock(ctx context.Context, dir string) error {
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: containerBinary,
 			CharonCommand:    cmdDKG,
+			Bootnode:         true,
 			Nodes:            nodes,
 		}
 	default:
@@ -106,7 +106,7 @@ func newNodeEnvs(index int, validatorMock, beaconMock bool) []kv {
 		{"p2p_bootnodes", "http://bootnode:16000/enr"},
 		{"simnet_validator_mock", fmt.Sprintf(`"%v"`, validatorMock)},
 		{"simnet_beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},
-		{"log_level", "info"},
+		{"log_level", "debug"},
 	}
 }
 
