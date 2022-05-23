@@ -154,6 +154,11 @@ func buildLocal(ctx context.Context, dir string) error {
 		return errors.New("cannot build local charon binary; CHARON_REPO env var, the path to the charon repo, is not set")
 	}
 
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return errors.Wrap(err, "abs dir")
+	}
+
 	target := path.Join(dir, "charon")
 
 	log.Info(ctx, "Building local charon binary", z.Str("repo", repo), z.Str("target", target))
