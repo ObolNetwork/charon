@@ -41,6 +41,14 @@ type createDKGConfig struct {
 	OperatorENRs      []string
 }
 
+var validForkVersions = map[string]bool{
+	"0x00001020": true, // prater
+	"0x60000069": true, // kintsugi
+	"0x70000069": true, // kiln
+	"0x00000064": true, // gnosis
+	"0x00000000": true, // mainnet
+}
+
 func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobra.Command {
 	var config createDKGConfig
 
@@ -66,7 +74,7 @@ func bindCreateDKGFlags(flags *pflag.FlagSet, config *createDKGConfig) {
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	flags.StringVar(&config.WithdrawalAddress, "withdrawal-address", "", "Withdrawal Ethereum address")
-	flags.StringVar(&config.ForkVersion, "fork-version", "", "Optional hex fork version identifying the target network/chain")
+	flags.StringVar(&config.ForkVersion, "fork-version", "", "Hex fork version identifying the target network/chain")
 	flags.StringVar(&config.DKGAlgo, "dkg-algorithm", "default", "DKG algorithm to use; default, keycast, frost")
 	flags.StringSliceVar(&config.OperatorENRs, "operator-enrs", nil, "Comma-separated list of each operator's Charon ENR address")
 }
@@ -77,6 +85,10 @@ func runCreateDKG(_ context.Context, conf createDKGConfig) error {
 		operators = append(operators, cluster.Operator{
 			ENR: opENR,
 		})
+	}
+
+	if !validForkVersions[conf.ForkVersion] {
+		return errors.New("invalid fork version")
 	}
 
 	def := cluster.NewDefinition(conf.Name, conf.NumValidators, conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddress,

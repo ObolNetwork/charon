@@ -43,7 +43,6 @@ type Config struct {
 	DataDir string
 	P2P     p2p.Config
 	Log     log.Config
-	Network string
 
 	TestDef     *cluster.Definition
 	TestSigning bool
@@ -63,6 +62,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	def, err := loadDefinition(conf)
+	if err != nil {
+		return err
+	}
+
+	network, err := forkVersionToNetwork(def.ForkVersion)
 	if err != nil {
 		return err
 	}
@@ -155,12 +159,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	// Sign, exchange and aggregate Deposit Data signatures
-	aggSigDepositData, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddress, conf.Network, nodeIdx)
+	aggSigDepositData, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddress, network, nodeIdx)
 	if err != nil {
 		return err
 	}
 
-	return writeDepositData(aggSigDepositData, def.WithdrawalAddress, conf.Network, conf.DataDir)
+	return writeDepositData(aggSigDepositData, def.WithdrawalAddress, network, conf.DataDir)
 }
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
@@ -564,4 +568,21 @@ func waitConnect(ctx context.Context, tcpNode host.Host, p peer.ID) (time.Durati
 	}
 
 	return 0, false
+}
+
+func forkVersionToNetwork(forkVersion string) (string, error) {
+	switch forkVersion {
+	case "0x00001020":
+		return "prater", nil
+	case "0x60000069":
+		return "kintsugi", nil
+	case "0x70000069":
+		return "kiln", nil
+	case "0x00000064":
+		return "gnosis", nil
+	case "0x00000000":
+		return "mainnet", nil
+	default:
+		return "", errors.New("invalid fork version")
+	}
 }

@@ -123,7 +123,7 @@ func NewForT(t *testing.T, dv, k, n, seed int) (Lock, []*ecdsa.PrivateKey, [][]*
 		Definition: NewDefinition(
 			"test cluster", dv, k,
 			testutil.RandomETHAddress(), testutil.RandomETHAddress(),
-			"0x0000000", ops, random),
+			"0x00000000", ops, random),
 		Validators:         vals,
 		SignatureAggregate: nil,
 	}, p2pKeys, dvShares
