@@ -21,7 +21,7 @@ The `compose define` step configures the target cluster and key generation proce
    - create` creates keys locally via `charon create cluster`
    - or `dkg` to create keys via `charon create dkg` followed by `charon dkg`.
  - `--split-keys-dir`: Path to a folder containing keys to split. Only applicable to `--keygen=create`.
- - `--build-local`: Build a local charon binary from source. Note this requires the `CHARON_REPO` path env var. Devs are encourages to put this in the bash profile.
+ - `--build-local`: Build a local charon binary from source. Note this requires the `CHARON_REPO` path env var. Devs are encouraged to put this in the bash profile.
  - `--seed`: Randomness seed, can be used to produce deterministic p2pkeys for dkg.
 
 ## Usage
