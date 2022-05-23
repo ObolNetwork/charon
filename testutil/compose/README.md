@@ -14,6 +14,8 @@ The `compose` command should be executed in a sequential steps:
  1. `compose lock`: Creates `docker-compose.yml` to create threshold key shares and the `cluster-lock.json` file.
  1. `compose run`: Creates `docker-compose.yml` to run the cluster.
 
+Note that compose automatically runs `docker-compose up` at the end of each command. This can be disabled via `--up=false`.
+
 The `compose define` step configures the target cluster and key generation process, it supports the following flags:
  - `--keygen`: Key generation process: `create` or `dkg`.
    - Either `create` to create keys locally via `charon create cluster`
@@ -44,6 +46,11 @@ cd charon-compose
 Create the default cluster:
 ```
 compose clean && compose define && compose lock && compose run
+```
+Monitor the cluster via `grafana` and `jeager`:
+```
+open http://localhost:3000/d/B2zGKKs7k # Open Grafana simnet dashboard
+open http://localhost:16686            # Open Jaeger dashboard
 ```
 Creating a DKG based cluster that uses locally built binary:
 ```
