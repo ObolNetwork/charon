@@ -53,7 +53,7 @@ func Lock(ctx context.Context, dir string) error {
 		data = tmplData{
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
-			CharonEntrypoint: containerBinary,
+			CharonEntrypoint: conf.entrypoint(),
 			CharonCommand:    cmdCreateCluster,
 			Nodes:            []node{n},
 		}
@@ -68,7 +68,7 @@ func Lock(ctx context.Context, dir string) error {
 		data = tmplData{
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
-			CharonEntrypoint: containerBinary,
+			CharonEntrypoint: conf.entrypoint(),
 			CharonCommand:    cmdDKG,
 			Bootnode:         true,
 			Nodes:            nodes,

@@ -26,6 +26,7 @@ const (
 	defaultNumNodes   = 4
 	defaultThreshold  = 3
 
+	localBinary      = "/compose/charon"
 	containerBinary  = "/usr/local/bin/charon"
 	cmdRun           = "run"
 	cmdDKG           = "dkg"
@@ -79,6 +80,9 @@ type Config struct {
 	// ImageTag defines the charon docker image tag: ghcr.io/obolnetwork/charon:{ImageTag}.
 	ImageTag string `json:"image_tag"`
 
+	// BuildLocal enables building a local charon binary from source and using that in the containers.
+	BuildLocal bool
+
 	// KeyGen defines the key generation process.
 	KeyGen KeyGen `json:"key_gen"`
 
@@ -87,6 +91,15 @@ type Config struct {
 
 	// VCs define the types of validator clients to use.
 	VCs []vcType `json:"validator_clients"`
+}
+
+// entrypoint returns the path to the charon binary based on the BuildLocal field.
+func (c Config) entrypoint() string {
+	if c.BuildLocal {
+		return localBinary
+	}
+
+	return containerBinary
 }
 
 // NewDefaultConfig returns a new default config.

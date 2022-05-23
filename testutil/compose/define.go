@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
@@ -67,6 +68,12 @@ func Define(ctx context.Context, dir string, seed int, conf Config) error {
 		return errors.New("compose config already defined; maybe try `compose clean` or `compose lock`")
 	}
 
+	if conf.BuildLocal {
+		if err := buildLocal(ctx, dir); err != nil {
+			return err
+		}
+	}
+
 	var data tmplData
 	if conf.KeyGen == keyGenDKG {
 		log.Info(ctx, "Creating node*/p2pkey for ENRs required for charon create dkg")
@@ -107,7 +114,7 @@ func Define(ctx context.Context, dir string, seed int, conf Config) error {
 		data = tmplData{
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
-			CharonEntrypoint: containerBinary,
+			CharonEntrypoint: conf.entrypoint(),
 			CharonCommand:    cmdCreateDKG,
 			Nodes:            []node{n},
 		}
@@ -138,6 +145,30 @@ func Define(ctx context.Context, dir string, seed int, conf Config) error {
 	log.Info(ctx, "Create cluster definition: docker-compose up")
 
 	return writeDockerCompose(dir, data)
+}
+
+// buildLocal builds a local charon binary and writes it to the cluster dir. Note this requires CHARON_REPO env var.
+func buildLocal(ctx context.Context, dir string) error {
+	repo, ok := os.LookupEnv("CHARON_REPO")
+	if !ok || repo == "" {
+		return errors.New("cannot build local charon binary; CHARON_REPO env var, the path to the charon repo, is not set")
+	}
+
+	target := path.Join(dir, "charon")
+
+	log.Info(ctx, "Building local charon binary", z.Str("repo", repo), z.Str("target", target))
+
+	cmd := exec.CommandContext(ctx, "go", "build", "-o", target)
+	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Dir = repo
+
+	if err := cmd.Run(); err != nil {
+		return errors.Wrap(err, "exec go build")
+	}
+
+	return nil
 }
 
 // copyStaticFolders copies the embedded static folders to the compose dir.
