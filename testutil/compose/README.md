@@ -68,10 +68,10 @@ Creating a cluster splitting existing keys for a public testnet:
 ```
 # Prep the keys to split
 # Each keystore-{foo}.json requires a keystore-{foo}.txt file containing the password.
-mkdir split-keys
-cp path/to/existing/keys/keystore-*.json split_keys/
-cp path/to/passwords/keystore-*.txt split_keys/
+mkdir mykeys
+cp path/to/existing/keys/keystore-*.json mykeys/
+cp path/to/passwords/keystore-*.txt mykeys/
 
-compose new --split-keys-dir=split-keys --beacon-node=$BEACON_URL
+compose new --split-keys-dir=mykeys --beacon-node=$BEACON_URL
 compose auto
 ```
