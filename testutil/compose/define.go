@@ -206,6 +206,10 @@ func validateSplitKeysDir(dir string, spitKeysDir string) error {
 
 // getRelSplitKeysDir returns the splitKeysDir as a relative path to dir.
 func getRelSplitKeysDir(dir, splitKeysDir string) (string, error) {
+	if splitKeysDir == "" {
+		return "", nil
+	}
+
 	dir, err := filepath.Abs(dir)
 	if err != nil {
 		return "", errors.Wrap(err, "abs dir")

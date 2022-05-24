@@ -47,6 +47,8 @@ func Lock(ctx context.Context, dir string) error {
 		splitKeysDir, err := getRelSplitKeysDir(dir, conf.SplitKeysDir)
 		if err != nil {
 			return err
+		} else if splitKeysDir != "" {
+			splitKeysDir = path.Join("/compose", splitKeysDir)
 		}
 
 		// Only single node to call charon create cluster generate keys
@@ -55,7 +57,7 @@ func Lock(ctx context.Context, dir string) error {
 			{"nodes", fmt.Sprint(conf.NumNodes)},
 			{"cluster_dir", "/compose"},
 			{"split_existing_keys", fmt.Sprintf(`"%v"`, conf.SplitKeysDir != "")},
-			{"split_keys_dir", path.Join("/compose", splitKeysDir)},
+			{"split_keys_dir", splitKeysDir},
 		}}
 
 		data = tmplData{
