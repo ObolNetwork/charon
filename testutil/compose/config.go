@@ -51,7 +51,6 @@ type KeyGen string
 const (
 	keyGenDKG    KeyGen = "dkg"
 	keyGenCreate KeyGen = "create"
-	keyGenSplit  KeyGen = "split"
 )
 
 // step defines the current completed compose step.
