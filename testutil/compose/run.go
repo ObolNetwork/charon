@@ -34,7 +34,7 @@ func Run(ctx context.Context, dir string) error {
 	} else if err != nil {
 		return err
 	} else if conf.Step != stepLocked {
-		return errors.New("compose config not lock, so can't be run", z.Any("step", conf.Step))
+		return errors.New("compose config not locked, so can't be run", z.Any("step", conf.Step))
 	}
 
 	var (
