@@ -25,7 +25,8 @@ The `compose new` step configures the target cluster and key generation process.
  - `--split-keys-dir`: Path to a folder containing keys to split. Only applicable to `--keygen=create`.
  - `--build-local`: Build a local charon binary from source. Note this requires the `CHARON_REPO` path env var. Devs are encouraged to put this in the bash profile.
 
-## Usage
+## Usage Examples
+
 Install the `compose` binary:
 ```
 # From inside the charon repo
@@ -38,23 +39,39 @@ go install github.com/obolnetwork/charon/testutil/compose/compose
 # cd testutil/compose/compose && go installl .
 # cd testutil/compose/compose && go build -o /tmp/compose/compose
 ```
+
 Create a charon compose workspace folder:
 ```
 cd /tmp
 mkdir charon-compose
 cd charon-compose
 ```
+
 Create the default cluster:
 ```
 compose clean && compose new && compose define && compose lock && compose run
 ```
+
 Monitor the cluster via `grafana` and `jaeger`:
 ```
 open http://localhost:3000/d/B2zGKKs7k # Open Grafana simnet dashboard
 open http://localhost:16686            # Open Jaeger dashboard
 ```
+
 Creating a DKG based cluster that uses locally built binary:
 ```
 compose new --keygen=dkg --build-local
+compose auto
+```
+
+Creating a cluster splitting existing keys for a public testnet:
+```
+# Prep the keys to split
+# Each keystore-{foo}.json requires a keystore-{foo}.txt file containing the password.
+mkdir mykeys
+cp path/to/existing/keys/keystore-*.json mykeys/
+cp path/to/passwords/keystore-*.txt mykeys/
+
+compose new --split-keys-dir=mykeys --beacon-node=$BEACON_URL
 compose auto
 ```
