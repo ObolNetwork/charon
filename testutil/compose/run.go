@@ -82,7 +82,7 @@ func getVC(typ vcType, nodeIdx int) vc {
       validator-client
       --network=auto
       --beacon-node-api-endpoint="http://node{{nodeIdx}}:16002"
-      --validator-keys="/compose/{{nodeIdx}}:/compose/{{nodeIdx}}"
+      --validator-keys="/compose/node{{nodeIdx}}:/compose/node{{nodeIdx}}"
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"`,
 		},
 	}
