@@ -1,4 +1,4 @@
-_# Charon Compose
+# Charon Compose
 
 > Run, test, and debug a developer-focussed insecure local charon cluster using docker-compose
 
