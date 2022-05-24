@@ -337,10 +337,7 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 
 		var pubshares [][]byte
 		for i := 0; i < dv.NumShares(); i++ {
-			share, err := dv.PublicShare(i + 1) // Shares are 1-indexed.
-			if err != nil {
-				return cluster.Lock{}, err
-			}
+			share := dv.PublicShare(i + 1) // Shares are 1-indexed.
 			b, err := share.MarshalBinary()
 			if err != nil {
 				return cluster.Lock{}, errors.Wrap(err, "marshal pubshare")

@@ -53,8 +53,7 @@ func TestAggregateSignatures(t *testing.T) {
 
 		partialSigs[i] = psig
 
-		pubshare, err := tss.PublicShare(int(psig.Identifier))
-		require.NoError(t, err)
+		pubshare := tss.PublicShare(int(psig.Identifier))
 
 		ok, err := tbls.Verify(pubshare, msg, &bls_sig.Signature{Value: psig.Signature})
 		require.NoError(t, err)

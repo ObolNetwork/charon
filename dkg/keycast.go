@@ -21,8 +21,6 @@ import (
 	"io"
 	"sort"
 
-	"github.com/coinbase/kryptology/pkg/core/curves"
-	"github.com/coinbase/kryptology/pkg/sharing"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -46,16 +44,13 @@ type share struct {
 	PubKey      *bls_sig.PublicKey
 	SecretShare *bls_sig.SecretKeyShare
 
-	// One of the two below will be populated,
-	Verifier     *sharing.FeldmanVerifier
-	PublicShares map[uint32]*bls_sig.PublicKey // map[shareIdx]*bls_sig.PublicKey
+	PublicShares map[int]*bls_sig.PublicKey // map[shareIdx]*bls_sig.PublicKey
 }
 
 // shareMsg is the share message wire format sent by the dealer.
 type shareMsg struct {
 	PubKey      []byte
 	PubShares   [][]byte
-	Verifiers   [][]byte
 	SecretShare []byte
 }
 
@@ -169,12 +164,7 @@ func leadKeyCast(ctx context.Context, tp kcTransport, def cluster.Definition, ra
 func createShares(numValidators, numNodes, threshold int, random io.Reader) ([][]share, error) {
 	resp := make([][]share, numNodes)
 	for i := 0; i < numValidators; i++ {
-		pubkey, secret, err := tbls.Keygen()
-		if err != nil {
-			return nil, err
-		}
-
-		shares, verifier, err := tbls.SplitSecret(secret, threshold, numNodes, random)
+		tss, shares, err := tbls.GenerateTSS(threshold, numNodes, random)
 		if err != nil {
 			return nil, err
 		}
@@ -185,9 +175,9 @@ func createShares(numValidators, numNodes, threshold int, random io.Reader) ([][
 
 		for ni := 0; ni < numNodes; ni++ {
 			resp[ni] = append(resp[ni], share{
-				PubKey:      pubkey,
-				Verifier:    verifier,
-				SecretShare: shares[ni],
+				PubKey:       tss.PublicKey(),
+				PublicShares: tss.PublicShares(),
+				SecretShare:  shares[ni],
 			})
 		}
 	}
@@ -202,13 +192,6 @@ func msgFromShare(s share) (shareMsg, error) {
 		return shareMsg{}, errors.Wrap(err, "marshal pubkey")
 	}
 
-	var verifiers [][]byte
-	if s.Verifier != nil {
-		for _, commitment := range s.Verifier.Commitments {
-			verifiers = append(verifiers, commitment.ToAffineCompressed())
-		}
-	}
-
 	// Sort pub shares by id/index.
 	var pubSharesIDs []int
 	for id := range s.PublicShares {
@@ -218,7 +201,7 @@ func msgFromShare(s share) (shareMsg, error) {
 
 	var pubShares [][]byte
 	for _, id := range pubSharesIDs {
-		b, err := s.PublicShares[uint32(id)].MarshalBinary()
+		b, err := s.PublicShares[id].MarshalBinary()
 		if err != nil {
 			return shareMsg{}, errors.Wrap(err, "marshal public share")
 		}
@@ -232,7 +215,6 @@ func msgFromShare(s share) (shareMsg, error) {
 
 	return shareMsg{
 		PubKey:      pubkey,
-		Verifiers:   verifiers,
 		SecretShare: secretShare,
 		PubShares:   pubShares,
 	}, nil
@@ -245,24 +227,14 @@ func shareFromMsg(msg shareMsg) (share, error) {
 		return share{}, errors.Wrap(err, "unmarshal pubkey")
 	}
 
-	var commitments []curves.Point
-	for _, v := range msg.Verifiers {
-		c, err := curves.BLS12381G1().Point.FromAffineCompressed(v)
-		if err != nil {
-			return share{}, errors.Wrap(err, "verifier hex")
-		}
-
-		commitments = append(commitments, c)
-	}
-
-	pubShares := make(map[uint32]*bls_sig.PublicKey)
+	pubShares := make(map[int]*bls_sig.PublicKey)
 	for id, bytes := range msg.PubShares {
 		pubShare := new(bls_sig.PublicKey)
 		if err := pubShare.UnmarshalBinary(bytes); err != nil {
 			return share{}, errors.Wrap(err, "unmarshal public share")
 		}
 
-		pubShares[uint32(id+1)] = pubShare // Public shares IDs are 1-indexed.
+		pubShares[id+1] = pubShare // Public shares IDs are 1-indexed.
 	}
 
 	secretShare := new(bls_sig.SecretKeyShare)
@@ -272,7 +244,6 @@ func shareFromMsg(msg shareMsg) (share, error) {
 
 	return share{
 		PubKey:       pubKey,
-		Verifier:     &sharing.FeldmanVerifier{Commitments: commitments},
 		SecretShare:  secretShare,
 		PublicShares: pubShares,
 	}, nil

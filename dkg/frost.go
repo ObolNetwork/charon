@@ -219,7 +219,7 @@ func makeShares(
 	targetID uint32,
 ) ([]share, error) {
 	// Get set of public shares for each validator.
-	pubShares := make(map[uint32]map[uint32]*bls_sig.PublicKey) // map[ValIdx]map[SourceID]*bls_sig.PublicKey
+	pubShares := make(map[uint32]map[int]*bls_sig.PublicKey) // map[ValIdx]map[SourceID]*bls_sig.PublicKey
 	for key, result := range r2Result {
 		if key.TargetID != targetID {
 			// Not for us.
@@ -232,10 +232,10 @@ func makeShares(
 
 		m, ok := pubShares[key.ValIdx]
 		if !ok {
-			m = make(map[uint32]*bls_sig.PublicKey)
+			m = make(map[int]*bls_sig.PublicKey)
 			pubShares[key.ValIdx] = m
 		}
-		m[key.SourceID] = pubShare
+		m[int(key.SourceID)] = pubShare
 	}
 
 	// Sort shares by vIdx

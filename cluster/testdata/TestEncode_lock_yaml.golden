@@ -23,12 +23,6 @@ cluster_definition:
   - otcjnEC0WsOVDZQfxP4cDLlq0yLWIoIpX7/hHiakMwc=
 distributed_validators:
 - distributed_public_key: "0x7b182e046410f44bc4b0f3f03a0d06820a30f257"
-  threshold_verifiers:
-  - NCyLgFXEZtiGRB0lmQbWms2JS5aK6fDrnZZc5qRpPE4=
-  - vogVAbfZhGtm6wK1flzae2y6aJHWFr1obDe4NGE6yLo=
-- distributed_public_key: "0xa22c008ffe688352734ae4e3f1217acd5f832708"
-  threshold_verifiers:
-  - eVeydxnOPzGI3+V97r9vgllaEPe7ViygTVw9J5QpWMY=
-  - 2zJiZwZJ87yX2aIxZzXt5oKl3+bxoBH7yYrQ++eQADw=
+- distributed_public_key: "0x342c8b8055c466d886441d259906d69acd894b96"
 signature_aggregate: bbXBREw6NNMqXEp/++jRgfftO4z+kE+T+PBtKbzZ7YQ=
-lock_hash: wcS2qPDhSo0jvYr6tM+7pk4H+nsglA/cf8+baqBnuK0=
+lock_hash: c1GjLXPvkrYyXHyyATXvQ64yEjCcc/YmXl4PrK5MeDQ=
