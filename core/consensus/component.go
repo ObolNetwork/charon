@@ -42,8 +42,8 @@ const (
 	protocolID = "/charon/consensus/qbft/1.0.0"
 )
 
-// NewComponent returns a new consensus QBFT component.
-func NewComponent(tcpNode host.Host, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey) (*Component, error) {
+// New returns a new consensus QBFT component.
+func New(tcpNode host.Host, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*ecdsa.PublicKey)
 	for i, p := range peers {
