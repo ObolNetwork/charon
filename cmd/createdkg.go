@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -74,7 +75,7 @@ func bindCreateDKGFlags(flags *pflag.FlagSet, config *createDKGConfig) {
 	flags.IntVar(&config.NumValidators, "num-validators", 1, "The number of distributed validators the cluster will manage (32ETH staked for each).")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
-	flags.StringVar(&config.WithdrawalAddress, "withdrawal-address", "", "Withdrawal Ethereum address")
+	flags.StringVar(&config.WithdrawalAddress, "withdrawal-address", defaultWithdrawalAddr, "Withdrawal Ethereum address")
 	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
 	flags.StringVar(&config.DKGAlgo, "dkg-algorithm", "default", "DKG algorithm to use; default, keycast, frost")
 	flags.StringSliceVar(&config.OperatorENRs, "operator-enrs", nil, "Comma-separated list of each operator's Charon ENR address")
@@ -90,6 +91,10 @@ func runCreateDKG(_ context.Context, conf createDKGConfig) error {
 
 	if !validNetworks[conf.Network] {
 		return errors.New("unsupported network", z.Str("network", conf.Network))
+	}
+
+	if err := validateWithdrawalAddr(conf.WithdrawalAddress, conf.Network); err != nil {
+		return err
 	}
 
 	forkVersion := networkToForkVersion[conf.Network]
@@ -109,6 +114,20 @@ func runCreateDKG(_ context.Context, conf createDKGConfig) error {
 
 	if err := os.WriteFile(path.Join(conf.OutputDir, "cluster-definition.json"), b, 0o444); err != nil {
 		return errors.Wrap(err, "write definition")
+	}
+
+	return nil
+}
+
+func validateWithdrawalAddr(addr string, network string) error {
+	if !common.IsHexAddress(addr) {
+		return errors.New("invalid address")
+	}
+
+	// We cannot allow a zero withdrawal address on mainnet or gnosis.
+	if (network == "mainnet" || network == "gnosis") &&
+		addr == defaultWithdrawalAddr {
+		return errors.New("zero address forbidden on this network", z.Str("network", network))
 	}
 
 	return nil
