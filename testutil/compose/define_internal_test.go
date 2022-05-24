@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package compose_test
+package compose
 
 import (
 	"bytes"
@@ -25,30 +25,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/testutil"
-	"github.com/obolnetwork/charon/testutil/compose"
 )
-
-func TestDefineCompose(t *testing.T) {
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-
-	err = compose.Define(context.Background(), dir, 1, compose.NewDefaultConfig())
-	require.NoError(t, err)
-
-	conf, err := os.ReadFile(path.Join(dir, "config.json"))
-	require.NoError(t, err)
-
-	testutil.RequireGoldenBytes(t, conf)
-}
 
 func TestDefineDKG(t *testing.T) {
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	conf := compose.NewDefaultConfig()
+	conf := NewDefaultConfig()
 	conf.KeyGen = "dkg"
+	conf.Step = stepNew
+	p2pSeed = 1
+	require.NoError(t, writeConfig(dir, conf))
 
-	err = compose.Define(context.Background(), dir, 1, conf)
+	err = Define(context.Background(), dir)
 	require.NoError(t, err)
 
 	dc, err := os.ReadFile(path.Join(dir, "docker-compose.yml"))
@@ -62,10 +51,12 @@ func TestDefineCreate(t *testing.T) {
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	conf := compose.NewDefaultConfig()
+	conf := NewDefaultConfig()
 	conf.KeyGen = "create"
+	conf.Step = stepNew
+	require.NoError(t, writeConfig(dir, conf))
 
-	err = compose.Define(context.Background(), dir, 1, conf)
+	err = Define(context.Background(), dir)
 	require.NoError(t, err)
 
 	dc, err := os.ReadFile(path.Join(dir, "docker-compose.yml"))

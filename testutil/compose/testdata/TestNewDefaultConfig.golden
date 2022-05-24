@@ -1,6 +1,6 @@
 {
  "version": "obol/charon/compose/1.0.0",
- "step": "defined",
+ "step": "new",
  "num_nodes": 4,
  "threshold": 3,
  "num_validators": 1,

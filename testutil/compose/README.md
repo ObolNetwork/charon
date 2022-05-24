@@ -7,22 +7,23 @@ Compose is a tool that generates `docker-compose.yml` files such that different 
 The aim is for developers to be able to debug features and check functionality of clusters on their local machines.
 
 The `compose` command should be executed in sequential steps:
- 1. `compose clean`: Cleans the compose directory of existing artifacts.
- 2. `compose define`: Defines the target cluster and how keys are to be created.
-    1. It outputs `config.json` which is the compose config
-    1. It also creates `docker-compose.yml` in order to create `cluster-definition.json` if `keygen==dkg`.
- 1. `compose lock`: Creates `docker-compose.yml` to create threshold key shares and the `cluster-lock.json` file.
- 1. `compose run`: Creates `docker-compose.yml` to run the cluster.
+ 1. `compose new`: Creates a new config.json that defines what will be composed.
+ 2. `compose define`: Creates a docker-compose.yml that executes `charon create dkg` if keygen==dkg.
+ 3. `compose lock`: Creates a docker-compose.yml that executes `charon create cluster` or `charon dkg`.
+ 4. `compose run`: Creates a docker-compose.yml that executes `charon run`.
+
+The `compose` command also includes some convenience functions.
+- `compose clean`: Cleans the compose directory of existing files.
+- `compose auto`: Runs `compose define && compose lock && compose run`.
 
 Note that compose automatically runs `docker-compose up` at the end of each command. This can be disabled via `--up=false`.
 
-The `compose define` step configures the target cluster and key generation process. It supports the following flags:
+The `compose new` step configures the target cluster and key generation process. It supports the following flags:
  - `--keygen`: Key generation process: `create` or `dkg`.
    - create` creates keys locally via `charon create cluster`
    - `dkg` creates keys via `charon create dkg` followed by `charon dkg`.
  - `--split-keys-dir`: Path to a folder containing keys to split. Only applicable to `--keygen=create`.
  - `--build-local`: Build a local charon binary from source. Note this requires the `CHARON_REPO` path env var. Devs are encouraged to put this in the bash profile.
- - `--seed`: Randomness seed, can be used to produce deterministic p2pkeys for dkg.
 
 ## Usage
 Install the `compose` binary:
@@ -45,7 +46,7 @@ cd charon-compose
 ```
 Create the default cluster:
 ```
-compose clean && compose define && compose lock && compose run
+compose clean && compose new && compose define && compose lock && compose run
 ```
 Monitor the cluster via `grafana` and `jaeger`:
 ```
@@ -54,8 +55,6 @@ open http://localhost:16686            # Open Jaeger dashboard
 ```
 Creating a DKG based cluster that uses locally built binary:
 ```
-compose clean
-compose define --keygen=dkg --build-local
-compose lock
-compose run
+compose new --keygen=dkg --build-local
+compose auto
 ```

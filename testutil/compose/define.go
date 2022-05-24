@@ -20,12 +20,14 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"math/rand"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -61,11 +63,14 @@ func Clean(ctx context.Context, dir string) error {
 }
 
 // Define defines a compose cluster; including both keygen and running definitions.
-func Define(ctx context.Context, dir string, seed int, conf Config) error {
-	ctx = log.WithTopic(ctx, "define")
-
-	if _, err := loadConfig(dir); err == nil {
-		return errors.New("compose config already defined; maybe try `compose clean` or `compose lock`")
+func Define(ctx context.Context, dir string) error {
+	conf, err := loadConfig(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return errors.New("compose config not found; maybe try `compose new` first")
+	} else if err != nil {
+		return err
+	} else if conf.Step != stepNew {
+		return errors.New("compose config not new, so can't be defined", z.Any("step", conf.Step))
 	}
 
 	if conf.BuildLocal {
@@ -79,7 +84,7 @@ func Define(ctx context.Context, dir string, seed int, conf Config) error {
 		log.Info(ctx, "Creating node*/p2pkey for ENRs required for charon create dkg")
 
 		// charon create dkg requires operator ENRs, so we need to create p2pkeys now.
-		p2pkeys, err := newP2PKeys(conf.NumNodes, seed)
+		p2pkeys, err := newP2PKeys(conf.NumNodes)
 		if err != nil {
 			return err
 		}
@@ -233,9 +238,12 @@ func keyToENR(key *ecdsa.PrivateKey) (string, error) {
 	return p2p.EncodeENR(r)
 }
 
+// p2pSeed can be overridden in tests for deterministic p2pkeys.
+var p2pSeed = time.Now().UnixNano()
+
 // newP2PKeys returns a slice of newly generated ecdsa private keys.
-func newP2PKeys(n, seed int) ([]*ecdsa.PrivateKey, error) {
-	random := rand.New(rand.NewSource(int64(seed))) //nolint:gosec // Weak random is fine for testing.
+func newP2PKeys(n int) ([]*ecdsa.PrivateKey, error) {
+	random := rand.New(rand.NewSource(p2pSeed)) //nolint:gosec // Weak random is fine for testing.
 	var resp []*ecdsa.PrivateKey
 	for i := 0; i < n; i++ {
 		key, err := ecdsa.GenerateKey(crypto.S256(), random)
