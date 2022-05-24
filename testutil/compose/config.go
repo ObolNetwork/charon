@@ -26,6 +26,7 @@ const (
 	defaultNumNodes   = 4
 	defaultThreshold  = 3
 
+	charonImage      = "ghcr.io/obolnetwork/charon"
 	localBinary      = "/compose/charon"
 	containerBinary  = "/usr/local/bin/charon"
 	cmdRun           = "run"

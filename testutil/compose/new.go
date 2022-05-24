@@ -25,6 +25,10 @@ import (
 
 // New creates a new compose config file from flags.
 func New(ctx context.Context, dir string, conf Config) error {
+	if err := Clean(ctx, dir); err != nil {
+		return err
+	}
+
 	conf.Step = stepNew
 
 	log.Info(ctx, "Writing config to compose dir",

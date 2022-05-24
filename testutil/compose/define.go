@@ -51,6 +51,25 @@ func Clean(ctx context.Context, dir string) error {
 		return errors.Wrap(err, "glob dir")
 	}
 
+	// Make sure we ONLY delete compose artifacts.
+	var (
+		configFound bool
+		goFound     bool
+	)
+	for _, file := range files {
+		if file == configFile {
+			configFound = true
+		} else if strings.HasSuffix(file, ".go") || strings.HasPrefix(file, "go.") {
+			goFound = true
+		}
+	}
+	if !configFound {
+		log.Info(ctx, "Not cleaning since config.json not found")
+		return nil
+	} else if goFound {
+		return errors.New("go files found, compose dir incorrect", z.Str("dir", dir))
+	}
+
 	log.Info(ctx, "Cleaning compose dir", z.Int("files", len(files)))
 
 	for _, file := range files {
@@ -75,6 +94,12 @@ func Define(ctx context.Context, dir string) error {
 
 	if conf.BuildLocal {
 		if err := buildLocal(ctx, dir); err != nil {
+			return err
+		}
+	}
+
+	if conf.ImageTag == "latest" {
+		if err := pullLatest(ctx); err != nil {
 			return err
 		}
 	}
@@ -138,6 +163,7 @@ func Define(ctx context.Context, dir string) error {
 
 	log.Info(ctx, "Creating config.json")
 
+	conf.Step = stepDefined
 	if err := writeConfig(dir, conf); err != nil {
 		return err
 	}
@@ -150,6 +176,21 @@ func Define(ctx context.Context, dir string) error {
 	log.Info(ctx, "Create cluster definition: docker-compose up")
 
 	return writeDockerCompose(dir, data)
+}
+
+// pullLatest pulls the latest charon docker image.
+func pullLatest(ctx context.Context) error {
+	log.Info(ctx, "Pulling latest charon docker image")
+
+	cmd := exec.CommandContext(ctx, "docker", "pull", charonImage+":latest")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return errors.Wrap(err, "run docker pull")
+	}
+
+	return nil
 }
 
 // buildLocal builds a local charon binary and writes it to the cluster dir. Note this requires CHARON_REPO env var.
