@@ -147,10 +147,14 @@ func newNewCmd() *cobra.Command {
 	dir := addDirFlag(cmd.Flags())
 	keygen := cmd.Flags().String("keygen", string(conf.KeyGen), "Key generation process: create, split, dkg")
 	buildLocal := cmd.Flags().Bool("build-local", conf.BuildLocal, "Enables building a local charon binary from source. Note this requires the CHARON_REPO env var.")
+	beaconNode := cmd.Flags().String("beacon-node", conf.BeaconNode, "BeaconNode url endpoint or 'mock' for simnet.")
+	splitKeys := cmd.Flags().String("split-keys-dir", conf.SplitKeysDir, "SplitKeysDir directory containing keys to split for keygen==create.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
 		conf.BuildLocal = *buildLocal
+		conf.BeaconNode = *beaconNode
+		conf.SplitKeysDir = *splitKeys
 
 		ctx := log.WithTopic(cmd.Context(), "new")
 		if err := compose.New(ctx, *dir, conf); err != nil {
@@ -191,14 +195,18 @@ func addUpFlag(flags *pflag.FlagSet) *bool {
 func execUp(ctx context.Context, dir string) error {
 	log.Info(ctx, "Executing docker-compose up")
 
-	cmd := exec.CommandContext(ctx, "docker-compose", "up", "--remove-orphans", "--build")
+	cmd := exec.CommandContext(ctx, "docker-compose", "up",
+		"--remove-orphans",
+		"--build",
+		"--abort-on-container-exit",
+	)
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
 	if err := cmd.Run(); err != nil {
 		return errors.Wrap(err, "run up")
 	}
+	// TODO(corver): parse and return any non-zero exit codes
 
 	return nil
 }

@@ -50,7 +50,6 @@ type KeyGen string
 const (
 	keyGenDKG    KeyGen = "dkg"
 	keyGenCreate KeyGen = "create"
-	keyGenSplit  KeyGen = "split"
 )
 
 // step defines the current completed compose step.
@@ -88,6 +87,9 @@ type Config struct {
 	// KeyGen defines the key generation process.
 	KeyGen KeyGen `json:"key_gen"`
 
+	// SplitKeysDir directory containing keys to split for keygen==create.
+	SplitKeysDir string `json:"split_keys_dir"`
+
 	// BeaconNode url endpoint or "mock" for simnet.
 	BeaconNode string `json:"beacon_node"`
 
@@ -114,6 +116,7 @@ func NewDefaultConfig() Config {
 		ImageTag:      defaultImageTag,
 		VCs:           []vcType{vcTeku, vcLighthouse, vcMock},
 		KeyGen:        defaultKeyGen,
+		SplitKeysDir:  "",
 		BeaconNode:    defaultBeaconNode,
 		Step:          stepDefined,
 	}
