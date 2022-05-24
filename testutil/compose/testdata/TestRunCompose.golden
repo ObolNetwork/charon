@@ -27,6 +27,7 @@ services:
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
     
   node1:
     <<: *node-base
@@ -46,6 +47,7 @@ services:
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
     
   node2:
     <<: *node-base
@@ -65,6 +67,7 @@ services:
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
     
   node3:
     <<: *node-base
@@ -84,6 +87,7 @@ services:
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
     
   bootnode:
     <<: *node-base

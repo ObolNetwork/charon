@@ -42,7 +42,7 @@ func Run(ctx context.Context, dir string) error {
 		vcs   []vc
 	)
 	for i := 0; i < conf.NumNodes; i++ {
-		n := node{EnvVars: newNodeEnvs(i, true, conf.BeaconNode)}
+		n := node{EnvVars: newNodeEnvs(i, true, conf.BeaconNode, conf.FeatureSet)}
 		nodes = append(nodes, n)
 
 		typ := conf.VCs[i%len(conf.VCs)]
