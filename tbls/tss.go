@@ -60,16 +60,12 @@ func KeygenWithSeed(reader io.Reader) (*bls_sig.PublicKey, *bls_sig.SecretKey, e
 // TSS (threshold signing scheme) wraps PubKey (PublicKey), Verifiers (the coefficients of the public polynomial)
 // and threshold (number of shares).
 type TSS struct {
-	verifier  *share.FeldmanVerifier
+	pubshares map[int]*bls_sig.PublicKey
 	numShares int
+	threshold int
 
 	// publicKey inferred from verifier commitments in NewTSS.
 	publicKey *bls_sig.PublicKey
-}
-
-// Verifier returns the feldman verifier containing the public shares of the threshold signature scheme.
-func (t TSS) Verifier() *share.FeldmanVerifier {
-	return t.verifier
 }
 
 // NumShares returns the number of shares in the threshold signature scheme.
@@ -84,12 +80,16 @@ func (t TSS) PublicKey() *bls_sig.PublicKey {
 
 // Threshold returns the minimum number of partial signatures required to aggregate the threshold signature.
 func (t TSS) Threshold() int {
-	return len(t.verifier.Commitments)
+	return t.threshold
 }
 
 // PublicShare returns a share's public key by share index (identifier).
-func (t TSS) PublicShare(shareIdx int) (*bls_sig.PublicKey, error) {
-	return GetPubShare(shareIdx, t.verifier)
+func (t TSS) PublicShare(shareIdx int) *bls_sig.PublicKey {
+	return t.pubshares[shareIdx]
+}
+
+func (t TSS) PublicShares() map[int]*bls_sig.PublicKey {
+	return t.pubshares
 }
 
 func NewTSS(verifier *share.FeldmanVerifier, numShares int) (TSS, error) {
@@ -99,10 +99,19 @@ func NewTSS(verifier *share.FeldmanVerifier, numShares int) (TSS, error) {
 		return TSS{}, errors.Wrap(err, "unmarshal pubkey")
 	}
 
+	pubshares := make(map[int]*bls_sig.PublicKey)
+	for i := 1; i <= numShares; i++ {
+		pubshares[i], err = getPubShare(i, verifier)
+		if err != nil {
+			return TSS{}, err
+		}
+	}
+
 	return TSS{
-		verifier:  verifier,
+		pubshares: pubshares,
 		publicKey: pk,
 		numShares: numShares,
+		threshold: len(verifier.Commitments),
 	}, nil
 }
 
@@ -153,10 +162,7 @@ func VerifyAndAggregate(tss TSS, partialSigs []*bls_sig.PartialSignature, msg []
 
 	for _, psig := range partialSigs {
 		// TODO(dhruv): add break condition if valid shares >= threshold
-		pubShare, err := tss.PublicShare(int(psig.Identifier))
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "get Public Share")
-		}
+		pubShare := tss.PublicShare(int(psig.Identifier))
 
 		sig := &bls_sig.Signature{Value: psig.Signature}
 		ok, err := blsScheme.Verify(pubShare, msg, sig)
@@ -247,8 +253,8 @@ func SplitSecret(secret *bls_sig.SecretKey, t, n int, reader io.Reader) ([]*bls_
 	return sks, verifier, nil
 }
 
-// GetPubShare returns the public key share for the i'th/identifier/shareIdx share from the verifier commitments.
-func GetPubShare(identifier int, verifier *share.FeldmanVerifier) (*bls_sig.PublicKey, error) {
+// getPubShare returns the public key share for the i'th/identifier/shareIdx share from the verifier commitments.
+func getPubShare(identifier int, verifier *share.FeldmanVerifier) (*bls_sig.PublicKey, error) {
 	curve := curves.GetCurveByName(verifier.Commitments[0].CurveName())
 	if curve != curves.BLS12381G1() {
 		return nil, errors.New("curve mismatch")

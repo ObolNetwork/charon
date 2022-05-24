@@ -626,8 +626,7 @@ func TestComponent_ProposerDuties(t *testing.T) {
 
 	// Create keys (just use normal keys, not split tbls)
 	pubkey := tss.PublicKey()
-	pubshare, err := tss.PublicShare(vIdx)
-	require.NoError(t, err)
+	pubshare := tss.PublicShare(vIdx)
 
 	eth2Share, err := tblsconv.KeyToETH2(pubshare)
 	require.NoError(t, err)

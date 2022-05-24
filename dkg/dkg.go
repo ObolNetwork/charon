@@ -328,12 +328,9 @@ func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.P
 			var pubshare *bls_sig.PublicKey
 			switch dkgAlgo {
 			case "keycast":
-				pubshare, err = tbls.GetPubShare(s.ShareIdx, shares[pk].Verifier)
-				if err != nil {
-					return nil, nil, errors.Wrap(err, "get pubshare from verifier")
-				}
+				pubshare = shares[pk].PublicShares[s.ShareIdx]
 			case "frost":
-				pubshare = shares[pk].PublicShares[uint32(s.ShareIdx)]
+				pubshare = shares[pk].PublicShares[s.ShareIdx]
 			default:
 				return nil, nil, errors.New("invalid dkg algo")
 			}
@@ -493,7 +490,6 @@ func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 
 		dvs = append(dvs, cluster.DistValidator{
 			PubKey:    fmt.Sprintf("%#x", msg.PubKey),
-			Verifiers: msg.Verifiers,
 			PubShares: msg.PubShares,
 		})
 	}

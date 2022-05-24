@@ -32,10 +32,6 @@ type DistValidator struct {
 	// It can be used to verify a partial signature created by any node in the cluster.
 	PubShares [][]byte `json:"public_shares,omitempty"`
 
-	// Verifiers are the threshold verifier commitments.
-	// Deprecated: Use PubShares.
-	Verifiers [][]byte `json:"threshold_verifiers,omitempty"`
-
 	// FeeRecipientAddress Ethereum address override for this validator, defaults to definition withdrawal address.
 	FeeRecipientAddress string `json:"fee_recipient_address,omitempty"`
 }
@@ -52,9 +48,9 @@ func (v DistValidator) HashTreeRootWith(hh *ssz.Hasher) error {
 	// Field (0) 'PubKey'
 	hh.PutBytes([]byte(v.PubKey))
 
-	for _, verifier := range v.Verifiers {
-		// Field (1+i) 'Verifier'
-		hh.PutBytes(verifier)
+	for _, pubshare := range v.PubShares {
+		// Field (1+i) 'Pubshare'
+		hh.PutBytes(pubshare)
 	}
 
 	// Field (N) 'FeeRecipientAddress'
