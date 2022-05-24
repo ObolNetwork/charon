@@ -26,6 +26,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 )
 
@@ -36,9 +37,17 @@ type createDKGConfig struct {
 	Threshold         int
 	FeeRecipient      string
 	WithdrawalAddress string
-	ForkVersion       string
+	Network           string
 	DKGAlgo           string
 	OperatorENRs      []string
+}
+
+var networkToForkVersion = map[string]string{
+	"prater":   "0x00001020",
+	"kintsugi": "0x60000069",
+	"kiln":     "0x70000069",
+	"gnosis":   "0x00000064",
+	"mainnet":  "0x00000000",
 }
 
 func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobra.Command {
@@ -66,7 +75,7 @@ func bindCreateDKGFlags(flags *pflag.FlagSet, config *createDKGConfig) {
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	flags.StringVar(&config.WithdrawalAddress, "withdrawal-address", "", "Withdrawal Ethereum address")
-	flags.StringVar(&config.ForkVersion, "fork-version", "", "Optional hex fork version identifying the target network/chain")
+	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
 	flags.StringVar(&config.DKGAlgo, "dkg-algorithm", "default", "DKG algorithm to use; default, keycast, frost")
 	flags.StringSliceVar(&config.OperatorENRs, "operator-enrs", nil, "Comma-separated list of each operator's Charon ENR address")
 }
@@ -79,8 +88,14 @@ func runCreateDKG(_ context.Context, conf createDKGConfig) error {
 		})
 	}
 
+	if !validNetworks[conf.Network] {
+		return errors.New("unsupported network", z.Str("network", conf.Network))
+	}
+
+	forkVersion := networkToForkVersion[conf.Network]
+
 	def := cluster.NewDefinition(conf.Name, conf.NumValidators, conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddress,
-		conf.ForkVersion, operators, crand.Reader)
+		forkVersion, operators, crand.Reader)
 
 	def.DKGAlgorithm = conf.DKGAlgo
 
