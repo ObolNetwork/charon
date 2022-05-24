@@ -21,6 +21,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 // Run creates a docker-compose.yml from config.json to run the cluster.
@@ -29,11 +30,11 @@ func Run(ctx context.Context, dir string) error {
 
 	conf, err := loadConfig(dir)
 	if errors.Is(err, fs.ErrNotExist) {
-		return errors.New("compose config not found; maybe try `compose define` first")
+		return errors.New("compose config not found; maybe try `compose new` first")
 	} else if err != nil {
 		return err
 	} else if conf.Step != stepLocked {
-		return errors.New("compose config not locked yet, maybe try `compose lock` first")
+		return errors.New("compose config not locked, so can't be run", z.Any("step", conf.Step))
 	}
 
 	var (

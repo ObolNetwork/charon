@@ -16,23 +16,24 @@
 // Command compose provides a tool to run, test, debug local charon clusters
 // using docker-compose.
 //
-//  It consists of three steps:
-//   - compose define: Creates config.json (and p2pkeys) and a docker-compose.yml to create a cluster definition file.
-//   - compose lock: Creates docker-compose.yml to generates keys and cluster lock file.
-//   - compose run: Creates docker-compose.yml that runs the cluster.
+//  It consists of multiple steps:
+//   - compose new: Creates a new config.json that defines what will be composed.
+//   - compose define: Creates a docker-compose.yml that executes `charon create dkg` if keygen==dkg.
+//   - compose lock: Creates a docker-compose.yml that executes `charon create cluster` or `charon dkg`.
+//   - compose run: Creates a docker-compose.yml that executes `charon run`.
 package main
 
 import (
 	"context"
 	"os"
 	"os/exec"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/testutil/compose"
 )
 
@@ -46,30 +47,87 @@ func newRootCmd() *cobra.Command {
 		Short: "Charon Compose - Run, test, and debug a developer-focussed insecure local charon cluster using docker-compose",
 	}
 
+	root.AddCommand(newNewCmd())
 	root.AddCommand(newCleanCmd())
-	root.AddCommand(newDefineCmd())
-	root.AddCommand(newLockCmd())
-	root.AddCommand(newRunCmd())
+	root.AddCommand(newAutoCmd())
+	root.AddCommand(newDockerCmd(
+		"define",
+		"Creates a docker-compose.yml that executes `charon create dkg` if keygen==dkg",
+		compose.Define,
+	))
+	root.AddCommand(newDockerCmd(
+		"lock",
+		"Creates a docker-compose.yml that executes `charon create cluster` or `charon dkg`",
+		compose.Lock,
+	))
+	root.AddCommand(newDockerCmd(
+		"run",
+		"Creates a docker-compose.yml that executes `charon run`",
+		compose.Run,
+	))
 
 	return root
 }
 
-func newRunCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "Creates docker-compose.yml that runs the cluster.",
-	}
+// newDockerRunFunc returns a cobra run function that generates docker-compose.yml files and executes it.
+func newDockerRunFunc(topic string, dir *string, up *bool, runFunc func(context.Context, string) error) func(cmd *cobra.Command, _ []string) error {
+	return func(cmd *cobra.Command, _ []string) (err error) {
+		ctx := log.WithTopic(cmd.Context(), topic)
+		defer func() {
+			if err != nil {
+				log.Error(ctx, "Fatal error", err)
+			}
+		}()
 
-	up := addUpFlag(cmd.Flags())
-	dir := addDirFlag(cmd.Flags())
+		log.Info(ctx, "Running compose command", z.Str("command", topic))
 
-	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		if err := compose.Run(cmd.Context(), *dir); err != nil {
+		if err := runFunc(ctx, *dir); err != nil {
 			return err
 		}
 
 		if *up {
-			return execUp(cmd.Context(), *dir)
+			return execUp(ctx, *dir)
+		}
+
+		return nil
+	}
+}
+
+// newDockerCmd returns a cobra command that generates docker-compose.yml files and executes it.
+func newDockerCmd(use string, short string, run func(context.Context, string) error) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   use,
+		Short: short,
+	}
+
+	up := addUpFlag(cmd.Flags())
+	dir := addDirFlag(cmd.Flags())
+	cmd.RunE = newDockerRunFunc(use, dir, up, run)
+
+	return cmd
+}
+
+func newAutoCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "auto",
+		Short: "Convenience function that runs `compose define && compose lock && compose run`",
+	}
+
+	dir := addDirFlag(cmd.Flags())
+	up := true
+
+	runFuncs := []func(cmd *cobra.Command, _ []string) (err error){
+		newDockerRunFunc("define", dir, &up, compose.Define),
+		newDockerRunFunc("lock", dir, &up, compose.Lock),
+		newDockerRunFunc("run", dir, &up, compose.Run),
+	}
+
+	cmd.RunE = func(cmd *cobra.Command, _ []string) (err error) {
+		for _, runFunc := range runFuncs {
+			err := runFunc(cmd, nil)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -78,41 +136,15 @@ func newRunCmd() *cobra.Command {
 	return cmd
 }
 
-func newLockCmd() *cobra.Command {
+func newNewCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "lock",
-		Short: "Creates docker-compose.yml to generates keys and cluster lock file.",
-	}
-
-	up := addUpFlag(cmd.Flags())
-	dir := addDirFlag(cmd.Flags())
-
-	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		if err := compose.Lock(cmd.Context(), *dir); err != nil {
-			return err
-		}
-
-		if *up {
-			return execUp(cmd.Context(), *dir)
-		}
-
-		return nil
-	}
-
-	return cmd
-}
-
-func newDefineCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "define",
-		Short: "Creates config.json (and p2pkeys) and a docker-compose.yml to create a cluster definition file",
+		Use:   "new",
+		Short: "Creates a new config.json that defines what will be composed",
 	}
 
 	conf := compose.NewDefaultConfig()
 
-	up := addUpFlag(cmd.Flags())
 	dir := addDirFlag(cmd.Flags())
-	seed := cmd.Flags().Int("seed", int(time.Now().UnixNano()), "Randomness seed")
 	keygen := cmd.Flags().String("keygen", string(conf.KeyGen), "Key generation process: create, split, dkg")
 	buildLocal := cmd.Flags().Bool("build-local", conf.BuildLocal, "Enables building a local charon binary from source. Note this requires the CHARON_REPO env var.")
 
@@ -120,12 +152,10 @@ func newDefineCmd() *cobra.Command {
 		conf.KeyGen = compose.KeyGen(*keygen)
 		conf.BuildLocal = *buildLocal
 
-		if err := compose.Define(cmd.Context(), *dir, *seed, conf); err != nil {
+		ctx := log.WithTopic(cmd.Context(), "new")
+		if err := compose.New(ctx, *dir, conf); err != nil {
+			log.Error(ctx, "Fatal error", err)
 			return err
-		}
-
-		if *up {
-			return execUp(cmd.Context(), *dir)
 		}
 
 		return nil
@@ -137,7 +167,7 @@ func newDefineCmd() *cobra.Command {
 func newCleanCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clean",
-		Short: "Cleans compose files and artifacts",
+		Short: "Convenience function that cleans the compose directory",
 	}
 
 	dir := addDirFlag(cmd.Flags())
@@ -159,7 +189,6 @@ func addUpFlag(flags *pflag.FlagSet) *bool {
 
 // execUp executes `docker-compose up`.
 func execUp(ctx context.Context, dir string) error {
-	ctx = log.WithTopic(ctx, "cmd")
 	log.Info(ctx, "Executing docker-compose up")
 
 	cmd := exec.CommandContext(ctx, "docker-compose", "up", "--remove-orphans", "--build")

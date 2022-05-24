@@ -56,6 +56,7 @@ const (
 type step string
 
 const (
+	stepNew     step = "new"
 	stepDefined step = "defined"
 	stepLocked  step = "locked"
 )

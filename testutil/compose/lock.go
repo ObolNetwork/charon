@@ -25,6 +25,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 // Lock creates a docker-compose.yml from a charon-compose.yml for generating keys and a cluster lock file.
@@ -33,11 +34,11 @@ func Lock(ctx context.Context, dir string) error {
 
 	conf, err := loadConfig(dir)
 	if errors.Is(err, fs.ErrNotExist) {
-		return errors.New("compose config not found; maybe try `compose define` first")
+		return errors.New("compose config not found; maybe try `compose new` first")
 	} else if err != nil {
 		return err
-	} else if conf.Step == stepLocked {
-		return errors.New("compose config already locked; maybe try `compose clean` or `compose run`")
+	} else if conf.Step != stepDefined {
+		return errors.New("compose config not defined, so can't be locked", z.Any("step", conf.Step))
 	}
 
 	var data tmplData
