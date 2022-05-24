@@ -7,6 +7,7 @@
  "image_tag": "latest",
  "build_local": false,
  "key_gen": "create",
+ "split_keys_dir": "",
  "beacon_node": "mock",
  "validator_clients": [
   "teku",

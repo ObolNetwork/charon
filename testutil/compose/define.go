@@ -73,6 +73,11 @@ func Clean(ctx context.Context, dir string) error {
 	log.Info(ctx, "Cleaning compose dir", z.Int("files", len(files)))
 
 	for _, file := range files {
+		if strings.Contains(file, "key") {
+			// Do not delete root folder with key in the name, since it might be long-lived split keys folder.
+			log.Info(ctx, "Not deleting *key* folder", z.Str("path", file))
+			continue
+		}
 		if err := os.RemoveAll(file); err != nil {
 			return errors.Wrap(err, "remove file")
 		}
@@ -80,6 +85,9 @@ func Clean(ctx context.Context, dir string) error {
 
 	return nil
 }
+
+// noPull allows disabling pulling during unit tests.
+var noPull bool
 
 // Define defines a compose cluster; including both keygen and running definitions.
 func Define(ctx context.Context, dir string) error {
@@ -98,8 +106,14 @@ func Define(ctx context.Context, dir string) error {
 		}
 	}
 
-	if conf.ImageTag == "latest" {
+	if !noPull && conf.ImageTag == "latest" {
 		if err := pullLatest(ctx); err != nil {
+			return err
+		}
+	}
+
+	if conf.SplitKeysDir != "" {
+		if err := validateSplitKeysDir(dir, conf.SplitKeysDir); err != nil {
 			return err
 		}
 	}
@@ -176,6 +190,41 @@ func Define(ctx context.Context, dir string) error {
 	log.Info(ctx, "Create cluster definition: docker-compose up")
 
 	return writeDockerCompose(dir, data)
+}
+
+// validateSplitKeysDir returns an error if the split keys dir is not a child of dir.
+func validateSplitKeysDir(dir string, spitKeysDir string) error {
+	rel, err := getRelSplitKeysDir(dir, spitKeysDir)
+	if err != nil {
+		return err
+	} else if strings.HasPrefix(rel, "..") {
+		return errors.New("split-keys-dir must be a child of compose dir", z.Str("relative", rel))
+	}
+
+	return nil
+}
+
+// getRelSplitKeysDir returns the splitKeysDir as a relative path to dir.
+func getRelSplitKeysDir(dir, splitKeysDir string) (string, error) {
+	if splitKeysDir == "" {
+		return "", nil
+	}
+
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return "", errors.Wrap(err, "abs dir")
+	}
+	splitKeysDir, err = filepath.Abs(splitKeysDir)
+	if err != nil {
+		return "", errors.Wrap(err, "abs dir")
+	}
+
+	rel, err := filepath.Rel(dir, splitKeysDir)
+	if err != nil {
+		return "", errors.Wrap(err, "relative split keys dir")
+	}
+
+	return rel, nil
 }
 
 // pullLatest pulls the latest charon docker image.

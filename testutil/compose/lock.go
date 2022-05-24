@@ -44,11 +44,20 @@ func Lock(ctx context.Context, dir string) error {
 	var data tmplData
 	switch conf.KeyGen {
 	case keyGenCreate:
+		splitKeysDir, err := getRelSplitKeysDir(dir, conf.SplitKeysDir)
+		if err != nil {
+			return err
+		} else if splitKeysDir != "" {
+			splitKeysDir = path.Join("/compose", splitKeysDir)
+		}
+
 		// Only single node to call charon create cluster generate keys
 		n := node{EnvVars: []kv{
 			{"threshold", fmt.Sprint(conf.Threshold)},
 			{"nodes", fmt.Sprint(conf.NumNodes)},
 			{"cluster_dir", "/compose"},
+			{"split_existing_keys", fmt.Sprintf(`"%v"`, conf.SplitKeysDir != "")},
+			{"split_keys_dir", splitKeysDir},
 		}}
 
 		data = tmplData{
@@ -62,7 +71,7 @@ func Lock(ctx context.Context, dir string) error {
 
 		var nodes []node
 		for i := 0; i < conf.NumNodes; i++ {
-			n := node{EnvVars: newNodeEnvs(i, true, true)}
+			n := node{EnvVars: newNodeEnvs(i, true, conf.BeaconNode)}
 			nodes = append(nodes, n)
 		}
 
@@ -90,7 +99,13 @@ func Lock(ctx context.Context, dir string) error {
 }
 
 // newNodeEnvs returns the default node environment variable to run a charon docker container.
-func newNodeEnvs(index int, validatorMock, beaconMock bool) []kv {
+func newNodeEnvs(index int, validatorMock bool, beaconNode string) []kv {
+	beaconMock := false
+	if beaconNode == "mock" {
+		beaconMock = true
+		beaconNode = ""
+	}
+
 	return []kv{
 		{"data_dir", fmt.Sprintf("/compose/node%d", index)},
 		{"jaeger_service", fmt.Sprintf("node%d", index)},
@@ -103,6 +118,7 @@ func newNodeEnvs(index int, validatorMock, beaconMock bool) []kv {
 		{"p2p_tcp_address", "0.0.0.0:16003"},
 		{"p2p_udp_address", "0.0.0.0:16004"},
 		{"p2p_bootnodes", "http://bootnode:16000/enr"},
+		{"beacon-node-endpoint", beaconNode},
 		{"simnet_validator_mock", fmt.Sprintf(`"%v"`, validatorMock)},
 		{"simnet_beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},
 		{"log_level", "debug"},

@@ -35,6 +35,7 @@ func TestDefineDKG(t *testing.T) {
 	conf.KeyGen = "dkg"
 	conf.Step = stepNew
 	p2pSeed = 1
+	noPull = true
 	require.NoError(t, writeConfig(dir, conf))
 
 	err = Define(context.Background(), dir)
@@ -54,6 +55,7 @@ func TestDefineCreate(t *testing.T) {
 	conf := NewDefaultConfig()
 	conf.KeyGen = "create"
 	conf.Step = stepNew
+	noPull = true
 	require.NoError(t, writeConfig(dir, conf))
 
 	err = Define(context.Background(), dir)

@@ -15,6 +15,8 @@ services:
       CHARON_THRESHOLD: 3
       CHARON_NODES: 4
       CHARON_CLUSTER_DIR: /compose
+      CHARON_SPLIT_EXISTING_KEYS: "false"
+      CHARON_SPLIT_KEYS_DIR: 
     
 networks:
   compose:
