@@ -31,15 +31,22 @@ import (
 // newMsg returns a new msg.
 func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg) (msg, error) {
 	// Do all possible error conversions first.
-
-	valueHash, err := hashProto(pbMsg.Value)
-	if err != nil {
-		return msg{}, err
+	var (
+		valueHash         [32]byte
+		preparedValueHash [32]byte
+		err               error
+	)
+	if pbMsg.Value != nil {
+		valueHash, err = hashProto(pbMsg.Value)
+		if err != nil {
+			return msg{}, err
+		}
 	}
-
-	preparedValueHash, err := hashProto(pbMsg.PreparedValue)
-	if err != nil {
-		return msg{}, err
+	if pbMsg.PreparedValue != nil {
+		preparedValueHash, err = hashProto(pbMsg.PreparedValue)
+		if err != nil {
+			return msg{}, err
+		}
 	}
 
 	var justImpls []qbft.Msg[core.Duty, [32]byte]
@@ -112,10 +119,6 @@ func (m msg) ToConsensusMsg() *pbv1.ConsensusMsg {
 
 // hashProto returns a deterministic ssz hash root of the proto message.
 func hashProto(msg proto.Message) ([32]byte, error) {
-	if msg == nil {
-		return [32]byte{}, nil
-	}
-
 	hh := ssz.DefaultHasherPool.Get()
 	defer ssz.DefaultHasherPool.Put(hh)
 

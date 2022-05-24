@@ -28,14 +28,14 @@ func _() {
 	_ = x[StartMonitoringAPI-2]
 	_ = x[StartValidatorAPI-3]
 	_ = x[StartP2PPing-4]
-	_ = x[StartLeaderCast-5]
+	_ = x[StartP2PConsensus-5]
 	_ = x[StartSimulator-6]
 	_ = x[StartScheduler-7]
 }
 
-const _OrderStart_name = "AggSigDBRelayMonitoringAPIValidatorAPIP2PPingLeaderCastSimulatorScheduler"
+const _OrderStart_name = "AggSigDBRelayMonitoringAPIValidatorAPIP2PPingP2PConsensusSimulatorScheduler"
 
-var _OrderStart_index = [...]uint8{0, 8, 13, 26, 38, 45, 55, 64, 73}
+var _OrderStart_index = [...]uint8{0, 8, 13, 26, 38, 45, 57, 66, 75}
 
 func (i OrderStart) String() string {
 	if i < 0 || i >= OrderStart(len(_OrderStart_index)-1) {

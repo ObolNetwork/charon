@@ -42,10 +42,8 @@ const (
 	protocolID = "/charon/consensus/qbft/1.0.0"
 )
 
-// NewComponent returns a new consensus QBFT component.
-func NewComponent(tcpNode host.Host, peers []p2p.Peer,
-	peerIdx int64, p2pKey *ecdsa.PrivateKey,
-) (*Component, error) {
+// New returns a new consensus QBFT component.
+func New(tcpNode host.Host, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*ecdsa.PublicKey)
 	for i, p := range peers {
@@ -72,7 +70,7 @@ func NewComponent(tcpNode host.Host, peers []p2p.Peer,
 		// IsLeader is a deterministic leader election function.
 		IsLeader: func(duty core.Duty, round, process int64) bool {
 			mod := ((duty.Slot) + int64(duty.Type) + round) % int64(len(peers))
-			return mod == peerIdx
+			return mod == process
 		},
 
 		// Decide sends consensus output to subscribers.
@@ -115,7 +113,6 @@ type Component struct {
 	peers   []p2p.Peer
 	pubkeys map[int64]*ecdsa.PublicKey
 	privkey *ecdsa.PrivateKey
-	peerIdx int64
 	def     qbft.Definition[core.Duty, [32]byte]
 	subs    []func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error
 
@@ -130,7 +127,7 @@ func (c *Component) Subscribe(fn func(ctx context.Context, duty core.Duty, set c
 	c.subs = append(c.subs, fn)
 }
 
-// Start registers the libp2p receive handler.
+// Start registers the libp2p receive handler. This should only be called once.
 func (c *Component) Start(ctx context.Context) {
 	c.tcpNode.SetStreamHandler(protocolID, c.makeHandler(ctx))
 }
@@ -141,6 +138,8 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 	ctx = log.WithTopic(ctx, "qbft")
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	log.Debug(ctx, "Starting qbft consensus instance", z.Any("duty", duty))
 
 	// Hash the proposed data, since qbft ony supports simple comparable values.
 	value := core.UnsignedDataSetToProto(data)
@@ -166,12 +165,18 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 		Receive:   t.recvBuffer,
 	}
 
+	peerIdx, err := c.getPeerIdx()
+	if err != nil {
+		return err
+	}
+
 	// Run the algo, blocking until the context is cancelled.
-	return qbft.Run[core.Duty, [32]byte](ctx, c.def, qt, duty, c.peerIdx, hash)
+	return qbft.Run[core.Duty, [32]byte](ctx, c.def, qt, duty, peerIdx, hash)
 }
 
 // makeHandler returns a consensus libp2p handler.
 func (c *Component) makeHandler(ctx context.Context) func(s network.Stream) {
+	ctx = log.WithTopic(ctx, "qbft")
 	return func(s network.Stream) {
 		defer s.Close()
 
@@ -188,13 +193,13 @@ func (c *Component) makeHandler(ctx context.Context) func(s network.Stream) {
 		}
 
 		if pbMsg.Msg == nil || pbMsg.Msg.Duty == nil {
-			log.Error(ctx, "Invalid consensus message", err)
+			log.Error(ctx, "Invalid consensus message", errors.New("nil msg"))
 			return
 		}
 
 		duty := core.DutyFromProto(pbMsg.Msg.Duty)
 		if !duty.Type.Valid() {
-			log.Error(ctx, "Invalid duty type", err)
+			log.Error(ctx, "Invalid duty type", errors.New("", z.Str("type", duty.Type.String())))
 			return
 		}
 
@@ -246,4 +251,19 @@ func (c *Component) deleteRecvChan(duty core.Duty) {
 	defer c.recvMu.Unlock()
 
 	delete(c.recvBuffers, duty)
+}
+
+// getPeerIdx returns the local peer index.
+func (c *Component) getPeerIdx() (int64, error) {
+	peerIdx := int64(-1)
+	for i, p := range c.peers {
+		if c.tcpNode.ID() == p.ID {
+			peerIdx = int64(i)
+		}
+	}
+	if peerIdx == -1 {
+		return 0, errors.New("local libp2p host not in peer list")
+	}
+
+	return peerIdx, nil
 }

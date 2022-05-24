@@ -491,7 +491,7 @@ func TestIsJustifiedPrePrepare(t *testing.T) {
 		Nodes:    n,
 	}
 
-	ok := IsJustifiedPrePrepare[int64, int64](def, instance, preprepare)
+	ok := isJustifiedPrePrepare[int64, int64](def, instance, preprepare)
 	require.True(t, ok)
 }
 
