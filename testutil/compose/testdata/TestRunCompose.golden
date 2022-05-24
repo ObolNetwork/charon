@@ -106,8 +106,8 @@ services:
     command: |
       validator-client
       --network=auto
-      --beacon-node-api-endpoint="http://node1:16002"
-      --validator-keys="/compose/node1:/compose/node1"
+      --beacon-node-api-endpoint="http://node0:16002"
+      --validator-keys="/compose/0:/compose/0"
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
     networks: [compose]
     depends_on: [node0]
@@ -130,8 +130,8 @@ services:
     command: |
       validator-client
       --network=auto
-      --beacon-node-api-endpoint="http://node1:16002"
-      --validator-keys="/compose/node1:/compose/node1"
+      --beacon-node-api-endpoint="http://node3:16002"
+      --validator-keys="/compose/3:/compose/3"
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
     networks: [compose]
     depends_on: [node3]
