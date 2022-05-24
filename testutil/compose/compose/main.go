@@ -147,8 +147,8 @@ func newNewCmd() *cobra.Command {
 	dir := addDirFlag(cmd.Flags())
 	keygen := cmd.Flags().String("keygen", string(conf.KeyGen), "Key generation process: create, split, dkg")
 	buildLocal := cmd.Flags().Bool("build-local", conf.BuildLocal, "Enables building a local charon binary from source. Note this requires the CHARON_REPO env var.")
-	beaconNode := cmd.Flags().String("beacon-node", conf.BeaconNode, "BeaconNode url endpoint or 'mock' for simnet.")
-	splitKeys := cmd.Flags().String("split-keys-dir", conf.SplitKeysDir, "SplitKeysDir directory containing keys to split for keygen==create.")
+	beaconNode := cmd.Flags().String("beacon-node", conf.BeaconNode, "Beacon node URL endpoint or 'mock' for simnet.")
+	splitKeys := cmd.Flags().String("split-keys-dir", conf.SplitKeysDir, "Directory containing keys to split for keygen==create, or empty not to split.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
