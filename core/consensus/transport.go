@@ -48,8 +48,12 @@ func (t *transport) setValues(msg msg) {
 	t.valueMu.Lock()
 	defer t.valueMu.Unlock()
 
-	t.values[msg.Value()] = msg.msg.Value
-	t.values[msg.PreparedValue()] = msg.msg.PreparedValue
+	if msg.msg.Value != nil {
+		t.values[msg.Value()] = msg.msg.Value
+	}
+	if msg.msg.PreparedValue != nil {
+		t.values[msg.PreparedValue()] = msg.msg.PreparedValue
+	}
 }
 
 // getValue returns the value by its hash.
@@ -70,14 +74,25 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 	peerIdx int64, round int64, valueHash [32]byte, pr int64, pvHash [32]byte,
 	justification []qbft.Msg[core.Duty, [32]byte],
 ) error {
-	// Get the values by their hashes.
-	value, err := t.getValue(valueHash)
-	if err != nil {
-		return err
+	// Get the values by their hashes if not zero.
+	var (
+		value *pbv1.UnsignedDataSet
+		pv    *pbv1.UnsignedDataSet
+		err   error
+	)
+
+	if valueHash != [32]byte{} {
+		value, err = t.getValue(valueHash)
+		if err != nil {
+			return err
+		}
 	}
-	pv, err := t.getValue(pvHash)
-	if err != nil {
-		return err
+
+	if pvHash != [32]byte{} {
+		pv, err = t.getValue(pvHash)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Make the message
@@ -86,15 +101,16 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 		return err
 	}
 
-	// First send to self.
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case t.recvBuffer <- msg:
-	}
+	// Send to self (async since buffer is blocking).
+	go func() {
+		select {
+		case <-ctx.Done():
+		case t.recvBuffer <- msg:
+		}
+	}()
 
-	for i, p := range t.component.peers {
-		if int64(i) == t.component.peerIdx {
+	for _, p := range t.component.peers {
+		if p.ID == t.component.tcpNode.ID() {
 			// Do not broadcast to self
 			continue
 		}

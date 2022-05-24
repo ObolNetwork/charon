@@ -418,7 +418,7 @@ func nextMinRound[I any, V comparable](d Definition[I, V], frc []Msg[I, V], roun
 func isJustified[I any, V comparable](d Definition[I, V], instance I, msg Msg[I, V]) bool {
 	switch msg.Type() {
 	case MsgPrePrepare:
-		return IsJustifiedPrePrepare(d, instance, msg)
+		return isJustifiedPrePrepare(d, instance, msg)
 	case MsgPrepare:
 		return true
 	case MsgCommit:
@@ -487,8 +487,8 @@ func isJustifiedDecided[I any, V comparable](d Definition[I, V], msg Msg[I, V]) 
 	return len(commits) >= d.Quorum()
 }
 
-// IsJustifiedPrePrepare returns true if the PRE-PREPARE message is justified.
-func IsJustifiedPrePrepare[I any, V comparable](d Definition[I, V], instance I, msg Msg[I, V]) bool {
+// isJustifiedPrePrepare returns true if the PRE-PREPARE message is justified.
+func isJustifiedPrePrepare[I any, V comparable](d Definition[I, V], instance I, msg Msg[I, V]) bool {
 	if msg.Type() != MsgPrePrepare {
 		panic("bug: not a preprepare message")
 	}

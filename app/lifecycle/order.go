@@ -31,7 +31,7 @@ const (
 	StartMonitoringAPI
 	StartValidatorAPI
 	StartP2PPing
-	StartLeaderCast
+	StartP2PConsensus
 	StartSimulator
 	StartScheduler
 )

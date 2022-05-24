@@ -50,6 +50,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/aggsigdb"
 	"github.com/obolnetwork/charon/core/bcast"
+	"github.com/obolnetwork/charon/core/consensus"
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/core/leadercast"
@@ -151,7 +152,16 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	lockHashHex := hex.EncodeToString(lockHash[:])[:7]
 
-	tcpNode, localEnode, err := wireP2P(ctx, life, conf, lock)
+	p2pKey := conf.TestConfig.P2PKey
+	if p2pKey == nil {
+		var err error
+		p2pKey, err = p2p.LoadPrivKey(conf.DataDir)
+		if err != nil {
+			return err
+		}
+	}
+
+	tcpNode, localEnode, err := wireP2P(ctx, life, conf, lock, p2pKey)
 	if err != nil {
 		return err
 	}
@@ -182,7 +192,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	wireMonitoringAPI(life, conf.MonitoringAddr, localEnode)
 
-	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode); err != nil {
+	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey); err != nil {
 		return err
 	}
 
@@ -191,16 +201,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
-func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, lock cluster.Lock,
+func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, lock cluster.Lock, p2pKey *ecdsa.PrivateKey,
 ) (host.Host, *enode.LocalNode, error) {
-	p2pKey := conf.TestConfig.P2PKey
-	if p2pKey == nil {
-		var err error
-		p2pKey, err = p2p.LoadPrivKey(conf.DataDir)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
 
 	peers, err := lock.Peers()
 	if err != nil {
@@ -260,7 +262,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, lock clu
 
 // wireCoreWorkflow wires the core workflow components.
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
-	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host,
+	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -345,15 +347,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	var lcastTransport leadercast.Transport
-	if conf.TestConfig.LcastTransportFunc != nil {
-		lcastTransport = conf.TestConfig.LcastTransportFunc()
-	} else {
-		lcastTransport = leadercast.NewP2PTransport(tcpNode, nodeIdx.PeerIdx, peerIDs)
-	}
-
-	consensus := leadercast.New(lcastTransport, nodeIdx.PeerIdx, len(peerIDs))
-
 	dutyDB := dutydb.NewMemDB()
 
 	vapi, err := validatorapi.NewComponent(eth2Cl, pubSharesByKey, nodeIdx.ShareIdx)
@@ -388,7 +381,12 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	core.Wire(sched, fetch, consensus, dutyDB, vapi,
+	cons, startCons, err := newConsensus(conf, lock, tcpNode, p2pKey, nodeIdx)
+	if err != nil {
+		return err
+	}
+
+	core.Wire(sched, fetch, cons, dutyDB, vapi,
 		parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster,
 		core.WithTracing(),
 		core.WithAsyncRetry(retryer),
@@ -403,14 +401,48 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		sigAgg.Subscribe(conf.TestConfig.BroadcastCallback)
 	}
 
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartLeaderCast, lifecycle.HookFunc(consensus.Run))
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartScheduler, lifecycle.HookFuncErr(sched.Run))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startCons)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartAggSigDB, lifecycle.HookFuncCtx(aggSigDB.Run))
 	life.RegisterStop(lifecycle.StopScheduler, lifecycle.HookFuncMin(sched.Stop))
 	life.RegisterStop(lifecycle.StopDutyDB, lifecycle.HookFuncMin(dutyDB.Shutdown))
 	life.RegisterStop(lifecycle.StopRetryer, lifecycle.HookFuncCtx(retryer.Shutdown))
 
 	return nil
+}
+
+// newConsensus returns a new consensus component and its start lifecycle hook.
+func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
+	nodeIdx cluster.NodeIdx,
+) (core.Consensus, lifecycle.IHookFunc, error) {
+	peers, err := lock.Peers()
+	if err != nil {
+		return nil, nil, err
+	}
+	peerIDs, err := lock.PeerIDs()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if featureset.Enabled(featureset.QBFTConsensus) {
+		comp, err := consensus.NewComponent(tcpNode, peers, p2pKey)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return comp, lifecycle.HookFuncCtx(comp.Start), nil
+	}
+
+	var lcastTransport leadercast.Transport
+	if conf.TestConfig.LcastTransportFunc != nil {
+		lcastTransport = conf.TestConfig.LcastTransportFunc()
+	} else {
+		lcastTransport = leadercast.NewP2PTransport(tcpNode, nodeIdx.PeerIdx, peerIDs)
+	}
+
+	lcast := leadercast.New(lcastTransport, nodeIdx.PeerIdx, len(peerIDs))
+
+	return lcast, lifecycle.HookFunc(lcast.Run), nil
 }
 
 // createMockValidators creates mock validators identified by their public shares.
