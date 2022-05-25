@@ -203,7 +203,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
 func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, lock cluster.Lock, p2pKey *ecdsa.PrivateKey,
 ) (host.Host, *enode.LocalNode, error) {
-
 	peers, err := lock.Peers()
 	if err != nil {
 		return nil, nil, err
