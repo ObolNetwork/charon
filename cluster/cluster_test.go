@@ -99,8 +99,16 @@ func TestEncode(t *testing.T) {
 		Validators: []cluster.DistValidator{
 			{
 				PubKey: testutil.RandomETHAddress(),
+				PubShares: [][]byte{
+					testutil.RandomBytes32(),
+					testutil.RandomBytes32(),
+				},
 			}, {
 				PubKey: testutil.RandomETHAddress(),
+				PubShares: [][]byte{
+					testutil.RandomBytes32(),
+					testutil.RandomBytes32(),
+				},
 			},
 		},
 	}

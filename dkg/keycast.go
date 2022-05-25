@@ -38,7 +38,7 @@ type kcTransport interface {
 	GetShares(ctx context.Context, nodeIdx int) ([]byte, error)
 }
 
-// share is the co-validator public key, tbls verifiers or tbls publis shares, and private key share.
+// share is the co-validator public key, tbls public shares, and private key share.
 // Each node in the cluster will receive one for each distributed validator.
 type share struct {
 	PubKey      *bls_sig.PublicKey
@@ -173,11 +173,11 @@ func createShares(numValidators, numNodes, threshold int, random io.Reader) ([][
 			return nil, errors.New("bug: sanity check length of shares")
 		}
 
-		for ni := 0; ni < numNodes; ni++ {
-			resp[ni] = append(resp[ni], share{
+		for nodeIdx := 0; nodeIdx < numNodes; nodeIdx++ {
+			resp[nodeIdx] = append(resp[nodeIdx], share{
 				PubKey:       tss.PublicKey(),
 				PublicShares: tss.PublicShares(),
-				SecretShare:  shares[ni],
+				SecretShare:  shares[nodeIdx],
 			})
 		}
 	}
