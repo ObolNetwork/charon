@@ -27,6 +27,7 @@ services:
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
     
   node1:
     <<: *node-base
@@ -46,6 +47,7 @@ services:
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
     
   node2:
     <<: *node-base
@@ -65,6 +67,7 @@ services:
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
     
   node3:
     <<: *node-base
@@ -84,6 +87,7 @@ services:
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
     
   bootnode:
     <<: *node-base
@@ -102,8 +106,8 @@ services:
     command: |
       validator-client
       --network=auto
-      --beacon-node-api-endpoint="http://node1:16002"
-      --validator-keys="/compose/node1:/compose/node1"
+      --beacon-node-api-endpoint="http://node0:16002"
+      --validator-keys="/compose/node0:/compose/node0"
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
     networks: [compose]
     depends_on: [node0]
@@ -126,8 +130,8 @@ services:
     command: |
       validator-client
       --network=auto
-      --beacon-node-api-endpoint="http://node1:16002"
-      --validator-keys="/compose/node1:/compose/node1"
+      --beacon-node-api-endpoint="http://node3:16002"
+      --validator-keys="/compose/node3:/compose/node3"
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
     networks: [compose]
     depends_on: [node3]

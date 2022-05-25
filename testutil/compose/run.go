@@ -17,7 +17,9 @@ package compose
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
+	"strings"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -42,11 +44,11 @@ func Run(ctx context.Context, dir string) error {
 		vcs   []vc
 	)
 	for i := 0; i < conf.NumNodes; i++ {
-		n := node{EnvVars: newNodeEnvs(i, true, conf.BeaconNode)}
+		n := node{EnvVars: newNodeEnvs(i, true, conf.BeaconNode, conf.FeatureSet)}
 		nodes = append(nodes, n)
 
 		typ := conf.VCs[i%len(conf.VCs)]
-		vcs = append(vcs, vcByType[typ])
+		vcs = append(vcs, getVC(typ, i))
 	}
 
 	data := tmplData{
@@ -66,19 +68,27 @@ func Run(ctx context.Context, dir string) error {
 	return writeDockerCompose(dir, data)
 }
 
-var vcByType = map[vcType]vc{
-	vcLighthouse: {
-		Label: string(vcLighthouse),
-		Build: "lighthouse",
-	},
-	vcTeku: {
-		Label: string(vcTeku),
-		Image: "consensys/teku:latest",
-		Command: `|
+// getVC returns the validator client template data for the provided type and index.
+func getVC(typ vcType, nodeIdx int) vc {
+	vcByType := map[vcType]vc{
+		vcLighthouse: {
+			Label: string(vcLighthouse),
+			Build: "lighthouse",
+		},
+		vcTeku: {
+			Label: string(vcTeku),
+			Image: "consensys/teku:latest",
+			Command: `|
       validator-client
       --network=auto
-      --beacon-node-api-endpoint="http://node1:16002"
-      --validator-keys="/compose/node1:/compose/node1"
+      --beacon-node-api-endpoint="http://node{{nodeIdx}}:16002"
+      --validator-keys="/compose/node{{nodeIdx}}:/compose/node{{nodeIdx}}"
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"`,
-	},
+		},
+	}
+
+	resp := vcByType[typ]
+	resp.Command = strings.ReplaceAll(resp.Command, "{{nodeIdx}}", fmt.Sprint(nodeIdx))
+
+	return resp
 }

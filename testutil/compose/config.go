@@ -25,6 +25,7 @@ const (
 	defaultNumVals    = 1
 	defaultNumNodes   = 4
 	defaultThreshold  = 3
+	defaultFeatureSet = "alpha"
 
 	charonImage      = "ghcr.io/obolnetwork/charon"
 	localBinary      = "/compose/charon"
@@ -95,6 +96,9 @@ type Config struct {
 
 	// VCs define the types of validator clients to use.
 	VCs []vcType `json:"validator_clients"`
+
+	// FeatureSet defines the minimum feature set to enable.
+	FeatureSet string `json:"feature_set"`
 }
 
 // entrypoint returns the path to the charon binary based on the BuildLocal field.
@@ -116,8 +120,8 @@ func NewDefaultConfig() Config {
 		ImageTag:      defaultImageTag,
 		VCs:           []vcType{vcTeku, vcLighthouse, vcMock},
 		KeyGen:        defaultKeyGen,
-		SplitKeysDir:  "",
 		BeaconNode:    defaultBeaconNode,
 		Step:          stepDefined,
+		FeatureSet:    defaultFeatureSet,
 	}
 }

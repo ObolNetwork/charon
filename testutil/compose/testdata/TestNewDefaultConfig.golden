@@ -13,5 +13,6 @@
   "teku",
   "lighthouse",
   "mock"
- ]
+ ],
+ "feature_set": "alpha"
 }

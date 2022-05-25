@@ -149,12 +149,14 @@ func newNewCmd() *cobra.Command {
 	buildLocal := cmd.Flags().Bool("build-local", conf.BuildLocal, "Enables building a local charon binary from source. Note this requires the CHARON_REPO env var.")
 	beaconNode := cmd.Flags().String("beacon-node", conf.BeaconNode, "Beacon node URL endpoint or 'mock' for simnet.")
 	splitKeys := cmd.Flags().String("split-keys-dir", conf.SplitKeysDir, "Directory containing keys to split for keygen==create, or empty not to split.")
+	featureSet := cmd.Flags().String("feature-set", conf.FeatureSet, "Minimum feature set to enable: alpha, beta, stable")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
 		conf.BuildLocal = *buildLocal
 		conf.BeaconNode = *beaconNode
 		conf.SplitKeysDir = *splitKeys
+		conf.FeatureSet = *featureSet
 
 		ctx := log.WithTopic(cmd.Context(), "new")
 		if err := compose.New(ctx, *dir, conf); err != nil {

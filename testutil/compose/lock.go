@@ -71,7 +71,7 @@ func Lock(ctx context.Context, dir string) error {
 
 		var nodes []node
 		for i := 0; i < conf.NumNodes; i++ {
-			n := node{EnvVars: newNodeEnvs(i, true, conf.BeaconNode)}
+			n := node{EnvVars: newNodeEnvs(i, true, conf.BeaconNode, conf.FeatureSet)}
 			nodes = append(nodes, n)
 		}
 
@@ -99,7 +99,7 @@ func Lock(ctx context.Context, dir string) error {
 }
 
 // newNodeEnvs returns the default node environment variable to run a charon docker container.
-func newNodeEnvs(index int, validatorMock bool, beaconNode string) []kv {
+func newNodeEnvs(index int, validatorMock bool, beaconNode string, featureSet string) []kv {
 	beaconMock := false
 	if beaconNode == "mock" {
 		beaconMock = true
@@ -122,6 +122,7 @@ func newNodeEnvs(index int, validatorMock bool, beaconNode string) []kv {
 		{"simnet_validator_mock", fmt.Sprintf(`"%v"`, validatorMock)},
 		{"simnet_beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},
 		{"log_level", "debug"},
+		{"feature_set", featureSet},
 	}
 }
 

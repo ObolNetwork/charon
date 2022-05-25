@@ -106,7 +106,7 @@ func Define(ctx context.Context, dir string) error {
 		}
 	}
 
-	if !noPull && conf.ImageTag == "latest" {
+	if !noPull && !conf.BuildLocal && conf.ImageTag == "latest" {
 		if err := pullLatest(ctx); err != nil {
 			return err
 		}
