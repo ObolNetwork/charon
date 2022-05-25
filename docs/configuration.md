@@ -48,10 +48,10 @@ The `cluster-lock.json` has the following schema:
 ```json
 {
   "cluster_definition": {...},                              // Cluster definiition json, identical schema to above,
-  "distributed_validators": [                               // Length equaled to num_validators.
+  "distributed_validators": [                               // Length equal to num_validators.
     {
       "distributed_public_key":  "0x123..abfc",             // DV root pubkey
-      "public_shares": [ "oA8Z...2XyT", "g1q...icu"], // length of threshold
+      "public_shares": [ "oA8Z...2XyT", "g1q...icu"],       // length of num_operators
       "fee_recipient": "0x123..abfc"                        // Defaults to withdrawal address if not set, can be edited manually
     }
   ],
