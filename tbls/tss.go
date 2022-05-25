@@ -57,7 +57,7 @@ func KeygenWithSeed(reader io.Reader) (*bls_sig.PublicKey, *bls_sig.SecretKey, e
 	return pubkey, secret, nil
 }
 
-// TSS (threshold signing scheme) wraps PubKey (PublicKey), Verifiers (the coefficients of the public polynomial)
+// TSS (threshold signing scheme) wraps PubKey (PublicKey), Pubshares (the public shares corresponding to each secret key share)
 // and threshold (number of shares).
 type TSS struct {
 	pubshares map[int]*bls_sig.PublicKey

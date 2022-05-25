@@ -173,7 +173,6 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 			// Ensure all public shares can verify the partial signature
 			for _, lock := range locks {
 				if len(lock.Validators[i].PubShares) == 0 {
-					// TODO(corver): convert keycast to use public shares, not verifiers.
 					continue
 				}
 				pk, err := tblsconv.KeyFromBytes(lock.Validators[i].PubShares[j])

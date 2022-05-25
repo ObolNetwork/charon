@@ -49,7 +49,6 @@ func (v DistValidator) HashTreeRootWith(hh *ssz.Hasher) error {
 	hh.PutBytes([]byte(v.PubKey))
 
 	for _, pubshare := range v.PubShares {
-		// Field (1+i) 'Pubshare'
 		hh.PutBytes(pubshare)
 	}
 

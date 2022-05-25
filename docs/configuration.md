@@ -8,7 +8,7 @@ This document describes the configuration options for running a charon node and 
 
 A charon cluster is configured in two steps:
 - `cluster-definition.json` which defines the intended cluster configuration without validator keys.
-- `cluster-lock.json` which includes and extends `cluster-definition.json` with distributed validator bls public key shares and verifiers.
+- `cluster-lock.json` which includes and extends `cluster-definition.json` with distributed validator bls public key shares.
 
 The `charon create dkg` command is used to create `cluster-definition.json` file which is used as input to `charon dkg`.
 
@@ -48,10 +48,10 @@ The `cluster-lock.json` has the following schema:
 ```json
 {
   "cluster_definition": {...},                              // Cluster definiition json, identical schema to above,
-  "distributed_validators": [                               // Length equaled to num_validators.
+  "distributed_validators": [                               // Length equal to num_validators.
     {
       "distributed_public_key":  "0x123..abfc",             // DV root pubkey
-      "threshold_verifiers": [ "oA8Z...2XyT", "g1q...icu"], // length of threshold
+      "public_shares": [ "oA8Z...2XyT", "g1q...icu"],       // length of num_operators
       "fee_recipient": "0x123..abfc"                        // Defaults to withdrawal address if not set, can be edited manually
     }
   ],
