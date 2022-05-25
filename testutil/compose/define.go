@@ -20,7 +20,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -90,13 +89,8 @@ func Clean(ctx context.Context, dir string) error {
 var noPull bool
 
 // Define defines a compose cluster; including both keygen and running definitions.
-func Define(ctx context.Context, dir string) error {
-	conf, err := loadConfig(dir)
-	if errors.Is(err, fs.ErrNotExist) {
-		return errors.New("compose config not found; maybe try `compose new` first")
-	} else if err != nil {
-		return err
-	} else if conf.Step != stepNew {
+func Define(ctx context.Context, dir string, conf Config) error {
+	if conf.Step != stepNew {
 		return errors.New("compose config not new, so can't be defined", z.Any("step", conf.Step))
 	}
 

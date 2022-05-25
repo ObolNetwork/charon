@@ -25,6 +25,7 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"os/exec"
 
@@ -70,7 +71,7 @@ func newRootCmd() *cobra.Command {
 }
 
 // newDockerRunFunc returns a cobra run function that generates docker-compose.yml files and executes it.
-func newDockerRunFunc(topic string, dir *string, up *bool, runFunc func(context.Context, string) error) func(cmd *cobra.Command, _ []string) error {
+func newDockerRunFunc(topic string, dir *string, up *bool, runFunc func(context.Context, string, compose.Config) error) func(cmd *cobra.Command, _ []string) error {
 	return func(cmd *cobra.Command, _ []string) (err error) {
 		ctx := log.WithTopic(cmd.Context(), topic)
 		defer func() {
@@ -79,9 +80,16 @@ func newDockerRunFunc(topic string, dir *string, up *bool, runFunc func(context.
 			}
 		}()
 
+		conf, err := compose.LoadConfig(*dir)
+		if errors.Is(err, fs.ErrNotExist) {
+			return errors.New("compose config not found; maybe try `compose new` first")
+		} else if err != nil {
+			return err
+		}
+
 		log.Info(ctx, "Running compose command", z.Str("command", topic))
 
-		if err := runFunc(ctx, *dir); err != nil {
+		if err := runFunc(ctx, *dir, conf); err != nil {
 			return err
 		}
 
@@ -94,7 +102,7 @@ func newDockerRunFunc(topic string, dir *string, up *bool, runFunc func(context.
 }
 
 // newDockerCmd returns a cobra command that generates docker-compose.yml files and executes it.
-func newDockerCmd(use string, short string, run func(context.Context, string) error) *cobra.Command {
+func newDockerCmd(use string, short string, run func(context.Context, string, compose.Config) error) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   use,
 		Short: short,

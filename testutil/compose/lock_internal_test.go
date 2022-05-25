@@ -35,11 +35,7 @@ func TestLockCompose(t *testing.T) {
 	require.NoError(t, err)
 
 	conf := NewDefaultConfig()
-
-	err = writeConfig(dir, conf)
-	require.NoError(t, err)
-
-	err = Lock(context.Background(), dir)
+	err = Lock(context.Background(), dir, conf)
 	require.NoError(t, err)
 
 	compose, err := os.ReadFile(path.Join(dir, "docker-compose.yml"))

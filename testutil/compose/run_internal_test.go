@@ -33,11 +33,7 @@ func TestRunCompose(t *testing.T) {
 
 	conf := NewDefaultConfig()
 	conf.Step = stepLocked
-
-	err = writeConfig(dir, conf)
-	require.NoError(t, err)
-
-	err = Run(context.Background(), dir)
+	err = Run(context.Background(), dir, conf)
 	require.NoError(t, err)
 
 	compose, err := os.ReadFile(path.Join(dir, "docker-compose.yml"))

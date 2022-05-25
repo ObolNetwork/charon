@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"os"
 	"path"
 
@@ -29,15 +28,8 @@ import (
 )
 
 // Lock creates a docker-compose.yml from a charon-compose.yml for generating keys and a cluster lock file.
-func Lock(ctx context.Context, dir string) error {
-	ctx = log.WithTopic(ctx, "lock")
-
-	conf, err := loadConfig(dir)
-	if errors.Is(err, fs.ErrNotExist) {
-		return errors.New("compose config not found; maybe try `compose new` first")
-	} else if err != nil {
-		return err
-	} else if conf.Step != stepDefined {
+func Lock(ctx context.Context, dir string, conf Config) error {
+	if conf.Step != stepDefined {
 		return errors.New("compose config not defined, so can't be locked", z.Any("step", conf.Step))
 	}
 
@@ -126,8 +118,8 @@ func newNodeEnvs(index int, validatorMock bool, beaconNode string, featureSet st
 	}
 }
 
-// loadConfig returns the config loaded from disk.
-func loadConfig(dir string) (Config, error) {
+// LoadConfig returns the config loaded from disk.
+func LoadConfig(dir string) (Config, error) {
 	b, err := os.ReadFile(path.Join(dir, configFile))
 	if err != nil {
 		return Config{}, errors.Wrap(err, "load config")

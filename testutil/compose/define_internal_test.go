@@ -36,9 +36,8 @@ func TestDefineDKG(t *testing.T) {
 	conf.Step = stepNew
 	p2pSeed = 1
 	noPull = true
-	require.NoError(t, writeConfig(dir, conf))
 
-	err = Define(context.Background(), dir)
+	err = Define(context.Background(), dir, conf)
 	require.NoError(t, err)
 
 	dc, err := os.ReadFile(path.Join(dir, "docker-compose.yml"))
@@ -56,9 +55,8 @@ func TestDefineCreate(t *testing.T) {
 	conf.KeyGen = "create"
 	conf.Step = stepNew
 	noPull = true
-	require.NoError(t, writeConfig(dir, conf))
 
-	err = Define(context.Background(), dir)
+	err = Define(context.Background(), dir, conf)
 	require.NoError(t, err)
 
 	dc, err := os.ReadFile(path.Join(dir, "docker-compose.yml"))
