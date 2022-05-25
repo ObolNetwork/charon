@@ -1,6 +1,6 @@
 # Charon Compose
 
-> Run, test, and debug a developer-focussed insecure local charon cluster using docker-compose
+> Run, test, and debug a developer-focused insecure local charon cluster using docker-compose
 
 Compose is a tool that generates `docker-compose.yml` files such that different charon clusters can be created and run.
 
@@ -31,11 +31,13 @@ Install the `compose` binary:
 # From inside the charon repo
 go install github.com/obolnetwork/charon/testutil/compose/compose
 
+# If on Mac M1, add the following to your bashfile (`.zshrc`, `.bashrc`):
+# export PATH="$PATH:$(go env GOPATH)/bin/darwin_amd64"
 # Ensure that `.../go/bin` is in your path via `which compose`
 
 # Alternatives:
 # go install ./...
-# cd testutil/compose/compose && go installl .
+# cd testutil/compose/compose && go install .
 # cd testutil/compose/compose && go build -o /tmp/compose/compose
 ```
 Create a charon compose workspace folder:
