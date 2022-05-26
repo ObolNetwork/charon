@@ -26,7 +26,7 @@ If however, you want to build from source with this repo directly, you can get s
 
 ```bash
 # Install go 1.18 or later (https://go.dev/doc/install)
-# If on mac, you can also install using with homebrew
+# If on mac, you can also install using homebrew
 brew install go
 
 # Build the charon binary
