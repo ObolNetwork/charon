@@ -253,7 +253,10 @@ func execUp(ctx context.Context, dir string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		err = ctx.Err()
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
+
 		return errors.Wrap(err, "run up")
 	}
 

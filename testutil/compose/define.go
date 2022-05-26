@@ -39,7 +39,7 @@ import (
 )
 
 // zeroXDead is the 0x00..00dead Ethereum address.
-const zeroXDead = "0x000000000000000000000000000000000000dead"
+const zeroXDead = `"0x000000000000000000000000000000000000dead"`
 
 // Clean deletes all compose directory files and artifacts.
 func Clean(ctx context.Context, dir string) error {

@@ -63,7 +63,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 
 		var nodes []node
 		for i := 0; i < conf.NumNodes; i++ {
-			n := node{EnvVars: newNodeEnvs(i, true, conf.BeaconNode, conf.FeatureSet)}
+			n := node{EnvVars: newNodeEnvs(i, true, conf)}
 			nodes = append(nodes, n)
 		}
 
@@ -95,11 +95,18 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 }
 
 // newNodeEnvs returns the default node environment variable to run a charon docker container.
-func newNodeEnvs(index int, validatorMock bool, beaconNode string, featureSet string) []kv {
+func newNodeEnvs(index int, validatorMock bool, conf Config) []kv {
 	beaconMock := false
+	beaconNode := conf.BeaconNode
 	if beaconNode == "mock" {
 		beaconMock = true
 		beaconNode = ""
+	}
+
+	lockFile := "/compose/cluster-lock.json"
+	if conf.KeyGen == keyGenDKG {
+		// Lock files for DKG in node dirs.
+		lockFile = fmt.Sprintf("/compose/node%d/cluster-lock.json", index)
 	}
 
 	return []kv{
@@ -107,7 +114,7 @@ func newNodeEnvs(index int, validatorMock bool, beaconNode string, featureSet st
 		{"jaeger-service", fmt.Sprintf("node%d", index)},
 		{"jaeger-address", "jaeger:6831"},
 		{"definition-file", "/compose/cluster-definition.json"},
-		{"lock-file", "/compose/cluster-lock.json"},
+		{"lock-file", lockFile},
 		{"monitoring-address", "0.0.0.0:16001"},
 		{"validator-api-address", "0.0.0.0:16002"},
 		{"p2p-external-hostname", fmt.Sprintf("node%d", index)},
@@ -118,7 +125,7 @@ func newNodeEnvs(index int, validatorMock bool, beaconNode string, featureSet st
 		{"simnet-validator-mock", fmt.Sprintf(`"%v"`, validatorMock)},
 		{"simnet-beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},
 		{"log-level", "debug"},
-		{"feature-set", featureSet},
+		{"feature-set", conf.FeatureSet},
 	}
 }
 

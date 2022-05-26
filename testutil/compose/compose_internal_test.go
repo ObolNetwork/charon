@@ -69,6 +69,7 @@ func TestDockerCompose(t *testing.T) {
 		{
 			Name: "run",
 			ConfFunc: func(conf *Config) {
+				conf.NumValidators = 2
 				conf.Step = stepLocked
 			},
 			RunFunc: Run,
@@ -107,5 +108,8 @@ func TestDockerCompose(t *testing.T) {
 
 func TestParseTemplate(t *testing.T) {
 	_, err := template.New("").Parse(string(tmpl))
+	require.NoError(t, err)
+
+	_, err = getVC(vcTeku, 0, 1)
 	require.NoError(t, err)
 }

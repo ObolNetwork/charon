@@ -27,6 +27,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 )
@@ -81,7 +82,13 @@ func bindCreateDKGFlags(flags *pflag.FlagSet, config *createDKGConfig) {
 	flags.StringSliceVar(&config.OperatorENRs, "operator-enrs", nil, "Comma-separated list of each operator's Charon ENR address")
 }
 
-func runCreateDKG(_ context.Context, conf createDKGConfig) error {
+func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
+	defer func() {
+		if err != nil {
+			log.Error(ctx, "Fatal run error", err)
+		}
+	}()
+
 	var operators []cluster.Operator
 	for _, opENR := range conf.OperatorENRs {
 		operators = append(operators, cluster.Operator{
@@ -121,7 +128,7 @@ func runCreateDKG(_ context.Context, conf createDKGConfig) error {
 
 func validateWithdrawalAddr(addr string, network string) error {
 	if !common.IsHexAddress(addr) {
-		return errors.New("invalid address")
+		return errors.New("invalid address", z.Str("addr", addr))
 	}
 
 	// We cannot allow a zero withdrawal address on mainnet or gnosis.
