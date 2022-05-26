@@ -29,7 +29,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/routing"
-	noise "github.com/libp2p/go-libp2p-noise"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -56,8 +55,6 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 	opts := []libp2p.Option{
 		// Set P2P identity key.
 		libp2p.Identity(priv),
-		// Set noise-libp2p handshake.
-		libp2p.Security(noise.ID, noise.New),
 		// Set listen addresses.
 		libp2p.ListenAddrs(addrs...),
 		// Set up user-agent.
