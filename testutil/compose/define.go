@@ -172,7 +172,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	log.Info(ctx, "Creating config.json")
 
 	conf.Step = stepDefined
-	if err := writeConfig(dir, conf); err != nil {
+	if err := WriteConfig(dir, conf); err != nil {
 		return TmplData{}, err
 	}
 
@@ -349,8 +349,8 @@ func nodeFile(dir string, i int, file string) string {
 	return path.Join(dir, fmt.Sprintf("node%d", i), file)
 }
 
-// writeConfig writes the config as yaml to disk.
-func writeConfig(dir string, conf Config) error {
+// WriteConfig writes the config as yaml to disk.
+func WriteConfig(dir string, conf Config) error {
 	b, err := json.MarshalIndent(conf, "", " ")
 	if err != nil {
 		return errors.Wrap(err, "marshal config")

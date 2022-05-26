@@ -17,6 +17,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -30,14 +31,14 @@ import (
 )
 
 // startAlertCollector starts a server that accepts alert webhooks until the context is closed and returns
-// a channel on which the received webhooks will be sent.
-func startAlertCollector(ctx context.Context, port int) (chan []byte, error) {
+// a channel on which the received alert titles will be sent.
+func startAlertCollector(ctx context.Context, port int) (chan string, error) {
 	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	if err != nil {
 		return nil, errors.Wrap(err, "new listener")
 	}
 
-	bodies := make(chan []byte)
+	resp := make(chan string, 100)
 	server := http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer r.Body.Close()
@@ -48,9 +49,28 @@ func startAlertCollector(ctx context.Context, port int) (chan []byte, error) {
 				return
 			}
 
-			log.Info(ctx, "Received webhook", z.Str("body", string(b)))
+			wrapper := struct {
+				Body string `json:"body"`
+			}{}
+			if err := json.Unmarshal(b, &wrapper); err != nil {
+				log.Error(ctx, "Unmarshal body wrapper", err, z.Str("body", string(b)))
+				return
+			}
 
-			bodies <- b
+			alert := struct {
+				Title string `json:"title"`
+			}{}
+			if err := json.Unmarshal(b, &alert); err != nil {
+				log.Error(ctx, "Unmarshal alert", err, z.Str("body", string(b)))
+				return
+			} else if alert.Title == "" {
+				log.Error(ctx, "Alert title empty", err, z.Str("body", string(b)))
+				return
+			}
+
+			log.Info(ctx, "Received webhook", z.Str("body", string(b)), z.Str("title", alert.Title))
+
+			resp <- alert.Title
 		}),
 	}
 
@@ -66,8 +86,8 @@ func startAlertCollector(ctx context.Context, port int) (chan []byte, error) {
 		if err := eg.Wait(); !errors.Is(err, context.Canceled) && !errors.Is(err, http.ErrServerClosed) {
 			log.Error(ctx, "Alert collector", err)
 		}
-		close(bodies)
+		close(resp)
 	}()
 
-	return bodies, nil
+	return resp, nil
 }

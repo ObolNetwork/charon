@@ -50,7 +50,7 @@ func newRootCmd() *cobra.Command {
 
 	root.AddCommand(newNewCmd())
 	root.AddCommand(newCleanCmd())
-	root.AddCommand(newAutoCmd())
+	root.AddCommand(newAutoCmd(nil))
 	root.AddCommand(newDockerCmd(
 		"define",
 		"Creates a docker-compose.yml that executes `charon create dkg` if keygen==dkg",
@@ -123,7 +123,7 @@ func newDockerCmd(use string, short string, runFunc runFunc) *cobra.Command {
 	return cmd
 }
 
-func newAutoCmd() *cobra.Command {
+func newAutoCmd(tmplCallback func(data compose.TmplData)) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auto",
 		Short: "Convenience function that runs `compose define && compose lock && compose run`",
@@ -141,15 +141,23 @@ func newAutoCmd() *cobra.Command {
 
 		rootCtx := log.WithTopic(cmd.Context(), "auto")
 
+		var lastTmpl compose.TmplData
 		for _, runFunc := range runFuncs {
-			_, err := runFunc(rootCtx)
+			lastTmpl, err = runFunc(rootCtx)
 			if err != nil {
 				return err
 			}
 		}
 
+		if tmplCallback != nil {
+			tmplCallback(lastTmpl)
+		}
+
 		ctx := rootCtx
 		if *alertTimeout != 0 {
+			// Ensure everything is clean before we start with alert test.
+			_ = execDown(rootCtx, *dir)
+
 			var cancel context.CancelFunc
 			ctx, cancel = context.WithTimeout(rootCtx, *alertTimeout)
 			defer cancel()
@@ -170,7 +178,7 @@ func newAutoCmd() *cobra.Command {
 
 		var fail bool
 		for alert := range alerts {
-			log.Error(rootCtx, "Received alert", nil, z.Str("alert", string(alert)))
+			log.Error(rootCtx, "Received alert", nil, z.Str("alert", alert))
 			fail = true
 		}
 		if fail {

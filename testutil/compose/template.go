@@ -58,8 +58,9 @@ type vc struct {
 
 // node represents a charon node service in a docker-compose.yml.
 type node struct {
-	EnvVars []kv
-	Ports   []port
+	ImageTag string
+	EnvVars  []kv
+	Ports    []port
 }
 
 // kv is a key value pair.
