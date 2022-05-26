@@ -1,0 +1,316 @@
+{
+ "ComposeDir": "testdir",
+ "CharonImageTag": "latest",
+ "CharonEntrypoint": "/usr/local/bin/charon",
+ "CharonCommand": "run",
+ "Nodes": [
+  {
+   "EnvVars": [
+    {
+     "Key": "data-dir",
+     "Value": "/compose/node0"
+    },
+    {
+     "Key": "jaeger-service",
+     "Value": "node0"
+    },
+    {
+     "Key": "jaeger-address",
+     "Value": "jaeger:6831"
+    },
+    {
+     "Key": "definition-file",
+     "Value": "/compose/cluster-definition.json"
+    },
+    {
+     "Key": "lock-file",
+     "Value": "/compose/cluster-lock.json"
+    },
+    {
+     "Key": "monitoring-address",
+     "Value": "0.0.0.0:16001"
+    },
+    {
+     "Key": "validator-api-address",
+     "Value": "0.0.0.0:16002"
+    },
+    {
+     "Key": "p2p-external-hostname",
+     "Value": "node0"
+    },
+    {
+     "Key": "p2p-tcp-address",
+     "Value": "0.0.0.0:16003"
+    },
+    {
+     "Key": "p2p_udp_address",
+     "Value": "0.0.0.0:16004"
+    },
+    {
+     "Key": "p2p-bootnodes",
+     "Value": "http://bootnode:16000/enr"
+    },
+    {
+     "Key": "beacon-node-endpoint",
+     "Value": ""
+    },
+    {
+     "Key": "simnet-validator-mock",
+     "Value": "\"true\""
+    },
+    {
+     "Key": "simnet-beacon_mock",
+     "Value": "\"true\""
+    },
+    {
+     "Key": "log-level",
+     "Value": "debug"
+    },
+    {
+     "Key": "feature-set",
+     "Value": "alpha"
+    }
+   ],
+   "Ports": null
+  },
+  {
+   "EnvVars": [
+    {
+     "Key": "data-dir",
+     "Value": "/compose/node1"
+    },
+    {
+     "Key": "jaeger-service",
+     "Value": "node1"
+    },
+    {
+     "Key": "jaeger-address",
+     "Value": "jaeger:6831"
+    },
+    {
+     "Key": "definition-file",
+     "Value": "/compose/cluster-definition.json"
+    },
+    {
+     "Key": "lock-file",
+     "Value": "/compose/cluster-lock.json"
+    },
+    {
+     "Key": "monitoring-address",
+     "Value": "0.0.0.0:16001"
+    },
+    {
+     "Key": "validator-api-address",
+     "Value": "0.0.0.0:16002"
+    },
+    {
+     "Key": "p2p-external-hostname",
+     "Value": "node1"
+    },
+    {
+     "Key": "p2p-tcp-address",
+     "Value": "0.0.0.0:16003"
+    },
+    {
+     "Key": "p2p_udp_address",
+     "Value": "0.0.0.0:16004"
+    },
+    {
+     "Key": "p2p-bootnodes",
+     "Value": "http://bootnode:16000/enr"
+    },
+    {
+     "Key": "beacon-node-endpoint",
+     "Value": ""
+    },
+    {
+     "Key": "simnet-validator-mock",
+     "Value": "\"true\""
+    },
+    {
+     "Key": "simnet-beacon_mock",
+     "Value": "\"true\""
+    },
+    {
+     "Key": "log-level",
+     "Value": "debug"
+    },
+    {
+     "Key": "feature-set",
+     "Value": "alpha"
+    }
+   ],
+   "Ports": null
+  },
+  {
+   "EnvVars": [
+    {
+     "Key": "data-dir",
+     "Value": "/compose/node2"
+    },
+    {
+     "Key": "jaeger-service",
+     "Value": "node2"
+    },
+    {
+     "Key": "jaeger-address",
+     "Value": "jaeger:6831"
+    },
+    {
+     "Key": "definition-file",
+     "Value": "/compose/cluster-definition.json"
+    },
+    {
+     "Key": "lock-file",
+     "Value": "/compose/cluster-lock.json"
+    },
+    {
+     "Key": "monitoring-address",
+     "Value": "0.0.0.0:16001"
+    },
+    {
+     "Key": "validator-api-address",
+     "Value": "0.0.0.0:16002"
+    },
+    {
+     "Key": "p2p-external-hostname",
+     "Value": "node2"
+    },
+    {
+     "Key": "p2p-tcp-address",
+     "Value": "0.0.0.0:16003"
+    },
+    {
+     "Key": "p2p_udp_address",
+     "Value": "0.0.0.0:16004"
+    },
+    {
+     "Key": "p2p-bootnodes",
+     "Value": "http://bootnode:16000/enr"
+    },
+    {
+     "Key": "beacon-node-endpoint",
+     "Value": ""
+    },
+    {
+     "Key": "simnet-validator-mock",
+     "Value": "\"true\""
+    },
+    {
+     "Key": "simnet-beacon_mock",
+     "Value": "\"true\""
+    },
+    {
+     "Key": "log-level",
+     "Value": "debug"
+    },
+    {
+     "Key": "feature-set",
+     "Value": "alpha"
+    }
+   ],
+   "Ports": null
+  },
+  {
+   "EnvVars": [
+    {
+     "Key": "data-dir",
+     "Value": "/compose/node3"
+    },
+    {
+     "Key": "jaeger-service",
+     "Value": "node3"
+    },
+    {
+     "Key": "jaeger-address",
+     "Value": "jaeger:6831"
+    },
+    {
+     "Key": "definition-file",
+     "Value": "/compose/cluster-definition.json"
+    },
+    {
+     "Key": "lock-file",
+     "Value": "/compose/cluster-lock.json"
+    },
+    {
+     "Key": "monitoring-address",
+     "Value": "0.0.0.0:16001"
+    },
+    {
+     "Key": "validator-api-address",
+     "Value": "0.0.0.0:16002"
+    },
+    {
+     "Key": "p2p-external-hostname",
+     "Value": "node3"
+    },
+    {
+     "Key": "p2p-tcp-address",
+     "Value": "0.0.0.0:16003"
+    },
+    {
+     "Key": "p2p_udp_address",
+     "Value": "0.0.0.0:16004"
+    },
+    {
+     "Key": "p2p-bootnodes",
+     "Value": "http://bootnode:16000/enr"
+    },
+    {
+     "Key": "beacon-node-endpoint",
+     "Value": ""
+    },
+    {
+     "Key": "simnet-validator-mock",
+     "Value": "\"true\""
+    },
+    {
+     "Key": "simnet-beacon_mock",
+     "Value": "\"true\""
+    },
+    {
+     "Key": "log-level",
+     "Value": "debug"
+    },
+    {
+     "Key": "feature-set",
+     "Value": "alpha"
+    }
+   ],
+   "Ports": null
+  }
+ ],
+ "VCs": [
+  {
+   "Label": "teku",
+   "Image": "consensys/teku:latest",
+   "Build": "",
+   "Command": "|\n      validator-client\n      --network=auto\n      --beacon-node-api-endpoint=\"http://node0:16002\"\n      --validator-keys=\"/compose/node0:/compose/node0\"\n      --validators-proposer-default-fee-recipient=\"0x0000000000000000000000000000000000000000\"",
+   "Ports": null
+  },
+  {
+   "Label": "lighthouse",
+   "Image": "",
+   "Build": "lighthouse",
+   "Command": "",
+   "Ports": null
+  },
+  {
+   "Label": "",
+   "Image": "",
+   "Build": "",
+   "Command": "",
+   "Ports": null
+  },
+  {
+   "Label": "teku",
+   "Image": "consensys/teku:latest",
+   "Build": "",
+   "Command": "|\n      validator-client\n      --network=auto\n      --beacon-node-api-endpoint=\"http://node3:16002\"\n      --validator-keys=\"/compose/node3:/compose/node3\"\n      --validators-proposer-default-fee-recipient=\"0x0000000000000000000000000000000000000000\"",
+   "Ports": null
+  }
+ ],
+ "Bootnode": true,
+ "Monitoring": true
+}

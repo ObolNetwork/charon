@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"os"
 	"path"
 
@@ -29,24 +28,17 @@ import (
 )
 
 // Lock creates a docker-compose.yml from a charon-compose.yml for generating keys and a cluster lock file.
-func Lock(ctx context.Context, dir string) error {
-	ctx = log.WithTopic(ctx, "lock")
-
-	conf, err := loadConfig(dir)
-	if errors.Is(err, fs.ErrNotExist) {
-		return errors.New("compose config not found; maybe try `compose new` first")
-	} else if err != nil {
-		return err
-	} else if conf.Step != stepDefined {
-		return errors.New("compose config not defined, so can't be locked", z.Any("step", conf.Step))
+func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
+	if conf.Step != stepDefined {
+		return TmplData{}, errors.New("compose config not defined, so can't be locked", z.Any("step", conf.Step))
 	}
 
-	var data tmplData
+	var data TmplData
 	switch conf.KeyGen {
 	case keyGenCreate:
 		splitKeysDir, err := getRelSplitKeysDir(dir, conf.SplitKeysDir)
 		if err != nil {
-			return err
+			return TmplData{}, err
 		} else if splitKeysDir != "" {
 			splitKeysDir = path.Join("/compose", splitKeysDir)
 		}
@@ -55,12 +47,12 @@ func Lock(ctx context.Context, dir string) error {
 		n := node{EnvVars: []kv{
 			{"threshold", fmt.Sprint(conf.Threshold)},
 			{"nodes", fmt.Sprint(conf.NumNodes)},
-			{"cluster_dir", "/compose"},
-			{"split_existing_keys", fmt.Sprintf(`"%v"`, conf.SplitKeysDir != "")},
-			{"split_keys_dir", splitKeysDir},
+			{"cluster-dir", "/compose"},
+			{"split-existing-keys", fmt.Sprintf(`"%v"`, conf.SplitKeysDir != "")},
+			{"split-keys-dir", splitKeysDir},
 		}}
 
-		data = tmplData{
+		data = TmplData{
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: conf.entrypoint(),
@@ -75,7 +67,7 @@ func Lock(ctx context.Context, dir string) error {
 			nodes = append(nodes, n)
 		}
 
-		data = tmplData{
+		data = TmplData{
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: conf.entrypoint(),
@@ -84,7 +76,7 @@ func Lock(ctx context.Context, dir string) error {
 			Nodes:            nodes,
 		}
 	default:
-		return errors.New("supported keygen")
+		return TmplData{}, errors.New("supported keygen")
 	}
 
 	log.Info(ctx, "Creating docker-compose.yml")
@@ -92,10 +84,14 @@ func Lock(ctx context.Context, dir string) error {
 
 	conf.Step = stepLocked
 	if err := writeConfig(dir, conf); err != nil {
-		return err
+		return TmplData{}, err
 	}
 
-	return writeDockerCompose(dir, data)
+	if err := WriteDockerCompose(dir, data); err != nil {
+		return TmplData{}, err
+	}
+
+	return data, nil
 }
 
 // newNodeEnvs returns the default node environment variable to run a charon docker container.
@@ -107,27 +103,27 @@ func newNodeEnvs(index int, validatorMock bool, beaconNode string, featureSet st
 	}
 
 	return []kv{
-		{"data_dir", fmt.Sprintf("/compose/node%d", index)},
-		{"jaeger_service", fmt.Sprintf("node%d", index)},
-		{"jaeger_address", "jaeger:6831"},
-		{"definition_file", "/compose/cluster-definition.json"},
-		{"lock_file", "/compose/cluster-lock.json"},
-		{"monitoring_address", "0.0.0.0:16001"},
-		{"validator_api_address", "0.0.0.0:16002"},
-		{"p2p_external_hostname", fmt.Sprintf("node%d", index)},
-		{"p2p_tcp_address", "0.0.0.0:16003"},
+		{"data-dir", fmt.Sprintf("/compose/node%d", index)},
+		{"jaeger-service", fmt.Sprintf("node%d", index)},
+		{"jaeger-address", "jaeger:6831"},
+		{"definition-file", "/compose/cluster-definition.json"},
+		{"lock-file", "/compose/cluster-lock.json"},
+		{"monitoring-address", "0.0.0.0:16001"},
+		{"validator-api-address", "0.0.0.0:16002"},
+		{"p2p-external-hostname", fmt.Sprintf("node%d", index)},
+		{"p2p-tcp-address", "0.0.0.0:16003"},
 		{"p2p_udp_address", "0.0.0.0:16004"},
-		{"p2p_bootnodes", "http://bootnode:16000/enr"},
+		{"p2p-bootnodes", "http://bootnode:16000/enr"},
 		{"beacon-node-endpoint", beaconNode},
-		{"simnet_validator_mock", fmt.Sprintf(`"%v"`, validatorMock)},
-		{"simnet_beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},
-		{"log_level", "debug"},
-		{"feature_set", featureSet},
+		{"simnet-validator-mock", fmt.Sprintf(`"%v"`, validatorMock)},
+		{"simnet-beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},
+		{"log-level", "debug"},
+		{"feature-set", featureSet},
 	}
 }
 
-// loadConfig returns the config loaded from disk.
-func loadConfig(dir string) (Config, error) {
+// LoadConfig returns the config loaded from disk.
+func LoadConfig(dir string) (Config, error) {
 	b, err := os.ReadFile(path.Join(dir, configFile))
 	if err != nil {
 		return Config{}, errors.Wrap(err, "load config")

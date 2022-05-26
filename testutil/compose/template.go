@@ -32,8 +32,8 @@ var tmpl []byte
 //go:embed static
 var static embed.FS
 
-// tmplData is the docker-compose.yml template data.
-type tmplData struct {
+// TmplData is the docker-compose.yml template data.
+type TmplData struct {
 	ComposeDir string
 
 	CharonImageTag   string
@@ -68,8 +68,9 @@ type kv struct {
 	Value string
 }
 
-func (kv kv) KeyUpper() string {
-	return strings.ToUpper(kv.Key)
+// EnvKey returns the key formatted as env var: "data-dir" -> "DATA_DIR".
+func (kv kv) EnvKey() string {
+	return strings.ReplaceAll(strings.ToUpper(kv.Key), "-", "_")
 }
 
 // port is a port mapping in a docker-compose.yml.
@@ -78,8 +79,8 @@ type port struct {
 	Internal int
 }
 
-// writeDockerCompose generates the docker-compose.yml template and writes it to disk.
-func writeDockerCompose(dir string, data tmplData) error {
+// WriteDockerCompose generates the docker-compose.yml template and writes it to disk.
+func WriteDockerCompose(dir string, data TmplData) error {
 	tpl, err := template.New("").Parse(string(tmpl))
 	if err != nil {
 		return errors.Wrap(err, "new template")

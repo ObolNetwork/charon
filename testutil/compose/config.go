@@ -120,7 +120,7 @@ func NewDefaultConfig() Config {
 		VCs:           []vcType{vcTeku, vcLighthouse, vcMock},
 		KeyGen:        defaultKeyGen,
 		BeaconNode:    defaultBeaconNode,
-		Step:          stepDefined,
+		Step:          stepNew,
 		FeatureSet:    defaultFeatureSet,
 	}
 }
