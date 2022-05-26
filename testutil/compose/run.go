@@ -18,7 +18,6 @@ package compose
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"strings"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -27,16 +26,9 @@ import (
 )
 
 // Run creates a docker-compose.yml from config.json to run the cluster.
-func Run(ctx context.Context, dir string) error {
-	ctx = log.WithTopic(ctx, "run")
-
-	conf, err := loadConfig(dir)
-	if errors.Is(err, fs.ErrNotExist) {
-		return errors.New("compose config not found; maybe try `compose new` first")
-	} else if err != nil {
-		return err
-	} else if conf.Step != stepLocked {
-		return errors.New("compose config not locked, so can't be run", z.Any("step", conf.Step))
+func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
+	if conf.Step != stepLocked {
+		return TmplData{}, errors.New("compose config not locked, so can't be run", z.Any("step", conf.Step))
 	}
 
 	var (
@@ -51,7 +43,7 @@ func Run(ctx context.Context, dir string) error {
 		vcs = append(vcs, getVC(typ, i))
 	}
 
-	data := tmplData{
+	data := TmplData{
 		ComposeDir:       dir,
 		CharonImageTag:   conf.ImageTag,
 		CharonEntrypoint: conf.entrypoint(),
@@ -65,7 +57,11 @@ func Run(ctx context.Context, dir string) error {
 	log.Info(ctx, "Created docker-compose.yml")
 	log.Info(ctx, "Run the cluster with: docker-compose up")
 
-	return writeDockerCompose(dir, data)
+	if err := WriteDockerCompose(dir, data); err != nil {
+		return TmplData{}, err
+	}
+
+	return data, nil
 }
 
 // getVC returns the validator client template data for the provided type and index.

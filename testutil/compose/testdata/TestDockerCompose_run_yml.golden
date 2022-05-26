@@ -1,0 +1,169 @@
+version: "3.8"
+
+x-node-base: &node-base
+  image: ghcr.io/obolnetwork/charon:latest
+  entrypoint: /usr/local/bin/charon
+  command: run
+  networks: [compose]
+  volumes: [testdir:/compose]
+  depends_on: [bootnode] 
+
+services:
+  node0:
+    <<: *node-base
+    environment:
+      CHARON_DATA_DIR: /compose/node0
+      CHARON_JAEGER_SERVICE: node0
+      CHARON_JAEGER_ADDRESS: jaeger:6831
+      CHARON_DEFINITION_FILE: /compose/cluster-definition.json
+      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_MONITORING_ADDRESS: 0.0.0.0:16001
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:16002
+      CHARON_P2P_EXTERNAL_HOSTNAME: node0
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
+      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
+      CHARON_P2P_BOOTNODES: http://bootnode:16000/enr
+      CHARON_BEACON_NODE_ENDPOINT: 
+      CHARON_SIMNET_VALIDATOR_MOCK: "true"
+      CHARON_SIMNET_BEACON_MOCK: "true"
+      CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
+    
+  node1:
+    <<: *node-base
+    environment:
+      CHARON_DATA_DIR: /compose/node1
+      CHARON_JAEGER_SERVICE: node1
+      CHARON_JAEGER_ADDRESS: jaeger:6831
+      CHARON_DEFINITION_FILE: /compose/cluster-definition.json
+      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_MONITORING_ADDRESS: 0.0.0.0:16001
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:16002
+      CHARON_P2P_EXTERNAL_HOSTNAME: node1
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
+      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
+      CHARON_P2P_BOOTNODES: http://bootnode:16000/enr
+      CHARON_BEACON_NODE_ENDPOINT: 
+      CHARON_SIMNET_VALIDATOR_MOCK: "true"
+      CHARON_SIMNET_BEACON_MOCK: "true"
+      CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
+    
+  node2:
+    <<: *node-base
+    environment:
+      CHARON_DATA_DIR: /compose/node2
+      CHARON_JAEGER_SERVICE: node2
+      CHARON_JAEGER_ADDRESS: jaeger:6831
+      CHARON_DEFINITION_FILE: /compose/cluster-definition.json
+      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_MONITORING_ADDRESS: 0.0.0.0:16001
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:16002
+      CHARON_P2P_EXTERNAL_HOSTNAME: node2
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
+      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
+      CHARON_P2P_BOOTNODES: http://bootnode:16000/enr
+      CHARON_BEACON_NODE_ENDPOINT: 
+      CHARON_SIMNET_VALIDATOR_MOCK: "true"
+      CHARON_SIMNET_BEACON_MOCK: "true"
+      CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
+    
+  node3:
+    <<: *node-base
+    environment:
+      CHARON_DATA_DIR: /compose/node3
+      CHARON_JAEGER_SERVICE: node3
+      CHARON_JAEGER_ADDRESS: jaeger:6831
+      CHARON_DEFINITION_FILE: /compose/cluster-definition.json
+      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_MONITORING_ADDRESS: 0.0.0.0:16001
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:16002
+      CHARON_P2P_EXTERNAL_HOSTNAME: node3
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
+      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
+      CHARON_P2P_BOOTNODES: http://bootnode:16000/enr
+      CHARON_BEACON_NODE_ENDPOINT: 
+      CHARON_SIMNET_VALIDATOR_MOCK: "true"
+      CHARON_SIMNET_BEACON_MOCK: "true"
+      CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
+    
+  bootnode:
+    <<: *node-base
+    command: bootnode
+    depends_on: []
+    environment:
+      CHARON_BOOTNODE_HTTP_ADDRESS: 0.0.0.0:16000
+      CHARON_DATA_DIR: /compose/bootnode
+      CHARON_P2P_BOOTNODES: ""
+      CHARON_P2P_EXTERNAL_HOSTNAME: bootnode
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
+      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
+  
+  vc0-teku:
+    image: consensys/teku:latest
+    command: |
+      validator-client
+      --network=auto
+      --beacon-node-api-endpoint="http://node0:16002"
+      --validator-keys="/compose/node0:/compose/node0"
+      --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
+    networks: [compose]
+    depends_on: [node0]
+    environment:
+      NODE: node0
+    volumes:
+      - .:/compose
+  
+  vc1-lighthouse:
+    build: lighthouse
+    networks: [compose]
+    depends_on: [node1]
+    environment:
+      NODE: node1
+    volumes:
+      - .:/compose
+  
+  vc3-teku:
+    image: consensys/teku:latest
+    command: |
+      validator-client
+      --network=auto
+      --beacon-node-api-endpoint="http://node3:16002"
+      --validator-keys="/compose/node3:/compose/node3"
+      --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
+    networks: [compose]
+    depends_on: [node3]
+    environment:
+      NODE: node3
+    volumes:
+      - .:/compose
+  
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    networks: [compose]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    networks: [compose]
+    volumes:
+      - ./grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/datasource.yml
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./grafana/simnet_dash.json:/etc/dashboards/simnet_dash.json
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    networks: [compose]
+    ports:
+      - "16686:16686"
+  
+networks:
+  compose:

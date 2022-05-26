@@ -15,7 +15,7 @@ services:
     {{- if .EnvVars}}
     environment:
       {{- range $node.EnvVars}}
-      CHARON_{{.KeyUpper}}: {{.Value}}
+      CHARON_{{.EnvKey}}: {{.Value}}
       {{- end}}
     {{end -}}
     {{if .Ports}}

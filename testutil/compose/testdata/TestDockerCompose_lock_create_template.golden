@@ -1,0 +1,36 @@
+{
+ "ComposeDir": "testdir",
+ "CharonImageTag": "latest",
+ "CharonEntrypoint": "/usr/local/bin/charon",
+ "CharonCommand": "[create,cluster]",
+ "Nodes": [
+  {
+   "EnvVars": [
+    {
+     "Key": "threshold",
+     "Value": "3"
+    },
+    {
+     "Key": "nodes",
+     "Value": "4"
+    },
+    {
+     "Key": "cluster-dir",
+     "Value": "/compose"
+    },
+    {
+     "Key": "split-existing-keys",
+     "Value": "\"false\""
+    },
+    {
+     "Key": "split-keys-dir",
+     "Value": ""
+    }
+   ],
+   "Ports": null
+  }
+ ],
+ "VCs": null,
+ "Bootnode": false,
+ "Monitoring": false
+}
