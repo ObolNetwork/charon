@@ -142,7 +142,7 @@ func encrypt(secret *bls_sig.SecretKey, password string, random io.Reader) (keys
 
 	return keystore{
 		Crypto:      fields,
-		Description: "",
+		Description: "", // optional field to help explain the purpose and identify a particular keystore in a user-friendly manner.
 		Pubkey:      hex.EncodeToString(pubKeyBytes),
 		Path:        "m/12381/3600/0/0/0", // https://eips.ethereum.org/EIPS/eip-2334
 		ID:          uuid(random),
