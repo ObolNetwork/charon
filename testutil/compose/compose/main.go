@@ -70,39 +70,44 @@ func newRootCmd() *cobra.Command {
 	return root
 }
 
-// newDockerRunFunc returns a cobra run function that generates docker-compose.yml files and executes it.
-func newDockerRunFunc(topic string, dir *string, up *bool, runFunc func(context.Context, string, compose.Config) error) func(cmd *cobra.Command, _ []string) error {
-	return func(cmd *cobra.Command, _ []string) (err error) {
-		ctx := log.WithTopic(cmd.Context(), topic)
+// runFunc defines a function that generates docker-compose.yml from config and returns the template data.
+type runFunc func(context.Context, string, compose.Config) (compose.TmplData, error)
+
+// newRunnerFunc returns a function that wraps and runs a run function.
+func newRunnerFunc(topic string, dir string, up bool, runFunc runFunc,
+) func(ctx context.Context) (data compose.TmplData, err error) {
+	return func(ctx context.Context) (data compose.TmplData, err error) {
+		ctx = log.WithTopic(ctx, topic)
 		defer func() {
 			if err != nil {
 				log.Error(ctx, "Fatal error", err)
 			}
 		}()
 
-		conf, err := compose.LoadConfig(*dir)
+		conf, err := compose.LoadConfig(dir)
 		if errors.Is(err, fs.ErrNotExist) {
-			return errors.New("compose config not found; maybe try `compose new` first")
+			return compose.TmplData{}, errors.New("compose config.json not found; maybe try `compose new` first", z.Str("dir", dir))
 		} else if err != nil {
-			return err
+			return compose.TmplData{}, err
 		}
 
 		log.Info(ctx, "Running compose command", z.Str("command", topic))
 
-		if err := runFunc(ctx, *dir, conf); err != nil {
-			return err
+		data, err = runFunc(ctx, dir, conf)
+		if err != nil {
+			return compose.TmplData{}, err
 		}
 
-		if *up {
-			return execUp(ctx, *dir)
+		if up {
+			return data, execUp(ctx, dir)
 		}
 
-		return nil
+		return data, nil
 	}
 }
 
 // newDockerCmd returns a cobra command that generates docker-compose.yml files and executes it.
-func newDockerCmd(use string, short string, run func(context.Context, string, compose.Config) error) *cobra.Command {
+func newDockerCmd(use string, short string, runFunc runFunc) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   use,
 		Short: short,
@@ -110,7 +115,10 @@ func newDockerCmd(use string, short string, run func(context.Context, string, co
 
 	up := addUpFlag(cmd.Flags())
 	dir := addDirFlag(cmd.Flags())
-	cmd.RunE = newDockerRunFunc(use, dir, up, run)
+	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		_, err := newRunnerFunc(use, *dir, *up, runFunc)(cmd.Context())
+		return err
+	}
 
 	return cmd
 }
@@ -124,15 +132,15 @@ func newAutoCmd() *cobra.Command {
 	dir := addDirFlag(cmd.Flags())
 	up := true
 
-	runFuncs := []func(cmd *cobra.Command, _ []string) (err error){
-		newDockerRunFunc("define", dir, &up, compose.Define),
-		newDockerRunFunc("lock", dir, &up, compose.Lock),
-		newDockerRunFunc("run", dir, &up, compose.Run),
-	}
-
 	cmd.RunE = func(cmd *cobra.Command, _ []string) (err error) {
+		runFuncs := []func(context.Context) (compose.TmplData, error){
+			newRunnerFunc("define", *dir, up, compose.Define),
+			newRunnerFunc("lock", *dir, up, compose.Lock),
+			newRunnerFunc("run", *dir, up, compose.Run),
+		}
+
 		for _, runFunc := range runFuncs {
-			err := runFunc(cmd, nil)
+			_, err := runFunc(cmd.Context())
 			if err != nil {
 				return err
 			}

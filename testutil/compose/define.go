@@ -89,37 +89,37 @@ func Clean(ctx context.Context, dir string) error {
 var noPull bool
 
 // Define defines a compose cluster; including both keygen and running definitions.
-func Define(ctx context.Context, dir string, conf Config) error {
+func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	if conf.Step != stepNew {
-		return errors.New("compose config not new, so can't be defined", z.Any("step", conf.Step))
+		return TmplData{}, errors.New("compose config not new, so can't be defined", z.Any("step", conf.Step))
 	}
 
 	if conf.BuildLocal {
 		if err := buildLocal(ctx, dir); err != nil {
-			return err
+			return TmplData{}, err
 		}
 	}
 
 	if !noPull && !conf.BuildLocal && conf.ImageTag == "latest" {
 		if err := pullLatest(ctx); err != nil {
-			return err
+			return TmplData{}, err
 		}
 	}
 
 	if conf.SplitKeysDir != "" {
 		if err := validateSplitKeysDir(dir, conf.SplitKeysDir); err != nil {
-			return err
+			return TmplData{}, err
 		}
 	}
 
-	var data tmplData
+	var data TmplData
 	if conf.KeyGen == keyGenDKG {
 		log.Info(ctx, "Creating node*/p2pkey for ENRs required for charon create dkg")
 
 		// charon create dkg requires operator ENRs, so we need to create p2pkeys now.
 		p2pkeys, err := newP2PKeys(conf.NumNodes)
 		if err != nil {
-			return err
+			return TmplData{}, err
 		}
 
 		var enrs []string
@@ -129,12 +129,12 @@ func Define(ctx context.Context, dir string, conf Config) error {
 
 			err := crypto.SaveECDSA(nodeFile(dir, i, "p2pkey"), key)
 			if err != nil {
-				return errors.Wrap(err, "save p2pkey")
+				return TmplData{}, errors.Wrap(err, "save p2pkey")
 			}
 
 			enrStr, err := keyToENR(key)
 			if err != nil {
-				return err
+				return TmplData{}, err
 			}
 			enrs = append(enrs, enrStr)
 		}
@@ -149,7 +149,7 @@ func Define(ctx context.Context, dir string, conf Config) error {
 			{"output_dir", "/compose"},
 		}}
 
-		data = tmplData{
+		data = TmplData{
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: conf.entrypoint(),
@@ -160,7 +160,7 @@ func Define(ctx context.Context, dir string, conf Config) error {
 		// Other keygens only need a noop docker-compose, since charon-compose.yml
 		// is used directly in their compose lock.
 
-		data = tmplData{
+		data = TmplData{
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: "echo",
@@ -173,17 +173,21 @@ func Define(ctx context.Context, dir string, conf Config) error {
 
 	conf.Step = stepDefined
 	if err := writeConfig(dir, conf); err != nil {
-		return err
+		return TmplData{}, err
 	}
 
 	if err := copyStaticFolders(dir); err != nil {
-		return err
+		return TmplData{}, err
 	}
 
 	log.Info(ctx, "Creating docker-compose.yml")
 	log.Info(ctx, "Create cluster definition: docker-compose up")
 
-	return writeDockerCompose(dir, data)
+	if err := WriteDockerCompose(dir, data); err != nil {
+		return TmplData{}, err
+	}
+
+	return data, nil
 }
 
 // validateSplitKeysDir returns an error if the split keys dir is not a child of dir.
