@@ -14,8 +14,8 @@
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Package keystore provides functions to store and load private keys
-// to/from EIP 2335 compatible keystore files. Password are expected/created
-// in files with same identical names as the keystores, except with txt extension.
+// to/from EIP 2335 (https://eips.ethereum.org/EIPS/eip-2335) compatible keystore files. Passwords are
+// expected/created in files with same identical names as the keystores, except with txt extension.
 package keystore
 
 import (
@@ -110,11 +110,12 @@ func LoadKeys(dir string) ([]*bls_sig.SecretKey, error) {
 
 // keystore json file representation as a Go struct.
 type keystore struct {
-	Crypto  map[string]interface{} `json:"crypto"`
-	ID      string                 `json:"uuid"`
-	Pubkey  string                 `json:"pubkey"`
-	Version uint                   `json:"version"`
-	Name    string                 `json:"name"`
+	Crypto      map[string]interface{} `json:"crypto"`
+	Description string                 `json:"description"`
+	Pubkey      string                 `json:"pubkey"`
+	Path        string                 `json:"path"`
+	ID          string                 `json:"uuid"`
+	Version     uint                   `json:"version"`
 }
 
 // encrypt returns the secret as an encrypted keystore using pbkdf2 cipher.
@@ -140,11 +141,12 @@ func encrypt(secret *bls_sig.SecretKey, password string, random io.Reader) (keys
 	}
 
 	return keystore{
-		Crypto:  fields,
-		ID:      uuid(random),
-		Version: encryptor.Version(),
-		Pubkey:  hex.EncodeToString(pubKeyBytes),
-		Name:    encryptor.Name(),
+		Crypto:      fields,
+		Description: "",
+		Pubkey:      hex.EncodeToString(pubKeyBytes),
+		Path:        "",
+		ID:          uuid(random),
+		Version:     encryptor.Version(),
 	}, nil
 }
 
