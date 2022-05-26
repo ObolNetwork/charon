@@ -144,7 +144,7 @@ func encrypt(secret *bls_sig.SecretKey, password string, random io.Reader) (keys
 		Crypto:      fields,
 		Description: "",
 		Pubkey:      hex.EncodeToString(pubKeyBytes),
-		Path:        "",
+		Path:        "m/12381/3600/0/0/0", // https://eips.ethereum.org/EIPS/eip-2334
 		ID:          uuid(random),
 		Version:     encryptor.Version(),
 	}, nil
