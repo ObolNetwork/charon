@@ -256,12 +256,11 @@ func execUp(ctx context.Context, dir string) error {
 		err = ctx.Err()
 		return errors.Wrap(err, "run up")
 	}
-	// TODO(corver): parse and return any non-zero exit codes
 
 	return nil
 }
 
-// execUp executes `docker-compose up`.
+// execDown executes `docker-compose down`.
 func execDown(ctx context.Context, dir string) error {
 	log.Info(ctx, "Executing docker-compose down")
 
@@ -275,7 +274,6 @@ func execDown(ctx context.Context, dir string) error {
 	if err := cmd.Run(); err != nil {
 		return errors.Wrap(err, "run down")
 	}
-	// TODO(corver): parse and return any non-zero exit codes
 
 	return nil
 }
