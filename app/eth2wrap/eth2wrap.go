@@ -49,7 +49,7 @@ var (
 func NewHTTPService(ctx context.Context, params ...eth2http.Parameter) (*Service, error) {
 	eth2Svc, err := eth2http.New(ctx, params...)
 	if err != nil {
-		return nil, errors.Wrap(err, "new et2http")
+		return nil, errors.Wrap(err, "new eth2http")
 	}
 
 	eth2Cl, ok := eth2Svc.(*eth2http.Service)

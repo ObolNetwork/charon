@@ -109,8 +109,8 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 	}
 
 	// Configure enode with external (advertised) hostname
-	if config.ExteranlHost != "" {
-		ips, err := net.LookupIP(config.ExteranlHost)
+	if config.ExternalHost != "" {
+		ips, err := net.LookupIP(config.ExternalHost)
 		if err != nil || len(ips) == 0 {
 			return nil, nil, errors.Wrap(err, "could not resolve p2p external host")
 		}

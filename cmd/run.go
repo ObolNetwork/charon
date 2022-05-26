@@ -80,7 +80,7 @@ func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {
 	flags.BoolVar(&config.UDPBootManifest, "p2p-bootmanifest", false, "Enables using manifest ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs.")
 	flags.StringVar(&config.UDPAddr, "p2p-udp-address", "127.0.0.1:16004", "Listening UDP address (ip and port) for discv5 discovery.")
 	flags.StringVar(&config.ExternalIP, "p2p-external-ip", "", "The IP address advertised by libp2p. This may be used to advertise an external IP.")
-	flags.StringVar(&config.ExteranlHost, "p2p-external-hostname", "", "The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.")
+	flags.StringVar(&config.ExternalHost, "p2p-external-hostname", "", "The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.")
 	flags.StringSliceVar(&config.TCPAddrs, "p2p-tcp-address", []string{"127.0.0.1:16003"}, "Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic.")
 	flags.StringVar(&config.Allowlist, "p2p-allowlist", "", "Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.")
 	flags.StringVar(&config.Denylist, "p2p-denylist", "", "Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.")

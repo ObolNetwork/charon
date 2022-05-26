@@ -22,21 +22,6 @@ Charon is used by Enterprises and DAOs to distribute the responsibility of runni
 The easiest way to get started is with the [charon-docker-compose](https://github.com/ObolNetwork/charon-docker-compose) repo
 which contains a docker compose setup for running a charon cluster on your local machine.
 
-If however, you want to build from source with this repo directly, you can get started with:
-
-```bash
-# Install go 1.18 or later (on mac with homebrew installed)
-brew install go
-
-# Build the charon binary
-go build -o charon
-
-# Use charon's create-cluster command to generate a local simnet cluster.
-./charon --help
-./charon create-cluster --cluster-dir=/tmp/charon-simnet --config=true --config-simnet
-/tmp/charon-simnet/run_cluster.sh
-```
-
 ## Documentation
 
 The [Obol Docs](https://docs.obol.tech/) website is the best place to get started.

@@ -37,7 +37,7 @@ func TestExternalHost(t *testing.T) {
 
 	config := p2p.Config{
 		UDPAddr:      fmt.Sprintf("0.0.0.0:%d", addr1.Port),
-		ExteranlHost: "localhost",
+		ExternalHost: "localhost",
 		TCPAddrs:     []string{fmt.Sprintf("0.0.0.0:%d", addr2.Port)},
 	}
 

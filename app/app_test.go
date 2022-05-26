@@ -182,7 +182,7 @@ func pingCluster(t *testing.T, test pingTest) {
 			P2P: p2p.Config{
 				UDPBootnodes:    bootnodes,
 				UDPBootManifest: test.BootLock,
-				ExteranlHost:    test.ExternalHost,
+				ExternalHost:    test.ExternalHost,
 				ExternalIP:      test.ExternalIP,
 				BootnodeRelay:   test.BootnodeRelay,
 			},
