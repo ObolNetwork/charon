@@ -12,7 +12,7 @@ services:
   {{- range $i, $node := .Nodes}}
   node{{$i}}:
     <<: *node-base
-    {{- if .ImageTag}} image: ghcr.io/obolnetwork/charon:{{.ImageTag}}
+    {{if .ImageTag}}image: ghcr.io/obolnetwork/charon:{{.ImageTag}}
     {{end -}}
     {{- if .EnvVars}}
     environment:

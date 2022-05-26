@@ -26,7 +26,7 @@ import (
 	"github.com/obolnetwork/charon/testutil/compose"
 )
 
-//go:generate go test . -run=TestSmoke -integration
+//go:generate go test . -run=TestSmoke -integration -v
 var integration = flag.Bool("integration", false, "Enable docker based integration test")
 
 func TestSmoke(t *testing.T) {
@@ -67,9 +67,9 @@ func TestSmoke(t *testing.T) {
 			Name: "version matrix",
 			TmplFunc: func(data compose.TmplData) {
 				data.Nodes[0].ImageTag = "latest"
-				data.Nodes[1].ImageTag = "v0.5.0"
-				data.Nodes[2].ImageTag = "v0.4.0"
-				data.Nodes[3].ImageTag = "v0.3.0"
+				data.Nodes[1].ImageTag = "latest"
+				data.Nodes[2].ImageTag = "v0.5.0" // TODO(corver): Update this with new releases.
+				data.Nodes[3].ImageTag = "v0.5.0"
 			},
 		},
 	}
@@ -87,7 +87,7 @@ func TestSmoke(t *testing.T) {
 
 			cmd := newAutoCmd(test.TmplFunc)
 			require.NoError(t, cmd.Flags().Set("compose-dir", dir))
-			require.NoError(t, cmd.Flags().Set("alert-timeout", "1m"))
+			require.NoError(t, cmd.Flags().Set("alert-timeout", "30s"))
 
 			err = cmd.ExecuteContext(context.Background())
 			require.NoError(t, err)

@@ -151,6 +151,10 @@ func newAutoCmd(tmplCallback func(data compose.TmplData)) *cobra.Command {
 
 		if tmplCallback != nil {
 			tmplCallback(lastTmpl)
+			err := compose.WriteDockerCompose(*dir, lastTmpl)
+			if err != nil {
+				return err
+			}
 		}
 
 		ctx := rootCtx
