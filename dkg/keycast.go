@@ -195,7 +195,7 @@ func msgFromShare(s share) (shareMsg, error) {
 	// Sort pub shares by id/index.
 	var pubSharesIDs []int
 	for id := range s.PublicShares {
-		pubSharesIDs = append(pubSharesIDs, int(id))
+		pubSharesIDs = append(pubSharesIDs, id)
 	}
 	sort.Ints(pubSharesIDs)
 
