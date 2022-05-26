@@ -14,8 +14,8 @@
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Package keystore provides functions to store and load private keys
-// to/from EIP 2335 compatible keystore files. Password are expected/created
-// in files with same identical names as the keystores, except with txt extension.
+// to/from EIP 2335 (https://eips.ethereum.org/EIPS/eip-2335) compatible keystore files. Passwords are
+// expected/created in files with same identical names as the keystores, except with txt extension.
 package keystore
 
 import (
@@ -110,11 +110,12 @@ func LoadKeys(dir string) ([]*bls_sig.SecretKey, error) {
 
 // keystore json file representation as a Go struct.
 type keystore struct {
-	Crypto  map[string]interface{} `json:"crypto"`
-	ID      string                 `json:"uuid"`
-	Pubkey  string                 `json:"pubkey"`
-	Version uint                   `json:"version"`
-	Name    string                 `json:"name"`
+	Crypto      map[string]interface{} `json:"crypto"`
+	Description string                 `json:"description"`
+	Pubkey      string                 `json:"pubkey"`
+	Path        string                 `json:"path"`
+	ID          string                 `json:"uuid"`
+	Version     uint                   `json:"version"`
 }
 
 // encrypt returns the secret as an encrypted keystore using pbkdf2 cipher.
@@ -140,24 +141,19 @@ func encrypt(secret *bls_sig.SecretKey, password string, random io.Reader) (keys
 	}
 
 	return keystore{
-		Crypto:  fields,
-		ID:      uuid(random),
-		Version: encryptor.Version(),
-		Pubkey:  hex.EncodeToString(pubKeyBytes),
-		Name:    encryptor.Name(),
+		Crypto:      fields,
+		Description: "", // optional field to help explain the purpose and identify a particular keystore in a user-friendly manner.
+		Pubkey:      hex.EncodeToString(pubKeyBytes),
+		Path:        "m/12381/3600/0/0/0", // https://eips.ethereum.org/EIPS/eip-2334
+		ID:          uuid(random),
+		Version:     encryptor.Version(),
 	}, nil
 }
 
 // decrypt returns the secret from the encrypted (empty password) keystore.
 func decrypt(store keystore, password string) (*bls_sig.SecretKey, error) {
-	// Ugly way to check if the untyped store.Crypto field contains a "scrypt" kdf function.
-	cipher := "pbkdf2"
-	if strings.Contains(fmt.Sprint(store.Crypto["kdf"]), "scrypt") {
-		cipher = "scrypt"
-	}
-
-	encryptor := keystorev4.New(keystorev4.WithCipher(cipher))
-	secretBytes, err := encryptor.Decrypt(store.Crypto, password)
+	decryptor := keystorev4.New()
+	secretBytes, err := decryptor.Decrypt(store.Crypto, password)
 	if err != nil {
 		return nil, errors.Wrap(err, "decrypt keystore")
 	}
