@@ -152,7 +152,7 @@ func encrypt(secret *bls_sig.SecretKey, password string, random io.Reader) (keys
 
 // decrypt returns the secret from the encrypted (empty password) keystore.
 func decrypt(store keystore, password string) (*bls_sig.SecretKey, error) {
-	encryptor := keystorev4.New(keystorev4.WithCipher(cipher))
+	encryptor := keystorev4.New()
 	secretBytes, err := encryptor.Decrypt(store.Crypto, password)
 	if err != nil {
 		return nil, errors.Wrap(err, "decrypt keystore")
