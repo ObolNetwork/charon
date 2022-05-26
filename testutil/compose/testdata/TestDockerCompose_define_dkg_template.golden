@@ -24,7 +24,7 @@
     },
     {
      "Key": "withdrawal_address",
-     "Value": "0x000000000000000000000000000000000000dead"
+     "Value": "\"0x000000000000000000000000000000000000dead\""
     },
     {
      "Key": "dkg_algorithm",

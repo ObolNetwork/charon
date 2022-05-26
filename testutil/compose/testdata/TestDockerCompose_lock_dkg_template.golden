@@ -24,7 +24,7 @@
     },
     {
      "Key": "lock-file",
-     "Value": "/compose/cluster-lock.json"
+     "Value": "/compose/node0/cluster-lock.json"
     },
     {
      "Key": "monitoring-address",
@@ -93,7 +93,7 @@
     },
     {
      "Key": "lock-file",
-     "Value": "/compose/cluster-lock.json"
+     "Value": "/compose/node1/cluster-lock.json"
     },
     {
      "Key": "monitoring-address",
@@ -162,7 +162,7 @@
     },
     {
      "Key": "lock-file",
-     "Value": "/compose/cluster-lock.json"
+     "Value": "/compose/node2/cluster-lock.json"
     },
     {
      "Key": "monitoring-address",
@@ -231,7 +231,7 @@
     },
     {
      "Key": "lock-file",
-     "Value": "/compose/cluster-lock.json"
+     "Value": "/compose/node3/cluster-lock.json"
     },
     {
      "Key": "monitoring-address",

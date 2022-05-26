@@ -16,9 +16,10 @@
 package compose
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"strings"
+	"text/template"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -36,11 +37,15 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		vcs   []vc
 	)
 	for i := 0; i < conf.NumNodes; i++ {
-		n := node{EnvVars: newNodeEnvs(i, true, conf.BeaconNode, conf.FeatureSet)}
+		n := node{EnvVars: newNodeEnvs(i, true, conf)}
 		nodes = append(nodes, n)
 
 		typ := conf.VCs[i%len(conf.VCs)]
-		vcs = append(vcs, getVC(typ, i))
+		vc, err := getVC(typ, i, conf.NumValidators)
+		if err != nil {
+			return TmplData{}, err
+		}
+		vcs = append(vcs, vc)
 	}
 
 	data := TmplData{
@@ -65,7 +70,7 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 }
 
 // getVC returns the validator client template data for the provided type and index.
-func getVC(typ vcType, nodeIdx int) vc {
+func getVC(typ vcType, nodeIdx int, numVals int) (vc, error) {
 	vcByType := map[vcType]vc{
 		vcLighthouse: {
 			Label: string(vcLighthouse),
@@ -77,14 +82,33 @@ func getVC(typ vcType, nodeIdx int) vc {
 			Command: `|
       validator-client
       --network=auto
-      --beacon-node-api-endpoint="http://node{{nodeIdx}}:16002"
-      --validator-keys="/compose/node{{nodeIdx}}:/compose/node{{nodeIdx}}"
+      --beacon-node-api-endpoint="http://node{{.NodeIdx}}:16002"
+      {{range .TekuKeys}}--validator-keys="{{.}}"
+      {{end -}}
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"`,
 		},
 	}
 
 	resp := vcByType[typ]
-	resp.Command = strings.ReplaceAll(resp.Command, "{{nodeIdx}}", fmt.Sprint(nodeIdx))
+	if typ == vcTeku {
+		var keys []string
+		for i := 0; i < numVals; i++ {
+			keys = append(keys, fmt.Sprintf("/compose/node%d/keystore-%d.json:/compose/node%d/keystore-%d.txt", nodeIdx, i, nodeIdx, i))
+		}
+		data := struct {
+			TekuKeys []string
+			NodeIdx  int
+		}{
+			NodeIdx:  nodeIdx,
+			TekuKeys: keys,
+		}
+		var buf bytes.Buffer
+		err := template.Must(template.New("").Parse(resp.Command)).Execute(&buf, data)
+		if err != nil {
+			return vc{}, errors.Wrap(err, "teku template")
+		}
+		resp.Command = buf.String()
+	}
 
-	return resp
+	return resp, nil
 }

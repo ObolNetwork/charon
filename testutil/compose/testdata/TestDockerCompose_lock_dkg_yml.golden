@@ -16,7 +16,7 @@ services:
       CHARON_JAEGER_SERVICE: node0
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
-      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_LOCK_FILE: /compose/node0/cluster-lock.json
       CHARON_MONITORING_ADDRESS: 0.0.0.0:16001
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:16002
       CHARON_P2P_EXTERNAL_HOSTNAME: node0
@@ -36,7 +36,7 @@ services:
       CHARON_JAEGER_SERVICE: node1
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
-      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_LOCK_FILE: /compose/node1/cluster-lock.json
       CHARON_MONITORING_ADDRESS: 0.0.0.0:16001
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:16002
       CHARON_P2P_EXTERNAL_HOSTNAME: node1
@@ -56,7 +56,7 @@ services:
       CHARON_JAEGER_SERVICE: node2
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
-      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_LOCK_FILE: /compose/node2/cluster-lock.json
       CHARON_MONITORING_ADDRESS: 0.0.0.0:16001
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:16002
       CHARON_P2P_EXTERNAL_HOSTNAME: node2
@@ -76,7 +76,7 @@ services:
       CHARON_JAEGER_SERVICE: node3
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
-      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_LOCK_FILE: /compose/node3/cluster-lock.json
       CHARON_MONITORING_ADDRESS: 0.0.0.0:16001
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:16002
       CHARON_P2P_EXTERNAL_HOSTNAME: node3
