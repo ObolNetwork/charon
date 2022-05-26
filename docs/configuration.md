@@ -95,7 +95,7 @@ Flags:
   -h, --help                           Help for run
       --jaeger-address string          Listening address for jaeger tracing
       --jaeger-service string          Service name used for jaeger tracing (default "charon")
-      --lock-file string               The path to the cluster lock file defining distributed validator cluster (default ".charon/cluster/cluster-lock.json")
+      --lock-file string               The path to the cluster lock file defining distributed validator cluster (default ".charon/cluster-lock.json")
       --log-format string              Log format; console, logfmt or json (default "console")
       --log-level string               Log level; debug, info, warn or error (default "info")
       --monitoring-address string      Listening address (ip and port) for the monitoring API (prometheus, pprof) (default "127.0.0.1:16001")

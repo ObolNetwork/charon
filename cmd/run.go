@@ -54,7 +54,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 }
 
 func bindRunFlags(flags *pflag.FlagSet, config *app.Config) {
-	flags.StringVar(&config.LockFile, "lock-file", ".charon/cluster/cluster-lock.json", "The path to the cluster lock file defining distributed validator cluster")
+	flags.StringVar(&config.LockFile, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining distributed validator cluster")
 	flags.StringVar(&config.BeaconNodeAddr, "beacon-node-endpoint", "http://localhost/", "Beacon node endpoint URL")
 	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:16002", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API")
 	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:16001", "Listening address (ip and port) for the monitoring API (prometheus, pprof)")
