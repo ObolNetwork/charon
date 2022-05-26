@@ -21,10 +21,11 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/crypto"
+	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/routing"
@@ -46,10 +47,15 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 		return nil, err
 	}
 
+	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))
+	if err != nil {
+		return nil, errors.Wrap(err, "convert privkey")
+	}
+
 	// Init options.
 	opts := []libp2p.Option{
 		// Set P2P identity key.
-		libp2p.Identity(crypto.PrivKey((*crypto.Secp256k1PrivateKey)(key))),
+		libp2p.Identity(priv),
 		// Set noise-libp2p handshake.
 		libp2p.Security(noise.ID, noise.New),
 		// Set listen addresses.
