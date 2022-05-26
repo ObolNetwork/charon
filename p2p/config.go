@@ -36,7 +36,7 @@ type Config struct {
 	// ExternalIP is the IP advertised by libp2p.
 	ExternalIP string
 	// ExternalHost is the DNS hostname advertised by libp2p.
-	ExteranlHost string
+	ExternalHost string
 	// TCPAddrs defines the lib-p2p tcp listen addresses.
 	TCPAddrs []string
 	// Allowlist defines csv CIDR blocks for lib-p2p allowed connections.
