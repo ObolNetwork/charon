@@ -43,3 +43,11 @@ func TestNewPeer(t *testing.T) {
 
 	require.Equal(t, "16Uiu2HAm87ieJpGmqjdqVF6Y4LAodxdsUY2sVCX5b31QVHCLt116", p.ID.Pretty())
 }
+
+func TestNewHost(t *testing.T) {
+	privKey, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	_, err = p2p.NewTCPNode(p2p.Config{}, privKey, p2p.NewOpenGater(), nil, nil, nil)
+	require.NoError(t, err)
+}

@@ -16,6 +16,9 @@
 package p2p
 
 import (
+	"crypto/ecdsa"
+
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
@@ -42,13 +45,18 @@ type Peer struct {
 
 // NewPeer returns a new charon peer.
 func NewPeer(record enr.Record, index int) (Peer, error) {
-	var pubkey enode.Secp256k1
-	if err := record.Load(&pubkey); err != nil {
+	var enodePubkey enode.Secp256k1
+	if err := record.Load(&enodePubkey); err != nil {
 		return Peer{}, errors.Wrap(err, "pubkey from enr")
 	}
 
-	p2pPubkey := libp2pcrypto.Secp256k1PublicKey(pubkey)
-	id, err := peer.IDFromPublicKey(&p2pPubkey)
+	ecdsaPubkey := ecdsa.PublicKey(enodePubkey)
+	p2pPubkey, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(crypto.CompressPubkey(&ecdsaPubkey))
+	if err != nil {
+		return Peer{}, errors.Wrap(err, "convert pubkey")
+	}
+
+	id, err := peer.IDFromPublicKey(p2pPubkey)
 	if err != nil {
 		return Peer{}, errors.Wrap(err, "p2p id from pubkey")
 	}

@@ -49,7 +49,7 @@ linters-settings:
 
       # Some configured revive rules
       - name: imports-blacklist
-        arguments: ["errors", "github.com/pkg/errors"] # Prefer ./app/errors
+        arguments: ["errors", "github.com/pkg/errors","github.com/golang/protobuf"] # Prefer ./app/errors
   staticcheck:
     go: "1.18"
     checks:

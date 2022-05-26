@@ -130,20 +130,51 @@ func newAutoCmd() *cobra.Command {
 	}
 
 	dir := addDirFlag(cmd.Flags())
-	up := true
+	alertTimeout := cmd.Flags().Duration("alert-timeout", 0, "Timeout to collect alerts before shutdown. Zero disables timeout.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) (err error) {
 		runFuncs := []func(context.Context) (compose.TmplData, error){
-			newRunnerFunc("define", *dir, up, compose.Define),
-			newRunnerFunc("lock", *dir, up, compose.Lock),
-			newRunnerFunc("run", *dir, up, compose.Run),
+			newRunnerFunc("define", *dir, true, compose.Define),
+			newRunnerFunc("lock", *dir, true, compose.Lock),
+			newRunnerFunc("run", *dir, false, compose.Run),
 		}
 
+		rootCtx := log.WithTopic(cmd.Context(), "auto")
+
 		for _, runFunc := range runFuncs {
-			_, err := runFunc(cmd.Context())
+			_, err := runFunc(rootCtx)
 			if err != nil {
 				return err
 			}
+		}
+
+		ctx := rootCtx
+		if *alertTimeout != 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(rootCtx, *alertTimeout)
+			defer cancel()
+		}
+
+		alerts, err := startAlertCollector(ctx, 26354)
+		if err != nil {
+			return err
+		}
+
+		if err := execUp(ctx, *dir); !errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+
+		if err := execDown(rootCtx, *dir); err != nil {
+			return err
+		}
+
+		var fail bool
+		for alert := range alerts {
+			log.Error(rootCtx, "Received alert", nil, z.Str("alert", string(alert)))
+			fail = true
+		}
+		if fail {
+			return errors.New("Alerts detected")
 		}
 
 		return nil
@@ -222,9 +253,27 @@ func execUp(ctx context.Context, dir string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
+		err = ctx.Err()
 		return errors.Wrap(err, "run up")
 	}
-	// TODO(corver): parse and return any non-zero exit codes
+
+	return nil
+}
+
+// execDown executes `docker-compose down`.
+func execDown(ctx context.Context, dir string) error {
+	log.Info(ctx, "Executing docker-compose down")
+
+	cmd := exec.CommandContext(ctx, "docker-compose", "down",
+		"--remove-orphans",
+		"--timeout=2",
+	)
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return errors.Wrap(err, "run down")
+	}
 
 	return nil
 }
