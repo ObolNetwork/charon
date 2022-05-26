@@ -152,12 +152,6 @@ func encrypt(secret *bls_sig.SecretKey, password string, random io.Reader) (keys
 
 // decrypt returns the secret from the encrypted (empty password) keystore.
 func decrypt(store keystore, password string) (*bls_sig.SecretKey, error) {
-	// Ugly way to check if the untyped store.Crypto field contains a "scrypt" kdf function.
-	cipher := "pbkdf2"
-	if strings.Contains(fmt.Sprint(store.Crypto["kdf"]), "scrypt") {
-		cipher = "scrypt"
-	}
-
 	encryptor := keystorev4.New(keystorev4.WithCipher(cipher))
 	secretBytes, err := encryptor.Decrypt(store.Crypto, password)
 	if err != nil {
