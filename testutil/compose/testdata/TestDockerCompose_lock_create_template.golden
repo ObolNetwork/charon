@@ -5,6 +5,7 @@
  "CharonCommand": "[create,cluster]",
  "Nodes": [
   {
+   "ImageTag": "",
    "EnvVars": [
     {
      "Key": "threshold",

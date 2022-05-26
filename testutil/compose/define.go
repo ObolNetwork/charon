@@ -113,7 +113,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	}
 
 	var data TmplData
-	if conf.KeyGen == keyGenDKG {
+	if conf.KeyGen == KeyGenDKG {
 		log.Info(ctx, "Creating node*/p2pkey for ENRs required for charon create dkg")
 
 		// charon create dkg requires operator ENRs, so we need to create p2pkeys now.

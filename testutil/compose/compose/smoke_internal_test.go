@@ -40,27 +40,30 @@ func TestSmoke(t *testing.T) {
 		TmplFunc   func(compose.TmplData)
 	}{
 		{
-			Name: "default alpha flow",
+			Name: "create flow alpha",
 			ConfigFunc: func(conf *compose.Config) {
+				conf.KeyGen = compose.KeyGenCreate
 				conf.FeatureSet = "alpha"
 			},
 		},
 		{
-			Name: "default beta flow",
+			Name: "create flow beta",
 			ConfigFunc: func(conf *compose.Config) {
+				conf.KeyGen = compose.KeyGenCreate
 				conf.FeatureSet = "beta"
 			},
 		},
 		{
-			Name: "default stable flow",
+			Name: "create flow stable",
 			ConfigFunc: func(conf *compose.Config) {
+				conf.KeyGen = compose.KeyGenCreate
 				conf.FeatureSet = "stable"
 			},
 		},
 		{
 			Name: "dkg flow",
 			ConfigFunc: func(conf *compose.Config) {
-				conf.KeyGen = "dkg"
+				conf.KeyGen = compose.KeyGenDKG
 			},
 		},
 		{

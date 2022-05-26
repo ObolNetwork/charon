@@ -11,6 +11,7 @@ x-node-base: &node-base
 services:
   node0:
     <<: *node-base
+    
     environment:
       CHARON_NAME: compose
       CHARON_NUM_VALIDATORS: 1

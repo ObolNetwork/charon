@@ -5,6 +5,7 @@
  "CharonCommand": "No charon commands needed for keygen=create define step",
  "Nodes": [
   {
+   "ImageTag": "",
    "EnvVars": null,
    "Ports": null
   }

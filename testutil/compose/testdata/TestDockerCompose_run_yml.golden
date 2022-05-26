@@ -11,6 +11,7 @@ x-node-base: &node-base
 services:
   node0:
     <<: *node-base
+    
     environment:
       CHARON_DATA_DIR: /compose/node0
       CHARON_JAEGER_SERVICE: node0
@@ -31,6 +32,7 @@ services:
     
   node1:
     <<: *node-base
+    
     environment:
       CHARON_DATA_DIR: /compose/node1
       CHARON_JAEGER_SERVICE: node1
@@ -51,6 +53,7 @@ services:
     
   node2:
     <<: *node-base
+    
     environment:
       CHARON_DATA_DIR: /compose/node2
       CHARON_JAEGER_SERVICE: node2
@@ -71,6 +74,7 @@ services:
     
   node3:
     <<: *node-base
+    
     environment:
       CHARON_DATA_DIR: /compose/node3
       CHARON_JAEGER_SERVICE: node3
@@ -158,8 +162,10 @@ services:
     volumes:
       - ./grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
       - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/datasource.yml
+      - ./grafana/notifiers.yml:/etc/grafana/provisioning/notifiers/notifiers.yml
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
-      - ./grafana/simnet_dash.json:/etc/dashboards/simnet_dash.json
+      - ./grafana/dash_simnet.json:/etc/dashboards/dash_simnet.json
+      - ./grafana/dash_alerts.json:/etc/dashboards/dash_alerts.json
 
   jaeger:
     image: jaegertracing/all-in-one:latest

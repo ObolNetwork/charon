@@ -20,7 +20,7 @@ const (
 	configFile        = "config.json"
 	defaultImageTag   = "latest"
 	defaultBeaconNode = "mock"
-	defaultKeyGen     = keyGenCreate
+	defaultKeyGen     = KeyGenCreate
 	defaultNumVals    = 1
 	defaultNumNodes   = 4
 	defaultThreshold  = 3
@@ -48,8 +48,8 @@ const (
 type KeyGen string
 
 const (
-	keyGenDKG    KeyGen = "dkg"
-	keyGenCreate KeyGen = "create"
+	KeyGenDKG    KeyGen = "dkg"
+	KeyGenCreate KeyGen = "create"
 )
 
 // step defines the current completed compose step.

@@ -5,6 +5,7 @@
  "CharonCommand": "[create,dkg]",
  "Nodes": [
   {
+   "ImageTag": "",
    "EnvVars": [
     {
      "Key": "name",
