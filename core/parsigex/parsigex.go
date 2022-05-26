@@ -20,11 +20,11 @@ import (
 	"io"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
