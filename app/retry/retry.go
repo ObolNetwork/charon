@@ -162,7 +162,7 @@ func (r *Retryer) DoAsync(parent context.Context, slot int64, name string, fn fu
 			span.AddEvent("retry.backoff.done")
 		}
 
-		if ctx.Err() != nil {
+		if i != 0 && ctx.Err() != nil { // Do not log an error if we haven't actually re-tried.
 			log.Error(ctx, "Timeout retrying "+name, ctx.Err())
 			return
 		}
