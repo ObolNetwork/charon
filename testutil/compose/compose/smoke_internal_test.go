@@ -40,29 +40,38 @@ func TestSmoke(t *testing.T) {
 		TmplFunc   func(compose.TmplData)
 	}{
 		{
-			Name: "create flow alpha",
+			Name: "default alpha",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenCreate
 				conf.FeatureSet = "alpha"
 			},
 		},
 		{
-			Name: "create flow beta",
+			Name: "default beta",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenCreate
 				conf.FeatureSet = "beta"
 			},
 		},
 		{
-			Name: "create flow stable",
+			Name: "default stable",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenCreate
 				conf.FeatureSet = "stable"
 			},
 		},
 		{
-			Name: "dkg flow",
+			Name: "dkg",
 			ConfigFunc: func(conf *compose.Config) {
+				conf.KeyGen = compose.KeyGenDKG
+			},
+		},
+		{
+			Name: "very large dkg",
+			ConfigFunc: func(conf *compose.Config) {
+				conf.NumNodes = 21
+				conf.Threshold = 14
+				conf.NumValidators = 1000
 				conf.KeyGen = compose.KeyGenDKG
 			},
 		},
@@ -73,6 +82,18 @@ func TestSmoke(t *testing.T) {
 				data.Nodes[1].ImageTag = "latest"
 				data.Nodes[2].ImageTag = "v0.5.0" // TODO(corver): Update this with new releases.
 				data.Nodes[3].ImageTag = "v0.5.0"
+			},
+		},
+		{
+			Name: "teku versions", // TODO(corver): Do the same for lighthouse.
+			ConfigFunc: func(conf *compose.Config) {
+				conf.VCs = []compose.VCType{compose.VCTeku}
+			},
+			TmplFunc: func(data compose.TmplData) {
+				data.VCs[0].Image = "consensys/teku:latest"
+				data.VCs[1].Image = "consensys/teku:22.5"
+				data.VCs[2].Image = "consensys/teku:22.4"
+				data.VCs[3].Image = "consensys/teku:22.3"
 			},
 		},
 	}
