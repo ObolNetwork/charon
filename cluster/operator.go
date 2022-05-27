@@ -18,12 +18,14 @@ package cluster
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	ssz "github.com/ferranbt/fastssz"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
-	"math/big"
 )
 
 // Operator identifies a charon node and its operator.
