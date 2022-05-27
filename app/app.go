@@ -307,33 +307,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	// Configure the beacon node api.
-	var eth2Cl eth2client.Service
-	if conf.SimnetBMock {
-		// Configure the beacon mock.
-		opts := []beaconmock.Option{
-			beaconmock.WithSlotDuration(time.Second),
-			beaconmock.WithDeterministicAttesterDuties(100),
-			beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
-		}
-		opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
-		bmock, err := beaconmock.New(opts...)
-		if err != nil {
-			return err
-		}
-
-		conf.BeaconNodeAddr = bmock.HTTPAddr()
-		eth2Cl = bmock
-		life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
-	} else {
-		var err error
-		eth2Cl, err = eth2wrap.NewHTTPService(ctx,
-			eth2http.WithLogLevel(1),
-			eth2http.WithAddress(conf.BeaconNodeAddr),
-		)
-		if err != nil {
-			return errors.Wrap(err, "new eth2 http client")
-		}
+	eth2Cl, beaconAddr, err := newETH2Client(ctx, conf, life, pubkeys)
+	if err != nil {
+		return err
 	}
 
 	sched, err := scheduler.New(corePubkeys, eth2Cl)
@@ -353,7 +329,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err := wireVAPIRouter(life, conf, vapi); err != nil {
+	if err := wireVAPIRouter(life, conf.ValidatorAPIAddr, beaconAddr, vapi); err != nil {
 		return err
 	}
 
@@ -408,6 +384,38 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	life.RegisterStop(lifecycle.StopRetryer, lifecycle.HookFuncCtx(retryer.Shutdown))
 
 	return nil
+}
+
+// newETH2Client returns a new eth2client and a beacon node address; it is either a beaconmock for simnet or a http client to a real beacon node.
+func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, pubkeys []eth2p0.BLSPubKey) (eth2client.Service, string, error) {
+	if conf.SimnetBMock { // Configure the beacon mock.
+		const dutyFactor = 100 // Duty factor spreads duties deterministicly in an epoch.
+		opts := []beaconmock.Option{
+			beaconmock.WithSlotDuration(time.Second),
+			beaconmock.WithDeterministicAttesterDuties(dutyFactor),
+			beaconmock.WithDeterministicProposerDuties(dutyFactor),
+			beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
+		}
+		opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
+		bmock, err := beaconmock.New(opts...)
+		if err != nil {
+			return nil, "", err
+		}
+
+		life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
+
+		return bmock, bmock.HTTPAddr(), nil
+	}
+
+	eth2Cl, err := eth2wrap.NewHTTPService(ctx,
+		eth2http.WithLogLevel(1),
+		eth2http.WithAddress(conf.BeaconNodeAddr),
+	)
+	if err != nil {
+		return nil, "", errors.Wrap(err, "new eth2 http client")
+	}
+
+	return eth2Cl, conf.BeaconNodeAddr, nil
 }
 
 // newConsensus returns a new consensus component and its start lifecycle hook.
@@ -493,14 +501,14 @@ func wireMonitoringAPI(life *lifecycle.Manager, addr string, localNode *enode.Lo
 }
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
-func wireVAPIRouter(life *lifecycle.Manager, conf Config, handler validatorapi.Handler) error {
-	vrouter, err := validatorapi.NewRouter(handler, conf.BeaconNodeAddr)
+func wireVAPIRouter(life *lifecycle.Manager, vapiAddr string, beaconAddr string, handler validatorapi.Handler) error {
+	vrouter, err := validatorapi.NewRouter(handler, beaconAddr)
 	if err != nil {
 		return errors.Wrap(err, "new monitoring server")
 	}
 
 	server := &http.Server{
-		Addr:    conf.ValidatorAPIAddr,
+		Addr:    vapiAddr,
 		Handler: vrouter,
 	}
 

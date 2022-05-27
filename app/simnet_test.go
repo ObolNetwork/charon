@@ -50,14 +50,15 @@ import (
 //go:generate go test . -run=TestSimnetNoNetwork_TekuVC -integration -v
 var integration = flag.Bool("integration", false, "Enable docker based integration test")
 
-func TestSimnetNoNetwork_TekuVC(t *testing.T) {
+func TestSimnetNoNetwork_WithAttesterTekuVC(t *testing.T) {
 	if !*integration {
 		t.Skip("Skipping Teku integration test")
 	}
 
 	args := newSimnetArgs(t)
 	args = startTeku(t, args, 0)
-	testSimnet(t, args, false)
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	testSimnet(t, args)
 }
 
 func TestSimnetNoNetwork_WithProposerTekuVC(t *testing.T) {
@@ -67,15 +68,20 @@ func TestSimnetNoNetwork_WithProposerTekuVC(t *testing.T) {
 
 	args := newSimnetArgs(t)
 	args = startTeku(t, args, 0)
-	testSimnet(t, args, true)
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	testSimnet(t, args)
+}
+
+func TestSimnetNoNetwork_WithAttesterMockVCs(t *testing.T) {
+	args := newSimnetArgs(t)
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	testSimnet(t, args)
 }
 
 func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
-	testSimnet(t, newSimnetArgs(t), true)
-}
-
-func TestSimnetNoNetwork_WithOnlyAttesterMockVCs(t *testing.T) {
-	testSimnet(t, newSimnetArgs(t), false)
+	args := newSimnetArgs(t)
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	testSimnet(t, args)
 }
 
 type simnetArgs struct {
@@ -84,6 +90,7 @@ type simnetArgs struct {
 	VAPIAddrs  []string
 	P2PKeys    []*ecdsa.PrivateKey
 	SimnetKeys []*bls_sig.SecretKey
+	BMockOpts  []beaconmock.Option
 	Lock       cluster.Lock
 	ErrChan    chan error
 }
@@ -124,7 +131,7 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 
 // testSimnet spins of a simnet cluster or N charon nodes connected via in-memory transports.
 // It asserts successful end-2-end attestation broadcast from all nodes for 2 slots.
-func testSimnet(t *testing.T, args simnetArgs, propose bool) {
+func testSimnet(t *testing.T, args simnetArgs) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -165,16 +172,11 @@ func testSimnet(t *testing.T, args simnetArgs, propose bool) {
 
 					return nil
 				},
-				SimnetBMockOpts: []beaconmock.Option{
+				SimnetBMockOpts: append([]beaconmock.Option{
 					beaconmock.WithSlotsPerEpoch(1),
-				},
+				}, args.BMockOpts...),
 			},
 			P2P: p2p.Config{},
-		}
-
-		if propose {
-			conf.TestConfig.SimnetBMockOpts = append(conf.TestConfig.SimnetBMockOpts, beaconmock.WithDeterministicProposerDuties(100))
-			conf.TestConfig.SimnetBMockOpts = append(conf.TestConfig.SimnetBMockOpts, beaconmock.WithNoAttesterDuties())
 		}
 
 		eg.Go(func() error {
