@@ -41,6 +41,9 @@ type Peer struct {
 	// Index is the order of this node in the cluster.
 	// This is only applicable to charon nodes, not relays.
 	Index int
+
+	// Name represents a human friendly name for the peer.
+	Name string
 }
 
 // NewPeer returns a new charon peer.
