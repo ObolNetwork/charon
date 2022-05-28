@@ -19,7 +19,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetName(t *testing.T) {
@@ -27,13 +27,14 @@ func TestGetName(t *testing.T) {
 	op := Operator{ENR: enr}
 
 	first, err := op.getName()
-	assert.NoError(t, err)
-	assert.True(t, strings.Contains(first, "-"))
+	require.NoError(t, err)
+	require.True(t, strings.Contains(first, "-"))
+	require.Equal(t, first, "ill-picture")
 
 	second, err := op.getName()
-	assert.NoError(t, err)
-	assert.True(t, strings.Contains(second, "-"))
+	require.NoError(t, err)
+	require.True(t, strings.Contains(second, "-"))
 
 	// The two names must be the same.
-	assert.Equal(t, first, second)
+	require.Equal(t, first, second)
 }
