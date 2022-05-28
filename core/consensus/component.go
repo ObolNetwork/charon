@@ -49,9 +49,7 @@ func New(tcpNode host.Host, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey) (*Compon
 	for i, p := range peers {
 		var pk enode.Secp256k1
 		if err := p.ENR.Load(&pk); err != nil {
-			if err != nil {
-				return nil, errors.Wrap(err, "load pubkey")
-			}
+			return nil, errors.Wrap(err, "load pubkey")
 		}
 		epk := ecdsa.PublicKey(pk)
 		keys[int64(i)] = &epk

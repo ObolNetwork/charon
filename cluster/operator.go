@@ -16,9 +16,14 @@
 package cluster
 
 import (
+	"crypto/ecdsa"
+
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 // Operator identifies a charon node and its operator.
@@ -50,6 +55,21 @@ func (o Operator) VerifySignature() error {
 	}
 
 	return nil
+}
+
+// getName returns a deterministic name for operator based on its ENR.
+func (o Operator) getName() (string, error) {
+	enr, err := p2p.DecodeENR(o.ENR)
+	if err != nil {
+		return "", errors.Wrap(err, "decode enr", z.Str("enr", o.ENR))
+	}
+
+	var pk enode.Secp256k1
+	if err := enr.Load(&pk); err != nil {
+		return "", errors.Wrap(err, "load pubkey")
+	}
+
+	return randomName(ecdsa.PublicKey(pk)), nil
 }
 
 // HashTreeRoot ssz hashes the Definition object.
