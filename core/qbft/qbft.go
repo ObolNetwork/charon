@@ -185,14 +185,14 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 	// isDuplicatedRule returns true if the rule has been already executed since last round change.
 	isDuplicatedRule := func(rule uponRule, msgRound int64) bool {
-		r, ok := dedupRules[rule]
+		prevRound, ok := dedupRules[rule]
 		if !ok {
 			dedupRules[rule] = msgRound
 
 			return false
 		}
 
-		if r != msgRound {
+		if prevRound != msgRound {
 			// Upon rules are either for the current round,
 			// or for a future round followed by a round change.
 			panic("bug: duplicate rule, but different round")
