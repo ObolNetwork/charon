@@ -125,12 +125,6 @@ const (
 	uponJustifiedDecided
 )
 
-// ruleKey is used to dedup rule per message round.
-type ruleKey struct {
-	Rule     uponRule
-	MsgRound int64
-}
-
 // Run executes the consensus algorithm until the context closed.
 // The generic type I is the instance of consensus and can be anything.
 // The generic type V is the arbitrary data value being proposed; it only requires an Equal method.
@@ -160,7 +154,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		preparedJustification []Msg[I, V]
 		qCommit               []Msg[I, V]
 		buffer                = make(map[int64][]Msg[I, V])
-		dedupRules            = make(map[ruleKey]bool)
+		dedupRules            = make(map[uponRule]int64) // map[uponRule]msg.Round()
 		timerChan             <-chan time.Time
 		stopTimer             func()
 	)
@@ -191,19 +185,26 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 	// isDuplicatedRule returns true if the rule has been already executed since last round change.
 	isDuplicatedRule := func(rule uponRule, msgRound int64) bool {
-		key := ruleKey{Rule: rule, MsgRound: msgRound}
-		if dedupRules[key] {
-			return true
-		}
-		dedupRules[key] = true
+		r, ok := dedupRules[rule]
+		if !ok {
+			dedupRules[rule] = msgRound
 
-		return false
+			return false
+		}
+
+		if r != msgRound {
+			// Upon rules are either for the current round,
+			// or for a future round followed by a round change.
+			panic("bug: duplicate rule, but different round")
+		}
+
+		return true
 	}
 
 	// changeRound updates round and clears the rule dedup state.
 	changeRound := func(newRound int64) {
 		round = newRound
-		dedupRules = make(map[ruleKey]bool)
+		dedupRules = make(map[uponRule]int64)
 	}
 
 	// === Algorithm ===
@@ -302,7 +303,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			}
 
 		case <-timerChan: // Algorithm 3:1
-			round++
+			changeRound(round + 1)
 
 			stopTimer()
 			timerChan, stopTimer = d.NewTimer(round)
