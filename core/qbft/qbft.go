@@ -125,6 +125,12 @@ const (
 	uponJustifiedDecided
 )
 
+// ruleKey is used to dedup rule per message round.
+type ruleKey struct {
+	Rule     uponRule
+	MsgRound int64
+}
+
 // Run executes the consensus algorithm until the context closed.
 // The generic type I is the instance of consensus and can be anything.
 // The generic type V is the arbitrary data value being proposed; it only requires an Equal method.
@@ -154,7 +160,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		preparedJustification []Msg[I, V]
 		qCommit               []Msg[I, V]
 		buffer                = make(map[int64][]Msg[I, V])
-		dedupRules            = make(map[uponRule]bool)
+		dedupRules            = make(map[ruleKey]bool)
 		timerChan             <-chan time.Time
 		stopTimer             func()
 	)
@@ -184,11 +190,12 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	}
 
 	// isDuplicatedRule returns true if the rule has been already executed since last round change.
-	isDuplicatedRule := func(rule uponRule) bool {
-		if dedupRules[rule] {
+	isDuplicatedRule := func(rule uponRule, msgRound int64) bool {
+		key := ruleKey{Rule: rule, MsgRound: msgRound}
+		if dedupRules[key] {
 			return true
 		}
-		dedupRules[rule] = true
+		dedupRules[key] = true
 
 		return false
 	}
@@ -196,7 +203,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	// changeRound updates round and clears the rule dedup state.
 	changeRound := func(newRound int64) {
 		round = newRound
-		dedupRules = make(map[uponRule]bool)
+		dedupRules = make(map[ruleKey]bool)
 	}
 
 	// === Algorithm ===
@@ -234,7 +241,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			bufferMsg(msg)
 
 			rule, justification := classify(d, instance, round, process, buffer, msg)
-			if rule == uponNothing || isDuplicatedRule(rule) {
+			if rule == uponNothing || isDuplicatedRule(rule, msg.Round()) {
 				// Do nothing more if no rule or duplicate rule was triggered
 				break
 			}
