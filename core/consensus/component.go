@@ -131,7 +131,7 @@ func (c *Component) Start(ctx context.Context) {
 }
 
 // Propose participants in a consensus instance proposing the provided data.
-// It returns on error or when the context is cancelled.
+// It returns on error or nil when the context is cancelled.
 func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	ctx = log.WithTopic(ctx, "qbft")
 	ctx, cancel := context.WithCancel(ctx)
@@ -169,7 +169,12 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 	}
 
 	// Run the algo, blocking until the context is cancelled.
-	return qbft.Run[core.Duty, [32]byte](ctx, c.def, qt, duty, peerIdx, hash)
+	err = qbft.Run[core.Duty, [32]byte](ctx, c.def, qt, duty, peerIdx, hash)
+	if err != nil && ctx.Err() == nil {
+		return err // Do not return context errors, as they are expected behaviour.
+	}
+
+	return nil
 }
 
 // makeHandler returns a consensus libp2p handler.
