@@ -194,7 +194,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 		if prevRound != msgRound {
 			// Upon rules are either for the current round,
-			// or for a future round followed by a round change.
+			// or for a future round followed by a round change (which clears this map).
 			panic("bug: duplicate rule, but different round")
 		}
 
