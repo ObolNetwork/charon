@@ -170,8 +170,8 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 
 	// Run the algo, blocking until the context is cancelled.
 	err = qbft.Run[core.Duty, [32]byte](ctx, c.def, qt, duty, peerIdx, hash)
-	if err != nil && ctx.Err() == nil {
-		return err // Do not return context errors, as they are expected behaviour.
+	if err != nil && !isContextErr(err) {
+		return err // Only return non-context errors.
 	}
 
 	return nil
@@ -269,4 +269,8 @@ func (c *Component) getPeerIdx() (int64, error) {
 	}
 
 	return peerIdx, nil
+}
+
+func isContextErr(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
