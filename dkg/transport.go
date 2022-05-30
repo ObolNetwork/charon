@@ -29,6 +29,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -56,7 +57,7 @@ func (t keycastP2P) ServeShares(ctx context.Context, handler func(nodeIdx int) (
 			}
 		}
 		if !found {
-			log.Warn(ctx, "Ignoring stream from unknown peer", nil, z.Str("peer", p2p.ShortID(s.Conn().RemotePeer())))
+			log.Warn(ctx, "Ignoring stream from unknown peer", nil, z.Str("peer", cluster.PeerName(s.Conn().RemotePeer())))
 			return
 		}
 

@@ -175,17 +175,17 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Str("cluster_hash", lockHashHex),
 		z.Str("cluster_name", lock.Name),
 		z.Int("peers", len(lock.Operators)),
-		z.Str("peer_id", p2p.ShortID(tcpNode.ID())),
+		z.Str("peer_id", cluster.PeerName(tcpNode.ID())),
 		z.Int("peer_index", nodeIdx.PeerIdx),
 		z.Str("enr", localEnode.Node().String()))
 
 	if !conf.TestConfig.DisablePromWrap {
 		// Wrap prometheus metrics with cluster and node identifiers.
 		prometheus.DefaultRegisterer = prometheus.WrapRegistererWith(prometheus.Labels{
-			"cluster_hash":    lockHashHex,
-			"cluster_name":    lock.Name,
-			"cluster_enr":     lock.Operators[nodeIdx.PeerIdx].ENR,
-			"cluster_peer_id": p2p.ShortID(tcpNode.ID()),
+			"cluster_hash":      lockHashHex,
+			"cluster_name":      lock.Name,
+			"cluster_enr":       lock.Operators[nodeIdx.PeerIdx].ENR,
+			"cluster_peer_name": cluster.PeerName(tcpNode.ID()),
 		}, prometheus.DefaultRegisterer)
 	}
 	initStartupMetrics()
