@@ -123,6 +123,7 @@ func newDockerCmd(use string, short string, runFunc runFunc) *cobra.Command {
 	return cmd
 }
 
+//nolint:gocognit // TODO(corver): Move this to compose package and improve API.
 func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auto",
