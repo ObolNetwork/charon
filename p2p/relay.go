@@ -58,7 +58,7 @@ func NewRelays(conf Config, bootnodes []*enode.Node) ([]Peer, error) {
 func NewRelayReserver(tcpNode host.Host, relay Peer) lifecycle.HookFunc {
 	return func(ctx context.Context) error {
 		ctx = log.WithTopic(ctx, "relay")
-		ctx = log.WithCtx(ctx, z.Str("relay_peer", ShortID(relay.ID)))
+		ctx = log.WithCtx(ctx, z.Str("relay_peer", PeerName(relay.ID)))
 
 		if relay.Enode.TCP() == 0 {
 			log.Debug(ctx, "Relay not accessible")
