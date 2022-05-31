@@ -70,7 +70,7 @@ func bindBootnodeFlag(flags *pflag.FlagSet, config *BootnodeConfig) {
 	flags.BoolVar(&config.AutoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory")
 	flags.BoolVar(&config.P2PRelay, "p2p-relay", true, "Enable libp2p tcp host providing circuit relay to charon clusters")
 	flags.IntVar(&config.MaxResPerPeer, "max-reservations", 8, "Updates max circuit reservations per peer")
-	flags.IntVar(&config.ResTTL, "reservation-ttl", 2, "Updates Reservation Time To Live of a connection between peer and bootnode.")
+	flags.IntVar(&config.ResTTL, "reservation-ttl", 2, "Updates Reservation Time To Live (in minutes) of a connection between peer and bootnode.")
 }
 
 // RunBootnode starts a p2p-udp discv5 bootnode.
