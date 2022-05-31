@@ -66,10 +66,10 @@ func newFrostP2P(ctx context.Context, tcpNode host.Host, peers map[uint32]peer.I
 
 		pID := s.Conn().RemotePeer()
 		if !knownPeers[pID] {
-			log.Warn(ctx, "Ignoring unknown round 1 peer", nil, z.Any("peer", p2p.ShortID(pID)))
+			log.Warn(ctx, "Ignoring unknown round 1 peer", nil, z.Any("peer", p2p.PeerName(pID)))
 			return
 		} else if dedupRound1[pID] {
-			log.Debug(ctx, "Ignoring duplicate round 1 message", z.Any("peer", p2p.ShortID(pID)))
+			log.Debug(ctx, "Ignoring duplicate round 1 message", z.Any("peer", p2p.PeerName(pID)))
 			return
 		}
 		dedupRound1[pID] = true
@@ -93,10 +93,10 @@ func newFrostP2P(ctx context.Context, tcpNode host.Host, peers map[uint32]peer.I
 
 		pID := s.Conn().RemotePeer()
 		if !knownPeers[pID] {
-			log.Warn(ctx, "Ignoring unknown round 2 peer", nil, z.Any("peer", p2p.ShortID(pID)))
+			log.Warn(ctx, "Ignoring unknown round 2 peer", nil, z.Any("peer", p2p.PeerName(pID)))
 			return
 		} else if dedupRound2[pID] {
-			log.Debug(ctx, "Ignoring duplicate round 2 message", z.Any("peer", p2p.ShortID(pID)))
+			log.Debug(ctx, "Ignoring duplicate round 2 message", z.Any("peer", p2p.PeerName(pID)))
 			return
 		}
 		dedupRound2[pID] = true

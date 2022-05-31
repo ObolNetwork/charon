@@ -13,12 +13,14 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package cluster
+package p2p
 
 import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
+
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 var (
@@ -411,6 +413,32 @@ func randomName(pk ecdsa.PublicKey) string {
 	// similarly, calculate the index of the noun using Y % NOUN_LEN
 	nounLen := big.NewInt(int64(len(nouns)))
 	nounIdx := new(big.Int).Rem(pk.Y, nounLen).Uint64()
+
+	return fmt.Sprintf("%s-%s", adjectives[adjIdx], nouns[nounIdx])
+}
+
+// PeerName calculates the polynomial rolling hash of the peerID string.
+func PeerName(id peer.ID) string {
+	// p is chosen to be 59 because it's prime and roughly equal to the no of different characters
+	// you can have in base58 encoded strings. Base58 encoded strings can consist of 58 different
+	// alphanumeric characters (123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz)
+	var (
+		hashValue uint64
+		pPow      uint64 = 1
+		p         uint64 = 59
+		m         uint64 = 1e9 + 7
+	)
+
+	// s is the base58-encoded representation of peerID
+	s := id.String()
+	for _, c := range s {
+		tmp := uint64(c) * pPow
+		hashValue = (hashValue + tmp) % m
+		pPow = (pPow * p) % m
+	}
+
+	nounIdx := hashValue % uint64(len(nouns))
+	adjIdx := hashValue % uint64(len(adjectives))
 
 	return fmt.Sprintf("%s-%s", adjectives[adjIdx], nouns[nounIdx])
 }

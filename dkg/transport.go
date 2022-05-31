@@ -56,7 +56,7 @@ func (t keycastP2P) ServeShares(ctx context.Context, handler func(nodeIdx int) (
 			}
 		}
 		if !found {
-			log.Warn(ctx, "Ignoring stream from unknown peer", nil, z.Str("peer", p2p.ShortID(s.Conn().RemotePeer())))
+			log.Warn(ctx, "Ignoring stream from unknown peer", nil, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
 			return
 		}
 

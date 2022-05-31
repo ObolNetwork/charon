@@ -13,28 +13,23 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package cluster
+package p2p_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/p2p"
 )
 
-func TestGetName(t *testing.T) {
-	enr := "enr:-JG4QKXiqTRo5OmRPutHAjW93YAL0eo63NKDHTb2viARXiYaCJZXZeiT3-STunsuvTRxwP8G8CmhSvQLYqdqfZ8kL3aGAYDhssjugmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQOFWExWolIvyowQNrlUAIGqnBaHJexfLJE6zyFcovULYoN0Y3CCPoODdWRwgj6E"
-	op := Operator{ENR: enr}
-
-	first, err := op.getName()
+func TestPeerName(t *testing.T) {
+	enr := "enr:-JG4QBqxg9KCQ1vnvVagJsg08-qbtOjJ9Mkcm3d-FOX1Z2dqdw6Rp0S5lBRC2Uh4_Hk6KvyZoRJY5VGlkVb8scEWXaeGAYDhsvrogmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMsMU_1-8n0xkoOJD9v-DOSjmc8FFTXv9xWW8gqbZxlcIN0Y3CCPoODdWRwgj6E"
+	record, err := p2p.DecodeENR(enr)
 	require.NoError(t, err)
-	require.True(t, strings.Contains(first, "-"))
-	require.Equal(t, first, "ugliest-council")
 
-	second, err := op.getName()
+	peer, err := p2p.NewPeer(record, 0)
 	require.NoError(t, err)
-	require.True(t, strings.Contains(second, "-"))
 
-	// The two names must be the same.
-	require.Equal(t, first, second)
+	require.Equal(t, peer.Name, "angry-floor")
 }

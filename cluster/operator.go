@@ -16,9 +16,6 @@
 package cluster
 
 import (
-	"crypto/ecdsa"
-
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -64,12 +61,12 @@ func (o Operator) getName() (string, error) {
 		return "", errors.Wrap(err, "decode enr", z.Str("enr", o.ENR))
 	}
 
-	var pk enode.Secp256k1
-	if err := enr.Load(&pk); err != nil {
-		return "", errors.Wrap(err, "load pubkey")
+	peer, err := p2p.NewPeer(enr, 0)
+	if err != nil {
+		return "", err
 	}
 
-	return randomName(ecdsa.PublicKey(pk)), nil
+	return p2p.PeerName(peer.ID), nil
 }
 
 // HashTreeRoot ssz hashes the Definition object.

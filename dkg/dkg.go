@@ -537,7 +537,7 @@ func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) error {
 		case tuple := <-tuples:
 			i++
 			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", i, total),
-				z.Str("peer", p2p.ShortID(tuple.Peer)),
+				z.Str("peer", p2p.PeerName(tuple.Peer)),
 				z.Str("rtt", tuple.RTT.String()),
 			)
 			if i == total {
@@ -559,7 +559,7 @@ func waitConnect(ctx context.Context, tcpNode host.Host, p peer.ID) (time.Durati
 			return 0, false
 		}
 
-		log.Warn(ctx, "Failed connecting to peer (will retry)", result.Error, z.Str("peer", p2p.ShortID(p)))
+		log.Warn(ctx, "Failed connecting to peer (will retry)", result.Error, z.Str("peer", p2p.PeerName(p)))
 		time.Sleep(time.Second * 5) // TODO(corver): Improve backoff.
 	}
 
