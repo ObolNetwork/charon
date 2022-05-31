@@ -104,10 +104,10 @@ func (t *p2pTransport) Broadcast(ctx context.Context, fromIdx int, d core.Duty, 
 	}
 
 	if len(errs) == 0 {
-		log.Debug(ctx, "Leader broadcast duty success", z.Any("duty", d))
+		log.Debug(ctx, "Leader propose value success", z.Any("duty", d))
 	} else {
 		// len(t.peers)-len(errs)-1 is total number of errors excluding broadcast to self case
-		log.Warn(ctx, "Broadcast duty with errors", errs[0], z.Int("success", len(t.peers)-len(errs)-1),
+		log.Warn(ctx, "Leader propose value with errors", errs[0], z.Int("success", len(t.peers)-len(errs)-1),
 			z.Int("errors", len(errs)))
 	}
 

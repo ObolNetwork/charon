@@ -90,6 +90,8 @@ func (m *ParSigEx) handle(s network.Stream) {
 
 // Broadcast broadcasts the partially signed duty data set to all peers.
 func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+	ctx = log.WithTopic(ctx, "parsigex")
+
 	b, err := proto.Marshal(&pbv1.ParSigExMsg{
 		Duty:    core.DutyToProto(duty),
 		DataSet: core.ParSignedDataSetToProto(set),
@@ -98,7 +100,10 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 		return errors.Wrap(err, "marshal msg proto")
 	}
 
-	var errs []error
+	var (
+		errs    []error
+		success int
+	)
 
 	for i, p := range m.peers {
 		// Don't send to self
@@ -109,14 +114,16 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 		err := sendData(ctx, m.tcpNode, p, b)
 		if err != nil {
 			errs = append(errs, err)
+		} else {
+			success++
 		}
 	}
 
 	if len(errs) == 0 {
-		log.Debug(ctx, "parsigex broadcast duty success", z.Any("duty", duty))
+		log.Debug(ctx, "Exchange partial signature(s) success", z.Any("duty", duty))
 	} else {
 		// len(t.peers)-len(errs)-1 is total number of errors excluding broadcast to self case
-		log.Warn(ctx, "broadcast duty with errors", errs[0], z.Int("success", len(m.peers)-len(errs)-1),
+		log.Warn(ctx, "Exchange partial signature(s) with errors", errs[0], z.Int("success", success),
 			z.Int("errors", len(errs)))
 	}
 

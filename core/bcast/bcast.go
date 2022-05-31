@@ -52,6 +52,7 @@ type Broadcaster struct {
 func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 	pubkey core.PubKey, aggData core.AggSignedData,
 ) (err error) {
+	ctx = log.WithTopic(ctx, "bcast")
 	defer func() {
 		if err == nil {
 			instrumentDuty(duty, pubkey)
@@ -67,7 +68,11 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 
 		err = b.eth2Cl.SubmitAttestations(ctx, []*eth2p0.Attestation{att})
 		if err == nil {
-			log.Info(ctx, "Attestation submitted successfully to beacon node", z.Int("slot", int(duty.Slot)))
+			log.Info(ctx, "Attestation successfully submitted to beacon node",
+				z.U64("slot", uint64(att.Data.Slot)),
+				z.U64("target_epoch", uint64(att.Data.Target.Epoch)),
+				z.Hex("agg_bits", att.AggregationBits.Bytes()),
+			)
 		}
 
 		return err
@@ -79,7 +84,9 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 
 		err = b.eth2Cl.SubmitBeaconBlock(ctx, block)
 		if err == nil {
-			log.Info(ctx, "Block submitted successfully to beacon node", z.Int("slot", int(duty.Slot)))
+			log.Info(ctx, "Block proposal successfully submitted to beacon node",
+				z.U64("slot", uint64(duty.Slot)),
+			)
 		}
 
 		return err
