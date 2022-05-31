@@ -35,7 +35,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -399,24 +398,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return nil, nil
 		},
 		SubmitAttestationsFunc: func(ctx context.Context, atts []*eth2p0.Attestation) error {
-			for _, att := range atts {
-				log.Info(ctx, "Attestation submitted to beacon node",
-					z.U64("slot", uint64(att.Data.Slot)),
-					z.U64("target_epoch", uint64(att.Data.Target.Epoch)),
-					z.Hex("agg_bits", att.AggregationBits.Bytes()),
-				)
-			}
-
 			return nil
 		},
 		SubmitBeaconBlockFunc: func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
-			slot, err := block.Slot()
-			if err != nil {
-				return err
-			}
-
-			log.Info(ctx, "Block submitted to beacon node", z.U64("slot", uint64(slot)))
-
 			return nil
 		},
 		GenesisTimeFunc: func(ctx context.Context) (time.Time, error) {

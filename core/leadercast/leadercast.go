@@ -92,6 +92,8 @@ func (l *LeaderCast) Subscribe(fn func(ctx context.Context, duty core.Duty, set 
 // Propose proposes an unsigned duty data object for consensus. If this peer is the leader, then it is
 // broadcasted to all peers (including self), else the proposal is ignored.
 func (l *LeaderCast) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
+	ctx = log.WithTopic(ctx, "lcast")
+
 	if !isLeader(l.peerIdx, l.peers, duty) {
 		return nil
 	}
