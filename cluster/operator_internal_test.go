@@ -29,7 +29,7 @@ func TestGetName(t *testing.T) {
 	first, err := op.getName()
 	require.NoError(t, err)
 	require.True(t, strings.Contains(first, "-"))
-	require.Equal(t, first, "ugliest-council")
+	require.Equal(t, first, "wrong-council")
 
 	second, err := op.getName()
 	require.NoError(t, err)
