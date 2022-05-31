@@ -56,6 +56,7 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		Nodes:            nodes,
 		Bootnode:         true,
 		Monitoring:       true,
+		MonitoringPorts:  true,
 		VCs:              vcs,
 	}
 
@@ -70,14 +71,14 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 }
 
 // getVC returns the validator client template data for the provided type and index.
-func getVC(typ vcType, nodeIdx int, numVals int) (vc, error) {
-	vcByType := map[vcType]vc{
-		vcLighthouse: {
-			Label: string(vcLighthouse),
+func getVC(typ VCType, nodeIdx int, numVals int) (vc, error) {
+	vcByType := map[VCType]vc{
+		VCLighthouse: {
+			Label: string(VCLighthouse),
 			Build: "lighthouse",
 		},
-		vcTeku: {
-			Label: string(vcTeku),
+		VCTeku: {
+			Label: string(VCTeku),
 			Image: "consensys/teku:latest",
 			Command: `|
       validator-client
@@ -90,7 +91,7 @@ func getVC(typ vcType, nodeIdx int, numVals int) (vc, error) {
 	}
 
 	resp := vcByType[typ]
-	if typ == vcTeku {
+	if typ == VCTeku {
 		var keys []string
 		for i := 0; i < numVals; i++ {
 			keys = append(keys, fmt.Sprintf("/compose/node%d/keystore-%d.json:/compose/node%d/keystore-%d.txt", nodeIdx, i, nodeIdx, i))

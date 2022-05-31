@@ -43,8 +43,9 @@ type TmplData struct {
 	Nodes []node
 	VCs   []vc
 
-	Bootnode   bool
-	Monitoring bool
+	Bootnode        bool
+	Monitoring      bool
+	MonitoringPorts bool
 }
 
 // vc represents a validator client service in a docker-compose.yml.
@@ -58,8 +59,9 @@ type vc struct {
 
 // node represents a charon node service in a docker-compose.yml.
 type node struct {
-	EnvVars []kv
-	Ports   []port
+	ImageTag string
+	EnvVars  []kv
+	Ports    []port
 }
 
 // kv is a key value pair.

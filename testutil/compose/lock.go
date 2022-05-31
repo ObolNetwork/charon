@@ -35,7 +35,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 
 	var data TmplData
 	switch conf.KeyGen {
-	case keyGenCreate:
+	case KeyGenCreate:
 		splitKeysDir, err := getRelSplitKeysDir(dir, conf.SplitKeysDir)
 		if err != nil {
 			return TmplData{}, err
@@ -59,7 +59,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			CharonCommand:    cmdCreateCluster,
 			Nodes:            []node{n},
 		}
-	case keyGenDKG:
+	case KeyGenDKG:
 
 		var nodes []node
 		for i := 0; i < conf.NumNodes; i++ {
@@ -83,7 +83,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	log.Info(ctx, "Create keys and cluster lock with: docker-compose up")
 
 	conf.Step = stepLocked
-	if err := writeConfig(dir, conf); err != nil {
+	if err := WriteConfig(dir, conf); err != nil {
 		return TmplData{}, err
 	}
 
@@ -104,7 +104,7 @@ func newNodeEnvs(index int, validatorMock bool, conf Config) []kv {
 	}
 
 	lockFile := "/compose/cluster-lock.json"
-	if conf.KeyGen == keyGenDKG {
+	if conf.KeyGen == KeyGenDKG {
 		// Lock files for DKG in node dirs.
 		lockFile = fmt.Sprintf("/compose/node%d/cluster-lock.json", index)
 	}

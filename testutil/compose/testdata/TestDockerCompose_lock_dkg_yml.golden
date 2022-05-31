@@ -11,6 +11,7 @@ x-node-base: &node-base
 services:
   node0:
     <<: *node-base
+    
     environment:
       CHARON_DATA_DIR: /compose/node0
       CHARON_JAEGER_SERVICE: node0
@@ -31,6 +32,7 @@ services:
     
   node1:
     <<: *node-base
+    
     environment:
       CHARON_DATA_DIR: /compose/node1
       CHARON_JAEGER_SERVICE: node1
@@ -51,6 +53,7 @@ services:
     
   node2:
     <<: *node-base
+    
     environment:
       CHARON_DATA_DIR: /compose/node2
       CHARON_JAEGER_SERVICE: node2
@@ -71,6 +74,7 @@ services:
     
   node3:
     <<: *node-base
+    
     environment:
       CHARON_DATA_DIR: /compose/node3
       CHARON_JAEGER_SERVICE: node3

@@ -36,5 +36,5 @@ func New(ctx context.Context, dir string, conf Config) error {
 		z.Str("config", fmt.Sprintf("%#v", conf)),
 	)
 
-	return writeConfig(dir, conf)
+	return WriteConfig(dir, conf)
 }

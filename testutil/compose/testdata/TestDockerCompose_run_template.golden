@@ -5,6 +5,7 @@
  "CharonCommand": "run",
  "Nodes": [
   {
+   "ImageTag": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -74,6 +75,7 @@
    "Ports": null
   },
   {
+   "ImageTag": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -143,6 +145,7 @@
    "Ports": null
   },
   {
+   "ImageTag": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -212,6 +215,7 @@
    "Ports": null
   },
   {
+   "ImageTag": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -312,5 +316,6 @@
   }
  ],
  "Bootnode": true,
- "Monitoring": true
+ "Monitoring": true,
+ "MonitoringPorts": true
 }

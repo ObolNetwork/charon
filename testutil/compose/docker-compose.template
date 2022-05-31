@@ -12,6 +12,8 @@ services:
   {{- range $i, $node := .Nodes}}
   node{{$i}}:
     <<: *node-base
+    {{if .ImageTag}}image: ghcr.io/obolnetwork/charon:{{.ImageTag}}
+    {{end -}}
     {{- if .EnvVars}}
     environment:
       {{- range $node.EnvVars}}
@@ -58,28 +60,36 @@ services:
   {{if .Monitoring}}
   prometheus:
     image: prom/prometheus:latest
+    {{- if .MonitoringPorts}}
     ports:
       - "9090:9090"
+    {{end -}}
     networks: [compose]
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
 
   grafana:
     image: grafana/grafana:latest
+    {{- if .MonitoringPorts}}
     ports:
       - "3000:3000"
+    {{end -}}
     networks: [compose]
     volumes:
       - ./grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
       - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/datasource.yml
+      - ./grafana/notifiers.yml:/etc/grafana/provisioning/notifiers/notifiers.yml
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
-      - ./grafana/simnet_dash.json:/etc/dashboards/simnet_dash.json
+      - ./grafana/dash_simnet.json:/etc/dashboards/dash_simnet.json
+      - ./grafana/dash_alerts.json:/etc/dashboards/dash_alerts.json
 
   jaeger:
     image: jaegertracing/all-in-one:latest
     networks: [compose]
+    {{- if .MonitoringPorts}}
     ports:
       - "16686:16686"
+    {{end -}}
   {{end}}
 networks:
   compose:

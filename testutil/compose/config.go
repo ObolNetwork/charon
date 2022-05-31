@@ -20,7 +20,7 @@ const (
 	configFile        = "config.json"
 	defaultImageTag   = "latest"
 	defaultBeaconNode = "mock"
-	defaultKeyGen     = keyGenCreate
+	defaultKeyGen     = KeyGenCreate
 	defaultNumVals    = 1
 	defaultNumNodes   = 4
 	defaultThreshold  = 3
@@ -35,21 +35,21 @@ const (
 	cmdCreateDKG     = "[create,dkg]"
 )
 
-// vcType defines a validator client type.
-type vcType string
+// VCType defines a validator client type.
+type VCType string
 
 const (
-	vcMock       vcType = "mock"
-	vcTeku       vcType = "teku"
-	vcLighthouse vcType = "lighthouse"
+	VCMock       VCType = "mock"
+	VCTeku       VCType = "teku"
+	VCLighthouse VCType = "lighthouse"
 )
 
 // KeyGen defines a key generation process.
 type KeyGen string
 
 const (
-	keyGenDKG    KeyGen = "dkg"
-	keyGenCreate KeyGen = "create"
+	KeyGenDKG    KeyGen = "dkg"
+	KeyGenCreate KeyGen = "create"
 )
 
 // step defines the current completed compose step.
@@ -94,7 +94,7 @@ type Config struct {
 	BeaconNode string `json:"beacon_node"`
 
 	// VCs define the types of validator clients to use.
-	VCs []vcType `json:"validator_clients"`
+	VCs []VCType `json:"validator_clients"`
 
 	// FeatureSet defines the minimum feature set to enable.
 	FeatureSet string `json:"feature_set"`
@@ -117,7 +117,7 @@ func NewDefaultConfig() Config {
 		Threshold:     defaultThreshold,
 		NumValidators: defaultNumVals,
 		ImageTag:      defaultImageTag,
-		VCs:           []vcType{vcTeku, vcLighthouse, vcMock},
+		VCs:           []VCType{VCTeku, VCLighthouse, VCMock},
 		KeyGen:        defaultKeyGen,
 		BeaconNode:    defaultBeaconNode,
 		Step:          stepNew,

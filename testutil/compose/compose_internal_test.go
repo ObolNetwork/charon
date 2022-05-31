@@ -39,14 +39,14 @@ func TestDockerCompose(t *testing.T) {
 		{
 			Name: "define dkg",
 			ConfFunc: func(conf *Config) {
-				conf.KeyGen = keyGenDKG
+				conf.KeyGen = KeyGenDKG
 			},
 			RunFunc: Define,
 		},
 		{
 			Name: "define create",
 			ConfFunc: func(conf *Config) {
-				conf.KeyGen = keyGenCreate
+				conf.KeyGen = KeyGenCreate
 			},
 			RunFunc: Define,
 		},
@@ -54,7 +54,7 @@ func TestDockerCompose(t *testing.T) {
 			Name: "lock dkg",
 			ConfFunc: func(conf *Config) {
 				conf.Step = stepDefined
-				conf.KeyGen = keyGenDKG
+				conf.KeyGen = KeyGenDKG
 			},
 			RunFunc: Lock,
 		},
@@ -62,7 +62,7 @@ func TestDockerCompose(t *testing.T) {
 			Name: "lock create",
 			ConfFunc: func(conf *Config) {
 				conf.Step = stepDefined
-				conf.KeyGen = keyGenCreate
+				conf.KeyGen = KeyGenCreate
 			},
 			RunFunc: Lock,
 		},
@@ -110,6 +110,6 @@ func TestParseTemplate(t *testing.T) {
 	_, err := template.New("").Parse(string(tmpl))
 	require.NoError(t, err)
 
-	_, err = getVC(vcTeku, 0, 1)
+	_, err = getVC(VCTeku, 0, 1)
 	require.NoError(t, err)
 }

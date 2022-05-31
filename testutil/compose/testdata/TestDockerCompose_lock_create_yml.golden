@@ -11,6 +11,7 @@ x-node-base: &node-base
 services:
   node0:
     <<: *node-base
+    
     environment:
       CHARON_THRESHOLD: 3
       CHARON_NODES: 4

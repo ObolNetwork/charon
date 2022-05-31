@@ -5,6 +5,7 @@
  "CharonCommand": "dkg",
  "Nodes": [
   {
+   "ImageTag": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -74,6 +75,7 @@
    "Ports": null
   },
   {
+   "ImageTag": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -143,6 +145,7 @@
    "Ports": null
   },
   {
+   "ImageTag": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -212,6 +215,7 @@
    "Ports": null
   },
   {
+   "ImageTag": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -283,5 +287,6 @@
  ],
  "VCs": null,
  "Bootnode": true,
- "Monitoring": false
+ "Monitoring": false,
+ "MonitoringPorts": false
 }
