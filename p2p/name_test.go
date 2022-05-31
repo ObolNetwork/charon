@@ -31,5 +31,5 @@ func TestPeerName(t *testing.T) {
 	peer, err := p2p.NewPeer(record, 0)
 	require.NoError(t, err)
 
-	require.Equal(t, peer.Name, "angry-floor")
+	require.Equal(t, peer.Name, "happy-floor")
 }
