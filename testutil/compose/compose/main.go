@@ -209,6 +209,8 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 	return cmd
 }
 
+// fixPerms fixes file permissions as a workaround for linux docker by removing
+// all restrictions using sudo chmod.
 func fixPerms(ctx context.Context, dir string) error {
 	cmd := exec.CommandContext(ctx, "sudo", "chmod", "-R", "a+wrX", ".")
 	cmd.Dir = dir

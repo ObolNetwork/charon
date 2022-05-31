@@ -27,7 +27,7 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: coverage.out
 
-  app_tests:
+  integration_tests:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
