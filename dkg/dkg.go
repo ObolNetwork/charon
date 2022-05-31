@@ -142,7 +142,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("unsupported dkg algorithm")
 	}
 
-	log.Info(ctx, "Writing keyshares to disk")
+	log.Debug(ctx, "Writing keyshares to disk")
 	if err := writeKeystores(conf.DataDir, shares); err != nil {
 		return err
 	}
