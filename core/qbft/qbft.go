@@ -154,7 +154,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		preparedJustification []Msg[I, V]
 		qCommit               []Msg[I, V]
 		buffer                = make(map[int64][]Msg[I, V])
-		dedupRules            = make(map[uponRule]bool)
+		dedupRules            = make(map[uponRule]int64) // map[uponRule]msg.Round()
 		timerChan             <-chan time.Time
 		stopTimer             func()
 	)
@@ -184,19 +184,27 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	}
 
 	// isDuplicatedRule returns true if the rule has been already executed since last round change.
-	isDuplicatedRule := func(rule uponRule) bool {
-		if dedupRules[rule] {
-			return true
-		}
-		dedupRules[rule] = true
+	isDuplicatedRule := func(rule uponRule, msgRound int64) bool {
+		prevRound, ok := dedupRules[rule]
+		if !ok {
+			dedupRules[rule] = msgRound
 
-		return false
+			return false
+		}
+
+		if prevRound != msgRound {
+			// Upon rules are either for the current round,
+			// or for a future round followed by a round change (which clears this map).
+			panic("bug: duplicate rule, but different round")
+		}
+
+		return true
 	}
 
 	// changeRound updates round and clears the rule dedup state.
 	changeRound := func(newRound int64) {
 		round = newRound
-		dedupRules = make(map[uponRule]bool)
+		dedupRules = make(map[uponRule]int64)
 	}
 
 	// === Algorithm ===
@@ -234,7 +242,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			bufferMsg(msg)
 
 			rule, justification := classify(d, instance, round, process, buffer, msg)
-			if rule == uponNothing || isDuplicatedRule(rule) {
+			if rule == uponNothing || isDuplicatedRule(rule, msg.Round()) {
 				// Do nothing more if no rule or duplicate rule was triggered
 				break
 			}
@@ -295,7 +303,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			}
 
 		case <-timerChan: // Algorithm 3:1
-			round++
+			changeRound(round + 1)
 
 			stopTimer()
 			timerChan, stopTimer = d.NewTimer(round)
