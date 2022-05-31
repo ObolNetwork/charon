@@ -16,6 +16,7 @@
 package cluster
 
 import (
+	"bytes"
 	"encoding/json"
 
 	ssz "github.com/ferranbt/fastssz"
@@ -107,14 +108,14 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		SignatureAggregate: lockFmt.SignatureAggregate,
 	}
 
-	// hash, err := lock.HashTreeRoot()
-	// if err != nil {
-	// 	return errors.Wrap(err, "hash lock")
-	// }
-	//
-	// if !bytes.Equal(lockFmt.LockHash, hash[:]) {
-	// 	return errors.New("invalid lock hash")
-	// }
+	hash, err := lock.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "hash lock")
+	}
+
+	if !bytes.Equal(lockFmt.LockHash, hash[:]) {
+		return errors.New("invalid lock hash")
+	}
 
 	*l = lock
 
