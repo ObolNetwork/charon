@@ -77,7 +77,10 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name: "version matrix",
+			Name: "version matrix with dkg",
+			ConfigFunc: func(conf *compose.Config) {
+				conf.KeyGen = compose.KeyGenDKG
+			},
 			TmplFunc: func(data *compose.TmplData) {
 				data.Nodes[0].ImageTag = "latest"
 				data.Nodes[1].ImageTag = "latest"
