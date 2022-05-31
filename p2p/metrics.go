@@ -38,9 +38,9 @@ var (
 )
 
 func observePing(p peer.ID, d time.Duration) {
-	pingLatencies.WithLabelValues(ShortID(p)).Observe(d.Seconds())
+	pingLatencies.WithLabelValues(PeerName(p)).Observe(d.Seconds())
 }
 
 func incPingError(p peer.ID) {
-	pingErrors.WithLabelValues(ShortID(p)).Inc()
+	pingErrors.WithLabelValues(PeerName(p)).Inc()
 }

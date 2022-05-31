@@ -89,12 +89,12 @@ func logWrapRouting(fn peerRoutingFunc) peerRoutingFunc {
 		if err != nil {
 			if _, ok := failing.Load(p); !ok {
 				log.Debug(ctx, "Peer routing request failure",
-					z.Any("error", err), z.Str("peer", ShortID(p)))
+					z.Any("error", err), z.Str("peer", PeerName(p)))
 			}
 			failing.Store(p, struct{}{})
 		} else {
 			log.Debug(ctx, "Peer routing request success",
-				z.Any("addrs", res.Addrs), z.Str("peer", ShortID(p)))
+				z.Any("addrs", res.Addrs), z.Str("peer", PeerName(p)))
 			failing.Delete(p)
 		}
 
