@@ -188,7 +188,7 @@ func loadPassword(keyFile string) (string, error) {
 func storePassword(keyFile string, password string) error {
 	passwordFile := strings.Replace(keyFile, ".json", ".txt", 1)
 
-	err := os.WriteFile(passwordFile, []byte(password), 0o400)
+	err := os.WriteFile(passwordFile, []byte(password), 0o444)
 	if err != nil {
 		return errors.Wrap(err, "write password file")
 	}

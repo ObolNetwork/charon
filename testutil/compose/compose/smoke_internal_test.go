@@ -19,7 +19,6 @@ import (
 	"context"
 	"flag"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,6 +27,7 @@ import (
 )
 
 //go:generate go test . -run=TestSmoke -integration -v
+
 var integration = flag.Bool("integration", false, "Enable docker based integration test")
 
 func TestSmoke(t *testing.T) {
@@ -68,12 +68,12 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name: "very large dkg",
+			Name: "very large",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.NumNodes = 21
 				conf.Threshold = 14
 				conf.NumValidators = 1000
-				conf.KeyGen = compose.KeyGenDKG
+				conf.KeyGen = compose.KeyGenCreate
 			},
 		},
 		{
@@ -97,17 +97,18 @@ func TestSmoke(t *testing.T) {
 				data.VCs[3].Image = "consensys/teku:22.3"
 			},
 		},
-		{
-			Name: "1 of 4 down",
-			TmplFunc: func(data *compose.TmplData) {
-				node0 := data.Nodes[0]
-				for i := 0; i < len(node0.EnvVars); i++ {
-					if strings.HasPrefix(node0.EnvVars[i].Key, "p2p") {
-						data.Nodes[0].EnvVars[i].Key = "unset" // Zero p2p flags to it cannot communicate
-					}
-				}
-			},
-		},
+		// TODO(corver): Enable after https://github.com/ObolNetwork/charon/issues/635
+		//{
+		//	Name: "1 of 4 down",
+		//	TmplFunc: func(data *compose.TmplData) {
+		//		node0 := data.Nodes[0]
+		//		for i := 0; i < len(node0.EnvVars); i++ {
+		//			if strings.HasPrefix(node0.EnvVars[i].Key, "p2p") {
+		//				data.Nodes[0].EnvVars[i].Key = "unset" // Zero p2p flags to it cannot communicate
+		//			}
+		//		}
+		//	},
+		// },
 	}
 
 	for _, test := range tests {
@@ -129,14 +130,11 @@ func TestSmoke(t *testing.T) {
 			})
 			require.NoError(t, cmd.Flags().Set("compose-dir", dir))
 			require.NoError(t, cmd.Flags().Set("alert-timeout", "30s"))
+			require.NoError(t, cmd.Flags().Set("sudo-perms", "true"))
+			os.Args = []string{"cobra.test"}
 
 			err = cmd.ExecuteContext(context.Background())
 			require.NoError(t, err)
 		})
 	}
-}
-
-// TestFlagFalse ensures the integration flag default value is false.
-func TestFlagFalse(t *testing.T) {
-	require.False(t, *integration)
 }

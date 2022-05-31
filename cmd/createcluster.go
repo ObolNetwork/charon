@@ -287,7 +287,7 @@ func writeDepositData(conf clusterConfig, secrets []*bls_sig.SecretKey) error {
 
 	// Write it to disk
 	depositPath := path.Join(conf.ClusterDir, "deposit-data.json")
-	err = os.WriteFile(depositPath, bytes, 0o400) // read-only
+	err = os.WriteFile(depositPath, bytes, 0o444) // read-only
 	if err != nil {
 		return errors.Wrap(err, "write deposit data")
 	}
@@ -308,7 +308,7 @@ func writeLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) error {
 	}
 
 	lockPath := path.Join(conf.ClusterDir, "cluster-lock.json")
-	err = os.WriteFile(lockPath, b, 0o400) // read-only
+	err = os.WriteFile(lockPath, b, 0o444) // read-only
 	if err != nil {
 		return errors.Wrap(err, "write cluster lock")
 	}

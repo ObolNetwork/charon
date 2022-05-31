@@ -91,6 +91,8 @@ func newRunnerFunc(topic string, dir string, up bool, runFunc runFunc,
 			return compose.TmplData{}, err
 		}
 
+		exe(ctx, dir, "ls", "-la")
+
 		log.Info(ctx, "Running compose command", z.Str("command", topic))
 
 		data, err = runFunc(ctx, dir, conf)
@@ -104,6 +106,13 @@ func newRunnerFunc(topic string, dir string, up bool, runFunc runFunc,
 
 		return data, nil
 	}
+}
+
+func exe(ctx context.Context, dir string, cmd string, args ...string) {
+	c := exec.Command(cmd, args...)
+	c.Dir = dir
+	out, err := c.CombinedOutput()
+	log.Info(ctx, "EXEC", z.Str("out", string(out)), z.Str("dir", dir), z.Err(err))
 }
 
 // newDockerCmd returns a cobra command that generates docker-compose.yml files and executes it.
@@ -127,25 +136,39 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auto",
 		Short: "Convenience function that runs `compose define && compose lock && compose run`",
+		Args:  cobra.NoArgs,
 	}
 
 	dir := addDirFlag(cmd.Flags())
 	alertTimeout := cmd.Flags().Duration("alert-timeout", 0, "Timeout to collect alerts before shutdown. Zero disables timeout.")
+	sudoPerms := cmd.Flags().Bool("sudo-perms", false, "Enables changing all compose artefacts file permissions using sudo.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) (err error) {
 		runFuncs := []func(context.Context) (compose.TmplData, error){
-			newRunnerFunc("define", *dir, true, compose.Define),
-			newRunnerFunc("lock", *dir, true, compose.Lock),
+			newRunnerFunc("define", *dir, false, compose.Define),
+			newRunnerFunc("lock", *dir, false, compose.Lock),
 			newRunnerFunc("run", *dir, false, compose.Run),
 		}
 
 		rootCtx := log.WithTopic(cmd.Context(), "auto")
 
 		var lastTmpl compose.TmplData
-		for _, runFunc := range runFuncs {
+		for i, runFunc := range runFuncs {
 			lastTmpl, err = runFunc(rootCtx)
 			if err != nil {
 				return err
+			}
+
+			if *sudoPerms {
+				if err := fixPerms(rootCtx, *dir); err != nil {
+					return err
+				}
+			}
+
+			if i < len(runFuncs)-1 {
+				if err := execUp(rootCtx, *dir); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -193,6 +216,20 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 	}
 
 	return cmd
+}
+
+func fixPerms(ctx context.Context, dir string) error {
+	cmd := exec.CommandContext(ctx, "sudo", "chmod", "-R", "a+wrX", ".")
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return errors.Wrap(err, "exec sudo chmod")
+	}
+
+	return nil
 }
 
 func newNewCmd() *cobra.Command {
