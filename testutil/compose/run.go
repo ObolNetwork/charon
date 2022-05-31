@@ -56,6 +56,7 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		Nodes:            nodes,
 		Bootnode:         true,
 		Monitoring:       true,
+		MonitoringPorts:  true,
 		VCs:              vcs,
 	}
 

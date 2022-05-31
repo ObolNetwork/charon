@@ -123,7 +123,7 @@ func newDockerCmd(use string, short string, runFunc runFunc) *cobra.Command {
 	return cmd
 }
 
-func newAutoCmd(tmplCallback func(data compose.TmplData)) *cobra.Command {
+func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auto",
 		Short: "Convenience function that runs `compose define && compose lock && compose run`",
@@ -150,7 +150,7 @@ func newAutoCmd(tmplCallback func(data compose.TmplData)) *cobra.Command {
 		}
 
 		if tmplCallback != nil {
-			tmplCallback(lastTmpl)
+			tmplCallback(&lastTmpl)
 			err := compose.WriteDockerCompose(*dir, lastTmpl)
 			if err != nil {
 				return err
@@ -172,11 +172,11 @@ func newAutoCmd(tmplCallback func(data compose.TmplData)) *cobra.Command {
 			return err
 		}
 
-		if err := execUp(ctx, *dir); !errors.Is(err, context.DeadlineExceeded) {
-			return err
-		}
+		defer func() {
+			_ = execDown(rootCtx, *dir)
+		}()
 
-		if err := execDown(rootCtx, *dir); err != nil {
+		if err := execUp(ctx, *dir); !errors.Is(err, context.DeadlineExceeded) {
 			return err
 		}
 
@@ -260,6 +260,7 @@ func execUp(ctx context.Context, dir string) error {
 		"--remove-orphans",
 		"--build",
 		"--abort-on-container-exit",
+		"--quiet-pull",
 	)
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout

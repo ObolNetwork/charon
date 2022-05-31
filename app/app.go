@@ -587,16 +587,16 @@ func callValidatorMock(ctx context.Context, duty core.Duty, cl eth2client.Servic
 	case core.DutyAttester:
 		err := validatormock.Attest(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), pubshares...)
 		if err != nil {
-			log.Warn(ctx, "Attestation failed", err)
+			log.Warn(ctx, "Mock attestation failed", err)
 		} else {
-			log.Info(ctx, "Attestation success", z.I64("slot", duty.Slot))
+			log.Info(ctx, "Mock attestation submitted to validatorapi", z.I64("slot", duty.Slot))
 		}
 	case core.DutyProposer:
 		err := validatormock.ProposeBlock(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), addr, pubshares...)
 		if err != nil {
-			log.Warn(ctx, "Failed to propose block", err)
+			log.Warn(ctx, "Mock block proposal failed", err)
 		} else {
-			log.Info(ctx, "Block proposed successfully", z.I64("slot", duty.Slot))
+			log.Info(ctx, "Mock block proposal submitted to validatorapi", z.I64("slot", duty.Slot))
 		}
 	default:
 		log.Warn(ctx, "Invalid duty type", nil)
