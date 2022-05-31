@@ -405,7 +405,7 @@ var (
 // randomName returns a deterministic name for an ecdsa public key. The name consists of a noun
 // and an adjective separated by a hyphen. The noun is calculated using PublicKey's X coordinate
 // while the adjective is calculated using PublicKey's Y coordinate.
-func randomName(pk ecdsa.PublicKey) string {
+func randomName(pk ecdsa.PublicKey) string { //nolint:deadcode
 	// calculate the index of the adjective using X % ADJ_LEN
 	adjLen := big.NewInt(int64(len(adjectives)))
 	adjIdx := new(big.Int).Rem(pk.X, adjLen).Uint64()
