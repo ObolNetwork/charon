@@ -142,34 +142,34 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("unsupported dkg algorithm")
 	}
 
-	log.Debug(ctx, "Writing keyshares to disk")
 	if err := writeKeystores(conf.DataDir, shares); err != nil {
 		return err
 	}
+	log.Debug(ctx, "Saved keyshares to disk")
 
 	// Sign, exchange and aggregate Lock Hash signatures
-	log.Debug(ctx, "Aggregating lock hash signatures")
 	lock, err := signAndAggLockHash(ctx, shares, def, nodeIdx, ex)
 	if err != nil {
 		return err
 	}
+	log.Debug(ctx, "Aggregated lock hash signatures")
 
-	log.Debug(ctx, "Writing lock file to disk")
 	if err = writeLock(conf.DataDir, lock); err != nil {
 		return err
 	}
+	log.Debug(ctx, "Saved lock file to disk")
 
 	// Sign, exchange and aggregate Deposit Data signatures
-	log.Debug(ctx, "Aggregating deposit data signatures")
 	aggSigDepositData, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddress, network, nodeIdx)
 	if err != nil {
 		return err
 	}
+	log.Debug(ctx, "Aggregated deposit data signatures")
 
-	log.Debug(ctx, "Writing deposit data file to disk")
 	if err := writeDepositData(aggSigDepositData, def.WithdrawalAddress, network, conf.DataDir); err != nil {
 		return err
 	}
+	log.Debug(ctx, "Saved deposit data file to disk")
 
 	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
 
