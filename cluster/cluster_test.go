@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/goccy/go-yaml"
@@ -143,4 +145,34 @@ func TestEncode(t *testing.T) {
 
 	require.Equal(t, b1, b2)
 	require.Equal(t, lock, lock2)
+}
+
+// TestBackwardsCompatability ensures that the current code is backwards compatible
+// with previous versions stored in testdata.
+func TestBackwardsCompatability(t *testing.T) {
+	tests := []struct {
+		version string
+	}{
+		{
+			version: "v1.0.0",
+		},
+		// Note: Add testdata files for newer versions when bumped.
+	}
+	for _, test := range tests {
+		t.Run(test.version, func(t *testing.T) {
+			suffix := strings.ReplaceAll(test.version, ".", "_")
+
+			b, err := os.ReadFile(fmt.Sprintf("testdata/definition_%s.json", suffix))
+			require.NoError(t, err)
+
+			var def cluster.Definition
+			require.NoError(t, json.Unmarshal(b, &def))
+
+			b, err = os.ReadFile(fmt.Sprintf("testdata/lock_%s.json", suffix))
+			require.NoError(t, err)
+
+			var lock cluster.Lock
+			require.NoError(t, json.Unmarshal(b, &lock))
+		})
+	}
 }
