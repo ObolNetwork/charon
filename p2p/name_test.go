@@ -13,14 +13,13 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package cluster_test
+package p2p_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -32,5 +31,5 @@ func TestPeerName(t *testing.T) {
 	peer, err := p2p.NewPeer(record, 0)
 	require.NoError(t, err)
 
-	require.Equal(t, cluster.PeerName(peer.ID), "angry-floor")
+	require.Equal(t, peer.Name, "angry-floor")
 }

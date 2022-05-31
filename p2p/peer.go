@@ -74,5 +74,6 @@ func NewPeer(record enr.Record, index int) (Peer, error) {
 		Enode: *node,
 		ID:    id,
 		Index: index,
+		Name:  PeerName(id),
 	}, nil
 }

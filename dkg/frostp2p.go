@@ -32,8 +32,8 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster"
 	pb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 // newFrostP2P returns a p2p frost transport implementation.
@@ -66,10 +66,10 @@ func newFrostP2P(ctx context.Context, tcpNode host.Host, peers map[uint32]peer.I
 
 		pID := s.Conn().RemotePeer()
 		if !knownPeers[pID] {
-			log.Warn(ctx, "Ignoring unknown round 1 peer", nil, z.Any("peer", cluster.PeerName(pID)))
+			log.Warn(ctx, "Ignoring unknown round 1 peer", nil, z.Any("peer", p2p.PeerName(pID)))
 			return
 		} else if dedupRound1[pID] {
-			log.Debug(ctx, "Ignoring duplicate round 1 message", z.Any("peer", cluster.PeerName(pID)))
+			log.Debug(ctx, "Ignoring duplicate round 1 message", z.Any("peer", p2p.PeerName(pID)))
 			return
 		}
 		dedupRound1[pID] = true
@@ -93,10 +93,10 @@ func newFrostP2P(ctx context.Context, tcpNode host.Host, peers map[uint32]peer.I
 
 		pID := s.Conn().RemotePeer()
 		if !knownPeers[pID] {
-			log.Warn(ctx, "Ignoring unknown round 2 peer", nil, z.Any("peer", cluster.PeerName(pID)))
+			log.Warn(ctx, "Ignoring unknown round 2 peer", nil, z.Any("peer", p2p.PeerName(pID)))
 			return
 		} else if dedupRound2[pID] {
-			log.Debug(ctx, "Ignoring duplicate round 2 message", z.Any("peer", cluster.PeerName(pID)))
+			log.Debug(ctx, "Ignoring duplicate round 2 message", z.Any("peer", p2p.PeerName(pID)))
 			return
 		}
 		dedupRound2[pID] = true

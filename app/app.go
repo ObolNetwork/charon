@@ -175,7 +175,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Str("cluster_hash", lockHashHex),
 		z.Str("cluster_name", lock.Name),
 		z.Int("peers", len(lock.Operators)),
-		z.Str("peer_id", cluster.PeerName(tcpNode.ID())),
+		z.Str("peer_id", p2p.PeerName(tcpNode.ID())),
 		z.Int("peer_index", nodeIdx.PeerIdx),
 		z.Str("enr", localEnode.Node().String()))
 
@@ -185,7 +185,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 			"cluster_hash":      lockHashHex,
 			"cluster_name":      lock.Name,
 			"cluster_enr":       lock.Operators[nodeIdx.PeerIdx].ENR,
-			"cluster_peer_name": cluster.PeerName(tcpNode.ID()),
+			"cluster_peer_name": p2p.PeerName(tcpNode.ID()),
 		}, prometheus.DefaultRegisterer)
 	}
 	initStartupMetrics()

@@ -23,13 +23,13 @@ import (
 )
 
 func TestGetName(t *testing.T) {
-	enr := "enr:-JG4QHBtkNsAMjMNpNpJS4flt2sfkpVoAtLAZXufe1R-vFZ8JSOkuWKyjqZMUuZhp8x0ye6b_j2vV2H_VXr_JPXaUKWGAYEEiHG5gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQNmdSBrUavbjtQxixlaX-xcy4ci5k7swmRbEHBL-yQNzIN0Y3CCPoODdWRwgj6E"
+	enr := "enr:-JG4QKXiqTRo5OmRPutHAjW93YAL0eo63NKDHTb2viARXiYaCJZXZeiT3-STunsuvTRxwP8G8CmhSvQLYqdqfZ8kL3aGAYDhssjugmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQOFWExWolIvyowQNrlUAIGqnBaHJexfLJE6zyFcovULYoN0Y3CCPoODdWRwgj6E"
 	op := Operator{ENR: enr}
 
 	first, err := op.getName()
 	require.NoError(t, err)
 	require.True(t, strings.Contains(first, "-"))
-	require.Equal(t, first, "ill-picture")
+	require.Equal(t, first, "ugliest-council")
 
 	second, err := op.getName()
 	require.NoError(t, err)
