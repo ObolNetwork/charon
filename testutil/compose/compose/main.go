@@ -91,8 +91,6 @@ func newRunnerFunc(topic string, dir string, up bool, runFunc runFunc,
 			return compose.TmplData{}, err
 		}
 
-		exe(ctx, dir, "ls", "-la")
-
 		log.Info(ctx, "Running compose command", z.Str("command", topic))
 
 		data, err = runFunc(ctx, dir, conf)
@@ -106,13 +104,6 @@ func newRunnerFunc(topic string, dir string, up bool, runFunc runFunc,
 
 		return data, nil
 	}
-}
-
-func exe(ctx context.Context, dir string, cmd string, args ...string) {
-	c := exec.Command(cmd, args...)
-	c.Dir = dir
-	out, err := c.CombinedOutput()
-	log.Info(ctx, "EXEC", z.Str("out", string(out)), z.Str("dir", dir), z.Err(err))
 }
 
 // newDockerCmd returns a cobra command that generates docker-compose.yml files and executes it.
