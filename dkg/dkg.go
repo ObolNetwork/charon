@@ -48,7 +48,7 @@ type Config struct {
 	TestSigning bool
 }
 
-// Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output.
+// Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
 func Run(ctx context.Context, conf Config) (err error) {
 	ctx = log.WithTopic(ctx, "dkg")
 	defer func() {
@@ -142,29 +142,38 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("unsupported dkg algorithm")
 	}
 
-	log.Info(ctx, "Successfully completed DKG ceremony, writing output")
-
+	log.Info(ctx, "Writing keyshares to disk")
 	if err := writeKeystores(conf.DataDir, shares); err != nil {
 		return err
 	}
 
 	// Sign, exchange and aggregate Lock Hash signatures
+	log.Debug(ctx, "Aggregating lock hash signatures")
 	lock, err := signAndAggLockHash(ctx, shares, def, nodeIdx, ex)
 	if err != nil {
 		return err
 	}
 
+	log.Debug(ctx, "Writing lock file to disk")
 	if err = writeLock(conf.DataDir, lock); err != nil {
 		return err
 	}
 
 	// Sign, exchange and aggregate Deposit Data signatures
+	log.Debug(ctx, "Aggregating deposit data signatures")
 	aggSigDepositData, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddress, network, nodeIdx)
 	if err != nil {
 		return err
 	}
 
-	return writeDepositData(aggSigDepositData, def.WithdrawalAddress, network, conf.DataDir)
+	log.Debug(ctx, "Writing deposit data file to disk")
+	if err := writeDepositData(aggSigDepositData, def.WithdrawalAddress, network, conf.DataDir); err != nil {
+		return err
+	}
+
+	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
+
+	return nil
 }
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
