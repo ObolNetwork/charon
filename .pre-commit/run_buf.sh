@@ -7,4 +7,4 @@ fi
 
 buf generate
 buf lint
-# buf breaking --against '.git#branch=main' # Enable once protos in main
+buf breaking --against '.git#branch=origin/main'

@@ -11,6 +11,8 @@ jobs:
       SKIP: golangci-lint,run-go-tests,no-commit-to-branch
     steps:
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v2
       - uses: actions/setup-go@v2
         with:
