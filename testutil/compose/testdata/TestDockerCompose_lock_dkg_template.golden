@@ -6,7 +6,7 @@
  "Nodes": [
   {
    "ImageTag": "",
-   "Command": "",
+   "Entrypoint": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -77,7 +77,7 @@
   },
   {
    "ImageTag": "",
-   "Command": "",
+   "Entrypoint": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -148,7 +148,7 @@
   },
   {
    "ImageTag": "",
-   "Command": "",
+   "Entrypoint": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -219,7 +219,7 @@
   },
   {
    "ImageTag": "",
-   "Command": "",
+   "Entrypoint": "",
    "EnvVars": [
     {
      "Key": "data-dir",

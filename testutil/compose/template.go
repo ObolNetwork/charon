@@ -59,10 +59,10 @@ type vc struct {
 
 // node represents a charon node service in a docker-compose.yml.
 type node struct {
-	ImageTag string // ImageTag is empty by default, resulting in CharonImageTag being used.
-	Command  string // Command is empty by default, resulting in CharonCommand being used.
-	EnvVars  []kv
-	Ports    []port
+	ImageTag   string // ImageTag is empty by default, resulting in CharonImageTag being used.
+	Entrypoint string // Entrypoint is empty by default, resulting in CharonEntrypoint being used.
+	EnvVars    []kv
+	Ports      []port
 }
 
 // kv is a key value pair.

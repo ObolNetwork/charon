@@ -91,16 +91,16 @@ func TestSmoke(t *testing.T) {
 				const containerBinary = "/usr/local/bin/charon"
 
 				data.Nodes[0].ImageTag = "latest"
-				data.Nodes[0].Command = "" // Use locally pre-built binary
+				data.Nodes[0].Entrypoint = "" // Use locally pre-built binary
 
 				data.Nodes[1].ImageTag = "latest"
-				data.Nodes[1].Command = containerBinary // Use actual latest image
+				data.Nodes[1].Entrypoint = containerBinary // Use actual latest image
 
 				data.Nodes[2].ImageTag = "v0.5.0" // TODO(corver): Update this with new releases.
-				data.Nodes[2].Command = containerBinary
+				data.Nodes[2].Entrypoint = containerBinary
 
 				data.Nodes[3].ImageTag = "v0.5.0"
-				data.Nodes[3].Command = containerBinary
+				data.Nodes[3].Entrypoint = containerBinary
 			},
 		},
 		{

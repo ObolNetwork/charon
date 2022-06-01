@@ -236,6 +236,22 @@ func printDockerCompose(ctx context.Context, dir string) error {
 		return errors.Wrap(err, "exec cat docker-compose.yml")
 	}
 
+	return ls(ctx, dir)
+}
+
+// printDockerCompose prints the docker-compose.yml file to stdout.
+func ls(ctx context.Context, dir string) error {
+	log.Info(ctx, "ls dir")
+	cmd := exec.CommandContext(ctx, "ls", "-la")
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return errors.Wrap(err, "exec ls")
+	}
+
 	return nil
 }
 

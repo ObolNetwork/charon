@@ -6,7 +6,7 @@
  "Nodes": [
   {
    "ImageTag": "",
-   "Command": "",
+   "Entrypoint": "",
    "EnvVars": null,
    "Ports": null
   }
