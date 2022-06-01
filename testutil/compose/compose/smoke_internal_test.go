@@ -18,7 +18,9 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,7 +30,11 @@ import (
 
 //go:generate go test . -run=TestSmoke -integration -v
 
-var integration = flag.Bool("integration", false, "Enable docker based integration test")
+var (
+	integration    = flag.Bool("integration", false, "Enable docker based integration test")
+	prebuiltBinary = flag.String("prebuilt-binary", "", "Path to a prebuilt charon binary to run inside containers")
+	sudoPerms      = flag.Bool("sudo-perms", false, "Enables changing all compose artefacts file permissions using sudo.")
+)
 
 func TestSmoke(t *testing.T) {
 	if !*integration {
@@ -82,10 +88,19 @@ func TestSmoke(t *testing.T) {
 				conf.KeyGen = compose.KeyGenDKG
 			},
 			TmplFunc: func(data *compose.TmplData) {
+				const containerBinary = "/usr/local/bin/charon"
+
 				data.Nodes[0].ImageTag = "latest"
+				data.Nodes[0].Command = "" // Use locally pre-built binary
+
 				data.Nodes[1].ImageTag = "latest"
+				data.Nodes[1].Command = containerBinary // Use actual latest image
+
 				data.Nodes[2].ImageTag = "v0.5.0" // TODO(corver): Update this with new releases.
+				data.Nodes[2].Command = containerBinary
+
 				data.Nodes[3].ImageTag = "v0.5.0"
+				data.Nodes[3].Command = containerBinary
 			},
 		},
 		{
@@ -120,6 +135,10 @@ func TestSmoke(t *testing.T) {
 			require.NoError(t, err)
 
 			conf := compose.NewDefaultConfig()
+			if *prebuiltBinary != "" {
+				copyPrebuiltBinary(t, dir, *prebuiltBinary)
+				conf.PrebuiltBinary = true
+			}
 			if test.ConfigFunc != nil {
 				test.ConfigFunc(&conf)
 			}
@@ -133,11 +152,22 @@ func TestSmoke(t *testing.T) {
 			})
 			require.NoError(t, cmd.Flags().Set("compose-dir", dir))
 			require.NoError(t, cmd.Flags().Set("alert-timeout", "30s"))
-			require.NoError(t, cmd.Flags().Set("sudo-perms", "true"))
+			require.NoError(t, cmd.Flags().Set("sudo-perms", fmt.Sprint(*sudoPerms)))
+			require.NoError(t, cmd.Flags().Set("print-yml", "true"))
+
 			os.Args = []string{"cobra.test"}
 
 			err = cmd.ExecuteContext(context.Background())
 			require.NoError(t, err)
 		})
 	}
+}
+
+// copyPrebuiltBinary copies the prebuilt charon binary to the compose dir.
+func copyPrebuiltBinary(t *testing.T, dir string, binary string) {
+	t.Helper()
+	b, err := os.ReadFile(binary)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(path.Join(dir, "charon"), b, 0o555))
 }

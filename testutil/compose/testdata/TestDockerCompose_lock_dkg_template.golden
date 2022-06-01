@@ -6,6 +6,7 @@
  "Nodes": [
   {
    "ImageTag": "",
+   "Command": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -76,6 +77,7 @@
   },
   {
    "ImageTag": "",
+   "Command": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -146,6 +148,7 @@
   },
   {
    "ImageTag": "",
+   "Command": "",
    "EnvVars": [
     {
      "Key": "data-dir",
@@ -216,6 +219,7 @@
   },
   {
    "ImageTag": "",
+   "Command": "",
    "EnvVars": [
     {
      "Key": "data-dir",

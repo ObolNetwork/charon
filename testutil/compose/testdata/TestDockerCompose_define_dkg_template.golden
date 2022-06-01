@@ -6,6 +6,7 @@
  "Nodes": [
   {
    "ImageTag": "",
+   "Command": "",
    "EnvVars": [
     {
      "Key": "name",

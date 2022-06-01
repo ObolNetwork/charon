@@ -61,4 +61,5 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - run: go test -v github.com/obolnetwork/charon/testutil/compose/compose -integration
+      - run: go build # Pre-build current SHA charon binary
+      - run: go test -v github.com/obolnetwork/charon/testutil/compose/compose -integration -sudo-perms -prebuilt-binary=charon
