@@ -61,8 +61,8 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - run: GOOS=linux GOARCH=amd64 go build -o testutil/compose/compose # Pre-build current SHA charon binary
-      - run: ./testutil/compose/compose/charon --help
+      - run: GOOS=linux GOARCH=arm64 go build -o testutil/compose/compose # Pre-build current SHA charon binary
+      #- run: ./testutil/compose/compose/charon --help
       - run: uname -a
       - run: docker run --entrypoint=uname ghcr.io/obolnetwork/charon:latest -a
       - run: docker run -v /home/runner/work/charon/charon/testutil/compose/compose/charon:/tmp/charon --entrypoint=/tmp/charon ghcr.io/obolnetwork/charon:latest
