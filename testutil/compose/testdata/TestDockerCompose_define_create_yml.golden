@@ -2,7 +2,7 @@ version: "3.8"
 
 x-node-base: &node-base
   image: ghcr.io/obolnetwork/charon:latest
-  entrypoint: echo
+  entrypoint: foo
   command: No charon commands needed for keygen=create define step
   networks: [compose]
   volumes: [testdir:/compose]
