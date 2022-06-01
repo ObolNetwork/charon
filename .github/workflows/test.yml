@@ -63,7 +63,7 @@ jobs:
             ${{ runner.os }}-go-
       - run: GOOS=linux GOARCH=amd64 go build -o testutil/compose/compose # Pre-build current SHA charon binary
       - run: ./testutil/compose/compose/charon --help
-      - run: sudo chmod -x ./testutil/compose/compose/charon
-      - run: docker run -v /home/runner/work/charon/charon/testutil/compose/compose/charon:/tmp/charon --entrypoint=ls ghcr.io/obolnetwork/charon:latest -la /usr/local/bin/
+      - run: uname -a
+      - run: docker run --entrypoint=uname ghcr.io/obolnetwork/charon:latest -a
       - run: docker run -v /home/runner/work/charon/charon/testutil/compose/compose/charon:/tmp/charon --entrypoint=/tmp/charon ghcr.io/obolnetwork/charon:latest
       - run: go test -v github.com/obolnetwork/charon/testutil/compose/compose -integration -sudo-perms -prebuilt-binary=charon
