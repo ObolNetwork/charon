@@ -1,7 +1,7 @@
 {
  "ComposeDir": "testdir",
  "CharonImageTag": "latest",
- "CharonEntrypoint": "foo",
+ "CharonEntrypoint": "echo",
  "CharonCommand": "No charon commands needed for keygen=create define step",
  "Nodes": [
   {

@@ -163,7 +163,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		data = TmplData{
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
-			CharonEntrypoint: "foo",
+			CharonEntrypoint: "echo",
 			CharonCommand:    fmt.Sprintf("No charon commands needed for keygen=%s define step", conf.KeyGen),
 			Nodes:            []node{{}},
 		}
