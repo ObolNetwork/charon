@@ -94,13 +94,13 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		return TmplData{}, errors.New("compose config not new, so can't be defined", z.Any("step", conf.Step))
 	}
 
-	if conf.BuildLocal {
+	if conf.BuildBinary {
 		if err := buildLocal(ctx, dir); err != nil {
 			return TmplData{}, err
 		}
 	}
 
-	if !noPull && !conf.BuildLocal && conf.ImageTag == "latest" {
+	if !noPull && !conf.BuildBinary && !conf.PrebuiltBinary && conf.ImageTag == "latest" {
 		if err := pullLatest(ctx); err != nil {
 			return TmplData{}, err
 		}

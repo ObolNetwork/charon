@@ -14,6 +14,8 @@ services:
     <<: *node-base
     {{if .ImageTag}}image: ghcr.io/obolnetwork/charon:{{.ImageTag}}
     {{end -}}
+    {{if .Entrypoint}}entrypoint: {{.Entrypoint}}
+    {{end -}}
     {{- if .EnvVars}}
     environment:
       {{- range $node.EnvVars}}

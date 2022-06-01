@@ -134,6 +134,7 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 	dir := addDirFlag(cmd.Flags())
 	alertTimeout := cmd.Flags().Duration("alert-timeout", 0, "Timeout to collect alerts before shutdown. Zero disables timeout.")
 	sudoPerms := cmd.Flags().Bool("sudo-perms", false, "Enables changing all compose artefacts file permissions using sudo.")
+	printYML := cmd.Flags().Bool("print-yml", false, "Print generated docker-compose.yml files.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) (err error) {
 		runFuncs := []func(context.Context) (compose.TmplData, error){
@@ -157,6 +158,12 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 				}
 			}
 
+			if *printYML {
+				if err := printDockerCompose(rootCtx, *dir); err != nil {
+					return err
+				}
+			}
+
 			if i < len(runFuncs)-1 {
 				if err := execUp(rootCtx, *dir); err != nil {
 					return err
@@ -168,6 +175,12 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 			tmplCallback(&lastTmpl)
 			err := compose.WriteDockerCompose(*dir, lastTmpl)
 			if err != nil {
+				return err
+			}
+		}
+
+		if *printYML {
+			if err := printDockerCompose(rootCtx, *dir); err != nil {
 				return err
 			}
 		}
@@ -210,6 +223,38 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 	return cmd
 }
 
+// printDockerCompose prints the docker-compose.yml file to stdout.
+func printDockerCompose(ctx context.Context, dir string) error {
+	log.Info(ctx, "Printing docker-compose.yml")
+	cmd := exec.CommandContext(ctx, "cat", "docker-compose.yml")
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return errors.Wrap(err, "exec cat docker-compose.yml")
+	}
+
+	return ls(ctx, dir)
+}
+
+// printDockerCompose prints the docker-compose.yml file to stdout.
+func ls(ctx context.Context, dir string) error {
+	log.Info(ctx, "ls dir")
+	cmd := exec.CommandContext(ctx, "ls", "-la")
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return errors.Wrap(err, "exec ls")
+	}
+
+	return nil
+}
+
 // fixPerms fixes file permissions as a workaround for linux docker by removing
 // all restrictions using sudo chmod.
 func fixPerms(ctx context.Context, dir string) error {
@@ -236,14 +281,14 @@ func newNewCmd() *cobra.Command {
 
 	dir := addDirFlag(cmd.Flags())
 	keygen := cmd.Flags().String("keygen", string(conf.KeyGen), "Key generation process: create, split, dkg")
-	buildLocal := cmd.Flags().Bool("build-local", conf.BuildLocal, "Enables building a local charon binary from source. Note this requires the CHARON_REPO env var.")
+	buildLocal := cmd.Flags().Bool("build-local", conf.BuildBinary, "Enables building a local charon binary from source. Note this requires the CHARON_REPO env var.")
 	beaconNode := cmd.Flags().String("beacon-node", conf.BeaconNode, "Beacon node URL endpoint or 'mock' for simnet.")
 	splitKeys := cmd.Flags().String("split-keys-dir", conf.SplitKeysDir, "Directory containing keys to split for keygen==create, or empty not to split.")
 	featureSet := cmd.Flags().String("feature-set", conf.FeatureSet, "Minimum feature set to enable: alpha, beta, stable")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
-		conf.BuildLocal = *buildLocal
+		conf.BuildBinary = *buildLocal
 		conf.BeaconNode = *beaconNode
 		conf.SplitKeysDir = *splitKeys
 		conf.FeatureSet = *featureSet

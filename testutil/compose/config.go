@@ -81,8 +81,11 @@ type Config struct {
 	// ImageTag defines the charon docker image tag: ghcr.io/obolnetwork/charon:{ImageTag}.
 	ImageTag string `json:"image_tag"`
 
-	// BuildLocal enables building a local charon binary from source and using that in the containers.
-	BuildLocal bool `json:"build_local"`
+	// BuildBinary enables building a local charon binary from source and using that in the containers.
+	BuildBinary bool `json:"build_binary"`
+
+	// PrebuiltBinary enables using a prebuilt local charon binary to use in the containers.
+	PrebuiltBinary bool `json:"prebuilt_binary"`
 
 	// KeyGen defines the key generation process.
 	KeyGen KeyGen `json:"key_gen"`
@@ -102,7 +105,7 @@ type Config struct {
 
 // entrypoint returns the path to the charon binary based on the BuildLocal field.
 func (c Config) entrypoint() string {
-	if c.BuildLocal {
+	if c.BuildBinary || c.PrebuiltBinary {
 		return localBinary
 	}
 

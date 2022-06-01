@@ -6,6 +6,7 @@
  "Nodes": [
   {
    "ImageTag": "",
+   "Entrypoint": "",
    "EnvVars": [
     {
      "Key": "name",
