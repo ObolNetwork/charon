@@ -62,8 +62,4 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - run: GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o testutil/compose/compose # Pre-build current SHA charon binary
-      #- run: ./testutil/compose/compose/charon --help
-      # - run: uname -a
-      # - run: docker run --entrypoint=uname ghcr.io/obolnetwork/charon:latest -a
-      - run: docker run -v /home/runner/work/charon/charon/testutil/compose/compose/charon:/tmp/charon --entrypoint=/tmp/charon ghcr.io/obolnetwork/charon:latest
       - run: go test -v github.com/obolnetwork/charon/testutil/compose/compose -integration -sudo-perms -prebuilt-binary=charon
