@@ -34,12 +34,14 @@ import (
 
 // BootnodeConfig defines the config of the bootnode.
 type BootnodeConfig struct {
-	DataDir    string
-	HTTPAddr   string
-	P2PConfig  p2p.Config
-	LogConfig  log.Config
-	AutoP2PKey bool
-	P2PRelay   bool
+	DataDir       string
+	HTTPAddr      string
+	P2PConfig     p2p.Config
+	LogConfig     log.Config
+	AutoP2PKey    bool
+	P2PRelay      bool
+	MaxResPerPeer int
+	ResTTL        int
 }
 
 func newBootnodeCmd(runFunc func(context.Context, BootnodeConfig) error) *cobra.Command {
@@ -56,17 +58,19 @@ func newBootnodeCmd(runFunc func(context.Context, BootnodeConfig) error) *cobra.
 	}
 
 	bindDataDirFlag(cmd.Flags(), &config.DataDir)
-	bindBootnodeFlag(cmd.Flags(), &config.HTTPAddr, &config.AutoP2PKey, &config.P2PRelay)
+	bindBootnodeFlag(cmd.Flags(), &config)
 	bindP2PFlags(cmd.Flags(), &config.P2PConfig)
 	bindLogFlags(cmd.Flags(), &config.LogConfig)
 
 	return cmd
 }
 
-func bindBootnodeFlag(flags *pflag.FlagSet, httpAddr *string, autoP2PKey, p2pRelay *bool) {
-	flags.StringVar(httpAddr, "bootnode-http-address", "127.0.0.1:16005", "Listening address (ip and port) for the bootnode http server serving runtime ENR")
-	flags.BoolVar(autoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory")
-	flags.BoolVar(p2pRelay, "p2p-relay", true, "Enable libp2p tcp host providing circuit relay to charon clusters")
+func bindBootnodeFlag(flags *pflag.FlagSet, config *BootnodeConfig) {
+	flags.StringVar(&config.HTTPAddr, "bootnode-http-address", "127.0.0.1:16005", "Listening address (ip and port) for the bootnode http server serving runtime ENR")
+	flags.BoolVar(&config.AutoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory")
+	flags.BoolVar(&config.P2PRelay, "p2p-relay", true, "Enable libp2p tcp host providing circuit relay to charon clusters")
+	flags.IntVar(&config.MaxResPerPeer, "max-reservations", 8, "Updates max circuit reservations per peer")
+	flags.IntVar(&config.ResTTL, "reservation-ttl", 2, "Updates Reservation Time To Live (in minutes) of a connection between peer and bootnode.")
 }
 
 // RunBootnode starts a p2p-udp discv5 bootnode.
@@ -119,7 +123,10 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 				return
 			}
 
-			relayService, err := relay.New(tcpNode)
+			relayResources := relay.DefaultResources()
+			relayResources.MaxReservationsPerPeer = config.MaxResPerPeer
+			relayResources.ReservationTTL = time.Duration(config.ResTTL) * time.Minute
+			relayService, err := relay.New(tcpNode, relay.WithResources(relayResources))
 			if err != nil {
 				p2pErr <- err
 				return
