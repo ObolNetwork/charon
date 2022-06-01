@@ -18,6 +18,7 @@ package validatorapi_test
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
@@ -613,6 +614,142 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 			require.ErrorContains(t, err, test.errMsg)
 		})
 	}
+}
+
+func TestComponent_SubmitVoluntaryExit(t *testing.T) {
+	ctx := context.Background()
+
+	// Create keys (just use normal keys, not split tbls)
+	pubkey, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	const vIdx = 2
+	const epoch = 10
+
+	// Convert pubkey
+	corePubKey, err := tblsconv.KeyToCore(pubkey)
+	require.NoError(t, err)
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
+
+	validator := beaconmock.ValidatorSetA[vIdx]
+	validator.Validator.PublicKey, err = tblsconv.KeyToETH2(pubkey)
+	require.NoError(t, err)
+
+	// Configure beacon mock
+	bmock, err := beaconmock.New(
+		beaconmock.WithValidatorSet(beaconmock.ValidatorSet{vIdx: validator}),
+	)
+	require.NoError(t, err)
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
+	require.NoError(t, err)
+
+	// prepare unsigned voluntary exit
+	uve := &eth2p0.VoluntaryExit{
+		Epoch:          epoch,
+		ValidatorIndex: vIdx,
+	}
+
+	// sign voluntary exit
+	sigRoot, err := uve.HashTreeRoot()
+	require.NoError(t, err)
+
+	domain, err := signing.GetDomain(ctx, bmock, signing.DomainVoluntaryExit, epoch)
+	require.NoError(t, err)
+
+	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
+	require.NoError(t, err)
+
+	s, err := tbls.Sign(secret, sigData[:])
+	require.NoError(t, err)
+
+	sigEth2 := tblsconv.SigToETH2(s)
+	ve := &eth2p0.SignedVoluntaryExit{
+		Message:   uve,
+		Signature: sigEth2,
+	}
+
+	// Register parsigdb funcs
+	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		received := new(eth2p0.SignedVoluntaryExit)
+		err := json.Unmarshal(set[corePubKey].Data, received)
+		require.NoError(t, err)
+		require.Equal(t, received, ve)
+
+		return nil
+	})
+
+	err = vapi.SubmitVoluntaryExit(ctx, ve)
+	require.NoError(t, err)
+}
+
+func TestComponent_SubmitVoluntaryExitInvalidSignature(t *testing.T) {
+	ctx := context.Background()
+
+	// Create keys (just use normal keys, not split tbls)
+	pubkey, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	const vIdx = 2
+	const epoch = 10
+
+	// Convert pubkey
+	corePubKey, err := tblsconv.KeyToCore(pubkey)
+	require.NoError(t, err)
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
+
+	validator := beaconmock.ValidatorSetA[vIdx]
+	validator.Validator.PublicKey, err = tblsconv.KeyToETH2(pubkey)
+	require.NoError(t, err)
+
+	// Configure beacon mock
+	bmock, err := beaconmock.New(
+		beaconmock.WithValidatorSet(beaconmock.ValidatorSet{vIdx: validator}),
+	)
+	require.NoError(t, err)
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
+	require.NoError(t, err)
+
+	// prepare unsigned voluntary exit
+	uve := &eth2p0.VoluntaryExit{
+		Epoch:          epoch,
+		ValidatorIndex: vIdx,
+	}
+
+	// sign voluntary exit
+	sigRoot, err := uve.HashTreeRoot()
+	require.NoError(t, err)
+
+	domain, err := signing.GetDomain(ctx, bmock, signing.DomainVoluntaryExit, epoch)
+	require.NoError(t, err)
+
+	_, err = (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
+	require.NoError(t, err)
+
+	s, err := tbls.Sign(secret, []byte("invalid msg"))
+	require.NoError(t, err)
+
+	sigEth2 := tblsconv.SigToETH2(s)
+	ve := &eth2p0.SignedVoluntaryExit{
+		Message:   uve,
+		Signature: sigEth2,
+	}
+
+	// Register parsigdb funcs
+	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		received := new(eth2p0.SignedVoluntaryExit)
+		err := json.Unmarshal(set[corePubKey].Data, received)
+		require.NoError(t, err)
+		require.Equal(t, received, ve)
+
+		return nil
+	})
+
+	err = vapi.SubmitVoluntaryExit(ctx, ve)
+	require.ErrorContains(t, err, "invalid signature")
 }
 
 func TestComponent_ProposerDuties(t *testing.T) {

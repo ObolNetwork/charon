@@ -17,6 +17,7 @@ package bcast_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/spec"
@@ -82,6 +83,43 @@ func TestBroadcastBeaconBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyProposer}, "", aggData)
+	require.ErrorIs(t, err, context.Canceled)
+
+	<-ctx.Done()
+}
+
+func TestBroadcastVoluntaryExit(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	ve := &eth2p0.SignedVoluntaryExit{
+		Message: &eth2p0.VoluntaryExit{
+			Epoch:          10,
+			ValidatorIndex: 10,
+		},
+		Signature: testutil.RandomEth2Signature(),
+	}
+
+	aggDataData, err := json.Marshal(ve)
+	require.NoError(t, err)
+
+	aggData := core.AggSignedData{
+		Data:      aggDataData,
+		Signature: core.SigFromETH2(ve.Signature),
+	}
+
+	mock.SubmitVoluntaryExitFunc = func(ctx context.Context, ve2 *eth2p0.SignedVoluntaryExit) error {
+		require.Equal(t, ve, ve2)
+		cancel()
+
+		return ctx.Err()
+	}
+
+	bcaster, err := bcast.New(mock)
+	require.NoError(t, err)
+
+	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyVoluntaryExit}, "", aggData)
 	require.ErrorIs(t, err, context.Canceled)
 
 	<-ctx.Done()

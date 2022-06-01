@@ -59,6 +59,7 @@ type Handler interface {
 	eth2client.BeaconBlockSubmitter
 	eth2client.ProposerDutiesProvider
 	eth2client.ValidatorsProvider
+	eth2client.VoluntaryExitSubmitter
 	// Above sorted alphabetically.
 }
 
@@ -71,6 +72,7 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 		Name    string
 		Path    string
 		Handler handlerFunc
+		Methods []string
 	}{
 		{
 			Name:    "attester_duties",
@@ -112,12 +114,21 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 			Path:    "/eth/v1/beacon/blocks",
 			Handler: submitBlock(h),
 		},
+		{
+			Name:    "submit_voluntary_exit",
+			Path:    "/eth/v1/beacon/pool/voluntary_exits",
+			Handler: submitVoluntaryExit(h),
+			Methods: []string{"POST"},
+		},
 		// TODO(corver): Add more endpoints
 	}
 
 	r := mux.NewRouter()
 	for _, e := range endpoints {
-		r.Handle(e.Path, wrap(e.Name, e.Handler))
+		route := r.Handle(e.Path, wrap(e.Name, e.Handler))
+		if e.Methods != nil && len(e.Methods) > 0 {
+			route.Methods(e.Methods...)
+		}
 	}
 
 	// Everything else is proxied
@@ -436,6 +447,19 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 		}
 
 		return nil, errors.New("invalid block")
+	}
+}
+
+// submitVoluntaryExit receives the partially signed voluntary exit.
+func submitVoluntaryExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		ve := new(eth2p0.SignedVoluntaryExit)
+		err := ve.UnmarshalJSON(body)
+		if err != nil {
+			return nil, errors.New("invalid voluntary exit data")
+		}
+
+		return nil, p.SubmitVoluntaryExit(ctx, ve)
 	}
 }
 

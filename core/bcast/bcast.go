@@ -19,6 +19,7 @@ package bcast
 
 import (
 	"context"
+	"encoding/json"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -32,6 +33,7 @@ import (
 type eth2Provider interface {
 	eth2client.AttestationsSubmitter
 	eth2client.BeaconBlockSubmitter
+	eth2client.VoluntaryExitSubmitter
 }
 
 // New returns a new broadcaster instance.
@@ -93,6 +95,24 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 	case core.DutyRandao:
 		// Randao is an internal duty, not broadcasted to beacon chain
 		return nil
+	case core.DutyVoluntaryExit:
+		// JSON decoding from the previous component
+		ve := new(eth2p0.SignedVoluntaryExit)
+		err := json.Unmarshal(aggData.Data, ve)
+		if err != nil {
+			return errors.Wrap(err, "json decoding voluntary exit")
+		}
+
+		err = b.eth2Cl.SubmitVoluntaryExit(ctx, ve)
+
+		if err == nil {
+			log.Info(ctx, "Voluntary exit successfully submitted to beacon node",
+				z.U64("epoch", uint64(ve.Message.Epoch)),
+				z.U64("validatorIndex", uint64(ve.Message.ValidatorIndex)),
+			)
+		}
+
+		return err
 	default:
 		return errors.New("unsupported duty type")
 	}

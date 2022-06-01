@@ -62,6 +62,7 @@ var (
 	_ eth2client.ProposerDutiesProvider      = (*Mock)(nil)
 	_ eth2client.Service                     = (*Mock)(nil)
 	_ eth2client.ValidatorsProvider          = (*Mock)(nil)
+	_ eth2client.VoluntaryExitSubmitter      = (*Mock)(nil)
 )
 
 // New returns a new beacon client mock configured with the default and provided options.
@@ -130,6 +131,7 @@ type Mock struct {
 	ProposerDutiesFunc      func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	SubmitAttestationsFunc  func(context.Context, []*eth2p0.Attestation) error
 	SubmitBeaconBlockFunc   func(context.Context, *spec.VersionedSignedBeaconBlock) error
+	SubmitVoluntaryExitFunc func(ctx context.Context, voluntaryExit *eth2p0.SignedVoluntaryExit) error
 	ValidatorsByPubKeyFunc  func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	ValidatorsFunc          func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	GenesisTimeFunc         func(ctx context.Context) (time.Time, error)
@@ -142,6 +144,10 @@ func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Att
 
 func (m Mock) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
 	return m.SubmitBeaconBlockFunc(ctx, block)
+}
+
+func (m Mock) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *eth2p0.SignedVoluntaryExit) error {
+	return m.SubmitVoluntaryExitFunc(ctx, voluntaryExit)
 }
 
 func (m Mock) AttestationData(ctx context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {

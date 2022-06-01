@@ -457,6 +457,29 @@ func TestRouter(t *testing.T) {
 
 		testRouter(t, handler, callback)
 	})
+
+	t.Run("submit_voluntary_exit", func(t *testing.T) {
+		ve := &eth2p0.SignedVoluntaryExit{
+			Message: &eth2p0.VoluntaryExit{
+				Epoch:          10,
+				ValidatorIndex: 10,
+			},
+			Signature: testutil.RandomEth2Signature(),
+		}
+
+		handler := testHandler{
+			SubmitVoluntaryExitFunc: func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			err := cl.SubmitVoluntaryExit(ctx, ve)
+			require.NoError(t, err)
+		}
+
+		testRouter(t, handler, callback)
+	})
 }
 
 // testRouter is a helper function to test router endpoints with an eth2http client. The outer test
@@ -509,6 +532,7 @@ type testHandler struct {
 	ProposerDutiesFunc      func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	ValidatorsFunc          func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	ValidatorsByPubKeyFunc  func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	SubmitVoluntaryExitFunc func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
 }
 
 func (h testHandler) AttestationData(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
@@ -537,6 +561,10 @@ func (h testHandler) ValidatorsByPubKey(ctx context.Context, stateID string, pub
 
 func (h testHandler) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 	return h.ProposerDutiesFunc(ctx, epoch, il)
+}
+
+func (h testHandler) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
+	return h.SubmitVoluntaryExitFunc(ctx, exit)
 }
 
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the

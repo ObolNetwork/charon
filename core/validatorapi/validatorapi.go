@@ -17,7 +17,9 @@ package validatorapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -50,9 +52,10 @@ type eth2Provider interface {
 
 // dutyDomain maps domains to duties.
 var dutyDomain = map[core.DutyType]signing.DomainName{
-	core.DutyAttester: signing.DomainBeaconAttester,
-	core.DutyProposer: signing.DomainBeaconProposer,
-	core.DutyRandao:   signing.DomainRandao,
+	core.DutyAttester:      signing.DomainBeaconAttester,
+	core.DutyProposer:      signing.DomainBeaconProposer,
+	core.DutyRandao:        signing.DomainRandao,
+	core.DutyVoluntaryExit: signing.DomainVoluntaryExit,
 }
 
 // PubShareFunc abstracts the mapping of validator root public key to tbls public share.
@@ -349,6 +352,66 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, dbFunc := range c.parSigDBFuncs {
 		err = dbFunc(ctx, duty, set)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// SubmitVoluntaryExit receives the partially signed voluntary exit.
+func (c Component) SubmitVoluntaryExit(ctx context.Context, ve *eth2p0.SignedVoluntaryExit) error {
+	vs, err := c.Validators(ctx, "head", []eth2p0.ValidatorIndex{ve.Message.ValidatorIndex})
+	if err != nil {
+		return err
+	}
+	if len(vs) != 1 {
+		return errors.New("cannot find validator", z.U64("ValidatorIndex", uint64(ve.Message.ValidatorIndex)))
+	}
+
+	pubKeyBytes, err := vs[ve.Message.ValidatorIndex].PubKey(ctx)
+	if err != nil {
+		return err
+	}
+
+	pubKey, err := core.PubKeyFromBytes(pubKeyBytes[:])
+	if err != nil {
+		return err
+	}
+
+	sigRoot, err := ve.Message.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	err = c.verifyParSig(ctx, core.DutyVoluntaryExit, ve.Message.Epoch, pubKey, sigRoot, ve.Signature)
+	if err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(ve)
+	if err != nil {
+		return nil
+	}
+
+	parSigDate := core.ParSignedData{
+		Data:      data,
+		Signature: core.SigFromETH2(ve.Signature),
+		ShareIdx:  c.shareIdx,
+	}
+
+	parsigSet := core.ParSignedDataSet{
+		pubKey: parSigDate,
+	}
+
+	duty := core.Duty{
+		Type: core.DutyVoluntaryExit,
+		Slot: math.MaxInt64,
+	}
+
+	for _, dbFunc := range c.parSigDBFuncs {
+		err := dbFunc(ctx, duty, parsigSet)
 		if err != nil {
 			return err
 		}

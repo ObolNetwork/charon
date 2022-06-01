@@ -21,6 +21,7 @@ package sigagg
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -148,6 +149,27 @@ func getAggSignedData(typ core.DutyType, data core.ParSignedData, aggSig *bls_si
 		}
 
 		return core.EncodeBlockAggSignedData(block)
+	case core.DutyVoluntaryExit:
+		// JSON decode from previous component
+		ve := new(eth2p0.SignedVoluntaryExit)
+		err := json.Unmarshal(data.Data, ve)
+		if err != nil {
+			return core.AggSignedData{}, errors.Wrap(err, "json decoding voluntary exit")
+		}
+
+		// change signature to TSS aggregated one
+		ve.Signature = eth2Sig
+
+		// JSON encode for next component
+		data, err := json.Marshal(ve)
+		if err != nil {
+			return core.AggSignedData{}, errors.Wrap(err, "json encoding voluntary exit")
+		}
+
+		return core.AggSignedData{
+			Data:      data,
+			Signature: core.SigFromETH2(eth2Sig),
+		}, nil
 	default:
 		return core.AggSignedData{}, errors.New("unsupported duty type")
 	}
@@ -178,6 +200,15 @@ func getSignedRoot(typ core.DutyType, data core.ParSignedData) (eth2p0.Root, err
 		}
 
 		return block.Root()
+	case core.DutyVoluntaryExit:
+		// JSON decode from previous component
+		ve := new(eth2p0.SignedVoluntaryExit)
+		err := json.Unmarshal(data.Data, ve)
+		if err != nil {
+			return eth2p0.Root{}, errors.Wrap(err, "json decoding voluntary exit")
+		}
+
+		return ve.Message.HashTreeRoot()
 	default:
 		return eth2p0.Root{}, errors.New("unsupported duty type")
 	}
