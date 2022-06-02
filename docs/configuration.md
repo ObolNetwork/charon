@@ -102,7 +102,7 @@ Flags:
       --p2p-allowlist string           Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.
       --p2p-bootmanifest               Enables using manifest ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs.
       --p2p-bootnode-relay             Enables using bootnodes as libp2p circuit relays. Useful if some charon nodes are not have publicly accessible.
-      --p2p-bootnodes strings          Comma-separated list of discv5 bootnode URLs/ENRs. Example: enr://<enr_hex>,http://<enr_url>. (default [http://bootnode.gcp.obol.tech:16000/enr])
+      --p2p-bootnodes strings          Comma-separated list of discv5 bootnode URLs or ENRs. Example: enode://<hex node id>@10.3.58.6:30303?discport=30301. (default [http://bootnode.gcp.obol.tech:16000/enr])
       --p2p-denylist string            Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.
       --p2p-external-hostname string   The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.
       --p2p-external-ip string         The IP address advertised by libp2p. This may be used to advertise an external IP.

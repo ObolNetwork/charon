@@ -74,7 +74,7 @@ func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
 }
 
 func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {
-	flags.StringSliceVar(&config.UDPBootnodes, "p2p-bootnodes", []string{"http://bootnode.gcp.obol.tech:16000/enr"}, "Comma-separated list of discv5 bootnode URLs/ENRs. Example: enr://<enr_hex>,http://<enr_url>.")
+	flags.StringSliceVar(&config.UDPBootnodes, "p2p-bootnodes", []string{"http://bootnode.gcp.obol.tech:16000/enr"}, "Comma-separated list of discv5 bootnode URLs or ENRs. Example: enode://<hex node id>@10.3.58.6:30303?discport=30301.")
 	flags.BoolVar(&config.BootnodeRelay, "p2p-bootnode-relay", false, "Enables using bootnodes as libp2p circuit relays. Useful if some charon nodes are not have publicly accessible.")
 	flags.BoolVar(&config.UDPBootManifest, "p2p-bootmanifest", false, "Enables using manifest ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs.")
 	flags.StringVar(&config.UDPAddr, "p2p-udp-address", "127.0.0.1:16004", "Listening UDP address (ip and port) for discv5 discovery.")
