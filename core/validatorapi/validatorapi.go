@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -408,7 +407,9 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, ve *eth2p0.SignedVol
 
 	duty := core.Duty{
 		Type: core.DutyVoluntaryExit,
-		Slot: math.MaxInt64,
+		// By instructions of @corverross I am putting an epoch into a field called Slot
+		// https://github.com/ObolNetwork/charon/pull/648#discussion_r886724647
+		Slot: int64(ve.Message.Epoch),
 	}
 
 	for _, dbFunc := range c.parSigDBFuncs {
