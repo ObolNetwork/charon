@@ -102,6 +102,22 @@ func EncodeAttestationParSignedData(att *eth2p0.Attestation, shareIdx int) (ParS
 	}, nil
 }
 
+// EncodeVoluntaryExitParSignedData encodes to json to pass between Go components losing typing,
+// returns a ParSignedData that contains json.
+// WARNING: using this method makes you lose Golang type safety features.
+func EncodeVoluntaryExitParSignedData(ve *eth2p0.SignedVoluntaryExit, shareIdx int) (ParSignedData, error) {
+	data, err := json.Marshal(ve)
+	if err != nil {
+		return ParSignedData{}, errors.Wrap(err, "json marshal signed voluntary exit")
+	}
+
+	return ParSignedData{
+		Data:      data,
+		Signature: SigFromETH2(ve.Signature),
+		ShareIdx:  shareIdx,
+	}, nil
+}
+
 // DecodeAttestationParSignedData returns the attestation from the encoded ParSignedData.
 func DecodeAttestationParSignedData(data ParSignedData) (*eth2p0.Attestation, error) {
 	att := new(eth2p0.Attestation)

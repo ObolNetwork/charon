@@ -17,7 +17,6 @@ package validatorapi
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -390,19 +389,15 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, ve *eth2p0.SignedVol
 		return err
 	}
 
-	data, err := json.Marshal(ve)
+	// Encode to json to pass to another Golang component
+	// WARNING: using this method makes you lose Golang type safety features
+	parSigData, err := core.EncodeVoluntaryExitParSignedData(ve, c.shareIdx)
 	if err != nil {
-		return nil
-	}
-
-	parSigDate := core.ParSignedData{
-		Data:      data,
-		Signature: core.SigFromETH2(ve.Signature),
-		ShareIdx:  c.shareIdx,
+		return err
 	}
 
 	parsigSet := core.ParSignedDataSet{
-		pubKey: parSigDate,
+		pubKey: parSigData,
 	}
 
 	duty := core.Duty{
