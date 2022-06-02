@@ -59,7 +59,7 @@ type ParSigEx struct {
 func (m *ParSigEx) handle(s network.Stream) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	ctx = log.WithTopic(ctx, "parsigex")
-	ctx = context.WithValue(ctx, p2p.PeerCtxKey, p2p.PeerName(s.Conn().RemotePeer()))
+	ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
 	defer cancel()
 	defer s.Close()
 

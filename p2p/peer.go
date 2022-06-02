@@ -27,8 +27,6 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-const PeerCtxKey = "peer"
-
 // Peer represents a peer in the libp2p network, either a charon node or a relay.
 type Peer struct {
 	// ENR defines the networking information of the peer.
