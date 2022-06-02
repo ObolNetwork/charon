@@ -93,7 +93,7 @@ func TestBroadcastVoluntaryExit(t *testing.T) {
 	mock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	ve := testutil.RandomSignedVoluntaryExit(t)
+	ve := testutil.RandomSignedVoluntaryExit()
 
 	aggDataData, err := json.Marshal(ve)
 	require.NoError(t, err)
