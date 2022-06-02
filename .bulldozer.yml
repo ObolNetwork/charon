@@ -1,17 +1,25 @@
 version: 1
 
 merge:
-  trigger:
-    labels: ["merge when ready"]
-    comment_substrings: ["MERGE WHEN READY"]
+  merge_method:
+    - method: squash
+      trigger:
+        labels: [ "merge when ready" ]
+        comment_substrings: ["MERGE WHEN READY"]
+    - method: merge
+      trigger:
+        labels: [ "merge dependabot" ]
+        branch_patterns: ["dependabot/.*"]
   ignore:
-    labels: ["do not merge"]
-    comment_substrings: ["DO NOT MERGE"]
-  method: squash
+    labels: [ "do not merge" ]
+    comment_substrings: [ "DO NOT MERGE" ]
   options:
     squash:
       title: pull_request_title
       body: pull_request_body
+    merge:
+      title: pull_request_title
+      body: pull_request_title
   delete_after_merge: true
   allow_merge_with_no_checks: false
 
