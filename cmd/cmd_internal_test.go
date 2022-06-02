@@ -68,10 +68,11 @@ func TestCmdFlags(t *testing.T) {
 					Format: "console",
 				},
 				P2P: p2p.Config{
-					UDPAddr:   "127.0.0.1:16004",
-					TCPAddrs:  []string{"127.0.0.1:16003"},
-					Allowlist: "",
-					Denylist:  "",
+					UDPBootnodes: []string{"http://bootnode.gcp.obol.tech:16000/enr"},
+					UDPAddr:      "127.0.0.1:16004",
+					TCPAddrs:     []string{"127.0.0.1:16003"},
+					Allowlist:    "",
+					Denylist:     "",
 				},
 				Feature: featureset.Config{
 					MinStatus: "stable",
@@ -92,10 +93,11 @@ func TestCmdFlags(t *testing.T) {
 			Args:    slice("create", "enr"),
 			Datadir: ".charon/data",
 			P2PConfig: &p2p.Config{
-				UDPAddr:   "127.0.0.1:16004",
-				TCPAddrs:  []string{"127.0.0.1:16003"},
-				Allowlist: "",
-				Denylist:  "",
+				UDPBootnodes: []string{"http://bootnode.gcp.obol.tech:16000/enr"},
+				UDPAddr:      "127.0.0.1:16004",
+				TCPAddrs:     []string{"127.0.0.1:16003"},
+				Allowlist:    "",
+				Denylist:     "",
 			},
 		},
 	}
