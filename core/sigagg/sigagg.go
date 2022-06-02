@@ -21,7 +21,6 @@ package sigagg
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -160,15 +159,7 @@ func getAggSignedData(typ core.DutyType, data core.ParSignedData, aggSig *bls_si
 		ve.Signature = eth2Sig
 
 		// JSON encode for next component
-		data, err := json.Marshal(ve)
-		if err != nil {
-			return core.AggSignedData{}, errors.Wrap(err, "json encoding voluntary exit")
-		}
-
-		return core.AggSignedData{
-			Data:      data,
-			Signature: core.SigFromETH2(eth2Sig),
-		}, nil
+		return core.EncodeSignedVoluntaryExitAggSignedData(ve)
 	default:
 		return core.AggSignedData{}, errors.New("unsupported duty type")
 	}

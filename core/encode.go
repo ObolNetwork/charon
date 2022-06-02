@@ -303,3 +303,18 @@ func DecodeBlockAggSignedData(data AggSignedData) (*spec.VersionedSignedBeaconBl
 
 	return block, nil
 }
+
+// EncodeSignedVoluntaryExitAggSignedData encodes to json to pass between Go components losing typing,
+// returns a AggSignedData that contains json.
+// WARNING: using this method makes you lose Golang type safety features.
+func EncodeSignedVoluntaryExitAggSignedData(ve *eth2p0.SignedVoluntaryExit) (AggSignedData, error) {
+	data, err := json.Marshal(ve)
+	if err != nil {
+		return AggSignedData{}, errors.Wrap(err, "json encoding voluntary exit")
+	}
+
+	return AggSignedData{
+		Data:      data,
+		Signature: SigFromETH2(ve.Signature),
+	}, nil
+}
