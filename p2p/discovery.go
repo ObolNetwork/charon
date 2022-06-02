@@ -67,7 +67,8 @@ func NewUDPNode(config Config, ln *enode.LocalNode,
 
 // NewLocalEnode returns a local enode and a peer DB or an error.
 func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *enode.DB, error) {
-	db, err := enode.OpenDB(config.DBPath)
+	// Empty DB Path creates a new in-memory node database without a persistent backend
+	db, err := enode.OpenDB("")
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "open peer db")
 	}

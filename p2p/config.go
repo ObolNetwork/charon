@@ -25,8 +25,6 @@ import (
 )
 
 type Config struct {
-	// DBPath defines the discv5 peer database file path.
-	DBPath string
 	// UDPBootnodes defines the discv5 boot node URLs.
 	UDPBootnodes []string
 	// UDPBootManifest enables using manifest ENRS as discv5 boot nodes.
