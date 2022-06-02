@@ -181,6 +181,7 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 func (c *Component) makeHandler(ctx context.Context) func(s network.Stream) {
 	ctx = log.WithTopic(ctx, "qbft")
 	return func(s network.Stream) {
+		ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
 		defer s.Close()
 
 		b, err := io.ReadAll(s)

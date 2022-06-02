@@ -29,6 +29,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 const protocol = "/charon/leadercast/1.0.0"
@@ -63,6 +64,8 @@ type p2pTransport struct {
 // handle implements p2p network.StreamHandler processing new incoming messages.
 func (t *p2pTransport) handle(s network.Stream) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
+
 	defer cancel()
 	defer s.Close()
 
