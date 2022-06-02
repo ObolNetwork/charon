@@ -63,16 +63,3 @@ jobs:
             ${{ runner.os }}-go-
       - run: GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o testutil/compose/compose # Pre-build current SHA charon binary
       - run: go test -v github.com/obolnetwork/charon/testutil/compose/compose -integration -sudo-perms -prebuilt-binary=charon
-
-  test_fail:
-    runs-on: ubuntu-latest
-    steps:
-      - run: exit 1
-      - name: notify failure
-        if: always()
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-          DISCORD_EMBEDS: ${{ toJson(EVENT_PAYLOAD) }}
-        uses: Ilshidur/action-discord@0.3.2
-        with:
-          args: 'Testing failure notifications: {{ toJson(github) }}'
