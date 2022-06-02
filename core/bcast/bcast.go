@@ -51,8 +51,11 @@ type Broadcaster struct {
 }
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
-func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
-	pubkey core.PubKey, aggData core.AggSignedData,
+func (b Broadcaster) Broadcast(
+	ctx context.Context,
+	duty core.Duty,
+	pubkey core.PubKey,
+	aggData core.AggSignedData,
 ) (err error) {
 	ctx = log.WithTopic(ctx, "bcast")
 	defer func() {
@@ -74,6 +77,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 				z.U64("slot", uint64(att.Data.Slot)),
 				z.U64("target_epoch", uint64(att.Data.Target.Epoch)),
 				z.Hex("agg_bits", att.AggregationBits.Bytes()),
+				z.Any("pubkey", pubkey.String()),
 			)
 		}
 
@@ -88,6 +92,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		if err == nil {
 			log.Info(ctx, "Block proposal successfully submitted to beacon node",
 				z.U64("slot", uint64(duty.Slot)),
+				z.Any("pubkey", pubkey.String()),
 			)
 		}
 
@@ -108,7 +113,8 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		if err == nil {
 			log.Info(ctx, "Voluntary exit successfully submitted to beacon node",
 				z.U64("epoch", uint64(ve.Message.Epoch)),
-				z.U64("validatorIndex", uint64(ve.Message.ValidatorIndex)),
+				z.U64("validator_index", uint64(ve.Message.ValidatorIndex)),
+				z.Any("pubkey", pubkey.String()),
 			)
 		}
 
