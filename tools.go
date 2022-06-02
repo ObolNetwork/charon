@@ -35,3 +35,6 @@ import (
 //go:generate go install github.com/bufbuild/buf/cmd/protoc-gen-buf-breaking
 //go:generate go install github.com/bufbuild/buf/cmd/protoc-gen-buf-lint
 //go:generate go install google.golang.org/protobuf/cmd/protoc-gen-go
+
+//go:generate echo Installing tools: compose
+//go:generate go install github.com/obolnetwork/charon/testutil/compose/compose
