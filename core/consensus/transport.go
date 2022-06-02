@@ -30,6 +30,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 // transport encapsulates receiving and broadcasting for a consensus instance/duty.
@@ -115,6 +116,7 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 			continue
 		}
 
+		ctx = context.WithValue(ctx, p2p.PeerCtxKey, p2p.PeerName(t.component.tcpNode.ID()))
 		err := send(ctx, t.component.tcpNode, p.ID, msg.ToConsensusMsg())
 		if err != nil {
 			log.Warn(ctx, "Failed sending message", err)

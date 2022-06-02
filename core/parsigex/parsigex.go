@@ -31,6 +31,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 const protocol = "/charon/parsigex/1.0.0"
@@ -58,6 +59,7 @@ type ParSigEx struct {
 func (m *ParSigEx) handle(s network.Stream) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	ctx = log.WithTopic(ctx, "parsigex")
+	ctx = context.WithValue(ctx, p2p.PeerCtxKey, p2p.PeerName(s.Conn().RemotePeer()))
 	defer cancel()
 	defer s.Close()
 

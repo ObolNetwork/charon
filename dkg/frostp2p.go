@@ -51,6 +51,7 @@ func newFrostP2P(ctx context.Context, tcpNode host.Host, peers map[uint32]peer.I
 	}
 
 	tcpNode.SetStreamHandler(round1Protocol(clusterID), func(s network.Stream) {
+		ctx = context.WithValue(ctx, p2p.PeerCtxKey, p2p.PeerName(s.Conn().RemotePeer()))
 		defer s.Close()
 
 		b, err := io.ReadAll(s)
@@ -78,6 +79,7 @@ func newFrostP2P(ctx context.Context, tcpNode host.Host, peers map[uint32]peer.I
 	})
 
 	tcpNode.SetStreamHandler(round2Protocol(clusterID), func(s network.Stream) {
+		ctx = context.WithValue(ctx, p2p.PeerCtxKey, p2p.PeerName(s.Conn().RemotePeer()))
 		defer s.Close()
 
 		b, err := io.ReadAll(s)
