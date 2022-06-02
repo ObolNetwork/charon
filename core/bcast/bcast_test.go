@@ -93,13 +93,7 @@ func TestBroadcastVoluntaryExit(t *testing.T) {
 	mock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	ve := &eth2p0.SignedVoluntaryExit{
-		Message: &eth2p0.VoluntaryExit{
-			Epoch:          10,
-			ValidatorIndex: 10,
-		},
-		Signature: testutil.RandomEth2Signature(),
-	}
+	ve := testutil.RandomSignedVoluntaryExit(t)
 
 	aggDataData, err := json.Marshal(ve)
 	require.NoError(t, err)

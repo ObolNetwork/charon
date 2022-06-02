@@ -164,10 +164,7 @@ func TestSigAgg_DutyVoluntaryExit(t *testing.T) {
 	tss, secrets, err := tbls.GenerateTSS(threshold, peers, rand.Reader)
 	require.NoError(t, err)
 
-	uve := &eth2p0.VoluntaryExit{
-		Epoch:          10,
-		ValidatorIndex: 10,
-	}
+	uve := testutil.RandomVoluntaryExit(t)
 
 	msg, err := uve.MarshalSSZ()
 	require.NoError(t, err)
