@@ -100,7 +100,7 @@ func (b Broadcaster) Broadcast(
 	case core.DutyRandao:
 		// Randao is an internal duty, not broadcasted to beacon chain
 		return nil
-	case core.DutyVoluntaryExit:
+	case core.DutyExit:
 		// JSON decoding from the previous component
 		ve := new(eth2p0.SignedVoluntaryExit)
 		err := json.Unmarshal(aggData.Data, ve)

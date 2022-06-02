@@ -51,10 +51,10 @@ type eth2Provider interface {
 
 // dutyDomain maps domains to duties.
 var dutyDomain = map[core.DutyType]signing.DomainName{
-	core.DutyAttester:      signing.DomainBeaconAttester,
-	core.DutyProposer:      signing.DomainBeaconProposer,
-	core.DutyRandao:        signing.DomainRandao,
-	core.DutyVoluntaryExit: signing.DomainVoluntaryExit,
+	core.DutyAttester: signing.DomainBeaconAttester,
+	core.DutyProposer: signing.DomainBeaconProposer,
+	core.DutyRandao:   signing.DomainRandao,
+	core.DutyExit:     signing.DomainExit,
 }
 
 // PubShareFunc abstracts the mapping of validator root public key to tbls public share.
@@ -385,13 +385,13 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, ve *eth2p0.SignedVol
 		return err
 	}
 
-	err = c.verifyParSig(ctx, core.DutyVoluntaryExit, ve.Message.Epoch, pubKey, sigRoot, ve.Signature)
+	err = c.verifyParSig(ctx, core.DutyExit, ve.Message.Epoch, pubKey, sigRoot, ve.Signature)
 	if err != nil {
 		return err
 	}
 
 	// Encode to json to pass to another Golang component
-	parSigData, err := core.EncodeVoluntaryExitParSignedData(ve, c.shareIdx)
+	parSigData, err := core.EncodeExitParSignedData(ve, c.shareIdx)
 	if err != nil {
 		return err
 	}
@@ -401,7 +401,7 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, ve *eth2p0.SignedVol
 	}
 
 	duty := core.Duty{
-		Type: core.DutyVoluntaryExit,
+		Type: core.DutyExit,
 		Slot: math.MaxInt64,
 	}
 

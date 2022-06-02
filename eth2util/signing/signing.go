@@ -32,7 +32,7 @@ const (
 	DomainBeaconProposer DomainName = "DOMAIN_BEACON_PROPOSER"
 	DomainBeaconAttester DomainName = "DOMAIN_BEACON_ATTESTER"
 	DomainRandao         DomainName = "DOMAIN_RANDAO"
-	DomainVoluntaryExit  DomainName = "DOMAIN_VOLUNTARY_EXIT"
+	DomainExit           DomainName = "DOMAIN_VOLUNTARY_EXIT"
 	// DomainDeposit        	         DomainName = "DOMAIN_DEPOSIT"
 	// DomainSelectionProof              DomainName = "DOMAIN_SELECTION_PROOF"
 	// DomainAggregateAndProof           DomainName = "DOMAIN_AGGREGATE_AND_PROOF"

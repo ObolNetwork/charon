@@ -117,7 +117,7 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 		{
 			Name:    "submit_voluntary_exit",
 			Path:    "/eth/v1/beacon/pool/voluntary_exits",
-			Handler: submitVoluntaryExit(h),
+			Handler: submitExit(h),
 			Methods: []string{"POST"},
 		},
 		// TODO(corver): Add more endpoints
@@ -450,8 +450,8 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 	}
 }
 
-// submitVoluntaryExit receives the partially signed voluntary exit.
-func submitVoluntaryExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
+// submitExit receives the partially signed voluntary exit.
+func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
 		ve := new(eth2p0.SignedVoluntaryExit)
 		err := ve.UnmarshalJSON(body)

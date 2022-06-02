@@ -32,11 +32,11 @@ type DutyType int
 const (
 	// DutyType enums MUST not change, it will break backwards compatibility.
 
-	DutyUnknown       DutyType = 0
-	DutyProposer      DutyType = 1
-	DutyAttester      DutyType = 2
-	DutyRandao        DutyType = 3
-	DutyVoluntaryExit DutyType = 4
+	DutyUnknown  DutyType = 0
+	DutyProposer DutyType = 1
+	DutyAttester DutyType = 2
+	DutyRandao   DutyType = 3
+	DutyExit     DutyType = 4
 	// Only ever append new types here...
 
 	dutySentinel DutyType = 5 // Must always be last

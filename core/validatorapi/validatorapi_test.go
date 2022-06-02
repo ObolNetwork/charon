@@ -655,7 +655,7 @@ func TestComponent_SubmitVoluntaryExit(t *testing.T) {
 	sigRoot, err := uve.HashTreeRoot()
 	require.NoError(t, err)
 
-	domain, err := signing.GetDomain(ctx, bmock, signing.DomainVoluntaryExit, epoch)
+	domain, err := signing.GetDomain(ctx, bmock, signing.DomainExit, epoch)
 	require.NoError(t, err)
 
 	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
@@ -723,7 +723,7 @@ func TestComponent_SubmitVoluntaryExitInvalidSignature(t *testing.T) {
 	sigRoot, err := uve.HashTreeRoot()
 	require.NoError(t, err)
 
-	domain, err := signing.GetDomain(ctx, bmock, signing.DomainVoluntaryExit, epoch)
+	domain, err := signing.GetDomain(ctx, bmock, signing.DomainExit, epoch)
 	require.NoError(t, err)
 
 	_, err = (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()

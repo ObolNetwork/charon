@@ -152,7 +152,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSigAgg_DutyVoluntaryExit(t *testing.T) {
+func TestSigAgg_DutyExit(t *testing.T) {
 	ctx := context.Background()
 
 	const (
@@ -164,7 +164,7 @@ func TestSigAgg_DutyVoluntaryExit(t *testing.T) {
 	tss, secrets, err := tbls.GenerateTSS(threshold, peers, rand.Reader)
 	require.NoError(t, err)
 
-	uve := testutil.RandomVoluntaryExit()
+	uve := testutil.RandomExit()
 
 	msg, err := uve.MarshalSSZ()
 	require.NoError(t, err)
@@ -217,7 +217,7 @@ func TestSigAgg_DutyVoluntaryExit(t *testing.T) {
 	})
 
 	// Run aggregation
-	err = agg.Aggregate(ctx, core.Duty{Type: core.DutyVoluntaryExit}, "", parsigs)
+	err = agg.Aggregate(ctx, core.Duty{Type: core.DutyExit}, "", parsigs)
 	require.NoError(t, err)
 }
 

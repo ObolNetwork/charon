@@ -102,9 +102,9 @@ func EncodeAttestationParSignedData(att *eth2p0.Attestation, shareIdx int) (ParS
 	}, nil
 }
 
-// EncodeVoluntaryExitParSignedData encodes to json to pass between Go components losing typing,
+// EncodeExitParSignedData encodes to json to pass between Go components losing typing,
 // returns a ParSignedData that contains json.
-func EncodeVoluntaryExitParSignedData(ve *eth2p0.SignedVoluntaryExit, shareIdx int) (ParSignedData, error) {
+func EncodeExitParSignedData(ve *eth2p0.SignedVoluntaryExit, shareIdx int) (ParSignedData, error) {
 	data, err := json.Marshal(ve)
 	if err != nil {
 		return ParSignedData{}, errors.Wrap(err, "json marshal signed voluntary exit")
@@ -128,9 +128,9 @@ func DecodeAttestationParSignedData(data ParSignedData) (*eth2p0.Attestation, er
 	return att, nil
 }
 
-// DecodeSignedVoluntaryExitParSignedData json decode signed voluntary exit from the previous
+// DecodeSignedExitParSignedData json decode signed voluntary exit from the previous
 // Golang component.
-func DecodeSignedVoluntaryExitParSignedData(data ParSignedData) (*eth2p0.SignedVoluntaryExit, error) {
+func DecodeSignedExitParSignedData(data ParSignedData) (*eth2p0.SignedVoluntaryExit, error) {
 	ve := new(eth2p0.SignedVoluntaryExit)
 	err := json.Unmarshal(data.Data, ve)
 	if err != nil {
@@ -303,9 +303,9 @@ func DecodeBlockAggSignedData(data AggSignedData) (*spec.VersionedSignedBeaconBl
 	return block, nil
 }
 
-// EncodeSignedVoluntaryExitAggSignedData encodes to json to pass between Go components losing typing,
+// EncodeSignedExitAggSignedData encodes to json to pass between Go components losing typing,
 // returns a AggSignedData that contains json.
-func EncodeSignedVoluntaryExitAggSignedData(ve *eth2p0.SignedVoluntaryExit) (AggSignedData, error) {
+func EncodeSignedExitAggSignedData(ve *eth2p0.SignedVoluntaryExit) (AggSignedData, error) {
 	data, err := json.Marshal(ve)
 	if err != nil {
 		return AggSignedData{}, errors.Wrap(err, "json encoding voluntary exit")

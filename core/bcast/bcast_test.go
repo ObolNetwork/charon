@@ -88,12 +88,12 @@ func TestBroadcastBeaconBlock(t *testing.T) {
 	<-ctx.Done()
 }
 
-func TestBroadcastVoluntaryExit(t *testing.T) {
+func TestBroadcastExit(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	mock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	ve := testutil.RandomSignedVoluntaryExit()
+	ve := testutil.RandomSignedExit()
 
 	aggDataData, err := json.Marshal(ve)
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestBroadcastVoluntaryExit(t *testing.T) {
 	bcaster, err := bcast.New(mock)
 	require.NoError(t, err)
 
-	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyVoluntaryExit}, "", aggData)
+	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyExit}, "", aggData)
 	require.ErrorIs(t, err, context.Canceled)
 
 	<-ctx.Done()

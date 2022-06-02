@@ -377,16 +377,16 @@ func RandomUnsignedDataSet(t *testing.T) core.UnsignedDataSet {
 	}
 }
 
-func RandomVoluntaryExit() *eth2p0.VoluntaryExit {
+func RandomExit() *eth2p0.VoluntaryExit {
 	return &eth2p0.VoluntaryExit{
 		Epoch:          RandomEpoch(),
 		ValidatorIndex: RandomVIdx(),
 	}
 }
 
-func RandomSignedVoluntaryExit() *eth2p0.SignedVoluntaryExit {
+func RandomSignedExit() *eth2p0.SignedVoluntaryExit {
 	return &eth2p0.SignedVoluntaryExit{
-		Message:   RandomVoluntaryExit(),
+		Message:   RandomExit(),
 		Signature: RandomEth2Signature(),
 	}
 }
