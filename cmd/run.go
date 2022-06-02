@@ -76,7 +76,7 @@ func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
 func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {
 	flags.StringSliceVar(&config.UDPBootnodes, "p2p-bootnodes", []string{"http://bootnode.gcp.obol.tech:16000/enr"}, "Comma-separated list of discv5 bootnode URLs or ENRs.")
 	flags.BoolVar(&config.BootnodeRelay, "p2p-bootnode-relay", false, "Enables using bootnodes as libp2p circuit relays. Useful if some charon nodes are not have publicly accessible.")
-	flags.BoolVar(&config.UDPBootLock, "p2p-bootlock", false, "Enables using cluster lock ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs.")
+	flags.BoolVar(&config.UDPBootLock, "p2p-bootnodes-from-lockfile", false, "Enables using cluster lock ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs.")
 	flags.StringVar(&config.UDPAddr, "p2p-udp-address", "127.0.0.1:16004", "Listening UDP address (ip and port) for discv5 discovery.")
 	flags.StringVar(&config.ExternalIP, "p2p-external-ip", "", "The IP address advertised by libp2p. This may be used to advertise an external IP.")
 	flags.StringVar(&config.ExternalHost, "p2p-external-hostname", "", "The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.")
