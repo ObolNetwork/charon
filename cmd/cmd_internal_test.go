@@ -72,7 +72,6 @@ func TestCmdFlags(t *testing.T) {
 					TCPAddrs:  []string{"127.0.0.1:16003"},
 					Allowlist: "",
 					Denylist:  "",
-					DBPath:    "",
 				},
 				Feature: featureset.Config{
 					MinStatus: "stable",
@@ -97,7 +96,6 @@ func TestCmdFlags(t *testing.T) {
 				TCPAddrs:  []string{"127.0.0.1:16003"},
 				Allowlist: "",
 				Denylist:  "",
-				DBPath:    "",
 			},
 		},
 	}
