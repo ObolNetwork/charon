@@ -371,12 +371,12 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, ve *eth2p0.SignedVol
 		return errors.New("cannot find validator", z.U64("validator_index", uint64(ve.Message.ValidatorIndex)))
 	}
 
-	pubKeyBytes, err := validator.PubKey(ctx)
+	eth2Pubkey, err := validator.PubKey(ctx)
 	if err != nil {
 		return err
 	}
 
-	pubKey, err := core.PubKeyFromBytes(pubKeyBytes[:])
+	pubKey, err := core.PubKeyFromBytes(eth2Pubkey[:])
 	if err != nil {
 		return err
 	}
