@@ -27,8 +27,8 @@ import (
 type Config struct {
 	// UDPBootnodes defines the discv5 boot node URLs.
 	UDPBootnodes []string
-	// UDPBootManifest enables using manifest ENRS as discv5 boot nodes.
-	UDPBootManifest bool
+	// UDPBootLock enables using cluster-lock ENRs as discv5 boot nodes.
+	UDPBootLock bool
 	// UDPAddr defines the discv5 udp listen address.
 	UDPAddr string
 	// ExternalIP is the IP advertised by libp2p.

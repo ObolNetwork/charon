@@ -55,7 +55,7 @@ func NewUDPBootnodes(ctx context.Context, config Config, peers []Peer,
 		resp = append(resp, node)
 	}
 
-	if config.UDPBootManifest {
+	if config.UDPBootLock {
 		for _, p := range peers {
 			if p.Enode.ID() == localEnode {
 				// Do not include ourselves as bootnode.
