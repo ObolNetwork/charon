@@ -92,7 +92,7 @@ func (b Broadcaster) Broadcast(
 		if err == nil {
 			log.Info(ctx, "Block proposal successfully submitted to beacon node",
 				z.U64("slot", uint64(duty.Slot)),
-				z.Any("pubkey", pubkey.String()),
+				z.Any("pubkey", pubkey),
 			)
 		}
 
