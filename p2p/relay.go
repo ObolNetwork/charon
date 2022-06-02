@@ -35,7 +35,7 @@ import (
 func NewRelays(conf Config, bootnodes []*enode.Node) ([]Peer, error) {
 	if !conf.BootnodeRelay {
 		return nil, nil
-	} else if conf.UDPBootManifest {
+	} else if conf.UDPBootLock {
 		// Relays not supported via manifest bootnodes yet.
 		return nil, nil
 	}

@@ -180,11 +180,11 @@ func pingCluster(t *testing.T, test pingTest) {
 				DisablePromWrap: true,
 			},
 			P2P: p2p.Config{
-				UDPBootnodes:    bootnodes,
-				UDPBootManifest: test.BootLock,
-				ExternalHost:    test.ExternalHost,
-				ExternalIP:      test.ExternalIP,
-				BootnodeRelay:   test.BootnodeRelay,
+				UDPBootnodes:  bootnodes,
+				UDPBootLock:   test.BootLock,
+				ExternalHost:  test.ExternalHost,
+				ExternalIP:    test.ExternalIP,
+				BootnodeRelay: test.BootnodeRelay,
 			},
 		}
 
