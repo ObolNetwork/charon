@@ -151,8 +151,7 @@ func getAggSignedData(typ core.DutyType, data core.ParSignedData, aggSig *bls_si
 		return core.EncodeBlockAggSignedData(block)
 	case core.DutyVoluntaryExit:
 		// JSON decode from previous component
-		ve := new(eth2p0.SignedVoluntaryExit)
-		err := json.Unmarshal(data.Data, ve)
+		ve, err := core.DecodeSignedVoluntaryExitParSignedData(data)
 		if err != nil {
 			return core.AggSignedData{}, errors.Wrap(err, "json decoding voluntary exit")
 		}
@@ -202,8 +201,7 @@ func getSignedRoot(typ core.DutyType, data core.ParSignedData) (eth2p0.Root, err
 		return block.Root()
 	case core.DutyVoluntaryExit:
 		// JSON decode from previous component
-		ve := new(eth2p0.SignedVoluntaryExit)
-		err := json.Unmarshal(data.Data, ve)
+		ve, err := core.DecodeSignedVoluntaryExitParSignedData(data)
 		if err != nil {
 			return eth2p0.Root{}, errors.Wrap(err, "json decoding voluntary exit")
 		}

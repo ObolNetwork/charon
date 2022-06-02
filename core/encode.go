@@ -129,6 +129,18 @@ func DecodeAttestationParSignedData(data ParSignedData) (*eth2p0.Attestation, er
 	return att, nil
 }
 
+// DecodeSignedVoluntaryExitParSignedData json decode signed voluntary exit from the previous
+// Golang component.
+func DecodeSignedVoluntaryExitParSignedData(data ParSignedData) (*eth2p0.SignedVoluntaryExit, error) {
+	ve := new(eth2p0.SignedVoluntaryExit)
+	err := json.Unmarshal(data.Data, ve)
+	if err != nil {
+		return nil, errors.Wrap(err, "json decoding signed voluntary exit")
+	}
+
+	return ve, nil
+}
+
 // EncodeAttestationAggSignedData returns the attestation as an encoded AggSignedData.
 func EncodeAttestationAggSignedData(att *eth2p0.Attestation) (AggSignedData, error) {
 	data, err := json.Marshal(att)
