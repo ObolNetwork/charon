@@ -407,7 +407,7 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, ve *eth2p0.SignedVol
 
 	duty := core.Duty{
 		Type: core.DutyVoluntaryExit,
-		// By instructions of @corverross I am putting an epoch into a field called Slot
+		// By instructions of @corverroos I am putting an epoch into a field called Slot
 		// https://github.com/ObolNetwork/charon/pull/648#discussion_r886724647
 		Slot: int64(ve.Message.Epoch),
 	}
