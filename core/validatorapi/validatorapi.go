@@ -391,7 +391,6 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, ve *eth2p0.SignedVol
 	}
 
 	// Encode to json to pass to another Golang component
-	// WARNING: using this method makes you lose Golang type safety features
 	parSigData, err := core.EncodeVoluntaryExitParSignedData(ve, c.shareIdx)
 	if err != nil {
 		return err

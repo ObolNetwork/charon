@@ -104,7 +104,6 @@ func EncodeAttestationParSignedData(att *eth2p0.Attestation, shareIdx int) (ParS
 
 // EncodeVoluntaryExitParSignedData encodes to json to pass between Go components losing typing,
 // returns a ParSignedData that contains json.
-// WARNING: using this method makes you lose Golang type safety features.
 func EncodeVoluntaryExitParSignedData(ve *eth2p0.SignedVoluntaryExit, shareIdx int) (ParSignedData, error) {
 	data, err := json.Marshal(ve)
 	if err != nil {
@@ -306,7 +305,6 @@ func DecodeBlockAggSignedData(data AggSignedData) (*spec.VersionedSignedBeaconBl
 
 // EncodeSignedVoluntaryExitAggSignedData encodes to json to pass between Go components losing typing,
 // returns a AggSignedData that contains json.
-// WARNING: using this method makes you lose Golang type safety features.
 func EncodeSignedVoluntaryExitAggSignedData(ve *eth2p0.SignedVoluntaryExit) (AggSignedData, error) {
 	data, err := json.Marshal(ve)
 	if err != nil {
