@@ -305,7 +305,7 @@ func DecodeBlockAggSignedData(data AggSignedData) (*spec.VersionedSignedBeaconBl
 func EncodeExitAggSignedData(exit *eth2p0.SignedVoluntaryExit) (AggSignedData, error) {
 	data, err := json.Marshal(exit)
 	if err != nil {
-		return AggSignedData{}, errors.Wrap(err, "json encoding voluntary exit")
+		return AggSignedData{}, errors.Wrap(err, "marshal voluntary exit")
 	}
 
 	return AggSignedData{
@@ -319,7 +319,7 @@ func DecodeExitAggSignedData(data AggSignedData) (*eth2p0.SignedVoluntaryExit, e
 	var resp *eth2p0.SignedVoluntaryExit
 	err := json.Unmarshal(data.Data, &resp)
 	if err != nil {
-		return nil, errors.Wrap(err, "json encoding voluntary exit")
+		return nil, errors.Wrap(err, "unmarshal voluntary exit")
 	}
 
 	return resp, nil
