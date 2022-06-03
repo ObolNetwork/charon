@@ -188,10 +188,9 @@ func getSignedRoot(typ core.DutyType, data core.ParSignedData) (eth2p0.Root, err
 
 		return block.Root()
 	case core.DutyExit:
-		// JSON decode from previous component
 		ve, err := core.DecodeExitParSignedData(data)
 		if err != nil {
-			return eth2p0.Root{}, errors.Wrap(err, "json decoding voluntary exit")
+			return eth2p0.Root{}, err
 		}
 
 		return ve.Message.HashTreeRoot()

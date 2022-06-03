@@ -131,10 +131,10 @@ type Mock struct {
 	ProposerDutiesFunc      func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	SubmitAttestationsFunc  func(context.Context, []*eth2p0.Attestation) error
 	SubmitBeaconBlockFunc   func(context.Context, *spec.VersionedSignedBeaconBlock) error
-	SubmitVoluntaryExitFunc func(ctx context.Context, voluntaryExit *eth2p0.SignedVoluntaryExit) error
+	SubmitVoluntaryExitFunc func(context.Context, *eth2p0.SignedVoluntaryExit) error
 	ValidatorsByPubKeyFunc  func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	ValidatorsFunc          func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	GenesisTimeFunc         func(ctx context.Context) (time.Time, error)
+	GenesisTimeFunc         func(context.Context) (time.Time, error)
 	NodeSyncingFunc         func(context.Context) (*eth2v1.SyncState, error)
 }
 
@@ -146,8 +146,8 @@ func (m Mock) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSigned
 	return m.SubmitBeaconBlockFunc(ctx, block)
 }
 
-func (m Mock) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *eth2p0.SignedVoluntaryExit) error {
-	return m.SubmitVoluntaryExitFunc(ctx, voluntaryExit)
+func (m Mock) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
+	return m.SubmitVoluntaryExitFunc(ctx, exit)
 }
 
 func (m Mock) AttestationData(ctx context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {

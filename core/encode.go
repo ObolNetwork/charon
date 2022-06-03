@@ -103,15 +103,15 @@ func EncodeAttestationParSignedData(att *eth2p0.Attestation, shareIdx int) (ParS
 }
 
 // EncodeExitParSignedData returns the signed voluntary exit as an encoded ParSignedData.
-func EncodeExitParSignedData(ve *eth2p0.SignedVoluntaryExit, shareIdx int) (ParSignedData, error) {
-	data, err := json.Marshal(ve)
+func EncodeExitParSignedData(exit *eth2p0.SignedVoluntaryExit, shareIdx int) (ParSignedData, error) {
+	data, err := json.Marshal(exit)
 	if err != nil {
 		return ParSignedData{}, errors.Wrap(err, "marshal signed voluntary exit")
 	}
 
 	return ParSignedData{
 		Data:      data,
-		Signature: SigFromETH2(ve.Signature),
+		Signature: SigFromETH2(exit.Signature),
 		ShareIdx:  shareIdx,
 	}, nil
 }
@@ -129,13 +129,13 @@ func DecodeAttestationParSignedData(data ParSignedData) (*eth2p0.Attestation, er
 
 // DecodeExitParSignedData returns the signed voluntary exit from the encoded ParSignedData.
 func DecodeExitParSignedData(data ParSignedData) (*eth2p0.SignedVoluntaryExit, error) {
-	ve := new(eth2p0.SignedVoluntaryExit)
-	err := json.Unmarshal(data.Data, ve)
+	exit := new(eth2p0.SignedVoluntaryExit)
+	err := json.Unmarshal(data.Data, exit)
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal signed voluntary exit")
 	}
 
-	return ve, nil
+	return exit, nil
 }
 
 // EncodeAttestationAggSignedData returns the attestation as an encoded AggSignedData.
@@ -302,15 +302,15 @@ func DecodeBlockAggSignedData(data AggSignedData) (*spec.VersionedSignedBeaconBl
 }
 
 // EncodeExitAggSignedData returns the aggregated signed voluntary exit from the encoded AggSignedData.
-func EncodeExitAggSignedData(ve *eth2p0.SignedVoluntaryExit) (AggSignedData, error) {
-	data, err := json.Marshal(ve)
+func EncodeExitAggSignedData(exit *eth2p0.SignedVoluntaryExit) (AggSignedData, error) {
+	data, err := json.Marshal(exit)
 	if err != nil {
 		return AggSignedData{}, errors.Wrap(err, "json encoding voluntary exit")
 	}
 
 	return AggSignedData{
 		Data:      data,
-		Signature: SigFromETH2(ve.Signature),
+		Signature: SigFromETH2(exit.Signature),
 	}, nil
 }
 
