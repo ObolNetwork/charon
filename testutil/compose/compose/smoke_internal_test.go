@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -115,18 +116,17 @@ func TestSmoke(t *testing.T) {
 				data.VCs[3].Image = "consensys/teku:22.3"
 			},
 		},
-		// TODO(corver): Enable after https://github.com/ObolNetwork/charon/issues/635
-		//{
-		//	Name: "1 of 4 down",
-		//	TmplFunc: func(data *compose.TmplData) {
-		//		node0 := data.Nodes[0]
-		//		for i := 0; i < len(node0.EnvVars); i++ {
-		//			if strings.HasPrefix(node0.EnvVars[i].Key, "p2p") {
-		//				data.Nodes[0].EnvVars[i].Key = "unset" // Zero p2p flags to it cannot communicate
-		//			}
-		//		}
-		//	},
-		// },
+		{
+			Name: "1 of 4 down",
+			TmplFunc: func(data *compose.TmplData) {
+				node0 := data.Nodes[0]
+				for i := 0; i < len(node0.EnvVars); i++ {
+					if strings.HasPrefix(node0.EnvVars[i].Key, "p2p") {
+						data.Nodes[0].EnvVars[i].Key = "unset" // Zero p2p flags to it cannot communicate
+					}
+				}
+			},
+		},
 	}
 
 	for _, test := range tests {
