@@ -155,7 +155,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 	type simResult struct {
 		Duty   core.Duty
 		Pubkey core.PubKey
-		Data   core.AggSignedData
+		Data   core.SignedData
 	}
 
 	var (
@@ -178,7 +178,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 				SimnetKeys:         []*bls_sig.SecretKey{args.SimnetKeys[i]},
 				ParSigExFunc:       parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
-				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.AggSignedData) error {
+				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
 					if duty.Type == core.DutyRandao {
 						return nil
 					}
@@ -204,7 +204,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 		var (
 			remaining = 2
 			counts    = make(map[core.Duty]int)
-			datas     = make(map[core.Duty]core.AggSignedData)
+			datas     = make(map[core.Duty]core.SignedData)
 		)
 		for {
 			var res simResult
@@ -220,8 +220,12 @@ func testSimnet(t *testing.T, args simnetArgs) {
 			if counts[res.Duty] == 0 {
 				datas[res.Duty] = res.Data
 			} else {
-				require.Equal(t, datas[res.Duty].Data, res.Data.Data)
-				require.Equal(t, datas[res.Duty].Signature, res.Data.Signature)
+				expect, err := datas[res.Duty].MarshalJSON()
+				require.NoError(t, err)
+				actual, err := res.Data.MarshalJSON()
+				require.NoError(t, err)
+				require.Equal(t, expect, actual)
+				require.Equal(t, datas[res.Duty].Signature(), res.Data.Signature())
 			}
 
 			// Assert we get results from all peers.

@@ -22,8 +22,6 @@ package sigagg
 import (
 	"context"
 
-	"github.com/attestantio/go-eth2-client/spec"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -43,47 +41,32 @@ func New(threshold int) *Aggregator {
 // into an aggregated signed duty data object ready to be broadcasted.
 type Aggregator struct {
 	threshold int
-	subs      []func(context.Context, core.Duty, core.PubKey, core.AggSignedData) error
+	subs      []func(context.Context, core.Duty, core.PubKey, core.SignedData) error
 }
 
 // Subscribe registers a callback for aggregated signed duty data.
-func (a *Aggregator) Subscribe(fn func(context.Context, core.Duty, core.PubKey, core.AggSignedData) error) {
+func (a *Aggregator) Subscribe(fn func(context.Context, core.Duty, core.PubKey, core.SignedData) error) {
 	a.subs = append(a.subs, fn)
 }
 
 // Aggregate aggregates the partially signed duty data for the DV.
-func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.PubKey, parSigs []core.ParSignedData) error {
-	if len(parSigs) < a.threshold {
+func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.PubKey, shares []core.ParSignedData) error {
+	if len(shares) < a.threshold {
 		return errors.New("require threshold signatures")
 	} else if a.threshold == 0 {
 		return errors.New("invalid threshold config")
 	}
 
-	// Get all partial signatures and one partial signed data object.
-	var (
-		blsSigs     []*bls_sig.PartialSignature
-		firstParSig core.ParSignedData
-		firstRoot   eth2p0.Root
-	)
-	for i, parSig := range parSigs {
-		root, err := getSignedRoot(duty.Type, parSig)
-		if err != nil {
-			return err
-		}
-		if i == 0 {
-			firstParSig = parSig
-			firstRoot = root
-		} else if firstRoot != root {
-			return errors.New("mismatching signed root")
-		}
-
-		s, err := tblsconv.SigFromCore(parSig.Signature)
+	// Get all signatures shares.
+	var blsSigs []*bls_sig.PartialSignature
+	for _, share := range shares {
+		s, err := tblsconv.SigFromCore(share.Signature())
 		if err != nil {
 			return errors.Wrap(err, "convert signature")
 		}
 
 		blsSigs = append(blsSigs, &bls_sig.PartialSignature{
-			Identifier: byte(parSig.ShareIdx),
+			Identifier: byte(share.ShareIdx),
 			Signature:  s.Value,
 		})
 	}
@@ -96,8 +79,8 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 		return err
 	}
 
-	// Inject signature into resulting aggregate signed data.
-	aggSig, err := getAggSignedData(duty.Type, firstParSig, sig)
+	// Inject signature into one of te shares resulting in aggregate signed data.
+	aggSig, err := shares[0].SetSignature(tblsconv.SigToCore(sig))
 	if err != nil {
 		return err
 	}
@@ -113,87 +96,4 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 	}
 
 	return nil
-}
-
-// getAggSignedData returns the encoded aggregated signed data by injecting the aggregated signature.
-func getAggSignedData(typ core.DutyType, data core.ParSignedData, aggSig *bls_sig.Signature) (core.AggSignedData, error) {
-	eth2Sig := tblsconv.SigToETH2(aggSig)
-
-	switch typ {
-	case core.DutyAttester:
-		att, err := core.DecodeAttestationParSignedData(data)
-		if err != nil {
-			return core.AggSignedData{}, err
-		}
-		att.Signature = eth2Sig
-
-		return core.EncodeAttestationAggSignedData(att)
-	case core.DutyRandao:
-		return core.EncodeRandaoAggSignedData(eth2Sig), nil
-	case core.DutyProposer:
-		block, err := core.DecodeBlockParSignedData(data)
-		if err != nil {
-			return core.AggSignedData{}, err
-		}
-		switch block.Version {
-		case spec.DataVersionPhase0:
-			block.Phase0.Signature = eth2Sig
-		case spec.DataVersionAltair:
-			block.Altair.Signature = eth2Sig
-		case spec.DataVersionBellatrix:
-			block.Bellatrix.Signature = eth2Sig
-		default:
-			return core.AggSignedData{}, errors.New("invalid block version")
-		}
-
-		return core.EncodeBlockAggSignedData(block)
-	case core.DutyExit:
-		exit, err := core.DecodeExitParSignedData(data)
-		if err != nil {
-			return core.AggSignedData{}, err
-		}
-
-		exit.Signature = eth2Sig
-
-		return core.EncodeExitAggSignedData(exit)
-	default:
-		return core.AggSignedData{}, errors.New("unsupported duty type")
-	}
-}
-
-// getSignedRoot returns the signed object root from the partial signed data.
-func getSignedRoot(typ core.DutyType, data core.ParSignedData) (eth2p0.Root, error) {
-	switch typ {
-	case core.DutyAttester:
-		att, err := core.DecodeAttestationParSignedData(data)
-		if err != nil {
-			return eth2p0.Root{}, err
-		}
-
-		b, err := att.Data.HashTreeRoot()
-		if err != nil {
-			return eth2p0.Root{}, errors.Wrap(err, "hash attestion data")
-		}
-
-		return b, nil
-	case core.DutyRandao:
-		// randao is just a signature, it doesn't have other data to check
-		return eth2p0.Root{}, nil
-	case core.DutyProposer:
-		block, err := core.DecodeBlockParSignedData(data)
-		if err != nil {
-			return eth2p0.Root{}, err
-		}
-
-		return block.Root()
-	case core.DutyExit:
-		ve, err := core.DecodeExitParSignedData(data)
-		if err != nil {
-			return eth2p0.Root{}, err
-		}
-
-		return ve.Message.HashTreeRoot()
-	default:
-		return eth2p0.Root{}, errors.New("unsupported duty type")
-	}
 }

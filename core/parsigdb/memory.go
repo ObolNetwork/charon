@@ -120,7 +120,10 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 
 	for _, s := range db.entries[k] {
 		if s.ShareIdx == value.ShareIdx {
-			if !bytes.Equal(s.Data, value.Data) {
+			equal, err := dataEqual(s, value)
+			if err != nil {
+				return nil, false, err
+			} else if !equal {
 				return nil, false, errors.New("mismatching partial signed data",
 					z.Any("pubkey", k.PubKey), z.Int("share_idx", s.ShareIdx))
 			}
@@ -132,6 +135,19 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 	db.entries[k] = append(db.entries[k], value)
 
 	return append([]core.ParSignedData(nil), db.entries[k]...), true, nil
+}
+
+func dataEqual(x, y core.ParSignedData) (bool, error) {
+	xjson, err := x.MarshalJSON()
+	if err != nil {
+		return false, errors.Wrap(err, "marshal data")
+	}
+	yjson, err := y.MarshalJSON()
+	if err != nil {
+		return false, errors.Wrap(err, "marshal data")
+	}
+
+	return bytes.Equal(xjson, yjson), nil
 }
 
 type key struct {

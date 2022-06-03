@@ -18,7 +18,6 @@ package sigagg_test
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/spec"
@@ -63,9 +62,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 		require.NoError(t, err)
 
 		att.Signature = tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
-
-		parsig, err := core.EncodeAttestationParSignedData(att, int(psig.Identifier))
-		require.NoError(t, err)
+		parsig := core.NewPartialAttestation(att, int(psig.Identifier))
 
 		psigs = append(psigs, psig)
 		parsigs = append(parsigs, parsig)
@@ -79,9 +76,9 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	agg := sigagg.New(threshold)
 
 	// Assert output
-	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.AggSignedData) error {
-		require.Equal(t, expect, aggData.Signature)
-		sig, err := tblsconv.SigFromCore(aggData.Signature)
+	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
+		require.Equal(t, expect, aggData.Signature())
+		sig, err := tblsconv.SigFromCore(aggData.Signature())
 		require.NoError(t, err)
 
 		ok, err := tbls.Verify(tss.PublicKey(), msg, sig)
@@ -120,8 +117,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 		require.NoError(t, err)
 
 		sig := tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
-
-		parsig := core.EncodeRandaoParSignedData(sig, int(psig.Identifier))
+		parsig := core.NewPartialSignature(core.SigFromETH2(sig), int(psig.Identifier))
 
 		psigs = append(psigs, psig)
 		parsigs = append(parsigs, parsig)
@@ -135,9 +131,9 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	agg := sigagg.New(threshold)
 
 	// Assert output
-	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.AggSignedData) error {
-		require.Equal(t, expect, aggData.Signature)
-		sig, err := tblsconv.SigFromCore(aggData.Signature)
+	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
+		require.Equal(t, expect, aggData.Signature())
+		sig, err := tblsconv.SigFromCore(aggData.Signature())
 		require.NoError(t, err)
 
 		ok, err := tbls.Verify(tss.PublicKey(), msg, sig)
@@ -179,17 +175,10 @@ func TestSigAgg_DutyExit(t *testing.T) {
 		require.NoError(t, err)
 
 		sig := tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
-		data, err := json.Marshal(&eth2p0.SignedVoluntaryExit{
+		parsig := core.NewPartialSignedVoluntaryExit(&eth2p0.SignedVoluntaryExit{
 			Message:   exit.Message,
 			Signature: sig,
-		})
-		require.NoError(t, err)
-
-		parsig := core.ParSignedData{
-			Data:      data,
-			Signature: core.SigFromETH2(sig),
-			ShareIdx:  int(psig.Identifier),
-		}
+		}, int(psig.Identifier))
 
 		psigs = append(psigs, psig)
 		parsigs = append(parsigs, parsig)
@@ -202,9 +191,9 @@ func TestSigAgg_DutyExit(t *testing.T) {
 	agg := sigagg.New(threshold)
 
 	// Assert output
-	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.AggSignedData) error {
-		require.Equal(t, expect, aggData.Signature)
-		sig, err := tblsconv.SigFromCore(aggData.Signature)
+	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
+		require.Equal(t, expect, aggData.Signature())
+		sig, err := tblsconv.SigFromCore(aggData.Signature())
 		require.NoError(t, err)
 
 		ok, err := tbls.Verify(tss.PublicKey(), msg, sig)
@@ -282,13 +271,19 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 				psig, err := tbls.PartialSign(secret, msg[:])
 				require.NoError(t, err)
 
-				setSigToSignedBlock(test.block, tblsconv.SigToETH2(tblsconv.SigFromPartial(psig)))
-
-				parsig, err := core.EncodeBlockParSignedData(test.block, int(psig.Identifier))
+				block, err := core.NewVersionedSignedBeaconBlock(test.block)
 				require.NoError(t, err)
 
+				sig := tblsconv.SigToCore(tblsconv.SigFromPartial(psig))
+				signed, err := block.SetSignature(sig)
+				require.NoError(t, err)
+				require.Equal(t, sig, signed.Signature())
+
 				psigs = append(psigs, psig)
-				parsigs = append(parsigs, parsig)
+				parsigs = append(parsigs, core.ParSignedData{
+					SignedData: signed,
+					ShareIdx:   int(psig.Identifier),
+				})
 			}
 
 			// Create expected aggregated signature
@@ -299,9 +294,9 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			agg := sigagg.New(threshold)
 
 			// Assert output
-			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.AggSignedData) error {
-				require.Equal(t, expect, aggData.Signature)
-				sig, err := tblsconv.SigFromCore(aggData.Signature)
+			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
+				require.Equal(t, expect, aggData.Signature())
+				sig, err := tblsconv.SigFromCore(aggData.Signature())
 				require.NoError(t, err)
 
 				ok, err := tbls.Verify(tss.PublicKey(), msg[:], sig)
@@ -315,16 +310,5 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			err = agg.Aggregate(ctx, core.Duty{Type: core.DutyProposer}, "", parsigs)
 			require.NoError(t, err)
 		})
-	}
-}
-
-func setSigToSignedBlock(block *spec.VersionedSignedBeaconBlock, sig eth2p0.BLSSignature) {
-	switch block.Version {
-	case spec.DataVersionPhase0:
-		block.Phase0.Signature = sig
-	case spec.DataVersionAltair:
-		block.Altair.Signature = sig
-	case spec.DataVersionBellatrix:
-		block.Bellatrix.Signature = sig
 	}
 }

@@ -257,7 +257,7 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 		return cluster.Lock{}, err
 	}
 
-	peerSigs, err := ex.exchange(ctx, dutyLock, sigLockHash)
+	peerSigs, err := ex.exchange(ctx, sigLock, sigLockHash)
 	if err != nil {
 		return cluster.Lock{}, err
 	}
@@ -300,12 +300,12 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 
 // signAndAggDepositData returns aggregated signatures per DV after signing, exchange and aggregation of partial signatures.
 func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, withdrawalAddr string, network string, nodeIdx cluster.NodeIdx) (map[core.PubKey]*bls_sig.Signature, error) {
-	sigDepositData, msgs, err := signDepositData(shares, nodeIdx.ShareIdx, withdrawalAddr, network)
+	parSig, msgs, err := signDepositData(shares, nodeIdx.ShareIdx, withdrawalAddr, network)
 	if err != nil {
 		return nil, err
 	}
 
-	peerSigs, err := ex.exchange(ctx, dutyDepositData, sigDepositData)
+	peerSigs, err := ex.exchange(ctx, sigDepositData, parSig)
 	if err != nil {
 		return nil, err
 	}
@@ -340,7 +340,7 @@ func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.P
 	)
 	for pk, psigs := range data {
 		for _, s := range psigs {
-			sig, err := tblsconv.SigFromCore(s.Signature)
+			sig, err := tblsconv.SigFromCore(s.Signature())
 			if err != nil {
 				return nil, nil, errors.Wrap(err, "signature from core")
 			}
@@ -400,15 +400,7 @@ func signLockHash(lock cluster.Lock, shareIdx int, shares []share) (core.ParSign
 			return nil, err
 		}
 
-		sigBytes, err := sig.MarshalBinary()
-		if err != nil {
-			return nil, errors.Wrap(err, "marshal sig")
-		}
-
-		set[pk] = core.ParSignedData{
-			Signature: sigBytes,
-			ShareIdx:  shareIdx,
-		}
+		set[pk] = core.NewPartialSignature(tblsconv.SigToCore(sig), shareIdx)
 	}
 
 	return set, nil
@@ -450,15 +442,7 @@ func signDepositData(shares []share, shareIdx int, withdrawalAddr string, networ
 			return nil, nil, err
 		}
 
-		sigBytes, err := sig.MarshalBinary()
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "marshal sig")
-		}
-
-		set[pk] = core.ParSignedData{
-			Signature: sigBytes,
-			ShareIdx:  shareIdx,
-		}
+		set[pk] = core.NewPartialSignature(tblsconv.SigToCore(sig), shareIdx)
 	}
 
 	return set, msgs, nil
@@ -471,7 +455,7 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData) (map[core.Pub
 	for pk, psigsData := range data {
 		var psigs []*bls_sig.PartialSignature
 		for _, s := range psigsData {
-			sig, err := tblsconv.SigFromCore(s.Signature)
+			sig, err := tblsconv.SigFromCore(s.Signature())
 			if err != nil {
 				return nil, errors.Wrap(err, "signature from core")
 			}

@@ -50,10 +50,7 @@ func TestExchanger(t *testing.T) {
 	for i := 0; i < dvs; i++ {
 		set := make([]core.ParSignedData, nodes)
 		for j := 0; j < nodes; j++ {
-			set[j] = core.ParSignedData{
-				Signature: testutil.RandomCoreSignature(),
-				ShareIdx:  j + 1,
-			}
+			set[j] = core.NewPartialSignature(testutil.RandomCoreSignature(), j+1)
 		}
 		expectedData[pubkeys[i]] = set
 	}
@@ -110,7 +107,7 @@ func TestExchanger(t *testing.T) {
 		go func(node int) {
 			defer wg.Done()
 
-			data, err := exchangers[node].exchange(ctx, dutyLock, dataToBeSent[node])
+			data, err := exchangers[node].exchange(ctx, sigLock, dataToBeSent[node])
 			require.NoError(t, err)
 
 			actual = append(actual, data)
