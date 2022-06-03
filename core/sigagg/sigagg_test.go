@@ -18,7 +18,6 @@ package sigagg_test
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/spec"
@@ -63,9 +62,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 		require.NoError(t, err)
 
 		att.Signature = tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
-
-		parsig, err := core.EncodeAttestationParSignedData(att, int(psig.Identifier))
-		require.NoError(t, err)
+		parsig := core.NewAttestation(att, int(psig.Identifier))
 
 		psigs = append(psigs, psig)
 		parsigs = append(parsigs, parsig)
@@ -120,8 +117,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 		require.NoError(t, err)
 
 		sig := tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
-
-		parsig := core.EncodeRandaoParSignedData(sig, int(psig.Identifier))
+		parsig := core.NewParSig(sig, int(psig.Identifier))
 
 		psigs = append(psigs, psig)
 		parsigs = append(parsigs, parsig)
@@ -179,17 +175,10 @@ func TestSigAgg_DutyExit(t *testing.T) {
 		require.NoError(t, err)
 
 		sig := tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
-		data, err := json.Marshal(&eth2p0.SignedVoluntaryExit{
+		parsig := core.NewSignedExit(&eth2p0.SignedVoluntaryExit{
 			Message:   exit.Message,
 			Signature: sig,
-		})
-		require.NoError(t, err)
-
-		parsig := core.ParSignedData{
-			Data:      data,
-			Signature: core.SigFromETH2(sig),
-			ShareIdx:  int(psig.Identifier),
-		}
+		}, int(psig.Identifier))
 
 		psigs = append(psigs, psig)
 		parsigs = append(parsigs, parsig)
@@ -284,7 +273,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 
 				setSigToSignedBlock(test.block, tblsconv.SigToETH2(tblsconv.SigFromPartial(psig)))
 
-				parsig, err := core.EncodeBlockParSignedData(test.block, int(psig.Identifier))
+				parsig, err := core.NewVersionedSignedBeaconBlock(test.block, int(psig.Identifier))
 				require.NoError(t, err)
 
 				psigs = append(psigs, psig)

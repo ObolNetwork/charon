@@ -32,14 +32,15 @@ type DutyType int
 const (
 	// DutyType enums MUST not change, it will break backwards compatibility.
 
-	DutyUnknown  DutyType = 0
-	DutyProposer DutyType = 1
-	DutyAttester DutyType = 2
-	DutyRandao   DutyType = 3
-	DutyExit     DutyType = 4
+	DutyUnknown   DutyType = 0
+	DutyProposer  DutyType = 1
+	DutyAttester  DutyType = 2
+	DutyRandao    DutyType = 3
+	DutyExit      DutyType = 4
+	DutySignature DutyType = 5
 	// Only ever append new types here...
 
-	dutySentinel DutyType = 5 // Must always be last
+	dutySentinel DutyType = 6 // Must always be last
 )
 
 func (d DutyType) Valid() bool {
@@ -48,11 +49,12 @@ func (d DutyType) Valid() bool {
 
 func (d DutyType) String() string {
 	return map[DutyType]string{
-		DutyUnknown:  "unknown",
-		DutyAttester: "attester",
-		DutyProposer: "proposer",
-		DutyRandao:   "randao",
-		DutyExit:     "exit",
+		DutyUnknown:   "unknown",
+		DutyAttester:  "attester",
+		DutyProposer:  "proposer",
+		DutyRandao:    "randao",
+		DutyExit:      "exit",
+		DutySignature: "signature",
 	}[d]
 }
 
@@ -211,13 +213,12 @@ type AttestationData struct {
 
 // ParSignedData is a partially signed duty data.
 // Partial refers to it being signed by a single share of the BLS threshold signing scheme.
-type ParSignedData struct {
-	// Data is the partially signed duty data received from VC.
-	Data []byte
-	// Signature of tbls share extracted from data.
-	Signature Signature
-	// ShareIdx of the tbls share.
-	ShareIdx int
+type ParSignedData interface {
+	Signature() Signature
+	DataRoot() (eth2p0.Root, error)
+	ShareIdx() int
+	MarshalData() ([]byte, error)
+	AggSign(Signature) (AggSignedData, error)
 }
 
 // ParSignedDataSet is a set of partially signed duty data objects, one per validator.

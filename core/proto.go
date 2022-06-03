@@ -15,7 +15,17 @@
 
 package core
 
-import pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+import (
+	"encoding/json"
+
+	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+
+	"github.com/obolnetwork/charon/app/errors"
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+)
 
 // DutyToProto returns the duty as a protobuf.
 func DutyToProto(duty Duty) *pbv1.Duty {
@@ -34,43 +44,90 @@ func DutyFromProto(duty *pbv1.Duty) Duty {
 }
 
 // ParSignedDataToProto returns the data as a protobuf.
-func ParSignedDataToProto(data ParSignedData) *pbv1.ParSignedData {
-	return &pbv1.ParSignedData{
-		Data:      data.Data,
-		Signature: data.Signature,
-		ShareIdx:  int32(data.ShareIdx),
+func ParSignedDataToProto(data ParSignedData) (*pbv1.ParSignedData, error) {
+	d, err := data.MarshalData()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal parsig data")
 	}
+
+	return &pbv1.ParSignedData{
+		Data:      d,
+		Signature: data.Signature(),
+		ShareIdx:  int32(data.ShareIdx()),
+	}, nil
 }
 
 // ParSignedDataFromProto returns the data from a protobuf.
-func ParSignedDataFromProto(data *pbv1.ParSignedData) ParSignedData {
-	return ParSignedData{
-		Data:      data.Data,
-		Signature: data.Signature,
-		ShareIdx:  int(data.ShareIdx),
+func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedData, error) {
+	switch typ {
+	case DutyAttester:
+		var a eth2p0.Attestation
+		if err := json.Unmarshal(data.Data, &a); err != nil {
+			return nil, errors.Wrap(err, "unmarshal attestation")
+		}
+
+		return NewAttestation(&a, int(data.ShareIdx)), nil
+	case DutyProposer:
+		b, err := UnmarshalVersionedSignedBeaconBlock(data.Data)
+		if err != nil {
+			return nil, err
+		}
+
+		return NewVersionedSignedBeaconBlock(b, int(data.ShareIdx))
+	case DutyExit:
+		var a eth2p0.SignedVoluntaryExit
+		if err := json.Unmarshal(data.Data, &a); err != nil {
+			return nil, errors.Wrap(err, "unmarshal attestation")
+		}
+
+		return NewSignedExit(&a, int(data.ShareIdx)), nil
+	case DutySignature:
+		return ParSig{
+			BLSSignature: Signature(data.Signature).ToETH2(),
+			shareIdx:     int(data.ShareIdx),
+		}, nil
+	case DutyRandao:
+		var a eth2p0.Epoch
+		if err := json.Unmarshal(data.Data, &a); err != nil {
+			return nil, errors.Wrap(err, "unmarshal attestation")
+		}
+
+		return NewSignedEpoch(a, Signature(data.Signature).ToETH2(), int(data.ShareIdx)), nil
+	default:
+		return nil, errors.New("unsupported duty type")
 	}
 }
 
 // ParSignedDataSetToProto returns the set as a protobuf.
-func ParSignedDataSetToProto(set ParSignedDataSet) *pbv1.ParSignedDataSet {
+func ParSignedDataSetToProto(set ParSignedDataSet) (*pbv1.ParSignedDataSet, error) {
 	inner := make(map[string]*pbv1.ParSignedData)
 	for pubkey, data := range set {
-		inner[string(pubkey)] = ParSignedDataToProto(data)
+		pb, err := ParSignedDataToProto(data)
+		if err != nil {
+			return nil, err
+		}
+		inner[string(pubkey)] = pb
 	}
 
 	return &pbv1.ParSignedDataSet{
 		Set: inner,
-	}
+	}, nil
 }
 
 // ParSignedDataSetFromProto returns the set from a protobuf.
-func ParSignedDataSetFromProto(set *pbv1.ParSignedDataSet) ParSignedDataSet {
-	resp := make(ParSignedDataSet)
+func ParSignedDataSetFromProto(typ DutyType, set *pbv1.ParSignedDataSet) (ParSignedDataSet, error) {
+	var (
+		resp = make(ParSignedDataSet)
+		err  error
+	)
 	for pubkey, data := range set.Set {
-		resp[PubKey(pubkey)] = ParSignedDataFromProto(data)
+		resp[PubKey(pubkey)], err = ParSignedDataFromProto(typ, data)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return resp
+	return resp, nil
 }
 
 // UnsignedDataSetToProto returns the set as a protobuf.
@@ -93,4 +150,35 @@ func UnsignedDataSetFromProto(set *pbv1.UnsignedDataSet) UnsignedDataSet {
 	}
 
 	return resp
+}
+
+func UnmarshalVersionedSignedBeaconBlock(b []byte) (*spec.VersionedSignedBeaconBlock, error) {
+	bellatrixBlock := new(bellatrix.SignedBeaconBlock)
+	err := bellatrixBlock.UnmarshalJSON(b)
+	if err == nil {
+		return &spec.VersionedSignedBeaconBlock{
+			Version:   spec.DataVersionBellatrix,
+			Bellatrix: bellatrixBlock,
+		}, nil
+	}
+
+	altairBlock := new(altair.SignedBeaconBlock)
+	err = altairBlock.UnmarshalJSON(b)
+	if err == nil {
+		return &spec.VersionedSignedBeaconBlock{
+			Version: spec.DataVersionAltair,
+			Altair:  altairBlock,
+		}, nil
+	}
+
+	phase0Block := new(eth2p0.SignedBeaconBlock)
+	err = phase0Block.UnmarshalJSON(b)
+	if err == nil {
+		return &spec.VersionedSignedBeaconBlock{
+			Version: spec.DataVersionPhase0,
+			Phase0:  phase0Block,
+		}, nil
+	}
+
+	return nil, errors.New("invalid block version")
 }

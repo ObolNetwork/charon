@@ -16,6 +16,8 @@
 package core_test
 
 import (
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	"google.golang.org/protobuf/proto"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -33,35 +35,59 @@ func TestDutyProto(t *testing.T) {
 	require.Equal(t, pb1, pb2)
 }
 
-func TestParSignedDataProto(t *testing.T) {
-	data1 := core.ParSignedData{
-		Data:      testutil.RandomBytes32(),
-		Signature: testutil.RandomCoreSignature(),
-		ShareIdx:  99,
-	}
-	pb1 := core.ParSignedDataToProto(data1)
-	data2 := core.ParSignedDataFromProto(pb1)
-	pb2 := core.ParSignedDataToProto(data2)
-	require.Equal(t, data1, data2)
-	require.Equal(t, pb1, pb2)
-}
-
 func TestParSignedDataSetProto(t *testing.T) {
-	set1 := core.ParSignedDataSet{
-		testutil.RandomCorePubKey(t): core.ParSignedData{
-			Data:      testutil.RandomBytes32(),
-			Signature: testutil.RandomCoreSignature(),
-			ShareIdx:  99,
+	tests := []struct {
+		Type core.DutyType
+		Set  core.ParSignedDataSet
+	}{
+		{
+			Type: core.DutyAttester,
+			Set: core.ParSignedDataSet{
+				testutil.RandomCorePubKey(t): core.NewAttestation(testutil.RandomAttestation(), 998),
+				testutil.RandomCorePubKey(t): core.NewAttestation(testutil.RandomAttestation(), 999),
+			},
 		},
-		testutil.RandomCorePubKey(t): core.ParSignedData{
-			Data:      testutil.RandomBytes32(),
-			Signature: testutil.RandomCoreSignature(),
-			ShareIdx:  123,
+		{
+			Type: core.DutySignature,
+			Set: core.ParSignedDataSet{
+				testutil.RandomCorePubKey(t): core.NewParSig(testutil.RandomEth2Signature(), 998),
+				testutil.RandomCorePubKey(t): core.NewParSig(testutil.RandomEth2Signature(), 999),
+			},
+		},
+		{
+			Type: core.DutyExit,
+			Set: core.ParSignedDataSet{
+				testutil.RandomCorePubKey(t): core.NewSignedExit(testutil.RandomExit(), 998),
+				testutil.RandomCorePubKey(t): core.NewSignedExit(testutil.RandomExit(), 998),
+			},
+		},
+		{
+			Type: core.DutyRandao,
+			Set: core.ParSignedDataSet{
+				testutil.RandomCorePubKey(t): core.NewSignedEpoch(testutil.RandomEpoch(), testutil.RandomEth2Signature(), 998),
+				testutil.RandomCorePubKey(t): core.NewSignedEpoch(testutil.RandomEpoch(), testutil.RandomEth2Signature(), 998),
+			},
 		},
 	}
-	pb1 := core.ParSignedDataSetToProto(set1)
-	set2 := core.ParSignedDataSetFromProto(pb1)
-	pb2 := core.ParSignedDataSetToProto(set2)
-	require.Equal(t, set1, set2)
-	require.Equal(t, pb1, pb2)
+	for _, test := range tests {
+		t.Run(test.Type.String(), func(t *testing.T) {
+			pb1, err := core.ParSignedDataSetToProto(test.Set)
+			require.NoError(t, err)
+			set2, err := core.ParSignedDataSetFromProto(test.Type, pb1)
+			require.NoError(t, err)
+			pb2, err := core.ParSignedDataSetToProto(set2)
+			require.NoError(t, err)
+			require.Equal(t, test.Set, set2)
+			require.Equal(t, pb1, pb2)
+
+			b, err := proto.Marshal(pb1)
+			require.NoError(t, err)
+
+			pb3 := new(pbv1.ParSignedDataSet)
+			err = proto.Unmarshal(b, pb3)
+			require.NoError(t, err)
+
+			require.True(t, proto.Equal(pb1, pb3))
+		})
+	}
 }

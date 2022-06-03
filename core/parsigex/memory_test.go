@@ -20,6 +20,7 @@ import (
 	"sort"
 	"testing"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -44,11 +45,11 @@ func TestMemEx(t *testing.T) {
 		i := i
 		ex := memExFunc()
 		ex.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-			require.NotEqual(t, i, set[pubkey].ShareIdx, "received from self")
+			require.NotEqual(t, i, set[pubkey].ShareIdx(), "received from self")
 
 			received = append(received, tuple{
 				Target: i,
-				Source: set[pubkey].ShareIdx,
+				Source: set[pubkey].ShareIdx(),
 			})
 
 			return nil
@@ -58,7 +59,7 @@ func TestMemEx(t *testing.T) {
 
 	for i := 0; i < n; i++ {
 		set := make(core.ParSignedDataSet)
-		set[pubkey] = core.ParSignedData{ShareIdx: i}
+		set[pubkey] = core.NewParSig(eth2p0.BLSSignature{}, i)
 
 		err := exes[i].Broadcast(ctx, core.Duty{}, set)
 		require.NoError(t, err)

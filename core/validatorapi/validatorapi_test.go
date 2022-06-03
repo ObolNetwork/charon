@@ -103,14 +103,14 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 		require.Equal(t, int64(slot), duty.Slot)
 
 		parSignedDataA := set[pubkeysByIdx[vIdxA]]
-		actAttA, err := core.DecodeAttestationParSignedData(parSignedDataA)
-		require.NoError(t, err)
-		require.Equal(t, attA, actAttA)
+		actAttA, ok := parSignedDataA.(core.Attestation)
+		require.True(t, ok)
+		require.Equal(t, *attA, actAttA.Attestation)
 
 		parSignedDataB := set[pubkeysByIdx[vIdxB]]
-		actAttB, err := core.DecodeAttestationParSignedData(parSignedDataB)
-		require.NoError(t, err)
-		require.Equal(t, attB, actAttB)
+		actAttB, ok := parSignedDataB.(core.Attestation)
+		require.True(t, ok)
+		require.Equal(t, *attB, actAttB.Attestation)
 
 		return nil
 	})
@@ -200,8 +200,8 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	// Collect submitted partial signature.
 	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		require.Len(t, set, 1)
-		_, err := core.DecodeAttestationParSignedData(set[corePubKey])
-		require.NoError(t, err)
+		_, ok := set[corePubKey]
+		require.True(t, ok)
 
 		return nil
 	})
@@ -329,6 +329,10 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 		vIdx = 1
 	)
 
+	slotsPerEpoch, err := eth2Svc.SlotsPerEpoch(ctx)
+	require.NoError(t, err)
+	epoch := slot / slotsPerEpoch
+
 	component, err := validatorapi.NewComponentInsecure(eth2Svc, vIdx)
 	require.NoError(t, err)
 
@@ -360,9 +364,8 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 	})
 
 	component.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		randaoEncoded := core.EncodeRandaoParSignedData(randao, vIdx)
 		require.Equal(t, set, core.ParSignedDataSet{
-			pubkey: randaoEncoded,
+			pubkey: core.NewSignedEpoch(eth2p0.Epoch(epoch), randao, vIdx),
 		})
 		require.Equal(t, duty, core.NewRandaoDuty(slot))
 
@@ -442,9 +445,9 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 
 	// Register parsigdb funcs
 	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		data, err := core.DecodeBlockParSignedData(set[corePubKey])
-		require.NoError(t, err)
-		require.Equal(t, data, signedBlock)
+		block, ok := set[corePubKey].(core.VersionedSignedBeaconBlock)
+		require.True(t, ok)
+		require.Equal(t, *signedBlock, block.VersionedSignedBeaconBlock)
 
 		return nil
 	})
@@ -512,9 +515,9 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 
 	// Register parsigdb funcs
 	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		data, err := core.DecodeBlockParSignedData(set[corePubKey])
-		require.NoError(t, err)
-		require.Equal(t, data, signedBlock)
+		block, ok := set[corePubKey].(core.VersionedSignedBeaconBlock)
+		require.True(t, ok)
+		require.Equal(t, signedBlock, block)
 
 		return nil
 	})
@@ -670,9 +673,9 @@ func TestComponent_SubmitVoluntaryExit(t *testing.T) {
 
 	// Register parsigdb funcs
 	vapi.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		signedExit2, err := core.DecodeExitParSignedData(set[corePubKey])
-		require.NoError(t, err)
-		require.Equal(t, signedExit, signedExit2)
+		signedExit2, ok := set[corePubKey].(core.SignedExit)
+		require.True(t, ok)
+		require.Equal(t, *signedExit, signedExit2.SignedVoluntaryExit)
 		cancel()
 
 		return ctx.Err()

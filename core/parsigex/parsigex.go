@@ -68,14 +68,18 @@ func (m *ParSigEx) handle(s network.Stream) {
 		return
 	}
 
-	var pb pbv1.ParSigExMsg
-	if err := proto.Unmarshal(b, &pb); err != nil {
+	pb := new(pbv1.ParSigExMsg)
+	if err := proto.Unmarshal(b, pb); err != nil {
 		log.Error(ctx, "unmarshal parsigex proto", err)
 		return
 	}
 
 	duty := core.DutyFromProto(pb.Duty)
-	set := core.ParSignedDataSetFromProto(pb.DataSet)
+	set, err := core.ParSignedDataSetFromProto(duty.Type, pb.DataSet)
+	if err != nil {
+		log.Error(ctx, "convert parsigex proto", err)
+		return
+	}
 
 	var span trace.Span
 	ctx, span = core.StartDutyTrace(ctx, duty, "core/parsigex.Handle")
@@ -93,9 +97,14 @@ func (m *ParSigEx) handle(s network.Stream) {
 func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 	ctx = log.WithTopic(ctx, "parsigex")
 
-	msg := &pbv1.ParSigExMsg{
+	pb, err := core.ParSignedDataSetToProto(set)
+	if err != nil {
+		return err
+	}
+
+	msg := pbv1.ParSigExMsg{
 		Duty:    core.DutyToProto(duty),
-		DataSet: core.ParSignedDataSetToProto(set),
+		DataSet: pb,
 	}
 
 	for i, p := range m.peers {
@@ -104,7 +113,7 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 			continue
 		}
 
-		go p2p.SendAsync(ctx, m.tcpNode, protocol, p, msg)
+		go p2p.SendAsync(ctx, m.tcpNode, protocol, p, &msg)
 	}
 
 	return nil

@@ -30,18 +30,20 @@ import (
 // to get support from parsigex and parsigdb core components. This may subject to change when DKG
 // package has its own networking and database components.
 // Values of following constants should not change as it can break backwards compatibility.
+type sigType int
+
 const (
 	// dutyLock is responsible for lock hash signed partial signatures exchange and aggregation.
-	dutyLock core.DutyType = 101
+	sigLock sigType = 101
 	// dutyDepositData is responsible for deposit data signed partial signatures exchange and aggregation.
-	dutyDepositData core.DutyType = 102
+	sigDepositData sigType = 102
 )
 
 // sigData includes the fields obtained from sigdb when threshold is reached.
 type sigData struct {
-	duty   core.DutyType
-	pubkey core.PubKey
-	psigs  []core.ParSignedData
+	sigType sigType
+	pubkey  core.PubKey
+	psigs   []core.ParSignedData
 }
 
 // exchanger is responsible for exchanging partial signatures between peers on libp2p.
@@ -71,9 +73,10 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) *ex
 
 // exchange exhanges partial signatures of lockhash/deposit-data among dkg participants and returns all the partial
 // signatures of the group according to public key of each DV.
-func (e *exchanger) exchange(ctx context.Context, duty core.DutyType, set core.ParSignedDataSet) (map[core.PubKey][]core.ParSignedData, error) {
+func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParSignedDataSet) (map[core.PubKey][]core.ParSignedData, error) {
 	// Start the process by storing current peer's ParSignedDataSet
-	err := e.sigdb.StoreInternal(ctx, core.Duty{Type: duty}, set)
+	duty := core.Duty{Type: core.DutySignature, Slot: int64(sigType)}
+	err := e.sigdb.StoreInternal(ctx, duty, set)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +87,7 @@ func (e *exchanger) exchange(ctx context.Context, duty core.DutyType, set core.P
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case peerSet := <-e.sigChan:
-			if duty != peerSet.duty {
+			if sigType != peerSet.sigType {
 				// Do nothing if duty doesn't match
 				continue
 			}
@@ -103,9 +106,9 @@ func (e *exchanger) exchange(ctx context.Context, duty core.DutyType, set core.P
 // pushPsigs is responsible for writing partial signature data to sigChan obtained from other peers.
 func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, pk core.PubKey, psigs []core.ParSignedData) error {
 	e.sigChan <- sigData{
-		duty:   duty.Type,
-		pubkey: pk,
-		psigs:  psigs,
+		sigType: sigType(duty.Slot),
+		pubkey:  pk,
+		psigs:   psigs,
 	}
 
 	return nil
