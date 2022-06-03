@@ -59,6 +59,7 @@ type Handler interface {
 	eth2client.BeaconBlockSubmitter
 	eth2client.ProposerDutiesProvider
 	eth2client.ValidatorsProvider
+	eth2client.VoluntaryExitSubmitter
 	// Above sorted alphabetically.
 }
 
@@ -111,6 +112,11 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 			Name:    "submit_block",
 			Path:    "/eth/v1/beacon/blocks",
 			Handler: submitBlock(h),
+		},
+		{
+			Name:    "submit_voluntary_exit",
+			Path:    "/eth/v1/beacon/pool/voluntary_exits",
+			Handler: submitExit(h),
 		},
 		// TODO(corver): Add more endpoints
 	}
@@ -436,6 +442,18 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 		}
 
 		return nil, errors.New("invalid block")
+	}
+}
+
+// submitExit returns a handler function for the exit submitter endpoint.
+func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, body []byte) (interface{}, error) {
+		exit := new(eth2p0.SignedVoluntaryExit)
+		if err := exit.UnmarshalJSON(body); err != nil {
+			return nil, errors.Wrap(err, "unmarshal signed voluntary exit")
+		}
+
+		return nil, p.SubmitVoluntaryExit(ctx, exit)
 	}
 }
 

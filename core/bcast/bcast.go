@@ -32,6 +32,7 @@ import (
 type eth2Provider interface {
 	eth2client.AttestationsSubmitter
 	eth2client.BeaconBlockSubmitter
+	eth2client.VoluntaryExitSubmitter
 }
 
 // New returns a new broadcaster instance.
@@ -72,6 +73,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 				z.U64("slot", uint64(att.Data.Slot)),
 				z.U64("target_epoch", uint64(att.Data.Target.Epoch)),
 				z.Hex("agg_bits", att.AggregationBits.Bytes()),
+				z.Any("pubkey", pubkey),
 			)
 		}
 
@@ -86,6 +88,24 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		if err == nil {
 			log.Info(ctx, "Block proposal successfully submitted to beacon node",
 				z.U64("slot", uint64(duty.Slot)),
+				z.Any("pubkey", pubkey),
+			)
+		}
+
+		return err
+
+	case core.DutyExit:
+		exit, err := core.DecodeExitAggSignedData(aggData)
+		if err != nil {
+			return err
+		}
+
+		err = b.eth2Cl.SubmitVoluntaryExit(ctx, exit)
+		if err == nil {
+			log.Info(ctx, "Voluntary exit successfully submitted to beacon node",
+				z.U64("epoch", uint64(exit.Message.Epoch)),
+				z.U64("validator_index", uint64(exit.Message.ValidatorIndex)),
+				z.Any("pubkey", pubkey),
 			)
 		}
 

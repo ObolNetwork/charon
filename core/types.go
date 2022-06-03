@@ -36,9 +36,10 @@ const (
 	DutyProposer DutyType = 1
 	DutyAttester DutyType = 2
 	DutyRandao   DutyType = 3
+	DutyExit     DutyType = 4
 	// Only ever append new types here...
 
-	dutySentinel DutyType = 4 // Must always be last
+	dutySentinel DutyType = 5 // Must always be last
 )
 
 func (d DutyType) Valid() bool {
@@ -51,6 +52,7 @@ func (d DutyType) String() string {
 		DutyAttester: "attester",
 		DutyProposer: "proposer",
 		DutyRandao:   "randao",
+		DutyExit:     "exit",
 	}[d]
 }
 

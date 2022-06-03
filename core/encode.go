@@ -102,6 +102,20 @@ func EncodeAttestationParSignedData(att *eth2p0.Attestation, shareIdx int) (ParS
 	}, nil
 }
 
+// EncodeExitParSignedData returns the signed voluntary exit as an encoded ParSignedData.
+func EncodeExitParSignedData(exit *eth2p0.SignedVoluntaryExit, shareIdx int) (ParSignedData, error) {
+	data, err := json.Marshal(exit)
+	if err != nil {
+		return ParSignedData{}, errors.Wrap(err, "marshal signed voluntary exit")
+	}
+
+	return ParSignedData{
+		Data:      data,
+		Signature: SigFromETH2(exit.Signature),
+		ShareIdx:  shareIdx,
+	}, nil
+}
+
 // DecodeAttestationParSignedData returns the attestation from the encoded ParSignedData.
 func DecodeAttestationParSignedData(data ParSignedData) (*eth2p0.Attestation, error) {
 	att := new(eth2p0.Attestation)
@@ -111,6 +125,17 @@ func DecodeAttestationParSignedData(data ParSignedData) (*eth2p0.Attestation, er
 	}
 
 	return att, nil
+}
+
+// DecodeExitParSignedData returns the signed voluntary exit from the encoded ParSignedData.
+func DecodeExitParSignedData(data ParSignedData) (*eth2p0.SignedVoluntaryExit, error) {
+	exit := new(eth2p0.SignedVoluntaryExit)
+	err := json.Unmarshal(data.Data, exit)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal signed voluntary exit")
+	}
+
+	return exit, nil
 }
 
 // EncodeAttestationAggSignedData returns the attestation as an encoded AggSignedData.
@@ -231,7 +256,7 @@ func DecodeBlockParSignedData(data ParSignedData) (*spec.VersionedSignedBeaconBl
 	return block, nil
 }
 
-// EncodeBlockAggSignedData returns the partially signed block data as an encoded AggSignedData.
+// EncodeBlockAggSignedData returns the aggregated signed block data as an encoded AggSignedData.
 func EncodeBlockAggSignedData(block *spec.VersionedSignedBeaconBlock) (AggSignedData, error) {
 	data, err := json.Marshal(block)
 	if err != nil {
@@ -274,4 +299,28 @@ func DecodeBlockAggSignedData(data AggSignedData) (*spec.VersionedSignedBeaconBl
 	}
 
 	return block, nil
+}
+
+// EncodeExitAggSignedData returns the aggregated signed voluntary exit from the encoded AggSignedData.
+func EncodeExitAggSignedData(exit *eth2p0.SignedVoluntaryExit) (AggSignedData, error) {
+	data, err := json.Marshal(exit)
+	if err != nil {
+		return AggSignedData{}, errors.Wrap(err, "marshal voluntary exit")
+	}
+
+	return AggSignedData{
+		Data:      data,
+		Signature: SigFromETH2(exit.Signature),
+	}, nil
+}
+
+// DecodeExitAggSignedData returns the aggregated signed voluntary exit from the encoded AggSignedData.
+func DecodeExitAggSignedData(data AggSignedData) (*eth2p0.SignedVoluntaryExit, error) {
+	var resp *eth2p0.SignedVoluntaryExit
+	err := json.Unmarshal(data.Data, &resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal voluntary exit")
+	}
+
+	return resp, nil
 }

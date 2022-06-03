@@ -376,3 +376,13 @@ func RandomUnsignedDataSet(t *testing.T) core.UnsignedDataSet {
 		RandomCorePubKey(t): unsigned,
 	}
 }
+
+func RandomExit() *eth2p0.SignedVoluntaryExit {
+	return &eth2p0.SignedVoluntaryExit{
+		Message: &eth2p0.VoluntaryExit{
+			Epoch:          RandomEpoch(),
+			ValidatorIndex: RandomVIdx(),
+		},
+		Signature: RandomEth2Signature(),
+	}
+}

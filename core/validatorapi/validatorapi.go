@@ -53,6 +53,7 @@ var dutyDomain = map[core.DutyType]signing.DomainName{
 	core.DutyAttester: signing.DomainBeaconAttester,
 	core.DutyProposer: signing.DomainBeaconProposer,
 	core.DutyRandao:   signing.DomainRandao,
+	core.DutyExit:     signing.DomainExit,
 }
 
 // PubShareFunc abstracts the mapping of validator root public key to tbls public share.
@@ -352,6 +353,84 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// SubmitVoluntaryExit receives the partially signed voluntary exit.
+func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
+	vals, err := c.Validators(ctx, "head", []eth2p0.ValidatorIndex{exit.Message.ValidatorIndex})
+	if err != nil {
+		return err
+	}
+
+	validator, ok := vals[exit.Message.ValidatorIndex]
+	if !ok {
+		return errors.New("validator not found")
+	}
+
+	eth2Pubkey, err := validator.PubKey(ctx)
+	if err != nil {
+		return err
+	}
+
+	if err := c.verifyExitSignature(ctx, exit, eth2Pubkey); err != nil {
+		return err
+	}
+
+	pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
+	if err != nil {
+		return err
+	}
+
+	parSigData, err := core.EncodeExitParSignedData(exit, c.shareIdx)
+	if err != nil {
+		return err
+	}
+
+	// Use 1st slot in exit epoch for duty.
+	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return err
+	}
+
+	// TODO(corver): The slot might be in the future or the past, we should
+	//  not use normal duty deadline logic for DutyExit.
+	duty := core.Duty{
+		Type: core.DutyExit,
+		Slot: int64(slotsPerEpoch) * int64(exit.Message.Epoch),
+	}
+
+	for _, dbFunc := range c.parSigDBFuncs {
+		err := dbFunc(ctx, duty, core.ParSignedDataSet{pubkey: parSigData})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c Component) verifyExitSignature(ctx context.Context, exit *eth2p0.SignedVoluntaryExit, pubkey eth2p0.BLSPubKey) error {
+	eth2PubShare, ok := c.getPubShareFunc(pubkey)
+	if !ok {
+		return errors.New("unknown pubkey")
+	}
+
+	pubShare, err := core.PubKeyFromBytes(eth2PubShare[:])
+	if err != nil {
+		return err
+	}
+
+	sigRoot, err := exit.Message.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	err = c.verifyParSig(ctx, core.DutyExit, exit.Message.Epoch, pubShare, sigRoot, exit.Signature)
+	if err != nil {
+		return err
 	}
 
 	return nil

@@ -148,6 +148,15 @@ func getAggSignedData(typ core.DutyType, data core.ParSignedData, aggSig *bls_si
 		}
 
 		return core.EncodeBlockAggSignedData(block)
+	case core.DutyExit:
+		exit, err := core.DecodeExitParSignedData(data)
+		if err != nil {
+			return core.AggSignedData{}, err
+		}
+
+		exit.Signature = eth2Sig
+
+		return core.EncodeExitAggSignedData(exit)
 	default:
 		return core.AggSignedData{}, errors.New("unsupported duty type")
 	}
@@ -178,6 +187,13 @@ func getSignedRoot(typ core.DutyType, data core.ParSignedData) (eth2p0.Root, err
 		}
 
 		return block.Root()
+	case core.DutyExit:
+		ve, err := core.DecodeExitParSignedData(data)
+		if err != nil {
+			return eth2p0.Root{}, err
+		}
+
+		return ve.Message.HashTreeRoot()
 	default:
 		return eth2p0.Root{}, errors.New("unsupported duty type")
 	}

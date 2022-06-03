@@ -93,6 +93,22 @@ func TestEncodeAttesterAggSignedData(t *testing.T) {
 	require.Equal(t, data1, data2)
 }
 
+func TestEncodExitAggSignedData(t *testing.T) {
+	exit1 := testutil.RandomExit()
+
+	data1, err := core.EncodeExitAggSignedData(exit1)
+	require.NoError(t, err)
+
+	exit2, err := core.DecodeExitAggSignedData(data1)
+	require.NoError(t, err)
+
+	data2, err := core.EncodeExitAggSignedData(exit2)
+	require.NoError(t, err)
+
+	require.Equal(t, exit1, exit2)
+	require.Equal(t, data1, data2)
+}
+
 func TestEncodeRandaoParSignedData(t *testing.T) {
 	randao1 := testutil.RandomEth2Signature()
 
@@ -101,6 +117,20 @@ func TestEncodeRandaoParSignedData(t *testing.T) {
 	data2 := core.EncodeRandaoParSignedData(randao2, 1)
 
 	require.Equal(t, randao1, randao2)
+	require.Equal(t, data1, data2)
+}
+
+func TestEncodeExitParSignedData(t *testing.T) {
+	exit1 := testutil.RandomExit()
+
+	data1, err := core.EncodeExitParSignedData(exit1, 1)
+	require.NoError(t, err)
+	exit2, err := core.DecodeExitParSignedData(data1)
+	require.NoError(t, err)
+	data2, err := core.EncodeExitParSignedData(exit2, 1)
+	require.NoError(t, err)
+
+	require.Equal(t, exit1, exit2)
 	require.Equal(t, data1, data2)
 }
 
