@@ -70,6 +70,7 @@ func NewForT[T any](
 }
 
 // Retryer provides execution of functions asynchronously with retry adding robustness to network errors.
+// The generic type T abstracts the deadline argument.
 type Retryer[T any] struct {
 	shutdown        chan struct{}
 	ctxTimeoutFunc  func(context.Context, T) (context.Context, context.CancelFunc)
