@@ -351,7 +351,12 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	retryer, err := retry.New(ctx, eth2Cl)
+	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	retryer, err := retry.New[core.Duty](deadlineFunc)
 	if err != nil {
 		return err
 	}

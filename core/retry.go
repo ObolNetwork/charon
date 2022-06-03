@@ -22,32 +22,32 @@ import (
 )
 
 // WithAsyncRetry wraps component input functions with the async Retryer adding robustness to network issues.
-func WithAsyncRetry(retryer *retry.Retryer) WireOption {
+func WithAsyncRetry(retryer *retry.Retryer[Duty]) WireOption {
 	return func(w *wireFuncs) {
 		clone := *w
 		w.FetcherFetch = func(ctx context.Context, duty Duty, set FetchArgSet) error {
-			go retryer.DoAsync(ctx, duty.Slot, "fetcher fetch", func(ctx context.Context) error {
+			go retryer.DoAsync(ctx, duty, "fetcher fetch", func(ctx context.Context) error {
 				return clone.FetcherFetch(ctx, duty, set)
 			})
 
 			return nil
 		}
 		w.ConsensusPropose = func(ctx context.Context, duty Duty, set UnsignedDataSet) error {
-			go retryer.DoAsync(ctx, duty.Slot, "consensus propose", func(ctx context.Context) error {
+			go retryer.DoAsync(ctx, duty, "consensus propose", func(ctx context.Context) error {
 				return clone.ConsensusPropose(ctx, duty, set)
 			})
 
 			return nil
 		}
 		w.ParSigExBroadcast = func(ctx context.Context, duty Duty, set ParSignedDataSet) error {
-			go retryer.DoAsync(ctx, duty.Slot, "parsigex broadcast", func(ctx context.Context) error {
+			go retryer.DoAsync(ctx, duty, "parsigex broadcast", func(ctx context.Context) error {
 				return clone.ParSigExBroadcast(ctx, duty, set)
 			})
 
 			return nil
 		}
 		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, key PubKey, data AggSignedData) error {
-			go retryer.DoAsync(ctx, duty.Slot, "bcast broadcast", func(ctx context.Context) error {
+			go retryer.DoAsync(ctx, duty, "bcast broadcast", func(ctx context.Context) error {
 				return clone.BroadcasterBroadcast(ctx, duty, key, data)
 			})
 

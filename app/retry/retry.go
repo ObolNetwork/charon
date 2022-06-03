@@ -13,9 +13,9 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package retry provides a generic async slot function executor with retries for robustness against network failures.
-// Functions are linked to a slot, executed asynchronously and network or context errors retried with backoff
-// until duties related to a slot have elapsed (5 slots later).
+// Package retry provides a generic async function executor with retries for robustness against network failures.
+// Functions are linked to a deadline, executed asynchronously and network or context errors retried with backoff
+// until the deadline has elapsed.
 package retry
 
 import (
@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -35,39 +34,11 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 )
 
-// lateFactor defines the number of slots duties may be late.
-// See https://pintail.xyz/posts/modelling-the-impact-of-altair/#proposer-and-delay-rewards.
-const lateFactor = 5
-
-// slotTimeProvider defines eth2client interface for resolving slot start times.
-type slotTimeProvider interface {
-	eth2client.GenesisTimeProvider
-	eth2client.SlotDurationProvider
-}
-
 // New returns a new Retryer instance.
-func New(ctx context.Context, eth2Svc eth2client.Service) (*Retryer, error) {
-	eth2Cl, ok := eth2Svc.(slotTimeProvider)
-	if !ok {
-		return nil, errors.New("invalid eth2 service")
-	}
-
-	genesis, err := eth2Cl.GenesisTime(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	duration, err := eth2Cl.SlotDuration(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+func New[T any](timeoutFunc func(T) time.Time) (*Retryer[T], error) {
 	// ctxTimeoutFunc returns a context that is cancelled when duties for a slot have elapsed.
-	ctxTimeoutFunc := func(ctx context.Context, slot int64) (context.Context, context.CancelFunc) {
-		start := genesis.Add(duration * time.Duration(slot))
-		end := start.Add(duration * time.Duration(lateFactor))
-
-		return context.WithTimeout(ctx, time.Until(end))
+	ctxTimeoutFunc := func(ctx context.Context, t T) (context.Context, context.CancelFunc) {
+		return context.WithDeadline(ctx, timeoutFunc(t))
 	}
 
 	// backoffProvider is a naive constant 1s backoff function.
@@ -78,7 +49,7 @@ func New(ctx context.Context, eth2Svc eth2client.Service) (*Retryer, error) {
 		}
 	}
 
-	return &Retryer{
+	return &Retryer[T]{
 		shutdown:        make(chan struct{}),
 		ctxTimeoutFunc:  ctxTimeoutFunc,
 		backoffProvider: backoffProvider,
@@ -86,12 +57,12 @@ func New(ctx context.Context, eth2Svc eth2client.Service) (*Retryer, error) {
 }
 
 // NewForT returns a new Retryer instance for testing supporting a custom clock.
-func NewForT(
+func NewForT[T any](
 	_ *testing.T,
-	ctxTimeoutFunc func(ctx context.Context, slot int64) (context.Context, context.CancelFunc),
+	ctxTimeoutFunc func(context.Context, T) (context.Context, context.CancelFunc),
 	backoffProvider func() func() <-chan time.Time,
-) (*Retryer, error) {
-	return &Retryer{
+) (*Retryer[T], error) {
+	return &Retryer[T]{
 		shutdown:        make(chan struct{}),
 		ctxTimeoutFunc:  ctxTimeoutFunc,
 		backoffProvider: backoffProvider,
@@ -99,9 +70,9 @@ func NewForT(
 }
 
 // Retryer provides execution of functions asynchronously with retry adding robustness to network errors.
-type Retryer struct {
+type Retryer[T any] struct {
 	shutdown        chan struct{}
-	ctxTimeoutFunc  func(ctx context.Context, slot int64) (context.Context, context.CancelFunc)
+	ctxTimeoutFunc  func(context.Context, T) (context.Context, context.CancelFunc)
 	backoffProvider func() func() <-chan time.Time
 
 	wg sync.WaitGroup
@@ -109,8 +80,8 @@ type Retryer struct {
 
 // DoAsync will execute the function including retries on network or context errors.
 // It is intended to be used asynchronously:
-//   go retryer.DoAsync(ctx, duty.Slot, "foo", fn)
-func (r *Retryer) DoAsync(parent context.Context, slot int64, name string, fn func(context.Context) error) {
+//   go retryer.DoAsync(ctx, duty, "foo", fn)
+func (r *Retryer[T]) DoAsync(parent context.Context, t T, name string, fn func(context.Context) error) {
 	if r.isShutdown() {
 		return
 	}
@@ -124,7 +95,7 @@ func (r *Retryer) DoAsync(parent context.Context, slot int64, name string, fn fu
 	ctx := log.CopyFields(context.Background(), parent)
 	ctx = log.WithTopic(ctx, "retry")
 	ctx = trace.ContextWithSpan(ctx, trace.SpanFromContext(parent))
-	ctx, cancel := r.ctxTimeoutFunc(ctx, slot)
+	ctx, cancel := r.ctxTimeoutFunc(ctx, t)
 	defer cancel()
 
 	ctx, span := tracer.Start(ctx, "app/retry.DoAsync")
@@ -169,6 +140,32 @@ func (r *Retryer) DoAsync(parent context.Context, slot int64, name string, fn fu
 	}
 }
 
+// isShutdown returns true if Shutdown has been called.
+func (r *Retryer[T]) isShutdown() bool {
+	select {
+	case <-r.shutdown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Shutdown triggers graceful shutdown and waits for all active function to complete or timeout.
+func (r *Retryer[T]) Shutdown(ctx context.Context) {
+	close(r.shutdown)
+
+	done := make(chan struct{})
+	go func() {
+		r.wg.Wait()
+		done <- struct{}{}
+	}()
+
+	select {
+	case <-ctx.Done():
+	case <-done:
+	}
+}
+
 // isTemporaryBeaconErr returns true if the error is a temporary beacon node error.
 // eth2http doesn't return structured errors or error sentinels, so this is brittle.
 func isTemporaryBeaconErr(err error) bool {
@@ -182,30 +179,4 @@ func isTemporaryBeaconErr(err error) bool {
 	// TODO(corver): Add more checks here.
 
 	return false
-}
-
-// isShutdown returns true if Shutdown has been called.
-func (r *Retryer) isShutdown() bool {
-	select {
-	case <-r.shutdown:
-		return true
-	default:
-		return false
-	}
-}
-
-// Shutdown triggers graceful shutdown and waits for all active function to complete or timeout.
-func (r *Retryer) Shutdown(ctx context.Context) {
-	close(r.shutdown)
-
-	done := make(chan struct{})
-	go func() {
-		r.wg.Wait()
-		done <- struct{}{}
-	}()
-
-	select {
-	case <-ctx.Done():
-	case <-done:
-	}
 }
