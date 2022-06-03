@@ -25,7 +25,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// DecodeAttesterFetchArg return the attester duty from the encoded FetchArg.
+// DecodeAttesterFetchArg returns the attester duty from the encoded FetchArg.
 func DecodeAttesterFetchArg(fetchArg FetchArg) (*eth2v1.AttesterDuty, error) {
 	attDuty := new(eth2v1.AttesterDuty)
 	err := json.Unmarshal(fetchArg, attDuty)
@@ -36,7 +36,7 @@ func DecodeAttesterFetchArg(fetchArg FetchArg) (*eth2v1.AttesterDuty, error) {
 	return attDuty, nil
 }
 
-// EncodeAttesterFetchArg return the attester duty as an encoded FetchArg.
+// EncodeAttesterFetchArg returns the attester duty as an encoded FetchArg.
 func EncodeAttesterFetchArg(attDuty *eth2v1.AttesterDuty) (FetchArg, error) {
 	b, err := json.Marshal(attDuty)
 	if err != nil {
@@ -46,7 +46,7 @@ func EncodeAttesterFetchArg(attDuty *eth2v1.AttesterDuty) (FetchArg, error) {
 	return b, nil
 }
 
-// DecodeProposerFetchArg return the proposer duty from the encoded FetchArg.
+// DecodeProposerFetchArg returns the proposer duty from the encoded FetchArg.
 func DecodeProposerFetchArg(fetchArg FetchArg) (*eth2v1.ProposerDuty, error) {
 	proDuty := new(eth2v1.ProposerDuty)
 	err := json.Unmarshal(fetchArg, proDuty)
@@ -57,7 +57,7 @@ func DecodeProposerFetchArg(fetchArg FetchArg) (*eth2v1.ProposerDuty, error) {
 	return proDuty, nil
 }
 
-// EncodeProposerFetchArg return the proposer duty as an encoded FetchArg.
+// EncodeProposerFetchArg returns the proposer duty as an encoded FetchArg.
 func EncodeProposerFetchArg(proDuty *eth2v1.ProposerDuty) (FetchArg, error) {
 	b, err := json.Marshal(proDuty)
 	if err != nil {
@@ -67,7 +67,7 @@ func EncodeProposerFetchArg(proDuty *eth2v1.ProposerDuty) (FetchArg, error) {
 	return b, nil
 }
 
-// DecodeAttesterUnsignedData return the attestation data from the encoded UnsignedData.
+// DecodeAttesterUnsignedData returns the attestation data from the encoded UnsignedData.
 func DecodeAttesterUnsignedData(unsignedData UnsignedData) (*AttestationData, error) {
 	attData := new(AttestationData)
 	err := json.Unmarshal(unsignedData, attData)
