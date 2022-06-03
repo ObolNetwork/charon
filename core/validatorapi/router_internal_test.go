@@ -459,22 +459,17 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit_voluntary_exit", func(t *testing.T) {
-		ve := &eth2p0.SignedVoluntaryExit{
-			Message: &eth2p0.VoluntaryExit{
-				Epoch:          10,
-				ValidatorIndex: 10,
-			},
-			Signature: testutil.RandomEth2Signature(),
-		}
+		exit1 := testutil.RandomExit()
 
 		handler := testHandler{
-			SubmitVoluntaryExitFunc: func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
+			SubmitVoluntaryExitFunc: func(ctx context.Context, exit2 *eth2p0.SignedVoluntaryExit) error {
+				require.Equal(t, *exit1, *exit2)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitVoluntaryExit(ctx, ve)
+			err := cl.SubmitVoluntaryExit(ctx, exit1)
 			require.NoError(t, err)
 		}
 

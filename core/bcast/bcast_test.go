@@ -17,7 +17,6 @@ package bcast_test
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/spec"
@@ -93,18 +92,12 @@ func TestBroadcastExit(t *testing.T) {
 	mock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	ve := testutil.RandomSignedExit()
-
-	aggDataData, err := json.Marshal(ve)
+	exit := testutil.RandomExit()
+	aggData, err := core.EncodeExitAggSignedData(exit)
 	require.NoError(t, err)
 
-	aggData := core.AggSignedData{
-		Data:      aggDataData,
-		Signature: core.SigFromETH2(ve.Signature),
-	}
-
-	mock.SubmitVoluntaryExitFunc = func(ctx context.Context, ve2 *eth2p0.SignedVoluntaryExit) error {
-		require.Equal(t, ve, ve2)
+	mock.SubmitVoluntaryExitFunc = func(ctx context.Context, exit2 *eth2p0.SignedVoluntaryExit) error {
+		require.Equal(t, *exit, *exit2)
 		cancel()
 
 		return ctx.Err()

@@ -164,9 +164,8 @@ func TestSigAgg_DutyExit(t *testing.T) {
 	tss, secrets, err := tbls.GenerateTSS(threshold, peers, rand.Reader)
 	require.NoError(t, err)
 
-	uve := testutil.RandomExit()
-
-	msg, err := uve.MarshalSSZ()
+	exit := testutil.RandomExit()
+	msg, err := exit.Message.MarshalSSZ()
 	require.NoError(t, err)
 
 	// Create partial signatures (in two formats)
@@ -175,21 +174,20 @@ func TestSigAgg_DutyExit(t *testing.T) {
 		psigs   []*bls_sig.PartialSignature
 	)
 	for _, secret := range secrets {
+		// Ignoring domain for this test
 		psig, err := tbls.PartialSign(secret, msg)
 		require.NoError(t, err)
 
 		sig := tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
-		ve := &eth2p0.SignedVoluntaryExit{
-			Message:   uve,
+		data, err := json.Marshal(&eth2p0.SignedVoluntaryExit{
+			Message:   exit.Message,
 			Signature: sig,
-		}
-
-		data, err := json.Marshal(ve)
+		})
 		require.NoError(t, err)
 
 		parsig := core.ParSignedData{
 			Data:      data,
-			Signature: core.SigFromETH2(ve.Signature),
+			Signature: core.SigFromETH2(sig),
 			ShareIdx:  int(psig.Identifier),
 		}
 

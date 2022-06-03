@@ -19,7 +19,6 @@ package bcast
 
 import (
 	"context"
-	"encoding/json"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -51,11 +50,8 @@ type Broadcaster struct {
 }
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
-func (b Broadcaster) Broadcast(
-	ctx context.Context,
-	duty core.Duty,
-	pubkey core.PubKey,
-	aggData core.AggSignedData,
+func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
+	pubkey core.PubKey, aggData core.AggSignedData,
 ) (err error) {
 	ctx = log.WithTopic(ctx, "bcast")
 	defer func() {
@@ -77,7 +73,7 @@ func (b Broadcaster) Broadcast(
 				z.U64("slot", uint64(att.Data.Slot)),
 				z.U64("target_epoch", uint64(att.Data.Target.Epoch)),
 				z.Hex("agg_bits", att.AggregationBits.Bytes()),
-				z.Any("pubkey", pubkey.String()),
+				z.Any("pubkey", pubkey),
 			)
 		}
 
@@ -97,28 +93,26 @@ func (b Broadcaster) Broadcast(
 		}
 
 		return err
-	case core.DutyRandao:
-		// Randao is an internal duty, not broadcasted to beacon chain
-		return nil
+
 	case core.DutyExit:
-		// JSON decoding from the previous component
-		ve := new(eth2p0.SignedVoluntaryExit)
-		err := json.Unmarshal(aggData.Data, ve)
+		exit, err := core.DecodeExitAggSignedData(aggData)
 		if err != nil {
-			return errors.Wrap(err, "json decoding voluntary exit")
+			return err
 		}
 
-		err = b.eth2Cl.SubmitVoluntaryExit(ctx, ve)
-
+		err = b.eth2Cl.SubmitVoluntaryExit(ctx, exit)
 		if err == nil {
 			log.Info(ctx, "Voluntary exit successfully submitted to beacon node",
-				z.U64("epoch", uint64(ve.Message.Epoch)),
-				z.U64("validator_index", uint64(ve.Message.ValidatorIndex)),
-				z.Any("pubkey", pubkey.String()),
+				z.U64("epoch", uint64(exit.Message.Epoch)),
+				z.U64("validator_index", uint64(exit.Message.ValidatorIndex)),
+				z.Any("pubkey", pubkey),
 			)
 		}
 
 		return err
+	case core.DutyRandao:
+		// Randao is an internal duty, not broadcasted to beacon chain
+		return nil
 	default:
 		return errors.New("unsupported duty type")
 	}

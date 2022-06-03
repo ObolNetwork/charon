@@ -18,7 +18,6 @@ package validatorapi
 import (
 	"context"
 	"fmt"
-	"math"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -360,14 +359,15 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 }
 
 // SubmitVoluntaryExit receives the partially signed voluntary exit.
-func (c Component) SubmitVoluntaryExit(ctx context.Context, ve *eth2p0.SignedVoluntaryExit) error {
-	vs, err := c.Validators(ctx, "head", []eth2p0.ValidatorIndex{ve.Message.ValidatorIndex})
+func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
+	vals, err := c.Validators(ctx, "head", []eth2p0.ValidatorIndex{exit.Message.ValidatorIndex})
 	if err != nil {
 		return err
 	}
-	validator, ok := vs[ve.Message.ValidatorIndex]
+
+	validator, ok := vals[exit.Message.ValidatorIndex]
 	if !ok {
-		return errors.New("cannot find validator", z.U64("validator_index", uint64(ve.Message.ValidatorIndex)))
+		return errors.New("validator not found")
 	}
 
 	eth2Pubkey, err := validator.PubKey(ctx)
@@ -375,41 +375,62 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, ve *eth2p0.SignedVol
 		return err
 	}
 
-	pubKey, err := core.PubKeyFromBytes(eth2Pubkey[:])
+	if err := c.verifyExitSignature(ctx, exit, eth2Pubkey); err != nil {
+		return err
+	}
+
+	pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
 	if err != nil {
 		return err
 	}
 
-	sigRoot, err := ve.Message.HashTreeRoot()
+	parSigData, err := core.EncodeExitParSignedData(exit, c.shareIdx)
 	if err != nil {
 		return err
 	}
 
-	err = c.verifyParSig(ctx, core.DutyExit, ve.Message.Epoch, pubKey, sigRoot, ve.Signature)
+	// Use 1st slot in exit epoch for duty.
+	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
 		return err
 	}
 
-	// Encode to json to pass to another Golang component
-	parSigData, err := core.EncodeExitParSignedData(ve, c.shareIdx)
-	if err != nil {
-		return err
-	}
-
-	parsigSet := core.ParSignedDataSet{
-		pubKey: parSigData,
-	}
-
+	// TODO(corver): The slot might be in the future or the past, we should
+	//  not use normal duty deadline logic for DutyExit.
 	duty := core.Duty{
 		Type: core.DutyExit,
-		Slot: math.MaxInt64,
+		Slot: int64(slotsPerEpoch) * int64(exit.Message.Epoch),
 	}
 
 	for _, dbFunc := range c.parSigDBFuncs {
-		err := dbFunc(ctx, duty, parsigSet)
+		err := dbFunc(ctx, duty, core.ParSignedDataSet{pubkey: parSigData})
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (c Component) verifyExitSignature(ctx context.Context, exit *eth2p0.SignedVoluntaryExit, pubkey eth2p0.BLSPubKey) error {
+	eth2PubShare, ok := c.getPubShareFunc(pubkey)
+	if !ok {
+		return errors.New("unknown pubkey")
+	}
+
+	pubShare, err := core.PubKeyFromBytes(eth2PubShare[:])
+	if err != nil {
+		return err
+	}
+
+	sigRoot, err := exit.Message.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	err = c.verifyParSig(ctx, core.DutyExit, exit.Message.Epoch, pubShare, sigRoot, exit.Signature)
+	if err != nil {
+		return err
 	}
 
 	return nil
