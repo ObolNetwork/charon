@@ -26,7 +26,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -94,18 +93,10 @@ func (m *ParSigEx) handle(s network.Stream) {
 func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 	ctx = log.WithTopic(ctx, "parsigex")
 
-	b, err := proto.Marshal(&pbv1.ParSigExMsg{
+	msg := &pbv1.ParSigExMsg{
 		Duty:    core.DutyToProto(duty),
 		DataSet: core.ParSignedDataSetToProto(set),
-	})
-	if err != nil {
-		return errors.Wrap(err, "marshal msg proto")
 	}
-
-	var (
-		errs    []error
-		success int
-	)
 
 	for i, p := range m.peers {
 		// Don't send to self
@@ -113,20 +104,7 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 			continue
 		}
 
-		err := sendData(ctx, m.tcpNode, p, b)
-		if err != nil {
-			errs = append(errs, err)
-		} else {
-			success++
-		}
-	}
-
-	if len(errs) == 0 {
-		log.Debug(ctx, "Exchange partial signature(s) success", z.Any("duty", duty))
-	} else {
-		// len(t.peers)-len(errs)-1 is total number of errors excluding broadcast to self case
-		log.Warn(ctx, "Exchange partial signature(s) with errors", errs[0], z.Int("success", success),
-			z.Int("errors", len(errs)))
+		go p2p.SendAsync(ctx, m.tcpNode, protocol, p, msg)
 	}
 
 	return nil
@@ -136,23 +114,4 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 // is received from a peer. This is not thread safe, it must be called before starting to use parsigex.
 func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
 	m.subs = append(m.subs, fn)
-}
-
-func sendData(ctx context.Context, tcpNode host.Host, p peer.ID, b []byte) error {
-	// Circuit relay connections are transient
-	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, "parsigex"), p, protocol)
-	if err != nil {
-		return errors.Wrap(err, "tcpNode stream")
-	}
-
-	_, err = s.Write(b)
-	if err != nil {
-		return errors.Wrap(err, "tcpNode write")
-	}
-
-	if err := s.Close(); err != nil {
-		return errors.Wrap(err, "tcpNode close")
-	}
-
-	return nil
 }
