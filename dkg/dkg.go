@@ -126,10 +126,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 		tp := newFrostP2P(ctx, tcpNode, peerMap, clusterID)
 
-		err := waitPeers(ctx, tcpNode, peers)
+		log.Info(ctx, "Connecting to peers...")
+
+		ctx, cancel, err := waitPeers(ctx, tcpNode, peers)
 		if err != nil {
 			return err
 		}
+		defer cancel()
 
 		log.Info(ctx, "Starting Frost DKG ceremony")
 
@@ -507,13 +510,8 @@ func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 }
 
 // waitPeers blocks until all peers are connected or the context is cancelled.
-func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) (err error) {
+func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) (context.Context, context.CancelFunc, error) {
 	ctx, cancel := context.WithCancel(ctx)
-	defer func() {
-		if err != nil {
-			cancel()
-		}
-	}()
 
 	type tuple struct {
 		Peer peer.ID
@@ -531,13 +529,22 @@ func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) (err er
 		total++
 		go func(pID peer.ID) {
 			for {
-				rtt, ok := waitConnect(ctx, tcpNode, pID)
-				if ok {
-					tuples <- tuple{Peer: pID, RTT: rtt}
+				results, rtt, ok := waitConnect(ctx, tcpNode, pID)
+				if ctx.Err() != nil {
 					return
-				} else if ctx.Err() != nil {
-					err = ctx.Err()
-					return
+				} else if !ok {
+					continue
+				}
+
+				// We are connected
+				tuples <- tuple{Peer: pID, RTT: rtt}
+
+				// Wait for disconnect and cancel the context.
+				for result := range results {
+					if result.Error != nil {
+						log.Error(ctx, "Peer connection lost", result.Error, z.Str("peer", p2p.PeerName(pID)))
+						cancel()
+					}
 				}
 			}
 		}(p.ID)
@@ -547,7 +554,7 @@ func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) (err er
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return ctx, cancel, ctx.Err()
 		case tuple := <-tuples:
 			i++
 			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", i, total),
@@ -555,29 +562,30 @@ func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) (err er
 				z.Str("rtt", tuple.RTT.String()),
 			)
 			if i == total {
-				return nil
+				return ctx, cancel, nil
 			}
 		}
 	}
 }
 
-// waitConnect blocks until a libp2p connection (ping) is established with the peer or the context is cancelled.
-func waitConnect(ctx context.Context, tcpNode host.Host, p peer.ID) (time.Duration, bool) {
+// waitConnect blocks until a libp2p connection (ping) is established returning the ping result chan, with the peer or the context is cancelled.
+func waitConnect(ctx context.Context, tcpNode host.Host, p peer.ID) (<-chan ping.Result, time.Duration, bool) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	for result := range ping.Ping(ctx, tcpNode, p) {
+	resp := ping.Ping(ctx, tcpNode, p)
+	for result := range resp {
 		if result.Error == nil {
-			return result.RTT, true
+			return resp, result.RTT, true
 		} else if ctx.Err() != nil {
-			return 0, false
+			return nil, 0, false
 		}
 
 		log.Warn(ctx, "Failed connecting to peer (will retry)", result.Error, z.Str("peer", p2p.PeerName(p)))
 		time.Sleep(time.Second * 5) // TODO(corver): Improve backoff.
 	}
 
-	return 0, false
+	return nil, 0, false
 }
 
 func forkVersionToNetwork(forkVersion string) (string, error) {
