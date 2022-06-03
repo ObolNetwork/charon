@@ -509,7 +509,8 @@ func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 	return dvs, nil
 }
 
-// waitPeers blocks until all peers are connected or the context is cancelled.
+// waitPeers blocks until all peers are connected and returns a context that is cancelled when
+// any connection is lost afterwards or when the parent context is cancelled.
 func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) (context.Context, context.CancelFunc, error) {
 	ctx, cancel := context.WithCancel(ctx)
 
