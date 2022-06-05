@@ -18,6 +18,7 @@ package validatorapi
 import (
 	"context"
 	"fmt"
+
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
@@ -30,6 +31,7 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -292,9 +294,9 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 		return nil, err
 	}
 
-	signedEpoch := core.NewSignedEpoch(epoch, randao, c.shareIdx)
+	parSig := core.NewParSig(randao, c.shareIdx)
 
-	sigRoot, err := signedEpoch.DataRoot()
+	sigRoot, err := eth2util.MerkleEpoch(epoch).HashTreeRoot()
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +309,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 
 	for _, dbFunc := range c.parSigDBFuncs {
 		parsigSet := core.ParSignedDataSet{
-			pubkey: signedEpoch,
+			pubkey: parSig,
 		}
 		err := dbFunc(ctx, core.NewRandaoDuty(int64(slot)), parsigSet)
 		if err != nil {

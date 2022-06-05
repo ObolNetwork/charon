@@ -17,7 +17,6 @@ package core
 
 import (
 	"encoding/json"
-	"github.com/obolnetwork/charon/eth2util"
 
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -30,39 +29,7 @@ var (
 	_ ParSignedData = Attestation{}
 	_ ParSignedData = ParSig{}
 	_ ParSignedData = SignedExit{}
-	_ ParSignedData = SignedEpoch{}
 )
-
-func NewSignedEpoch(epoch eth2p0.Epoch, sig eth2p0.BLSSignature, shareIdx int) SignedEpoch {
-	return SignedEpoch{Epoch: epoch, signature: sig, shareIdx: shareIdx}
-}
-
-// SignedEpoch is a signed epoch that implements ParSignedData.
-type SignedEpoch struct {
-	eth2p0.Epoch
-	signature eth2p0.BLSSignature
-	shareIdx  int
-}
-
-func (r SignedEpoch) DataRoot() (eth2p0.Root, error) {
-	return eth2util.MerkleEpoch(r.Epoch).HashTreeRoot()
-}
-
-func (r SignedEpoch) Signature() Signature {
-	return SigFromETH2(r.signature)
-}
-
-func (r SignedEpoch) ShareIdx() int {
-	return r.shareIdx
-}
-
-func (r SignedEpoch) MarshalData() ([]byte, error) {
-	return json.Marshal(r.Epoch)
-}
-
-func (SignedEpoch) AggSign(sig Signature) (AggSignedData, error) {
-	return EncodeRandaoAggSignedData(sig.ToETH2()), nil
-}
 
 func NewParSig(sig eth2p0.BLSSignature, shareIdx int) ParSig {
 	return ParSig{BLSSignature: sig, shareIdx: shareIdx}

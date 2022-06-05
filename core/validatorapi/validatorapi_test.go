@@ -329,10 +329,6 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 		vIdx = 1
 	)
 
-	slotsPerEpoch, err := eth2Svc.SlotsPerEpoch(ctx)
-	require.NoError(t, err)
-	epoch := slot / slotsPerEpoch
-
 	component, err := validatorapi.NewComponentInsecure(eth2Svc, vIdx)
 	require.NoError(t, err)
 
@@ -365,7 +361,7 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 
 	component.RegisterParSigDB(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		require.Equal(t, set, core.ParSignedDataSet{
-			pubkey: core.NewSignedEpoch(eth2p0.Epoch(epoch), randao, vIdx),
+			pubkey: core.NewParSig(randao, vIdx),
 		})
 		require.Equal(t, duty, core.NewRandaoDuty(slot))
 

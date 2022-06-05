@@ -81,18 +81,11 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedDa
 		}
 
 		return NewSignedExit(&a, int(data.ShareIdx)), nil
-	case DutySignature:
+	case DutySignature, DutyRandao:
 		return ParSig{
 			BLSSignature: Signature(data.Signature).ToETH2(),
 			shareIdx:     int(data.ShareIdx),
 		}, nil
-	case DutyRandao:
-		var a eth2p0.Epoch
-		if err := json.Unmarshal(data.Data, &a); err != nil {
-			return nil, errors.Wrap(err, "unmarshal attestation")
-		}
-
-		return NewSignedEpoch(a, Signature(data.Signature).ToETH2(), int(data.ShareIdx)), nil
 	default:
 		return nil, errors.New("unsupported duty type")
 	}

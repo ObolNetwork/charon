@@ -16,13 +16,13 @@
 package core_test
 
 import (
-	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
-	"google.golang.org/protobuf/proto"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/core"
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -59,13 +59,6 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Set: core.ParSignedDataSet{
 				testutil.RandomCorePubKey(t): core.NewSignedExit(testutil.RandomExit(), 998),
 				testutil.RandomCorePubKey(t): core.NewSignedExit(testutil.RandomExit(), 998),
-			},
-		},
-		{
-			Type: core.DutyRandao,
-			Set: core.ParSignedDataSet{
-				testutil.RandomCorePubKey(t): core.NewSignedEpoch(testutil.RandomEpoch(), testutil.RandomEth2Signature(), 998),
-				testutil.RandomCorePubKey(t): core.NewSignedEpoch(testutil.RandomEpoch(), testutil.RandomEth2Signature(), 998),
 			},
 		},
 	}
