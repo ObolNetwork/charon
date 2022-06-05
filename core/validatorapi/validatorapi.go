@@ -31,6 +31,7 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -478,7 +479,7 @@ func (c Component) verifyRandaoParSig(ctx context.Context, pubKey core.PubKey, s
 	}
 
 	// Randao signing root is the epoch.
-	sigRoot, err := MerkleEpoch(epoch).HashTreeRoot()
+	sigRoot, err := eth2util.EpochHashRoot(epoch)
 	if err != nil {
 		return err
 	}

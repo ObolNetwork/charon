@@ -37,7 +37,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/core/validatorapi"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -165,7 +165,7 @@ func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, s
 		pubkey = duty.PubKey
 
 		// create randao reveal to propose block
-		sigRoot, err := validatorapi.MerkleEpoch(epoch).HashTreeRoot()
+		sigRoot, err := eth2util.EpochHashRoot(epoch)
 		if err != nil {
 			return err
 		}
