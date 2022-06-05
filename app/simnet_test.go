@@ -282,7 +282,7 @@ func startTeku(t *testing.T, args simnetArgs, node int, tekuCmd tekuCmd) simnetA
 	require.NoError(t, err)
 
 	// Change VAPI bind address to host external IP
-	args.VAPIAddrs[node] = strings.Replace(args.VAPIAddrs[node], "127.0.0.1", "0.0.0.0", 1)
+	args.VAPIAddrs[node] = strings.Replace(args.VAPIAddrs[node], "127.0.0.1", externalIP(t), 1)
 
 	var tekuArgs []string
 	tekuArgs = append(tekuArgs, tekuCmd...)
