@@ -122,12 +122,16 @@ func hashProto(msg proto.Message) ([32]byte, error) {
 	hh := ssz.DefaultHasherPool.Get()
 	defer ssz.DefaultHasherPool.Put(hh)
 
+	index := hh.Index()
+
 	// Do deterministic marshalling.
 	b, err := proto.MarshalOptions{Deterministic: true}.Marshal(msg)
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "marshal proto")
 	}
 	hh.PutBytes(b)
+
+	hh.Merkleize(index)
 
 	hash, err := hh.HashRoot()
 	if err != nil {
