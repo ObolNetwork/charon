@@ -214,11 +214,17 @@ type AttestationData struct {
 // ParSignedData is a partially signed duty data.
 // Partial refers to it being signed by a single share of the BLS threshold signing scheme.
 type ParSignedData interface {
+	// Signature returns the partial signature.
 	Signature() Signature
+	// DataRoot returns the eth2 data root of te duty data used to create the signature.
 	DataRoot() (eth2p0.Root, error)
+	// ShareIdx returns the threshold BLS share index of the partial signature.
 	ShareIdx() int
+	// MarshalData return json marshalled duty data associated with the signature.
 	MarshalData() ([]byte, error)
-	AggSign(Signature) (AggSignedData, error)
+	// AggSign returns the aggregated signed duty data by replacing the partial signature
+	// with the provided aggregated signature.
+	AggSign(aggregate Signature) (AggSignedData, error)
 }
 
 // ParSignedDataSet is a set of partially signed duty data objects, one per validator.
