@@ -17,7 +17,6 @@ package core
 
 import (
 	"context"
-	"math"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -55,7 +54,7 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Svc eth2client.Service) (func(
 	return func(duty Duty) time.Time {
 		if duty.Type == DutyExit {
 			// Do not timeout exit duties.
-			return time.Unix(math.MaxInt64, 0)
+			return time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
 		}
 
 		start := genesis.Add(duration * time.Duration(duty.Slot))
