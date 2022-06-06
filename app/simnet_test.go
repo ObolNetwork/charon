@@ -267,7 +267,7 @@ var (
 )
 
 // startTeku starts a teku validator client for the provided node and returns updated args.
-func startTeku(t *testing.T, args simnetArgs, node int, tekuCmd tekuCmd) simnetArgs {
+func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs {
 	t.Helper()
 
 	// Configure teku as VC for node0
@@ -285,7 +285,7 @@ func startTeku(t *testing.T, args simnetArgs, node int, tekuCmd tekuCmd) simnetA
 	args.VAPIAddrs[node] = strings.Replace(args.VAPIAddrs[node], "127.0.0.1", externalIP(t), 1)
 
 	var tekuArgs []string
-	tekuArgs = append(tekuArgs, tekuCmd...)
+	tekuArgs = append(tekuArgs, cmd...)
 	tekuArgs = append(tekuArgs,
 		"--validator-keys=/keys:/keys",
 		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
