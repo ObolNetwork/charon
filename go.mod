@@ -23,7 +23,7 @@ require (
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.12.0
-	github.com/stretchr/testify v1.7.1
+	github.com/stretchr/testify v1.7.2
 	github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.2.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.32.0
 	go.opentelemetry.io/otel v1.7.0
@@ -172,6 +172,6 @@ require (
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
