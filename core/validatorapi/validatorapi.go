@@ -396,8 +396,6 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 		return err
 	}
 
-	// TODO(corver): The slot might be in the future or the past, we should
-	//  not use normal duty deadline logic for DutyExit.
 	duty := core.Duty{
 		Type: core.DutyExit,
 		Slot: int64(slotsPerEpoch) * int64(exit.Message.Epoch),

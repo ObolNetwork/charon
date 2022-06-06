@@ -25,6 +25,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/retry"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -82,7 +83,7 @@ func TestRetryer(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
-			ctxTimeoutFunc := func(ctx context.Context, slot int64) (context.Context, context.CancelFunc) {
+			ctxTimeoutFunc := func(ctx context.Context, _ core.Duty) (context.Context, context.CancelFunc) {
 				return ctx, cancel
 			}
 
@@ -102,7 +103,7 @@ func TestRetryer(t *testing.T) {
 			require.NoError(t, err)
 
 			var attempt int
-			retryer.DoAsync(ctx, 999, "test", func(ctx context.Context) error {
+			retryer.DoAsync(ctx, core.NewAttesterDuty(999), "test", func(ctx context.Context) error {
 				defer func() { attempt++ }()
 				return test.Func(ctx, attempt)
 			})
@@ -119,7 +120,10 @@ func TestShutdown(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	retryer, err := retry.New(ctx, bmock)
+	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, bmock)
+	require.NoError(t, err)
+
+	retryer, err := retry.New[core.Duty](deadlineFunc)
 	require.NoError(t, err)
 
 	const n = 3
@@ -129,7 +133,7 @@ func TestShutdown(t *testing.T) {
 
 	// Start 3 long-running functions
 	for i := 0; i < 3; i++ {
-		go retryer.DoAsync(ctx, 999999, "test", func(_ context.Context) error {
+		go retryer.DoAsync(ctx, core.NewProposerDuty(999999), "test", func(_ context.Context) error {
 			waiting <- struct{}{}
 			<-stop
 
