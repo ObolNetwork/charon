@@ -50,6 +50,9 @@ type Config struct {
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
 func Run(ctx context.Context, conf Config) (err error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	ctx = log.WithTopic(ctx, "dkg")
 	defer func() {
 		if err != nil {
@@ -128,7 +131,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 		log.Info(ctx, "Connecting to peers...")
 
-		ctx, cancel, err := waitPeers(ctx, tcpNode, peers)
+		ctx, cancel, err = waitPeers(ctx, tcpNode, peers)
 		if err != nil {
 			return err
 		}
