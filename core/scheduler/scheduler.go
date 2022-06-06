@@ -232,86 +232,100 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 		return nil
 	}
 
-	// Resolve attester duties
-	{
-		attDuties, err := s.eth2Cl.AttesterDuties(ctx, slot.Epoch(), vals.Indexes())
-		if err != nil {
-			return err
-		}
-
-		// TODO(corver): Log when duty not included for some indexes
-
-		for _, attDuty := range attDuties {
-			if attDuty.Slot < eth2p0.Slot(slot.Slot) {
-				// Skip duties for earlier slots in initial epoch.
-				continue
-			}
-
-			arg, err := core.EncodeAttesterFetchArg(attDuty)
-			if err != nil {
-				return errors.Wrap(err, "encode attester duty")
-			}
-
-			duty := core.Duty{Slot: int64(attDuty.Slot), Type: core.DutyAttester}
-
-			pubkey, ok := vals.PubKeyFromIndex(attDuty.ValidatorIndex)
-			if !ok {
-				log.Warn(ctx, "Ignoring unexpected attester duty", nil, z.U64("vidx", uint64(attDuty.ValidatorIndex)))
-				continue
-			}
-
-			if !s.setFetchArg(duty, pubkey, arg) {
-				continue
-			}
-
-			log.Info(ctx, "Resolved attester duty",
-				z.U64("epoch", uint64(slot.Epoch())),
-				z.U64("vidx", uint64(attDuty.ValidatorIndex)),
-				z.U64("slot", uint64(attDuty.Slot)),
-				z.U64("commidx", uint64(attDuty.CommitteeIndex)),
-				z.Any("pubkey", pubkey))
-		}
+	err = s.resolveAttDuties(ctx, slot, vals)
+	if err != nil {
+		return err
 	}
 
-	// resolve proposer duties
-	{
-		proDuties, err := s.eth2Cl.ProposerDuties(ctx, slot.Epoch(), vals.Indexes())
-		if err != nil {
-			return err
-		}
-
-		for _, proDuty := range proDuties {
-			if proDuty.Slot < eth2p0.Slot(slot.Slot) {
-				// Skip duties for earlier slots in initial epoch.
-				continue
-			}
-
-			arg, err := core.EncodeProposerFetchArg(proDuty)
-			if err != nil {
-				return errors.Wrap(err, "encode proposer duty")
-			}
-
-			duty := core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
-
-			pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
-			if !ok {
-				log.Warn(ctx, "Ignoring unexpected proposer duty", nil, z.U64("vidx", uint64(proDuty.ValidatorIndex)))
-				continue
-			}
-
-			if !s.setFetchArg(duty, pubkey, arg) {
-				continue
-			}
-
-			log.Info(ctx, "Resolved proposer duty",
-				z.U64("epoch", uint64(slot.Epoch())),
-				z.U64("vidx", uint64(proDuty.ValidatorIndex)),
-				z.U64("slot", uint64(proDuty.Slot)),
-				z.Any("pubkey", pubkey))
-		}
+	err = s.resolveProDuties(ctx, slot, vals)
+	if err != nil {
+		return err
 	}
 
 	s.setResolvedEpoch(uint64(slot.Epoch()))
+
+	return nil
+}
+
+// resolveAttDuties resolves attester duties for the given validators.
+func (s *Scheduler) resolveAttDuties(ctx context.Context, slot slot, vals validators) error {
+	attDuties, err := s.eth2Cl.AttesterDuties(ctx, slot.Epoch(), vals.Indexes())
+	if err != nil {
+		return err
+	}
+
+	// TODO(xenowits): Log when duty not included for some indexes
+
+	for _, attDuty := range attDuties {
+		if attDuty.Slot < eth2p0.Slot(slot.Slot) {
+			// Skip duties for earlier slots in initial epoch.
+			continue
+		}
+
+		arg, err := core.EncodeAttesterFetchArg(attDuty)
+		if err != nil {
+			return errors.Wrap(err, "encode attester duty")
+		}
+
+		duty := core.Duty{Slot: int64(attDuty.Slot), Type: core.DutyAttester}
+
+		pubkey, ok := vals.PubKeyFromIndex(attDuty.ValidatorIndex)
+		if !ok {
+			log.Warn(ctx, "Ignoring unexpected attester duty", nil, z.U64("vidx", uint64(attDuty.ValidatorIndex)))
+			continue
+		}
+
+		if !s.setFetchArg(duty, pubkey, arg) {
+			continue
+		}
+
+		log.Info(ctx, "Resolved attester duty",
+			z.U64("epoch", uint64(slot.Epoch())),
+			z.U64("vidx", uint64(attDuty.ValidatorIndex)),
+			z.U64("slot", uint64(attDuty.Slot)),
+			z.U64("commidx", uint64(attDuty.CommitteeIndex)),
+			z.Any("pubkey", pubkey))
+	}
+
+	return nil
+}
+
+// resolveProposerDuties resolves proposer duties for the given validators.
+func (s *Scheduler) resolveProDuties(ctx context.Context, slot slot, vals validators) error {
+	proDuties, err := s.eth2Cl.ProposerDuties(ctx, slot.Epoch(), vals.Indexes())
+	if err != nil {
+		return err
+	}
+
+	for _, proDuty := range proDuties {
+		if proDuty.Slot < eth2p0.Slot(slot.Slot) {
+			// Skip duties for earlier slots in initial epoch.
+			continue
+		}
+
+		arg, err := core.EncodeProposerFetchArg(proDuty)
+		if err != nil {
+			return errors.Wrap(err, "encode proposer duty")
+		}
+
+		duty := core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
+
+		pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
+		if !ok {
+			log.Warn(ctx, "Ignoring unexpected proposer duty", nil, z.U64("vidx", uint64(proDuty.ValidatorIndex)))
+			continue
+		}
+
+		if !s.setFetchArg(duty, pubkey, arg) {
+			continue
+		}
+
+		log.Info(ctx, "Resolved proposer duty",
+			z.U64("epoch", uint64(slot.Epoch())),
+			z.U64("vidx", uint64(proDuty.ValidatorIndex)),
+			z.U64("slot", uint64(proDuty.Slot)),
+			z.Any("pubkey", pubkey))
+	}
 
 	return nil
 }
