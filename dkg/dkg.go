@@ -162,6 +162,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Aggregated deposit data signatures")
 
+	// Write keystores, deposit data and cluster lock files
+
 	if err := writeKeystores(conf.DataDir, shares); err != nil {
 		return err
 	}
