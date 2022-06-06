@@ -106,7 +106,7 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 	return nil
 }
 
-// store return true if the value was added to the list of signatures at the provided key
+// store returns true if the value was added to the list of signatures at the provided key
 // and returns a copy of the resulting list.
 func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, bool) {
 	db.mu.Lock()
