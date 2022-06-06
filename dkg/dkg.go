@@ -548,8 +548,11 @@ func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) (contex
 						break
 					}
 				}
-				log.Error(ctx, "Peer connection lost", err, z.Str("peer", p2p.PeerName(pID)))
-				cancel()
+
+				if ctx.Err() == nil {
+					log.Error(ctx, "Peer connection lost", err, z.Str("peer", p2p.PeerName(pID)))
+					cancel()
+				}
 
 				return
 			}
