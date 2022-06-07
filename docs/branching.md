@@ -29,10 +29,9 @@ We follow [Trunk Based Development](https://trunkbaseddevelopment.com/) as a bra
 
 Charon is set up to create a release with Github Actions triggered by a tag. To create a new release:
 
-1. Ensure all tests are passing
-1. Do a quick smoke test by running charon-docker-compose
-1. Identify the version of the release, e.g. `v0.1.2` (note the `v`).
-1. Push a PR that bumps charon version global variable, see example https://github.com/ObolNetwork/charon/pull/312
-1. Merge above PR, checkout latest main, and tag it: `git tag <version> && git push --tags`
-1. Generate changelog: `go run testutil/genchangelog/main.go`.
-1. Edit the auto-generated release on github: `https://github.com/ObolNetwork/charon/releases/tag/<version>`
+1. Ensure the build is green and that all tests are passing
+2. Identify the version of the release, e.g. `v0.1.2` (note the `v`).
+3. Push a PR that bumps charon version global variable, see example https://github.com/ObolNetwork/charon/pull/312
+4. Merge above PR, checkout latest main, and tag it: `git tag <version> && git push --tags`
+5. Double-check the generated release and changelog: `https://github.com/ObolNetwork/charon/releases/tag/<version>`
+6. Maybe generate a changelog manually and/or update the release: `go run testutil/genchangelog/main.go`
