@@ -162,7 +162,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Aggregated deposit data signatures")
 
-	// Write keystores, deposit data and cluster lock files
+	// Write keystores, deposit data and cluster lock files after exchange of partial signatures in order
+	// to prevent partial data writes in case of peer connection lost
 
 	if err := writeKeystores(conf.DataDir, shares); err != nil {
 		return err
