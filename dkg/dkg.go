@@ -50,6 +50,9 @@ type Config struct {
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
 func Run(ctx context.Context, conf Config) (err error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	ctx = log.WithTopic(ctx, "dkg")
 	defer func() {
 		if err != nil {
@@ -128,7 +131,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 		log.Info(ctx, "Connecting to peers...")
 
-		ctx, cancel, err := waitPeers(ctx, tcpNode, peers)
+		ctx, cancel, err = waitPeers(ctx, tcpNode, peers)
 		if err != nil {
 			return err
 		}
@@ -541,12 +544,20 @@ func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) (contex
 				tuples <- tuple{Peer: pID, RTT: rtt}
 
 				// Wait for disconnect and cancel the context.
+				var err error
 				for result := range results {
 					if result.Error != nil {
-						log.Error(ctx, "Peer connection lost", result.Error, z.Str("peer", p2p.PeerName(pID)))
-						cancel()
+						err = result.Error
+						break
 					}
 				}
+
+				if ctx.Err() == nil {
+					log.Error(ctx, "Peer connection lost", err, z.Str("peer", p2p.PeerName(pID)))
+					cancel()
+				}
+
+				return
 			}
 		}(p.ID)
 	}
@@ -571,9 +582,6 @@ func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) (contex
 
 // waitConnect blocks until a libp2p connection (ping) is established returning the ping result chan, with the peer or the context is cancelled.
 func waitConnect(ctx context.Context, tcpNode host.Host, p peer.ID) (<-chan ping.Result, time.Duration, bool) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	resp := ping.Ping(ctx, tcpNode, p)
 	for result := range resp {
 		if result.Error == nil {
