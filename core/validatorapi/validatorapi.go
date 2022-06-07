@@ -361,7 +361,7 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 
 // SubmitVoluntaryExit receives the partially signed voluntary exit.
 func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
-	vals, err := c.Validators(ctx, "head", []eth2p0.ValidatorIndex{exit.Message.ValidatorIndex})
+	vals, err := c.eth2Cl.Validators(ctx, "head", []eth2p0.ValidatorIndex{exit.Message.ValidatorIndex})
 	if err != nil {
 		return err
 	}
@@ -376,12 +376,12 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 		return err
 	}
 
-	if err := c.verifyExitSignature(ctx, exit, eth2Pubkey); err != nil {
+	pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
+	if err != nil {
 		return err
 	}
 
-	pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
-	if err != nil {
+	if err := c.verifyExitSignature(ctx, exit, pubkey); err != nil {
 		return err
 	}
 
@@ -411,23 +411,13 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 	return nil
 }
 
-func (c Component) verifyExitSignature(ctx context.Context, exit *eth2p0.SignedVoluntaryExit, pubkey eth2p0.BLSPubKey) error {
-	eth2PubShare, ok := c.getPubShareFunc(pubkey)
-	if !ok {
-		return errors.New("unknown pubkey")
-	}
-
-	pubShare, err := core.PubKeyFromBytes(eth2PubShare[:])
-	if err != nil {
-		return err
-	}
-
+func (c Component) verifyExitSignature(ctx context.Context, exit *eth2p0.SignedVoluntaryExit, pubkey core.PubKey) error {
 	sigRoot, err := exit.Message.HashTreeRoot()
 	if err != nil {
 		return err
 	}
 
-	err = c.verifyParSig(ctx, core.DutyExit, exit.Message.Epoch, pubShare, sigRoot, exit.Signature)
+	err = c.verifyParSig(ctx, core.DutyExit, exit.Message.Epoch, pubkey, sigRoot, exit.Signature)
 	if err != nil {
 		return err
 	}

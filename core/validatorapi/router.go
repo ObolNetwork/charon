@@ -163,7 +163,7 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 
 		ctx := r.Context()
 		ctx = log.WithTopic(ctx, "vapi")
-		ctx = log.WithCtx(ctx, z.Str("endpoint", endpoint))
+		ctx = log.WithCtx(ctx, z.Str("vapi_endpoint", endpoint))
 		ctx = withCtxDuration(ctx)
 
 		body, err := io.ReadAll(r.Body)
@@ -503,7 +503,7 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, 
 
 	if _, err = w.Write(b); err != nil {
 		// Too late to also try to writeError at this point, so just log.
-		log.Error(ctx, "Failed writing api response", err, z.Str("endpoint", endpoint))
+		log.Error(ctx, "Failed writing api response", err, z.Str("vapi_endpoint", endpoint))
 	}
 }
 

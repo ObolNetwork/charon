@@ -56,7 +56,7 @@ func TestSimnetNoNetwork_WithAttesterTekuVC(t *testing.T) {
 	}
 
 	args := newSimnetArgs(t)
-	args = startTeku(t, args, 0)
+	args = startTeku(t, args, 0, tekuVC)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
 	testSimnet(t, args)
 }
@@ -67,8 +67,22 @@ func TestSimnetNoNetwork_WithProposerTekuVC(t *testing.T) {
 	}
 
 	args := newSimnetArgs(t)
-	args = startTeku(t, args, 0)
+	args = startTeku(t, args, 0, tekuVC)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	testSimnet(t, args)
+}
+
+func TestSimnetNoNetwork_WithExitTekuVC(t *testing.T) {
+	if !*integration {
+		t.Skip("Skipping Teku integration test")
+	}
+
+	args := newSimnetArgs(t)
+	for i := 0; i < args.N; i++ {
+		args = startTeku(t, args, i, tekuExit)
+	}
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
 	testSimnet(t, args)
 }
 
@@ -214,6 +228,10 @@ func testSimnet(t *testing.T, args simnetArgs) {
 			counts[res.Duty]++
 			if counts[res.Duty] == args.N {
 				remaining--
+
+				if res.Duty.Type == core.DutyExit {
+					remaining = 0 // DutyExit is only triggered once per node
+				}
 			}
 			if remaining != 0 {
 				continue
@@ -241,8 +259,15 @@ func testSimnet(t *testing.T, args simnetArgs) {
 	require.NoError(t, err)
 }
 
+type tekuCmd []string
+
+var (
+	tekuVC   tekuCmd = []string{"validator-client", "--network=auto"}
+	tekuExit tekuCmd = []string{"voluntary-exit", "--confirmation-enabled=false", "--epoch=1"}
+)
+
 // startTeku starts a teku validator client for the provided node and returns updated args.
-func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
+func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs {
 	t.Helper()
 
 	// Configure teku as VC for node0
@@ -259,13 +284,12 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	// Change VAPI bind address to host external IP
 	args.VAPIAddrs[node] = strings.Replace(args.VAPIAddrs[node], "127.0.0.1", externalIP(t), 1)
 
-	// Teku arguments
-	tekuArgs := []string{
-		"validator-client",
-		"--network=auto",
+	var tekuArgs []string
+	tekuArgs = append(tekuArgs, cmd...)
+	tekuArgs = append(tekuArgs,
 		"--validator-keys=/keys:/keys",
 		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
-	}
+	)
 
 	// Configure docker
 	name := fmt.Sprint(time.Now().UnixNano())

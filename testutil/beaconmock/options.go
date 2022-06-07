@@ -403,6 +403,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitBeaconBlockFunc: func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
 			return nil
 		},
+		SubmitVoluntaryExitFunc: func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
+			return nil
+		},
 		GenesisTimeFunc: func(ctx context.Context) (time.Time, error) {
 			return httpMock.GenesisTime(ctx)
 		},

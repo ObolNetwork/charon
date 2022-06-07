@@ -105,6 +105,12 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 			},
 		},
 		{
+			Path: "/eth/v1/beacon/headers/head",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(`{"data": {"header": {"message": {"slot": "1"}}}}`))
+			},
+		},
+		{
 			Path: "/eth/v1/events",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				// TODO(corver): Send keep alives

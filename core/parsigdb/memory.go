@@ -61,6 +61,8 @@ func (db *MemDB) SubscribeThreshold(fn func(context.Context, core.Duty, core.Pub
 
 // StoreInternal stores an internally received partially signed duty data set.
 func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet core.ParSignedDataSet) error {
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
 	if err := db.StoreExternal(ctx, duty, signedSet); err != nil {
 		return err
 	}
