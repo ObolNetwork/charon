@@ -35,9 +35,10 @@ import (
 
 const protocol = "/charon/parsigex/1.0.0"
 
-func NewParSigEx(tcpNode host.Host, peerIdx int, peers []peer.ID) *ParSigEx {
+func NewParSigEx(tcpNode host.Host, sender *p2p.Sender, peerIdx int, peers []peer.ID) *ParSigEx {
 	parSigEx := &ParSigEx{
 		tcpNode: tcpNode,
+		sender:  sender,
 		peerIdx: peerIdx,
 		peers:   peers,
 	}
@@ -50,6 +51,7 @@ func NewParSigEx(tcpNode host.Host, peerIdx int, peers []peer.ID) *ParSigEx {
 // It ensures that all partial signatures are persisted by all peers.
 type ParSigEx struct {
 	tcpNode host.Host
+	sender  *p2p.Sender
 	peerIdx int
 	peers   []peer.ID
 	subs    []func(context.Context, core.Duty, core.ParSignedDataSet) error
@@ -104,7 +106,7 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 			continue
 		}
 
-		go p2p.SendAsync(ctx, m.tcpNode, protocol, p, msg)
+		go m.sender.SendAsync(ctx, m.tcpNode, protocol, p, msg)
 	}
 
 	return nil

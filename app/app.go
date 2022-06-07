@@ -312,6 +312,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
+	sender := new(p2p.Sender)
+
 	sched, err := scheduler.New(corePubkeys, eth2Cl)
 	if err != nil {
 		return err
@@ -339,7 +341,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if conf.TestConfig.ParSigExFunc != nil {
 		parSigEx = conf.TestConfig.ParSigExFunc()
 	} else {
-		parSigEx = parsigex.NewParSigEx(tcpNode, nodeIdx.PeerIdx, peerIDs)
+		parSigEx = parsigex.NewParSigEx(tcpNode, sender, nodeIdx.PeerIdx, peerIDs)
 	}
 
 	sigAgg := sigagg.New(lock.Threshold)
