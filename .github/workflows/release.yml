@@ -8,31 +8,11 @@ jobs:
     runs-on: ubuntu-latest
     name: Publish Release
     steps:
-
-    # Wait for docker build to complete since we need pegged cli-reference.
-    - uses: fountainhead/action-wait-for-check@v1.0.0
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        checkName: Build Docker Image
-
     - uses: actions/checkout@v2
-
-    - id: get-tag
-      run: |
-        tag=$(echo "${{ github.ref }}" | cut -d / -f 3)
-        echo "::set-output name=tag::$tag"
-
-    - run: docker run ghcr.io/obolnetwork/charon:${{steps.get-tag.outputs.tag}} run --help > cli-reference.txt
-
-    - run: cat cli-reference.txt
-
+    - run: go run . --help > cli-reference.txt
+    - run: go run testutil/genchangelog/main.go
     - uses: softprops/action-gh-release@v1
       with:
         files: cli-reference.txt
-        body: |
-          ![Obol Logo](https://obol.tech/obolnetwork.png)
-
-          Charon client version `${{steps.get-tag.outputs.tag}}`.
-
-          ###### This software is in beta, use with caution
+        body_path: changelog.md
         token: ${{ secrets.RELEASE_SECRET }}
