@@ -78,23 +78,13 @@ func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet co
 
 // StoreExternal stores an externally received partially signed duty data set.
 func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet core.ParSignedDataSet) error {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
 	for pubkey, sig := range signedSet {
-		k := key{Duty: duty, PubKey: pubkey}
-		sigs := db.entries[k]
+		sigs, ok := db.store(key{Duty: duty, PubKey: pubkey}, sig)
+		if !ok {
+			log.Debug(ctx, "Not storing duplicate partial signed data", z.Any("duty", duty),
+				z.Any("pubkey", pubkey))
 
-		var exists bool
-		for _, s := range sigs {
-			if s.ShareIdx == sig.ShareIdx {
-				exists = true
-				break
-			}
-		}
-		if !exists {
-			sigs = append(sigs, sig)
-			db.entries[k] = sigs
+			continue
 		}
 
 		log.Debug(ctx, "Stored partial signed data", z.Any("duty", duty),
@@ -114,6 +104,24 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 	}
 
 	return nil
+}
+
+// store returns true if the value was added to the list of signatures at the provided key
+// and returns a copy of the resulting list.
+func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, bool) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	for _, s := range db.entries[k] {
+		if s.ShareIdx == value.ShareIdx {
+			// TODO(corver): Error if mismatching existing data.
+			return nil, false
+		}
+	}
+
+	db.entries[k] = append(db.entries[k], value)
+
+	return append([]core.ParSignedData(nil), db.entries[k]...), true
 }
 
 type key struct {
