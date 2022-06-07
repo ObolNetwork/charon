@@ -121,10 +121,7 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 
 	db.entries[k] = append(db.entries[k], value)
 
-	var clone []core.ParSignedData
-	copy(clone, db.entries[k])
-
-	return clone, true
+	return append([]core.ParSignedData(nil), db.entries[k]...), true
 }
 
 type key struct {
