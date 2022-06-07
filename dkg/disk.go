@@ -17,6 +17,7 @@ package dkg
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 
@@ -112,9 +113,31 @@ func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr
 
 	// Write it to disk
 	depositPath := path.Join(dataDir, "deposit-data.json")
-	err = os.WriteFile(depositPath, bytes, 0o400) // read-only
+	err = os.WriteFile(depositPath, bytes, 0o444) // read-only
 	if err != nil {
 		return errors.Wrap(err, "write deposit data")
+	}
+
+	return nil
+}
+
+// fileExists returns error if keystores, cluster-lock and deposit-data already exists in given dataDir.
+func fileExists(dataDir string, vals int) error {
+	for i := 0; i < vals; i++ {
+		_, err := os.Stat(path.Join(dataDir, fmt.Sprintf("keystore-%d.json", i)))
+		if err == nil {
+			return errors.Wrap(err, fmt.Sprintf("keystore-%d.json already exists", i))
+		}
+	}
+
+	_, err := os.Stat(path.Join(dataDir, "cluster-lock.json"))
+	if err == nil {
+		return errors.Wrap(err, fmt.Sprintf("cluster-lock.json already exists"))
+	}
+
+	_, err = os.Stat(path.Join(dataDir, "deposit-data.json"))
+	if err == nil {
+		return errors.Wrap(err, fmt.Sprintf("deposit-data.json already exists"))
 	}
 
 	return nil

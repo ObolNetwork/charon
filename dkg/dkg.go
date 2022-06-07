@@ -69,6 +69,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	err = fileExists(conf.DataDir, def.NumValidators)
+	if err != nil {
+		return err
+	}
+
 	network, err := forkVersionToNetwork(def.ForkVersion)
 	if err != nil {
 		return err
