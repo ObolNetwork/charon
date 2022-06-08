@@ -23,6 +23,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
@@ -33,16 +34,19 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const protocol = "/charon/parsigex/1.0.0"
+const protocolID = "/charon/parsigex/1.0.0"
 
-func NewParSigEx(tcpNode host.Host, sender *p2p.Sender, peerIdx int, peers []peer.ID) *ParSigEx {
+// SendFunc is the function responsible for sending libp2p messages.
+type SendFunc func(context.Context, host.Host, protocol.ID, peer.ID, proto.Message) error
+
+func NewParSigEx(tcpNode host.Host, sendFunc SendFunc, peerIdx int, peers []peer.ID) *ParSigEx {
 	parSigEx := &ParSigEx{
-		tcpNode: tcpNode,
-		sender:  sender,
-		peerIdx: peerIdx,
-		peers:   peers,
+		tcpNode:  tcpNode,
+		sendFunc: sendFunc,
+		peerIdx:  peerIdx,
+		peers:    peers,
 	}
-	parSigEx.tcpNode.SetStreamHandler(protocol, parSigEx.handle)
+	parSigEx.tcpNode.SetStreamHandler(protocolID, parSigEx.handle)
 
 	return parSigEx
 }
@@ -50,11 +54,11 @@ func NewParSigEx(tcpNode host.Host, sender *p2p.Sender, peerIdx int, peers []pee
 // ParSigEx exchanges partially signed duty data sets.
 // It ensures that all partial signatures are persisted by all peers.
 type ParSigEx struct {
-	tcpNode host.Host
-	sender  *p2p.Sender
-	peerIdx int
-	peers   []peer.ID
-	subs    []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	tcpNode  host.Host
+	sendFunc SendFunc
+	peerIdx  int
+	peers    []peer.ID
+	subs     []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
 func (m *ParSigEx) handle(s network.Stream) {
@@ -106,7 +110,9 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 			continue
 		}
 
-		go m.sender.SendAsync(ctx, m.tcpNode, protocol, p, msg)
+		if err := m.sendFunc(ctx, m.tcpNode, protocolID, p, msg); err != nil {
+			return err
+		}
 	}
 
 	return nil

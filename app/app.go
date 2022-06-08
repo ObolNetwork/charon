@@ -341,7 +341,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if conf.TestConfig.ParSigExFunc != nil {
 		parSigEx = conf.TestConfig.ParSigExFunc()
 	} else {
-		parSigEx = parsigex.NewParSigEx(tcpNode, sender, nodeIdx.PeerIdx, peerIDs)
+		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs)
 	}
 
 	sigAgg := sigagg.New(lock.Threshold)
@@ -363,7 +363,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	cons, startCons, err := newConsensus(conf, lock, tcpNode, p2pKey, nodeIdx)
+	cons, startCons, err := newConsensus(conf, lock, tcpNode, p2pKey, sender, nodeIdx)
 	if err != nil {
 		return err
 	}
@@ -427,7 +427,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, pu
 
 // newConsensus returns a new consensus component and its start lifecycle hook.
 func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
-	nodeIdx cluster.NodeIdx,
+	sender *p2p.Sender, nodeIdx cluster.NodeIdx,
 ) (core.Consensus, lifecycle.IHookFunc, error) {
 	peers, err := lock.Peers()
 	if err != nil {
@@ -439,7 +439,7 @@ func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *ecd
 	}
 
 	if featureset.Enabled(featureset.QBFTConsensus) {
-		comp, err := consensus.New(tcpNode, peers, p2pKey)
+		comp, err := consensus.New(tcpNode, sender, peers, p2pKey)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -451,6 +451,7 @@ func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *ecd
 	if conf.TestConfig.LcastTransportFunc != nil {
 		lcastTransport = conf.TestConfig.LcastTransportFunc()
 	} else {
+		// TODO(corver): Either deprecate leadercast or refactor it to use p2p.Sender (and protobufs).
 		lcastTransport = leadercast.NewP2PTransport(tcpNode, nodeIdx.PeerIdx, peerIDs)
 	}
 

@@ -40,6 +40,9 @@ type peerState struct {
 	buffer  []error
 }
 
+// Sender provides an API for sending libp2p messages, both synchronous and asynchronous.
+// It also provides log filtering for async sending, mitigating
+// error storms when peers are down.
 type Sender struct {
 	states sync.Map // map[peer.ID]peerState
 }
@@ -84,14 +87,18 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 	s.states.Store(peerID, state) // Note there is a race if two results for the same peer is added at the same time, but this isn't critical.
 }
 
-// SendAsync sends a libp2p message and logs a warning on error.
-//   Usage: go p2p.SendAsync(ctx, tcpNode, protoId, peerId, msg)
-func (s *Sender) SendAsync(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) {
-	err := sendMsg(ctx, tcpNode, protoID, peerID, msg)
-	s.addResult(ctx, peerID, err)
+// SendAsync returns nil sends a libp2p message asynchronously. It logs results on state change (success to/from failure).
+func (s *Sender) SendAsync(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
+	go func() {
+		err := s.Send(ctx, tcpNode, protoID, peerID, msg)
+		s.addResult(ctx, peerID, err)
+	}()
+
+	return nil
 }
 
-func sendMsg(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
+// Send sends a libp2p message synchronously.
+func (*Sender) Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
 	b, err := proto.Marshal(msg)
 	if err != nil {
 		return errors.Wrap(err, "marshal proto")

@@ -20,11 +20,6 @@ import (
 	"crypto/ecdsa"
 	"sync"
 
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"google.golang.org/protobuf/proto"
-
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
@@ -115,9 +110,9 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 			continue
 		}
 
-		err := send(ctx, t.component.tcpNode, p.ID, msg.ToConsensusMsg())
+		err = t.component.sender.SendAsync(ctx, t.component.tcpNode, protocolID, p.ID, msg.ToConsensusMsg())
 		if err != nil {
-			log.Warn(ctx, "Failed sending message", err)
+			return err
 		}
 	}
 
@@ -184,26 +179,5 @@ func createMsg(typ qbft.MsgType, duty core.Duty,
 // validateMsg returns an error if the message is invalid.
 func validateMsg(_ msg) error {
 	// TODO(corver): implement (incl signature verification).
-	return nil
-}
-
-// send sends the protobuf message to the peer.
-func send(ctx context.Context, tcpNode host.Host, id peer.ID, pb proto.Message) error {
-	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, "qbft"), id, protocolID)
-	if err != nil {
-		return errors.Wrap(err, "new stream")
-	}
-	defer s.Close()
-
-	b, err := proto.Marshal(pb)
-	if err != nil {
-		return errors.Wrap(err, "marshal protobuf")
-	}
-
-	_, err = s.Write(b)
-	if err != nil {
-		return errors.Wrap(err, "write protobuf")
-	}
-
 	return nil
 }
