@@ -56,7 +56,7 @@ func StoreKeys(secrets []*bls_sig.SecretKey, dir string) error {
 		}
 
 		filename := path.Join(dir, fmt.Sprintf("keystore-%d.json", i))
-		if err := os.WriteFile(filename, b, 0o400); err != nil {
+		if err := os.WriteFile(filename, b, 0o444); err != nil {
 			return errors.Wrap(err, "write keystore")
 		}
 

@@ -30,6 +30,8 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
@@ -40,6 +42,7 @@ import (
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -237,6 +240,15 @@ func RandomRoot() eth2p0.Root {
 	_, _ = rand.Read(resp[:])
 
 	return resp
+}
+
+func RandomBLSSignature() (*bls_sig.Signature, error) {
+	g2, err := new(bls12381.G2).Random(crand.Reader)
+	if err != nil {
+		return nil, errors.Wrap(err, "random point in g2")
+	}
+
+	return &bls_sig.Signature{Value: *g2}, nil
 }
 
 func RandomEth2Signature() eth2p0.BLSSignature {
