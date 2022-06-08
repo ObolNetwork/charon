@@ -133,7 +133,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 		tp := newFrostP2P(ctx, tcpNode, peerMap, clusterID)
 
-		log.Info(ctx, "Connecting to peers...")
+		log.Info(ctx, "Connecting to peers...", z.Hex("definition_hash", defHash[:]))
 
 		ctx, cancel, err = waitPeers(ctx, tcpNode, peers)
 		if err != nil {
