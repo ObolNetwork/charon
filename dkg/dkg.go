@@ -570,6 +570,8 @@ func waitPeers(ctx context.Context, tcpNode host.Host, peers []p2p.Peer) (contex
 		select {
 		case <-ctx.Done():
 			return ctx, cancel, ctx.Err()
+		case <-time.After(time.Second * 30):
+			log.Info(ctx, fmt.Sprintf("Connected to %d of %d peers", i, total))
 		case tuple := <-tuples:
 			i++
 			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", i, total),
@@ -593,7 +595,7 @@ func waitConnect(ctx context.Context, tcpNode host.Host, p peer.ID) (<-chan ping
 			return nil, 0, false
 		}
 
-		log.Warn(ctx, "Failed connecting to peer (will retry)", result.Error, z.Str("peer", p2p.PeerName(p)))
+		log.Debug(ctx, "Failed connecting to peer (will retry)", z.Str("peer", p2p.PeerName(p)), z.Err(result.Error))
 		time.Sleep(time.Second * 5) // TODO(corver): Improve backoff.
 	}
 
