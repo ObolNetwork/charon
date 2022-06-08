@@ -595,6 +595,7 @@ func waitConnect(ctx context.Context, tcpNode host.Host, p peer.ID) (<-chan ping
 			return nil, 0, false
 		}
 
+		log.Debug(ctx, "Failed connecting to peer (will retry)", z.Str("peer", p2p.PeerName(p)), z.Err(result.Error))
 		time.Sleep(time.Second * 5) // TODO(corver): Improve backoff.
 	}
 
