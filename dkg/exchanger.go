@@ -24,6 +24,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/parsigdb"
 	"github.com/obolnetwork/charon/core/parsigex"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 // Note: Following duty types shouldn't be confused with the duty types in core workflow. This was
@@ -56,7 +57,7 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) *ex
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:   parsigdb.NewMemDB(len(peers)),
-		sigex:   parsigex.NewParSigEx(tcpNode, peerIdx, peers),
+		sigex:   parsigex.NewParSigEx(tcpNode, new(p2p.Sender).Send, peerIdx, peers),
 		sigChan: make(chan sigData, len(peers)),
 		numVals: vals,
 	}

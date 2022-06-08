@@ -43,7 +43,7 @@ const (
 )
 
 // New returns a new consensus QBFT component.
-func New(tcpNode host.Host, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey) (*Component, error) {
+func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*ecdsa.PublicKey)
 	for i, p := range peers {
@@ -57,6 +57,7 @@ func New(tcpNode host.Host, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey) (*Compon
 
 	c := &Component{
 		tcpNode:     tcpNode,
+		sender:      sender,
 		peers:       peers,
 		privkey:     p2pKey,
 		pubkeys:     keys,
@@ -108,6 +109,7 @@ func New(tcpNode host.Host, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey) (*Compon
 type Component struct {
 	// Immutable state
 	tcpNode host.Host
+	sender  *p2p.Sender
 	peers   []p2p.Peer
 	pubkeys map[int64]*ecdsa.PublicKey
 	privkey *ecdsa.PrivateKey

@@ -27,6 +27,7 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/parsigex"
+	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -77,7 +78,7 @@ func TestParSigEx(t *testing.T) {
 
 	// create ParSigEx components for each host
 	for i := 0; i < n; i++ {
-		sigex := parsigex.NewParSigEx(hosts[i], i, peers)
+		sigex := parsigex.NewParSigEx(hosts[i], new(p2p.Sender).Send, i, peers)
 		sigex.Subscribe(func(_ context.Context, d core.Duty, set core.ParSignedDataSet) error {
 			require.Equal(t, duty, d)
 			require.Equal(t, data, set)

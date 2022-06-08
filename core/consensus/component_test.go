@@ -87,7 +87,7 @@ func TestComponent(t *testing.T) {
 			hosts[i].Peerstore().AddAddrs(hostsInfo[j].ID, hostsInfo[j].Addrs, peerstore.PermanentAddrTTL)
 		}
 
-		c, err := consensus.New(hosts[i], peers, p2pkeys[i])
+		c, err := consensus.New(hosts[i], new(p2p.Sender), peers, p2pkeys[i])
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set
