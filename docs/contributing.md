@@ -125,6 +125,10 @@ The **linter** used is [golangci-lint](https://golangci-lint.run/). It runs as p
 
 Different **dev tools** are used in throughout the code base and are defined and installed from [tools.go](../tools.go). To install the dev tools run: `go generate tools.go`
 
+## Code Review
+We tend to closely follow the following code review structure:
+<div><img src="./images/code_review_pyramid.svg" /></div>
+
 ## Anything missing?
 
 This is a living document. Feel free to improve the contribution guide.
