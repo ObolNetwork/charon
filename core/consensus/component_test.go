@@ -98,7 +98,7 @@ func TestComponent(t *testing.T) {
 		components = append(components, c)
 	}
 
-	pubkey := testutil.RandomCorePubKey(t)
+	pubkey := testutil.RandomCorePubKeyT(t)
 
 	// Start all components.
 	for i, c := range components {

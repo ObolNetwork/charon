@@ -57,8 +57,8 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 	)
 
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
-		vIdxA: testutil.RandomCorePubKey(t),
-		vIdxB: testutil.RandomCorePubKey(t),
+		vIdxA: testutil.RandomCorePubKeyT(t),
+		vIdxB: testutil.RandomCorePubKeyT(t),
 	}
 
 	component, err := validatorapi.NewComponentInsecure(eth2Svc, 0)
@@ -527,7 +527,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 	ctx := context.Background()
 
 	// Create keys (just use normal keys, not split tbls)
-	pubkey := testutil.RandomCorePubKey(t)
+	pubkey := testutil.RandomCorePubKeyT(t)
 
 	// Convert pubkey
 	pk, err := tblsconv.KeyFromCore(pubkey)

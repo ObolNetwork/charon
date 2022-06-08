@@ -33,7 +33,7 @@ func TestMemEx(t *testing.T) {
 	const n = 3
 
 	ctx := context.Background()
-	pubkey := testutil.RandomCorePubKey(t)
+	pubkey := testutil.RandomCorePubKeyT(t)
 
 	memExFunc := parsigex.NewMemExFunc()
 

@@ -69,8 +69,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	err = fileExists(conf.DataDir, def.NumValidators)
-	if err != nil {
+	if err = checkWrites(conf.DataDir, def); err != nil {
 		return err
 	}
 

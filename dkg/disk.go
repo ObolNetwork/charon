@@ -16,6 +16,7 @@
 package dkg
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -29,7 +30,9 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
+	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 // loadDefinition returns the cluster definition from disk (or the test definition if configured).
@@ -121,23 +124,67 @@ func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr
 	return nil
 }
 
-// fileExists returns error if keystores, cluster-lock and deposit-data already exists in given dataDir.
-func fileExists(dataDir string, vals int) error {
-	for i := 0; i < vals; i++ {
-		_, err := os.Stat(path.Join(dataDir, fmt.Sprintf("keystore-%d.json", i)))
-		if err == nil {
-			return errors.Wrap(err, fmt.Sprintf("keystore-%d.json already exists", i))
+// checkWrites writes sample files to check disk writes and removes sample files after verification.
+func checkWrites(dataDir string, def cluster.Definition) error {
+	sigs := make(map[core.PubKey]*bls_sig.Signature)
+	for i := 0; i < def.NumValidators; i++ {
+		pk, err := testutil.RandomCorePubKey()
+		if err != nil {
+			return err
+		}
+
+		sig, err := testutil.RandomBLSSignature()
+		if err != nil {
+			return err
+		}
+
+		sigs[pk] = sig
+	}
+
+	if err := writeDepositData(sigs, "0x0000000000000000000000000000000000000000", "prater", dataDir); err != nil {
+		return err
+	}
+
+	var shares []share
+	for i := 0; i < def.NumValidators; i++ {
+		tss, sks, err := tbls.GenerateTSS(def.Threshold, len(def.Operators), rand.Reader)
+		if err != nil {
+			return err
+		}
+
+		shares = append(shares, share{
+			PubKey:       tss.PublicKey(),
+			SecretShare:  sks[0],
+			PublicShares: tss.PublicShares(),
+		})
+	}
+
+	if err := writeKeystores(dataDir, shares); err != nil {
+		return err
+	}
+
+	lock := cluster.Lock{Definition: def}
+	if err := writeLock(dataDir, lock); err != nil {
+		return err
+	}
+
+	// Cleanup sample files
+	if err := os.Remove(path.Join(dataDir, "deposit-data.json")); err != nil {
+		return errors.Wrap(err, "remove sample deposit-data.json")
+	}
+
+	for i := 0; i < def.NumValidators; i++ {
+		if err := os.Remove(path.Join(dataDir, fmt.Sprintf("keystore-%d.json", i))); err != nil {
+			return errors.Wrap(err, fmt.Sprintf("remove sample keystore-%d.json", i))
+		}
+
+		if err := os.Remove(path.Join(dataDir, fmt.Sprintf("keystore-%d.txt", i))); err != nil {
+			return errors.Wrap(err, fmt.Sprintf("remove sample keystore-%d.txt", i))
 		}
 	}
 
-	_, err := os.Stat(path.Join(dataDir, "cluster-lock.json"))
-	if err == nil {
-		return errors.Wrap(err, fmt.Sprintf("cluster-lock.json already exists"))
-	}
-
-	_, err = os.Stat(path.Join(dataDir, "deposit-data.json"))
-	if err == nil {
-		return errors.Wrap(err, fmt.Sprintf("deposit-data.json already exists"))
+	if err := os.Remove(path.Join(dataDir, "cluster-lock.json")); err != nil {
+		return errors.Wrap(err, "remove sample cluster-lock.json")
 	}
 
 	return nil
