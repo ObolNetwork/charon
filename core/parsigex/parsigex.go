@@ -23,7 +23,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/protocol"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
@@ -36,10 +35,7 @@ import (
 
 const protocolID = "/charon/parsigex/1.0.0"
 
-// SendFunc is the function responsible for sending libp2p messages.
-type SendFunc func(context.Context, host.Host, protocol.ID, peer.ID, proto.Message) error
-
-func NewParSigEx(tcpNode host.Host, sendFunc SendFunc, peerIdx int, peers []peer.ID) *ParSigEx {
+func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID) *ParSigEx {
 	parSigEx := &ParSigEx{
 		tcpNode:  tcpNode,
 		sendFunc: sendFunc,
@@ -55,7 +51,7 @@ func NewParSigEx(tcpNode host.Host, sendFunc SendFunc, peerIdx int, peers []peer
 // It ensures that all partial signatures are persisted by all peers.
 type ParSigEx struct {
 	tcpNode  host.Host
-	sendFunc SendFunc
+	sendFunc p2p.SendFunc
 	peerIdx  int
 	peers    []peer.ID
 	subs     []func(context.Context, core.Duty, core.ParSignedDataSet) error

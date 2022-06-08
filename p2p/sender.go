@@ -35,6 +35,14 @@ const (
 	senderBuffer     = senderHysteresis + 1
 )
 
+// SendFunc is an abstract function responsible for sending libp2p messages.
+type SendFunc func(context.Context, host.Host, protocol.ID, peer.ID, proto.Message) error
+
+var (
+	_ SendFunc = new(Sender).Send
+	_ SendFunc = new(Sender).SendAsync
+)
+
 type peerState struct {
 	failing bool
 	buffer  []error
