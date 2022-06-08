@@ -153,7 +153,7 @@ func checkWrites(dataDir string, def cluster.Definition) error {
 		sigs[pk] = sig
 	}
 
-	if err := writeDepositData(sigs, "0x0000000000000000000000000000000000000000", "prater", dataDir); err != nil {
+	if err := writeDepositData(sigs, testutil.RandomETHAddress(), "prater", dataDir); err != nil {
 		return err
 	}
 
