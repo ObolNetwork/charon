@@ -48,12 +48,12 @@ func TestParSignedDataProto(t *testing.T) {
 
 func TestParSignedDataSetProto(t *testing.T) {
 	set1 := core.ParSignedDataSet{
-		testutil.RandomCorePubKeyT(t): core.ParSignedData{
+		testutil.RandomCorePubKey(t): core.ParSignedData{
 			Data:      testutil.RandomBytes32(),
 			Signature: testutil.RandomCoreSignature(),
 			ShareIdx:  99,
 		},
-		testutil.RandomCorePubKeyT(t): core.ParSignedData{
+		testutil.RandomCorePubKey(t): core.ParSignedData{
 			Data:      testutil.RandomBytes32(),
 			Signature: testutil.RandomCoreSignature(),
 			ShareIdx:  123,

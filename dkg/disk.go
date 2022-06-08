@@ -126,9 +126,21 @@ func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr
 
 // checkWrites writes sample files to check disk writes and removes sample files after verification.
 func checkWrites(dataDir string, def cluster.Definition) error {
+	var shares []share
 	sigs := make(map[core.PubKey]*bls_sig.Signature)
 	for i := 0; i < def.NumValidators; i++ {
-		pk, err := testutil.RandomCorePubKey()
+		tss, sks, err := tbls.GenerateTSS(def.Threshold, len(def.Operators), rand.Reader)
+		if err != nil {
+			return err
+		}
+
+		shares = append(shares, share{
+			PubKey:       tss.PublicKey(),
+			SecretShare:  sks[0],
+			PublicShares: tss.PublicShares(),
+		})
+
+		pk, err := tblsconv.KeyToCore(tss.PublicKey())
 		if err != nil {
 			return err
 		}
@@ -143,20 +155,6 @@ func checkWrites(dataDir string, def cluster.Definition) error {
 
 	if err := writeDepositData(sigs, "0x0000000000000000000000000000000000000000", "prater", dataDir); err != nil {
 		return err
-	}
-
-	var shares []share
-	for i := 0; i < def.NumValidators; i++ {
-		tss, sks, err := tbls.GenerateTSS(def.Threshold, len(def.Operators), rand.Reader)
-		if err != nil {
-			return err
-		}
-
-		shares = append(shares, share{
-			PubKey:       tss.PublicKey(),
-			SecretShare:  sks[0],
-			PublicShares: tss.PublicShares(),
-		})
 	}
 
 	if err := writeKeystores(dataDir, shares); err != nil {

@@ -70,8 +70,8 @@ func TestMemDB(t *testing.T) {
 	// Store the same attestation (same slot and committee) for two validators.
 
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
-		vIdxA: testutil.RandomCorePubKeyT(t),
-		vIdxB: testutil.RandomCorePubKeyT(t),
+		vIdxA: testutil.RandomCorePubKey(t),
+		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
 	// Kick of some queries, it should return when the data is populated.
@@ -167,7 +167,7 @@ func TestMemDBProposer(t *testing.T) {
 		}
 		blocks[i].Phase0.Slot = eth2p0.Slot(slots[i])
 		blocks[i].Phase0.ProposerIndex = eth2p0.ValidatorIndex(i)
-		pubkeysByIdx[eth2p0.ValidatorIndex(i)] = testutil.RandomCorePubKeyT(t)
+		pubkeysByIdx[eth2p0.ValidatorIndex(i)] = testutil.RandomCorePubKey(t)
 	}
 
 	// Store the Blocks
@@ -204,7 +204,7 @@ func TestMemDBClashingBlocks(t *testing.T) {
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	block2.Phase0.Slot = eth2p0.Slot(slot)
-	pubkey := testutil.RandomCorePubKeyT(t)
+	pubkey := testutil.RandomCorePubKey(t)
 
 	// Encode the Blocks
 	unsigned1, err := core.EncodeProposerUnsignedData(block1)
@@ -237,7 +237,7 @@ func TestMemDBClashProposer(t *testing.T) {
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	block.Phase0.Slot = eth2p0.Slot(slot)
-	pubkey := testutil.RandomCorePubKeyT(t)
+	pubkey := testutil.RandomCorePubKey(t)
 
 	// Encode the block
 	unsigned, err := core.EncodeProposerUnsignedData(block)

@@ -48,8 +48,8 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-// RandomCorePubKeyT returns a random core workflow pubkey.
-func RandomCorePubKeyT(t *testing.T) core.PubKey {
+// RandomCorePubKey returns a random core workflow pubkey.
+func RandomCorePubKey(t *testing.T) core.PubKey {
 	t.Helper()
 	random := rand.New(rand.NewSource(rand.Int63()))
 	pubkey, _, err := tbls.KeygenWithSeed(random)
@@ -58,21 +58,6 @@ func RandomCorePubKeyT(t *testing.T) core.PubKey {
 	require.NoError(t, err)
 
 	return resp
-}
-
-func RandomCorePubKey() (core.PubKey, error) {
-	random := rand.New(rand.NewSource(rand.Int63()))
-	pubkey, _, err := tbls.KeygenWithSeed(random)
-	if err != nil {
-		return "", err
-	}
-
-	resp, err := tblsconv.KeyToCore(pubkey)
-	if err != nil {
-		return "", err
-	}
-
-	return resp, nil
 }
 
 // RandomEth2PubKey returns a random eth2 phase0 bls pubkey.
@@ -400,7 +385,7 @@ func RandomUnsignedDataSet(t *testing.T) core.UnsignedDataSet {
 	require.NoError(t, err)
 
 	return core.UnsignedDataSet{
-		RandomCorePubKeyT(t): unsigned,
+		RandomCorePubKey(t): unsigned,
 	}
 }
 

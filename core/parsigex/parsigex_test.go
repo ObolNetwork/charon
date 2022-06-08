@@ -37,7 +37,7 @@ func TestParSigEx(t *testing.T) {
 		Type: core.DutyAttester,
 	}
 
-	pubkey := testutil.RandomCorePubKeyT(t)
+	pubkey := testutil.RandomCorePubKey(t)
 	data := core.ParSignedDataSet{
 		pubkey: core.ParSignedData{
 			Data:      []byte("partially signed data"),

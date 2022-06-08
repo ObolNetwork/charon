@@ -42,7 +42,7 @@ func TestExchanger(t *testing.T) {
 	// Create pubkeys for each DV
 	pubkeys := make([]core.PubKey, dvs)
 	for i := 0; i < dvs; i++ {
-		pubkeys[i] = testutil.RandomCorePubKeyT(t)
+		pubkeys[i] = testutil.RandomCorePubKey(t)
 	}
 
 	// Expected data is what is desired at the end of exchange

@@ -41,8 +41,8 @@ func TestFetchAttester(t *testing.T) {
 	)
 
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
-		vIdxA: testutil.RandomCorePubKeyT(t),
-		vIdxB: testutil.RandomCorePubKeyT(t),
+		vIdxA: testutil.RandomCorePubKey(t),
+		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
 	dutyA := eth2v1.AttesterDuty{
@@ -111,8 +111,8 @@ func TestFetchProposer(t *testing.T) {
 	)
 
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
-		vIdxA: testutil.RandomCorePubKeyT(t),
-		vIdxB: testutil.RandomCorePubKeyT(t),
+		vIdxA: testutil.RandomCorePubKey(t),
+		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
 	dutyA := eth2v1.ProposerDuty{
