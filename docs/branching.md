@@ -4,7 +4,7 @@ We follow [Trunk Based Development](https://trunkbaseddevelopment.com/) as a bra
 
 > Trunk based development has been identified by the [DORA research program](https://www.devops-research.com/research.html) as one of the set of capabilities that drive higher software delivery and organizational performance.
 
-![Trunk Based Development](trunkbaseddev.png)
+![Trunk Based Development](images/trunkbaseddev.png)
 
 ## Overview:
 
