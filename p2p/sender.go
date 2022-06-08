@@ -96,6 +96,7 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 }
 
 // SendAsync returns nil sends a libp2p message asynchronously. It logs results on state change (success to/from failure).
+// It implements SendFunc.
 func (s *Sender) SendAsync(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
 	go func() {
 		err := s.Send(ctx, tcpNode, protoID, peerID, msg)
@@ -105,7 +106,7 @@ func (s *Sender) SendAsync(ctx context.Context, tcpNode host.Host, protoID proto
 	return nil
 }
 
-// Send sends a libp2p message synchronously.
+// Send sends a libp2p message synchronously. It implements SendFunc.
 func (*Sender) Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
 	b, err := proto.Marshal(msg)
 	if err != nil {
