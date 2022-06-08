@@ -35,6 +35,14 @@ const (
 	senderBuffer     = senderHysteresis + 1
 )
 
+// SendFunc is an abstract function responsible for sending libp2p messages.
+type SendFunc func(context.Context, host.Host, protocol.ID, peer.ID, proto.Message) error
+
+var (
+	_ SendFunc = Send
+	_ SendFunc = new(Sender).SendAsync
+)
+
 type peerState struct {
 	failing bool
 	buffer  []error
@@ -88,17 +96,18 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 }
 
 // SendAsync returns nil sends a libp2p message asynchronously. It logs results on state change (success to/from failure).
+// It implements SendFunc.
 func (s *Sender) SendAsync(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
 	go func() {
-		err := s.Send(ctx, tcpNode, protoID, peerID, msg)
+		err := Send(ctx, tcpNode, protoID, peerID, msg)
 		s.addResult(ctx, peerID, err)
 	}()
 
 	return nil
 }
 
-// Send sends a libp2p message synchronously.
-func (*Sender) Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
+// Send sends a libp2p message synchronously. It implements SendFunc.
+func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
 	b, err := proto.Marshal(msg)
 	if err != nil {
 		return errors.Wrap(err, "marshal proto")
