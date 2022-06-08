@@ -39,7 +39,7 @@ const (
 type SendFunc func(context.Context, host.Host, protocol.ID, peer.ID, proto.Message) error
 
 var (
-	_ SendFunc = new(Sender).Send
+	_ SendFunc = Send
 	_ SendFunc = new(Sender).SendAsync
 )
 
@@ -99,7 +99,7 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 // It implements SendFunc.
 func (s *Sender) SendAsync(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
 	go func() {
-		err := s.Send(ctx, tcpNode, protoID, peerID, msg)
+		err := Send(ctx, tcpNode, protoID, peerID, msg)
 		s.addResult(ctx, peerID, err)
 	}()
 
@@ -107,7 +107,7 @@ func (s *Sender) SendAsync(ctx context.Context, tcpNode host.Host, protoID proto
 }
 
 // Send sends a libp2p message synchronously. It implements SendFunc.
-func (*Sender) Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
+func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
 	b, err := proto.Marshal(msg)
 	if err != nil {
 		return errors.Wrap(err, "marshal proto")
