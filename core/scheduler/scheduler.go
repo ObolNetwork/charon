@@ -254,9 +254,14 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot slot, vals valida
 		return err
 	}
 
-	// TODO(xenowits): Log when duty not included for some indexes
+	remaining := make(map[eth2p0.ValidatorIndex]bool)
+	for _, index := range vals.Indexes() {
+		remaining[index] = true
+	}
 
 	for _, attDuty := range attDuties {
+		delete(remaining, attDuty.ValidatorIndex)
+
 		if attDuty.Slot < eth2p0.Slot(slot.Slot) {
 			// Skip duties for earlier slots in initial epoch.
 			continue
@@ -285,6 +290,12 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot slot, vals valida
 			z.U64("slot", uint64(attDuty.Slot)),
 			z.U64("commidx", uint64(attDuty.CommitteeIndex)),
 			z.Any("pubkey", pubkey))
+	}
+
+	if len(remaining) > 0 {
+		log.Warn(ctx, "Missing attester duties", nil,
+			z.U64("epoch", uint64(slot.Epoch())),
+			z.Any("validator_indexes", remaining))
 	}
 
 	return nil
