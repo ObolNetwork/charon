@@ -38,7 +38,7 @@ func TestGenerateTSS(t *testing.T) {
 	require.Equal(t, shares, tss.NumShares())
 }
 
-func TestCombineSecrets(t *testing.T) {
+func TestCombineShares(t *testing.T) {
 	const (
 		threshold = 3
 		total     = 5
@@ -50,7 +50,7 @@ func TestCombineSecrets(t *testing.T) {
 	shares, _, err := tbls.SplitSecret(secret, threshold, total, rand.Reader)
 	require.NoError(t, err)
 
-	result, err := tbls.CombineSecrets(shares, threshold, total)
+	result, err := tbls.CombineShares(shares, threshold, total)
 	require.NoError(t, err)
 
 	expect, err := secret.MarshalBinary()

@@ -216,8 +216,8 @@ func Sign(sk *bls_sig.SecretKey, msg []byte) (*bls_sig.Signature, error) {
 	return sig, nil
 }
 
-// CombineSecrets returns the root/group secret by combining threshold secret shares.
-func CombineSecrets(shares []*bls_sig.SecretKeyShare, t, n int) (*bls_sig.SecretKey, error) {
+// CombineShares returns the root/group secret by combining threshold secret shares.
+func CombineShares(shares []*bls_sig.SecretKeyShare, t, n int) (*bls_sig.SecretKey, error) {
 	var shamirShares []*share.ShamirShare
 	for _, s := range shares {
 		b, err := s.MarshalBinary()

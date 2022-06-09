@@ -80,7 +80,7 @@ func run(ctx context.Context, lockfile, inputDir, outputDir string) error {
 		return errors.New("insufficient number of keys")
 	}
 
-	secret, err := tbls.CombineSecrets(shares, lock.Threshold, len(lock.Operators))
+	secret, err := tbls.CombineShares(shares, lock.Threshold, len(lock.Operators))
 	if err != nil {
 		return err
 	}
