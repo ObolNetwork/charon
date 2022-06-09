@@ -34,9 +34,9 @@ import (
 )
 
 var (
-	inputDir  = flag.String("input-dir", ".", "Directory containing the input keyshare to reshare")
-	outputDir = flag.String("output-dir", "output", "Directory to write the reshared output keyshare")
-	lockfile  = flag.String("lock-file", "cluster-lock.json", "Cluster lock file")
+	inputDir  = flag.String("input-dir", ".", "Directory containing the input keyshare to combine")
+	outputDir = flag.String("output-dir", "output", "Directory to write the output combined keyshare")
+	lockfile  = flag.String("lock-file", "cluster-lock.json", "Cluster lock file (required to infer share indexes)")
 )
 
 func main() {
