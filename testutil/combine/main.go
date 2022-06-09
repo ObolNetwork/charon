@@ -35,12 +35,13 @@ import (
 )
 
 var (
-	inputDir  = flag.String("input-dir", ".", "Directory containing the input keyshare to combine")
+	inputDir  = flag.String("input-dir", ".", "Directory containing the input keyshares to combine")
 	outputDir = flag.String("output-dir", "output", "Directory to write the output combined keyshare")
 	lockfile  = flag.String("lock-file", "cluster-lock.json", "Cluster lock file (required to infer share indexes)")
 )
 
 func main() {
+	flag.Parse()
 	ctx := context.Background()
 	err := run(ctx, *lockfile, *inputDir, *outputDir)
 	if err != nil {
