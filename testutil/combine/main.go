@@ -14,6 +14,7 @@
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Command combine combines threshold BLS secret shares into the group/root BLS secret.
+// Note this only combines a single secret at a time.
 package main
 
 import (
@@ -51,7 +52,7 @@ func main() {
 func run(ctx context.Context, lockfile, inputDir, outputDir string) error {
 	log.Info(ctx, "Resharing key shares",
 		z.Str("lockfile", lockfile),
-		z.Str("output_dir", outputDir),
+		z.Str("input_dir", inputDir),
 		z.Str("output_dir", outputDir),
 	)
 
