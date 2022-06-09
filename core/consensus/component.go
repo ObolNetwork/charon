@@ -37,9 +37,10 @@ import (
 )
 
 const (
-	recvBuffer = 100 // Allow buffering some initial messages when this node is late to start an instance.
-	period     = time.Second
-	protocolID = "/charon/consensus/qbft/1.0.0"
+	recvBuffer    = 100 // Allow buffering some initial messages when this node is late to start an instance.
+	roundStart    = time.Millisecond * 750
+	roundIncrease = time.Millisecond * 250
+	protocolID    = "/charon/consensus/qbft/1.0.0"
 )
 
 // New returns a new consensus QBFT component.
@@ -82,17 +83,17 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 			}
 		},
 
-		// NewTimer returns a constant period timer for all rounds.
-		NewTimer: func(_ int64) (<-chan time.Time, func()) {
-			timer := time.NewTimer(period)
+		// NewTimer returns a 750ms+(round*250ms) period timer.
+		NewTimer: func(round int64) (<-chan time.Time, func()) {
+			timer := time.NewTimer(roundStart + (time.Duration(round) * roundIncrease))
 			return timer.C, func() { timer.Stop() }
 		},
 
 		// LogUponRule logs upon rules at debug level.
-		LogUponRule: func(ctx context.Context, duty core.Duty, process, round int64,
-			msg qbft.Msg[core.Duty, [32]byte], uponRule string,
+		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,
+			_ qbft.Msg[core.Duty, [32]byte], uponRule string,
 		) {
-			log.Debug(ctx, "QBFT upon rule triggered", z.Str("rule", uponRule))
+			log.Debug(ctx, "QBFT upon rule triggered", z.Str("rule", uponRule), z.I64("round", round))
 		},
 
 		// Nodes is the number of nodes.
