@@ -527,7 +527,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err
 		}
 	}
 
-	if 400 <= aerr.StatusCode || aerr.StatusCode < 500 {
+	if aerr.StatusCode/100 == 4 {
 		// 4xx status codes are client errors (not server), so log as debug only.
 		log.Debug(ctx, "Validator api 4xx response",
 			z.Int("status_code", aerr.StatusCode),
