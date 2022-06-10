@@ -127,7 +127,7 @@ func WithValidatorSet(set ValidatorSet) Option {
 				if ok {
 					resp[val.Index] = cloneValidator(val)
 				} else {
-					log.Debug(ctx, "pubkey not found")
+					log.Debug(ctx, "Pubkey not found")
 				}
 			}
 
@@ -141,7 +141,7 @@ func WithValidatorSet(set ValidatorSet) Option {
 				if ok {
 					resp[index] = cloneValidator(val)
 				} else {
-					log.Debug(ctx, "index not found")
+					log.Debug(ctx, "Index not found")
 				}
 			}
 

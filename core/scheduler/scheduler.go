@@ -519,7 +519,7 @@ func waitChainStart(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Cl
 	for {
 		genesis, err := eth2Cl.GenesisTime(ctx)
 		if err != nil {
-			log.Error(ctx, "failure getting genesis time", err)
+			log.Error(ctx, "Failure getting genesis time", err)
 			clock.Sleep(time.Second * 5) // TODO(corver): Improve backoff
 
 			continue
@@ -544,7 +544,7 @@ func waitBeaconSync(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Cl
 	for {
 		state, err := eth2Cl.NodeSyncing(ctx)
 		if err != nil {
-			log.Error(ctx, "failure getting sync state", err)
+			log.Error(ctx, "Failure getting sync state", err)
 			clock.Sleep(time.Second * 5) // TODO(corver): Improve backoff
 
 			continue
