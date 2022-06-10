@@ -477,7 +477,6 @@ func proxyHandler(target string) (http.HandlerFunc, error) {
 	proxy.ErrorLog = stdlog.New(io.Discard, "", 0)
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("🔥!! r.URL=%v\n", r.URL.String())
 		defer observeAPILatency("proxy")()
 		proxy.ServeHTTP(proxyResponseWriter{w}, r)
 	}, nil
