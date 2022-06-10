@@ -271,8 +271,9 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 	// Send sets to subscriptions.
 	for slot, set := range setsBySlot {
 		duty := core.NewAttesterDuty(slot)
+		ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
-		log.Debug(ctx, "Attestation submitted by VC", z.I64("slot", slot))
+		log.Debug(ctx, "Attestation submitted by validator client")
 
 		for _, dbFunc := range c.parSigDBFuncs {
 			err := dbFunc(ctx, duty, set)
@@ -344,6 +345,10 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 
 	// Save Partially Signed Block to ParSigDB
 	duty := core.NewProposerDuty(int64(slot))
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	log.Debug(ctx, "Beacon block submitted by validator client")
+
 	signedData, err := core.EncodeBlockParSignedData(block, c.shareIdx)
 	if err != nil {
 		return err
@@ -518,8 +523,13 @@ func (c Component) submitRandaoDuty(ctx context.Context, pubKey core.PubKey, slo
 		pubKey: core.EncodeRandaoParSignedData(randao, c.shareIdx),
 	}
 
+	log.Debug(ctx, "Randao submitted by validator client")
+
 	for _, dbFunc := range c.parSigDBFuncs {
-		err := dbFunc(ctx, core.NewRandaoDuty(int64(slot)), parsigSet)
+		duty := core.NewRandaoDuty(int64(slot))
+		ctx := log.WithCtx(ctx, z.Any("duty", duty))
+
+		err := dbFunc(ctx, duty, parsigSet)
 		if err != nil {
 			return err
 		}

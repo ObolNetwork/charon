@@ -66,6 +66,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 	pubkey core.PubKey, aggData core.AggSignedData,
 ) (err error) {
 	ctx = log.WithTopic(ctx, "bcast")
+	ctx = log.WithCtx(ctx, z.Any("pubkey", pubkey))
 	defer func() {
 		if err == nil {
 			instrumentDuty(duty, pubkey, b.delayFunc(duty.Slot))
@@ -82,10 +83,6 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		err = b.eth2Cl.SubmitAttestations(ctx, []*eth2p0.Attestation{att})
 		if err == nil {
 			log.Info(ctx, "Attestation successfully submitted to beacon node",
-				z.U64("slot", uint64(att.Data.Slot)),
-				z.U64("target_epoch", uint64(att.Data.Target.Epoch)),
-				z.Hex("agg_bits", att.AggregationBits.Bytes()),
-				z.Any("pubkey", pubkey),
 				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
@@ -100,8 +97,6 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		err = b.eth2Cl.SubmitBeaconBlock(ctx, block)
 		if err == nil {
 			log.Info(ctx, "Block proposal successfully submitted to beacon node",
-				z.U64("slot", uint64(duty.Slot)),
-				z.Any("pubkey", pubkey),
 				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
@@ -117,9 +112,6 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		err = b.eth2Cl.SubmitVoluntaryExit(ctx, exit)
 		if err == nil {
 			log.Info(ctx, "Voluntary exit successfully submitted to beacon node",
-				z.U64("epoch", uint64(exit.Message.Epoch)),
-				z.U64("validator_index", uint64(exit.Message.ValidatorIndex)),
-				z.Any("pubkey", pubkey),
 				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
