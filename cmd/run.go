@@ -70,7 +70,7 @@ func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 }
 
 func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
-	flags.StringVar(dataDir, "data-dir", ".charon/data", "The directory where charon will store all its internal data")
+	flags.StringVar(dataDir, "data-dir", ".charon", "The directory where charon will store all its internal data")
 }
 
 func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {

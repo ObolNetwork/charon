@@ -27,7 +27,7 @@ import (
 
 // KeyPath returns the p2pkey path relative to the data dir.
 func KeyPath(datadir string) string {
-	return path.Join(datadir, "p2pkey")
+	return path.Join(datadir, "charon-enr-private-key")
 }
 
 // LoadPrivKey returns the ecdsa k1 key saved in the directory.

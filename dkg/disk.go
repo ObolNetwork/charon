@@ -18,7 +18,6 @@ package dkg
 import (
 	"crypto/rand"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path"
 
@@ -66,9 +65,12 @@ func writeKeystores(datadir string, shares []share) error {
 		secrets = append(secrets, secret)
 	}
 
-	err := keystore.StoreKeys(secrets, datadir)
-	if err != nil {
-		return err
+	if err := os.Mkdir(path.Join(datadir, "/keys"), os.ModePerm); err != nil {
+		return errors.Wrap(err, "mkdir /keys")
+	}
+
+	if err := keystore.StoreKeys(secrets, path.Join(datadir, "/keys")); err != nil {
+		return errors.Wrap(err, "store keystores")
 	}
 
 	return nil
@@ -171,14 +173,8 @@ func checkWrites(dataDir string, def cluster.Definition) error {
 		return errors.Wrap(err, "remove sample deposit-data.json")
 	}
 
-	for i := 0; i < def.NumValidators; i++ {
-		if err := os.Remove(path.Join(dataDir, fmt.Sprintf("keystore-%d.json", i))); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("remove sample keystore-%d.json", i))
-		}
-
-		if err := os.Remove(path.Join(dataDir, fmt.Sprintf("keystore-%d.txt", i))); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("remove sample keystore-%d.txt", i))
-		}
+	if err := os.RemoveAll(path.Join(dataDir, "/keys")); err != nil {
+		return errors.Wrap(err, "remove keys")
 	}
 
 	if err := os.Remove(path.Join(dataDir, "cluster-lock.json")); err != nil {

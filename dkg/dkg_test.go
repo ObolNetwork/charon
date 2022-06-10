@@ -130,7 +130,7 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	)
 	for i := 0; i < len(def.Operators); i++ {
 		dataDir := path.Join(dir, fmt.Sprintf("node%d", i))
-		keyShares, err := keystore.LoadKeys(dataDir)
+		keyShares, err := keystore.LoadKeys(path.Join(dataDir, "/keys"))
 		require.NoError(t, err)
 		require.Len(t, keyShares, def.NumValidators)
 

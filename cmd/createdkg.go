@@ -72,7 +72,7 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 
 func bindCreateDKGFlags(flags *pflag.FlagSet, config *createDKGConfig) {
 	flags.StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
-	flags.StringVar(&config.OutputDir, "output-dir", ".", "The folder to write the output cluster-definition.json file to.")
+	flags.StringVar(&config.OutputDir, "output-dir", ".charon", "The folder to write the output cluster-definition.json file to.")
 	flags.IntVar(&config.NumValidators, "num-validators", 1, "The number of distributed validators the cluster will manage (32ETH staked for each).")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")

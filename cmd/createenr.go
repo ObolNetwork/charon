@@ -59,7 +59,7 @@ func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 	}
 	defer db.Close()
 
-	_, _ = fmt.Fprintf(w, "Created ENR private key: %s/p2pkey\n", dataDir)
+	_, _ = fmt.Fprintf(w, "Created ENR private key: %s/charon-enr-private-key\n", dataDir)
 	_, _ = fmt.Fprintln(w, localEnode.Node().String())
 
 	return nil

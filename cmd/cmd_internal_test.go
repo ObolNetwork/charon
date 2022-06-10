@@ -91,7 +91,7 @@ func TestCmdFlags(t *testing.T) {
 		{
 			Name:    "create enr",
 			Args:    slice("create", "enr"),
-			Datadir: ".charon/data",
+			Datadir: ".charon",
 			P2PConfig: &p2p.Config{
 				UDPBootnodes: []string{"http://bootnode.gcp.obol.tech:16000/enr"},
 				UDPAddr:      "127.0.0.1:16004",
