@@ -78,6 +78,7 @@ func (m *ParSigEx) handle(s network.Stream) {
 
 	duty := core.DutyFromProto(pb.Duty)
 	set := core.ParSignedDataSetFromProto(pb.DataSet)
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	var span trace.Span
 	ctx, span = core.StartDutyTrace(ctx, duty, "core/parsigex.Handle")

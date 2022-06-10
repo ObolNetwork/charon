@@ -84,7 +84,9 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 		},
 
 		// NewTimer returns a 750ms+(round*250ms) period timer.
-		// TODO(corver): Round timeout is a tradeoff between fast consensus if nodes are down and lifeness in slow networks.
+		// TODO(corver): Round timeout is a tradeoff between fast rounds to skip unavailable nodes
+		//  and slow rounds to allow consensus in high latency clusters. Dynamic timeout based on
+		//  recent network conditions could be an option.
 		NewTimer: func(round int64) (<-chan time.Time, func()) {
 			timer := time.NewTimer(roundStart + (time.Duration(round) * roundIncrease))
 			return timer.C, func() { timer.Stop() }

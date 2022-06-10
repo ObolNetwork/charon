@@ -62,12 +62,14 @@ func (l *LeaderCast) Run(ctx context.Context) error {
 			continue
 		}
 
+		ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
 		if !isLeader(source, l.peers, duty) {
-			log.Warn(ctx, "Received duty from non-leader", nil, z.Int("peer", source))
+			log.Warn(ctx, "Received duty from non-leader", nil)
 			continue
 		}
 
-		log.Debug(ctx, "Received duty from leader", z.Int("peer", source), z.Any("duty", duty))
+		log.Debug(ctx, "Received duty from leader")
 
 		var span trace.Span
 		ctx, span = core.StartDutyTrace(ctx, duty, "core/leadercast.Handle")

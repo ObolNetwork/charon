@@ -19,6 +19,7 @@ package bcast
 
 import (
 	"context"
+	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -33,20 +34,31 @@ type eth2Provider interface {
 	eth2client.AttestationsSubmitter
 	eth2client.BeaconBlockSubmitter
 	eth2client.VoluntaryExitSubmitter
+	eth2client.GenesisTimeProvider
+	eth2client.SlotDurationProvider
 }
 
 // New returns a new broadcaster instance.
-func New(eth2Svc eth2client.Service) (Broadcaster, error) {
+func New(ctx context.Context, eth2Svc eth2client.Service) (Broadcaster, error) {
 	eth2Cl, ok := eth2Svc.(eth2Provider)
 	if !ok {
 		return Broadcaster{}, errors.New("invalid eth2 service")
 	}
 
-	return Broadcaster{eth2Cl: eth2Cl}, nil
+	delayFunc, err := newDelayFunc(ctx, eth2Cl)
+	if err != nil {
+		return Broadcaster{}, err
+	}
+
+	return Broadcaster{
+		eth2Cl:    eth2Cl,
+		delayFunc: delayFunc,
+	}, nil
 }
 
 type Broadcaster struct {
-	eth2Cl eth2Provider
+	eth2Cl    eth2Provider
+	delayFunc func(slot int64) time.Duration
 }
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
@@ -54,9 +66,10 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 	pubkey core.PubKey, aggData core.AggSignedData,
 ) (err error) {
 	ctx = log.WithTopic(ctx, "bcast")
+	ctx = log.WithCtx(ctx, z.Any("pubkey", pubkey))
 	defer func() {
 		if err == nil {
-			instrumentDuty(duty, pubkey)
+			instrumentDuty(duty, pubkey, b.delayFunc(duty.Slot))
 		}
 	}()
 
@@ -70,10 +83,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		err = b.eth2Cl.SubmitAttestations(ctx, []*eth2p0.Attestation{att})
 		if err == nil {
 			log.Info(ctx, "Attestation successfully submitted to beacon node",
-				z.U64("slot", uint64(att.Data.Slot)),
-				z.U64("target_epoch", uint64(att.Data.Target.Epoch)),
-				z.Hex("agg_bits", att.AggregationBits.Bytes()),
-				z.Any("pubkey", pubkey),
+				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
 
@@ -87,8 +97,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		err = b.eth2Cl.SubmitBeaconBlock(ctx, block)
 		if err == nil {
 			log.Info(ctx, "Block proposal successfully submitted to beacon node",
-				z.U64("slot", uint64(duty.Slot)),
-				z.Any("pubkey", pubkey),
+				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
 
@@ -103,9 +112,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		err = b.eth2Cl.SubmitVoluntaryExit(ctx, exit)
 		if err == nil {
 			log.Info(ctx, "Voluntary exit successfully submitted to beacon node",
-				z.U64("epoch", uint64(exit.Message.Epoch)),
-				z.U64("validator_index", uint64(exit.Message.ValidatorIndex)),
-				z.Any("pubkey", pubkey),
+				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
 
@@ -116,4 +123,22 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 	default:
 		return errors.New("unsupported duty type")
 	}
+}
+
+// newDelayFunc returns a function that calculates the delay since the start of a slot.
+func newDelayFunc(ctx context.Context, eth2Cl eth2Provider) (func(slot int64) time.Duration, error) {
+	genesis, err := eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(slot int64) time.Duration {
+		slotStart := genesis.Add(slotDuration * time.Duration(slot))
+		return time.Since(slotStart)
+	}, nil
 }

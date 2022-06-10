@@ -16,6 +16,8 @@
 package bcast
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -29,7 +31,16 @@ var broadcastCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 	Help:      "The total count of successfully broadcast duties by pubkey and type",
 }, []string{"type", "pubkey"})
 
+var broadcastDelay = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "core",
+	Subsystem: "bcast",
+	Name:      "broadcast_delay_seconds",
+	Help:      "Duty broadcast delay from start of slot in seconds by type",
+	Buckets:   []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 20, 30, 60},
+}, []string{"type"})
+
 // instrumentDuty increments the duty counter.
-func instrumentDuty(duty core.Duty, pubkey core.PubKey) {
+func instrumentDuty(duty core.Duty, pubkey core.PubKey, delay time.Duration) {
 	broadcastCounter.WithLabelValues(duty.Type.String(), pubkey.String()).Inc()
+	broadcastDelay.WithLabelValues(duty.Type.String()).Observe(delay.Seconds())
 }
