@@ -478,7 +478,7 @@ func proxyHandler(target string) (http.HandlerFunc, error) {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer observeAPILatency("proxy")()
-		proxy.ServeHTTP(proxyResponseWriter{w}, r)
+		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, r)
 	}, nil
 }
 
@@ -644,9 +644,16 @@ func hexQuery(query url.Values, name string) ([]byte, error) {
 	return resp, nil
 }
 
-// proxyResponseWriter wraps a http response writer and instruments errors.
-type proxyResponseWriter struct {
+// writeFlusher is copied from /net/http/httputil/reverseproxy.go.
+// It is required to flush streaming responses.
+type writeFlusher interface {
 	http.ResponseWriter
+	http.Flusher
+}
+
+// proxyResponseWriter wraps the writeFlusher interface and instruments errors.
+type proxyResponseWriter struct {
+	writeFlusher
 }
 
 func (w proxyResponseWriter) WriteHeader(statusCode int) {
@@ -656,7 +663,7 @@ func (w proxyResponseWriter) WriteHeader(statusCode int) {
 	}
 
 	incAPIErrors("proxy", statusCode)
-	w.ResponseWriter.WriteHeader(statusCode)
+	w.writeFlusher.WriteHeader(statusCode)
 }
 
 // stubRoot return a stub dependent root for an epoch.
