@@ -16,9 +16,11 @@
 package parsigdb
 
 import (
+	"bytes"
 	"context"
 	"sync"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -81,16 +83,18 @@ func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet co
 // StoreExternal stores an externally received partially signed duty data set.
 func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet core.ParSignedDataSet) error {
 	for pubkey, sig := range signedSet {
-		sigs, ok := db.store(key{Duty: duty, PubKey: pubkey}, sig)
-		if !ok {
+		sigs, ok, err := db.store(key{Duty: duty, PubKey: pubkey}, sig)
+		if err != nil {
+			return err
+		} else if !ok {
 			log.Debug(ctx, "Not storing duplicate partial signed data",
-				z.Any("pubkey", pubkey))
+				z.Any("pubkey", pubkey), z.Int("share_idx", sig.ShareIdx))
 
 			continue
 		}
 
 		log.Debug(ctx, "Stored partial signed data",
-			z.Any("pubkey", pubkey), z.Int("count", len(sigs)))
+			z.Any("pubkey", pubkey), z.Int("count", len(sigs)), z.Int("share_idx", sig.ShareIdx))
 
 		// Call the threshSubs (which includes SigAgg component) if sufficient signatures have been received.
 		if len(sigs) != db.threshold {
@@ -110,20 +114,24 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 
 // store returns true if the value was added to the list of signatures at the provided key
 // and returns a copy of the resulting list.
-func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, bool) {
+func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, bool, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	for _, s := range db.entries[k] {
 		if s.ShareIdx == value.ShareIdx {
-			// TODO(corver): Error if mismatching existing data.
-			return nil, false
+			if !bytes.Equal(s.Data, value.Data) {
+				return nil, false, errors.New("mismatching partial signed data",
+					z.Any("pubkey", k.PubKey), z.Int("share_idx", s.ShareIdx))
+			}
+
+			return nil, false, nil
 		}
 	}
 
 	db.entries[k] = append(db.entries[k], value)
 
-	return append([]core.ParSignedData(nil), db.entries[k]...), true
+	return append([]core.ParSignedData(nil), db.entries[k]...), true, nil
 }
 
 type key struct {

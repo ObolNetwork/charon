@@ -412,9 +412,8 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 				Version:   spec.DataVersionBellatrix,
 				Bellatrix: bellatrixBlock,
 			}
-			err = p.SubmitBeaconBlock(ctx, block)
 
-			return nil, err
+			return nil, p.SubmitBeaconBlock(ctx, block)
 		}
 
 		altairBlock := new(altair.SignedBeaconBlock)
@@ -424,9 +423,8 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 				Version: spec.DataVersionAltair,
 				Altair:  altairBlock,
 			}
-			err = p.SubmitBeaconBlock(ctx, block)
 
-			return nil, err
+			return nil, p.SubmitBeaconBlock(ctx, block)
 		}
 
 		phase0Block := new(eth2p0.SignedBeaconBlock)
@@ -436,9 +434,8 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 				Version: spec.DataVersionPhase0,
 				Phase0:  phase0Block,
 			}
-			err = p.SubmitBeaconBlock(ctx, block)
 
-			return nil, err
+			return nil, p.SubmitBeaconBlock(ctx, block)
 		}
 
 		return nil, errors.New("invalid block")
@@ -503,7 +500,7 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, 
 
 	if _, err = w.Write(b); err != nil {
 		// Too late to also try to writeError at this point, so just log.
-		log.Error(ctx, "Failed writing api response", err, z.Str("vapi_endpoint", endpoint))
+		log.Error(ctx, "Failed writing api response", err)
 	}
 }
 

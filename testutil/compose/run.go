@@ -37,15 +37,15 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		vcs   []vc
 	)
 	for i := 0; i < conf.NumNodes; i++ {
-		n := node{EnvVars: newNodeEnvs(i, true, conf)}
-		nodes = append(nodes, n)
-
 		typ := conf.VCs[i%len(conf.VCs)]
 		vc, err := getVC(typ, i, conf.NumValidators)
 		if err != nil {
 			return TmplData{}, err
 		}
 		vcs = append(vcs, vc)
+
+		n := node{EnvVars: newNodeEnvs(i, typ == VCMock, conf)}
+		nodes = append(nodes, n)
 	}
 
 	data := TmplData{
