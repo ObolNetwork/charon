@@ -372,7 +372,7 @@ func getBlock(endpoint string, base string) (io.Reader, error) {
 
 	statusFamily := res.StatusCode / 100
 	if statusFamily != 2 {
-		return nil, errors.New("GET failed", z.Int("status", res.StatusCode), z.Str("data", string(data)))
+		return nil, errors.New("get failed", z.Int("status", res.StatusCode), z.Str("data", string(data)))
 	}
 
 	return bytes.NewReader(data), nil

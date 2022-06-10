@@ -8,7 +8,7 @@ linters-settings:
     default-signifies-exhaustive: true
   forbidigo:
     forbid:
-      - 'fmt\.Print.*'            # Prevent debug logging
+      - 'fmt\.Print.*(# Avoid debug logging)?'
   gci:
     local-prefixes: github.com/obolnetwork/charon
   gocritic:

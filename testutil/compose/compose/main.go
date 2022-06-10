@@ -214,7 +214,7 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 			fail = true
 		}
 		if fail {
-			return errors.New("Alerts detected")
+			return errors.New("alerts detected")
 		}
 
 		return nil
@@ -234,22 +234,6 @@ func printDockerCompose(ctx context.Context, dir string) error {
 	err := cmd.Run()
 	if err != nil {
 		return errors.Wrap(err, "exec cat docker-compose.yml")
-	}
-
-	return ls(ctx, dir)
-}
-
-// printDockerCompose prints the docker-compose.yml file to stdout.
-func ls(ctx context.Context, dir string) error {
-	log.Info(ctx, "ls dir")
-	cmd := exec.CommandContext(ctx, "ls", "-la")
-	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err := cmd.Run()
-	if err != nil {
-		return errors.Wrap(err, "exec ls")
 	}
 
 	return nil

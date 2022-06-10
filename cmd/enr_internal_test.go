@@ -32,6 +32,6 @@ func TestRunNewEnr(t *testing.T) {
 	require.NoError(t, err)
 
 	got := runNewENR(io.Discard, p2p.Config{}, temp)
-	expected := errors.New("ENR private key not found. If this is your first time running this client, create one with `charon create enr`.", z.Str("enr_path", p2p.KeyPath(temp)))
+	expected := errors.New("private key not found. If this is your first time running this client, create one with `charon create enr`.", z.Str("enr_path", p2p.KeyPath(temp)))
 	require.Equal(t, expected.Error(), got.Error())
 }

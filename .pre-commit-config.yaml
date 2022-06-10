@@ -59,3 +59,9 @@ repos:
         language: script
         entry: .pre-commit/run_buf.sh
         types: [ file, proto ]
+      - id: run-regexp
+        name: run-regexp
+        language: script
+        entry: .pre-commit/run_regexp.sh
+        types: [ file, go ]
+        exclude: "_test.go"

@@ -66,13 +66,13 @@ func (m *ParSigEx) handle(s network.Stream) {
 
 	b, err := io.ReadAll(s)
 	if err != nil {
-		log.Error(ctx, "read proto bytes", err)
+		log.Error(ctx, "Read proto bytes", err)
 		return
 	}
 
 	var pb pbv1.ParSigExMsg
 	if err := proto.Unmarshal(b, &pb); err != nil {
-		log.Error(ctx, "unmarshal parsigex proto", err)
+		log.Error(ctx, "Unmarshal parsigex proto", err)
 		return
 	}
 
@@ -87,7 +87,7 @@ func (m *ParSigEx) handle(s network.Stream) {
 	for _, sub := range m.subs {
 		err := sub(ctx, duty, set)
 		if err != nil {
-			log.Error(ctx, "subscribe error", err)
+			log.Error(ctx, "Subscribe error", err)
 		}
 	}
 }
