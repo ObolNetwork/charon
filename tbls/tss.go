@@ -216,6 +216,42 @@ func Sign(sk *bls_sig.SecretKey, msg []byte) (*bls_sig.Signature, error) {
 	return sig, nil
 }
 
+// CombineShares returns the root/group secret by combining threshold secret shares.
+func CombineShares(shares []*bls_sig.SecretKeyShare, t, n int) (*bls_sig.SecretKey, error) {
+	var shamirShares []*share.ShamirShare
+	for _, s := range shares {
+		b, err := s.MarshalBinary()
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal key share")
+		}
+
+		lenMin1 := len(b) - 1
+		shamirShare := share.ShamirShare{
+			Id:    uint32(b[lenMin1]),
+			Value: b[:lenMin1],
+		}
+
+		shamirShares = append(shamirShares, &shamirShare)
+	}
+
+	scheme, err := share.NewFeldman(uint32(t), uint32(n), curves.BLS12381G1())
+	if err != nil {
+		return nil, errors.Wrap(err, "new Feldman VSS")
+	}
+
+	secretScaler, err := scheme.Combine(shamirShares...)
+	if err != nil {
+		return nil, errors.Wrap(err, "combine shares")
+	}
+
+	resp := new(bls_sig.SecretKey)
+	if err := resp.UnmarshalBinary(secretScaler.Bytes()); err != nil {
+		return nil, errors.Wrap(err, "unmarshal secret")
+	}
+
+	return resp, nil
+}
+
 // SplitSecret splits the secret and returns n secret shares and t verifiers.
 func SplitSecret(secret *bls_sig.SecretKey, t, n int, reader io.Reader) ([]*bls_sig.SecretKeyShare, *share.FeldmanVerifier, error) {
 	scheme, err := share.NewFeldman(uint32(t), uint32(n), curves.BLS12381G1())
