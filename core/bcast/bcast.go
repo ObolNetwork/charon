@@ -86,6 +86,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 				z.U64("target_epoch", uint64(att.Data.Target.Epoch)),
 				z.Hex("agg_bits", att.AggregationBits.Bytes()),
 				z.Any("pubkey", pubkey),
+				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
 
@@ -101,6 +102,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 			log.Info(ctx, "Block proposal successfully submitted to beacon node",
 				z.U64("slot", uint64(duty.Slot)),
 				z.Any("pubkey", pubkey),
+				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
 
@@ -118,6 +120,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 				z.U64("epoch", uint64(exit.Message.Epoch)),
 				z.U64("validator_index", uint64(exit.Message.ValidatorIndex)),
 				z.Any("pubkey", pubkey),
+				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
 
