@@ -51,7 +51,7 @@ func NewPingService(h host.Host, peers []peer.ID, callback func(peer.ID)) func(c
 // pingPeer starts (and restarts) a long-lived ping service stream, pinging the peer every second until some error.
 // It returns when the context is cancelled.
 func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID,
-	logFunc func(context.Context, peer.ID, error), callback func(peer.ID),
+	logFunc func(context.Context, peer.ID, ping.Result), callback func(peer.ID),
 ) {
 	for ctx.Err() == nil {
 		for result := range svc.Ping(ctx, p) {
@@ -60,7 +60,7 @@ func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID,
 				break
 			}
 
-			logFunc(ctx, p, result.Error)
+			logFunc(ctx, p, result)
 
 			if result.Error != nil {
 				incPingError(p)
@@ -80,7 +80,7 @@ func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID,
 
 // newPingLogger returns stateful logging function that logs ping failures
 // and recoveries after applying hysteresis; only logging after N opposite results.
-func newPingLogger(peers []peer.ID) func(context.Context, peer.ID, error) {
+func newPingLogger(peers []peer.ID) func(context.Context, peer.ID, ping.Result) {
 	const hysteresis = 5 // N = 5
 
 	var (
@@ -95,15 +95,15 @@ func newPingLogger(peers []peer.ID) func(context.Context, peer.ID, error) {
 		counts[p] = hysteresis
 	}
 
-	return func(ctx context.Context, p peer.ID, err error) {
+	return func(ctx context.Context, p peer.ID, result ping.Result) {
 		mu.Lock()
 		defer mu.Unlock()
 
 		prev := counts[p]
 
-		if err != nil && prev > 0 {
+		if result.Error != nil && prev > 0 {
 			counts[p]--
-		} else if err == nil && prev < hysteresis {
+		} else if result.Error == nil && prev < hysteresis {
 			counts[p]++
 		}
 
@@ -111,14 +111,14 @@ func newPingLogger(peers []peer.ID) func(context.Context, peer.ID, error) {
 		ok := state[p]
 
 		if prev > 0 && now == 0 && ok {
-			log.Warn(ctx, "Peer ping failing", nil, z.Str("peer", PeerName(p)), z.Str("error", err.Error()))
+			log.Warn(ctx, "Peer ping failing", nil, z.Str("peer", PeerName(p)), z.Str("error", result.Error.Error()))
 			state[p] = false
 			first[p] = true
 		} else if prev < hysteresis && now == hysteresis && !ok {
-			log.Info(ctx, "Peer ping recovered", z.Str("peer", PeerName(p)))
+			log.Info(ctx, "Peer ping recovered", z.Str("peer", PeerName(p)), z.Any("rtt", result.RTT))
 			state[p] = true
-		} else if err == nil && !first[p] {
-			log.Info(ctx, "Peer ping success", z.Str("peer", PeerName(p)))
+		} else if result.Error == nil && !first[p] {
+			log.Info(ctx, "Peer ping success", z.Str("peer", PeerName(p)), z.Any("rtt", result.RTT))
 			first[p] = true
 		}
 	}
