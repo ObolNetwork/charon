@@ -308,6 +308,8 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			stopTimer()
 			timerChan, stopTimer = d.NewTimer(round)
 
+			d.LogUponRule(ctx, instance, process, round, nil, "RoundTimeout")
+
 			err = broadcastRoundChange()
 
 		case <-ctx.Done(): // Cancelled
