@@ -654,7 +654,7 @@ type writeFlusher interface {
 	http.Flusher
 }
 
-// proxyResponseWriter wraps a http response writer and instruments errors.
+// proxyResponseWriter wraps the writeFlusher interface and instruments errors.
 type proxyResponseWriter struct {
 	writeFlusher
 }
