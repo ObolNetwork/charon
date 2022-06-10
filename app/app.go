@@ -348,7 +348,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	aggSigDB := aggsigdb.NewMemDB()
 
-	broadcaster, err := bcast.New(eth2Cl)
+	broadcaster, err := bcast.New(ctx, eth2Cl)
 	if err != nil {
 		return err
 	}

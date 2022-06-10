@@ -47,7 +47,7 @@ func TestBroadcastAttestation(t *testing.T) {
 		return ctx.Err()
 	}
 
-	bcaster, err := bcast.New(mock)
+	bcaster, err := bcast.New(ctx, mock)
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyAttester}, "", aggData)
@@ -78,7 +78,7 @@ func TestBroadcastBeaconBlock(t *testing.T) {
 		return ctx.Err()
 	}
 
-	bcaster, err := bcast.New(mock)
+	bcaster, err := bcast.New(ctx, mock)
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyProposer}, "", aggData)
@@ -103,7 +103,7 @@ func TestBroadcastExit(t *testing.T) {
 		return ctx.Err()
 	}
 
-	bcaster, err := bcast.New(mock)
+	bcaster, err := bcast.New(ctx, mock)
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyExit}, "", aggData)

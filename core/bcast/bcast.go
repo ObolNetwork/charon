@@ -19,6 +19,7 @@ package bcast
 
 import (
 	"context"
+	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -33,20 +34,31 @@ type eth2Provider interface {
 	eth2client.AttestationsSubmitter
 	eth2client.BeaconBlockSubmitter
 	eth2client.VoluntaryExitSubmitter
+	eth2client.GenesisTimeProvider
+	eth2client.SlotDurationProvider
 }
 
 // New returns a new broadcaster instance.
-func New(eth2Svc eth2client.Service) (Broadcaster, error) {
+func New(ctx context.Context, eth2Svc eth2client.Service) (Broadcaster, error) {
 	eth2Cl, ok := eth2Svc.(eth2Provider)
 	if !ok {
 		return Broadcaster{}, errors.New("invalid eth2 service")
 	}
 
-	return Broadcaster{eth2Cl: eth2Cl}, nil
+	delayFunc, err := newDelayFunc(ctx, eth2Cl)
+	if err != nil {
+		return Broadcaster{}, err
+	}
+
+	return Broadcaster{
+		eth2Cl:    eth2Cl,
+		delayFunc: delayFunc,
+	}, nil
 }
 
 type Broadcaster struct {
-	eth2Cl eth2Provider
+	eth2Cl    eth2Provider
+	delayFunc func(slot int64) time.Duration
 }
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
@@ -56,7 +68,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 	ctx = log.WithTopic(ctx, "bcast")
 	defer func() {
 		if err == nil {
-			instrumentDuty(duty, pubkey)
+			instrumentDuty(duty, pubkey, b.delayFunc(duty.Slot))
 		}
 	}()
 
@@ -116,4 +128,22 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 	default:
 		return errors.New("unsupported duty type")
 	}
+}
+
+// newDelayFunc returns a function that calculates the delay since the start of a slot.
+func newDelayFunc(ctx context.Context, eth2Cl eth2Provider) (func(slot int64) time.Duration, error) {
+	genesis, err := eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(slot int64) time.Duration {
+		slotStart := genesis.Add(slotDuration * time.Duration(slot))
+		return time.Since(slotStart)
+	}, nil
 }
