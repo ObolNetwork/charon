@@ -58,7 +58,7 @@
     },
     {
      "Key": "simnet-validator-mock",
-     "Value": "\"true\""
+     "Value": "\"false\""
     },
     {
      "Key": "simnet-beacon_mock",
@@ -129,7 +129,7 @@
     },
     {
      "Key": "simnet-validator-mock",
-     "Value": "\"true\""
+     "Value": "\"false\""
     },
     {
      "Key": "simnet-beacon_mock",
@@ -271,7 +271,7 @@
     },
     {
      "Key": "simnet-validator-mock",
-     "Value": "\"true\""
+     "Value": "\"false\""
     },
     {
      "Key": "simnet-beacon_mock",
