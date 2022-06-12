@@ -65,11 +65,11 @@ func writeKeystores(datadir string, shares []share) error {
 		secrets = append(secrets, secret)
 	}
 
-	if err := os.Mkdir(path.Join(datadir, "/keys"), os.ModePerm); err != nil {
-		return errors.Wrap(err, "mkdir /keys")
+	if err := os.Mkdir(path.Join(datadir, "/validator_keys"), os.ModePerm); err != nil {
+		return errors.Wrap(err, "mkdir /validator_keys")
 	}
 
-	if err := keystore.StoreKeys(secrets, path.Join(datadir, "/keys")); err != nil {
+	if err := keystore.StoreKeys(secrets, path.Join(datadir, "/validator_keys")); err != nil {
 		return errors.Wrap(err, "store keystores")
 	}
 
@@ -173,7 +173,7 @@ func checkWrites(dataDir string, def cluster.Definition) error {
 		return errors.Wrap(err, "remove sample deposit-data.json")
 	}
 
-	if err := os.RemoveAll(path.Join(dataDir, "/keys")); err != nil {
+	if err := os.RemoveAll(path.Join(dataDir, "/validator_keys")); err != nil {
 		return errors.Wrap(err, "remove keys")
 	}
 

@@ -89,19 +89,20 @@ func TestSmoke(t *testing.T) {
 				conf.KeyGen = compose.KeyGenDKG
 			},
 			TmplFunc: func(data *compose.TmplData) {
-				const containerBinary = "/usr/local/bin/charon"
-
 				data.Nodes[0].ImageTag = "latest"
-				data.Nodes[0].Entrypoint = "" // Use locally pre-built binary
+				// Use default entrypoint
 
 				data.Nodes[1].ImageTag = "latest"
-				data.Nodes[1].Entrypoint = containerBinary // Use actual latest image
+				// TODO(dhruv): Using default entrypoint for now need to update with data.Nodes[1].Entrypoint = containerBinary
+				// Use default entrypoint
 
 				data.Nodes[2].ImageTag = "v0.5.0" // TODO(corver): Update this with new releases.
-				data.Nodes[2].Entrypoint = containerBinary
+				// TODO(dhruv): Using default entrypoint for now need to update with data.Nodes[1].Entrypoint = containerBinary
+				// Use default entrypoint
 
 				data.Nodes[3].ImageTag = "v0.5.0"
-				data.Nodes[3].Entrypoint = containerBinary
+				// TODO(dhruv): Using default entrypoint for now need to update with data.Nodes[1].Entrypoint = containerBinary
+				// Use default entrypoint
 			},
 		},
 		{

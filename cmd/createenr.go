@@ -46,7 +46,7 @@ func newCreateEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.C
 	return cmd
 }
 
-// runCreateEnrCmd stores a new p2pkey to disk and prints the ENR for the provided config.
+// runCreateEnrCmd stores a new charon-enr-private-key to disk and prints the ENR for the provided config.
 func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 	key, err := p2p.NewSavedPrivKey(dataDir)
 	if err != nil {

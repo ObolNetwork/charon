@@ -111,8 +111,8 @@ services:
       validator-client
       --network=auto
       --beacon-node-api-endpoint="http://node0:16002"
-      --validator-keys="/compose/node0/keystore-0.json:/compose/node0/keystore-0.txt"
-      --validator-keys="/compose/node0/keystore-1.json:/compose/node0/keystore-1.txt"
+      --validator-keys="/compose/node0/validator_keys/keystore-0.json:/compose/node0/validator_keys/keystore-0.txt"
+      --validator-keys="/compose/node0/validator_keys/keystore-1.json:/compose/node0/validator_keys/keystore-1.txt"
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
     networks: [compose]
     depends_on: [node0]
@@ -136,8 +136,8 @@ services:
       validator-client
       --network=auto
       --beacon-node-api-endpoint="http://node3:16002"
-      --validator-keys="/compose/node3/keystore-0.json:/compose/node3/keystore-0.txt"
-      --validator-keys="/compose/node3/keystore-1.json:/compose/node3/keystore-1.txt"
+      --validator-keys="/compose/node3/validator_keys/keystore-0.json:/compose/node3/validator_keys/keystore-0.txt"
+      --validator-keys="/compose/node3/validator_keys/keystore-1.json:/compose/node3/validator_keys/keystore-1.txt"
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
     networks: [compose]
     depends_on: [node3]

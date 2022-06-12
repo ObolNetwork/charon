@@ -25,7 +25,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// KeyPath returns the p2pkey path relative to the data dir.
+// KeyPath returns the charon-enr-private-key path relative to the data dir.
 func KeyPath(datadir string) string {
 	return path.Join(datadir, "charon-enr-private-key")
 }

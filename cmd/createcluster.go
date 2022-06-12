@@ -203,7 +203,11 @@ func createPeers(conf clusterConfig, shareSets [][]*bls_sig.SecretKeyShare) ([]p
 			secrets = append(secrets, secret)
 		}
 
-		if err := keystore.StoreKeys(secrets, nodeDir(conf.ClusterDir, i)); err != nil {
+		if err := os.MkdirAll(path.Join(nodeDir(conf.ClusterDir, i), "/validator_keys"), 0o755); err != nil {
+			return nil, errors.Wrap(err, "mkdir validator_keys")
+		}
+
+		if err := keystore.StoreKeys(secrets, path.Join(nodeDir(conf.ClusterDir, i), "/validator_keys")); err != nil {
 			return nil, err
 		}
 	}
@@ -365,7 +369,7 @@ func newPeer(conf clusterConfig, peerIdx int) (p2p.Peer, error) {
 
 	p2pKey, err := p2p.NewSavedPrivKey(dir)
 	if err != nil {
-		return p2p.Peer{}, errors.Wrap(err, "create p2p key")
+		return p2p.Peer{}, errors.Wrap(err, "create charon-enr-private-key")
 	}
 
 	var r enr.Record
@@ -392,9 +396,10 @@ func writeOutput(out io.Writer, conf clusterConfig) {
 	_, _ = sb.WriteString("├─ cluster-lock.json\tCluster lock defines the cluster lock file which is signed by all nodes\n")
 	_, _ = sb.WriteString("├─ deposit-data.json\tDeposit data file is used to activate a Distributed Validator on DV Launchpad\n")
 	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\tDirectory for each node\n", conf.NumNodes-1))
-	_, _ = sb.WriteString("│  ├─ p2pkey\t\tP2P networking private key for node authentication\n")
-	_, _ = sb.WriteString("│  ├─ keystore-*.json\tValidator private share key for duty signing\n")
-	_, _ = sb.WriteString("│  ├─ keystore-*.txt\tKeystore password files for keystore-*.json\n")
+	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\t\tCharon networking private key for node authentication\n")
+	_, _ = sb.WriteString("│  ├─ validator_keys\t\tValidator keystores and password\n")
+	_, _ = sb.WriteString("│  │  ├─ keystore-*.json\tValidator private share key for duty signing\n")
+	_, _ = sb.WriteString("│  │  ├─ keystore-*.txt\tKeystore password files for keystore-*.json\n")
 
 	_, _ = fmt.Fprint(out, sb.String())
 }
