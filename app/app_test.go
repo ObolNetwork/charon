@@ -256,7 +256,6 @@ func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 			AutoP2PKey:    true,
 			P2PRelay:      true,
 			MaxResPerPeer: 8,
-			ResTTL:        2,
 		})
 	}()
 
