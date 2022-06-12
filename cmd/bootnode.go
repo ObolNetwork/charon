@@ -117,33 +117,36 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	// Setup p2p tcp relay (async for snappy startup)
 	p2pErr := make(chan error, 1)
 	go func() {
-		if config.P2PRelay {
-			tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), udpNode, nil, nil)
-			if err != nil {
-				p2pErr <- errors.Wrap(err, "new tcp node")
-				return
-			}
-
-			if config.RelayLogLevel != "" {
-				if err := relaylog.SetLogLevel("relay", config.RelayLogLevel); err != nil {
-					p2pErr <- errors.Wrap(err, "set relay log level")
-					return
-				}
-			}
-
-			// Reservations are valid for 30min (github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay/constraints.go:14)
-			relayResources := relay.DefaultResources()
-			relayResources.MaxReservationsPerPeer = config.MaxResPerPeer
-
-			relayService, err := relay.New(tcpNode, relay.WithResources(relayResources))
-			if err != nil {
-				p2pErr <- err
-				return
-			}
-			<-ctx.Done()
-			_ = tcpNode.Close()
-			_ = relayService.Close()
+		if !config.P2PRelay {
+			return
 		}
+
+		if config.RelayLogLevel != "" {
+			if err := relaylog.SetLogLevel("relay", config.RelayLogLevel); err != nil {
+				p2pErr <- errors.Wrap(err, "set relay log level")
+				return
+			}
+		}
+
+		tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), udpNode, nil, nil)
+		if err != nil {
+			p2pErr <- errors.Wrap(err, "new tcp node")
+			return
+		}
+
+		// Reservations are valid for 30min (github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay/constraints.go:14)
+		relayResources := relay.DefaultResources()
+		relayResources.MaxReservationsPerPeer = config.MaxResPerPeer
+
+		relayService, err := relay.New(tcpNode, relay.WithResources(relayResources))
+		if err != nil {
+			p2pErr <- err
+			return
+		}
+
+		<-ctx.Done()
+		_ = tcpNode.Close()
+		_ = relayService.Close()
 	}()
 
 	// Start serving http
