@@ -16,11 +16,17 @@
 package core_test
 
 import (
+	"encoding/json"
+	"math/rand"
 	"testing"
 
+	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/core"
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -64,4 +70,80 @@ func TestParSignedDataSetProto(t *testing.T) {
 	pb2 := core.ParSignedDataSetToProto(set2)
 	require.Equal(t, set1, set2)
 	require.Equal(t, pb1, pb2)
+}
+
+func TestParSignedData2(t *testing.T) {
+	for typ, signedData := range randomSignedData(t) {
+		t.Run(typ.String(), func(t *testing.T) {
+			parSig1 := core.ParSignedData2{
+				SignedData: signedData,
+				ShareIdx:   rand.Intn(100),
+			}
+
+			pb1, err := core.ParSignedData2ToProto(parSig1)
+			require.NoError(t, err)
+			parSig2, err := core.ParSignedData2FromProto(typ, pb1)
+			require.NoError(t, err)
+			pb2, err := core.ParSignedData2ToProto(parSig2)
+			require.NoError(t, err)
+			require.Equal(t, parSig1, parSig2)
+			require.Equal(t, pb1, pb2)
+
+			b, err := proto.Marshal(pb1)
+			require.NoError(t, err)
+
+			pb3 := new(pbv1.ParSignedData)
+			err = proto.Unmarshal(b, pb3)
+			require.NoError(t, err)
+
+			require.True(t, proto.Equal(pb1, pb3))
+		})
+	}
+}
+
+func TestSetSignature(t *testing.T) {
+	for typ, signedData := range randomSignedData(t) {
+		t.Run(typ.String(), func(t *testing.T) {
+			signedData2, err := signedData.SetSignature(testutil.RandomCoreSignature())
+			require.NoError(t, err)
+			require.NotEqual(t, signedData.Signature(), signedData2.Signature()) // Asset original not modified
+		})
+	}
+}
+
+func TestMarshalAttestation(t *testing.T) {
+	att := core.Attestation{Attestation: *testutil.RandomAttestation()}
+
+	b, err := json.Marshal(att)
+	require.NoError(t, err)
+
+	b2, err := att.MarshalJSON()
+	require.NoError(t, err)
+	require.Equal(t, b, b2)
+
+	var a core.SignedData
+	a = &core.Attestation{}
+	err = json.Unmarshal(b, a)
+	require.NoError(t, err)
+
+	require.Equal(t, &att, a)
+}
+
+func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
+	t.Helper()
+
+	return map[core.DutyType]core.SignedData{
+		core.DutyAttester: core.Attestation{Attestation: *testutil.RandomAttestation()},
+		core.DutyExit:     core.SignedVoluntaryExit{SignedVoluntaryExit: *testutil.RandomExit()},
+		core.DutyRandao:   testutil.RandomCoreSignature(),
+		core.DutyProposer: core.VersionedSignedBeaconBlock{
+			VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
+				Version: spec.DataVersionBellatrix,
+				Bellatrix: &bellatrix.SignedBeaconBlock{
+					Message:   testutil.RandomBellatrixBeaconBlock(t),
+					Signature: testutil.RandomEth2Signature(),
+				},
+			},
+		},
+	}
 }

@@ -18,6 +18,7 @@ package core
 import (
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -169,8 +170,44 @@ func (k PubKey) ToETH2() (eth2p0.BLSPubKey, error) {
 	return resp, nil
 }
 
-// Signature is a BLS12-381 Signature.
+// NewPartialSignature is a convenience function that returns a new partially signature.
+func NewPartialSignature(sig Signature, shareIdx int) ParSignedData2 {
+	return ParSignedData2{
+		SignedData: sig,
+		ShareIdx:   shareIdx,
+	}
+}
+
+// Signature is a BLS12-381 Signature. It implements SignedData.
 type Signature []byte
+
+func (s Signature) Signature() Signature {
+	return s
+}
+
+func (Signature) SetSignature(sig Signature) (SignedData, error) {
+	return sig, nil
+}
+
+func (s Signature) MarshalJSON() ([]byte, error) {
+	resp, err := json.Marshal([]byte(s))
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal signature")
+	}
+
+	return resp, nil
+}
+
+func (s *Signature) UnmarshalJSON(b []byte) error {
+	var resp []byte
+	if err := json.Unmarshal(b, &resp); err != nil {
+		return errors.Wrap(err, "unmarshal signature")
+	}
+
+	*s = resp
+
+	return nil
+}
 
 // ToETH2 returns the signature as an eth2 phase0 BLSSignature.
 func (s Signature) ToETH2() eth2p0.BLSSignature {
@@ -207,6 +244,24 @@ type UnsignedDataSet map[PubKey]UnsignedData
 type AttestationData struct {
 	Data eth2p0.AttestationData
 	Duty eth2v1.AttesterDuty
+}
+
+// SignedData is a signed duty data.
+type SignedData interface {
+	// Signature returns the partial signature.
+	Signature() Signature
+	// SetSignature returns a copy of signed duty data with the signature replaced.
+	SetSignature(Signature) (SignedData, error)
+	// Marshaler returns the json serialised signed duty data (including the signature).
+	json.Marshaler
+}
+
+// ParSignedData2 is a partially signed duty data only signed by a single threshold BLS share.
+// TODO(corver): Rename and place ParSignedData.
+type ParSignedData2 struct {
+	SignedData
+	// ShareIdx returns the threshold BLS share index.
+	ShareIdx int
 }
 
 // ParSignedData is a partially signed duty data.
