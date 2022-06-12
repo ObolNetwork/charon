@@ -22,6 +22,7 @@ import (
 	"os"
 	"time"
 
+	relaylog "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -41,7 +42,7 @@ type BootnodeConfig struct {
 	AutoP2PKey    bool
 	P2PRelay      bool
 	MaxResPerPeer int
-	ResTTL        int
+	RelayLogLevel string
 }
 
 func newBootnodeCmd(runFunc func(context.Context, BootnodeConfig) error) *cobra.Command {
@@ -69,8 +70,8 @@ func bindBootnodeFlag(flags *pflag.FlagSet, config *BootnodeConfig) {
 	flags.StringVar(&config.HTTPAddr, "bootnode-http-address", "127.0.0.1:16005", "Listening address (ip and port) for the bootnode http server serving runtime ENR")
 	flags.BoolVar(&config.AutoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory")
 	flags.BoolVar(&config.P2PRelay, "p2p-relay", true, "Enable libp2p tcp host providing circuit relay to charon clusters")
-	flags.IntVar(&config.MaxResPerPeer, "max-reservations", 8, "Updates max circuit reservations per peer")
-	flags.IntVar(&config.ResTTL, "reservation-ttl", 2, "Updates Reservation Time To Live (in minutes) of a connection between peer and bootnode.")
+	flags.IntVar(&config.MaxResPerPeer, "max-reservations", 30, "Updates max circuit reservations per peer (each valid for 30min)")
+	flags.StringVar(&config.RelayLogLevel, "p2p-relay-loglevel", "info", "Libp2p circuit relay log level. E.g., debug, info, warn, error")
 }
 
 // RunBootnode starts a p2p-udp discv5 bootnode.
@@ -119,13 +120,21 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		if config.P2PRelay {
 			tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), udpNode, nil, nil)
 			if err != nil {
-				p2pErr <- err
+				p2pErr <- errors.Wrap(err, "new tcp node")
 				return
 			}
 
+			if config.RelayLogLevel != "" {
+				if err := relaylog.SetLogLevel("relay", config.RelayLogLevel); err != nil {
+					p2pErr <- errors.Wrap(err, "set relay log level")
+					return
+				}
+			}
+
+			// Reservations are valid for 30min (github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay/constraints.go:14)
 			relayResources := relay.DefaultResources()
 			relayResources.MaxReservationsPerPeer = config.MaxResPerPeer
-			relayResources.ReservationTTL = time.Duration(config.ResTTL) * time.Minute
+
 			relayService, err := relay.New(tcpNode, relay.WithResources(relayResources))
 			if err != nil {
 				p2pErr <- err
