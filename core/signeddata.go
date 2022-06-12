@@ -75,6 +75,7 @@ type VersionedSignedBeaconBlock struct {
 
 func (b VersionedSignedBeaconBlock) Signature() Signature {
 	switch b.Version {
+	// No block nil checks since `NewVersionedSignedBeaconBlock` assumed.
 	case spec.DataVersionPhase0:
 		return SigFromETH2(b.Phase0.Signature)
 	case spec.DataVersionAltair:
@@ -99,6 +100,7 @@ func (b VersionedSignedBeaconBlock) SetSignature(sig Signature) (SignedData, err
 	}
 
 	switch b.Version {
+	// No block nil checks since `NewVersionedSignedBeaconBlock` assumed.
 	case spec.DataVersionPhase0:
 		resp.Phase0.Signature = sig.ToETH2()
 	case spec.DataVersionAltair:
@@ -106,7 +108,7 @@ func (b VersionedSignedBeaconBlock) SetSignature(sig Signature) (SignedData, err
 	case spec.DataVersionBellatrix:
 		resp.Bellatrix.Signature = sig.ToETH2()
 	default:
-		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBeaconBlock`.
+		return nil, errors.Wrap(err, "unknown type")
 	}
 
 	return resp, nil
@@ -115,6 +117,7 @@ func (b VersionedSignedBeaconBlock) SetSignature(sig Signature) (SignedData, err
 func (b VersionedSignedBeaconBlock) MarshalJSON() ([]byte, error) {
 	var marshaller json.Marshaler
 	switch b.Version {
+	// No block nil checks since `NewVersionedSignedBeaconBlock` assumed.
 	case spec.DataVersionPhase0:
 		marshaller = b.VersionedSignedBeaconBlock.Phase0
 	case spec.DataVersionAltair:
@@ -176,9 +179,10 @@ func (b *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
+// versionedSignedBeaconBlockJSON is a custom VersionedSignedBeaconBlock serialiser.
 type versionedSignedBeaconBlockJSON struct {
-	Version int
-	Block   json.RawMessage
+	Version int             `json:"version"`
+	Block   json.RawMessage `json:"block"`
 }
 
 // NewAttestation is a convenience function that returns a new wrapped attestation.
