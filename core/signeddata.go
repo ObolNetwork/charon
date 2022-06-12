@@ -260,17 +260,16 @@ func (e *SignedVoluntaryExit) UnmarshalJSON(b []byte) error {
 	return e.SignedVoluntaryExit.UnmarshalJSON(b)
 }
 
-// cloneSignedData serialises the signed data to json and then
-// parses the JSON-encoded data and stores the result
-// in the value pointed to by pointer.
-func cloneSignedData(data SignedData, pointer any) error {
-	// Make e copy by serialising (it eth2 types contains pointers)
+// cloneSignedData clones the signed data by serialising to-from json
+// since eth2 types contains pointers. The result is stored
+// in the value pointed to by v.
+func cloneSignedData(data SignedData, v any) error {
 	bytes, err := data.MarshalJSON()
 	if err != nil {
 		return errors.Wrap(err, "marshal signed data")
 	}
 
-	if err := json.Unmarshal(bytes, pointer); err != nil {
+	if err := json.Unmarshal(bytes, v); err != nil {
 		return errors.Wrap(err, "unmarshal signed data")
 	}
 
