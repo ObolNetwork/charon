@@ -248,7 +248,7 @@ type AttestationData struct {
 
 // SignedData is a signed duty data.
 type SignedData interface {
-	// Signature returns the partial signature.
+	// Signature returns the signed duty data's signature.
 	Signature() Signature
 	// SetSignature returns a copy of signed duty data with the signature replaced.
 	SetSignature(Signature) (SignedData, error)
@@ -259,6 +259,7 @@ type SignedData interface {
 // ParSignedData2 is a partially signed duty data only signed by a single threshold BLS share.
 // TODO(corver): Rename and place ParSignedData.
 type ParSignedData2 struct {
+	// SignedData is a partially signed duty data.
 	SignedData
 	// ShareIdx returns the threshold BLS share index.
 	ShareIdx int
