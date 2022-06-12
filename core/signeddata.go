@@ -88,18 +88,12 @@ func (b VersionedSignedBeaconBlock) Signature() Signature {
 }
 
 func (b VersionedSignedBeaconBlock) SetSignature(sig Signature) (SignedData, error) {
-	// Make a copy by serialising (it contains pointers)
-	bytes, err := b.MarshalJSON()
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal block")
-	}
-
 	var resp VersionedSignedBeaconBlock
-	if err := json.Unmarshal(bytes, &resp); err != nil {
-		return nil, errors.Wrap(err, "unmarshal block")
+	if err := cloneSignedData(b, &resp); err != nil {
+		return nil, err
 	}
 
-	switch b.Version {
+	switch resp.Version {
 	// No block nil checks since `NewVersionedSignedBeaconBlock` assumed.
 	case spec.DataVersionPhase0:
 		resp.Phase0.Signature = sig.ToETH2()
@@ -108,7 +102,7 @@ func (b VersionedSignedBeaconBlock) SetSignature(sig Signature) (SignedData, err
 	case spec.DataVersionBellatrix:
 		resp.Bellatrix.Signature = sig.ToETH2()
 	default:
-		return nil, errors.Wrap(err, "unknown type")
+		return nil, errors.New("unknown type")
 	}
 
 	return resp, nil
@@ -208,8 +202,14 @@ func (a Attestation) Signature() Signature {
 }
 
 func (a Attestation) SetSignature(sig Signature) (SignedData, error) {
-	a.Attestation.Signature = sig.ToETH2()
-	return Attestation{Attestation: a.Attestation}, nil
+	var resp Attestation
+	if err := cloneSignedData(a, &resp); err != nil {
+		return nil, err
+	}
+
+	resp.Attestation.Signature = sig.ToETH2()
+
+	return resp, nil
 }
 
 func (a Attestation) MarshalJSON() ([]byte, error) {
@@ -237,19 +237,42 @@ type SignedVoluntaryExit struct {
 	eth2p0.SignedVoluntaryExit
 }
 
-func (a SignedVoluntaryExit) Signature() Signature {
-	return SigFromETH2(a.SignedVoluntaryExit.Signature)
+func (e SignedVoluntaryExit) Signature() Signature {
+	return SigFromETH2(e.SignedVoluntaryExit.Signature)
 }
 
-func (a SignedVoluntaryExit) SetSignature(sig Signature) (SignedData, error) {
-	a.SignedVoluntaryExit.Signature = sig.ToETH2()
-	return SignedVoluntaryExit{SignedVoluntaryExit: a.SignedVoluntaryExit}, nil
+func (e SignedVoluntaryExit) SetSignature(sig Signature) (SignedData, error) {
+	var resp SignedVoluntaryExit
+	if err := cloneSignedData(e, &resp); err != nil {
+		return nil, err
+	}
+
+	resp.SignedVoluntaryExit.Signature = sig.ToETH2()
+
+	return resp, nil
 }
 
-func (a SignedVoluntaryExit) MarshalJSON() ([]byte, error) {
-	return a.SignedVoluntaryExit.MarshalJSON()
+func (e SignedVoluntaryExit) MarshalJSON() ([]byte, error) {
+	return e.SignedVoluntaryExit.MarshalJSON()
 }
 
-func (a *SignedVoluntaryExit) UnmarshalJSON(b []byte) error {
-	return a.SignedVoluntaryExit.UnmarshalJSON(b)
+func (e *SignedVoluntaryExit) UnmarshalJSON(b []byte) error {
+	return e.SignedVoluntaryExit.UnmarshalJSON(b)
+}
+
+// cloneSignedData serialises the signed data to json and then
+// parses the JSON-encoded data and stores the result
+// in the value pointed to by pointer.
+func cloneSignedData(data SignedData, pointer any) error {
+	// Make e copy by serialising (it eth2 types contains pointers)
+	bytes, err := data.MarshalJSON()
+	if err != nil {
+		return errors.Wrap(err, "marshal signed data")
+	}
+
+	if err := json.Unmarshal(bytes, pointer); err != nil {
+		return errors.Wrap(err, "unmarshal signed data")
+	}
+
+	return nil
 }
