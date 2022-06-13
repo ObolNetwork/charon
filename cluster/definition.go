@@ -195,11 +195,16 @@ func (d Definition) HashTreeRootWith(hh *ssz.Hasher) error {
 	// Field (8) 'ForkVersion'
 	hh.PutBytes([]byte(d.ForkVersion))
 
-	for _, operator := range d.Operators {
-		// Field (9+i) 'Operator'
-		if err := operator.HashTreeRootWith(hh); err != nil {
-			return err
+	// Field (9) 'Operators'
+	{
+		subIndx := hh.Index()
+		num := uint64(len(d.Operators))
+		for _, operator := range d.Operators {
+			if err := operator.HashTreeRootWith(hh); err != nil {
+				return err
+			}
 		}
+		hh.MerkleizeWithMixin(subIndx, num, num)
 	}
 
 	hh.Merkleize(indx)
