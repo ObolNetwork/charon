@@ -30,7 +30,7 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-//go:generate go test . -v -clean -update
+//go:generate go test . -v -update
 
 func TestEncode(t *testing.T) {
 	rand.Seed(0)
