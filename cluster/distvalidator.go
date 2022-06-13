@@ -48,11 +48,17 @@ func (v DistValidator) HashTreeRootWith(hh *ssz.Hasher) error {
 	// Field (0) 'PubKey'
 	hh.PutBytes([]byte(v.PubKey))
 
-	for _, pubshare := range v.PubShares {
-		hh.PutBytes(pubshare)
+	// Field (1) 'Pubshares'
+	{
+		subIndx := hh.Index()
+		num := uint64(len(v.PubShares))
+		for _, pubshare := range v.PubShares {
+			hh.PutBytes(pubshare)
+		}
+		hh.MerkleizeWithMixin(subIndx, num, num)
 	}
 
-	// Field (N) 'FeeRecipientAddress'
+	// Field (2) 'FeeRecipientAddress'
 	hh.PutBytes([]byte(v.FeeRecipientAddress))
 
 	hh.Merkleize(indx)
