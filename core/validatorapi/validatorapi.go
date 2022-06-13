@@ -297,7 +297,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 
 	parSig := core.NewPartialSignature(core.SigFromETH2(randao), c.shareIdx)
 
-	sigRoot, err := eth2util.MerkleEpoch(epoch).HashTreeRoot()
+	sigRoot, err := eth2util.EpochHashRoot(epoch)
 	if err != nil {
 		return nil, err
 	}
