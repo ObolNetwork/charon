@@ -15,7 +15,12 @@
 
 package core
 
-import pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+import (
+	"encoding/json"
+
+	"github.com/obolnetwork/charon/app/errors"
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+)
 
 // DutyToProto returns the duty as a protobuf.
 func DutyToProto(duty Duty) *pbv1.Duty {
@@ -31,6 +36,58 @@ func DutyFromProto(duty *pbv1.Duty) Duty {
 		Slot: duty.Slot,
 		Type: DutyType(duty.Type),
 	}
+}
+
+// ParSignedData2ToProto returns the data as a protobuf.
+func ParSignedData2ToProto(data ParSignedData2) (*pbv1.ParSignedData, error) {
+	d, err := data.MarshalJSON()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal share signed data")
+	}
+
+	return &pbv1.ParSignedData{
+		Data:      d,
+		Signature: data.Signature(),
+		ShareIdx:  int32(data.ShareIdx),
+	}, nil
+}
+
+// ParSignedData2FromProto returns the data from a protobuf.
+func ParSignedData2FromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedData2, error) {
+	var signedData SignedData
+	switch typ {
+	case DutyAttester:
+		var a Attestation
+		if err := json.Unmarshal(data.Data, &a); err != nil {
+			return ParSignedData2{}, errors.Wrap(err, "unmarshal attestation")
+		}
+		signedData = a
+	case DutyProposer:
+		var b VersionedSignedBeaconBlock
+		if err := json.Unmarshal(data.Data, &b); err != nil {
+			return ParSignedData2{}, errors.Wrap(err, "unmarshal block")
+		}
+		signedData = b
+	case DutyExit:
+		var e SignedVoluntaryExit
+		if err := json.Unmarshal(data.Data, &e); err != nil {
+			return ParSignedData2{}, errors.Wrap(err, "unmarshal exit")
+		}
+		signedData = e
+	case DutyRandao:
+		var s Signature
+		if err := json.Unmarshal(data.Data, &s); err != nil {
+			return ParSignedData2{}, errors.Wrap(err, "unmarshal signature")
+		}
+		signedData = s
+	default:
+		return ParSignedData2{}, errors.New("unsupported duty type")
+	}
+
+	return ParSignedData2{
+		SignedData: signedData,
+		ShareIdx:   int(data.ShareIdx),
+	}, nil
 }
 
 // ParSignedDataToProto returns the data as a protobuf.

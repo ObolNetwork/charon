@@ -18,6 +18,7 @@ package core
 import (
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -169,25 +170,6 @@ func (k PubKey) ToETH2() (eth2p0.BLSPubKey, error) {
 	return resp, nil
 }
 
-// Signature is a BLS12-381 Signature.
-type Signature []byte
-
-// ToETH2 returns the signature as an eth2 phase0 BLSSignature.
-func (s Signature) ToETH2() eth2p0.BLSSignature {
-	var sig eth2p0.BLSSignature
-	copy(sig[:], s)
-
-	return sig
-}
-
-// SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
-func SigFromETH2(sig eth2p0.BLSSignature) Signature {
-	s := make(Signature, sigLen)
-	copy(s, sig[:])
-
-	return s
-}
-
 // FetchArg contains the arguments required to fetch the duty data,
 // it is the result of resolving duties at the start of an epoch.
 type FetchArg []byte
@@ -207,6 +189,25 @@ type UnsignedDataSet map[PubKey]UnsignedData
 type AttestationData struct {
 	Data eth2p0.AttestationData
 	Duty eth2v1.AttesterDuty
+}
+
+// SignedData is a signed duty data.
+type SignedData interface {
+	// Signature returns the signed duty data's signature.
+	Signature() Signature
+	// SetSignature returns a copy of signed duty data with the signature replaced.
+	SetSignature(Signature) (SignedData, error)
+	// Marshaler returns the json serialised signed duty data (including the signature).
+	json.Marshaler
+}
+
+// ParSignedData2 is a partially signed duty data only signed by a single threshold BLS share.
+// TODO(corver): Rename and place ParSignedData.
+type ParSignedData2 struct {
+	// SignedData is a partially signed duty data.
+	SignedData
+	// ShareIdx returns the threshold BLS share index.
+	ShareIdx int
 }
 
 // ParSignedData is a partially signed duty data.
