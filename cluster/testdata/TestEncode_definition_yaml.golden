@@ -16,7 +16,7 @@ fee_recipient_address: "0x0194fdc2fa2ffcc041d3ff12045b73c86e4ff95f"
 withdrawal_address: "0xfb180daf48a79ee0b10d394651850fd4a178892e"
 dkg_algorithm: default
 fork_version: "0x00000002"
-definition_hash: 7EEI29e0I9C2ZfqIPXlHf1swxE5mmPTHHVykeuZ5q50=
+definition_hash: fn33ROAtquN1FNg5W6qGmO661Y4vNO6VO81c+R22hpc=
 operator_signatures:
 - KArpQ56w1q7KCCOuAtZ9hmrCxP5KclBT2hGbnU9RUUA=
 - otcjnEC0WsOVDZQfxP4cDLlq0yLWIoIpX7/hHiakMwc=

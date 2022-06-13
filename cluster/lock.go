@@ -51,11 +51,16 @@ func (l Lock) HashTreeRootWith(hh *ssz.Hasher) error {
 		return err
 	}
 
-	for _, validator := range l.Validators {
-		// Field (1+i) 'Validator'
-		if err := validator.HashTreeRootWith(hh); err != nil {
-			return err
+	// Field (1) 'Validators'
+	{
+		subIndx := hh.Index()
+		num := uint64(len(l.Validators))
+		for _, validator := range l.Validators {
+			if err := validator.HashTreeRootWith(hh); err != nil {
+				return err
+			}
 		}
+		hh.MerkleizeWithMixin(subIndx, num, num)
 	}
 
 	hh.Merkleize(indx)
