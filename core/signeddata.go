@@ -16,6 +16,7 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/attestantio/go-eth2-client/spec"
@@ -78,6 +79,10 @@ func (s *Signature) UnmarshalJSON(b []byte) error {
 	*s = resp
 
 	return nil
+}
+
+func (s Signature) VisitDuty(ctx context.Context, duty Duty, visitor SignedDataDutyVisitor) error {
+	return visitor.VisitSignature(ctx, duty, s)
 }
 
 // ToETH2 returns the signature as an eth2 phase0 BLSSignature.
@@ -228,6 +233,10 @@ func (b *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
+func (b VersionedSignedBeaconBlock) VisitDuty(ctx context.Context, duty Duty, visitor SignedDataDutyVisitor) error {
+	return visitor.VisitBlock(ctx, duty, b)
+}
+
 // versionedSignedBeaconBlockJSON is a custom VersionedSignedBeaconBlock serialiser.
 type versionedSignedBeaconBlockJSON struct {
 	Version int             `json:"version"`
@@ -275,6 +284,10 @@ func (a *Attestation) UnmarshalJSON(b []byte) error {
 	return a.Attestation.UnmarshalJSON(b)
 }
 
+func (a Attestation) VisitDuty(ctx context.Context, duty Duty, visitor SignedDataDutyVisitor) error {
+	return visitor.VisitAttestation(ctx, duty, a)
+}
+
 // NewSignedVoluntaryExit is a convenience function that returns a new signed voluntary exit.
 func NewSignedVoluntaryExit(exit *eth2p0.SignedVoluntaryExit) SignedVoluntaryExit {
 	return SignedVoluntaryExit{SignedVoluntaryExit: *exit}
@@ -313,6 +326,10 @@ func (e SignedVoluntaryExit) MarshalJSON() ([]byte, error) {
 
 func (e *SignedVoluntaryExit) UnmarshalJSON(b []byte) error {
 	return e.SignedVoluntaryExit.UnmarshalJSON(b)
+}
+
+func (e SignedVoluntaryExit) VisitDuty(ctx context.Context, duty Duty, visitor SignedDataDutyVisitor) error {
+	return visitor.VisitExit(ctx, duty, e)
 }
 
 // cloneSignedData clones the signed data by serialising to-from json

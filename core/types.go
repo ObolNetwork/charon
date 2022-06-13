@@ -17,6 +17,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -199,6 +200,17 @@ type SignedData interface {
 	SetSignature(Signature) (SignedData, error)
 	// Marshaler returns the json serialised signed duty data (including the signature).
 	json.Marshaler
+	// VisitDuty provides support for a duty visitor, decoupling logic (the visitor) from data (this type).
+	VisitDuty(context.Context, Duty, SignedDataDutyVisitor) error
+}
+
+// SignedDataDutyVisitor abstract a signed data implementation logic switch.
+// Upon calling SignedData.VisitDuty the implementation will cal its associated method on this visitor.
+type SignedDataDutyVisitor interface {
+	VisitSignature(context.Context, Duty, Signature) error
+	VisitAttestation(context.Context, Duty, Attestation) error
+	VisitBlock(context.Context, Duty, VersionedSignedBeaconBlock) error
+	VisitExit(context.Context, Duty, SignedVoluntaryExit) error
 }
 
 // ParSignedData2 is a partially signed duty data only signed by a single threshold BLS share.

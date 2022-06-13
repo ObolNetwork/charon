@@ -125,6 +125,66 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 	}
 }
 
+// Broadcast2 broadcasts the aggregated signed duty data object to the beacon-node.
+func (b Broadcaster) Broadcast2(ctx context.Context, duty core.Duty,
+	pubkey core.PubKey, aggData core.SignedData,
+) (err error) {
+	ctx = log.WithTopic(ctx, "bcast")
+	ctx = log.WithCtx(ctx, z.Any("pubkey", pubkey))
+	defer func() {
+		if err == nil {
+			instrumentDuty(duty, pubkey, b.delayFunc(duty.Slot))
+		}
+	}()
+
+	v := signedDataVisitor{eth2Cl: b.eth2Cl, delayFunc: b.delayFunc}
+
+	return aggData.VisitDuty(ctx, duty, v)
+}
+
+type signedDataVisitor struct {
+	eth2Cl    eth2Provider
+	delayFunc func(slot int64) time.Duration
+}
+
+func (signedDataVisitor) VisitSignature(_ context.Context, _ core.Duty, _ core.Signature) error {
+	// Randao is an internal duty, not broadcasted to beacon chain
+	return nil
+}
+
+func (v signedDataVisitor) VisitAttestation(ctx context.Context, duty core.Duty, attestation core.Attestation) error {
+	err := v.eth2Cl.SubmitAttestations(ctx, []*eth2p0.Attestation{&attestation.Attestation})
+	if err == nil {
+		log.Info(ctx, "Attestation successfully submitted to beacon node",
+			z.Any("delay", v.delayFunc(duty.Slot)),
+		)
+	}
+
+	return err
+}
+
+func (v signedDataVisitor) VisitBlock(ctx context.Context, duty core.Duty, block core.VersionedSignedBeaconBlock) error {
+	err := v.eth2Cl.SubmitBeaconBlock(ctx, &block.VersionedSignedBeaconBlock)
+	if err == nil {
+		log.Info(ctx, "Block proposal successfully submitted to beacon node",
+			z.Any("delay", v.delayFunc(duty.Slot)),
+		)
+	}
+
+	return err
+}
+
+func (v signedDataVisitor) VisitExit(ctx context.Context, duty core.Duty, exit core.SignedVoluntaryExit) error {
+	err := v.eth2Cl.SubmitVoluntaryExit(ctx, &exit.SignedVoluntaryExit)
+	if err == nil {
+		log.Info(ctx, "Voluntary exit successfully submitted to beacon node",
+			z.Any("delay", v.delayFunc(duty.Slot)),
+		)
+	}
+
+	return err
+}
+
 // newDelayFunc returns a function that calculates the delay since the start of a slot.
 func newDelayFunc(ctx context.Context, eth2Cl eth2Provider) (func(slot int64) time.Duration, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
