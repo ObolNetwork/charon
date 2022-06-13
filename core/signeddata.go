@@ -33,6 +33,61 @@ var (
 	_ SignedData = SignedVoluntaryExit{}
 )
 
+// SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
+func SigFromETH2(sig eth2p0.BLSSignature) Signature {
+	s := make(Signature, sigLen)
+	copy(s, sig[:])
+
+	return s
+}
+
+// NewPartialSignature is a convenience function that returns a new partially signature.
+func NewPartialSignature(sig Signature, shareIdx int) ParSignedData2 {
+	return ParSignedData2{
+		SignedData: sig,
+		ShareIdx:   shareIdx,
+	}
+}
+
+// Signature is a BLS12-381 Signature. It implements SignedData.
+type Signature []byte
+
+func (s Signature) Signature() Signature {
+	return s
+}
+
+func (Signature) SetSignature(sig Signature) (SignedData, error) {
+	return sig, nil
+}
+
+func (s Signature) MarshalJSON() ([]byte, error) {
+	resp, err := json.Marshal([]byte(s))
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal signature")
+	}
+
+	return resp, nil
+}
+
+func (s *Signature) UnmarshalJSON(b []byte) error {
+	var resp []byte
+	if err := json.Unmarshal(b, &resp); err != nil {
+		return errors.Wrap(err, "unmarshal signature")
+	}
+
+	*s = resp
+
+	return nil
+}
+
+// ToETH2 returns the signature as an eth2 phase0 BLSSignature.
+func (s Signature) ToETH2() eth2p0.BLSSignature {
+	var sig eth2p0.BLSSignature
+	copy(sig[:], s)
+
+	return sig
+}
+
 // NewVersionedSignedBeaconBlock validates and returns a new wrapped VersionedSignedBeaconBlock.
 func NewVersionedSignedBeaconBlock(block *spec.VersionedSignedBeaconBlock) (VersionedSignedBeaconBlock, error) {
 	switch block.Version {
