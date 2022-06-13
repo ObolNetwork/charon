@@ -94,7 +94,7 @@ func getVC(typ VCType, nodeIdx int, numVals int) (vc, error) {
 	if typ == VCTeku {
 		var keys []string
 		for i := 0; i < numVals; i++ {
-			keys = append(keys, fmt.Sprintf("/compose/node%d/keystore-%d.json:/compose/node%d/keystore-%d.txt", nodeIdx, i, nodeIdx, i))
+			keys = append(keys, fmt.Sprintf("/compose/node%d/validator_keys/keystore-%d.json:/compose/node%d/validator_keys/keystore-%d.txt", nodeIdx, i, nodeIdx, i))
 		}
 		data := struct {
 			TekuKeys []string

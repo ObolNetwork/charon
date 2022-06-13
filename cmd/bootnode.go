@@ -88,10 +88,10 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	key, err := p2p.LoadPrivKey(config.DataDir)
 	if errors.Is(err, os.ErrNotExist) {
 		if !config.AutoP2PKey {
-			return errors.New("p2pkey not found in data dir (run with --auto-p2pkey to auto generate)")
+			return errors.New("charon-enr-private-key not found in data dir (run with --auto-p2pkey to auto generate)")
 		}
 
-		log.Info(ctx, "Automatically creating p2pkey", z.Str("path", p2p.KeyPath(config.DataDir)))
+		log.Info(ctx, "Automatically creating charon-enr-private-key", z.Str("path", p2p.KeyPath(config.DataDir)))
 
 		key, err = p2p.NewSavedPrivKey(config.DataDir)
 		if err != nil {

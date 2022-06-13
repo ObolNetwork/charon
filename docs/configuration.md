@@ -88,7 +88,7 @@ Usage:
 
 Flags:
       --beacon-node-endpoint string    Beacon node endpoint URL (default "http://localhost/")
-      --data-dir string                The directory where charon will store all its internal data (default ".charon/data")
+      --data-dir string                The directory where charon will store all its internal data (default ".charon")
       --feature-set string             Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
       --feature-set-disable strings    Comma-separated list of features to disable, overriding the default minimum feature set.
       --feature-set-enable strings     Comma-separated list of features to enable, overriding the default minimum feature set.

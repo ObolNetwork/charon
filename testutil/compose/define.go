@@ -114,7 +114,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 
 	var data TmplData
 	if conf.KeyGen == KeyGenDKG {
-		log.Info(ctx, "Creating node*/p2pkey for ENRs required for charon create dkg")
+		log.Info(ctx, "Creating node*/charon-enr-private-key for ENRs required for charon create dkg")
 
 		// charon create dkg requires operator ENRs, so we need to create p2pkeys now.
 		p2pkeys, err := newP2PKeys(conf.NumNodes)
@@ -127,9 +127,9 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			// Best effort creation of folder, rather fail when saving p2pkey file next.
 			_ = os.MkdirAll(nodeFile(dir, i, ""), 0o755)
 
-			err := crypto.SaveECDSA(nodeFile(dir, i, "p2pkey"), key)
+			err := crypto.SaveECDSA(nodeFile(dir, i, "charon-enr-private-key"), key)
 			if err != nil {
-				return TmplData{}, errors.Wrap(err, "save p2pkey")
+				return TmplData{}, errors.Wrap(err, "save charon-enr-private-key")
 			}
 
 			enrStr, err := keyToENR(key)

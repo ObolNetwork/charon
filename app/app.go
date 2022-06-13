@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/http/pprof"
+	"path"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -565,7 +566,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	secrets := conf.TestConfig.SimnetKeys
 	if len(secrets) == 0 {
 		var err error
-		secrets, err = keystore.LoadKeys(conf.DataDir)
+		secrets, err = keystore.LoadKeys(path.Join(conf.DataDir, "/validator_keys"))
 		if err != nil {
 			return err
 		}
