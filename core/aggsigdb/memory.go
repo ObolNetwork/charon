@@ -49,10 +49,15 @@ type MemDB struct {
 
 // Store implements core.AggSigDB, see its godoc.
 func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, data core.SignedData) error {
+	clone, err := data.Clone() // Clone before storing.
+	if err != nil {
+		return err
+	}
+
 	response := make(chan error, 1)
 	cmd := writeCommand{
 		memDBKey: memDBKey{duty, pubKey},
-		data:     data,
+		data:     clone,
 		response: response,
 	}
 
@@ -96,7 +101,7 @@ func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) 
 	case <-db.closedCh:
 		return nil, ErrStopped
 	case value := <-response:
-		return value, nil
+		return value.Clone() // Clone before returning.
 	}
 }
 

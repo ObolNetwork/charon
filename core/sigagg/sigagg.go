@@ -89,8 +89,12 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 
 	// Call subscriptions.
 	for _, sub := range a.subs {
-		err := sub(ctx, duty, pubkey, aggSig)
+		clone, err := aggSig.Clone() // Clone before calling each subscriber.
 		if err != nil {
+			return err
+		}
+
+		if err := sub(ctx, duty, pubkey, clone); err != nil {
 			return err
 		}
 	}

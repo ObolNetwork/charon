@@ -196,6 +196,9 @@ type SignedData interface {
 	Signature() Signature
 	// SetSignature returns a copy of signed duty data with the signature replaced.
 	SetSignature(Signature) (SignedData, error)
+	// Clone returns a cloned copy of the SignedData. For an immutable core workflow architecture,
+	// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
+	Clone() (SignedData, error)
 	// Marshaler returns the json serialised signed duty data (including the signature).
 	json.Marshaler
 }
@@ -208,5 +211,34 @@ type ParSignedData struct {
 	ShareIdx int
 }
 
+// Clone returns a cloned copy of the ParSignedData. For an immutable core workflow architecture,
+// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
+func (d ParSignedData) Clone() (ParSignedData, error) {
+	data, err := d.SignedData.Clone()
+	if err != nil {
+		return ParSignedData{}, err
+	}
+
+	return ParSignedData{
+		SignedData: data,
+		ShareIdx:   d.ShareIdx,
+	}, nil
+}
+
 // ParSignedDataSet is a set of partially signed duty data objects, one per validator.
 type ParSignedDataSet map[PubKey]ParSignedData
+
+// Clone returns a cloned copy of the ParSignedDataSet. For an immutable core workflow architecture,
+// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
+func (s ParSignedDataSet) Clone() (ParSignedDataSet, error) {
+	resp := make(ParSignedDataSet, len(s))
+	for key, data := range s {
+		var err error
+		resp[key], err = data.Clone()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return resp, nil
+}
