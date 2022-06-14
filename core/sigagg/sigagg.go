@@ -50,23 +50,23 @@ func (a *Aggregator) Subscribe(fn func(context.Context, core.Duty, core.PubKey, 
 }
 
 // Aggregate aggregates the partially signed duty data for the DV.
-func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.PubKey, shares []core.ParSignedData) error {
-	if len(shares) < a.threshold {
+func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.PubKey, parSigs []core.ParSignedData) error {
+	if len(parSigs) < a.threshold {
 		return errors.New("require threshold signatures")
 	} else if a.threshold == 0 {
 		return errors.New("invalid threshold config")
 	}
 
-	// Get all signatures shares.
+	// Get all partial signatures.
 	var blsSigs []*bls_sig.PartialSignature
-	for _, share := range shares {
-		s, err := tblsconv.SigFromCore(share.Signature())
+	for _, parSig := range parSigs {
+		s, err := tblsconv.SigFromCore(parSig.Signature())
 		if err != nil {
 			return errors.Wrap(err, "convert signature")
 		}
 
 		blsSigs = append(blsSigs, &bls_sig.PartialSignature{
-			Identifier: byte(share.ShareIdx),
+			Identifier: byte(parSig.ShareIdx),
 			Signature:  s.Value,
 		})
 	}
@@ -79,8 +79,8 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 		return err
 	}
 
-	// Inject signature into one of te shares resulting in aggregate signed data.
-	aggSig, err := shares[0].SetSignature(tblsconv.SigToCore(sig))
+	// Inject signature into one of te parSigs resulting in aggregate signed data.
+	aggSig, err := parSigs[0].SetSignature(tblsconv.SigToCore(sig))
 	if err != nil {
 		return err
 	}

@@ -142,12 +142,12 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core
 			Slot: slot,
 			Type: core.DutyRandao,
 		}
-		signedData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
+		randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
 		if err != nil {
 			return nil, err
 		}
 
-		randao := signedData.Signature().ToETH2()
+		randao := randaoData.Signature().ToETH2()
 
 		// TODO(dhruv): what to do with graffiti?
 		// passing empty graffiti since it is not required in API
