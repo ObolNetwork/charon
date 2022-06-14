@@ -200,7 +200,15 @@ func (c *Component) RegisterGetDutyFunc(fn func(ctx context.Context, duty core.D
 // RegisterParSigDB registers a partial signed data set store function.
 // It supports multiple functions since it is the output of the component.
 func (c *Component) RegisterParSigDB(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
-	c.parSigDBFuncs = append(c.parSigDBFuncs, fn)
+	c.parSigDBFuncs = append(c.parSigDBFuncs, func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		// Clone before calling each subscriber.
+		clone, err := set.Clone()
+		if err != nil {
+			return err
+		}
+
+		return fn(ctx, duty, clone)
+	})
 }
 
 // RegisterAwaitBeaconBlock registers a function to query unsigned block.
@@ -270,8 +278,9 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 
 		log.Debug(ctx, "Attestation submitted by validator client")
 
-		for _, dbFunc := range c.parSigDBFuncs {
-			err := dbFunc(ctx, duty, set)
+		for _, parSigFunc := range c.parSigDBFuncs {
+			// No need to clone since parSigDBFunc auto clones.
+			err := parSigFunc(ctx, duty, set)
 			if err != nil {
 				return err
 			}
@@ -308,11 +317,12 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 		return nil, err
 	}
 
-	for _, dbFunc := range c.parSigDBFuncs {
+	for _, parSigFunc := range c.parSigDBFuncs {
+		// No need to clone since parSigDBFunc auto clones.
 		parsigSet := core.ParSignedDataSet{
 			pubkey: parSig,
 		}
-		err := dbFunc(ctx, core.NewRandaoDuty(int64(slot)), parsigSet)
+		err := parSigFunc(ctx, core.NewRandaoDuty(int64(slot)), parsigSet)
 		if err != nil {
 			return nil, err
 		}
@@ -367,8 +377,9 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 		return err
 	}
 	set := core.ParSignedDataSet{pubkey: signedData}
-	for _, dbFunc := range c.parSigDBFuncs {
-		err = dbFunc(ctx, duty, set)
+	for _, parSigFunc := range c.parSigDBFuncs {
+		// No need to clone since parSigDBFunc auto clones.
+		err = parSigFunc(ctx, duty, set)
 		if err != nil {
 			return err
 		}
@@ -416,8 +427,9 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 		Slot: int64(slotsPerEpoch) * int64(exit.Message.Epoch),
 	}
 
-	for _, dbFunc := range c.parSigDBFuncs {
-		err := dbFunc(ctx, duty, core.ParSignedDataSet{pubkey: parSigData})
+	for _, parSigFunc := range c.parSigDBFuncs {
+		// No need to clone since parSigDBFunc auto clones.
+		err := parSigFunc(ctx, duty, core.ParSignedDataSet{pubkey: parSigData})
 		if err != nil {
 			return err
 		}
@@ -535,11 +547,12 @@ func (c Component) submitRandaoDuty(ctx context.Context, pubKey core.PubKey, slo
 
 	log.Debug(ctx, "Randao submitted by validator client")
 
-	for _, dbFunc := range c.parSigDBFuncs {
+	for _, parSigFunc := range c.parSigDBFuncs {
+		// No need to clone since parSigDBFunc auto clones.
 		duty := core.NewRandaoDuty(int64(slot))
 		ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
-		err := dbFunc(ctx, duty, parsigSet)
+		err := parSigFunc(ctx, duty, parsigSet)
 		if err != nil {
 			return err
 		}

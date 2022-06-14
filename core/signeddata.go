@@ -52,6 +52,20 @@ func NewPartialSignature(sig Signature, shareIdx int) ParSignedData {
 // Signature is a BLS12-381 Signature. It implements SignedData.
 type Signature []byte
 
+func (s Signature) Clone() (SignedData, error) {
+	return s.clone(), nil
+}
+
+// clone returns a copy of the Signature.
+// It is similar to Clone that returns the SignedData interface.
+//nolint:revive // similar method names.
+func (s Signature) clone() Signature {
+	resp := make([]byte, len(s))
+	copy(resp, s)
+
+	return resp
+}
+
 func (s Signature) Signature() Signature {
 	return s
 }
@@ -128,6 +142,18 @@ type VersionedSignedBeaconBlock struct {
 	spec.VersionedSignedBeaconBlock // Could subtype instead of embed, but aligning with Attestation that cannot subtype.
 }
 
+func (b VersionedSignedBeaconBlock) Clone() (SignedData, error) {
+	return b.clone()
+}
+
+// clone returns a copy of the VersionedSignedBeaconBlock.
+// It is similar to Clone that returns the SignedData interface.
+//nolint:revive // similar method names.
+func (b VersionedSignedBeaconBlock) clone() (VersionedSignedBeaconBlock, error) {
+	var resp VersionedSignedBeaconBlock
+	return resp, cloneSignedData(b, &resp)
+}
+
 func (b VersionedSignedBeaconBlock) Signature() Signature {
 	switch b.Version {
 	// No block nil checks since `NewVersionedSignedBeaconBlock` assumed.
@@ -143,8 +169,8 @@ func (b VersionedSignedBeaconBlock) Signature() Signature {
 }
 
 func (b VersionedSignedBeaconBlock) SetSignature(sig Signature) (SignedData, error) {
-	var resp VersionedSignedBeaconBlock
-	if err := cloneSignedData(b, &resp); err != nil {
+	resp, err := b.clone()
+	if err != nil {
 		return nil, err
 	}
 
@@ -252,13 +278,25 @@ type Attestation struct {
 	eth2p0.Attestation
 }
 
+func (a Attestation) Clone() (SignedData, error) {
+	return a.clone()
+}
+
+// clone returns a copy of the Attestation.
+// It is similar to Clone that returns the SignedData interface.
+//nolint:revive // similar method names.
+func (a Attestation) clone() (Attestation, error) {
+	var resp Attestation
+	return resp, cloneSignedData(a, &resp)
+}
+
 func (a Attestation) Signature() Signature {
 	return SigFromETH2(a.Attestation.Signature)
 }
 
 func (a Attestation) SetSignature(sig Signature) (SignedData, error) {
-	var resp Attestation
-	if err := cloneSignedData(a, &resp); err != nil {
+	resp, err := a.clone()
+	if err != nil {
 		return nil, err
 	}
 
@@ -292,13 +330,25 @@ type SignedVoluntaryExit struct {
 	eth2p0.SignedVoluntaryExit
 }
 
+func (e SignedVoluntaryExit) Clone() (SignedData, error) {
+	return e.clone()
+}
+
+// clone returns a copy of the SignedVoluntaryExit.
+// It is similar to Clone that returns the SignedData interface.
+//nolint:revive // similar method names.
+func (e SignedVoluntaryExit) clone() (SignedVoluntaryExit, error) {
+	var resp SignedVoluntaryExit
+	return resp, cloneSignedData(e, &resp)
+}
+
 func (e SignedVoluntaryExit) Signature() Signature {
 	return SigFromETH2(e.SignedVoluntaryExit.Signature)
 }
 
 func (e SignedVoluntaryExit) SetSignature(sig Signature) (SignedData, error) {
-	var resp SignedVoluntaryExit
-	if err := cloneSignedData(e, &resp); err != nil {
+	resp, err := e.clone()
+	if err != nil {
 		return nil, err
 	}
 

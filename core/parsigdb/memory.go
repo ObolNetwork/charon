@@ -71,8 +71,12 @@ func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet co
 
 	// Call internalSubs (which includes ParSigEx to exchange partial signed data with all peers).
 	for _, sub := range db.internalSubs {
-		err := sub(ctx, duty, signedSet)
+		clone, err := signedSet.Clone() // Clone before calling each subscriber.
 		if err != nil {
+			return err
+		}
+
+		if err = sub(ctx, duty, clone); err != nil {
 			return err
 		}
 	}
@@ -102,8 +106,17 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 		}
 
 		for _, sub := range db.threshSubs {
-			err := sub(ctx, duty, pubkey, sigs)
-			if err != nil {
+			// Clone before calling each subscriber.
+			var clones []core.ParSignedData
+			for _, sig := range sigs {
+				clone, err := sig.Clone()
+				if err != nil {
+					return err
+				}
+				clones = append(clones, clone)
+			}
+
+			if err := sub(ctx, duty, pubkey, sigs); err != nil {
 				return err
 			}
 		}
@@ -132,7 +145,13 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 		}
 	}
 
-	db.entries[k] = append(db.entries[k], value)
+	// Clone before storing.
+	clone, err := value.Clone()
+	if err != nil {
+		return nil, false, err
+	}
+
+	db.entries[k] = append(db.entries[k], clone)
 
 	return append([]core.ParSignedData(nil), db.entries[k]...), true, nil
 }
