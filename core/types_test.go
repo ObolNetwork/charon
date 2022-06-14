@@ -24,7 +24,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestBackwardsCompatability(t *testing.T) {
@@ -48,38 +47,6 @@ func TestBackwardsCompatability(t *testing.T) {
 			require.NotEmpty(t, i.String())
 		}
 	}
-}
-
-func TestAggSignedData_Equal(t *testing.T) {
-	testAggSignedData1 := core.AggSignedData{
-		Data:      []byte("test data"),
-		Signature: testutil.RandomCoreSignature(),
-	}
-
-	testAggSignedData2 := core.AggSignedData{
-		Data:      []byte("test data"),
-		Signature: testAggSignedData1.Signature,
-	}
-
-	testAggSignedData3 := core.AggSignedData{
-		Data:      []byte("test data 3"),
-		Signature: testutil.RandomCoreSignature(),
-	}
-
-	testAggSignedData4 := core.AggSignedData{
-		Data:      []byte("test data"),
-		Signature: testutil.RandomCoreSignature(),
-	}
-
-	testAggSignedData5 := core.AggSignedData{
-		Data:      []byte("test data 5"),
-		Signature: testutil.RandomCoreSignature(),
-	}
-
-	require.True(t, testAggSignedData1.Equal(testAggSignedData2))
-	require.False(t, testAggSignedData1.Equal(testAggSignedData3))
-	require.False(t, testAggSignedData1.Equal(testAggSignedData4))
-	require.False(t, testAggSignedData1.Equal(testAggSignedData5))
 }
 
 func TestWithDutySpanCtx(t *testing.T) {

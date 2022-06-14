@@ -135,15 +135,9 @@ func TestFetchProposer(t *testing.T) {
 	}
 	duty := core.Duty{Type: core.DutyProposer, Slot: slot}
 
-	randaoA := core.AggSignedData{
-		Data:      nil,
-		Signature: testutil.RandomCoreSignature(),
-	}
-	randaoB := core.AggSignedData{
-		Data:      nil,
-		Signature: testutil.RandomCoreSignature(),
-	}
-	randaoByPubKey := map[core.PubKey]core.AggSignedData{
+	randaoA := testutil.RandomCoreSignature()
+	randaoB := testutil.RandomCoreSignature()
+	randaoByPubKey := map[core.PubKey]core.SignedData{
 		pubkeysByIdx[vIdxA]: randaoA,
 		pubkeysByIdx[vIdxB]: randaoB,
 	}
@@ -153,7 +147,7 @@ func TestFetchProposer(t *testing.T) {
 	fetch, err := fetcher.New(bmock)
 	require.NoError(t, err)
 
-	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.AggSignedData, error) {
+	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 		return randaoByPubKey[key], nil
 	})
 
@@ -168,7 +162,7 @@ func TestFetchProposer(t *testing.T) {
 		slotA, err := dutyDataA.Slot()
 		require.NoError(t, err)
 		require.EqualValues(t, slot, slotA)
-		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature.ToETH2(), dutyDataA)
+		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 
 		dataB := resDataSet[pubkeysByIdx[vIdxB]]
 		dutyDataB, err := core.DecodeProposerUnsignedData(dataB)
@@ -177,7 +171,7 @@ func TestFetchProposer(t *testing.T) {
 		slotB, err := dutyDataB.Slot()
 		require.NoError(t, err)
 		require.EqualValues(t, slot, slotB)
-		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature.ToETH2(), dutyDataB)
+		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
 
 		return nil
 	})

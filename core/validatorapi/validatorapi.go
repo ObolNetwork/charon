@@ -260,12 +260,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 			setsBySlot[slot] = set
 		}
 
-		signedData, err := core.EncodeAttestationParSignedData(att, c.shareIdx)
-		if err != nil {
-			return err
-		}
-
-		set[pubkey] = signedData
+		set[pubkey] = core.NewPartialAttestation(att, c.shareIdx)
 	}
 
 	// Send sets to subscriptions.
@@ -294,15 +289,33 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 		return nil, err
 	}
 
-	// Verify randao partial signature
-	err = c.verifyRandaoParSig(ctx, pubkey, slot, randao)
+	// Calculate slot epoch
+	epoch, err := c.epochFromSlot(ctx, slot)
 	if err != nil {
 		return nil, err
 	}
 
-	err = c.submitRandaoDuty(ctx, pubkey, slot, randao)
+	parSig := core.NewPartialSignature(core.SigFromETH2(randao), c.shareIdx)
+
+	sigRoot, err := eth2util.EpochHashRoot(epoch)
 	if err != nil {
 		return nil, err
+	}
+
+	// Verify randao partial signature
+	err = c.verifyParSig(ctx, core.DutyRandao, epoch, pubkey, sigRoot, randao)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, dbFunc := range c.parSigDBFuncs {
+		parsigSet := core.ParSignedDataSet{
+			pubkey: parSig,
+		}
+		err := dbFunc(ctx, core.NewRandaoDuty(int64(slot)), parsigSet)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// In the background, the following needs to happen before the
@@ -349,7 +362,7 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 
 	log.Debug(ctx, "Beacon block submitted by validator client")
 
-	signedData, err := core.EncodeBlockParSignedData(block, c.shareIdx)
+	signedData, err := core.NewPartialVersionedSignedBeaconBlock(block, c.shareIdx)
 	if err != nil {
 		return err
 	}
@@ -390,10 +403,7 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 		return err
 	}
 
-	parSigData, err := core.EncodeExitParSignedData(exit, c.shareIdx)
-	if err != nil {
-		return err
-	}
+	parSigData := core.NewPartialSignedVoluntaryExit(exit, c.shareIdx)
 
 	// Use 1st slot in exit epoch for duty.
 	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
@@ -520,7 +530,7 @@ func (c Component) verifyParSig(parent context.Context, typ core.DutyType, epoch
 
 func (c Component) submitRandaoDuty(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
 	parsigSet := core.ParSignedDataSet{
-		pubKey: core.EncodeRandaoParSignedData(randao, c.shareIdx),
+		pubKey: core.NewPartialSignature(core.SigFromETH2(randao), c.shareIdx),
 	}
 
 	log.Debug(ctx, "Randao submitted by validator client")

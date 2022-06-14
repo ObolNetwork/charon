@@ -16,7 +16,6 @@
 package core
 
 import (
-	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -201,38 +200,13 @@ type SignedData interface {
 	json.Marshaler
 }
 
-// ParSignedData2 is a partially signed duty data only signed by a single threshold BLS share.
-// TODO(corver): Rename and place ParSignedData.
-type ParSignedData2 struct {
+// ParSignedData is a partially signed duty data only signed by a single threshold BLS share.
+type ParSignedData struct {
 	// SignedData is a partially signed duty data.
 	SignedData
 	// ShareIdx returns the threshold BLS share index.
 	ShareIdx int
 }
 
-// ParSignedData is a partially signed duty data.
-// Partial refers to it being signed by a single share of the BLS threshold signing scheme.
-type ParSignedData struct {
-	// Data is the partially signed duty data received from VC.
-	Data []byte
-	// Signature of tbls share extracted from data.
-	Signature Signature
-	// ShareIdx of the tbls share.
-	ShareIdx int
-}
-
 // ParSignedDataSet is a set of partially signed duty data objects, one per validator.
 type ParSignedDataSet map[PubKey]ParSignedData
-
-// AggSignedData is an aggregated signed duty data.
-// Aggregated refers to it being signed by the aggregated BLS threshold signing scheme.
-type AggSignedData struct {
-	// Data is the signed duty data to be sent to beacon chain.
-	Data []byte
-	// Signature is the result of tbls aggregation and is inserted into the data.
-	Signature Signature
-}
-
-func (a AggSignedData) Equal(b AggSignedData) bool {
-	return bytes.Equal(a.Data, b.Data) && bytes.Equal(a.Signature, b.Signature)
-}

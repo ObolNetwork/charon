@@ -58,7 +58,10 @@ func TestMemEx(t *testing.T) {
 
 	for i := 0; i < n; i++ {
 		set := make(core.ParSignedDataSet)
-		set[pubkey] = core.ParSignedData{ShareIdx: i}
+		set[pubkey] = core.ParSignedData{
+			SignedData: nil,
+			ShareIdx:   i,
+		}
 
 		err := exes[i].Broadcast(ctx, core.Duty{}, set)
 		require.NoError(t, err)

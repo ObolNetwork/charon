@@ -42,8 +42,8 @@ func SigFromETH2(sig eth2p0.BLSSignature) Signature {
 }
 
 // NewPartialSignature is a convenience function that returns a new partially signature.
-func NewPartialSignature(sig Signature, shareIdx int) ParSignedData2 {
-	return ParSignedData2{
+func NewPartialSignature(sig Signature, shareIdx int) ParSignedData {
+	return ParSignedData{
 		SignedData: sig,
 		ShareIdx:   shareIdx,
 	}
@@ -111,13 +111,13 @@ func NewVersionedSignedBeaconBlock(block *spec.VersionedSignedBeaconBlock) (Vers
 }
 
 // NewPartialVersionedSignedBeaconBlock is a convenience function that returns a new partial signed block.
-func NewPartialVersionedSignedBeaconBlock(block *spec.VersionedSignedBeaconBlock, shareIdx int) (ParSignedData2, error) {
+func NewPartialVersionedSignedBeaconBlock(block *spec.VersionedSignedBeaconBlock, shareIdx int) (ParSignedData, error) {
 	wrap, err := NewVersionedSignedBeaconBlock(block)
 	if err != nil {
-		return ParSignedData2{}, err
+		return ParSignedData{}, err
 	}
 
-	return ParSignedData2{
+	return ParSignedData{
 		SignedData: wrap,
 		ShareIdx:   shareIdx,
 	}, nil
@@ -240,8 +240,8 @@ func NewAttestation(att *eth2p0.Attestation) Attestation {
 }
 
 // NewPartialAttestation is a convenience function that returns a new partially signed attestation.
-func NewPartialAttestation(att *eth2p0.Attestation, shareIdx int) ParSignedData2 {
-	return ParSignedData2{
+func NewPartialAttestation(att *eth2p0.Attestation, shareIdx int) ParSignedData {
+	return ParSignedData{
 		SignedData: NewAttestation(att),
 		ShareIdx:   shareIdx,
 	}
@@ -281,8 +281,8 @@ func NewSignedVoluntaryExit(exit *eth2p0.SignedVoluntaryExit) SignedVoluntaryExi
 }
 
 // NewPartialSignedVoluntaryExit is a convenience function that returns a new partially signed voluntary exit.
-func NewPartialSignedVoluntaryExit(exit *eth2p0.SignedVoluntaryExit, shareIdx int) ParSignedData2 {
-	return ParSignedData2{
+func NewPartialSignedVoluntaryExit(exit *eth2p0.SignedVoluntaryExit, shareIdx int) ParSignedData {
+	return ParSignedData{
 		SignedData: NewSignedVoluntaryExit(exit),
 		ShareIdx:   shareIdx,
 	}

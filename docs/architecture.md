@@ -219,7 +219,7 @@ type Fetcher interface {
 
   // RegisterAggSigDB registers a function to resolved aggregated
   // signed data from the AggSigDB (e.g., randao reveals).
-  RegisterAggSigDB(func(context.Context, Duty, PubKey) (AggSignedData, error))
+  RegisterAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
 }
 ```
 ### Consensus
@@ -508,11 +508,11 @@ type ParSigEx interface {
 The signature aggregation service aggregates partial BLS signatures and sends them to the `bcast` component and persists them to the `AggSigDB`.
 It is a stateless pure function.
 
-Aggregated signed duty data objects are defined as `AggSignedData`:
+Aggregated signed duty data objects are defined as `SignedData`:
 ```go
-// AggSignedData is an aggregated signed duty data.
+// SignedData is an aggregated signed duty data.
 // Aggregated refers to it being signed by the aggregated BLS threshold signing scheme.
-type AggSignedData struct {
+type SignedData struct {
   // Data is the signed duty data to be sent to beacon chain.
   Data []byte
   // Signature is the result of tbls aggregation and is inserted into the data.
@@ -529,7 +529,7 @@ type SigAgg interface {
   Aggregate(context.Context, Duty, PubKey, []ParSignedData) error
 
   // Subscribe registers a callback for aggregated signed duty data.
-  Subscribe(func(context.Context, Duty, PubKey, AggSignedData) error)
+  Subscribe(func(context.Context, Duty, PubKey, SignedData) error)
 }
 ```
 
@@ -540,7 +540,7 @@ At this point, only `DutyRandao` is queried, but other use cases may yet present
 
 The data model of the database is:
 - Key: `Slot,DutyType,PubKey`
-- Value: `AggSignedData`
+- Value: `SignedData`
 
 > ⁉️ When can old data be trimmed/deleted?
 
@@ -549,10 +549,10 @@ The aggregated signature database interface is defined as:
 // AggSigDB persists aggregated signed duty data.
 type AggSigDB interface {
   // Store stores aggregated signed duty data.
-  Store(context.Context, Duty, PubKey, AggSignedData) error
+  Store(context.Context, Duty, PubKey, SignedData) error
 
   // Await blocks and returns the aggregated signed duty data when available.
-  Await(context.Context, Duty, PubKey) (AggSignedData, error)
+  Await(context.Context, Duty, PubKey) (SignedData, error)
 }
 ```
 ### Bcast
@@ -562,7 +562,7 @@ The broadcast interface is defined as:
 ```go
 // Bcast broadcasts aggregated signed duty data to the beacon node.
 type Bcast interface {
-  Broadcast(context.Context, Duty, PubKey, AggSignedData) error
+  Broadcast(context.Context, Duty, PubKey, SignedData) error
 }
 ```
 ### Stitching the core workflow

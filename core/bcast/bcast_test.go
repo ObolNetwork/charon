@@ -34,14 +34,12 @@ func TestBroadcastAttestation(t *testing.T) {
 	mock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	att := testutil.RandomAttestation()
-	aggData, err := core.EncodeAttestationAggSignedData(att)
-	require.NoError(t, err)
+	aggData := core.Attestation{Attestation: *testutil.RandomAttestation()}
 
 	// Assert output and cancel context
 	mock.SubmitAttestationsFunc = func(ctx context.Context, attestations []*eth2p0.Attestation) error {
 		require.Len(t, attestations, 1)
-		require.Equal(t, att, attestations[0])
+		require.Equal(t, aggData.Attestation, *attestations[0])
 		cancel()
 
 		return ctx.Err()
@@ -61,18 +59,18 @@ func TestBroadcastBeaconBlock(t *testing.T) {
 	mock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	block1 := &spec.VersionedSignedBeaconBlock{
+	block1 := spec.VersionedSignedBeaconBlock{
 		Version: spec.DataVersionPhase0,
 		Phase0: &eth2p0.SignedBeaconBlock{
 			Message:   testutil.RandomPhase0BeaconBlock(),
 			Signature: testutil.RandomEth2Signature(),
 		},
 	}
-	aggData, err := core.EncodeBlockAggSignedData(block1)
-	require.NoError(t, err)
+
+	aggData := core.VersionedSignedBeaconBlock{VersionedSignedBeaconBlock: block1}
 
 	mock.SubmitBeaconBlockFunc = func(ctx context.Context, block2 *spec.VersionedSignedBeaconBlock) error {
-		require.Equal(t, block1, block2)
+		require.Equal(t, block1, *block2)
 		cancel()
 
 		return ctx.Err()
@@ -92,12 +90,10 @@ func TestBroadcastExit(t *testing.T) {
 	mock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	exit := testutil.RandomExit()
-	aggData, err := core.EncodeExitAggSignedData(exit)
-	require.NoError(t, err)
+	aggData := core.SignedVoluntaryExit{SignedVoluntaryExit: *testutil.RandomExit()}
 
 	mock.SubmitVoluntaryExitFunc = func(ctx context.Context, exit2 *eth2p0.SignedVoluntaryExit) error {
-		require.Equal(t, *exit, *exit2)
+		require.Equal(t, aggData.SignedVoluntaryExit, *exit2)
 		cancel()
 
 		return ctx.Err()

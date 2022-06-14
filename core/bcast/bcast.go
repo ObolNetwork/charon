@@ -63,7 +63,7 @@ type Broadcaster struct {
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
 func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
-	pubkey core.PubKey, aggData core.AggSignedData,
+	pubkey core.PubKey, aggData core.SignedData,
 ) (err error) {
 	ctx = log.WithTopic(ctx, "bcast")
 	ctx = log.WithCtx(ctx, z.Any("pubkey", pubkey))
@@ -75,12 +75,12 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 
 	switch duty.Type {
 	case core.DutyAttester:
-		att, err := core.DecodeAttestationAggSignedData(aggData)
-		if err != nil {
-			return err
+		att, ok := aggData.(core.Attestation)
+		if !ok {
+			return errors.New("invalid attestation")
 		}
 
-		err = b.eth2Cl.SubmitAttestations(ctx, []*eth2p0.Attestation{att})
+		err = b.eth2Cl.SubmitAttestations(ctx, []*eth2p0.Attestation{&att.Attestation})
 		if err == nil {
 			log.Info(ctx, "Attestation successfully submitted to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
@@ -89,12 +89,12 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 
 		return err
 	case core.DutyProposer:
-		block, err := core.DecodeBlockAggSignedData(aggData)
-		if err != nil {
-			return err
+		block, ok := aggData.(core.VersionedSignedBeaconBlock)
+		if !ok {
+			return errors.New("invalid block")
 		}
 
-		err = b.eth2Cl.SubmitBeaconBlock(ctx, block)
+		err = b.eth2Cl.SubmitBeaconBlock(ctx, &block.VersionedSignedBeaconBlock)
 		if err == nil {
 			log.Info(ctx, "Block proposal successfully submitted to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
@@ -104,12 +104,12 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		return err
 
 	case core.DutyExit:
-		exit, err := core.DecodeExitAggSignedData(aggData)
-		if err != nil {
-			return err
+		exit, ok := aggData.(core.SignedVoluntaryExit)
+		if !ok {
+			return errors.New("invalid exit")
 		}
 
-		err = b.eth2Cl.SubmitVoluntaryExit(ctx, exit)
+		err = b.eth2Cl.SubmitVoluntaryExit(ctx, &exit.SignedVoluntaryExit)
 		if err == nil {
 			log.Info(ctx, "Voluntary exit successfully submitted to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),

@@ -48,7 +48,7 @@ func New(eth2Svc eth2client.Service) (*Fetcher, error) {
 type Fetcher struct {
 	eth2Cl       eth2Provider
 	subs         []func(context.Context, core.Duty, core.UnsignedDataSet) error
-	aggSigDBFunc func(context.Context, core.Duty, core.PubKey) (core.AggSignedData, error)
+	aggSigDBFunc func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -91,7 +91,7 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchAr
 
 // RegisterAggSigDB registers a function to get resolved aggregated signed data from the AggSigDB.
 // Note: This is not thread safe should be called *before* Fetch.
-func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.AggSignedData, error)) {
+func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)) {
 	f.aggSigDBFunc = fn
 }
 
@@ -142,16 +142,17 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core
 			Slot: slot,
 			Type: core.DutyRandao,
 		}
-		randao, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
+		randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
 		if err != nil {
 			return nil, err
 		}
-		randaoEth2 := core.DecodeRandaoAggSignedData(randao)
+
+		randao := randaoData.Signature().ToETH2()
 
 		// TODO(dhruv): what to do with graffiti?
 		// passing empty graffiti since it is not required in API
 		var graffiti [32]byte
-		block, err := f.eth2Cl.BeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randaoEth2, graffiti[:])
+		block, err := f.eth2Cl.BeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randao, graffiti[:])
 		if err != nil {
 			return nil, err
 		}

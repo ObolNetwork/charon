@@ -39,52 +39,108 @@ func TestDutyProto(t *testing.T) {
 	require.Equal(t, pb1, pb2)
 }
 
-func TestParSignedDataProto(t *testing.T) {
-	data1 := core.ParSignedData{
-		Data:      testutil.RandomBytes32(),
-		Signature: testutil.RandomCoreSignature(),
-		ShareIdx:  99,
-	}
-	pb1 := core.ParSignedDataToProto(data1)
-	data2 := core.ParSignedDataFromProto(pb1)
-	pb2 := core.ParSignedDataToProto(data2)
-	require.Equal(t, data1, data2)
-	require.Equal(t, pb1, pb2)
-}
-
 func TestParSignedDataSetProto(t *testing.T) {
-	set1 := core.ParSignedDataSet{
-		testutil.RandomCorePubKey(t): core.ParSignedData{
-			Data:      testutil.RandomBytes32(),
-			Signature: testutil.RandomCoreSignature(),
-			ShareIdx:  99,
+	tests := []struct {
+		Type core.DutyType
+		Data core.SignedData
+	}{
+		{
+			Type: core.DutyAttester,
+			Data: core.Attestation{Attestation: *testutil.RandomAttestation()},
 		},
-		testutil.RandomCorePubKey(t): core.ParSignedData{
-			Data:      testutil.RandomBytes32(),
-			Signature: testutil.RandomCoreSignature(),
-			ShareIdx:  123,
+		{
+			Type: core.DutyExit,
+			Data: core.SignedVoluntaryExit{SignedVoluntaryExit: *testutil.RandomExit()},
+		},
+		{
+			Type: core.DutyProposer,
+			Data: core.VersionedSignedBeaconBlock{
+				VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
+					Version: spec.DataVersionBellatrix,
+					Bellatrix: &bellatrix.SignedBeaconBlock{
+						Message:   testutil.RandomBellatrixBeaconBlock(t),
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
 		},
 	}
-	pb1 := core.ParSignedDataSetToProto(set1)
-	set2 := core.ParSignedDataSetFromProto(pb1)
-	pb2 := core.ParSignedDataSetToProto(set2)
-	require.Equal(t, set1, set2)
-	require.Equal(t, pb1, pb2)
+	for _, test := range tests {
+		t.Run(test.Type.String(), func(t *testing.T) {
+			set1 := core.ParSignedDataSet{
+				testutil.RandomCorePubKey(t): core.ParSignedData{
+					SignedData: test.Data,
+					ShareIdx:   rand.Intn(100),
+				},
+			}
+			pb1, err := core.ParSignedDataSetToProto(set1)
+			require.NoError(t, err)
+			set2, err := core.ParSignedDataSetFromProto(test.Type, pb1)
+			require.NoError(t, err)
+			pb2, err := core.ParSignedDataSetToProto(set2)
+			require.NoError(t, err)
+			require.Equal(t, set1, set2)
+			require.Equal(t, pb1, pb2)
+
+			b, err := proto.Marshal(pb1)
+			require.NoError(t, err)
+
+			pb3 := new(pbv1.ParSignedDataSet)
+			err = proto.Unmarshal(b, pb3)
+			require.NoError(t, err)
+
+			require.True(t, proto.Equal(pb1, pb3))
+		})
+	}
 }
 
-func TestParSignedData2(t *testing.T) {
+func TestMarshal(t *testing.T) {
+	att := core.Attestation{Attestation: *testutil.RandomAttestation()}
+
+	b, err := json.Marshal(att)
+	require.NoError(t, err)
+
+	b2, err := att.MarshalJSON()
+	require.NoError(t, err)
+	require.Equal(t, b, b2)
+
+	var a core.SignedData
+	a = &core.Attestation{}
+	err = json.Unmarshal(b, a)
+	require.NoError(t, err)
+
+	require.Equal(t, &att, a)
+}
+
+func TestSetBlockSig(t *testing.T) {
+	block := core.VersionedSignedBeaconBlock{
+		VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
+			Version: spec.DataVersionBellatrix,
+			Bellatrix: &bellatrix.SignedBeaconBlock{
+				Message:   testutil.RandomBellatrixBeaconBlock(t),
+				Signature: testutil.RandomEth2Signature(),
+			},
+		},
+	}
+
+	clone, err := block.SetSignature(testutil.RandomCoreSignature())
+	require.NoError(t, err)
+	require.NotEqual(t, clone.Signature(), block.Signature())
+}
+
+func TestParSignedData(t *testing.T) {
 	for typ, signedData := range randomSignedData(t) {
 		t.Run(typ.String(), func(t *testing.T) {
-			parSig1 := core.ParSignedData2{
+			parSig1 := core.ParSignedData{
 				SignedData: signedData,
 				ShareIdx:   rand.Intn(100),
 			}
 
-			pb1, err := core.ParSignedData2ToProto(parSig1)
+			pb1, err := core.ParSignedDataToProto(parSig1)
 			require.NoError(t, err)
-			parSig2, err := core.ParSignedData2FromProto(typ, pb1)
+			parSig2, err := core.ParSignedDataFromProto(typ, pb1)
 			require.NoError(t, err)
-			pb2, err := core.ParSignedData2ToProto(parSig2)
+			pb2, err := core.ParSignedDataToProto(parSig2)
 			require.NoError(t, err)
 			require.Equal(t, parSig1, parSig2)
 			require.Equal(t, pb1, pb2)

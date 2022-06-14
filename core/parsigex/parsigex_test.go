@@ -35,16 +35,12 @@ func TestParSigEx(t *testing.T) {
 	n := 3
 	duty := core.Duty{
 		Slot: 123,
-		Type: core.DutyAttester,
+		Type: core.DutyRandao,
 	}
 
 	pubkey := testutil.RandomCorePubKey(t)
 	data := core.ParSignedDataSet{
-		pubkey: core.ParSignedData{
-			Data:      []byte("partially signed data"),
-			Signature: nil,
-			ShareIdx:  0,
-		},
+		pubkey: core.NewPartialSignature(testutil.RandomCoreSignature(), 0),
 	}
 
 	var (
@@ -76,10 +72,15 @@ func TestParSigEx(t *testing.T) {
 		}
 	}
 
+	var wg sync.WaitGroup
+
 	// create ParSigEx components for each host
 	for i := 0; i < n; i++ {
+		wg.Add(n - 1)
 		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers)
 		sigex.Subscribe(func(_ context.Context, d core.Duty, set core.ParSignedDataSet) error {
+			defer wg.Done()
+
 			require.Equal(t, duty, d)
 			require.Equal(t, data, set)
 
@@ -88,7 +89,6 @@ func TestParSigEx(t *testing.T) {
 		parsigexs = append(parsigexs, sigex)
 	}
 
-	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func(node int) {

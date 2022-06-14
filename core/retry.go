@@ -46,7 +46,7 @@ func WithAsyncRetry(retryer *retry.Retryer[Duty]) WireOption {
 
 			return nil
 		}
-		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, key PubKey, data AggSignedData) error {
+		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, key PubKey, data SignedData) error {
 			go retryer.DoAsync(ctx, duty, "bcast broadcast", func(ctx context.Context) error {
 				return clone.BroadcasterBroadcast(ctx, duty, key, data)
 			})

@@ -120,19 +120,19 @@ func WithTracing() WireOption {
 
 			return clone.SigAggAggregate(ctx, duty, key, data)
 		}
-		w.AggSigDBStore = func(parent context.Context, duty Duty, key PubKey, data AggSignedData) error {
+		w.AggSigDBStore = func(parent context.Context, duty Duty, key PubKey, data SignedData) error {
 			ctx, span := tracer.Start(parent, "core/aggsigdb.Store")
 			defer span.End()
 
 			return clone.AggSigDBStore(ctx, duty, key, data)
 		}
-		w.AggSigDBAwait = func(parent context.Context, duty Duty, key PubKey) (AggSignedData, error) {
+		w.AggSigDBAwait = func(parent context.Context, duty Duty, key PubKey) (SignedData, error) {
 			ctx, span := tracer.Start(parent, "core/aggsigdb.Await")
 			defer span.End()
 
 			return clone.AggSigDBAwait(ctx, duty, key)
 		}
-		w.BroadcasterBroadcast = func(parent context.Context, duty Duty, key PubKey, data AggSignedData) error {
+		w.BroadcasterBroadcast = func(parent context.Context, duty Duty, key PubKey, data SignedData) error {
 			ctx, span := tracer.Start(parent, "core/broadcaster.Broadcast")
 			defer span.End()
 

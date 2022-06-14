@@ -16,6 +16,7 @@
 package aggsigdb
 
 import (
+	"bytes"
 	"context"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -27,7 +28,7 @@ var ErrStopped = errors.New("database stopped")
 // NewMemDB creates a basic memory based AggSigDB.
 func NewMemDB() *MemDB {
 	return &MemDB{
-		data:           make(map[memDBKey]core.AggSignedData),
+		data:           make(map[memDBKey]core.SignedData),
 		commands:       make(chan writeCommand),
 		queries:        make(chan readQuery),
 		blockedQueries: []readQuery{},
@@ -37,7 +38,7 @@ func NewMemDB() *MemDB {
 
 // MemDB is a basic memory implementation of core.AggSigDB.
 type MemDB struct {
-	data map[memDBKey]core.AggSignedData
+	data map[memDBKey]core.SignedData
 
 	commands       chan writeCommand
 	queries        chan readQuery
@@ -47,7 +48,7 @@ type MemDB struct {
 }
 
 // Store implements core.AggSigDB, see its godoc.
-func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, data core.AggSignedData) error {
+func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, data core.SignedData) error {
 	response := make(chan error, 1)
 	cmd := writeCommand{
 		memDBKey: memDBKey{duty, pubKey},
@@ -74,8 +75,8 @@ func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 }
 
 // Await implements core.AggSigDB, see its godoc.
-func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.AggSignedData, error) {
-	response := make(chan core.AggSignedData, 1)
+func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.SignedData, error) {
+	response := make(chan core.SignedData, 1)
 	query := readQuery{
 		memDBKey: memDBKey{duty, pubKey},
 		response: response,
@@ -83,17 +84,17 @@ func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) 
 
 	select {
 	case <-ctx.Done():
-		return core.AggSignedData{}, ctx.Err()
+		return nil, ctx.Err()
 	case <-db.closedCh:
-		return core.AggSignedData{}, ErrStopped
+		return nil, ErrStopped
 	case db.queries <- query:
 	}
 
 	select {
 	case <-ctx.Done():
-		return core.AggSignedData{}, ctx.Err()
+		return nil, ctx.Err()
 	case <-db.closedCh:
-		return core.AggSignedData{}, ErrStopped
+		return nil, ErrStopped
 	case value := <-response:
 		return value, nil
 	}
@@ -123,17 +124,31 @@ func (db *MemDB) Run(ctx context.Context) {
 func (db *MemDB) execCommand(command writeCommand) {
 	key := memDBKey{command.duty, command.pubKey}
 
-	curData, ok := db.data[key]
-	if ok && !curData.Equal(command.data) {
-		command.response <- errors.New("trying to update entry in aggsigdb/MemDB")
-		close(command.response)
-
-		return
-	} else if !ok {
+	if existing, ok := db.data[key]; ok {
+		equal, err := dataEqual(existing, command.data)
+		if err != nil {
+			command.response <- err
+		} else if !equal {
+			command.response <- errors.New("mismatching data")
+		}
+	} else {
 		db.data[key] = command.data
 	}
 
 	close(command.response)
+}
+
+func dataEqual(x core.SignedData, y core.SignedData) (bool, error) {
+	bx, err := x.MarshalJSON()
+	if err != nil {
+		return false, errors.Wrap(err, "marshal data")
+	}
+	by, err := y.MarshalJSON()
+	if err != nil {
+		return false, errors.Wrap(err, "marshal data")
+	}
+
+	return bytes.Equal(bx, by), nil
 }
 
 // execQuery returns true if the query was successfully executed.
@@ -172,12 +187,12 @@ type memDBKey struct {
 // writeCommand holds the data to write into the database.
 type writeCommand struct {
 	memDBKey
-	data     core.AggSignedData
+	data     core.SignedData
 	response chan<- error
 }
 
 // readQuery holds the query data and the response channel.
 type readQuery struct {
 	memDBKey
-	response chan<- core.AggSignedData
+	response chan<- core.SignedData
 }

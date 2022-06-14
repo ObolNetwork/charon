@@ -38,8 +38,46 @@ func DutyFromProto(duty *pbv1.Duty) Duty {
 	}
 }
 
-// ParSignedData2ToProto returns the data as a protobuf.
-func ParSignedData2ToProto(data ParSignedData2) (*pbv1.ParSignedData, error) {
+// ParSignedDataFromProto returns the data from a protobuf.
+func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedData, error) {
+	var signedData SignedData
+	switch typ {
+	case DutyAttester:
+		var a Attestation
+		if err := json.Unmarshal(data.Data, &a); err != nil {
+			return ParSignedData{}, errors.Wrap(err, "unmarshal attestation")
+		}
+		signedData = a
+	case DutyProposer:
+		var b VersionedSignedBeaconBlock
+		if err := json.Unmarshal(data.Data, &b); err != nil {
+			return ParSignedData{}, errors.Wrap(err, "unmarshal block")
+		}
+		signedData = b
+	case DutyExit:
+		var e SignedVoluntaryExit
+		if err := json.Unmarshal(data.Data, &e); err != nil {
+			return ParSignedData{}, errors.Wrap(err, "unmarshal exit")
+		}
+		signedData = e
+	case DutyRandao:
+		var s Signature
+		if err := json.Unmarshal(data.Data, &s); err != nil {
+			return ParSignedData{}, errors.Wrap(err, "unmarshal signature")
+		}
+		signedData = s
+	default:
+		return ParSignedData{}, errors.New("unsupported duty type")
+	}
+
+	return ParSignedData{
+		SignedData: signedData,
+		ShareIdx:   int(data.ShareIdx),
+	}, nil
+}
+
+// ParSignedDataToProto returns the data as a protobuf.
+func ParSignedDataToProto(data ParSignedData) (*pbv1.ParSignedData, error) {
 	d, err := data.MarshalJSON()
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal share signed data")
@@ -52,82 +90,36 @@ func ParSignedData2ToProto(data ParSignedData2) (*pbv1.ParSignedData, error) {
 	}, nil
 }
 
-// ParSignedData2FromProto returns the data from a protobuf.
-func ParSignedData2FromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedData2, error) {
-	var signedData SignedData
-	switch typ {
-	case DutyAttester:
-		var a Attestation
-		if err := json.Unmarshal(data.Data, &a); err != nil {
-			return ParSignedData2{}, errors.Wrap(err, "unmarshal attestation")
-		}
-		signedData = a
-	case DutyProposer:
-		var b VersionedSignedBeaconBlock
-		if err := json.Unmarshal(data.Data, &b); err != nil {
-			return ParSignedData2{}, errors.Wrap(err, "unmarshal block")
-		}
-		signedData = b
-	case DutyExit:
-		var e SignedVoluntaryExit
-		if err := json.Unmarshal(data.Data, &e); err != nil {
-			return ParSignedData2{}, errors.Wrap(err, "unmarshal exit")
-		}
-		signedData = e
-	case DutyRandao:
-		var s Signature
-		if err := json.Unmarshal(data.Data, &s); err != nil {
-			return ParSignedData2{}, errors.Wrap(err, "unmarshal signature")
-		}
-		signedData = s
-	default:
-		return ParSignedData2{}, errors.New("unsupported duty type")
-	}
-
-	return ParSignedData2{
-		SignedData: signedData,
-		ShareIdx:   int(data.ShareIdx),
-	}, nil
-}
-
-// ParSignedDataToProto returns the data as a protobuf.
-func ParSignedDataToProto(data ParSignedData) *pbv1.ParSignedData {
-	return &pbv1.ParSignedData{
-		Data:      data.Data,
-		Signature: data.Signature,
-		ShareIdx:  int32(data.ShareIdx),
-	}
-}
-
-// ParSignedDataFromProto returns the data from a protobuf.
-func ParSignedDataFromProto(data *pbv1.ParSignedData) ParSignedData {
-	return ParSignedData{
-		Data:      data.Data,
-		Signature: data.Signature,
-		ShareIdx:  int(data.ShareIdx),
-	}
-}
-
 // ParSignedDataSetToProto returns the set as a protobuf.
-func ParSignedDataSetToProto(set ParSignedDataSet) *pbv1.ParSignedDataSet {
+func ParSignedDataSetToProto(set ParSignedDataSet) (*pbv1.ParSignedDataSet, error) {
 	inner := make(map[string]*pbv1.ParSignedData)
 	for pubkey, data := range set {
-		inner[string(pubkey)] = ParSignedDataToProto(data)
+		pb, err := ParSignedDataToProto(data)
+		if err != nil {
+			return nil, err
+		}
+		inner[string(pubkey)] = pb
 	}
 
 	return &pbv1.ParSignedDataSet{
 		Set: inner,
-	}
+	}, nil
 }
 
 // ParSignedDataSetFromProto returns the set from a protobuf.
-func ParSignedDataSetFromProto(set *pbv1.ParSignedDataSet) ParSignedDataSet {
-	resp := make(ParSignedDataSet)
+func ParSignedDataSetFromProto(typ DutyType, set *pbv1.ParSignedDataSet) (ParSignedDataSet, error) {
+	var (
+		resp = make(ParSignedDataSet)
+		err  error
+	)
 	for pubkey, data := range set.Set {
-		resp[PubKey(pubkey)] = ParSignedDataFromProto(data)
+		resp[PubKey(pubkey)], err = ParSignedDataFromProto(typ, data)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return resp
+	return resp, nil
 }
 
 // UnsignedDataSetToProto returns the set as a protobuf.

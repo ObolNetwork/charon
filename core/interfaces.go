@@ -41,7 +41,7 @@ type Fetcher interface {
 
 	// RegisterAggSigDB registers a function to get resolved aggregated
 	// signed data from the AggSigDB (e.g., randao reveals).
-	RegisterAggSigDB(func(context.Context, Duty, PubKey) (AggSignedData, error))
+	RegisterAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
 }
 
 // DutyDB persists unsigned duty data sets and makes it available for querying. It also acts
@@ -126,21 +126,21 @@ type SigAgg interface {
 	Aggregate(context.Context, Duty, PubKey, []ParSignedData) error
 
 	// Subscribe registers a callback for aggregated signed duty data.
-	Subscribe(func(context.Context, Duty, PubKey, AggSignedData) error)
+	Subscribe(func(context.Context, Duty, PubKey, SignedData) error)
 }
 
 // AggSigDB persists aggregated signed duty data.
 type AggSigDB interface {
 	// Store stores aggregated signed duty data.
-	Store(context.Context, Duty, PubKey, AggSignedData) error
+	Store(context.Context, Duty, PubKey, SignedData) error
 
 	// Await blocks and returns the aggregated signed duty data when available.
-	Await(context.Context, Duty, PubKey) (AggSignedData, error)
+	Await(context.Context, Duty, PubKey) (SignedData, error)
 }
 
 // Broadcaster broadcasts aggregated signed duty data to the beacon node.
 type Broadcaster interface {
-	Broadcast(context.Context, Duty, PubKey, AggSignedData) error
+	Broadcast(context.Context, Duty, PubKey, SignedData) error
 }
 
 // wireFuncs defines the core workflow components as a list input and output functions
@@ -150,7 +150,7 @@ type wireFuncs struct {
 	SchedulerGetDuty                func(context.Context, Duty) (FetchArgSet, error)
 	FetcherFetch                    func(context.Context, Duty, FetchArgSet) error
 	FetcherSubscribe                func(func(context.Context, Duty, UnsignedDataSet) error)
-	FetcherRegisterAggSigDB         func(func(context.Context, Duty, PubKey) (AggSignedData, error))
+	FetcherRegisterAggSigDB         func(func(context.Context, Duty, PubKey) (SignedData, error))
 	ConsensusPropose                func(context.Context, Duty, UnsignedDataSet) error
 	ConsensusSubscribe              func(func(context.Context, Duty, UnsignedDataSet) error)
 	DutyDBStore                     func(context.Context, Duty, UnsignedDataSet) error
@@ -169,10 +169,10 @@ type wireFuncs struct {
 	ParSigExBroadcast               func(context.Context, Duty, ParSignedDataSet) error
 	ParSigExSubscribe               func(func(context.Context, Duty, ParSignedDataSet) error)
 	SigAggAggregate                 func(context.Context, Duty, PubKey, []ParSignedData) error
-	SigAggSubscribe                 func(func(context.Context, Duty, PubKey, AggSignedData) error)
-	AggSigDBStore                   func(context.Context, Duty, PubKey, AggSignedData) error
-	AggSigDBAwait                   func(context.Context, Duty, PubKey) (AggSignedData, error)
-	BroadcasterBroadcast            func(context.Context, Duty, PubKey, AggSignedData) error
+	SigAggSubscribe                 func(func(context.Context, Duty, PubKey, SignedData) error)
+	AggSigDBStore                   func(context.Context, Duty, PubKey, SignedData) error
+	AggSigDBAwait                   func(context.Context, Duty, PubKey) (SignedData, error)
+	BroadcasterBroadcast            func(context.Context, Duty, PubKey, SignedData) error
 }
 
 // WireOption defines a functional option to configure wiring.

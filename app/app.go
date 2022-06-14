@@ -103,7 +103,7 @@ type TestConfig struct {
 	// SimnetBMockOpts defines additional simnet beacon mock options.
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
-	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.AggSignedData) error
+	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
 	// DisablePromWrap disables wrapping prometheus metrics with cluster identifiers.
 	DisablePromWrap bool
 }
