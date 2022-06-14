@@ -124,9 +124,8 @@ func (db *MemDB) Run(ctx context.Context) {
 func (db *MemDB) execCommand(command writeCommand) {
 	key := memDBKey{command.duty, command.pubKey}
 
-	exiting, ok := db.data[key]
-	if ok {
-		equal, err := dataEqual(exiting, command.data)
+	if existing, ok := db.data[key]; ok {
+		equal, err := dataEqual(existing, command.data)
 		if err != nil {
 			command.response <- err
 		} else if !equal {
