@@ -118,7 +118,6 @@ func TestComponent(t *testing.T) {
 	for {
 		select {
 		case err := <-runErrs:
-			log.Error(ctx, "", err)
 			require.NoError(t, err)
 		case res := <-results:
 			t.Logf("Got result: %#v", res)

@@ -25,7 +25,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/testutil"
@@ -247,7 +246,6 @@ func TestMemDBClashProposer(t *testing.T) {
 	err = db.Store(ctx, duty, core.UnsignedDataSet{
 		pubkey: unsigned,
 	})
-	log.Error(ctx, "", err)
 	require.NoError(t, err)
 
 	// Store same block from same validator to test idempotent inserts
