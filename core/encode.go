@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/spec"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -64,46 +63,4 @@ func EncodeProposerFetchArg(proDuty *eth2v1.ProposerDuty) (FetchArg, error) {
 	}
 
 	return b, nil
-}
-
-// DecodeAttesterUnsignedData returns the attestation data from the encoded UnsignedData.
-func DecodeAttesterUnsignedData(unsignedData UnsignedData) (*AttestationData, error) {
-	attData := new(AttestationData)
-	err := json.Unmarshal(unsignedData, attData)
-	if err != nil {
-		return nil, errors.Wrap(err, "unmarshal attestation data")
-	}
-
-	return attData, nil
-}
-
-// EncodeAttesterUnsignedData returns the attestation data as an encoded UnsignedData.
-func EncodeAttesterUnsignedData(attData *AttestationData) (UnsignedData, error) {
-	b, err := json.Marshal(attData)
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal attestation data")
-	}
-
-	return b, nil
-}
-
-// EncodeProposerUnsignedData returns the proposer data as an encoded UnsignedData.
-func EncodeProposerUnsignedData(proData *spec.VersionedBeaconBlock) (UnsignedData, error) {
-	b, err := json.Marshal(proData)
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal proposer data")
-	}
-
-	return b, nil
-}
-
-// DecodeProposerUnsignedData returns the proposer data from the encoded UnsignedData.
-func DecodeProposerUnsignedData(unsignedData UnsignedData) (*spec.VersionedBeaconBlock, error) {
-	proData := new(spec.VersionedBeaconBlock)
-	err := json.Unmarshal(unsignedData, proData)
-	if err != nil {
-		return nil, errors.Wrap(err, "unmarshal proposer data")
-	}
-
-	return proData, nil
 }

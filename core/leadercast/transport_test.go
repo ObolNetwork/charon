@@ -73,16 +73,14 @@ func TestMemTransport(t *testing.T) {
 		duty := core.Duty{Slot: int64(i)}
 		data := core.UnsignedDataSet{}
 		for j := 0; j < n; j++ {
-			unsignedData, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
+			unsignedData := core.AttestationData{
 				Data: *testutil.RandomAttestationData(),
 				Duty: eth2v1.AttesterDuty{
 					CommitteeLength:         commLen,
 					ValidatorCommitteeIndex: uint64(j),
 					CommitteesAtSlot:        notZero,
 				},
-			})
-			require.NoError(t, err)
-
+			}
 			data[pubkeysByIdx[j]] = unsignedData
 		}
 
@@ -107,9 +105,13 @@ func TestMemTransport(t *testing.T) {
 		for _, resolved := range actual {
 			for j := 0; j < n; j++ {
 				a := resolved[pubkeysByIdx[j]]
+				ab, err := a.MarshalJSON()
+				require.NoError(t, err)
 				b := expect[pubkeysByIdx[j]]
+				bb, err := b.MarshalJSON()
+				require.NoError(t, err)
 				// increase count if all the bytes are equal in between expected and actual data
-				if bytes.Equal(a, b) {
+				if bytes.Equal(ab, bb) {
 					count++
 				}
 			}
@@ -184,18 +186,17 @@ func TestP2PTransport(t *testing.T) {
 	// propose attestation for each slot
 	var expected []core.UnsignedDataSet
 	for i := 0; i < slots; i++ {
-		duty := core.Duty{Slot: int64(i)}
+		duty := core.NewAttesterDuty(int64(i))
 		data := core.UnsignedDataSet{}
 		for j := 0; j < n; j++ {
-			unsignedData, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
+			unsignedData := core.AttestationData{
 				Data: *testutil.RandomAttestationData(),
 				Duty: eth2v1.AttesterDuty{
 					CommitteeLength:         commLen,
 					ValidatorCommitteeIndex: uint64(j),
 					CommitteesAtSlot:        notZero,
 				},
-			})
-			require.NoError(t, err)
+			}
 
 			data[pubkeysByIdx[j]] = unsignedData
 		}
@@ -221,9 +222,13 @@ func TestP2PTransport(t *testing.T) {
 		for _, resolved := range actual {
 			for j := 0; j < n; j++ {
 				a := resolved[pubkeysByIdx[j]]
+				ab, err := a.MarshalJSON()
+				require.NoError(t, err)
 				b := expect[pubkeysByIdx[j]]
+				bb, err := b.MarshalJSON()
+				require.NoError(t, err)
 				// increase count if all the bytes are equal in between expected and actual data
-				if bytes.Equal(a, b) {
+				if bytes.Equal(ab, bb) {
 					count++
 				}
 			}
