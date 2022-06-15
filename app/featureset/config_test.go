@@ -63,8 +63,5 @@ func TestEnableForT(t *testing.T) {
 func TestQBFT(t *testing.T) {
 	setup(t)
 
-	require.False(t, featureset.Enabled(featureset.QBFTConsensus))
-
-	featureset.EnableForT(t, featureset.QBFTConsensus)
 	require.True(t, featureset.Enabled(featureset.QBFTConsensus))
 }
