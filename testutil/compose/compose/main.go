@@ -195,17 +195,14 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 			defer cancel()
 		}
 
-		defer func() {
-			err = execDown(rootCtx, *dir)
-			if err != nil {
-				log.Error(rootCtx, "Exec down", err)
-			}
-		}()
-
 		alerts, err := startAlertCollector(ctx, *dir)
 		if err != nil {
 			return err
 		}
+
+		defer func() {
+			_ = execDown(rootCtx, *dir)
+		}()
 
 		if err := execUp(ctx, *dir); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 			return err
