@@ -68,6 +68,7 @@ services:
     networks: [compose]
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/rules.yml:/etc/prometheus/rules.yml
 
   grafana:
     image: grafana/grafana:latest
