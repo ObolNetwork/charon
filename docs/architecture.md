@@ -149,13 +149,13 @@ An abstract `DutyDefinition` type is defined that represents the json formatted 
 Note the ETH2 spec refers to these as "duties", but we use a slightly different term to avoid overloading
 the term "duty" which we defined above.
 ```go
-// DutyDefinition defines a duty containing the parameters required
+// DutyDefinition defines a duty including parameters required
 // to fetch the duty data, it is the result of resolving duties
 // at the start of an epoch.
 type DutyDefinition interface {
   // Clone returns a cloned copy of the DutyDefinition.
   Clone() (DutyDefinition, error)
-  // Marshaler returns the json serialised unsigned duty data.
+  // Marshaler returns the json serialised duty definition.
   json.Marshaler
 }
 ```
@@ -360,6 +360,8 @@ type ParSignedData struct {
 }
 
 ```
+
+The following `SignedData` implementations are provided: `Attestation`, `VersionedSignedBeaconBlock`, `SignedVoluntaryExit`, and `Signature` which just a signature without any data used for `DutyRandao`.
 
 Multiple `ParSignedData` are combined into a single `ParSignedDataSet` defines as follows:
 ```go

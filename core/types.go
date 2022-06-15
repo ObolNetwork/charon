@@ -168,14 +168,13 @@ func (k PubKey) ToETH2() (eth2p0.BLSPubKey, error) {
 	return resp, nil
 }
 
-// DutyDefinition defines a duty containing the parameters required
+// DutyDefinition defines the duty including parameters required
 // to fetch the duty data, it is the result of resolving duties
 // at the start of an epoch.
 type DutyDefinition interface {
-	// Clone returns a cloned copy of the DutyDefinition. For an immutable core workflow architecture,
-	// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
+	// Clone returns a cloned copy of the DutyDefinition.
 	Clone() (DutyDefinition, error)
-	// Marshaler returns the json serialised unsigned duty data.
+	// Marshaler returns the json serialised duty definition.
 	json.Marshaler
 }
 
