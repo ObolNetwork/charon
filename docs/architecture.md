@@ -117,7 +117,7 @@ We define the following duty types:
 - `DutyProposer = 1`: Proposing a block
 - `DutyAttester = 2`: Creating an attestation
 - `DutyRandao = 3`: Creating a randao reveal signature required as input to DutyProposer
-- `DutyAggregator = 4`: Aggregating attestations
+- `DutyExit = 4`: Voluntary exit
 
 > ℹ️ Duty is on a cluster level, not a DV level. A duty defines the “unit of work” for the whole cluster,
 > not just a single DV. This allows the workflow to aggregate and batch multiple DVs in some steps, specifically consensus.
@@ -145,20 +145,36 @@ and [Get block proposer](https://ethereum.github.io/beacon-APIs/#/ValidatorRequi
 at the end of each epoch for the next epoch. It then caches the results returned and triggers the duty
 when the associated slot starts.
 
-An abstract `FetchArg` type is defined that represents the json formatted responses returned by the beacon node above.
+An abstract `DutyDefinition` type is defined that represents the json formatted responses returned by the beacon node above.
 ```go
-// FetchArg contains the arguments required to fetch the duty data,
-// it is the result of resolving duties at the start of an epoch.
-type FetchArg []byte
-```
-Since a cluster can contain multiple DVs, it may have to perform multiple similar duties for the same slot, e.g. `DutyAttester`.
-Multiple `FetchArg`s are combined into a single `FetchArgSet` that is defined as:
-```go
-// FetchArgSet is a set of fetch args, one per validator.
-type FetchArgSet map[PubKey]FetchArg
+// DutyDefinition defines a duty containing the parameters required
+// to fetch the duty data, it is the result of resolving duties
+// at the start of an epoch.
+type DutyDefinition interface {
+  // Clone returns a cloned copy of the DutyDefinition.
+  Clone() (DutyDefinition, error)
+  // Marshaler returns the json serialised unsigned duty data.
+  json.Marshaler
+}
 ```
 
-Note the `DutyRandao` isn’t scheduled by the scheduler, since it is initiated directly by VC at the start of the epoch.
+The following `DutyDefinition` implementations are provided:
+ - `AttesterDefinition` which wraps "Get attester duties" response above.
+ - `ProposerDefinition` which wraps "Get block proposer" response above.
+
+Since a cluster can contain multiple DVs, it may have to perform multiple similar duties for the same slot, e.g. `DutyAttester`.
+Multiple `DutyDefinition`s are combined into a single `DutyDefinitionSet` that is defined as:
+```go
+// DutyDefinitionSet is a set of fetch args, one per validator.
+type DutyDefinitionSet map[PubKey]DutyDefinition
+```
+
+Note the `DutyRandao` and `DutyExit` isn’t scheduled by the scheduler, since they are initiated directly by VC.
+
+> ℹ️ The core workflow follows the immutable architecture approach, with immutable self-contained values flowing between components.
+> Values can be thought of as events or messages and components can be thought of as actors consuming and generating events.
+> This however requires that values are immutable. All abstract value types therefore define a `Clone` method
+> that must be called before a value leaves its scope (shared, cached, returned etc.).
 
 > 🏗️ TODO: Define the exact timing requirements for different duties.
 
@@ -167,10 +183,10 @@ The scheduler interface is defined as:
 // Scheduler triggers the start of a duty workflow.
 type Scheduler interface {
   // Subscribe registers a callback for triggering a duty.
-  Subscribe(func(context.Context, Duty, FetchArgSet) error)
+  Subscribe(func(context.Context, Duty, DutyDefinitionSet) error)
 
-  // GetDuty returns the argSet for a duty if resolved already.
-  GetDuty(context.Context, Duty) (FetchArgSet, error)
+  // GetDutyDefinition returns the definition for a duty if already resolved.
+  GetDutyDefinition(context.Context, Duty) (DutyDefinitionSet, error)
 }
 ```
 > ℹ️ Components of the workflow are decoupled from each other. They are stitched together by callback subscriptions.
@@ -186,14 +202,18 @@ For `DutyProposer` it fetches a previously aggregated randao_reveal from the `Ag
 from the beacon node.
 
 An abstract `UnsignedData` type is defined to represent either `AttestationData` or `BeaconBlock` depending on the `DutyType`.
-It contains the standard serialised json format of the data as returned from beacon node.
 
 ```go
 // UnsignedData represents an unsigned duty data object.
-type UnsignedData []byte
+type UnsignedData interface {
+  // Clone returns a cloned copy of the UnsignedData.
+  Clone() (UnsignedData, error)
+  // Marshaler returns the json serialised unsigned duty data.
+  json.Marshaler
+}
 ```
 
-Since the input to fetcher is a `FetchArgSet`, it fetches multiple `UnsignedData` objects for the same `Duty`.
+Since the input to fetcher is a `DutyDefinitionSet`, it fetches multiple `UnsignedData` objects for the same `Duty`.
 Multiple `UnsignedData`s are combined into a single `UnsignedDataSet` that is defined as:
 ```go
 // UnsignedDataSet is a set of unsigned duty data objects, one per validator.
@@ -212,7 +232,7 @@ The fetcher interface is defined as:
 // Fetcher fetches proposed duty data.
 type Fetcher interface {
   // Fetch triggers fetching of a proposed duty data set.
-  Fetch(context.Context, Duty, FetchArgSet) error
+  Fetch(context.Context, Duty, DutyDefinitionSet) error
 
   // Subscribe registers a callback for proposed duty data sets.
   Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
@@ -315,19 +335,30 @@ The validator API provides a [beacon-node API](https://ethereum.github.io/beacon
 intercepting some calls and proxying others directly to the upstream beacon node.
 It mostly serves unsigned duty data requests from the `DutyDB` and sends the resulting partial signed duty objects to the `ParSigDB`.
 
-Partial signed duty data objects are defined as `ParSignedData`:
+Partial signed duty data values are defined as `ParSignedData` which extend `SignedData` values:
 ```go
-// ParSignedData is a partially signed duty data.
-// Partial refers to it being signed by a single share of the BLS threshold signing scheme.
-type ParSignedData struct {
-  // Data is the partially signed duty data received from VC.
-  Data []byte
-  // Signature of tbls share extracted from data.
-  Signature []byte
-  // Index of the tbls share.
-  Index int
+// SignedData is a signed duty data.
+type SignedData interface {
+  // Signature returns the signed duty data's signature.
+  Signature() Signature
+  // SetSignature returns a copy of signed duty data with the signature replaced.
+  SetSignature(Signature) (SignedData, error)
+  // Clone returns a cloned copy of the SignedData.
+  Clone() (SignedData, error)
+  // Marshaler returns the json serialised signed duty data (including the signature).
+  json.Marshaler
 }
+
+// ParSignedData is a partially signed duty data only signed by a single threshold BLS share.
+type ParSignedData struct {
+  // SignedData is a partially signed duty data.
+  SignedData
+  // ShareIdx returns the threshold BLS share index.
+  ShareIdx int
+}
+
 ```
+
 Multiple `ParSignedData` are combined into a single `ParSignedDataSet` defines as follows:
 ```go
 // ParSignedDataSet is a set of partially signed duty data objects, one per validator.
@@ -370,7 +401,7 @@ the public share (what the VC thinks as its public key) to and from the DV root 
 > 🏗️ TODO: Figure out other endpoints required.
 
 The validator api interface is defined as:
-```
+```go
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the
 // DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
@@ -378,7 +409,7 @@ type ValidatorAPI interface {
 	RegisterAwaitBeaconBlock(func(context.Context, slot int) (beaconapi.BeaconBlock, error))
 
 	// RegisterGetDutyFunc registers a function to query duty data.
-	RegisterGetDutyFunc(func(ctx context.Context, duty Duty) (FetchArgSet, error))
+	RegisterGetDutyFunc(func(ctx context.Context, duty Duty) (DutyDefinitionSet, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error))
@@ -508,17 +539,7 @@ type ParSigEx interface {
 The signature aggregation service aggregates partial BLS signatures and sends them to the `bcast` component and persists them to the `AggSigDB`.
 It is a stateless pure function.
 
-Aggregated signed duty data objects are defined as `SignedData`:
-```go
-// SignedData is an aggregated signed duty data.
-// Aggregated refers to it being signed by the aggregated BLS threshold signing scheme.
-type SignedData struct {
-  // Data is the signed duty data to be sent to beacon chain.
-  Data []byte
-  // Signature is the result of tbls aggregation and is inserted into the data.
-  Signature []byte
-}
-```
+Aggregated signed duty data objects are defined as `SignedData` defined above.
 
 The signature aggregation interface is defined as:
 ```go

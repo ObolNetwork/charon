@@ -22,8 +22,8 @@ import (
 )
 
 var (
-	_ FetchArg = AttesterDefinition{}
-	_ FetchArg = ProposerDefinition{}
+	_ DutyDefinition = AttesterDefinition{}
+	_ DutyDefinition = ProposerDefinition{}
 )
 
 // NewAttesterDefinition is a convenience function that returns a new attester definition.
@@ -31,13 +31,13 @@ func NewAttesterDefinition(duty *eth2v1.AttesterDuty) AttesterDefinition {
 	return AttesterDefinition{AttesterDuty: *duty}
 }
 
-// AttesterDefinition defines an attester duty. It implements FetchArg.
+// AttesterDefinition defines an attester duty. It implements DutyDefinition.
 // Note the slight rename from Duty to Definition to avoid overloading the term Duty.
 type AttesterDefinition struct {
 	eth2v1.AttesterDuty
 }
 
-func (d AttesterDefinition) Clone() (FetchArg, error) {
+func (d AttesterDefinition) Clone() (DutyDefinition, error) {
 	duty := new(eth2v1.AttesterDuty)
 	err := cloneJSONMarshaler(&d.AttesterDuty, duty)
 	if err != nil {
@@ -56,13 +56,13 @@ func NewProposerDefinition(duty *eth2v1.ProposerDuty) ProposerDefinition {
 	return ProposerDefinition{ProposerDuty: *duty}
 }
 
-// ProposerDefinition defines a block proposer duty. It implements FetchArg.
+// ProposerDefinition defines a block proposer duty. It implements DutyDefinition.
 // Note the slight rename from Duty to Definition to avoid overloading the term Duty.
 type ProposerDefinition struct {
 	eth2v1.ProposerDuty
 }
 
-func (d ProposerDefinition) Clone() (FetchArg, error) {
+func (d ProposerDefinition) Clone() (DutyDefinition, error) {
 	duty := new(eth2v1.ProposerDuty)
 	err := cloneJSONMarshaler(&d.ProposerDuty, duty)
 	if err != nil {

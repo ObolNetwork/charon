@@ -72,7 +72,7 @@ func New(pubkeys []core.PubKey, eth2Svc eth2client.Service) (*Scheduler, error) 
 		eth2Cl:  eth2Cl,
 		pubkeys: pubkeys,
 		quit:    make(chan struct{}),
-		duties:  make(map[core.Duty]core.FetchArgSet),
+		duties:  make(map[core.Duty]core.DutyDefinitionSet),
 		clock:   clockwork.NewRealClock(),
 		delayFunc: func(_ core.Duty, deadline time.Time) <-chan time.Time {
 			return time.After(time.Until(deadline))
@@ -88,14 +88,14 @@ type Scheduler struct {
 	clock         clockwork.Clock
 	delayFunc     delayFunc
 	resolvedEpoch uint64
-	duties        map[core.Duty]core.FetchArgSet
+	duties        map[core.Duty]core.DutyDefinitionSet
 	dutiesMutex   sync.Mutex
-	subs          []func(context.Context, core.Duty, core.FetchArgSet) error
+	subs          []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 }
 
 // Subscribe registers a callback for triggering a duty.
 // Note this should be called *before* Start.
-func (s *Scheduler) Subscribe(fn func(context.Context, core.Duty, core.FetchArgSet) error) {
+func (s *Scheduler) Subscribe(fn func(context.Context, core.Duty, core.DutyDefinitionSet) error) {
 	s.subs = append(s.subs, fn)
 }
 
@@ -132,8 +132,8 @@ func (s *Scheduler) Run() error {
 	}
 }
 
-// GetDuty returns the argSet for a duty if resolved already, otherwise an error.
-func (s *Scheduler) GetDuty(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
+// GetDuty returns the defSet for a duty if resolved already, otherwise an error.
+func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 	slotsPerEpoch, err := s.eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
 		return nil, err
@@ -144,12 +144,12 @@ func (s *Scheduler) GetDuty(ctx context.Context, duty core.Duty) (core.FetchArgS
 		return nil, errors.New("epoch not resolved yet")
 	}
 
-	argSet, ok := s.getFetchArgSet(duty)
+	defSet, ok := s.getDutyDefinitionSet(duty)
 	if !ok {
 		return nil, errors.New("duty not resolved although epoch is marked as resolved")
 	}
 
-	return argSet.Clone() // Clone before returning.
+	return defSet.Clone() // Clone before returning.
 }
 
 // scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
@@ -167,7 +167,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) {
 			Type: dutyType,
 		}
 
-		argSet, ok := s.getFetchArgSet(duty)
+		defSet, ok := s.getDutyDefinitionSet(duty)
 		if !ok {
 			// Nothing for this duty.
 			continue
@@ -179,13 +179,13 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) {
 				return // context cancelled
 			}
 
-			instrumentDuty(duty, argSet)
+			instrumentDuty(duty, defSet)
 			ctx = log.WithCtx(ctx, z.Any("duty", duty))
 			ctx, span := core.StartDutyTrace(ctx, duty, "core/scheduler.scheduleSlot")
 			defer span.End()
 
 			for _, sub := range s.subs {
-				clone, err := argSet.Clone() // Clone for each subscriber.
+				clone, err := defSet.Clone() // Clone for each subscriber.
 				if err != nil {
 					log.Error(ctx, "Cloning duty definition set", err)
 					return
@@ -281,7 +281,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot slot, vals valida
 			continue
 		}
 
-		if !s.setFetchArg(duty, pubkey, core.NewAttesterDefinition(attDuty)) {
+		if !s.setDutyDefinition(duty, pubkey, core.NewAttesterDefinition(attDuty)) {
 			continue
 		}
 
@@ -323,7 +323,7 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot slot, vals valida
 			continue
 		}
 
-		if !s.setFetchArg(duty, pubkey, core.NewProposerDefinition(proDuty)) {
+		if !s.setDutyDefinition(duty, pubkey, core.NewProposerDefinition(proDuty)) {
 			continue
 		}
 
@@ -337,29 +337,29 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot slot, vals valida
 	return nil
 }
 
-func (s *Scheduler) getFetchArgSet(duty core.Duty) (core.FetchArgSet, bool) {
+func (s *Scheduler) getDutyDefinitionSet(duty core.Duty) (core.DutyDefinitionSet, bool) {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
 
-	argSet, ok := s.duties[duty]
+	defSet, ok := s.duties[duty]
 
-	return argSet, ok
+	return defSet, ok
 }
 
-func (s *Scheduler) setFetchArg(duty core.Duty, pubkey core.PubKey, set core.FetchArg) bool {
+func (s *Scheduler) setDutyDefinition(duty core.Duty, pubkey core.PubKey, set core.DutyDefinition) bool {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
 
-	argSet, ok := s.duties[duty]
+	defSet, ok := s.duties[duty]
 	if !ok {
-		argSet = make(core.FetchArgSet)
+		defSet = make(core.DutyDefinitionSet)
 	}
-	if _, ok := argSet[pubkey]; ok {
+	if _, ok := defSet[pubkey]; ok {
 		return false
 	}
 
-	argSet[pubkey] = set
-	s.duties[duty] = argSet
+	defSet[pubkey] = set
+	s.duties[duty] = defSet
 
 	return true
 }

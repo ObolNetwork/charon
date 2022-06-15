@@ -58,7 +58,7 @@ func (f *Fetcher) Subscribe(fn func(context.Context, core.Duty, core.UnsignedDat
 }
 
 // Fetch triggers fetching of a proposed duty data set.
-func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchArgSet) error {
+func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) error {
 	var (
 		unsignedSet core.UnsignedDataSet
 		err         error
@@ -66,12 +66,12 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchAr
 
 	switch duty.Type {
 	case core.DutyProposer:
-		unsignedSet, err = f.fetchProposerData(ctx, duty.Slot, argSet)
+		unsignedSet, err = f.fetchProposerData(ctx, duty.Slot, defSet)
 		if err != nil {
 			return errors.Wrap(err, "fetch proposer data")
 		}
 	case core.DutyAttester:
-		unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, argSet)
+		unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, defSet)
 		if err != nil {
 			return errors.Wrap(err, "fetch attester data")
 		}
@@ -100,14 +100,14 @@ func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubK
 }
 
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.
-func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core.FetchArgSet,
+func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet,
 ) (core.UnsignedDataSet, error) {
 	// We may have multiple validators in the same committee, use the same attestation data in that case.
 	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
 
 	resp := make(core.UnsignedDataSet)
-	for pubkey, fetchArg := range argSet {
-		attDuty, ok := fetchArg.(core.AttesterDefinition)
+	for pubkey, DutyDefinition := range defSet {
+		attDuty, ok := DutyDefinition.(core.AttesterDefinition)
 		if !ok {
 			return nil, errors.New("invalid attester definition")
 		}
@@ -134,9 +134,9 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core
 	return resp, nil
 }
 
-func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core.FetchArgSet) (core.UnsignedDataSet, error) {
+func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
-	for pubkey := range argSet {
+	for pubkey := range defSet {
 		// Fetch previously aggregated randao reveal from AggSigDB
 		dutyRandao := core.Duty{
 			Slot: slot,
