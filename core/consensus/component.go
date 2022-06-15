@@ -76,7 +76,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 
 		// Decide sends consensus output to subscribers.
 		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
-			defer endCtxSpan(ctx) // End the tracing span when decided
+			defer endCtxSpan(ctx) // End the parent tracing span when decided
 			set, err := core.UnsignedDataSetFromProto(duty.Type, qcommit[0].(msg).msg.Value)
 			if err != nil {
 				log.Error(ctx, "Unmarshal decided value", err)
@@ -292,7 +292,7 @@ func isContextErr(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
 
-// endCtxSpan ends the span if included in the context.
+// endCtxSpan ends the parent span if included in the context.
 func endCtxSpan(ctx context.Context) {
 	trace.SpanFromContext(ctx).End()
 }
