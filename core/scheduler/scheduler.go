@@ -132,7 +132,7 @@ func (s *Scheduler) Run() error {
 	}
 }
 
-// GetDuty returns the defSet for a duty if resolved already, otherwise an error.
+// GetDutyDefinition returns the definition for a duty if resolved already, otherwise an error.
 func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 	slotsPerEpoch, err := s.eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {

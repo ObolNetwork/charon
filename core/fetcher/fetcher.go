@@ -106,8 +106,8 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
 
 	resp := make(core.UnsignedDataSet)
-	for pubkey, DutyDefinition := range defSet {
-		attDuty, ok := DutyDefinition.(core.AttesterDefinition)
+	for pubkey, def := range defSet {
+		attDuty, ok := def.(core.AttesterDefinition)
 		if !ok {
 			return nil, errors.New("invalid attester definition")
 		}

@@ -146,6 +146,8 @@ at the end of each epoch for the next epoch. It then caches the results returned
 when the associated slot starts.
 
 An abstract `DutyDefinition` type is defined that represents the json formatted responses returned by the beacon node above.
+Note the ETH2 spec refers to these as "duties", but we use a slightly different term to avoid overloading
+the term "duty" which we defined above.
 ```go
 // DutyDefinition defines a duty containing the parameters required
 // to fetch the duty data, it is the result of resolving duties
