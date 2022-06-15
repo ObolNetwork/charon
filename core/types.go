@@ -168,12 +168,36 @@ func (k PubKey) ToETH2() (eth2p0.BLSPubKey, error) {
 	return resp, nil
 }
 
-// FetchArg contains the arguments required to fetch the duty data,
-// it is the result of resolving duties at the start of an epoch.
-type FetchArg []byte
+// FetchArg defines a duty containing the parameters required
+// to fetch the duty data, it is the result of resolving duties
+// at the start of an epoch.
+// TODO(corver): Rename to DutyDefinition.
+type FetchArg interface {
+	// Clone returns a cloned copy of the FetchArg. For an immutable core workflow architecture,
+	// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
+	Clone() (FetchArg, error)
+	// Marshaler returns the json serialised unsigned duty data.
+	json.Marshaler
+}
 
 // FetchArgSet is a set of fetch args, one per validator.
+// TODO(corver): Rename to DutyDefinitionSet.
 type FetchArgSet map[PubKey]FetchArg
+
+// Clone returns a cloned copy of the FetchArgSet. For an immutable core workflow architecture,
+// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
+func (s FetchArgSet) Clone() (FetchArgSet, error) {
+	resp := make(FetchArgSet, len(s))
+	for key, data := range s {
+		var err error
+		resp[key], err = data.Clone()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return resp, nil
+}
 
 // UnsignedData represents an unsigned duty data object.
 type UnsignedData interface {

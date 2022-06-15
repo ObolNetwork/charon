@@ -17,7 +17,6 @@ package scheduler_test
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"os"
 	"sort"
@@ -77,11 +76,7 @@ func TestIntegration(t *testing.T) {
 
 	s.Subscribe(func(ctx context.Context, duty core.Duty, set core.FetchArgSet) error {
 		for idx, data := range set {
-			duty := new(eth2v1.AttesterDuty)
-			err := json.Unmarshal(data, &duty)
-			require.NoError(t, err)
-
-			t.Logf("Duty triggered: vidx=%v slot=%v committee=%v\n", idx, duty.Slot, duty.CommitteeIndex)
+			t.Logf("Duty triggered: vidx=%v slot=%v committee=%v\n", idx, duty.Slot, data.(core.AttesterDefinition).CommitteeIndex)
 		}
 		count--
 		if count == 0 {
@@ -256,8 +251,10 @@ func TestSchedulerDuties(t *testing.T) {
 			sched.Subscribe(func(ctx context.Context, duty core.Duty, set core.FetchArgSet) error {
 				// Make result human-readable
 				resultSet := make(map[core.PubKey]string)
-				for pubkey, args := range set {
-					resultSet[pubkey] = string(args)
+				for pubkey, def := range set {
+					b, err := def.MarshalJSON()
+					require.NoError(t, err)
+					resultSet[pubkey] = string(b)
 				}
 
 				// Add result

@@ -149,7 +149,7 @@ func (s *Scheduler) GetDuty(ctx context.Context, duty core.Duty) (core.FetchArgS
 		return nil, errors.New("duty not resolved although epoch is marked as resolved")
 	}
 
-	return argSet, nil
+	return argSet.Clone() // Clone before returning.
 }
 
 // scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
@@ -185,7 +185,13 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) {
 			defer span.End()
 
 			for _, sub := range s.subs {
-				if err := sub(ctx, duty, argSet); err != nil {
+				clone, err := argSet.Clone() // Clone for each subscriber.
+				if err != nil {
+					log.Error(ctx, "Cloning duty definition set", err)
+					return
+				}
+
+				if err := sub(ctx, duty, clone); err != nil {
 					log.Error(ctx, "Trigger duty subscriber error", err)
 				}
 			}
@@ -267,11 +273,6 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot slot, vals valida
 			continue
 		}
 
-		arg, err := core.EncodeAttesterFetchArg(attDuty)
-		if err != nil {
-			return errors.Wrap(err, "encode attester duty")
-		}
-
 		duty := core.Duty{Slot: int64(attDuty.Slot), Type: core.DutyAttester}
 
 		pubkey, ok := vals.PubKeyFromIndex(attDuty.ValidatorIndex)
@@ -280,7 +281,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot slot, vals valida
 			continue
 		}
 
-		if !s.setFetchArg(duty, pubkey, arg) {
+		if !s.setFetchArg(duty, pubkey, core.NewAttesterDefinition(attDuty)) {
 			continue
 		}
 
@@ -314,11 +315,6 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot slot, vals valida
 			continue
 		}
 
-		arg, err := core.EncodeProposerFetchArg(proDuty)
-		if err != nil {
-			return errors.Wrap(err, "encode proposer duty")
-		}
-
 		duty := core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
 
 		pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
@@ -327,7 +323,7 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot slot, vals valida
 			continue
 		}
 
-		if !s.setFetchArg(duty, pubkey, arg) {
+		if !s.setFetchArg(duty, pubkey, core.NewProposerDefinition(proDuty)) {
 			continue
 		}
 

@@ -52,8 +52,6 @@ func TestFetchAttester(t *testing.T) {
 		CommitteeLength:  notZero,
 		CommitteesAtSlot: notZero,
 	}
-	fetchArgA, err := core.EncodeAttesterFetchArg(&dutyA)
-	require.NoError(t, err)
 
 	dutyB := eth2v1.AttesterDuty{
 		Slot:             slot,
@@ -62,12 +60,10 @@ func TestFetchAttester(t *testing.T) {
 		CommitteeLength:  notZero,
 		CommitteesAtSlot: notZero,
 	}
-	fetchArgB, err := core.EncodeAttesterFetchArg(&dutyB)
-	require.NoError(t, err)
 
 	argSet := core.FetchArgSet{
-		pubkeysByIdx[vIdxA]: fetchArgA,
-		pubkeysByIdx[vIdxB]: fetchArgB,
+		pubkeysByIdx[vIdxA]: core.NewAttesterDefinition(&dutyA),
+		pubkeysByIdx[vIdxB]: core.NewAttesterDefinition(&dutyB),
 	}
 	duty := core.Duty{Type: core.DutyAttester, Slot: slot}
 
@@ -115,19 +111,13 @@ func TestFetchProposer(t *testing.T) {
 		Slot:           slot,
 		ValidatorIndex: vIdxA,
 	}
-	fetchArgA, err := core.EncodeProposerFetchArg(&dutyA)
-	require.NoError(t, err)
-
 	dutyB := eth2v1.ProposerDuty{
 		Slot:           slot,
 		ValidatorIndex: vIdxB,
 	}
-	fetchArgB, err := core.EncodeProposerFetchArg(&dutyB)
-	require.NoError(t, err)
-
 	argSet := core.FetchArgSet{
-		pubkeysByIdx[vIdxA]: fetchArgA,
-		pubkeysByIdx[vIdxB]: fetchArgB,
+		pubkeysByIdx[vIdxA]: core.NewProposerDefinition(&dutyA),
+		pubkeysByIdx[vIdxB]: core.NewProposerDefinition(&dutyB),
 	}
 	duty := core.Duty{Type: core.DutyProposer, Slot: slot}
 
