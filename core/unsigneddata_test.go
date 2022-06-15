@@ -24,34 +24,16 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestEncodeAttesterFetchArg(t *testing.T) {
-	attDuty1 := testutil.RandomAttestationDuty(t)
-
-	arg1, err := core.EncodeAttesterFetchArg(attDuty1)
+func TestCloneVersionedBeaconBlock(t *testing.T) {
+	block := testutil.RandomCoreVersionBeaconBlock(t)
+	slot1, err := block.Slot()
 	require.NoError(t, err)
 
-	attDuty2, err := core.DecodeAttesterFetchArg(arg1)
+	clone, err := block.Clone()
+	require.NoError(t, err)
+	block2 := clone.(core.VersionedBeaconBlock)
+	slot2, err := block2.Slot()
 	require.NoError(t, err)
 
-	arg2, err := core.EncodeAttesterFetchArg(attDuty2)
-	require.NoError(t, err)
-
-	require.Equal(t, attDuty1, attDuty2)
-	require.Equal(t, arg1, arg2)
-}
-
-func TestEncodeProposerFetchArg(t *testing.T) {
-	proDuty1 := testutil.RandomProposerDuty(t)
-
-	arg1, err := core.EncodeProposerFetchArg(proDuty1)
-	require.NoError(t, err)
-
-	proDuty2, err := core.DecodeProposerFetchArg(arg1)
-	require.NoError(t, err)
-
-	arg2, err := core.EncodeProposerFetchArg(proDuty2)
-	require.NoError(t, err)
-
-	require.Equal(t, arg1, arg2)
-	require.Equal(t, proDuty1, proDuty2)
+	require.Equal(t, slot1, slot2)
 }

@@ -95,24 +95,22 @@ func TestMemDB(t *testing.T) {
 	duty := core.Duty{Slot: slot, Type: core.DutyAttester}
 
 	// The two validators have similar unsigned data, just the ValidatorCommitteeIndex is different.
-	unsignedA, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
+	unsignedA := core.AttestationData{
 		Data: attData,
 		Duty: eth2v1.AttesterDuty{
 			CommitteeLength:         commLen,
 			ValidatorCommitteeIndex: valCommIdxA,
 			CommitteesAtSlot:        notZero,
 		},
-	})
-	require.NoError(t, err)
-	unsignedB, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
+	}
+	unsignedB := core.AttestationData{
 		Data: attData,
 		Duty: eth2v1.AttesterDuty{
 			CommitteeLength:         commLen,
 			ValidatorCommitteeIndex: valCommIdxB,
 			CommitteesAtSlot:        notZero,
 		},
-	})
-	require.NoError(t, err)
+	}
 
 	// Store it
 	err = db.Store(ctx, duty, core.UnsignedDataSet{pubkeysByIdx[vIdxA]: unsignedA, pubkeysByIdx[vIdxB]: unsignedB})
@@ -172,7 +170,7 @@ func TestMemDBProposer(t *testing.T) {
 
 	// Store the Blocks
 	for i := 0; i < queries; i++ {
-		unsigned, err := core.EncodeProposerUnsignedData(blocks[i])
+		unsigned, err := core.NewVersionedBeaconBlock(blocks[i])
 		require.NoError(t, err)
 
 		duty := core.Duty{Slot: slots[i], Type: core.DutyProposer}
@@ -207,10 +205,10 @@ func TestMemDBClashingBlocks(t *testing.T) {
 	pubkey := testutil.RandomCorePubKey(t)
 
 	// Encode the Blocks
-	unsigned1, err := core.EncodeProposerUnsignedData(block1)
+	unsigned1, err := core.NewVersionedBeaconBlock(block1)
 	require.NoError(t, err)
 
-	unsigned2, err := core.EncodeProposerUnsignedData(block2)
+	unsigned2, err := core.NewVersionedBeaconBlock(block2)
 	require.NoError(t, err)
 
 	// Store the Blocks
@@ -240,7 +238,7 @@ func TestMemDBClashProposer(t *testing.T) {
 	pubkey := testutil.RandomCorePubKey(t)
 
 	// Encode the block
-	unsigned, err := core.EncodeProposerUnsignedData(block)
+	unsigned, err := core.NewVersionedBeaconBlock(block)
 	require.NoError(t, err)
 
 	// Store the Blocks
@@ -258,7 +256,7 @@ func TestMemDBClashProposer(t *testing.T) {
 
 	// Store a different block for the same slot
 	block.Phase0.ProposerIndex++
-	unsignedB, err := core.EncodeProposerUnsignedData(block)
+	unsignedB, err := core.NewVersionedBeaconBlock(block)
 	require.NoError(t, err)
 	err = db.Store(ctx, duty, core.UnsignedDataSet{
 		pubkey: unsignedB,

@@ -123,23 +123,31 @@ func ParSignedDataSetFromProto(typ DutyType, set *pbv1.ParSignedDataSet) (ParSig
 }
 
 // UnsignedDataSetToProto returns the set as a protobuf.
-func UnsignedDataSetToProto(set UnsignedDataSet) *pbv1.UnsignedDataSet {
+func UnsignedDataSetToProto(set UnsignedDataSet) (*pbv1.UnsignedDataSet, error) {
 	inner := make(map[string][]byte)
 	for pubkey, data := range set {
-		inner[string(pubkey)] = data
+		var err error
+		inner[string(pubkey)], err = data.MarshalJSON()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &pbv1.UnsignedDataSet{
 		Set: inner,
-	}
+	}, nil
 }
 
 // UnsignedDataSetFromProto returns the set from a protobuf.
-func UnsignedDataSetFromProto(set *pbv1.UnsignedDataSet) UnsignedDataSet {
+func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (UnsignedDataSet, error) {
 	resp := make(UnsignedDataSet)
 	for pubkey, data := range set.Set {
-		resp[PubKey(pubkey)] = data
+		var err error
+		resp[PubKey(pubkey)], err = UnmarshalUnsignedData(typ, data)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return resp
+	return resp, nil
 }

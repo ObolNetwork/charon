@@ -35,12 +35,13 @@ func TestHashProto(t *testing.T) {
 	set := testutil.RandomUnsignedDataSet(t)
 	testutil.RequireGoldenJSON(t, set)
 
-	setPB := core.UnsignedDataSetToProto(set)
+	setPB, err := core.UnsignedDataSetToProto(set)
+	require.NoError(t, err)
 	hash, err := hashProto(setPB)
 	require.NoError(t, err)
 
 	require.Equal(t,
-		"2629f0aaf0f78c37ad7aeae4cc3ee0ff05741a9b341e0002c03b257d62b2e237",
+		"39933362de95b6dabf0b6512bc19a43826debf8cb71936d99e251b053ad8846d",
 		hex.EncodeToString(hash[:]),
 	)
 }
@@ -49,14 +50,19 @@ func TestSigning(t *testing.T) {
 	privkey, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
+	v, err := core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t))
+	require.NoError(t, err)
+	pv, err := core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t))
+	require.NoError(t, err)
+
 	msg := &pbv1.QBFTMsg{
 		Type:          rand.Int63(),
 		Duty:          core.DutyToProto(core.Duty{Type: core.DutyType(rand.Int()), Slot: rand.Int63()}),
 		PeerIdx:       rand.Int63(),
 		Round:         rand.Int63(),
-		Value:         core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t)),
+		Value:         v,
 		PreparedRound: rand.Int63(),
-		PreparedValue: core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t)),
+		PreparedValue: pv,
 		Signature:     nil,
 	}
 

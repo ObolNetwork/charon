@@ -106,7 +106,7 @@ func TestComponent(t *testing.T) {
 			runErrs <- c.Propose(
 				log.WithCtx(ctx, z.Int("node", i)),
 				core.Duty{Type: core.DutyAttester},
-				core.UnsignedDataSet{pubkey: core.UnsignedData{byte(i)}},
+				core.UnsignedDataSet{pubkey: testutil.RandomCoreAttestationData(t)},
 			)
 		}(ctx, i, c)
 	}
@@ -118,7 +118,6 @@ func TestComponent(t *testing.T) {
 	for {
 		select {
 		case err := <-runErrs:
-			log.Error(ctx, "", err)
 			require.NoError(t, err)
 		case res := <-results:
 			t.Logf("Got result: %#v", res)

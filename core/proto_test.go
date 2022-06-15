@@ -94,24 +94,6 @@ func TestParSignedDataSetProto(t *testing.T) {
 	}
 }
 
-func TestMarshal(t *testing.T) {
-	att := core.Attestation{Attestation: *testutil.RandomAttestation()}
-
-	b, err := json.Marshal(att)
-	require.NoError(t, err)
-
-	b2, err := att.MarshalJSON()
-	require.NoError(t, err)
-	require.Equal(t, b, b2)
-
-	var a core.SignedData
-	a = &core.Attestation{}
-	err = json.Unmarshal(b, a)
-	require.NoError(t, err)
-
-	require.Equal(t, &att, a)
-}
-
 func TestSetBlockSig(t *testing.T) {
 	block := core.VersionedSignedBeaconBlock{
 		VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
@@ -126,6 +108,48 @@ func TestSetBlockSig(t *testing.T) {
 	clone, err := block.SetSignature(testutil.RandomCoreSignature())
 	require.NoError(t, err)
 	require.NotEqual(t, clone.Signature(), block.Signature())
+}
+
+func TestUnsignedDataToProto(t *testing.T) {
+	tests := []struct {
+		Type core.DutyType
+		Data core.UnsignedData
+	}{
+		{
+			Type: core.DutyAttester,
+			Data: testutil.RandomCoreAttestationData(t),
+		},
+		{
+			Type: core.DutyProposer,
+			Data: testutil.RandomCoreVersionBeaconBlock(t),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Type.String(), func(t *testing.T) {
+			set1 := core.UnsignedDataSet{
+				testutil.RandomCorePubKey(t): test.Data,
+			}
+
+			pb1, err := core.UnsignedDataSetToProto(set1)
+			require.NoError(t, err)
+			set2, err := core.UnsignedDataSetFromProto(test.Type, pb1)
+			require.NoError(t, err)
+			pb2, err := core.UnsignedDataSetToProto(set2)
+			require.NoError(t, err)
+			require.Equal(t, set1, set2)
+			require.Equal(t, pb1, pb2)
+
+			b, err := proto.Marshal(pb1)
+			require.NoError(t, err)
+
+			pb3 := new(pbv1.UnsignedDataSet)
+			err = proto.Unmarshal(b, pb3)
+			require.NoError(t, err)
+
+			require.True(t, proto.Equal(pb1, pb3))
+		})
+	}
 }
 
 func TestParSignedData(t *testing.T) {

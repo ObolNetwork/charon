@@ -80,8 +80,12 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchAr
 	}
 
 	for _, sub := range f.subs {
-		err := sub(ctx, duty, unsignedSet)
+		clone, err := unsignedSet.Clone() // Clone before calling each subscriber.
 		if err != nil {
+			return err
+		}
+
+		if err := sub(ctx, duty, clone); err != nil {
 			return err
 		}
 	}
@@ -118,17 +122,12 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core
 			dataByCommIdx[attDuty.CommitteeIndex] = eth2AttData
 		}
 
-		attData := &core.AttestationData{
+		attData := core.AttestationData{
 			Data: *eth2AttData,
 			Duty: *attDuty,
 		}
 
-		dutyData, err := core.EncodeAttesterUnsignedData(attData)
-		if err != nil {
-			return nil, errors.Wrap(err, "unmarhsal json")
-		}
-
-		resp[pubkey] = dutyData
+		resp[pubkey] = attData
 	}
 
 	return resp, nil
@@ -157,12 +156,12 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core
 			return nil, err
 		}
 
-		dutyData, err := core.EncodeProposerUnsignedData(block)
+		coreBlock, err := core.NewVersionedBeaconBlock(block)
 		if err != nil {
-			return nil, errors.Wrap(err, "encode proposer data")
+			return nil, errors.Wrap(err, "new block")
 		}
 
-		resp[pubkey] = dutyData
+		resp[pubkey] = coreBlock
 	}
 
 	return resp, nil

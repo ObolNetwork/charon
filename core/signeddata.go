@@ -151,7 +151,12 @@ func (b VersionedSignedBeaconBlock) Clone() (SignedData, error) {
 //nolint:revive // similar method names.
 func (b VersionedSignedBeaconBlock) clone() (VersionedSignedBeaconBlock, error) {
 	var resp VersionedSignedBeaconBlock
-	return resp, cloneSignedData(b, &resp)
+	err := cloneJSONMarshaler(b, &resp)
+	if err != nil {
+		return VersionedSignedBeaconBlock{}, errors.Wrap(err, "clone block")
+	}
+
+	return resp, nil
 }
 
 func (b VersionedSignedBeaconBlock) Signature() Signature {
@@ -208,7 +213,7 @@ func (b VersionedSignedBeaconBlock) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "marshal block")
 	}
 
-	resp, err := json.Marshal(versionedSignedBeaconBlockJSON{
+	resp, err := json.Marshal(versionedRawBlockJSON{
 		Version: int(b.Version),
 		Block:   block,
 	})
@@ -220,7 +225,7 @@ func (b VersionedSignedBeaconBlock) MarshalJSON() ([]byte, error) {
 }
 
 func (b *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
-	var raw versionedSignedBeaconBlockJSON
+	var raw versionedRawBlockJSON
 	if err := json.Unmarshal(input, &raw); err != nil {
 		return errors.Wrap(err, "unmarshal block")
 	}
@@ -254,8 +259,8 @@ func (b *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-// versionedSignedBeaconBlockJSON is a custom VersionedSignedBeaconBlock serialiser.
-type versionedSignedBeaconBlockJSON struct {
+// versionedRawBlockJSON is a custom VersionedSignedBeaconBlock serialiser.
+type versionedRawBlockJSON struct {
 	Version int             `json:"version"`
 	Block   json.RawMessage `json:"block"`
 }
@@ -287,7 +292,12 @@ func (a Attestation) Clone() (SignedData, error) {
 //nolint:revive // similar method names.
 func (a Attestation) clone() (Attestation, error) {
 	var resp Attestation
-	return resp, cloneSignedData(a, &resp)
+	err := cloneJSONMarshaler(a, &resp)
+	if err != nil {
+		return Attestation{}, errors.Wrap(err, "clone attestation")
+	}
+
+	return resp, nil
 }
 
 func (a Attestation) Signature() Signature {
@@ -339,7 +349,12 @@ func (e SignedVoluntaryExit) Clone() (SignedData, error) {
 //nolint:revive // similar method names.
 func (e SignedVoluntaryExit) clone() (SignedVoluntaryExit, error) {
 	var resp SignedVoluntaryExit
-	return resp, cloneSignedData(e, &resp)
+	err := cloneJSONMarshaler(e, &resp)
+	if err != nil {
+		return SignedVoluntaryExit{}, errors.Wrap(err, "clone exit")
+	}
+
+	return resp, nil
 }
 
 func (e SignedVoluntaryExit) Signature() Signature {
@@ -365,17 +380,17 @@ func (e *SignedVoluntaryExit) UnmarshalJSON(b []byte) error {
 	return e.SignedVoluntaryExit.UnmarshalJSON(b)
 }
 
-// cloneSignedData clones the signed data by serialising to-from json
+// cloneJSONMarshaler clones the marshaler by serialising to-from json
 // since eth2 types contains pointers. The result is stored
 // in the value pointed to by v.
-func cloneSignedData(data SignedData, v any) error {
+func cloneJSONMarshaler(data json.Marshaler, v any) error {
 	bytes, err := data.MarshalJSON()
 	if err != nil {
-		return errors.Wrap(err, "marshal signed data")
+		return errors.Wrap(err, "marshal data")
 	}
 
 	if err := json.Unmarshal(bytes, v); err != nil {
-		return errors.Wrap(err, "unmarshal signed data")
+		return errors.Wrap(err, "unmarshal data")
 	}
 
 	return nil

@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -179,6 +180,17 @@ func RandomBellatrixBeaconBlockBody(t *testing.T) *bellatrix.BeaconBlockBody {
 		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
 		SyncAggregate:     RandomSyncAggregate(t),
 		ExecutionPayload:  RandomExecutionPayLoad(),
+	}
+}
+
+func RandomCoreVersionBeaconBlock(t *testing.T) core.VersionedBeaconBlock {
+	t.Helper()
+
+	return core.VersionedBeaconBlock{
+		VersionedBeaconBlock: spec.VersionedBeaconBlock{
+			Version:   spec.DataVersionBellatrix,
+			Bellatrix: RandomBellatrixBeaconBlock(t),
+		},
 	}
 }
 
@@ -373,19 +385,23 @@ func RandomENR(t *testing.T, random io.Reader) (*ecdsa.PrivateKey, enr.Record) {
 	return p2pKey, r
 }
 
-func RandomUnsignedDataSet(t *testing.T) core.UnsignedDataSet {
+func RandomCoreAttestationData(t *testing.T) core.AttestationData {
 	t.Helper()
 
 	duty := RandomAttestationDuty(t)
 	data := RandomAttestationData()
-	unsigned, err := core.EncodeAttesterUnsignedData(&core.AttestationData{
+
+	return core.AttestationData{
 		Data: *data,
 		Duty: *duty,
-	})
-	require.NoError(t, err)
+	}
+}
+
+func RandomUnsignedDataSet(t *testing.T) core.UnsignedDataSet {
+	t.Helper()
 
 	return core.UnsignedDataSet{
-		RandomCorePubKey(t): unsigned,
+		RandomCorePubKey(t): RandomCoreAttestationData(t),
 	}
 }
 

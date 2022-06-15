@@ -16,7 +16,6 @@
 package dutydb
 
 import (
-	"bytes"
 	"context"
 	"sync"
 
@@ -155,9 +154,14 @@ func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valCommId
 
 // storeAttestationUnsafe stores the unsigned attestation. It is unsafe since it assumes the lock is held.
 func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.UnsignedData) error {
-	attData, err := core.DecodeAttesterUnsignedData(unsignedData)
+	cloned, err := unsignedData.Clone() // Clone before storing.
 	if err != nil {
 		return err
+	}
+
+	attData, ok := cloned.(core.AttestationData)
+	if !ok {
+		return errors.New("invalid unsigned attestation data")
 	}
 
 	// Store key and value for PubKeyByAttestation
@@ -193,9 +197,14 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 
 // storeBeaconBlockUnsafe stores the unsigned BeaconBlock. It is unsafe since it assumes the lock is held.
 func (db *MemDB) storeBeaconBlockUnsafe(unsignedData core.UnsignedData) error {
-	block, err := core.DecodeProposerUnsignedData(unsignedData)
+	cloned, err := unsignedData.Clone() // Clone before storing.
 	if err != nil {
 		return err
+	}
+
+	block, ok := cloned.(core.VersionedBeaconBlock)
+	if !ok {
+		return errors.New("invalid unsigned block")
 	}
 
 	slot, err := block.Slot()
@@ -203,17 +212,22 @@ func (db *MemDB) storeBeaconBlockUnsafe(unsignedData core.UnsignedData) error {
 		return err
 	}
 
-	if actualBlock, ok := db.proDuties[int64(slot)]; ok {
-		actualData, err := core.EncodeProposerUnsignedData(actualBlock)
+	if existing, ok := db.proDuties[int64(slot)]; ok {
+		existingRoot, err := existing.Root()
 		if err != nil {
-			return errors.Wrap(err, "marshalling block")
+			return errors.Wrap(err, "block root")
 		}
 
-		if !bytes.Equal(actualData, unsignedData) {
+		providedRoot, err := block.Root()
+		if err != nil {
+			return errors.Wrap(err, "block root")
+		}
+
+		if existingRoot != providedRoot {
 			return errors.New("clashing blocks")
 		}
 	} else {
-		db.proDuties[int64(slot)] = block
+		db.proDuties[int64(slot)] = &block.VersionedBeaconBlock
 	}
 
 	return nil
