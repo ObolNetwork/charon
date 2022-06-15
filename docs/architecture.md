@@ -361,7 +361,7 @@ type ParSignedData struct {
 
 ```
 
-The following `SignedData` implementations are provided: `Attestation`, `VersionedSignedBeaconBlock`, `SignedVoluntaryExit`, and `Signature` which just a signature without any data used for `DutyRandao`.
+The following `SignedData` implementations are provided: `Attestation`, `VersionedSignedBeaconBlock`, `SignedVoluntaryExit`, and `Signature` which is just a signature without any data used for `DutyRandao`.
 
 Multiple `ParSignedData` are combined into a single `ParSignedDataSet` defines as follows:
 ```go
@@ -436,7 +436,7 @@ Duties originating in the `scheduler` (`DutyAttester`, `DutyProposer`) are not s
 Instead of waiting for the `validatorapi` to submit signatures, these duties directly request
 signatures from the remote signer instance. The flow is otherwise unaffected.
 
-Duties originating in the `validatorapi` (`DutyRandao`, `DutyAggregator`) has to refactored to
+Duties originating in the `validatorapi` (`DutyRandao`, `DutyExit`) has to refactored to
 originate in the `scheduler`, since charon is in full control of the duties in this architecture.
 
 The overall core workflow remains the same, `scheduler` just schedules all the duties.
