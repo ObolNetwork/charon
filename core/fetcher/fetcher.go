@@ -107,13 +107,14 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core
 
 	resp := make(core.UnsignedDataSet)
 	for pubkey, fetchArg := range argSet {
-		attDuty, err := core.DecodeAttesterFetchArg(fetchArg)
-		if err != nil {
-			return nil, err
+		attDuty, ok := fetchArg.(core.AttesterDefinition)
+		if !ok {
+			return nil, errors.New("invalid attester definition")
 		}
 
 		eth2AttData, ok := dataByCommIdx[attDuty.CommitteeIndex]
 		if !ok {
+			var err error
 			eth2AttData, err = f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), attDuty.CommitteeIndex)
 			if err != nil {
 				return nil, err
@@ -124,7 +125,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core
 
 		attData := core.AttestationData{
 			Data: *eth2AttData,
-			Duty: *attDuty,
+			Duty: attDuty.AttesterDuty,
 		}
 
 		resp[pubkey] = attData
