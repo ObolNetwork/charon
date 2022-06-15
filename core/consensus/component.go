@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -75,6 +76,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 
 		// Decide sends consensus output to subscribers.
 		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
+			defer endCtxSpan(ctx) // End the tracing span when decided
 			set, err := core.UnsignedDataSetFromProto(duty.Type, qcommit[0].(msg).msg.Value)
 			if err != nil {
 				log.Error(ctx, "Unmarshal decided value", err)
@@ -144,8 +146,13 @@ func (c *Component) Start(ctx context.Context) {
 // It returns on error or nil when the context is cancelled.
 func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	ctx = log.WithTopic(ctx, "qbft")
+	ctx, span := core.StartDutyTrace(ctx, duty, "core/consensus.Propose")
+	defer span.End()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// Since propose only returns when context is cancelled,
+	// add span to context so that it can be ended earlier when decided.
+	ctx = addCtxSpan(ctx, span)
 
 	log.Debug(ctx, "Starting qbft consensus instance", z.Any("duty", duty))
 
@@ -288,4 +295,19 @@ func (c *Component) getPeerIdx() (int64, error) {
 
 func isContextErr(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
+type spanKey struct{}
+
+// addCtxSpan returns a copy of the context containing the span.
+func addCtxSpan(ctx context.Context, span trace.Span) context.Context {
+	return context.WithValue(ctx, spanKey{}, span)
+}
+
+// endCtxSpan ends the span if included in the context.
+func endCtxSpan(ctx context.Context) {
+	span, ok := ctx.Value(spanKey{}).(trace.Span)
+	if ok {
+		span.End()
+	}
 }
