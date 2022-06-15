@@ -146,6 +146,12 @@ services:
     volumes:
       - .:/compose
   
+  curl:
+    # Can be used to curl services; e.g. docker-compose exec curl curl http://prometheus:9090/api/v1/rules\?type\=alert
+    image: curlimages/curl:latest
+    command: sleep 1d
+    networks: [compose]
+
   prometheus:
     image: prom/prometheus:latest
     ports:
