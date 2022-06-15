@@ -156,7 +156,7 @@ type Component struct {
 	pubKeyByAttFunc func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
 	awaitAttFunc    func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
 	awaitBlockFunc  func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
-	getDutyFunc     func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error)
+	dutyDefFunc     func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	parSigDBFuncs   []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
@@ -191,10 +191,10 @@ func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slo
 	c.pubKeyByAttFunc = fn
 }
 
-// RegisterGetDutyFunc registers a function to query duty data by duty.
+// RegisterDutyDefinitionFunc registers a function to query duty definitions.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterGetDutyFunc(fn func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error)) {
-	c.getDutyFunc = fn
+func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)) {
+	c.dutyDefFunc = fn
 }
 
 // RegisterParSigDB registers a partial signed data set store function.
@@ -635,16 +635,16 @@ func (c Component) epochFromSlot(ctx context.Context, slot eth2p0.Slot) (eth2p0.
 
 func (c Component) getProposerPubkey(ctx context.Context, slot eth2p0.Slot) (core.PubKey, error) {
 	// Get proposer pubkey (this is a blocking query).
-	dutySet, err := c.getDutyFunc(ctx, core.Duty{Slot: int64(slot), Type: core.DutyProposer})
+	defSet, err := c.dutyDefFunc(ctx, core.NewProposerDuty(int64(slot)))
 	if err != nil {
 		return "", err
-	} else if len(dutySet) != 1 {
+	} else if len(defSet) != 1 {
 		return "", errors.New("unexpected amount of proposer duties")
 	}
 
 	// There should be single duty proposer for the slot
 	var pubkey core.PubKey
-	for pk := range dutySet {
+	for pk := range defSet {
 		pubkey = pk
 	}
 

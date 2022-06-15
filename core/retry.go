@@ -25,7 +25,7 @@ import (
 func WithAsyncRetry(retryer *retry.Retryer[Duty]) WireOption {
 	return func(w *wireFuncs) {
 		clone := *w
-		w.FetcherFetch = func(ctx context.Context, duty Duty, set FetchArgSet) error {
+		w.FetcherFetch = func(ctx context.Context, duty Duty, set DutyDefinitionSet) error {
 			go retryer.DoAsync(ctx, duty, "fetcher fetch", func(ctx context.Context) error {
 				return clone.FetcherFetch(ctx, duty, set)
 			})

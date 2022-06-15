@@ -61,7 +61,7 @@ func TestFetchAttester(t *testing.T) {
 		CommitteesAtSlot: notZero,
 	}
 
-	argSet := core.FetchArgSet{
+	defSet := core.DutyDefinitionSet{
 		pubkeysByIdx[vIdxA]: core.NewAttesterDefinition(&dutyA),
 		pubkeysByIdx[vIdxB]: core.NewAttesterDefinition(&dutyB),
 	}
@@ -89,7 +89,7 @@ func TestFetchAttester(t *testing.T) {
 		return nil
 	})
 
-	err = fetch.Fetch(ctx, duty, argSet)
+	err = fetch.Fetch(ctx, duty, defSet)
 	require.NoError(t, err)
 }
 
@@ -115,7 +115,7 @@ func TestFetchProposer(t *testing.T) {
 		Slot:           slot,
 		ValidatorIndex: vIdxB,
 	}
-	argSet := core.FetchArgSet{
+	defSet := core.DutyDefinitionSet{
 		pubkeysByIdx[vIdxA]: core.NewProposerDefinition(&dutyA),
 		pubkeysByIdx[vIdxB]: core.NewProposerDefinition(&dutyB),
 	}
@@ -156,7 +156,7 @@ func TestFetchProposer(t *testing.T) {
 		return nil
 	})
 
-	err = fetch.Fetch(ctx, duty, argSet)
+	err = fetch.Fetch(ctx, duty, defSet)
 	require.NoError(t, err)
 }
 

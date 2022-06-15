@@ -168,26 +168,23 @@ func (k PubKey) ToETH2() (eth2p0.BLSPubKey, error) {
 	return resp, nil
 }
 
-// FetchArg defines a duty containing the parameters required
+// DutyDefinition defines the duty including parameters required
 // to fetch the duty data, it is the result of resolving duties
 // at the start of an epoch.
-// TODO(corver): Rename to DutyDefinition.
-type FetchArg interface {
-	// Clone returns a cloned copy of the FetchArg. For an immutable core workflow architecture,
-	// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
-	Clone() (FetchArg, error)
-	// Marshaler returns the json serialised unsigned duty data.
+type DutyDefinition interface {
+	// Clone returns a cloned copy of the DutyDefinition.
+	Clone() (DutyDefinition, error)
+	// Marshaler returns the json serialised duty definition.
 	json.Marshaler
 }
 
-// FetchArgSet is a set of fetch args, one per validator.
-// TODO(corver): Rename to DutyDefinitionSet.
-type FetchArgSet map[PubKey]FetchArg
+// DutyDefinitionSet is a set of duty definitions, one per validator.
+type DutyDefinitionSet map[PubKey]DutyDefinition
 
-// Clone returns a cloned copy of the FetchArgSet. For an immutable core workflow architecture,
+// Clone returns a cloned copy of the DutyDefinitionSet. For an immutable core workflow architecture,
 // remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
-func (s FetchArgSet) Clone() (FetchArgSet, error) {
-	resp := make(FetchArgSet, len(s))
+func (s DutyDefinitionSet) Clone() (DutyDefinitionSet, error) {
+	resp := make(DutyDefinitionSet, len(s))
 	for key, data := range s {
 		var err error
 		resp[key], err = data.Clone()
