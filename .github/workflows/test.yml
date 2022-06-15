@@ -44,7 +44,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - run: docker pull consensys/teku:latest
-      - run: go test -timeout=5m -v github.com/obolnetwork/charon/app -integration -slow
+      - run: go test -timeout=5m github.com/obolnetwork/charon/app -integration -slow
 
   compose_tests:
     runs-on: ubuntu-latest
@@ -62,4 +62,4 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - run: GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o testutil/compose/compose # Pre-build current SHA charon binary
-      - run: go test -v github.com/obolnetwork/charon/testutil/compose/compose -integration -sudo-perms -prebuilt-binary=charon
+      - run: go test github.com/obolnetwork/charon/testutil/compose/compose -integration -sudo-perms -prebuilt-binary=charon

@@ -16,78 +16,97 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
-	"net"
-	"net/http"
-
-	"golang.org/x/sync/errgroup"
+	"os/exec"
+	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// startAlertCollector starts a server that accepts alert webhooks until the context is closed and returns
-// a channel on which the received alert titles will be sent.
-func startAlertCollector(ctx context.Context, port int) (chan string, error) {
-	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
-	if err != nil {
-		return nil, errors.Wrap(err, "new listener")
-	}
-
+// startAlertCollector starts a goroutine that polls prometheus alerts until the context is closed and returns
+// a channel on which the received alert descriptions will be sent.
+func startAlertCollector(ctx context.Context, dir string) (chan string, error) {
+	dedup := make(map[string]bool)
 	resp := make(chan string, 100)
-	server := http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			defer r.Body.Close()
 
-			b, err := io.ReadAll(r.Body)
-			if err != nil {
-				log.Error(ctx, "Read request body", err)
-				return
-			}
-
-			wrapper := struct {
-				Body string `json:"body"`
-			}{}
-			if err := json.Unmarshal(b, &wrapper); err != nil {
-				log.Error(ctx, "Unmarshal body wrapper", err, z.Str("body", string(b)))
-				return
-			}
-
-			alert := struct {
-				Title string `json:"title"`
-			}{}
-			if err := json.Unmarshal(b, &alert); err != nil {
-				log.Error(ctx, "Unmarshal alert", err, z.Str("body", string(b)))
-				return
-			} else if alert.Title == "" {
-				log.Error(ctx, "Alert title empty", err, z.Str("body", string(b)))
-				return
-			}
-
-			log.Info(ctx, "Received webhook", z.Str("body", string(b)), z.Str("title", alert.Title))
-
-			resp <- alert.Title
-		}),
-	}
-
-	eg, ctx := errgroup.WithContext(ctx)
-	eg.Go(func() error {
-		return server.Serve(l) //nolint:wrapcheck
-	})
-	eg.Go(func() error {
-		<-ctx.Done()
-		return server.Close() //nolint:wrapcheck
-	})
 	go func() {
-		if err := eg.Wait(); !errors.Is(err, context.Canceled) && !errors.Is(err, http.ErrServerClosed) {
-			log.Error(ctx, "Alert collector", err)
+		defer close(resp)
+		for ctx.Err() == nil {
+			time.Sleep(time.Second * 5)
+
+			cmd := exec.CommandContext(ctx, "docker-compose", "exec", "-T", "curl", "curl", "-s", "http://prometheus:9090/api/v1/rules?type=alert")
+			cmd.Dir = dir
+			out, err := cmd.CombinedOutput()
+			if ctx.Err() != nil {
+				return
+			} else if err != nil {
+				log.Error(ctx, "Exec curl alerts", err, z.Str("out", string(out)))
+				continue
+			}
+
+			var alerts promAlerts
+			if err := json.Unmarshal(bytes.TrimSpace(out), &alerts); err != nil {
+				resp <- errors.Wrap(err, "unmarshal alerts", z.Str("out", string(out))).Error()
+				continue
+			}
+
+			if alerts.Status != "success" {
+				resp <- "non success status from prometheus alerts: " + alerts.Status
+				continue
+			}
+
+			for _, active := range getActiveAlerts(alerts) {
+				if dedup[active] {
+					continue
+				}
+				dedup[active] = true
+				log.Info(ctx, "Detected new alert", z.Str("alert", active))
+
+				resp <- active
+			}
 		}
-		close(resp)
 	}()
 
 	return resp, nil
+}
+
+func getActiveAlerts(alerts promAlerts) []string {
+	var resp []string
+	for _, group := range alerts.Data.Groups {
+		for _, rule := range group.Rules {
+			for _, alert := range rule.Alerts {
+				if alert.State != "active" {
+					continue
+				}
+
+				resp = append(resp, alert.Annotations.Description)
+			}
+		}
+	}
+
+	return resp
+}
+
+// promAlerts is the json response returned by querying prometheus alerts.
+// nolint: revive // Nested structs are ok in this case.
+type promAlerts struct {
+	Status string `json:"status"`
+	Data   struct {
+		Groups []struct {
+			Name  string `json:"name"`
+			Rules []struct {
+				Name   string `json:"name"`
+				Alerts []struct {
+					State       string `json:"state"`
+					Annotations struct {
+						Description string `json:"description"`
+					} `json:"annotations"`
+				} `json:"alerts"`
+			} `json:"rules"`
+		} `json:"groups"`
+	} `json:"data"`
 }
