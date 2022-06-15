@@ -151,6 +151,8 @@ func testSimnet(t *testing.T, args simnetArgs) {
 
 	parSigExFunc := parsigex.NewMemExFunc()
 	lcastTransportFunc := leadercast.NewMemTransportFunc(ctx)
+	featureConf := featureset.DefaultConfig()
+	featureConf.Disabled = []string{string(featureset.QBFTConsensus)} // TODO(corver): Add support for in-memory transport to QBFT.
 
 	type simResult struct {
 		Duty   core.Duty
@@ -165,7 +167,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 	for i := 0; i < args.N; i++ {
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
-			Feature:          featureset.DefaultConfig(),
+			Feature:          featureConf,
 			SimnetBMock:      true,
 			SimnetVMock:      args.VMocks[i],
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address

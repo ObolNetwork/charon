@@ -43,7 +43,7 @@ const (
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		QBFTConsensus: statusAlpha,
+		QBFTConsensus: statusStable,
 		// Add all features and there status here.
 	}
 
