@@ -1,0 +1,44 @@
+groups:
+- name: charon
+  rules:
+  - alert: Charon Down
+    expr: up == 0
+    for: 15s
+    annotations:
+      description: "Ensures charon node(s) are available"
+
+  - alert: Error Log Rate
+    expr: app_log_error_total > 0
+    for: 15s
+    annotations:
+      description: "Ensures no error logs"
+
+  - alert: Warn Log Rate
+    expr: increase(app_log_warn_total[30s]) > 2
+    for: 15s
+    annotations:
+      description: "Ensures warning log rate is low"
+
+  - alert: Validator API Error Rate
+    expr: increase(core_validatorapi_request_error_total{endpoint!="proxy"}[30s]) > 1
+    for: 15s
+    annotations:
+      description: "Ensures validator api error rate is very low"
+
+  - alert: Proxy API Error Rate
+    expr: increase(core_validatorapi_request_error_total{endpoint="proxy"}[30s]) > 5
+    for: 15s
+    annotations:
+      description: "Ensures proxy api error rate is low"
+
+  - alert: Broadcast Duty Rate
+    expr: increase(core_bcast_broadcast_total[30s]) < 0.5
+    for: 15s
+    annotations:
+      description: "Ensures broadcast duty rate is not low / is high"
+
+  - alert: Outstanding Duty Rate
+    expr: core_bcast_broadcast_total - core_scheduler_duty_total > 50
+    for: 15s
+    annotations:
+      description: "Ensures outstanding duties remain low"
