@@ -41,3 +41,11 @@ jobs:
         push: true
         build-args: GITHUB_SHA=${{ github.sha }}
         tags: ${{ steps.meta.outputs.tags }}
+    
+    - name: Deploy charon
+      uses: peter-evans/repository-dispatch@v2
+      with:
+        token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
+        repository: ObolNetwork/charon-k8s
+        event-type: charon-package-published
+        client-payload: '{"sha": "${{ github.sha }}"}'
