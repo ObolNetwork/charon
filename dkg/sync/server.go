@@ -30,30 +30,31 @@ import (
 )
 
 const (
-	ID      = "dkg_v1.0"
-	MsgSize = 112
+	syncProtoID = "dkg_v1.0"
+	MsgSize     = 112
 )
 
 // NewServer registers a Stream Handler and returns a new Server instance.
 func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, hash []byte, onFailure func()) *Server {
 	server := &Server{
-		ctx:        ctx,
-		tcpNode:    tcpNode,
-		peers:      peers,
-		onFailure:  onFailure,
-		clientMsgs: make(chan *pb.MsgSync),
+		ctx:       ctx,
+		tcpNode:   tcpNode,
+		peers:     peers,
+		onFailure: onFailure,
 	}
 
-	server.tcpNode.SetStreamHandler(ID, func(s network.Stream) {
+	server.tcpNode.SetStreamHandler(syncProtoID, func(s network.Stream) {
 		defer s.Close()
 
 		buf := bufio.NewReader(s)
 		b := make([]byte, MsgSize)
 		_, err := buf.Read(b)
 		if err != nil {
-			log.Error(ctx, "Read client msg from s", err)
+			log.Error(ctx, "Read client msg from stream", err)
 			err = s.Reset()
 			log.Error(ctx, "Stream reset", err)
+
+			return
 		}
 
 		msg := new(pb.MsgSync)
@@ -61,6 +62,8 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, hash []
 			log.Error(ctx, "Unmarshal client msg", err)
 			err = s.Reset()
 			log.Error(ctx, "Stream reset", err)
+
+			return
 		}
 
 		resp := &pb.MsgSyncResponse{
@@ -77,12 +80,17 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, hash []
 			log.Error(ctx, "Marshal server response", err)
 			err = s.Reset()
 			log.Error(ctx, "Stream reset", err)
+
+			return
 		}
+
 		_, err = s.Write(resBytes)
 		if err != nil {
 			log.Error(ctx, "Send response to client", err)
 			err = s.Reset()
 			log.Error(ctx, "Stream reset", err)
+
+			return
 		}
 	})
 

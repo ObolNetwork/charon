@@ -81,7 +81,7 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 
 // logWrapRouting wraps a peerRoutingFunc in debug logging.
 func logWrapRouting(fn peerRoutingFunc) peerRoutingFunc {
-	var failing sync.Map // map[peer.ID]struct{}
+	var failing sync.Map // map[peer.syncProtoID]struct{}
 	return func(ctx context.Context, p peer.ID) (peer.AddrInfo, error) {
 		ctx = log.WithTopic(ctx, "p2p")
 

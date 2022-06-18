@@ -30,14 +30,14 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-// NewClient starts a goroutine that establishes a long lived connection and returns a new Client instance.
+// NewClient starts a goroutine that establishes a long lived connection to a p2p server and returns a new Client instance.
 func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hash []byte, onFailure func(), ch chan *pb.MsgSyncResponse) Client {
 	go func() {
-		str, err := tcpNode.NewStream(ctx, server.ID, ID)
+		s, err := tcpNode.NewStream(ctx, server.ID, syncProtoID)
 		if err != nil {
 			log.Error(ctx, "Open new stream with server", err)
 		}
-		defer str.Close()
+		defer s.Close()
 
 		msg := &pb.MsgSync{
 			Timestamp:     timestamppb.Now(),
@@ -50,15 +50,14 @@ func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hash []b
 			log.Error(ctx, "Marshal msg", err)
 		}
 
-		n, err := str.Write(b)
-		if err != nil && n != 0 {
+		if _, err = s.Write(b); err != nil {
 			log.Error(ctx, "Write msg to stream", err)
 		}
 
 		// Read Server's response
-		out, err := ioutil.ReadAll(str)
+		out, err := ioutil.ReadAll(s)
 		if err != nil {
-			log.Error(ctx, "Read server's response", err)
+			log.Error(ctx, "Read server response", err)
 			return
 		}
 
@@ -67,7 +66,7 @@ func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hash []b
 			log.Error(ctx, "Unmarshal server response", err)
 		}
 
-		log.Info(ctx, "Server's response: ", z.Any("response", resp.SyncTimestamp))
+		log.Info(ctx, "Server response", z.Any("response", resp.SyncTimestamp))
 		ch <- resp
 	}()
 
