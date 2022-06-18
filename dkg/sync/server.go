@@ -12,12 +12,13 @@
 //
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
-//nolint:revive
+
 package sync
 
 import (
+	"bufio"
+	"bytes"
 	"context"
-	"io"
 
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -28,31 +29,61 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const ID = "dkg_v1.0"
+const (
+	ID      = "dkg_v1.0"
+	MsgSize = 112
+)
 
-func NewServer(ctx context.Context, tcpNode host.Host, _ []p2p.Peer, hash []byte, onFailure func(), ch chan *pb.MsgSync) *Server {
+// NewServer registers a Stream Handler and returns a new Server instance.
+func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, hash []byte, onFailure func()) *Server {
 	server := &Server{
-		ctx:     ctx,
-		tcpNode: tcpNode,
-		// peers:      peers,
+		ctx:        ctx,
+		tcpNode:    tcpNode,
+		peers:      peers,
 		onFailure:  onFailure,
 		clientMsgs: make(chan *pb.MsgSync),
 	}
 
-	server.tcpNode.SetStreamHandler(ID, func(stream network.Stream) {
-		defer stream.Close()
+	server.tcpNode.SetStreamHandler(ID, func(s network.Stream) {
+		defer s.Close()
 
-		b, err := io.ReadAll(stream)
+		buf := bufio.NewReader(s)
+		b := make([]byte, MsgSize)
+		_, err := buf.Read(b)
 		if err != nil {
-			log.Error(ctx, "Read client msg from stream", err)
+			log.Error(ctx, "Read client msg from s", err)
+			err = s.Reset()
+			log.Error(ctx, "Stream reset", err)
 		}
 
 		msg := new(pb.MsgSync)
-		if err = proto.Unmarshal(b, msg); err != nil {
+		if err := proto.Unmarshal(b, msg); err != nil {
 			log.Error(ctx, "Unmarshal client msg", err)
+			err = s.Reset()
+			log.Error(ctx, "Stream reset", err)
 		}
 
-		ch <- msg
+		resp := &pb.MsgSyncResponse{
+			SyncTimestamp: msg.Timestamp,
+			Error:         "",
+		}
+
+		if !bytes.Equal(msg.HashSignature, hash) {
+			resp.Error = "Invalid Signature"
+		}
+
+		resBytes, err := proto.Marshal(resp)
+		if err != nil {
+			log.Error(ctx, "Marshal server response", err)
+			err = s.Reset()
+			log.Error(ctx, "Stream reset", err)
+		}
+		_, err = s.Write(resBytes)
+		if err != nil {
+			log.Error(ctx, "Send response to client", err)
+			err = s.Reset()
+			log.Error(ctx, "Stream reset", err)
+		}
 	})
 
 	return server
@@ -66,10 +97,13 @@ type Server struct {
 	clientMsgs chan *pb.MsgSync
 }
 
-func (s *Server) AwaitAllConnected() error {
+// AwaitAllConnected blocks until all peers have established a connection with this server or returns an error.
+func (*Server) AwaitAllConnected() error {
 	return nil
 }
 
-func (s *Server) AwaitAllShutdown() error {
+// AwaitAllShutdown blocks until all peers have successfully shutdown or returns an error.
+// It may only be called after AwaitAllConnected.
+func (*Server) AwaitAllShutdown() error {
 	return nil
 }

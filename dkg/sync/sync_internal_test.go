@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/libp2p/go-libp2p"
@@ -54,14 +53,14 @@ func TestNaiveServerClient(t *testing.T) {
 	require.NoError(t, err)
 
 	serverCtx := log.WithTopic(ctx, "server")
-	hash := []byte("hello world")
-	ch := make(chan *pb.MsgSync)
-	_ = NewServer(serverCtx, serverHost, nil, hash, nil, ch)
+	hash := testutil.RandomCoreSignature()
+	ch := make(chan *pb.MsgSyncResponse)
+	_ = NewServer(serverCtx, serverHost, nil, hash, nil)
 
 	clientCtx := log.WithTopic(ctx, "client")
-	_ = NewClient(clientCtx, clientHost, p2p.Peer{ID: serverHost.ID()}, []byte("hello world"), nil)
+	_ = NewClient(clientCtx, clientHost, p2p.Peer{ID: serverHost.ID()}, hash, nil, ch)
 	actual := <-ch
-	require.Equal(t, actual.HashSignature, hash)
+	require.Equal(t, "", actual.Error)
 }
 
 func newSyncHost(t *testing.T, seed int64) host.Host {
@@ -81,36 +80,4 @@ func newSyncHost(t *testing.T, seed int64) host.Host {
 	require.NoError(t, err)
 
 	return host
-}
-
-func TestPingServerClient(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Start Server
-	serverHost := newSyncHost(t, 0)
-
-	// Start Client
-	clientHost := newSyncHost(t, 1)
-
-	require.NotEqual(t, clientHost.ID().String(), serverHost.ID().String())
-
-	err := serverHost.Connect(ctx, peer.AddrInfo{
-		ID:    clientHost.ID(),
-		Addrs: clientHost.Addrs(),
-	})
-	require.NoError(t, err)
-
-	msg := testutil.RandomBytes32()
-
-	_ = NewPingServer(ctx, serverHost, msg)
-	ts := ClientPing(ctx, clientHost, serverHost.ID(), msg)
-
-	select {
-	case res := <-ts:
-		require.NoError(t, res.Error)
-		t.Log("ping took: ", res.RTT)
-	case <-time.After(time.Second * 400):
-		t.Fatal("failed to receive ping")
-	}
 }

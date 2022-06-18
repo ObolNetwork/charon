@@ -12,11 +12,12 @@
 //
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
-//nolint:revive
+
 package sync
 
 import (
 	"context"
+	"io/ioutil"
 
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -24,11 +25,13 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	pb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
 	"github.com/obolnetwork/charon/p2p"
 )
 
-func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hash []byte, onFailure func()) Client {
+// NewClient starts a goroutine that establishes a long lived connection and returns a new Client instance.
+func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hash []byte, onFailure func(), ch chan *pb.MsgSyncResponse) Client {
 	go func() {
 		str, err := tcpNode.NewStream(ctx, server.ID, ID)
 		if err != nil {
@@ -51,6 +54,21 @@ func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hash []b
 		if err != nil && n != 0 {
 			log.Error(ctx, "Write msg to stream", err)
 		}
+
+		// Read Server's response
+		out, err := ioutil.ReadAll(str)
+		if err != nil {
+			log.Error(ctx, "Read server's response", err)
+			return
+		}
+
+		resp := new(pb.MsgSyncResponse)
+		if err = proto.Unmarshal(out, resp); err != nil {
+			log.Error(ctx, "Unmarshal server response", err)
+		}
+
+		log.Info(ctx, "Server's response: ", z.Any("response", resp.SyncTimestamp))
+		ch <- resp
 	}()
 
 	return Client{
@@ -69,10 +87,14 @@ type Client struct {
 	serverStream network.Stream
 }
 
-func (c *Client) AwaitConnected() error {
+// AwaitConnected blocks until the connection with the server has been established or returns an error.
+func (*Client) AwaitConnected() error {
 	return nil
 }
 
-func (c *Client) Shutdown() error {
+// Shutdown sends a shutdown message to the peer indicating it has successfully completed.
+// It closes the connection and returns after receiving the subsequent MsgSyncResponse.
+// It may only be called after AwaitConnected.
+func (*Client) Shutdown() error {
 	return nil
 }
