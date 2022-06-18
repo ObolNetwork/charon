@@ -55,6 +55,8 @@ func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hash []b
 			log.Error(ctx, "Write msg to stream", err)
 		}
 
+		log.Debug(ctx, "Message sent to Server", z.Any("peer", p2p.PeerName(server.ID)))
+
 		// Read Server's response
 		out, err := ioutil.ReadAll(str)
 		if err != nil {
@@ -67,7 +69,7 @@ func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hash []b
 			log.Error(ctx, "Unmarshal server response", err)
 		}
 
-		log.Info(ctx, "Server's response: ", z.Any("response", resp.SyncTimestamp))
+		log.Info(ctx, "Server's response", z.Any("response", resp.SyncTimestamp), z.Any("peer", p2p.PeerName(server.ID)))
 		ch <- resp
 	}()
 
