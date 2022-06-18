@@ -34,6 +34,25 @@ const (
 	MsgSize     = 112
 )
 
+type Server struct {
+	ctx        context.Context
+	onFailure  func()
+	tcpNode    host.Host
+	peers      []p2p.Peer
+	clientMsgs chan *pb.MsgSync
+}
+
+// AwaitAllConnected blocks until all peers have established a connection with this server or returns an error.
+func (*Server) AwaitAllConnected() error {
+	return nil
+}
+
+// AwaitAllShutdown blocks until all peers have successfully shutdown or returns an error.
+// It may only be called after AwaitAllConnected.
+func (*Server) AwaitAllShutdown() error {
+	return nil
+}
+
 // NewServer registers a Stream Handler and returns a new Server instance.
 func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, hash []byte, onFailure func()) *Server {
 	server := &Server{
@@ -95,23 +114,4 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, hash []
 	})
 
 	return server
-}
-
-type Server struct {
-	ctx        context.Context
-	onFailure  func()
-	tcpNode    host.Host
-	peers      []p2p.Peer
-	clientMsgs chan *pb.MsgSync
-}
-
-// AwaitAllConnected blocks until all peers have established a connection with this server or returns an error.
-func (*Server) AwaitAllConnected() error {
-	return nil
-}
-
-// AwaitAllShutdown blocks until all peers have successfully shutdown or returns an error.
-// It may only be called after AwaitAllConnected.
-func (*Server) AwaitAllShutdown() error {
-	return nil
 }

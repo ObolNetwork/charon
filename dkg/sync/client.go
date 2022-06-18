@@ -30,6 +30,26 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+type Client struct {
+	ctx          context.Context
+	onFailure    func()
+	tcpNode      host.Host
+	peer         p2p.Peer
+	serverStream network.Stream
+}
+
+// AwaitConnected blocks until the connection with the server has been established or returns an error.
+func (*Client) AwaitConnected() error {
+	return nil
+}
+
+// Shutdown sends a shutdown message to the peer indicating it has successfully completed.
+// It closes the connection and returns after receiving the subsequent MsgSyncResponse.
+// It may only be called after AwaitConnected.
+func (*Client) Shutdown() error {
+	return nil
+}
+
 // NewClient starts a goroutine that establishes a long lived connection to a p2p server and returns a new Client instance.
 func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hash []byte, onFailure func(), ch chan *pb.MsgSyncResponse) Client {
 	go func() {
@@ -76,24 +96,4 @@ func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hash []b
 		tcpNode:   tcpNode,
 		peer:      server,
 	}
-}
-
-type Client struct {
-	ctx          context.Context
-	onFailure    func()
-	tcpNode      host.Host
-	peer         p2p.Peer
-	serverStream network.Stream
-}
-
-// AwaitConnected blocks until the connection with the server has been established or returns an error.
-func (*Client) AwaitConnected() error {
-	return nil
-}
-
-// Shutdown sends a shutdown message to the peer indicating it has successfully completed.
-// It closes the connection and returns after receiving the subsequent MsgSyncResponse.
-// It may only be called after AwaitConnected.
-func (*Client) Shutdown() error {
-	return nil
 }
