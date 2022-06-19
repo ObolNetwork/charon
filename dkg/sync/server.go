@@ -30,37 +30,64 @@ import (
 )
 
 const (
-	ID      = "dkg_v1.0"
-	MsgSize = 87
+	syncProtoID = "dkg_v1.0"
+	MsgSize     = 128
 )
 
-// NewServer registers a Stream Handler which verifies hash signature obtained client and returns a new Server instance.
+type Server struct {
+	ctx        context.Context
+	onFailure  func()
+	tcpNode    host.Host
+	peers      []p2p.Peer
+	clientMsgs chan *pb.MsgSync
+}
+
+// AwaitAllConnected blocks until all peers have established a connection with this server or returns an error.
+func (*Server) AwaitAllConnected() error {
+	return nil
+}
+
+// AwaitAllShutdown blocks until all peers have successfully shutdown or returns an error.
+// It may only be called after AwaitAllConnected.
+func (*Server) AwaitAllShutdown() error {
+	return nil
+}
+
+// NewServer registers a Stream Handler and returns a new Server instance.
 func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, definitionHash []byte, onFailure func()) *Server {
 	server := &Server{
-		ctx:        ctx,
-		tcpNode:    tcpNode,
-		peers:      peers,
-		onFailure:  onFailure,
-		clientMsgs: make(chan *pb.MsgSync),
+		ctx:       ctx,
+		tcpNode:   tcpNode,
+		peers:     peers,
+		onFailure: onFailure,
 	}
 
-	server.tcpNode.SetStreamHandler(ID, func(s network.Stream) {
+	server.tcpNode.SetStreamHandler(syncProtoID, func(s network.Stream) {
 		defer s.Close()
 
 		buf := bufio.NewReader(s)
 		b := make([]byte, MsgSize)
-		_, err := buf.Read(b)
+
+		// n is the number of bytes read from buffer, if n < MsgSize the other bytes will be 0
+		n, err := buf.Read(b)
 		if err != nil {
-			log.Error(ctx, "Read client msg from s", err)
+			log.Error(ctx, "Read client msg from stream", err)
 			err = s.Reset()
 			log.Error(ctx, "Stream reset", err)
+
+			return
 		}
+
+		// Number of bytes that are read are the most important
+		b = b[:n]
 
 		msg := new(pb.MsgSync)
 		if err := proto.Unmarshal(b, msg); err != nil {
 			log.Error(ctx, "Unmarshal client msg", err)
 			err = s.Reset()
 			log.Error(ctx, "Stream reset", err)
+
+			return
 		}
 
 		pID := s.Conn().RemotePeer()
@@ -94,6 +121,8 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, definit
 			log.Error(ctx, "Marshal server response", err)
 			err = s.Reset()
 			log.Error(ctx, "Stream reset", err)
+
+			return
 		}
 
 		_, err = s.Write(resBytes)
@@ -101,29 +130,10 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, definit
 			log.Error(ctx, "Send response to client", err)
 			err = s.Reset()
 			log.Error(ctx, "Stream reset", err)
-		}
 
-		log.Debug(ctx, "Message sent to Client", z.Any("peer", p2p.PeerName(pID)))
+			return
+		}
 	})
 
 	return server
-}
-
-type Server struct {
-	ctx        context.Context
-	onFailure  func()
-	tcpNode    host.Host
-	peers      []p2p.Peer
-	clientMsgs chan *pb.MsgSync
-}
-
-// AwaitAllConnected blocks until all peers have established a connection with this server or returns an error.
-func (*Server) AwaitAllConnected() error {
-	return nil
-}
-
-// AwaitAllShutdown blocks until all peers have successfully shutdown or returns an error.
-// It may only be called after AwaitAllConnected.
-func (*Server) AwaitAllShutdown() error {
-	return nil
 }

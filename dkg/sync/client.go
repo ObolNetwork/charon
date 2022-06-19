@@ -30,57 +30,6 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-// NewClient starts a goroutine that establishes a long lived connection and returns a new Client instance.
-func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hash []byte, onFailure func(), ch chan *pb.MsgSyncResponse) Client {
-	go func() {
-		str, err := tcpNode.NewStream(ctx, server.ID, ID)
-		if err != nil {
-			log.Error(ctx, "Open new stream with server", err)
-		}
-		defer str.Close()
-
-		msg := &pb.MsgSync{
-			Timestamp:     timestamppb.Now(),
-			HashSignature: hash,
-			Shutdown:      false,
-		}
-
-		b, err := proto.Marshal(msg)
-		if err != nil {
-			log.Error(ctx, "Marshal msg", err)
-		}
-
-		n, err := str.Write(b)
-		if err != nil && n != 0 {
-			log.Error(ctx, "Write msg to stream", err)
-		}
-
-		log.Debug(ctx, "Message sent to Server", z.Any("peer", p2p.PeerName(server.ID)))
-
-		// Read Server's response
-		out, err := ioutil.ReadAll(str)
-		if err != nil {
-			log.Error(ctx, "Read server's response", err)
-			return
-		}
-
-		resp := new(pb.MsgSyncResponse)
-		if err = proto.Unmarshal(out, resp); err != nil {
-			log.Error(ctx, "Unmarshal server response", err)
-		}
-
-		log.Info(ctx, "Server's response", z.Any("response", resp.SyncTimestamp), z.Any("peer", p2p.PeerName(server.ID)))
-		ch <- resp
-	}()
-
-	return Client{
-		ctx:       ctx,
-		onFailure: onFailure,
-		tcpNode:   tcpNode,
-		peer:      server,
-	}
-}
-
 type Client struct {
 	ctx          context.Context
 	onFailure    func()
@@ -99,4 +48,52 @@ func (*Client) AwaitConnected() error {
 // It may only be called after AwaitConnected.
 func (*Client) Shutdown() error {
 	return nil
+}
+
+// NewClient starts a goroutine that establishes a long lived connection to a p2p server and returns a new Client instance.
+func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hashSig []byte, onFailure func(), ch chan *pb.MsgSyncResponse) Client {
+	go func() {
+		s, err := tcpNode.NewStream(ctx, server.ID, syncProtoID)
+		if err != nil {
+			log.Error(ctx, "Open new stream with server", err)
+		}
+		defer s.Close()
+
+		msg := &pb.MsgSync{
+			Timestamp:     timestamppb.Now(),
+			HashSignature: hashSig,
+			Shutdown:      false,
+		}
+
+		b, err := proto.Marshal(msg)
+		if err != nil {
+			log.Error(ctx, "Marshal msg", err)
+		}
+
+		if _, err = s.Write(b); err != nil {
+			log.Error(ctx, "Write msg to stream", err)
+		}
+
+		// Read Server's response
+		out, err := ioutil.ReadAll(s)
+		if err != nil {
+			log.Error(ctx, "Read server response", err)
+			return
+		}
+
+		resp := new(pb.MsgSyncResponse)
+		if err = proto.Unmarshal(out, resp); err != nil {
+			log.Error(ctx, "Unmarshal server response", err)
+		}
+
+		log.Info(ctx, "Server response", z.Any("response", resp.SyncTimestamp))
+		ch <- resp
+	}()
+
+	return Client{
+		ctx:       ctx,
+		onFailure: onFailure,
+		tcpNode:   tcpNode,
+		peer:      server,
+	}
 }
