@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -169,25 +168,59 @@ func (k PubKey) ToETH2() (eth2p0.BLSPubKey, error) {
 	return resp, nil
 }
 
-// FetchArg contains the arguments required to fetch the duty data,
-// it is the result of resolving duties at the start of an epoch.
-type FetchArg []byte
+// DutyDefinition defines the duty including parameters required
+// to fetch the duty data, it is the result of resolving duties
+// at the start of an epoch.
+type DutyDefinition interface {
+	// Clone returns a cloned copy of the DutyDefinition.
+	Clone() (DutyDefinition, error)
+	// Marshaler returns the json serialised duty definition.
+	json.Marshaler
+}
 
-// FetchArgSet is a set of fetch args, one per validator.
-type FetchArgSet map[PubKey]FetchArg
+// DutyDefinitionSet is a set of duty definitions, one per validator.
+type DutyDefinitionSet map[PubKey]DutyDefinition
+
+// Clone returns a cloned copy of the DutyDefinitionSet. For an immutable core workflow architecture,
+// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
+func (s DutyDefinitionSet) Clone() (DutyDefinitionSet, error) {
+	resp := make(DutyDefinitionSet, len(s))
+	for key, data := range s {
+		var err error
+		resp[key], err = data.Clone()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return resp, nil
+}
 
 // UnsignedData represents an unsigned duty data object.
-type UnsignedData []byte
+type UnsignedData interface {
+	// Clone returns a cloned copy of the UnsignedData. For an immutable core workflow architecture,
+	// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
+	Clone() (UnsignedData, error)
+	// Marshaler returns the json serialised unsigned duty data.
+	json.Marshaler
+}
 
 // UnsignedDataSet is a set of unsigned duty data objects, one per validator.
 type UnsignedDataSet map[PubKey]UnsignedData
 
-// AttestationData wraps the eth2 attestation data and adds the original duty.
-// The original duty allows mapping the partial signed response from the VC
-// backed to the validator pubkey via the aggregation bits field.
-type AttestationData struct {
-	Data eth2p0.AttestationData
-	Duty eth2v1.AttesterDuty
+// Clone returns a cloned copy of the UnsignedDataSet. For an immutable core workflow architecture,
+// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
+func (s UnsignedDataSet) Clone() (UnsignedDataSet, error) {
+	resp := make(UnsignedDataSet, len(s))
+	for key, data := range s {
+		var err error
+		resp[key], err = data.Clone()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return resp, nil
 }
 
 // SignedData is a signed duty data.

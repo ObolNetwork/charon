@@ -152,6 +152,61 @@ type p2pMsg struct {
 	Data    core.UnsignedDataSet
 }
 
+func (m p2pMsg) MarshalJSON() ([]byte, error) {
+	data := make(map[core.PubKey]json.RawMessage)
+	for key, val := range m.Data {
+		b, err := val.MarshalJSON()
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal unsigned data")
+		}
+		data[key] = b
+	}
+
+	b, err := json.Marshal(p2pMsgJSON{
+		Idx:     m.Idx,
+		FromIdx: m.FromIdx,
+		Duty:    m.Duty,
+		Data:    data,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal p2p msg")
+	}
+
+	return b, nil
+}
+
+func (m *p2pMsg) UnmarshalJSON(input []byte) error {
+	var msg p2pMsgJSON
+	if err := json.Unmarshal(input, &msg); err != nil {
+		return errors.Wrap(err, "unmarshal p2p msg")
+	}
+
+	set := make(core.UnsignedDataSet)
+	for key, val := range msg.Data {
+		data, err := core.UnmarshalUnsignedData(msg.Duty.Type, val)
+		if err != nil {
+			return errors.Wrap(err, "marshal unsigned data")
+		}
+		set[key] = data
+	}
+
+	*m = p2pMsg{
+		Idx:     msg.Idx,
+		FromIdx: msg.FromIdx,
+		Duty:    msg.Duty,
+		Data:    set,
+	}
+
+	return nil
+}
+
+type p2pMsgJSON struct {
+	Idx     int
+	FromIdx int
+	Duty    core.Duty
+	Data    map[core.PubKey]json.RawMessage
+}
+
 // NewMemTransportFunc returns a function that itself returns in-memory
 // transport instances that communicate with each other.
 // It stops processing messages when the context is closed.

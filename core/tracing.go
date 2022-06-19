@@ -66,7 +66,7 @@ func WithTracing() WireOption {
 	return func(w *wireFuncs) {
 		clone := *w
 
-		w.FetcherFetch = func(parent context.Context, duty Duty, set FetchArgSet) error {
+		w.FetcherFetch = func(parent context.Context, duty Duty, set DutyDefinitionSet) error {
 			ctx, span := tracer.Start(parent, "core/fetcher.Fetch")
 			defer span.End()
 

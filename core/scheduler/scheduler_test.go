@@ -17,7 +17,6 @@ package scheduler_test
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"os"
 	"sort"
@@ -75,13 +74,9 @@ func TestIntegration(t *testing.T) {
 
 	count := 10
 
-	s.Subscribe(func(ctx context.Context, duty core.Duty, set core.FetchArgSet) error {
+	s.Subscribe(func(ctx context.Context, duty core.Duty, set core.DutyDefinitionSet) error {
 		for idx, data := range set {
-			duty := new(eth2v1.AttesterDuty)
-			err := json.Unmarshal(data, &duty)
-			require.NoError(t, err)
-
-			t.Logf("Duty triggered: vidx=%v slot=%v committee=%v\n", idx, duty.Slot, duty.CommitteeIndex)
+			t.Logf("Duty triggered: vidx=%v slot=%v committee=%v\n", idx, duty.Slot, data.(core.AttesterDefinition).CommitteeIndex)
 		}
 		count--
 		if count == 0 {
@@ -247,17 +242,19 @@ func TestSchedulerDuties(t *testing.T) {
 				Time       string
 				DutyStr    string    `json:"duty"`
 				Duty       core.Duty `json:"-"`
-				DutyArgSet map[core.PubKey]string
+				DutyDefSet map[core.PubKey]string
 			}
 			var (
 				results []result
 				mu      sync.Mutex
 			)
-			sched.Subscribe(func(ctx context.Context, duty core.Duty, set core.FetchArgSet) error {
+			sched.Subscribe(func(ctx context.Context, duty core.Duty, set core.DutyDefinitionSet) error {
 				// Make result human-readable
 				resultSet := make(map[core.PubKey]string)
-				for pubkey, args := range set {
-					resultSet[pubkey] = string(args)
+				for pubkey, def := range set {
+					b, err := def.MarshalJSON()
+					require.NoError(t, err)
+					resultSet[pubkey] = string(b)
 				}
 
 				// Add result
@@ -267,7 +264,7 @@ func TestSchedulerDuties(t *testing.T) {
 				results = append(results, result{
 					Duty:       duty,
 					DutyStr:    duty.String(),
-					DutyArgSet: resultSet,
+					DutyDefSet: resultSet,
 				})
 
 				if len(results) == test.Results {
@@ -319,7 +316,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 	clock := newTestClock(t0)
 	sched := scheduler.NewForT(t, clock, new(delayer).delay, pubkeys, eth2Cl)
 
-	_, err = sched.GetDuty(context.Background(), core.Duty{Slot: 0, Type: core.DutyAttester})
+	_, err = sched.GetDutyDefinition(context.Background(), core.Duty{Slot: 0, Type: core.DutyAttester})
 	// due to current design we will return an error if we request the duty of a slot that has not been resolved
 	// by the scheduler yet. With DutyResolver, we will have always an answer
 	require.Error(t, err, "epoch not resolved yet")
@@ -328,7 +325,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 	require.NoError(t, err)
 
 	clock.CallbackAfter(t0.Add(slotDuration).Add(time.Second), func() {
-		res, err := sched.GetDuty(context.Background(), core.Duty{Slot: 0, Type: core.DutyAttester})
+		res, err := sched.GetDutyDefinition(context.Background(), core.Duty{Slot: 0, Type: core.DutyAttester})
 
 		require.NoError(t, err)
 

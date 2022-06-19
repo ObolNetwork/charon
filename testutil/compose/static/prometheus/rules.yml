@@ -1,0 +1,44 @@
+groups:
+- name: charon
+  rules:
+  - alert: Charon Down
+    expr: up == 0
+    for: 15s
+    annotations:
+      description: "Charon {{ $labels.job }} is down"
+
+  - alert: Error Log Rate
+    expr: app_log_error_total > 0
+    for: 15s
+    annotations:
+      description: "Charon {{ $labels.job }} has a high error rate"
+
+  - alert: Warn Log Rate
+    expr: increase(app_log_warn_total[30s]) > 2
+    for: 15s
+    annotations:
+      description: "Charon {{ $labels.job }} has a high warning rate"
+
+  - alert: Validator API Error Rate
+    expr: increase(core_validatorapi_request_error_total{endpoint!="proxy"}[30s]) > 1
+    for: 15s
+    annotations:
+      description: "Charon {{ $labels.job }} validator API a high error rate"
+
+  - alert: Proxy API Error Rate
+    expr: increase(core_validatorapi_request_error_total{endpoint="proxy"}[30s]) > 5
+    for: 15s
+    annotations:
+      description: "Charon {{ $labels.job }} proxy API a high error rate"
+
+  - alert: Broadcast Duty Rate
+    expr: increase(core_bcast_broadcast_total[30s]) < 0.5
+    for: 15s
+    annotations:
+      description: "Charon {{ $labels.job }} is not broadcasting enough duties"
+
+  - alert: Outstanding Duty Rate
+    expr: core_bcast_broadcast_total - core_scheduler_duty_total > 50
+    for: 15s
+    annotations:
+      description: "Charon {{ $labels.job }} has too many outstanding duties"

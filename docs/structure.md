@@ -27,7 +27,7 @@ charon/             # project root
 │
 ├─ core/            # core workflow; charon business logic (see architecture doc for details)
 │  ├─ interfaces.go # component interfaces: Scheduler, Fetcher, Consensus, etc.
-│  ├─ types.go      # core workflow types: Duty, PubKey, FetchArg, UnsignedData, etc.
+│  ├─ types.go      # core workflow types: Duty, PubKey, DutyDefinition, UnsignedData, etc.
 │  ├─ encode.go     # encode/decode the abstract types with type safe API
 │  │
 │  │                # core workflow component implementations

@@ -132,6 +132,8 @@ func TestSmoke(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
+			t.Parallel()
+
 			dir, err := os.MkdirTemp("", "")
 			require.NoError(t, err)
 

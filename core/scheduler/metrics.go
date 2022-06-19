@@ -52,8 +52,8 @@ func instrumentSlot(slot slot) {
 }
 
 // instrumentDuty increments the duty counter.
-func instrumentDuty(duty core.Duty, argSet core.FetchArgSet) {
-	for pubkey := range argSet {
+func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
+	for pubkey := range defSet {
 		dutyCounter.WithLabelValues(duty.Type.String(), pubkey.String()).Inc()
 	}
 }

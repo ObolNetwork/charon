@@ -351,8 +351,8 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 	block1.Phase0.ProposerIndex = vIdx
 	block1.Phase0.Body.RANDAOReveal = randao
 
-	component.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
-		return core.FetchArgSet{pubkey: core.FetchArg{}}, nil
+	component.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
 	component.RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error) {
@@ -413,8 +413,8 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	unsignedBlock.Phase0.Slot = slot
 	unsignedBlock.Phase0.ProposerIndex = vIdx
 
-	vapi.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
-		return core.FetchArgSet{corePubKey: core.FetchArg{}}, nil
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{corePubKey: nil}, nil
 	})
 
 	// Sign beacon block
@@ -491,8 +491,8 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	unsignedBlock.Phase0.Slot = slot
 	unsignedBlock.Phase0.ProposerIndex = vIdx
 
-	vapi.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
-		return core.FetchArgSet{corePubKey: core.FetchArg{}}, nil
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{corePubKey: nil}, nil
 	})
 
 	// Add invalid Signature to beacon block
@@ -541,8 +541,8 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
 	require.NoError(t, err)
 
-	vapi.RegisterGetDutyFunc(func(ctx context.Context, duty core.Duty) (core.FetchArgSet, error) {
-		return core.FetchArgSet{pubkey: core.FetchArg{}}, nil
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
 	// invalid block scenarios

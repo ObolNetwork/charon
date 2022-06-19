@@ -195,7 +195,7 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 			defer cancel()
 		}
 
-		alerts, err := startAlertCollector(ctx, 26354)
+		alerts, err := startAlertCollector(ctx, *dir)
 		if err != nil {
 			return err
 		}
@@ -204,7 +204,7 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 			_ = execDown(rootCtx, *dir)
 		}()
 
-		if err := execUp(ctx, *dir); !errors.Is(err, context.DeadlineExceeded) {
+		if err := execUp(ctx, *dir); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 			return err
 		}
 
@@ -216,6 +216,7 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 		if fail {
 			return errors.New("alerts detected")
 		}
+		log.Info(ctx, "No alerts detected")
 
 		return nil
 	}
@@ -315,7 +316,6 @@ func addUpFlag(flags *pflag.FlagSet) *bool {
 // execUp executes `docker-compose up`.
 func execUp(ctx context.Context, dir string) error {
 	log.Info(ctx, "Executing docker-compose up")
-
 	cmd := exec.CommandContext(ctx, "docker-compose", "up",
 		"--remove-orphans",
 		"--build",
@@ -325,6 +325,7 @@ func execUp(ctx context.Context, dir string) error {
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
 			err = ctx.Err()

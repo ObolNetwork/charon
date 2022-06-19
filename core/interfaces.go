@@ -25,16 +25,16 @@ import (
 // Scheduler triggers the start of a duty workflow.
 type Scheduler interface {
 	// Subscribe registers a callback for fetching a duty.
-	Subscribe(func(context.Context, Duty, FetchArgSet) error)
+	Subscribe(func(context.Context, Duty, DutyDefinitionSet) error)
 
-	// GetDuty returns the argSet for a duty if resolved already.
-	GetDuty(context.Context, Duty) (FetchArgSet, error)
+	// GetDutyDefinition returns the definition set for a duty if already resolved.
+	GetDutyDefinition(context.Context, Duty) (DutyDefinitionSet, error)
 }
 
 // Fetcher fetches proposed unsigned duty data.
 type Fetcher interface {
 	// Fetch triggers fetching of a proposed duty data set.
-	Fetch(context.Context, Duty, FetchArgSet) error
+	Fetch(context.Context, Duty, DutyDefinitionSet) error
 
 	// Subscribe registers a callback for proposed unsigned duty data sets.
 	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
@@ -85,8 +85,8 @@ type ValidatorAPI interface {
 	// RegisterPubKeyByAttestation registers a function to query validator by attestation.
 	RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
 
-	// RegisterGetDutyFunc registers a function to query duty data.
-	RegisterGetDutyFunc(func(context.Context, Duty) (FetchArgSet, error))
+	// RegisterGetDutyDefinition registers a function to query duty definitions.
+	RegisterGetDutyDefinition(func(context.Context, Duty) (DutyDefinitionSet, error))
 
 	// RegisterParSigDB registers a function to store partially signed data sets.
 	RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error)
@@ -146,9 +146,9 @@ type Broadcaster interface {
 // wireFuncs defines the core workflow components as a list input and output functions
 // instead as interfaces, since functions are easier to wrap than interfaces.
 type wireFuncs struct {
-	SchedulerSubscribe              func(func(context.Context, Duty, FetchArgSet) error)
-	SchedulerGetDuty                func(context.Context, Duty) (FetchArgSet, error)
-	FetcherFetch                    func(context.Context, Duty, FetchArgSet) error
+	SchedulerSubscribe              func(func(context.Context, Duty, DutyDefinitionSet) error)
+	SchedulerGetDutyDefinition      func(context.Context, Duty) (DutyDefinitionSet, error)
+	FetcherFetch                    func(context.Context, Duty, DutyDefinitionSet) error
 	FetcherSubscribe                func(func(context.Context, Duty, UnsignedDataSet) error)
 	FetcherRegisterAggSigDB         func(func(context.Context, Duty, PubKey) (SignedData, error))
 	ConsensusPropose                func(context.Context, Duty, UnsignedDataSet) error
@@ -159,7 +159,7 @@ type wireFuncs struct {
 	DutyDBPubKeyByAttestation       func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
 	VAPIRegisterAwaitAttestation    func(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
 	VAPIRegisterAwaitBeaconBlock    func(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error))
-	VAPIRegisterGetDutyFunc         func(func(context.Context, Duty) (FetchArgSet, error))
+	VAPIRegisterGetDutyDefinition   func(func(context.Context, Duty) (DutyDefinitionSet, error))
 	VAPIRegisterPubKeyByAttestation func(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
 	VAPIRegisterParSigDB            func(func(context.Context, Duty, ParSignedDataSet) error)
 	ParSigDBStoreInternal           func(context.Context, Duty, ParSignedDataSet) error
@@ -193,7 +193,7 @@ func Wire(sched Scheduler,
 ) {
 	w := wireFuncs{
 		SchedulerSubscribe:              sched.Subscribe,
-		SchedulerGetDuty:                sched.GetDuty,
+		SchedulerGetDutyDefinition:      sched.GetDutyDefinition,
 		FetcherFetch:                    fetch.Fetch,
 		FetcherSubscribe:                fetch.Subscribe,
 		FetcherRegisterAggSigDB:         fetch.RegisterAggSigDB,
@@ -205,7 +205,7 @@ func Wire(sched Scheduler,
 		DutyDBPubKeyByAttestation:       dutyDB.PubKeyByAttestation,
 		VAPIRegisterAwaitBeaconBlock:    vapi.RegisterAwaitBeaconBlock,
 		VAPIRegisterAwaitAttestation:    vapi.RegisterAwaitAttestation,
-		VAPIRegisterGetDutyFunc:         vapi.RegisterGetDutyFunc,
+		VAPIRegisterGetDutyDefinition:   vapi.RegisterGetDutyDefinition,
 		VAPIRegisterPubKeyByAttestation: vapi.RegisterPubKeyByAttestation,
 		VAPIRegisterParSigDB:            vapi.RegisterParSigDB,
 		ParSigDBStoreInternal:           parSigDB.StoreInternal,
@@ -231,7 +231,7 @@ func Wire(sched Scheduler,
 	w.ConsensusSubscribe(w.DutyDBStore)
 	w.VAPIRegisterAwaitBeaconBlock(w.DutyDBAwaitBeaconBlock)
 	w.VAPIRegisterAwaitAttestation(w.DutyDBAwaitAttestation)
-	w.VAPIRegisterGetDutyFunc(w.SchedulerGetDuty)
+	w.VAPIRegisterGetDutyDefinition(w.SchedulerGetDutyDefinition)
 	w.VAPIRegisterPubKeyByAttestation(w.DutyDBPubKeyByAttestation)
 	w.VAPIRegisterParSigDB(w.ParSigDBStoreInternal)
 	w.ParSigDBSubscribeInternal(w.ParSigExBroadcast)

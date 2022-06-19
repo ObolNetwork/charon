@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -75,7 +76,12 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 
 		// Decide sends consensus output to subscribers.
 		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
-			set := core.UnsignedDataSetFromProto(qcommit[0].(msg).msg.Value)
+			defer endCtxSpan(ctx) // End the parent tracing span when decided
+			set, err := core.UnsignedDataSetFromProto(duty.Type, qcommit[0].(msg).msg.Value)
+			if err != nil {
+				log.Error(ctx, "Unmarshal decided value", err)
+				return
+			}
 			for _, sub := range c.subs {
 				if err := sub(ctx, duty, set); err != nil {
 					log.Warn(ctx, "Subscriber error", err)
@@ -146,7 +152,11 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 	log.Debug(ctx, "Starting qbft consensus instance", z.Any("duty", duty))
 
 	// Hash the proposed data, since qbft ony supports simple comparable values.
-	value := core.UnsignedDataSetToProto(data)
+	value, err := core.UnsignedDataSetToProto(data)
+	if err != nil {
+		return err
+	}
+
 	hash, err := hashProto(value)
 	if err != nil {
 		return err
@@ -280,4 +290,9 @@ func (c *Component) getPeerIdx() (int64, error) {
 
 func isContextErr(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
+// endCtxSpan ends the parent span if included in the context.
+func endCtxSpan(ctx context.Context) {
+	trace.SpanFromContext(ctx).End()
 }

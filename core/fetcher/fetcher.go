@@ -58,7 +58,7 @@ func (f *Fetcher) Subscribe(fn func(context.Context, core.Duty, core.UnsignedDat
 }
 
 // Fetch triggers fetching of a proposed duty data set.
-func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchArgSet) error {
+func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) error {
 	var (
 		unsignedSet core.UnsignedDataSet
 		err         error
@@ -66,12 +66,12 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchAr
 
 	switch duty.Type {
 	case core.DutyProposer:
-		unsignedSet, err = f.fetchProposerData(ctx, duty.Slot, argSet)
+		unsignedSet, err = f.fetchProposerData(ctx, duty.Slot, defSet)
 		if err != nil {
 			return errors.Wrap(err, "fetch proposer data")
 		}
 	case core.DutyAttester:
-		unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, argSet)
+		unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, defSet)
 		if err != nil {
 			return errors.Wrap(err, "fetch attester data")
 		}
@@ -80,8 +80,12 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, argSet core.FetchAr
 	}
 
 	for _, sub := range f.subs {
-		err := sub(ctx, duty, unsignedSet)
+		clone, err := unsignedSet.Clone() // Clone before calling each subscriber.
 		if err != nil {
+			return err
+		}
+
+		if err := sub(ctx, duty, clone); err != nil {
 			return err
 		}
 	}
@@ -96,20 +100,21 @@ func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubK
 }
 
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.
-func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core.FetchArgSet,
+func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet,
 ) (core.UnsignedDataSet, error) {
 	// We may have multiple validators in the same committee, use the same attestation data in that case.
 	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
 
 	resp := make(core.UnsignedDataSet)
-	for pubkey, fetchArg := range argSet {
-		attDuty, err := core.DecodeAttesterFetchArg(fetchArg)
-		if err != nil {
-			return nil, err
+	for pubkey, def := range defSet {
+		attDuty, ok := def.(core.AttesterDefinition)
+		if !ok {
+			return nil, errors.New("invalid attester definition")
 		}
 
 		eth2AttData, ok := dataByCommIdx[attDuty.CommitteeIndex]
 		if !ok {
+			var err error
 			eth2AttData, err = f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), attDuty.CommitteeIndex)
 			if err != nil {
 				return nil, err
@@ -118,25 +123,20 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, argSet core
 			dataByCommIdx[attDuty.CommitteeIndex] = eth2AttData
 		}
 
-		attData := &core.AttestationData{
+		attData := core.AttestationData{
 			Data: *eth2AttData,
-			Duty: *attDuty,
+			Duty: attDuty.AttesterDuty,
 		}
 
-		dutyData, err := core.EncodeAttesterUnsignedData(attData)
-		if err != nil {
-			return nil, errors.Wrap(err, "unmarhsal json")
-		}
-
-		resp[pubkey] = dutyData
+		resp[pubkey] = attData
 	}
 
 	return resp, nil
 }
 
-func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core.FetchArgSet) (core.UnsignedDataSet, error) {
+func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
-	for pubkey := range argSet {
+	for pubkey := range defSet {
 		// Fetch previously aggregated randao reveal from AggSigDB
 		dutyRandao := core.Duty{
 			Slot: slot,
@@ -157,12 +157,12 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, argSet core
 			return nil, err
 		}
 
-		dutyData, err := core.EncodeProposerUnsignedData(block)
+		coreBlock, err := core.NewVersionedBeaconBlock(block)
 		if err != nil {
-			return nil, errors.Wrap(err, "encode proposer data")
+			return nil, errors.Wrap(err, "new block")
 		}
 
-		resp[pubkey] = dutyData
+		resp[pubkey] = coreBlock
 	}
 
 	return resp, nil

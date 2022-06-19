@@ -52,8 +52,6 @@ func TestFetchAttester(t *testing.T) {
 		CommitteeLength:  notZero,
 		CommitteesAtSlot: notZero,
 	}
-	fetchArgA, err := core.EncodeAttesterFetchArg(&dutyA)
-	require.NoError(t, err)
 
 	dutyB := eth2v1.AttesterDuty{
 		Slot:             slot,
@@ -62,12 +60,10 @@ func TestFetchAttester(t *testing.T) {
 		CommitteeLength:  notZero,
 		CommitteesAtSlot: notZero,
 	}
-	fetchArgB, err := core.EncodeAttesterFetchArg(&dutyB)
-	require.NoError(t, err)
 
-	argSet := core.FetchArgSet{
-		pubkeysByIdx[vIdxA]: fetchArgA,
-		pubkeysByIdx[vIdxB]: fetchArgB,
+	defSet := core.DutyDefinitionSet{
+		pubkeysByIdx[vIdxA]: core.NewAttesterDefinition(&dutyA),
+		pubkeysByIdx[vIdxB]: core.NewAttesterDefinition(&dutyB),
 	}
 	duty := core.Duty{Type: core.DutyAttester, Slot: slot}
 
@@ -80,16 +76,12 @@ func TestFetchAttester(t *testing.T) {
 		require.Equal(t, duty, resDuty)
 		require.Len(t, resDataSet, 2)
 
-		dataA := resDataSet[pubkeysByIdx[vIdxA]]
-		dutyDataA, err := core.DecodeAttesterUnsignedData(dataA)
-		require.NoError(t, err)
+		dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.AttestationData)
 		require.EqualValues(t, slot, dutyDataA.Data.Slot)
 		require.EqualValues(t, vIdxA, dutyDataA.Data.Index)
 		require.EqualValues(t, dutyA, dutyDataA.Duty)
 
-		dataB := resDataSet[pubkeysByIdx[vIdxB]]
-		dutyDataB, err := core.DecodeAttesterUnsignedData(dataB)
-		require.NoError(t, err)
+		dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.AttestationData)
 		require.EqualValues(t, slot, dutyDataB.Data.Slot)
 		require.EqualValues(t, vIdxB, dutyDataB.Data.Index)
 		require.EqualValues(t, dutyB, dutyDataB.Duty)
@@ -97,7 +89,7 @@ func TestFetchAttester(t *testing.T) {
 		return nil
 	})
 
-	err = fetch.Fetch(ctx, duty, argSet)
+	err = fetch.Fetch(ctx, duty, defSet)
 	require.NoError(t, err)
 }
 
@@ -119,19 +111,13 @@ func TestFetchProposer(t *testing.T) {
 		Slot:           slot,
 		ValidatorIndex: vIdxA,
 	}
-	fetchArgA, err := core.EncodeProposerFetchArg(&dutyA)
-	require.NoError(t, err)
-
 	dutyB := eth2v1.ProposerDuty{
 		Slot:           slot,
 		ValidatorIndex: vIdxB,
 	}
-	fetchArgB, err := core.EncodeProposerFetchArg(&dutyB)
-	require.NoError(t, err)
-
-	argSet := core.FetchArgSet{
-		pubkeysByIdx[vIdxA]: fetchArgA,
-		pubkeysByIdx[vIdxB]: fetchArgB,
+	defSet := core.DutyDefinitionSet{
+		pubkeysByIdx[vIdxA]: core.NewProposerDefinition(&dutyA),
+		pubkeysByIdx[vIdxB]: core.NewProposerDefinition(&dutyB),
 	}
 	duty := core.Duty{Type: core.DutyProposer, Slot: slot}
 
@@ -155,19 +141,13 @@ func TestFetchProposer(t *testing.T) {
 		require.Equal(t, duty, resDuty)
 		require.Len(t, resDataSet, 2)
 
-		dataA := resDataSet[pubkeysByIdx[vIdxA]]
-		dutyDataA, err := core.DecodeProposerUnsignedData(dataA)
-		require.NoError(t, err)
-
+		dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.VersionedBeaconBlock)
 		slotA, err := dutyDataA.Slot()
 		require.NoError(t, err)
 		require.EqualValues(t, slot, slotA)
 		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 
-		dataB := resDataSet[pubkeysByIdx[vIdxB]]
-		dutyDataB, err := core.DecodeProposerUnsignedData(dataB)
-		require.NoError(t, err)
-
+		dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedBeaconBlock)
 		slotB, err := dutyDataB.Slot()
 		require.NoError(t, err)
 		require.EqualValues(t, slot, slotB)
@@ -176,11 +156,11 @@ func TestFetchProposer(t *testing.T) {
 		return nil
 	})
 
-	err = fetch.Fetch(ctx, duty, argSet)
+	err = fetch.Fetch(ctx, duty, defSet)
 	require.NoError(t, err)
 }
 
-func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block *spec.VersionedBeaconBlock) {
+func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.VersionedBeaconBlock) {
 	t.Helper()
 
 	switch block.Version {
