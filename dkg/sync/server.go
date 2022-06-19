@@ -31,7 +31,7 @@ import (
 
 const (
 	syncProtoID = "dkg_v1.0"
-	MsgSize     = 112
+	MsgSize     = 128
 )
 
 type Server struct {
@@ -67,7 +67,9 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, hash []
 
 		buf := bufio.NewReader(s)
 		b := make([]byte, MsgSize)
-		_, err := buf.Read(b)
+
+		// n is the number of bytes read from buffer, if n < MsgSize the other bytes will be 0
+		n, err := buf.Read(b)
 		if err != nil {
 			log.Error(ctx, "Read client msg from stream", err)
 			err = s.Reset()
@@ -75,6 +77,9 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, hash []
 
 			return
 		}
+
+		// Number of bytes that are read matter the most
+		b = b[:n]
 
 		msg := new(pb.MsgSync)
 		if err := proto.Unmarshal(b, msg); err != nil {
