@@ -78,7 +78,7 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, hash []
 			return
 		}
 
-		// Number of bytes that are read matter the most
+		// Number of bytes that are read are the most important
 		b = b[:n]
 
 		msg := new(pb.MsgSync)
