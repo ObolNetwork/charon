@@ -63,75 +63,76 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash
 	}
 
 	server.tcpNode.SetStreamHandler(syncProtoID, func(s network.Stream) {
-		defer s.Close()
+		for {
+			buf := bufio.NewReader(s)
+			b := make([]byte, MsgSize)
+			// n is the number of bytes read from buffer, if n < MsgSize the other bytes will be 0
+			n, err := buf.Read(b)
+			if err != nil {
+				log.Error(ctx, "Read client msg from stream", err)
+				err = s.Reset()
+				log.Error(ctx, "Stream reset", err)
 
-		buf := bufio.NewReader(s)
-		b := make([]byte, MsgSize)
+				return
+			}
 
-		// n is the number of bytes read from buffer, if n < MsgSize the other bytes will be 0
-		n, err := buf.Read(b)
-		if err != nil {
-			log.Error(ctx, "Read client msg from stream", err)
-			err = s.Reset()
-			log.Error(ctx, "Stream reset", err)
+			// Number of bytes that are read are the most important
+			b = b[:n]
 
-			return
-		}
+			msg := new(pb.MsgSync)
+			if err := proto.Unmarshal(b, msg); err != nil {
+				log.Error(ctx, "Unmarshal client msg", err)
+				err = s.Reset()
+				log.Error(ctx, "Stream reset", err)
 
-		// Number of bytes that are read are the most important
-		b = b[:n]
+				return
+			}
 
-		msg := new(pb.MsgSync)
-		if err := proto.Unmarshal(b, msg); err != nil {
-			log.Error(ctx, "Unmarshal client msg", err)
-			err = s.Reset()
-			log.Error(ctx, "Stream reset", err)
+			pID := s.Conn().RemotePeer()
+			log.Debug(ctx, "Message received from client", z.Any("peer", p2p.PeerName(pID)))
 
-			return
-		}
+			pubkey, err := pID.ExtractPublicKey()
+			if err != nil {
+				log.Error(ctx, "Get client public key", err)
+				err = s.Reset()
+				log.Error(ctx, "Stream reset", err)
+			}
 
-		pID := s.Conn().RemotePeer()
-		log.Debug(ctx, "Message received from client", z.Any("peer", p2p.PeerName(pID)))
+			ok, err := pubkey.Verify(defHash, msg.HashSignature)
+			if err != nil {
+				log.Error(ctx, "Verify defHash signature", err)
+				err = s.Reset()
+				log.Error(ctx, "Stream reset", err)
+			}
 
-		pubkey, err := pID.ExtractPublicKey()
-		if err != nil {
-			log.Error(ctx, "Get client public key", err)
-			err = s.Reset()
-			log.Error(ctx, "Stream reset", err)
-		}
+			resp := &pb.MsgSyncResponse{
+				SyncTimestamp: msg.Timestamp,
+				Error:         "",
+			}
 
-		ok, err := pubkey.Verify(defHash, msg.HashSignature)
-		if err != nil {
-			log.Error(ctx, "Verify defHash signature", err)
-			err = s.Reset()
-			log.Error(ctx, "Stream reset", err)
-		}
+			if !ok {
+				resp.Error = "Invalid Signature"
+			}
 
-		resp := &pb.MsgSyncResponse{
-			SyncTimestamp: msg.Timestamp,
-			Error:         "",
-		}
+			resBytes, err := proto.Marshal(resp)
+			if err != nil {
+				log.Error(ctx, "Marshal server response", err)
+				err = s.Reset()
+				log.Error(ctx, "Stream reset", err)
 
-		if !ok {
-			resp.Error = "Invalid Signature"
-		}
+				return
+			}
 
-		resBytes, err := proto.Marshal(resp)
-		if err != nil {
-			log.Error(ctx, "Marshal server response", err)
-			err = s.Reset()
-			log.Error(ctx, "Stream reset", err)
+			_, err = s.Write(resBytes)
+			if err != nil {
+				log.Error(ctx, "Send response to client", err)
+				err = s.Reset()
+				log.Error(ctx, "Stream reset", err)
 
-			return
-		}
+				return
+			}
 
-		_, err = s.Write(resBytes)
-		if err != nil {
-			log.Error(ctx, "Send response to client", err)
-			err = s.Reset()
-			log.Error(ctx, "Stream reset", err)
-
-			return
+			log.Debug(ctx, "Server sent response to client")
 		}
 	})
 

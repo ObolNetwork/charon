@@ -31,7 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/log"
-	pb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -60,11 +59,11 @@ func TestNaiveServerClient(t *testing.T) {
 	_ = NewServer(serverCtx, serverHost, nil, hash, nil)
 
 	clientCtx := log.WithTopic(ctx, "client")
-	ch := make(chan *pb.MsgSyncResponse)
-	_ = NewClient(clientCtx, clientHost, p2p.Peer{ID: serverHost.ID()}, hashSig, nil, ch)
+	client := NewClient(clientCtx, clientHost, p2p.Peer{ID: serverHost.ID()}, hashSig, nil)
 
-	actual := <-ch
-	require.Equal(t, "", actual.Error)
+	actual, ok := <-client.result
+	require.True(t, ok)
+	require.Equal(t, "", actual.error)
 }
 
 func newSyncHost(t *testing.T, seed int64) (host.Host, libp2pcrypto.PrivKey) {
