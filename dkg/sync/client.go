@@ -51,7 +51,7 @@ func (*Client) Shutdown() error {
 }
 
 // NewClient starts a goroutine that establishes a long lived connection to a p2p server and returns a new Client instance.
-func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hash []byte, onFailure func(), ch chan *pb.MsgSyncResponse) Client {
+func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hashSig []byte, onFailure func(), ch chan *pb.MsgSyncResponse) Client {
 	go func() {
 		s, err := tcpNode.NewStream(ctx, server.ID, syncProtoID)
 		if err != nil {
@@ -61,7 +61,7 @@ func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hash []b
 
 		msg := &pb.MsgSync{
 			Timestamp:     timestamppb.Now(),
-			HashSignature: hash,
+			HashSignature: hashSig,
 			Shutdown:      false,
 		}
 

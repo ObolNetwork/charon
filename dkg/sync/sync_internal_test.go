@@ -40,10 +40,10 @@ func TestNaiveServerClient(t *testing.T) {
 	ctx := context.Background()
 
 	// Start Server
-	serverHost := newSyncHost(t, 0)
+	serverHost, _ := newSyncHost(t, 0)
 
 	// Start Client
-	clientHost := newSyncHost(t, 1)
+	clientHost, key := newSyncHost(t, 1)
 	require.NotEqual(t, clientHost.ID().String(), serverHost.ID().String())
 
 	err := serverHost.Connect(ctx, peer.AddrInfo{
@@ -52,18 +52,22 @@ func TestNaiveServerClient(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	hash := testutil.RandomBytes32()
+	hashSig, err := key.Sign(hash)
+	require.NoError(t, err)
+
 	serverCtx := log.WithTopic(ctx, "server")
-	hash := testutil.RandomCoreSignature()
-	ch := make(chan *pb.MsgSyncResponse)
 	_ = NewServer(serverCtx, serverHost, nil, hash, nil)
 
 	clientCtx := log.WithTopic(ctx, "client")
-	_ = NewClient(clientCtx, clientHost, p2p.Peer{ID: serverHost.ID()}, hash, nil, ch)
+	ch := make(chan *pb.MsgSyncResponse)
+	_ = NewClient(clientCtx, clientHost, p2p.Peer{ID: serverHost.ID()}, hashSig, nil, ch)
+
 	actual := <-ch
 	require.Equal(t, "", actual.Error)
 }
 
-func newSyncHost(t *testing.T, seed int64) host.Host {
+func newSyncHost(t *testing.T, seed int64) (host.Host, libp2pcrypto.PrivKey) {
 	t.Helper()
 
 	key, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(seed)))
@@ -79,5 +83,5 @@ func newSyncHost(t *testing.T, seed int64) host.Host {
 	host, err := libp2p.New(libp2p.ListenAddrs(multiAddr), libp2p.Identity(priv))
 	require.NoError(t, err)
 
-	return host
+	return host, priv
 }

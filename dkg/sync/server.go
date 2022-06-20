@@ -17,7 +17,6 @@ package sync
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 
 	"github.com/libp2p/go-libp2p-core/host"
@@ -25,6 +24,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	pb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -54,7 +54,7 @@ func (*Server) AwaitAllShutdown() error {
 }
 
 // NewServer registers a Stream Handler and returns a new Server instance.
-func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, hash []byte, onFailure func()) *Server {
+func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash []byte, onFailure func()) *Server {
 	server := &Server{
 		ctx:       ctx,
 		tcpNode:   tcpNode,
@@ -90,12 +90,29 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, hash []
 			return
 		}
 
+		pID := s.Conn().RemotePeer()
+		log.Debug(ctx, "Message received from client", z.Any("peer", p2p.PeerName(pID)))
+
+		pubkey, err := pID.ExtractPublicKey()
+		if err != nil {
+			log.Error(ctx, "Get client public key", err)
+			err = s.Reset()
+			log.Error(ctx, "Stream reset", err)
+		}
+
+		ok, err := pubkey.Verify(defHash, msg.HashSignature)
+		if err != nil {
+			log.Error(ctx, "Verify defHash signature", err)
+			err = s.Reset()
+			log.Error(ctx, "Stream reset", err)
+		}
+
 		resp := &pb.MsgSyncResponse{
 			SyncTimestamp: msg.Timestamp,
 			Error:         "",
 		}
 
-		if !bytes.Equal(msg.HashSignature, hash) {
+		if !ok {
 			resp.Error = "Invalid Signature"
 		}
 
