@@ -54,7 +54,7 @@ func (*Server) AwaitAllShutdown() error {
 }
 
 // NewServer registers a Stream Handler and returns a new Server instance.
-func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, definitionHash []byte, onFailure func()) *Server {
+func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash []byte, onFailure func()) *Server {
 	server := &Server{
 		ctx:       ctx,
 		tcpNode:   tcpNode,
@@ -93,16 +93,16 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, definit
 		pID := s.Conn().RemotePeer()
 		log.Debug(ctx, "Message received from client", z.Any("peer", p2p.PeerName(pID)))
 
-		peerPubkey, err := pID.ExtractPublicKey()
+		pubkey, err := pID.ExtractPublicKey()
 		if err != nil {
-			log.Error(ctx, "Get client's public key", err)
+			log.Error(ctx, "Get client public key", err)
 			err = s.Reset()
 			log.Error(ctx, "Stream reset", err)
 		}
 
-		ok, err := peerPubkey.Verify(definitionHash, msg.HashSignature)
+		ok, err := pubkey.Verify(defHash, msg.HashSignature)
 		if err != nil {
-			log.Error(ctx, "Verify definitionHash signature", err)
+			log.Error(ctx, "Verify defHash signature", err)
 			err = s.Reset()
 			log.Error(ctx, "Stream reset", err)
 		}
