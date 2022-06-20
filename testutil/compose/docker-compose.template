@@ -35,12 +35,12 @@ services:
     command: bootnode
     depends_on: []
     environment:
-      CHARON_BOOTNODE_HTTP_ADDRESS: 0.0.0.0:16000
+      CHARON_BOOTNODE_HTTP_ADDRESS: 0.0.0.0:3640
       CHARON_DATA_DIR: /compose/bootnode
       CHARON_P2P_BOOTNODES: ""
       CHARON_P2P_EXTERNAL_HOSTNAME: bootnode
-      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:16003
-      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:16004
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3600
+      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
   {{end -}}
   {{- range $i, $vc := .VCs}}
   {{- if $vc.Label}}
