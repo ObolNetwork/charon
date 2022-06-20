@@ -23,16 +23,42 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-// Operator identifies a charon node and its operator.
-type Operator struct {
+// OperatorAddress contains the address of a charon operator. It is used in calculating config_hash as
+// it is the only constant (non-changing) property of an operator.
+type OperatorAddress struct {
 	// Address is the Ethereum address identifying the operator.
 	Address string `json:"address"`
+}
+
+// HashTreeRoot ssz hashes the OperatorAddress object.
+func (o OperatorAddress) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(o) //nolint:wrapcheck
+}
+
+// HashTreeRootWith ssz hashes the OperatorAddress object with a hasher.
+func (o OperatorAddress) HashTreeRootWith(hh *ssz.Hasher) error {
+	indx := hh.Index()
+
+	// Field (0) 'Address'
+	hh.PutBytes([]byte(o.Address))
+
+	hh.Merkleize(indx)
+
+	return nil
+}
+
+// Operator identifies a charon node and its operator.
+type Operator struct {
+	Address string `json:"address"`
+
+	// Nonce is incremented each time the ENR or the ENRSignature is changed
+	Nonce int `json:"nonce"`
 
 	// ENR identifies the charon node.
 	ENR string `json:"enr"`
 
-	// Nonce is incremented each time the ENR is signed.
-	Nonce int `json:"nonce"`
+	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to operator Ethereum Address.
+	ConfigSignature []byte `json:"config_signature"`
 
 	// ENRSignature is a EIP712 signature of the ENR by the Address, authorising the charon node to act on behalf of the operator in the cluster.
 	ENRSignature []byte `json:"enr_signature"`
@@ -87,7 +113,10 @@ func (o Operator) HashTreeRootWith(hh *ssz.Hasher) error {
 	// Field (2) 'Nonce'
 	hh.PutUint64(uint64(o.Nonce))
 
-	// Field (3) 'ENRSignature'
+	// Field (3) 'ConfigSignature'
+	hh.PutBytes(o.ConfigSignature)
+
+	// Field (4) 'ENRSignature'
 	hh.PutBytes(o.ENRSignature)
 
 	hh.Merkleize(indx)
