@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package sync
+package sync_test
 
 import (
 	"context"
@@ -31,11 +31,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestNaiveServerClient(t *testing.T) {
+func TestAwaitConnected(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -57,17 +58,12 @@ func TestNaiveServerClient(t *testing.T) {
 	require.NoError(t, err)
 
 	serverCtx := log.WithTopic(ctx, "server")
-	_ = NewServer(serverCtx, serverHost, nil, hash, nil)
+	_ = sync.NewServer(serverCtx, serverHost, nil, hash, nil)
 
 	clientCtx := log.WithTopic(ctx, "client")
-	client := NewClient(clientCtx, clientHost, p2p.Peer{ID: serverHost.ID()}, hashSig, nil)
+	client := sync.NewClient(clientCtx, clientHost, p2p.Peer{ID: serverHost.ID()}, hashSig, nil)
 
-	for i := 0; i < 5; i++ {
-		actual, ok := <-client.results
-		require.True(t, ok)
-		require.Equal(t, "", actual.error)
-		t.Log("rtt is: ", actual.rtt)
-	}
+	require.NoError(t, client.AwaitConnected())
 }
 
 func newSyncHost(t *testing.T, seed int64) (host.Host, libp2pcrypto.PrivKey) {

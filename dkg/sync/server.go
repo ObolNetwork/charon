@@ -30,16 +30,15 @@ import (
 )
 
 const (
-	syncProtoID = "dkg_v1.0"
+	syncProtoID = "dkg_sync_v1.0"
 	MsgSize     = 128
 )
 
 type Server struct {
-	ctx        context.Context
-	onFailure  func()
-	tcpNode    host.Host
-	peers      []p2p.Peer
-	clientMsgs chan *pb.MsgSync
+	ctx       context.Context
+	onFailure func()
+	tcpNode   host.Host
+	peers     []p2p.Peer
 }
 
 // AwaitAllConnected blocks until all peers have established a connection with this server or returns an error.
@@ -89,7 +88,7 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash
 			}
 
 			pID := s.Conn().RemotePeer()
-			log.Debug(ctx, "Message received from client", z.Any("peer", p2p.PeerName(pID)))
+			log.Debug(ctx, "Message received from client", z.Any("server", p2p.PeerName(pID)))
 
 			pubkey, err := pID.ExtractPublicKey()
 			if err != nil {
