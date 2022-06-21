@@ -43,16 +43,16 @@ func TestDefinitionSealed(t *testing.T) {
 	configHash, err := ConfigHash(definition)
 	require.NoError(t, err)
 
-	definition.Operators[0].ConfigSignature = confSig(t, secret1, op1.Address, configHash)
-	definition.Operators[1].ConfigSignature = confSig(t, secret2, op2.Address, configHash)
+	definition.Operators[0].ConfigSignature = configSignature(t, secret1, op1.Address, configHash)
+	definition.Operators[1].ConfigSignature = configSignature(t, secret2, op2.Address, configHash)
 
 	sealed, err := definition.Sealed()
 	require.NoError(t, err)
 	require.True(t, sealed)
 }
 
-// confSig signs the config hash digest and returns the signature.
-func confSig(t *testing.T, secret *ecdsa.PrivateKey, addr string, configHash [32]byte) []byte {
+// configSignature signs the config hash digest and returns the signature.
+func configSignature(t *testing.T, secret *ecdsa.PrivateKey, addr string, configHash [32]byte) []byte {
 	t.Helper()
 
 	nonce := 0
@@ -65,7 +65,7 @@ func confSig(t *testing.T, secret *ecdsa.PrivateKey, addr string, configHash [32
 	return sig
 }
 
-// randomOperator returns a random ETH1 private key and populated (except ConfigSignature) operator struct.
+// randomOperator returns a random ETH1 private key and populated operator struct (excluding config signature).
 func randomOperator(t *testing.T) (*ecdsa.PrivateKey, Operator) {
 	t.Helper()
 
