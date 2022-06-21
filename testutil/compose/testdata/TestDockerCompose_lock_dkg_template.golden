@@ -30,11 +30,11 @@
     },
     {
      "Key": "monitoring-address",
-     "Value": "0.0.0.0:16001"
+     "Value": "0.0.0.0:3620"
     },
     {
      "Key": "validator-api-address",
-     "Value": "0.0.0.0:16002"
+     "Value": "0.0.0.0:3610"
     },
     {
      "Key": "p2p-external-hostname",
@@ -42,15 +42,15 @@
     },
     {
      "Key": "p2p-tcp-address",
-     "Value": "0.0.0.0:16003"
+     "Value": "0.0.0.0:3600"
     },
     {
      "Key": "p2p_udp_address",
-     "Value": "0.0.0.0:16004"
+     "Value": "0.0.0.0:3630"
     },
     {
      "Key": "p2p-bootnodes",
-     "Value": "http://bootnode:16000/enr"
+     "Value": "http://bootnode:3640/enr"
     },
     {
      "Key": "beacon-node-endpoint",
@@ -101,11 +101,11 @@
     },
     {
      "Key": "monitoring-address",
-     "Value": "0.0.0.0:16001"
+     "Value": "0.0.0.0:3620"
     },
     {
      "Key": "validator-api-address",
-     "Value": "0.0.0.0:16002"
+     "Value": "0.0.0.0:3610"
     },
     {
      "Key": "p2p-external-hostname",
@@ -113,15 +113,15 @@
     },
     {
      "Key": "p2p-tcp-address",
-     "Value": "0.0.0.0:16003"
+     "Value": "0.0.0.0:3600"
     },
     {
      "Key": "p2p_udp_address",
-     "Value": "0.0.0.0:16004"
+     "Value": "0.0.0.0:3630"
     },
     {
      "Key": "p2p-bootnodes",
-     "Value": "http://bootnode:16000/enr"
+     "Value": "http://bootnode:3640/enr"
     },
     {
      "Key": "beacon-node-endpoint",
@@ -172,11 +172,11 @@
     },
     {
      "Key": "monitoring-address",
-     "Value": "0.0.0.0:16001"
+     "Value": "0.0.0.0:3620"
     },
     {
      "Key": "validator-api-address",
-     "Value": "0.0.0.0:16002"
+     "Value": "0.0.0.0:3610"
     },
     {
      "Key": "p2p-external-hostname",
@@ -184,15 +184,15 @@
     },
     {
      "Key": "p2p-tcp-address",
-     "Value": "0.0.0.0:16003"
+     "Value": "0.0.0.0:3600"
     },
     {
      "Key": "p2p_udp_address",
-     "Value": "0.0.0.0:16004"
+     "Value": "0.0.0.0:3630"
     },
     {
      "Key": "p2p-bootnodes",
-     "Value": "http://bootnode:16000/enr"
+     "Value": "http://bootnode:3640/enr"
     },
     {
      "Key": "beacon-node-endpoint",
@@ -243,11 +243,11 @@
     },
     {
      "Key": "monitoring-address",
-     "Value": "0.0.0.0:16001"
+     "Value": "0.0.0.0:3620"
     },
     {
      "Key": "validator-api-address",
-     "Value": "0.0.0.0:16002"
+     "Value": "0.0.0.0:3610"
     },
     {
      "Key": "p2p-external-hostname",
@@ -255,15 +255,15 @@
     },
     {
      "Key": "p2p-tcp-address",
-     "Value": "0.0.0.0:16003"
+     "Value": "0.0.0.0:3600"
     },
     {
      "Key": "p2p_udp_address",
-     "Value": "0.0.0.0:16004"
+     "Value": "0.0.0.0:3630"
     },
     {
      "Key": "p2p-bootnodes",
-     "Value": "http://bootnode:16000/enr"
+     "Value": "http://bootnode:3640/enr"
     },
     {
      "Key": "beacon-node-endpoint",
