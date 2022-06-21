@@ -123,7 +123,7 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 
 // Sealed returns true if all config signatures are fully populated and valid. A "sealed" definition is ready for use in DKG.
 func (d Definition) Sealed() (bool, error) {
-	configHash, err := ConfigHash(d)
+	configHash, err := d.ConfigHash()
 	if err != nil {
 		return false, errors.Wrap(err, "config hash")
 	}
@@ -143,6 +143,11 @@ func (d Definition) Sealed() (bool, error) {
 	}
 
 	return true, nil
+}
+
+// ConfigHash returns the config hash of the definition object.
+func (d Definition) ConfigHash() ([32]byte, error) {
+	return ConfigHash(d)
 }
 
 // HashTreeRoot ssz hashes the Definition object.
@@ -263,12 +268,23 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		Operators:           defFmt.Operators,
 	}
 
-	hash, err := def.HashTreeRoot()
+	// Verify config_hash
+	configHash, err := def.ConfigHash()
 	if err != nil {
-		return errors.Wrap(err, "hash lock")
+		return errors.Wrap(err, "config hash")
 	}
 
-	if !bytes.Equal(defFmt.DefinitionHash, hash[:]) {
+	if !bytes.Equal(defFmt.ConfigHash, configHash[:]) {
+		return errors.New("invalid config hash")
+	}
+
+	// Verify definition_hash
+	defHash, err := def.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "definition hash")
+	}
+
+	if !bytes.Equal(defFmt.DefinitionHash, defHash[:]) {
 		return errors.New("invalid definition hash")
 	}
 

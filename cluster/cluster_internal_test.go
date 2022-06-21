@@ -40,7 +40,7 @@ func TestDefinitionSealed(t *testing.T) {
 		"", "", "", []Operator{op1, op2},
 		rand.New(rand.NewSource(1)))
 
-	configHash, err := ConfigHash(definition)
+	configHash, err := definition.ConfigHash()
 	require.NoError(t, err)
 
 	definition.Operators[0].ConfigSignature = configSignature(t, secret1, op1.Address, configHash)
