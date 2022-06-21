@@ -44,25 +44,22 @@ func TestEncode(t *testing.T) {
 		"0x00000002",
 		[]cluster.Operator{
 			{
-				Address:      testutil.RandomETHAddress(),
-				ENR:          fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
-				Nonce:        0,
-				ENRSignature: testutil.RandomBytes32(),
+				Address:         testutil.RandomETHAddress(),
+				ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
+				Nonce:           0,
+				ConfigSignature: testutil.RandomBytes32(),
+				ENRSignature:    testutil.RandomBytes32(),
 			},
 			{
-				Address:      testutil.RandomETHAddress(),
-				ENR:          fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
-				Nonce:        1,
-				ENRSignature: testutil.RandomBytes32(),
+				Address:         testutil.RandomETHAddress(),
+				ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
+				Nonce:           1,
+				ConfigSignature: testutil.RandomBytes32(),
+				ENRSignature:    testutil.RandomBytes32(),
 			},
 		},
 		rand.New(rand.NewSource(0)),
 	)
-
-	definition.OperatorSignatures = [][]byte{
-		testutil.RandomBytes32(),
-		testutil.RandomBytes32(),
-	}
 
 	t.Run("definition_yaml", func(t *testing.T) {
 		jsonBytes, err := json.Marshal(definition)

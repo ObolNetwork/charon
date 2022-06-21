@@ -123,14 +123,14 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 
 // Sealed returns true if all config signatures are fully populated and valid. A "sealed" definition is ready for use in DKG.
 func (d Definition) Sealed() (bool, error) {
-	paramHash, err := d.HashTreeRoot()
+	configHash, err := ConfigHash(d)
 	if err != nil {
-		return false, errors.Wrap(err, "param hash")
+		return false, errors.Wrap(err, "config hash")
 	}
 
 	// Check that we have a valid operator signature for each operator.
 	for _, o := range d.Operators {
-		digest, err := digestEIP712(o.Address, paramHash[:], 0)
+		digest, err := digestEIP712(o.Address, configHash[:], 0)
 		if err != nil {
 			return false, err
 		}
@@ -141,8 +141,6 @@ func (d Definition) Sealed() (bool, error) {
 			return false, errors.Wrap(err, "config signature mismatch")
 		}
 	}
-
-	// TODO(corver): Also validate all operator sigs are valid
 
 	return true, nil
 }
@@ -199,10 +197,6 @@ func (d Definition) HashTreeRootWith(hh *ssz.Hasher) error {
 	hh.Merkleize(indx)
 
 	return nil
-}
-
-func (d Definition) ConfigHash() ([32]byte, error) {
-	return [32]byte{}, nil
 }
 
 func (d Definition) MarshalJSON() ([]byte, error) {

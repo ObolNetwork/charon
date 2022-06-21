@@ -1,9 +1,24 @@
+// Copyright © 2022 Obol Labs Inc.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package cluster
 
 import ssz "github.com/ferranbt/fastssz"
 
-// StaticDefinition defines the static (non-changing) portion of the charon cluster definition.
-type StaticDefinition struct {
+// staticDefinition defines the static (non-changing) portion of the charon cluster definition.
+type staticDefinition struct {
 	// Name is an optional cosmetic identifier
 	Name string
 
@@ -35,14 +50,14 @@ type StaticDefinition struct {
 	Addresses []string
 }
 
-// HashTreeRoot ssz hashes the StaticDefinition object.
-func (d StaticDefinition) HashTreeRoot() ([32]byte, error) {
+// HashTreeRoot ssz hashes the staticDefinition object.
+func (d staticDefinition) HashTreeRoot() ([32]byte, error) {
 	return ssz.HashWithDefaultHasher(d) //nolint:wrapcheck
 }
 
-// HashTreeRootWith ssz hashes the StaticDefinition object by including all the fields inside Operator.
+// HashTreeRootWith ssz hashes the staticDefinition object by including all the fields inside Operator.
 // This is done in order to calculate definition_hash of the final Definition object.
-func (d StaticDefinition) HashTreeRootWith(hh *ssz.Hasher) error {
+func (d staticDefinition) HashTreeRootWith(hh *ssz.Hasher) error {
 	indx := hh.Index()
 
 	// Field (0) 'UUID'
@@ -90,7 +105,7 @@ func (d StaticDefinition) HashTreeRootWith(hh *ssz.Hasher) error {
 // ConfigHash returns the config hash of the given cluster definition object. The config hash is the
 // ssz hash of all the static fields of the definition object and hence doesn't change once created.
 func ConfigHash(d Definition) ([32]byte, error) {
-	sd := StaticDefinition{
+	sd := staticDefinition{
 		Name:                d.Name,
 		UUID:                d.UUID,
 		Version:             d.Version,

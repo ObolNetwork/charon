@@ -40,28 +40,32 @@ func TestDefinitionSealed(t *testing.T) {
 		"", "", "", []Operator{op1, op2},
 		rand.New(rand.NewSource(1)))
 
+	configHash, err := ConfigHash(definition)
+	require.NoError(t, err)
+
+	definition.Operators[0].ConfigSignature = confSig(t, secret1, op1.Address, configHash)
+	definition.Operators[1].ConfigSignature = confSig(t, secret2, op2.Address, configHash)
+
 	sealed, err := definition.Sealed()
 	require.NoError(t, err)
-	require.False(t, sealed)
-
-	paramHash, err := definition.HashTreeRoot()
-	require.NoError(t, err)
-
-	digest1, err := digestEIP712(op1.Address, paramHash[:], 0)
-	require.NoError(t, err)
-	sig1, err := crypto.Sign(digest1[:], secret1)
-	require.NoError(t, err)
-
-	digest2, err := digestEIP712(op2.Address, paramHash[:], 0)
-	require.NoError(t, err)
-	sig2, err := crypto.Sign(digest2[:], secret2)
-	require.NoError(t, err)
-
-	definition.OperatorSignatures = append(definition.OperatorSignatures, sig1)
-	definition.OperatorSignatures = append(definition.OperatorSignatures, sig2)
+	require.True(t, sealed)
 }
 
-// randomOperator returns a random ETH1 private key and populated and signed operator struct.
+// confSig signs the config hash digest and returns the signature.
+func confSig(t *testing.T, secret *ecdsa.PrivateKey, addr string, configHash [32]byte) []byte {
+	t.Helper()
+
+	nonce := 0
+	digest, err := digestEIP712(addr, configHash[:], nonce)
+	require.NoError(t, err)
+
+	sig, err := crypto.Sign(digest[:], secret)
+	require.NoError(t, err)
+
+	return sig
+}
+
+// randomOperator returns a random ETH1 private key and populated (except ConfigSignature) operator struct.
 func randomOperator(t *testing.T) (*ecdsa.PrivateKey, Operator) {
 	t.Helper()
 
