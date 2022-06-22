@@ -5,13 +5,15 @@
    "address": "0xe2d3d0d0de6bf8f9b44ce85ff044c6b1f83b8e88",
    "enr": "enr://32f3a8aeb79ef856f659c18f0dcecc77c75e7a81bfde275f67cfe242cf3cc354",
    "nonce": 0,
-   "enr_signature": "8+3i1r7MTqOuXohSap9KV4vLnvLUplMUdo1tKZdh6p4="
+   "config_signature": "8+3i1r7MTqOuXohSap9KV4vLnvLUplMUdo1tKZdh6p4=",
+   "enr_signature": "T1qmrsP8eMaq4IGsgSDHIO/NbOqEtpJeYHvgY3Fvlt0="
   },
   {
-   "address": "0x4f5aa6aec3fc78c6aae081ac8120c720efcd6cea",
-   "enr": "enr://cdd01d75045c3f000f8a796bce6c512c3801aacaeedfad5b506664e8c0e4a771",
+   "address": "0xcdd01d75045c3f000f8a796bce6c512c3801aaca",
+   "enr": "enr://ece0b8b7c1965d9181251b7c9c9ca5205afc16a236a2efcdd2d12d2a79d074a8",
    "nonce": 1,
-   "enr_signature": "7OC4t8GWXZGBJRt8nJylIFr8FqI2ou/N0tEtKnnQdKg="
+   "config_signature": "KArpQ56w1q7KCCOuAtZ9hmrCxP5KclBT2hGbnU9RUUA=",
+   "enr_signature": "otcjnEC0WsOVDZQfxP4cDLlq0yLWIoIpX7/hHiakMwc="
   }
  ],
  "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
@@ -22,9 +24,6 @@
  "withdrawal_address": "0xfb180daf48a79ee0b10d394651850fd4a178892e",
  "dkg_algorithm": "default",
  "fork_version": "0x00000002",
- "definition_hash": "fn33ROAtquN1FNg5W6qGmO661Y4vNO6VO81c+R22hpc=",
- "operator_signatures": [
-  "KArpQ56w1q7KCCOuAtZ9hmrCxP5KclBT2hGbnU9RUUA=",
-  "otcjnEC0WsOVDZQfxP4cDLlq0yLWIoIpX7/hHiakMwc="
- ]
+ "config_hash": "3YJ5gLQR1PUwq0Ji/4PW0i5iGktnB6c+zSm1eV59RxY=",
+ "definition_hash": "0rmEGF1DLXJPUkGbroJ5POco317zZhqO9n3q3MyjUHE="
 }

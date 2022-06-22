@@ -25,14 +25,17 @@ import (
 
 // Operator identifies a charon node and its operator.
 type Operator struct {
-	// Address is the Ethereum address identifying the operator.
+	// The Ethereum address of the operator
 	Address string `json:"address"`
 
 	// ENR identifies the charon node.
 	ENR string `json:"enr"`
 
-	// Nonce is incremented each time the ENR is signed.
+	//  Nonce is incremented each time the ENR is added or signed.
 	Nonce int `json:"nonce"`
+
+	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to operator Ethereum Address.
+	ConfigSignature []byte `json:"config_signature"`
 
 	// ENRSignature is a EIP712 signature of the ENR by the Address, authorising the charon node to act on behalf of the operator in the cluster.
 	ENRSignature []byte `json:"enr_signature"`
@@ -87,7 +90,10 @@ func (o Operator) HashTreeRootWith(hh *ssz.Hasher) error {
 	// Field (2) 'Nonce'
 	hh.PutUint64(uint64(o.Nonce))
 
-	// Field (3) 'ENRSignature'
+	// Field (3) 'ConfigSignature'
+	hh.PutBytes(o.ConfigSignature)
+
+	// Field (4) 'ENRSignature'
 	hh.PutBytes(o.ENRSignature)
 
 	hh.Merkleize(indx)

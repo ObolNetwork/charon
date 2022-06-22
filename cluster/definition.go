@@ -98,10 +98,6 @@ type Definition struct {
 
 	// Operators define the charon nodes in the cluster and their operators.
 	Operators []Operator
-
-	// OperatorSignatures are EIP712 signatures of the definition hash by each operator Ethereum address.
-	// Fully populated operator signatures results in "sealed" definition ready for use in DKG.
-	OperatorSignatures [][]byte
 }
 
 // NodeIdx returns the node index for the peer.
@@ -125,38 +121,45 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 	return NodeIdx{}, errors.New("unknown peer id")
 }
 
-// Sealed returns true if all operator signatures are populated and valid.
+// Sealed returns true if all config signatures are fully populated and valid. A "sealed" definition is ready for use in DKG.
 func (d Definition) Sealed() (bool, error) {
-	paramHash, err := d.HashTreeRoot()
+	configHash, err := d.ConfigHash()
 	if err != nil {
-		return false, errors.Wrap(err, "param hash")
+		return false, errors.Wrap(err, "config hash")
 	}
 
-	// Check that we a operator signature for each operator.
 	for _, o := range d.Operators {
-		digest, err := digestEIP712(o.Address, paramHash[:], 0)
+		// Check that we have a valid config signature for each operator.
+		digest, err := digestEIP712(o.Address, configHash[:], 0)
 		if err != nil {
 			return false, err
 		}
 
-		var found bool
-		for _, sig := range d.OperatorSignatures {
-			if ok, err := verifySig(o.Address, digest[:], sig); err != nil {
-				return false, err
-			} else if ok {
-				found = true
-				break
-			}
+		if ok, err := verifySig(o.Address, digest[:], o.ConfigSignature); err != nil {
+			return false, err
+		} else if !ok {
+			return false, errors.Wrap(err, "config signature mismatch")
 		}
 
-		if !found {
-			return false, nil
+		// Check that we have a valid enr signature for each operator.
+		digest, err = digestEIP712(o.Address, []byte(o.ENR), 0)
+		if err != nil {
+			return false, err
+		}
+
+		if ok, err := verifySig(o.Address, digest[:], o.ENRSignature); err != nil {
+			return false, err
+		} else if !ok {
+			return false, errors.Wrap(err, "enr signature mismatch")
 		}
 	}
 
-	// TODO(corver): Also validate all operator sigs are valid
-
 	return true, nil
+}
+
+// ConfigHash returns the config hash of the definition object.
+func (d Definition) ConfigHash() ([32]byte, error) {
+	return configHash(d)
 }
 
 // HashTreeRoot ssz hashes the Definition object.
@@ -164,7 +167,8 @@ func (d Definition) HashTreeRoot() ([32]byte, error) {
 	return ssz.HashWithDefaultHasher(d) //nolint:wrapcheck
 }
 
-// HashTreeRootWith ssz hashes the Definition object with a hasher.
+// HashTreeRootWith ssz hashes the Definition object by including all the fields inside Operator.
+// This is done in order to calculate definition_hash of the final Definition object.
 func (d Definition) HashTreeRootWith(hh *ssz.Hasher) error {
 	indx := hh.Index()
 
@@ -213,10 +217,16 @@ func (d Definition) HashTreeRootWith(hh *ssz.Hasher) error {
 }
 
 func (d Definition) MarshalJSON() ([]byte, error) {
-	// Marshal definition hash
-	hash, err := d.HashTreeRoot()
+	// Marshal config hash
+	configHash, err := d.ConfigHash()
 	if err != nil {
-		return nil, errors.Wrap(err, "hash lock")
+		return nil, errors.Wrap(err, "config hash")
+	}
+
+	// Marshal definition hash
+	defHash, err := d.HashTreeRoot()
+	if err != nil {
+		return nil, errors.Wrap(err, "definition hash")
 	}
 
 	// Marshal json version of lock
@@ -231,8 +241,8 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 		DKGAlgorithm:        d.DKGAlgorithm,
 		ForkVersion:         d.ForkVersion,
 		Operators:           d.Operators,
-		OperatorSignatures:  d.OperatorSignatures,
-		DefinitionHash:      hash[:],
+		ConfigHash:          configHash[:],
+		DefinitionHash:      defHash[:],
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal lock")
@@ -268,15 +278,25 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		DKGAlgorithm:        defFmt.DKGAlgorithm,
 		ForkVersion:         defFmt.ForkVersion,
 		Operators:           defFmt.Operators,
-		OperatorSignatures:  defFmt.OperatorSignatures,
 	}
 
-	hash, err := def.HashTreeRoot()
+	// Verify config_hash
+	configHash, err := def.ConfigHash()
 	if err != nil {
-		return errors.Wrap(err, "hash lock")
+		return errors.Wrap(err, "config hash")
 	}
 
-	if !bytes.Equal(defFmt.DefinitionHash, hash[:]) {
+	if !bytes.Equal(defFmt.ConfigHash, configHash[:]) {
+		return errors.New("invalid config hash")
+	}
+
+	// Verify definition_hash
+	defHash, err := def.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "definition hash")
+	}
+
+	if !bytes.Equal(defFmt.DefinitionHash, defHash[:]) {
 		return errors.New("invalid definition hash")
 	}
 
@@ -331,6 +351,6 @@ type defFmt struct {
 	WithdrawalAddress   string     `json:"withdrawal_address,omitempty"`
 	DKGAlgorithm        string     `json:"dkg_algorithm"`
 	ForkVersion         string     `json:"fork_version"`
+	ConfigHash          []byte     `json:"config_hash"`
 	DefinitionHash      []byte     `json:"definition_hash"`
-	OperatorSignatures  [][]byte   `json:"operator_signatures"`
 }
