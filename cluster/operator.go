@@ -31,7 +31,7 @@ type Operator struct {
 	// ENR identifies the charon node.
 	ENR string `json:"enr"`
 
-	// Nonce is incremented each time the ENR or the ENRSignature is changed
+	//  Nonce is incremented each time the ENR is added or signed.
 	Nonce int `json:"nonce"`
 
 	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to operator Ethereum Address.

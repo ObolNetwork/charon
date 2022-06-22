@@ -18,36 +18,18 @@ package cluster
 import ssz "github.com/ferranbt/fastssz"
 
 // staticDefinition defines the static (non-changing) portion of the charon cluster definition.
+// The fields are a subset of the Definition struct.
 type staticDefinition struct {
-	// Name is an optional cosmetic identifier
-	Name string
-
-	// UUID is a random unique identifier
-	UUID string
-
-	// Version is the schema version of this definition.
-	Version string
-
-	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
-	NumValidators int
-
-	// Threshold required for signature reconstruction. Defaults to safe value for number of nodes/peers.
-	Threshold int
-
-	// FeeRecipientAddress Ethereum address.
-	FeeRecipientAddress string
-
-	// WithdrawalAddress Ethereum address.
-	WithdrawalAddress string
-
-	// DKGAlgorithm to use for key generation.
-	DKGAlgorithm string
-
-	// ForkVersion defines the cluster's beacon chain hex fork definitionVersion (network/chain identifier).
-	ForkVersion string
-
-	// Operators define the charon nodes in the cluster and their operators.
-	Addresses []string
+	name                string
+	uuid                string
+	version             string
+	numValidators       int
+	threshold           int
+	feeRecipientAddress string
+	withdrawalAddress   string
+	dkgAlgorithm        string
+	forkVersion         string
+	addresses           []string
 }
 
 // HashTreeRoot ssz hashes the staticDefinition object.
@@ -60,38 +42,38 @@ func (d staticDefinition) HashTreeRoot() ([32]byte, error) {
 func (d staticDefinition) HashTreeRootWith(hh *ssz.Hasher) error {
 	indx := hh.Index()
 
-	// Field (0) 'UUID'
-	hh.PutBytes([]byte(d.UUID))
+	// Field (0) 'uuid'
+	hh.PutBytes([]byte(d.uuid))
 
-	// Field (1) 'Name'
-	hh.PutBytes([]byte(d.Name))
+	// Field (1) 'name'
+	hh.PutBytes([]byte(d.name))
 
-	// Field (2) 'Version'
-	hh.PutBytes([]byte(d.Version))
+	// Field (2) 'version'
+	hh.PutBytes([]byte(d.version))
 
-	// Field (3) 'NumValidators'
-	hh.PutUint64(uint64(d.NumValidators))
+	// Field (3) 'numValidators'
+	hh.PutUint64(uint64(d.numValidators))
 
-	// Field (4) 'Threshold'
-	hh.PutUint64(uint64(d.Threshold))
+	// Field (4) 'threshold'
+	hh.PutUint64(uint64(d.threshold))
 
-	// Field (5) 'FeeRecipientAddress'
-	hh.PutBytes([]byte(d.FeeRecipientAddress))
+	// Field (5) 'feeRecipientAddress'
+	hh.PutBytes([]byte(d.feeRecipientAddress))
 
-	// Field (6) 'WithdrawalAddress'
-	hh.PutBytes([]byte(d.WithdrawalAddress))
+	// Field (6) 'withdrawalAddress'
+	hh.PutBytes([]byte(d.withdrawalAddress))
 
-	// Field (7) 'DKGAlgorithm'
-	hh.PutBytes([]byte(d.DKGAlgorithm))
+	// Field (7) 'dkgAlgorithm'
+	hh.PutBytes([]byte(d.dkgAlgorithm))
 
-	// Field (8) 'ForkVersion'
-	hh.PutBytes([]byte(d.ForkVersion))
+	// Field (8) 'forkVersion'
+	hh.PutBytes([]byte(d.forkVersion))
 
-	// Field (9) 'Addresses'
+	// Field (9) 'addresses'
 	{
 		subIndx := hh.Index()
-		num := uint64(len(d.Addresses))
-		for _, addr := range d.Addresses {
+		num := uint64(len(d.addresses))
+		for _, addr := range d.addresses {
 			hh.PutBytes([]byte(addr))
 		}
 		hh.MerkleizeWithMixin(subIndx, num, num)
@@ -102,20 +84,20 @@ func (d staticDefinition) HashTreeRootWith(hh *ssz.Hasher) error {
 	return nil
 }
 
-// ConfigHash returns the config hash of the given cluster definition object. The config hash is the
+// configHash returns the config hash of the given cluster definition object. The config hash is the
 // ssz hash of all the static fields of the definition object and hence doesn't change once created.
-func ConfigHash(d Definition) ([32]byte, error) {
+func configHash(d Definition) ([32]byte, error) {
 	sd := staticDefinition{
-		Name:                d.Name,
-		UUID:                d.UUID,
-		Version:             d.Version,
-		NumValidators:       d.NumValidators,
-		Threshold:           d.Threshold,
-		FeeRecipientAddress: d.FeeRecipientAddress,
-		WithdrawalAddress:   d.WithdrawalAddress,
-		DKGAlgorithm:        d.DKGAlgorithm,
-		ForkVersion:         d.ForkVersion,
-		Addresses:           nil,
+		name:                d.Name,
+		uuid:                d.UUID,
+		version:             d.Version,
+		numValidators:       d.NumValidators,
+		threshold:           d.Threshold,
+		feeRecipientAddress: d.FeeRecipientAddress,
+		withdrawalAddress:   d.WithdrawalAddress,
+		dkgAlgorithm:        d.DKGAlgorithm,
+		forkVersion:         d.ForkVersion,
+		addresses:           nil,
 	}
 
 	var addrs []string
@@ -123,7 +105,7 @@ func ConfigHash(d Definition) ([32]byte, error) {
 		addrs = append(addrs, op.Address)
 	}
 
-	sd.Addresses = addrs
+	sd.addresses = addrs
 
 	return sd.HashTreeRoot()
 }

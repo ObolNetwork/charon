@@ -128,8 +128,8 @@ func (d Definition) Sealed() (bool, error) {
 		return false, errors.Wrap(err, "config hash")
 	}
 
-	// Check that we have a valid operator signature for each operator.
 	for _, o := range d.Operators {
+		// Check that we have a valid config signature for each operator.
 		digest, err := digestEIP712(o.Address, configHash[:], 0)
 		if err != nil {
 			return false, err
@@ -140,6 +140,18 @@ func (d Definition) Sealed() (bool, error) {
 		} else if !ok {
 			return false, errors.Wrap(err, "config signature mismatch")
 		}
+
+		// Check that we have a valid enr signature for each operator.
+		digest, err = digestEIP712(o.Address, []byte(o.ENR), 0)
+		if err != nil {
+			return false, err
+		}
+
+		if ok, err := verifySig(o.Address, digest[:], o.ENRSignature); err != nil {
+			return false, err
+		} else if !ok {
+			return false, errors.Wrap(err, "enr signature mismatch")
+		}
 	}
 
 	return true, nil
@@ -147,7 +159,7 @@ func (d Definition) Sealed() (bool, error) {
 
 // ConfigHash returns the config hash of the definition object.
 func (d Definition) ConfigHash() ([32]byte, error) {
-	return ConfigHash(d)
+	return configHash(d)
 }
 
 // HashTreeRoot ssz hashes the Definition object.
@@ -206,7 +218,7 @@ func (d Definition) HashTreeRootWith(hh *ssz.Hasher) error {
 
 func (d Definition) MarshalJSON() ([]byte, error) {
 	// Marshal config hash
-	configHash, err := ConfigHash(d)
+	configHash, err := d.ConfigHash()
 	if err != nil {
 		return nil, errors.Wrap(err, "config hash")
 	}
