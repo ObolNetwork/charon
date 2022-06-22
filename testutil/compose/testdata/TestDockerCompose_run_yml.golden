@@ -19,9 +19,9 @@ services:
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
       CHARON_LOCK_FILE: /compose/cluster-lock.json
       CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
-      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3610
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_P2P_EXTERNAL_HOSTNAME: node0
-      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3600
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_BEACON_NODE_ENDPOINT: 
@@ -40,9 +40,9 @@ services:
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
       CHARON_LOCK_FILE: /compose/cluster-lock.json
       CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
-      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3610
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_P2P_EXTERNAL_HOSTNAME: node1
-      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3600
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_BEACON_NODE_ENDPOINT: 
@@ -61,9 +61,9 @@ services:
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
       CHARON_LOCK_FILE: /compose/cluster-lock.json
       CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
-      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3610
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_P2P_EXTERNAL_HOSTNAME: node2
-      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3600
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_BEACON_NODE_ENDPOINT: 
@@ -82,9 +82,9 @@ services:
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
       CHARON_LOCK_FILE: /compose/cluster-lock.json
       CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
-      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3610
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_P2P_EXTERNAL_HOSTNAME: node3
-      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3600
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_BEACON_NODE_ENDPOINT: 
@@ -102,7 +102,7 @@ services:
       CHARON_DATA_DIR: /compose/bootnode
       CHARON_P2P_BOOTNODES: ""
       CHARON_P2P_EXTERNAL_HOSTNAME: bootnode
-      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3600
+      CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
   
   vc0-teku:
@@ -110,7 +110,7 @@ services:
     command: |
       validator-client
       --network=auto
-      --beacon-node-api-endpoint="http://node0:3610"
+      --beacon-node-api-endpoint="http://node0:3600"
       --validator-keys="/compose/node0/validator_keys/keystore-0.json:/compose/node0/validator_keys/keystore-0.txt"
       --validator-keys="/compose/node0/validator_keys/keystore-1.json:/compose/node0/validator_keys/keystore-1.txt"
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
@@ -135,7 +135,7 @@ services:
     command: |
       validator-client
       --network=auto
-      --beacon-node-api-endpoint="http://node3:3610"
+      --beacon-node-api-endpoint="http://node3:3600"
       --validator-keys="/compose/node3/validator_keys/keystore-0.json:/compose/node3/validator_keys/keystore-0.txt"
       --validator-keys="/compose/node3/validator_keys/keystore-1.json:/compose/node3/validator_keys/keystore-1.txt"
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
