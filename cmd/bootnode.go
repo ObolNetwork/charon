@@ -67,7 +67,7 @@ func newBootnodeCmd(runFunc func(context.Context, BootnodeConfig) error) *cobra.
 }
 
 func bindBootnodeFlag(flags *pflag.FlagSet, config *BootnodeConfig) {
-	flags.StringVar(&config.HTTPAddr, "bootnode-http-address", "127.0.0.1:16005", "Listening address (ip and port) for the bootnode http server serving runtime ENR")
+	flags.StringVar(&config.HTTPAddr, "bootnode-http-address", "127.0.0.1:3640", "Listening address (ip and port) for the bootnode http server serving runtime ENR")
 	flags.BoolVar(&config.AutoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory")
 	flags.BoolVar(&config.P2PRelay, "p2p-relay", true, "Enable libp2p tcp host providing circuit relay to charon clusters")
 	flags.IntVar(&config.MaxResPerPeer, "max-reservations", 30, "Updates max circuit reservations per peer (each valid for 30min)")

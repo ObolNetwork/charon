@@ -83,7 +83,7 @@ func getVC(typ VCType, nodeIdx int, numVals int) (vc, error) {
 			Command: `|
       validator-client
       --network=auto
-      --beacon-node-api-endpoint="http://node{{.NodeIdx}}:16002"
+      --beacon-node-api-endpoint="http://node{{.NodeIdx}}:3610"
       {{range .TekuKeys}}--validator-keys="{{.}}"
       {{end -}}
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"`,
