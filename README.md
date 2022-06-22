@@ -13,20 +13,20 @@ Charon is accompanied by a webapp called the [Distributed Validator Launchpad](h
 
 Charon is used by Enterprises and DAOs to distribute the responsibility of running Ethereum Validators across a number of different instances and client implementations.
 
-![Example Obol Cluster](https://obol.tech/ObolCluster.png)
+![Example Obol Cluster](./docs/images/DVCluster.png)
 
-###### A validator deployment that uses the Charon client to hedge client and hardware failure risks
+###### A Distributed Validator Cluster that uses the Charon client to hedge client and hardware failure risks
 
 ## Quickstart
 
-The easiest way to get started is with the [charon-docker-compose](https://github.com/ObolNetwork/charon-docker-compose) repo
-which contains a docker compose setup for running a charon cluster on your local machine.
+The easiest way to test out charon is with the [charon-distributed-validator-cluster](https://github.com/ObolNetwork/charon-distributed-validator-cluster) repo
+which contains a docker compose setup for running a full charon cluster on your local machine.
 
 ## Documentation
 
 The [Obol Docs](https://docs.obol.tech/) website is the best place to get started.
 The important sections are [intro](https://docs.obol.tech/docs/intro),
-[key concepts](https://docs.obol.tech/docs/key-concepts) and [charon](https://docs.obol.tech/docs/dv/introducing-charon).
+[key concepts](https://docs.obol.tech/docs/int/key-concepts) and [charon](https://docs.obol.tech/docs/dv/introducing-charon).
 
 For detailed documentation on this repo, see the [docs](docs) folder:
 
