@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Package sync provides Client and Server APIs that ensures robust network connectivity between all peers in the DKG.
+// It supports cluster_definition verification, soft shutdown and reconnect on connection loss.
 package sync
 
 import (
