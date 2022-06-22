@@ -70,7 +70,7 @@ func TestCmdFlags(t *testing.T) {
 				P2P: p2p.Config{
 					UDPBootnodes: []string{"http://bootnode.gcp.obol.tech:16000/enr"},
 					UDPAddr:      "127.0.0.1:3630",
-					TCPAddrs:     []string{"127.0.0.1:3600"},
+					TCPAddrs:     []string{"127.0.0.1:3610"},
 					Allowlist:    "",
 					Denylist:     "",
 				},
@@ -82,7 +82,7 @@ func TestCmdFlags(t *testing.T) {
 				LockFile:         ".charon/cluster-lock.json",
 				DataDir:          "from_env",
 				MonitoringAddr:   "127.0.0.1:3620",
-				ValidatorAPIAddr: "127.0.0.1:3610",
+				ValidatorAPIAddr: "127.0.0.1:3600",
 				BeaconNodeAddr:   "http://localhost/",
 				JaegerAddr:       "",
 				JaegerService:    "charon",
@@ -95,7 +95,7 @@ func TestCmdFlags(t *testing.T) {
 			P2PConfig: &p2p.Config{
 				UDPBootnodes: []string{"http://bootnode.gcp.obol.tech:16000/enr"},
 				UDPAddr:      "127.0.0.1:3630",
-				TCPAddrs:     []string{"127.0.0.1:3600"},
+				TCPAddrs:     []string{"127.0.0.1:3610"},
 				Allowlist:    "",
 				Denylist:     "",
 			},

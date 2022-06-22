@@ -34,7 +34,7 @@
     },
     {
      "Key": "validator-api-address",
-     "Value": "0.0.0.0:3610"
+     "Value": "0.0.0.0:3600"
     },
     {
      "Key": "p2p-external-hostname",
@@ -42,7 +42,7 @@
     },
     {
      "Key": "p2p-tcp-address",
-     "Value": "0.0.0.0:3600"
+     "Value": "0.0.0.0:3610"
     },
     {
      "Key": "p2p_udp_address",
@@ -105,7 +105,7 @@
     },
     {
      "Key": "validator-api-address",
-     "Value": "0.0.0.0:3610"
+     "Value": "0.0.0.0:3600"
     },
     {
      "Key": "p2p-external-hostname",
@@ -113,7 +113,7 @@
     },
     {
      "Key": "p2p-tcp-address",
-     "Value": "0.0.0.0:3600"
+     "Value": "0.0.0.0:3610"
     },
     {
      "Key": "p2p_udp_address",
@@ -176,7 +176,7 @@
     },
     {
      "Key": "validator-api-address",
-     "Value": "0.0.0.0:3610"
+     "Value": "0.0.0.0:3600"
     },
     {
      "Key": "p2p-external-hostname",
@@ -184,7 +184,7 @@
     },
     {
      "Key": "p2p-tcp-address",
-     "Value": "0.0.0.0:3600"
+     "Value": "0.0.0.0:3610"
     },
     {
      "Key": "p2p_udp_address",
@@ -247,7 +247,7 @@
     },
     {
      "Key": "validator-api-address",
-     "Value": "0.0.0.0:3610"
+     "Value": "0.0.0.0:3600"
     },
     {
      "Key": "p2p-external-hostname",
@@ -255,7 +255,7 @@
     },
     {
      "Key": "p2p-tcp-address",
-     "Value": "0.0.0.0:3600"
+     "Value": "0.0.0.0:3610"
     },
     {
      "Key": "p2p_udp_address",
