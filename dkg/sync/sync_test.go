@@ -58,7 +58,7 @@ func TestAwaitConnected(t *testing.T) {
 	require.NoError(t, err)
 
 	serverCtx := log.WithTopic(ctx, "server")
-	_ = sync.NewServer(serverCtx, serverHost, nil, hash, nil)
+	_ = sync.NewServer(serverCtx, serverHost, []p2p.Peer{{ID: clientHost.ID()}}, hash, nil)
 
 	clientCtx := log.WithTopic(ctx, "client")
 	client := sync.NewClient(clientCtx, clientHost, p2p.Peer{ID: serverHost.ID()}, hashSig, nil)

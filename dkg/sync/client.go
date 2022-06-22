@@ -48,11 +48,10 @@ type Client struct {
 
 // AwaitConnected blocks until the connection with the server has been established or returns an error.
 func (c *Client) AwaitConnected() error {
-	results := c.results
-	for resp := range results {
-		if resp.error == "Invalid Signature" {
+	for res := range c.results {
+		if res.error == InvalidSig {
 			return errors.New("invalid cluster definition")
-		} else if resp.error == "" {
+		} else if res.error == "" {
 			// We are connected
 			break
 		}
@@ -68,6 +67,7 @@ func (*Client) Shutdown() error {
 	return nil
 }
 
+// sendHashSignature sends MsgSync with signature of definition to server and receives response from server.
 func sendHashSignature(ctx context.Context, hashSig []byte, s network.Stream) result {
 	before := time.Now()
 	msg := &pb.MsgSync{
@@ -76,13 +76,13 @@ func sendHashSignature(ctx context.Context, hashSig []byte, s network.Stream) re
 		Shutdown:      false,
 	}
 
-	b, err := proto.Marshal(msg)
+	wb, err := proto.Marshal(msg)
 	if err != nil {
 		log.Error(ctx, "Marshal msg", err)
 		return result{error: err.Error()}
 	}
 
-	if _, err = s.Write(b); err != nil {
+	if _, err = s.Write(wb); err != nil {
 		log.Error(ctx, "Write msg to stream", err)
 		return result{error: err.Error()}
 	}
@@ -96,7 +96,7 @@ func sendHashSignature(ctx context.Context, hashSig []byte, s network.Stream) re
 		return result{error: err.Error()}
 	}
 
-	// Number of bytes that are read are the most important
+	// The first `n` bytes that are read are the most important
 	rb = rb[:n]
 
 	resp := new(pb.MsgSyncResponse)
