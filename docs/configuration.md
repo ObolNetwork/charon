@@ -17,28 +17,26 @@ The `charon create cluster` command combines both steps into one and just output
 The schema of the `cluster-definition.json` is defined as:
 ```json
 {
-  "version": "v1.0.0",                  // Schema version
-  "num_validators": 100,                // Number of validators to create in cluster.lock
-  "threshold": 3,                       // Optional threshold required for signature reconstruction
-  "uuid": "1234-abcdef-1234-abcdef",    // Random unique identifier
-  "name": "best cluster",               // Optional name field, cosmetic.
-  "fee_recipient_address":"0x123..abfc",// ETH1 fee_recipient address
-  "withdrawal_address": "0x123..abfc",  // ETH1 withdrawal address
-  "algorithm": "foo_dkg_v1" ,           // Optional DKG algorithm
-  "fork_version": "0x00112233",         // Fork version lock, enum of known values
+  "name": "best cluster",                       // Optional cosmetic identifier
   "operators": [
     {
-      "address": "0x123..abfc",         // ETH1 operator identify address
-      "enr": "enr://abcdef...12345",    // charon node ENR
-      "signature": "123456...abcdef",   // Signature of enr by ETH1 address priv key
-      "nonce": 1                        // Nonce of signature
+      "address": "0x123..abfc",                 // ETH1 address of the operator
+      "enr": "enr://abcdef...12345",            // Charon node ENR
+      "nonce": 1,                               // Nonce (incremented each time the ENR is added/signed)
+      "config_signature": "123456...abcdef",    // EIP712 Signature of config_hash by ETH1 address priv key
+      "enr_signature": "123654...abcedf"        // EIP712 Signature of ENR by ETH1 address priv key
     }
   ],
-  "definition_hash": "abcdef...abcedef",// Hash of above field (except free text)
-  "operator_signatures": [              // Operator signatures (seals) of definition hash
-    "123456...abcdef",
-    "123456...abcdef"
-  ]
+  "uuid": "1234-abcdef-1234-abcdef",            // Random unique identifier.
+  "version": "v1.0.0",                          // Schema version
+  "num_validators": 100,                        // Number of distributed validators to be created in cluster.lock
+  "threshold": 3,                               // Optional threshold required for signature reconstruction
+  "fee_recipient_address":"0x123..abfc",        // ETH1 fee_recipient address
+  "withdrawal_address": "0x123..abfc",          // ETH1 withdrawal address
+  "dkg_algorithm": "foo_dkg_v1" ,               // Optional DKG algorithm for key generation
+  "fork_version": "0x00112233",                 // Chain/Network identifier
+  "config_hash": "abcfde...acbfed",             // Hash of the static (non-changing) fields
+  "definition_hash": "abcdef...abcedef"         // Final Hash of all fields
 }
 ```
 
