@@ -67,7 +67,7 @@ func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Co
 	cmd := &cobra.Command{
 		Use:   "cluster",
 		Short: "Create private keys and configuration files needed to run a distributed validator cluster locally",
-		Long: "Creates a local charon cluster configuration including validator keys, charon p2p keys, and a cluster manifest. " +
+		Long: "Creates a local charon cluster configuration including validator keys, charon p2p keys, cluster-lock.json and deposit-data.json. " +
 			"See flags for supported features.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), conf)

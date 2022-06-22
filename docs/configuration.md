@@ -4,8 +4,6 @@ This document describes the configuration options for running a charon node and 
 
 ## Cluster Config Files
 
-> Note this is for Charon V1 and extends on [DKG](dkg.md) docs. Charon V0 still uses old manifest files.
-
 A charon cluster is configured in two steps:
 - `cluster-definition.json` which defines the intended cluster configuration without validator keys.
 - `cluster-lock.json` which includes and extends `cluster-definition.json` with distributed validator bls public key shares.

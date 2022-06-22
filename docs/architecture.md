@@ -134,7 +134,7 @@ DVs are identified by their root public key `PubKey`.
 // It is a hex formatted string, e.g. "0xb82bc6...."
 type PubKey string
 ```
-It has access to validators in manifest, so it first resolves validator status for each
+It has access to validators in cluster-lock, so it first resolves validator status for each
 DV by calling [Get validator from state by id](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getStateValidator)
 using `HEAD` state and the DV root public key.
 
