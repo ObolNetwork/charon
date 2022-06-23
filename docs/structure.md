@@ -13,7 +13,6 @@ charon/             # project root
 │
 ├─ app/             # application run entrypoint
 │  ├─ app.go        # wires state and process lifecycle.
-│  ├─ manifest.go   # cluster manifest definition type
 │  │
 │  │                # application infrastructure libraries
 │  ├─ log/          # logging
@@ -75,7 +74,7 @@ charon/             # project root
       - `enr`: Create an Ethereum Node Record (ENR) private key to identify this charon client
       - `dkg`: Create the configuration for a new Distributed Key Generation ceremony used by charon dkg
     - `dkg`: Participate in a Distributed Key Generation ceremony
-    - `enr`: Prints ENR based on provided p2pkey, manifest and networking config
+    - `enr`: Prints ENR based on provided p2pkey and networking config
     - `run`: Runs the charon node
     - `version`: Print charon version
   - Defines and parses [viper](https://github.com/spf13/viper) configuration parameters for required by each command.
@@ -89,7 +88,6 @@ charon/             # project root
   - Receives parsed config as input
   - Loads p2p private key from disk
   - Runs life cycle manager which starts processes and does graceful shutdown.
-  - `manifest.go` defines the cluster manifest; BLS threshold signature scheme and peer networking (deprecated).
 - `app/{subdirectory}/`: Application infrastructure libraries
   - Libraries that provide low level infrastructure level features and utilities. Avoid business logic and stateful services.
   - `log/`, `errors/`, `z/` provide structured logging and structured errors using [zap](https://github.com/uber-go/zap) fields
