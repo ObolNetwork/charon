@@ -111,4 +111,4 @@ Refer to the details [here](./configuration.md).
 
 ### Concerns
 
-- What if one cluster wants each validator to have differing withdrawal addresses? How will the cluster-definition structure change? Will the launchpad offer this flexibility or should it be done on the CLI by advanced users? If this is a CLI feature, do we have participants still sign the cluster-definition root and their client enr? Should we expose an extra page in the launchpad for advanced users, and it is basically just a form field for pasting a custom cluster-definition file in and an input for their charon node and a "Sign button"?
+- What if one cluster wants each validator to have differing withdrawal addresses? How will the cluster-definition structure change? Will the launchpad offer this flexibility or should it be done on the CLI by advanced users? If this is a CLI feature, do we have participants still sign the config_hash and their client enr? Should we expose an extra page in the launchpad for advanced users, and it is basically just a form field for pasting a custom cluster-definition file in and an input for their charon node and a "Sign button"?
