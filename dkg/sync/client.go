@@ -57,6 +57,8 @@ func (c *Client) AwaitConnected() error {
 		}
 	}
 
+	log.Info(c.ctx, "Client connected to Server 🎉", z.Any("client", p2p.PeerName(c.tcpNode.ID())))
+
 	return nil
 }
 
