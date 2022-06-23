@@ -169,7 +169,6 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash
 				server.receiveChan <- result{
 					rtt:       time.Since(before),
 					timestamp: msg.Timestamp.String(),
-					error:     "",
 				}
 			}
 

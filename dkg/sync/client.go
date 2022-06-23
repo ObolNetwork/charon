@@ -35,7 +35,7 @@ import (
 type result struct {
 	rtt       time.Duration
 	timestamp string
-	error     string
+	error     error
 }
 
 type Client struct {
@@ -49,9 +49,9 @@ type Client struct {
 // AwaitConnected blocks until the connection with the server has been established or returns an error.
 func (c *Client) AwaitConnected() error {
 	for res := range c.results {
-		if res.error == InvalidSig {
+		if errors.Is(res.error, errors.New(InvalidSig)) {
 			return errors.New("invalid cluster definition")
-		} else if res.error == "" {
+		} else if res.error == nil {
 			// We are connected
 			break
 		}
@@ -81,12 +81,12 @@ func sendHashSignature(ctx context.Context, hashSig []byte, s network.Stream) re
 	wb, err := proto.Marshal(msg)
 	if err != nil {
 		log.Error(ctx, "Marshal msg", err)
-		return result{error: err.Error()}
+		return result{error: err}
 	}
 
 	if _, err = s.Write(wb); err != nil {
 		log.Error(ctx, "Write msg to stream", err)
-		return result{error: err.Error()}
+		return result{error: err}
 	}
 
 	buf := bufio.NewReader(s)
@@ -95,7 +95,7 @@ func sendHashSignature(ctx context.Context, hashSig []byte, s network.Stream) re
 	n, err := buf.Read(rb)
 	if err != nil {
 		log.Error(ctx, "Read server response from stream", err)
-		return result{error: err.Error()}
+		return result{error: err}
 	}
 
 	// The first `n` bytes that are read are the most important
@@ -104,7 +104,11 @@ func sendHashSignature(ctx context.Context, hashSig []byte, s network.Stream) re
 	resp := new(pb.MsgSyncResponse)
 	if err = proto.Unmarshal(rb, resp); err != nil {
 		log.Error(ctx, "Unmarshal server response", err)
-		return result{error: err.Error()}
+		return result{error: err}
+	}
+
+	if resp.Error != "" {
+		return result{error: errors.New(resp.Error)}
 	}
 
 	log.Debug(ctx, "Server response", z.Any("response", resp.SyncTimestamp))
@@ -112,7 +116,6 @@ func sendHashSignature(ctx context.Context, hashSig []byte, s network.Stream) re
 	return result{
 		rtt:       time.Since(before),
 		timestamp: resp.SyncTimestamp.String(),
-		error:     resp.Error,
 	}
 }
 
@@ -123,7 +126,7 @@ func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hashSig 
 	if err != nil {
 		log.Error(ctx, "Open new stream with server", err)
 		ch := make(chan result, 1)
-		ch <- result{error: err.Error()}
+		ch <- result{error: err}
 		close(ch)
 
 		return Client{
@@ -149,7 +152,7 @@ func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hashSig 
 				return
 			}
 
-			if res.error == "" {
+			if res.error == nil {
 				tcpNode.Peerstore().RecordLatency(server.ID, res.rtt)
 			}
 
