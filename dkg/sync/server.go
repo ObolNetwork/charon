@@ -20,6 +20,8 @@ package sync
 import (
 	"bufio"
 	"context"
+	"sync"
+	"time"
 
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -39,15 +41,29 @@ const (
 )
 
 type Server struct {
+	mu            sync.Mutex
 	ctx           context.Context
 	onFailure     func()
 	tcpNode       host.Host
 	peers         []p2p.Peer
 	dedupResponse map[peer.ID]bool
+	receiveChan   chan result
 }
 
 // AwaitAllConnected blocks until all peers have established a connection with this server or returns an error.
-func (*Server) AwaitAllConnected() error {
+func (s *Server) AwaitAllConnected() error {
+	var msgs []result
+	for len(msgs) < len(s.peers) {
+		select {
+		case <-s.ctx.Done():
+			return s.ctx.Err()
+		case msg := <-s.receiveChan:
+			msgs = append(msgs, msg)
+		}
+	}
+
+	log.Info(s.ctx, "All Clients Connected 🎉", z.Any("clients", len(msgs)))
+
 	return nil
 }
 
@@ -58,6 +74,8 @@ func (*Server) AwaitAllShutdown() error {
 }
 
 // NewServer registers a Stream Handler and returns a new Server instance.
+// TODO(dhruv): remove this nolint once we have everything in place
+// nolint:gocognit
 func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash []byte, onFailure func()) *Server {
 	server := &Server{
 		ctx:           ctx,
@@ -65,6 +83,7 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash
 		peers:         peers,
 		onFailure:     onFailure,
 		dedupResponse: make(map[peer.ID]bool),
+		receiveChan:   make(chan result, len(peers)),
 	}
 
 	knownPeers := make(map[peer.ID]bool)
@@ -77,10 +96,11 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash
 
 		// TODO(dhruv): introduce timeout to break the loop
 		for {
+			before := time.Now()
 			pID := s.Conn().RemotePeer()
 			if !knownPeers[pID] {
 				// Ignoring unknown peer
-				log.Warn(ctx, "Ignoring unknown peer", nil, z.Any("peer", p2p.PeerName(pID)))
+				log.Warn(ctx, "Ignoring unknown client", nil, z.Any("client", p2p.PeerName(pID)))
 				return
 			}
 
@@ -89,7 +109,7 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash
 			// n is the number of bytes read from buffer, if n < MsgSize the other bytes will be 0
 			n, err := buf.Read(b)
 			if err != nil {
-				log.Error(ctx, "Read client msg from stream", err)
+				log.Error(ctx, "Read client msg from stream", err, z.Any("client", p2p.PeerName(pID)))
 				return
 			}
 
@@ -102,7 +122,7 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash
 				return
 			}
 
-			log.Debug(ctx, "Message received from client", z.Any("server", p2p.PeerName(pID)))
+			log.Debug(ctx, "Message received from client", z.Any("client", p2p.PeerName(pID)))
 
 			pubkey, err := pID.ExtractPublicKey()
 			if err != nil {
@@ -133,18 +153,28 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash
 
 			_, err = s.Write(resBytes)
 			if err != nil {
-				log.Error(ctx, "Send response to client", err)
+				log.Error(ctx, "Send response to client", err, z.Any("client", p2p.PeerName(pID)))
 				return
 			}
 
 			if server.dedupResponse[pID] {
-				log.Debug(ctx, "Ignoring duplicate message", z.Any("peer", pID))
+				log.Debug(ctx, "Ignoring duplicate message", z.Any("client", p2p.PeerName(pID)))
 				continue
 			}
 
-			server.dedupResponse[pID] = true
+			if resp.Error == "" && !server.dedupResponse[pID] {
+				// TODO(dhruv): This is temporary solution to avoid race condition of concurrent writes to map, figure out something permanent.
+				server.mu.Lock()
+				server.dedupResponse[pID] = true
+				server.mu.Unlock()
 
-			log.Debug(ctx, "Server sent response to client")
+				server.receiveChan <- result{
+					rtt:       time.Since(before),
+					timestamp: msg.Timestamp.String(),
+				}
+			}
+
+			log.Debug(ctx, "Send response to client", z.Any("client", p2p.PeerName(pID)))
 		}
 	})
 

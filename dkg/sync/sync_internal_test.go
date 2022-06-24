@@ -65,7 +65,7 @@ func TestNaiveServerClient(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		actual, ok := <-client.results
 		require.True(t, ok)
-		require.Equal(t, "", actual.error)
+		require.NoError(t, actual.error)
 		t.Log("rtt is: ", actual.rtt)
 	}
 }
