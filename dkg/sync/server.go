@@ -172,7 +172,7 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash
 				}
 			}
 
-			log.Debug(ctx, "Server sent response to client", z.Any("client", p2p.PeerName(pID)))
+			log.Debug(ctx, "Send response to client", z.Any("client", p2p.PeerName(pID)))
 		}
 	})
 
