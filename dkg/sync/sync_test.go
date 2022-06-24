@@ -36,6 +36,8 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
+//go:generate go test . -run=TestAwaitAllConnected -race
+
 func TestAwaitConnected(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -60,10 +62,57 @@ func TestAwaitConnected(t *testing.T) {
 	serverCtx := log.WithTopic(ctx, "server")
 	_ = sync.NewServer(serverCtx, serverHost, []p2p.Peer{{ID: clientHost.ID()}}, hash, nil)
 
-	clientCtx := log.WithTopic(ctx, "client")
+	clientCtx := log.WithTopic(context.Background(), "client")
 	client := sync.NewClient(clientCtx, clientHost, p2p.Peer{ID: serverHost.ID()}, hashSig, nil)
 
 	require.NoError(t, client.AwaitConnected())
+}
+
+func TestAwaitAllConnected(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const numClients = 3
+	seed := 0
+	serverHost, _ := newSyncHost(t, int64(seed))
+	var (
+		peers       []p2p.Peer
+		keys        []libp2pcrypto.PrivKey
+		clientHosts []host.Host
+	)
+	for i := 0; i < numClients; i++ {
+		seed++
+		clientHost, key := newSyncHost(t, int64(seed))
+		require.NotEqual(t, clientHost.ID().String(), serverHost.ID().String())
+
+		err := serverHost.Connect(ctx, peer.AddrInfo{
+			ID:    clientHost.ID(),
+			Addrs: clientHost.Addrs(),
+		})
+		require.NoError(t, err)
+
+		clientHosts = append(clientHosts, clientHost)
+		keys = append(keys, key)
+		peers = append(peers, p2p.Peer{ID: clientHost.ID()})
+	}
+
+	hash := testutil.RandomBytes32()
+	server := sync.NewServer(log.WithTopic(ctx, "server"), serverHost, peers, hash, nil)
+
+	var clients []sync.Client
+	for i := 0; i < numClients; i++ {
+		hashSig, err := keys[i].Sign(hash)
+		require.NoError(t, err)
+
+		client := sync.NewClient(log.WithTopic(context.Background(), "client"), clientHosts[i], p2p.Peer{ID: serverHost.ID()}, hashSig, nil)
+		clients = append(clients, client)
+	}
+
+	for i := 0; i < numClients; i++ {
+		require.NoError(t, clients[i].AwaitConnected())
+	}
+
+	require.NoError(t, server.AwaitAllConnected())
 }
 
 func newSyncHost(t *testing.T, seed int64) (host.Host, libp2pcrypto.PrivKey) {
