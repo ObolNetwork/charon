@@ -79,7 +79,7 @@ func TestCmdFlags(t *testing.T) {
 					Enabled:   nil,
 					Disabled:  nil,
 				},
-				LockFile:         ".charon/cluster-lock.json",
+				LockFile:         ".charon/cluster/cluster-lock.json",
 				DataDir:          "from_env",
 				MonitoringAddr:   "127.0.0.1:3620",
 				ValidatorAPIAddr: "127.0.0.1:3600",
