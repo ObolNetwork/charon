@@ -74,6 +74,8 @@ func (*Server) AwaitAllShutdown() error {
 }
 
 // NewServer registers a Stream Handler and returns a new Server instance.
+// TODO(dhruv): remove this nolint once we have everything in place
+// nolint:gocognit
 func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash []byte, onFailure func()) *Server {
 	server := &Server{
 		ctx:           ctx,
