@@ -35,6 +35,7 @@ import (
 type result struct {
 	rtt       time.Duration
 	timestamp string
+	shutdown  bool
 	error     error
 }
 
@@ -44,6 +45,7 @@ type Client struct {
 	tcpNode   host.Host
 	server    p2p.Peer
 	results   chan result
+	stream    network.Stream
 }
 
 // AwaitConnected blocks until the connection with the server has been established or returns an error.
@@ -65,12 +67,24 @@ func (c *Client) AwaitConnected() error {
 // Shutdown sends a shutdown message to the server indicating it has successfully completed.
 // It closes the connection and returns after receiving the subsequent MsgSyncResponse.
 // It may only be called after AwaitConnected.
-func (*Client) Shutdown() error {
-	return nil
+func (c *Client) Shutdown() error {
+	msg := &pb.MsgSync{
+		Timestamp: timestamppb.Now(),
+		Shutdown:  true,
+	}
+
+	_, err := c.send(msg)
+	if err != nil {
+		return err
+	}
+
+	log.Info(c.ctx, "Closing stream with peer", z.Any("peer", p2p.PeerName(c.server.ID)))
+
+	return c.stream.Close()
 }
 
 // sendHashSignature sends MsgSync with signature of definition to server and receives response from server.
-func sendHashSignature(ctx context.Context, hashSig []byte, s network.Stream) result {
+func (c *Client) sendHashSignature(hashSig []byte) result {
 	before := time.Now()
 	msg := &pb.MsgSync{
 		Timestamp:     timestamppb.Now(),
@@ -78,40 +92,12 @@ func sendHashSignature(ctx context.Context, hashSig []byte, s network.Stream) re
 		Shutdown:      false,
 	}
 
-	wb, err := proto.Marshal(msg)
+	resp, err := c.send(msg)
 	if err != nil {
-		log.Error(ctx, "Marshal msg", err)
 		return result{error: err}
 	}
 
-	if _, err = s.Write(wb); err != nil {
-		log.Error(ctx, "Write msg to stream", err)
-		return result{error: err}
-	}
-
-	buf := bufio.NewReader(s)
-	rb := make([]byte, MsgSize)
-	// n is the number of bytes read from buffer, if n < MsgSize the other bytes will be 0
-	n, err := buf.Read(rb)
-	if err != nil {
-		log.Error(ctx, "Read server response from stream", err)
-		return result{error: err}
-	}
-
-	// The first `n` bytes that are read are the most important
-	rb = rb[:n]
-
-	resp := new(pb.MsgSyncResponse)
-	if err = proto.Unmarshal(rb, resp); err != nil {
-		log.Error(ctx, "Unmarshal server response", err)
-		return result{error: err}
-	}
-
-	if resp.Error != "" {
-		return result{error: errors.New(resp.Error)}
-	}
-
-	log.Debug(ctx, "Server response", z.Any("response", resp.SyncTimestamp))
+	log.Debug(c.ctx, "Server response", z.Any("response", resp.SyncTimestamp))
 
 	return result{
 		rtt:       time.Since(before),
@@ -119,9 +105,40 @@ func sendHashSignature(ctx context.Context, hashSig []byte, s network.Stream) re
 	}
 }
 
+func (c *Client) send(msg *pb.MsgSync) (*pb.MsgSyncResponse, error) {
+	wb, err := proto.Marshal(msg)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal msg")
+	}
+
+	if _, err = c.stream.Write(wb); err != nil {
+		return nil, errors.Wrap(err, "write msg to stream")
+	}
+
+	buf := bufio.NewReader(c.stream)
+	rb := make([]byte, MsgSize)
+	// n is the number of bytes read from buffer, if n < MsgSize the other bytes will be 0
+	n, err := buf.Read(rb)
+	if err != nil {
+		return nil, errors.Wrap(err, "read server response")
+	}
+
+	// The first `n` bytes that are read are the most important
+	rb = rb[:n]
+
+	resp := new(pb.MsgSyncResponse)
+	if err = proto.Unmarshal(rb, resp); err != nil {
+		return nil, errors.Wrap(err, "unmarshal server response")
+	} else if resp.Error != "" {
+		return nil, errors.New(resp.Error)
+	}
+
+	return resp, nil
+}
+
 // NewClient starts a goroutine that establishes a long lived connection to a p2p server and returns a new Client instance.
 // TODO(dhruv): call onFailure on permanent failure.
-func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hashSig []byte, onFailure func()) Client {
+func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hashSig []byte, onFailure func()) *Client {
 	s, err := tcpNode.NewStream(ctx, server.ID, syncProtoID)
 	if err != nil {
 		log.Error(ctx, "Open new stream with server", err)
@@ -129,7 +146,7 @@ func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hashSig 
 		ch <- result{error: err}
 		close(ch)
 
-		return Client{
+		return &Client{
 			ctx:       ctx,
 			onFailure: onFailure,
 			tcpNode:   tcpNode,
@@ -139,14 +156,23 @@ func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hashSig 
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
-
 	out := make(chan result)
+
+	client := &Client{
+		ctx:       ctx,
+		onFailure: onFailure,
+		tcpNode:   tcpNode,
+		server:    server,
+		results:   out,
+		stream:    s,
+	}
+
 	go func() {
 		defer close(out)
 		defer cancel()
 
 		for ctx.Err() == nil {
-			res := sendHashSignature(ctx, hashSig, s)
+			res := client.sendHashSignature(hashSig)
 
 			if ctx.Err() != nil {
 				return
@@ -169,11 +195,5 @@ func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hashSig 
 		s.Reset()
 	}()
 
-	return Client{
-		ctx:       ctx,
-		onFailure: onFailure,
-		tcpNode:   tcpNode,
-		server:    server,
-		results:   out,
-	}
+	return client
 }

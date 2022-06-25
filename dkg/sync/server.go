@@ -41,13 +41,14 @@ const (
 )
 
 type Server struct {
-	mu            sync.Mutex
-	ctx           context.Context
-	onFailure     func()
-	tcpNode       host.Host
-	peers         []p2p.Peer
-	dedupResponse map[peer.ID]bool
-	receiveChan   chan result
+	mu              sync.Mutex
+	ctx             context.Context
+	onFailure       func()
+	tcpNode         host.Host
+	peers           []p2p.Peer
+	dedupResponse   map[peer.ID]bool
+	receiveChan     chan result
+	receiveShutdown chan result
 }
 
 // AwaitAllConnected blocks until all peers have established a connection with this server or returns an error.
@@ -69,7 +70,18 @@ func (s *Server) AwaitAllConnected() error {
 
 // AwaitAllShutdown blocks until all peers have successfully shutdown or returns an error.
 // It may only be called after AwaitAllConnected.
-func (*Server) AwaitAllShutdown() error {
+func (s *Server) AwaitAllShutdown() error {
+	var msgs []result
+	for len(msgs) < len(s.peers) {
+		select {
+		case <-s.ctx.Done():
+			return s.ctx.Err()
+		case msg := <-s.receiveShutdown:
+			msgs = append(msgs, msg)
+		}
+	}
+
+	log.Info(s.ctx, "All Clients Shutdown Successfully 🎉", z.Any("clients", len(msgs)))
 	return nil
 }
 
@@ -78,12 +90,13 @@ func (*Server) AwaitAllShutdown() error {
 // nolint:gocognit
 func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash []byte, onFailure func()) *Server {
 	server := &Server{
-		ctx:           ctx,
-		tcpNode:       tcpNode,
-		peers:         peers,
-		onFailure:     onFailure,
-		dedupResponse: make(map[peer.ID]bool),
-		receiveChan:   make(chan result, len(peers)),
+		ctx:             ctx,
+		tcpNode:         tcpNode,
+		peers:           peers,
+		onFailure:       onFailure,
+		dedupResponse:   make(map[peer.ID]bool),
+		receiveChan:     make(chan result, len(peers)),
+		receiveShutdown: make(chan result, len(peers)),
 	}
 
 	knownPeers := make(map[peer.ID]bool)
@@ -123,6 +136,28 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash
 			}
 
 			log.Debug(ctx, "Message received from client", z.Any("client", p2p.PeerName(pID)))
+
+			if msg.Shutdown {
+				resp := &pb.MsgSyncResponse{
+					SyncTimestamp: msg.Timestamp,
+					Error:         "",
+				}
+
+				resBytes, err := proto.Marshal(resp)
+				if err != nil {
+					log.Error(ctx, "Marshal server response", err)
+					return
+				}
+
+				_, err = s.Write(resBytes)
+				if err != nil {
+					log.Error(ctx, "Send response to client", err, z.Any("client", p2p.PeerName(pID)))
+					return
+				}
+				server.receiveShutdown <- result{shutdown: true}
+
+				return
+			}
 
 			pubkey, err := pID.ExtractPublicKey()
 			if err != nil {
