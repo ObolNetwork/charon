@@ -97,8 +97,6 @@ func (c *Client) sendHashSignature(hashSig []byte) result {
 		return result{error: err}
 	}
 
-	log.Debug(c.ctx, "Server response", z.Any("response", resp.SyncTimestamp))
-
 	return result{
 		rtt:       time.Since(before),
 		timestamp: resp.SyncTimestamp.String(),
@@ -181,6 +179,8 @@ func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hashSig 
 			if res.error == nil {
 				tcpNode.Peerstore().RecordLatency(server.ID, res.rtt)
 			}
+
+			log.Debug(ctx, "Server response", z.Any("response", res.timestamp))
 
 			select {
 			case out <- res:

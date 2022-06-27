@@ -156,7 +156,7 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash
 				}
 				server.receiveShutdown <- result{shutdown: true}
 
-				return
+				continue
 			}
 
 			pubkey, err := pID.ExtractPublicKey()
