@@ -106,7 +106,7 @@ func (c *Client) sendHashSignature(hashSig []byte) result {
 func (c *Client) send(msg *pb.MsgSync) (*pb.MsgSyncResponse, error) {
 	wb, err := proto.Marshal(msg)
 	if err != nil {
-		return nil, errors.Wrap(err, "unmarshal msg")
+		return nil, errors.Wrap(err, "marshal msg")
 	}
 
 	if _, err = c.stream.Write(wb); err != nil {
