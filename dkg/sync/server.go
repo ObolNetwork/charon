@@ -81,7 +81,7 @@ func (s *Server) AwaitAllShutdown() error {
 		}
 	}
 
-	log.Info(s.ctx, "All Clients Shutdown Successfully 🎉", z.Any("clients", len(msgs)))
+	log.Info(s.ctx, "All clients shutdown successfully 🎉", z.Any("clients", len(msgs)))
 	return nil
 }
 
