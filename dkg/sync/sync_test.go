@@ -73,6 +73,32 @@ func TestAwaitAllConnected(t *testing.T) {
 	defer cancel()
 
 	const numClients = 3
+	server, clients := testGetServerAndClients(t, ctx, numClients)
+
+	for i := 0; i < numClients; i++ {
+		require.NoError(t, clients[i].AwaitConnected())
+	}
+
+	require.NoError(t, server.AwaitAllConnected())
+}
+
+func TestAwaitAllShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const numClients = 3
+	server, clients := testGetServerAndClients(t, ctx, numClients)
+
+	for i := 0; i < numClients; i++ {
+		require.NoError(t, clients[i].Shutdown())
+	}
+
+	require.NoError(t, server.AwaitAllShutdown())
+}
+
+func testGetServerAndClients(t *testing.T, ctx context.Context, num int) (*sync.Server, []*sync.Client) {
+	t.Helper()
+
 	seed := 0
 	serverHost, _ := newSyncHost(t, int64(seed))
 	var (
@@ -80,7 +106,7 @@ func TestAwaitAllConnected(t *testing.T) {
 		keys        []libp2pcrypto.PrivKey
 		clientHosts []host.Host
 	)
-	for i := 0; i < numClients; i++ {
+	for i := 0; i < num; i++ {
 		seed++
 		clientHost, key := newSyncHost(t, int64(seed))
 		require.NotEqual(t, clientHost.ID().String(), serverHost.ID().String())
@@ -99,8 +125,8 @@ func TestAwaitAllConnected(t *testing.T) {
 	hash := testutil.RandomBytes32()
 	server := sync.NewServer(log.WithTopic(ctx, "server"), serverHost, peers, hash, nil)
 
-	var clients []sync.Client
-	for i := 0; i < numClients; i++ {
+	var clients []*sync.Client
+	for i := 0; i < num; i++ {
 		hashSig, err := keys[i].Sign(hash)
 		require.NoError(t, err)
 
@@ -108,11 +134,7 @@ func TestAwaitAllConnected(t *testing.T) {
 		clients = append(clients, client)
 	}
 
-	for i := 0; i < numClients; i++ {
-		require.NoError(t, clients[i].AwaitConnected())
-	}
-
-	require.NoError(t, server.AwaitAllConnected())
+	return server, clients
 }
 
 func newSyncHost(t *testing.T, seed int64) (host.Host, libp2pcrypto.PrivKey) {
