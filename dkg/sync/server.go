@@ -20,6 +20,7 @@ package sync
 import (
 	"bufio"
 	"context"
+	"io"
 	"sync"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	pb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
@@ -54,7 +56,7 @@ type Server struct {
 // AwaitAllConnected blocks until all peers have established a connection with this server or returns an error.
 func (s *Server) AwaitAllConnected() error {
 	var msgs []result
-	for len(msgs) < len(s.peers) {
+	for len(msgs) < len(s.peers)-1 {
 		select {
 		case <-s.ctx.Done():
 			return s.ctx.Err()
@@ -63,7 +65,7 @@ func (s *Server) AwaitAllConnected() error {
 		}
 	}
 
-	log.Info(s.ctx, "All Clients Connected 🎉", z.Any("clients", len(msgs)))
+	log.Info(s.ctx, "All Clients Connected 🎉", z.Any("clients", len(msgs)), z.Any("server", p2p.PeerName(s.tcpNode.ID())))
 
 	return nil
 }
@@ -72,7 +74,7 @@ func (s *Server) AwaitAllConnected() error {
 // It may only be called after AwaitAllConnected.
 func (s *Server) AwaitAllShutdown() error {
 	var msgs []result
-	for len(msgs) < len(s.peers) {
+	for len(msgs) < len(s.peers)-1 {
 		select {
 		case <-s.ctx.Done():
 			return s.ctx.Err()
@@ -81,7 +83,7 @@ func (s *Server) AwaitAllShutdown() error {
 		}
 	}
 
-	log.Info(s.ctx, "All clients shutdown successfully 🎉", z.Any("clients", len(msgs)))
+	log.Info(s.ctx, "All clients shutdown successfully 🎉", z.Any("clients", len(msgs)), z.Any("server", p2p.PeerName(s.tcpNode.ID())))
 
 	return nil
 }
@@ -102,11 +104,16 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash
 
 	knownPeers := make(map[peer.ID]bool)
 	for _, peer := range peers {
+		if tcpNode.ID() == peer.ID {
+			continue
+		}
 		knownPeers[peer.ID] = true
 	}
 
 	server.tcpNode.SetStreamHandler(syncProtoID, func(s network.Stream) {
-		defer s.Close()
+		defer func() {
+			_ = s.Reset()
+		}()
 
 		// TODO(dhruv): introduce timeout to break the loop
 		for {
@@ -122,6 +129,10 @@ func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash
 			b := make([]byte, MsgSize)
 			// n is the number of bytes read from buffer, if n < MsgSize the other bytes will be 0
 			n, err := buf.Read(b)
+			if errors.Is(err, io.EOF) {
+				return
+			}
+
 			if err != nil {
 				log.Error(ctx, "Read client msg from stream", err, z.Any("client", p2p.PeerName(pID)))
 				return
