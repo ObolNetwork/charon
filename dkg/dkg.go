@@ -51,6 +51,8 @@ type Config struct {
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
+// TODO(dhruv): remove this nolint
+//nolint: gocognit,gocyclo
 func Run(ctx context.Context, conf Config) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
