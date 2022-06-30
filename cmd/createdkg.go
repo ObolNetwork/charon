@@ -19,6 +19,7 @@ import (
 	"context"
 	crand "crypto/rand"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 type createDKGConfig struct {
@@ -90,7 +92,11 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	}()
 
 	var operators []cluster.Operator
-	for _, opENR := range conf.OperatorENRs {
+	for i, opENR := range conf.OperatorENRs {
+		_, err := p2p.DecodeENR(opENR)
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("invalid ENR of operator %d", i))
+		}
 		operators = append(operators, cluster.Operator{
 			ENR: opENR,
 		})
