@@ -9,7 +9,7 @@ require (
 	github.com/attestantio/go-eth2-client v0.11.6
 	github.com/bufbuild/buf v1.6.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
-	github.com/ethereum/go-ethereum v1.10.19
+	github.com/ethereum/go-ethereum v1.10.20
 	github.com/ferranbt/fastssz v0.0.0-20220103083642-bc5fefefa28b
 	github.com/goccy/go-yaml v1.9.5
 	github.com/gorilla/mux v1.8.0
@@ -156,7 +156,7 @@ require (
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/subosito/gotenv v1.3.0 // indirect
-	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
+	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a // indirect
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.opentelemetry.io/otel/metric v0.30.0 // indirect
