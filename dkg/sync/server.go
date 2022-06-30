@@ -18,8 +18,8 @@
 package sync
 
 import (
-	"bufio"
 	"context"
+	"encoding/binary"
 	"io"
 	"sync"
 	"time"
@@ -37,193 +37,216 @@ import (
 )
 
 const (
-	syncProtoID = "dkg_sync_v1.0"
-	MsgSize     = 128
-	InvalidSig  = "Invalid Signature"
+	protocolID    = "/charon/dkg/sync/1.0.0/"
+	errInvalidSig = "invalid signature"
 )
 
 type Server struct {
-	mu              sync.Mutex
-	ctx             context.Context
-	onFailure       func()
-	tcpNode         host.Host
-	peers           []p2p.Peer
-	dedupResponse   map[peer.ID]bool
-	receiveChan     chan result
-	receiveShutdown chan result
+	mu        sync.Mutex
+	shutdown  map[peer.ID]struct{}
+	connected map[peer.ID]struct{}
+	defHash   []byte
+	allCount  int // Excluding self
+	tcpNode   host.Host
 }
 
 // AwaitAllConnected blocks until all peers have established a connection with this server or returns an error.
-func (s *Server) AwaitAllConnected() error {
-	var msgs []result
-	for len(msgs) < len(s.peers)-1 {
+func (s *Server) AwaitAllConnected(ctx context.Context) error {
+	timer := time.NewTicker(time.Millisecond)
+	defer timer.Stop()
+
+	for {
 		select {
-		case <-s.ctx.Done():
-			return s.ctx.Err()
-		case msg := <-s.receiveChan:
-			msgs = append(msgs, msg)
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			if s.isAllConnected() {
+				return nil
+			}
 		}
 	}
-
-	log.Info(s.ctx, "All Clients Connected 🎉", z.Any("clients", len(msgs)), z.Any("server", p2p.PeerName(s.tcpNode.ID())))
-
-	return nil
 }
 
 // AwaitAllShutdown blocks until all peers have successfully shutdown or returns an error.
 // It may only be called after AwaitAllConnected.
-func (s *Server) AwaitAllShutdown() error {
-	var msgs []result
-	for len(msgs) < len(s.peers)-1 {
+func (s *Server) AwaitAllShutdown(ctx context.Context) error {
+	timer := time.NewTicker(time.Millisecond)
+	defer timer.Stop()
+
+	for {
 		select {
-		case <-s.ctx.Done():
-			return s.ctx.Err()
-		case msg := <-s.receiveShutdown:
-			msgs = append(msgs, msg)
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			if s.isAllShutdown() {
+				return nil
+			}
 		}
 	}
+}
 
-	log.Info(s.ctx, "All clients shutdown successfully 🎉", z.Any("clients", len(msgs)), z.Any("server", p2p.PeerName(s.tcpNode.ID())))
+func (s *Server) isConnected(pID peer.ID) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, ok := s.connected[pID]
+
+	return ok
+}
+
+func (s *Server) setConnected(pID peer.ID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.connected[pID] = struct{}{}
+}
+
+func (s *Server) clearConnected(pID peer.ID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.connected, pID)
+}
+
+func (s *Server) setShutdown(pID peer.ID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.shutdown[pID] = struct{}{}
+}
+
+func (s *Server) isAllConnected() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return len(s.connected) == s.allCount
+}
+
+func (s *Server) isAllShutdown() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return len(s.shutdown) == s.allCount
+}
+
+// writeSizedProto writes a size prefixed proto message.
+func writeSizedProto(writer io.Writer, msg proto.Message) error {
+	buf, err := proto.Marshal(msg)
+	if err != nil {
+		return errors.Wrap(err, "marshal proto")
+	}
+
+	size := int64(len(buf))
+	err = binary.Write(writer, binary.LittleEndian, size)
+	if err != nil {
+		return errors.Wrap(err, "read size")
+	}
+
+	n, err := writer.Write(buf)
+	if err != nil {
+		return errors.Wrap(err, "write message")
+	} else if int64(n) != size {
+		return errors.New("unexpected message length")
+	}
 
 	return nil
 }
 
-// NewServer registers a Stream Handler and returns a new Server instance.
-// TODO(dhruv): remove this nolint once we have everything in place
-// nolint:gocognit
-func NewServer(ctx context.Context, tcpNode host.Host, peers []p2p.Peer, defHash []byte, onFailure func()) *Server {
-	server := &Server{
-		ctx:             ctx,
-		tcpNode:         tcpNode,
-		peers:           peers,
-		onFailure:       onFailure,
-		dedupResponse:   make(map[peer.ID]bool),
-		receiveChan:     make(chan result, len(peers)),
-		receiveShutdown: make(chan result, len(peers)),
+// readSizedProto reads a size prefixed proto message.
+func readSizedProto(reader io.Reader, msg proto.Message) error {
+	var size int64
+	err := binary.Read(reader, binary.LittleEndian, &size)
+	if err != nil {
+		return errors.Wrap(err, "read size")
 	}
 
-	knownPeers := make(map[peer.ID]bool)
-	for _, peer := range peers {
-		if tcpNode.ID() == peer.ID {
-			continue
+	buf := make([]byte, size)
+	n, err := reader.Read(buf)
+	if err != nil {
+		return errors.Wrap(err, "read buffer")
+	} else if int64(n) != size {
+		return errors.New("unexpected message length")
+	}
+
+	err = proto.Unmarshal(buf, msg)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal proto")
+	}
+
+	return nil
+}
+
+func (s *Server) handleStream(ctx context.Context, stream network.Stream) error {
+	defer stream.Close()
+
+	pID := stream.Conn().RemotePeer()
+	pubkey, err := pID.ExtractPublicKey()
+	if err != nil {
+		return errors.Wrap(err, "extract pubkey")
+	}
+
+	defer s.clearConnected(pID)
+
+	for {
+		// Read next sync message
+		msg := new(pb.MsgSync)
+		if err := readSizedProto(stream, msg); err != nil {
+			return err
 		}
-		knownPeers[peer.ID] = true
+
+		if msg.Shutdown {
+			s.setShutdown(pID)
+		}
+
+		// Verify definition hash
+
+		resp := &pb.MsgSyncResponse{
+			SyncTimestamp: msg.Timestamp,
+		}
+
+		ok, err := pubkey.Verify(s.defHash, msg.HashSignature)
+		if err != nil {
+			return errors.Wrap(err, "verify sig hash")
+		} else if !ok {
+			resp.Error = errInvalidSig
+			log.Error(ctx, "Received mismatching cluster definition hash from peer", nil)
+		} else if ok {
+			if !s.isConnected(pID) {
+				log.Info(ctx, "Connected to peer (inbound)")
+			}
+			s.setConnected(pID)
+		}
+
+		// Write response message
+
+		if err := writeSizedProto(stream, resp); err != nil {
+			return err
+		}
+
+		if msg.Shutdown {
+			return nil
+		}
 	}
+}
 
-	server.tcpNode.SetStreamHandler(syncProtoID, func(s network.Stream) {
-		defer func() {
-			_ = s.Reset()
-		}()
-
-		// TODO(dhruv): introduce timeout to break the loop
-		for {
-			before := time.Now()
-			pID := s.Conn().RemotePeer()
-			if !knownPeers[pID] {
-				// Ignoring unknown peer
-				log.Warn(ctx, "Ignoring unknown client", nil, z.Any("client", p2p.PeerName(pID)))
-				return
-			}
-
-			buf := bufio.NewReader(s)
-			b := make([]byte, MsgSize)
-			// n is the number of bytes read from buffer, if n < MsgSize the other bytes will be 0
-			n, err := buf.Read(b)
-			if errors.Is(err, io.EOF) {
-				return
-			}
-
-			if err != nil {
-				log.Error(ctx, "Read client msg from stream", err, z.Any("client", p2p.PeerName(pID)))
-				return
-			}
-
-			// The first `n` bytes that are read are the most important
-			b = b[:n]
-
-			msg := new(pb.MsgSync)
-			if err := proto.Unmarshal(b, msg); err != nil {
-				log.Error(ctx, "Unmarshal client msg", err)
-				return
-			}
-
-			log.Debug(ctx, "Message received from client", z.Any("client", p2p.PeerName(pID)))
-
-			if msg.Shutdown {
-				resp := &pb.MsgSyncResponse{
-					SyncTimestamp: msg.Timestamp,
-					Error:         "",
-				}
-
-				resBytes, err := proto.Marshal(resp)
-				if err != nil {
-					log.Error(ctx, "Marshal server response", err)
-					return
-				}
-
-				_, err = s.Write(resBytes)
-				if err != nil {
-					log.Error(ctx, "Send response to client", err, z.Any("client", p2p.PeerName(pID)))
-					return
-				}
-				server.receiveShutdown <- result{shutdown: true}
-
-				continue
-			}
-
-			pubkey, err := pID.ExtractPublicKey()
-			if err != nil {
-				log.Error(ctx, "Get client public key", err)
-				return
-			}
-
-			ok, err := pubkey.Verify(defHash, msg.HashSignature)
-			if err != nil {
-				log.Error(ctx, "Verify defHash signature", err)
-				return
-			}
-
-			resp := &pb.MsgSyncResponse{
-				SyncTimestamp: msg.Timestamp,
-				Error:         "",
-			}
-
-			if !ok {
-				resp.Error = InvalidSig
-			}
-
-			resBytes, err := proto.Marshal(resp)
-			if err != nil {
-				log.Error(ctx, "Marshal server response", err)
-				return
-			}
-
-			_, err = s.Write(resBytes)
-			if err != nil {
-				log.Error(ctx, "Send response to client", err, z.Any("client", p2p.PeerName(pID)))
-				return
-			}
-
-			if server.dedupResponse[pID] {
-				log.Debug(ctx, "Ignoring duplicate message", z.Any("client", p2p.PeerName(pID)))
-				continue
-			}
-
-			if resp.Error == "" && !server.dedupResponse[pID] {
-				// TODO(dhruv): This is temporary solution to avoid race condition of concurrent writes to map, figure out something permanent.
-				server.mu.Lock()
-				server.dedupResponse[pID] = true
-				server.mu.Unlock()
-
-				server.receiveChan <- result{
-					rtt:       time.Since(before),
-					timestamp: msg.Timestamp.String(),
-				}
-			}
-
-			log.Debug(ctx, "Send response to client", z.Any("client", p2p.PeerName(pID)))
+// Start registers sync protocol with the libp2p host.
+func (s *Server) Start(ctx context.Context) {
+	s.tcpNode.SetStreamHandler(protocolID, func(stream network.Stream) {
+		ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(stream.Conn().RemotePeer())))
+		err := s.handleStream(ctx, stream)
+		if err != nil {
+			log.Warn(ctx, "Error serving sync protocol", err)
 		}
 	})
+}
 
-	return server
+// NewServer returns a new Server instance.
+func NewServer(tcpNode host.Host, allCount int, defHash []byte) *Server {
+	return &Server{
+		defHash:   defHash,
+		tcpNode:   tcpNode,
+		allCount:  allCount,
+		shutdown:  make(map[peer.ID]struct{}),
+		connected: make(map[peer.ID]struct{}),
+	}
 }

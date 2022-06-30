@@ -52,8 +52,6 @@ type Config struct {
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
-// TODO(dhruv): remove this nolint
-//nolint: gocognit,gocyclo
 func Run(ctx context.Context, conf Config) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -110,16 +108,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	clusterID := base64.StdEncoding.EncodeToString(defHash[:])
 
-	// Sign definition hash with charon-enr-private-key
-	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))
-	if err != nil {
-		return errors.Wrap(err, "libp2p k1 key")
-	}
-	hashSig, err := priv.Sign(defHash[:])
-	if err != nil {
-		return errors.Wrap(err, "sign definition hash")
-	}
-
 	peerIds, err := def.PeerIDs()
 	if err != nil {
 		return errors.Wrap(err, "get peer IDs")
@@ -127,27 +115,23 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators)
 
-	server := sync.NewServer(ctx, tcpNode, peers, defHash[:], nil)
-	var clients []*sync.Client
-	for _, peer := range peers {
-		if peer.ID == tcpNode.ID() {
-			continue
+	// Construct peer map
+	peerMap := make(map[uint32]peer.ID)
+	for _, p := range peers {
+		nodeIdx, err := def.NodeIdx(p.ID)
+		if err != nil {
+			return err
 		}
-		c := sync.NewClient(ctx, tcpNode, peer, hashSig, nil)
-		clients = append(clients, c)
+		peerMap[uint32(nodeIdx.ShareIdx)] = p.ID
+	}
+	tp := newFrostP2P(ctx, tcpNode, peerMap, clusterID)
+
+	stopSync, err := startSyncProtocol(ctx, tcpNode, key, defHash, peerIds, cancel)
+	if err != nil {
+		return err
 	}
 
-	log.Info(ctx, "Connecting to peers...", z.Hex("definition_hash", defHash[:]))
-
-	if err = server.AwaitAllConnected(); err != nil {
-		return errors.Wrap(err, "server await all connected")
-	}
-
-	for _, c := range clients {
-		if err = c.AwaitConnected(); err != nil {
-			return errors.Wrap(err, "client await connected")
-		}
-	}
+	log.Info(ctx, "Starting DKG ceremony")
 
 	var shares []share
 	switch def.DKGAlgorithm {
@@ -163,20 +147,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 			return err
 		}
 	case "frost":
-		// Construct peer map
-		peerMap := make(map[uint32]peer.ID)
-		for _, p := range peers {
-			nodeIdx, err := def.NodeIdx(p.ID)
-			if err != nil {
-				return err
-			}
-			peerMap[uint32(nodeIdx.ShareIdx)] = p.ID
-		}
-
-		tp := newFrostP2P(ctx, tcpNode, peerMap, clusterID)
-
-		log.Info(ctx, "Starting Frost DKG ceremony")
-
 		shares, err = runFrostParallel(ctx, tp, uint32(def.NumValidators), uint32(len(peerMap)),
 			uint32(def.Threshold), uint32(nodeIdx.ShareIdx), clusterID)
 		if err != nil {
@@ -200,15 +170,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Aggregated deposit data signatures")
 
-	// Shutdown clients and server
-	for _, c := range clients {
-		if err = c.Shutdown(); err != nil {
-			return errors.Wrap(err, "client shutdown")
-		}
-	}
-
-	if err = server.AwaitAllShutdown(); err != nil {
-		return errors.Wrap(err, "await all shutdown server")
+	if err = stopSync(ctx); err != nil {
+		return errors.Wrap(err, "stop sync")
 	}
 
 	// Write keystores, deposit data and cluster lock files after exchange of partial signatures in order
@@ -274,6 +237,69 @@ func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, pe
 		db.Close()
 		udpNode.Close()
 		_ = tcpNode.Close()
+	}, nil
+}
+
+// startSyncProtocol sets up a sync protocol server and clients for each peer and returns a shutdown function
+// when all peer are connected.
+func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.PrivateKey, defHash [32]byte, peerIDs []peer.ID,
+	onFailure func(),
+) (func(context.Context) error, error) {
+	// Sign definition hash with charon-enr-private-key
+	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))
+	if err != nil {
+		return nil, errors.Wrap(err, "convert key")
+	}
+
+	hashSig, err := priv.Sign(defHash[:])
+	if err != nil {
+		return nil, errors.Wrap(err, "sign definition hash")
+	}
+
+	server := sync.NewServer(tcpNode, len(peerIDs)-1, defHash[:])
+	server.Start(ctx)
+
+	var clients []*sync.Client
+	for _, pID := range peerIDs {
+		if tcpNode.ID() == pID {
+			continue
+		}
+
+		ctx := log.WithCtx(ctx, z.Str("peer", p2p.PeerName(pID)))
+		client := sync.NewClient(tcpNode, pID, hashSig)
+		clients = append(clients, client)
+
+		go func() {
+			err := client.Run(ctx)
+			if err != nil {
+				log.Error(ctx, "Sync failed to peer", err)
+				onFailure()
+			}
+		}()
+	}
+
+	for _, client := range clients {
+		err := client.AwaitConnected(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	err = server.AwaitAllConnected(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Shutdown function stops all clients and server
+	return func(ctx context.Context) error {
+		for _, client := range clients {
+			err := client.Shutdown(ctx)
+			if err != nil {
+				return err
+			}
+		}
+
+		return server.AwaitAllShutdown(ctx)
 	}, nil
 }
 
