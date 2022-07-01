@@ -241,7 +241,7 @@ func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, pe
 }
 
 // startSyncProtocol sets up a sync protocol server and clients for each peer and returns a shutdown function
-// when all peer are connected.
+// when all peers are connected.
 func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.PrivateKey, defHash [32]byte, peerIDs []peer.ID,
 	onFailure func(),
 ) (func(context.Context) error, error) {
