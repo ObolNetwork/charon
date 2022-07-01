@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/libp2p/go-libp2p"
@@ -32,126 +33,120 @@ import (
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/dkg/sync"
-	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
 
-//go:generate go test . -run=TestAwaitAllConnected -race
-
-func TestAwaitConnected(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Start Server
-	serverHost, _ := newSyncHost(t, 0)
-
-	// Start Client
-	clientHost, key := newSyncHost(t, 1)
-	require.NotEqual(t, clientHost.ID().String(), serverHost.ID().String())
-
-	err := serverHost.Connect(ctx, peer.AddrInfo{
-		ID:    clientHost.ID(),
-		Addrs: clientHost.Addrs(),
+func TestSyncProtocol(t *testing.T) {
+	t.Run("2", func(t *testing.T) {
+		testCluster(t, 2)
 	})
-	require.NoError(t, err)
 
-	hash := testutil.RandomBytes32()
-	hashSig, err := key.Sign(hash)
-	require.NoError(t, err)
+	t.Run("3", func(t *testing.T) {
+		testCluster(t, 3)
+	})
 
-	serverCtx := log.WithTopic(ctx, "server")
-	_ = sync.NewServer(serverCtx, serverHost, []p2p.Peer{{ID: clientHost.ID()}}, hash, nil)
-
-	clientCtx := log.WithTopic(context.Background(), "client")
-	client := sync.NewClient(clientCtx, clientHost, p2p.Peer{ID: serverHost.ID()}, hashSig, nil)
-
-	require.NoError(t, client.AwaitConnected())
+	t.Run("5", func(t *testing.T) {
+		testCluster(t, 5)
+	})
 }
 
-func TestAwaitAllConnected(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	const numClients = 3
-	server, clients := testGetServerAndClients(t, ctx, numClients)
-
-	for i := 0; i < numClients; i++ {
-		require.NoError(t, clients[i].AwaitConnected())
-	}
-
-	require.NoError(t, server.AwaitAllConnected())
-}
-
-func TestAwaitAllShutdown(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	const numClients = 3
-	server, clients := testGetServerAndClients(t, ctx, numClients)
-
-	for i := 0; i < numClients; i++ {
-		require.NoError(t, clients[i].Shutdown())
-	}
-
-	require.NoError(t, server.AwaitAllShutdown())
-}
-
-func testGetServerAndClients(t *testing.T, ctx context.Context, num int) (*sync.Server, []*sync.Client) {
+func testCluster(t *testing.T, n int) {
 	t.Helper()
 
-	seed := 0
-	serverHost, _ := newSyncHost(t, int64(seed))
-	var (
-		peers       []p2p.Peer
-		keys        []libp2pcrypto.PrivKey
-		clientHosts []host.Host
-	)
-	for i := 0; i < num; i++ {
-		seed++
-		clientHost, key := newSyncHost(t, int64(seed))
-		require.NotEqual(t, clientHost.ID().String(), serverHost.ID().String())
-
-		err := serverHost.Connect(ctx, peer.AddrInfo{
-			ID:    clientHost.ID(),
-			Addrs: clientHost.Addrs(),
-		})
-		require.NoError(t, err)
-
-		clientHosts = append(clientHosts, clientHost)
-		keys = append(keys, key)
-		peers = append(peers, p2p.Peer{ID: clientHost.ID()})
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	hash := testutil.RandomBytes32()
-	server := sync.NewServer(log.WithTopic(ctx, "server"), serverHost, peers, hash, nil)
 
-	var clients []*sync.Client
-	for i := 0; i < num; i++ {
-		hashSig, err := keys[i].Sign(hash)
-		require.NoError(t, err)
+	var (
+		tcpNodes []host.Host
+		servers  []*sync.Server
+		clients  []*sync.Client
+		keys     []libp2pcrypto.PrivKey
+	)
+	for i := 0; i < n; i++ {
+		tcpNode, key := newTCPNode(t, int64(i))
+		tcpNodes = append(tcpNodes, tcpNode)
+		keys = append(keys, key)
 
-		client := sync.NewClient(log.WithTopic(context.Background(), "client"), clientHosts[i], p2p.Peer{ID: serverHost.ID()}, hashSig, nil)
-		clients = append(clients, client)
+		server := sync.NewServer(tcpNode, n-1, hash)
+		servers = append(servers, server)
 	}
 
-	return server, clients
+	for i := 0; i < n; i++ {
+		for j := 0; j < n; j++ {
+			if i == j {
+				continue
+			}
+			err := tcpNodes[i].Connect(ctx, peer.AddrInfo{
+				ID:    tcpNodes[j].ID(),
+				Addrs: tcpNodes[j].Addrs(),
+			})
+			require.NoError(t, err)
+
+			hashSig, err := keys[i].Sign(hash)
+			require.NoError(t, err)
+
+			client := sync.NewClient(tcpNodes[i], tcpNodes[j].ID(), hashSig)
+			clients = append(clients, client)
+
+			ctx := log.WithTopic(ctx, fmt.Sprintf("client%d_%d", i, j))
+			go func() {
+				err := client.Run(ctx)
+				require.NoError(t, err)
+			}()
+		}
+	}
+
+	time.Sleep(time.Millisecond) // Wait a bit before starting servers
+
+	for i, server := range servers {
+		server.Start(log.WithTopic(ctx, fmt.Sprintf("server%d", i)))
+	}
+
+	t.Log("client.AwaitConnected")
+	for _, client := range clients {
+		err := client.AwaitConnected(ctx)
+		require.NoError(t, err)
+	}
+
+	t.Log("server.AwaitAllConnected")
+	for _, server := range servers {
+		err := server.AwaitAllConnected(ctx)
+		require.NoError(t, err)
+	}
+
+	go func() {
+		t.Log("client.Shutdown")
+		for _, client := range clients {
+			err := client.Shutdown(ctx)
+			require.NoError(t, err)
+		}
+	}()
+
+	t.Log("server.AwaitAllShutdown")
+	for _, server := range servers {
+		err := server.AwaitAllShutdown(ctx)
+		require.NoError(t, err)
+	}
 }
 
-func newSyncHost(t *testing.T, seed int64) (host.Host, libp2pcrypto.PrivKey) {
+func newTCPNode(t *testing.T, seed int64) (host.Host, libp2pcrypto.PrivKey) {
 	t.Helper()
 
 	key, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(seed)))
-	require.NoError(t, err)
-
-	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))
 	require.NoError(t, err)
 
 	addr := testutil.AvailableAddr(t)
 	multiAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", addr.IP, addr.Port))
 	require.NoError(t, err)
 
-	host, err := libp2p.New(libp2p.ListenAddrs(multiAddr), libp2p.Identity(priv))
+	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))
 	require.NoError(t, err)
 
-	return host, priv
+	tcpNode, err := libp2p.New(libp2p.ListenAddrs(multiAddr), libp2p.Identity(priv))
+	testutil.SkipIfBindErr(t, err)
+	require.NoError(t, err)
+
+	return tcpNode, priv
 }

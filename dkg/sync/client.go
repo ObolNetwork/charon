@@ -16,13 +16,13 @@
 package sync
 
 import (
-	"bufio"
 	"context"
+	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
-	"google.golang.org/protobuf/proto"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -32,168 +32,193 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-type result struct {
-	rtt       time.Duration
-	timestamp string
-	shutdown  bool
-	error     error
+// NewClient returns a new Client instance.
+func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte) *Client {
+	return &Client{
+		tcpNode:  tcpNode,
+		peer:     peer,
+		hashSig:  hashSig,
+		shutdown: make(chan struct{}),
+		done:     make(chan struct{}),
+	}
 }
 
+// Client is the client side of the sync protocol. It retries establishing a connection to a sync server,
+// it sends period pings (including definition hash signatures),
+// supports reestablishing on relay circuit recycling, and supports soft shutdown.
 type Client struct {
-	ctx       context.Context
-	onFailure func()
+	mu        sync.Mutex
+	connected bool
+	shutdown  chan struct{}
+	done      chan struct{}
+	hashSig   []byte
 	tcpNode   host.Host
-	server    p2p.Peer
-	results   chan result
-	stream    network.Stream
+	peer      peer.ID
 }
 
-// AwaitConnected blocks until the connection with the server has been established or returns an error.
-func (c *Client) AwaitConnected() error {
-	for res := range c.results {
-		if errors.Is(res.error, errors.New(InvalidSig)) {
-			return errors.New("invalid cluster definition")
-		} else if res.error == nil {
-			// We are connected
-			break
+// Run blocks while running the client-side sync protocol. It returns an error if the context is closed
+// or if an established connection is dropped. It returns nil after successful Shutdown.
+func (c *Client) Run(ctx context.Context) error {
+	defer close(c.done)
+	defer c.clearConnected()
+
+	ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(c.peer)))
+
+	for {
+		retry := !c.connected // Retry connecting if never connected.
+
+		stream, err := c.connect(ctx, retry)
+		if err != nil {
+			return err
+		}
+
+		log.Info(ctx, "Connected to peer (outbound)")
+		c.setConnected()
+
+		reconnect, err := c.sendMsgs(ctx, stream)
+		if err != nil {
+			return err
+		} else if reconnect {
+			log.Debug(ctx, "Outgoing sync dropped, reconnecting")
+			continue
+		}
+
+		return nil
+	}
+}
+
+// AwaitConnected blocks until the connection with the server has been established or returns a context error.
+func (c *Client) AwaitConnected(ctx context.Context) error {
+	timer := time.NewTicker(time.Millisecond)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			if c.isConnected() {
+				return nil
+			}
 		}
 	}
-
-	log.Info(c.ctx, "Client connected to Server 🎉", z.Any("client", p2p.PeerName(c.tcpNode.ID())))
-
-	return nil
 }
 
-// Shutdown sends a shutdown message to the server indicating it has successfully completed.
-// It closes the connection and returns after receiving the subsequent MsgSyncResponse.
-// It may only be called after AwaitConnected.
-func (c *Client) Shutdown() error {
-	msg := &pb.MsgSync{
-		Timestamp: timestamppb.Now(),
-		Shutdown:  true,
+// Shutdown triggers the Run goroutine to shut down gracefully and returns nil after it has returned.
+// It should be called after AwaitConnected and may only be called once.
+func (c *Client) Shutdown(ctx context.Context) error {
+	close(c.shutdown)
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.done:
+		return nil
 	}
-
-	_, err := c.send(msg)
-	if err != nil {
-		return err
-	}
-
-	log.Info(c.ctx, "Closing stream with peer", z.Any("peer", p2p.PeerName(c.server.ID)))
-
-	return c.stream.Close()
 }
 
-// sendHashSignature sends MsgSync with signature of definition to server and receives response from server.
-func (c *Client) sendHashSignature(hashSig []byte) result {
-	before := time.Now()
+// clearConnected sets the shared connected state.
+func (c *Client) setConnected() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.connected = true
+}
+
+// clearConnected clears the shared connected state.
+func (c *Client) clearConnected() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.connected = false
+}
+
+// isConnected returns the shared connected state.
+func (c *Client) isConnected() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.connected
+}
+
+// sendMsgs sends period sync protocol messages on the stream until error or shutdown.
+func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (bool, error) {
+	timer := time.NewTicker(time.Second)
+	defer timer.Stop()
+
+	first := make(chan struct{}, 1)
+	first <- struct{}{}
+
+	var shutdown bool
+
+	for {
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-c.shutdown:
+			shutdown = true
+		case <-first:
+		case <-timer.C:
+		}
+
+		resp, err := c.sendMsg(stream, shutdown)
+		if isRelayError(err) {
+			return true, nil // Reconnect on relay errors
+		} else if err != nil {
+			return false, err
+		} else if shutdown {
+			return false, nil
+		} else if resp.Error == errInvalidSig {
+			return false, errors.New("mismatching cluster definition hash with peer")
+		} else if resp.Error != "" {
+			return false, errors.New("peer responded with error", z.Str("error_message", resp.Error))
+		}
+
+		rtt := time.Since(resp.SyncTimestamp.AsTime())
+		c.tcpNode.Peerstore().RecordLatency(c.peer, rtt)
+	}
+}
+
+// sendMsg sends a sync message and returns the response.
+func (c *Client) sendMsg(stream network.Stream, shutdown bool) (*pb.MsgSyncResponse, error) {
 	msg := &pb.MsgSync{
 		Timestamp:     timestamppb.Now(),
-		HashSignature: hashSig,
-		Shutdown:      false,
+		HashSignature: c.hashSig,
+		Shutdown:      shutdown,
 	}
 
-	resp, err := c.send(msg)
-	if err != nil {
-		return result{error: err}
+	if err := writeSizedProto(stream, msg); err != nil {
+		return nil, err
 	}
-
-	return result{
-		rtt:       time.Since(before),
-		timestamp: resp.SyncTimestamp.String(),
-	}
-}
-
-func (c *Client) send(msg *pb.MsgSync) (*pb.MsgSyncResponse, error) {
-	wb, err := proto.Marshal(msg)
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal msg")
-	}
-
-	if _, err = c.stream.Write(wb); err != nil {
-		return nil, errors.Wrap(err, "write msg to stream")
-	}
-
-	buf := bufio.NewReader(c.stream)
-	rb := make([]byte, MsgSize)
-	// n is the number of bytes read from buffer, if n < MsgSize the other bytes will be 0
-	n, err := buf.Read(rb)
-	if err != nil {
-		return nil, errors.Wrap(err, "read server response")
-	}
-
-	// The first `n` bytes that are read are the most important
-	rb = rb[:n]
 
 	resp := new(pb.MsgSyncResponse)
-	if err = proto.Unmarshal(rb, resp); err != nil {
-		return nil, errors.Wrap(err, "unmarshal server response")
-	} else if resp.Error != "" {
-		return nil, errors.New(resp.Error)
+	if err := readSizedProto(stream, resp); err != nil {
+		return nil, err
 	}
 
 	return resp, nil
 }
 
-// NewClient starts a goroutine that establishes a long lived connection to a p2p server and returns a new Client instance.
-// TODO(dhruv): call onFailure on permanent failure.
-func NewClient(ctx context.Context, tcpNode host.Host, server p2p.Peer, hashSig []byte, onFailure func()) *Client {
-	s, err := tcpNode.NewStream(ctx, server.ID, syncProtoID)
-	if err != nil {
-		log.Error(ctx, "Open new stream with server", err)
-		ch := make(chan result, 1)
-		ch <- result{error: err}
-		close(ch)
+// connect returns an opened libp2p stream/connection, it will retry if instructed.
+func (c *Client) connect(ctx context.Context, retry bool) (network.Stream, error) {
+	for {
+		s, err := c.tcpNode.NewStream(network.WithUseTransient(ctx, "sync"), c.peer, protocolID)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		} else if err != nil {
+			if retry {
+				continue
+			}
 
-		return &Client{
-			ctx:       ctx,
-			onFailure: onFailure,
-			tcpNode:   tcpNode,
-			server:    server,
-			results:   ch,
+			return nil, errors.Wrap(err, "open connection")
 		}
+
+		return s, nil
 	}
+}
 
-	ctx, cancel := context.WithCancel(ctx)
-	out := make(chan result)
-
-	client := &Client{
-		ctx:       ctx,
-		onFailure: onFailure,
-		tcpNode:   tcpNode,
-		server:    server,
-		results:   out,
-		stream:    s,
-	}
-
-	go func() {
-		defer close(out)
-		defer cancel()
-
-		for ctx.Err() == nil {
-			res := client.sendHashSignature(hashSig)
-
-			if ctx.Err() != nil {
-				return
-			}
-
-			if res.error == nil {
-				tcpNode.Peerstore().RecordLatency(server.ID, res.rtt)
-			}
-
-			log.Debug(ctx, "Server response", z.Any("response", res.timestamp))
-
-			select {
-			case out <- res:
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	go func() {
-		<-ctx.Done()
-		//nolint:errcheck
-		s.Reset()
-	}()
-
-	return client
+// isRelayError returns true if the error is due to temporary relay circuit recycling.
+func isRelayError(_ error) bool {
+	// TODO(corver): Detect circuit relay connection errors
+	return false
 }
