@@ -18,6 +18,7 @@ package dkg
 import (
 	"context"
 	crand "crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -98,7 +99,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err != nil {
 		return errors.Wrap(err, "hash definition")
 	}
-	clusterID := fmt.Sprintf("%x", defHash[:])
+	clusterID := base64.StdEncoding.EncodeToString(defHash[:])
 
 	peerIds, err := def.PeerIDs()
 	if err != nil {
@@ -133,7 +134,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 		tp := newFrostP2P(ctx, tcpNode, peerMap, clusterID)
 
-		log.Info(ctx, "Connecting to peers...", z.Hex("definition_hash", defHash[:]))
+		log.Info(ctx, "Connecting to peers...", z.Str("definition_hash", clusterID))
 
 		ctx, cancel, err = waitPeers(ctx, tcpNode, peers)
 		if err != nil {
