@@ -41,6 +41,19 @@ const (
 	errInvalidSig = "invalid signature"
 )
 
+// NewServer returns a new Server instance.
+func NewServer(tcpNode host.Host, allCount int, defHash []byte) *Server {
+	return &Server{
+		defHash:   defHash,
+		tcpNode:   tcpNode,
+		allCount:  allCount,
+		shutdown:  make(map[peer.ID]struct{}),
+		connected: make(map[peer.ID]struct{}),
+	}
+}
+
+// Server implements the server side of the sync protocol. It accepts connections from clients, verifies
+// definition hash signatures, and supports waiting for shutdown by all clients.
 type Server struct {
 	mu        sync.Mutex
 	shutdown  map[peer.ID]struct{}
@@ -85,6 +98,7 @@ func (s *Server) AwaitAllShutdown(ctx context.Context) error {
 	}
 }
 
+// isConnected returns the shared connected state for the peer.
 func (s *Server) isConnected(pID peer.ID) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -94,6 +108,7 @@ func (s *Server) isConnected(pID peer.ID) bool {
 	return ok
 }
 
+// setConnected sets the shared connected state for the peer.
 func (s *Server) setConnected(pID peer.ID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -101,6 +116,7 @@ func (s *Server) setConnected(pID peer.ID) {
 	s.connected[pID] = struct{}{}
 }
 
+// clearConnected clears the shared connected state for the peer.
 func (s *Server) clearConnected(pID peer.ID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -108,6 +124,7 @@ func (s *Server) clearConnected(pID peer.ID) {
 	delete(s.connected, pID)
 }
 
+// setShutdown sets the shared shutdown state for the peer.
 func (s *Server) setShutdown(pID peer.ID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -115,6 +132,7 @@ func (s *Server) setShutdown(pID peer.ID) {
 	s.shutdown[pID] = struct{}{}
 }
 
+// isAllConnected returns if all expected peers are connected.
 func (s *Server) isAllConnected() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -122,11 +140,74 @@ func (s *Server) isAllConnected() bool {
 	return len(s.connected) == s.allCount
 }
 
+// isAllShutdown returns if all expected peers are shutdown.
 func (s *Server) isAllShutdown() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	return len(s.shutdown) == s.allCount
+}
+
+// handleStream serves a new long-lived client connection.
+func (s *Server) handleStream(ctx context.Context, stream network.Stream) error {
+	defer stream.Close()
+
+	pID := stream.Conn().RemotePeer()
+	pubkey, err := pID.ExtractPublicKey()
+	if err != nil {
+		return errors.Wrap(err, "extract pubkey")
+	}
+
+	defer s.clearConnected(pID)
+
+	for {
+		// Read next sync message
+		msg := new(pb.MsgSync)
+		if err := readSizedProto(stream, msg); err != nil {
+			return err
+		}
+
+		if msg.Shutdown {
+			s.setShutdown(pID)
+		}
+
+		// Prep response
+		resp := &pb.MsgSyncResponse{
+			SyncTimestamp: msg.Timestamp,
+		}
+
+		// Verify definition hash
+		ok, err := pubkey.Verify(s.defHash, msg.HashSignature)
+		if err != nil {
+			return errors.Wrap(err, "verify sig hash")
+		} else if !ok {
+			resp.Error = errInvalidSig
+			log.Error(ctx, "Received mismatching cluster definition hash from peer", nil)
+		} else if ok && !s.isConnected(pID) {
+			log.Info(ctx, "Connected to peer (inbound)")
+			s.setConnected(pID)
+		}
+
+		// Write response message
+		if err := writeSizedProto(stream, resp); err != nil {
+			return err
+		}
+
+		if msg.Shutdown {
+			return nil
+		}
+	}
+}
+
+// Start registers sync protocol with the libp2p host.
+func (s *Server) Start(ctx context.Context) {
+	s.tcpNode.SetStreamHandler(protocolID, func(stream network.Stream) {
+		ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(stream.Conn().RemotePeer())))
+		err := s.handleStream(ctx, stream)
+		if err != nil {
+			log.Warn(ctx, "Error serving sync protocol", err)
+		}
+	})
 }
 
 // writeSizedProto writes a size prefixed proto message.
@@ -174,79 +255,4 @@ func readSizedProto(reader io.Reader, msg proto.Message) error {
 	}
 
 	return nil
-}
-
-func (s *Server) handleStream(ctx context.Context, stream network.Stream) error {
-	defer stream.Close()
-
-	pID := stream.Conn().RemotePeer()
-	pubkey, err := pID.ExtractPublicKey()
-	if err != nil {
-		return errors.Wrap(err, "extract pubkey")
-	}
-
-	defer s.clearConnected(pID)
-
-	for {
-		// Read next sync message
-		msg := new(pb.MsgSync)
-		if err := readSizedProto(stream, msg); err != nil {
-			return err
-		}
-
-		if msg.Shutdown {
-			s.setShutdown(pID)
-		}
-
-		// Verify definition hash
-
-		resp := &pb.MsgSyncResponse{
-			SyncTimestamp: msg.Timestamp,
-		}
-
-		ok, err := pubkey.Verify(s.defHash, msg.HashSignature)
-		if err != nil {
-			return errors.Wrap(err, "verify sig hash")
-		} else if !ok {
-			resp.Error = errInvalidSig
-			log.Error(ctx, "Received mismatching cluster definition hash from peer", nil)
-		} else if ok {
-			if !s.isConnected(pID) {
-				log.Info(ctx, "Connected to peer (inbound)")
-			}
-			s.setConnected(pID)
-		}
-
-		// Write response message
-
-		if err := writeSizedProto(stream, resp); err != nil {
-			return err
-		}
-
-		if msg.Shutdown {
-			return nil
-		}
-	}
-}
-
-// Start registers sync protocol with the libp2p host.
-func (s *Server) Start(ctx context.Context) {
-	s.tcpNode.SetStreamHandler(protocolID, func(stream network.Stream) {
-		ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(stream.Conn().RemotePeer())))
-		err := s.handleStream(ctx, stream)
-		if err != nil {
-			log.Warn(ctx, "Error serving sync protocol", err)
-		}
-	})
-}
-
-// NewServer returns a new Server instance.
-func NewServer(tcpNode host.Host, allCount int, defHash []byte) *Server {
-	return &Server{
-		defHash:   defHash,
-		tcpNode:   tcpNode,
-		allCount:  allCount,
-		shutdown:  make(map[peer.ID]struct{}),
-		connected: make(map[peer.ID]struct{}),
-	}
 }

@@ -43,6 +43,9 @@ func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte) *Client {
 	}
 }
 
+// Client is the client side of the sync protocol. It retries establishing a connection to a sync server,
+// it sends period pings (including definition hash signatures),
+// supports reestablishing on relay circuit recycling, and supports soft shutdown.
 type Client struct {
 	mu        sync.Mutex
 	connected bool
@@ -114,6 +117,7 @@ func (c *Client) Shutdown(ctx context.Context) error {
 	}
 }
 
+// clearConnected sets the shared connected state.
 func (c *Client) setConnected() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -121,6 +125,7 @@ func (c *Client) setConnected() {
 	c.connected = true
 }
 
+// clearConnected clears the shared connected state.
 func (c *Client) clearConnected() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -128,6 +133,7 @@ func (c *Client) clearConnected() {
 	c.connected = false
 }
 
+// isConnected returns the shared connected state.
 func (c *Client) isConnected() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -135,6 +141,7 @@ func (c *Client) isConnected() bool {
 	return c.connected
 }
 
+// sendMsgs sends period sync protocol messages on the stream until error or shutdown.
 func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (bool, error) {
 	timer := time.NewTicker(time.Second)
 	defer timer.Stop()
@@ -161,6 +168,10 @@ func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (bool, err
 			return false, err
 		} else if shutdown {
 			return false, nil
+		} else if resp.Error == errInvalidSig {
+			return false, errors.New("mismatching cluster definition hash with peer")
+		} else if resp.Error != "" {
+			return false, errors.New("peer responded with error", z.Str("error_message", resp.Error))
 		}
 
 		rtt := time.Since(resp.SyncTimestamp.AsTime())
@@ -168,6 +179,7 @@ func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (bool, err
 	}
 }
 
+// sendMsg sends a sync message and returns the response.
 func (c *Client) sendMsg(stream network.Stream, shutdown bool) (*pb.MsgSyncResponse, error) {
 	msg := &pb.MsgSync{
 		Timestamp:     timestamppb.Now(),
@@ -187,6 +199,7 @@ func (c *Client) sendMsg(stream network.Stream, shutdown bool) (*pb.MsgSyncRespo
 	return resp, nil
 }
 
+// connect returns an opened libp2p stream/connection, it will retry if instructed.
 func (c *Client) connect(ctx context.Context, retry bool) (network.Stream, error) {
 	for {
 		s, err := c.tcpNode.NewStream(network.WithUseTransient(ctx, "sync"), c.peer, protocolID)
@@ -204,6 +217,8 @@ func (c *Client) connect(ctx context.Context, retry bool) (network.Stream, error
 	}
 }
 
+// isRelayError returns true if the error is due to temporary relay circuit recycling.
 func isRelayError(_ error) bool {
+	// TODO(corver): Detect circuit relay connection errors
 	return false
 }

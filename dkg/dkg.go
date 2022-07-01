@@ -115,7 +115,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators)
 
-	// Construct peer map
+	// Register Frost libp2p handlers
 	peerMap := make(map[uint32]peer.ID)
 	for _, p := range peers {
 		nodeIdx, err := def.NodeIdx(p.ID)
@@ -125,6 +125,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 		peerMap[uint32(nodeIdx.ShareIdx)] = p.ID
 	}
 	tp := newFrostP2P(ctx, tcpNode, peerMap, clusterID)
+
+	log.Info(ctx, "Connecting to peers...", z.Str("definition_hash", clusterID))
 
 	stopSync, err := startSyncProtocol(ctx, tcpNode, key, defHash, peerIds, cancel)
 	if err != nil {
