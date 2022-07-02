@@ -19,7 +19,6 @@ import (
 	"context"
 	crand "crypto/rand"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path"
 
@@ -95,7 +94,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	for i, opENR := range conf.OperatorENRs {
 		_, err := p2p.DecodeENR(opENR)
 		if err != nil {
-			return errors.Wrap(err, fmt.Sprintf("invalid ENR of operator %d", i))
+			return errors.Wrap(err, "invalid ENR", z.Int("operator", i))
 		}
 		operators = append(operators, cluster.Operator{
 			ENR: opENR,
