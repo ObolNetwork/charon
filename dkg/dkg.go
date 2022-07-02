@@ -137,7 +137,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	var shares []share
 	switch def.DKGAlgorithm {
-	case "default", "keycast":
+	case "keycast":
 		tp := keycastP2P{
 			tcpNode:   tcpNode,
 			peers:     peers,
@@ -148,7 +148,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		if err != nil {
 			return err
 		}
-	case "frost":
+	case "default", "frost":
 		shares, err = runFrostParallel(ctx, tp, uint32(def.NumValidators), uint32(len(peerMap)),
 			uint32(def.Threshold), uint32(nodeIdx.ShareIdx), clusterID)
 		if err != nil {
