@@ -21,7 +21,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
-	"fmt"
 	"net/http"
 	"net/http/pprof"
 	"path"
@@ -484,7 +483,6 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
-//nolint:gocognit
 func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, conf Config, localNode *enode.LocalNode, lock cluster.Lock, tcpNode host.Host) {
 	mux := http.NewServeMux()
 
@@ -500,90 +498,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, conf Config
 		_, _ = w.Write([]byte("alive"))
 	}))
 
-	mux.Handle("/readyz", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		// check if beacon node is fully synced
-		eth2Svc, _, err := newETH2Client(ctx, conf, life, nil)
-		if err != nil {
-			log.Error(ctx, "New eth2 client", err)
-		}
-
-		eth2Cl := eth2Svc.(eth2client.NodeSyncingProvider)
-		state, err := eth2Cl.NodeSyncing(ctx)
-		if err != nil {
-			log.Error(ctx, "Failed to get sync state", err)
-		}
-
-		if state.IsSyncing {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, err := w.Write([]byte("Beacon node is syncing"))
-			if err != nil {
-				log.Error(ctx, "Failed to write response", err)
-			}
-
-			return
-		}
-
-		timeout := 1 * time.Second
-		timer := time.NewTicker(timeout)
-		defer timer.Stop()
-
-		peers, err := lock.Peers()
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, err := w.Write([]byte("Cannot load peers"))
-			log.Error(ctx, "Failed to get peerIDs", err)
-
-			return
-		}
-
-		var pings []ping.Result
-		pingOk := make(chan ping.Result, 1)
-		pingErrs := make(chan ping.Result)
-
-		// ping all quorum peers in parallel
-		for _, p := range peers {
-			if tcpNode.ID() == p.ID {
-				continue // don't ping self
-			}
-
-			p := p
-
-			go func() {
-				for result := range ping.Ping(ctx, tcpNode, p.ID) {
-					if result.Error != nil {
-						pingErrs <- result
-						log.Error(ctx, "Peer ping failed", err, z.Str("peer", p2p.PeerName(p.ID)))
-					} else {
-						pings = append(pings, result)
-						if len(pings) == len(peers)-1 {
-							pingOk <- result
-						}
-					}
-
-					break
-				}
-			}()
-		}
-
-		for {
-			select {
-			case <-pingErrs:
-				w.WriteHeader(http.StatusInternalServerError)
-				_, _ = w.Write([]byte("Failed to ping peer"))
-
-				return
-			case <-pingOk:
-				_, _ = w.Write([]byte("ok"))
-
-				return
-			case t := <-timer.C:
-				w.WriteHeader(http.StatusInternalServerError)
-				_, _ = w.Write([]byte(fmt.Sprintf("Timed out in %v", t)))
-
-				return
-			}
-		}
-	}))
+	mux.Handle("/readyz", http.HandlerFunc(ready(ctx, conf, life, tcpNode, lock)))
 
 	// Copied from net/http/pprof/pprof.go
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
@@ -709,5 +624,97 @@ func callValidatorMock(ctx context.Context, duty core.Duty, cl eth2client.Servic
 		}
 	default:
 		log.Warn(ctx, "Invalid duty type", nil)
+	}
+}
+
+// ready returns a http.Handler which returns 200 when both the beacon node is synced and all quorum peers can be pinged  in parallel within a timeout. Returns 500 otherwise.
+func ready(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host, lock cluster.Lock) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// check if beacon node is fully synced
+		synced := beaconNodeSynced(ctx, conf, life)
+		if !synced {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("Beacon node is syncing"))
+
+			return
+		}
+
+		err := peersReady(ctx, lock, tcpNode)
+		if err != nil {
+			log.Error(ctx, "Peers not ready", err)
+			_, _ = w.Write([]byte("Couldn't ping all peers"))
+
+			return
+		}
+
+		_, _ = w.Write([]byte("ok"))
+	}
+}
+
+// beaconNodeReady returns true if the beacon node is fully synced.
+func beaconNodeSynced(ctx context.Context, conf Config, life *lifecycle.Manager) bool {
+	eth2Svc, _, err := newETH2Client(ctx, conf, life, nil)
+	if err != nil {
+		log.Error(ctx, "New eth2 client", err)
+	}
+
+	eth2Cl := eth2Svc.(eth2client.NodeSyncingProvider)
+	state, err := eth2Cl.NodeSyncing(ctx)
+	if err != nil {
+		log.Error(ctx, "Failed to get sync state", err)
+	}
+
+	return state.IsSyncing
+}
+
+// peersReady returns nil if all quorum peers can be pinged in parallel within a timeout. Returns error otherwise.
+func peersReady(ctx context.Context, lock cluster.Lock, tcpNode host.Host) error {
+	timeout := 1 * time.Second
+	timer := time.NewTicker(timeout)
+	defer timer.Stop()
+
+	peers, err := lock.Peers()
+	if err != nil {
+		return err
+	}
+
+	var pings []ping.Result
+	pingOk := make(chan ping.Result, 1)
+	pingErrs := make(chan ping.Result)
+
+	// ping all quorum peers in parallel
+	for _, p := range peers {
+		if tcpNode.ID() == p.ID {
+			continue // don't ping self
+		}
+
+		p := p
+
+		go func() {
+			for result := range ping.Ping(ctx, tcpNode, p.ID) {
+				if result.Error != nil {
+					pingErrs <- result
+					log.Error(ctx, "Peer ping failed", err, z.Str("peer", p2p.PeerName(p.ID)))
+				} else {
+					pings = append(pings, result)
+					if len(pings) == len(peers)-1 {
+						pingOk <- result
+					}
+				}
+
+				break
+			}
+		}()
+	}
+
+	for {
+		select {
+		case res := <-pingErrs:
+			return res.Error
+		case <-pingOk:
+			return nil
+		case <-timer.C:
+			return errors.New("peer pinging timed out")
+		}
 	}
 }
