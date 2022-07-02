@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/http/pprof"
 	"path"
@@ -34,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/automaxprocs/maxprocs"
@@ -191,7 +193,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	initStartupMetrics()
 
-	wireMonitoringAPI(life, conf.MonitoringAddr, localEnode)
+	wireMonitoringAPI(ctx, life, conf, localEnode, lock, tcpNode)
 
 	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey); err != nil {
 		return err
@@ -482,7 +484,8 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
-func wireMonitoringAPI(life *lifecycle.Manager, addr string, localNode *enode.LocalNode) {
+//nolint:gocognit
+func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, conf Config, localNode *enode.LocalNode, lock cluster.Lock, tcpNode host.Host) {
 	mux := http.NewServeMux()
 
 	// Serve prometheus metrics
@@ -493,6 +496,95 @@ func wireMonitoringAPI(life *lifecycle.Manager, addr string, localNode *enode.Lo
 		_, _ = w.Write([]byte(localNode.Node().String()))
 	}))
 
+	mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("alive"))
+	}))
+
+	mux.Handle("/readyz", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// check if beacon node is fully synced
+		eth2Svc, _, err := newETH2Client(ctx, conf, life, nil)
+		if err != nil {
+			log.Error(ctx, "New eth2 client", err)
+		}
+
+		eth2Cl := eth2Svc.(eth2client.NodeSyncingProvider)
+		state, err := eth2Cl.NodeSyncing(ctx)
+		if err != nil {
+			log.Error(ctx, "Failed to get sync state", err)
+		}
+
+		if state.IsSyncing {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err := w.Write([]byte("Beacon node is syncing"))
+			if err != nil {
+				log.Error(ctx, "Failed to write response", err)
+			}
+
+			return
+		}
+
+		timeout := 1 * time.Second
+		timer := time.NewTicker(timeout)
+		defer timer.Stop()
+
+		peers, err := lock.Peers()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err := w.Write([]byte("Cannot load peers"))
+			log.Error(ctx, "Failed to get peerIDs", err)
+
+			return
+		}
+
+		var pings []ping.Result
+		pingOk := make(chan ping.Result, 1)
+		pingErrs := make(chan ping.Result)
+
+		// ping all quorum peers in parallel
+		for _, p := range peers {
+			if tcpNode.ID() == p.ID {
+				continue // don't ping self
+			}
+
+			p := p
+
+			go func() {
+				for result := range ping.Ping(ctx, tcpNode, p.ID) {
+					if result.Error != nil {
+						pingErrs <- result
+						log.Error(ctx, "Peer ping failed", err, z.Str("peer", p2p.PeerName(p.ID)))
+					} else {
+						pings = append(pings, result)
+						if len(pings) == len(peers)-1 {
+							pingOk <- result
+						}
+					}
+
+					break
+				}
+			}()
+		}
+
+		for {
+			select {
+			case <-pingErrs:
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte("Failed to ping peer"))
+
+				return
+			case <-pingOk:
+				_, _ = w.Write([]byte("ok"))
+
+				return
+			case t := <-timer.C:
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte(fmt.Sprintf("Timed out in %v", t)))
+
+				return
+			}
+		}
+	}))
+
 	// Copied from net/http/pprof/pprof.go
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -501,7 +593,7 @@ func wireMonitoringAPI(life *lifecycle.Manager, addr string, localNode *enode.Lo
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
 	server := &http.Server{
-		Addr:    addr,
+		Addr:    conf.MonitoringAddr,
 		Handler: mux,
 	}
 
