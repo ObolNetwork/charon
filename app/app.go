@@ -669,10 +669,6 @@ func beaconNodeSynced(ctx context.Context, conf Config, life *lifecycle.Manager)
 
 // peersReady returns nil if all quorum peers can be pinged in parallel within a timeout. Returns error otherwise.
 func peersReady(ctx context.Context, lock cluster.Lock, tcpNode host.Host) error {
-	timeout := 1 * time.Second
-	timer := time.NewTicker(timeout)
-	defer timer.Stop()
-
 	peers, err := lock.Peers()
 	if err != nil {
 		return err
@@ -713,7 +709,7 @@ func peersReady(ctx context.Context, lock cluster.Lock, tcpNode host.Host) error
 			return res.Error
 		case <-pingOk:
 			return nil
-		case <-timer.C:
+		case <-time.After(1 * time.Second):
 			return errors.New("peer pinging timed out")
 		}
 	}
