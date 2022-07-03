@@ -631,8 +631,8 @@ func callValidatorMock(ctx context.Context, duty core.Duty, cl eth2client.Servic
 func ready(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host, lock cluster.Lock) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// check if beacon node is fully synced
-		synced := beaconNodeSynced(ctx, conf, life)
-		if !synced {
+		syncing := beaconNodeSynced(ctx, conf, life)
+		if syncing {
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte("Beacon node is syncing"))
 
@@ -641,7 +641,7 @@ func ready(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode ho
 
 		err := peersReady(ctx, lock, tcpNode)
 		if err != nil {
-			log.Error(ctx, "Peers not ready", err)
+			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte("Couldn't ping all peers"))
 
 			return
