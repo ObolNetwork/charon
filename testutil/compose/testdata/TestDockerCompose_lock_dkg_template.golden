@@ -53,6 +53,10 @@
      "Value": "http://bootnode:3640/enr"
     },
     {
+     "Key": "p2p-bootnode-relay",
+     "Value": "\"false\""
+    },
+    {
      "Key": "beacon-node-endpoint",
      "Value": ""
     },
@@ -122,6 +126,10 @@
     {
      "Key": "p2p-bootnodes",
      "Value": "http://bootnode:3640/enr"
+    },
+    {
+     "Key": "p2p-bootnode-relay",
+     "Value": "\"false\""
     },
     {
      "Key": "beacon-node-endpoint",
@@ -195,6 +203,10 @@
      "Value": "http://bootnode:3640/enr"
     },
     {
+     "Key": "p2p-bootnode-relay",
+     "Value": "\"false\""
+    },
+    {
      "Key": "beacon-node-endpoint",
      "Value": ""
     },
@@ -264,6 +276,10 @@
     {
      "Key": "p2p-bootnodes",
      "Value": "http://bootnode:3640/enr"
+    },
+    {
+     "Key": "p2p-bootnode-relay",
+     "Value": "\"false\""
     },
     {
      "Key": "beacon-node-endpoint",

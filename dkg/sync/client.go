@@ -79,7 +79,7 @@ func (c *Client) Run(ctx context.Context) error {
 		if err != nil {
 			return err
 		} else if reconnect {
-			log.Debug(ctx, "Outgoing sync dropped, reconnecting")
+			log.Debug(ctx, "Relay connection dropped, reconnecting")
 			continue
 		}
 
@@ -218,7 +218,7 @@ func (c *Client) connect(ctx context.Context, retry bool) (network.Stream, error
 }
 
 // isRelayError returns true if the error is due to temporary relay circuit recycling.
-func isRelayError(_ error) bool {
-	// TODO(corver): Detect circuit relay connection errors
-	return false
+func isRelayError(err error) bool {
+	return errors.Is(err, network.ErrReset) ||
+		errors.Is(err, network.ErrResourceScopeClosed)
 }
