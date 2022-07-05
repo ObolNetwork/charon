@@ -109,6 +109,13 @@ func newNodeEnvs(index int, validatorMock bool, conf Config) []kv {
 		lockFile = fmt.Sprintf("/compose/node%d/cluster-lock.json", index)
 	}
 
+	p2pBootnodes := "http://bootnode:3640/enr"
+	p2pRelay := "false"
+	if conf.ExternalBootnode != "" {
+		p2pBootnodes = conf.ExternalBootnode
+		p2pRelay = "true"
+	}
+
 	return []kv{
 		{"data-dir", fmt.Sprintf("/compose/node%d", index)},
 		{"jaeger-service", fmt.Sprintf("node%d", index)},
@@ -120,7 +127,8 @@ func newNodeEnvs(index int, validatorMock bool, conf Config) []kv {
 		{"p2p-external-hostname", fmt.Sprintf("node%d", index)},
 		{"p2p-tcp-address", "0.0.0.0:3610"},
 		{"p2p_udp_address", "0.0.0.0:3630"},
-		{"p2p-bootnodes", "http://bootnode:3640/enr"},
+		{"p2p-bootnodes", p2pBootnodes},
+		{"p2p-bootnode-relay", fmt.Sprintf(`"%v"`, p2pRelay)},
 		{"beacon-node-endpoint", beaconNode},
 		{"simnet-validator-mock", fmt.Sprintf(`"%v"`, validatorMock)},
 		{"simnet-beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},

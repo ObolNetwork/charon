@@ -204,7 +204,9 @@ func (s *Server) Start(ctx context.Context) {
 	s.tcpNode.SetStreamHandler(protocolID, func(stream network.Stream) {
 		ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(stream.Conn().RemotePeer())))
 		err := s.handleStream(ctx, stream)
-		if err != nil {
+		if isRelayError(err) {
+			log.Debug(ctx, "Relay connection dropped, expect reconnect")
+		} else if err != nil {
 			log.Warn(ctx, "Error serving sync protocol", err)
 		}
 	})

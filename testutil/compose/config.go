@@ -96,6 +96,9 @@ type Config struct {
 	// BeaconNode url endpoint or "mock" for simnet.
 	BeaconNode string `json:"beacon_node"`
 
+	// ExternalBootnode HTTP url endpoint or empty to disable.
+	ExternalBootnode string `json:"external_bootnode"`
+
 	// VCs define the types of validator clients to use.
 	VCs []VCType `json:"validator_clients"`
 
