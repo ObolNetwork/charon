@@ -482,6 +482,7 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2Provider,
 	// Use "head" instead of current slot to mitigate clock skew timing issues.
 	// Note this does introduce the risk that the resulting active validators
 	// is not for this specific slot.
+	// TODO(corver): Explicitly sync with beacon node clock.
 	_ = slot
 
 	vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", e2pks)
