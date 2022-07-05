@@ -479,7 +479,11 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2Provider,
 		e2pks = append(e2pks, e2pk)
 	}
 
-	// Use "head" instead of slot to mitigate clock skew timing issues.
+	// Use "head" instead of current slot to mitigate clock skew timing issues.
+	// Note this does introduce the risk that the resulting active validators
+	// is not for this specific slot.
+	_ = slot
+
 	vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", e2pks)
 	if err != nil {
 		return nil, err
