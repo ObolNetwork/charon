@@ -17,7 +17,6 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"sync"
 	"testing"
@@ -480,12 +479,8 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2Provider,
 		e2pks = append(e2pks, e2pk)
 	}
 
-	state := fmt.Sprint(slot)
-	if slot == 0 {
-		state = "head"
-	}
-
-	vals, err := eth2Cl.ValidatorsByPubKey(ctx, state, e2pks)
+	// Use "head" instead of slot to mitigate clock skew timing issues.
+	vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", e2pks)
 	if err != nil {
 		return nil, err
 	}
