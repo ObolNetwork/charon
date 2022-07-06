@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
@@ -411,6 +412,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		},
 		NodeSyncingFunc: func(ctx context.Context) (*eth2v1.SyncState, error) {
 			return httpMock.NodeSyncing(ctx)
+		},
+		EventsFunc: func(context.Context, []string, eth2client.EventHandlerFunc) error {
+			return nil
 		},
 	}
 }

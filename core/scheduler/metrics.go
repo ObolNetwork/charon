@@ -43,6 +43,13 @@ var (
 		Name:      "duty_total",
 		Help:      "The total count of duties scheduled by pubkey and type",
 	}, []string{"type", "pubkey"})
+
+	syncMedianGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "scheduler",
+		Name:      "clock_sync_median_seconds",
+		Help:      "The beacon node clock sync median offset in seconds",
+	})
 )
 
 // instrumentSlot sets the current slot and epoch metrics.

@@ -63,6 +63,7 @@ var (
 	_ eth2client.Service                     = (*Mock)(nil)
 	_ eth2client.ValidatorsProvider          = (*Mock)(nil)
 	_ eth2client.VoluntaryExitSubmitter      = (*Mock)(nil)
+	_ eth2client.EventsProvider              = (*Mock)(nil)
 )
 
 // New returns a new beacon client mock configured with the default and provided options.
@@ -136,6 +137,7 @@ type Mock struct {
 	ValidatorsFunc          func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	GenesisTimeFunc         func(context.Context) (time.Time, error)
 	NodeSyncingFunc         func(context.Context) (*eth2v1.SyncState, error)
+	EventsFunc              func(context.Context, []string, eth2client.EventHandlerFunc) error
 }
 
 func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
@@ -180,6 +182,10 @@ func (m Mock) GenesisTime(ctx context.Context) (time.Time, error) {
 
 func (m Mock) NodeSyncing(ctx context.Context) (*eth2v1.SyncState, error) {
 	return m.NodeSyncingFunc(ctx)
+}
+
+func (m Mock) Events(ctx context.Context, topics []string, handler eth2client.EventHandlerFunc) error {
+	return m.EventsFunc(ctx, topics, handler)
 }
 
 func (Mock) Name() string {

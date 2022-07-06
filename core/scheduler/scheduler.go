@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -42,6 +43,7 @@ type eth2Provider interface {
 	eth2client.SlotDurationProvider
 	eth2client.AttesterDutiesProvider
 	eth2client.ProposerDutiesProvider
+	eth2client.EventsProvider
 }
 
 // delayFunc abstracts slot offset delaying/sleeping for deterministic tests.
@@ -437,6 +439,11 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 		return nil, err
 	}
 
+	syncOffset, err := newClockSyncer(ctx, eth2Cl, clock, genesis, slotDuration)
+	if err != nil {
+		return nil, err
+	}
+
 	chainAge := clock.Since(genesis)
 	height := int64(chainAge / slotDuration)
 	startTime := genesis.Add(time.Duration(height) * slotDuration)
@@ -452,12 +459,19 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 				SlotDuration:  slotDuration,
 			}
 			height++
+
 			startTime = startTime.Add(slotDuration)
+
+			delay := startTime.Sub(clock.Now())
+			if featureset.Enabled(featureset.BeaconClockSync) {
+				// Add offset to start time to account for beacon node clock skew.
+				delay += syncOffset()
+			}
 
 			select {
 			case <-ctx.Done():
 				return
-			case <-clock.After(startTime.Sub(clock.Now())):
+			case <-clock.After(delay):
 			}
 		}
 	}()
