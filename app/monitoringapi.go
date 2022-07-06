@@ -27,7 +27,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/lifecycle"
-	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -40,7 +39,11 @@ func newReadyHandler(ctx context.Context, conf Config, life *lifecycle.Manager, 
 			writeResponse(w, http.StatusInternalServerError, "Couldn't initialize ETH2 client")
 		}
 
-		syncing := beaconNodeSyncing(ctx, eth2Svc)
+		syncing, err := beaconNodeSyncing(ctx, eth2Svc)
+		if err != nil {
+			writeResponse(w, http.StatusInternalServerError, "Failed to get beacon sync state")
+		}
+
 		if syncing {
 			writeResponse(w, http.StatusInternalServerError, "Beacon node not synced")
 			return
@@ -63,14 +66,14 @@ func newReadyHandler(ctx context.Context, conf Config, life *lifecycle.Manager, 
 }
 
 // beaconNodeSyncing returns true if the beacon node is still syncing.
-func beaconNodeSyncing(ctx context.Context, eth2Svc eth2client.Service) bool {
+func beaconNodeSyncing(ctx context.Context, eth2Svc eth2client.Service) (bool, error) {
 	eth2Cl := eth2Svc.(eth2client.NodeSyncingProvider)
 	state, err := eth2Cl.NodeSyncing(ctx)
 	if err != nil {
-		log.Error(ctx, "Failed to get sync state", err)
+		return false, err
 	}
 
-	return state.IsSyncing
+	return state.IsSyncing, nil
 }
 
 // peersReady returns nil if all quorum peers can be pinged in parallel within a timeout. Returns error otherwise.
