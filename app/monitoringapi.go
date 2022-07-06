@@ -26,20 +26,11 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/lifecycle"
-	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/p2p"
 )
 
 // newReadyHandler returns a http.HandlerFunc which returns 200 when both the beacon node is synced and all quorum peers can be pinged  in parallel within a timeout. Returns 500 otherwise.
-func newReadyHandler(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host, lock cluster.Lock) http.HandlerFunc {
+func newReadyHandler(ctx context.Context, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID, tcpNode host.Host) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		eth2Svc, _, err := newETH2Client(ctx, conf, life, nil)
-		if err != nil {
-			writeResponse(w, http.StatusInternalServerError, "Couldn't initialize ETH2 client")
-		}
-
-		eth2Cl := eth2Svc.(eth2client.NodeSyncingProvider)
 		syncing, err := beaconNodeSyncing(ctx, eth2Cl)
 		if err != nil {
 			writeResponse(w, http.StatusInternalServerError, "Failed to get beacon sync state")
@@ -50,13 +41,7 @@ func newReadyHandler(ctx context.Context, conf Config, life *lifecycle.Manager, 
 			return
 		}
 
-		peers, err := lock.Peers()
-		if err != nil {
-			writeResponse(w, http.StatusInternalServerError, "Peers not found")
-			return
-		}
-
-		err = peersReady(ctx, peers, tcpNode)
+		err = peersReady(ctx, peerIDs, tcpNode)
 		if err != nil {
 			writeResponse(w, http.StatusInternalServerError, "Couldn't ping all peers")
 			return
@@ -77,13 +62,13 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 }
 
 // peersReady returns nil if all quorum peers can be pinged in parallel within a timeout. Returns error otherwise.
-func peersReady(ctx context.Context, peers []p2p.Peer, tcpNode host.Host) error {
+func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error {
 	pingCnt := 0
-	results := make(chan ping.Result, len(peers))
+	results := make(chan ping.Result, len(peerIDs))
 
 	// ping all quorum peers in parallel
-	for _, p := range peers {
-		if tcpNode.ID() == p.ID {
+	for _, pID := range peerIDs {
+		if tcpNode.ID() == pID {
 			continue // don't ping self
 		}
 
@@ -93,7 +78,7 @@ func peersReady(ctx context.Context, peers []p2p.Peer, tcpNode host.Host) error 
 
 				break // no retries, just break on first ping result
 			}
-		}(p.ID)
+		}(pID)
 	}
 
 	for {
@@ -105,7 +90,7 @@ func peersReady(ctx context.Context, peers []p2p.Peer, tcpNode host.Host) error 
 
 			pingCnt++
 
-			if pingCnt == len(peers)-1 { // all pings successful
+			if pingCnt == len(peerIDs)-1 { // all pings successful
 				return nil
 			}
 		case <-time.After(1 * time.Second):

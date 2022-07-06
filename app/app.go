@@ -191,7 +191,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	initStartupMetrics()
 
-	wireMonitoringAPI(ctx, life, conf, localEnode, lock, tcpNode)
+	if err := wireMonitoringAPI(ctx, life, conf, localEnode, lock, tcpNode); err != nil {
+		return err
+	}
 
 	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey); err != nil {
 		return err
@@ -482,7 +484,7 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
-func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, conf Config, localNode *enode.LocalNode, lock cluster.Lock, tcpNode host.Host) {
+func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, conf Config, localNode *enode.LocalNode, lock cluster.Lock, tcpNode host.Host) error {
 	mux := http.NewServeMux()
 
 	// Serve prometheus metrics
@@ -493,11 +495,24 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, conf Config
 		writeResponse(w, http.StatusOK, localNode.Node().String())
 	}))
 
+	// Serve monitoring endpoints
 	mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		writeResponse(w, http.StatusOK, "alive")
 	}))
 
-	mux.Handle("/readyz", newReadyHandler(ctx, conf, life, tcpNode, lock))
+	eth2Svc, _, err := newETH2Client(ctx, conf, life, nil)
+	if err != nil {
+		return err
+	}
+
+	eth2Cl := eth2Svc.(eth2client.NodeSyncingProvider)
+
+	peerIDs, err := lock.PeerIDs()
+	if err != nil {
+		return err
+	}
+
+	mux.Handle("/readyz", newReadyHandler(ctx, eth2Cl, peerIDs, tcpNode))
 
 	// Copied from net/http/pprof/pprof.go
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
@@ -513,6 +528,8 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, conf Config
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))
 	life.RegisterStop(lifecycle.StopMonitoringAPI, lifecycle.HookFunc(server.Shutdown))
+
+	return nil
 }
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
