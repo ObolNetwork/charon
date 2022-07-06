@@ -17,7 +17,6 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"sync"
 	"testing"
@@ -480,12 +479,13 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2Provider,
 		e2pks = append(e2pks, e2pk)
 	}
 
-	state := fmt.Sprint(slot)
-	if slot == 0 {
-		state = "head"
-	}
+	// Use "head" instead of current slot to mitigate clock skew timing issues.
+	// Note this does introduce the risk that the resulting active validators
+	// is not for this specific slot.
+	// TODO(corver): Explicitly sync with beacon node clock.
+	_ = slot
 
-	vals, err := eth2Cl.ValidatorsByPubKey(ctx, state, e2pks)
+	vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", e2pks)
 	if err != nil {
 		return nil, err
 	}
