@@ -206,9 +206,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	if err := wireMonitoringAPI(ctx, life, conf, localEnode, tcpNode, eth2Cl.(eth2client.NodeSyncingProvider), peerIDs); err != nil {
-		return err
-	}
+	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl.(eth2client.NodeSyncingProvider), peerIDs)
 
 	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, beaconAddr, peerIDs); err != nil {
 		return err
@@ -510,7 +508,7 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
-func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, conf Config, localNode *enode.LocalNode, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID) error {
+func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string, localNode *enode.LocalNode, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID) {
 	mux := http.NewServeMux()
 
 	// Serve prometheus metrics
@@ -536,14 +534,12 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, conf Config
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
 	server := &http.Server{
-		Addr:    conf.MonitoringAddr,
+		Addr:    addr,
 		Handler: mux,
 	}
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))
 	life.RegisterStop(lifecycle.StopMonitoringAPI, lifecycle.HookFunc(server.Shutdown))
-
-	return nil
 }
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
