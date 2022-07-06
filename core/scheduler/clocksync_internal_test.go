@@ -72,8 +72,8 @@ func TestClockSync(t *testing.T) {
 	provider.Push(slot)
 	require.Equal(t, time.Millisecond*200, syncOffset())
 
-	// Increase offset to 1.2s
-	clock.Advance(time.Second)
+	// Increase offset to 2.2s
+	clock.Advance(2 * time.Second)
 
 	// Median never updated since new offset too big.
 	for i := 0; i < 10; i++ {

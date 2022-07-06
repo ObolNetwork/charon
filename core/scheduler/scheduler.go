@@ -124,7 +124,7 @@ func (s *Scheduler) Run() error {
 			return nil
 		case slot := <-slotTicker:
 			slotCtx := log.WithCtx(ctx, z.I64("slot", slot.Slot))
-			log.Debug(slotCtx, "Slot ticked")
+			log.Debug(slotCtx, "Slot ticked", z.Any("beacon_clock_offset", slot.SyncOffset))
 
 			instrumentSlot(slot)
 
@@ -402,6 +402,7 @@ type slot struct {
 	Time          time.Time
 	SlotsPerEpoch int64
 	SlotDuration  time.Duration
+	SyncOffset    time.Duration
 }
 
 func (s slot) Next() slot {
@@ -451,12 +452,14 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 	resp := make(chan slot)
 
 	go func() {
+		var prevSyncOffset time.Duration
 		for {
 			resp <- slot{
 				Slot:          height,
 				Time:          startTime,
 				SlotsPerEpoch: int64(slotsPerEpoch),
 				SlotDuration:  slotDuration,
+				SyncOffset:    prevSyncOffset,
 			}
 			height++
 
@@ -465,7 +468,8 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 			delay := startTime.Sub(clock.Now())
 			if featureset.Enabled(featureset.BeaconClockSync) {
 				// Add offset to start time to account for beacon node clock skew.
-				delay += syncOffset()
+				prevSyncOffset = syncOffset()
+				delay += prevSyncOffset
 			}
 
 			select {

@@ -37,7 +37,7 @@ func newClockSyncer(ctx context.Context, eventsProvider eth2client.EventsProvide
 	genesis time.Time, slotDuration time.Duration,
 ) (func() time.Duration, error) {
 	const (
-		maxOffset   = time.Second
+		maxOffset   = time.Second * 2
 		offsetCount = 10
 	)
 	var (
@@ -75,8 +75,8 @@ func newClockSyncer(ctx context.Context, eventsProvider eth2client.EventsProvide
 		median := clone[len(clone)/2]
 		syncMedianGauge.Set(medianOffset.Seconds())
 		if median < -maxOffset || median > maxOffset {
-			log.Warn(ctx, "Ignoring too big beacon node clock sync offset", nil,
-				z.Any("offset", newOffset), z.U64("slot", uint64(head.Slot)))
+			log.Warn(ctx, "Ignoring too big beacon node clock sync median offset", nil,
+				z.Any("offset", median), z.U64("slot", uint64(head.Slot)))
 
 			return
 		}
