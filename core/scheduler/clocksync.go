@@ -31,6 +31,7 @@ import (
 )
 
 // newClockSyncer returns a function that returns the current median beacon node clock sync offset.
+// The clock sync offset is the duration we need to add to our clock to sync with the beacon node's clock.
 // TODO(corver): Improve accuracy by subtracting half ping rtt.
 func newClockSyncer(ctx context.Context, eventsProvider eth2client.EventsProvider, clock clockwork.Clock,
 	genesis time.Time, slotDuration time.Duration,
@@ -64,7 +65,7 @@ func newClockSyncer(ctx context.Context, eventsProvider eth2client.EventsProvide
 			return
 		}
 
-		offsets = offsets[len(offsets)-offsetCount:]
+		offsets = offsets[len(offsets)-offsetCount:] // Trim buffer to max offsetCount items.
 
 		clone := append([]time.Duration(nil), offsets...)
 		sort.Slice(clone, func(i, j int) bool {
