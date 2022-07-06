@@ -81,6 +81,7 @@ func newReadyHandler(ctx context.Context, tcpNode host.Host, eth2Cl eth2client.N
 		syncing, err := beaconNodeSyncing(ctx, eth2Cl)
 		if err != nil {
 			writeResponse(w, http.StatusInternalServerError, "Failed to get beacon sync state")
+			return
 		}
 
 		if syncing {
@@ -110,7 +111,7 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 
 // peersReady returns nil if all quorum peers can be pinged in parallel within a timeout. Returns error otherwise.
 func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error {
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 
 	var resultCnt int
@@ -133,6 +134,8 @@ func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error
 
 	for {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case res := <-results:
 			if res.Error != nil {
 				return res.Error
@@ -143,8 +146,6 @@ func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error
 			if resultCnt == len(peerIDs)-1 { // all pings successful
 				return nil
 			}
-		case <-time.After(1 * time.Second):
-			return errors.New("peer pinging timed out")
 		}
 	}
 }
