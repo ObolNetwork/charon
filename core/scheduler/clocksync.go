@@ -30,16 +30,17 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+const (
+	maxOffset   = time.Second * 2
+	offsetCount = 10
+)
+
 // newClockSyncer returns a function that returns the current median beacon node clock sync offset.
 // The clock sync offset is the duration we need to add to our clock to sync with the beacon node's clock.
 // TODO(corver): Improve accuracy by subtracting half ping rtt.
 func newClockSyncer(ctx context.Context, eventsProvider eth2client.EventsProvider, clock clockwork.Clock,
 	genesis time.Time, slotDuration time.Duration,
 ) (func() time.Duration, error) {
-	const (
-		maxOffset   = time.Second
-		offsetCount = 10
-	)
 	var (
 		mu           sync.Mutex
 		medianOffset time.Duration
@@ -75,8 +76,8 @@ func newClockSyncer(ctx context.Context, eventsProvider eth2client.EventsProvide
 		median := clone[len(clone)/2]
 		syncMedianGauge.Set(medianOffset.Seconds())
 		if median < -maxOffset || median > maxOffset {
-			log.Warn(ctx, "Ignoring too big beacon node clock sync offset", nil,
-				z.Any("offset", newOffset), z.U64("slot", uint64(head.Slot)))
+			log.Warn(ctx, "Ignoring too big beacon node clock sync median offset", nil,
+				z.Any("offset", median), z.U64("slot", uint64(head.Slot)))
 
 			return
 		}

@@ -36,13 +36,14 @@ func TestClockSync(t *testing.T) {
 
 	require.Zero(t, syncOffset())
 
-	// 100ms offset
-	clock.Advance(time.Millisecond * 100)
+	const smallOffset = maxOffset / 10
+
+	clock.Advance(smallOffset)
 
 	var slot int
 
 	// Offset is zero until min 10 events
-	for i := 0; i < 9; i++ {
+	for i := 0; i < offsetCount-1; i++ {
 		clock.Advance(slotDuration)
 		slot++
 		provider.Push(slot)
@@ -53,34 +54,34 @@ func TestClockSync(t *testing.T) {
 	slot++
 	provider.Push(slot)
 
-	require.Equal(t, time.Millisecond*100, syncOffset())
+	require.Equal(t, smallOffset, syncOffset())
 
-	// Increase offset to 200ms
-	clock.Advance(time.Millisecond * 100)
+	// Increase offset
+	clock.Advance(smallOffset)
 
 	// First 4 slots will still be previous median
-	for i := 0; i < 4; i++ {
+	for i := 0; i < (offsetCount/2 - 1); i++ {
 		clock.Advance(slotDuration)
 		slot++
 		provider.Push(slot)
-		require.Equal(t, time.Millisecond*100, syncOffset())
+		require.Equal(t, smallOffset, syncOffset())
 	}
 
 	// Next slot has new expected offset
 	clock.Advance(slotDuration)
 	slot++
 	provider.Push(slot)
-	require.Equal(t, time.Millisecond*200, syncOffset())
+	require.Equal(t, 2*smallOffset, syncOffset())
 
-	// Increase offset to 1.2s
-	clock.Advance(time.Second)
+	// Increase offset to more than max
+	clock.Advance(maxOffset)
 
 	// Median never updated since new offset too big.
-	for i := 0; i < 10; i++ {
+	for i := 0; i < offsetCount; i++ {
 		clock.Advance(slotDuration)
 		slot++
 		provider.Push(slot)
-		require.Equal(t, time.Millisecond*200, syncOffset())
+		require.Equal(t, 2*smallOffset, syncOffset())
 	}
 }
 
