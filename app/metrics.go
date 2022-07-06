@@ -61,8 +61,8 @@ var (
 func initStartupMetrics() {
 	versionGauge.WithLabelValues(version.Version).Set(1)
 	startGauge.SetToCurrentTime()
-	livezGauge.Set(1)
-	readyzGauge.Set(1)
+	livezGauge.Set(0)
+	readyzGauge.Set(0)
 
 	hash, _ := GitCommit()
 	gitGauge.WithLabelValues(hash).Set(1)
