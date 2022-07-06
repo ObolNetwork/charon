@@ -22,7 +22,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"net/http"
-	"net/http/pprof"
 	"path"
 	"time"
 
@@ -35,7 +34,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -191,9 +189,21 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	initStartupMetrics()
 
-	wireMonitoringAPI(life, conf.MonitoringAddr, localEnode)
+	eth2Cl, beaconAddr, err := newETH2Client(ctx, conf, life, lock.Validators)
+	if err != nil {
+		return err
+	}
 
-	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey); err != nil {
+	peerIDs, err := lock.PeerIDs()
+	if err != nil {
+		return err
+	}
+
+	if err := wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs); err != nil {
+		return err
+	}
+
+	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, beaconAddr, peerIDs); err != nil {
 		return err
 	}
 
@@ -262,7 +272,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, lock clu
 
 // wireCoreWorkflow wires the core workflow components.
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
-	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
+	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey, eth2Cl eth2client.Service, beaconAddr string, peerIDs []peer.ID,
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -301,16 +311,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		pubkeys = append(pubkeys, pk)
 		pubSharesByKey[pubkey] = pubShare
 		pubshares = append(pubshares, eth2Share)
-	}
-
-	peerIDs, err := lock.PeerIDs()
-	if err != nil {
-		return err
-	}
-
-	eth2Cl, beaconAddr, err := newETH2Client(ctx, conf, life, pubkeys)
-	if err != nil {
-		return err
 	}
 
 	sender := new(p2p.Sender)
@@ -394,8 +394,34 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	return nil
 }
 
+// eth2PubKeys returns a list of BLS pubkeys of validators in the cluster lock.
+func eth2PubKeys(validators []cluster.DistValidator) ([]eth2p0.BLSPubKey, error) {
+	var pubkeys []eth2p0.BLSPubKey
+
+	for _, dv := range validators {
+		pubkey, err := dv.PublicKey()
+		if err != nil {
+			return []eth2p0.BLSPubKey{}, err
+		}
+
+		pk, err := tblsconv.KeyToETH2(pubkey)
+		if err != nil {
+			return []eth2p0.BLSPubKey{}, err
+		}
+
+		pubkeys = append(pubkeys, pk)
+	}
+
+	return pubkeys, nil
+}
+
 // newETH2Client returns a new eth2client and a beacon node address; it is either a beaconmock for simnet or a http client to a real beacon node.
-func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, pubkeys []eth2p0.BLSPubKey) (eth2client.Service, string, error) {
+func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, validators []cluster.DistValidator) (eth2client.Service, string, error) {
+	pubkeys, err := eth2PubKeys(validators)
+	if err != nil {
+		return nil, "", err
+	}
+
 	if conf.SimnetBMock { // Configure the beacon mock.
 		const dutyFactor = 100 // Duty factor spreads duties deterministicly in an epoch.
 		opts := []beaconmock.Option{
@@ -478,35 +504,6 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 	}
 
 	return resp
-}
-
-// wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
-// It serves prometheus metrics, pprof profiling and the runtime enr.
-func wireMonitoringAPI(life *lifecycle.Manager, addr string, localNode *enode.LocalNode) {
-	mux := http.NewServeMux()
-
-	// Serve prometheus metrics
-	mux.Handle("/metrics", promhttp.Handler())
-
-	// Serve local ENR to allow simple HTTP Get to this node to resolve it as bootnode ENR.
-	mux.Handle("/enr", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(localNode.Node().String()))
-	}))
-
-	// Copied from net/http/pprof/pprof.go
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-
-	server := &http.Server{
-		Addr:    addr,
-		Handler: mux,
-	}
-
-	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))
-	life.RegisterStop(lifecycle.StopMonitoringAPI, lifecycle.HookFunc(server.Shutdown))
 }
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
