@@ -29,7 +29,7 @@ import (
 )
 
 // newReadyHandler returns a http.HandlerFunc which returns 200 when both the beacon node is synced and all quorum peers can be pinged  in parallel within a timeout. Returns 500 otherwise.
-func newReadyHandler(ctx context.Context, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID, tcpNode host.Host) http.HandlerFunc {
+func newReadyHandler(ctx context.Context, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		syncing, err := beaconNodeSyncing(ctx, eth2Cl)
 		if err != nil {

@@ -191,11 +191,26 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	initStartupMetrics()
 
-	if err := wireMonitoringAPI(ctx, life, conf, localEnode, lock, tcpNode); err != nil {
+	pubkeys, err := eth2PubKeys(lock.Validators)
+	if err != nil {
 		return err
 	}
 
-	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey); err != nil {
+	eth2Cl, beaconAddr, err := newETH2Client(ctx, conf, life, pubkeys)
+	if err != nil {
+		return err
+	}
+
+	peerIDs, err := lock.PeerIDs()
+	if err != nil {
+		return err
+	}
+
+	if err := wireMonitoringAPI(ctx, life, conf, localEnode, tcpNode, eth2Cl.(eth2client.NodeSyncingProvider), peerIDs); err != nil {
+		return err
+	}
+
+	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, beaconAddr, peerIDs); err != nil {
 		return err
 	}
 
@@ -264,7 +279,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, lock clu
 
 // wireCoreWorkflow wires the core workflow components.
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
-	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
+	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey, eth2Cl eth2client.Service, beaconAddr string, peerIDs []peer.ID,
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -303,16 +318,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		pubkeys = append(pubkeys, pk)
 		pubSharesByKey[pubkey] = pubShare
 		pubshares = append(pubshares, eth2Share)
-	}
-
-	peerIDs, err := lock.PeerIDs()
-	if err != nil {
-		return err
-	}
-
-	eth2Cl, beaconAddr, err := newETH2Client(ctx, conf, life, pubkeys)
-	if err != nil {
-		return err
 	}
 
 	sender := new(p2p.Sender)
@@ -394,6 +399,27 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	life.RegisterStop(lifecycle.StopRetryer, lifecycle.HookFuncCtx(retryer.Shutdown))
 
 	return nil
+}
+
+// eth2PubKeys returns a list of BLS pubkeys of validators in the cluster lock.
+func eth2PubKeys(validators []cluster.DistValidator) ([]eth2p0.BLSPubKey, error) {
+	var pubkeys []eth2p0.BLSPubKey
+
+	for _, dv := range validators {
+		pubkey, err := dv.PublicKey()
+		if err != nil {
+			return []eth2p0.BLSPubKey{}, err
+		}
+
+		pk, err := tblsconv.KeyToETH2(pubkey)
+		if err != nil {
+			return []eth2p0.BLSPubKey{}, err
+		}
+
+		pubkeys = append(pubkeys, pk)
+	}
+
+	return pubkeys, nil
 }
 
 // newETH2Client returns a new eth2client and a beacon node address; it is either a beaconmock for simnet or a http client to a real beacon node.
@@ -484,7 +510,7 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
-func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, conf Config, localNode *enode.LocalNode, lock cluster.Lock, tcpNode host.Host) error {
+func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, conf Config, localNode *enode.LocalNode, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID) error {
 	mux := http.NewServeMux()
 
 	// Serve prometheus metrics
@@ -500,19 +526,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, conf Config
 		writeResponse(w, http.StatusOK, "alive")
 	}))
 
-	eth2Svc, _, err := newETH2Client(ctx, conf, life, nil)
-	if err != nil {
-		return err
-	}
-
-	eth2Cl := eth2Svc.(eth2client.NodeSyncingProvider)
-
-	peerIDs, err := lock.PeerIDs()
-	if err != nil {
-		return err
-	}
-
-	mux.Handle("/readyz", newReadyHandler(ctx, eth2Cl, peerIDs, tcpNode))
+	mux.Handle("/readyz", newReadyHandler(ctx, tcpNode, eth2Cl, peerIDs))
 
 	// Copied from net/http/pprof/pprof.go
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
