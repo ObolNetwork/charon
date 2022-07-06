@@ -49,12 +49,20 @@ var (
 		Name:      "livez",
 		Help:      "Set to 1 if `/livez` endpoint returns 200, 0 otherwise",
 	})
+
+	readyzGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "monitoring",
+		Name:      "readyz",
+		Help:      "Set to 1 if `/readyz` endpoint returns 200, 0 otherwise",
+	})
 )
 
 func initStartupMetrics() {
 	versionGauge.WithLabelValues(version.Version).Set(1)
 	startGauge.SetToCurrentTime()
-	livezGauge.SetToCurrentTime()
+	livezGauge.Set(1)
+	readyzGauge.Set(1)
 
 	hash, _ := GitCommit()
 	gitGauge.WithLabelValues(hash).Set(1)
