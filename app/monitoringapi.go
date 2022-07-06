@@ -39,7 +39,8 @@ func newReadyHandler(ctx context.Context, conf Config, life *lifecycle.Manager, 
 			writeResponse(w, http.StatusInternalServerError, "Couldn't initialize ETH2 client")
 		}
 
-		syncing, err := beaconNodeSyncing(ctx, eth2Svc)
+		eth2Cl := eth2Svc.(eth2client.NodeSyncingProvider)
+		syncing, err := beaconNodeSyncing(ctx, eth2Cl)
 		if err != nil {
 			writeResponse(w, http.StatusInternalServerError, "Failed to get beacon sync state")
 		}
@@ -66,8 +67,7 @@ func newReadyHandler(ctx context.Context, conf Config, life *lifecycle.Manager, 
 }
 
 // beaconNodeSyncing returns true if the beacon node is still syncing.
-func beaconNodeSyncing(ctx context.Context, eth2Svc eth2client.Service) (bool, error) {
-	eth2Cl := eth2Svc.(eth2client.NodeSyncingProvider)
+func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvider) (bool, error) {
 	state, err := eth2Cl.NodeSyncing(ctx)
 	if err != nil {
 		return false, err
@@ -78,7 +78,7 @@ func beaconNodeSyncing(ctx context.Context, eth2Svc eth2client.Service) (bool, e
 
 // peersReady returns nil if all quorum peers can be pinged in parallel within a timeout. Returns error otherwise.
 func peersReady(ctx context.Context, peers []p2p.Peer, tcpNode host.Host) error {
-	var pings []ping.Result
+	pingCnt := 0
 	results := make(chan ping.Result, len(peers))
 
 	// ping all quorum peers in parallel
@@ -87,15 +87,13 @@ func peersReady(ctx context.Context, peers []p2p.Peer, tcpNode host.Host) error 
 			continue // don't ping self
 		}
 
-		pID := p.ID
-
 		go func(pID peer.ID) {
 			for result := range ping.Ping(ctx, tcpNode, pID) {
 				results <- result
 
 				break // no retries, just break on first ping result
 			}
-		}(pID)
+		}(p.ID)
 	}
 
 	for {
@@ -105,9 +103,9 @@ func peersReady(ctx context.Context, peers []p2p.Peer, tcpNode host.Host) error 
 				return res.Error
 			}
 
-			pings = append(pings, res)
+			pingCnt++
 
-			if len(pings) == len(peers)-1 { // all pings successful
+			if pingCnt == len(peers)-1 { // all pings successful
 				return nil
 			}
 		case <-time.After(1 * time.Second):
