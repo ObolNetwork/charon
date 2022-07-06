@@ -111,7 +111,7 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 
 // peersReady returns nil if all quorum peers can be pinged in parallel within a timeout. Returns error otherwise.
 func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
 	var resultCnt int
