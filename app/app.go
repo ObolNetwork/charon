@@ -22,7 +22,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"net/http"
-	"net/http/pprof"
 	"path"
 	"time"
 
@@ -35,7 +34,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -191,12 +189,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	initStartupMetrics()
 
-	pubkeys, err := eth2PubKeys(lock.Validators)
-	if err != nil {
-		return err
-	}
-
-	eth2Cl, beaconAddr, err := newETH2Client(ctx, conf, life, pubkeys)
+	eth2Cl, beaconAddr, err := newETH2Client(ctx, conf, life, lock.Validators)
 	if err != nil {
 		return err
 	}
@@ -206,7 +199,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl.(eth2client.NodeSyncingProvider), peerIDs)
+	if err := wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs); err != nil {
+		return err
+	}
 
 	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, beaconAddr, peerIDs); err != nil {
 		return err
@@ -421,7 +416,12 @@ func eth2PubKeys(validators []cluster.DistValidator) ([]eth2p0.BLSPubKey, error)
 }
 
 // newETH2Client returns a new eth2client and a beacon node address; it is either a beaconmock for simnet or a http client to a real beacon node.
-func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, pubkeys []eth2p0.BLSPubKey) (eth2client.Service, string, error) {
+func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, validators []cluster.DistValidator) (eth2client.Service, string, error) {
+	pubkeys, err := eth2PubKeys(validators)
+	if err != nil {
+		return nil, "", err
+	}
+
 	if conf.SimnetBMock { // Configure the beacon mock.
 		const dutyFactor = 100 // Duty factor spreads duties deterministicly in an epoch.
 		opts := []beaconmock.Option{
@@ -504,42 +504,6 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 	}
 
 	return resp
-}
-
-// wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
-// It serves prometheus metrics, pprof profiling and the runtime enr.
-func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string, localNode *enode.LocalNode, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID) {
-	mux := http.NewServeMux()
-
-	// Serve prometheus metrics
-	mux.Handle("/metrics", promhttp.Handler())
-
-	// Serve local ENR to allow simple HTTP Get to this node to resolve it as bootnode ENR.
-	mux.Handle("/enr", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		writeResponse(w, http.StatusOK, localNode.Node().String())
-	}))
-
-	// Serve monitoring endpoints
-	mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		writeResponse(w, http.StatusOK, "alive")
-	}))
-
-	mux.Handle("/readyz", newReadyHandler(ctx, tcpNode, eth2Cl, peerIDs))
-
-	// Copied from net/http/pprof/pprof.go
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-
-	server := &http.Server{
-		Addr:    addr,
-		Handler: mux,
-	}
-
-	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))
-	life.RegisterStop(lifecycle.StopMonitoringAPI, lifecycle.HookFunc(server.Shutdown))
 }
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
