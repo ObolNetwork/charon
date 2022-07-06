@@ -22,47 +22,48 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/p2p"
 )
 
-// ready returns a http.Handler which returns 200 when both the beacon node is synced and all quorum peers can be pinged  in parallel within a timeout. Returns 500 otherwise.
-func ready(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host, lock cluster.Lock) func(w http.ResponseWriter, r *http.Request) {
+// newReadyHandler returns a http.HandlerFunc which returns 200 when both the beacon node is synced and all quorum peers can be pinged  in parallel within a timeout. Returns 500 otherwise.
+func newReadyHandler(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host, lock cluster.Lock) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// check if beacon node is fully synced
-		syncing := beaconNodeSynced(ctx, conf, life)
-		if syncing {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte("Beacon node is syncing"))
-
-			return
-		}
-
-		err := peersReady(ctx, lock, tcpNode)
+		eth2Svc, _, err := newETH2Client(ctx, conf, life, nil)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte("Couldn't ping all peers"))
+			writeResponse(w, http.StatusInternalServerError, "Couldn't initialize ETH2 client")
+		}
 
+		syncing := beaconNodeSyncing(ctx, eth2Svc)
+		if syncing {
+			writeResponse(w, http.StatusInternalServerError, "Beacon node not synced")
 			return
 		}
 
-		_, _ = w.Write([]byte("ok"))
+		peers, err := lock.Peers()
+		if err != nil {
+			writeResponse(w, http.StatusInternalServerError, "Peers not found")
+			return
+		}
+
+		err = peersReady(ctx, peers, tcpNode)
+		if err != nil {
+			writeResponse(w, http.StatusInternalServerError, "Couldn't ping all peers")
+			return
+		}
+
+		writeResponse(w, http.StatusOK, "ok")
 	}
 }
 
-// beaconNodeReady returns true if the beacon node is fully synced.
-func beaconNodeSynced(ctx context.Context, conf Config, life *lifecycle.Manager) bool {
-	eth2Svc, _, err := newETH2Client(ctx, conf, life, nil)
-	if err != nil {
-		log.Error(ctx, "New eth2 client", err)
-	}
-
+// beaconNodeSyncing returns true if the beacon node is still syncing.
+func beaconNodeSyncing(ctx context.Context, eth2Svc eth2client.Service) bool {
 	eth2Cl := eth2Svc.(eth2client.NodeSyncingProvider)
 	state, err := eth2Cl.NodeSyncing(ctx)
 	if err != nil {
@@ -73,15 +74,9 @@ func beaconNodeSynced(ctx context.Context, conf Config, life *lifecycle.Manager)
 }
 
 // peersReady returns nil if all quorum peers can be pinged in parallel within a timeout. Returns error otherwise.
-func peersReady(ctx context.Context, lock cluster.Lock, tcpNode host.Host) error {
-	peers, err := lock.Peers()
-	if err != nil {
-		return err
-	}
-
+func peersReady(ctx context.Context, peers []p2p.Peer, tcpNode host.Host) error {
 	var pings []ping.Result
-	pingOk := make(chan ping.Result, 1)
-	pingErrs := make(chan ping.Result)
+	results := make(chan ping.Result, len(peers))
 
 	// ping all quorum peers in parallel
 	for _, p := range peers {
@@ -89,33 +84,36 @@ func peersReady(ctx context.Context, lock cluster.Lock, tcpNode host.Host) error
 			continue // don't ping self
 		}
 
-		p := p
+		pID := p.ID
 
-		go func() {
-			for result := range ping.Ping(ctx, tcpNode, p.ID) {
-				if result.Error != nil {
-					pingErrs <- result
-					log.Error(ctx, "Peer ping failed", err, z.Str("peer", p2p.PeerName(p.ID)))
-				} else {
-					pings = append(pings, result)
-					if len(pings) == len(peers)-1 {
-						pingOk <- result
-					}
-				}
+		go func(pID peer.ID) {
+			for result := range ping.Ping(ctx, tcpNode, pID) {
+				results <- result
 
-				break
+				break // no retries, just break on first ping result
 			}
-		}()
+		}(pID)
 	}
 
 	for {
 		select {
-		case res := <-pingErrs:
-			return res.Error
-		case <-pingOk:
-			return nil
+		case res := <-results:
+			if res.Error != nil {
+				return res.Error
+			}
+
+			pings = append(pings, res)
+
+			if len(pings) == len(peers)-1 { // all pings successful
+				return nil
+			}
 		case <-time.After(1 * time.Second):
 			return errors.New("peer pinging timed out")
 		}
 	}
+}
+
+func writeResponse(w http.ResponseWriter, status int, msg string) {
+	w.WriteHeader(status)
+	_, _ = w.Write([]byte(msg))
 }

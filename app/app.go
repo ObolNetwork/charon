@@ -490,14 +490,14 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, conf Config
 
 	// Serve local ENR to allow simple HTTP Get to this node to resolve it as bootnode ENR.
 	mux.Handle("/enr", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(localNode.Node().String()))
+		writeResponse(w, http.StatusOK, localNode.Node().String())
 	}))
 
 	mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("alive"))
+		writeResponse(w, http.StatusOK, "alive")
 	}))
 
-	mux.Handle("/readyz", http.HandlerFunc(ready(ctx, conf, life, tcpNode, lock)))
+	mux.Handle("/readyz", newReadyHandler(ctx, conf, life, tcpNode, lock))
 
 	// Copied from net/http/pprof/pprof.go
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
