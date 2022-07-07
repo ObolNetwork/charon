@@ -167,7 +167,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	nodeIdx, err := lock.NodeIdx(tcpNode.ID())
 	if err != nil {
-		return err
+		return errors.Wrap(err, "private key not matching lock file")
 	}
 
 	log.Info(ctx, "Lock file loaded",
