@@ -74,18 +74,23 @@ func (s *Server) AwaitAllConnected(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-timer.C:
-			s.mu.Lock()
-			if s.errResponse {
-				s.mu.Unlock()
+			if s.isError() {
 				return errors.New("unexpected error occurred")
 			}
-			s.mu.Unlock()
 
 			if s.isAllConnected() {
 				return nil
 			}
 		}
 	}
+}
+
+// isError checks if there was any error in between the server flow and returns error.
+func (s *Server) isError() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.errResponse
 }
 
 // AwaitAllShutdown blocks until all peers have successfully shutdown or returns an error.
