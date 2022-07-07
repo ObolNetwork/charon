@@ -43,26 +43,17 @@ var (
 		Help:      "Gauge set to the app start time of the binary in unix seconds",
 	})
 
-	livezGauge = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "app",
-		Subsystem: "monitoring",
-		Name:      "livez",
-		Help:      "Set to 1 if `/livez` endpoint returns 200, 0 otherwise",
-	})
-
 	readyzGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "app",
 		Subsystem: "monitoring",
 		Name:      "readyz",
-		Help:      "Set to 1 if `/readyz` endpoint returns 200, 0 otherwise",
+		Help:      "Set to 1 if monitoring api `/readyz` endpoint returned 200 or else 0",
 	})
 )
 
 func initStartupMetrics() {
 	versionGauge.WithLabelValues(version.Version).Set(1)
 	startGauge.SetToCurrentTime()
-	livezGauge.Set(0)
-	readyzGauge.Set(0)
 
 	hash, _ := GitCommit()
 	gitGauge.WithLabelValues(hash).Set(1)
