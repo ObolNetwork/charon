@@ -110,12 +110,13 @@ func (s *Server) isConnected(pID peer.ID) bool {
 }
 
 // setConnected sets the shared connected state for the peer.
-func (s *Server) setConnected(ctx context.Context, pID peer.ID) {
+func (s *Server) setConnected(pID peer.ID) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.connected[pID] = struct{}{}
-	log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", len(s.connected), s.allCount))
+
+	return len(s.connected)
 }
 
 // clearConnected clears the shared connected state for the peer.
@@ -186,7 +187,8 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			resp.Error = errInvalidSig
 			log.Error(ctx, "Received mismatching cluster definition hash from peer", nil)
 		} else if ok && !s.isConnected(pID) {
-			s.setConnected(ctx, pID)
+			count := s.setConnected(pID)
+			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", count, s.allCount))
 		}
 
 		// Write response message
