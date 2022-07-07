@@ -470,7 +470,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 			if height/10 == 0 { // Log offset every minute or so.
 				log.Debug(ctx, "Beacon node clock sync: remote vs local next slot event",
 					z.Any("offset", syncOffset()),
-					z.Any("enable_beacon_clock_sync", featureset.Enabled(featureset.BeaconClockSync)))
+					z.Any("beacon_clock_sync_enabled", featureset.Enabled(featureset.BeaconClockSync)))
 			}
 
 			select {
