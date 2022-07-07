@@ -199,7 +199,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	if err := wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs); err != nil {
+	if err := wireMonitoringAPI(life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs); err != nil {
 		return err
 	}
 

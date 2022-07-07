@@ -42,6 +42,13 @@ var (
 		Name:      "start_time_secs",
 		Help:      "Gauge set to the app start time of the binary in unix seconds",
 	})
+
+	readyzGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "monitoring",
+		Name:      "readyz",
+		Help:      "Set to 1 if monitoring api `/readyz` endpoint returned 200 or else 0",
+	})
 )
 
 func initStartupMetrics() {

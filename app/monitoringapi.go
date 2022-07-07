@@ -17,6 +17,7 @@ package app
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"net/http/pprof"
 	"time"
@@ -34,7 +35,7 @@ import (
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
-func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string, localNode *enode.LocalNode, tcpNode host.Host, eth2Svc eth2client.Service, peerIDs []peer.ID) error {
+func wireMonitoringAPI(life *lifecycle.Manager, addr string, localNode *enode.LocalNode, tcpNode host.Host, eth2Svc eth2client.Service, peerIDs []peer.ID) error {
 	mux := http.NewServeMux()
 
 	// Serve prometheus metrics
@@ -55,7 +56,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 		return errors.New("invalid eth2 service")
 	}
 
-	mux.Handle("/readyz", newReadyHandler(ctx, tcpNode, eth2Cl, peerIDs))
+	mux.Handle("/readyz", newReadyHandler(tcpNode, eth2Cl, peerIDs))
 
 	// Copied from net/http/pprof/pprof.go
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
@@ -76,15 +77,19 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 }
 
 // newReadyHandler returns a http.HandlerFunc which returns 200 when both the beacon node is synced and all quorum peers can be pinged  in parallel within a timeout. Returns 500 otherwise.
-func newReadyHandler(ctx context.Context, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID) http.HandlerFunc {
+func newReadyHandler(tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second)
+		defer cancel()
+
+		var ready float64
+		defer func() { readyzGauge.Set(ready) }()
+
 		syncing, err := beaconNodeSyncing(ctx, eth2Cl)
 		if err != nil {
 			writeResponse(w, http.StatusInternalServerError, "Failed to get beacon sync state")
 			return
-		}
-
-		if syncing {
+		} else if syncing {
 			writeResponse(w, http.StatusInternalServerError, "Beacon node not synced")
 			return
 		}
@@ -95,6 +100,7 @@ func newReadyHandler(ctx context.Context, tcpNode host.Host, eth2Cl eth2client.N
 			return
 		}
 
+		ready = 1
 		writeResponse(w, http.StatusOK, "ok")
 	}
 }
@@ -109,41 +115,38 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 	return state.IsSyncing, nil
 }
 
-// peersReady returns nil if all quorum peers can be pinged in parallel within a timeout. Returns error otherwise.
+// peersReady returns an error if quorum peers cannot be pinged (concurrently).
 func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error {
-	ctx, cancel := context.WithTimeout(ctx, time.Second)
-	defer cancel()
-
-	var resultCnt int
 	results := make(chan ping.Result, len(peerIDs))
-
-	// Ping all quorum peers in parallel
 	for _, pID := range peerIDs {
 		if tcpNode.ID() == pID {
 			continue // Don't ping self
 		}
 
 		go func(pID peer.ID) {
-			for result := range ping.Ping(ctx, tcpNode, pID) {
-				results <- result
+			ctx, cancel := context.WithCancel(ctx) // Cancel after reading first result
+			defer cancel()
 
-				break // No retries, just break on first ping result
-			}
+			results <- <-ping.Ping(ctx, tcpNode, pID)
 		}(pID)
 	}
 
+	var (
+		// Require quorum successes (excluding self). Formula from IBFT 2.0 paper https://arxiv.org/pdf/1909.10194.pdf
+		require = int(math.Ceil(float64(len(peerIDs)*2)/3)) - 1
+		actual  int
+	)
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case res := <-results:
 			if res.Error != nil {
-				return res.Error
+				continue
 			}
 
-			resultCnt++
-
-			if resultCnt == len(peerIDs)-1 { // all pings successful
+			actual++
+			if actual == require {
 				return nil
 			}
 		}
