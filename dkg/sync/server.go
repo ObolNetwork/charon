@@ -85,7 +85,7 @@ func (s *Server) AwaitAllConnected(ctx context.Context) error {
 	}
 }
 
-// isError checks if there was any error in between the server flow and returns error.
+// isError checks if there was any error in between the server flow.
 func (s *Server) isError() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
