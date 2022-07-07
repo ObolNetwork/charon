@@ -118,7 +118,7 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 		}, nil
 	}
 
-	return NodeIdx{}, errors.New("unknown peer id")
+	return NodeIdx{}, errors.New("peer not in definition")
 }
 
 // Sealed returns true if all config signatures are fully populated and valid. A "sealed" definition is ready for use in DKG.

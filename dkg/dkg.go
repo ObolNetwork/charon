@@ -99,7 +99,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	nodeIdx, err := def.NodeIdx(tcpNode.ID())
 	if err != nil {
-		return err
+		return errors.Wrap(err, "private key not matching definition file")
 	}
 
 	defHash, err := def.HashTreeRoot()
