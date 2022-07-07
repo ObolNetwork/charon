@@ -79,6 +79,7 @@ func newClockSyncer(ctx context.Context, eventsProvider eth2client.EventsProvide
 			// This will spam logs, but probably ok since this is bad.
 			log.Warn(ctx, "Ignoring too big beacon node clock sync offset", nil,
 				z.Any("offset", median), z.U64("slot", uint64(head.Slot)))
+
 			return
 		}
 
