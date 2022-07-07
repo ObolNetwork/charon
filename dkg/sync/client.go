@@ -72,7 +72,6 @@ func (c *Client) Run(ctx context.Context) error {
 			return err
 		}
 
-		log.Info(ctx, "Connected to peer (outbound)")
 		c.setConnected()
 
 		reconnect, err := c.sendMsgs(ctx, stream)

@@ -20,6 +20,7 @@ package sync
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -109,11 +110,12 @@ func (s *Server) isConnected(pID peer.ID) bool {
 }
 
 // setConnected sets the shared connected state for the peer.
-func (s *Server) setConnected(pID peer.ID) {
+func (s *Server) setConnected(ctx context.Context, pID peer.ID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.connected[pID] = struct{}{}
+	log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", len(s.connected), s.allCount))
 }
 
 // clearConnected clears the shared connected state for the peer.
@@ -184,8 +186,7 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			resp.Error = errInvalidSig
 			log.Error(ctx, "Received mismatching cluster definition hash from peer", nil)
 		} else if ok && !s.isConnected(pID) {
-			log.Info(ctx, "Connected to peer (inbound)")
-			s.setConnected(pID)
+			s.setConnected(ctx, pID)
 		}
 
 		// Write response message
