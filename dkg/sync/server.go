@@ -55,12 +55,13 @@ func NewServer(tcpNode host.Host, allCount int, defHash []byte) *Server {
 // Server implements the server side of the sync protocol. It accepts connections from clients, verifies
 // definition hash signatures, and supports waiting for shutdown by all clients.
 type Server struct {
-	mu        sync.Mutex
-	shutdown  map[peer.ID]struct{}
-	connected map[peer.ID]struct{}
-	defHash   []byte
-	allCount  int // Excluding self
-	tcpNode   host.Host
+	mu          sync.Mutex
+	shutdown    map[peer.ID]struct{}
+	connected   map[peer.ID]struct{}
+	defHash     []byte
+	allCount    int // Excluding self
+	tcpNode     host.Host
+	errResponse bool // To return error and exit anywhere in the server flow
 }
 
 // AwaitAllConnected blocks until all peers have established a connection with this server or returns an error.
@@ -73,11 +74,23 @@ func (s *Server) AwaitAllConnected(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-timer.C:
+			if s.isError() {
+				return errors.New("unexpected error occurred")
+			}
+
 			if s.isAllConnected() {
 				return nil
 			}
 		}
 	}
+}
+
+// isError checks if there was any error in between the server flow.
+func (s *Server) isError() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.errResponse
 }
 
 // AwaitAllShutdown blocks until all peers have successfully shutdown or returns an error.
@@ -182,6 +195,11 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			return errors.Wrap(err, "verify sig hash")
 		} else if !ok {
 			resp.Error = errInvalidSig
+
+			s.mu.Lock()
+			s.errResponse = true
+			s.mu.Unlock()
+
 			log.Error(ctx, "Received mismatching cluster definition hash from peer", nil)
 		} else if ok && !s.isConnected(pID) {
 			log.Info(ctx, "Connected to peer (inbound)")
