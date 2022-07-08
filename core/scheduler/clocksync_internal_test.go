@@ -31,7 +31,8 @@ func TestClockSync(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	slotDuration := time.Second
 	provider := &testEventsProvider{t: t}
-	syncOffset, err := newClockSyncer(context.Background(), provider, clock, clock.Now(), slotDuration)
+	pinger := func() time.Duration { return 0 }
+	syncOffset, err := newClockSyncer(context.Background(), provider, pinger, clock, clock.Now(), slotDuration)
 	require.NoError(t, err)
 
 	require.Zero(t, syncOffset())

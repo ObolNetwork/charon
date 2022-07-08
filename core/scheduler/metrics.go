@@ -50,6 +50,13 @@ var (
 		Name:      "beacon_node_offset_seconds",
 		Help:      "The beacon node clock sync median offset in seconds",
 	})
+
+	syncRTTGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "scheduler",
+		Name:      "beacon_node_rtt_seconds",
+		Help:      "The beacon node clock sync ping rtt in seconds",
+	})
 )
 
 // instrumentSlot sets the current slot and epoch metrics.

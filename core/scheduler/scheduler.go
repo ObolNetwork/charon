@@ -36,14 +36,15 @@ import (
 
 // eth2Provider defines the eth2 provider subset used by this package.
 type eth2Provider interface {
-	eth2client.NodeSyncingProvider
-	eth2client.GenesisTimeProvider
-	eth2client.ValidatorsProvider
-	eth2client.SlotsPerEpochProvider
-	eth2client.SlotDurationProvider
 	eth2client.AttesterDutiesProvider
-	eth2client.ProposerDutiesProvider
 	eth2client.EventsProvider
+	eth2client.GenesisTimeProvider
+	eth2client.NodeSyncingProvider
+	eth2client.ProposerDutiesProvider
+	eth2client.SlotDurationProvider
+	eth2client.SlotsPerEpochProvider
+	eth2client.ValidatorsProvider
+	// Above sorted alphabetically.
 }
 
 // delayFunc abstracts slot offset delaying/sleeping for deterministic tests.
@@ -439,7 +440,9 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 		return nil, err
 	}
 
-	syncOffset, err := newClockSyncer(ctx, eth2Cl, clock, genesis, slotDuration)
+	pingFunc := newBeaconPinger(ctx, eth2Cl)
+
+	syncOffset, err := newClockSyncer(ctx, eth2Cl, pingFunc, clock, genesis, slotDuration)
 	if err != nil {
 		return nil, err
 	}
