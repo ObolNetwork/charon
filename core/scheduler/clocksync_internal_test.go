@@ -42,19 +42,13 @@ func TestClockSync(t *testing.T) {
 
 	var slot int
 
-	// Offset is zero until min 10 events
-	for i := 0; i < offsetCount-1; i++ {
+	// Offset is smallOffset
+	for i := 0; i < offsetCount; i++ {
 		clock.Advance(slotDuration)
 		slot++
 		provider.Push(slot)
-		require.Zero(t, syncOffset())
+		require.Equal(t, smallOffset, syncOffset())
 	}
-
-	clock.Advance(slotDuration)
-	slot++
-	provider.Push(slot)
-
-	require.Equal(t, smallOffset, syncOffset())
 
 	// Increase offset
 	clock.Advance(smallOffset)
