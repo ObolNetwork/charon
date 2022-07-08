@@ -231,7 +231,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "core_scheduler_clock_sync_median_seconds{job=\"$node\"}",
+          "expr": "core_scheduler_clock_sync_offset_seconds{job=\"$node\"}",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
