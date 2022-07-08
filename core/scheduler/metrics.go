@@ -47,7 +47,7 @@ var (
 	syncMedianGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "core",
 		Subsystem: "scheduler",
-		Name:      "clock_sync_median_seconds",
+		Name:      "beacon_node_offset_seconds",
 		Help:      "The beacon node clock sync median offset in seconds",
 	})
 )

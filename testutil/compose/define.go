@@ -257,7 +257,7 @@ func buildLocal(ctx context.Context, dir string) error {
 	log.Info(ctx, "Building local charon binary", z.Str("repo", repo), z.Str("target", target))
 
 	cmd := exec.CommandContext(ctx, "go", "build", "-o", target)
-	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64")
+	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Dir = repo

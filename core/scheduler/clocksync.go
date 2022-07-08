@@ -62,11 +62,10 @@ func newClockSyncer(ctx context.Context, eventsProvider eth2client.EventsProvide
 		newOffset := clock.Since(startTime)
 
 		offsets = append(offsets, newOffset)
-		if len(offsets) < offsetCount {
-			return
-		}
 
-		offsets = offsets[len(offsets)-offsetCount:] // Trim buffer to max offsetCount items.
+		if len(offsets) > offsetCount {
+			offsets = offsets[len(offsets)-offsetCount:] // Trim buffer to max offsetCount items.
+		}
 
 		clone := append([]time.Duration(nil), offsets...)
 		sort.Slice(clone, func(i, j int) bool {
