@@ -20,8 +20,6 @@ import (
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
-
-	"github.com/obolnetwork/charon/app/errors"
 )
 
 // lateFactor defines the number of slots duties may be late.
@@ -35,12 +33,7 @@ type slotTimeProvider interface {
 }
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines.
-func NewDutyDeadlineFunc(ctx context.Context, eth2Svc eth2client.Service) (func(Duty) time.Time, error) {
-	eth2Cl, ok := eth2Svc.(slotTimeProvider)
-	if !ok {
-		return nil, errors.New("invalid eth2 service")
-	}
-
+func NewDutyDeadlineFunc(ctx context.Context, eth2Cl slotTimeProvider) (func(Duty) time.Time, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return nil, err
