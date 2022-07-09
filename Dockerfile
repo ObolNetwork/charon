@@ -18,8 +18,8 @@ ENV GITHUB_SHA=${GITHUB_SHA}
 COPY --from=builder /app/charon /usr/local/bin/
 # Don't run container as root
 ENV USER=charon
-ENV UID=12345
-ENV GID=23456
+ENV UID=1000
+ENV GID=1000
 RUN addgroup -g "$GID" "$USER"
 RUN adduser \
     --disabled-password \
