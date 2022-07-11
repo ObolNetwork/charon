@@ -90,6 +90,10 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		}
 	}()
 
+	if conf.OperatorENRs == nil {
+		return errors.New("enrs not present")
+	}
+
 	var operators []cluster.Operator
 	for i, opENR := range conf.OperatorENRs {
 		_, err := p2p.DecodeENR(opENR)
