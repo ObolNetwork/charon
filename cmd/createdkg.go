@@ -19,12 +19,12 @@ import (
 	"context"
 	crand "crypto/rand"
 	"encoding/json"
+	"math"
 	"os"
 	"path"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -66,21 +66,31 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 		},
 	}
 
-	bindCreateDKGFlags(cmd.Flags(), &config)
+	bindCreateDKGFlags(cmd, &config)
 
 	return cmd
 }
 
-func bindCreateDKGFlags(flags *pflag.FlagSet, config *createDKGConfig) {
-	flags.StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
-	flags.StringVar(&config.OutputDir, "output-dir", ".charon", "The folder to write the output cluster-definition.json file to.")
-	flags.IntVar(&config.NumValidators, "num-validators", 1, "The number of distributed validators the cluster will manage (32ETH staked for each).")
-	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
-	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
-	flags.StringVar(&config.WithdrawalAddress, "withdrawal-address", defaultWithdrawalAddr, "Withdrawal Ethereum address")
-	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
-	flags.StringVar(&config.DKGAlgo, "dkg-algorithm", "default", "DKG algorithm to use; default, keycast, frost")
-	flags.StringSliceVar(&config.OperatorENRs, "operator-enrs", nil, "Comma-separated list of each operator's Charon ENR address")
+func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
+	const operatorENRs = "operator-enrs"
+
+	cmd.Flags().StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
+	cmd.Flags().StringVar(&config.OutputDir, "output-dir", ".charon", "The folder to write the output cluster-definition.json file to.")
+	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of distributed validators the cluster will manage (32ETH staked for each).")
+	cmd.Flags().IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
+	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
+	cmd.Flags().StringVar(&config.WithdrawalAddress, "withdrawal-address", defaultWithdrawalAddr, "Withdrawal Ethereum address")
+	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
+	cmd.Flags().StringVar(&config.DKGAlgo, "dkg-algorithm", "default", "DKG algorithm to use; default, keycast, frost")
+	cmd.Flags().StringSliceVar(&config.OperatorENRs, operatorENRs, nil, "[REQUIRED] Comma-separated list of each operator's Charon ENR address.")
+
+	mustMarkFlagRequired(cmd, operatorENRs)
+}
+
+func mustMarkFlagRequired(cmd *cobra.Command, flag string) {
+	if err := cmd.MarkFlagRequired(flag); err != nil {
+		panic(err) // Panic is ok since this is unexpected and covered by unit tests.
+	}
 }
 
 func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
@@ -89,6 +99,18 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 			log.Error(ctx, "Fatal run error", err)
 		}
 	}()
+
+	if len(conf.OperatorENRs) == 0 {
+		return errors.New("no enrs provided with the flag --operator-enrs")
+	}
+
+	if len(conf.OperatorENRs) < conf.Threshold {
+		return errors.New("insufficient operator ENRs")
+	}
+
+	if conf.Threshold < int(math.Ceil(float64(2*len(conf.OperatorENRs)+1)/float64(3))) {
+		return errors.New("threshold too low for number of operators")
+	}
 
 	var operators []cluster.Operator
 	for i, opENR := range conf.OperatorENRs {

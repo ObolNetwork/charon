@@ -63,12 +63,55 @@ func TestCreateDkgInvalid(t *testing.T) {
 		{
 			conf: createDKGConfig{OperatorENRs: []string{"JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u"}},
 		},
+		{
+			conf: createDKGConfig{OperatorENRs: []string{""}},
+		},
+		{
+			conf: createDKGConfig{},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run("create dkg", func(t *testing.T) {
 			err := runCreateDKG(context.Background(), test.conf)
 			require.Error(t, err)
+		})
+	}
+}
+
+func TestRequireOperatorENRFlag(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		err  string
+	}{
+		{
+			name: "no operator ENRs",
+			args: []string{"dkg"},
+			err:  "required flag(s) \"operator-enrs\" not set",
+		},
+		{
+			name: "operator ENRs less than threshold",
+			args: []string{"dkg", "--operator-enrs=enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u"},
+			err:  "insufficient operator ENRs",
+		},
+		{
+			name: "operator ENRs not satisfying quorom with threshold 3",
+			args: []string{"dkg", "--operator-enrs=" +
+				"enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u," +
+				"enr:-JG4QCJiyhc2_ztz5Cb4lSXvtg7J_817HqoBJCzxTNb4Ph6YCSSKEZwCmoS47jIx4rUr--Ta8P1LLFLkNyFs1VDX4PWGAYHt2KubgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u," +
+				"enr:-JG4QMXs9hjecvTC3ruEPPIPKuVFTvOmFadWGj57e5yJXp6tJeCnYy13tuaJHdI_Cy9lfiDxcXepucxLIET1g7Kf_CWGAYHt2Q-ggmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u," +
+				"enr:-JG4QAvg6LWZODaqLJGWxWPbo32OgexN2aPtIhHm5mX2o9zEYCKB_8lR3-mvrhA3SFK5U7EXlSqYwqELbk_Ohgleb_OGAYHt2ZRtgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u," +
+				"enr:-JG4QAOuGeKvAugvPkQDo7plE3SIb-AP64Cyg8V_LXyuyo0RETPOxK8sgAG5KepicpBSR9vNvZ7Oez826vprmsQKKyCGAYHt2dQkgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u"},
+			err: "threshold too low for number of operators",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
+			cmd.SetArgs(test.args)
+			require.EqualError(t, cmd.Execute(), test.err)
 		})
 	}
 }
