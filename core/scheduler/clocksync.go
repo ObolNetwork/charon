@@ -38,8 +38,8 @@ const (
 // newClockSyncer returns a function that returns the current median beacon node clock sync offset.
 // The clock sync offset is the duration we need to add to our clock to sync with the beacon node's clock.
 // TODO(corver): Improve accuracy by subtracting half ping rtt.
-func newClockSyncer(ctx context.Context, eventsProvider eth2client.EventsProvider, clock clockwork.Clock,
-	genesis time.Time, slotDuration time.Duration,
+func newClockSyncer(ctx context.Context, eventsProvider eth2client.EventsProvider, pingFunc func() time.Duration,
+	clock clockwork.Clock, genesis time.Time, slotDuration time.Duration,
 ) (func() time.Duration, error) {
 	var (
 		mu           sync.Mutex
@@ -60,6 +60,10 @@ func newClockSyncer(ctx context.Context, eventsProvider eth2client.EventsProvide
 
 		startTime := genesis.Add(time.Duration(head.Slot) * slotDuration)
 		newOffset := clock.Since(startTime)
+
+		// Subtract half rtt for improved accuracy.
+		rtt := pingFunc()
+		newOffset -= rtt / 2
 
 		offsets = append(offsets, newOffset)
 
@@ -96,4 +100,37 @@ func newClockSyncer(ctx context.Context, eventsProvider eth2client.EventsProvide
 
 		return medianOffset
 	}, nil
+}
+
+// newBeaconPinger returns a function that returns the median of the 10 latest pings.
+// It uses "/eth/v1/node/syncing" as a ping endpoint proxy since it returns a simple response.
+func newBeaconPinger(ctx context.Context, eth2Cl eth2client.NodeSyncingProvider) func() time.Duration {
+	const rttCount = 10
+	var rtts []time.Duration
+
+	return func() time.Duration {
+		t0 := time.Now()
+		_, err := eth2Cl.NodeSyncing(ctx)
+		if err == nil {
+			rtt := time.Since(t0)
+			rtts = append(rtts, rtt)
+			syncRTTGauge.Set(rtt.Seconds())
+		}
+
+		if len(rtts) > rttCount {
+			rtts = rtts[len(rtts)-rttCount:] // Trim buffer
+		}
+
+		if len(rtts) == 0 {
+			return 0
+		}
+
+		// Return median
+		clone := append([]time.Duration(nil), rtts...)
+		sort.Slice(clone, func(i, j int) bool {
+			return clone[i] < clone[j]
+		})
+
+		return clone[len(clone)/2]
+	}
 }
