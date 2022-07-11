@@ -19,6 +19,7 @@ import (
 	"context"
 	crand "crypto/rand"
 	"encoding/json"
+	"math"
 	"os"
 	"path"
 
@@ -61,6 +62,13 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 		Short: "Create the configuration for a new Distributed Key Generation ceremony using charon dkg",
 		Long:  `Create a cluster definition file that will be used by all participants of a DKG.`,
 		Args:  cobra.NoArgs,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmd.MarkFlagRequired("operator-enrs"); err != nil {
+				return errors.Wrap(err, "required flag")
+			}
+
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.Context(), config)
 		},
@@ -80,7 +88,7 @@ func bindCreateDKGFlags(flags *pflag.FlagSet, config *createDKGConfig) {
 	flags.StringVar(&config.WithdrawalAddress, "withdrawal-address", defaultWithdrawalAddr, "Withdrawal Ethereum address")
 	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
 	flags.StringVar(&config.DKGAlgo, "dkg-algorithm", "default", "DKG algorithm to use; default, keycast, frost")
-	flags.StringSliceVar(&config.OperatorENRs, "operator-enrs", nil, "Comma-separated list of each operator's Charon ENR address")
+	flags.StringSliceVar(&config.OperatorENRs, "operator-enrs", nil, "[REQUIRED] Comma-separated list of each operator's Charon ENR address.")
 }
 
 func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
@@ -90,8 +98,12 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		}
 	}()
 
-	if conf.OperatorENRs == nil {
-		return errors.New("enrs not present")
+	if len(conf.OperatorENRs) == 0 {
+		return errors.New("no enrs provided with the flag --operator-enrs")
+	}
+
+	if len(conf.OperatorENRs) < conf.Threshold || conf.Threshold < int(math.Ceil(float64(2*len(conf.OperatorENRs)+1)/float64(3))) {
+		return errors.New("insufficient operator ENRs")
 	}
 
 	var operators []cluster.Operator

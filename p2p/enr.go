@@ -40,7 +40,7 @@ func EncodeENR(record enr.Record) (string, error) {
 // See reference github.com/ethereum/go-ethereum@v1.10.10/p2p/dnsdisc/tree.go:378.
 func DecodeENR(enrStr string) (enr.Record, error) {
 	if enrStr == "" {
-		return enr.Record{}, errors.New("enr not present")
+		return enr.Record{}, errors.New("enr empty")
 	}
 	ok := strings.HasPrefix(enrStr, "enr:")
 	if !ok {
