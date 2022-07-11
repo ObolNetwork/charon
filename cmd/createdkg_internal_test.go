@@ -103,7 +103,7 @@ func TestRequireOperatorENRFlag(t *testing.T) {
 				"enr:-JG4QMXs9hjecvTC3ruEPPIPKuVFTvOmFadWGj57e5yJXp6tJeCnYy13tuaJHdI_Cy9lfiDxcXepucxLIET1g7Kf_CWGAYHt2Q-ggmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u," +
 				"enr:-JG4QAvg6LWZODaqLJGWxWPbo32OgexN2aPtIhHm5mX2o9zEYCKB_8lR3-mvrhA3SFK5U7EXlSqYwqELbk_Ohgleb_OGAYHt2ZRtgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u," +
 				"enr:-JG4QAOuGeKvAugvPkQDo7plE3SIb-AP64Cyg8V_LXyuyo0RETPOxK8sgAG5KepicpBSR9vNvZ7Oez826vprmsQKKyCGAYHt2dQkgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u"},
-			err: "insufficient operator ENRs",
+			err: "threshold too low for number of operators",
 		},
 	}
 
