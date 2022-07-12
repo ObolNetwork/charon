@@ -412,16 +412,7 @@ func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.P
 
 			sigs = append(sigs, sig)
 
-			var pubshare *bls_sig.PublicKey
-			switch dkgAlgo {
-			case "keycast":
-				pubshare = shares[pk].PublicShares[s.ShareIdx]
-			case "frost":
-				pubshare = shares[pk].PublicShares[s.ShareIdx]
-			default:
-				return nil, nil, errors.New("invalid dkg algo")
-			}
-
+			pubshare := shares[pk].PublicShares[s.ShareIdx]
 			pubkeys = append(pubkeys, pubshare)
 		}
 	}
