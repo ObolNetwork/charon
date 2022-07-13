@@ -18,6 +18,7 @@ package tracker
 import (
 	"context"
 	"testing"
+	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -25,20 +26,19 @@ import (
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/fetcher"
+	fetch "github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestTracker_FetcherEvent(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, bmock)
-	require.NoError(t, err)
 
 	duty, defSet := fetcherHelper(t)
+
+	deadlineFunc := func(duty core.Duty) time.Time {
+		return time.Now().Add(time.Second * 5)
+	}
 
 	// Run tracker in a new goroutine.
 	tr := NewForT(deadlineFunc, len(defSet))
@@ -51,12 +51,16 @@ func TestTracker_FetcherEvent(t *testing.T) {
 	}()
 
 	// Run fetch and subscribe it to tracker.
-	fetch, err := fetcher.New(bmock)
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+	f, err := fetch.New(bmock)
 	require.NoError(t, err)
 
-	fetch.Subscribe(tr.AwaitFetcherEvent)
-	err = fetch.Fetch(ctx, duty, defSet)
+	f.Subscribe(tr.FetcherEvent)
+	err = f.Fetch(ctx, duty, defSet)
 	require.NoError(t, err)
+
+	time.Sleep(time.Second * 5)
 
 	for i := 0; i < len(defSet); i++ {
 		e := <-tr.testChan
@@ -64,7 +68,7 @@ func TestTracker_FetcherEvent(t *testing.T) {
 
 		_, ok := defSet[e.pubkey]
 		require.True(t, ok)
-		require.Equal(t, e.component, Fetcher)
+		require.Equal(t, e.component, component(1))
 	}
 }
 

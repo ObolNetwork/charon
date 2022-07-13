@@ -381,9 +381,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	tr := tracker.NewTracker(deadlineFunc)
-
-	wireTracker(ctx, tr, sched, fetch, cons, parSigEx, sigAgg)
+	wireTracker(life, deadlineFunc, sched, fetch, cons, parSigEx, sigAgg)
 
 	if conf.TestConfig.BroadcastCallback != nil {
 		sigAgg.Subscribe(conf.TestConfig.BroadcastCallback)
@@ -401,23 +399,19 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 // wireTracker wires the core workflow components with tracker to track duty failures. It registers tracker as a subscription
 // for the core components.
-func wireTracker(ctx context.Context, tr *tracker.Tracker, sched *scheduler.Scheduler, fetch *fetcher.Fetcher, cons core.Consensus, parSigEx core.ParSigEx, sigagg *sigagg.Aggregator) {
-	ctx, cancel := context.WithCancel(ctx)
+func wireTracker(life *lifecycle.Manager, deadlineFunc func(core.Duty) time.Time, sched *scheduler.Scheduler, fetch *fetcher.Fetcher, cons core.Consensus, parSigEx core.ParSigEx, sigagg *sigagg.Aggregator) {
+	tr := tracker.NewTracker(deadlineFunc)
 
-	sched.Subscribe(tr.AwaitSchedulerEvent)
-	fetch.Subscribe(tr.AwaitFetcherEvent)
-	cons.Subscribe(tr.AwaitConsensusEvent)
-	parSigEx.Subscribe(tr.AwaitParSigExEvent)
-	sigagg.Subscribe(tr.AwaitSigAggEvent)
+	sched.Subscribe(tr.SchedulerEvent)
+	fetch.Subscribe(tr.FetcherEvent)
+	cons.Subscribe(tr.ConsensusEvent)
+	parSigEx.Subscribe(tr.ParSigExEvent)
+	sigagg.Subscribe(tr.SigAggEvent)
+	// vapi.Subscribe(tr.vapiEvent)
+	// parSigDB.Subscribe(tr.parSigDbEvent)
 
-	// Start a long-lived goroutine that listens to events on the channel and maintains state.
-	go func() {
-		err := tr.Run(ctx)
-		if err != nil {
-			log.Error(ctx, "Failed to run tracker", err)
-			cancel()
-		}
-	}()
+	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartTracker, lifecycle.HookFunc(tr.Run))
+	life.RegisterStop(lifecycle.StopTracker, lifecycle.HookFuncMin(tr.Stop))
 }
 
 // eth2PubKeys returns a list of BLS pubkeys of validators in the cluster lock.
