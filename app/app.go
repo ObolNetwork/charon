@@ -360,7 +360,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		eth2client.SlotDurationProvider
 	}
 
-	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl.(slotTimeProvider))
+	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl)
 	if err != nil {
 		return err
 	}
