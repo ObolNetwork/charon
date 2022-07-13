@@ -337,7 +337,7 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 		pubkeyToShares[pk] = sh
 	}
 
-	aggSigLockHash, aggPkLockHash, err := aggLockHashSig(peerSigs, pubkeyToShares, def.DKGAlgorithm)
+	aggSigLockHash, aggPkLockHash, err := aggLockHashSig(peerSigs, pubkeyToShares)
 	if err != nil {
 		return cluster.Lock{}, err
 	}
@@ -398,7 +398,7 @@ func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, w
 
 // aggLockHashSig returns the aggregated multi signature of the lock hash
 // signed by all the distributed validator group private keys.
-func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.PubKey]share, dkgAlgo string) (*bls_sig.MultiSignature, *bls_sig.MultiPublicKey, error) {
+func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.PubKey]share) (*bls_sig.MultiSignature, *bls_sig.MultiPublicKey, error) {
 	var (
 		sigs    []*bls_sig.Signature
 		pubkeys []*bls_sig.PublicKey
