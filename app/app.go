@@ -355,11 +355,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	type slotTimeProvider interface {
-		eth2client.GenesisTimeProvider
-		eth2client.SlotDurationProvider
-	}
-
 	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl)
 	if err != nil {
 		return err
