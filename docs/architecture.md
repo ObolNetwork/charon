@@ -90,7 +90,7 @@ Core Workflow
        &: Beacon-node client calls
        *: P2P protocol
        ▼: Pushed data (in direction of the arrow)
-       ◆: Polled data (returned from the diamond)
+       ◆: Pulled data (returned from the diamond)
 ```
 ### Duty
 As per the Ethereum consensus [spec](https://github.com/ethereum/consensus-specs/blob/v1.1.0-alpha.2/specs/phase0/validator.md#beacon-chain-responsibilities):
