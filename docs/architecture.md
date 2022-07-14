@@ -56,7 +56,7 @@ Core Workflow
 ─────────────┴─────────────────────────────────────────┴──────────────────────
 
              │                ┌─────────┐
-  *Schedule* │          ┌─────►Scheduler│
+  *Schedule* │          ┌─────◆Scheduler│
         duty │          |     └─&┌──────┘
                         |        │
              │          |     ┌──▼────┐
@@ -69,7 +69,7 @@ Core Workflow
         sign │  |       |        ├────────────┐
              │  |       |     ┌──▼───┐     ┌──▼───┐    │
              │  |       |     │DutyDB│     │Signer├────│─► RS
-             │  |       |     └──▲───┘     └──┬───┘    │ Remote signer
+             │  |       |     └──◆───┘     └──┬───┘    │ Remote signer
                 |       |        │            │        │
       *Sign* │  |       |     ┌──┴─┐          │        │
         duty │  |       └----─┤VAPI◄───────────────────│── VC
@@ -80,7 +80,7 @@ Core Workflow
         sigs │  | └─────*──┘  └──┬─────┘
                 |                │
  *Aggregate* │  │ ┌────────┐  ┌──▼───┐
-     partial │  └─►AggSigDB◄──┤SigAgg│
+     partial │  └─◆AggSigDB◄──┤SigAgg│
         sigs │    └────────┘  └──┬───┘
                                  │
  *Broadcast* │                ┌──▼──────┐
@@ -89,6 +89,8 @@ Core Workflow
 
        &: Beacon-node client calls
        *: P2P protocol
+       ▼: Pushed data (in direction of the arrow)
+       ◆: Pulled data (returned from the diamond)
 ```
 ### Duty
 As per the Ethereum consensus [spec](https://github.com/ethereum/consensus-specs/blob/v1.1.0-alpha.2/specs/phase0/validator.md#beacon-chain-responsibilities):
