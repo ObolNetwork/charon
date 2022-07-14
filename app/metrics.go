@@ -35,7 +35,13 @@ var (
 		Namespace: "app",
 		Name:      "git_commit",
 		Help:      "Constant gauge with label set to current git commit hash",
-	}, []string{"hash"})
+	}, []string{"git_hash"})
+
+	lockHashGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Name:      "lock_hash",
+		Help:      "Constant gauge with label set to current cluster lock hash",
+	}, []string{"lock_hash"})
 
 	startGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "app",
@@ -51,12 +57,13 @@ var (
 	})
 )
 
-func initStartupMetrics() {
+func initStartupMetrics(lockHash string) {
 	versionGauge.WithLabelValues(version.Version).Set(1)
 	startGauge.SetToCurrentTime()
 
 	hash, _ := GitCommit()
 	gitGauge.WithLabelValues(hash).Set(1)
+	lockHashGauge.WithLabelValues(lockHash).Set(1)
 }
 
 // GitCommit returns the git commit hash and timestamp from build info.
