@@ -21,7 +21,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "iteration": 1657811907028,
+  "iteration": 1657812627408,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -294,7 +294,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "sum(clamp_max(ceil(rate(p2p_ping_latency_secs_count{job=\"$node\"}[1m])),1))",
+          "expr": "sum(p2p_ping_success{job=\"$node\"})",
           "hide": false,
           "interval": "",
           "legendFormat": "",
