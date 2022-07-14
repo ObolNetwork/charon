@@ -104,19 +104,22 @@ func (t *Tracker) Run(ctx context.Context) error {
 		slotDeadline <-chan time.Time
 	)
 
+	defer close(t.quit)
+
 	for {
 		select {
-		case <-ctx.Done():
+		case <-ctx.Done(): // should only one way to quit
 			return ctx.Err()
-		case <-t.quit:
+		case <-t.quit: //
 			return nil
-		case s := <-t.input:
+		case s := <-t.input: // use deadliner
 			if currSlot == 0 || s < currSlot {
 				log.Debug(ctx, "Going to an earlier slot", z.I64("slot", currSlot))
 				// First event or earlier event.
 				currSlot = s
 				slotDeadline = time.After(time.Until(t.deadlineFunc(core.Duty{Slot: s})))
 			}
+			// add data here
 		case <-slotDeadline:
 			// Case 1: isReadyToAnalyze == true when deadline for slot has exceeded
 			// Explanation: if deadline exceeds for slot, we assume no component sends any event for the slot. So, we can
@@ -194,7 +197,11 @@ func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet cor
 		})
 	}
 
-	t.input <- duty.Slot
+	// select {
+	// case <-t.quit:
+	// 	case t.input <- duty.Slot:
+	// }
+	//
 
 	log.Debug(ctx, "Sent events to tracker", z.Str("component", scheduler.string()))
 
