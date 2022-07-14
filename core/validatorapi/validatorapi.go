@@ -158,6 +158,7 @@ type Component struct {
 	awaitBlockFunc  func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
 	dutyDefFunc     func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	parSigDBFuncs   []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	trackerFunc     func(context.Context, core.Duty, core.PubKey)
 }
 
 func (c *Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -191,7 +192,7 @@ func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slo
 	c.pubKeyByAttFunc = fn
 }
 
-// RegisterDutyDefinitionFunc registers a function to query duty definitions.
+// RegisterGetDutyDefinition registers a function to query duty definitions.
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)) {
 	c.dutyDefFunc = fn
@@ -215,6 +216,11 @@ func (c *Component) RegisterParSigDB(fn func(context.Context, core.Duty, core.Pa
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)) {
 	c.awaitBlockFunc = fn
+}
+
+// RegisterTracker registers the tracker component.
+func (c *Component) RegisterTracker(fn func(context.Context, core.Duty, core.PubKey)) {
+	c.trackerFunc = fn
 }
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.

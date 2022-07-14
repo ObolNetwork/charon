@@ -381,7 +381,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	wireTracker(life, deadlineFunc, sched, fetch, cons, parSigEx, sigAgg)
+	wireTracker(life, deadlineFunc, sched, fetch, cons, vapi, parSigEx, parSigDB, sigAgg)
 
 	if conf.TestConfig.BroadcastCallback != nil {
 		sigAgg.Subscribe(conf.TestConfig.BroadcastCallback)
@@ -399,7 +399,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 // wireTracker wires the core workflow components with tracker to track duty failures. It registers tracker as a subscription
 // for the core components.
-func wireTracker(life *lifecycle.Manager, deadlineFunc func(core.Duty) time.Time, sched *scheduler.Scheduler, fetch *fetcher.Fetcher, cons core.Consensus, parSigEx core.ParSigEx, sigagg *sigagg.Aggregator) {
+func wireTracker(life *lifecycle.Manager, deadlineFunc func(core.Duty) time.Time, sched *scheduler.Scheduler, fetch *fetcher.Fetcher, cons core.Consensus, vapi *validatorapi.Component, parSigEx core.ParSigEx, parSigDB core.ParSigDB, sigagg *sigagg.Aggregator) {
 	tr := tracker.NewTracker(deadlineFunc)
 
 	sched.Subscribe(tr.SchedulerEvent)
@@ -407,8 +407,9 @@ func wireTracker(life *lifecycle.Manager, deadlineFunc func(core.Duty) time.Time
 	cons.Subscribe(tr.ConsensusEvent)
 	parSigEx.Subscribe(tr.ParSigExEvent)
 	sigagg.Subscribe(tr.SigAggEvent)
-	// vapi.Subscribe(tr.vapiEvent)
-	// parSigDB.Subscribe(tr.parSigDbEvent)
+	vapi.RegisterTracker(tr.ValidatorAPIEvent)
+	parSigDB.SubscribeInternal(tr.ParSigDBInternalEvent)
+	parSigDB.SubscribeThreshold(tr.ParSigDBThresholdEvent)
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartTracker, lifecycle.HookFunc(tr.Run))
 	life.RegisterStop(lifecycle.StopTracker, lifecycle.HookFuncMin(tr.Stop))

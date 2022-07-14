@@ -48,9 +48,12 @@ type event struct {
 // Tracker represents the component that listens to events from core workflow components.
 // It identifies where a duty gets stuck in the course of its execution.
 type Tracker struct {
-	mu           sync.Mutex
-	input        chan event
-	expiredDuty  chan core.Duty
+	mu sync.Mutex
+
+	// input represents the channel where each component pushes it slots.
+	input chan int64
+
+	// events stores all the events in a particular slot.
 	events       map[int64][]event
 	deadlineFunc func(core.Duty) time.Time
 	quit         chan struct{}
@@ -71,8 +74,7 @@ func NewForT(deadlineFunc func(core.Duty) time.Time, chanLen int) *Tracker {
 // NewTracker returns a new Tracker.
 func NewTracker(deadlineFunc func(core.Duty) time.Time) *Tracker {
 	t := &Tracker{
-		input:        make(chan event),
-		expiredDuty:  make(chan core.Duty),
+		input:        make(chan int64, 10),
 		events:       make(map[int64][]event),
 		deadlineFunc: deadlineFunc,
 	}
@@ -93,13 +95,12 @@ func (t *Tracker) Run(ctx context.Context) error {
 			return ctx.Err()
 		case <-t.quit:
 			return nil
-		case e := <-t.input:
-			if e.duty.Slot == 0 || e.duty.Slot < currSlot {
+		case s := <-t.input:
+			if currSlot == 0 || s < currSlot {
 				// First event or earlier event.
-				currSlot = e.duty.Slot
-				slotDeadline = time.After(time.Until(t.deadlineFunc(e.duty)))
+				currSlot = s
+				slotDeadline = time.After(time.Until(t.deadlineFunc(core.Duty{Slot: s})))
 			}
-			t.storeEvent(e)
 		case <-slotDeadline:
 			t.analyzeSlot(currSlot)
 			t.trimToSlot(currSlot)
@@ -120,6 +121,7 @@ func (t *Tracker) storeEvent(e event) {
 }
 
 // analyzeSlot analyzes the events in a given slot after the slot's deadline is exceeded.
+// T0DO(xenowits): Complete the function below.
 func (t *Tracker) analyzeSlot(slot int64) {
 	for _, event := range t.events[slot] {
 		fmt.Printf("%v\n", event)
@@ -130,8 +132,6 @@ func (t *Tracker) analyzeSlot(slot int64) {
 func (t *Tracker) trimToSlot(slot int64) {
 	delete(t.events, slot)
 }
-
-// validatorAPI and parSigDB components don't provide subscriptions.
 
 // SchedulerEvent inputs event from core.Scheduler component.
 func (t *Tracker) SchedulerEvent(_ context.Context, duty core.Duty, defSet core.DutyDefinitionSet) error {
@@ -145,6 +145,8 @@ func (t *Tracker) SchedulerEvent(_ context.Context, duty core.Duty, defSet core.
 			pubkey:    pubkey,
 		})
 	}
+
+	t.input <- duty.Slot
 
 	return nil
 }
@@ -162,13 +164,15 @@ func (t *Tracker) FetcherEvent(_ context.Context, duty core.Duty, data core.Unsi
 		})
 	}
 
+	t.input <- duty.Slot
+
 	return nil
 }
 
 // ConsensusEvent inputs event from core.Consensus component.
 func (t *Tracker) ConsensusEvent(_ context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	t.mu.Lock()
-	t.mu.Unlock()
+	defer t.mu.Unlock()
 
 	for pubkey := range data {
 		t.storeEvent(event{
@@ -178,7 +182,23 @@ func (t *Tracker) ConsensusEvent(_ context.Context, duty core.Duty, data core.Un
 		})
 	}
 
+	t.input <- duty.Slot
+
 	return nil
+}
+
+func (t *Tracker) ValidatorAPIEvent(_ context.Context, duty core.Duty, pubkey core.PubKey) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.storeEvent(event{
+		duty:      duty,
+		component: validatorAPI,
+		pubkey:    pubkey,
+	})
+
+	t.input <- duty.Slot
+
 }
 
 // ParSigExEvent inputs event from core.ParSigEx component.
@@ -194,6 +214,42 @@ func (t *Tracker) ParSigExEvent(_ context.Context, duty core.Duty, data core.Par
 		})
 	}
 
+	t.input <- duty.Slot
+
+	return nil
+}
+
+// ParSigDBInternalEvent inputs event from core.ParSigDB component for Internal store event.
+func (t *Tracker) ParSigDBInternalEvent(_ context.Context, duty core.Duty, data core.ParSignedDataSet) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	for pubkey := range data {
+		t.storeEvent(event{
+			duty:      duty,
+			component: parSigDB,
+			pubkey:    pubkey,
+		})
+	}
+
+	t.input <- duty.Slot
+
+	return nil
+}
+
+// ParSigDBThresholdEvent inputs event from core.ParSigDB component for threshold event.
+func (t *Tracker) ParSigDBThresholdEvent(_ context.Context, duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.storeEvent(event{
+		duty:      duty,
+		component: parSigDB,
+		pubkey:    pubkey,
+	})
+
+	t.input <- duty.Slot
+
 	return nil
 }
 
@@ -207,6 +263,8 @@ func (t *Tracker) SigAggEvent(_ context.Context, duty core.Duty, pubkey core.Pub
 		component: sigAgg,
 		pubkey:    pubkey,
 	})
+
+	t.input <- duty.Slot
 
 	return nil
 }
