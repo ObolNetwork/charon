@@ -21,7 +21,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "iteration": 1657289866291,
+  "iteration": 1657811907028,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -159,7 +159,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "(\n  sum(app_git_commit{job=\"$node\"}) by (hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{job=\"$node\"}) by (version)\n)",
+          "expr": "(\n  sum(app_git_commit{job=\"$node\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{job=\"$node\"}) by (version)\n)\n   + on(job) group_left(lock_hash)\n(\n   0 * sum(app_lock_hash{job=\"$node\"}) by (lock_hash)\n)",
           "hide": false,
           "interval": "",
           "legendFormat": "",
@@ -204,7 +204,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
+        "w": 4,
         "x": 8,
         "y": 1
       },
@@ -239,6 +239,157 @@
       ],
       "title": "Beacon Clock Sync",
       "type": "stat"
+    },
+    {
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "id": 22,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.4.4",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "sum(clamp_max(ceil(rate(p2p_ping_latency_secs_count{job=\"$node\"}[1m])),1))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Number of connected peers",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
+      "id": 25,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[30s])) by (le,peer))  ",
+          "interval": "",
+          "legendFormat": "{{peer}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Peer ping latency (90%)",
+      "type": "timeseries"
     },
     {
       "fieldConfig": {
@@ -293,9 +444,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 7,
-        "x": 11,
-        "y": 1
+        "w": 12,
+        "x": 0,
+        "y": 5
       },
       "id": 13,
       "options": {
@@ -378,9 +529,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 18,
-        "y": 1
+        "w": 12,
+        "x": 12,
+        "y": 5
       },
       "id": 14,
       "options": {
@@ -466,7 +617,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 5
+        "y": 9
       },
       "id": 5,
       "options": {
@@ -564,7 +715,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 5
+        "y": 9
       },
       "id": 15,
       "options": {
@@ -650,9 +801,9 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 5
+        "y": 9
       },
-      "id": 16,
+      "id": 24,
       "options": {
         "legend": {
           "calcs": [],
@@ -735,7 +886,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 12
+        "y": 16
       },
       "id": 7,
       "options": {
@@ -833,7 +984,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 12
+        "y": 16
       },
       "id": 17,
       "options": {
@@ -919,7 +1070,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 12
+        "y": 16
       },
       "id": 18,
       "options": {
@@ -1001,7 +1152,7 @@
     ]
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {},

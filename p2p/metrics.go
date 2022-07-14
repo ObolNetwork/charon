@@ -35,12 +35,20 @@ var (
 		Name:      "ping_error_total",
 		Help:      "Total number of ping errors per peer",
 	}, []string{"peer"})
+
+	pingSuccess = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "p2p",
+		Name:      "ping_success",
+		Help:      "Whether the last ping was successful (1) or not (0). Can be used as proxy for connected peers",
+	}, []string{"peer"})
 )
 
 func observePing(p peer.ID, d time.Duration) {
 	pingLatencies.WithLabelValues(PeerName(p)).Observe(d.Seconds())
+	pingSuccess.WithLabelValues(PeerName(p)).Set(1)
 }
 
 func incPingError(p peer.ID) {
 	pingErrors.WithLabelValues(PeerName(p)).Inc()
+	pingSuccess.WithLabelValues(PeerName(p)).Set(0)
 }

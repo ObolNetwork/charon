@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 
@@ -54,28 +55,45 @@ func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID,
 	logFunc func(context.Context, peer.ID, ping.Result), callback func(peer.ID),
 ) {
 	for ctx.Err() == nil {
-		for result := range svc.Ping(ctx, p) {
-			if errors.Is(result.Error, context.Canceled) {
-				// Just exit if context cancelled.
-				break
-			}
+		pingPeerOnce(ctx, svc, p, logFunc, callback)
 
-			logFunc(ctx, p, result)
+		const backoff = time.Second
+		time.Sleep(backoff)
+	}
+}
 
-			if result.Error != nil {
-				incPingError(p)
-			} else {
-				observePing(p, result.RTT)
-				if callback != nil {
-					callback(p)
-				}
-			}
+func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
+	logFunc func(context.Context, peer.ID, ping.Result), callback func(peer.ID),
+) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-			const pingPeriod = time.Second
+	for result := range svc.Ping(ctx, p) {
+		if isRelayError(result.Error) || errors.Is(result.Error, context.Canceled) {
+			// Just exit if relay error or context cancelled.
+			return
+		}
 
-			time.Sleep(pingPeriod)
+		logFunc(ctx, p, result)
+
+		if result.Error != nil {
+			incPingError(p)
+			// Manually exit on first error since some error (like resource scoped closed)
+			// result in ping just hanging.
+			return
+		}
+
+		observePing(p, result.RTT)
+		if callback != nil {
+			callback(p)
 		}
 	}
+}
+
+// isRelayError returns true if the error is due to temporary relay circuit recycling.
+func isRelayError(err error) bool {
+	return errors.Is(err, network.ErrReset) ||
+		errors.Is(err, network.ErrResourceScopeClosed)
 }
 
 // newPingLogger returns stateful logging function that logs ping failures
