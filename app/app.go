@@ -405,14 +405,13 @@ func wireTracker(life *lifecycle.Manager, deadlineFunc func(core.Duty) time.Time
 	sched.Subscribe(tr.SchedulerEvent)
 	fetch.Subscribe(tr.FetcherEvent)
 	cons.Subscribe(tr.ConsensusEvent)
-	parSigEx.Subscribe(tr.ParSigExEvent)
-	sigagg.Subscribe(tr.SigAggEvent)
 	vapi.RegisterTracker(tr.ValidatorAPIEvent)
 	parSigDB.SubscribeInternal(tr.ParSigDBInternalEvent)
+	parSigEx.Subscribe(tr.ParSigExEvent)
 	parSigDB.SubscribeThreshold(tr.ParSigDBThresholdEvent)
+	sigagg.Subscribe(tr.SigAggEvent)
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartTracker, lifecycle.HookFunc(tr.Run))
-	life.RegisterStop(lifecycle.StopTracker, lifecycle.HookFuncMin(tr.Stop))
 }
 
 // eth2PubKeys returns a list of BLS pubkeys of validators in the cluster lock.

@@ -113,6 +113,18 @@ func NewProposerDuty(slot int64) Duty {
 	}
 }
 
+// NewVoluntaryExit returns a new voluntary exit duty. It is a convenience function that is
+// slightly more readable and concise than the struct literal equivalent:
+//   core.Duty{Slot: slot, Type: core.DutyExit}
+//   vs
+//   core.NewVoluntaryExit(slot)
+func NewVoluntaryExit(slot int64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutyExit,
+	}
+}
+
 const (
 	pkLen  = 98 // "0x" + hex.Encode([48]byte) = 2+2*48
 	sigLen = 96

@@ -48,6 +48,5 @@ const (
 	StopP2PPeerDB
 	StopP2PTCPNode
 	StopP2PUDPNode
-	StopTracker
 	StopMonitoringAPI
 )

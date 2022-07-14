@@ -158,7 +158,7 @@ type Component struct {
 	awaitBlockFunc  func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
 	dutyDefFunc     func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	parSigDBFuncs   []func(context.Context, core.Duty, core.ParSignedDataSet) error
-	trackerFunc     func(context.Context, core.Duty, core.PubKey)
+	trackerFunc     func(context.Context, core.Duty, core.ParSignedDataSet)
 }
 
 func (c *Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -219,7 +219,7 @@ func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot i
 }
 
 // RegisterTracker registers the tracker component.
-func (c *Component) RegisterTracker(fn func(context.Context, core.Duty, core.PubKey)) {
+func (c *Component) RegisterTracker(fn func(context.Context, core.Duty, core.ParSignedDataSet)) {
 	c.trackerFunc = fn
 }
 
@@ -291,6 +291,9 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 				return err
 			}
 		}
+
+		// Send events to tracker
+		c.trackerFunc(ctx, duty, set)
 	}
 
 	return nil
@@ -333,6 +336,9 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 			return nil, err
 		}
 	}
+
+	// Send events to tracker
+	c.trackerFunc(ctx, core.NewRandaoDuty(int64(slot)), core.ParSignedDataSet{pubkey: parSig})
 
 	// In the background, the following needs to happen before the
 	// unsigned beacon block will be returned below:
@@ -391,6 +397,9 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 		}
 	}
 
+	// Send events to tracker
+	c.trackerFunc(ctx, duty, set)
+
 	return nil
 }
 
@@ -428,10 +437,7 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 		return err
 	}
 
-	duty := core.Duty{
-		Type: core.DutyExit,
-		Slot: int64(slotsPerEpoch) * int64(exit.Message.Epoch),
-	}
+	duty := core.NewVoluntaryExit(int64(slotsPerEpoch) * int64(exit.Message.Epoch))
 
 	for _, parSigFunc := range c.parSigDBFuncs {
 		// No need to clone since parSigDBFunc auto clones.
@@ -440,6 +446,9 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 			return err
 		}
 	}
+
+	// Send events to tracker
+	c.trackerFunc(ctx, duty, core.ParSignedDataSet{pubkey: parSigData})
 
 	return nil
 }
@@ -553,16 +562,19 @@ func (c Component) submitRandaoDuty(ctx context.Context, pubKey core.PubKey, slo
 
 	log.Debug(ctx, "Randao submitted by validator client")
 
+	duty := core.NewRandaoDuty(int64(slot))
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
 	for _, parSigFunc := range c.parSigDBFuncs {
 		// No need to clone since parSigDBFunc auto clones.
-		duty := core.NewRandaoDuty(int64(slot))
-		ctx := log.WithCtx(ctx, z.Any("duty", duty))
-
 		err := parSigFunc(ctx, duty, parsigSet)
 		if err != nil {
 			return err
 		}
 	}
+
+	// Send events to tracker
+	c.trackerFunc(ctx, duty, parsigSet)
 
 	return nil
 }
