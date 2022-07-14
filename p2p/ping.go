@@ -62,6 +62,7 @@ func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID,
 	}
 }
 
+// pingPeerOnce starts a long lived ping connection with the peer and returns on first error.
 func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 	logFunc func(context.Context, peer.ID, ping.Result), callback func(peer.ID),
 ) {
