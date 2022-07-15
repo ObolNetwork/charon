@@ -17,8 +17,10 @@ package tracker
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
 )
 
@@ -82,14 +84,14 @@ func (t *Tracker) Run(ctx context.Context) error {
 			t.events[e.duty] = append(t.events[e.duty], e)
 			t.deadliner.Add(e.duty)
 		case duty := <-t.deadliner.C():
-			t.analyseDuty(duty)
+			t.analyseDuty(ctx, duty)
 			delete(t.events, duty)
 		}
 	}
 }
 
 // analyzeDuty analyzes the events for a given duty after the duty's deadline is exceeded.
-func (t *Tracker) analyseDuty(duty core.Duty) {
+func (t *Tracker) analyseDuty(ctx context.Context, duty core.Duty) {
 	events := t.events[duty]
 
 	// Sort in reverse order (see order above).
@@ -99,9 +101,20 @@ func (t *Tracker) analyseDuty(duty core.Duty) {
 
 	if events[0].component == sigAgg {
 		// Duty completed successfully
+		// TODO(dhruv): Case of cluster participation (duty success)
+		// t.analyseClusterParticipation()
 		return
 	}
-	// TODO(dhruv): Case of cluster participation (duty success)
+
+	// Duty has failed
+	_, msg := analyseFailedDuty(duty, events)
+	log.Debug(ctx, msg)
+}
+
+// analyseFailedDuty returns true if the duty didn't complete the sigagg component.
+func analyseFailedDuty(duty core.Duty, events []event) (component, string) {
+	// TODO(dhruv): instrument failed duty
+	return events[0].component + 1, fmt.Sprintf("%s has failed in %s component", duty.String(), (events[0].component + 2).String())
 }
 
 // SchedulerEvent inputs event from core.Scheduler component.
