@@ -59,8 +59,11 @@ func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 	}
 	defer db.Close()
 
-	_, _ = fmt.Fprintf(w, "Created ENR private key: %s/charon-enr-private-key\n", dataDir)
+	keyPath := fmt.Sprintf("%s/%s", dataDir, "charon-enr-private-key")
+
+	_, _ = fmt.Fprintf(w, "Created ENR private key: %s\n", keyPath)
 	_, _ = fmt.Fprintln(w, localEnode.Node().String())
+	_, _ = fmt.Fprintf(w, "\nPLEASE BACKUP YOUR KEY IMMEDIATELY! IF YOU LOSE YOUR KEY, YOU WON'T BE ABLE TO PARTICIPATE IN RUNNING A CLUSTER. YOU CAN FIND YOUR KEY IN **%s**.\n", keyPath)
 
 	return nil
 }
