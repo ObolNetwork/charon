@@ -89,7 +89,7 @@ type ValidatorAPI interface {
 	RegisterGetDutyDefinition(func(context.Context, Duty) (DutyDefinitionSet, error))
 
 	// RegisterParSigDB registers a function to store partially signed data sets.
-	RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error)
+	Subscribe(func(context.Context, Duty, ParSignedDataSet) error)
 }
 
 // ParSigDB persists partial signatures and sends them to the
@@ -207,7 +207,7 @@ func Wire(sched Scheduler,
 		VAPIRegisterAwaitAttestation:    vapi.RegisterAwaitAttestation,
 		VAPIRegisterGetDutyDefinition:   vapi.RegisterGetDutyDefinition,
 		VAPIRegisterPubKeyByAttestation: vapi.RegisterPubKeyByAttestation,
-		VAPIRegisterParSigDB:            vapi.RegisterParSigDB,
+		VAPIRegisterParSigDB:            vapi.Subscribe,
 		ParSigDBStoreInternal:           parSigDB.StoreInternal,
 		ParSigDBStoreExternal:           parSigDB.StoreExternal,
 		ParSigDBSubscribeInternal:       parSigDB.SubscribeInternal,

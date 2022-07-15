@@ -157,8 +157,7 @@ type Component struct {
 	awaitAttFunc    func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
 	awaitBlockFunc  func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
 	dutyDefFunc     func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
-	parSigDBFuncs   []func(context.Context, core.Duty, core.ParSignedDataSet) error
-	trackerFunc     func(context.Context, core.Duty, core.ParSignedDataSet)
+	subs            []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
 func (c *Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -198,10 +197,10 @@ func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty 
 	c.dutyDefFunc = fn
 }
 
-// RegisterParSigDB registers a partial signed data set store function.
+// Subscribe registers a partial signed data set store function.
 // It supports multiple functions since it is the output of the component.
-func (c *Component) RegisterParSigDB(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
-	c.parSigDBFuncs = append(c.parSigDBFuncs, func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+func (c *Component) Subscribe(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
+	c.subs = append(c.subs, func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		// Clone before calling each subscriber.
 		clone, err := set.Clone()
 		if err != nil {
@@ -216,11 +215,6 @@ func (c *Component) RegisterParSigDB(fn func(context.Context, core.Duty, core.Pa
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)) {
 	c.awaitBlockFunc = fn
-}
-
-// RegisterTracker registers the tracker component.
-func (c *Component) RegisterTracker(fn func(context.Context, core.Duty, core.ParSignedDataSet)) {
-	c.trackerFunc = fn
 }
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
@@ -284,7 +278,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 
 		log.Debug(ctx, "Attestation submitted by validator client")
 
-		for _, parSigFunc := range c.parSigDBFuncs {
+		for _, parSigFunc := range c.subs {
 			// No need to clone since parSigDBFunc auto clones.
 			err := parSigFunc(ctx, duty, set)
 			if err != nil {
@@ -323,7 +317,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 		return nil, err
 	}
 
-	for _, parSigFunc := range c.parSigDBFuncs {
+	for _, parSigFunc := range c.subs {
 		// No need to clone since parSigDBFunc auto clones.
 		parsigSet := core.ParSignedDataSet{
 			pubkey: parSig,
@@ -383,7 +377,7 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 		return err
 	}
 	set := core.ParSignedDataSet{pubkey: signedData}
-	for _, parSigFunc := range c.parSigDBFuncs {
+	for _, parSigFunc := range c.subs {
 		// No need to clone since parSigDBFunc auto clones.
 		err = parSigFunc(ctx, duty, set)
 		if err != nil {
@@ -430,7 +424,7 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 
 	duty := core.NewVoluntaryExit(int64(slotsPerEpoch) * int64(exit.Message.Epoch))
 
-	for _, parSigFunc := range c.parSigDBFuncs {
+	for _, parSigFunc := range c.subs {
 		// No need to clone since parSigDBFunc auto clones.
 		err := parSigFunc(ctx, duty, core.ParSignedDataSet{pubkey: parSigData})
 		if err != nil {
@@ -553,7 +547,7 @@ func (c Component) submitRandaoDuty(ctx context.Context, pubKey core.PubKey, slo
 	duty := core.NewRandaoDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	for _, parSigFunc := range c.parSigDBFuncs {
+	for _, parSigFunc := range c.subs {
 		// No need to clone since parSigDBFunc auto clones.
 		err := parSigFunc(ctx, duty, parsigSet)
 		if err != nil {
