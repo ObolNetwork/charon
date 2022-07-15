@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -59,8 +60,26 @@ func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 	}
 	defer db.Close()
 
-	_, _ = fmt.Fprintf(w, "Created ENR private key: %s/charon-enr-private-key\n", dataDir)
+	keyPath := fmt.Sprintf("%s", p2p.KeyPath(dataDir))
+
+	_, _ = fmt.Fprintf(w, "Created ENR private key: %s\n", keyPath)
 	_, _ = fmt.Fprintln(w, localEnode.Node().String())
 
+	writeEnrWarning(w, keyPath)
+
 	return nil
+}
+
+// writeEnrWarning writes backup key warning to the terminal.
+func writeEnrWarning(w io.Writer, keyPath string) {
+	var sb strings.Builder
+	_, _ = sb.WriteString("\n")
+	_, _ = sb.WriteString("***************** WARNING: Backup key **********************\n")
+	_, _ = sb.WriteString(" PLEASE BACKUP YOUR KEY IMMEDIATELY! IF YOU LOSE YOUR KEY,\n")
+	_, _ = sb.WriteString(" YOU WON'T BE ABLE TO PARTICIPATE IN RUNNING A CHARON CLUSTER.\n\n")
+	_, _ = sb.WriteString(fmt.Sprintf(" YOU CAN FIND YOUR KEY IN %s\n", keyPath))
+	_, _ = sb.WriteString("****************************************************************\n")
+	_, _ = sb.WriteString("\n")
+
+	_, _ = w.Write([]byte(sb.String()))
 }
