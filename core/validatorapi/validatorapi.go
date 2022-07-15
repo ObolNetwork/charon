@@ -291,9 +291,6 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 				return err
 			}
 		}
-
-		// Send events to tracker
-		c.trackerFunc(ctx, duty, set)
 	}
 
 	return nil
@@ -336,9 +333,6 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 			return nil, err
 		}
 	}
-
-	// Send events to tracker
-	c.trackerFunc(ctx, core.NewRandaoDuty(int64(slot)), core.ParSignedDataSet{pubkey: parSig})
 
 	// In the background, the following needs to happen before the
 	// unsigned beacon block will be returned below:
@@ -397,9 +391,6 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 		}
 	}
 
-	// Send events to tracker
-	c.trackerFunc(ctx, duty, set)
-
 	return nil
 }
 
@@ -446,9 +437,6 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 			return err
 		}
 	}
-
-	// Send events to tracker
-	c.trackerFunc(ctx, duty, core.ParSignedDataSet{pubkey: parSigData})
 
 	return nil
 }
@@ -572,9 +560,6 @@ func (c Component) submitRandaoDuty(ctx context.Context, pubKey core.PubKey, slo
 			return err
 		}
 	}
-
-	// Send events to tracker
-	c.trackerFunc(ctx, duty, parsigSet)
 
 	return nil
 }
