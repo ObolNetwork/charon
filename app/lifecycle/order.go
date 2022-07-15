@@ -34,7 +34,6 @@ const (
 	StartP2PConsensus
 	StartSimulator
 	StartScheduler
-	StartTracker
 )
 
 // Global ordering of stop hooks; follows dependency tree from root to leaves.

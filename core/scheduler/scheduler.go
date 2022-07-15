@@ -93,7 +93,6 @@ type Scheduler struct {
 	duties        map[core.Duty]core.DutyDefinitionSet
 	dutiesMutex   sync.Mutex
 	subs          []func(context.Context, core.Duty, core.DutyDefinitionSet) error
-	deadlineFunc  func(core.Duty) time.Time
 }
 
 // Subscribe registers a callback for triggering a duty.
