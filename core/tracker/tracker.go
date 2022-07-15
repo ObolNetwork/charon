@@ -17,6 +17,7 @@ package tracker
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/obolnetwork/charon/core"
@@ -82,16 +83,19 @@ func (t *Tracker) Run(ctx context.Context) error {
 			t.events[e.duty] = append(t.events[e.duty], e)
 			t.deadliner.Add(e.duty)
 		case duty := <-t.deadliner.C():
-			t.analyseDuty(duty)
+			failed, failedComponent, failedMsg := analyseFailedDuty(duty, t.events[duty])
+			if failed {
+				t.reportFailedDuties(duty, failedComponent, failedMsg)
+			}
+			// TODO(dhruv): Case of cluster participation (duty success)
+			// t.analyseClusterParticipation()
 			delete(t.events, duty)
 		}
 	}
 }
 
-// analyzeDuty analyzes the events for a given duty after the duty's deadline is exceeded.
-func (t *Tracker) analyseDuty(duty core.Duty) {
-	events := t.events[duty]
-
+// analyseFailedDuty analyzes the events for a given duty after the duty's deadline is exceeded.
+func analyseFailedDuty(duty core.Duty, events []event) (bool, component, string) {
 	// Sort in reverse order (see order above).
 	sort.Slice(events, func(i, j int) bool {
 		return events[i].component > events[j].component
@@ -99,16 +103,13 @@ func (t *Tracker) analyseDuty(duty core.Duty) {
 
 	if events[0].component == sigAgg {
 		// Duty completed successfully
-		// TODO(dhruv): Case of cluster participation (duty success)
-		// t.analyseClusterParticipation()
-		return
+		return false, sigAgg, ""
 	}
 
-	// Duty has failed
-	t.reportFailedDuties(duty, events[0].component+1)
+	return true, events[0].component + 1, fmt.Sprintf("%s is failed in %s component", duty.String(), (events[0].component + 1).String())
 }
 
-func (*Tracker) reportFailedDuties(core.Duty, component) {
+func (*Tracker) reportFailedDuties(core.Duty, component, string) {
 	// TODO(dhruv): instrument failed duty
 }
 
