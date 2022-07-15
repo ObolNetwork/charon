@@ -105,6 +105,9 @@ func (t *Tracker) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case e := <-t.input: // use deadliner
+			if currSlot == 0 {
+				currSlot = e.duty.Slot
+			}
 			t.storeEvent(e)
 		case <-slotDeadline:
 			t.analyzeSlot(ctx, currSlot)
