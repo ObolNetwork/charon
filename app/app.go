@@ -57,7 +57,6 @@ import (
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/core/scheduler"
 	"github.com/obolnetwork/charon/core/sigagg"
-	"github.com/obolnetwork/charon/core/tracker"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
@@ -381,7 +380,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	wireTracker(life, deadlineFunc, sched, fetch, cons, vapi, parSigEx, parSigDB, sigAgg)
+	// TODO(dhruv): call wireTracker once tracker component is ready with deadliner implementation
 
 	if conf.TestConfig.BroadcastCallback != nil {
 		sigAgg.Subscribe(conf.TestConfig.BroadcastCallback)
@@ -395,23 +394,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	life.RegisterStop(lifecycle.StopRetryer, lifecycle.HookFuncCtx(retryer.Shutdown))
 
 	return nil
-}
-
-// wireTracker wires the core workflow components with tracker to track duty failures. It registers tracker as a subscription
-// for the core components.
-func wireTracker(life *lifecycle.Manager, deadlineFunc func(core.Duty) time.Time, sched *scheduler.Scheduler, fetch *fetcher.Fetcher, cons core.Consensus, vapi *validatorapi.Component, parSigEx core.ParSigEx, parSigDB core.ParSigDB, sigagg *sigagg.Aggregator) {
-	tr := tracker.NewTracker(deadlineFunc)
-
-	sched.Subscribe(tr.SchedulerEvent)
-	fetch.Subscribe(tr.FetcherEvent)
-	cons.Subscribe(tr.ConsensusEvent)
-	vapi.RegisterTracker(tr.ValidatorAPIEvent)
-	parSigDB.SubscribeInternal(tr.ParSigDBInternalEvent)
-	parSigEx.Subscribe(tr.ParSigExEvent)
-	parSigDB.SubscribeThreshold(tr.ParSigDBThresholdEvent)
-	sigagg.Subscribe(tr.SigAggEvent)
-
-	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartTracker, lifecycle.HookFunc(tr.Run))
 }
 
 // eth2PubKeys returns a list of BLS pubkeys of validators in the cluster lock.

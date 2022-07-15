@@ -18,7 +18,6 @@ package tracker
 import (
 	"context"
 	"sort"
-	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -67,25 +66,19 @@ type Tracker struct {
 	input chan event
 
 	// events stores all the events in a particular slot.
-	events       map[int64][]event
-	deadlineFunc func(core.Duty) time.Time
-	quit         chan struct{}
-}
-
-// NewForT returns a new Tracker for use in tests.
-func NewForT(deadlineFunc func(core.Duty) time.Time, chanLen int) *Tracker {
-	t := NewTracker(deadlineFunc)
-	return t
+	events    map[core.Duty][]event
+	deadliner core.Deadliner
+	quit      chan struct{}
 }
 
 // NewTracker returns a new Tracker.
-func NewTracker(deadlineFunc func(core.Duty) time.Time) *Tracker {
+func NewTracker(deadliner core.Deadliner) *Tracker {
 	t := &Tracker{
 		// Using a buffered channel
-		input:        make(chan event),
-		events:       make(map[int64][]event),
-		quit:         make(chan struct{}),
-		deadlineFunc: deadlineFunc,
+		input:     make(chan event),
+		events:    make(map[core.Duty][]event),
+		quit:      make(chan struct{}),
+		deadliner: deadliner,
 	}
 
 	return t
@@ -93,42 +86,33 @@ func NewTracker(deadlineFunc func(core.Duty) time.Time) *Tracker {
 
 // Run blocks and registers events from each component in tracker's input channel.
 func (t *Tracker) Run(ctx context.Context) error {
-	var (
-		currSlot     int64
-		slotDeadline <-chan time.Time
-	)
-
 	defer close(t.quit)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case e := <-t.input: // use deadliner
-			if currSlot == 0 {
-				currSlot = e.duty.Slot
-			}
+		case e := <-t.input:
 			t.storeEvent(e)
-		case <-slotDeadline:
-			t.analyzeSlot(ctx, currSlot)
-			t.trimToSlot(currSlot)
-			currSlot++
-			slotDeadline = time.After(time.Until(t.deadlineFunc(core.Duty{Slot: currSlot})))
+		case duty := <-t.deadliner.C():
+			t.analyzeDuty(ctx, duty)
+			t.trimDuty(duty)
 		}
 	}
 }
 
-// storeEvent stores the event as value with the duty as the key.
+// storeEvent stores the event as value with the duty as key. Also, adds duty to the deadliner.
 func (t *Tracker) storeEvent(e event) {
-	t.events[e.duty.Slot] = append(t.events[e.duty.Slot], e)
+	t.events[e.duty] = append(t.events[e.duty], e)
+	t.deadliner.Add(e.duty)
 }
 
-// analyzeSlot analyzes the events in a given slot after the slot's deadline is exceeded.
-func (t *Tracker) analyzeSlot(ctx context.Context, slot int64) {
-	// Deadline crossed for this slot.
-	log.Debug(ctx, "Slot deadline exceeded", z.I64("slot", slot))
+// analyzeDuty analyzes the events for a given duty after the duty's deadline is exceeded.
+func (t *Tracker) analyzeDuty(ctx context.Context, duty core.Duty) {
+	// Deadline crossed for this duty.
+	log.Debug(ctx, "Deadline exceeded", z.Str("duty", duty.String()))
 
-	events := t.events[slot]
+	events := t.events[duty]
 
 	// Sort in reverse order (see order above).
 	sort.Slice(events, func(i, j int) bool {
@@ -139,16 +123,16 @@ func (t *Tracker) analyzeSlot(ctx context.Context, slot int64) {
 	if events[0].component != sigAgg {
 		// duty failed in the next component.
 		failedComponent := (events[0].component + 1).string()
-		log.Error(ctx, "Duty stuck", errors.New("duty stuck", z.Str("component", failedComponent)))
+		log.Error(ctx, "Duty stuck", errors.New("duty stuck"), z.Str("component", failedComponent), z.Str("duty", duty.String()))
 
 		return
 	}
 	// TODO(dhruv): Case of cluster participation (duty success)
 }
 
-// trimToSlot trims the events for a given slot.
-func (t *Tracker) trimToSlot(slot int64) {
-	delete(t.events, slot)
+// trimDuty trims the events for a given duty.
+func (t *Tracker) trimDuty(duty core.Duty) {
+	delete(t.events, duty)
 }
 
 // SchedulerEvent inputs event from core.Scheduler component.
