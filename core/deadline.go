@@ -17,11 +17,15 @@ package core
 
 import (
 	"context"
+	"math"
+	"sync"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 // lateFactor defines the number of slots duties may be late.
@@ -43,6 +47,111 @@ type Deadliner interface {
 	// C returns the same read channel every time and contains deadlined duties.
 	// It should only be called by a single goroutine.
 	C() <-chan Duty
+}
+
+// Deadline implements the Deadliner interface.
+type Deadline struct {
+	mu           sync.Mutex
+	genesisTime  time.Time
+	slotDuration time.Duration
+
+	dutyChan     chan Duty
+	deadlineChan chan Duty
+
+	// duties represents a set since duty deduplication is required.
+	duties map[Duty]bool
+}
+
+// NewDeadliner returns a new instance of Deadline.
+func NewDeadliner(ctx context.Context, eth2Svc eth2client.Service) (*Deadline, error) {
+	eth2Cl := eth2Svc.(slotTimeProvider)
+
+	genesis, err := eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	duration, err := eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	d := &Deadline{
+		genesisTime:  genesis,
+		slotDuration: duration,
+		dutyChan:     make(chan Duty),
+		deadlineChan: make(chan Duty),
+		duties:       make(map[Duty]bool),
+	}
+
+	go func() {
+		timer := time.NewTimer(time.Second)
+		var deadlineTimer <-chan time.Time
+		var minDuty Duty
+
+		for {
+			select {
+			case duty := <-d.dutyChan:
+				d.duties[duty] = true
+			case <-timer.C:
+				md, ok := d.getMinDuty()
+				if !ok {
+					continue
+				}
+				minDuty = md
+				deadlineTimer = time.After(time.Until(d.deadlineTime(md)))
+				log.Debug(ctx, "Minimum duty", z.Any("duty", md))
+				d.deleteDuty(md)
+			case <-deadlineTimer:
+				d.deadlineChan <- minDuty
+			}
+		}
+	}()
+
+	return d, nil
+}
+
+// Add adds a duty to be notified of the deadline.
+func (d *Deadline) Add(duty Duty) {
+	d.dutyChan <- duty
+}
+
+// C returns the deadline channel.
+func (d *Deadline) C() <-chan Duty {
+	return d.deadlineChan
+}
+
+// deleteDuty deletes a duty whose deadline notification has been already processed.
+func (d *Deadline) deleteDuty(duty Duty) {
+	delete(d.duties, duty)
+}
+
+// getMinDuty gets the first duty to process.
+func (d *Deadline) getMinDuty() (Duty, bool) {
+	minDuty := Duty{Slot: math.MaxInt64, Type: dutySentinel}
+	for duty := range d.duties {
+		if duty.Slot < minDuty.Slot || ((duty.Slot == minDuty.Slot) && (duty.Type < minDuty.Type)) {
+			minDuty = duty
+		}
+	}
+
+	if minDuty.Slot == math.MaxInt64 {
+		return minDuty, false
+	}
+
+	return minDuty, true
+}
+
+func (d *Deadline) deadlineTime(duty Duty) time.Time {
+	if duty.Type == DutyExit {
+		// Do not timeout exit duties.
+		return time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+	}
+
+	start := d.genesisTime.Add(d.slotDuration * time.Duration(duty.Slot))
+	end := start.Add(d.slotDuration * time.Duration(lateFactor))
+
+	return end
 }
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines.
