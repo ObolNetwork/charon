@@ -22,6 +22,8 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+//go:generate stringer -type=component
+
 // component refers to a core workflow component.
 type component int
 
@@ -36,19 +38,6 @@ const (
 	parSigDBThreshold
 	sigAgg
 )
-
-func (c component) string() string {
-	return map[component]string{
-		scheduler:         "scheduler",
-		fetcher:           "fetcher",
-		consensus:         "consensus",
-		validatorAPI:      "validatorAPI",
-		parSigDBInternal:  "parSigDBInternal",
-		parSigEx:          "parSigEx",
-		parSigDBThreshold: "parSigDBThreshold",
-		sigAgg:            "sigAgg",
-	}[c]
-}
 
 // event represents an event emitted by a core workflow component.
 type event struct {
@@ -116,7 +105,7 @@ func (t *Tracker) analyseDuty(duty core.Duty) {
 }
 
 // SchedulerEvent inputs event from core.Scheduler component.
-func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) error {
+func (t *Tracker) SchedulerEvent(_ context.Context, duty core.Duty, defSet core.DutyDefinitionSet) error {
 	for pubkey := range defSet {
 		select {
 		case <-t.quit:
@@ -134,7 +123,7 @@ func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet cor
 }
 
 // FetcherEvent inputs event from core.Fetcher component.
-func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
+func (t *Tracker) FetcherEvent(_ context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	for pubkey := range data {
 		select {
 		case <-t.quit:
@@ -152,7 +141,7 @@ func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.Un
 }
 
 // ConsensusEvent inputs event from core.Consensus component.
-func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
+func (t *Tracker) ConsensusEvent(_ context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	for pubkey := range data {
 		select {
 		case <-t.quit:
@@ -170,7 +159,7 @@ func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.
 }
 
 // ValidatorAPIEvent inputs events from core.ValidatorAPI component.
-func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) {
+func (t *Tracker) ValidatorAPIEvent(_ context.Context, duty core.Duty, data core.ParSignedDataSet) {
 	for pubkey := range data {
 		select {
 		case <-t.quit:
@@ -186,7 +175,7 @@ func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data co
 }
 
 // ParSigExEvent inputs event from core.ParSigEx component.
-func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
+func (t *Tracker) ParSigExEvent(_ context.Context, duty core.Duty, data core.ParSignedDataSet) error {
 	for pubkey := range data {
 		select {
 		case <-t.quit:
@@ -204,7 +193,7 @@ func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.P
 }
 
 // ParSigDBInternalEvent inputs events from core.ParSigDB component for internal store event.
-func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
+func (t *Tracker) ParSigDBInternalEvent(_ context.Context, duty core.Duty, data core.ParSignedDataSet) error {
 	for pubkey := range data {
 		select {
 		case <-t.quit:
@@ -222,7 +211,7 @@ func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, dat
 }
 
 // ParSigDBThresholdEvent inputs event from core.ParSigDB component for threshold event.
-func (t *Tracker) ParSigDBThresholdEvent(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData) error {
+func (t *Tracker) ParSigDBThresholdEvent(_ context.Context, duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData) error {
 	select {
 	case <-t.quit:
 		return nil
@@ -238,7 +227,7 @@ func (t *Tracker) ParSigDBThresholdEvent(ctx context.Context, duty core.Duty, pu
 }
 
 // SigAggEvent inputs event from core.SigAgg component.
-func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ core.SignedData) error {
+func (t *Tracker) SigAggEvent(_ context.Context, duty core.Duty, pubkey core.PubKey, _ core.SignedData) error {
 	select {
 	case <-t.quit:
 		return nil
