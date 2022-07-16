@@ -34,6 +34,17 @@ type slotTimeProvider interface {
 	eth2client.SlotDurationProvider
 }
 
+// Deadliner provides duty Deadline functionality. The C method isn’t thread safe and may only be used by a single goroutine. So, multiple
+// instances are required for different components and use cases.
+type Deadliner interface {
+	// Add adds a duty to be notified of the Deadline via C. Note that duties will be deduplicated and only a single duty will be provided via C.
+	Add(duty Duty)
+
+	// C returns the same read channel every time and contains deadlined duties.
+	// It should only be called by a single goroutine.
+	C() <-chan Duty
+}
+
 // NewDutyDeadlineFunc returns the function that provides duty deadlines.
 func NewDutyDeadlineFunc(ctx context.Context, eth2Svc eth2client.Service) (func(Duty) time.Time, error) {
 	eth2Cl, ok := eth2Svc.(slotTimeProvider)

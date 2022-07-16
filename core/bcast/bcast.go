@@ -14,7 +14,7 @@
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Package bcast provides the core workflow's broadcaster component that
-// broadcasts/submits aggregated singed duty data to the beacon-node.
+// broadcasts/submits aggregated signed duty data to the beacon node.
 package bcast
 
 import (
