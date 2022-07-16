@@ -38,6 +38,8 @@ const (
 	parSigEx
 	parSigDBThreshold
 	sigAgg
+
+	sentinel
 )
 
 // event represents an event emitted by a core workflow component.
@@ -83,10 +85,10 @@ func (t *Tracker) Run(ctx context.Context) error {
 			t.events[e.duty] = append(t.events[e.duty], e)
 			t.deadliner.Add(e.duty)
 		case duty := <-t.deadliner.C():
-			failed, failedComponent, failedMsg := analyseFailedDuty(duty, t.events[duty])
-			if failed {
-				t.reportFailedDuties(duty, failedComponent, failedMsg)
-			}
+			failed, failedComponent, failedMsg := analyseDuty(duty, t.events[duty])
+
+			t.reportDuties(duty, failed, failedComponent, failedMsg)
+
 			// TODO(dhruv): Case of cluster participation (duty success)
 			// t.analyseClusterParticipation()
 			delete(t.events, duty)
@@ -94,12 +96,20 @@ func (t *Tracker) Run(ctx context.Context) error {
 	}
 }
 
-// analyseFailedDuty analyzes the events for a given duty after the duty's deadline is exceeded.
-func analyseFailedDuty(duty core.Duty, events []event) (bool, component, string) {
+// analyseDuty analyzes the events for a deadlined duty. It returns true if the duty succeeds or false otherwise.
+// In case the duty gets stuck, it also returns the component where the duty got stuck along-with a message with more specific details.
+func analyseDuty(duty core.Duty, es []event) (bool, component, string) {
+	events := make([]event, len(es))
+	copy(events, es)
+
 	// Sort in reverse order (see order above).
 	sort.Slice(events, func(i, j int) bool {
 		return events[i].component > events[j].component
 	})
+
+	if len(events) == 0 {
+		return false, sentinel, "No events to analyse"
+	}
 
 	if events[0].component == sigAgg {
 		// Duty completed successfully
@@ -109,14 +119,17 @@ func analyseFailedDuty(duty core.Duty, events []event) (bool, component, string)
 	return true, events[0].component + 1, fmt.Sprintf("%s is failed in %s component", duty.String(), (events[0].component + 1).String())
 }
 
-func (*Tracker) reportFailedDuties(core.Duty, component, string) {
+// reportDuties reports the component where the given duty failed. It ignores non-failed duties.
+func (*Tracker) reportDuties(core.Duty, bool, component, string) {
 	// TODO(dhruv): instrument failed duty
 }
 
 // SchedulerEvent inputs event from core.Scheduler component.
-func (t *Tracker) SchedulerEvent(_ context.Context, duty core.Duty, defSet core.DutyDefinitionSet) error {
+func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) error {
 	for pubkey := range defSet {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-t.quit:
 			return nil
 		default:
@@ -132,9 +145,11 @@ func (t *Tracker) SchedulerEvent(_ context.Context, duty core.Duty, defSet core.
 }
 
 // FetcherEvent inputs event from core.Fetcher component.
-func (t *Tracker) FetcherEvent(_ context.Context, duty core.Duty, data core.UnsignedDataSet) error {
+func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	for pubkey := range data {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-t.quit:
 			return nil
 		default:
@@ -150,9 +165,11 @@ func (t *Tracker) FetcherEvent(_ context.Context, duty core.Duty, data core.Unsi
 }
 
 // ConsensusEvent inputs event from core.Consensus component.
-func (t *Tracker) ConsensusEvent(_ context.Context, duty core.Duty, data core.UnsignedDataSet) error {
+func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	for pubkey := range data {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-t.quit:
 			return nil
 		default:
@@ -168,9 +185,11 @@ func (t *Tracker) ConsensusEvent(_ context.Context, duty core.Duty, data core.Un
 }
 
 // ValidatorAPIEvent inputs events from core.ValidatorAPI component.
-func (t *Tracker) ValidatorAPIEvent(_ context.Context, duty core.Duty, data core.ParSignedDataSet) {
+func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) {
 	for pubkey := range data {
 		select {
+		case <-ctx.Done():
+			return
 		case <-t.quit:
 			return
 		default:
@@ -184,9 +203,11 @@ func (t *Tracker) ValidatorAPIEvent(_ context.Context, duty core.Duty, data core
 }
 
 // ParSigExEvent inputs event from core.ParSigEx component.
-func (t *Tracker) ParSigExEvent(_ context.Context, duty core.Duty, data core.ParSignedDataSet) error {
+func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
 	for pubkey := range data {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-t.quit:
 			return nil
 		default:
@@ -202,9 +223,11 @@ func (t *Tracker) ParSigExEvent(_ context.Context, duty core.Duty, data core.Par
 }
 
 // ParSigDBInternalEvent inputs events from core.ParSigDB component for internal store event.
-func (t *Tracker) ParSigDBInternalEvent(_ context.Context, duty core.Duty, data core.ParSignedDataSet) error {
+func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
 	for pubkey := range data {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-t.quit:
 			return nil
 		default:
@@ -220,8 +243,10 @@ func (t *Tracker) ParSigDBInternalEvent(_ context.Context, duty core.Duty, data 
 }
 
 // ParSigDBThresholdEvent inputs event from core.ParSigDB component for threshold event.
-func (t *Tracker) ParSigDBThresholdEvent(_ context.Context, duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData) error {
+func (t *Tracker) ParSigDBThresholdEvent(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData) error {
 	select {
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-t.quit:
 		return nil
 	default:
@@ -236,8 +261,10 @@ func (t *Tracker) ParSigDBThresholdEvent(_ context.Context, duty core.Duty, pubk
 }
 
 // SigAggEvent inputs event from core.SigAgg component.
-func (t *Tracker) SigAggEvent(_ context.Context, duty core.Duty, pubkey core.PubKey, _ core.SignedData) error {
+func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ core.SignedData) error {
 	select {
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-t.quit:
 		return nil
 	default:

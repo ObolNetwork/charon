@@ -88,7 +88,7 @@ type ValidatorAPI interface {
 	// RegisterGetDutyDefinition registers a function to query duty definitions.
 	RegisterGetDutyDefinition(func(context.Context, Duty) (DutyDefinitionSet, error))
 
-	// RegisterParSigDB registers a function to store partially signed data sets.
+	// Subscribe registers a function to store partially signed data sets.
 	Subscribe(func(context.Context, Duty, ParSignedDataSet) error)
 }
 
@@ -161,7 +161,7 @@ type wireFuncs struct {
 	VAPIRegisterAwaitBeaconBlock    func(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error))
 	VAPIRegisterGetDutyDefinition   func(func(context.Context, Duty) (DutyDefinitionSet, error))
 	VAPIRegisterPubKeyByAttestation func(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
-	VAPIRegisterParSigDB            func(func(context.Context, Duty, ParSignedDataSet) error)
+	VAPISubscribe                   func(func(context.Context, Duty, ParSignedDataSet) error)
 	ParSigDBStoreInternal           func(context.Context, Duty, ParSignedDataSet) error
 	ParSigDBStoreExternal           func(context.Context, Duty, ParSignedDataSet) error
 	ParSigDBSubscribeInternal       func(func(context.Context, Duty, ParSignedDataSet) error)
@@ -207,7 +207,7 @@ func Wire(sched Scheduler,
 		VAPIRegisterAwaitAttestation:    vapi.RegisterAwaitAttestation,
 		VAPIRegisterGetDutyDefinition:   vapi.RegisterGetDutyDefinition,
 		VAPIRegisterPubKeyByAttestation: vapi.RegisterPubKeyByAttestation,
-		VAPIRegisterParSigDB:            vapi.Subscribe,
+		VAPISubscribe:                   vapi.Subscribe,
 		ParSigDBStoreInternal:           parSigDB.StoreInternal,
 		ParSigDBStoreExternal:           parSigDB.StoreExternal,
 		ParSigDBSubscribeInternal:       parSigDB.SubscribeInternal,
@@ -233,7 +233,7 @@ func Wire(sched Scheduler,
 	w.VAPIRegisterAwaitAttestation(w.DutyDBAwaitAttestation)
 	w.VAPIRegisterGetDutyDefinition(w.SchedulerGetDutyDefinition)
 	w.VAPIRegisterPubKeyByAttestation(w.DutyDBPubKeyByAttestation)
-	w.VAPIRegisterParSigDB(w.ParSigDBStoreInternal)
+	w.VAPISubscribe(w.ParSigDBStoreInternal)
 	w.ParSigDBSubscribeInternal(w.ParSigExBroadcast)
 	w.ParSigExSubscribe(w.ParSigDBStoreExternal)
 	w.ParSigDBSubscribeThreshold(w.SigAggAggregate)
