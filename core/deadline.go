@@ -17,6 +17,8 @@ package core
 
 import (
 	"context"
+	"math"
+	"sync"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -45,7 +47,119 @@ type Deadliner interface {
 	C() <-chan Duty
 }
 
+// Deadline implements the Deadliner interface.
+type Deadline struct {
+	mu           sync.Mutex
+	genesisTime  time.Time
+	slotDuration time.Duration
+
+	dutyChan     chan Duty
+	deadlineChan chan Duty
+
+	// duties represents a set since duty deduplication is required.
+	duties map[Duty]bool
+}
+
+// NewDeadliner returns a new instance of Deadline.
+func NewDeadliner(ctx context.Context, eth2Cl slotTimeProvider) (*Deadline, error) {
+	genesis, err := eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	duration, err := eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	d := &Deadline{
+		genesisTime:  genesis,
+		slotDuration: duration,
+		dutyChan:     make(chan Duty),
+		deadlineChan: make(chan Duty),
+		duties:       make(map[Duty]bool),
+	}
+
+	go func() {
+		var (
+			deadlineTimer <-chan time.Time
+			minDuty       Duty
+		)
+
+		for {
+			select {
+			case <-ctx.Done():
+				// Killed by parent context
+				return
+			case duty := <-d.dutyChan:
+				if minDuty.Type == DutyUnknown {
+					// Initialise minDuty and deadlineTimer
+					minDuty = duty
+					deadlineTimer = time.After(time.Until(d.deadlineTime(minDuty)))
+				}
+				d.duties[duty] = true
+			case <-deadlineTimer:
+				// Send deadlined duty to receiver
+				d.deadlineChan <- minDuty
+
+				// Delete duty whose deadline has passed
+				delete(d.duties, minDuty)
+
+				// New min duty for next deadline
+				md, ok := d.getMinDuty()
+				minDuty = md
+				if !ok {
+					continue
+				}
+				deadlineTimer = time.After(time.Until(d.deadlineTime(minDuty)))
+			}
+		}
+	}()
+
+	return d, nil
+}
+
+// Add adds a duty to be notified of the deadline.
+func (d *Deadline) Add(duty Duty) {
+	d.dutyChan <- duty
+}
+
+// C returns the deadline channel.
+func (d *Deadline) C() <-chan Duty {
+	return d.deadlineChan
+}
+
+// getMinDuty gets the first duty to process.
+func (d *Deadline) getMinDuty() (Duty, bool) {
+	minDuty := Duty{Slot: math.MaxInt64, Type: dutySentinel}
+	for duty := range d.duties {
+		if duty.Slot < minDuty.Slot || ((duty.Slot == minDuty.Slot) && (duty.Type < minDuty.Type)) {
+			minDuty = duty
+		}
+	}
+
+	if minDuty.Slot == math.MaxInt64 {
+		return minDuty, false
+	}
+
+	return minDuty, true
+}
+
+// deadlineTime returns time at which duty is supposed to hit deadline.
+func (d *Deadline) deadlineTime(duty Duty) time.Time {
+	if duty.Type == DutyExit {
+		// Do not timeout exit duties.
+		return time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+	}
+
+	start := d.genesisTime.Add(d.slotDuration * time.Duration(duty.Slot))
+	end := start.Add(d.slotDuration * time.Duration(lateFactor))
+
+	return end
+}
+
 // NewDutyDeadlineFunc returns the function that provides duty deadlines.
+// TODO(dhruv): replace "NewDutyDeadlineFunc" with above deadliner implementation wherever used.
 func NewDutyDeadlineFunc(ctx context.Context, eth2Svc eth2client.Service) (func(Duty) time.Time, error) {
 	eth2Cl, ok := eth2Svc.(slotTimeProvider)
 	if !ok {
