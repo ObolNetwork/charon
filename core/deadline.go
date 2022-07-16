@@ -61,9 +61,7 @@ type Deadline struct {
 }
 
 // NewDeadliner returns a new instance of Deadline.
-func NewDeadliner(ctx context.Context, eth2Svc eth2client.Service) (*Deadline, error) {
-	eth2Cl := eth2Svc.(slotTimeProvider)
-
+func NewDeadliner(ctx context.Context, eth2Cl slotTimeProvider) (*Deadline, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return nil, err
@@ -161,6 +159,7 @@ func (d *Deadline) deadlineTime(duty Duty) time.Time {
 }
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines.
+// TODO(dhruv): replace "NewDutyDeadlineFunc" with above deadliner implementation wherever used.
 func NewDutyDeadlineFunc(ctx context.Context, eth2Svc eth2client.Service) (func(Duty) time.Time, error) {
 	eth2Cl, ok := eth2Svc.(slotTimeProvider)
 	if !ok {
