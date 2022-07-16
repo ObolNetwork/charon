@@ -279,7 +279,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 		log.Debug(ctx, "Attestation submitted by validator client")
 
 		for _, sub := range c.subs {
-			// No need to clone since parSigDBFunc auto clones.
+			// No need to clone since sub auto clones.
 			err := sub(ctx, duty, set)
 			if err != nil {
 				return err
@@ -318,7 +318,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	}
 
 	for _, sub := range c.subs {
-		// No need to clone since parSigDBFunc auto clones.
+		// No need to clone since sub auto clones.
 		parsigSet := core.ParSignedDataSet{
 			pubkey: parSig,
 		}
@@ -378,7 +378,7 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 	}
 	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, sub := range c.subs {
-		// No need to clone since parSigDBFunc auto clones.
+		// No need to clone since sub auto clones.
 		err = sub(ctx, duty, set)
 		if err != nil {
 			return err
@@ -425,7 +425,7 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 	duty := core.NewVoluntaryExit(int64(slotsPerEpoch) * int64(exit.Message.Epoch))
 
 	for _, sub := range c.subs {
-		// No need to clone since parSigDBFunc auto clones.
+		// No need to clone since sub auto clones.
 		err := sub(ctx, duty, core.ParSignedDataSet{pubkey: parSigData})
 		if err != nil {
 			return err
@@ -548,7 +548,7 @@ func (c Component) submitRandaoDuty(ctx context.Context, pubKey core.PubKey, slo
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	for _, sub := range c.subs {
-		// No need to clone since parSigDBFunc auto clones.
+		// No need to clone since sub auto clones.
 		err := sub(ctx, duty, parsigSet)
 		if err != nil {
 			return err
