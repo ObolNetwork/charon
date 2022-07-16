@@ -86,9 +86,9 @@ func (t *Tracker) Run(ctx context.Context) error {
 			t.events[e.duty] = append(t.events[e.duty], e)
 			t.deadliner.Add(e.duty)
 		case duty := <-t.deadliner.C():
-			failed, failedComponent, failedMsg := analyseDuty(duty, t.events[duty])
+			failed, failedComponent, failedMsg := analyseFailedDuty(duty, t.events[duty])
 
-			t.reportDuties(duty, failed, failedComponent, failedMsg)
+			t.reportFailedDuty(duty, failed, failedComponent, failedMsg)
 
 			// TODO(dhruv): Case of cluster participation (duty success)
 			// t.analyseClusterParticipation()
@@ -97,9 +97,9 @@ func (t *Tracker) Run(ctx context.Context) error {
 	}
 }
 
-// analyseDuty analyzes the events for a deadlined duty. It returns true if the duty succeeds and returns false otherwise.
-// In case the duty gets stuck, it also returns the component where the duty got stuck along-with a message with more specific details.
-func analyseDuty(duty core.Duty, es []event) (bool, component, string) {
+// analyseFailedDuty analyzes the events for a deadlined duty. It returns true if the duty didn't complete the sigagg component.
+// If it failed, it also returns the component it failed at and a human friendly error message.
+func analyseFailedDuty(duty core.Duty, es []event) (bool, component, string) {
 	events := make([]event, len(es))
 	copy(events, es)
 
@@ -120,8 +120,8 @@ func analyseDuty(duty core.Duty, es []event) (bool, component, string) {
 	return true, events[0].component + 1, fmt.Sprintf("%s failed in %s component", duty.String(), (events[0].component + 1).String())
 }
 
-// reportDuties reports/instruments the component where the given duty failed. It ignores non-failed duties.
-func (*Tracker) reportDuties(core.Duty, bool, component, string) {
+// reportFailedDuty logs and instruments the duty. It ignores non-failed duties.
+func (*Tracker) reportFailedDuty(core.Duty, bool, component, string) {
 	// TODO(dhruv): instrument failed duty
 }
 
