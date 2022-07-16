@@ -439,7 +439,7 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 		},
 	}
 
-	// Register parsigdb funcs
+	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		block, ok := set[corePubKey].SignedData.(core.VersionedSignedBeaconBlock)
 		require.True(t, ok)
@@ -509,7 +509,7 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 		},
 	}
 
-	// Register parsigdb funcs
+	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		block, ok := set[corePubKey].SignedData.(core.VersionedSignedBeaconBlock)
 		require.True(t, ok)
@@ -643,7 +643,7 @@ func TestComponent_SubmitVoluntaryExit(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
 	require.NoError(t, err)
 
-	// prepare unsigned voluntary exit
+	// Prepare unsigned voluntary exit
 	exit := &eth2p0.VoluntaryExit{
 		Epoch:          epoch,
 		ValidatorIndex: vIdx,
@@ -667,7 +667,7 @@ func TestComponent_SubmitVoluntaryExit(t *testing.T) {
 		Signature: tblsconv.SigToETH2(sig),
 	}
 
-	// Register parsigdb funcs
+	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		signedExit2, ok := set[corePubKey].SignedData.(core.SignedVoluntaryExit)
 		require.True(t, ok)
@@ -705,7 +705,7 @@ func TestComponent_SubmitVoluntaryExitInvalidSignature(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
 	require.NoError(t, err)
 
-	// Register parsigdb funcs
+	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		cancel()
 		return ctx.Err()
