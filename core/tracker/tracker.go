@@ -54,7 +54,7 @@ type event struct {
 type Tracker struct {
 	input chan event
 
-	// events stores all the events in a particular duty.
+	// events stores all the events corresponding to a particular duty.
 	events    map[core.Duty][]event
 	deadliner core.Deadliner
 	quit      chan struct{}
@@ -73,6 +73,7 @@ func NewTracker(deadliner core.Deadliner) *Tracker {
 }
 
 // Run blocks and registers events from each component in tracker's input channel.
+// It also analyses and reports the duties whose deadline gets crossed.
 func (t *Tracker) Run(ctx context.Context) error {
 	defer close(t.quit)
 
@@ -81,7 +82,7 @@ func (t *Tracker) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case e := <-t.input:
-			// TODO(dhruv): do not store events for expired duties
+			// TODO(dhruv): Do not store events for expired duties.
 			t.events[e.duty] = append(t.events[e.duty], e)
 			t.deadliner.Add(e.duty)
 		case duty := <-t.deadliner.C():
@@ -96,7 +97,7 @@ func (t *Tracker) Run(ctx context.Context) error {
 	}
 }
 
-// analyseDuty analyzes the events for a deadlined duty. It returns true if the duty succeeds or false otherwise.
+// analyseDuty analyzes the events for a deadlined duty. It returns true if the duty succeeds and returns false otherwise.
 // In case the duty gets stuck, it also returns the component where the duty got stuck along-with a message with more specific details.
 func analyseDuty(duty core.Duty, es []event) (bool, component, string) {
 	events := make([]event, len(es))
@@ -116,10 +117,10 @@ func analyseDuty(duty core.Duty, es []event) (bool, component, string) {
 		return false, sigAgg, ""
 	}
 
-	return true, events[0].component + 1, fmt.Sprintf("%s is failed in %s component", duty.String(), (events[0].component + 1).String())
+	return true, events[0].component + 1, fmt.Sprintf("%s failed in %s component", duty.String(), (events[0].component + 1).String())
 }
 
-// reportDuties reports the component where the given duty failed. It ignores non-failed duties.
+// reportDuties reports/instruments the component where the given duty failed. It ignores non-failed duties.
 func (*Tracker) reportDuties(core.Duty, bool, component, string) {
 	// TODO(dhruv): instrument failed duty
 }
