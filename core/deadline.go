@@ -24,8 +24,6 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 )
 
 // lateFactor defines the number of slots duties may be late.
@@ -85,25 +83,37 @@ func NewDeadliner(ctx context.Context, eth2Svc eth2client.Service) (*Deadline, e
 	}
 
 	go func() {
-		timer := time.NewTimer(time.Second)
-		var deadlineTimer <-chan time.Time
-		var minDuty Duty
+		var (
+			deadlineTimer <-chan time.Time
+			minDuty       Duty
+		)
 
 		for {
 			select {
+			case <-ctx.Done():
+				// Killed by parent context
+				return
 			case duty := <-d.dutyChan:
+				if minDuty.Type == DutyUnknown {
+					// Initialise minDuty and deadlineTimer
+					minDuty = duty
+					deadlineTimer = time.After(time.Until(d.deadlineTime(minDuty)))
+				}
 				d.duties[duty] = true
-			case <-timer.C:
+			case <-deadlineTimer:
+				// Send deadlined duty to receiver
+				d.deadlineChan <- minDuty
+
+				// Delete duty whose deadline has passed
+				delete(d.duties, minDuty)
+
+				// New min duty for next deadline
 				md, ok := d.getMinDuty()
+				minDuty = md
 				if !ok {
 					continue
 				}
-				minDuty = md
-				deadlineTimer = time.After(time.Until(d.deadlineTime(md)))
-				log.Debug(ctx, "Minimum duty", z.Any("duty", md))
-				d.deleteDuty(md)
-			case <-deadlineTimer:
-				d.deadlineChan <- minDuty
+				deadlineTimer = time.After(time.Until(d.deadlineTime(minDuty)))
 			}
 		}
 	}()
@@ -119,11 +129,6 @@ func (d *Deadline) Add(duty Duty) {
 // C returns the deadline channel.
 func (d *Deadline) C() <-chan Duty {
 	return d.deadlineChan
-}
-
-// deleteDuty deletes a duty whose deadline notification has been already processed.
-func (d *Deadline) deleteDuty(duty Duty) {
-	delete(d.duties, duty)
 }
 
 // getMinDuty gets the first duty to process.
@@ -142,6 +147,7 @@ func (d *Deadline) getMinDuty() (Duty, bool) {
 	return minDuty, true
 }
 
+// deadlineTime returns time at which duty is supposed to hit deadline.
 func (d *Deadline) deadlineTime(duty Duty) time.Time {
 	if duty.Type == DutyExit {
 		// Do not timeout exit duties.

@@ -16,8 +16,42 @@
 package core_test
 
 import (
+	"context"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestDeadliner(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	bmock, err := beaconmock.New(
+		beaconmock.WithGenesisTime(time.Now()),
+		beaconmock.WithSlotDuration(time.Second),
+	)
+	require.NoError(t, err)
+
+	deadliner, err := core.NewDeadliner(ctx, bmock)
+	require.NoError(t, err)
+
+	// It will take around 7 seconds to timeout these 3 duties
+	expectedDuties := []core.Duty{
+		core.NewAttesterDuty(1),
+		core.NewAttesterDuty(2),
+		core.NewAttesterDuty(3),
+	}
+
+	for _, duty := range expectedDuties {
+		deadliner.Add(duty)
+	}
+
+	for _, duty := range expectedDuties {
+		actualDuty := <-deadliner.C()
+		require.Equal(t, duty, actualDuty)
+	}
 }
