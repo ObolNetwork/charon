@@ -380,7 +380,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	// TODO(dhruv): call wireTracker once tracker component is ready with deadliner implementation
+	// TODO(dhruv): Add wireTracker once the tracker component is ready with deadliner implementation.
 
 	if conf.TestConfig.BroadcastCallback != nil {
 		sigAgg.Subscribe(conf.TestConfig.BroadcastCallback)

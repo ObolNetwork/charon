@@ -17,13 +17,13 @@ package tracker
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
-	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
+
+//go:generate stringer -type=component
 
 // component refers to a core workflow component.
 type component int
@@ -38,20 +38,9 @@ const (
 	parSigEx
 	parSigDBThreshold
 	sigAgg
-)
 
-func (c component) string() string {
-	return map[component]string{
-		scheduler:         "scheduler",
-		fetcher:           "fetcher",
-		consensus:         "consensus",
-		validatorAPI:      "validatorAPI",
-		parSigDBInternal:  "parSigDBInternal",
-		parSigEx:          "parSigEx",
-		parSigDBThreshold: "parSigDBThreshold",
-		sigAgg:            "sigAgg",
-	}[c]
-}
+	sentinel
+)
 
 // event represents an event emitted by a core workflow component.
 type event struct {
@@ -65,7 +54,7 @@ type event struct {
 type Tracker struct {
 	input chan event
 
-	// events stores all the events in a particular slot.
+	// events stores all the events corresponding to a particular duty.
 	events    map[core.Duty][]event
 	deadliner core.Deadliner
 	quit      chan struct{}
@@ -74,7 +63,6 @@ type Tracker struct {
 // NewTracker returns a new Tracker.
 func NewTracker(deadliner core.Deadliner) *Tracker {
 	t := &Tracker{
-		// Using a buffered channel
 		input:     make(chan event),
 		events:    make(map[core.Duty][]event),
 		quit:      make(chan struct{}),
@@ -85,6 +73,7 @@ func NewTracker(deadliner core.Deadliner) *Tracker {
 }
 
 // Run blocks and registers events from each component in tracker's input channel.
+// It also analyses and reports the duties whose deadline gets crossed.
 func (t *Tracker) Run(ctx context.Context) error {
 	defer close(t.quit)
 
@@ -93,52 +82,55 @@ func (t *Tracker) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case e := <-t.input:
-			t.storeEvent(e)
+			// TODO(dhruv): Do not store events for expired duties.
+			t.events[e.duty] = append(t.events[e.duty], e)
+			t.deadliner.Add(e.duty)
 		case duty := <-t.deadliner.C():
-			t.analyzeDuty(ctx, duty)
-			t.trimDuty(duty)
+			failed, failedComponent, failedMsg := analyseFailedDuty(duty, t.events[duty])
+
+			t.reportFailedDuty(duty, failed, failedComponent, failedMsg)
+
+			// TODO(dhruv): Case of cluster participation (duty success)
+			// t.analyseClusterParticipation()
+			delete(t.events, duty)
 		}
 	}
 }
 
-// storeEvent stores the event as value with the duty as key. Also, adds duty to the deadliner.
-func (t *Tracker) storeEvent(e event) {
-	t.events[e.duty] = append(t.events[e.duty], e)
-	t.deadliner.Add(e.duty)
-}
-
-// analyzeDuty analyzes the events for a given duty after the duty's deadline is exceeded.
-func (t *Tracker) analyzeDuty(ctx context.Context, duty core.Duty) {
-	// Deadline crossed for this duty.
-	log.Debug(ctx, "Deadline exceeded", z.Str("duty", duty.String()))
-
-	events := t.events[duty]
+// analyseFailedDuty analyzes the events for a deadlined duty. It returns true if the duty didn't complete the sigagg component.
+// If it failed, it also returns the component it failed at and a human friendly error message.
+func analyseFailedDuty(duty core.Duty, es []event) (bool, component, string) {
+	events := make([]event, len(es))
+	copy(events, es)
 
 	// Sort in reverse order (see order above).
 	sort.Slice(events, func(i, j int) bool {
 		return events[i].component > events[j].component
 	})
 
-	// Case of failed duties
-	if events[0].component != sigAgg {
-		// duty failed in the next component.
-		failedComponent := (events[0].component + 1).string()
-		log.Error(ctx, "Duty stuck", errors.New("duty stuck"), z.Str("component", failedComponent), z.Str("duty", duty.String()))
-
-		return
+	if len(events) == 0 {
+		return false, sentinel, "No events to analyse"
 	}
-	// TODO(dhruv): Case of cluster participation (duty success)
+
+	if events[0].component == sigAgg {
+		// Duty completed successfully
+		return false, sigAgg, ""
+	}
+
+	return true, events[0].component + 1, fmt.Sprintf("%s failed in %s component", duty.String(), (events[0].component + 1).String())
 }
 
-// trimDuty trims the events for a given duty.
-func (t *Tracker) trimDuty(duty core.Duty) {
-	delete(t.events, duty)
+// reportFailedDuty logs and instruments the duty. It ignores non-failed duties.
+func (*Tracker) reportFailedDuty(core.Duty, bool, component, string) {
+	// TODO(dhruv): instrument failed duty
 }
 
 // SchedulerEvent inputs event from core.Scheduler component.
 func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) error {
 	for pubkey := range defSet {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-t.quit:
 			return nil
 		default:
@@ -150,8 +142,6 @@ func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet cor
 		}
 	}
 
-	log.Debug(ctx, "Sent events to tracker", z.Str("component", scheduler.string()))
-
 	return nil
 }
 
@@ -159,6 +149,8 @@ func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet cor
 func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	for pubkey := range data {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-t.quit:
 			return nil
 		default:
@@ -170,8 +162,6 @@ func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.Un
 		}
 	}
 
-	log.Debug(ctx, "Sent events to tracker", z.Str("component", fetcher.string()))
-
 	return nil
 }
 
@@ -179,6 +169,8 @@ func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.Un
 func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	for pubkey := range data {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-t.quit:
 			return nil
 		default:
@@ -190,8 +182,6 @@ func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.
 		}
 	}
 
-	log.Debug(ctx, "Sent events to tracker", z.Str("component", consensus.string()))
-
 	return nil
 }
 
@@ -199,6 +189,8 @@ func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.
 func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) {
 	for pubkey := range data {
 		select {
+		case <-ctx.Done():
+			return
 		case <-t.quit:
 			return
 		default:
@@ -209,14 +201,14 @@ func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data co
 			}
 		}
 	}
-
-	log.Debug(ctx, "Sent events to tracker", z.Str("component", validatorAPI.string()))
 }
 
 // ParSigExEvent inputs event from core.ParSigEx component.
 func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
 	for pubkey := range data {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-t.quit:
 			return nil
 		default:
@@ -228,8 +220,6 @@ func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.P
 		}
 	}
 
-	log.Debug(ctx, "Sent events to tracker", z.Str("component", parSigEx.string()))
-
 	return nil
 }
 
@@ -237,6 +227,8 @@ func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.P
 func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
 	for pubkey := range data {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-t.quit:
 			return nil
 		default:
@@ -248,14 +240,14 @@ func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, dat
 		}
 	}
 
-	log.Debug(ctx, "Sent events to tracker", z.Str("component", parSigDBInternal.string()))
-
 	return nil
 }
 
 // ParSigDBThresholdEvent inputs event from core.ParSigDB component for threshold event.
 func (t *Tracker) ParSigDBThresholdEvent(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData) error {
 	select {
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-t.quit:
 		return nil
 	default:
@@ -266,14 +258,14 @@ func (t *Tracker) ParSigDBThresholdEvent(ctx context.Context, duty core.Duty, pu
 		}
 	}
 
-	log.Debug(ctx, "Sent events to tracker", z.Str("component", parSigDBThreshold.string()))
-
 	return nil
 }
 
 // SigAggEvent inputs event from core.SigAgg component.
 func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ core.SignedData) error {
 	select {
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-t.quit:
 		return nil
 	default:
@@ -283,8 +275,6 @@ func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.P
 			pubkey:    pubkey,
 		}
 	}
-
-	log.Debug(ctx, "Sent events to tracker", z.Str("component", sigAgg.string()))
 
 	return nil
 }
