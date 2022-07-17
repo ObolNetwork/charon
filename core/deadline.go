@@ -63,8 +63,8 @@ type Deadline struct {
 }
 
 // NewDeadliner returns a new instance of Deadline.
-// It runs a goroutine which is responsible for reading and storing duties.
-// It also sends the deadlined duty to receiver's deadlineChan.
+// It runs a goroutine which is responsible for reading and storing duties,
+// and sending the deadlined duty to receiver's deadlineChan.
 func NewDeadliner(ctx context.Context, eth2Cl slotTimeProvider) (*Deadline, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
@@ -113,6 +113,7 @@ func NewDeadliner(ctx context.Context, eth2Cl slotTimeProvider) (*Deadline, erro
 				if !ok {
 					continue
 				}
+
 				minDuty = md
 				deadlineTimer = time.After(time.Until(d.deadlineTime(minDuty)))
 			}
@@ -133,7 +134,7 @@ func (d *Deadline) C() <-chan Duty {
 }
 
 // getMinDuty gets the duty to process next.
-// It selects duty with minimum slot. If slots are equal then it selects the duty with minimum DutyType.
+// It selects duty with minimum slot. If slots are equal, then it selects the duty with minimum DutyType.
 func (d *Deadline) getMinDuty() (Duty, bool) {
 	minDuty := Duty{Slot: math.MaxInt64, Type: dutySentinel}
 	for duty := range d.duties {
