@@ -30,16 +30,31 @@ func TestDeadliner(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	const lateFactor = 1
+
 	bmock, err := beaconmock.New(
 		beaconmock.WithGenesisTime(time.Now()),
 		beaconmock.WithSlotDuration(time.Second),
 	)
 	require.NoError(t, err)
 
-	deadliner, err := core.NewDeadliner(ctx, bmock)
+	deadlineFunc := func(duty core.Duty) time.Time {
+		genesis, err := bmock.GenesisTime(ctx)
+		require.NoError(t, err)
+
+		duration, err := bmock.SlotDuration(ctx)
+		require.NoError(t, err)
+
+		start := genesis.Add(duration * time.Duration(duty.Slot))
+		end := start.Add(duration * time.Duration(lateFactor))
+
+		return end
+	}
+
+	deadliner, err := core.NewDeadliner(ctx, deadlineFunc)
 	require.NoError(t, err)
 
-	// It will take around 7 seconds to timeout these 3 duties
+	// It will take around 3 seconds to timeout these 3 duties with lateFactor of 1 second
 	expectedDuties := []core.Duty{
 		core.NewAttesterDuty(1),
 		core.NewAttesterDuty(2),

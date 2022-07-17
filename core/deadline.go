@@ -18,7 +18,6 @@ package core
 import (
 	"context"
 	"math"
-	"sync"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -51,44 +50,32 @@ type Deadliner interface {
 
 // Deadline implements the Deadliner interface.
 type Deadline struct {
-	mu           sync.Mutex
-	genesisTime  time.Time
-	slotDuration time.Duration
-
 	dutyChan     chan Duty
 	deadlineChan chan Duty
-
-	// duties represents a set since duty deduplication is required.
-	duties map[Duty]bool
+	quit         chan struct{}
+	deadlineFunc func(Duty) time.Time
 }
 
 // NewDeadliner returns a new instance of Deadline.
 // It runs a goroutine which is responsible for reading and storing duties,
 // and sending the deadlined duty to receiver's deadlineChan.
-func NewDeadliner(ctx context.Context, eth2Cl slotTimeProvider) (*Deadline, error) {
-	genesis, err := eth2Cl.GenesisTime(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	duration, err := eth2Cl.SlotDuration(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Deadline, error) {
 	d := &Deadline{
-		genesisTime:  genesis,
-		slotDuration: duration,
 		dutyChan:     make(chan Duty),
 		deadlineChan: make(chan Duty),
-		duties:       make(map[Duty]bool),
+		quit:         make(chan struct{}),
+		deadlineFunc: deadlineFunc,
 	}
 
 	go func() {
+		defer close(d.quit)
 		var (
 			deadlineTimer <-chan time.Time
 			minDuty       Duty
 		)
+
+		// duties represents a set since duty deduplication is required.
+		duties := make(map[Duty]bool)
 
 		for {
 			select {
@@ -98,24 +85,24 @@ func NewDeadliner(ctx context.Context, eth2Cl slotTimeProvider) (*Deadline, erro
 				if minDuty.Type == DutyUnknown {
 					// Initialise minDuty and deadlineTimer
 					minDuty = duty
-					deadlineTimer = time.After(time.Until(d.deadlineTime(minDuty)))
+					deadlineTimer = time.After(time.Until(d.deadlineFunc(minDuty)))
 				}
-				d.duties[duty] = true
+				duties[duty] = true
 			case <-deadlineTimer:
 				// Send deadlined duty to receiver
 				d.deadlineChan <- minDuty
 
 				// Delete duty whose deadline has passed
-				delete(d.duties, minDuty)
+				delete(duties, minDuty)
 
 				// New min duty for next deadline
-				md, ok := d.getMinDuty()
+				md, ok := getMinDuty(duties)
 				if !ok {
 					continue
 				}
 
 				minDuty = md
-				deadlineTimer = time.After(time.Until(d.deadlineTime(minDuty)))
+				deadlineTimer = time.After(time.Until(d.deadlineFunc(minDuty)))
 			}
 		}
 	}()
@@ -125,7 +112,17 @@ func NewDeadliner(ctx context.Context, eth2Cl slotTimeProvider) (*Deadline, erro
 
 // Add adds a duty to be notified of the deadline.
 func (d *Deadline) Add(duty Duty) {
-	d.dutyChan <- duty
+	if duty.Type == DutyExit {
+		// Ignore DutyExit since it doesn't timeout
+		return
+	}
+
+	select {
+	case <-d.quit:
+		return
+	default:
+		d.dutyChan <- duty
+	}
 }
 
 // C returns the deadline channel.
@@ -135,9 +132,9 @@ func (d *Deadline) C() <-chan Duty {
 
 // getMinDuty gets the duty to process next.
 // It selects duty with minimum slot. If slots are equal, then it selects the duty with minimum DutyType.
-func (d *Deadline) getMinDuty() (Duty, bool) {
+func getMinDuty(duties map[Duty]bool) (Duty, bool) {
 	minDuty := Duty{Slot: math.MaxInt64, Type: dutySentinel}
-	for duty := range d.duties {
+	for duty := range duties {
 		if duty.Slot < minDuty.Slot || ((duty.Slot == minDuty.Slot) && (duty.Type < minDuty.Type)) {
 			minDuty = duty
 		}
@@ -150,21 +147,7 @@ func (d *Deadline) getMinDuty() (Duty, bool) {
 	return minDuty, true
 }
 
-// deadlineTime returns the deadline time of the duty.
-func (d *Deadline) deadlineTime(duty Duty) time.Time {
-	if duty.Type == DutyExit {
-		// Do not timeout exit duties.
-		return time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
-	}
-
-	start := d.genesisTime.Add(d.slotDuration * time.Duration(duty.Slot))
-	end := start.Add(d.slotDuration * time.Duration(lateFactor))
-
-	return end
-}
-
 // NewDutyDeadlineFunc returns the function that provides duty deadlines.
-// TODO(dhruv): replace "NewDutyDeadlineFunc" with above deadliner implementation wherever used.
 func NewDutyDeadlineFunc(ctx context.Context, eth2Svc eth2client.Service) (func(Duty) time.Time, error) {
 	eth2Cl, ok := eth2Svc.(slotTimeProvider)
 	if !ok {
