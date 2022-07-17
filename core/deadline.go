@@ -36,10 +36,12 @@ type slotTimeProvider interface {
 	eth2client.SlotDurationProvider
 }
 
-// Deadliner provides duty Deadline functionality. The C method isn’t thread safe and may only be used by a single goroutine. So, multiple
-// instances are required for different components and use cases.
+// Deadliner provides duty Deadline functionality. The C method isn’t thread safe and
+// may only be used by a single goroutine. So, multiple instances are required
+// for different components and use cases.
 type Deadliner interface {
-	// Add adds a duty to be notified of the Deadline via C. Note that duties will be deduplicated and only a single duty will be provided via C.
+	// Add adds a duty to be notified of the Deadline via C.
+	// Note that duties will be deduplicated and only a single duty will be provided via C.
 	Add(duty Duty)
 
 	// C returns the same read channel every time and contains deadlined duties.
@@ -61,6 +63,8 @@ type Deadline struct {
 }
 
 // NewDeadliner returns a new instance of Deadline.
+// It runs a goroutine which is responsible for reading and storing duties.
+// It also sends the deadlined duty to receiver's deadlineChan.
 func NewDeadliner(ctx context.Context, eth2Cl slotTimeProvider) (*Deadline, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
@@ -128,7 +132,8 @@ func (d *Deadline) C() <-chan Duty {
 	return d.deadlineChan
 }
 
-// getMinDuty gets the first duty to process.
+// getMinDuty gets the duty to process next.
+// It selects duty with minimum slot. If slots are equal then it selects the duty with minimum DutyType.
 func (d *Deadline) getMinDuty() (Duty, bool) {
 	minDuty := Duty{Slot: math.MaxInt64, Type: dutySentinel}
 	for duty := range d.duties {
