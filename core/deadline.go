@@ -89,7 +89,6 @@ func NewDeadliner(ctx context.Context, eth2Cl slotTimeProvider) (*Deadline, erro
 		for {
 			select {
 			case <-ctx.Done():
-				// Killed by parent context
 				return
 			case duty := <-d.dutyChan:
 				if minDuty.Type == DutyUnknown {
@@ -107,10 +106,10 @@ func NewDeadliner(ctx context.Context, eth2Cl slotTimeProvider) (*Deadline, erro
 
 				// New min duty for next deadline
 				md, ok := d.getMinDuty()
-				minDuty = md
 				if !ok {
 					continue
 				}
+				minDuty = md
 				deadlineTimer = time.After(time.Until(d.deadlineTime(minDuty)))
 			}
 		}
@@ -145,7 +144,7 @@ func (d *Deadline) getMinDuty() (Duty, bool) {
 	return minDuty, true
 }
 
-// deadlineTime returns time at which duty is supposed to hit deadline.
+// deadlineTime returns the deadline time of the duty.
 func (d *Deadline) deadlineTime(duty Duty) time.Time {
 	if duty.Type == DutyExit {
 		// Do not timeout exit duties.
