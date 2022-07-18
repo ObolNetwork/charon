@@ -149,9 +149,10 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 
 		randao := randaoData.Signature().ToETH2()
 
-		// TODO(dhruv): what to do with graffiti?
-		// passing empty graffiti since it is not required in API
+		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
 		var graffiti [32]byte
+		s := []byte("Obol Distributed Validator")
+		copy(graffiti[:], s)
 		block, err := f.eth2Cl.BeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randao, graffiti[:])
 		if err != nil {
 			return nil, err
