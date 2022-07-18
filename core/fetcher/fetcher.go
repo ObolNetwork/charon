@@ -17,11 +17,13 @@ package fetcher
 
 import (
 	"context"
+	"fmt"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
@@ -149,9 +151,10 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 
 		randao := randaoData.Signature().ToETH2()
 
-		// TODO(dhruv): what to do with graffiti?
-		// passing empty graffiti since it is not required in API
+		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
 		var graffiti [32]byte
+		commitSHA, _ := version.GitCommit()
+		copy(graffiti[:], fmt.Sprintf("charon/%s-%s", version.Version, commitSHA))
 		block, err := f.eth2Cl.BeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randao, graffiti[:])
 		if err != nil {
 			return nil, err

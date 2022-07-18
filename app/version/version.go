@@ -15,6 +15,28 @@
 
 package version
 
+import "runtime/debug"
+
 // Version is the release version of the codebase.
 // Usually overridden by tag names when building binaries.
 const Version = "v0.8.0"
+
+// GitCommit returns the git commit hash and timestamp from build info.
+func GitCommit() (hash string, timestamp string) {
+	hash, timestamp = "unknown", "unknown"
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return hash, timestamp
+	}
+
+	for _, s := range info.Settings {
+		if s.Key == "vcs.revision" {
+			hash = s.Value[:7]
+		} else if s.Key == "vcs.time" {
+			timestamp = s.Value
+		}
+	}
+
+	return hash, timestamp
+}

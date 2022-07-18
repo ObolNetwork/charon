@@ -352,7 +352,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 							DepositCount: 0,
 							BlockHash:    testutil.RandomBytes32(),
 						},
-						Graffiti:          testutil.RandomBytes32(),
+						Graffiti:          graffiti,
 						ProposerSlashings: []*eth2p0.ProposerSlashing{},
 						AttesterSlashings: []*eth2p0.AttesterSlashing{},
 						Attestations:      []*eth2p0.Attestation{testutil.RandomAttestation(), testutil.RandomAttestation()},
