@@ -66,8 +66,6 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Dead
 		deadlineFunc: deadlineFunc,
 	}
 
-	// If duties arrive out of order, it should update the timer if it hasn't elapsed
-
 	go func() {
 		duties := make(map[Duty]bool)
 		currDuty, currDeadline := getCurrDuty(duties, d.deadlineFunc)
@@ -96,11 +94,7 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Dead
 			case <-currTimer.C:
 				// Send deadlined duty to receiver
 				d.deadlineChan <- currDuty
-
-				// Delete duty whose deadline has passed
 				delete(duties, currDuty)
-
-				// New current duty for next deadline
 				setCurrState()
 			}
 		}
@@ -124,7 +118,7 @@ func (d *Deadline) C() <-chan Duty {
 	return d.deadlineChan
 }
 
-// getCurrDuty gets the duty to process next. It selects duty with the latest deadline.
+// getCurrDuty gets the duty to process next along-with the duty deadline. It selects duty with the latest deadline.
 func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) time.Time) (Duty, time.Time) {
 	var currDuty Duty
 	currDeadline := time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
