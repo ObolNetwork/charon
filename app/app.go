@@ -126,7 +126,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	hash, timestamp := GitCommit()
+	hash, timestamp := version.GitCommit()
 	log.Info(ctx, "Charon starting",
 		z.Str("version", version.Version),
 		z.Str("git_commit_hash", hash),
