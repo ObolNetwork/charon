@@ -69,12 +69,9 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Dead
 	// If duties arrive out of order, it should update the timer if it hasn't elapsed
 
 	go func() {
-		var (
-			currDuty     Duty
-			currDeadline time.Time
-			currTimer    = time.NewTimer(0)
-			duties       = make(map[Duty]bool)
-		)
+		duties := make(map[Duty]bool)
+		currDuty, currDeadline := getCurrDuty(duties, d.deadlineFunc)
+		currTimer := time.NewTimer(time.Until(currDeadline))
 
 		defer func() {
 			close(d.quit)
@@ -82,6 +79,9 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Dead
 		}()
 
 		setCurrState := func(duty Duty) {
+			if !currDeadline.IsZero() {
+				currTimer.Stop()
+			}
 			currDuty = duty
 			currDeadline = d.deadlineFunc(duty)
 			currTimer = time.NewTimer(time.Until(currDeadline))
@@ -92,12 +92,8 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Dead
 			case <-ctx.Done():
 				return
 			case duty := <-d.dutyChan:
-				if currDeadline.IsZero() {
+				if currDeadline.IsZero() || currDeadline.After(d.deadlineFunc(duty)) {
 					// Initialise if there are no duties.
-					setCurrState(duty)
-				} else if currDeadline.After(d.deadlineFunc(duty)) {
-					// Set current deadline to the latest one.
-					currTimer.Stop()
 					setCurrState(duty)
 				}
 
@@ -110,12 +106,8 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Dead
 				delete(duties, currDuty)
 
 				// New current duty for next deadline
-				duty, ok := getCurrDuty(duties, d.deadlineFunc)
-				if !ok {
-					continue
-				}
-
-				setCurrState(duty)
+				currDuty, currDeadline = getCurrDuty(duties, d.deadlineFunc)
+				currTimer = time.NewTimer(time.Until(currDeadline))
 			}
 		}
 	}()
@@ -139,7 +131,7 @@ func (d *Deadline) C() <-chan Duty {
 }
 
 // getCurrDuty gets the duty to process next. It selects duty with the latest deadline.
-func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) time.Time) (Duty, bool) {
+func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) time.Time) (Duty, time.Time) {
 	var currDuty Duty
 	currDeadline := time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
 
@@ -151,11 +143,7 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) time.Time) (
 		}
 	}
 
-	if currDuty.Type == DutyUnknown {
-		return Duty{}, false
-	}
-
-	return currDuty, true
+	return currDuty, currDeadline
 }
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines.
