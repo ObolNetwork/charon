@@ -23,7 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestDeadliner(t *testing.T) {
@@ -31,21 +30,16 @@ func TestDeadliner(t *testing.T) {
 	defer cancel()
 
 	const lateFactor = 1
-
-	bmock, err := beaconmock.New(
-		beaconmock.WithGenesisTime(time.Now()),
-		beaconmock.WithSlotDuration(time.Second),
-	)
-	require.NoError(t, err)
+	startTime := time.Now()
 
 	deadlineFunc := func(duty core.Duty) time.Time {
-		genesis, err := bmock.GenesisTime(ctx)
-		require.NoError(t, err)
+		duration := time.Second
+		if duty.Type == core.DutyExit {
+			// Do not timeout exit duties.
+			return time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+		}
 
-		duration, err := bmock.SlotDuration(ctx)
-		require.NoError(t, err)
-
-		start := genesis.Add(duration * time.Duration(duty.Slot))
+		start := startTime.Add(duration * time.Duration(duty.Slot))
 		end := start.Add(duration * time.Duration(lateFactor))
 
 		return end
@@ -54,10 +48,10 @@ func TestDeadliner(t *testing.T) {
 	deadliner, err := core.NewDeadliner(ctx, deadlineFunc)
 	require.NoError(t, err)
 
-	// It will take around 3 seconds to timeout these 3 duties with lateFactor of 1 second
 	expectedDuties := []core.Duty{
-		core.NewAttesterDuty(1),
+		core.NewVoluntaryExit(2),
 		core.NewAttesterDuty(2),
+		core.NewAttesterDuty(1),
 		core.NewAttesterDuty(3),
 	}
 
@@ -65,8 +59,19 @@ func TestDeadliner(t *testing.T) {
 		deadliner.Add(duty)
 	}
 
-	for _, duty := range expectedDuties {
+	var actualDuties []core.Duty
+	for i := 0; i < len(expectedDuties)-1; i++ {
 		actualDuty := <-deadliner.C()
-		require.Equal(t, duty, actualDuty)
+		actualDuties = append(actualDuties, actualDuty)
 	}
+
+	require.Equal(t, len(expectedDuties), len(actualDuties)+1)
+
+	// Since DutyExit doesn't timeout, we won't receive it from the deadliner.
+	require.NotEqual(t, expectedDuties[0], actualDuties[0])
+
+	// AttesterDuty for Slot 1 times out before AttesterDuty for Slot 2
+	require.Equal(t, expectedDuties[2], actualDuties[0])
+	require.Equal(t, expectedDuties[1], actualDuties[1])
+	require.Equal(t, expectedDuties[3], actualDuties[2])
 }

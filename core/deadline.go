@@ -17,7 +17,6 @@ package core
 
 import (
 	"context"
-	"math"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -67,42 +66,56 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Dead
 		deadlineFunc: deadlineFunc,
 	}
 
+	// If duties arrive out of order, it should update the timer if it hasn't elapsed
+
 	go func() {
-		defer close(d.quit)
 		var (
-			deadlineTimer <-chan time.Time
-			minDuty       Duty
+			currDuty     Duty
+			currDeadline time.Time
+			currTimer    = time.NewTimer(0)
+			duties       = make(map[Duty]bool)
 		)
 
-		// duties represents a set since duty deduplication is required.
-		duties := make(map[Duty]bool)
+		defer func() {
+			close(d.quit)
+			currTimer.Stop()
+		}()
+
+		setCurrState := func(duty Duty) {
+			currDuty = duty
+			currDeadline = d.deadlineFunc(duty)
+			currTimer = time.NewTimer(time.Until(currDeadline))
+		}
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case duty := <-d.dutyChan:
-				if minDuty.Type == DutyUnknown {
-					// Initialise minDuty and deadlineTimer
-					minDuty = duty
-					deadlineTimer = time.After(time.Until(d.deadlineFunc(minDuty)))
+				if currDeadline.IsZero() {
+					// Initialise if there are no duties.
+					setCurrState(duty)
+				} else if currDeadline.After(d.deadlineFunc(duty)) {
+					// Set current deadline to the latest one.
+					currTimer.Stop()
+					setCurrState(duty)
 				}
+
 				duties[duty] = true
-			case <-deadlineTimer:
+			case <-currTimer.C:
 				// Send deadlined duty to receiver
-				d.deadlineChan <- minDuty
+				d.deadlineChan <- currDuty
 
 				// Delete duty whose deadline has passed
-				delete(duties, minDuty)
+				delete(duties, currDuty)
 
-				// New min duty for next deadline
-				md, ok := getMinDuty(duties)
+				// New current duty for next deadline
+				duty, ok := getCurrDuty(duties, d.deadlineFunc)
 				if !ok {
 					continue
 				}
 
-				minDuty = md
-				deadlineTimer = time.After(time.Until(d.deadlineFunc(minDuty)))
+				setCurrState(duty)
 			}
 		}
 	}()
@@ -112,11 +125,6 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Dead
 
 // Add adds a duty to be notified of the deadline.
 func (d *Deadline) Add(duty Duty) {
-	if duty.Type == DutyExit {
-		// Ignore DutyExit since it doesn't timeout
-		return
-	}
-
 	select {
 	case <-d.quit:
 		return
@@ -130,21 +138,24 @@ func (d *Deadline) C() <-chan Duty {
 	return d.deadlineChan
 }
 
-// getMinDuty gets the duty to process next.
-// It selects duty with minimum slot. If slots are equal, then it selects the duty with minimum DutyType.
-func getMinDuty(duties map[Duty]bool) (Duty, bool) {
-	minDuty := Duty{Slot: math.MaxInt64, Type: dutySentinel}
+// getCurrDuty gets the duty to process next. It selects duty with the latest deadline.
+func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) time.Time) (Duty, bool) {
+	var currDuty Duty
+	currDeadline := time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+
 	for duty := range duties {
-		if duty.Slot < minDuty.Slot || ((duty.Slot == minDuty.Slot) && (duty.Type < minDuty.Type)) {
-			minDuty = duty
+		dutyDeadline := deadlineFunc(duty)
+		if currDeadline.After(dutyDeadline) {
+			currDuty = duty
+			currDeadline = dutyDeadline
 		}
 	}
 
-	if minDuty.Slot == math.MaxInt64 {
-		return minDuty, false
+	if currDuty.Type == DutyUnknown {
+		return Duty{}, false
 	}
 
-	return minDuty, true
+	return currDuty, true
 }
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines.
