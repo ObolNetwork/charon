@@ -78,12 +78,11 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Dead
 			currTimer.Stop()
 		}()
 
-		setCurrState := func(duty Duty) {
+		setCurrState := func() {
 			if !currDeadline.IsZero() {
 				currTimer.Stop()
 			}
-			currDuty = duty
-			currDeadline = d.deadlineFunc(duty)
+			currDuty, currDeadline = getCurrDuty(duties, d.deadlineFunc)
 			currTimer = time.NewTimer(time.Until(currDeadline))
 		}
 
@@ -92,12 +91,8 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Dead
 			case <-ctx.Done():
 				return
 			case duty := <-d.dutyChan:
-				if currDeadline.IsZero() || currDeadline.After(d.deadlineFunc(duty)) {
-					// Initialise if there are no duties.
-					setCurrState(duty)
-				}
-
 				duties[duty] = true
+				setCurrState()
 			case <-currTimer.C:
 				// Send deadlined duty to receiver
 				d.deadlineChan <- currDuty
@@ -106,8 +101,7 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Dead
 				delete(duties, currDuty)
 
 				// New current duty for next deadline
-				currDuty, currDeadline = getCurrDuty(duties, d.deadlineFunc)
-				currTimer = time.NewTimer(time.Until(currDeadline))
+				setCurrState()
 			}
 		}
 	}()
