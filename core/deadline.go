@@ -34,15 +34,104 @@ type slotTimeProvider interface {
 	eth2client.SlotDurationProvider
 }
 
-// Deadliner provides duty Deadline functionality. The C method isn’t thread safe and may only be used by a single goroutine. So, multiple
-// instances are required for different components and use cases.
+// Deadliner provides duty Deadline functionality. The C method isn’t thread safe and
+// may only be used by a single goroutine. So, multiple instances are required
+// for different components and use cases.
 type Deadliner interface {
-	// Add adds a duty to be notified of the Deadline via C. Note that duties will be deduplicated and only a single duty will be provided via C.
+	// Add adds a duty to be notified of the Deadline via C.
+	// Note that duties will be deduplicated and only a single duty will be provided via C.
 	Add(duty Duty)
 
 	// C returns the same read channel every time and contains deadlined duties.
 	// It should only be called by a single goroutine.
 	C() <-chan Duty
+}
+
+// Deadline implements the Deadliner interface.
+type Deadline struct {
+	dutyChan     chan Duty
+	deadlineChan chan Duty
+	quit         chan struct{}
+	deadlineFunc func(Duty) time.Time
+}
+
+// NewDeadliner returns a new instance of Deadline.
+// It runs a goroutine which is responsible for reading and storing duties,
+// and sending the deadlined duty to receiver's deadlineChan.
+func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Deadline, error) {
+	d := &Deadline{
+		dutyChan:     make(chan Duty),
+		deadlineChan: make(chan Duty),
+		quit:         make(chan struct{}),
+		deadlineFunc: deadlineFunc,
+	}
+
+	go func() {
+		duties := make(map[Duty]bool)
+		currDuty, currDeadline := getCurrDuty(duties, d.deadlineFunc)
+		currTimer := time.NewTimer(time.Until(currDeadline))
+
+		defer func() {
+			close(d.quit)
+			currTimer.Stop()
+		}()
+
+		setCurrState := func() {
+			if !currDeadline.IsZero() {
+				currTimer.Stop()
+			}
+			currDuty, currDeadline = getCurrDuty(duties, d.deadlineFunc)
+			currTimer = time.NewTimer(time.Until(currDeadline))
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case duty := <-d.dutyChan:
+				duties[duty] = true
+				setCurrState()
+			case <-currTimer.C:
+				// Send deadlined duty to receiver
+				d.deadlineChan <- currDuty
+				delete(duties, currDuty)
+				setCurrState()
+			}
+		}
+	}()
+
+	return d, nil
+}
+
+// Add adds a duty to be notified of the deadline.
+func (d *Deadline) Add(duty Duty) {
+	select {
+	case <-d.quit:
+		return
+	default:
+		d.dutyChan <- duty
+	}
+}
+
+// C returns the deadline channel.
+func (d *Deadline) C() <-chan Duty {
+	return d.deadlineChan
+}
+
+// getCurrDuty gets the duty to process next along-with the duty deadline. It selects duty with the latest deadline.
+func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) time.Time) (Duty, time.Time) {
+	var currDuty Duty
+	currDeadline := time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	for duty := range duties {
+		dutyDeadline := deadlineFunc(duty)
+		if currDeadline.After(dutyDeadline) {
+			currDuty = duty
+			currDeadline = dutyDeadline
+		}
+	}
+
+	return currDuty, currDeadline
 }
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines.
