@@ -254,34 +254,21 @@ func RandomSyncAggregate(t *testing.T) *altair.SyncAggregate {
 func RandomExecutionPayLoad() *bellatrix.ExecutionPayload {
 	return &bellatrix.ExecutionPayload{
 		ParentHash:    RandomArray32(),
-		FeeRecipient:  bellatrix.ExecutionAddress{},
 		StateRoot:     RandomArray32(),
 		ReceiptsRoot:  RandomArray32(),
-		LogsBloom:     [256]byte{},
 		PrevRandao:    RandomArray32(),
-		BlockNumber:   0,
-		GasLimit:      0,
-		GasUsed:       0,
-		Timestamp:     0,
 		ExtraData:     RandomBytes32(),
 		BaseFeePerGas: RandomArray32(),
 		BlockHash:     RandomArray32(),
-		Transactions:  []bellatrix.Transaction{},
 	}
 }
 
 func RandomExecutionPayloadHeader() *bellatrix.ExecutionPayloadHeader {
 	return &bellatrix.ExecutionPayloadHeader{
 		ParentHash:       RandomArray32(),
-		FeeRecipient:     bellatrix.ExecutionAddress{},
 		StateRoot:        RandomArray32(),
 		ReceiptsRoot:     RandomArray32(),
-		LogsBloom:        [256]byte{},
 		PrevRandao:       RandomArray32(),
-		BlockNumber:      0,
-		GasLimit:         0,
-		GasUsed:          0,
-		Timestamp:        0,
 		ExtraData:        RandomBytes32(),
 		BaseFeePerGas:    RandomArray32(),
 		BlockHash:        RandomArray32(),
