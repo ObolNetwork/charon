@@ -37,3 +37,17 @@ func TestCloneVersionedBeaconBlock(t *testing.T) {
 
 	require.Equal(t, slot1, slot2)
 }
+
+func TestCloneVersionedBlindedBeaconBlock(t *testing.T) {
+	block := testutil.RandomCoreVersionBlindedBeaconBlock(t)
+	slot1, err := block.Slot()
+	require.NoError(t, err)
+
+	clone, err := block.Clone()
+	require.NoError(t, err)
+	block2 := clone.(core.VersionedBlindedBeaconBlock)
+	slot2, err := block2.Slot()
+	require.NoError(t, err)
+
+	require.Equal(t, slot1, slot2)
+}
