@@ -82,9 +82,8 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		}
 
 		err = b.eth2Cl.SubmitAttestations(ctx, []*eth2p0.Attestation{&att.Attestation})
-		if err != nil && (strings.Contains(err.Error(), "PriorAttestationKnown") ||
-			strings.Contains(err.Error(), "No peers on libp2p topic")) {
-			// Lighthouse and Nimbus aren't idempotent, so just swallow this non-issue.
+		if err != nil && strings.Contains(err.Error(), "PriorAttestationKnown") {
+			// Lighthouse isn't idempotent, so just swallow this non-issue.
 			// See reference github.com/attestantio/go-eth2-client@v0.11.7/multi/submitattestations.go:38
 			err = nil
 		}

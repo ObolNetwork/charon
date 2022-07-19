@@ -39,19 +39,16 @@ func TestBroadcastAttestation(t *testing.T) {
 
 	aggData := core.Attestation{Attestation: *testutil.RandomAttestation()}
 
-	// Assert output and return lighthouse and nimbus known error on duplicates
+	// Assert output and return lighthouse known error on duplicates
 	var submitted int
 	mock.SubmitAttestationsFunc = func(ctx context.Context, attestations []*eth2p0.Attestation) error {
 		require.Len(t, attestations, 1)
 		require.Equal(t, aggData.Attestation, *attestations[0])
 
 		submitted++
-		if submitted > 2 {
+		if submitted > 1 {
 			// Non-idempotent error returned by lighthouse but swallowed by bcast.
 			return errors.New("Verification: PriorAttestationKnown")
-		} else if submitted > 1 {
-			// Non-idempotent error returned by nimbus but swallowed by bcast.
-			return errors.New(`"message":"No peers on libp2p topic"`)
 		}
 
 		return nil
@@ -60,8 +57,6 @@ func TestBroadcastAttestation(t *testing.T) {
 	bcaster, err := bcast.New(ctx, mock)
 	require.NoError(t, err)
 
-	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyAttester}, "", aggData)
-	require.NoError(t, err)
 	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyAttester}, "", aggData)
 	require.NoError(t, err)
 	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyAttester}, "", aggData)
