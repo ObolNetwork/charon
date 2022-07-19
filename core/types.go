@@ -52,7 +52,7 @@ func (d DutyType) String() string {
 		DutyAttester:        "attester",
 		DutyProposer:        "proposer",
 		DutyRandao:          "randao",
-		DutyBuilderProposer: "builderProposer",
+		DutyBuilderProposer: "builder_proposer",
 		DutyExit:            "exit",
 	}[d]
 }
