@@ -86,12 +86,18 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	defHash, err := def.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "hash definition")
+	}
+	clusterID := base64.StdEncoding.EncodeToString(defHash[:])
+
 	key, err := p2p.LoadPrivKey(conf.DataDir)
 	if err != nil {
 		return err
 	}
 
-	tcpNode, shutdown, err := setupP2P(ctx, key, conf.P2P, peers)
+	tcpNode, shutdown, err := setupP2P(ctx, key, conf.P2P, peers, clusterID)
 	if err != nil {
 		return err
 	}
@@ -101,12 +107,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err != nil {
 		return errors.Wrap(err, "private key not matching definition file")
 	}
-
-	defHash, err := def.HashTreeRoot()
-	if err != nil {
-		return errors.Wrap(err, "hash definition")
-	}
-	clusterID := base64.StdEncoding.EncodeToString(defHash[:])
 
 	peerIds, err := def.PeerIDs()
 	if err != nil {
@@ -200,13 +200,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
-func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, peers []p2p.Peer) (host.Host, func(), error) {
+func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, peers []p2p.Peer, lockHashHex string) (host.Host, func(), error) {
 	localEnode, db, err := p2p.NewLocalEnode(p2pConf, key)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to open enode")
 	}
 
-	bootnodes, err := p2p.NewUDPBootnodes(ctx, p2pConf, peers, localEnode.ID())
+	bootnodes, err := p2p.NewUDPBootnodes(ctx, p2pConf, peers, localEnode.ID(), lockHashHex)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new bootnodes")
 	}

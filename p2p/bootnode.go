@@ -32,7 +32,7 @@ import (
 
 // NewUDPBootnodes returns the udp bootnodes from the config.
 func NewUDPBootnodes(ctx context.Context, config Config, peers []Peer,
-	localEnode enode.ID,
+	localEnode enode.ID, lockHashHex string,
 ) ([]*enode.Node, error) {
 	var resp []*enode.Node
 	for _, rawURL := range config.UDPBootnodes {
@@ -40,7 +40,7 @@ func NewUDPBootnodes(ctx context.Context, config Config, peers []Peer,
 			// Resolve bootnode ENR via http, retry for 1min with 5sec backoff.
 			inner, cancel := context.WithTimeout(ctx, time.Minute)
 			var err error
-			rawURL, err = queryBootnodeENR(inner, rawURL, time.Second*5)
+			rawURL, err = queryBootnodeENR(inner, rawURL, time.Second*5, lockHashHex)
 			cancel()
 			if err != nil {
 				return nil, err
@@ -75,7 +75,7 @@ func NewUDPBootnodes(ctx context.Context, config Config, peers []Peer,
 // when bootnodes are deployed in docker-compose or kubernetes
 //
 // It retries until the context is cancelled.
-func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Duration) (string, error) {
+func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Duration, lockHashHex string) (string, error) {
 	parsedURL, err := url.Parse(bootnodeURL)
 	if err != nil {
 		return "", errors.Wrap(err, "parse bootnode url")
@@ -89,6 +89,7 @@ func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Dura
 		if err != nil {
 			return "", errors.Wrap(err, "new request")
 		}
+		req.Header.Set("Charon-Cluster", lockHashHex)
 
 		resp, err := client.Do(req)
 		if err != nil {
