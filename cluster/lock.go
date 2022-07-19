@@ -76,7 +76,7 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 	}
 
 	// Marshal json version of lock
-	resp, err := json.Marshal(lockFmt{
+	resp, err := json.Marshal(lockJSON{
 		Definition:         l.Definition,
 		Validators:         l.Validators,
 		SignatureAggregate: l.SignatureAggregate,
@@ -90,27 +90,17 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 }
 
 func (l *Lock) UnmarshalJSON(data []byte) error {
-	// Get the version directly
-	version := struct {
-		Definition struct { //nolint:revive // Nested struct is read-only.
-			Version string `json:"version"`
-		} `json:"cluster_definition"`
-	}{}
-	if err := json.Unmarshal(data, &version); err != nil {
-		return errors.Wrap(err, "unmarshal version")
-	} else if version.Definition.Version != definitionVersion {
-		return errors.Wrap(err, "invalid definition version")
-	}
+	// No need to check version as that is done in Definition.UnmarshalJSON.
 
-	var lockFmt lockFmt
-	if err := json.Unmarshal(data, &lockFmt); err != nil {
+	var lockJSON lockJSON
+	if err := json.Unmarshal(data, &lockJSON); err != nil {
 		return errors.Wrap(err, "unmarshal definition")
 	}
 
 	lock := Lock{
-		Definition:         lockFmt.Definition,
-		Validators:         lockFmt.Validators,
-		SignatureAggregate: lockFmt.SignatureAggregate,
+		Definition:         lockJSON.Definition,
+		Validators:         lockJSON.Validators,
+		SignatureAggregate: lockJSON.SignatureAggregate,
 	}
 
 	hash, err := lock.HashTreeRoot()
@@ -118,7 +108,7 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		return errors.Wrap(err, "hash lock")
 	}
 
-	if !bytes.Equal(lockFmt.LockHash, hash[:]) {
+	if !bytes.Equal(lockJSON.LockHash, hash[:]) {
 		return errors.New("invalid lock hash")
 	}
 
@@ -127,8 +117,8 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// lockFmt is the json formatter of Lock.
-type lockFmt struct {
+// lockJSON is the json formatter of Lock.
+type lockJSON struct {
 	Definition         Definition      `json:"cluster_definition"`
 	Validators         []DistValidator `json:"distributed_validators"`
 	SignatureAggregate []byte          `json:"signature_aggregate"`

@@ -33,7 +33,7 @@ import (
 //go:generate go test . -v -update
 
 func TestEncode(t *testing.T) {
-	rand.Seed(0)
+	rand.Seed(1)
 
 	definition := cluster.NewDefinition(
 		"test definition",
@@ -60,6 +60,7 @@ func TestEncode(t *testing.T) {
 		},
 		rand.New(rand.NewSource(0)),
 	)
+	definition.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
 
 	t.Run("definition_yaml", func(t *testing.T) {
 		jsonBytes, err := json.Marshal(definition)
@@ -153,6 +154,9 @@ func TestBackwardsCompatability(t *testing.T) {
 		{
 			version: "v1.0.0",
 		},
+		{
+			version: "v1.0.1",
+		},
 		// Note: Add testdata files for newer versions when bumped.
 	}
 	for _, test := range tests {
@@ -172,4 +176,14 @@ func TestBackwardsCompatability(t *testing.T) {
 			require.NoError(t, json.Unmarshal(b, &lock))
 		})
 	}
+}
+
+func TestUnsupportedVersion(t *testing.T) {
+	var def cluster.Definition
+	err := json.Unmarshal([]byte(`{"version":"invalid"}`), &def)
+	require.ErrorContains(t, err, "unsupported definition version")
+
+	var lock cluster.Lock
+	err = json.Unmarshal([]byte(`{"cluster_definition":{"version":"invalid"}}`), &lock)
+	require.ErrorContains(t, err, "unsupported definition version")
 }

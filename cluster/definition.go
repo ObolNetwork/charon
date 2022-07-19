@@ -19,18 +19,25 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"time"
 
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
 )
 
 const (
-	definitionVersion = "v1.0.0"
+	definitionVersion = "v1.0.1"
 	dkgAlgo           = "default"
 )
+
+var supportedDefVersions = map[string]bool{
+	definitionVersion: true,
+	"v1.0.0":          true,
+}
 
 // NodeIdx represents the index of a node/peer/share in the cluster as operator order in cluster definition.
 type NodeIdx struct {
@@ -40,7 +47,7 @@ type NodeIdx struct {
 	ShareIdx int
 }
 
-// NewDefinition returns a new definition with populated version and UUID.
+// NewDefinition returns a new definition with populated with latest version, timestamp and UUID.
 func NewDefinition(
 	name string,
 	numVals int,
@@ -55,6 +62,7 @@ func NewDefinition(
 		Version:             definitionVersion,
 		Name:                name,
 		UUID:                uuid(random),
+		Timestamp:           time.Now().Format(time.RFC3339),
 		NumValidators:       numVals,
 		Threshold:           threshold,
 		FeeRecipientAddress: feeRecipient,
@@ -77,6 +85,10 @@ type Definition struct {
 
 	// Version is the schema version of this definition.
 	Version string
+
+	// Timestamp is the human readable timestamp of this definition.
+	// Note this was added in v1.0.1, so may be empty for older versions.
+	Timestamp string
 
 	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
 	NumValidators int
@@ -211,6 +223,11 @@ func (d Definition) HashTreeRootWith(hh *ssz.Hasher) error {
 		hh.MerkleizeWithMixin(subIndx, num, num)
 	}
 
+	// Field (10) 'timestamp' (optional for backwards compatibility)
+	if d.Timestamp != "" {
+		hh.PutBytes([]byte(d.Timestamp))
+	}
+
 	hh.Merkleize(indx)
 
 	return nil
@@ -230,10 +247,11 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 	}
 
 	// Marshal json version of lock
-	resp, err := json.Marshal(defFmt{
+	resp, err := json.Marshal(definitionJSON{
 		Name:                d.Name,
 		UUID:                d.UUID,
 		Version:             d.Version,
+		Timestamp:           d.Timestamp,
 		NumValidators:       d.NumValidators,
 		Threshold:           d.Threshold,
 		FeeRecipientAddress: d.FeeRecipientAddress,
@@ -258,26 +276,29 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 	}{}
 	if err := json.Unmarshal(data, &version); err != nil {
 		return errors.Wrap(err, "unmarshal version")
-	} else if version.Version != definitionVersion {
-		return errors.Wrap(err, "invalid definition version")
 	}
 
-	var defFmt defFmt
-	if err := json.Unmarshal(data, &defFmt); err != nil {
+	if err := validateDefVersion(version.Version); err != nil {
+		return err
+	}
+
+	var defJSON definitionJSON
+	if err := json.Unmarshal(data, &defJSON); err != nil {
 		return errors.Wrap(err, "unmarshal definition")
 	}
 
 	def := Definition{
-		Name:                defFmt.Name,
-		UUID:                defFmt.UUID,
-		Version:             defFmt.Version,
-		NumValidators:       defFmt.NumValidators,
-		Threshold:           defFmt.Threshold,
-		FeeRecipientAddress: defFmt.FeeRecipientAddress,
-		WithdrawalAddress:   defFmt.WithdrawalAddress,
-		DKGAlgorithm:        defFmt.DKGAlgorithm,
-		ForkVersion:         defFmt.ForkVersion,
-		Operators:           defFmt.Operators,
+		Name:                defJSON.Name,
+		UUID:                defJSON.UUID,
+		Version:             defJSON.Version,
+		Timestamp:           defJSON.Timestamp,
+		NumValidators:       defJSON.NumValidators,
+		Threshold:           defJSON.Threshold,
+		FeeRecipientAddress: defJSON.FeeRecipientAddress,
+		WithdrawalAddress:   defJSON.WithdrawalAddress,
+		DKGAlgorithm:        defJSON.DKGAlgorithm,
+		ForkVersion:         defJSON.ForkVersion,
+		Operators:           defJSON.Operators,
 	}
 
 	// Verify config_hash
@@ -286,7 +307,7 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		return errors.Wrap(err, "config hash")
 	}
 
-	if !bytes.Equal(defFmt.ConfigHash, configHash[:]) {
+	if !bytes.Equal(defJSON.ConfigHash, configHash[:]) {
 		return errors.New("invalid config hash")
 	}
 
@@ -296,7 +317,7 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		return errors.Wrap(err, "definition hash")
 	}
 
-	if !bytes.Equal(defFmt.DefinitionHash, defHash[:]) {
+	if !bytes.Equal(defJSON.DefinitionHash, defHash[:]) {
 		return errors.New("invalid definition hash")
 	}
 
@@ -339,12 +360,13 @@ func (d Definition) PeerIDs() ([]peer.ID, error) {
 	return resp, nil
 }
 
-// defFmt is the json formatter of Definition.
-type defFmt struct {
+// definitionJSON is the json formatter of Definition.
+type definitionJSON struct {
 	Name                string     `json:"name,omitempty"`
 	Operators           []Operator `json:"operators"`
 	UUID                string     `json:"uuid"`
 	Version             string     `json:"version"`
+	Timestamp           string     `json:"timestamp"`
 	NumValidators       int        `json:"num_validators"`
 	Threshold           int        `json:"threshold"`
 	FeeRecipientAddress string     `json:"fee_recipient_address,omitempty"`
@@ -353,4 +375,16 @@ type defFmt struct {
 	ForkVersion         string     `json:"fork_version"`
 	ConfigHash          []byte     `json:"config_hash"`
 	DefinitionHash      []byte     `json:"definition_hash"`
+}
+
+// validateDefVersion returns an error if the definition version is not supported.
+func validateDefVersion(version string) error {
+	if !supportedDefVersions[version] {
+		return errors.New("unsupported definition version",
+			z.Str("version", version),
+			z.Any("supported", supportedDefVersions),
+		)
+	}
+
+	return nil
 }
