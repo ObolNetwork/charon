@@ -26,6 +26,7 @@ import (
 	"strings"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
@@ -194,6 +195,50 @@ func RandomCoreVersionBeaconBlock(t *testing.T) core.VersionedBeaconBlock {
 	}
 }
 
+func RandomBellatrixBlindedBeaconBlock(t *testing.T) *eth2v1.BlindedBeaconBlock {
+	t.Helper()
+
+	return &eth2v1.BlindedBeaconBlock{
+		Slot:          RandomSlot(),
+		ProposerIndex: RandomVIdx(),
+		ParentRoot:    RandomRoot(),
+		StateRoot:     RandomRoot(),
+		Body:          RandomBellatrixBlindedBeaconBlockBody(t),
+	}
+}
+
+func RandomBellatrixBlindedBeaconBlockBody(t *testing.T) *eth2v1.BlindedBeaconBlockBody {
+	t.Helper()
+
+	return &eth2v1.BlindedBeaconBlockBody{
+		RANDAOReveal: RandomEth2Signature(),
+		ETH1Data: &eth2p0.ETH1Data{
+			DepositRoot:  RandomRoot(),
+			DepositCount: 0,
+			BlockHash:    RandomBytes32(),
+		},
+		Graffiti:               RandomBytes32(),
+		ProposerSlashings:      []*eth2p0.ProposerSlashing{},
+		AttesterSlashings:      []*eth2p0.AttesterSlashing{},
+		Attestations:           []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Deposits:               []*eth2p0.Deposit{},
+		VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
+		SyncAggregate:          RandomSyncAggregate(t),
+		ExecutionPayloadHeader: RandomExecutionPayloadHeader(),
+	}
+}
+
+func RandomCoreVersionBlindedBeaconBlock(t *testing.T) core.VersionedBlindedBeaconBlock {
+	t.Helper()
+
+	return core.VersionedBlindedBeaconBlock{
+		VersionedBlindedBeaconBlock: eth2api.VersionedBlindedBeaconBlock{
+			Version:   spec.DataVersionBellatrix,
+			Bellatrix: RandomBellatrixBlindedBeaconBlock(t),
+		},
+	}
+}
+
 func RandomSyncAggregate(t *testing.T) *altair.SyncAggregate {
 	t.Helper()
 
@@ -222,6 +267,25 @@ func RandomExecutionPayLoad() *bellatrix.ExecutionPayload {
 		BaseFeePerGas: RandomArray32(),
 		BlockHash:     RandomArray32(),
 		Transactions:  []bellatrix.Transaction{},
+	}
+}
+
+func RandomExecutionPayloadHeader() *bellatrix.ExecutionPayloadHeader {
+	return &bellatrix.ExecutionPayloadHeader{
+		ParentHash:       RandomArray32(),
+		FeeRecipient:     bellatrix.ExecutionAddress{},
+		StateRoot:        RandomArray32(),
+		ReceiptsRoot:     RandomArray32(),
+		LogsBloom:        [256]byte{},
+		PrevRandao:       RandomArray32(),
+		BlockNumber:      0,
+		GasLimit:         0,
+		GasUsed:          0,
+		Timestamp:        0,
+		ExtraData:        RandomBytes32(),
+		BaseFeePerGas:    RandomArray32(),
+		BlockHash:        RandomArray32(),
+		TransactionsRoot: RandomArray32(),
 	}
 }
 
