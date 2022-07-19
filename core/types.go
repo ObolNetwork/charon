@@ -131,7 +131,7 @@ func NewVoluntaryExit(slot int64) Duty {
 // slightly more readable and concise than the struct literal equivalent:
 //   core.Duty{Slot: slot, Type: core.DutyBuilderProposer}
 //   vs
-//   core.NewProposerDuty(slot)
+//   core.NewBuilderProposerDuty(slot)
 func NewBuilderProposerDuty(slot int64) Duty {
 	return Duty{
 		Slot: slot,
