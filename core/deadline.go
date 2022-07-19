@@ -52,23 +52,21 @@ type Deadline struct {
 	dutyChan     chan Duty
 	deadlineChan chan Duty
 	quit         chan struct{}
-	deadlineFunc func(Duty) time.Time
 }
 
 // NewDeadliner returns a new instance of Deadline.
 // It runs a goroutine which is responsible for reading and storing duties,
 // and sending the deadlined duty to receiver's deadlineChan.
-func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Deadline, error) {
+func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) *Deadline {
 	d := &Deadline{
 		dutyChan:     make(chan Duty),
 		deadlineChan: make(chan Duty),
 		quit:         make(chan struct{}),
-		deadlineFunc: deadlineFunc,
 	}
 
 	go func() {
 		duties := make(map[Duty]bool)
-		currDuty, currDeadline := getCurrDuty(duties, d.deadlineFunc)
+		currDuty, currDeadline := getCurrDuty(duties, deadlineFunc)
 		currTimer := time.NewTimer(time.Until(currDeadline))
 
 		defer func() {
@@ -77,13 +75,13 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Dead
 		}()
 
 		setCurrState := func() {
-			if !currDeadline.IsZero() {
-				currTimer.Stop()
-			}
-			currDuty, currDeadline = getCurrDuty(duties, d.deadlineFunc)
+			currTimer.Stop()
+			currDuty, currDeadline = getCurrDuty(duties, deadlineFunc)
 			currTimer = time.NewTimer(time.Until(currDeadline))
 		}
 
+		// TODO(dhruv): optimise getCurrDuty and updating current state if earlier deadline detected,
+		// using min heap or ordered map
 		for {
 			select {
 			case <-ctx.Done():
@@ -100,7 +98,7 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) (*Dead
 		}
 	}()
 
-	return d, nil
+	return d
 }
 
 // Add adds a duty to be notified of the deadline.
