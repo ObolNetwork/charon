@@ -260,6 +260,7 @@ func RandomExecutionPayLoad() *bellatrix.ExecutionPayload {
 		ExtraData:     RandomBytes32(),
 		BaseFeePerGas: RandomArray32(),
 		BlockHash:     RandomArray32(),
+		Transactions:  []bellatrix.Transaction{},
 	}
 }
 
