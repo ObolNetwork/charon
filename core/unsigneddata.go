@@ -277,6 +277,13 @@ func UnmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
 		}
 
 		return resp, nil
+	case DutyBuilderProposer:
+		var resp VersionedBlindedBeaconBlock
+		if err := json.Unmarshal(data, &resp); err != nil {
+			return nil, errors.Wrap(err, "unmarshal block")
+		}
+
+		return resp, nil
 	default:
 		return nil, errors.New("unsupported unsigned data duty type")
 	}
