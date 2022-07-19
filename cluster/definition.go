@@ -276,10 +276,11 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 	}{}
 	if err := json.Unmarshal(data, &version); err != nil {
 		return errors.Wrap(err, "unmarshal version")
-	}
-
-	if err := validateDefVersion(version.Version); err != nil {
-		return err
+	} else if !supportedDefVersions[version.Version] {
+		return errors.New("unsupported definition version",
+			z.Str("version", version.Version),
+			z.Any("supported", supportedDefVersions),
+		)
 	}
 
 	var defJSON definitionJSON
@@ -375,16 +376,4 @@ type definitionJSON struct {
 	ForkVersion         string     `json:"fork_version"`
 	ConfigHash          []byte     `json:"config_hash"`
 	DefinitionHash      []byte     `json:"definition_hash"`
-}
-
-// validateDefVersion returns an error if the definition version is not supported.
-func validateDefVersion(version string) error {
-	if !supportedDefVersions[version] {
-		return errors.New("unsupported definition version",
-			z.Str("version", version),
-			z.Any("supported", supportedDefVersions),
-		)
-	}
-
-	return nil
 }
