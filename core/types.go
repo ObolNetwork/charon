@@ -31,14 +31,15 @@ type DutyType int
 const (
 	// DutyType enums MUST not change, it will break backwards compatibility.
 
-	DutyUnknown  DutyType = 0
-	DutyProposer DutyType = 1
-	DutyAttester DutyType = 2
-	DutyRandao   DutyType = 3
-	DutyExit     DutyType = 4
+	DutyUnknown         DutyType = 0
+	DutyProposer        DutyType = 1
+	DutyAttester        DutyType = 2
+	DutyRandao          DutyType = 3
+	DutyExit            DutyType = 4
+	DutyBuilderProposer DutyType = 5
 	// Only ever append new types here...
 
-	dutySentinel DutyType = 5 // Must always be last
+	dutySentinel DutyType = 6 // Must always be last
 )
 
 func (d DutyType) Valid() bool {
@@ -47,11 +48,12 @@ func (d DutyType) Valid() bool {
 
 func (d DutyType) String() string {
 	return map[DutyType]string{
-		DutyUnknown:  "unknown",
-		DutyAttester: "attester",
-		DutyProposer: "proposer",
-		DutyRandao:   "randao",
-		DutyExit:     "exit",
+		DutyUnknown:         "unknown",
+		DutyAttester:        "attester",
+		DutyProposer:        "proposer",
+		DutyRandao:          "randao",
+		DutyBuilderProposer: "builderProposer",
+		DutyExit:            "exit",
 	}[d]
 }
 
@@ -122,6 +124,18 @@ func NewVoluntaryExit(slot int64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyExit,
+	}
+}
+
+// NewBuilderProposerDuty returns a new builder proposer duty. It is a convenience function that is
+// slightly more readable and concise than the struct literal equivalent:
+//   core.Duty{Slot: slot, Type: core.DutyBuilderProposer}
+//   vs
+//   core.NewProposerDuty(slot)
+func NewBuilderProposerDuty(slot int64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutyBuilderProposer,
 	}
 }
 
