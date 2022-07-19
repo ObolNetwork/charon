@@ -23,6 +23,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/bcast"
 	"github.com/obolnetwork/charon/testutil"
@@ -31,27 +32,35 @@ import (
 
 func TestBroadcastAttestation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	mock, err := beaconmock.New()
 	require.NoError(t, err)
 
 	aggData := core.Attestation{Attestation: *testutil.RandomAttestation()}
 
-	// Assert output and cancel context
+	// Assert output and return lighthouse known error on duplicates
+	var submitted int
 	mock.SubmitAttestationsFunc = func(ctx context.Context, attestations []*eth2p0.Attestation) error {
 		require.Len(t, attestations, 1)
 		require.Equal(t, aggData.Attestation, *attestations[0])
-		cancel()
 
-		return ctx.Err()
+		submitted++
+		if submitted > 1 {
+			// Non-idempotent error returned by lighthouse but swallowed by bcast.
+			return errors.New("Verification: PriorAttestationKnown")
+		}
+
+		return nil
 	}
 
 	bcaster, err := bcast.New(ctx, mock)
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyAttester}, "", aggData)
-	require.ErrorIs(t, err, context.Canceled)
-
-	<-ctx.Done()
+	require.NoError(t, err)
+	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyAttester}, "", aggData)
+	require.NoError(t, err)
 }
 
 func TestBroadcastBeaconBlock(t *testing.T) {

@@ -19,6 +19,7 @@ package bcast
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -81,6 +82,11 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		}
 
 		err = b.eth2Cl.SubmitAttestations(ctx, []*eth2p0.Attestation{&att.Attestation})
+		if err != nil && strings.Contains(err.Error(), "PriorAttestationKnown") {
+			// Lighthouse isn't idempotent, so just swallow this non-issue.
+			// See reference github.com/attestantio/go-eth2-client@v0.11.7/multi/submitattestations.go:38
+			err = nil
+		}
 		if err == nil {
 			log.Info(ctx, "Attestation successfully submitted to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
