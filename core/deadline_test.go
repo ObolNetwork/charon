@@ -45,8 +45,7 @@ func TestDeadliner(t *testing.T) {
 		return end
 	}
 
-	deadliner, err := core.NewDeadliner(ctx, deadlineFunc)
-	require.NoError(t, err)
+	deadliner := core.NewDeadliner(ctx, deadlineFunc)
 
 	expectedDuties := []core.Duty{
 		core.NewVoluntaryExit(2),
