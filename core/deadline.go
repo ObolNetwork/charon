@@ -102,6 +102,7 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) *Deadl
 }
 
 // Add adds a duty to be notified of the deadline.
+// TODO(xenowits): Ignore expired duties.
 func (d *Deadline) Add(duty Duty) {
 	select {
 	case <-d.quit:

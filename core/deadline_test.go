@@ -33,7 +33,7 @@ func TestDeadliner(t *testing.T) {
 	startTime := time.Now()
 
 	deadlineFunc := func(duty core.Duty) time.Time {
-		duration := time.Second
+		duration := time.Millisecond
 		if duty.Type == core.DutyExit {
 			// Do not timeout exit duties.
 			return time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)

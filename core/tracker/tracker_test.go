@@ -34,7 +34,7 @@ func TestNewTracker(t *testing.T) {
 
 	deadlineFunc := func(startTime time.Time) func(core.Duty) time.Time {
 		return func(duty core.Duty) time.Time {
-			duration := time.Second
+			duration := time.Millisecond
 			lateFactor := 1
 
 			if duty.Type == core.DutyExit {
