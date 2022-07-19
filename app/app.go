@@ -160,7 +160,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}
 
-	tcpNode, localEnode, err := wireP2P(ctx, life, conf, lock, p2pKey)
+	tcpNode, localEnode, err := wireP2P(ctx, life, conf, lock, p2pKey, lockHashHex)
 	if err != nil {
 		return err
 	}
@@ -212,7 +212,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
-func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, lock cluster.Lock, p2pKey *ecdsa.PrivateKey,
+func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
+	lock cluster.Lock, p2pKey *ecdsa.PrivateKey, lockHashHex string,
 ) (host.Host, *enode.LocalNode, error) {
 	peers, err := lock.Peers()
 	if err != nil {
@@ -228,7 +229,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config, lock clu
 		return nil, nil, err
 	}
 
-	bootnodes, err := p2p.NewUDPBootnodes(ctx, conf.P2P, peers, localEnode.ID())
+	bootnodes, err := p2p.NewUDPBootnodes(ctx, conf.P2P, peers, localEnode.ID(), lockHashHex)
 	if err != nil {
 		return nil, nil, err
 	}
