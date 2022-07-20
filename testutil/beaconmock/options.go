@@ -367,6 +367,33 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 				},
 			}, nil
 		},
+		BlindedBeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
+			return &eth2api.VersionedBlindedBeaconBlock{
+				Version: spec.DataVersionBellatrix,
+				Bellatrix: &eth2v1.BlindedBeaconBlock{
+					Slot: slot,
+					Body: &eth2v1.BlindedBeaconBlockBody{
+						RANDAOReveal: randaoReveal,
+						ETH1Data: &eth2p0.ETH1Data{
+							DepositRoot:  testutil.RandomRoot(),
+							DepositCount: 0,
+							BlockHash:    testutil.RandomBytes32(),
+						},
+						Graffiti:          graffiti,
+						ProposerSlashings: []*eth2p0.ProposerSlashing{},
+						AttesterSlashings: []*eth2p0.AttesterSlashing{},
+						Attestations:      []*eth2p0.Attestation{testutil.RandomAttestation(), testutil.RandomAttestation()},
+						Deposits:          []*eth2p0.Deposit{},
+						VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
+						SyncAggregate: &altair.SyncAggregate{
+							SyncCommitteeBits:      bitfield.NewBitvector512(),
+							SyncCommitteeSignature: testutil.RandomEth2Signature(),
+						},
+						ExecutionPayloadHeader: testutil.RandomExecutionPayloadHeader(),
+					},
+				},
+			}, nil
+		},
 		ProposerDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return []*eth2v1.ProposerDuty{}, nil
 		},

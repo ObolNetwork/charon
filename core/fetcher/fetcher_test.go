@@ -160,6 +160,73 @@ func TestFetchProposer(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestFetchBuilderProposer(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		slot  = 1
+		vIdxA = 2
+		vIdxB = 3
+	)
+
+	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
+		vIdxA: testutil.RandomCorePubKey(t),
+		vIdxB: testutil.RandomCorePubKey(t),
+	}
+
+	dutyA := eth2v1.ProposerDuty{
+		Slot:           slot,
+		ValidatorIndex: vIdxA,
+	}
+	dutyB := eth2v1.ProposerDuty{
+		Slot:           slot,
+		ValidatorIndex: vIdxB,
+	}
+	defSet := core.DutyDefinitionSet{
+		pubkeysByIdx[vIdxA]: core.NewProposerDefinition(&dutyA),
+		pubkeysByIdx[vIdxB]: core.NewProposerDefinition(&dutyB),
+	}
+	duty := core.Duty{Type: core.DutyBuilderProposer, Slot: slot}
+
+	randaoA := testutil.RandomCoreSignature()
+	randaoB := testutil.RandomCoreSignature()
+	randaoByPubKey := map[core.PubKey]core.SignedData{
+		pubkeysByIdx[vIdxA]: randaoA,
+		pubkeysByIdx[vIdxB]: randaoB,
+	}
+
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+	fetch, err := fetcher.New(bmock)
+	require.NoError(t, err)
+
+	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+		return randaoByPubKey[key], nil
+	})
+
+	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+		require.Equal(t, duty, resDuty)
+		require.Len(t, resDataSet, 2)
+
+		dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.VersionedBlindedBeaconBlock)
+		slotA, err := dutyDataA.Slot()
+		require.NoError(t, err)
+		require.EqualValues(t, slot, slotA)
+		assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
+
+		dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedBlindedBeaconBlock)
+		slotB, err := dutyDataB.Slot()
+		require.NoError(t, err)
+		require.EqualValues(t, slot, slotB)
+		assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
+
+		return nil
+	})
+
+	err = fetch.Fetch(ctx, duty, defSet)
+	require.NoError(t, err)
+}
+
 func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.VersionedBeaconBlock) {
 	t.Helper()
 
@@ -168,6 +235,17 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 		require.EqualValues(t, randao, block.Phase0.Body.RANDAOReveal)
 	case spec.DataVersionAltair:
 		require.EqualValues(t, randao, block.Altair.Body.RANDAOReveal)
+	case spec.DataVersionBellatrix:
+		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
+	default:
+		require.Fail(t, "invalid block")
+	}
+}
+
+func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block core.VersionedBlindedBeaconBlock) {
+	t.Helper()
+
+	switch block.Version {
 	case spec.DataVersionBellatrix:
 		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
 	default:
