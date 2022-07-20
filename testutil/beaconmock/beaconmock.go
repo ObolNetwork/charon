@@ -54,13 +54,14 @@ import (
 
 // Interface assertions.
 var (
-	_ HTTPMock                               = (*Mock)(nil)
-	_ eth2client.AttestationDataProvider     = (*Mock)(nil)
-	_ eth2client.AttestationsSubmitter       = (*Mock)(nil)
-	_ eth2client.AttesterDutiesProvider      = (*Mock)(nil)
+	_ HTTPMock                           = (*Mock)(nil)
+	_ eth2client.AttestationDataProvider = (*Mock)(nil)
+	_ eth2client.AttestationsSubmitter   = (*Mock)(nil)
+	_ eth2client.AttesterDutiesProvider  = (*Mock)(nil)
+	// _ eth2client.BlindedBeaconBlockProposalProvider = (*Mock)(nil)
+	_ eth2client.BlindedBeaconBlockSubmitter = (*Mock)(nil)
 	_ eth2client.BeaconBlockProposalProvider = (*Mock)(nil)
 	_ eth2client.BeaconBlockSubmitter        = (*Mock)(nil)
-	_ eth2client.BlindedBeaconBlockSubmitter = (*Mock)(nil)
 	_ eth2client.ProposerDutiesProvider      = (*Mock)(nil)
 	_ eth2client.Service                     = (*Mock)(nil)
 	_ eth2client.ValidatorsProvider          = (*Mock)(nil)
@@ -128,8 +129,9 @@ type Mock struct {
 	overrides  []staticOverride
 	clock      clockwork.Clock
 
-	AttestationDataFunc          func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
-	AttesterDutiesFunc           func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	AttestationDataFunc func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
+	AttesterDutiesFunc  func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	// BlindedBeaconBlockProposalFunc func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
 	BeaconBlockProposalFunc      func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
 	ProposerDutiesFunc           func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	SubmitAttestationsFunc       func(context.Context, []*eth2p0.Attestation) error
@@ -162,6 +164,10 @@ func (m Mock) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVolunt
 func (m Mock) AttestationData(ctx context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 	return m.AttestationDataFunc(ctx, slot, committeeIndex)
 }
+
+// func (m Mock) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
+// 	return m.BlindedBeaconBlockProposalFunc(ctx, slot, randaoReveal, graffiti)
+// }
 
 func (m Mock) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
 	return m.BeaconBlockProposalFunc(ctx, slot, randaoReveal, graffiti)

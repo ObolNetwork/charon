@@ -29,11 +29,10 @@ import (
 type DomainName string
 
 const (
-	DomainBeaconProposer        DomainName = "DOMAIN_BEACON_PROPOSER"
-	DomainBeaconBuilderProposer DomainName = "DOMAIN_BEACON_BUILDER_PROPOSER"
-	DomainBeaconAttester        DomainName = "DOMAIN_BEACON_ATTESTER"
-	DomainRandao                DomainName = "DOMAIN_RANDAO"
-	DomainExit                  DomainName = "DOMAIN_VOLUNTARY_EXIT"
+	DomainBeaconProposer DomainName = "DOMAIN_BEACON_PROPOSER"
+	DomainBeaconAttester DomainName = "DOMAIN_BEACON_ATTESTER"
+	DomainRandao         DomainName = "DOMAIN_RANDAO"
+	DomainExit           DomainName = "DOMAIN_VOLUNTARY_EXIT"
 	// DomainDeposit        	         DomainName = "DOMAIN_DEPOSIT"
 	// DomainSelectionProof              DomainName = "DOMAIN_SELECTION_PROOF"
 	// DomainAggregateAndProof           DomainName = "DOMAIN_AGGREGATE_AND_PROOF"

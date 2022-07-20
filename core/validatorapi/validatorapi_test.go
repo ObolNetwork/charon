@@ -718,7 +718,7 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	sigRoot, err := unsignedBlindedBlock.Root()
 	require.NoError(t, err)
 
-	domain, err := signing.GetDomain(ctx, bmock, signing.DomainBeaconBuilderProposer, epoch)
+	domain, err := signing.GetDomain(ctx, bmock, signing.DomainBeaconProposer, epoch)
 	require.NoError(t, err)
 
 	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()

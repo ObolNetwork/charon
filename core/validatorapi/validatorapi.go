@@ -42,6 +42,7 @@ type eth2Provider interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
+	// eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.DomainProvider
 	eth2client.ProposerDutiesProvider
@@ -55,7 +56,7 @@ type eth2Provider interface {
 var dutyDomain = map[core.DutyType]signing.DomainName{
 	core.DutyAttester:        signing.DomainBeaconAttester,
 	core.DutyProposer:        signing.DomainBeaconProposer,
-	core.DutyBuilderProposer: signing.DomainBeaconBuilderProposer,
+	core.DutyBuilderProposer: signing.DomainBeaconProposer,
 	core.DutyRandao:          signing.DomainRandao,
 	core.DutyExit:            signing.DomainExit,
 }
@@ -437,15 +438,15 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 	}
 
 	// In the background, the following needs to happen before the
-	// unsigned beacon block will be returned below:
+	// unsigned blinded beacon block will be returned below:
 	//  - Threshold number of VCs need to submit their partial randao reveals.
 	//  - These signatures will be exchanged and aggregated.
 	//  - The aggregated signature will be stored in AggSigDB.
-	//  - Scheduler (in the mean time) will schedule a DutyProposer (to create a unsigned block).
+	//  - Scheduler (in the mean time) will schedule a DutyBuilderProposer (to create a unsigned blinded block).
 	//  - Fetcher will then block waiting for an aggregated randao reveal.
-	//  - Once it is found, Fetcher will fetch an unsigned block from the beacon
+	//  - Once it is found, Fetcher will fetch an unsigned blinded block from the beacon
 	//    node including the aggregated randao in the request.
-	//  - Consensus will agree upon the unsigned block and insert the resulting block in the DutyDB.
+	//  - Consensus will agree upon the unsigned blinded block and insert the resulting block in the DutyDB.
 	//  - Once inserted, the query below will return.
 
 	// Query unsigned block (this is blocking).
@@ -474,11 +475,11 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 		return err
 	}
 
-	// Save Partially Signed Block to ParSigDB
-	duty := core.NewProposerDuty(int64(slot))
+	// Save Partially Signed Blinded Block to ParSigDB
+	duty := core.NewBuilderProposerDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	log.Debug(ctx, "Beacon block submitted by validator client")
+	log.Debug(ctx, "Blinded beacon block submitted by validator client")
 
 	signedData, err := core.NewPartialVersionedSignedBlindedBeaconBlock(block, c.shareIdx)
 	if err != nil {
@@ -580,6 +581,8 @@ func (c Component) verifyBlockSignature(ctx context.Context, block *spec.Version
 			return errors.New("no bellatrix signature")
 		}
 		sig = block.Bellatrix.Signature
+	default:
+		return errors.New("unknown version")
 	}
 
 	// Verify partial signature
@@ -598,11 +601,14 @@ func (c Component) verifyBlindedBlockSignature(ctx context.Context, block *eth2a
 	}
 
 	var sig eth2p0.BLSSignature
-	if block.Version == spec.DataVersionBellatrix {
+	switch block.Version {
+	case spec.DataVersionBellatrix:
 		if block.Bellatrix.Signature == sig {
 			return errors.New("no bellatrix signature")
 		}
 		sig = block.Bellatrix.Signature
+	default:
+		return errors.New("unknown version")
 	}
 
 	// Verify partial signature
