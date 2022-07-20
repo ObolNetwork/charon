@@ -86,9 +86,10 @@ func (t *Tracker) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case e := <-t.input:
-			// TODO(xenowits): Do not store events for expired duties.
-			t.events[e.duty] = append(t.events[e.duty], e)
-			t.deadliner.Add(e.duty)
+			if t.deadliner.Add(e.duty) {
+				// Call to Add() succeeded which means that the duty has not timed out, so we can store it.
+				t.events[e.duty] = append(t.events[e.duty], e)
+			}
 		case duty := <-t.deadliner.C():
 			failed, failedComponent, failedMsg := analyseDutyFailed(duty, t.events[duty])
 
