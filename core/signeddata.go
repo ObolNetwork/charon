@@ -18,6 +18,8 @@ package core
 import (
 	"encoding/json"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -31,6 +33,7 @@ var (
 	_ SignedData = Attestation{}
 	_ SignedData = Signature{}
 	_ SignedData = SignedVoluntaryExit{}
+	_ SignedData = VersionedSignedBlindedBeaconBlock{}
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
@@ -259,7 +262,132 @@ func (b *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-// versionedRawBlockJSON is a custom VersionedSignedBeaconBlock serialiser.
+// VersionedSignedBlindedBeaconBlock is a signed versioned blinded beacon block and implements SignedData.
+type VersionedSignedBlindedBeaconBlock struct {
+	eth2api.VersionedSignedBlindedBeaconBlock // Could subtype instead of embed, but aligning with Attestation that cannot subtype.
+}
+
+// NewVersionedSignedBlindedBeaconBlock validates and returns a new wrapped VersionedSignedBlindedBeaconBlock.
+func NewVersionedSignedBlindedBeaconBlock(block *eth2api.VersionedSignedBlindedBeaconBlock) (VersionedSignedBlindedBeaconBlock, error) {
+	switch block.Version {
+	case spec.DataVersionBellatrix:
+		if block.Bellatrix == nil {
+			return VersionedSignedBlindedBeaconBlock{}, errors.New("no bellatrix block")
+		}
+	default:
+		return VersionedSignedBlindedBeaconBlock{}, errors.New("unknown version")
+	}
+
+	return VersionedSignedBlindedBeaconBlock{VersionedSignedBlindedBeaconBlock: *block}, nil
+}
+
+// NewPartialVersionedSignedBlindedBeaconBlock is a convenience function that returns a new partial signed block.
+func NewPartialVersionedSignedBlindedBeaconBlock(block *eth2api.VersionedSignedBlindedBeaconBlock, shareIdx int) (ParSignedData, error) {
+	wrap, err := NewVersionedSignedBlindedBeaconBlock(block)
+	if err != nil {
+		return ParSignedData{}, err
+	}
+
+	return ParSignedData{
+		SignedData: wrap,
+		ShareIdx:   shareIdx,
+	}, nil
+}
+
+func (b VersionedSignedBlindedBeaconBlock) Clone() (SignedData, error) {
+	return b.clone()
+}
+
+// clone returns a copy of the VersionedSignedBlindedBeaconBlock.
+// It is similar to Clone that returns the SignedData interface.
+//nolint:revive // similar method names.
+func (b VersionedSignedBlindedBeaconBlock) clone() (VersionedSignedBlindedBeaconBlock, error) {
+	var resp VersionedSignedBlindedBeaconBlock
+	err := cloneJSONMarshaler(b, &resp)
+	if err != nil {
+		return VersionedSignedBlindedBeaconBlock{}, errors.Wrap(err, "clone block")
+	}
+
+	return resp, nil
+}
+
+func (b VersionedSignedBlindedBeaconBlock) Signature() Signature {
+	switch b.Version {
+	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
+	case spec.DataVersionBellatrix:
+		return SigFromETH2(b.Bellatrix.Signature)
+	default:
+		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBlindedBeaconBlock`.
+	}
+}
+
+func (b VersionedSignedBlindedBeaconBlock) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := b.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	switch resp.Version {
+	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
+	case spec.DataVersionBellatrix:
+		resp.Bellatrix.Signature = sig.ToETH2()
+	default:
+		return nil, errors.New("unknown type")
+	}
+
+	return resp, nil
+}
+
+func (b VersionedSignedBlindedBeaconBlock) MarshalJSON() ([]byte, error) {
+	var marshaller json.Marshaler
+	switch b.Version {
+	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
+	case spec.DataVersionBellatrix:
+		marshaller = b.VersionedSignedBlindedBeaconBlock.Bellatrix
+	default:
+		return nil, errors.New("unknown version")
+	}
+
+	block, err := marshaller.MarshalJSON()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal block")
+	}
+
+	resp, err := json.Marshal(versionedRawBlockJSON{
+		Version: int(b.Version),
+		Block:   block,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal wrapper")
+	}
+
+	return resp, nil
+}
+
+func (b *VersionedSignedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
+	var raw versionedRawBlockJSON
+	if err := json.Unmarshal(input, &raw); err != nil {
+		return errors.Wrap(err, "unmarshal block")
+	}
+
+	resp := eth2api.VersionedSignedBlindedBeaconBlock{Version: spec.DataVersion(raw.Version)}
+	switch resp.Version {
+	case spec.DataVersionBellatrix:
+		block := new(eth2v1.SignedBlindedBeaconBlock)
+		if err := json.Unmarshal(raw.Block, &block); err != nil {
+			return errors.Wrap(err, "unmarshal bellatrix")
+		}
+		resp.Bellatrix = block
+	default:
+		return errors.New("unknown version")
+	}
+
+	b.VersionedSignedBlindedBeaconBlock = resp
+
+	return nil
+}
+
+// versionedRawBlockJSON is a custom VersionedSignedBeaconBlock or VersionedSignedBlindedBeaconBlock serialiser.
 type versionedRawBlockJSON struct {
 	Version int             `json:"version"`
 	Block   json.RawMessage `json:"block"`

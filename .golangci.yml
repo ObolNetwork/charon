@@ -4,6 +4,9 @@ linters-settings:
   cyclop:
     max-complexity: 15
     skip-tests: true
+  dupl:
+    # tokens count to trigger issue, 150 by default
+    threshold: 350
   exhaustive:
     default-signifies-exhaustive: true
   forbidigo:
