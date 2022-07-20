@@ -42,7 +42,6 @@ type eth2Provider interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
-	// eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.DomainProvider
 	eth2client.ProposerDutiesProvider
