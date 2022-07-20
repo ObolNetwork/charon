@@ -616,6 +616,60 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 	}
 }
 
+func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
+	ctx := context.Background()
+	eth2Svc, err := mock.New(ctx)
+	require.NoError(t, err)
+
+	const (
+		slot = 123
+		vIdx = 1
+	)
+
+	component, err := validatorapi.NewComponentInsecure(eth2Svc, vIdx)
+	require.NoError(t, err)
+
+	pk, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	msg := []byte("randao reveal")
+	sig, err := tbls.Sign(secret, msg)
+	require.NoError(t, err)
+
+	randao := tblsconv.SigToETH2(sig)
+	pubkey, err := tblsconv.KeyToCore(pk)
+	require.NoError(t, err)
+
+	block1 := &eth2api.VersionedBlindedBeaconBlock{
+		Version:   spec.DataVersionPhase0,
+		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(t),
+	}
+	block1.Bellatrix.Slot = slot
+	block1.Bellatrix.ProposerIndex = vIdx
+	block1.Bellatrix.Body.RANDAOReveal = randao
+
+	component.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{pubkey: nil}, nil
+	})
+
+	component.RegisterAwaitBlindedBeaconBlock(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error) {
+		return block1, nil
+	})
+
+	component.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, set, core.ParSignedDataSet{
+			pubkey: core.NewPartialSignature(core.SigFromETH2(randao), vIdx),
+		})
+		require.Equal(t, duty, core.NewRandaoDuty(slot))
+
+		return nil
+	})
+
+	block2, err := component.BlindedBeaconBlockProposal(ctx, slot, randao, []byte{})
+	require.NoError(t, err)
+	require.Equal(t, block1, block2)
+}
+
 func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	ctx := context.Background()
 
