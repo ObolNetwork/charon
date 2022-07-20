@@ -50,7 +50,7 @@ type Eth2Provider interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
-	eth2client.BeaconBlindedBlockSubmitter
+	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
 	eth2client.DomainProvider
