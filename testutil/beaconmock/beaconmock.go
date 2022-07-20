@@ -60,7 +60,7 @@ var (
 	_ eth2client.AttesterDutiesProvider      = (*Mock)(nil)
 	_ eth2client.BeaconBlockProposalProvider = (*Mock)(nil)
 	_ eth2client.BeaconBlockSubmitter        = (*Mock)(nil)
-	_ eth2client.BlindedBeaconBlockSubmitter = (*Mock)(nil)
+	_ eth2client.BeaconBlindedBlockSubmitter = (*Mock)(nil)
 	_ eth2client.ProposerDutiesProvider      = (*Mock)(nil)
 	_ eth2client.Service                     = (*Mock)(nil)
 	_ eth2client.ValidatorsProvider          = (*Mock)(nil)
