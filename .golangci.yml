@@ -6,7 +6,7 @@ linters-settings:
     skip-tests: true
   dupl:
     # tokens count to trigger issue, 150 by default
-    threshold: 350
+    threshold: 400
   exhaustive:
     default-signifies-exhaustive: true
   forbidigo:

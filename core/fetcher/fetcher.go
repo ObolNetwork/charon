@@ -32,6 +32,7 @@ import (
 type eth2Provider interface {
 	eth2client.AttestationDataProvider
 	eth2client.BeaconBlockProposalProvider
+	eth2client.BlindedBeaconBlockProposalProvider
 }
 
 // New returns a new fetcher instance.
@@ -76,6 +77,11 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 		unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, defSet)
 		if err != nil {
 			return errors.Wrap(err, "fetch attester data")
+		}
+	case core.DutyBuilderProposer:
+		unsignedSet, err = f.fetchBuilderProposerData(ctx, duty.Slot, defSet)
+		if err != nil {
+			return errors.Wrap(err, "fetch proposer data")
 		}
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
@@ -161,6 +167,41 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 		}
 
 		coreBlock, err := core.NewVersionedBeaconBlock(block)
+		if err != nil {
+			return nil, errors.Wrap(err, "new block")
+		}
+
+		resp[pubkey] = coreBlock
+	}
+
+	return resp, nil
+}
+
+func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	resp := make(core.UnsignedDataSet)
+	for pubkey := range defSet {
+		// Fetch previously aggregated randao reveal from AggSigDB
+		dutyRandao := core.Duty{
+			Slot: slot,
+			Type: core.DutyRandao,
+		}
+		randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
+		if err != nil {
+			return nil, err
+		}
+
+		randao := randaoData.Signature().ToETH2()
+
+		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
+		var graffiti [32]byte
+		commitSHA, _ := version.GitCommit()
+		copy(graffiti[:], fmt.Sprintf("charon/%s-%s", version.Version, commitSHA))
+		block, err := f.eth2Cl.BlindedBeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randao, graffiti[:])
+		if err != nil {
+			return nil, err
+		}
+
+		coreBlock, err := core.NewVersionedBlindedBeaconBlock(block)
 		if err != nil {
 			return nil, errors.Wrap(err, "new block")
 		}
