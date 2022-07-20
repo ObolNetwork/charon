@@ -20,6 +20,8 @@ import (
 	"crypto/rand"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -272,6 +274,91 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 				require.NoError(t, err)
 
 				block, err := core.NewVersionedSignedBeaconBlock(test.block)
+				require.NoError(t, err)
+
+				sig := tblsconv.SigToCore(tblsconv.SigFromPartial(psig))
+				signed, err := block.SetSignature(sig)
+				require.NoError(t, err)
+				require.Equal(t, sig, signed.Signature())
+
+				psigs = append(psigs, psig)
+				parsigs = append(parsigs, core.ParSignedData{
+					SignedData: signed,
+					ShareIdx:   int(psig.Identifier),
+				})
+			}
+
+			// Create expected aggregated signature
+			aggSig, err := tbls.Aggregate(psigs)
+			require.NoError(t, err)
+			expect := tblsconv.SigToCore(aggSig)
+
+			agg := sigagg.New(threshold)
+
+			// Assert output
+			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
+				require.Equal(t, expect, aggData.Signature())
+				sig, err := tblsconv.SigFromCore(aggData.Signature())
+				require.NoError(t, err)
+
+				ok, err := tbls.Verify(tss.PublicKey(), msg[:], sig)
+				require.NoError(t, err)
+				require.True(t, ok)
+
+				return nil
+			})
+
+			// Run aggregation
+			err = agg.Aggregate(ctx, core.Duty{Type: core.DutyProposer}, "", parsigs)
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestSigAgg_DutyBuilderProposer(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		threshold = 3
+		peers     = 4
+	)
+
+	// Generate private shares
+	tss, secrets, err := tbls.GenerateTSS(threshold, peers, rand.Reader)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name  string
+		block *eth2api.VersionedSignedBlindedBeaconBlock
+	}{
+		{
+			name: "bellatrix block",
+			block: &eth2api.VersionedSignedBlindedBeaconBlock{
+				Version: spec.DataVersionBellatrix,
+				Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
+					Message:   testutil.RandomBellatrixBlindedBeaconBlock(t),
+					Signature: testutil.RandomEth2Signature(),
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Ignoring Domain for this test
+			msg, err := test.block.Root()
+			require.NoError(t, err)
+
+			// Create partial signatures (in two formats)
+			var (
+				parsigs []core.ParSignedData
+				psigs   []*bls_sig.PartialSignature
+			)
+			for _, secret := range secrets {
+				psig, err := tbls.PartialSign(secret, msg[:])
+				require.NoError(t, err)
+
+				block, err := core.NewVersionedSignedBlindedBeaconBlock(test.block)
 				require.NoError(t, err)
 
 				sig := tblsconv.SigToCore(tblsconv.SigFromPartial(psig))
