@@ -49,7 +49,8 @@ func TestTracker(t *testing.T) {
 		go func() {
 			require.NoError(t, tr.SchedulerEvent(ctx, duty, defSet))
 			require.NoError(t, tr.FetcherEvent(ctx, duty, unsignedDataSet))
-			// Send duty to tracker via deadline channel
+
+			// Explicitly mark the current duty as deadlined.
 			deadliner.deadlineChan <- duty
 		}()
 
@@ -81,7 +82,7 @@ func TestTracker(t *testing.T) {
 			require.NoError(t, tr.ParSigDBThresholdEvent(ctx, duty, pubkey, nil))
 			require.NoError(t, tr.SigAggEvent(ctx, duty, pubkey, nil))
 
-			// Send duty to tracker via deadline channel
+			// Explicitly mark the current duty as deadlined.
 			deadliner.deadlineChan <- duty
 		}()
 
