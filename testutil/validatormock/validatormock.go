@@ -50,6 +50,7 @@ type Eth2Provider interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
+	eth2client.BeaconBlindedBlockSubmitter
 	eth2client.DomainProvider
 	eth2client.ProposerDutiesProvider
 	eth2client.SlotsPerEpochProvider

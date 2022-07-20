@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -41,6 +42,7 @@ type eth2Provider interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
+	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.DomainProvider
 	eth2client.ProposerDutiesProvider
 	eth2client.SlotsPerEpochProvider
@@ -51,10 +53,11 @@ type eth2Provider interface {
 
 // dutyDomain maps domains to duties.
 var dutyDomain = map[core.DutyType]signing.DomainName{
-	core.DutyAttester: signing.DomainBeaconAttester,
-	core.DutyProposer: signing.DomainBeaconProposer,
-	core.DutyRandao:   signing.DomainRandao,
-	core.DutyExit:     signing.DomainExit,
+	core.DutyAttester:        signing.DomainBeaconAttester,
+	core.DutyProposer:        signing.DomainBeaconProposer,
+	core.DutyBuilderProposer: signing.DomainBeaconBuilderProposer,
+	core.DutyRandao:          signing.DomainRandao,
+	core.DutyExit:            signing.DomainExit,
 }
 
 // PubShareFunc abstracts the mapping of validator root public key to tbls public share.
@@ -153,11 +156,12 @@ type Component struct {
 
 	// Registered input functions
 
-	pubKeyByAttFunc func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
-	awaitAttFunc    func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
-	awaitBlockFunc  func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
-	dutyDefFunc     func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
-	subs            []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	pubKeyByAttFunc       func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
+	awaitAttFunc          func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
+	awaitBlockFunc        func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
+	awaitBlindedBlockFunc func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
+	dutyDefFunc           func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
+	subs                  []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
 func (c *Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -215,6 +219,12 @@ func (c *Component) Subscribe(fn func(context.Context, core.Duty, core.ParSigned
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)) {
 	c.awaitBlockFunc = fn
+}
+
+// RegisterAwaitBlindedBeaconBlock registers a function to query unsigned blinded block.
+// It supports a single function, since it is an input of the component.
+func (c *Component) RegisterAwaitBlindedBeaconBlock(fn func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)) {
+	c.awaitBlindedBlockFunc = fn
 }
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
@@ -388,6 +398,104 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 	return nil
 }
 
+// BlindedBeaconBlockProposal submits the randao for aggregation and inclusion in DutyBuilderProposer and then queries the dutyDB for an unsigned blinded beacon block.
+func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
+	// Get proposer pubkey (this is a blocking query).
+	pubkey, err := c.getProposerPubkey(ctx, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate slot epoch
+	epoch, err := c.epochFromSlot(ctx, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	parSig := core.NewPartialSignature(core.SigFromETH2(randao), c.shareIdx)
+
+	sigRoot, err := eth2util.EpochHashRoot(epoch)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify randao partial signature
+	err = c.verifyParSig(ctx, core.DutyRandao, epoch, pubkey, sigRoot, randao)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, sub := range c.subs {
+		// No need to clone since sub auto clones.
+		parsigSet := core.ParSignedDataSet{
+			pubkey: parSig,
+		}
+		err := sub(ctx, core.NewRandaoDuty(int64(slot)), parsigSet)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// In the background, the following needs to happen before the
+	// unsigned beacon block will be returned below:
+	//  - Threshold number of VCs need to submit their partial randao reveals.
+	//  - These signatures will be exchanged and aggregated.
+	//  - The aggregated signature will be stored in AggSigDB.
+	//  - Scheduler (in the mean time) will schedule a DutyProposer (to create a unsigned block).
+	//  - Fetcher will then block waiting for an aggregated randao reveal.
+	//  - Once it is found, Fetcher will fetch an unsigned block from the beacon
+	//    node including the aggregated randao in the request.
+	//  - Consensus will agree upon the unsigned block and insert the resulting block in the DutyDB.
+	//  - Once inserted, the query below will return.
+
+	// Query unsigned block (this is blocking).
+	block, err := c.awaitBlindedBlockFunc(ctx, int64(slot))
+	if err != nil {
+		return nil, err
+	}
+
+	return block, nil
+}
+
+func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
+	// Calculate slot epoch
+	slot, err := block.Slot()
+	if err != nil {
+		return err
+	}
+
+	pubkey, err := c.getProposerPubkey(ctx, slot)
+	if err != nil {
+		return err
+	}
+
+	err = c.verifyBlindedBlockSignature(ctx, block, pubkey, slot)
+	if err != nil {
+		return err
+	}
+
+	// Save Partially Signed Block to ParSigDB
+	duty := core.NewProposerDuty(int64(slot))
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	log.Debug(ctx, "Beacon block submitted by validator client")
+
+	signedData, err := core.NewPartialVersionedSignedBlindedBeaconBlock(block, c.shareIdx)
+	if err != nil {
+		return err
+	}
+	set := core.ParSignedDataSet{pubkey: signedData}
+	for _, sub := range c.subs {
+		// No need to clone since sub auto clones.
+		err = sub(ctx, duty, set)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // SubmitVoluntaryExit receives the partially signed voluntary exit.
 func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
 	vals, err := c.eth2Cl.Validators(ctx, "head", []eth2p0.ValidatorIndex{exit.Message.ValidatorIndex})
@@ -481,6 +589,29 @@ func (c Component) verifyBlockSignature(ctx context.Context, block *spec.Version
 	}
 
 	return c.verifyParSig(ctx, core.DutyProposer, epoch, pubkey, sigRoot, sig)
+}
+
+func (c Component) verifyBlindedBlockSignature(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock, pubkey core.PubKey, slot eth2p0.Slot) error {
+	epoch, err := c.epochFromSlot(ctx, slot)
+	if err != nil {
+		return err
+	}
+
+	var sig eth2p0.BLSSignature
+	if block.Version == spec.DataVersionBellatrix {
+		if block.Bellatrix.Signature == sig {
+			return errors.New("no bellatrix signature")
+		}
+		sig = block.Bellatrix.Signature
+	}
+
+	// Verify partial signature
+	sigRoot, err := block.Root()
+	if err != nil {
+		return err
+	}
+
+	return c.verifyParSig(ctx, core.DutyBuilderProposer, epoch, pubkey, sigRoot, sig)
 }
 
 func (c Component) verifyRandaoParSig(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
