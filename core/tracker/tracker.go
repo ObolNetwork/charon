@@ -63,9 +63,8 @@ type Tracker struct {
 	reportDutyFunc func(core.Duty, bool, string, string)
 }
 
-// NewTracker returns a new Tracker.
-// TODO(xenowits): implement reportDutyFunc to emit metrics.
-func NewTracker(deadliner core.Deadliner, reportDutyFunc func(failedDuty core.Duty, isFailed bool, component string, msg string)) *Tracker {
+// New returns a new Tracker.
+func New(deadliner core.Deadliner) *Tracker {
 	t := &Tracker{
 		input:          make(chan event),
 		events:         make(map[core.Duty][]event),
@@ -73,6 +72,14 @@ func NewTracker(deadliner core.Deadliner, reportDutyFunc func(failedDuty core.Du
 		deadliner:      deadliner,
 		reportDutyFunc: reportDutyFunc,
 	}
+
+	return t
+}
+
+// NewForT returns a new Tracker for use in tests.
+func NewForT(deadliner core.Deadliner, reportDutyFunc func(failedDuty core.Duty, isFailed bool, component string, msg string)) *Tracker {
+	t := New(deadliner)
+	t.reportDutyFunc = reportDutyFunc
 
 	return t
 }
@@ -125,6 +132,11 @@ func analyseDutyFailed(duty core.Duty, es []event) (bool, component, string) {
 	// TODO(xenowits): Improve message to have more specific details.
 	//  Ex: If the duty got stuck during validatorAPI, we can say "the VC didn't successfully submit a signed duty").
 	return true, events[0].component + 1, fmt.Sprintf("%s failed in %s component", duty.String(), (events[0].component + 1).String())
+}
+
+// reportDutyFunc instruments the duty. It ignores non-failed duties.
+func reportDutyFunc(core.Duty, bool, string, string) {
+	// TODO(xenowits): Implement logic for reporting duties.
 }
 
 // SchedulerEvent inputs event from core.Scheduler component.

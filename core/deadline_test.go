@@ -29,23 +29,18 @@ func TestDeadliner(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	const lateFactor = 1
-	startTime := time.Now()
+	deadlineFuncProvider := func() func(duty core.Duty) time.Time {
+		return func(duty core.Duty) time.Time {
+			if duty.Type == core.DutyExit {
+				// Do not timeout exit duties.
+				return time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+			}
 
-	deadlineFunc := func(duty core.Duty) time.Time {
-		duration := time.Millisecond
-		if duty.Type == core.DutyExit {
-			// Do not timeout exit duties.
-			return time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+			return time.Now().Add(time.Millisecond * time.Duration(duty.Slot))
 		}
-
-		start := startTime.Add(duration * time.Duration(duty.Slot))
-		end := start.Add(duration * time.Duration(lateFactor))
-
-		return end
 	}
 
-	deadliner := core.NewDeadliner(ctx, deadlineFunc)
+	deadliner := core.NewDeadliner(ctx, deadlineFuncProvider())
 
 	expectedDuties := []core.Duty{
 		core.NewVoluntaryExit(2),

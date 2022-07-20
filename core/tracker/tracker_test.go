@@ -18,7 +18,6 @@ package tracker_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -29,43 +28,14 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestNewTracker(t *testing.T) {
-	duty, defSet := trackerHelper(t)
-
-	deadlineFunc := func(startTime time.Time) func(core.Duty) time.Time {
-		return func(duty core.Duty) time.Time {
-			duration := time.Millisecond
-			lateFactor := 1
-
-			if duty.Type == core.DutyExit {
-				// Do not timeout exit duties.
-				return time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
-			}
-
-			start := startTime.Add(duration * time.Duration(duty.Slot))
-			end := start.Add(duration * time.Duration(lateFactor))
-
-			return end
-		}
-	}
-
-	pubkey := testutil.RandomCorePubKey(t)
-	unsignedDataSet := make(core.UnsignedDataSet)
-	for pubkey := range defSet {
-		unsignedDataSet[pubkey] = testutil.RandomCoreAttestationData(t)
-	}
-
-	parSignedDataSet := make(core.ParSignedDataSet)
-	for pubkey := range defSet {
-		parSignedDataSet[pubkey] = core.ParSignedData{
-			SignedData: nil,
-			ShareIdx:   0,
-		}
-	}
+func TestTracker(t *testing.T) {
+	duty, defSet, pubkey, unsignedDataSet, parSignedDataSet := setupData(t)
 
 	t.Run("FailAtConsensus", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		deadliner := core.NewDeadliner(ctx, deadlineFunc(time.Now()))
+		deadliner := testDeadliner{
+			deadlineChan: make(chan core.Duty),
+		}
 
 		reportDutyFunc := func(failedDuty core.Duty, isFailed bool, component string, msg string) {
 			require.Equal(t, duty, failedDuty)
@@ -74,11 +44,13 @@ func TestNewTracker(t *testing.T) {
 			cancel()
 		}
 
-		tr := tracker.NewTracker(deadliner, reportDutyFunc)
+		tr := tracker.NewForT(deadliner, reportDutyFunc)
 
 		go func() {
 			require.NoError(t, tr.SchedulerEvent(ctx, duty, defSet))
 			require.NoError(t, tr.FetcherEvent(ctx, duty, unsignedDataSet))
+			// Send duty to tracker via deadline channel
+			deadliner.deadlineChan <- duty
 		}()
 
 		require.ErrorIs(t, tr.Run(ctx), context.Canceled)
@@ -86,7 +58,9 @@ func TestNewTracker(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		deadliner := core.NewDeadliner(ctx, deadlineFunc(time.Now()))
+		deadliner := testDeadliner{
+			deadlineChan: make(chan core.Duty),
+		}
 
 		reportDutyFunc := func(failedDuty core.Duty, isFailed bool, component string, msg string) {
 			require.Equal(t, duty, failedDuty)
@@ -95,7 +69,7 @@ func TestNewTracker(t *testing.T) {
 			cancel()
 		}
 
-		tr := tracker.NewTracker(deadliner, reportDutyFunc)
+		tr := tracker.NewForT(deadliner, reportDutyFunc)
 
 		go func() {
 			require.NoError(t, tr.SchedulerEvent(ctx, duty, defSet))
@@ -106,13 +80,28 @@ func TestNewTracker(t *testing.T) {
 			require.NoError(t, tr.ParSigExEvent(ctx, duty, parSignedDataSet))
 			require.NoError(t, tr.ParSigDBThresholdEvent(ctx, duty, pubkey, nil))
 			require.NoError(t, tr.SigAggEvent(ctx, duty, pubkey, nil))
+
+			// Send duty to tracker via deadline channel
+			deadliner.deadlineChan <- duty
 		}()
 
 		require.ErrorIs(t, tr.Run(ctx), context.Canceled)
 	})
 }
 
-func trackerHelper(t *testing.T) (core.Duty, core.DutyDefinitionSet) {
+// testDeadliner is a mock deadliner implementation.
+type testDeadliner struct {
+	deadlineChan chan core.Duty
+}
+
+func (testDeadliner) Add(core.Duty) {}
+
+func (t testDeadliner) C() <-chan core.Duty {
+	return t.deadlineChan
+}
+
+// setupData returns the data required to test tracker.
+func setupData(t *testing.T) (core.Duty, core.DutyDefinitionSet, core.PubKey, core.UnsignedDataSet, core.ParSignedDataSet) {
 	t.Helper()
 
 	const (
@@ -122,9 +111,11 @@ func trackerHelper(t *testing.T) (core.Duty, core.DutyDefinitionSet) {
 		notZero = 99 // Validation require non-zero values
 	)
 
+	pubkey := testutil.RandomCorePubKey(t)
+
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
-		vIdxA: testutil.RandomCorePubKey(t),
-		vIdxB: testutil.RandomCorePubKey(t),
+		vIdxA: pubkey,
+		vIdxB: pubkey,
 	}
 
 	dutyA := eth2v1.AttesterDuty{
@@ -150,5 +141,18 @@ func trackerHelper(t *testing.T) (core.Duty, core.DutyDefinitionSet) {
 
 	duty := core.Duty{Type: core.DutyAttester, Slot: slot}
 
-	return duty, defSet
+	unsignedDataSet := make(core.UnsignedDataSet)
+	for pubkey := range defSet {
+		unsignedDataSet[pubkey] = testutil.RandomCoreAttestationData(t)
+	}
+
+	parSignedDataSet := make(core.ParSignedDataSet)
+	for pubkey := range defSet {
+		parSignedDataSet[pubkey] = core.ParSignedData{
+			SignedData: nil,
+			ShareIdx:   0,
+		}
+	}
+
+	return duty, defSet, pubkey, unsignedDataSet, parSignedDataSet
 }
