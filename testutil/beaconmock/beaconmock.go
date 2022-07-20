@@ -43,6 +43,7 @@ import (
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -57,6 +58,7 @@ var (
 	_ eth2client.AttestationDataProvider     = (*Mock)(nil)
 	_ eth2client.AttestationsSubmitter       = (*Mock)(nil)
 	_ eth2client.AttesterDutiesProvider      = (*Mock)(nil)
+	_ eth2client.BlindedBeaconBlockSubmitter = (*Mock)(nil)
 	_ eth2client.BeaconBlockProposalProvider = (*Mock)(nil)
 	_ eth2client.BeaconBlockSubmitter        = (*Mock)(nil)
 	_ eth2client.ProposerDutiesProvider      = (*Mock)(nil)
@@ -126,18 +128,19 @@ type Mock struct {
 	overrides  []staticOverride
 	clock      clockwork.Clock
 
-	AttestationDataFunc     func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
-	AttesterDutiesFunc      func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
-	BeaconBlockProposalFunc func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
-	ProposerDutiesFunc      func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
-	SubmitAttestationsFunc  func(context.Context, []*eth2p0.Attestation) error
-	SubmitBeaconBlockFunc   func(context.Context, *spec.VersionedSignedBeaconBlock) error
-	SubmitVoluntaryExitFunc func(context.Context, *eth2p0.SignedVoluntaryExit) error
-	ValidatorsByPubKeyFunc  func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	ValidatorsFunc          func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	GenesisTimeFunc         func(context.Context) (time.Time, error)
-	NodeSyncingFunc         func(context.Context) (*eth2v1.SyncState, error)
-	EventsFunc              func(context.Context, []string, eth2client.EventHandlerFunc) error
+	AttestationDataFunc          func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
+	AttesterDutiesFunc           func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	BeaconBlockProposalFunc      func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
+	ProposerDutiesFunc           func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	SubmitAttestationsFunc       func(context.Context, []*eth2p0.Attestation) error
+	SubmitBeaconBlockFunc        func(context.Context, *spec.VersionedSignedBeaconBlock) error
+	SubmitBlindedBeaconBlockFunc func(context.Context, *eth2api.VersionedSignedBlindedBeaconBlock) error
+	SubmitVoluntaryExitFunc      func(context.Context, *eth2p0.SignedVoluntaryExit) error
+	ValidatorsByPubKeyFunc       func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	ValidatorsFunc               func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	GenesisTimeFunc              func(context.Context) (time.Time, error)
+	NodeSyncingFunc              func(context.Context) (*eth2v1.SyncState, error)
+	EventsFunc                   func(context.Context, []string, eth2client.EventHandlerFunc) error
 }
 
 func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
@@ -146,6 +149,10 @@ func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Att
 
 func (m Mock) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
 	return m.SubmitBeaconBlockFunc(ctx, block)
+}
+
+func (m Mock) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
+	return m.SubmitBlindedBeaconBlockFunc(ctx, block)
 }
 
 func (m Mock) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {

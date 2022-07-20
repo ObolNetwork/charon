@@ -139,3 +139,47 @@ func TestProposeBlock(t *testing.T) {
 	err = validatormock.ProposeBlock(ctx, beaconMock, signFunc, eth2p0.Slot(slotsPerEpoch), addr, valSet.PublicKeys()...)
 	require.NoError(t, err)
 }
+
+func TestProposeBlindedBlock(t *testing.T) {
+	ctx := context.Background()
+
+	// Configure beacon mock
+	valSet := beaconmock.ValidatorSetA
+	beaconMock, err := beaconmock.New(
+		beaconmock.WithValidatorSet(valSet),
+		beaconmock.WithDeterministicProposerDuties(0),
+	)
+	require.NoError(t, err)
+
+	// Signature stub function
+	signFunc := func(ctx context.Context, key eth2p0.BLSPubKey, _ []byte) (eth2p0.BLSSignature, error) {
+		var sig eth2p0.BLSSignature
+		copy(sig[:], key[:])
+
+		return sig, nil
+	}
+
+	slotsPerEpoch, err := beaconMock.SlotsPerEpoch(ctx)
+	require.NoError(t, err)
+
+	block := testutil.RandomBellatrixBlindedBeaconBlock(t)
+	block.Slot = eth2p0.Slot(slotsPerEpoch)
+
+	mockVAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		testResponse := []byte(`{"version":"bellatrix","data":`)
+		blockJSON, err := block.MarshalJSON()
+		require.NoError(t, err)
+
+		testResponse = append(testResponse, blockJSON...)
+		testResponse = append(testResponse, []byte(`}`)...)
+		require.NoError(t, err)
+
+		_, _ = w.Write(testResponse)
+	}))
+	defer mockVAPI.Close()
+
+	// Call propose block function
+	addr := mockVAPI.URL
+	err = validatormock.ProposeBlindedBlock(ctx, beaconMock, signFunc, eth2p0.Slot(slotsPerEpoch), addr, valSet.PublicKeys()...)
+	require.NoError(t, err)
+}

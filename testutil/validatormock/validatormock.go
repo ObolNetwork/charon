@@ -28,6 +28,8 @@ import (
 	"strings"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -48,6 +50,7 @@ type Eth2Provider interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
+	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
 	eth2client.DomainProvider
@@ -236,6 +239,103 @@ func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, s
 	return eth2Cl.SubmitBeaconBlock(ctx, signedBlock)
 }
 
+// ProposeBlindedBlock proposes blinded block for the given slot.
+func ProposeBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, slot eth2p0.Slot, addr string, pubkeys ...eth2p0.BLSPubKey) error {
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return err
+	}
+
+	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
+
+	valMap, err := eth2Cl.ValidatorsByPubKey(ctx, fmt.Sprint(slot), pubkeys)
+	if err != nil {
+		return err
+	}
+
+	var indexes []eth2p0.ValidatorIndex
+	for index, val := range valMap {
+		if !val.Status.IsActive() {
+			continue
+		}
+		indexes = append(indexes, index)
+	}
+
+	duties, err := eth2Cl.ProposerDuties(ctx, epoch, indexes)
+	if err != nil {
+		return err
+	}
+
+	var pubkey eth2p0.BLSPubKey
+	var block *eth2api.VersionedBlindedBeaconBlock
+	for _, duty := range duties {
+		if duty.Slot != slot {
+			continue
+		}
+		pubkey = duty.PubKey
+
+		// create randao reveal to propose block
+		sigRoot, err := eth2util.EpochHashRoot(epoch)
+		if err != nil {
+			return err
+		}
+
+		sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainRandao, epoch, sigRoot)
+		if err != nil {
+			return err
+		}
+
+		randao, err := signFunc(ctx, duty.PubKey, sigData[:])
+		if err != nil {
+			return err
+		}
+
+		// Get Unsigned beacon block with given randao and slot
+		block, err = blindedBeaconBlockProposal(ctx, slot, randao, nil, addr)
+		if err != nil {
+			return errors.Wrap(err, "vmock blinded beacon block proposal")
+		}
+
+		// since there would be only one proposer duty per slot
+		break
+	}
+
+	if block == nil {
+		return errors.New("block not found")
+	}
+
+	// Sign beacon block
+	sigRoot, err := block.Root()
+	if err != nil {
+		return err
+	}
+
+	sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, sigRoot)
+	if err != nil {
+		return err
+	}
+
+	sig, err := signFunc(ctx, pubkey, sigData[:])
+	if err != nil {
+		return err
+	}
+
+	// create signed beacon block
+	signedBlock := new(eth2api.VersionedSignedBlindedBeaconBlock)
+	signedBlock.Version = block.Version
+	switch block.Version {
+	case spec.DataVersionBellatrix:
+		signedBlock.Bellatrix = &eth2v1.SignedBlindedBeaconBlock{
+			Message:   block.Bellatrix,
+			Signature: sig,
+		}
+	default:
+		return errors.New("invalid block")
+	}
+
+	return eth2Cl.SubmitBlindedBeaconBlock(ctx, signedBlock)
+}
+
 // NewSigner returns a singing function supporting the provided private keys.
 func NewSigner(secrets ...*bls_sig.SecretKey) SignFunc {
 	return func(ctx context.Context, pubkey eth2p0.BLSPubKey, msg []byte) (eth2p0.BLSSignature, error) {
@@ -335,6 +435,51 @@ func beaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoReveal eth2p
 		res.Altair = resp.Data
 	case spec.DataVersionBellatrix:
 		var resp bellatrixBeaconBlockProposalJSON
+		if err := json.NewDecoder(&dataBodyReader).Decode(&resp); err != nil {
+			return nil, errors.Wrap(err, "failed to parse bellatrix beacon block proposal")
+		}
+		// Ensure the data returned to us is as expected given our input.
+		if resp.Data.Slot != slot {
+			return nil, errors.New("beacon block proposal not for requested slot")
+		}
+		res.Bellatrix = resp.Data
+	default:
+		return nil, errors.New("unsupported block version", z.Any("version", metadata.Version))
+	}
+
+	return res, nil
+}
+
+// responseMetadata returns metadata related to responses.
+type bellatrixBlindedBeaconBlockProposalJSON struct {
+	Data *eth2v1.BlindedBeaconBlock `json:"data"`
+}
+
+// blindedBeaconBlockProposal is used rather than go-eth2-client's BlindedBeaconBlockProposal to avoid the randao reveal check
+// refer: https://github.com/attestantio/go-eth2-client/blob/dceb0b761e5ea6a75534a7b11d544d91a5d610ee/http/blindedbeaconblockproposal.go#L75
+func blindedBeaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte, addr string) (*eth2api.VersionedBlindedBeaconBlock, error) {
+	url := fmt.Sprintf("/eth/v2/validator/blocks/%d?randao_reveal=%#x&graffiti=%#x", slot, randaoReveal, graffiti)
+	respBodyReader, err := getBlock(url, addr)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to request beacon block proposal")
+	}
+	if respBodyReader == nil {
+		return nil, errors.New("failed to obtain beacon block proposal")
+	}
+
+	var dataBodyReader bytes.Buffer
+	metadataReader := io.TeeReader(respBodyReader, &dataBodyReader)
+	var metadata responseMetadata
+	if err := json.NewDecoder(metadataReader).Decode(&metadata); err != nil {
+		return nil, errors.Wrap(err, "failed to parse response")
+	}
+	res := &eth2api.VersionedBlindedBeaconBlock{
+		Version: metadata.Version,
+	}
+
+	switch metadata.Version {
+	case spec.DataVersionBellatrix:
+		var resp bellatrixBlindedBeaconBlockProposalJSON
 		if err := json.NewDecoder(&dataBodyReader).Decode(&resp); err != nil {
 			return nil, errors.Wrap(err, "failed to parse bellatrix beacon block proposal")
 		}
