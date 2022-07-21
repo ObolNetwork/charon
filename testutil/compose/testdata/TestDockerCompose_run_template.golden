@@ -336,5 +336,5 @@
   }
  ],
  "Bootnode": true,
- "Monitoring": false
+ "Monitoring": true
 }

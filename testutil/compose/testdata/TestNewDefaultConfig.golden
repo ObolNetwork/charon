@@ -17,5 +17,5 @@
   "mock"
  ],
  "feature_set": "alpha",
- "monitoring": false
+ "disable_monitoring": false
 }

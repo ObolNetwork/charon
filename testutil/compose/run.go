@@ -55,7 +55,7 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		CharonCommand:    cmdRun,
 		Nodes:            nodes,
 		Bootnode:         true,
-		Monitoring:       conf.Monitoring,
+		Monitoring:       !conf.DisableMonitoring,
 		VCs:              vcs,
 	}
 
