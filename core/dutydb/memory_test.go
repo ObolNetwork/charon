@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -262,4 +263,132 @@ func TestMemDBClashProposer(t *testing.T) {
 		pubkey: unsignedB,
 	})
 	require.ErrorContains(t, err, "clashing blocks")
+}
+
+func TestMemDBBuilderProposer(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB()
+
+	const queries = 3
+	slots := [queries]int64{123, 456, 789}
+
+	type response struct {
+		block *eth2api.VersionedBlindedBeaconBlock
+	}
+	var awaitResponse [queries]chan response
+	for i := 0; i < queries; i++ {
+		awaitResponse[i] = make(chan response)
+		go func(slot int) {
+			block, err := db.AwaitBlindedBeaconBlock(ctx, slots[slot])
+			require.NoError(t, err)
+			awaitResponse[slot] <- response{block: block}
+		}(i)
+	}
+
+	blocks := make([]*eth2api.VersionedBlindedBeaconBlock, queries)
+	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
+	for i := 0; i < queries; i++ {
+		blocks[i] = &eth2api.VersionedBlindedBeaconBlock{
+			Version:   spec.DataVersionBellatrix,
+			Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(t),
+		}
+		blocks[i].Bellatrix.Slot = eth2p0.Slot(slots[i])
+		blocks[i].Bellatrix.ProposerIndex = eth2p0.ValidatorIndex(i)
+		pubkeysByIdx[eth2p0.ValidatorIndex(i)] = testutil.RandomCorePubKey(t)
+	}
+
+	// Store the Blocks
+	for i := 0; i < queries; i++ {
+		unsigned, err := core.NewVersionedBlindedBeaconBlock(blocks[i])
+		require.NoError(t, err)
+
+		duty := core.Duty{Slot: slots[i], Type: core.DutyBuilderProposer}
+		err = db.Store(ctx, duty, core.UnsignedDataSet{
+			pubkeysByIdx[eth2p0.ValidatorIndex(i)]: unsigned,
+		})
+		require.NoError(t, err)
+	}
+
+	// Get and assert the proQuery responses
+	for i := 0; i < queries; i++ {
+		actualData := <-awaitResponse[i]
+		require.Equal(t, blocks[i], actualData.block)
+	}
+}
+
+func TestMemDBClashingBlindedBlocks(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB()
+
+	const slot = 123
+	block1 := &eth2api.VersionedBlindedBeaconBlock{
+		Version:   spec.DataVersionBellatrix,
+		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(t),
+	}
+	block1.Bellatrix.Slot = eth2p0.Slot(slot)
+	block2 := &eth2api.VersionedBlindedBeaconBlock{
+		Version:   spec.DataVersionBellatrix,
+		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(t),
+	}
+	block2.Bellatrix.Slot = eth2p0.Slot(slot)
+	pubkey := testutil.RandomCorePubKey(t)
+
+	// Encode the Blocks
+	unsigned1, err := core.NewVersionedBlindedBeaconBlock(block1)
+	require.NoError(t, err)
+
+	unsigned2, err := core.NewVersionedBlindedBeaconBlock(block2)
+	require.NoError(t, err)
+
+	// Store the Blocks
+	duty := core.Duty{Slot: slot, Type: core.DutyBuilderProposer}
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkey: unsigned1,
+	})
+	require.NoError(t, err)
+
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkey: unsigned2,
+	})
+	require.ErrorContains(t, err, "clashing blinded blocks")
+}
+
+func TestMemDBClashBuilderProposer(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB()
+
+	const slot = 123
+
+	block := &eth2api.VersionedBlindedBeaconBlock{
+		Version:   spec.DataVersionBellatrix,
+		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(t),
+	}
+	block.Bellatrix.Slot = eth2p0.Slot(slot)
+	pubkey := testutil.RandomCorePubKey(t)
+
+	// Encode the block
+	unsigned, err := core.NewVersionedBlindedBeaconBlock(block)
+	require.NoError(t, err)
+
+	// Store the Blocks
+	duty := core.Duty{Slot: slot, Type: core.DutyBuilderProposer}
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkey: unsigned,
+	})
+	require.NoError(t, err)
+
+	// Store same block from same validator to test idempotent inserts
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkey: unsigned,
+	})
+	require.NoError(t, err)
+
+	// Store a different block for the same slot
+	block.Bellatrix.ProposerIndex++
+	unsignedB, err := core.NewVersionedBlindedBeaconBlock(block)
+	require.NoError(t, err)
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkey: unsignedB,
+	})
+	require.ErrorContains(t, err, "clashing blinded blocks")
 }
