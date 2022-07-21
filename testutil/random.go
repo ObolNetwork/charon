@@ -195,6 +195,20 @@ func RandomCoreVersionBeaconBlock(t *testing.T) core.VersionedBeaconBlock {
 	}
 }
 
+func RandomCoreVersionSignedBeaconBlock(t *testing.T) core.VersionedSignedBeaconBlock {
+	t.Helper()
+
+	return core.VersionedSignedBeaconBlock{
+		VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
+			Version: spec.DataVersionBellatrix,
+			Bellatrix: &bellatrix.SignedBeaconBlock{
+				Message:   RandomBellatrixBeaconBlock(t),
+				Signature: RandomEth2Signature(),
+			},
+		},
+	}
+}
+
 func RandomBellatrixBlindedBeaconBlock(t *testing.T) *eth2v1.BlindedBeaconBlock {
 	t.Helper()
 
@@ -235,6 +249,20 @@ func RandomCoreVersionBlindedBeaconBlock(t *testing.T) core.VersionedBlindedBeac
 		VersionedBlindedBeaconBlock: eth2api.VersionedBlindedBeaconBlock{
 			Version:   spec.DataVersionBellatrix,
 			Bellatrix: RandomBellatrixBlindedBeaconBlock(t),
+		},
+	}
+}
+
+func RandomCoreVersionSignedBlindedBeaconBlock(t *testing.T) core.VersionedSignedBlindedBeaconBlock {
+	t.Helper()
+
+	return core.VersionedSignedBlindedBeaconBlock{
+		VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
+			Version: spec.DataVersionBellatrix,
+			Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
+				Message:   RandomBellatrixBlindedBeaconBlock(t),
+				Signature: RandomEth2Signature(),
+			},
 		},
 	}
 }
