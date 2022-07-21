@@ -192,11 +192,7 @@ func (Mock) Name() string {
 	return "beacon-mock"
 }
 
-func (Mock) Address() string {
-	return "mock-address"
-}
-
-func (m Mock) HTTPAddr() string {
+func (m Mock) Address() string {
 	return "http://" + m.httpServer.Addr
 }
 

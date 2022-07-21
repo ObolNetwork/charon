@@ -66,7 +66,7 @@ type Handler interface {
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the validatorapi.Handler.
 // All other requests are reserve-proxied to the beacon-node address.
-func NewRouter(h Handler, beaconNodeAddrs []string) (*mux.Router, error) {
+func NewRouter(h Handler, eth2Cl eth2client.Service) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints
 	endpoints := []struct {
 		Name    string
@@ -127,7 +127,7 @@ func NewRouter(h Handler, beaconNodeAddrs []string) (*mux.Router, error) {
 	}
 
 	// Everything else is proxied
-	proxy, err := proxyHandler(beaconNodeAddrs)
+	proxy, err := proxyHandler(eth2Cl)
 	if err != nil {
 		return nil, err
 	}
@@ -443,36 +443,51 @@ func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
 }
 
 // proxyHandler returns a reverse proxy handler.
-func proxyHandler(targets []string) (http.HandlerFunc, error) {
-	if len(targets) == 0 {
-		return nil, errors.New("proxy targets empty")
-	}
-
-	// TODO(corver): Add support for proxing to an available (or best) target
-	targetURL, err := url.Parse(targets[0])
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid proxy target address")
-	}
-
-	// TODO(corver): Add support for multiple upstream targets via some form of load balancing.
-	proxy := httputil.NewSingleHostReverseProxy(targetURL)
-
-	// Extend default proxy director with basic auth and host header.
-	defaultDirector := proxy.Director
-	proxy.Director = func(req *http.Request) {
-		if targetURL.User != nil {
-			password, _ := targetURL.User.Password()
-			req.SetBasicAuth(targetURL.User.Username(), password)
-		}
-		req.Host = targetURL.Host
-		defaultDirector(req)
-	}
-	proxy.ErrorLog = stdlog.New(io.Discard, "", 0)
-
+func proxyHandler(eth2Cl eth2client.Service) (http.HandlerFunc, error) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Get active beacon node address.
+		targetURL, err := getBeaconNodeAddress(eth2Cl)
+		if err != nil {
+			ctx := log.WithTopic(r.Context(), "vapi")
+			log.Error(ctx, "Proxy target beacon node address", err)
+			writeError(ctx, w, "proxy", err)
+
+			return
+		}
+		// Get address for active beacon node
+		proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+		// Extend default proxy director with basic auth and host header.
+		defaultDirector := proxy.Director
+		proxy.Director = func(req *http.Request) {
+			if targetURL.User != nil {
+				password, _ := targetURL.User.Password()
+				req.SetBasicAuth(targetURL.User.Username(), password)
+			}
+			req.Host = targetURL.Host
+			defaultDirector(req)
+		}
+		proxy.ErrorLog = stdlog.New(io.Discard, "", 0)
+
 		defer observeAPILatency("proxy")()
 		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, r)
 	}, nil
+}
+
+// getBeaconNodeAddress returns an active beacon node proxy target address.
+func getBeaconNodeAddress(eth2Cl eth2client.Service) (*url.URL, error) {
+	addr := eth2Cl.Address()
+	if addr == "none" {
+		// eth2multi returns "none" if no active clients.
+		return nil, errors.New("no active beacon node clients")
+	}
+
+	targetURL, err := url.Parse(addr)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid beacon node address", z.Str("address", addr))
+	}
+
+	return targetURL, nil
 }
 
 // writeResponse writes the 200 OK response and json response body.
