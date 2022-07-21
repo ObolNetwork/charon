@@ -20,7 +20,7 @@ import (
 	"context"
 	"time"
 
-	eth2http "github.com/attestantio/go-eth2-client/http"
+	eth2multi "github.com/attestantio/go-eth2-client/multi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -46,23 +46,23 @@ var (
 )
 
 // NewHTTPService returns a new instrumented eth2 http service.
-func NewHTTPService(ctx context.Context, params ...eth2http.Parameter) (*Service, error) {
-	eth2Svc, err := eth2http.New(ctx, params...)
+func NewHTTPService(ctx context.Context, params ...eth2multi.Parameter) (*Service, error) {
+	eth2Svc, err := eth2multi.New(ctx, params...)
 	if err != nil {
-		return nil, errors.Wrap(err, "new eth2http")
+		return nil, errors.Wrap(err, "new eth2multi")
 	}
 
-	eth2Cl, ok := eth2Svc.(*eth2http.Service)
+	eth2Cl, ok := eth2Svc.(*eth2multi.Service)
 	if !ok {
-		return nil, errors.New("invalid eth2http service")
+		return nil, errors.New("invalid eth2multi service")
 	}
 
 	return &Service{Service: eth2Cl}, nil
 }
 
-// Service wraps an eth2http.Service adding prometheus metrics and error wrapping.
+// Service wraps an eth2multi.Service adding prometheus metrics and error wrapping.
 type Service struct {
-	*eth2http.Service
+	*eth2multi.Service
 }
 
 // latency measures endpoint latency.
@@ -78,4 +78,16 @@ func latency(endpoint string) func() {
 // incError increments the error counter.
 func incError(endpoint string) {
 	errorCount.WithLabelValues(endpoint).Inc()
+}
+
+// WithMultiMetrics returns a eth2multi functional option that enables prometheus metrics.
+func WithMultiMetrics() eth2multi.Parameter {
+	return eth2multi.WithMonitor(eth2Monitor{})
+}
+
+// eth2Monitor implements eth2metrics.Monitor enabling eth2multi prometheus metrics.
+type eth2Monitor struct{}
+
+func (eth2Monitor) Presenter() string {
+	return "prometheus"
 }

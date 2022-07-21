@@ -14,7 +14,7 @@
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Command genwrap provides a code generator for eth2client provider
-// methods implemented by eth2http.Service.
+// methods implemented by eth2multi.Service.
 // It adds prometheus metrics and error wrapping.
 package main
 
@@ -68,11 +68,13 @@ import (
 
 	// skip some provider methods.
 	skip = map[string]bool{
-		// eth2http doesn't implement these
+		// eth2multi doesn't implement these
 		"GenesisValidatorsRoot": true,
 		"Index":                 true,
 		"PubKey":                true,
 		"SyncState":             true,
+		"EpochFromStateID":      true,
+		"NodeClient":            true,
 
 		// these are cached, so no need to instrument.
 		"GenesisTime":                   true,

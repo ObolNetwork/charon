@@ -29,20 +29,6 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// EpochFromStateID converts a state ID to its epoch.
-func (s *Service) EpochFromStateID(ctx context.Context, stateID string) (phase0.Epoch, error) {
-	const label = "epoch_from_state_id"
-	defer latency(label)()
-
-	res0, err := s.Service.EpochFromStateID(ctx, stateID)
-	if err != nil {
-		incError(label)
-		err = errors.Wrap(err, "eth2http")
-	}
-
-	return res0, err
-}
-
 // SignedBeaconBlock fetches a signed beacon block given a block ID.
 func (s *Service) SignedBeaconBlock(ctx context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error) {
 	const label = "signed_beacon_block"
