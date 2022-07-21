@@ -320,10 +320,17 @@ func addUpFlag(flags *pflag.FlagSet) *bool {
 
 // execUp executes `docker-compose up`.
 func execUp(ctx context.Context, dir string) error {
+	// Build first so containers start at the same time below.
+	log.Info(ctx, "Executing docker-compose build")
+	cmd := exec.CommandContext(ctx, "docker-compose", "build", "--parallel")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return errors.Wrap(err, "exec docker-compose build", z.Str("output", string(out)))
+	}
+
 	log.Info(ctx, "Executing docker-compose up")
-	cmd := exec.CommandContext(ctx, "docker-compose", "up",
+	cmd = exec.CommandContext(ctx, "docker-compose", "up",
 		"--remove-orphans",
-		"--build",
 		"--abort-on-container-exit",
 		"--quiet-pull",
 	)
@@ -336,7 +343,7 @@ func execUp(ctx context.Context, dir string) error {
 			err = ctx.Err()
 		}
 
-		return errors.Wrap(err, "run up")
+		return errors.Wrap(err, "exec docker-compose up")
 	}
 
 	return nil
