@@ -336,6 +336,5 @@
   }
  ],
  "Bootnode": true,
- "Monitoring": true,
- "MonitoringPorts": false
+ "Monitoring": false
 }

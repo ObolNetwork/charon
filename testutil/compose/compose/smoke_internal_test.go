@@ -139,7 +139,7 @@ func TestSmoke(t *testing.T) {
 			require.NoError(t, err)
 
 			conf := compose.NewDefaultConfig()
-			conf.MonitoringPorts = false
+			conf.Monitoring = false
 			if *prebuiltBinary != "" {
 				copyPrebuiltBinary(t, dir, *prebuiltBinary)
 				conf.PrebuiltBinary = true
