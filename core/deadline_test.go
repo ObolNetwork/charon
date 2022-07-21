@@ -16,7 +16,6 @@
 package core_test
 
 import (
-	"context"
 	"sort"
 	"sync"
 	"testing"
@@ -29,9 +28,6 @@ import (
 )
 
 func TestDeadliner(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	expiredDuties, nonExpiredDuties, voluntaryExits, dutyExpired := setupData(t)
 	clock := clockwork.NewFakeClock()
 
@@ -50,7 +46,8 @@ func TestDeadliner(t *testing.T) {
 		}
 	}
 
-	deadliner := core.NewForT(ctx, deadlineFuncProvider(), clock)
+	deadliner, cancel := core.NewForT(t, deadlineFuncProvider(), clock)
+	defer cancel()
 
 	wg := &sync.WaitGroup{}
 	wg.Add(3)

@@ -17,6 +17,7 @@ package core
 
 import (
 	"context"
+	"testing"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -64,7 +65,10 @@ type Deadline struct {
 }
 
 // NewForT returns a Deadline for use in tests.
-func NewForT(ctx context.Context, deadlineFunc func(Duty) time.Time, clock clockwork.Clock) *Deadline {
+func NewForT(t *testing.T, deadlineFunc func(Duty) time.Time, clock clockwork.Clock) (*Deadline, context.CancelFunc) {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
 	d := &Deadline{
 		inputChan:    make(chan deadlineInput),
 		deadlineChan: make(chan Duty),
@@ -74,7 +78,7 @@ func NewForT(ctx context.Context, deadlineFunc func(Duty) time.Time, clock clock
 
 	go d.run(ctx, deadlineFunc)
 
-	return d
+	return d, cancel
 }
 
 // NewDeadliner returns a new instance of Deadline.
@@ -133,7 +137,12 @@ func (d *Deadline) run(ctx context.Context, deadlineFunc func(Duty) time.Time) {
 			}
 		case <-currTimer.Chan():
 			// Send deadlined duty to receiver.
-			d.deadlineChan <- currDuty
+			select {
+			case <-ctx.Done():
+				return
+			case d.deadlineChan <- currDuty:
+			}
+
 			delete(duties, currDuty)
 			setCurrState()
 		}
