@@ -34,6 +34,7 @@ import (
 type eth2Provider interface {
 	eth2client.AttestationsSubmitter
 	eth2client.BeaconBlockSubmitter
+	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.VoluntaryExitSubmitter
 	eth2client.GenesisTimeProvider
 	eth2client.SlotDurationProvider
@@ -103,6 +104,21 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		err = b.eth2Cl.SubmitBeaconBlock(ctx, &block.VersionedSignedBeaconBlock)
 		if err == nil {
 			log.Info(ctx, "Block proposal successfully submitted to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot)),
+			)
+		}
+
+		return err
+
+	case core.DutyBuilderProposer:
+		block, ok := aggData.(core.VersionedSignedBlindedBeaconBlock)
+		if !ok {
+			return errors.New("invalid block")
+		}
+
+		err = b.eth2Cl.SubmitBlindedBeaconBlock(ctx, &block.VersionedSignedBlindedBeaconBlock)
+		if err == nil {
+			log.Info(ctx, "Blinded block proposal successfully submitted to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
