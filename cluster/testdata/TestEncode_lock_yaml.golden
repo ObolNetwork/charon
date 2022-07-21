@@ -12,7 +12,7 @@ cluster_definition:
     config_signature: KbAiO+6l9PdDkfRF0Vr9QpQEA3T2kkuYy/hxP42WLXw=
     enr_signature: jQGRksJCJOLK/Mrjph+1hrFDI6a8j5598dkpMz/5k5M=
   uuid: 0194FDC2-FA2F-FCC0-41D3-FF12045B73C8
-  version: v1.0.1
+  version: v1.1.0
   timestamp: 2022-07-19T18:19:58+02:00
   num_validators: 2
   threshold: 3
@@ -20,8 +20,8 @@ cluster_definition:
   withdrawal_address: "0x81855ad8681d0d86d1e91e00167939cb6694d2c4"
   dkg_algorithm: default
   fork_version: "0x00000002"
-  config_hash: ZCLGlOnXppJPp+Xv7A43AMJrqxy1714qExb6uk6VOzw=
-  definition_hash: tjeuHGM+Vq2UpAoxfK+ieyk5C7D0vJKjvPIQpsDPucc=
+  config_hash: 2aQgQp1b6QndUKjumibFjupLfcIObxLdo1mQPRcqogE=
+  definition_hash: PZt47OFSnfSvu6YYN8GnjB6+p6IApPAo6qvfq1hOJWI=
 distributed_validators:
 - distributed_public_key: "0x4c7215a3b539eb1e5849c6077dbb5722f5717a28"
   public_shares:
@@ -32,4 +32,4 @@ distributed_validators:
   - n45NpkMBBSINCyloi3NLjqDzypk26EYfENd8luqAp6Y=
   - ZfYG9qY7fz39JWfBiXnk1g8maG2b8vsmyQH/NUzeFgc=
 signature_aggregate: O+pvWzr23gN0NmxHGeQ6GwZ9ibx/AfH1c5gWWaRP8Xo=
-lock_hash: XlMaUhjUK0QNp0NZuDuhlsO3avrYLux7iWWrr4EOp1w=
+lock_hash: eTtY56eXcUpCPa52lFHSpj5cNGCLAegX/UK1UuEOUmA=
