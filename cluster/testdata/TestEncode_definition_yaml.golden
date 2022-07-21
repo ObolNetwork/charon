@@ -11,7 +11,7 @@ operators:
   config_signature: KbAiO+6l9PdDkfRF0Vr9QpQEA3T2kkuYy/hxP42WLXw=
   enr_signature: jQGRksJCJOLK/Mrjph+1hrFDI6a8j5598dkpMz/5k5M=
 uuid: 0194FDC2-FA2F-FCC0-41D3-FF12045B73C8
-version: v1.0.1
+version: v1.1.0
 timestamp: 2022-07-19T18:19:58+02:00
 num_validators: 2
 threshold: 3
@@ -19,5 +19,5 @@ fee_recipient_address: "0x52fdfc072182654f163f5f0f9a621d729566c74d"
 withdrawal_address: "0x81855ad8681d0d86d1e91e00167939cb6694d2c4"
 dkg_algorithm: default
 fork_version: "0x00000002"
-config_hash: ZCLGlOnXppJPp+Xv7A43AMJrqxy1714qExb6uk6VOzw=
-definition_hash: tjeuHGM+Vq2UpAoxfK+ieyk5C7D0vJKjvPIQpsDPucc=
+config_hash: 2aQgQp1b6QndUKjumibFjupLfcIObxLdo1mQPRcqogE=
+definition_hash: PZt47OFSnfSvu6YYN8GnjB6+p6IApPAo6qvfq1hOJWI=

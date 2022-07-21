@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	definitionVersion = "v1.0.1"
+	definitionVersion = "v1.1.0"
 	dkgAlgo           = "default"
 )
 
