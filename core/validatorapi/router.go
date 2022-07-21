@@ -66,7 +66,7 @@ type Handler interface {
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the validatorapi.Handler.
 // All other requests are reserve-proxied to the beacon-node address.
-func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
+func NewRouter(h Handler, beaconNodeAddrs []string) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints
 	endpoints := []struct {
 		Name    string
@@ -127,7 +127,7 @@ func NewRouter(h Handler, beaconNodeAddr string) (*mux.Router, error) {
 	}
 
 	// Everything else is proxied
-	proxy, err := proxyHandler(beaconNodeAddr)
+	proxy, err := proxyHandler(beaconNodeAddrs)
 	if err != nil {
 		return nil, err
 	}
@@ -443,8 +443,13 @@ func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
 }
 
 // proxyHandler returns a reverse proxy handler.
-func proxyHandler(target string) (http.HandlerFunc, error) {
-	targetURL, err := url.Parse(target)
+func proxyHandler(targets []string) (http.HandlerFunc, error) {
+	if len(targets) == 0 {
+		return nil, errors.New("proxy targets empty")
+	}
+
+	// TODO(corver): Add support for proxing to an available (or best) target
+	targetURL, err := url.Parse(targets[0])
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid proxy target address")
 	}

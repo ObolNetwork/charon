@@ -51,7 +51,7 @@ func TestRouterIntegration(t *testing.T) {
 		t.Skip("Skipping integration test since BEACON_URL not found")
 	}
 
-	r, err := NewRouter(Handler(nil), beaconURL)
+	r, err := NewRouter(Handler(nil), []string{beaconURL})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -484,7 +484,7 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(handler, proxy.URL)
+	r, err := NewRouter(handler, []string{proxy.URL})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -505,7 +505,7 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(handler, proxy.URL)
+	r, err := NewRouter(handler, []string{proxy.URL})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)

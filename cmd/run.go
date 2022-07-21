@@ -24,8 +24,10 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -44,7 +46,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 		},
 	}
 
-	bindRunFlags(cmd.Flags(), &conf)
+	bindRunFlags(cmd, &conf)
 	bindDataDirFlag(cmd.Flags(), &conf.DataDir)
 	bindP2PFlags(cmd.Flags(), &conf.P2P)
 	bindLogFlags(cmd.Flags(), &conf.Log)
@@ -53,15 +55,38 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 	return cmd
 }
 
-func bindRunFlags(flags *pflag.FlagSet, config *app.Config) {
-	flags.StringVar(&config.LockFile, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining distributed validator cluster")
-	flags.StringVar(&config.BeaconNodeAddr, "beacon-node-endpoint", "http://localhost/", "Beacon node endpoint URL")
-	flags.StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API")
-	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:3620", "Listening address (ip and port) for the monitoring API (prometheus, pprof)")
-	flags.StringVar(&config.JaegerAddr, "jaeger-address", "", "Listening address for jaeger tracing")
-	flags.StringVar(&config.JaegerService, "jaeger-service", "charon", "Service name used for jaeger tracing")
-	flags.BoolVar(&config.SimnetBMock, "simnet-beacon-mock", false, "Enables an internal mock beacon node for running a simnet.")
-	flags.BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.")
+func bindRunFlags(cmd *cobra.Command, config *app.Config) {
+	var beaconNodeAddr string
+	cmd.Flags().StringVar(&config.LockFile, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining distributed validator cluster.")
+	cmd.Flags().StringVar(&beaconNodeAddr, "beacon-node-endpoint", "", "Beacon node endpoint URL. Deprecated, please use beacon-node-endpoints.")
+	cmd.Flags().StringSliceVar(&config.BeaconNodeAddrs, "beacon-node-endpoints", nil, "Comma separated list of one or more beacon node endpoint URLs.")
+	cmd.Flags().StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
+	cmd.Flags().StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:3620", "Listening address (ip and port) for the monitoring API (prometheus, pprof).")
+	cmd.Flags().StringVar(&config.JaegerAddr, "jaeger-address", "", "Listening address for jaeger tracing.")
+	cmd.Flags().StringVar(&config.JaegerService, "jaeger-service", "charon", "Service name used for jaeger tracing.")
+	cmd.Flags().BoolVar(&config.SimnetBMock, "simnet-beacon-mock", false, "Enables an internal mock beacon node for running a simnet.")
+	cmd.Flags().BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.")
+
+	preRunE := cmd.PreRunE // Allow multiple wraps of PreRunE.
+	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		ctx := log.WithTopic(cmd.Context(), "cmd")
+		if beaconNodeAddr != "" {
+			log.Warn(ctx, "Deprecated flag 'beacon-node-endpoint' used, please use new flag 'beacon-node-endpoints'", nil)
+			config.BeaconNodeAddrs = []string{beaconNodeAddr}
+		} else if beaconNodeAddr != "" && len(config.BeaconNodeAddrs) > 0 {
+			log.Warn(ctx, "Deprecated flag 'beacon-node-endpoint' ignored since new flag 'beacon-node-endpoints' takes precedence",
+				nil, z.Str("beacon-node-endpoint", beaconNodeAddr), z.Any("beacon-node-endpoints", config.BeaconNodeAddrs))
+		} else if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
+			return errors.New("either flag 'beacon-node-endpoints' or flag 'simnet-beacon-mock=true' must be specified")
+			// TODO(corver): Use MarkFlagsRequiredTogether once beacon-node-endpoint is removed.
+		}
+
+		if preRunE != nil {
+			return preRunE(cmd, args)
+		}
+
+		return nil
+	}
 }
 
 func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {

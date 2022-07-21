@@ -41,6 +41,7 @@ func TestCmdFlags(t *testing.T) {
 		P2PConfig     *p2p.Config
 		Envs          map[string]string
 		Datadir       string
+		ErrorMsg      string
 	}{
 		{
 			Name:          "version verbose",
@@ -61,7 +62,10 @@ func TestCmdFlags(t *testing.T) {
 		{
 			Name: "run command",
 			Args: slice("run"),
-			Envs: map[string]string{"CHARON_DATA_DIR": "from_env"},
+			Envs: map[string]string{
+				"CHARON_DATA_DIR":              "from_env",
+				"CHARON_BEACON_NODE_ENDPOINTS": "http://beacon.node",
+			},
 			AppConfig: &app.Config{
 				Log: log.Config{
 					Level:  "info",
@@ -83,7 +87,7 @@ func TestCmdFlags(t *testing.T) {
 				DataDir:          "from_env",
 				MonitoringAddr:   "127.0.0.1:3620",
 				ValidatorAPIAddr: "127.0.0.1:3600",
-				BeaconNodeAddr:   "http://localhost/",
+				BeaconNodeAddrs:  []string{"http://beacon.node"},
 				JaegerAddr:       "",
 				JaegerService:    "charon",
 			},
@@ -99,6 +103,11 @@ func TestCmdFlags(t *testing.T) {
 				Allowlist:    "",
 				Denylist:     "",
 			},
+		},
+		{
+			Name:     "run require beacon addrs",
+			Args:     slice("run"),
+			ErrorMsg: "either flag 'beacon-node-endpoints' or flag 'simnet-beacon-mock=true' must be specified",
 		},
 	}
 
@@ -137,7 +146,11 @@ func TestCmdFlags(t *testing.T) {
 			})
 
 			root.SetArgs(test.Args)
-			require.NoError(t, root.Execute())
+			if test.ErrorMsg != "" {
+				require.ErrorContains(t, root.Execute(), test.ErrorMsg)
+			} else {
+				require.NoError(t, root.Execute())
+			}
 		})
 	}
 }

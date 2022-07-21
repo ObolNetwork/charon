@@ -20,7 +20,7 @@ import (
 	"context"
 	"time"
 
-	eth2http "github.com/attestantio/go-eth2-client/http"
+	eth2multi "github.com/attestantio/go-eth2-client/multi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -46,23 +46,23 @@ var (
 )
 
 // NewHTTPService returns a new instrumented eth2 http service.
-func NewHTTPService(ctx context.Context, params ...eth2http.Parameter) (*Service, error) {
-	eth2Svc, err := eth2http.New(ctx, params...)
+func NewHTTPService(ctx context.Context, params ...eth2multi.Parameter) (*Service, error) {
+	eth2Svc, err := eth2multi.New(ctx, params...)
 	if err != nil {
-		return nil, errors.Wrap(err, "new eth2http")
+		return nil, errors.Wrap(err, "new eth2multi")
 	}
 
-	eth2Cl, ok := eth2Svc.(*eth2http.Service)
+	eth2Cl, ok := eth2Svc.(*eth2multi.Service)
 	if !ok {
-		return nil, errors.New("invalid eth2http service")
+		return nil, errors.New("invalid eth2multi service")
 	}
 
 	return &Service{Service: eth2Cl}, nil
 }
 
-// Service wraps an eth2http.Service adding prometheus metrics and error wrapping.
+// Service wraps an eth2multi.Service adding prometheus metrics and error wrapping.
 type Service struct {
-	*eth2http.Service
+	*eth2multi.Service
 }
 
 // latency measures endpoint latency.
