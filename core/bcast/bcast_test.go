@@ -19,6 +19,8 @@ import (
 	"context"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
@@ -89,6 +91,37 @@ func TestBroadcastBeaconBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyProposer}, "", aggData)
+	require.ErrorIs(t, err, context.Canceled)
+
+	<-ctx.Done()
+}
+
+func TestBroadcastBlindedBeaconBlock(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	block1 := eth2api.VersionedSignedBlindedBeaconBlock{
+		Version: spec.DataVersionBellatrix,
+		Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
+			Message:   testutil.RandomBellatrixBlindedBeaconBlock(t),
+			Signature: testutil.RandomEth2Signature(),
+		},
+	}
+
+	aggData := core.VersionedSignedBlindedBeaconBlock{VersionedSignedBlindedBeaconBlock: block1}
+
+	mock.SubmitBlindedBeaconBlockFunc = func(ctx context.Context, block2 *eth2api.VersionedSignedBlindedBeaconBlock) error {
+		require.Equal(t, block1, *block2)
+		cancel()
+
+		return ctx.Err()
+	}
+
+	bcaster, err := bcast.New(ctx, mock)
+	require.NoError(t, err)
+
+	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyBuilderProposer}, "", aggData)
 	require.ErrorIs(t, err, context.Canceled)
 
 	<-ctx.Done()
