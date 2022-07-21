@@ -16,6 +16,7 @@
 package core_test
 
 import (
+	"context"
 	"sort"
 	"sync"
 	"testing"
@@ -28,6 +29,9 @@ import (
 )
 
 func TestDeadliner(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	expiredDuties, nonExpiredDuties, voluntaryExits, dutyExpired := setupData(t)
 	clock := clockwork.NewFakeClock()
 
@@ -46,11 +50,9 @@ func TestDeadliner(t *testing.T) {
 		}
 	}
 
-	deadliner, cancel := core.NewForT(t, deadlineFuncProvider(), clock)
-	defer cancel()
+	deadliner := core.NewForT(ctx, t, deadlineFuncProvider(), clock)
 
 	wg := &sync.WaitGroup{}
-	wg.Add(3)
 
 	// Add our duties to the deadliner.
 	addDuties(t, wg, expiredDuties, false, deadliner)
@@ -60,12 +62,11 @@ func TestDeadliner(t *testing.T) {
 	// Wait till all the duties are added to the deadliner.
 	wg.Wait()
 
-	clock.Advance(time.Second)
-
 	var actualDuties []core.Duty
 	for i := 0; i < len(nonExpiredDuties); i++ {
-		actualDuties = append(actualDuties, <-deadliner.C())
+		// Advance clock by 1 second to trigger deadline of duties.
 		clock.Advance(time.Second)
+		actualDuties = append(actualDuties, <-deadliner.C())
 	}
 
 	sort.Slice(actualDuties, func(i, j int) bool {
@@ -79,6 +80,7 @@ func TestDeadliner(t *testing.T) {
 func addDuties(t *testing.T, wg *sync.WaitGroup, duties []core.Duty, expected bool, deadliner *core.Deadline) {
 	t.Helper()
 
+	wg.Add(1)
 	go func(duties []core.Duty, expected bool) {
 		defer wg.Done()
 		for _, duty := range duties {

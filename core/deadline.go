@@ -65,10 +65,9 @@ type Deadline struct {
 }
 
 // NewForT returns a Deadline for use in tests.
-func NewForT(t *testing.T, deadlineFunc func(Duty) time.Time, clock clockwork.Clock) (*Deadline, context.CancelFunc) {
+func NewForT(ctx context.Context, t *testing.T, deadlineFunc func(Duty) time.Time, clock clockwork.Clock) *Deadline {
 	t.Helper()
 
-	ctx, cancel := context.WithCancel(context.Background())
 	d := &Deadline{
 		inputChan:    make(chan deadlineInput),
 		deadlineChan: make(chan Duty),
@@ -78,7 +77,7 @@ func NewForT(t *testing.T, deadlineFunc func(Duty) time.Time, clock clockwork.Cl
 
 	go d.run(ctx, deadlineFunc)
 
-	return d, cancel
+	return d
 }
 
 // NewDeadliner returns a new instance of Deadline.
