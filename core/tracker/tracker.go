@@ -58,15 +58,19 @@ type Tracker struct {
 	events    map[core.Duty][]event
 	deadliner core.Deadliner
 	quit      chan struct{}
+
+	// failedDutyReporter instruments the duty. It ignores non-failed duties.
+	failedDutyReporter func(core.Duty, bool, string, string)
 }
 
-// NewTracker returns a new Tracker.
-func NewTracker(deadliner core.Deadliner) *Tracker {
+// New returns a new Tracker.
+func New(deadliner core.Deadliner) *Tracker {
 	t := &Tracker{
-		input:     make(chan event),
-		events:    make(map[core.Duty][]event),
-		quit:      make(chan struct{}),
-		deadliner: deadliner,
+		input:              make(chan event),
+		events:             make(map[core.Duty][]event),
+		quit:               make(chan struct{}),
+		deadliner:          deadliner,
+		failedDutyReporter: failedDutyReporter,
 	}
 
 	return t
@@ -82,24 +86,25 @@ func (t *Tracker) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case e := <-t.input:
-			// TODO(dhruv): Do not store events for expired duties.
+			// TODO(xenowits): Do not store events for expired duties.
 			t.events[e.duty] = append(t.events[e.duty], e)
 			t.deadliner.Add(e.duty)
 		case duty := <-t.deadliner.C():
-			failed, failedComponent, failedMsg := analyseFailedDuty(duty, t.events[duty])
+			failed, failedComponent, failedMsg := analyseDutyFailed(duty, t.events[duty])
 
-			t.reportFailedDuty(duty, failed, failedComponent, failedMsg)
+			t.failedDutyReporter(duty, failed, failedComponent.String(), failedMsg)
 
-			// TODO(dhruv): Case of cluster participation (duty success)
-			// t.analyseClusterParticipation()
+			// TODO(dhruv): Case of cluster participation
+			// analyseParticipation(duty, t.events[duty])
+
 			delete(t.events, duty)
 		}
 	}
 }
 
-// analyseFailedDuty analyzes the events for a deadlined duty. It returns true if the duty didn't complete the sigagg component.
-// If it failed, it also returns the component it failed at and a human friendly error message.
-func analyseFailedDuty(duty core.Duty, es []event) (bool, component, string) {
+// analyseDutyFailed detects if a duty failed. It returns true if the duty didn't complete the sigagg component.
+// If it failed, it also returns the component where it failed and a human friendly error message explaining why.
+func analyseDutyFailed(duty core.Duty, es []event) (bool, component, string) {
 	events := make([]event, len(es))
 	copy(events, es)
 
@@ -117,12 +122,20 @@ func analyseFailedDuty(duty core.Duty, es []event) (bool, component, string) {
 		return false, sigAgg, ""
 	}
 
+	// TODO(xenowits): Improve message to have more specific details.
+	//  Ex: If the duty got stuck during validatorAPI, we can say "the VC didn't successfully submit a signed duty").
 	return true, events[0].component + 1, fmt.Sprintf("%s failed in %s component", duty.String(), (events[0].component + 1).String())
 }
 
-// reportFailedDuty logs and instruments the duty. It ignores non-failed duties.
-func (*Tracker) reportFailedDuty(core.Duty, bool, component, string) {
-	// TODO(dhruv): instrument failed duty
+// failedDutyReporter instruments the duty. It ignores non-failed duties.
+// TODO(xenowits): Implement logic for reporting duties.
+func failedDutyReporter(core.Duty, bool, string, string) {}
+
+// analyseParticipation returns the share indexes of peers that participated in this duty.
+// TODO(dhruv): implement logic to analyse participation.
+//nolint:deadcode
+func analyseParticipation(core.Duty, []event) []int {
+	return nil
 }
 
 // SchedulerEvent inputs event from core.Scheduler component.
@@ -186,13 +199,13 @@ func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.
 }
 
 // ValidatorAPIEvent inputs events from core.ValidatorAPI component.
-func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) {
+func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
 	for pubkey := range data {
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case <-t.quit:
-			return
+			return nil
 		default:
 			t.input <- event{
 				duty:      duty,
@@ -201,6 +214,8 @@ func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data co
 			}
 		}
 	}
+
+	return nil
 }
 
 // ParSigExEvent inputs event from core.ParSigEx component.

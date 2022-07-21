@@ -81,7 +81,7 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) *Deadl
 		}
 
 		// TODO(dhruv): optimise getCurrDuty and updating current state if earlier deadline detected,
-		// using min heap or ordered map
+		//  using a min heap or an ordered map.
 		for {
 			select {
 			case <-ctx.Done():
@@ -102,6 +102,7 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) *Deadl
 }
 
 // Add adds a duty to be notified of the deadline.
+// TODO(xenowits): Ignore expired duties.
 func (d *Deadline) Add(duty Duty) {
 	select {
 	case <-d.quit:
