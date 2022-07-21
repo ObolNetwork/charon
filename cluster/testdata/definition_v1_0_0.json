@@ -1,41 +1,31 @@
 {
+ "name": "test definition",
  "operators": [
   {
-   "address": "",
-   "enr": "enr:-JG4QBu2tQrP82j98uSOKg2hx6dOeBfvx1cKAp1DNlJ0rPaUXNplL0w__vis9qRg2zqXKQQQ42jur3VUC2UVAFivfhKGAYHndPf1gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKL6Kkc15-1J63KMyg93VIp3SulwL64uVNXPVapUZOTPoN0Y3CCDhqDdWRwgg4u",
+   "address": "0xe2d3d0d0de6bf8f9b44ce85ff044c6b1f83b8e88",
+   "enr": "enr://32f3a8aeb79ef856f659c18f0dcecc77c75e7a81bfde275f67cfe242cf3cc354",
    "nonce": 0,
-   "config_signature": null,
-   "enr_signature": null
+   "enr_signature": "8+3i1r7MTqOuXohSap9KV4vLnvLUplMUdo1tKZdh6p4="
   },
   {
-   "address": "",
-   "enr": "enr:-JG4QKPM230NVMGArEeDbJ3ai5Bt8OkLPr3S-4yuiy6UdawrWw26pG-Rxabb1VIEEXM_wbQDyHOnW8f7XktpoLFOWvCGAYHneeC3gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQJtxJaeIkcsqIKQixzWpb2SWQOjxCdIg-M5gpIMB6CJ7oN0Y3CCDhqDdWRwgg4u",
-   "nonce": 0,
-   "config_signature": null,
-   "enr_signature": null
-  },
-  {
-   "address": "",
-   "enr": "enr:-JG4QJSe4GPEyYJ5TMQYGPe2sUz0-x5N3IzM-ihh__jm9NVWFKDZoDisKxVDwnwWIVFbQdQyfFjq7WHViprAQsQoxwCGAYHnduhbgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMSUIVbYXPvvw87UXX14TUilw-BuNpc_iDx0t6MYnjA04N0Y3CCDhqDdWRwgg4u",
-   "nonce": 0,
-   "config_signature": null,
-   "enr_signature": null
-  },
-  {
-   "address": "",
-   "enr": "enr:-JG4QAFDSkbh7VzCpAXlvg9g23n6yIyuzZ23Sj08dZgNAj14PnIpmUnFCRjPCYyGub9zNb2oEurlsn_64PC94hk1d_iGAYHnelV6gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMdEi3jUyPMbW6HGwmEcAc4WfBVqH4WxNcznd27yUzYpIN0Y3CCDhqDdWRwgg4u",
-   "nonce": 0,
-   "config_signature": null,
-   "enr_signature": null
+   "address": "0x4f5aa6aec3fc78c6aae081ac8120c720efcd6cea",
+   "enr": "enr://cdd01d75045c3f000f8a796bce6c512c3801aacaeedfad5b506664e8c0e4a771",
+   "nonce": 1,
+   "enr_signature": "7OC4t8GWXZGBJRt8nJylIFr8FqI2ou/N0tEtKnnQdKg="
   }
  ],
- "uuid": "DFEC0255-4DC4-2458-935C-9B80495B4478",
+ "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
  "version": "v1.0.0",
- "num_validators": 1,
+ "num_validators": 2,
  "threshold": 3,
- "withdrawal_address": "0x0000000000000000000000000000000000000000",
+ "fee_recipient_address": "0x0194fdc2fa2ffcc041d3ff12045b73c86e4ff95f",
+ "withdrawal_address": "0xfb180daf48a79ee0b10d394651850fd4a178892e",
  "dkg_algorithm": "default",
- "fork_version": "0x00001020",
- "config_hash": "YTEoXt5ieiBuGsbFb+zAV4r3uHLwhWQcOOYmnJX1kGU=",
- "definition_hash": "NcGdp2ZscwyHPcZGOz8YXh/fT1M9lRvLQtHGhLrUJ+w="
+ "fork_version": "0x00000002",
+ "config_hash": "LqJVMStxA0vnlMFG9PSK/po3DcLwovWmeAe9S/JjRgU=",
+ "definition_hash": "fn33ROAtquN1FNg5W6qGmO661Y4vNO6VO81c+R22hpc=",
+ "operator_signatures": [
+  "KArpQ56w1q7KCCOuAtZ9hmrCxP5KclBT2hGbnU9RUUA=",
+  "otcjnEC0WsOVDZQfxP4cDLlq0yLWIoIpX7/hHiakMwc="
+ ]
 }
