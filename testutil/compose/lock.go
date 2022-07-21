@@ -44,7 +44,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		}
 
 		// Only single node to call charon create cluster generate keys
-		n := node{EnvVars: []kv{
+		n := TmplNode{EnvVars: []kv{
 			{"threshold", fmt.Sprint(conf.Threshold)},
 			{"nodes", fmt.Sprint(conf.NumNodes)},
 			{"cluster-dir", "/compose"},
@@ -57,13 +57,13 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: conf.entrypoint(),
 			CharonCommand:    cmdCreateCluster,
-			Nodes:            []node{n},
+			Nodes:            []TmplNode{n},
 		}
 	case KeyGenDKG:
 
-		var nodes []node
+		var nodes []TmplNode
 		for i := 0; i < conf.NumNodes; i++ {
-			n := node{EnvVars: newNodeEnvs(i, true, conf)}
+			n := TmplNode{EnvVars: newNodeEnvs(i, true, conf)}
 			nodes = append(nodes, n)
 		}
 

@@ -139,7 +139,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			enrs = append(enrs, enrStr)
 		}
 
-		n := node{EnvVars: []kv{
+		n := TmplNode{EnvVars: []kv{
 			{"name", "compose"},
 			{"num_validators", fmt.Sprint(conf.NumValidators)},
 			{"operator_enrs", strings.Join(enrs, ",")},
@@ -154,7 +154,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: conf.entrypoint(),
 			CharonCommand:    cmdCreateDKG,
-			Nodes:            []node{n},
+			Nodes:            []TmplNode{n},
 		}
 	} else {
 		// Other keygens only need a noop docker-compose, since charon-compose.yml
@@ -165,7 +165,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: "echo",
 			CharonCommand:    fmt.Sprintf("No charon commands needed for keygen=%s define step", conf.KeyGen),
-			Nodes:            []node{{}},
+			Nodes:            []TmplNode{{}},
 		}
 	}
 

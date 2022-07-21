@@ -40,16 +40,16 @@ type TmplData struct {
 	CharonEntrypoint string
 	CharonCommand    string
 
-	Nodes []node
-	VCs   []vc
+	Nodes []TmplNode
+	VCs   []TmplVC
 
 	Bootnode        bool
 	Monitoring      bool
 	MonitoringPorts bool
 }
 
-// vc represents a validator client service in a docker-compose.yml.
-type vc struct {
+// TmplVC represents a validator client service in a docker-compose.yml.
+type TmplVC struct {
 	Label   string
 	Image   string
 	Build   string
@@ -57,8 +57,8 @@ type vc struct {
 	Ports   []port
 }
 
-// node represents a charon node service in a docker-compose.yml.
-type node struct {
+// TmplNode represents a charon TmplNode service in a docker-compose.yml.
+type TmplNode struct {
 	ImageTag   string // ImageTag is empty by default, resulting in CharonImageTag being used.
 	Entrypoint string // Entrypoint is empty by default, resulting in CharonEntrypoint being used.
 	EnvVars    []kv

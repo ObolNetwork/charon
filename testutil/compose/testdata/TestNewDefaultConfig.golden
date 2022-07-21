@@ -16,5 +16,6 @@
   "lighthouse",
   "mock"
  ],
- "feature_set": "alpha"
+ "feature_set": "alpha",
+ "monitoring_ports": false
 }

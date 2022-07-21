@@ -33,8 +33,8 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	}
 
 	var (
-		nodes []node
-		vcs   []vc
+		nodes []TmplNode
+		vcs   []TmplVC
 	)
 	for i := 0; i < conf.NumNodes; i++ {
 		typ := conf.VCs[i%len(conf.VCs)]
@@ -44,7 +44,7 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		}
 		vcs = append(vcs, vc)
 
-		n := node{EnvVars: newNodeEnvs(i, typ == VCMock, conf)}
+		n := TmplNode{EnvVars: newNodeEnvs(i, typ == VCMock, conf)}
 		nodes = append(nodes, n)
 	}
 
@@ -56,7 +56,7 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		Nodes:            nodes,
 		Bootnode:         true,
 		Monitoring:       true,
-		MonitoringPorts:  true,
+		MonitoringPorts:  conf.MonitoringPorts,
 		VCs:              vcs,
 	}
 
@@ -71,8 +71,8 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 }
 
 // getVC returns the validator client template data for the provided type and index.
-func getVC(typ VCType, nodeIdx int, numVals int) (vc, error) {
-	vcByType := map[VCType]vc{
+func getVC(typ VCType, nodeIdx int, numVals int) (TmplVC, error) {
+	vcByType := map[VCType]TmplVC{
 		VCLighthouse: {
 			Label: string(VCLighthouse),
 			Build: "lighthouse",
@@ -106,7 +106,7 @@ func getVC(typ VCType, nodeIdx int, numVals int) (vc, error) {
 		var buf bytes.Buffer
 		err := template.Must(template.New("").Parse(resp.Command)).Execute(&buf, data)
 		if err != nil {
-			return vc{}, errors.Wrap(err, "teku template")
+			return TmplVC{}, errors.Wrap(err, "teku template")
 		}
 		resp.Command = buf.String()
 	}

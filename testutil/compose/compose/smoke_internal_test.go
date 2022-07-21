@@ -43,9 +43,10 @@ func TestSmoke(t *testing.T) {
 	}
 
 	tests := []struct {
-		Name       string
-		ConfigFunc func(*compose.Config)
-		TmplFunc   func(*compose.TmplData)
+		Name           string
+		ConfigFunc     func(*compose.Config)
+		RunTmplFunc    func(*compose.TmplData)
+		DefineTmplFunc func(*compose.TmplData)
 	}{
 		{
 			Name: "default alpha",
@@ -84,25 +85,25 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name: "version matrix with dkg",
+			Name: "run version matrix with dkg",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenDKG
 			},
-			TmplFunc: func(data *compose.TmplData) {
-				data.Nodes[0].ImageTag = "latest"
-				// Use default entrypoint
-
-				data.Nodes[1].ImageTag = "latest"
-				// TODO(dhruv): Using default entrypoint for now need to update with data.Nodes[1].Entrypoint = containerBinary
-				// Use default entrypoint
-
-				data.Nodes[2].ImageTag = "v0.5.0" // TODO(corver): Update this with new releases.
-				// TODO(dhruv): Using default entrypoint for now need to update with data.Nodes[1].Entrypoint = containerBinary
-				// Use default entrypoint
-
-				data.Nodes[3].ImageTag = "v0.5.0"
-				// TODO(dhruv): Using default entrypoint for now need to update with data.Nodes[1].Entrypoint = containerBinary
-				// Use default entrypoint
+			RunTmplFunc: func(data *compose.TmplData) {
+				// Node 0 is latest
+				pegImageTag(data.Nodes, 1, "v8.0.0")
+				pegImageTag(data.Nodes, 2, "v7.0.0")
+				pegImageTag(data.Nodes, 3, "v6.0.0")
+			},
+		},
+		{
+			Name: "definition version matrix with dkg - v1.0.0",
+			ConfigFunc: func(conf *compose.Config) {
+				conf.KeyGen = compose.KeyGenDKG
+			},
+			DefineTmplFunc: func(data *compose.TmplData) {
+				// v8.0.0 of charon generates v1.0.0 defnition files.
+				pegImageTag(data.Nodes, 0, "v8.0.0")
 			},
 		},
 		{
@@ -110,7 +111,7 @@ func TestSmoke(t *testing.T) {
 			ConfigFunc: func(conf *compose.Config) {
 				conf.VCs = []compose.VCType{compose.VCTeku}
 			},
-			TmplFunc: func(data *compose.TmplData) {
+			RunTmplFunc: func(data *compose.TmplData) {
 				data.VCs[0].Image = "consensys/teku:latest"
 				data.VCs[1].Image = "consensys/teku:22.5"
 				data.VCs[2].Image = "consensys/teku:22.4"
@@ -119,7 +120,7 @@ func TestSmoke(t *testing.T) {
 		},
 		{
 			Name: "1 of 4 down",
-			TmplFunc: func(data *compose.TmplData) {
+			RunTmplFunc: func(data *compose.TmplData) {
 				node0 := data.Nodes[0]
 				for i := 0; i < len(node0.EnvVars); i++ {
 					if strings.HasPrefix(node0.EnvVars[i].Key, "p2p") {
@@ -138,6 +139,7 @@ func TestSmoke(t *testing.T) {
 			require.NoError(t, err)
 
 			conf := compose.NewDefaultConfig()
+			conf.MonitoringPorts = false
 			if *prebuiltBinary != "" {
 				copyPrebuiltBinary(t, dir, *prebuiltBinary)
 				conf.PrebuiltBinary = true
@@ -147,11 +149,9 @@ func TestSmoke(t *testing.T) {
 			}
 			require.NoError(t, compose.WriteConfig(dir, conf))
 
-			cmd := newAutoCmd(func(data *compose.TmplData) {
-				data.MonitoringPorts = false
-				if test.TmplFunc != nil {
-					test.TmplFunc(data)
-				}
+			cmd := newAutoCmd(map[string]func(data *compose.TmplData){
+				"define": test.DefineTmplFunc,
+				"run":    test.RunTmplFunc,
 			})
 			require.NoError(t, cmd.Flags().Set("compose-dir", dir))
 			require.NoError(t, cmd.Flags().Set("alert-timeout", "30s"))
@@ -173,4 +173,11 @@ func copyPrebuiltBinary(t *testing.T, dir string, binary string) {
 	require.NoError(t, err)
 
 	require.NoError(t, os.WriteFile(path.Join(dir, "charon"), b, 0o555))
+}
+
+// pegImageTag pegs the charon docker image tag for one of the nodes.
+// It overrides the default that uses locally built latest version.
+func pegImageTag(nodes []compose.TmplNode, index int, imageTag string) {
+	nodes[index].ImageTag = imageTag
+	nodes[index].Entrypoint = "/usr/local/bin/charon" // Use contains binary, not locally built latest version.
 }

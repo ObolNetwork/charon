@@ -124,7 +124,7 @@ func newDockerCmd(use string, short string, runFunc runFunc) *cobra.Command {
 }
 
 //nolint:gocognit // TODO(corver): Move this to compose package and improve API.
-func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
+func newAutoCmd(tmplCallbacks map[string]func(data *compose.TmplData)) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auto",
 		Short: "Convenience function that runs `compose define && compose lock && compose run`",
@@ -137,23 +137,31 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 	printYML := cmd.Flags().Bool("print-yml", false, "Print generated docker-compose.yml files.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) (err error) {
-		runFuncs := []func(context.Context) (compose.TmplData, error){
-			newRunnerFunc("define", *dir, false, compose.Define),
-			newRunnerFunc("lock", *dir, false, compose.Lock),
-			newRunnerFunc("run", *dir, false, compose.Run),
+		runFuncs := map[string]func(context.Context) (compose.TmplData, error){
+			"define": newRunnerFunc("define", *dir, false, compose.Define),
+			"lock":   newRunnerFunc("lock", *dir, false, compose.Lock),
+			"run":    newRunnerFunc("run", *dir, false, compose.Run),
 		}
 
 		rootCtx := log.WithTopic(cmd.Context(), "auto")
 
 		var lastTmpl compose.TmplData
-		for i, runFunc := range runFuncs {
-			lastTmpl, err = runFunc(rootCtx)
+		for i, step := range []string{"define", "lock", "run"} {
+			lastTmpl, err = runFuncs[step](rootCtx)
 			if err != nil {
 				return err
 			}
 
 			if *sudoPerms {
 				if err := fixPerms(rootCtx, *dir); err != nil {
+					return err
+				}
+			}
+
+			if tmplCallbacks[step] != nil {
+				tmplCallbacks[step](&lastTmpl)
+				err := compose.WriteDockerCompose(*dir, lastTmpl)
+				if err != nil {
 					return err
 				}
 			}
@@ -168,20 +176,6 @@ func newAutoCmd(tmplCallback func(data *compose.TmplData)) *cobra.Command {
 				if err := execUp(rootCtx, *dir); err != nil {
 					return err
 				}
-			}
-		}
-
-		if tmplCallback != nil {
-			tmplCallback(&lastTmpl)
-			err := compose.WriteDockerCompose(*dir, lastTmpl)
-			if err != nil {
-				return err
-			}
-		}
-
-		if *printYML {
-			if err := printDockerCompose(rootCtx, *dir); err != nil {
-				return err
 			}
 		}
 

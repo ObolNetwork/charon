@@ -158,8 +158,6 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
     networks: [compose]
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
@@ -167,8 +165,6 @@ services:
 
   grafana:
     image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
     networks: [compose]
     volumes:
       - ./grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
@@ -181,8 +177,6 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:latest
     networks: [compose]
-    ports:
-      - "16686:16686"
     
 networks:
   compose:
