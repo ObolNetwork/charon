@@ -59,27 +59,19 @@ type Tracker struct {
 	deadliner core.Deadliner
 	quit      chan struct{}
 
-	// reportDutyFunc instruments the duty. It ignores non-failed duties.
-	reportDutyFunc func(core.Duty, bool, string, string)
+	// failedDutyReporter instruments the duty. It ignores non-failed duties.
+	failedDutyReporter func(core.Duty, bool, string, string)
 }
 
 // New returns a new Tracker.
 func New(deadliner core.Deadliner) *Tracker {
 	t := &Tracker{
-		input:          make(chan event),
-		events:         make(map[core.Duty][]event),
-		quit:           make(chan struct{}),
-		deadliner:      deadliner,
-		reportDutyFunc: reportDutyFunc,
+		input:              make(chan event),
+		events:             make(map[core.Duty][]event),
+		quit:               make(chan struct{}),
+		deadliner:          deadliner,
+		failedDutyReporter: failedDutyReporter,
 	}
-
-	return t
-}
-
-// NewForT returns a new Tracker for use in tests.
-func NewForT(deadliner core.Deadliner, reportDutyFunc func(failedDuty core.Duty, isFailed bool, component string, msg string)) *Tracker {
-	t := New(deadliner)
-	t.reportDutyFunc = reportDutyFunc
 
 	return t
 }
@@ -100,17 +92,18 @@ func (t *Tracker) Run(ctx context.Context) error {
 		case duty := <-t.deadliner.C():
 			failed, failedComponent, failedMsg := analyseDutyFailed(duty, t.events[duty])
 
-			t.reportDutyFunc(duty, failed, failedComponent.String(), failedMsg)
+			t.failedDutyReporter(duty, failed, failedComponent.String(), failedMsg)
 
-			// TODO(dhruv): Case of cluster participation (duty success)
-			// t.analyseClusterParticipation()
+			// TODO(dhruv): Case of cluster participation
+			// analyseParticipation(duty, t.events[duty])
+
 			delete(t.events, duty)
 		}
 	}
 }
 
-// analyseDutyFailed analyzes the events for a deadlined duty. It returns true if the duty didn't complete the sigagg component.
-// If it failed, it also returns the component it failed at and a human friendly error message.
+// analyseDutyFailed detects if a duty failed. It returns true if the duty didn't complete the sigagg component.
+// If it failed, it also returns the component where it failed and a human friendly error message explaining why.
 func analyseDutyFailed(duty core.Duty, es []event) (bool, component, string) {
 	events := make([]event, len(es))
 	copy(events, es)
@@ -134,9 +127,15 @@ func analyseDutyFailed(duty core.Duty, es []event) (bool, component, string) {
 	return true, events[0].component + 1, fmt.Sprintf("%s failed in %s component", duty.String(), (events[0].component + 1).String())
 }
 
-// reportDutyFunc instruments the duty. It ignores non-failed duties.
-func reportDutyFunc(core.Duty, bool, string, string) {
-	// TODO(xenowits): Implement logic for reporting duties.
+// failedDutyReporter instruments the duty. It ignores non-failed duties.
+// TODO(xenowits): Implement logic for reporting duties.
+func failedDutyReporter(core.Duty, bool, string, string) {}
+
+// analyseParticipation returns the share indexes of peers that participated in this duty.
+// TODO(dhruv): implement logic to analyse participation.
+//nolint:deadcode
+func analyseParticipation(core.Duty, []event) []int {
+	return nil
 }
 
 // SchedulerEvent inputs event from core.Scheduler component.

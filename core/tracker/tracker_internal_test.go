@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package tracker_test
+package tracker
 
 import (
 	"context"
@@ -24,27 +24,27 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/tracker"
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestTracker(t *testing.T) {
-	duty, defSet, pubkey, unsignedDataSet, parSignedDataSet := setupData(t)
+func TestTracker1(t *testing.T) {
+	duty, defSet, pubkey, unsignedDataSet, parSignedDataSet := setupData1(t)
 
 	t.Run("FailAtConsensus", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		deadliner := testDeadliner{
+		deadliner := testDeadliner1{
 			deadlineChan: make(chan core.Duty),
 		}
 
-		reportDutyFunc := func(failedDuty core.Duty, isFailed bool, component string, msg string) {
+		failedDutyReporter := func(failedDuty core.Duty, isFailed bool, component string, msg string) {
 			require.Equal(t, duty, failedDuty)
 			require.True(t, isFailed)
 			require.Equal(t, component, "consensus")
 			cancel()
 		}
 
-		tr := tracker.NewForT(deadliner, reportDutyFunc)
+		tr := New(deadliner)
+		tr.failedDutyReporter = failedDutyReporter
 
 		go func() {
 			require.NoError(t, tr.SchedulerEvent(ctx, duty, defSet))
@@ -59,18 +59,19 @@ func TestTracker(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		deadliner := testDeadliner{
+		deadliner := testDeadliner1{
 			deadlineChan: make(chan core.Duty),
 		}
 
-		reportDutyFunc := func(failedDuty core.Duty, isFailed bool, component string, msg string) {
+		failedDutyReporter := func(failedDuty core.Duty, isFailed bool, component string, msg string) {
 			require.Equal(t, duty, failedDuty)
 			require.False(t, isFailed)
 			require.Equal(t, "sigAgg", component)
 			cancel()
 		}
 
-		tr := tracker.NewForT(deadliner, reportDutyFunc)
+		tr := New(deadliner)
+		tr.failedDutyReporter = failedDutyReporter
 
 		go func() {
 			require.NoError(t, tr.SchedulerEvent(ctx, duty, defSet))
@@ -91,18 +92,18 @@ func TestTracker(t *testing.T) {
 }
 
 // testDeadliner is a mock deadliner implementation.
-type testDeadliner struct {
+type testDeadliner1 struct {
 	deadlineChan chan core.Duty
 }
 
-func (testDeadliner) Add(core.Duty) {}
+func (testDeadliner1) Add(core.Duty) {}
 
-func (t testDeadliner) C() <-chan core.Duty {
+func (t testDeadliner1) C() <-chan core.Duty {
 	return t.deadlineChan
 }
 
 // setupData returns the data required to test tracker.
-func setupData(t *testing.T) (core.Duty, core.DutyDefinitionSet, core.PubKey, core.UnsignedDataSet, core.ParSignedDataSet) {
+func setupData1(t *testing.T) (core.Duty, core.DutyDefinitionSet, core.PubKey, core.UnsignedDataSet, core.ParSignedDataSet) {
 	t.Helper()
 
 	const (
