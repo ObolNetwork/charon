@@ -20,6 +20,8 @@ import (
 	"math/rand"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/stretchr/testify/require"
@@ -59,6 +61,18 @@ func TestParSignedDataSetProto(t *testing.T) {
 					Version: spec.DataVersionBellatrix,
 					Bellatrix: &bellatrix.SignedBeaconBlock{
 						Message:   testutil.RandomBellatrixBeaconBlock(t),
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			Type: core.DutyBuilderProposer,
+			Data: core.VersionedSignedBlindedBeaconBlock{
+				VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
+					Version: spec.DataVersionBellatrix,
+					Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
+						Message:   testutil.RandomBellatrixBlindedBeaconBlock(t),
 						Signature: testutil.RandomEth2Signature(),
 					},
 				},
@@ -110,6 +124,22 @@ func TestSetBlockSig(t *testing.T) {
 	require.NotEqual(t, clone.Signature(), block.Signature())
 }
 
+func TestSetBlindedBlockSig(t *testing.T) {
+	block := core.VersionedSignedBlindedBeaconBlock{
+		VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
+			Version: spec.DataVersionBellatrix,
+			Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
+				Message:   testutil.RandomBellatrixBlindedBeaconBlock(t),
+				Signature: testutil.RandomEth2Signature(),
+			},
+		},
+	}
+
+	clone, err := block.SetSignature(testutil.RandomCoreSignature())
+	require.NoError(t, err)
+	require.NotEqual(t, clone.Signature(), block.Signature())
+}
+
 func TestUnsignedDataToProto(t *testing.T) {
 	tests := []struct {
 		Type core.DutyType
@@ -122,6 +152,10 @@ func TestUnsignedDataToProto(t *testing.T) {
 		{
 			Type: core.DutyProposer,
 			Data: testutil.RandomCoreVersionBeaconBlock(t),
+		},
+		{
+			Type: core.DutyBuilderProposer,
+			Data: testutil.RandomCoreVersionBlindedBeaconBlock(t),
 		},
 	}
 

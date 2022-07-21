@@ -54,6 +54,12 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedDa
 			return ParSignedData{}, errors.Wrap(err, "unmarshal block")
 		}
 		signedData = b
+	case DutyBuilderProposer:
+		var b VersionedSignedBlindedBeaconBlock
+		if err := json.Unmarshal(data.Data, &b); err != nil {
+			return ParSignedData{}, errors.Wrap(err, "unmarshal blinded block")
+		}
+		signedData = b
 	case DutyExit:
 		var e SignedVoluntaryExit
 		if err := json.Unmarshal(data.Data, &e); err != nil {
