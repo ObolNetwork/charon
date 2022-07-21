@@ -80,6 +80,7 @@ func New(pubkeys []core.PubKey, eth2Svc eth2client.Service) (*Scheduler, error) 
 			return time.After(time.Until(deadline))
 		},
 		resolvedEpoch: math.MaxUint64,
+		builderAPI:    false,
 	}, nil
 }
 
@@ -93,6 +94,7 @@ type Scheduler struct {
 	duties        map[core.Duty]core.DutyDefinitionSet
 	dutiesMutex   sync.Mutex
 	subs          []func(context.Context, core.Duty, core.DutyDefinitionSet) error
+	builderAPI    bool
 }
 
 // Subscribe registers a callback for triggering a duty.
@@ -317,7 +319,13 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot slot, vals valida
 			continue
 		}
 
-		duty := core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
+		var duty core.Duty
+
+		if s.builderAPI {
+			duty = core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyBuilderProposer}
+		} else {
+			duty = core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
+		}
 
 		pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
 		if !ok {
