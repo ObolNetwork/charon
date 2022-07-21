@@ -183,6 +183,6 @@ services:
     networks: [compose]
     ports:
       - "16686:16686"
-  
+    
 networks:
   compose:

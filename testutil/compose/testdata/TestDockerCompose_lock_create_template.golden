@@ -34,5 +34,6 @@
  ],
  "VCs": null,
  "Bootnode": false,
- "Monitoring": false
+ "Monitoring": false,
+ "MonitoringPorts": false
 }

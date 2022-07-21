@@ -68,8 +68,9 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    ports:
+    {{if .MonitoringPorts}}ports:
       - "9090:9090"
+    {{end -}}
     networks: [compose]
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
@@ -77,8 +78,9 @@ services:
 
   grafana:
     image: grafana/grafana:latest
-    ports:
+    {{if .MonitoringPorts}}ports:
       - "3000:3000"
+    {{end -}}
     networks: [compose]
     volumes:
       - ./grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
@@ -91,8 +93,9 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:latest
     networks: [compose]
-    ports:
+    {{if .MonitoringPorts}}ports:
       - "16686:16686"
+    {{end -}}
   {{end}}
 networks:
   compose:

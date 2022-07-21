@@ -30,10 +30,13 @@ import (
 // startAlertCollector starts a goroutine that polls prometheus alerts until the context is closed and returns
 // a channel on which the received alert descriptions will be sent.
 func startAlertCollector(ctx context.Context, dir string) (chan string, error) {
-	dedup := make(map[string]bool)
 	resp := make(chan string, 100)
 
 	go func() {
+		var (
+			curlErrs int
+			dedup    = make(map[string]bool)
+		)
 		defer close(resp)
 		for ctx.Err() == nil {
 			time.Sleep(time.Second * 5)
@@ -45,6 +48,10 @@ func startAlertCollector(ctx context.Context, dir string) (chan string, error) {
 				return
 			} else if err != nil {
 				log.Error(ctx, "Exec curl alerts", err, z.Str("out", string(out)))
+				curlErrs++
+				if curlErrs > 3 { // Allow some initial startup jitters
+					resp <- "failed curling prometheus alerts: " + err.Error()
+				}
 				continue
 			}
 
