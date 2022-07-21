@@ -19,6 +19,7 @@ import (
 	"context"
 	"sync"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -30,23 +31,26 @@ import (
 // NewMemDB returns a new in-memory dutyDB instance.
 func NewMemDB() *MemDB {
 	return &MemDB{
-		attDuties:  make(map[attKey]*eth2p0.AttestationData),
-		attPubKeys: make(map[pkKey]core.PubKey),
-		proDuties:  make(map[int64]*spec.VersionedBeaconBlock),
-		shutdown:   make(chan struct{}),
+		attDuties:        make(map[attKey]*eth2p0.AttestationData),
+		attPubKeys:       make(map[pkKey]core.PubKey),
+		builderProDuties: make(map[int64]*eth2api.VersionedBlindedBeaconBlock),
+		proDuties:        make(map[int64]*spec.VersionedBeaconBlock),
+		shutdown:         make(chan struct{}),
 	}
 }
 
 // MemDB is a in-memory dutyDB implementation.
 // It is a placeholder for the badgerDB implementation.
 type MemDB struct {
-	mu         sync.Mutex
-	attDuties  map[attKey]*eth2p0.AttestationData
-	attPubKeys map[pkKey]core.PubKey
-	attQueries []attQuery
-	proDuties  map[int64]*spec.VersionedBeaconBlock
-	proQueries []proQuery
-	shutdown   chan struct{}
+	mu                sync.Mutex
+	attDuties         map[attKey]*eth2p0.AttestationData
+	attPubKeys        map[pkKey]core.PubKey
+	attQueries        []attQuery
+	builderProDuties  map[int64]*eth2api.VersionedBlindedBeaconBlock
+	builderProQueries []builderProQuery
+	proDuties         map[int64]*spec.VersionedBeaconBlock
+	proQueries        []proQuery
+	shutdown          chan struct{}
 }
 
 // Shutdown results in all blocking queries to return shutdown errors.
@@ -73,6 +77,18 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 			}
 		}
 		db.resolveProQueriesUnsafe()
+	case core.DutyBuilderProposer:
+		// Sanity check max one builder proposer per slot
+		if len(unsignedSet) > 1 {
+			return errors.New("unexpected builder proposer data set length", z.Int("n", len(unsignedSet)))
+		}
+		for _, unsignedData := range unsignedSet {
+			err := db.storeBlindedBeaconBlockUnsafe(unsignedData)
+			if err != nil {
+				return err
+			}
+		}
+		db.resolveBuilderProQueriesUnsafe()
 	case core.DutyAttester:
 		for pubkey, unsignedData := range unsignedSet {
 			err := db.storeAttestationUnsafe(pubkey, unsignedData)
@@ -97,6 +113,27 @@ func (db *MemDB) AwaitBeaconBlock(ctx context.Context, slot int64) (*spec.Versio
 		Response: response,
 	})
 	db.resolveProQueriesUnsafe()
+	db.mu.Unlock()
+
+	select {
+	case <-db.shutdown:
+		return nil, errors.New("dutydb shutdown")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case block := <-response:
+		return block, nil
+	}
+}
+
+// AwaitBlindedBeaconBlock implements core.DutyDB, see its godoc.
+func (db *MemDB) AwaitBlindedBeaconBlock(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error) {
+	db.mu.Lock()
+	response := make(chan *eth2api.VersionedBlindedBeaconBlock, 1)
+	db.builderProQueries = append(db.builderProQueries, builderProQuery{
+		Key:      slot,
+		Response: response,
+	})
+	db.resolveBuilderProQueriesUnsafe()
 	db.mu.Unlock()
 
 	select {
@@ -233,6 +270,44 @@ func (db *MemDB) storeBeaconBlockUnsafe(unsignedData core.UnsignedData) error {
 	return nil
 }
 
+// storeBlindedBeaconBlockUnsafe stores the unsigned BlindedBeaconBlock. It is unsafe since it assumes the lock is held.
+func (db *MemDB) storeBlindedBeaconBlockUnsafe(unsignedData core.UnsignedData) error {
+	cloned, err := unsignedData.Clone() // Clone before storing.
+	if err != nil {
+		return err
+	}
+
+	block, ok := cloned.(core.VersionedBlindedBeaconBlock)
+	if !ok {
+		return errors.New("invalid unsigned blinded block")
+	}
+
+	slot, err := block.Slot()
+	if err != nil {
+		return err
+	}
+
+	if existing, ok := db.builderProDuties[int64(slot)]; ok {
+		existingRoot, err := existing.Root()
+		if err != nil {
+			return errors.Wrap(err, "blinded block root")
+		}
+
+		providedRoot, err := block.Root()
+		if err != nil {
+			return errors.Wrap(err, "blinded block root")
+		}
+
+		if existingRoot != providedRoot {
+			return errors.New("clashing blinded blocks")
+		}
+	} else {
+		db.builderProDuties[int64(slot)] = &block.VersionedBlindedBeaconBlock
+	}
+
+	return nil
+}
+
 // resolveAttQueriesUnsafe resolve any attQuery to a result if found.
 // It is unsafe since it assume that the lock is held.
 func (db *MemDB) resolveAttQueriesUnsafe() {
@@ -267,6 +342,23 @@ func (db *MemDB) resolveProQueriesUnsafe() {
 	db.proQueries = unresolved
 }
 
+// resolveBuilderProQueriesUnsafe resolve any builderProQuery to a result if found.
+// It is unsafe since it assume that the lock is held.
+func (db *MemDB) resolveBuilderProQueriesUnsafe() {
+	var unresolved []builderProQuery
+	for _, query := range db.builderProQueries {
+		value, ok := db.builderProDuties[query.Key]
+		if !ok {
+			unresolved = append(unresolved, query)
+			continue
+		}
+
+		query.Response <- value
+	}
+
+	db.builderProQueries = unresolved
+}
+
 // attKey is the key to lookup an attester value in the DB.
 type attKey struct {
 	Slot    int64
@@ -290,4 +382,10 @@ type attQuery struct {
 type proQuery struct {
 	Key      int64
 	Response chan<- *spec.VersionedBeaconBlock
+}
+
+// builderProQuery is a waiting builderProQuery with a response channel.
+type builderProQuery struct {
+	Key      int64
+	Response chan<- *eth2api.VersionedBlindedBeaconBlock
 }
