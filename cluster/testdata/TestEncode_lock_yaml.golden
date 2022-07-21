@@ -1,34 +1,35 @@
 cluster_definition:
   name: test definition
   operators:
-  - address: "0xe2d3d0d0de6bf8f9b44ce85ff044c6b1f83b8e88"
-    enr: enr://32f3a8aeb79ef856f659c18f0dcecc77c75e7a81bfde275f67cfe242cf3cc354
+  - address: "0xeb9d18a44784045d87f3c67cf22746e995af5a25"
+    enr: enr://5fb90badb37c5821b6d95526a41a9504680b4e7c8b763a1b1d49d4955c848621
     nonce: 0
-    config_signature: 8+3i1r7MTqOuXohSap9KV4vLnvLUplMUdo1tKZdh6p4=
-    enr_signature: T1qmrsP8eMaq4IGsgSDHIO/NbOqEtpJeYHvgY3Fvlt0=
-  - address: "0xcdd01d75045c3f000f8a796bce6c512c3801aaca"
-    enr: enr://ece0b8b7c1965d9181251b7c9c9ca5205afc16a236a2efcdd2d12d2a79d074a8
+    config_signature: YyUlP+xzjdep4ov5IRGcFg8HAkSGFbvaCDE/ao62aNI=
+    enr_signature: C/UFmHWSHmaKW98sf8SERZLSVyvNBmjS1sUvUFTi0IM=
+  - address: "0x6bf84c7174cb7476364cc3dbd968b0f7172ed857"
+    enr: enr://ff094279db1944ebd7a19d0f7bbacbe0255aa5b7d44bec40f84c892b9bffd436
     nonce: 1
-    config_signature: KArpQ56w1q7KCCOuAtZ9hmrCxP5KclBT2hGbnU9RUUA=
-    enr_signature: otcjnEC0WsOVDZQfxP4cDLlq0yLWIoIpX7/hHiakMwc=
+    config_signature: KbAiO+6l9PdDkfRF0Vr9QpQEA3T2kkuYy/hxP42WLXw=
+    enr_signature: jQGRksJCJOLK/Mrjph+1hrFDI6a8j5598dkpMz/5k5M=
   uuid: 0194FDC2-FA2F-FCC0-41D3-FF12045B73C8
-  version: v1.0.0
+  version: v1.0.1
+  timestamp: 2022-07-19T18:19:58+02:00
   num_validators: 2
   threshold: 3
-  fee_recipient_address: "0x0194fdc2fa2ffcc041d3ff12045b73c86e4ff95f"
-  withdrawal_address: "0xfb180daf48a79ee0b10d394651850fd4a178892e"
+  fee_recipient_address: "0x52fdfc072182654f163f5f0f9a621d729566c74d"
+  withdrawal_address: "0x81855ad8681d0d86d1e91e00167939cb6694d2c4"
   dkg_algorithm: default
   fork_version: "0x00000002"
-  config_hash: 3YJ5gLQR1PUwq0Ji/4PW0i5iGktnB6c+zSm1eV59RxY=
-  definition_hash: 0rmEGF1DLXJPUkGbroJ5POco317zZhqO9n3q3MyjUHE=
+  config_hash: ZCLGlOnXppJPp+Xv7A43AMJrqxy1714qExb6uk6VOzw=
+  definition_hash: tjeuHGM+Vq2UpAoxfK+ieyk5C7D0vJKjvPIQpsDPucc=
 distributed_validators:
-- distributed_public_key: "0x7b182e046410f44bc4b0f3f03a0d06820a30f257"
+- distributed_public_key: "0x4c7215a3b539eb1e5849c6077dbb5722f5717a28"
   public_shares:
-  - NCyLgFXEZtiGRB0lmQbWms2JS5aK6fDrnZZc5qRpPE4=
-  - vogVAbfZhGtm6wK1flzae2y6aJHWFr1obDe4NGE6yLo=
-- distributed_public_key: "0xa22c008ffe688352734ae4e3f1217acd5f832708"
+  - C0s3OXARXoLtb0ElyPpzEeTX3vqSLarneGZn9+k2zU8=
+  - JKv334ZrqlYDg2etYUXeHuj0qLCZPr34iDoK2L6cOXg=
+- distributed_public_key: "0xb04883e56a156a8de563afa467d49dec6a40e9a1"
   public_shares:
-  - eVeydxnOPzGI3+V97r9vgllaEPe7ViygTVw9J5QpWMY=
-  - 2zJiZwZJ87yX2aIxZzXt5oKl3+bxoBH7yYrQ++eQADw=
-signature_aggregate: bbXBREw6NNMqXEp/++jRgfftO4z+kE+T+PBtKbzZ7YQ=
-lock_hash: rHB4IF/epf4y5w8Uv5Uq447O+4DfyZm0adn95tSV0Qs=
+  - n45NpkMBBSINCyloi3NLjqDzypk26EYfENd8luqAp6Y=
+  - ZfYG9qY7fz39JWfBiXnk1g8maG2b8vsmyQH/NUzeFgc=
+signature_aggregate: O+pvWzr23gN0NmxHGeQ6GwZ9ibx/AfH1c5gWWaRP8Xo=
+lock_hash: XlMaUhjUK0QNp0NZuDuhlsO3avrYLux7iWWrr4EOp1w=

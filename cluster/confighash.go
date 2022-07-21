@@ -18,11 +18,12 @@ package cluster
 import ssz "github.com/ferranbt/fastssz"
 
 // staticDefinition defines the static (non-changing) portion of the charon cluster definition.
-// The fields are a subset of the Definition struct.
+// The fields are a subset of the Definition struct excluding full Operator structs.
 type staticDefinition struct {
 	name                string
 	uuid                string
 	version             string
+	timestamp           string
 	numValidators       int
 	threshold           int
 	feeRecipientAddress string
@@ -79,6 +80,11 @@ func (d staticDefinition) HashTreeRootWith(hh *ssz.Hasher) error {
 		hh.MerkleizeWithMixin(subIndx, num, num)
 	}
 
+	// Field (10) 'timestamp' (optional for backwards compatibility)
+	if d.timestamp != "" {
+		hh.PutBytes([]byte(d.timestamp))
+	}
+
 	hh.Merkleize(indx)
 
 	return nil
@@ -91,6 +97,7 @@ func configHash(d Definition) ([32]byte, error) {
 		name:                d.Name,
 		uuid:                d.UUID,
 		version:             d.Version,
+		timestamp:           d.Timestamp,
 		numValidators:       d.NumValidators,
 		threshold:           d.Threshold,
 		feeRecipientAddress: d.FeeRecipientAddress,
