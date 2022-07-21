@@ -202,14 +202,23 @@ func newAutoCmd(tmplCallbacks map[string]func(data *compose.TmplData)) *cobra.Co
 			return err
 		}
 
-		var fail bool
+		var (
+			alertMsgs    []string
+			alertSuccess bool
+		)
 		for alert := range alerts {
-			log.Error(rootCtx, "Received alert", nil, z.Str("alert", alert))
-			fail = true
+			if alert == alertsPolled {
+				alertSuccess = true
+			} else {
+				alertMsgs = append(alertMsgs, alert)
+			}
 		}
-		if fail {
-			return errors.New("alerts detected")
+		if !alertSuccess {
+			return errors.New("alerts couldn't be polled")
+		} else if len(alertMsgs) > 0 {
+			return errors.New("alerts detected", z.Any("alerts", alertMsgs))
 		}
+
 		log.Info(ctx, "No alerts detected")
 
 		return nil
