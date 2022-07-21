@@ -32,7 +32,7 @@ func NewMemDB() *MemDB {
 		commands:       make(chan writeCommand),
 		queries:        make(chan readQuery),
 		blockedQueries: []readQuery{},
-		closedCh:       make(chan struct{}),
+		quit:           make(chan struct{}),
 	}
 }
 
@@ -44,7 +44,7 @@ type MemDB struct {
 	queries        chan readQuery
 	blockedQueries []readQuery
 
-	closedCh chan struct{}
+	quit chan struct{}
 }
 
 // Store implements core.AggSigDB, see its godoc.
@@ -64,7 +64,7 @@ func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-db.closedCh:
+	case <-db.quit:
 		return ErrStopped
 	case db.commands <- cmd:
 	}
@@ -72,7 +72,7 @@ func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-db.closedCh:
+	case <-db.quit:
 		return ErrStopped
 	case err := <-response:
 		return err
@@ -90,7 +90,7 @@ func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) 
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-db.closedCh:
+	case <-db.quit:
 		return nil, ErrStopped
 	case db.queries <- query:
 	}
@@ -98,7 +98,7 @@ func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) 
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-db.closedCh:
+	case <-db.quit:
 		return nil, ErrStopped
 	case value := <-response:
 		return value.Clone() // Clone before returning.
@@ -107,6 +107,8 @@ func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) 
 
 // Run blocks and runs the database process until the context is cancelled.
 func (db *MemDB) Run(ctx context.Context) {
+	defer close(db.quit)
+
 	for {
 		select {
 		case command := <-db.commands:
@@ -117,9 +119,6 @@ func (db *MemDB) Run(ctx context.Context) {
 				db.blockedQueries = append(db.blockedQueries, query)
 			}
 		case <-ctx.Done():
-			close(db.closedCh)
-			return
-		case <-db.closedCh:
 			return
 		}
 	}
