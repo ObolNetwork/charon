@@ -245,9 +245,17 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 		return err
 	}
 
-	err = s.resolveProDuties(ctx, slot, vals)
-	if err != nil {
-		return err
+	// TODO: replace if false with check for builder api flag
+	if false {
+		err = s.resolveBuilderProDuties(ctx, slot, vals)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = s.resolveProDuties(ctx, slot, vals)
+		if err != nil {
+			return err
+		}
 	}
 
 	s.setResolvedEpoch(uint64(slot.Epoch()))
@@ -317,7 +325,12 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot slot, vals valida
 			continue
 		}
 
+		// TODO: replace if false with check for builder api flag
+		// if false {
+		// 	duty := core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
+		// } else {
 		duty := core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
+		// }
 
 		pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
 		if !ok {
@@ -330,6 +343,41 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot slot, vals valida
 		}
 
 		log.Info(ctx, "Resolved proposer duty",
+			z.U64("epoch", uint64(slot.Epoch())),
+			z.U64("vidx", uint64(proDuty.ValidatorIndex)),
+			z.U64("slot", uint64(proDuty.Slot)),
+			z.Any("pubkey", pubkey))
+	}
+
+	return nil
+}
+
+// resolveBuilderProposerDuties resolves builder proposer duties for the given validators.
+func (s *Scheduler) resolveBuilderProDuties(ctx context.Context, slot slot, vals validators) error {
+	proDuties, err := s.eth2Cl.ProposerDuties(ctx, slot.Epoch(), vals.Indexes())
+	if err != nil {
+		return err
+	}
+
+	for _, proDuty := range proDuties {
+		if proDuty.Slot < eth2p0.Slot(slot.Slot) {
+			// Skip duties for earlier slots in initial epoch.
+			continue
+		}
+
+		duty := core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyBuilderProposer}
+
+		pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
+		if !ok {
+			log.Warn(ctx, "Ignoring unexpected builder proposer duty", nil, z.U64("vidx", uint64(proDuty.ValidatorIndex)))
+			continue
+		}
+
+		if !s.setDutyDefinition(duty, pubkey, core.NewProposerDefinition(proDuty)) {
+			continue
+		}
+
+		log.Info(ctx, "Resolved builder proposer duty",
 			z.U64("epoch", uint64(slot.Epoch())),
 			z.U64("vidx", uint64(proDuty.ValidatorIndex)),
 			z.U64("slot", uint64(proDuty.Slot)),
