@@ -79,6 +79,7 @@ type Config struct {
 	JaegerService    string
 	SimnetBMock      bool
 	SimnetVMock      bool
+	BuilderAPI       bool
 
 	TestConfig TestConfig
 }
@@ -105,6 +106,8 @@ type TestConfig struct {
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
 	// DisablePromWrap disables wrapping prometheus metrics with cluster identifiers.
 	DisablePromWrap bool
+	// Enable the builder api
+	BuilderAPI bool
 }
 
 // Run is the entrypoint for running a charon DVC instance.
