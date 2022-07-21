@@ -57,9 +57,10 @@ func TestDeadliner(t *testing.T) {
 	addDuties(t, wg, nonExpiredDuties, true, deadliner)
 	addDuties(t, wg, voluntaryExits, true, deadliner)
 
+	// Wait till all the duties are added to the deadliner.
 	wg.Wait()
 
-	clock.Advance(1 * time.Second)
+	clock.Advance(time.Second)
 
 	var actualDuties []core.Duty
 	for i := 0; i < len(nonExpiredDuties); i++ {

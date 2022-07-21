@@ -27,12 +27,12 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestTracker1(t *testing.T) {
-	duty, defSet, pubkey, unsignedDataSet, parSignedDataSet := setupData1(t)
+func TestTracker(t *testing.T) {
+	duty, defSet, pubkey, unsignedDataSet, parSignedDataSet := setupData(t)
 
 	t.Run("FailAtConsensus", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		deadliner := testDeadliner1{
+		deadliner := testDeadliner{
 			deadlineChan: make(chan core.Duty),
 		}
 
@@ -59,7 +59,7 @@ func TestTracker1(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		deadliner := testDeadliner1{
+		deadliner := testDeadliner{
 			deadlineChan: make(chan core.Duty),
 		}
 
@@ -92,18 +92,20 @@ func TestTracker1(t *testing.T) {
 }
 
 // testDeadliner is a mock deadliner implementation.
-type testDeadliner1 struct {
+type testDeadliner struct {
 	deadlineChan chan core.Duty
 }
 
-func (testDeadliner1) Add(core.Duty) {}
+func (testDeadliner) Add(core.Duty) bool {
+	return true
+}
 
-func (t testDeadliner1) C() <-chan core.Duty {
+func (t testDeadliner) C() <-chan core.Duty {
 	return t.deadlineChan
 }
 
 // setupData returns the data required to test tracker.
-func setupData1(t *testing.T) (core.Duty, core.DutyDefinitionSet, core.PubKey, core.UnsignedDataSet, core.ParSignedDataSet) {
+func setupData(t *testing.T) (core.Duty, core.DutyDefinitionSet, core.PubKey, core.UnsignedDataSet, core.ParSignedDataSet) {
 	t.Helper()
 
 	const (
