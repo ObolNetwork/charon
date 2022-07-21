@@ -79,3 +79,15 @@ func latency(endpoint string) func() {
 func incError(endpoint string) {
 	errorCount.WithLabelValues(endpoint).Inc()
 }
+
+// WithMultiMetrics returns a eth2multi functional option that enables prometheus metrics.
+func WithMultiMetrics() eth2multi.Parameter {
+	return eth2multi.WithMonitor(eth2Monitor{})
+}
+
+// eth2Monitor implements eth2metrics.Monitor enabling eth2multi prometheus metrics.
+type eth2Monitor struct{}
+
+func (eth2Monitor) Presenter() string {
+	return "prometheus"
+}

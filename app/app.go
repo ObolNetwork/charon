@@ -455,6 +455,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 	eth2Cl, err := eth2wrap.NewHTTPService(ctx,
 		eth2multi.WithLogLevel(1),
 		eth2multi.WithAddresses(conf.BeaconNodeAddrs),
+		eth2wrap.WithMultiMetrics(),
 	)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new eth2 http client")
