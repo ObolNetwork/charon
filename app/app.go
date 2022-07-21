@@ -106,7 +106,7 @@ type TestConfig struct {
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
 	// DisablePromWrap disables wrapping prometheus metrics with cluster identifiers.
 	DisablePromWrap bool
-	// Enable the builder api
+	// BuilderAPI enables the builder API opt-in feature
 	BuilderAPI bool
 }
 

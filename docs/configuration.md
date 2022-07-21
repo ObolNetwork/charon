@@ -85,7 +85,7 @@ Usage:
 Flags:
       --beacon-node-endpoint string     Beacon node endpoint URL. Deprecated, please use beacon-node-endpoints.
       --beacon-node-endpoints strings   Comma separated list of one or more beacon node endpoint URLs.
-      --builder-api                     Enables the builder api. Will only produce builder blocks. Beacon node must be connected to a relay to access the builder network.
+      --builder-api                     Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a relay to access the builder network.
       --data-dir string                 The directory where charon will store all its internal data (default ".charon")
       --feature-set string              Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
       --feature-set-disable strings     Comma-separated list of features to disable, overriding the default minimum feature set.
