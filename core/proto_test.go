@@ -108,38 +108,6 @@ func TestParSignedDataSetProto(t *testing.T) {
 	}
 }
 
-func TestSetBlockSig(t *testing.T) {
-	block := core.VersionedSignedBeaconBlock{
-		VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
-			Version: spec.DataVersionBellatrix,
-			Bellatrix: &bellatrix.SignedBeaconBlock{
-				Message:   testutil.RandomBellatrixBeaconBlock(t),
-				Signature: testutil.RandomEth2Signature(),
-			},
-		},
-	}
-
-	clone, err := block.SetSignature(testutil.RandomCoreSignature())
-	require.NoError(t, err)
-	require.NotEqual(t, clone.Signature(), block.Signature())
-}
-
-func TestSetBlindedBlockSig(t *testing.T) {
-	block := core.VersionedSignedBlindedBeaconBlock{
-		VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
-			Version: spec.DataVersionBellatrix,
-			Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-				Message:   testutil.RandomBellatrixBlindedBeaconBlock(t),
-				Signature: testutil.RandomEth2Signature(),
-			},
-		},
-	}
-
-	clone, err := block.SetSignature(testutil.RandomCoreSignature())
-	require.NoError(t, err)
-	require.NotEqual(t, clone.Signature(), block.Signature())
-}
-
 func TestUnsignedDataToProto(t *testing.T) {
 	tests := []struct {
 		Type core.DutyType
