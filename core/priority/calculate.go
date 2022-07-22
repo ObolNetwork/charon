@@ -47,7 +47,6 @@ func calculateResults(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.Priority
 		slot       int64
 		input      []*pbv1.PriorityMsg
 		dedupPeers = newDeduper[string]("peer") // Peers may not be duplicated
-
 	)
 	for _, msg := range msgs {
 		if slot == 0 {
