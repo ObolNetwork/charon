@@ -306,7 +306,7 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, []string, error) {
 					continue
 				}
 
-				if !strings.HasSuffix(typeSpec.Name.Name, "Provider") {
+				if !strings.HasSuffix(typeSpec.Name.Name, "Provider") && !strings.HasSuffix(typeSpec.Name.Name, "Submitter") {
 					continue
 				}
 
