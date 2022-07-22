@@ -72,7 +72,7 @@ func NewHTTPService(ctx context.Context, timeout time.Duration, addresses ...str
 		)
 	}
 	if err != nil {
-		return nil, errors.Wrap(err, "new eth2multi")
+		return nil, errors.Wrap(err, "new eth2 client")
 	}
 
 	eth2Cl, ok := eth2Svc.(eth2Provider)
