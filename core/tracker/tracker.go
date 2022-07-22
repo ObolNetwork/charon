@@ -192,7 +192,7 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 			// Avoid spamming from identical logs.
 			if len(absentPeers) > 0 && !reflect.DeepEqual(currentParticipation[pubKey], lastParticipation[pubKey]) {
 				log.Info(ctx, "Peers didn't participate",
-					z.Str("pubkey", pubKey.String()),
+					z.Str("pubkeys", pubKey.String()),
 					z.Str("duty", duty.String()),
 					z.Any("peers", absentPeers),
 				)
