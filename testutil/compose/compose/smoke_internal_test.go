@@ -47,9 +47,11 @@ func TestSmoke(t *testing.T) {
 		ConfigFunc     func(*compose.Config)
 		RunTmplFunc    func(*compose.TmplData)
 		DefineTmplFunc func(*compose.TmplData)
+		PrintYML       bool
 	}{
 		{
-			Name: "default alpha",
+			Name:     "default alpha",
+			PrintYML: true,
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenCreate
 				conf.FeatureSet = "alpha"
@@ -85,7 +87,8 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name: "run version matrix with dkg",
+			Name:     "run version matrix with dkg",
+			PrintYML: true,
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenDKG
 			},
@@ -128,8 +131,6 @@ func TestSmoke(t *testing.T) {
 	for _, test := range tests {
 		test := test // Copy iterator for async usage
 		t.Run(test.Name, func(t *testing.T) {
-			t.Parallel()
-
 			dir, err := os.MkdirTemp("", "")
 			require.NoError(t, err)
 
@@ -149,9 +150,9 @@ func TestSmoke(t *testing.T) {
 				"run":    test.RunTmplFunc,
 			})
 			require.NoError(t, cmd.Flags().Set("compose-dir", dir))
-			require.NoError(t, cmd.Flags().Set("alert-timeout", "30s"))
+			require.NoError(t, cmd.Flags().Set("alert-timeout", "45s"))
 			require.NoError(t, cmd.Flags().Set("sudo-perms", fmt.Sprint(*sudoPerms)))
-			require.NoError(t, cmd.Flags().Set("print-yml", "true"))
+			require.NoError(t, cmd.Flags().Set("print-yml", fmt.Sprint(test.PrintYML)))
 
 			os.Args = []string{"cobra.test"}
 
