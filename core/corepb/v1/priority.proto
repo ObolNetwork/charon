@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package core.corepb.v1;
+
+option go_package = "github.com/obolnetwork/charon/core/corepb/v1";
+
+// PriorityResult defines a cluster wide priority result of the Prioritiser protocol.
+message PriorityResult {
+  repeated PriorityMsg msgs = 1;
+  repeated PriorityTopic topics = 2;
+}
+
+// PriorityMsg defines all the priorities and metadata of a single peer in the Prioritiser protocol.
+message PriorityMsg {
+  repeated PriorityTopic topics = 1;
+  int64 slot = 2;
+  string charon_version = 3;
+  string lock_hash = 4;
+  string go_os = 5;
+  string go_arch = 6;
+  string peer_id = 7;
+  bytes msg_hash = 8;
+  bytes signature = 9;
+}
+
+// PriorityTopic defines a single peers priorities for a single topic in the Prioritiser protocol.
+message PriorityTopic {
+  string topic = 1;
+  repeated string priorities = 2;
+}
