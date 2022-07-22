@@ -54,19 +54,19 @@ import (
 
 // Interface assertions.
 var (
-	_ HTTPMock                                      = (*Mock)(nil)
-	_ eth2client.AttestationDataProvider            = (*Mock)(nil)
-	_ eth2client.AttestationsSubmitter              = (*Mock)(nil)
-	_ eth2client.AttesterDutiesProvider             = (*Mock)(nil)
-	_ eth2client.BlindedBeaconBlockProposalProvider = (*Mock)(nil)
-	_ eth2client.BlindedBeaconBlockSubmitter        = (*Mock)(nil)
-	_ eth2client.BeaconBlockProposalProvider        = (*Mock)(nil)
-	_ eth2client.BeaconBlockSubmitter               = (*Mock)(nil)
-	_ eth2client.ProposerDutiesProvider             = (*Mock)(nil)
-	_ eth2client.Service                            = (*Mock)(nil)
-	_ eth2client.ValidatorsProvider                 = (*Mock)(nil)
-	_ eth2client.VoluntaryExitSubmitter             = (*Mock)(nil)
-	_ eth2client.EventsProvider                     = (*Mock)(nil)
+	_ HTTPMock                                      = Mock{}
+	_ eth2client.AttestationDataProvider            = Mock{}
+	_ eth2client.AttestationsSubmitter              = Mock{}
+	_ eth2client.AttesterDutiesProvider             = Mock{}
+	_ eth2client.BlindedBeaconBlockProposalProvider = Mock{}
+	_ eth2client.BlindedBeaconBlockSubmitter        = Mock{}
+	_ eth2client.BeaconBlockProposalProvider        = Mock{}
+	_ eth2client.BeaconBlockSubmitter               = Mock{}
+	_ eth2client.ProposerDutiesProvider             = Mock{}
+	_ eth2client.Service                            = Mock{}
+	_ eth2client.ValidatorsProvider                 = Mock{}
+	_ eth2client.VoluntaryExitSubmitter             = Mock{}
+	_ eth2client.EventsProvider                     = Mock{}
 )
 
 // New returns a new beacon client mock configured with the default and provided options.
@@ -125,6 +125,7 @@ func defaultHTTPMock() Mock {
 // Create a new instance with default behaviour via New and then override any function.
 type Mock struct {
 	HTTPMock
+	missingEth2Methods
 	httpServer *http.Server
 	overrides  []staticOverride
 	clock      clockwork.Clock
