@@ -449,9 +449,14 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 			return nil, "", err
 		}
 
+		wrap, err := eth2wrap.Wrap(bmock)
+		if err != nil {
+			return nil, "", err
+		}
+
 		life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
 
-		return bmock, bmock.Address(), nil
+		return wrap, wrap.Address(), nil
 	}
 
 	if len(conf.BeaconNodeAddrs) == 0 {

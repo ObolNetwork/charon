@@ -53,6 +53,16 @@ var (
 	_ eth2Provider = (*eth2multi.Service)(nil)
 )
 
+// Wrap returns an instrumented wrapped eth2 service.
+func Wrap(eth2Svc eth2client.Service) (*Service, error) {
+	eth2Cl, ok := eth2Svc.(eth2Provider)
+	if !ok {
+		return nil, errors.New("invalid eth2 service")
+	}
+
+	return &Service{eth2Provider: eth2Cl}, nil
+}
+
 // NewHTTPService returns a new instrumented eth2 http service.
 func NewHTTPService(ctx context.Context, timeout time.Duration, addresses ...string) (*Service, error) {
 	var (
