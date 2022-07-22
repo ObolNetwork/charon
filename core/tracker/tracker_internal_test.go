@@ -133,10 +133,9 @@ func TestTrackerAllParticipation(t *testing.T) {
 
 	deadliner := testDeadliner{deadlineChan: make(chan core.Duty)}
 	tr := New(deadliner, peers)
-	tr.participationReporter = func(_ context.Context, actualDuty core.Duty, actualParticipation map[core.PubKey]map[shareIdx]bool, unique bool) {
+	tr.participationReporter = func(_ context.Context, actualDuty core.Duty, actualParticipation map[core.PubKey]map[shareIdx]bool, _ map[core.PubKey]map[shareIdx]bool) {
 		require.Equal(t, expectedDuty, actualDuty)
 		require.True(t, reflect.DeepEqual(actualParticipation, expectedParticipation))
-		require.True(t, unique)
 
 		// Signal exit to central go routine.
 		cancel()
@@ -195,10 +194,9 @@ func TestTrackerLessParticipation(t *testing.T) {
 
 	deadliner := testDeadliner{deadlineChan: make(chan core.Duty)}
 	tr := New(deadliner, peers)
-	tr.participationReporter = func(_ context.Context, actualDuty core.Duty, actualParticipation map[core.PubKey]map[shareIdx]bool, unique bool) {
+	tr.participationReporter = func(_ context.Context, actualDuty core.Duty, actualParticipation map[core.PubKey]map[shareIdx]bool, _ map[core.PubKey]map[shareIdx]bool) {
 		require.Equal(t, expectedDuty, actualDuty)
 		require.True(t, reflect.DeepEqual(actualParticipation, expectedParticipation))
-		require.True(t, unique)
 
 		// Signal exit to central go routine.
 		cancel()

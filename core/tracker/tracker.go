@@ -46,6 +46,7 @@ const (
 	sentinel
 )
 
+// shareIdx represents a peer's share index.
 type shareIdx int
 
 // event represents an event emitted by a core workflow component.
@@ -70,7 +71,7 @@ type Tracker struct {
 	failedDutyReporter func(core.Duty, bool, string, string)
 
 	// participationReporter logs and instruments the participation per DV.
-	participationReporter func(context.Context, core.Duty, map[core.PubKey]map[shareIdx]bool, bool)
+	participationReporter func(context.Context, core.Duty, map[core.PubKey]map[shareIdx]bool, map[core.PubKey]map[shareIdx]bool)
 }
 
 // New returns a new Tracker.
@@ -92,7 +93,9 @@ func New(deadliner core.Deadliner, peers []p2p.Peer) *Tracker {
 func (t *Tracker) Run(ctx context.Context) error {
 	defer close(t.quit)
 
+	// lastParticipation is the set of peers per DV who participated in the last duty.
 	lastParticipation := make(map[core.PubKey]map[shareIdx]bool)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -108,10 +111,10 @@ func (t *Tracker) Run(ctx context.Context) error {
 			failed, failedComponent, failedMsg := analyseDutyFailed(duty, t.events[duty])
 			t.failedDutyReporter(duty, failed, failedComponent.String(), failedMsg)
 
-			peersParticipated := analyseParticipation(t.events[duty])
-			t.participationReporter(ctx, duty, peersParticipated, !reflect.DeepEqual(lastParticipation, peersParticipated))
-			lastParticipation = peersParticipated
+			currentParticipation := analyseParticipation(t.events[duty])
+			t.participationReporter(ctx, duty, currentParticipation, lastParticipation)
 
+			lastParticipation = currentParticipation
 			delete(t.events, duty)
 		}
 	}
@@ -170,12 +173,11 @@ func analyseParticipation(events []event) map[core.PubKey]map[shareIdx]bool {
 	return resp
 }
 
-// newParticipationReporter returns a new participation reporter function which logs and instruments
-// peer participation in the cluster per DV. Participation reporter takes duty, set of participated peers
-// per DV and a flag. The flag is used to ignore identical logs if the same set of peers didn't participate in the next duty.
-func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty, map[core.PubKey]map[shareIdx]bool, bool) {
-	return func(ctx context.Context, duty core.Duty, peersPerDV map[core.PubKey]map[shareIdx]bool, unique bool) {
-		for pubKey, dvPeers := range peersPerDV {
+// newParticipationReporter returns a new participation reporter function which logs and instruments peer participation
+
+func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty, map[core.PubKey]map[shareIdx]bool, map[core.PubKey]map[shareIdx]bool) {
+	return func(ctx context.Context, duty core.Duty, currentParticipation map[core.PubKey]map[shareIdx]bool, lastParticipation map[core.PubKey]map[shareIdx]bool) {
+		for pubKey, dvPeers := range currentParticipation {
 			var absentPeers []string
 			for _, peer := range peers {
 				// Peer index is 0 indexed while shareIdx is 1 indexed.
@@ -187,11 +189,8 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 				}
 			}
 
-			// DV0 - 4 , 1
-			// DV1 - 2 , 2 -> avoid this
-
 			// Avoid spamming from identical logs.
-			if len(absentPeers) > 0 && unique {
+			if len(absentPeers) > 0 && !reflect.DeepEqual(currentParticipation[pubKey], lastParticipation[pubKey]) {
 				log.Info(ctx, "Peers didn't participate",
 					z.Str("pubkey", pubKey.String()),
 					z.Str("duty", duty.String()),
