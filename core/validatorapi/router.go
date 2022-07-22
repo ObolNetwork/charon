@@ -478,13 +478,7 @@ func proxyHandler(eth2Cl eth2client.Service, fallbackBeaconAddr string) (http.Ha
 func getBeaconNodeAddress(eth2Cl eth2client.Service, fallbackBeaconAddr string) (*url.URL, error) {
 	addr := eth2Cl.Address()
 	if addr == "none" {
-		// eth2multi returns "none" if no active clients.
-		fallbackURL, err := url.Parse(fallbackBeaconAddr)
-		if err != nil {
-			return nil, errors.Wrap(err, "invalid beacon node address", z.Str("address", addr))
-		}
-
-		return fallbackURL, nil
+		addr = fallbackBeaconAddr
 	}
 
 	targetURL, err := url.Parse(addr)
