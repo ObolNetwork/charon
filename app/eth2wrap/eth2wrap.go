@@ -20,6 +20,8 @@ import (
 	"context"
 	"time"
 
+	eth2client "github.com/attestantio/go-eth2-client"
+	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2multi "github.com/attestantio/go-eth2-client/multi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -28,6 +30,8 @@ import (
 )
 
 //go:generate go run genwrap/genwrap.go
+
+const zeroLogInfo = 1 // Avoid importing zero log for this constant.
 
 var (
 	latencyHist = promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -46,23 +50,42 @@ var (
 )
 
 // NewHTTPService returns a new instrumented eth2 http service.
-func NewHTTPService(ctx context.Context, params ...eth2multi.Parameter) (*Service, error) {
-	eth2Svc, err := eth2multi.New(ctx, params...)
+func NewHTTPService(ctx context.Context, timeout time.Duration, addresses ...string) (*Service, error) {
+	var (
+		eth2Svc eth2client.Service
+		err     error
+	)
+	if len(addresses) == 0 {
+		return nil, errors.New("no addresses")
+	} else if len(addresses) == 1 {
+		eth2Svc, err = eth2http.New(ctx,
+			eth2http.WithLogLevel(zeroLogInfo),
+			eth2http.WithAddress(addresses[0]),
+			eth2http.WithTimeout(timeout),
+		)
+	} else {
+		eth2Svc, err = eth2multi.New(ctx,
+			eth2multi.WithLogLevel(zeroLogInfo),
+			eth2multi.WithMonitor(eth2Monitor{}),
+			eth2multi.WithAddresses(addresses),
+			eth2multi.WithTimeout(timeout),
+		)
+	}
 	if err != nil {
-		return nil, errors.Wrap(err, "new eth2multi")
+		return nil, errors.Wrap(err, "new eth2 client")
 	}
 
-	eth2Cl, ok := eth2Svc.(*eth2multi.Service)
+	eth2Cl, ok := eth2Svc.(eth2Provider)
 	if !ok {
-		return nil, errors.New("invalid eth2multi service")
+		return nil, errors.New("invalid eth2 service")
 	}
 
-	return &Service{Service: eth2Cl}, nil
+	return &Service{eth2Provider: eth2Cl}, nil
 }
 
-// Service wraps an eth2multi.Service adding prometheus metrics and error wrapping.
+// Service wraps an eth2Provider adding prometheus metrics and error wrapping.
 type Service struct {
-	*eth2multi.Service
+	eth2Provider
 }
 
 // latency measures endpoint latency.
@@ -78,11 +101,6 @@ func latency(endpoint string) func() {
 // incError increments the error counter.
 func incError(endpoint string) {
 	errorCount.WithLabelValues(endpoint).Inc()
-}
-
-// WithMultiMetrics returns a eth2multi functional option that enables prometheus metrics.
-func WithMultiMetrics() eth2multi.Parameter {
-	return eth2multi.WithMonitor(eth2Monitor{})
 }
 
 // eth2Monitor implements eth2metrics.Monitor enabling eth2multi prometheus metrics.

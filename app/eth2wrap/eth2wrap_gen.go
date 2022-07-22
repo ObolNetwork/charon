@@ -29,12 +29,91 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
+// Interface assertions
+var (
+	_ eth2client.Service = (*Service)(nil)
+
+	_ eth2client.AggregateAttestationProvider          = (*Service)(nil)
+	_ eth2client.AttestationDataProvider               = (*Service)(nil)
+	_ eth2client.AttestationPoolProvider               = (*Service)(nil)
+	_ eth2client.AttesterDutiesProvider                = (*Service)(nil)
+	_ eth2client.BeaconBlockHeadersProvider            = (*Service)(nil)
+	_ eth2client.BeaconBlockProposalProvider           = (*Service)(nil)
+	_ eth2client.BeaconBlockRootProvider               = (*Service)(nil)
+	_ eth2client.BeaconCommitteesProvider              = (*Service)(nil)
+	_ eth2client.BeaconStateProvider                   = (*Service)(nil)
+	_ eth2client.BeaconStateRootProvider               = (*Service)(nil)
+	_ eth2client.BlindedBeaconBlockProposalProvider    = (*Service)(nil)
+	_ eth2client.DepositContractProvider               = (*Service)(nil)
+	_ eth2client.DomainProvider                        = (*Service)(nil)
+	_ eth2client.EventsProvider                        = (*Service)(nil)
+	_ eth2client.FarFutureEpochProvider                = (*Service)(nil)
+	_ eth2client.FinalityProvider                      = (*Service)(nil)
+	_ eth2client.ForkProvider                          = (*Service)(nil)
+	_ eth2client.ForkScheduleProvider                  = (*Service)(nil)
+	_ eth2client.GenesisProvider                       = (*Service)(nil)
+	_ eth2client.GenesisTimeProvider                   = (*Service)(nil)
+	_ eth2client.NodeSyncingProvider                   = (*Service)(nil)
+	_ eth2client.NodeVersionProvider                   = (*Service)(nil)
+	_ eth2client.ProposerDutiesProvider                = (*Service)(nil)
+	_ eth2client.SignedBeaconBlockProvider             = (*Service)(nil)
+	_ eth2client.SlotDurationProvider                  = (*Service)(nil)
+	_ eth2client.SlotFromStateIDProvider               = (*Service)(nil)
+	_ eth2client.SlotsPerEpochProvider                 = (*Service)(nil)
+	_ eth2client.SpecProvider                          = (*Service)(nil)
+	_ eth2client.SyncCommitteeContributionProvider     = (*Service)(nil)
+	_ eth2client.SyncCommitteeDutiesProvider           = (*Service)(nil)
+	_ eth2client.SyncCommitteesProvider                = (*Service)(nil)
+	_ eth2client.TargetAggregatorsPerCommitteeProvider = (*Service)(nil)
+	_ eth2client.ValidatorBalancesProvider             = (*Service)(nil)
+	_ eth2client.ValidatorsProvider                    = (*Service)(nil)
+)
+
+type eth2Provider interface {
+	eth2client.Service
+
+	eth2client.AggregateAttestationProvider
+	eth2client.AttestationDataProvider
+	eth2client.AttestationPoolProvider
+	eth2client.AttesterDutiesProvider
+	eth2client.BeaconBlockHeadersProvider
+	eth2client.BeaconBlockProposalProvider
+	eth2client.BeaconBlockRootProvider
+	eth2client.BeaconCommitteesProvider
+	eth2client.BeaconStateProvider
+	eth2client.BeaconStateRootProvider
+	eth2client.BlindedBeaconBlockProposalProvider
+	eth2client.DepositContractProvider
+	eth2client.DomainProvider
+	eth2client.EventsProvider
+	eth2client.FarFutureEpochProvider
+	eth2client.FinalityProvider
+	eth2client.ForkProvider
+	eth2client.ForkScheduleProvider
+	eth2client.GenesisProvider
+	eth2client.GenesisTimeProvider
+	eth2client.NodeSyncingProvider
+	eth2client.NodeVersionProvider
+	eth2client.ProposerDutiesProvider
+	eth2client.SignedBeaconBlockProvider
+	eth2client.SlotDurationProvider
+	eth2client.SlotFromStateIDProvider
+	eth2client.SlotsPerEpochProvider
+	eth2client.SpecProvider
+	eth2client.SyncCommitteeContributionProvider
+	eth2client.SyncCommitteeDutiesProvider
+	eth2client.SyncCommitteesProvider
+	eth2client.TargetAggregatorsPerCommitteeProvider
+	eth2client.ValidatorBalancesProvider
+	eth2client.ValidatorsProvider
+}
+
 // SignedBeaconBlock fetches a signed beacon block given a block ID.
 func (s *Service) SignedBeaconBlock(ctx context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error) {
 	const label = "signed_beacon_block"
 	defer latency(label)()
 
-	res0, err := s.Service.SignedBeaconBlock(ctx, blockID)
+	res0, err := s.eth2Provider.SignedBeaconBlock(ctx, blockID)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -48,7 +127,7 @@ func (s *Service) BeaconCommittees(ctx context.Context, stateID string) ([]*apiv
 	const label = "beacon_committees"
 	defer latency(label)()
 
-	res0, err := s.Service.BeaconCommittees(ctx, stateID)
+	res0, err := s.eth2Provider.BeaconCommittees(ctx, stateID)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -62,7 +141,7 @@ func (s *Service) BeaconCommitteesAtEpoch(ctx context.Context, stateID string, e
 	const label = "beacon_committees_at_epoch"
 	defer latency(label)()
 
-	res0, err := s.Service.BeaconCommitteesAtEpoch(ctx, stateID, epoch)
+	res0, err := s.eth2Provider.BeaconCommitteesAtEpoch(ctx, stateID, epoch)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -76,7 +155,7 @@ func (s *Service) SyncCommittee(ctx context.Context, stateID string) (*apiv1.Syn
 	const label = "sync_committee"
 	defer latency(label)()
 
-	res0, err := s.Service.SyncCommittee(ctx, stateID)
+	res0, err := s.eth2Provider.SyncCommittee(ctx, stateID)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -90,7 +169,7 @@ func (s *Service) SyncCommitteeAtEpoch(ctx context.Context, stateID string, epoc
 	const label = "sync_committee_at_epoch"
 	defer latency(label)()
 
-	res0, err := s.Service.SyncCommitteeAtEpoch(ctx, stateID, epoch)
+	res0, err := s.eth2Provider.SyncCommitteeAtEpoch(ctx, stateID, epoch)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -104,7 +183,7 @@ func (s *Service) AggregateAttestation(ctx context.Context, slot phase0.Slot, at
 	const label = "aggregate_attestation"
 	defer latency(label)()
 
-	res0, err := s.Service.AggregateAttestation(ctx, slot, attestationDataRoot)
+	res0, err := s.eth2Provider.AggregateAttestation(ctx, slot, attestationDataRoot)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -118,7 +197,7 @@ func (s *Service) AttestationData(ctx context.Context, slot phase0.Slot, committ
 	const label = "attestation_data"
 	defer latency(label)()
 
-	res0, err := s.Service.AttestationData(ctx, slot, committeeIndex)
+	res0, err := s.eth2Provider.AttestationData(ctx, slot, committeeIndex)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -132,7 +211,7 @@ func (s *Service) AttestationPool(ctx context.Context, slot phase0.Slot) ([]*pha
 	const label = "attestation_pool"
 	defer latency(label)()
 
-	res0, err := s.Service.AttestationPool(ctx, slot)
+	res0, err := s.eth2Provider.AttestationPool(ctx, slot)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -147,7 +226,7 @@ func (s *Service) AttesterDuties(ctx context.Context, epoch phase0.Epoch, valida
 	const label = "attester_duties"
 	defer latency(label)()
 
-	res0, err := s.Service.AttesterDuties(ctx, epoch, validatorIndices)
+	res0, err := s.eth2Provider.AttesterDuties(ctx, epoch, validatorIndices)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -162,7 +241,7 @@ func (s *Service) SyncCommitteeDuties(ctx context.Context, epoch phase0.Epoch, v
 	const label = "sync_committee_duties"
 	defer latency(label)()
 
-	res0, err := s.Service.SyncCommitteeDuties(ctx, epoch, validatorIndices)
+	res0, err := s.eth2Provider.SyncCommitteeDuties(ctx, epoch, validatorIndices)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -176,7 +255,7 @@ func (s *Service) SyncCommitteeContribution(ctx context.Context, slot phase0.Slo
 	const label = "sync_committee_contribution"
 	defer latency(label)()
 
-	res0, err := s.Service.SyncCommitteeContribution(ctx, slot, subcommitteeIndex, beaconBlockRoot)
+	res0, err := s.eth2Provider.SyncCommitteeContribution(ctx, slot, subcommitteeIndex, beaconBlockRoot)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -190,7 +269,7 @@ func (s *Service) BeaconBlockHeader(ctx context.Context, blockID string) (*apiv1
 	const label = "beacon_block_header"
 	defer latency(label)()
 
-	res0, err := s.Service.BeaconBlockHeader(ctx, blockID)
+	res0, err := s.eth2Provider.BeaconBlockHeader(ctx, blockID)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -204,7 +283,7 @@ func (s *Service) BeaconBlockProposal(ctx context.Context, slot phase0.Slot, ran
 	const label = "beacon_block_proposal"
 	defer latency(label)()
 
-	res0, err := s.Service.BeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
+	res0, err := s.eth2Provider.BeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -218,7 +297,7 @@ func (s *Service) BeaconBlockRoot(ctx context.Context, blockID string) (*phase0.
 	const label = "beacon_block_root"
 	defer latency(label)()
 
-	res0, err := s.Service.BeaconBlockRoot(ctx, blockID)
+	res0, err := s.eth2Provider.BeaconBlockRoot(ctx, blockID)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -232,7 +311,7 @@ func (s *Service) BeaconState(ctx context.Context, stateID string) (*spec.Versio
 	const label = "beacon_state"
 	defer latency(label)()
 
-	res0, err := s.Service.BeaconState(ctx, stateID)
+	res0, err := s.eth2Provider.BeaconState(ctx, stateID)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -246,7 +325,7 @@ func (s *Service) BeaconStateRoot(ctx context.Context, stateID string) (*phase0.
 	const label = "beacon_state_root"
 	defer latency(label)()
 
-	res0, err := s.Service.BeaconStateRoot(ctx, stateID)
+	res0, err := s.eth2Provider.BeaconStateRoot(ctx, stateID)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -260,7 +339,7 @@ func (s *Service) BlindedBeaconBlockProposal(ctx context.Context, slot phase0.Sl
 	const label = "blinded_beacon_block_proposal"
 	defer latency(label)()
 
-	res0, err := s.Service.BlindedBeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
+	res0, err := s.eth2Provider.BlindedBeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -274,7 +353,7 @@ func (s *Service) Events(ctx context.Context, topics []string, handler eth2clien
 	const label = "events"
 	defer latency(label)()
 
-	err := s.Service.Events(ctx, topics, handler)
+	err := s.eth2Provider.Events(ctx, topics, handler)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -288,7 +367,7 @@ func (s *Service) Finality(ctx context.Context, stateID string) (*apiv1.Finality
 	const label = "finality"
 	defer latency(label)()
 
-	res0, err := s.Service.Finality(ctx, stateID)
+	res0, err := s.eth2Provider.Finality(ctx, stateID)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -302,7 +381,7 @@ func (s *Service) Fork(ctx context.Context, stateID string) (*phase0.Fork, error
 	const label = "fork"
 	defer latency(label)()
 
-	res0, err := s.Service.Fork(ctx, stateID)
+	res0, err := s.eth2Provider.Fork(ctx, stateID)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -316,7 +395,7 @@ func (s *Service) NodeSyncing(ctx context.Context) (*apiv1.SyncState, error) {
 	const label = "node_syncing"
 	defer latency(label)()
 
-	res0, err := s.Service.NodeSyncing(ctx)
+	res0, err := s.eth2Provider.NodeSyncing(ctx)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -331,7 +410,7 @@ func (s *Service) ProposerDuties(ctx context.Context, epoch phase0.Epoch, valida
 	const label = "proposer_duties"
 	defer latency(label)()
 
-	res0, err := s.Service.ProposerDuties(ctx, epoch, validatorIndices)
+	res0, err := s.eth2Provider.ProposerDuties(ctx, epoch, validatorIndices)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -348,7 +427,7 @@ func (s *Service) ValidatorBalances(ctx context.Context, stateID string, validat
 	const label = "validator_balances"
 	defer latency(label)()
 
-	res0, err := s.Service.ValidatorBalances(ctx, stateID, validatorIndices)
+	res0, err := s.eth2Provider.ValidatorBalances(ctx, stateID, validatorIndices)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -365,7 +444,7 @@ func (s *Service) Validators(ctx context.Context, stateID string, validatorIndic
 	const label = "validators"
 	defer latency(label)()
 
-	res0, err := s.Service.Validators(ctx, stateID, validatorIndices)
+	res0, err := s.eth2Provider.Validators(ctx, stateID, validatorIndices)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")
@@ -382,7 +461,7 @@ func (s *Service) ValidatorsByPubKey(ctx context.Context, stateID string, valida
 	const label = "validators_by_pub_key"
 	defer latency(label)()
 
-	res0, err := s.Service.ValidatorsByPubKey(ctx, stateID, validatorPubKeys)
+	res0, err := s.eth2Provider.ValidatorsByPubKey(ctx, stateID, validatorPubKeys)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")

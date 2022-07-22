@@ -28,7 +28,6 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
-	eth2multi "github.com/attestantio/go-eth2-client/multi"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -65,6 +64,8 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 	"github.com/obolnetwork/charon/testutil/validatormock"
 )
+
+const eth2ClientTimeout = time.Second * 2
 
 type Config struct {
 	P2P              p2p.Config
@@ -457,11 +458,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 		return nil, "", errors.New("beacon node endpoints empty")
 	}
 
-	eth2Cl, err := eth2wrap.NewHTTPService(ctx,
-		eth2multi.WithLogLevel(1),
-		eth2multi.WithAddresses(conf.BeaconNodeAddrs),
-		eth2wrap.WithMultiMetrics(),
-	)
+	eth2Cl, err := eth2wrap.NewHTTPService(ctx, eth2ClientTimeout, conf.BeaconNodeAddrs...)
 	if err != nil {
 		return nil, "", errors.Wrap(err, "new eth2 http client")
 	}
