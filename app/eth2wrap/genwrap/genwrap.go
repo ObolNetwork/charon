@@ -27,6 +27,7 @@ import (
 	"go/token"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -49,13 +50,28 @@ import (
 {{- end}}
 )
 
+// Interface assertions
+var (
+    _ eth2client.Service = (*Service)(nil)
+
+	{{range .Providers}} _ eth2client.{{.}} = (*Service)(nil)
+    {{end -}}
+)
+
+type eth2Provider interface {
+    eth2client.Service
+
+    {{range .Providers}} eth2client.{{.}}
+    {{end -}}
+}
+
 {{range .Methods}}
 	{{.Doc -}}
 	func (s *Service) {{.Name}}({{.Params}}) ({{.ResultTypes}}) {
 		const label = "{{.Label}}"
 		defer latency(label)()
 
-		{{.ResultNames}} := s.Service.{{.Name}}({{.ParamNames}})
+		{{.ResultNames}} := s.eth2Provider.{{.Name}}({{.ParamNames}})
 		if err != nil {
 			incError(label)
 			err = errors.Wrap(err, "eth2http")
@@ -68,14 +84,16 @@ import (
 
 	// skip some provider methods.
 	skip = map[string]bool{
-		// eth2multi doesn't implement these
+		// eth2http/eth2multi doesn't implement these
 		"GenesisValidatorsRoot": true,
 		"Index":                 true,
 		"PubKey":                true,
 		"SyncState":             true,
 		"EpochFromStateID":      true,
 		"NodeClient":            true,
+	}
 
+	cached = map[string]bool{
 		// these are cached, so no need to instrument.
 		"GenesisTime":                   true,
 		"Domain":                        true,
@@ -180,7 +198,7 @@ func run(_ context.Context) error {
 		return errors.Wrap(err, "load package")
 	}
 
-	methods, err := parseEth2Methods(pkgs[0])
+	methods, providers, err := parseEth2Methods(pkgs[0])
 	if err != nil {
 		return err
 	}
@@ -190,7 +208,7 @@ func run(_ context.Context) error {
 		return err
 	}
 
-	if err := writeTemplate(methods, imprts); err != nil {
+	if err := writeTemplate(methods, providers, imprts); err != nil {
 		return err
 	}
 
@@ -224,19 +242,23 @@ func parseImports(pkg *packages.Package) ([]string, error) {
 	return resp, nil
 }
 
-func writeTemplate(methods []Method, imprts []string) error {
+func writeTemplate(methods []Method, providers []string, imprts []string) error {
 	t, err := template.New("").Parse(tpl)
 	if err != nil {
 		return errors.Wrap(err, "parse template")
 	}
 
+	sort.Strings(providers)
+
 	var b bytes.Buffer
 	err = t.Execute(&b, struct {
-		Methods []Method
-		Imports []string
+		Providers []string
+		Methods   []Method
+		Imports   []string
 	}{
-		Methods: methods,
-		Imports: imprts,
+		Providers: providers,
+		Methods:   methods,
+		Imports:   imprts,
 	})
 	if err != nil {
 		return errors.Wrap(err, "exec template")
@@ -257,8 +279,11 @@ func writeTemplate(methods []Method, imprts []string) error {
 }
 
 //nolint:gocognit
-func parseEth2Methods(pkg *packages.Package) ([]Method, error) {
-	var resp []Method
+func parseEth2Methods(pkg *packages.Package) ([]Method, []string, error) {
+	var (
+		methods   []Method
+		providers []string
+	)
 	for _, file := range pkg.Syntax {
 		for _, decl := range file.Decls {
 			gendecl, ok := decl.(*ast.GenDecl)
@@ -285,6 +310,7 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, error) {
 					continue
 				}
 
+				var addProvider bool
 				for _, method := range iface.Methods.List {
 					fnType, ok := method.Type.(*ast.FuncType)
 					if !ok {
@@ -297,12 +323,17 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, error) {
 						continue
 					}
 
+					addProvider = true
+					if cached[name] {
+						continue
+					}
+
 					var params []Field
 					for _, param := range fnType.Params.List {
 						var b bytes.Buffer
 						err := printer.Fprint(&b, pkg.Fset, param.Type)
 						if err != nil {
-							return nil, errors.Wrap(err, "printf")
+							return nil, nil, errors.Wrap(err, "printf")
 						}
 
 						typ := b.String()
@@ -323,7 +354,7 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, error) {
 						var b bytes.Buffer
 						err := printer.Fprint(&b, pkg.Fset, result.Type)
 						if err != nil {
-							return nil, errors.Wrap(err, "printf")
+							return nil, nil, errors.Wrap(err, "printf")
 						}
 
 						name := fmt.Sprintf("res%d", i)
@@ -346,18 +377,22 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, error) {
 						}
 					}
 
-					resp = append(resp, Method{
+					methods = append(methods, Method{
 						Name:    name,
 						Doc:     doc,
 						params:  params,
 						results: results,
 					})
 				}
+
+				if addProvider {
+					providers = append(providers, typeSpec.Name.Name)
+				}
 			}
 		}
 	}
 
-	return resp, nil
+	return methods, providers, nil
 }
 
 var (
