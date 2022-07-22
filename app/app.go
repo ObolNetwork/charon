@@ -193,6 +193,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	initStartupMetrics(lockHashHex)
 
+	// TODO(dhruv): Get rid of fallbackBeaconAddr when it is being handled by eth2client.
 	eth2Cl, fallbackBeaconAddr, err := newETH2Client(ctx, conf, life, lock.Validators)
 	if err != nil {
 		return err
