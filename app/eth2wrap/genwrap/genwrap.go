@@ -90,6 +90,7 @@ type eth2Provider interface {
 		"PubKey":                true,
 		"SyncState":             true,
 		"EpochFromStateID":      true,
+		"SlotFromStateID":       true,
 		"NodeClient":            true,
 	}
 

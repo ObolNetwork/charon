@@ -58,7 +58,6 @@ var (
 	_ eth2client.ProposerDutiesProvider                = (*Service)(nil)
 	_ eth2client.SignedBeaconBlockProvider             = (*Service)(nil)
 	_ eth2client.SlotDurationProvider                  = (*Service)(nil)
-	_ eth2client.SlotFromStateIDProvider               = (*Service)(nil)
 	_ eth2client.SlotsPerEpochProvider                 = (*Service)(nil)
 	_ eth2client.SpecProvider                          = (*Service)(nil)
 	_ eth2client.SyncCommitteeContributionProvider     = (*Service)(nil)
@@ -97,7 +96,6 @@ type eth2Provider interface {
 	eth2client.ProposerDutiesProvider
 	eth2client.SignedBeaconBlockProvider
 	eth2client.SlotDurationProvider
-	eth2client.SlotFromStateIDProvider
 	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
 	eth2client.SyncCommitteeContributionProvider

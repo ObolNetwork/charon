@@ -47,6 +47,10 @@ var (
 		Name:      "errors_total",
 		Help:      "Total number of errors returned by eth2 beacon node requests",
 	}, []string{"endpoint"})
+
+	// Interface assertions.
+	_ eth2Provider = (*eth2http.Service)(nil)
+	_ eth2Provider = (*eth2multi.Service)(nil)
 )
 
 // NewHTTPService returns a new instrumented eth2 http service.
