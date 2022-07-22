@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/dkg/frost"
@@ -42,6 +43,7 @@ func newFrostP2P(ctx context.Context, tcpNode host.Host, peers map[uint32]peer.I
 	var (
 		round1Recv  = make(chan *pb.FrostRound1Msg, len(peers))
 		round2Recv  = make(chan *pb.FrostRound2Msg, len(peers))
+		mu          sync.Mutex
 		dedupRound1 = make(map[peer.ID]bool)
 		dedupRound2 = make(map[peer.ID]bool)
 		knownPeers  = make(map[peer.ID]bool)
@@ -65,6 +67,9 @@ func newFrostP2P(ctx context.Context, tcpNode host.Host, peers map[uint32]peer.I
 			log.Error(ctx, "Unmarshal round 1 proto", err)
 			return
 		}
+
+		mu.Lock()
+		defer mu.Unlock()
 
 		pID := s.Conn().RemotePeer()
 		if !knownPeers[pID] {
@@ -93,6 +98,9 @@ func newFrostP2P(ctx context.Context, tcpNode host.Host, peers map[uint32]peer.I
 			log.Error(ctx, "Unmarshal round 2 proto", err)
 			return
 		}
+
+		mu.Lock()
+		defer mu.Unlock()
 
 		pID := s.Conn().RemotePeer()
 		if !knownPeers[pID] {

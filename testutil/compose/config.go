@@ -104,6 +104,9 @@ type Config struct {
 
 	// FeatureSet defines the minimum feature set to enable.
 	FeatureSet string `json:"feature_set"`
+
+	// DisableMonitoringPorts defines whether to disable prometheus and jaeger monitoring  port binding.
+	DisableMonitoringPorts bool `json:"disable_monitoring_ports"`
 }
 
 // entrypoint returns the path to the charon binary based on the BuildLocal field.

@@ -118,7 +118,7 @@ func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID pe
 	// Circuit relay connections are transient
 	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, protoID)
 	if err != nil {
-		return errors.Wrap(err, "tcpNode stream")
+		return errors.Wrap(err, "tcpNode stream", z.Str("protocol", string(protoID)))
 	}
 
 	_, err = s.Write(b)

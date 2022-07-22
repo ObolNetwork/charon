@@ -27,13 +27,18 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+const alertsPolled = "alerts_polled"
+
 // startAlertCollector starts a goroutine that polls prometheus alerts until the context is closed and returns
 // a channel on which the received alert descriptions will be sent.
 func startAlertCollector(ctx context.Context, dir string) (chan string, error) {
-	dedup := make(map[string]bool)
 	resp := make(chan string, 100)
 
 	go func() {
+		var (
+			success bool
+			dedup   = make(map[string]bool)
+		)
 		defer close(resp)
 		for ctx.Err() == nil {
 			time.Sleep(time.Second * 5)
@@ -57,6 +62,11 @@ func startAlertCollector(ctx context.Context, dir string) (chan string, error) {
 			if alerts.Status != "success" {
 				resp <- "non success status from prometheus alerts: " + alerts.Status
 				continue
+			}
+
+			if !success {
+				resp <- alertsPolled // Push initial "fake alert" so logic can fail is not alerts polled.
+				success = true
 			}
 
 			for _, active := range getActiveAlerts(alerts) {
