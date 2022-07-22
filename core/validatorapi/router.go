@@ -66,7 +66,7 @@ type Handler interface {
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the validatorapi.Handler.
 // All other requests are reserve-proxied to the beacon-node address.
-func NewRouter(h Handler, eth2Cl eth2client.Service) (*mux.Router, error) {
+func NewRouter(h Handler, eth2Cl eth2client.Service, fallbackBeaconAddr string) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints
 	endpoints := []struct {
 		Name    string
@@ -127,7 +127,7 @@ func NewRouter(h Handler, eth2Cl eth2client.Service) (*mux.Router, error) {
 	}
 
 	// Everything else is proxied
-	proxy, err := proxyHandler(eth2Cl)
+	proxy, err := proxyHandler(eth2Cl, fallbackBeaconAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -443,10 +443,10 @@ func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
 }
 
 // proxyHandler returns a reverse proxy handler.
-func proxyHandler(eth2Cl eth2client.Service) (http.HandlerFunc, error) {
+func proxyHandler(eth2Cl eth2client.Service, fallbackBeaconAddr string) (http.HandlerFunc, error) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get active beacon node address.
-		targetURL, err := getBeaconNodeAddress(eth2Cl)
+		targetURL, err := getBeaconNodeAddress(eth2Cl, fallbackBeaconAddr)
 		if err != nil {
 			ctx := log.WithTopic(r.Context(), "vapi")
 			log.Error(ctx, "Proxy target beacon node address", err)
@@ -475,11 +475,10 @@ func proxyHandler(eth2Cl eth2client.Service) (http.HandlerFunc, error) {
 }
 
 // getBeaconNodeAddress returns an active beacon node proxy target address.
-func getBeaconNodeAddress(eth2Cl eth2client.Service) (*url.URL, error) {
+func getBeaconNodeAddress(eth2Cl eth2client.Service, fallbackBeaconAddr string) (*url.URL, error) {
 	addr := eth2Cl.Address()
 	if addr == "none" {
-		// eth2multi returns "none" if no active clients.
-		return nil, errors.New("no active beacon node clients")
+		addr = fallbackBeaconAddr
 	}
 
 	targetURL, err := url.Parse(addr)
