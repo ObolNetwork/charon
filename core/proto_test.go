@@ -54,15 +54,11 @@ func TestParSignedDataSetProto(t *testing.T) {
 		},
 		{
 			Type: core.DutyProposer,
-			Data: core.VersionedSignedBeaconBlock{
-				VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
-					Version: spec.DataVersionBellatrix,
-					Bellatrix: &bellatrix.SignedBeaconBlock{
-						Message:   testutil.RandomBellatrixBeaconBlock(t),
-						Signature: testutil.RandomEth2Signature(),
-					},
-				},
-			},
+			Data: testutil.RandomCoreVersionSignedBeaconBlock(t),
+		},
+		{
+			Type: core.DutyBuilderProposer,
+			Data: testutil.RandomCoreVersionSignedBlindedBeaconBlock(t),
 		},
 	}
 	for _, test := range tests {
@@ -94,22 +90,6 @@ func TestParSignedDataSetProto(t *testing.T) {
 	}
 }
 
-func TestSetBlockSig(t *testing.T) {
-	block := core.VersionedSignedBeaconBlock{
-		VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
-			Version: spec.DataVersionBellatrix,
-			Bellatrix: &bellatrix.SignedBeaconBlock{
-				Message:   testutil.RandomBellatrixBeaconBlock(t),
-				Signature: testutil.RandomEth2Signature(),
-			},
-		},
-	}
-
-	clone, err := block.SetSignature(testutil.RandomCoreSignature())
-	require.NoError(t, err)
-	require.NotEqual(t, clone.Signature(), block.Signature())
-}
-
 func TestUnsignedDataToProto(t *testing.T) {
 	tests := []struct {
 		Type core.DutyType
@@ -122,6 +102,10 @@ func TestUnsignedDataToProto(t *testing.T) {
 		{
 			Type: core.DutyProposer,
 			Data: testutil.RandomCoreVersionBeaconBlock(t),
+		},
+		{
+			Type: core.DutyBuilderProposer,
+			Data: testutil.RandomCoreVersionBlindedBeaconBlock(t),
 		},
 	}
 
