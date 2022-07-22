@@ -34,6 +34,7 @@ import (
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
@@ -57,6 +58,8 @@ type Handler interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
+	eth2client.BlindedBeaconBlockProposalProvider
+	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.ProposerDutiesProvider
 	eth2client.ValidatorsProvider
 	eth2client.VoluntaryExitSubmitter
@@ -112,6 +115,16 @@ func NewRouter(h Handler, eth2Cl eth2client.Service) (*mux.Router, error) {
 			Name:    "submit_block",
 			Path:    "/eth/v1/beacon/blocks",
 			Handler: submitBlock(h),
+		},
+		{
+			Name:    "propose_blinded_block",
+			Path:    "/eth/v1/validator/blinded_blocks/{slot}",
+			Handler: proposeBlindedBlock(h),
+		},
+		{
+			Name:    "submit_blinded_block",
+			Path:    "/eth/v1/beacon/blinded_blocks",
+			Handler: submitBlindedBlock(h),
 		},
 		{
 			Name:    "submit_voluntary_exit",
@@ -391,6 +404,45 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 	}
 }
 
+// proposeBlindedBlock receives the randao from the validator and returns the unsigned BlindedBeaconBlock.
+func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		slot, err := uintParam(params, "slot")
+		if err != nil {
+			return nil, err
+		}
+
+		var randao eth2p0.BLSSignature
+		b, err := hexQuery(query, "randao_reveal")
+		if err != nil {
+			return nil, err
+		}
+		if len(b) != len(randao) {
+			return nil, errors.New("input randao_reveal has wrong length")
+		}
+		copy(randao[:], b)
+
+		block, err := p.BlindedBeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		switch block.Version {
+		case spec.DataVersionBellatrix:
+			if block.Bellatrix == nil {
+				return 0, errors.New("no bellatrix block")
+			}
+
+			return proposeBlindedBlockResponseBellatrix{
+				Version: "BELLATRIX",
+				Data:    block.Bellatrix,
+			}, nil
+		default:
+			return 0, errors.New("invalid block")
+		}
+	}
+}
+
 func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
 		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
@@ -424,6 +476,23 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 			}
 
 			return nil, p.SubmitBeaconBlock(ctx, block)
+		}
+
+		return nil, errors.New("invalid block")
+	}
+}
+
+func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		bellatrixBlock := new(eth2v1.SignedBlindedBeaconBlock)
+		err := bellatrixBlock.UnmarshalJSON(body)
+		if err == nil {
+			block := &eth2api.VersionedSignedBlindedBeaconBlock{
+				Version:   spec.DataVersionBellatrix,
+				Bellatrix: bellatrixBlock,
+			}
+
+			return nil, p.SubmitBlindedBeaconBlock(ctx, block)
 		}
 
 		return nil, errors.New("invalid block")

@@ -27,6 +27,7 @@ import (
 	"strings"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2mock "github.com/attestantio/go-eth2-client/mock"
@@ -439,6 +440,29 @@ func TestRouter(t *testing.T) {
 		block1 := &spec.VersionedSignedBeaconBlock{
 			Version: spec.DataVersionBellatrix,
 			Bellatrix: &bellatrix.SignedBeaconBlock{
+				Message:   testutil.RandomBellatrixBeaconBlock(t),
+				Signature: testutil.RandomEth2Signature(),
+			},
+		}
+		handler := testHandler{
+			SubmitBeaconBlockFunc: func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+				require.Equal(t, block, block1)
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			err := cl.SubmitBeaconBlock(ctx, block1)
+			require.NoError(t, err)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
+	t.Run("submit_blinded_block_bellatrix", func(t *testing.T) {
+		block1 := &eth2api.VersionedSignedBlindedBeaconBlock{
+			Version: spec.DataVersionBellatrix,
+			Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
 				Message:   testutil.RandomBellatrixBeaconBlock(t),
 				Signature: testutil.RandomEth2Signature(),
 			},
