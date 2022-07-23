@@ -186,10 +186,11 @@ func TestTrackerParticipation(t *testing.T) {
 	deadliner := testDeadliner{deadlineChan: make(chan core.Duty)}
 	tr := New(deadliner, peers)
 
-	count := 0
+	var count int
 	tr.participationReporter = func(_ context.Context, actualDuty core.Duty, actualParticipation map[core.PubKey]map[shareIdx]bool, lastParticipation map[core.PubKey]map[shareIdx]bool) {
 		require.Equal(t, testData[count].duty, actualDuty)
 		require.True(t, reflect.DeepEqual(actualParticipation, participationPerDuty[testData[count].duty]))
+
 		if count == 2 {
 			// For third duty, last Participation should be equal to that of second duty.
 			require.Equal(t, participationPerDuty[testData[count].duty], lastParticipation)

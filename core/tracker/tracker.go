@@ -174,7 +174,6 @@ func analyseParticipation(events []event) map[core.PubKey]map[shareIdx]bool {
 }
 
 // newParticipationReporter returns a new participation reporter function which logs and instruments peer participation
-
 func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty, map[core.PubKey]map[shareIdx]bool, map[core.PubKey]map[shareIdx]bool) {
 	return func(ctx context.Context, duty core.Duty, currentParticipation map[core.PubKey]map[shareIdx]bool, lastParticipation map[core.PubKey]map[shareIdx]bool) {
 		for pubKey, dvPeers := range currentParticipation {
