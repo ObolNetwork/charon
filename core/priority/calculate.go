@@ -32,60 +32,14 @@ const (
 // priorities given the priorities of each peer. Priorities are included in the
 // result if minRequired peers provided them and are ordered by number of peers
 // then by overall priority.
-//
-// Peer messages are validated such that
-// they do not contain duplicate peers, they contain identical slots,
-// individual peers may not contain duplicate topics, individual topics
-// may not contain duplicate priorities or more than 1000 priorities.
-//nolint:gocognit // Mostly just map reduce.
 func calculateResults(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityResult, error) {
-	// Prepare deterministic input messages:
-	//  - validate
-	//  - then sort by peer
-	//  - then shuffle by slot (for random tiebreaker)
-	var (
-		slot       int64
-		input      []*pbv1.PriorityMsg
-		dedupPeers = newDeduper[string]("peer") // Peers may not be duplicated
-	)
-	for _, msg := range msgs {
-		if slot == 0 {
-			slot = msg.Slot
-		} else if msg.Slot != slot {
-			return nil, errors.New("mismatching slots")
-		}
-		if err := dedupPeers(msg.PeerId); err != nil {
-			return nil, err
-		}
-		dedupTopics := newDeduper[string]("topic") // Peers may not provide duplicate topics.
-		for _, topic := range msg.Topics {
-			if err := dedupTopics(topic.Topic); err != nil {
-				return nil, err
-			} else if len(topic.Priorities) >= maxPriorities {
-				return nil, errors.New("max priority reached")
-			}
-
-			dedupPriority := newDeduper[string]("priority") // Topics may not include duplicates priority.
-			for _, priority := range topic.Priorities {
-				if err := dedupPriority(priority); err != nil {
-					return nil, err
-				}
-			}
-		}
-
-		input = append(input, msg) // Copy to not mutate input param.
+	if err := validateMsgs(msgs); err != nil {
+		return nil, err
 	}
-	sort.Slice(input, func(i, j int) bool {
-		return input[i].PeerId < input[j].PeerId
-	})
-	//nolint:gosec // Math rand used for deterministic behaviour.
-	rand.New(rand.NewSource(slot)).Shuffle(len(input), func(i, j int) {
-		input[i], input[j] = input[j], input[i]
-	})
 
 	// Group all priority sets by topic
 	prioritySetsByTopic := make(map[string][][]string)
-	for _, msg := range input {
+	for _, msg := range determineInput(msgs) {
 		for _, topic := range msg.Topics {
 			prioritySetsByTopic[topic.Topic] = append(prioritySetsByTopic[topic.Topic], topic.Priorities)
 		}
@@ -94,11 +48,6 @@ func calculateResults(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.Priority
 	// Calculate cluster wide resulting priorities by topic.
 	var topicResults []*pbv1.PriorityTopic
 	for topic, prioritySet := range prioritySetsByTopic {
-		if len(prioritySet) < minRequired {
-			// Shortcut since min require cannot be met.
-			continue
-		}
-
 		// Calculate overall score for all priorities in the topic
 		// which effectively orders by count then by overall priority.
 		var (
@@ -138,21 +87,80 @@ func calculateResults(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.Priority
 	})
 
 	return &pbv1.PriorityResult{
-		Msgs:   input,
+		Msgs:   msgs,
 		Topics: topicResults,
 	}, nil
 }
 
-// newDeduper returns a new generic named deduplicater.
-func newDeduper[T comparable](name string) func(t T) error {
+// determineInput returns a deterministic copy of the messages ordered
+// first by peer and then shuffled by slot (for random tiebreaker).
+func determineInput(msgs []*pbv1.PriorityMsg) []*pbv1.PriorityMsg {
+	resp := append([]*pbv1.PriorityMsg(nil), msgs...) // Copy to not mutate input param.
+	sort.Slice(msgs, func(i, j int) bool {
+		return msgs[i].PeerId < msgs[j].PeerId
+	})
+	//nolint:gosec // Math rand used for deterministic behaviour.
+	rand.New(rand.NewSource(msgs[0].Slot)).Shuffle(len(msgs), func(i, j int) {
+		msgs[i], msgs[j] = msgs[j], msgs[i]
+	})
+
+	return resp
+}
+
+// validateMsgs returns an error if the messages are invalid such that:
+//  - messages do not contain duplicate peers,
+//  - messages contain identical slots,
+//  - individual peers may not contain duplicate topics,
+//  - individual topics may not contain duplicate priorities,
+//  - individual topics may not contain more than 1000 priorities.
+func validateMsgs(msgs []*pbv1.PriorityMsg) error {
+	if len(msgs) == 0 {
+		return errors.New("messages empty")
+	}
+
+	var (
+		slot       int64
+		dedupPeers = newDeduper[string]() // Peers may not be duplicated
+	)
+	for _, msg := range msgs {
+		if slot == 0 {
+			slot = msg.Slot
+		} else if msg.Slot != slot {
+			return errors.New("mismatching slots")
+		}
+		if dedupPeers(msg.PeerId) {
+			return errors.New("duplicate peer")
+		}
+		dedupTopics := newDeduper[string]() // Peers may not provide duplicate topics.
+		for _, topic := range msg.Topics {
+			if dedupTopics(msg.PeerId) {
+				return errors.New("duplicate topic")
+			} else if len(topic.Priorities) >= maxPriorities {
+				return errors.New("max priority reached")
+			}
+
+			dedupPriority := newDeduper[string]() // Topics may not include duplicates priority.
+			for _, priority := range topic.Priorities {
+				if dedupPriority(priority) {
+					return errors.New("duplicate priority")
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// newDeduper returns a new generic deduplicater.
+func newDeduper[T comparable]() func(t T) bool {
 	duplicates := make(map[T]bool)
 
-	return func(t T) error {
+	return func(t T) bool {
 		if duplicates[t] {
-			return errors.New("duplicate " + name)
+			return true
 		}
 		duplicates[t] = true
 
-		return nil
+		return false
 	}
 }

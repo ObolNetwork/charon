@@ -36,12 +36,17 @@ func TestCalculateResults(t *testing.T) {
 		v1 = []string{"v1"}       // v1 nodes only support v1
 		v2 = []string{"v2", "v1"} // v2 nodes support v2 and v1
 		v3 = []string{"v3", "v2"} // v3 nodes support v3 and v2 but not v1 anymore.
+
+		// Used for testing deterministic ordering
+		xy = []string{"x", "y"}
+		yx = []string{"y", "x"}
 	)
 
 	tests := []struct {
 		Name       string
 		Priorities [][]string
 		Result     []string
+		Slot       int64 // Defaults to test index if not provided.
 	}{
 		{
 			Name:       "1*v1",
@@ -123,17 +128,27 @@ func TestCalculateResults(t *testing.T) {
 			Priorities: pl(v1, v1, v3, v3, v3),
 			Result:     []string{"v3", "v2"}, // Most nodes support v2 and v3, v3 takes precedence. Once “all” (excluding incompatible minority) support both v2 and v3, then the cluster upgrades again.
 		},
+		{
+			Name:       "deterministic ordering slot 1",
+			Priorities: pl(xy, xy, yx, yx),
+			Slot:       1,
+			Result:     xy,
+		},
+		{
+			Name:       "deterministic ordering slot 9",
+			Priorities: pl(xy, xy, yx, yx),
+			Slot:       9,
+			Result:     yx, // Same input (except for slot), different result.
+		},
 	}
 
 	for i, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			// Shuffle since function should be deterministic.
-			rand.Shuffle(len(test.Priorities), func(i, j int) {
-				test.Priorities[i], test.Priorities[j] = test.Priorities[j], test.Priorities[i]
-			})
-
 			var msgs []*pbv1.PriorityMsg
 			for j, prioritySet := range test.Priorities {
+				if test.Slot == 0 {
+					test.Slot = int64(i)
+				}
 				msgs = append(msgs, &pbv1.PriorityMsg{
 					Topics: []*pbv1.PriorityTopic{
 						{
@@ -142,17 +157,22 @@ func TestCalculateResults(t *testing.T) {
 						},
 					},
 					PeerId: fmt.Sprint(j),
-					Slot:   int64(i),
+					Slot:   test.Slot,
 				})
 			}
 
+			// Shuffle since function should be deterministic.
+			rand.Shuffle(len(msgs), func(i, j int) {
+				msgs[i], msgs[j] = msgs[j], msgs[i]
+			})
+
 			result, err := calculateResults(msgs, Q)
 			require.NoError(t, err)
+			require.Len(t, result.Topics, 1)
 			if len(test.Result) > 0 {
-				require.Len(t, result.Topics, 1)
 				require.Equal(t, test.Result, result.Topics[0].Priorities)
 			} else {
-				require.Empty(t, result.Topics)
+				require.Empty(t, result.Topics[0].Priorities)
 			}
 		})
 	}
