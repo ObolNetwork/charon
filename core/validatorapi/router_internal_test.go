@@ -463,19 +463,19 @@ func TestRouter(t *testing.T) {
 		block1 := &eth2api.VersionedSignedBlindedBeaconBlock{
 			Version: spec.DataVersionBellatrix,
 			Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-				Message:   testutil.RandomBellatrixBeaconBlock(t),
+				Message:   testutil.RandomBellatrixBlindedBeaconBlock(t),
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}
 		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+			SubmitBlindedBeaconBlockFunc: func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
 				require.Equal(t, block, block1)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitBeaconBlock(ctx, block1)
+			err := cl.SubmitBlindedBeaconBlock(ctx, block1)
 			require.NoError(t, err)
 		}
 
@@ -543,15 +543,17 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 // mocked beacon-node endpoints required by the eth2http client during startup.
 type testHandler struct {
 	Handler
-	ProxyHandler            http.HandlerFunc
-	AttestationDataFunc     func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
-	AttesterDutiesFunc      func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
-	BeaconBlockProposalFunc func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
-	SubmitBeaconBlockFunc   func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error
-	ProposerDutiesFunc      func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
-	ValidatorsFunc          func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	ValidatorsByPubKeyFunc  func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	SubmitVoluntaryExitFunc func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
+	ProxyHandler                   http.HandlerFunc
+	AttestationDataFunc            func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
+	AttesterDutiesFunc             func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	BeaconBlockProposalFunc        func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
+	SubmitBeaconBlockFunc          func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error
+	BlindedBeaconBlockProposalFunc func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
+	SubmitBlindedBeaconBlockFunc   func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
+	ProposerDutiesFunc             func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	ValidatorsFunc                 func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	ValidatorsByPubKeyFunc         func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	SubmitVoluntaryExitFunc        func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
 }
 
 func (h testHandler) AttestationData(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
@@ -568,6 +570,14 @@ func (h testHandler) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, 
 
 func (h testHandler) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
 	return h.SubmitBeaconBlockFunc(ctx, block)
+}
+
+func (h testHandler) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
+	return h.BlindedBeaconBlockProposalFunc(ctx, slot, randaoReveal, graffiti)
+}
+
+func (h testHandler) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
+	return h.SubmitBlindedBeaconBlockFunc(ctx, block)
 }
 
 func (h testHandler) Validators(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {

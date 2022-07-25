@@ -24,7 +24,6 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/mock"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -45,7 +44,7 @@ import (
 
 func TestComponent_ValidSubmitAttestations(t *testing.T) {
 	ctx := context.Background()
-	eth2Svc, err := mock.New(ctx)
+	eth2Svc, err := beaconmock.New()
 	require.NoError(t, err)
 
 	const (
@@ -123,7 +122,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 
 func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 	ctx := context.Background()
-	eth2Svc, err := mock.New(ctx)
+	eth2Svc, err := beaconmock.New()
 	require.NoError(t, err)
 
 	const (
@@ -323,7 +322,7 @@ func padTo(b []byte, size int) []byte {
 
 func TestComponent_BeaconBlockProposal(t *testing.T) {
 	ctx := context.Background()
-	eth2Svc, err := mock.New(ctx)
+	eth2Svc, err := beaconmock.New()
 	require.NoError(t, err)
 
 	const (
@@ -618,7 +617,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 
 func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 	ctx := context.Background()
-	eth2Svc, err := mock.New(ctx)
+	eth2Svc, err := beaconmock.New()
 	require.NoError(t, err)
 
 	const (
