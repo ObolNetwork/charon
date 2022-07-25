@@ -43,6 +43,7 @@ type eth2Provider interface {
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
 	eth2client.BlindedBeaconBlockSubmitter
+	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.DomainProvider
 	eth2client.ProposerDutiesProvider
 	eth2client.SlotsPerEpochProvider

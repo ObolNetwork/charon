@@ -98,6 +98,11 @@ type proposeBlockResponseBellatrix struct {
 	Data    *bellatrix.BeaconBlock `json:"data"`
 }
 
+type proposeBlindedBlockResponseBellatrix struct {
+	Version string                     `json:"version"`
+	Data    *eth2v1.BlindedBeaconBlock `json:"data"`
+}
+
 type validatorsResponse struct {
 	Data []v1Validator `json:"data"`
 }
