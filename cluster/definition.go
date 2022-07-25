@@ -30,10 +30,10 @@ import (
 )
 
 const (
-	currentVersion = v1_2
+	currentVersion = v1_1
 	dkgAlgo        = "default"
 
-	v1_2 = "v1.2.0"
+	v1_2 = "v1.2.0" // WIP
 	v1_1 = "v1.1.0"
 	v1_0 = "v1.0.0"
 )
