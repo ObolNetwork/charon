@@ -18,6 +18,7 @@ package core
 import (
 	"context"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 )
@@ -54,6 +55,10 @@ type DutyDB interface {
 	// for the slot when available.
 	AwaitBeaconBlock(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
 
+	// AwaitBlindedBeaconBlock blocks and returns the proposed blinded beacon block
+	// for the slot when available.
+	AwaitBlindedBeaconBlock(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
+
 	// AwaitAttestation blocks and returns the attestation data
 	// for the slot and committee index when available.
 	AwaitAttestation(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
@@ -78,6 +83,9 @@ type Consensus interface {
 type ValidatorAPI interface {
 	// RegisterAwaitBeaconBlock registers a function to query a unsigned beacon block by slot.
 	RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error))
+
+	// RegisterAwaitBlindedBeaconBlock registers a function to query a unsigned blinded beacon block by slot.
+	RegisterAwaitBlindedBeaconBlock(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
@@ -146,33 +154,35 @@ type Broadcaster interface {
 // wireFuncs defines the core workflow components as a list input and output functions
 // instead as interfaces, since functions are easier to wrap than interfaces.
 type wireFuncs struct {
-	SchedulerSubscribe              func(func(context.Context, Duty, DutyDefinitionSet) error)
-	SchedulerGetDutyDefinition      func(context.Context, Duty) (DutyDefinitionSet, error)
-	FetcherFetch                    func(context.Context, Duty, DutyDefinitionSet) error
-	FetcherSubscribe                func(func(context.Context, Duty, UnsignedDataSet) error)
-	FetcherRegisterAggSigDB         func(func(context.Context, Duty, PubKey) (SignedData, error))
-	ConsensusPropose                func(context.Context, Duty, UnsignedDataSet) error
-	ConsensusSubscribe              func(func(context.Context, Duty, UnsignedDataSet) error)
-	DutyDBStore                     func(context.Context, Duty, UnsignedDataSet) error
-	DutyDBAwaitBeaconBlock          func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
-	DutyDBAwaitAttestation          func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
-	DutyDBPubKeyByAttestation       func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
-	VAPIRegisterAwaitAttestation    func(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
-	VAPIRegisterAwaitBeaconBlock    func(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error))
-	VAPIRegisterGetDutyDefinition   func(func(context.Context, Duty) (DutyDefinitionSet, error))
-	VAPIRegisterPubKeyByAttestation func(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
-	VAPISubscribe                   func(func(context.Context, Duty, ParSignedDataSet) error)
-	ParSigDBStoreInternal           func(context.Context, Duty, ParSignedDataSet) error
-	ParSigDBStoreExternal           func(context.Context, Duty, ParSignedDataSet) error
-	ParSigDBSubscribeInternal       func(func(context.Context, Duty, ParSignedDataSet) error)
-	ParSigDBSubscribeThreshold      func(func(context.Context, Duty, PubKey, []ParSignedData) error)
-	ParSigExBroadcast               func(context.Context, Duty, ParSignedDataSet) error
-	ParSigExSubscribe               func(func(context.Context, Duty, ParSignedDataSet) error)
-	SigAggAggregate                 func(context.Context, Duty, PubKey, []ParSignedData) error
-	SigAggSubscribe                 func(func(context.Context, Duty, PubKey, SignedData) error)
-	AggSigDBStore                   func(context.Context, Duty, PubKey, SignedData) error
-	AggSigDBAwait                   func(context.Context, Duty, PubKey) (SignedData, error)
-	BroadcasterBroadcast            func(context.Context, Duty, PubKey, SignedData) error
+	SchedulerSubscribe                  func(func(context.Context, Duty, DutyDefinitionSet) error)
+	SchedulerGetDutyDefinition          func(context.Context, Duty) (DutyDefinitionSet, error)
+	FetcherFetch                        func(context.Context, Duty, DutyDefinitionSet) error
+	FetcherSubscribe                    func(func(context.Context, Duty, UnsignedDataSet) error)
+	FetcherRegisterAggSigDB             func(func(context.Context, Duty, PubKey) (SignedData, error))
+	ConsensusPropose                    func(context.Context, Duty, UnsignedDataSet) error
+	ConsensusSubscribe                  func(func(context.Context, Duty, UnsignedDataSet) error)
+	DutyDBStore                         func(context.Context, Duty, UnsignedDataSet) error
+	DutyDBAwaitBeaconBlock              func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
+	DutyDBAwaitBlindedBeaconBlock       func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
+	DutyDBAwaitAttestation              func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
+	DutyDBPubKeyByAttestation           func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
+	VAPIRegisterAwaitAttestation        func(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
+	VAPIRegisterAwaitBeaconBlock        func(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error))
+	VAPIRegisterAwaitBlindedBeaconBlock func(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error))
+	VAPIRegisterGetDutyDefinition       func(func(context.Context, Duty) (DutyDefinitionSet, error))
+	VAPIRegisterPubKeyByAttestation     func(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
+	VAPISubscribe                       func(func(context.Context, Duty, ParSignedDataSet) error)
+	ParSigDBStoreInternal               func(context.Context, Duty, ParSignedDataSet) error
+	ParSigDBStoreExternal               func(context.Context, Duty, ParSignedDataSet) error
+	ParSigDBSubscribeInternal           func(func(context.Context, Duty, ParSignedDataSet) error)
+	ParSigDBSubscribeThreshold          func(func(context.Context, Duty, PubKey, []ParSignedData) error)
+	ParSigExBroadcast                   func(context.Context, Duty, ParSignedDataSet) error
+	ParSigExSubscribe                   func(func(context.Context, Duty, ParSignedDataSet) error)
+	SigAggAggregate                     func(context.Context, Duty, PubKey, []ParSignedData) error
+	SigAggSubscribe                     func(func(context.Context, Duty, PubKey, SignedData) error)
+	AggSigDBStore                       func(context.Context, Duty, PubKey, SignedData) error
+	AggSigDBAwait                       func(context.Context, Duty, PubKey) (SignedData, error)
+	BroadcasterBroadcast                func(context.Context, Duty, PubKey, SignedData) error
 }
 
 // WireOption defines a functional option to configure wiring.
@@ -192,33 +202,35 @@ func Wire(sched Scheduler,
 	opts ...WireOption,
 ) {
 	w := wireFuncs{
-		SchedulerSubscribe:              sched.Subscribe,
-		SchedulerGetDutyDefinition:      sched.GetDutyDefinition,
-		FetcherFetch:                    fetch.Fetch,
-		FetcherSubscribe:                fetch.Subscribe,
-		FetcherRegisterAggSigDB:         fetch.RegisterAggSigDB,
-		ConsensusPropose:                cons.Propose,
-		ConsensusSubscribe:              cons.Subscribe,
-		DutyDBStore:                     dutyDB.Store,
-		DutyDBAwaitAttestation:          dutyDB.AwaitAttestation,
-		DutyDBAwaitBeaconBlock:          dutyDB.AwaitBeaconBlock,
-		DutyDBPubKeyByAttestation:       dutyDB.PubKeyByAttestation,
-		VAPIRegisterAwaitBeaconBlock:    vapi.RegisterAwaitBeaconBlock,
-		VAPIRegisterAwaitAttestation:    vapi.RegisterAwaitAttestation,
-		VAPIRegisterGetDutyDefinition:   vapi.RegisterGetDutyDefinition,
-		VAPIRegisterPubKeyByAttestation: vapi.RegisterPubKeyByAttestation,
-		VAPISubscribe:                   vapi.Subscribe,
-		ParSigDBStoreInternal:           parSigDB.StoreInternal,
-		ParSigDBStoreExternal:           parSigDB.StoreExternal,
-		ParSigDBSubscribeInternal:       parSigDB.SubscribeInternal,
-		ParSigDBSubscribeThreshold:      parSigDB.SubscribeThreshold,
-		ParSigExBroadcast:               parSigEx.Broadcast,
-		ParSigExSubscribe:               parSigEx.Subscribe,
-		SigAggAggregate:                 sigAgg.Aggregate,
-		SigAggSubscribe:                 sigAgg.Subscribe,
-		AggSigDBStore:                   aggSigDB.Store,
-		AggSigDBAwait:                   aggSigDB.Await,
-		BroadcasterBroadcast:            bcast.Broadcast,
+		SchedulerSubscribe:                  sched.Subscribe,
+		SchedulerGetDutyDefinition:          sched.GetDutyDefinition,
+		FetcherFetch:                        fetch.Fetch,
+		FetcherSubscribe:                    fetch.Subscribe,
+		FetcherRegisterAggSigDB:             fetch.RegisterAggSigDB,
+		ConsensusPropose:                    cons.Propose,
+		ConsensusSubscribe:                  cons.Subscribe,
+		DutyDBStore:                         dutyDB.Store,
+		DutyDBAwaitAttestation:              dutyDB.AwaitAttestation,
+		DutyDBAwaitBeaconBlock:              dutyDB.AwaitBeaconBlock,
+		DutyDBAwaitBlindedBeaconBlock:       dutyDB.AwaitBlindedBeaconBlock,
+		DutyDBPubKeyByAttestation:           dutyDB.PubKeyByAttestation,
+		VAPIRegisterAwaitBeaconBlock:        vapi.RegisterAwaitBeaconBlock,
+		VAPIRegisterAwaitBlindedBeaconBlock: vapi.RegisterAwaitBlindedBeaconBlock,
+		VAPIRegisterAwaitAttestation:        vapi.RegisterAwaitAttestation,
+		VAPIRegisterGetDutyDefinition:       vapi.RegisterGetDutyDefinition,
+		VAPIRegisterPubKeyByAttestation:     vapi.RegisterPubKeyByAttestation,
+		VAPISubscribe:                       vapi.Subscribe,
+		ParSigDBStoreInternal:               parSigDB.StoreInternal,
+		ParSigDBStoreExternal:               parSigDB.StoreExternal,
+		ParSigDBSubscribeInternal:           parSigDB.SubscribeInternal,
+		ParSigDBSubscribeThreshold:          parSigDB.SubscribeThreshold,
+		ParSigExBroadcast:                   parSigEx.Broadcast,
+		ParSigExSubscribe:                   parSigEx.Subscribe,
+		SigAggAggregate:                     sigAgg.Aggregate,
+		SigAggSubscribe:                     sigAgg.Subscribe,
+		AggSigDBStore:                       aggSigDB.Store,
+		AggSigDBAwait:                       aggSigDB.Await,
+		BroadcasterBroadcast:                bcast.Broadcast,
 	}
 
 	for _, opt := range opts {
@@ -230,6 +242,7 @@ func Wire(sched Scheduler,
 	w.FetcherRegisterAggSigDB(w.AggSigDBAwait)
 	w.ConsensusSubscribe(w.DutyDBStore)
 	w.VAPIRegisterAwaitBeaconBlock(w.DutyDBAwaitBeaconBlock)
+	w.VAPIRegisterAwaitBlindedBeaconBlock(w.DutyDBAwaitBlindedBeaconBlock)
 	w.VAPIRegisterAwaitAttestation(w.DutyDBAwaitAttestation)
 	w.VAPIRegisterGetDutyDefinition(w.SchedulerGetDutyDefinition)
 	w.VAPIRegisterPubKeyByAttestation(w.DutyDBPubKeyByAttestation)
