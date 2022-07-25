@@ -390,6 +390,26 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
+	t.Run("submit_randao_blinded_block", func(t *testing.T) {
+		handler := testHandler{
+			BlindedBeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
+				return nil, errors.New("not implemented")
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			slot := eth2p0.Slot(1)
+			randaoReveal := testutil.RandomEth2Signature()
+			graffiti := testutil.RandomBytes32()
+
+			res, err := cl.BlindedBeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
+			require.Error(t, err)
+			require.Nil(t, res)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
 	t.Run("submit_block_phase0", func(t *testing.T) {
 		block1 := &spec.VersionedSignedBeaconBlock{
 			Version: spec.DataVersionPhase0,
