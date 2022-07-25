@@ -91,6 +91,7 @@ func New(deadliner core.Deadliner, peers []p2p.Peer) *Tracker {
 // Run blocks and registers events from each component in tracker's input channel.
 // It also analyses and reports the duties whose deadline gets crossed.
 func (t *Tracker) Run(ctx context.Context) error {
+	ctx = log.WithTopic(ctx, "tracker")
 	defer close(t.quit)
 
 	for {
@@ -159,7 +160,7 @@ func analyseParticipation(events []event) (map[int]bool, error) {
 		// If we get a parSigEx event, then the corresponding peer with e.shareIdx participated successfully.
 		if e.component == parSigEx || e.component == parSigDBInternal {
 			if e.shareIdx == 0 {
-				return nil, errors.New("invalid shareIdx", z.Any("component", e.component))
+				return nil, errors.New("shareIdx empty", z.Any("component", e.component))
 			}
 			resp[e.shareIdx] = true
 		}
