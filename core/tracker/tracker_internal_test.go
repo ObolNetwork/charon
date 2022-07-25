@@ -17,6 +17,7 @@ package tracker
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -24,11 +25,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestTracker(t *testing.T) {
-	duty, defSet, pubkey, unsignedDataSet, parSignedDataSet := setupData(t)
+func TestTrackerFailedDuty(t *testing.T) {
+	const slot = 1
+	testData, pubkeys := setupData(t, []int{slot})
 
 	t.Run("FailAtConsensus", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -36,22 +39,30 @@ func TestTracker(t *testing.T) {
 			deadlineChan: make(chan core.Duty),
 		}
 
+		count := 0
 		failedDutyReporter := func(failedDuty core.Duty, isFailed bool, component string, msg string) {
-			require.Equal(t, duty, failedDuty)
+			require.Equal(t, testData[0].duty, failedDuty)
 			require.True(t, isFailed)
 			require.Equal(t, component, "consensus")
-			cancel()
+			count++
+
+			if count == len(testData) {
+				cancel()
+			}
 		}
 
-		tr := New(deadliner)
+		tr := New(deadliner, []p2p.Peer{})
 		tr.failedDutyReporter = failedDutyReporter
+		tr.participationReporter = func(_ context.Context, _ core.Duty, _ map[int]bool) {}
 
 		go func() {
-			require.NoError(t, tr.SchedulerEvent(ctx, duty, defSet))
-			require.NoError(t, tr.FetcherEvent(ctx, duty, unsignedDataSet))
+			for _, td := range testData {
+				require.NoError(t, tr.SchedulerEvent(ctx, td.duty, td.defSet))
+				require.NoError(t, tr.FetcherEvent(ctx, td.duty, td.unsignedDataSet))
 
-			// Explicitly mark the current duty as deadlined.
-			deadliner.deadlineChan <- duty
+				// Explicitly mark the current duty as deadlined.
+				deadliner.deadlineChan <- td.duty
+			}
 		}()
 
 		require.ErrorIs(t, tr.Run(ctx), context.Canceled)
@@ -63,32 +74,142 @@ func TestTracker(t *testing.T) {
 			deadlineChan: make(chan core.Duty),
 		}
 
+		count := 0
 		failedDutyReporter := func(failedDuty core.Duty, isFailed bool, component string, msg string) {
-			require.Equal(t, duty, failedDuty)
+			require.Equal(t, testData[0].duty, failedDuty)
 			require.False(t, isFailed)
 			require.Equal(t, "sigAgg", component)
-			cancel()
+			count++
+
+			if count == len(testData) {
+				cancel()
+			}
 		}
 
-		tr := New(deadliner)
+		tr := New(deadliner, []p2p.Peer{})
 		tr.failedDutyReporter = failedDutyReporter
 
 		go func() {
-			require.NoError(t, tr.SchedulerEvent(ctx, duty, defSet))
-			require.NoError(t, tr.FetcherEvent(ctx, duty, unsignedDataSet))
-			require.NoError(t, tr.ConsensusEvent(ctx, duty, unsignedDataSet))
-			require.NoError(t, tr.ValidatorAPIEvent(ctx, duty, parSignedDataSet))
-			require.NoError(t, tr.ParSigDBInternalEvent(ctx, duty, parSignedDataSet))
-			require.NoError(t, tr.ParSigExEvent(ctx, duty, parSignedDataSet))
-			require.NoError(t, tr.ParSigDBThresholdEvent(ctx, duty, pubkey, nil))
-			require.NoError(t, tr.SigAggEvent(ctx, duty, pubkey, nil))
+			for _, td := range testData {
+				require.NoError(t, tr.SchedulerEvent(ctx, td.duty, td.defSet))
+				require.NoError(t, tr.FetcherEvent(ctx, td.duty, td.unsignedDataSet))
+				require.NoError(t, tr.ConsensusEvent(ctx, td.duty, td.unsignedDataSet))
+				require.NoError(t, tr.ValidatorAPIEvent(ctx, td.duty, td.parSignedDataSet))
+				require.NoError(t, tr.ParSigDBInternalEvent(ctx, td.duty, td.parSignedDataSet))
+				require.NoError(t, tr.ParSigExEvent(ctx, td.duty, td.parSignedDataSet))
+				for _, pubkey := range pubkeys {
+					require.NoError(t, tr.ParSigDBThresholdEvent(ctx, td.duty, pubkey, nil))
+					require.NoError(t, tr.SigAggEvent(ctx, td.duty, pubkey, nil))
+				}
 
-			// Explicitly mark the current duty as deadlined.
-			deadliner.deadlineChan <- duty
+				// Explicitly mark the current duty as deadlined.
+				deadliner.deadlineChan <- td.duty
+			}
 		}()
 
 		require.ErrorIs(t, tr.Run(ctx), context.Canceled)
 	})
+}
+
+func TestTrackerParticipation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	slots := []int{1, 2, 3}
+	testData, pubkeys := setupData(t, slots)
+
+	// Assuming a DV with 4 nodes.
+	numPeers := 4
+	var peers []p2p.Peer
+	for i := 0; i < numPeers; i++ {
+		peers = append(peers, p2p.Peer{Index: i})
+	}
+
+	// Participation set per duty for a cluster.
+	expectedParticipationPerDuty := map[core.Duty]map[int]bool{
+		testData[0].duty: {
+			1: true,
+			2: true,
+			3: true,
+			4: true,
+		},
+		testData[1].duty: {
+			1: true,
+			2: true,
+			4: true,
+		},
+		testData[2].duty: {
+			1: true,
+			2: true,
+			4: true,
+		},
+	}
+
+	// ParSignedDataSet to be sent by ParSigExEvent per duty per peer for all the DVs.
+	psigDataPerDutyPerPeer := make(map[core.Duty][]core.ParSignedDataSet)
+	for _, td := range testData {
+		// ParSignedDataSet for each peer.
+		var data []core.ParSignedDataSet
+		for _, p := range peers {
+			set := make(core.ParSignedDataSet)
+			for _, pk := range pubkeys {
+				if !expectedParticipationPerDuty[td.duty][p.ShareIdx()] {
+					// This peer hasn't participated in this duty for this DV.
+					continue
+				}
+
+				set[pk] = core.ParSignedData{ShareIdx: p.ShareIdx()}
+			}
+
+			data = append(data, set)
+		}
+
+		psigDataPerDutyPerPeer[td.duty] = data
+	}
+
+	deadliner := testDeadliner{deadlineChan: make(chan core.Duty)}
+	tr := New(deadliner, peers)
+
+	var count int
+	var lastParticipation map[int]bool
+	tr.participationReporter = func(_ context.Context, actualDuty core.Duty, actualParticipation map[int]bool) {
+		require.Equal(t, testData[count].duty, actualDuty)
+		require.True(t, reflect.DeepEqual(actualParticipation, expectedParticipationPerDuty[testData[count].duty]))
+
+		if count == 2 {
+			// For third duty, last Participation should be equal to that of second duty.
+			require.Equal(t, expectedParticipationPerDuty[testData[count].duty], lastParticipation)
+		} else {
+			require.NotEqual(t, expectedParticipationPerDuty[testData[count].duty], lastParticipation)
+		}
+		count++
+
+		if count == len(testData) {
+			// Signal exit to central go routine.
+			cancel()
+		}
+
+		lastParticipation = actualParticipation
+	}
+
+	// Ignore failedDutyReporter part to isolate participation only.
+	tr.failedDutyReporter = func(core.Duty, bool, string, string) {}
+
+	go func() {
+		for _, td := range testData {
+			require.NoError(t, tr.ParSigDBInternalEvent(ctx, td.duty, td.parSignedDataSet))
+			for _, data := range psigDataPerDutyPerPeer[td.duty] {
+				require.NoError(t, tr.ParSigExEvent(ctx, td.duty, data))
+			}
+			for _, pk := range pubkeys {
+				require.NoError(t, tr.ParSigDBThresholdEvent(ctx, td.duty, pk, nil))
+				require.NoError(t, tr.SigAggEvent(ctx, td.duty, pk, nil))
+			}
+
+			// Explicitly mark the current duty as deadlined.
+			deadliner.deadlineChan <- td.duty
+		}
+	}()
+
+	require.ErrorIs(t, tr.Run(ctx), context.Canceled)
 }
 
 // testDeadliner is a mock deadliner implementation.
@@ -104,59 +225,70 @@ func (t testDeadliner) C() <-chan core.Duty {
 	return t.deadlineChan
 }
 
-// setupData returns the data required to test tracker.
-func setupData(t *testing.T) (core.Duty, core.DutyDefinitionSet, core.PubKey, core.UnsignedDataSet, core.ParSignedDataSet) {
+// testDutyData represents data for each duty.
+type testDutyData struct {
+	duty             core.Duty
+	defSet           core.DutyDefinitionSet
+	unsignedDataSet  core.UnsignedDataSet
+	parSignedDataSet core.ParSignedDataSet
+}
+
+// setupData returns test duty data and pubkeys required to test tracker.
+func setupData(t *testing.T, slots []int) ([]testDutyData, []core.PubKey) {
 	t.Helper()
 
 	const (
-		slot    = 1
-		vIdxA   = 2
-		vIdxB   = 3
+		vIdxA   = 1
+		vIdxB   = 2
 		notZero = 99 // Validation require non-zero values
 	)
 
-	pubkey := testutil.RandomCorePubKey(t)
-
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
-		vIdxA: pubkey,
-		vIdxB: pubkey,
+		vIdxA: testutil.RandomCorePubKey(t),
+		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
-	dutyA := eth2v1.AttesterDuty{
-		Slot:             slot,
-		ValidatorIndex:   vIdxA,
-		CommitteeIndex:   vIdxA,
-		CommitteeLength:  notZero,
-		CommitteesAtSlot: notZero,
-	}
+	var data []testDutyData
 
-	dutyB := eth2v1.AttesterDuty{
-		Slot:             slot,
-		ValidatorIndex:   vIdxB,
-		CommitteeIndex:   vIdxB,
-		CommitteeLength:  notZero,
-		CommitteesAtSlot: notZero,
-	}
+	for _, slot := range slots {
+		duty := core.NewAttesterDuty(int64(slot))
 
-	defSet := core.DutyDefinitionSet{
-		pubkeysByIdx[vIdxA]: core.NewAttesterDefinition(&dutyA),
-		pubkeysByIdx[vIdxB]: core.NewAttesterDefinition(&dutyB),
-	}
-
-	duty := core.Duty{Type: core.DutyAttester, Slot: slot}
-
-	unsignedDataSet := make(core.UnsignedDataSet)
-	for pubkey := range defSet {
-		unsignedDataSet[pubkey] = testutil.RandomCoreAttestationData(t)
-	}
-
-	parSignedDataSet := make(core.ParSignedDataSet)
-	for pubkey := range defSet {
-		parSignedDataSet[pubkey] = core.ParSignedData{
-			SignedData: nil,
-			ShareIdx:   0,
+		dutyA := eth2v1.AttesterDuty{
+			Slot:             eth2p0.Slot(slot),
+			ValidatorIndex:   vIdxA,
+			CommitteeIndex:   vIdxA,
+			CommitteeLength:  notZero,
+			CommitteesAtSlot: notZero,
 		}
+
+		dutyB := eth2v1.AttesterDuty{
+			Slot:             eth2p0.Slot(slot),
+			ValidatorIndex:   vIdxB,
+			CommitteeIndex:   vIdxB,
+			CommitteeLength:  notZero,
+			CommitteesAtSlot: notZero,
+		}
+
+		defset := core.DutyDefinitionSet{
+			pubkeysByIdx[vIdxA]: core.NewAttesterDefinition(&dutyA),
+			pubkeysByIdx[vIdxB]: core.NewAttesterDefinition(&dutyB),
+		}
+
+		unsignedset := make(core.UnsignedDataSet)
+		unsignedset[pubkeysByIdx[vIdxA]] = testutil.RandomCoreAttestationData(t)
+		unsignedset[pubkeysByIdx[vIdxB]] = testutil.RandomCoreAttestationData(t)
+
+		parsignedset := make(core.ParSignedDataSet)
+		parsignedset[pubkeysByIdx[vIdxA]] = core.ParSignedData{ShareIdx: 1}
+		parsignedset[pubkeysByIdx[vIdxB]] = core.ParSignedData{ShareIdx: 1}
+
+		data = append(data, testDutyData{
+			duty:             duty,
+			defSet:           defset,
+			unsignedDataSet:  unsignedset,
+			parSignedDataSet: parsignedset,
+		})
 	}
 
-	return duty, defSet, pubkey, unsignedDataSet, parSignedDataSet
+	return data, []core.PubKey{pubkeysByIdx[vIdxA], pubkeysByIdx[vIdxB]}
 }

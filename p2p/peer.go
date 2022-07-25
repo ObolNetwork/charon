@@ -46,6 +46,11 @@ type Peer struct {
 	Name string
 }
 
+// ShareIdx returns share index of this Peer. ShareIdx is 1-indexed while peerIdx is 0-indexed.
+func (p Peer) ShareIdx() int {
+	return p.Index + 1
+}
+
 // NewPeer returns a new charon peer.
 func NewPeer(record enr.Record, index int) (Peer, error) {
 	var enodePubkey enode.Secp256k1

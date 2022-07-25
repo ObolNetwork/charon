@@ -20,7 +20,11 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 //go:generate stringer -type=component
@@ -47,6 +51,10 @@ type event struct {
 	duty      core.Duty
 	component component
 	pubkey    core.PubKey
+
+	// This is an optional field only set by validatorAPI, parSigDBInternal and parSigEx events.
+	// shareidx is 1-indexed so 0 indicates unset.
+	shareIdx int
 }
 
 // Tracker represents the component that listens to events from core workflow components.
@@ -61,16 +69,20 @@ type Tracker struct {
 
 	// failedDutyReporter instruments the duty. It ignores non-failed duties.
 	failedDutyReporter func(core.Duty, bool, string, string)
+
+	// participationReporter logs and instruments the participation.
+	participationReporter func(context.Context, core.Duty, map[int]bool)
 }
 
 // New returns a new Tracker.
-func New(deadliner core.Deadliner) *Tracker {
+func New(deadliner core.Deadliner, peers []p2p.Peer) *Tracker {
 	t := &Tracker{
-		input:              make(chan event),
-		events:             make(map[core.Duty][]event),
-		quit:               make(chan struct{}),
-		deadliner:          deadliner,
-		failedDutyReporter: failedDutyReporter,
+		input:                 make(chan event),
+		events:                make(map[core.Duty][]event),
+		quit:                  make(chan struct{}),
+		deadliner:             deadliner,
+		failedDutyReporter:    failedDutyReporter,
+		participationReporter: newParticipationReporter(peers),
 	}
 
 	return t
@@ -79,6 +91,7 @@ func New(deadliner core.Deadliner) *Tracker {
 // Run blocks and registers events from each component in tracker's input channel.
 // It also analyses and reports the duties whose deadline gets crossed.
 func (t *Tracker) Run(ctx context.Context) error {
+	ctx = log.WithTopic(ctx, "tracker")
 	defer close(t.quit)
 
 	for {
@@ -94,11 +107,14 @@ func (t *Tracker) Run(ctx context.Context) error {
 			t.events[e.duty] = append(t.events[e.duty], e)
 		case duty := <-t.deadliner.C():
 			failed, failedComponent, failedMsg := analyseDutyFailed(duty, t.events[duty])
-
 			t.failedDutyReporter(duty, failed, failedComponent.String(), failedMsg)
 
-			// TODO(dhruv): Case of cluster participation
-			// analyseParticipation(duty, t.events[duty])
+			participatedShares, err := analyseParticipation(t.events[duty])
+			if err != nil {
+				log.Error(ctx, "Invalid participated shares", err)
+			} else {
+				t.participationReporter(ctx, duty, participatedShares)
+			}
 
 			delete(t.events, duty)
 		}
@@ -134,11 +150,51 @@ func analyseDutyFailed(duty core.Duty, es []event) (bool, component, string) {
 // TODO(xenowits): Implement logic for reporting duties.
 func failedDutyReporter(core.Duty, bool, string, string) {}
 
-// analyseParticipation returns the share indexes of peers that participated in this duty.
-// TODO(dhruv): implement logic to analyse participation.
-//nolint:deadcode
-func analyseParticipation(core.Duty, []event) []int {
-	return nil
+// analyseParticipation returns a set of share indexes of participated peers.
+func analyseParticipation(events []event) (map[int]bool, error) {
+	// Set of shareIdx of participated peers.
+	resp := make(map[int]bool)
+
+	for _, e := range events {
+		// If we get a parSigDBInternal event, then the current node participated successfully.
+		// If we get a parSigEx event, then the corresponding peer with e.shareIdx participated successfully.
+		if e.component == parSigEx || e.component == parSigDBInternal {
+			if e.shareIdx == 0 {
+				return nil, errors.New("shareIdx empty", z.Any("component", e.component))
+			}
+			resp[e.shareIdx] = true
+		}
+	}
+
+	return resp, nil
+}
+
+// newParticipationReporter returns a new participation reporter function which logs and instruments peer participation.
+func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty, map[int]bool) {
+	// prevAbsent is the set of peers who didn't participated in the last duty.
+	var prevAbsent []string
+
+	return func(ctx context.Context, duty core.Duty, participatedShares map[int]bool) {
+		var absentPeers []string
+		for _, peer := range peers {
+			if participatedShares[peer.ShareIdx()] {
+				participationGauge.WithLabelValues(duty.String(), peer.Name).Set(1)
+			} else {
+				absentPeers = append(absentPeers, peer.Name)
+				participationGauge.WithLabelValues(duty.String(), peer.Name).Set(0)
+			}
+		}
+
+		if fmt.Sprint(prevAbsent) != fmt.Sprint(absentPeers) {
+			if len(absentPeers) == 0 {
+				log.Info(ctx, "All peers participated in duty", z.Str("duty", duty.String()))
+			} else {
+				log.Info(ctx, "Not all peers participated in duty", z.Str("duty", duty.String()), z.Any("absent", absentPeers))
+			}
+		}
+
+		prevAbsent = absentPeers
+	}
 }
 
 // SchedulerEvent inputs event from core.Scheduler component.
@@ -223,7 +279,7 @@ func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data co
 
 // ParSigExEvent inputs event from core.ParSigEx component.
 func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
-	for pubkey := range data {
+	for pubkey, pSig := range data {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -234,6 +290,7 @@ func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.P
 				duty:      duty,
 				component: parSigEx,
 				pubkey:    pubkey,
+				shareIdx:  pSig.ShareIdx,
 			}
 		}
 	}
@@ -243,7 +300,7 @@ func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.P
 
 // ParSigDBInternalEvent inputs events from core.ParSigDB component for internal store event.
 func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
-	for pubkey := range data {
+	for pubkey, pSig := range data {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -254,6 +311,7 @@ func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, dat
 				duty:      duty,
 				component: parSigDBInternal,
 				pubkey:    pubkey,
+				shareIdx:  pSig.ShareIdx,
 			}
 		}
 	}
