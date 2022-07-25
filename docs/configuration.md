@@ -26,15 +26,16 @@ The schema of the `cluster-definition.json` is defined as:
     }
   ],
   "uuid": "1234-abcdef-1234-abcdef",            // Random unique identifier.
-  "version": "v1.0.0",                          // Schema version
+  "version": "v1.2.0",                          // Schema version
+  "timestamp": "2022-01-01T12:00:00+00:00",     // Creation timestamp
   "num_validators": 100,                        // Number of distributed validators to be created in cluster.lock
   "threshold": 3,                               // Optional threshold required for signature reconstruction
   "fee_recipient_address":"0x123..abfc",        // ETH1 fee_recipient address
   "withdrawal_address": "0x123..abfc",          // ETH1 withdrawal address
   "dkg_algorithm": "foo_dkg_v1" ,               // Optional DKG algorithm for key generation
   "fork_version": "0x00112233",                 // Chain/Network identifier
-  "config_hash": "abcfde...acbfed",             // Hash of the static (non-changing) fields
-  "definition_hash": "abcdef...abcedef"         // Final Hash of all fields
+  "config_hash": "abcfde...acbfed",             // Base58 hash of the static (non-changing) fields
+  "definition_hash": "abcdef...abcedef"         // Final base58 hash of all fields
 }
 ```
 

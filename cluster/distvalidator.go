@@ -16,9 +16,14 @@
 package cluster
 
 import (
+	"encoding/hex"
+	"fmt"
+	"strings"
+
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	ssz "github.com/ferranbt/fastssz"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -74,4 +79,91 @@ func (v DistValidator) PublicKey() (*bls_sig.PublicKey, error) {
 // PublicShare returns a peer's threshold BLS public share.
 func (v DistValidator) PublicShare(peerIdx int) (*bls_sig.PublicKey, error) {
 	return tblsconv.KeyFromBytes(v.PubShares[peerIdx])
+}
+
+// distValidatorJSONv1x1 is the json formatter of DistValidator for versions v1.0.0 and v1.1.0.
+type distValidatorJSONv1x1 struct {
+	PubKey              string   `json:"distributed_public_key"`
+	PubShares           [][]byte `json:"public_shares,omitempty"`
+	FeeRecipientAddress string   `json:"fee_recipient_address,omitempty"`
+}
+
+// distValidatorJSONv1x2 is the json formatter of DistValidator for versions v1.2.0 and later.
+type distValidatorJSONv1x2 struct {
+	PubKey              ethHex   `json:"distributed_public_key"`
+	PubShares           []base58 `json:"public_shares,omitempty"`
+	FeeRecipientAddress string   `json:"fee_recipient_address,omitempty"`
+}
+
+func distValidatorsFromV1x1(distValidators []distValidatorJSONv1x1) []DistValidator {
+	var resp []DistValidator
+	for _, dv := range distValidators {
+		var shares [][]byte
+		for _, share := range dv.PubShares {
+			shares = append(shares, share)
+		}
+		resp = append(resp, DistValidator{
+			PubKey:              dv.PubKey,
+			PubShares:           shares,
+			FeeRecipientAddress: dv.FeeRecipientAddress,
+		})
+	}
+
+	return resp
+}
+
+func distValidatorsToV1x1(distValidators []DistValidator) ([]distValidatorJSONv1x1, error) {
+	var resp []distValidatorJSONv1x1
+	for _, dv := range distValidators {
+		var shares []base58
+		for _, share := range dv.PubShares {
+			shares = append(shares, share)
+		}
+		resp = append(resp, distValidatorJSONv1x1{
+			PubKey:              dv.PubKey,
+			PubShares:           dv.PubShares,
+			FeeRecipientAddress: dv.FeeRecipientAddress,
+		})
+	}
+
+	return resp, nil
+}
+
+func distValidatorsFromV1x2(distValidators []distValidatorJSONv1x2) []DistValidator {
+	var resp []DistValidator
+	for _, dv := range distValidators {
+		var shares [][]byte
+		for _, share := range dv.PubShares {
+			shares = append(shares, share)
+		}
+		resp = append(resp, DistValidator{
+			PubKey:              fmt.Sprintf("%#x", dv.PubKey),
+			PubShares:           shares,
+			FeeRecipientAddress: dv.FeeRecipientAddress,
+		})
+	}
+
+	return resp
+}
+
+func distValidatorsToV1x2(distValidators []DistValidator) ([]distValidatorJSONv1x2, error) {
+	var resp []distValidatorJSONv1x2
+	for _, dv := range distValidators {
+		var shares []base58
+		for _, share := range dv.PubShares {
+			shares = append(shares, share)
+		}
+
+		pk, err := hex.DecodeString(strings.TrimPrefix(dv.PubKey, "0x"))
+		if err != nil {
+			return nil, errors.Wrap(err, "decode pubkey")
+		}
+		resp = append(resp, distValidatorJSONv1x2{
+			PubKey:              pk,
+			PubShares:           shares,
+			FeeRecipientAddress: dv.FeeRecipientAddress,
+		})
+	}
+
+	return resp, nil
 }

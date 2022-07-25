@@ -26,19 +26,19 @@ import (
 // Operator identifies a charon node and its operator.
 type Operator struct {
 	// The Ethereum address of the operator
-	Address string `json:"address"`
+	Address string
 
 	// ENR identifies the charon node.
-	ENR string `json:"enr"`
+	ENR string
 
 	//  Nonce is incremented each time the ENR is added or signed.
-	Nonce int `json:"nonce"`
+	Nonce int
 
 	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to operator Ethereum Address.
-	ConfigSignature []byte `json:"config_signature"`
+	ConfigSignature []byte
 
 	// ENRSignature is a EIP712 signature of the ENR by the Address, authorising the charon node to act on behalf of the operator in the cluster.
-	ENRSignature []byte `json:"enr_signature"`
+	ENRSignature []byte
 }
 
 // VerifySignature returns an error if the ENR signature doesn't match the address and enr fields.
@@ -99,4 +99,82 @@ func (o Operator) HashTreeRootWith(hh *ssz.Hasher) error {
 	hh.Merkleize(indx)
 
 	return nil
+}
+
+// operatorJSONv1x1 is the json formatter of Operator for versions v1.0.0 and v1.1.0.
+type operatorJSONv1x1 struct {
+	Address         string `json:"address"`
+	ENR             string `json:"enr"`
+	Nonce           int    `json:"nonce"`
+	ConfigSignature []byte `json:"config_signature"`
+	ENRSignature    []byte `json:"enr_signature"`
+}
+
+// operatorJSONv1x1 is the json formatter of Operator for versions v1.2 and later.
+type operatorJSONv1x2 struct {
+	Address         string `json:"address"`
+	ENR             string `json:"enr"`
+	Nonce           int    `json:"nonce"`
+	ConfigSignature ethHex `json:"config_signature"`
+	ENRSignature    ethHex `json:"enr_signature"`
+}
+
+func operatorsFromV1x1(operators []operatorJSONv1x1) []Operator {
+	var resp []Operator
+	for _, o := range operators {
+		resp = append(resp, Operator{
+			Address:         o.Address,
+			ENR:             o.ENR,
+			Nonce:           o.Nonce,
+			ConfigSignature: o.ConfigSignature,
+			ENRSignature:    o.ENRSignature,
+		})
+	}
+
+	return resp
+}
+
+func operatorsToV1x1(operators []Operator) []operatorJSONv1x1 {
+	var resp []operatorJSONv1x1
+	for _, o := range operators {
+		resp = append(resp, operatorJSONv1x1{
+			Address:         o.Address,
+			ENR:             o.ENR,
+			Nonce:           o.Nonce,
+			ConfigSignature: o.ConfigSignature,
+			ENRSignature:    o.ENRSignature,
+		})
+	}
+
+	return resp
+}
+
+func operatorsFromV1x2(operators []operatorJSONv1x2) []Operator {
+	var resp []Operator
+	for _, o := range operators {
+		resp = append(resp, Operator{
+			Address:         o.Address,
+			ENR:             o.ENR,
+			Nonce:           o.Nonce,
+			ConfigSignature: o.ConfigSignature,
+			ENRSignature:    o.ENRSignature,
+		})
+	}
+
+	return resp
+}
+
+func operatorsToV1x2(operators []Operator) []operatorJSONv1x2 {
+	var resp []operatorJSONv1x2
+	for _, o := range operators {
+		resp = append(resp, operatorJSONv1x2{
+			Address:         o.Address,
+			ENR:             o.ENR,
+			Nonce:           o.Nonce,
+			ConfigSignature: o.ConfigSignature,
+			ENRSignature:    o.ENRSignature,
+		})
+	}
+
+	return resp
 }

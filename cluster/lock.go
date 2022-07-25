@@ -22,6 +22,7 @@ import (
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 // Lock extends the cluster config Definition with bls threshold public keys and checksums.
@@ -70,36 +71,84 @@ func (l Lock) HashTreeRootWith(hh *ssz.Hasher) error {
 
 func (l Lock) MarshalJSON() ([]byte, error) {
 	// Marshal lock hash
-	hash, err := l.HashTreeRoot()
+	lockHash, err := l.HashTreeRoot()
 	if err != nil {
 		return nil, errors.Wrap(err, "hash lock")
 	}
 
-	// Marshal json version of lock
-	resp, err := json.Marshal(lockJSON{
-		Definition:         l.Definition,
-		Validators:         l.Validators,
-		SignatureAggregate: l.SignatureAggregate,
-		LockHash:           hash[:],
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal lock")
+	var resp []byte
+	if isJSONv1x1(l.Version) { //nolint:nestif
+		vals, err := distValidatorsToV1x1(l.Validators)
+		if err != nil {
+			return nil, err
+		}
+		resp, err = json.Marshal(lockJSONv1x1{
+			Definition:         l.Definition,
+			Validators:         vals,
+			SignatureAggregate: l.SignatureAggregate,
+			LockHash:           lockHash[:],
+		})
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal definition v1_1")
+		}
+	} else if isJSONv1x2(l.Version) { //nolint:revive
+		vals, err := distValidatorsToV1x2(l.Validators)
+		if err != nil {
+			return nil, err
+		}
+		resp, err = json.Marshal(lockJSONv1x2{
+			Definition:         l.Definition,
+			Validators:         vals,
+			SignatureAggregate: l.SignatureAggregate,
+			LockHash:           lockHash[:],
+		})
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal definition v1_2")
+		}
+	} else {
+		return nil, errors.New("unsupported version")
 	}
 
 	return resp, nil
 }
 
 func (l *Lock) UnmarshalJSON(data []byte) error {
+	// Get the version directly
+	//nolint:revive // Nested structs fine for reading.
+	version := struct {
+		Definition struct {
+			Version string `json:"version"`
+		} `json:"cluster_definition"`
+	}{}
+	if err := json.Unmarshal(data, &version); err != nil {
+		return errors.Wrap(err, "unmarshal version")
+	} else if !supportedVersions[version.Definition.Version] {
+		return errors.New("unsupported definition version",
+			z.Str("version", version.Definition.Version),
+			z.Any("supported", supportedVersions),
+		)
+	}
+
+	if isJSONv1x1(version.Definition.Version) {
+		return l.unmarshalV1x1(data)
+	} else if isJSONv1x2(version.Definition.Version) {
+		return l.unmarshalV1x2(data)
+	} else {
+		return errors.New("unsupported version")
+	}
+}
+
+func (l *Lock) unmarshalV1x1(data []byte) error {
 	// No need to check version as that is done in Definition.UnmarshalJSON.
 
-	var lockJSON lockJSON
+	var lockJSON lockJSONv1x1
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
 		return errors.Wrap(err, "unmarshal definition")
 	}
 
 	lock := Lock{
 		Definition:         lockJSON.Definition,
-		Validators:         lockJSON.Validators,
+		Validators:         distValidatorsFromV1x1(lockJSON.Validators),
 		SignatureAggregate: lockJSON.SignatureAggregate,
 	}
 
@@ -117,10 +166,46 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// lockJSON is the json formatter of Lock.
-type lockJSON struct {
-	Definition         Definition      `json:"cluster_definition"`
-	Validators         []DistValidator `json:"distributed_validators"`
-	SignatureAggregate []byte          `json:"signature_aggregate"`
-	LockHash           []byte          `json:"lock_hash"`
+func (l *Lock) unmarshalV1x2(data []byte) error {
+	// No need to check version as that is done in Definition.UnmarshalJSON.
+
+	var lockJSON lockJSONv1x2
+	if err := json.Unmarshal(data, &lockJSON); err != nil {
+		return errors.Wrap(err, "unmarshal definition")
+	}
+
+	lock := Lock{
+		Definition:         lockJSON.Definition,
+		Validators:         distValidatorsFromV1x2(lockJSON.Validators),
+		SignatureAggregate: lockJSON.SignatureAggregate,
+	}
+
+	hash, err := lock.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "hash lock")
+	}
+
+	if !bytes.Equal(lockJSON.LockHash, hash[:]) {
+		return errors.New("invalid lock hash")
+	}
+
+	*l = lock
+
+	return nil
+}
+
+// lockJSON is the json formatter of Lock for versions v1.0.0 and v1.1.0.
+type lockJSONv1x1 struct {
+	Definition         Definition              `json:"cluster_definition"`
+	Validators         []distValidatorJSONv1x1 `json:"distributed_validators"`
+	SignatureAggregate []byte                  `json:"signature_aggregate"`
+	LockHash           []byte                  `json:"lock_hash"`
+}
+
+// lockJSON is the json formatter of Lock for versions v1.2.0 and later.
+type lockJSONv1x2 struct {
+	Definition         Definition              `json:"cluster_definition"`
+	Validators         []distValidatorJSONv1x2 `json:"distributed_validators"`
+	SignatureAggregate base58                  `json:"signature_aggregate"`
+	LockHash           base58                  `json:"lock_hash"`
 }
