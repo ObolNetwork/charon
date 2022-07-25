@@ -22,6 +22,7 @@ import (
 
 var participationGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 	Namespace: "core",
-	Name:      "cluster_participation",
+	Subsystem: "tracker",
+	Name:      "participation",
 	Help:      "Set to 1 if peer participated successfully for the given duty and Distributed Validator public key or else 0",
-}, []string{"duty", "peer_name", "pubkeys"})
+}, []string{"duty", "peer"})

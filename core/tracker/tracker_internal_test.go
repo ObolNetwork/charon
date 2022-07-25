@@ -53,8 +53,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 
 		tr := New(deadliner, []p2p.Peer{})
 		tr.failedDutyReporter = failedDutyReporter
-		tr.participationReporter = func(_ context.Context, _ core.Duty, _ map[core.PubKey]map[shareIdx]bool, _ map[core.PubKey]map[shareIdx]bool) {
-		}
+		tr.participationReporter = func(_ context.Context, _ core.Duty, _ map[int]bool) {}
 
 		go func() {
 			for _, td := range testData {
@@ -112,53 +111,36 @@ func TestTrackerFailedDuty(t *testing.T) {
 	})
 }
 
-//nolint:gocognit
 func TestTrackerParticipation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	slots := []int{1, 2, 3}
 	testData, pubkeys := setupData(t, slots)
 
 	// Assuming a DV with 4 nodes.
-	numPeers := 3 // Excluding self.
+	numPeers := 4
 	var peers []p2p.Peer
-	for i := 1; i <= numPeers; i++ {
+	for i := 0; i < numPeers; i++ {
 		peers = append(peers, p2p.Peer{Index: i})
 	}
 
-	// Participation set per duty for a DV cluster.
-	participationPerDuty := make(map[core.Duty]map[core.PubKey]map[shareIdx]bool)
-	for _, td := range testData {
-		participationPerDuty[td.duty] = make(map[core.PubKey]map[shareIdx]bool)
-	}
-
-	// participation sets participation for all peers to true.
-	participation := make(map[shareIdx]bool)
-	for peerIdx := 0; peerIdx <= numPeers; peerIdx++ {
-		participation[shareIdx(peerIdx+1)] = true
-	}
-
-	// All peers participate in first duty for each DV.
-	for _, pk := range pubkeys {
-		// Deep copying participation map.
-		mp := make(map[shareIdx]bool)
-		for k, v := range participation {
-			mp[k] = v
-		}
-
-		participationPerDuty[testData[0].duty][pk] = mp
-	}
-
-	// Drop third peer for next 2 duties.
-	delete(participation, shareIdx(3))
-	for _, pk := range pubkeys {
-		// Deep copying participation map.
-		mp := make(map[shareIdx]bool)
-		for k, v := range participation {
-			mp[k] = v
-		}
-
-		participationPerDuty[testData[1].duty][pk] = mp
-		participationPerDuty[testData[2].duty][pk] = mp
+	// Participation set per duty for a cluster.
+	expectedParticipationPerDuty := map[core.Duty]map[int]bool{
+		testData[0].duty: {
+			1: true,
+			2: true,
+			3: true,
+			4: true,
+		},
+		testData[1].duty: {
+			1: true,
+			2: true,
+			4: true,
+		},
+		testData[2].duty: {
+			1: true,
+			2: true,
+			4: true,
+		},
 	}
 
 	// ParSignedDataSet to be sent by ParSigExEvent per duty per peer for all the DVs.
@@ -169,12 +151,12 @@ func TestTrackerParticipation(t *testing.T) {
 		for _, p := range peers {
 			set := make(core.ParSignedDataSet)
 			for _, pk := range pubkeys {
-				if !participationPerDuty[td.duty][pk][shareIdx(p.Index+1)] {
+				if !expectedParticipationPerDuty[td.duty][p.ShareIdx()] {
 					// This peer hasn't participated in this duty for this DV.
 					continue
 				}
 
-				set[pk] = core.ParSignedData{ShareIdx: p.Index + 1}
+				set[pk] = core.ParSignedData{ShareIdx: p.ShareIdx()}
 			}
 
 			data = append(data, set)
@@ -187,15 +169,16 @@ func TestTrackerParticipation(t *testing.T) {
 	tr := New(deadliner, peers)
 
 	var count int
-	tr.participationReporter = func(_ context.Context, actualDuty core.Duty, actualParticipation map[core.PubKey]map[shareIdx]bool, lastParticipation map[core.PubKey]map[shareIdx]bool) {
+	var lastParticipation map[int]bool
+	tr.participationReporter = func(_ context.Context, actualDuty core.Duty, actualParticipation map[int]bool) {
 		require.Equal(t, testData[count].duty, actualDuty)
-		require.True(t, reflect.DeepEqual(actualParticipation, participationPerDuty[testData[count].duty]))
+		require.True(t, reflect.DeepEqual(actualParticipation, expectedParticipationPerDuty[testData[count].duty]))
 
 		if count == 2 {
 			// For third duty, last Participation should be equal to that of second duty.
-			require.Equal(t, participationPerDuty[testData[count].duty], lastParticipation)
+			require.Equal(t, expectedParticipationPerDuty[testData[count].duty], lastParticipation)
 		} else {
-			require.NotEqual(t, participationPerDuty[testData[count].duty], lastParticipation)
+			require.NotEqual(t, expectedParticipationPerDuty[testData[count].duty], lastParticipation)
 		}
 		count++
 
@@ -203,6 +186,8 @@ func TestTrackerParticipation(t *testing.T) {
 			// Signal exit to central go routine.
 			cancel()
 		}
+
+		lastParticipation = actualParticipation
 	}
 
 	// Ignore failedDutyReporter part to isolate participation only.
