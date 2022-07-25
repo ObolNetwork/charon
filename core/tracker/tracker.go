@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -50,7 +51,10 @@ type event struct {
 	duty      core.Duty
 	component component
 	pubkey    core.PubKey
-	shareIdx  int // This is an optional field only set by parSigEx and parSigDBInternal events.
+
+	// This is an optional field only set by validatorAPI, parSigDBInternal and parSigEx events.
+	// shareidx is 1-indexed so 0 indicates unset.
+	shareIdx int
 }
 
 // Tracker represents the component that listens to events from core workflow components.
@@ -104,8 +108,12 @@ func (t *Tracker) Run(ctx context.Context) error {
 			failed, failedComponent, failedMsg := analyseDutyFailed(duty, t.events[duty])
 			t.failedDutyReporter(duty, failed, failedComponent.String(), failedMsg)
 
-			currentParticipation := analyseParticipation(t.events[duty])
-			t.participationReporter(ctx, duty, currentParticipation)
+			participatedShares, err := analyseParticipation(t.events[duty])
+			if err != nil {
+				log.Error(ctx, "Invalid participated shares", err)
+			} else {
+				t.participationReporter(ctx, duty, participatedShares)
+			}
 
 			delete(t.events, duty)
 		}
@@ -142,30 +150,33 @@ func analyseDutyFailed(duty core.Duty, es []event) (bool, component, string) {
 func failedDutyReporter(core.Duty, bool, string, string) {}
 
 // analyseParticipation returns a set of share indexes of participated peers.
-func analyseParticipation(events []event) map[int]bool {
+func analyseParticipation(events []event) (map[int]bool, error) {
 	// Set of shareIdx of participated peers.
 	resp := make(map[int]bool)
 
 	for _, e := range events {
 		// If we get a parSigDBInternal event, then the current node participated successfully.
 		// If we get a parSigEx event, then the corresponding peer with e.shareIdx participated successfully.
-		if e.shareIdx > 0 && (e.component == parSigEx || e.component == parSigDBInternal) {
+		if e.component == parSigEx || e.component == parSigDBInternal {
+			if e.shareIdx == 0 {
+				return nil, errors.New("invalid shareIdx", z.Any("component", e.component))
+			}
 			resp[e.shareIdx] = true
 		}
 	}
 
-	return resp
+	return resp, nil
 }
 
 // newParticipationReporter returns a new participation reporter function which logs and instruments peer participation.
 func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty, map[int]bool) {
-	// lastParticipation is the set of peers who participated in the last duty.
-	lastParticipation := make(map[int]bool)
+	// prevAbsent is the set of peers who didn't participated in the last duty.
+	var prevAbsent []string
 
-	return func(ctx context.Context, duty core.Duty, currentParticipation map[int]bool) {
+	return func(ctx context.Context, duty core.Duty, participatedShares map[int]bool) {
 		var absentPeers []string
 		for _, peer := range peers {
-			if currentParticipation[peer.ShareIdx()] {
+			if participatedShares[peer.ShareIdx()] {
 				participationGauge.WithLabelValues(duty.String(), peer.Name).Set(1)
 			} else {
 				absentPeers = append(absentPeers, peer.Name)
@@ -173,24 +184,15 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 			}
 		}
 
-		uniqueParticipation := false
-		for k, v := range lastParticipation {
-			val, ok := currentParticipation[k]
-			if !ok || val != v {
-				uniqueParticipation = true
-				break
+		if fmt.Sprint(prevAbsent) != fmt.Sprint(absentPeers) {
+			if len(absentPeers) == 0 {
+				log.Info(ctx, "All peers participated in duty", z.Str("duty", duty.String()))
+			} else {
+				log.Info(ctx, "Not all peers participated in duty", z.Str("duty", duty.String()), z.Any("absent", absentPeers))
 			}
 		}
 
-		// Avoid identical logs if same set of peers didn't participated.
-		if len(absentPeers) > 0 && !uniqueParticipation {
-			log.Info(ctx, "Peers didn't participate",
-				z.Str("duty", duty.String()),
-				z.Any("peers", absentPeers),
-			)
-		}
-
-		lastParticipation = currentParticipation
+		prevAbsent = absentPeers
 	}
 }
 
