@@ -445,7 +445,7 @@ func (d *Definition) unmarshalV1x2(data []byte) error {
 	return nil
 }
 
-// definitionJSON is the json formatter of Definition for versions v1.0.0 and v1.1.1.
+// definitionJSONv1x1 is the json formatter of Definition for versions v1.0.0 and v1.1.1.
 type definitionJSONv1x1 struct {
 	Name                string             `json:"name,omitempty"`
 	Operators           []operatorJSONv1x1 `json:"operators"`
@@ -462,7 +462,7 @@ type definitionJSONv1x1 struct {
 	DefinitionHash      []byte             `json:"definition_hash"`
 }
 
-// definitionJSON is the json formatter of Definition for versions v1.2.0 and later.
+// definitionJSONv1x2 is the json formatter of Definition for versions v1.2.0 and later.
 type definitionJSONv1x2 struct {
 	Name                string             `json:"name,omitempty"`
 	Operators           []operatorJSONv1x2 `json:"operators"`

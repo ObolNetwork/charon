@@ -76,13 +76,12 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "hash lock")
 	}
 
-	var resp []byte
 	if isJSONv1x1(l.Version) { //nolint:nestif
 		vals, err := distValidatorsToV1x1(l.Validators)
 		if err != nil {
 			return nil, err
 		}
-		resp, err = json.Marshal(lockJSONv1x1{
+		resp, err := json.Marshal(lockJSONv1x1{
 			Definition:         l.Definition,
 			Validators:         vals,
 			SignatureAggregate: l.SignatureAggregate,
@@ -91,12 +90,14 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "marshal definition v1_1")
 		}
+
+		return resp, nil
 	} else if isJSONv1x2(l.Version) { //nolint:revive
 		vals, err := distValidatorsToV1x2(l.Validators)
 		if err != nil {
 			return nil, err
 		}
-		resp, err = json.Marshal(lockJSONv1x2{
+		resp, err := json.Marshal(lockJSONv1x2{
 			Definition:         l.Definition,
 			Validators:         vals,
 			SignatureAggregate: l.SignatureAggregate,
@@ -105,11 +106,11 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "marshal definition v1_2")
 		}
+
+		return resp, nil
 	} else {
 		return nil, errors.New("unsupported version")
 	}
-
-	return resp, nil
 }
 
 func (l *Lock) UnmarshalJSON(data []byte) error {
@@ -139,8 +140,6 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 }
 
 func (l *Lock) unmarshalV1x1(data []byte) error {
-	// No need to check version as that is done in Definition.UnmarshalJSON.
-
 	var lockJSON lockJSONv1x1
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
 		return errors.Wrap(err, "unmarshal definition")
@@ -167,8 +166,6 @@ func (l *Lock) unmarshalV1x1(data []byte) error {
 }
 
 func (l *Lock) unmarshalV1x2(data []byte) error {
-	// No need to check version as that is done in Definition.UnmarshalJSON.
-
 	var lockJSON lockJSONv1x2
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
 		return errors.Wrap(err, "unmarshal definition")
@@ -194,7 +191,7 @@ func (l *Lock) unmarshalV1x2(data []byte) error {
 	return nil
 }
 
-// lockJSON is the json formatter of Lock for versions v1.0.0 and v1.1.0.
+// lockJSONv1x1 is the json formatter of Lock for versions v1.0.0 and v1.1.0.
 type lockJSONv1x1 struct {
 	Definition         Definition              `json:"cluster_definition"`
 	Validators         []distValidatorJSONv1x1 `json:"distributed_validators"`
@@ -202,7 +199,7 @@ type lockJSONv1x1 struct {
 	LockHash           []byte                  `json:"lock_hash"`
 }
 
-// lockJSON is the json formatter of Lock for versions v1.2.0 and later.
+// lockJSONv1x2 is the json formatter of Lock for versions v1.2.0 and later.
 type lockJSONv1x2 struct {
 	Definition         Definition              `json:"cluster_definition"`
 	Validators         []distValidatorJSONv1x2 `json:"distributed_validators"`
