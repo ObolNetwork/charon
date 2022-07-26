@@ -291,6 +291,17 @@ func RandomSignedValidatorRegistration(t *testing.T) *eth2v1.SignedValidatorRegi
 	}
 }
 
+func RandomCoreVersionedSignedValidatorRegistration(t *testing.T) core.VersionedSignedValidatorRegistration {
+	t.Helper()
+
+	return core.VersionedSignedValidatorRegistration{
+		VersionedSignedValidatorRegistration: eth2api.VersionedSignedValidatorRegistration{
+			Version: spec.BuilderVersionV1,
+			V1:      RandomSignedValidatorRegistration(t),
+		},
+	}
+}
+
 func RandomSyncAggregate(t *testing.T) *altair.SyncAggregate {
 	t.Helper()
 

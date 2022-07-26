@@ -49,6 +49,7 @@ type eth2Provider interface {
 	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
 	eth2client.ValidatorsProvider
+	eth2client.ValidatorRegistrationsSubmitter
 	// Above sorted alphabetically
 }
 
@@ -497,7 +498,7 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	return nil
 }
 
-func (c Component) verifyValidatorRegistrationsParSig(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
+func (c Component) verifyValidatorRegistrationParSig(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
 	// Calculate slot epoch
 	epoch, err := c.epochFromSlot(ctx, slot)
 	if err != nil {
@@ -513,49 +514,31 @@ func (c Component) verifyValidatorRegistrationsParSig(ctx context.Context, pubKe
 	return c.verifyParSig(ctx, core.DutyRandao, epoch, pubKey, sigRoot, randao)
 }
 
-func (c Component) verifyValidatorRegistrationsSignature(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration, pubkey core.PubKey) error {
+func (c Component) verifyValidatorRegistrationSignature(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration, pubkey core.PubKey, slot eth2p0.Slot) error {
 
-	for _, registration := range registrations {
-
-
-		epoch, err := c.epochFromSlot(ctx, slot)
-		if err != nil {
-			return err
-		}
-
-		var sig eth2p0.BLSSignature
-		switch registration.Version {
-		case spec.BuilderVersionV1:
-			if registration.V1.Signature == sig {
-				return errors.New("no V1 signature")
-			}
-			sig = registration.V1.Signature
-		default:
-			return errors.New("unknown version")
-		}
-
-		// Verify partial signature
-		sigRoot, err := .Root()
-		if err != nil {
-			return err
-		}
-
-		return c.verifyParSig(ctx, core.DutyBuilderProposer, epoch, pubkey, sigRoot, sig)
-
-		sigRoot, err := registration.V1.HashTreeRoot()
-		if err != nil {
-			return err
-		}
-
-		err = c.verifyParSig(ctx, core.DutyExit, exit.Message.Epoch, pubkey, sigRoot, exit.Signature)
-		if err != nil {
-			return err
-		}
-
+	epoch, err := c.epochFromSlot(ctx, slot)
+	if err != nil {
+		return err
 	}
-	
 
-	return nil
+	var sig eth2p0.BLSSignature
+	switch registration.Version {
+	case spec.BuilderVersionV1:
+		if registration.V1.Signature == sig {
+			return errors.New("no V1 signature")
+		}
+		sig = registration.V1.Signature
+	default:
+		return errors.New("unknown version")
+	}
+
+	// Verify partial signature
+	sigRoot, err := registration.Root()
+	if err != nil {
+		return err
+	}
+
+	return c.verifyParSig(ctx, core.DutyBuilderProposer, epoch, pubkey, sigRoot, sig)
 }
 
 // SubmitValidatorRegistration receives the partially signed validator (builder) registration.
