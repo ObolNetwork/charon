@@ -127,6 +127,11 @@ func NewRouter(h Handler, eth2Cl eth2client.Service) (*mux.Router, error) {
 			Handler: submitBlindedBlock(h),
 		},
 		{
+			Name:    "submit_builder_registration",
+			Path:    "/eth/v1/validator/register_validator",
+			Handler: submitBuilderRegistration(h),
+		},
+		{
 			Name:    "submit_voluntary_exit",
 			Path:    "/eth/v1/beacon/pool/voluntary_exits",
 			Handler: submitExit(h),
@@ -496,6 +501,18 @@ func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
 		}
 
 		return nil, errors.New("invalid block")
+	}
+}
+
+// submitBuilderRegistration returns a handler function for the validator (builder) registration submitter endpoint.
+func submitBuilderRegistration(r eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, body []byte) (interface{}, error) {
+		exit := new(eth2p0.SignedVoluntaryExit)
+		if err := exit.UnmarshalJSON(body); err != nil {
+			return nil, errors.Wrap(err, "unmarshal signed voluntary exit")
+		}
+
+		return nil, p.SubmitVoluntaryExit(ctx, exit)
 	}
 }
 
