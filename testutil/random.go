@@ -25,6 +25,7 @@ import (
 	"net"
 	"strings"
 	"testing"
+	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -263,6 +264,22 @@ func RandomCoreVersionSignedBlindedBeaconBlock(t *testing.T) core.VersionedSigne
 				Message:   RandomBellatrixBlindedBeaconBlock(t),
 				Signature: RandomEth2Signature(),
 			},
+		},
+	}
+}
+
+func RandomCoreSignedValidatorRegistration(t *testing.T) core.SignedValidatorRegistration {
+	t.Helper()
+
+	return core.SignedValidatorRegistration{
+		SignedValidatorRegistration: eth2v1.SignedValidatorRegistration{
+			Message: &eth2v1.ValidatorRegistration{
+				FeeRecipient: bellatrix.ExecutionAddress{},
+				GasLimit:     rand.Uint64(),
+				Timestamp:    time.Time{},
+				Pubkey:       RandomEth2PubKey(t),
+			},
+			Signature: RandomEth2Signature(),
 		},
 	}
 }

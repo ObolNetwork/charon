@@ -59,3 +59,11 @@ func TestSetBlindedBlockSig(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, clone.Signature(), block.Signature())
 }
+
+func TestSetValidatorRegistrationSig(t *testing.T) {
+	registration := testutil.RandomCoreSignedValidatorRegistration(t)
+
+	clone, err := registration.SetSignature(testutil.RandomCoreSignature())
+	require.NoError(t, err)
+	require.NotEqual(t, clone.Signature(), registration.Signature())
+}
