@@ -120,6 +120,7 @@ We define the following duty types:
 - `DutyAttester = 2`: Creating an attestation
 - `DutyRandao = 3`: Creating a randao reveal signature required as input to DutyProposer
 - `DutyExit = 4`: Voluntary exit
+- `DutyBuilderProposer = 5`: Proposing a blinded block received from the builder network
 
 > ℹ️ Duty is on a cluster level, not a DV level. A duty defines the “unit of work” for the whole cluster,
 > not just a single DV. This allows the workflow to aggregate and batch multiple DVs in some steps, specifically consensus.
@@ -317,21 +318,25 @@ The duty database interface is defined as:
 // DutyDB persists unsigned duty data sets and makes it available for querying. It also acts
 // as slashing database.
 type DutyDB interface {
-    // Store stores the unsigned duty data set.
-    Store(context.Context, Duty, UnsignedDataSet) error
+        // Store stores the unsigned duty data set.
+        Store(context.Context, Duty, UnsignedDataSet) error
 
-	// AwaitBeaconBlock blocks and returns the proposed beacon block
-	// for the slot when available. It also returns the DV public key.
-	AwaitBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BeaconBlock, error)
+        // AwaitBeaconBlock blocks and returns the proposed beacon block
+        // for the slot when available. It also returns the DV public key.
+        AwaitBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BeaconBlock, error)
 
-	// AwaitAttestation blocks and returns the attestation data
-	// for the slot and committee index when available.
-	AwaitAttestation(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error)
+        // AwaitBlindedBeaconBlock blocks and returns the proposed blinded beacon block
+        // for the slot when available. It also returns the DV public key.
+        AwaitBlindedBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BlindedBeaconBlock, error)
 
-	// PubKeyByAttestation returns the validator PubKey for the provided attestation data
-	// slot, committee index and validator committee index. This allows mapping of attestation
-	// data response to validator.
-	PubKeyByAttestation(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error)
+        // AwaitAttestation blocks and returns the attestation data
+        // for the slot and committee index when available.
+        AwaitAttestation(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error)
+
+        // PubKeyByAttestation returns the validator PubKey for the provided attestation data
+        // slot, committee index and validator committee index. This allows mapping of attestation
+        // data response to validator.
+        PubKeyByAttestation(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error)
 }
 ```
 ### Validator API
@@ -363,7 +368,7 @@ type ParSignedData struct {
 
 ```
 
-The following `SignedData` implementations are provided: `Attestation`, `VersionedSignedBeaconBlock`, `SignedVoluntaryExit`, and `Signature` which is just a signature without any data used for `DutyRandao`.
+The following `SignedData` implementations are provided: `Attestation`, `VersionedSignedBeaconBlock`, `VersionedSignedBlindedBeaconBlock`, `SignedVoluntaryExit`, and `Signature` which is just a signature without any data used for `DutyRandao`.
 
 Multiple `ParSignedData` are combined into a single `ParSignedDataSet` defines as follows:
 ```go
@@ -384,6 +389,13 @@ The validator API provides the following beacon-node endpoints relating to dutie
   - Construct a `DutyRandao` `ParSignedData` and submit it to `ParSigDB` for async aggregation and inclusion in block consensus.
   - Query the `DutyDB` `AwaitBeaconBlock` with the `slot`
   - Serve response
+- `GET /eth/v1/validator/blinded_blocks/{slot}` Produce a new blinded block, without signature.
+  - The request arguments are: `slot` and `randao_reveal`
+  - Lookup `PubKey` by querying the `Scheduler` `AwaitBuilderProposer` with the slot in the request body.
+  - Verify `randao_reveal` signature.
+  - Construct a `DutyRandao` `ParSignedData` and submit it to `ParSigDB` for async aggregation and inclusion in block consensus.
+  - Query the `DutyDB` `AwaitBlindedBeaconBlock` with the `slot`
+  - Serve response
 - `POST /eth/v1/beacon/pool/attestations` Submit Attestation objects to node
   - Construct a `ParSignedData` for each attestation object in request body.
   - Infer `PubKey` of the request by querying the `DutyDB` `PubKeyByAttestation` with the `slot`, `committee index` and `aggregation bits` provided in the request body.
@@ -394,6 +406,10 @@ The validator API provides the following beacon-node endpoints relating to dutie
   - The request body contains `SignedBeaconBlock` object composed of `BeaconBlock` object (produced by beacon node) and validator signature.
   - Lookup `PubKey` by querying the `Scheduler` `AwaitProposer` with the slot in the request body.
   - Construct a `DutyProposer` `ParSignedData` and submit it to `ParSigDB` for async aggregation and broadcast to beacon node.
+- `POST /eth/v1/beacon/blinded_blocks` Publish a signed blinded block
+  - The request body contains `SignedBlindedBeaconBlock` object composed of `BlindedBeaconBlock` object (produced by beacon node) and validator signature.
+  - Lookup `PubKey` by querying the `Scheduler` `AwaitBuilderProposer` with the slot in the request body.
+  - Construct a `DutyBuilderProposer` `ParSignedData` and submit it to `ParSigDB` for async aggregation and broadcast to beacon node.
 
 `AwaitBeaconBlock` returns an agreed-upon (consensus) unsigned beacon block, which in turn requires
 an aggregated randao reveal signature. Partial randao reveal signatures are submitted at the same time as
@@ -411,20 +427,23 @@ The validator api interface is defined as:
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the
 // DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
-	// RegisterAwaitBeaconBlock registers a function to query a unsigned beacon block by slot.
-	RegisterAwaitBeaconBlock(func(context.Context, slot int) (beaconapi.BeaconBlock, error))
+        // RegisterAwaitBeaconBlock registers a function to query a unsigned beacon block by slot.
+        RegisterAwaitBeaconBlock(func(context.Context, slot int) (beaconapi.BeaconBlock, error))
 
-	// RegisterGetDutyFunc registers a function to query duty data.
-	RegisterGetDutyFunc(func(ctx context.Context, duty Duty) (DutyDefinitionSet, error))
+        // RegisterAwaitBlindedBeaconBlock registers a function to query a unsigned blinded beacon block by slot.
+        RegisterAwaitBlindedBeaconBlock(func(context.Context, slot int) (beaconapi.BlindedBeaconBlock, error))
 
-	// RegisterAwaitAttestation registers a function to query attestation data.
-	RegisterAwaitAttestation(func(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error))
+        // RegisterGetDutyFunc registers a function to query duty data.
+        RegisterGetDutyFunc(func(ctx context.Context, duty Duty) (DutyDefinitionSet, error))
 
-	// RegisterPubKeyByAttestation registers a function to query validator by attestation.
-	RegisterPubKeyByAttestation(func(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error))
+        // RegisterAwaitAttestation registers a function to query attestation data.
+        RegisterAwaitAttestation(func(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error))
 
-	// RegisterParSigDB registers a function to store partially signed data sets.
-	RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error))
+        // RegisterPubKeyByAttestation registers a function to query validator by attestation.
+        RegisterPubKeyByAttestation(func(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error))
+
+        // RegisterParSigDB registers a function to store partially signed data sets.
+        RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error)
 }
 ```
 
@@ -434,7 +453,7 @@ which authorises charon to request adhoc signatures from a [remote signer instan
 In the _middleware_ architecture charon cannot initiate signatures itself and has to
 wait for the VC to submit signatures.
 
-Duties originating in the `scheduler` (`DutyAttester`, `DutyProposer`) are not significantly affected by this change in architecture.
+Duties originating in the `scheduler` (`DutyAttester`, `DutyProposer`, `DutyBuilderProposer`) are not significantly affected by this change in architecture.
 Instead of waiting for the `validatorapi` to submit signatures, these duties directly request
 signatures from the remote signer instance. The flow is otherwise unaffected.
 
