@@ -26,25 +26,25 @@
   "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
   "dkg_algorithm": "default",
   "fork_version": "0x00000002",
-  "config_hash": "DCpH5R1gjgM1f6LSb3AUiLytR9vtudRNupTYUXzsEZL7",
-  "definition_hash": "HrZF9DRExsjfycAjxHivg7TyCs5jamdUTyCH6ew6Vsu"
+  "config_hash": "0xb55316a71b36def96de991157cae9e2d91bf36a9f183f9dc3fd6cec6fb28009c",
+  "definition_hash": "0x045153757e859572ed61b2fefd5fa9982a94de0029eb55dc35570596f9ed8200"
  },
  "distributed_validators": [
   {
    "distributed_public_key": "0x4c7215a3b539eb1e5849c6077dbb5722f5717a28",
    "public_shares": [
-    "m61LeNo64BuJXhkNEUksDsuLHrK72euehDZ9XArsRJN",
-    "3U9mUEP8CoVU6iNxWPcjTmnW9pyL8mv2CDDvYtQyQZQB"
+    "0x0b4b373970115e82ed6f4125c8fa7311e4d7defa922daae7786667f7e936cd4f",
+    "0x24abf7df866baa56038367ad6145de1ee8f4a8b0993ebdf8883a0ad8be9c3978"
    ]
   },
   {
    "distributed_public_key": "0xb04883e56a156a8de563afa467d49dec6a40e9a1",
    "public_shares": [
-    "BjqgJrKCMnQie8X6zwVNBSfoqR4TSPXyyAuFg9rtBD5o",
-    "7s1mP4MawgThd8Hcci2Q9MGVh8nsma8sXeXUyC1qf3qp"
+    "0x9f8e4da6430105220d0b29688b734b8ea0f3ca9936e8461f10d77c96ea80a7a6",
+    "0x65f606f6a63b7f3dfd2567c18979e4d60f26686d9bf2fb26c901ff354cde1607"
    ]
   }
  ],
- "signature_aggregate": "52tPbov2Pj8E77VLnATFiwweM6WnWX3SRTf3irCEsbeH",
- "lock_hash": "EBppsyQRmoZTm9kuG8JDYhcXbZjkEXGTDXaYfrqNVBG"
+ "signature_aggregate": "0x3bea6f5b3af6de0374366c4719e43a1b067d89bc7f01f1f573981659a44ff17a",
+ "lock_hash": "0x0360ca3755497e55d52ceb1a9f9435cfd2a9ef20e6565d610f3b3b447c3c3e2b"
 }

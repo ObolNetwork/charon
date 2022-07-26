@@ -25,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
-	b58 "github.com/mr-tron/base58"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -97,34 +96,6 @@ func digestEIP712(address string, message []byte, nonce int) ([32]byte, error) {
 	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
 
 	return crypto.Keccak256Hash(rawData), nil
-}
-
-// base58 represents a byte slices that is json formatted as base58.
-type base58 []byte
-
-func (b *base58) UnmarshalJSON(data []byte) error {
-	var str58 string
-	if err := json.Unmarshal(data, &str58); err != nil {
-		return errors.Wrap(err, "unmarshal base58 string")
-	}
-
-	resp, err := b58.Decode(str58)
-	if err != nil {
-		return errors.Wrap(err, "unmarshal base58")
-	}
-
-	*b = resp
-
-	return nil
-}
-
-func (b base58) MarshalJSON() ([]byte, error) {
-	resp, err := json.Marshal(b58.Encode(b))
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal base58")
-	}
-
-	return resp, nil
 }
 
 // ethHex represents a byte slices that is json formatted as 0x prefixed hex.

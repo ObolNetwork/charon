@@ -25,6 +25,6 @@
  "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
  "dkg_algorithm": "default",
  "fork_version": "0x00000002",
- "config_hash": "DCpH5R1gjgM1f6LSb3AUiLytR9vtudRNupTYUXzsEZL7",
- "definition_hash": "HrZF9DRExsjfycAjxHivg7TyCs5jamdUTyCH6ew6Vsu"
+ "config_hash": "0xb55316a71b36def96de991157cae9e2d91bf36a9f183f9dc3fd6cec6fb28009c",
+ "definition_hash": "0x045153757e859572ed61b2fefd5fa9982a94de0029eb55dc35570596f9ed8200"
 }
