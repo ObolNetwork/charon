@@ -92,7 +92,7 @@ type Definition struct {
 	Version string
 
 	// Timestamp is the human readable timestamp of this definition.
-	// Note this was added in v1.1.0, so may be empty for older versions.
+	// Note that this was added in v1.1.0, so may be empty for older versions.
 	Timestamp string
 
 	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
