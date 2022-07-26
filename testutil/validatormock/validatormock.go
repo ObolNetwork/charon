@@ -459,7 +459,7 @@ type bellatrixBlindedBeaconBlockProposalJSON struct {
 // blindedBeaconBlockProposal is used rather than go-eth2-client's BlindedBeaconBlockProposal to avoid the randao reveal check
 // refer: https://github.com/attestantio/go-eth2-client/blob/dceb0b761e5ea6a75534a7b11d544d91a5d610ee/http/blindedbeaconblockproposal.go#L75
 func blindedBeaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte, addr string) (*eth2api.VersionedBlindedBeaconBlock, error) {
-	url := fmt.Sprintf("/eth/v2/validator/blocks/%d?randao_reveal=%#x&graffiti=%#x", slot, randaoReveal, graffiti)
+	url := fmt.Sprintf("/eth/v1/validator/blinded_blocks/%d?randao_reveal=%#x&graffiti=%#x", slot, randaoReveal, graffiti)
 	respBodyReader, err := getBlock(url, addr)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to request beacon block proposal")

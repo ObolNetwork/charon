@@ -98,6 +98,13 @@ func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
 	testSimnet(t, args)
 }
 
+func TestSimnetNoNetwork_WithBuilderProposerMockVCs(t *testing.T) {
+	args := newSimnetArgs(t)
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BuilderAPI = true
+	testSimnet(t, args)
+}
+
 type simnetArgs struct {
 	N          int
 	VMocks     []bool
@@ -107,6 +114,7 @@ type simnetArgs struct {
 	BMockOpts  []beaconmock.Option
 	Lock       cluster.Lock
 	ErrChan    chan error
+	BuilderAPI bool
 }
 
 // newSimnetArgs defines the default simnet test args.
@@ -192,7 +200,8 @@ func testSimnet(t *testing.T, args simnetArgs) {
 					beaconmock.WithSlotsPerEpoch(1),
 				}, args.BMockOpts...),
 			},
-			P2P: p2p.Config{},
+			P2P:        p2p.Config{},
+			BuilderAPI: args.BuilderAPI,
 		}
 
 		eg.Go(func() error {

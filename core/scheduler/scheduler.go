@@ -51,10 +51,12 @@ type eth2Provider interface {
 type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
 
 // NewForT returns a new scheduler for testing supporting a fake clock.
-func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys []core.PubKey, eth2Svc eth2client.Service) *Scheduler {
+func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys []core.PubKey,
+	eth2Svc eth2client.Service, builderAPI bool,
+) *Scheduler {
 	t.Helper()
 
-	s, err := New(pubkeys, eth2Svc)
+	s, err := New(pubkeys, eth2Svc, builderAPI)
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -64,7 +66,7 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys [
 }
 
 // New returns a new scheduler.
-func New(pubkeys []core.PubKey, eth2Svc eth2client.Service) (*Scheduler, error) {
+func New(pubkeys []core.PubKey, eth2Svc eth2client.Service, builderAPI bool) (*Scheduler, error) {
 	eth2Cl, ok := eth2Svc.(eth2Provider)
 	if !ok {
 		return nil, errors.New("invalid eth2 client service")
@@ -80,7 +82,7 @@ func New(pubkeys []core.PubKey, eth2Svc eth2client.Service) (*Scheduler, error) 
 			return time.After(time.Until(deadline))
 		},
 		resolvedEpoch: math.MaxUint64,
-		builderAPI:    false,
+		builderAPI:    builderAPI,
 	}, nil
 }
 
@@ -150,7 +152,8 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 
 	defSet, ok := s.getDutyDefinitionSet(duty)
 	if !ok {
-		return nil, errors.New("duty not resolved although epoch is marked as resolved")
+		return nil, errors.New("duty not resolved although epoch is marked as resolved",
+			z.Any("duty", duty))
 	}
 
 	return defSet.Clone() // Clone before returning.
