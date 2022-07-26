@@ -34,7 +34,7 @@ var (
 	_ SignedData = Signature{}
 	_ SignedData = SignedVoluntaryExit{}
 	_ SignedData = VersionedSignedBlindedBeaconBlock{}
-	_ SignedData = VersionedSignedValidatorRegistration{} // name in the builder spec SignedValidatorRegistrationV1 or SignedBuilderRegistration
+	_ SignedData = VersionedSignedValidatorRegistration{}
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
@@ -531,7 +531,7 @@ func (r VersionedSignedValidatorRegistration) clone() (VersionedSignedValidatorR
 	var resp VersionedSignedValidatorRegistration
 	err := cloneJSONMarshaler(r, &resp)
 	if err != nil {
-		return VersionedSignedValidatorRegistration{}, errors.Wrap(err, "clone block")
+		return VersionedSignedValidatorRegistration{}, errors.Wrap(err, "clone registration")
 	}
 
 	return resp, nil
@@ -573,7 +573,7 @@ func (r VersionedSignedValidatorRegistration) MarshalJSON() ([]byte, error) {
 
 	registration, err := marshaller.MarshalJSON()
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal block")
+		return nil, errors.Wrap(err, "marshal registration")
 	}
 
 	resp, err := json.Marshal(versionedRawValidatorRegistrationJSON{
@@ -598,7 +598,7 @@ func (r *VersionedSignedValidatorRegistration) UnmarshalJSON(input []byte) error
 	case spec.BuilderVersionV1:
 		registration := new(eth2v1.SignedValidatorRegistration)
 		if err := json.Unmarshal(raw.Registration, &registration); err != nil {
-			return errors.Wrap(err, "unmarshal phase0")
+			return errors.Wrap(err, "unmarshal V1 registration")
 		}
 		resp.V1 = registration
 	default:
