@@ -268,6 +268,20 @@ func RandomCoreVersionSignedBlindedBeaconBlock(t *testing.T) core.VersionedSigne
 	}
 }
 
+func RandomSignedValidatorRegistration(t *testing.T) *eth2v1.SignedValidatorRegistration {
+	t.Helper()
+
+	return &eth2v1.SignedValidatorRegistration{
+		Message: &eth2v1.ValidatorRegistration{
+			FeeRecipient: bellatrix.ExecutionAddress{},
+			GasLimit:     rand.Uint64(),
+			Timestamp:    time.Time{},
+			Pubkey:       RandomEth2PubKey(t),
+		},
+		Signature: RandomEth2Signature(),
+	}
+}
+
 func RandomCoreSignedValidatorRegistration(t *testing.T) core.SignedValidatorRegistration {
 	t.Helper()
 

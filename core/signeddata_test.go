@@ -67,3 +67,16 @@ func TestSetValidatorRegistrationSig(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, clone.Signature(), registration.Signature())
 }
+
+func TestSetVersionedValidatorRegistrationSig(t *testing.T) {
+	registration := core.VersionedSignedValidatorRegistration{
+		VersionedSignedValidatorRegistration: eth2api.VersionedSignedValidatorRegistration{
+			Version: spec.BuilderVersionV1,
+			V1:      testutil.RandomSignedValidatorRegistration(t),
+		},
+	}
+
+	clone, err := registration.SetSignature(testutil.RandomCoreSignature())
+	require.NoError(t, err)
+	require.NotEqual(t, clone.Signature(), registration.Signature())
+}
