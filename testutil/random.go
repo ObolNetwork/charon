@@ -282,18 +282,13 @@ func RandomSignedValidatorRegistration(t *testing.T) *eth2v1.SignedValidatorRegi
 	}
 }
 
-func RandomCoreSignedValidatorRegistration(t *testing.T) core.SignedValidatorRegistration {
+func RandomCoreVersionedSignedValidatorRegistration(t *testing.T) core.VersionedSignedValidatorRegistration {
 	t.Helper()
 
-	return core.SignedValidatorRegistration{
-		SignedValidatorRegistration: eth2v1.SignedValidatorRegistration{
-			Message: &eth2v1.ValidatorRegistration{
-				FeeRecipient: bellatrix.ExecutionAddress{},
-				GasLimit:     rand.Uint64(),
-				Timestamp:    time.Time{},
-				Pubkey:       RandomEth2PubKey(t),
-			},
-			Signature: RandomEth2Signature(),
+	return core.VersionedSignedValidatorRegistration{
+		VersionedSignedValidatorRegistration: eth2api.VersionedSignedValidatorRegistration{
+			Version: spec.BuilderVersionV1,
+			V1:      RandomSignedValidatorRegistration(t),
 		},
 	}
 }

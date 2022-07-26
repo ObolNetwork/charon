@@ -34,7 +34,7 @@ var (
 	_ SignedData = Signature{}
 	_ SignedData = SignedVoluntaryExit{}
 	_ SignedData = VersionedSignedBlindedBeaconBlock{}
-	_ SignedData = SignedValidatorRegistration{} // name in the builder spec SignedValidatorRegistrationV1 or SignedBuilderRegistration
+	_ SignedData = VersionedSignedValidatorRegistration{} // name in the builder spec SignedValidatorRegistrationV1 or SignedBuilderRegistration
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
@@ -507,63 +507,6 @@ func (e SignedVoluntaryExit) MarshalJSON() ([]byte, error) {
 
 func (e *SignedVoluntaryExit) UnmarshalJSON(b []byte) error {
 	return e.SignedVoluntaryExit.UnmarshalJSON(b)
-}
-
-type SignedValidatorRegistration struct {
-	eth2v1.SignedValidatorRegistration
-}
-
-// NewSignedValidatorRegistration is a convenience function that returns a new signed validator (builder) registration.
-func NewSignedValidatorRegistration(registration *eth2v1.SignedValidatorRegistration) SignedValidatorRegistration {
-	return SignedValidatorRegistration{SignedValidatorRegistration: *registration}
-}
-
-// NewPartialSignedValidatorRegistration is a convenience function that returns a new partially signed validator (builder) registration.
-func NewPartialSignedValidatorRegistration(registration *eth2v1.SignedValidatorRegistration, shareIdx int) ParSignedData {
-	return ParSignedData{
-		SignedData: NewSignedValidatorRegistration(registration),
-		ShareIdx:   shareIdx,
-	}
-}
-
-func (r SignedValidatorRegistration) Clone() (SignedData, error) {
-	return r.clone()
-}
-
-// clone returns a copy of the SignedValidatorRegistration.
-// It is similar to Clone that returns the SignedData interface.
-//nolint:revive // similar method names.
-func (r SignedValidatorRegistration) clone() (SignedValidatorRegistration, error) {
-	var resp SignedValidatorRegistration
-	err := cloneJSONMarshaler(r, &resp)
-	if err != nil {
-		return SignedValidatorRegistration{}, errors.Wrap(err, "clone exit")
-	}
-
-	return resp, nil
-}
-
-func (r SignedValidatorRegistration) Signature() Signature {
-	return SigFromETH2(r.SignedValidatorRegistration.Signature)
-}
-
-func (r SignedValidatorRegistration) SetSignature(sig Signature) (SignedData, error) {
-	resp, err := r.clone()
-	if err != nil {
-		return nil, err
-	}
-
-	resp.SignedValidatorRegistration.Signature = sig.ToETH2()
-
-	return resp, nil
-}
-
-func (r SignedValidatorRegistration) MarshalJSON() ([]byte, error) {
-	return r.SignedValidatorRegistration.MarshalJSON()
-}
-
-func (r *SignedValidatorRegistration) UnmarshalJSON(b []byte) error {
-	return r.SignedValidatorRegistration.UnmarshalJSON(b)
 }
 
 // VersionedSignedValidatorRegistration is a signed versioned validator (builder) registration and implements SignedData.
