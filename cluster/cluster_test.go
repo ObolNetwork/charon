@@ -157,6 +157,9 @@ func TestBackwardsCompatability(t *testing.T) {
 		{
 			version: "v1.1.0",
 		},
+		{
+			version: "v1.2.0",
+		},
 		// Note: Add testdata files for newer versions when bumped.
 	}
 	for _, test := range tests {

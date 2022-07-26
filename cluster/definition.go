@@ -29,16 +29,6 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const (
-	definitionVersion = "v1.1.0"
-	dkgAlgo           = "default"
-)
-
-var supportedDefVersions = map[string]bool{
-	definitionVersion: true,
-	"v1.0.0":          true,
-}
-
 // NodeIdx represents the index of a node/peer/share in the cluster as operator order in cluster definition.
 type NodeIdx struct {
 	// PeerIdx is the index of a peer in the peer list (it 0-indexed).
@@ -59,7 +49,7 @@ func NewDefinition(
 	random io.Reader,
 ) Definition {
 	s := Definition{
-		Version:             definitionVersion,
+		Version:             currentVersion,
 		Name:                name,
 		UUID:                uuid(random),
 		Timestamp:           time.Now().Format(time.RFC3339),
@@ -87,7 +77,7 @@ type Definition struct {
 	Version string
 
 	// Timestamp is the human readable timestamp of this definition.
-	// Note this was added in v1.0.1, so may be empty for older versions.
+	// Note that this was added in v1.1.0, so may be empty for older versions.
 	Timestamp string
 
 	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
@@ -223,106 +213,12 @@ func (d Definition) HashTreeRootWith(hh *ssz.Hasher) error {
 		hh.MerkleizeWithMixin(subIndx, num, num)
 	}
 
-	// Field (10) 'timestamp' (optional for backwards compatibility)
-	if d.Timestamp != "" {
+	// Field (10) 'timestamp' (optional only added from v1.1.0)
+	if d.Version != v1_0 {
 		hh.PutBytes([]byte(d.Timestamp))
 	}
 
 	hh.Merkleize(indx)
-
-	return nil
-}
-
-func (d Definition) MarshalJSON() ([]byte, error) {
-	// Marshal config hash
-	configHash, err := d.ConfigHash()
-	if err != nil {
-		return nil, errors.Wrap(err, "config hash")
-	}
-
-	// Marshal definition hash
-	defHash, err := d.HashTreeRoot()
-	if err != nil {
-		return nil, errors.Wrap(err, "definition hash")
-	}
-
-	// Marshal json version of lock
-	resp, err := json.Marshal(definitionJSON{
-		Name:                d.Name,
-		UUID:                d.UUID,
-		Version:             d.Version,
-		Timestamp:           d.Timestamp,
-		NumValidators:       d.NumValidators,
-		Threshold:           d.Threshold,
-		FeeRecipientAddress: d.FeeRecipientAddress,
-		WithdrawalAddress:   d.WithdrawalAddress,
-		DKGAlgorithm:        d.DKGAlgorithm,
-		ForkVersion:         d.ForkVersion,
-		Operators:           d.Operators,
-		ConfigHash:          configHash[:],
-		DefinitionHash:      defHash[:],
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal lock")
-	}
-
-	return resp, nil
-}
-
-func (d *Definition) UnmarshalJSON(data []byte) error {
-	// Get the version directly
-	version := struct {
-		Version string `json:"version"`
-	}{}
-	if err := json.Unmarshal(data, &version); err != nil {
-		return errors.Wrap(err, "unmarshal version")
-	} else if !supportedDefVersions[version.Version] {
-		return errors.New("unsupported definition version",
-			z.Str("version", version.Version),
-			z.Any("supported", supportedDefVersions),
-		)
-	}
-
-	var defJSON definitionJSON
-	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return errors.Wrap(err, "unmarshal definition")
-	}
-
-	def := Definition{
-		Name:                defJSON.Name,
-		UUID:                defJSON.UUID,
-		Version:             defJSON.Version,
-		Timestamp:           defJSON.Timestamp,
-		NumValidators:       defJSON.NumValidators,
-		Threshold:           defJSON.Threshold,
-		FeeRecipientAddress: defJSON.FeeRecipientAddress,
-		WithdrawalAddress:   defJSON.WithdrawalAddress,
-		DKGAlgorithm:        defJSON.DKGAlgorithm,
-		ForkVersion:         defJSON.ForkVersion,
-		Operators:           defJSON.Operators,
-	}
-
-	// Verify config_hash
-	configHash, err := def.ConfigHash()
-	if err != nil {
-		return errors.Wrap(err, "config hash")
-	}
-
-	if !bytes.Equal(defJSON.ConfigHash, configHash[:]) {
-		return errors.New("invalid config hash")
-	}
-
-	// Verify definition_hash
-	defHash, err := def.HashTreeRoot()
-	if err != nil {
-		return errors.Wrap(err, "definition hash")
-	}
-
-	if !bytes.Equal(defJSON.DefinitionHash, defHash[:]) {
-		return errors.New("invalid definition hash")
-	}
-
-	*d = def
 
 	return nil
 }
@@ -361,19 +257,211 @@ func (d Definition) PeerIDs() ([]peer.ID, error) {
 	return resp, nil
 }
 
-// definitionJSON is the json formatter of Definition.
-type definitionJSON struct {
-	Name                string     `json:"name,omitempty"`
-	Operators           []Operator `json:"operators"`
-	UUID                string     `json:"uuid"`
-	Version             string     `json:"version"`
-	Timestamp           string     `json:"timestamp"`
-	NumValidators       int        `json:"num_validators"`
-	Threshold           int        `json:"threshold"`
-	FeeRecipientAddress string     `json:"fee_recipient_address,omitempty"`
-	WithdrawalAddress   string     `json:"withdrawal_address,omitempty"`
-	DKGAlgorithm        string     `json:"dkg_algorithm"`
-	ForkVersion         string     `json:"fork_version"`
-	ConfigHash          []byte     `json:"config_hash"`
-	DefinitionHash      []byte     `json:"definition_hash"`
+func (d Definition) MarshalJSON() ([]byte, error) {
+	// Marshal config hash
+	configHash, err := d.ConfigHash()
+	if err != nil {
+		return nil, errors.Wrap(err, "config hash")
+	}
+
+	// Marshal definition hash
+	defHash, err := d.HashTreeRoot()
+	if err != nil {
+		return nil, errors.Wrap(err, "definition hash")
+	}
+
+	switch {
+	case isJSONv1x1(d.Version):
+		return marshalDefinitionV1x1(d, configHash, defHash)
+	case isJSONv1x2(d.Version):
+		return marshalDefinitionV1x2(d, configHash, defHash)
+	default:
+		return nil, errors.New("unsupported version")
+	}
+}
+
+func (d *Definition) UnmarshalJSON(data []byte) error {
+	// Get the version directly
+	version := struct {
+		Version string `json:"version"`
+	}{}
+	if err := json.Unmarshal(data, &version); err != nil {
+		return errors.Wrap(err, "unmarshal version")
+	} else if !supportedVersions[version.Version] {
+		return errors.New("unsupported definition version",
+			z.Str("version", version.Version),
+			z.Any("supported", supportedVersions),
+		)
+	}
+
+	var (
+		def            Definition
+		configHashJSON []byte
+		defHashJSON    []byte
+		err            error
+	)
+	switch {
+	case isJSONv1x1(version.Version):
+		def, configHashJSON, defHashJSON, err = unmarshalDefinitionV1x1(data)
+		if err != nil {
+			return err
+		}
+	case isJSONv1x2(version.Version):
+		def, configHashJSON, defHashJSON, err = unmarshalDefinitionV1x2(data)
+		if err != nil {
+			return err
+		}
+	default:
+		return errors.New("unsupported version")
+	}
+
+	// Verify config_hash
+	configHash, err := def.ConfigHash()
+	if err != nil {
+		return errors.Wrap(err, "config hash")
+	}
+
+	if !bytes.Equal(configHashJSON, configHash[:]) {
+		return errors.New("invalid config hash")
+	}
+
+	// Verify definition_hash
+	defHash, err := def.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "definition hash")
+	}
+
+	if !bytes.Equal(defHashJSON, defHash[:]) {
+		return errors.New("invalid definition hash")
+	}
+
+	*d = def
+
+	return nil
+}
+
+func marshalDefinitionV1x1(def Definition, configHash, defHash [32]byte) ([]byte, error) {
+	resp, err := json.Marshal(definitionJSONv1x1{
+		Name:                def.Name,
+		UUID:                def.UUID,
+		Version:             def.Version,
+		Timestamp:           def.Timestamp,
+		NumValidators:       def.NumValidators,
+		Threshold:           def.Threshold,
+		FeeRecipientAddress: def.FeeRecipientAddress,
+		WithdrawalAddress:   def.WithdrawalAddress,
+		DKGAlgorithm:        def.DKGAlgorithm,
+		ForkVersion:         def.ForkVersion,
+		Operators:           operatorsToV1x1(def.Operators),
+		ConfigHash:          configHash[:],
+		DefinitionHash:      defHash[:],
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal definition")
+	}
+
+	return resp, nil
+}
+
+func marshalDefinitionV1x2(def Definition, configHash, defHash [32]byte) ([]byte, error) {
+	resp, err := json.Marshal(definitionJSONv1x2{
+		Name:                def.Name,
+		UUID:                def.UUID,
+		Version:             def.Version,
+		Timestamp:           def.Timestamp,
+		NumValidators:       def.NumValidators,
+		Threshold:           def.Threshold,
+		FeeRecipientAddress: def.FeeRecipientAddress,
+		WithdrawalAddress:   def.WithdrawalAddress,
+		DKGAlgorithm:        def.DKGAlgorithm,
+		ForkVersion:         def.ForkVersion,
+		Operators:           operatorsToV1x2(def.Operators),
+		ConfigHash:          configHash[:],
+		DefinitionHash:      defHash[:],
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal definition")
+	}
+
+	return resp, nil
+}
+
+func unmarshalDefinitionV1x1(data []byte) (def Definition, configHashJSON, defHashJSON []byte, err error) {
+	var defJSON definitionJSONv1x1
+	if err := json.Unmarshal(data, &defJSON); err != nil {
+		return Definition{}, nil, nil, errors.Wrap(err, "unmarshal definition v1_1")
+	}
+
+	def = Definition{
+		Name:                defJSON.Name,
+		UUID:                defJSON.UUID,
+		Version:             defJSON.Version,
+		Timestamp:           defJSON.Timestamp,
+		NumValidators:       defJSON.NumValidators,
+		Threshold:           defJSON.Threshold,
+		FeeRecipientAddress: defJSON.FeeRecipientAddress,
+		WithdrawalAddress:   defJSON.WithdrawalAddress,
+		DKGAlgorithm:        defJSON.DKGAlgorithm,
+		ForkVersion:         defJSON.ForkVersion,
+		Operators:           operatorsFromV1x1(defJSON.Operators),
+	}
+
+	return def, defJSON.ConfigHash, defJSON.DefinitionHash, nil
+}
+
+func unmarshalDefinitionV1x2(data []byte) (def Definition, configHashJSON, defHashJSON []byte, err error) {
+	var defJSON definitionJSONv1x2
+	if err := json.Unmarshal(data, &defJSON); err != nil {
+		return Definition{}, nil, nil, errors.Wrap(err, "unmarshal definition v1v2")
+	}
+
+	def = Definition{
+		Name:                defJSON.Name,
+		UUID:                defJSON.UUID,
+		Version:             defJSON.Version,
+		Timestamp:           defJSON.Timestamp,
+		NumValidators:       defJSON.NumValidators,
+		Threshold:           defJSON.Threshold,
+		FeeRecipientAddress: defJSON.FeeRecipientAddress,
+		WithdrawalAddress:   defJSON.WithdrawalAddress,
+		DKGAlgorithm:        defJSON.DKGAlgorithm,
+		ForkVersion:         defJSON.ForkVersion,
+		Operators:           operatorsFromV1x2(defJSON.Operators),
+	}
+
+	return def, defJSON.ConfigHash, defJSON.DefinitionHash, nil
+}
+
+// definitionJSONv1x1 is the json formatter of Definition for versions v1.0.0 and v1.1.1.
+type definitionJSONv1x1 struct {
+	Name                string             `json:"name,omitempty"`
+	Operators           []operatorJSONv1x1 `json:"operators"`
+	UUID                string             `json:"uuid"`
+	Version             string             `json:"version"`
+	Timestamp           string             `json:"timestamp,omitempty"`
+	NumValidators       int                `json:"num_validators"`
+	Threshold           int                `json:"threshold"`
+	FeeRecipientAddress string             `json:"fee_recipient_address,omitempty"`
+	WithdrawalAddress   string             `json:"withdrawal_address,omitempty"`
+	DKGAlgorithm        string             `json:"dkg_algorithm"`
+	ForkVersion         string             `json:"fork_version"`
+	ConfigHash          []byte             `json:"config_hash"`
+	DefinitionHash      []byte             `json:"definition_hash"`
+}
+
+// definitionJSONv1x2 is the json formatter of Definition for versions v1.2.0 and later.
+type definitionJSONv1x2 struct {
+	Name                string             `json:"name,omitempty"`
+	Operators           []operatorJSONv1x2 `json:"operators"`
+	UUID                string             `json:"uuid"`
+	Version             string             `json:"version"`
+	Timestamp           string             `json:"timestamp,omitempty"`
+	NumValidators       int                `json:"num_validators"`
+	Threshold           int                `json:"threshold"`
+	FeeRecipientAddress string             `json:"fee_recipient_address,omitempty"`
+	WithdrawalAddress   string             `json:"withdrawal_address,omitempty"`
+	DKGAlgorithm        string             `json:"dkg_algorithm"`
+	ForkVersion         string             `json:"fork_version"`
+	ConfigHash          base58             `json:"config_hash"`
+	DefinitionHash      base58             `json:"definition_hash"`
 }
