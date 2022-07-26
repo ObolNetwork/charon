@@ -69,7 +69,7 @@ func TestIntegration(t *testing.T) {
 		"0xb790b322e1cce41c48e3c344cf8d752bdc3cfd51e8eeef44a4bdaac081bc92b53b73e823a9878b5d7a532eb9d9dce1e3",
 	}
 
-	s, err := scheduler.New(pubkeys, eth2Cl)
+	s, err := scheduler.New(pubkeys, eth2Cl, false)
 	require.NoError(t, err)
 
 	count := 10
@@ -156,7 +156,7 @@ func TestSchedulerWait(t *testing.T) {
 				}, err
 			}
 
-			sched := scheduler.NewForT(t, clock, new(delayer).delay, nil, eth2Cl)
+			sched := scheduler.NewForT(t, clock, new(delayer).delay, nil, eth2Cl, false)
 			sched.Stop() // Just run wait functions, then quit.
 			require.NoError(t, sched.Run())
 			require.EqualValues(t, test.WaitSecs, clock.Since(t0).Seconds())
@@ -227,7 +227,7 @@ func TestSchedulerDuties(t *testing.T) {
 			// Construct scheduler
 			clock := newTestClock(t0)
 			delayer := new(delayer)
-			sched := scheduler.NewForT(t, clock, delayer.delay, pubkeys, eth2Cl)
+			sched := scheduler.NewForT(t, clock, delayer.delay, pubkeys, eth2Cl, false)
 
 			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
@@ -314,7 +314,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 
 	// Construct scheduler
 	clock := newTestClock(t0)
-	sched := scheduler.NewForT(t, clock, new(delayer).delay, pubkeys, eth2Cl)
+	sched := scheduler.NewForT(t, clock, new(delayer).delay, pubkeys, eth2Cl, false)
 
 	_, err = sched.GetDutyDefinition(context.Background(), core.Duty{Slot: 0, Type: core.DutyAttester})
 	// due to current design we will return an error if we request the duty of a slot that has not been resolved

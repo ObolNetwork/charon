@@ -323,7 +323,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	sender := new(p2p.Sender)
 
-	sched, err := scheduler.New(corePubkeys, eth2Cl)
+	sched, err := scheduler.New(corePubkeys, eth2Cl, conf.BuilderAPI)
 	if err != nil {
 		return err
 	}
@@ -630,6 +630,13 @@ func callValidatorMock(ctx context.Context, duty core.Duty, cl eth2client.Servic
 			log.Warn(ctx, "Mock block proposal failed", err)
 		} else {
 			log.Info(ctx, "Mock block proposal submitted to validatorapi", z.I64("slot", duty.Slot))
+		}
+	case core.DutyBuilderProposer:
+		err := validatormock.ProposeBlindedBlock(ctx, cl.(*eth2http.Service), signer, eth2p0.Slot(duty.Slot), addr, pubshares...)
+		if err != nil {
+			log.Warn(ctx, "Mock blinded block proposal failed", err)
+		} else {
+			log.Info(ctx, "Mock blinded block proposal submitted to validatorapi", z.I64("slot", duty.Slot))
 		}
 	default:
 		log.Warn(ctx, "Invalid duty type", nil)

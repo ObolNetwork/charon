@@ -304,7 +304,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 // BeaconBlockProposal submits the randao for aggregation and inclusion in DutyProposer and then queries the dutyDB for an unsigned beacon block.
 func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*spec.VersionedBeaconBlock, error) {
 	// Get proposer pubkey (this is a blocking query).
-	pubkey, err := c.getProposerPubkey(ctx, slot)
+	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(int64(slot)))
 	if err != nil {
 		return nil, err
 	}
@@ -367,7 +367,7 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 		return err
 	}
 
-	pubkey, err := c.getProposerPubkey(ctx, slot)
+	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(int64(slot)))
 	if err != nil {
 		return err
 	}
@@ -402,7 +402,7 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 // BlindedBeaconBlockProposal submits the randao for aggregation and inclusion in DutyBuilderProposer and then queries the dutyDB for an unsigned blinded beacon block.
 func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
 	// Get proposer pubkey (this is a blocking query).
-	pubkey, err := c.getProposerPubkey(ctx, slot)
+	pubkey, err := c.getProposerPubkey(ctx, core.NewBuilderProposerDuty(int64(slot)))
 	if err != nil {
 		return nil, err
 	}
@@ -465,7 +465,7 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 		return err
 	}
 
-	pubkey, err := c.getProposerPubkey(ctx, slot)
+	pubkey, err := c.getProposerPubkey(ctx, core.NewBuilderProposerDuty(int64(slot)))
 	if err != nil {
 		return err
 	}
@@ -767,9 +767,9 @@ func (c Component) epochFromSlot(ctx context.Context, slot eth2p0.Slot) (eth2p0.
 	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }
 
-func (c Component) getProposerPubkey(ctx context.Context, slot eth2p0.Slot) (core.PubKey, error) {
+func (c Component) getProposerPubkey(ctx context.Context, duty core.Duty) (core.PubKey, error) {
 	// Get proposer pubkey (this is a blocking query).
-	defSet, err := c.dutyDefFunc(ctx, core.NewProposerDuty(int64(slot)))
+	defSet, err := c.dutyDefFunc(ctx, duty)
 	if err != nil {
 		return "", err
 	} else if len(defSet) != 1 {
