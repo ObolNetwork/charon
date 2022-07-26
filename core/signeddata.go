@@ -34,6 +34,7 @@ var (
 	_ SignedData = Signature{}
 	_ SignedData = SignedVoluntaryExit{}
 	_ SignedData = VersionedSignedBlindedBeaconBlock{}
+	_ SignedData = VersionedSignedValidatorRegistration{}
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
@@ -506,6 +507,107 @@ func (e SignedVoluntaryExit) MarshalJSON() ([]byte, error) {
 
 func (e *SignedVoluntaryExit) UnmarshalJSON(b []byte) error {
 	return e.SignedVoluntaryExit.UnmarshalJSON(b)
+}
+
+// VersionedSignedValidatorRegistration is a signed versioned validator (builder) registration and implements SignedData.
+type VersionedSignedValidatorRegistration struct {
+	eth2api.VersionedSignedValidatorRegistration
+}
+
+// versionedRawValidatorRegistrationJSON is a custom VersionedSignedValidator serialiser.
+type versionedRawValidatorRegistrationJSON struct {
+	Version      int             `json:"version"`
+	Registration json.RawMessage `json:"registration"`
+}
+
+func (r VersionedSignedValidatorRegistration) Clone() (SignedData, error) {
+	return r.clone()
+}
+
+// clone returns a copy of the VersionedSignedValidatorRegistration.
+// It is similar to Clone that returns the SignedData interface.
+//nolint:revive // similar method names.
+func (r VersionedSignedValidatorRegistration) clone() (VersionedSignedValidatorRegistration, error) {
+	var resp VersionedSignedValidatorRegistration
+	err := cloneJSONMarshaler(r, &resp)
+	if err != nil {
+		return VersionedSignedValidatorRegistration{}, errors.Wrap(err, "clone registration")
+	}
+
+	return resp, nil
+}
+
+func (r VersionedSignedValidatorRegistration) Signature() Signature {
+	switch r.Version {
+	case spec.BuilderVersionV1:
+		return SigFromETH2(r.V1.Signature)
+	default:
+		panic("unknown version")
+	}
+}
+
+func (r VersionedSignedValidatorRegistration) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := r.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	switch resp.Version {
+	case spec.BuilderVersionV1:
+		resp.V1.Signature = sig.ToETH2()
+	default:
+		return nil, errors.New("unknown type")
+	}
+
+	return resp, nil
+}
+
+func (r VersionedSignedValidatorRegistration) MarshalJSON() ([]byte, error) {
+	var marshaller json.Marshaler
+	switch r.Version {
+	case spec.BuilderVersionV1:
+		marshaller = r.VersionedSignedValidatorRegistration.V1
+	default:
+		return nil, errors.New("unknown version")
+	}
+
+	registration, err := marshaller.MarshalJSON()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal registration")
+	}
+
+	resp, err := json.Marshal(versionedRawValidatorRegistrationJSON{
+		Version:      int(r.Version),
+		Registration: registration,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal wrapper")
+	}
+
+	return resp, nil
+}
+
+func (r *VersionedSignedValidatorRegistration) UnmarshalJSON(input []byte) error {
+	var raw versionedRawValidatorRegistrationJSON
+	if err := json.Unmarshal(input, &raw); err != nil {
+		return errors.Wrap(err, "unmarshal validator (builder) registration")
+	}
+
+	resp := eth2api.VersionedSignedValidatorRegistration{Version: spec.BuilderVersion(raw.Version)}
+	switch resp.Version {
+	case spec.BuilderVersionV1:
+		registration := new(eth2v1.SignedValidatorRegistration)
+		if err := json.Unmarshal(raw.Registration, &registration); err != nil {
+			return errors.Wrap(err, "unmarshal V1 registration")
+		}
+		resp.V1 = registration
+	default:
+		return errors.New("unknown version")
+	}
+
+	r.VersionedSignedValidatorRegistration = resp
+
+	return nil
 }
 
 // cloneJSONMarshaler clones the marshaler by serialising to-from json
