@@ -318,25 +318,25 @@ The duty database interface is defined as:
 // DutyDB persists unsigned duty data sets and makes it available for querying. It also acts
 // as slashing database.
 type DutyDB interface {
-    // Store stores the unsigned duty data set.
-    Store(context.Context, Duty, UnsignedDataSet) error
+        // Store stores the unsigned duty data set.
+        Store(context.Context, Duty, UnsignedDataSet) error
 
-	// AwaitBeaconBlock blocks and returns the proposed beacon block
-	// for the slot when available. It also returns the DV public key.
-	AwaitBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BeaconBlock, error)
+        // AwaitBeaconBlock blocks and returns the proposed beacon block
+        // for the slot when available. It also returns the DV public key.
+        AwaitBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BeaconBlock, error)
 
-  // AwaitBlindedBeaconBlock blocks and returns the proposed blinded beacon block
-	// for the slot when available. It also returns the DV public key.
-	AwaitBlindedBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BlindedBeaconBlock, error)
+        // AwaitBlindedBeaconBlock blocks and returns the proposed blinded beacon block
+        // for the slot when available. It also returns the DV public key.
+        AwaitBlindedBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BlindedBeaconBlock, error)
 
-	// AwaitAttestation blocks and returns the attestation data
-	// for the slot and committee index when available.
-	AwaitAttestation(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error)
+        // AwaitAttestation blocks and returns the attestation data
+        // for the slot and committee index when available.
+        AwaitAttestation(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error)
 
-	// PubKeyByAttestation returns the validator PubKey for the provided attestation data
-	// slot, committee index and validator committee index. This allows mapping of attestation
-	// data response to validator.
-	PubKeyByAttestation(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error)
+        // PubKeyByAttestation returns the validator PubKey for the provided attestation data
+        // slot, committee index and validator committee index. This allows mapping of attestation
+        // data response to validator.
+        PubKeyByAttestation(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error)
 }
 ```
 ### Validator API
@@ -427,23 +427,23 @@ The validator api interface is defined as:
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the
 // DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
-	// RegisterAwaitBeaconBlock registers a function to query a unsigned beacon block by slot.
-	RegisterAwaitBeaconBlock(func(context.Context, slot int) (beaconapi.BeaconBlock, error))
+        // RegisterAwaitBeaconBlock registers a function to query a unsigned beacon block by slot.
+        RegisterAwaitBeaconBlock(func(context.Context, slot int) (beaconapi.BeaconBlock, error))
 
-  // RegisterAwaitBlindedBeaconBlock registers a function to query a unsigned blinded beacon block by slot.
-	RegisterAwaitBlindedBeaconBlock(func(context.Context, slot int) (beaconapi.BlindedBeaconBlock, error))
+        // RegisterAwaitBlindedBeaconBlock registers a function to query a unsigned blinded beacon block by slot.
+        RegisterAwaitBlindedBeaconBlock(func(context.Context, slot int) (beaconapi.BlindedBeaconBlock, error))
 
-	// RegisterGetDutyFunc registers a function to query duty data.
-	RegisterGetDutyFunc(func(ctx context.Context, duty Duty) (DutyDefinitionSet, error))
+        // RegisterGetDutyFunc registers a function to query duty data.
+        RegisterGetDutyFunc(func(ctx context.Context, duty Duty) (DutyDefinitionSet, error))
 
-	// RegisterAwaitAttestation registers a function to query attestation data.
-	RegisterAwaitAttestation(func(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error))
+        // RegisterAwaitAttestation registers a function to query attestation data.
+        RegisterAwaitAttestation(func(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error))
 
-	// RegisterPubKeyByAttestation registers a function to query validator by attestation.
-	RegisterPubKeyByAttestation(func(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error))
+        // RegisterPubKeyByAttestation registers a function to query validator by attestation.
+        RegisterPubKeyByAttestation(func(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error))
 
-	// RegisterParSigDB registers a function to store partially signed data sets.
-	RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error))
+        // RegisterParSigDB registers a function to store partially signed data sets.
+        RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error)
 }
 ```
 
