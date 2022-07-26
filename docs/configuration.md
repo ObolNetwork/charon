@@ -34,8 +34,8 @@ The schema of the `cluster-definition.json` is defined as:
   "withdrawal_address": "0x123..abfc",          // ETH1 withdrawal address
   "dkg_algorithm": "foo_dkg_v1" ,               // Optional DKG algorithm for key generation
   "fork_version": "0x00112233",                 // Chain/Network identifier
-  "config_hash": "abcfde...acbfed",             // Base58 hash of the static (non-changing) fields
-  "definition_hash": "abcdef...abcedef"         // Final base58 hash of all fields
+  "config_hash": "abcfde...acbfed",             // Hash of the static (non-changing) fields
+  "definition_hash": "abcdef...abcedef"         // Final hash of all fields
 }
 ```
 
@@ -52,8 +52,8 @@ The `cluster-lock.json` has the following schema:
       "fee_recipient": "0x123..abfc"                        // Defaults to withdrawal address if not set, can be edited manually
     }
   ],
-  "lock_hash": "abcdef...abcedef",                          // Base58 config_hash plus distributed_validators
-  "signature_aggregate": "abcdef...abcedef"                 // Base58 BLS aggregate signature of the lock hash signed by each DV pubkey.
+  "lock_hash": "abcdef...abcedef",                          // Config_hash plus distributed_validators
+  "signature_aggregate": "abcdef...abcedef"                 // BLS aggregate signature of the lock hash signed by each DV pubkey.
 }
 ```
 
@@ -63,9 +63,8 @@ The `cluster-lock.json` has the following schema:
 
 The following is the historical change log of the cluster config:
 - `v1.2.0` **draft**:
-  - Refactored base64 EIP712 signatures to 0x prefixed hex.
+  - Refactored all base64 fields to Ethereum's standard 0x prefixed hex.
     - Refactored definition operator signatures: `config_signature` and `enr_signature`.
-  - Refactored base64 fields to base58.
     - Refactored definition fields: `config_hash` and `definition_hash`.
     - Refactored lock fields: `lock_hash`, `signature_aggregate` and `distributed_validators.public_shares`.
   - See example [definition.json](../cluster/testdata/definition_v1_2_0.json) and [lock.json](../cluster/testdata/lock_v1_2_0.json)
