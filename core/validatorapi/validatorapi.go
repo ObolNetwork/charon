@@ -497,6 +497,89 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	return nil
 }
 
+func (c Component) verifyValidatorRegistrationsParSig(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
+	// Calculate slot epoch
+	epoch, err := c.epochFromSlot(ctx, slot)
+	if err != nil {
+		return err
+	}
+
+	// Randao signing root is the epoch.
+	sigRoot, err := eth2util.EpochHashRoot(epoch)
+	if err != nil {
+		return err
+	}
+
+	return c.verifyParSig(ctx, core.DutyRandao, epoch, pubKey, sigRoot, randao)
+}
+
+func (c Component) verifyValidatorRegistrationsSignature(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration, pubkey core.PubKey) error {
+
+	for _, registration := range registrations {
+
+
+		epoch, err := c.epochFromSlot(ctx, slot)
+		if err != nil {
+			return err
+		}
+
+		var sig eth2p0.BLSSignature
+		switch registration.Version {
+		case spec.BuilderVersionV1:
+			if registration.V1.Signature == sig {
+				return errors.New("no V1 signature")
+			}
+			sig = registration.V1.Signature
+		default:
+			return errors.New("unknown version")
+		}
+
+		// Verify partial signature
+		sigRoot, err := .Root()
+		if err != nil {
+			return err
+		}
+
+		return c.verifyParSig(ctx, core.DutyBuilderProposer, epoch, pubkey, sigRoot, sig)
+
+		sigRoot, err := registration.V1.HashTreeRoot()
+		if err != nil {
+			return err
+		}
+
+		err = c.verifyParSig(ctx, core.DutyExit, exit.Message.Epoch, pubkey, sigRoot, exit.Signature)
+		if err != nil {
+			return err
+		}
+
+	}
+	
+
+	return nil
+}
+
+// SubmitValidatorRegistration receives the partially signed validator (builder) registration.
+func (c Component) SubmitValidatorRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
+	parsigSet := core.ParSignedDataSet{
+		pubKey: core.NewPartialSignature(core.SigFromETH2(randao), c.shareIdx),
+	}
+
+	log.Debug(ctx, "Randao submitted by validator client")
+
+	duty := core.NewBuilderRegistrationDuty(int64(slot))
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	for _, sub := range c.subs {
+		// No need to clone since sub auto clones.
+		err := sub(ctx, duty, parsigSet)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // SubmitVoluntaryExit receives the partially signed voluntary exit.
 func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
 	vals, err := c.eth2Cl.Validators(ctx, "head", []eth2p0.ValidatorIndex{exit.Message.ValidatorIndex})
