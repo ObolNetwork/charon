@@ -63,6 +63,7 @@ type Handler interface {
 	eth2client.ProposerDutiesProvider
 	eth2client.ValidatorsProvider
 	eth2client.VoluntaryExitSubmitter
+	eth2client.ValidatorRegistrationsSubmitter
 	// Above sorted alphabetically.
 }
 
@@ -127,9 +128,9 @@ func NewRouter(h Handler, eth2Cl eth2client.Service) (*mux.Router, error) {
 			Handler: submitBlindedBlock(h),
 		},
 		{
-			Name:    "submit_builder_registration",
+			Name:    "submit_validator_registration",
 			Path:    "/eth/v1/validator/register_validator",
-			Handler: submitBuilderRegistration(h),
+			Handler: SubmitValidatorRegistrations(h),
 		},
 		{
 			Name:    "submit_voluntary_exit",
@@ -504,15 +505,21 @@ func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
 	}
 }
 
-// submitBuilderRegistration returns a handler function for the validator (builder) registration submitter endpoint.
-func submitBuilderRegistration(r eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
+// submitValidatorRegistrations returns a handler function for the validator (builder) registration submitter endpoint.
+func SubmitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, body []byte) (interface{}, error) {
-		exit := new(eth2p0.SignedVoluntaryExit)
-		if err := exit.UnmarshalJSON(body); err != nil {
-			return nil, errors.Wrap(err, "unmarshal signed voluntary exit")
+		registration := new(eth2v1.SignedValidatorRegistration)
+		registrations := []*eth2api.VersionedSignedValidatorRegistration{
+			{
+				Version: spec.BuilderVersionV1,
+				V1:      registration,
+			},
+		}
+		if err := registration.UnmarshalJSON(body); err != nil {
+			return nil, errors.Wrap(err, "unmarshal signed validator (builder) registration")
 		}
 
-		return nil, p.SubmitVoluntaryExit(ctx, exit)
+		return nil, r.SubmitValidatorRegistrations(ctx, registrations)
 	}
 }
 
