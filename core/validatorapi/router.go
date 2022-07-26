@@ -554,12 +554,12 @@ func getBeaconNodeAddress(ctx context.Context, eth2Cl eth2client.Service) (*url.
 		}
 		_, err := syncProvider.NodeSyncing(ctx)
 		if err != nil {
-			return nil, errors.Wrap(err, "ping inactive beacon nodes")
+			return nil, errors.New("no active beacon nodes") // Not wrapping since error will be confusing.
 		}
 
 		addr = eth2Cl.Address()
 		if addr == "none" {
-			return nil, errors.Wrap(err, "no active beacon nodes")
+			return nil, errors.New("no active beacon nodes")
 		}
 	}
 
