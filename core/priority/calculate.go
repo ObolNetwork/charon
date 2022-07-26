@@ -28,11 +28,11 @@ const (
 	countWeight   = maxPriorities // Weight count more than relative priority.
 )
 
-// calculateResults is a deterministic function that returns the cluster wide
+// calculateResult is a deterministic function that returns the cluster wide
 // priorities given the priorities of each peer. Priorities are included in the
 // result if minRequired peers provided them and are ordered by number of peers
 // then by overall priority.
-func calculateResults(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityResult, error) {
+func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityResult, error) {
 	if err := validateMsgs(msgs); err != nil {
 		return nil, err
 	}
@@ -93,15 +93,20 @@ func calculateResults(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.Priority
 }
 
 // determineInput returns a deterministic copy of the messages ordered
-// first by peer and then shuffled by slot (for random tiebreaker).
+// by peer.
 func determineInput(msgs []*pbv1.PriorityMsg) []*pbv1.PriorityMsg {
 	resp := append([]*pbv1.PriorityMsg(nil), msgs...) // Copy to not mutate input param.
-	sort.Slice(msgs, func(i, j int) bool {
-		return msgs[i].PeerId < msgs[j].PeerId
+	sort.Slice(resp, func(i, j int) bool {
+		return resp[i].PeerId < resp[j].PeerId
 	})
+
+	// TODO(corver): There is a proposal to remove this shuffling behaviour since:
+	//  - It makes the protocol hard to spec
+	//  - Flapping of priorities might be less desirable than than non-random tiebreakers.
+
 	//nolint:gosec // Math rand used for deterministic behaviour.
-	rand.New(rand.NewSource(msgs[0].Slot)).Shuffle(len(msgs), func(i, j int) {
-		msgs[i], msgs[j] = msgs[j], msgs[i]
+	rand.New(rand.NewSource(resp[0].Slot)).Shuffle(len(resp), func(i, j int) {
+		resp[i], resp[j] = resp[j], resp[i]
 	})
 
 	return resp
