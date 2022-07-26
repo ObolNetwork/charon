@@ -31,15 +31,16 @@ type DutyType int
 const (
 	// DutyType enums MUST not change, it will break backwards compatibility.
 
-	DutyUnknown         DutyType = 0
-	DutyProposer        DutyType = 1
-	DutyAttester        DutyType = 2
-	DutyRandao          DutyType = 3
-	DutyExit            DutyType = 4
-	DutyBuilderProposer DutyType = 5
+	DutyUnknown             DutyType = 0
+	DutyProposer            DutyType = 1
+	DutyAttester            DutyType = 2
+	DutyRandao              DutyType = 3
+	DutyExit                DutyType = 4
+	DutyBuilderProposer     DutyType = 5
+	DutyBuilderRegistration DutyType = 6
 	// Only ever append new types here...
 
-	dutySentinel DutyType = 6 // Must always be last
+	dutySentinel DutyType = 7 // Must always be last
 )
 
 func (d DutyType) Valid() bool {
@@ -48,12 +49,13 @@ func (d DutyType) Valid() bool {
 
 func (d DutyType) String() string {
 	return map[DutyType]string{
-		DutyUnknown:         "unknown",
-		DutyAttester:        "attester",
-		DutyProposer:        "proposer",
-		DutyRandao:          "randao",
-		DutyBuilderProposer: "builder_proposer",
-		DutyExit:            "exit",
+		DutyUnknown:             "unknown",
+		DutyAttester:            "attester",
+		DutyProposer:            "proposer",
+		DutyRandao:              "randao",
+		DutyExit:                "exit",
+		DutyBuilderProposer:     "builder_proposer",
+		DutyBuilderRegistration: "builder_registration",
 	}[d]
 }
 
@@ -136,6 +138,18 @@ func NewBuilderProposerDuty(slot int64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyBuilderProposer,
+	}
+}
+
+// NewBuilderRegistrationDuty returns a new builder registration duty. It is a convenience function that is
+// slightly more readable and concise than the struct literal equivalent:
+//   core.Duty{Slot: slot, Type: core.DutyBuilderRegistration}
+//   vs
+//   core.NewBuilderRegistrationDuty(slot)
+func NewBuilderRegistrationDuty(slot int64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutyBuilderRegistration,
 	}
 }
 
