@@ -76,39 +76,12 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "hash lock")
 	}
 
-	if isJSONv1x1(l.Version) { //nolint:nestif
-		vals, err := distValidatorsToV1x1(l.Validators)
-		if err != nil {
-			return nil, err
-		}
-		resp, err := json.Marshal(lockJSONv1x1{
-			Definition:         l.Definition,
-			Validators:         vals,
-			SignatureAggregate: l.SignatureAggregate,
-			LockHash:           lockHash[:],
-		})
-		if err != nil {
-			return nil, errors.Wrap(err, "marshal definition v1_1")
-		}
-
-		return resp, nil
-	} else if isJSONv1x2(l.Version) { //nolint:revive
-		vals, err := distValidatorsToV1x2(l.Validators)
-		if err != nil {
-			return nil, err
-		}
-		resp, err := json.Marshal(lockJSONv1x2{
-			Definition:         l.Definition,
-			Validators:         vals,
-			SignatureAggregate: l.SignatureAggregate,
-			LockHash:           lockHash[:],
-		})
-		if err != nil {
-			return nil, errors.Wrap(err, "marshal definition v1_2")
-		}
-
-		return resp, nil
-	} else {
+	switch {
+	case isJSONv1x1(l.Version):
+		return marshalLockV1x1(l, lockHash)
+	case isJSONv1x2(l.Version):
+		return marshalLockV1x2(l, lockHash)
+	default:
 		return nil, errors.New("unsupported version")
 	}
 }
@@ -130,65 +103,104 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		)
 	}
 
-	if isJSONv1x1(version.Definition.Version) {
-		return l.unmarshalV1x1(data)
-	} else if isJSONv1x2(version.Definition.Version) {
-		return l.unmarshalV1x2(data)
-	} else {
+	var (
+		lock         Lock
+		lockHashJSON []byte
+		err          error
+	)
+	switch {
+	case isJSONv1x1(version.Definition.Version):
+		lock, lockHashJSON, err = unmarshalLockV1x1(data)
+		if err != nil {
+			return err
+		}
+	case isJSONv1x2(version.Definition.Version):
+		lock, lockHashJSON, err = unmarshalLockV1x2(data)
+		if err != nil {
+			return err
+		}
+	default:
 		return errors.New("unsupported version")
 	}
-}
 
-func (l *Lock) unmarshalV1x1(data []byte) error {
-	var lockJSON lockJSONv1x1
-	if err := json.Unmarshal(data, &lockJSON); err != nil {
-		return errors.Wrap(err, "unmarshal definition")
+	hash, err := lock.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "hash lock")
 	}
 
-	lock := Lock{
+	if !bytes.Equal(lockHashJSON, hash[:]) {
+		return errors.New("invalid lock hash")
+	}
+
+	*l = lock
+
+	return nil
+}
+
+func marshalLockV1x1(lock Lock, lockHash [32]byte) ([]byte, error) {
+	vals, err := distValidatorsToV1x1(lock.Validators)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := json.Marshal(lockJSONv1x1{
+		Definition:         lock.Definition,
+		Validators:         vals,
+		SignatureAggregate: lock.SignatureAggregate,
+		LockHash:           lockHash[:],
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal definition v1_1")
+	}
+
+	return resp, nil
+}
+
+func marshalLockV1x2(lock Lock, lockHash [32]byte) ([]byte, error) {
+	vals, err := distValidatorsToV1x2(lock.Validators)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := json.Marshal(lockJSONv1x2{
+		Definition:         lock.Definition,
+		Validators:         vals,
+		SignatureAggregate: lock.SignatureAggregate,
+		LockHash:           lockHash[:],
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal definition v1_2")
+	}
+
+	return resp, nil
+}
+
+func unmarshalLockV1x1(data []byte) (lock Lock, lockHashJSON []byte, err error) {
+	var lockJSON lockJSONv1x1
+	if err := json.Unmarshal(data, &lockJSON); err != nil {
+		return Lock{}, nil, errors.Wrap(err, "unmarshal definition")
+	}
+
+	lock = Lock{
 		Definition:         lockJSON.Definition,
 		Validators:         distValidatorsFromV1x1(lockJSON.Validators),
 		SignatureAggregate: lockJSON.SignatureAggregate,
 	}
 
-	hash, err := lock.HashTreeRoot()
-	if err != nil {
-		return errors.Wrap(err, "hash lock")
-	}
-
-	if !bytes.Equal(lockJSON.LockHash, hash[:]) {
-		return errors.New("invalid lock hash")
-	}
-
-	*l = lock
-
-	return nil
+	return lock, lockJSON.LockHash, nil
 }
 
-func (l *Lock) unmarshalV1x2(data []byte) error {
+func unmarshalLockV1x2(data []byte) (lock Lock, lockHashJSON []byte, err error) {
 	var lockJSON lockJSONv1x2
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
-		return errors.Wrap(err, "unmarshal definition")
+		return Lock{}, nil, errors.Wrap(err, "unmarshal definition")
 	}
 
-	lock := Lock{
+	lock = Lock{
 		Definition:         lockJSON.Definition,
 		Validators:         distValidatorsFromV1x2(lockJSON.Validators),
 		SignatureAggregate: lockJSON.SignatureAggregate,
 	}
 
-	hash, err := lock.HashTreeRoot()
-	if err != nil {
-		return errors.Wrap(err, "hash lock")
-	}
-
-	if !bytes.Equal(lockJSON.LockHash, hash[:]) {
-		return errors.New("invalid lock hash")
-	}
-
-	*l = lock
-
-	return nil
+	return lock, lockJSON.LockHash, nil
 }
 
 // lockJSONv1x1 is the json formatter of Lock for versions v1.0.0 and v1.1.0.

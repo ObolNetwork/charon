@@ -64,7 +64,7 @@ The `cluster-lock.json` has the following schema:
 The following is the historical change log of the cluster config:
 - `v1.2.0` (WIP):
   - Refactored base64 EIP712 signatures to 0x prefixed hex.
-    - Refactored definition operator signatures: `config_signature` and `definition_hash`.
+    - Refactored definition operator signatures: `config_signature` and `enr_signature`.
   - Refactored base64 fields to base58.
     - Refactored definition fields: `config_hash` and `definition_hash`.
     - Refactored lock fields: `lock_hash`, `signature_aggregate` and `distributed_validators.public_shares`.

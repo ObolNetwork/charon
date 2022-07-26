@@ -29,21 +29,6 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const (
-	currentVersion = v1_1
-	dkgAlgo        = "default"
-
-	v1_2 = "v1.2.0" // WIP
-	v1_1 = "v1.1.0"
-	v1_0 = "v1.0.0"
-)
-
-var supportedVersions = map[string]bool{
-	v1_2: true,
-	v1_1: true,
-	v1_0: true,
-}
-
 // NodeIdx represents the index of a node/peer/share in the cluster as operator order in cluster definition.
 type NodeIdx struct {
 	// PeerIdx is the index of a peer in the peer list (it 0-indexed).
@@ -285,49 +270,12 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "definition hash")
 	}
 
-	if isJSONv1x1(d.Version) {
-		resp, err := json.Marshal(definitionJSONv1x1{
-			Name:                d.Name,
-			UUID:                d.UUID,
-			Version:             d.Version,
-			Timestamp:           d.Timestamp,
-			NumValidators:       d.NumValidators,
-			Threshold:           d.Threshold,
-			FeeRecipientAddress: d.FeeRecipientAddress,
-			WithdrawalAddress:   d.WithdrawalAddress,
-			DKGAlgorithm:        d.DKGAlgorithm,
-			ForkVersion:         d.ForkVersion,
-			Operators:           operatorsToV1x1(d.Operators),
-			ConfigHash:          configHash[:],
-			DefinitionHash:      defHash[:],
-		})
-		if err != nil {
-			return nil, errors.Wrap(err, "marshal definition")
-		}
-
-		return resp, nil
-	} else if isJSONv1x2(d.Version) {
-		resp, err := json.Marshal(definitionJSONv1x2{
-			Name:                d.Name,
-			UUID:                d.UUID,
-			Version:             d.Version,
-			Timestamp:           d.Timestamp,
-			NumValidators:       d.NumValidators,
-			Threshold:           d.Threshold,
-			FeeRecipientAddress: d.FeeRecipientAddress,
-			WithdrawalAddress:   d.WithdrawalAddress,
-			DKGAlgorithm:        d.DKGAlgorithm,
-			ForkVersion:         d.ForkVersion,
-			Operators:           operatorsToV1x2(d.Operators),
-			ConfigHash:          configHash[:],
-			DefinitionHash:      defHash[:],
-		})
-		if err != nil {
-			return nil, errors.Wrap(err, "marshal definition")
-		}
-
-		return resp, nil
-	} else {
+	switch {
+	case isJSONv1x1(d.Version):
+		return marshalDefinitionV1x1(d, configHash, defHash)
+	case isJSONv1x2(d.Version):
+		return marshalDefinitionV1x2(d, configHash, defHash)
+	default:
 		return nil, errors.New("unsupported version")
 	}
 }
@@ -346,22 +294,105 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		)
 	}
 
-	if isJSONv1x1(version.Version) {
-		return d.unmarshalV1x1(data)
-	} else if isJSONv1x2(version.Version) {
-		return d.unmarshalV1x2(data)
-	} else {
+	var (
+		def            Definition
+		configHashJSON []byte
+		defHashJSON    []byte
+		err            error
+	)
+	switch {
+	case isJSONv1x1(version.Version):
+		def, configHashJSON, defHashJSON, err = unmarshalDefinitionV1x1(data)
+		if err != nil {
+			return err
+		}
+	case isJSONv1x2(version.Version):
+		def, configHashJSON, defHashJSON, err = unmarshalDefinitionV1x2(data)
+		if err != nil {
+			return err
+		}
+	default:
 		return errors.New("unsupported version")
 	}
-}
 
-func (d *Definition) unmarshalV1x1(data []byte) error {
-	var defJSON definitionJSONv1x1
-	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return errors.Wrap(err, "unmarshal definition v1_1")
+	// Verify config_hash
+	configHash, err := def.ConfigHash()
+	if err != nil {
+		return errors.Wrap(err, "config hash")
 	}
 
-	def := Definition{
+	if !bytes.Equal(configHashJSON, configHash[:]) {
+		return errors.New("invalid config hash")
+	}
+
+	// Verify definition_hash
+	defHash, err := def.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "definition hash")
+	}
+
+	if !bytes.Equal(defHashJSON, defHash[:]) {
+		return errors.New("invalid definition hash")
+	}
+
+	*d = def
+
+	return nil
+}
+
+func marshalDefinitionV1x1(def Definition, configHash, defHash [32]byte) ([]byte, error) {
+	resp, err := json.Marshal(definitionJSONv1x1{
+		Name:                def.Name,
+		UUID:                def.UUID,
+		Version:             def.Version,
+		Timestamp:           def.Timestamp,
+		NumValidators:       def.NumValidators,
+		Threshold:           def.Threshold,
+		FeeRecipientAddress: def.FeeRecipientAddress,
+		WithdrawalAddress:   def.WithdrawalAddress,
+		DKGAlgorithm:        def.DKGAlgorithm,
+		ForkVersion:         def.ForkVersion,
+		Operators:           operatorsToV1x1(def.Operators),
+		ConfigHash:          configHash[:],
+		DefinitionHash:      defHash[:],
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal definition")
+	}
+
+	return resp, nil
+}
+
+func marshalDefinitionV1x2(def Definition, configHash, defHash [32]byte) ([]byte, error) {
+	resp, err := json.Marshal(definitionJSONv1x2{
+		Name:                def.Name,
+		UUID:                def.UUID,
+		Version:             def.Version,
+		Timestamp:           def.Timestamp,
+		NumValidators:       def.NumValidators,
+		Threshold:           def.Threshold,
+		FeeRecipientAddress: def.FeeRecipientAddress,
+		WithdrawalAddress:   def.WithdrawalAddress,
+		DKGAlgorithm:        def.DKGAlgorithm,
+		ForkVersion:         def.ForkVersion,
+		Operators:           operatorsToV1x2(def.Operators),
+		ConfigHash:          configHash[:],
+		DefinitionHash:      defHash[:],
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal definition")
+	}
+
+	return resp, nil
+}
+
+func unmarshalDefinitionV1x1(data []byte) (def Definition, configHashJSON, defHashJSON []byte, err error) {
+	var defJSON definitionJSONv1x1
+	if err := json.Unmarshal(data, &defJSON); err != nil {
+		return Definition{}, nil, nil, errors.Wrap(err, "unmarshal definition v1_1")
+	}
+
+	def = Definition{
 		Name:                defJSON.Name,
 		UUID:                defJSON.UUID,
 		Version:             defJSON.Version,
@@ -375,38 +406,16 @@ func (d *Definition) unmarshalV1x1(data []byte) error {
 		Operators:           operatorsFromV1x1(defJSON.Operators),
 	}
 
-	// Verify config_hash
-	configHash, err := def.ConfigHash()
-	if err != nil {
-		return errors.Wrap(err, "config hash")
-	}
-
-	if !bytes.Equal(defJSON.ConfigHash, configHash[:]) {
-		return errors.New("invalid config hash")
-	}
-
-	// Verify definition_hash
-	defHash, err := def.HashTreeRoot()
-	if err != nil {
-		return errors.Wrap(err, "definition hash")
-	}
-
-	if !bytes.Equal(defJSON.DefinitionHash, defHash[:]) {
-		return errors.New("invalid definition hash")
-	}
-
-	*d = def
-
-	return nil
+	return def, defJSON.ConfigHash, defJSON.DefinitionHash, nil
 }
 
-func (d *Definition) unmarshalV1x2(data []byte) error {
+func unmarshalDefinitionV1x2(data []byte) (def Definition, configHashJSON, defHashJSON []byte, err error) {
 	var defJSON definitionJSONv1x2
 	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return errors.Wrap(err, "unmarshal definition v1v2")
+		return Definition{}, nil, nil, errors.Wrap(err, "unmarshal definition v1v2")
 	}
 
-	def := Definition{
+	def = Definition{
 		Name:                defJSON.Name,
 		UUID:                defJSON.UUID,
 		Version:             defJSON.Version,
@@ -420,29 +429,7 @@ func (d *Definition) unmarshalV1x2(data []byte) error {
 		Operators:           operatorsFromV1x2(defJSON.Operators),
 	}
 
-	// Verify config_hash
-	configHash, err := def.ConfigHash()
-	if err != nil {
-		return errors.Wrap(err, "config hash")
-	}
-
-	if !bytes.Equal(defJSON.ConfigHash, configHash[:]) {
-		return errors.New("invalid config hash")
-	}
-
-	// Verify definition_hash
-	defHash, err := def.HashTreeRoot()
-	if err != nil {
-		return errors.Wrap(err, "definition hash")
-	}
-
-	if !bytes.Equal(defJSON.DefinitionHash, defHash[:]) {
-		return errors.New("invalid definition hash")
-	}
-
-	*d = def
-
-	return nil
+	return def, defJSON.ConfigHash, defJSON.DefinitionHash, nil
 }
 
 // definitionJSONv1x1 is the json formatter of Definition for versions v1.0.0 and v1.1.1.
@@ -477,12 +464,4 @@ type definitionJSONv1x2 struct {
 	ForkVersion         string             `json:"fork_version"`
 	ConfigHash          base58             `json:"config_hash"`
 	DefinitionHash      base58             `json:"definition_hash"`
-}
-
-func isJSONv1x1(version string) bool {
-	return version == v1_0 || version == v1_1
-}
-
-func isJSONv1x2(version string) bool {
-	return version == v1_2
 }
