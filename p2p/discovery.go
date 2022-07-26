@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 // UDPNode wraps a discv5 udp node and adds the bootnodes relays.
@@ -113,7 +114,8 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 	if config.ExternalHost != "" {
 		ips, err := net.LookupIP(config.ExternalHost)
 		if err != nil || len(ips) == 0 {
-			return nil, nil, errors.Wrap(err, "could not resolve p2p external host")
+			return nil, nil, errors.Wrap(err, "resolve IP of p2p external host flag",
+				z.Str("p2p_external_hostname", config.ExternalHost))
 		}
 
 		// Use first IPv4 returned from the resolver.

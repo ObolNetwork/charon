@@ -56,7 +56,7 @@ func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 
 	localEnode, db, err := p2p.NewLocalEnode(config, key)
 	if err != nil {
-		return errors.Wrap(err, "failed to open peer DB")
+		return errors.Wrap(err, "failed to open enode")
 	}
 	defer db.Close()
 
