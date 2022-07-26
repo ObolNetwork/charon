@@ -40,10 +40,10 @@ func TestTrackerFailedDuty(t *testing.T) {
 		}
 
 		count := 0
-		failedDutyReporter := func(failedDuty core.Duty, isFailed bool, component string, msg string) {
+		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, component component, msg string) {
 			require.Equal(t, testData[0].duty, failedDuty)
 			require.True(t, isFailed)
-			require.Equal(t, component, "consensus")
+			require.Equal(t, consensus, component)
 			count++
 
 			if count == len(testData) {
@@ -75,10 +75,10 @@ func TestTrackerFailedDuty(t *testing.T) {
 		}
 
 		count := 0
-		failedDutyReporter := func(failedDuty core.Duty, isFailed bool, component string, msg string) {
+		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, component component, msg string) {
 			require.Equal(t, testData[0].duty, failedDuty)
 			require.False(t, isFailed)
-			require.Equal(t, "sigAgg", component)
+			require.Equal(t, sigAgg, component)
 			count++
 
 			if count == len(testData) {
@@ -191,7 +191,7 @@ func TestTrackerParticipation(t *testing.T) {
 	}
 
 	// Ignore failedDutyReporter part to isolate participation only.
-	tr.failedDutyReporter = func(core.Duty, bool, string, string) {}
+	tr.failedDutyReporter = func(context.Context, core.Duty, bool, component, string) {}
 
 	go func() {
 		for _, td := range testData {

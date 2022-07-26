@@ -20,9 +20,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var participationGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-	Namespace: "core",
-	Subsystem: "tracker",
-	Name:      "participation",
-	Help:      "Set to 1 if peer participated successfully for the given duty or else 0",
-}, []string{"duty", "peer"})
+var (
+	participationGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "participation",
+		Help:      "Set to 1 if peer participated successfully for the given duty or else 0",
+	}, []string{"duty", "peer"})
+
+	failedCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "failed_duties_total",
+		Help:      "Total number of failed duties by component",
+	}, []string{"duty", "component"})
+)

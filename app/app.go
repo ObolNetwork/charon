@@ -57,6 +57,7 @@ import (
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/core/scheduler"
 	"github.com/obolnetwork/charon/core/sigagg"
+	"github.com/obolnetwork/charon/core/tracker"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
@@ -321,6 +322,11 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		pubshares = append(pubshares, eth2Share)
 	}
 
+	peers, err := lock.Peers()
+	if err != nil {
+		return err
+	}
+
 	sender := new(p2p.Sender)
 
 	sched, err := scheduler.New(corePubkeys, eth2Cl)
@@ -366,6 +372,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if err != nil {
 		return err
 	}
+	deadliner := core.NewDeadliner(ctx, deadlineFunc)
 
 	retryer, err := retry.New[core.Duty](deadlineFunc)
 	if err != nil {
@@ -376,6 +383,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if err != nil {
 		return err
 	}
+
+	wireTracker(life, deadliner, peers, sched, fetch, cons, vapi, parSigDB, parSigEx, sigAgg)
 
 	core.Wire(sched, fetch, cons, dutyDB, vapi,
 		parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster,
@@ -402,6 +411,25 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	life.RegisterStop(lifecycle.StopRetryer, lifecycle.HookFuncCtx(retryer.Shutdown))
 
 	return nil
+}
+
+// wireTracker creates a new tracker instance and wires it to the components with "output events".
+func wireTracker(life *lifecycle.Manager, deadliner core.Deadliner, peers []p2p.Peer,
+	sched core.Scheduler, fetcher core.Fetcher, cons core.Consensus, vapi core.ValidatorAPI,
+	parSigDB core.ParSigDB, parSigEx core.ParSigEx, sigAgg core.SigAgg,
+) {
+	trackr := tracker.New(deadliner, peers)
+
+	sched.Subscribe(trackr.SchedulerEvent)
+	fetcher.Subscribe(trackr.FetcherEvent)
+	cons.Subscribe(trackr.ConsensusEvent)
+	vapi.Subscribe(trackr.ValidatorAPIEvent)
+	parSigDB.SubscribeInternal(trackr.ParSigDBInternalEvent)
+	parSigDB.SubscribeThreshold(trackr.ParSigDBThresholdEvent)
+	parSigEx.Subscribe(trackr.ParSigExEvent)
+	sigAgg.Subscribe(trackr.SigAggEvent)
+
+	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartTracker, lifecycle.HookFunc(trackr.Run))
 }
 
 // eth2PubKeys returns a list of BLS pubkeys of validators in the cluster lock.
