@@ -215,6 +215,6 @@ type lockJSONv1x1 struct {
 type lockJSONv1x2 struct {
 	Definition         Definition              `json:"cluster_definition"`
 	Validators         []distValidatorJSONv1x2 `json:"distributed_validators"`
-	SignatureAggregate base58                  `json:"signature_aggregate"`
-	LockHash           base58                  `json:"lock_hash"`
+	SignatureAggregate ethHex                  `json:"signature_aggregate"`
+	LockHash           ethHex                  `json:"lock_hash"`
 }

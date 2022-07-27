@@ -462,6 +462,6 @@ type definitionJSONv1x2 struct {
 	WithdrawalAddress   string             `json:"withdrawal_address,omitempty"`
 	DKGAlgorithm        string             `json:"dkg_algorithm"`
 	ForkVersion         string             `json:"fork_version"`
-	ConfigHash          base58             `json:"config_hash"`
-	DefinitionHash      base58             `json:"definition_hash"`
+	ConfigHash          ethHex             `json:"config_hash"`
+	DefinitionHash      ethHex             `json:"definition_hash"`
 }

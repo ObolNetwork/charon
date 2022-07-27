@@ -91,7 +91,7 @@ type distValidatorJSONv1x1 struct {
 // distValidatorJSONv1x2 is the json formatter of DistValidator for versions v1.2.0 and later.
 type distValidatorJSONv1x2 struct {
 	PubKey              ethHex   `json:"distributed_public_key"`
-	PubShares           []base58 `json:"public_shares,omitempty"`
+	PubShares           []ethHex `json:"public_shares,omitempty"`
 	FeeRecipientAddress string   `json:"fee_recipient_address,omitempty"`
 }
 
@@ -115,7 +115,7 @@ func distValidatorsFromV1x1(distValidators []distValidatorJSONv1x1) []DistValida
 func distValidatorsToV1x1(distValidators []DistValidator) ([]distValidatorJSONv1x1, error) {
 	var resp []distValidatorJSONv1x1
 	for _, dv := range distValidators {
-		var shares []base58
+		var shares []ethHex
 		for _, share := range dv.PubShares {
 			shares = append(shares, share)
 		}
@@ -149,7 +149,7 @@ func distValidatorsFromV1x2(distValidators []distValidatorJSONv1x2) []DistValida
 func distValidatorsToV1x2(distValidators []DistValidator) ([]distValidatorJSONv1x2, error) {
 	var resp []distValidatorJSONv1x2
 	for _, dv := range distValidators {
-		var shares []base58
+		var shares []ethHex
 		for _, share := range dv.PubShares {
 			shares = append(shares, share)
 		}
