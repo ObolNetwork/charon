@@ -34,9 +34,9 @@ import (
 
 const protocolID = "charon/priority/1.0.0"
 
-// Transport abstracts sending and receiving libp2p protobuf message.
+// Transport abstracts sending and receiving libp2p protobuf messages.
 type Transport interface {
-	// SendReceive sends the request to the peer and return a single response.
+	// SendReceive sends the request to the peer and returns a single response.
 	SendReceive(
 		ctx context.Context,
 		peer peer.ID,
@@ -82,6 +82,7 @@ func NewForT(_ *testing.T, transport Transport,
 		tickerProvider:   tickerProvider,
 		subs:             make(map[string][]subscriber),
 		trigger:          make(chan int64, 1), // Buffer a single trigger
+		received:         make(chan *pbv1.PriorityMsg),
 	}
 
 	// Wire consensus output to Prioritiser subscribers.
@@ -131,25 +132,25 @@ type Prioritiser struct {
 
 // Subscribe registers a prioritiser output subscriber function.
 // This is not thread safe and MUST NOT be called after Run.
-func (n *Prioritiser) Subscribe(topic string, fn subscriber) {
-	n.subs[topic] = append(n.subs[topic], fn)
+func (p *Prioritiser) Subscribe(topic string, fn subscriber) {
+	p.subs[topic] = append(p.subs[topic], fn)
 }
 
 // Prioritise starts a new prioritisation round for the provided slot.
-func (n *Prioritiser) Prioritise(slot int64) {
+func (p *Prioritiser) Prioritise(slot int64) {
 	select {
-	case n.trigger <- slot:
-	case <-n.quit:
+	case p.trigger <- slot:
+	case <-p.quit:
 	}
 }
 
 // Run runs the prioritiser until the context is cancelled.
 // Note this will panic if called multiple times.
 //nolint:gocognit // Not that bad I feel.
-func (n *Prioritiser) Run(ctx context.Context) error {
-	defer close(n.quit)
+func (p *Prioritiser) Run(ctx context.Context) error {
+	defer close(p.quit)
 
-	ticker, stopTicker := n.tickerProvider()
+	ticker, stopTicker := p.tickerProvider()
 	defer stopTicker()
 
 	var (
@@ -163,13 +164,13 @@ func (n *Prioritiser) Run(ctx context.Context) error {
 		for _, msg := range msgs[slot] {
 			slotMsgs = append(slotMsgs, msg)
 		}
-		result, err := calculateResult(slotMsgs, n.minRequired)
+		result, err := calculateResult(slotMsgs, p.minRequired)
 		if err != nil {
 			log.Error(ctx, "Validate priority consensus", err) // Unexpected
 			return
 		}
 
-		err = n.consensus.Propose(ctx, slot, result)
+		err = p.consensus.Propose(ctx, slot, result)
 		if err != nil {
 			log.Warn(ctx, "Propose priority consensus", err) // Unexpected
 			return
@@ -184,17 +185,17 @@ func (n *Prioritiser) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case slot := <-n.trigger:
+		case slot := <-p.trigger:
 			if slot <= completedSlot {
 				continue // Ignore triggers for completed slots.
 			}
 
-			err := n.prioritiseOnce(ctx, slot)
+			err := p.prioritiseOnce(ctx, slot)
 			if err != nil {
 				log.Warn(ctx, "Priority error", err)
 			}
 
-		case msg := <-n.received:
+		case msg := <-p.received:
 			if msg.Slot <= completedSlot {
 				continue // Ignore messages for completed slots.
 			}
@@ -202,12 +203,12 @@ func (n *Prioritiser) Run(ctx context.Context) error {
 			slotMsgs, ok := msgs[msg.Slot]
 			if !ok {
 				slotMsgs = make(map[peer.ID]*pbv1.PriorityMsg)
-				timeouts[msg.Slot] = time.Now().Add(n.consensusTimeout)
+				timeouts[msg.Slot] = time.Now().Add(p.consensusTimeout)
 			}
 			slotMsgs[peer.ID(msg.PeerId)] = msg
 			msgs[msg.Slot] = slotMsgs
 
-			if len(slotMsgs) == len(n.peers) {
+			if len(slotMsgs) == len(p.peers) {
 				// All messages received before timeout
 				startConsensus(msg.Slot)
 			}
@@ -224,38 +225,38 @@ func (n *Prioritiser) Run(ctx context.Context) error {
 }
 
 // handleRequest handles a priority message exchange initiated by a peer.
-func (n *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.PriorityMsg) (*pbv1.PriorityMsg, error) {
+func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.PriorityMsg) (*pbv1.PriorityMsg, error) {
 	if string(pID) != msg.PeerId {
 		return nil, errors.New("invalid priority message peer id")
-	} else if err := n.msgValidator(msg); err != nil {
+	} else if err := p.msgValidator(msg); err != nil {
 		return nil, errors.Wrap(err, "invalid priority message")
 	}
 
 	select {
-	case n.received <- msg:
+	case p.received <- msg:
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-n.quit:
+	case <-p.quit:
 		return nil, errors.New("prioritiser shutdown")
 	}
 
-	return n.msgProvider(msg.Slot)
+	return p.msgProvider(msg.Slot)
 }
 
 // prioritiseOnce initiates a priority message exchange with all peers.
-func (n *Prioritiser) prioritiseOnce(ctx context.Context, slot int64) error {
-	msg, err := n.msgProvider(slot)
+func (p *Prioritiser) prioritiseOnce(ctx context.Context, slot int64) error {
+	msg, err := p.msgProvider(slot)
 	if err != nil {
 		return err
 	}
 
 	// Send our own message first to start consensus timeout.
-	n.received <- msg
+	p.received <- msg // FIXME(corver): This is going to block.
 
-	for _, pID := range n.peers {
+	for _, pID := range p.peers {
 		go func(pID peer.ID) {
 			response := new(pbv1.PriorityMsg)
-			ok := n.transport.SendReceive(ctx, pID, msg, response, protocolID)
+			ok := p.transport.SendReceive(ctx, pID, msg, response, protocolID)
 			if !ok {
 				// No need to log, since transport will do it.
 				return
@@ -266,12 +267,12 @@ func (n *Prioritiser) prioritiseOnce(ctx context.Context, slot int64) error {
 				return
 			}
 
-			if err := n.msgValidator(msg); err != nil {
+			if err := p.msgValidator(msg); err != nil {
 				log.Warn(ctx, "Invalid priority message from peer", err, z.Str("peer", p2p.PeerName(peer.ID(msg.PeerId))))
 				return
 			}
 
-			n.received <- msg
+			p.received <- msg
 		}(pID)
 	}
 

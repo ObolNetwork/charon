@@ -101,8 +101,8 @@ func determineInput(msgs []*pbv1.PriorityMsg) []*pbv1.PriorityMsg {
 	})
 
 	// TODO(corver): There is a proposal to remove this shuffling behaviour since:
-	//  - It makes the protocol hard to spec
-	//  - Flapping of priorities might be less desirable than than non-random tiebreakers.
+	//  - It makes the protocol hard to spec.
+	//  - Flapping of priorities might be less desirable than non-random tiebreakers.
 
 	//nolint:gosec // Math rand used for deterministic behaviour.
 	rand.New(rand.NewSource(resp[0].Slot)).Shuffle(len(resp), func(i, j int) {
