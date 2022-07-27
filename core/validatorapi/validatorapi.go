@@ -23,6 +23,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/phase0"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"go.opentelemetry.io/otel/trace"
@@ -533,7 +534,8 @@ func (c Component) verifyValidatorRegistrationSignature(ctx context.Context, reg
 	}
 
 	// Verify partial signature
-	sigRoot, err := registration.Root()
+	// TODO: switch to registration.Root() when implemented on go-eth2-client (PR has been reaised)
+	sigRoot, err := registration.V1.Message.HashTreeRoot()
 	if err != nil {
 		return err
 	}
@@ -542,19 +544,38 @@ func (c Component) verifyValidatorRegistrationSignature(ctx context.Context, reg
 }
 
 // SubmitValidatorRegistration receives the partially signed validator (builder) registration.
-func (c Component) SubmitValidatorRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
-	parsigSet := core.ParSignedDataSet{
-		pubKey: core.NewPartialSignature(core.SigFromETH2(randao), c.shareIdx),
+func (c Component) SubmitValidatorRegistration(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration) error {
+
+	// Calculate slot epoch
+	// Use timestamp to determine the slot
+	slot := uint64(100000)
+
+	eth2Pubkey := registration.V1.Message.Pubkey
+
+	pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
+	if err != nil {
+		return err
 	}
 
-	log.Debug(ctx, "Randao submitted by validator client")
+	err = c.verifyValidatorRegistrationSignature(ctx, registration, pubkey, phase0.Slot(slot))
+	if err != nil {
+		return err
+	}
 
 	duty := core.NewBuilderRegistrationDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
+	log.Debug(ctx, "Validator (builder) registration submitted by validator client")
+
+	signedData, err := core.NewPartialVersionedSignedValidatorRegistration(registration, c.shareIdx)
+	if err != nil {
+		return err
+	}
+
+	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.
-		err := sub(ctx, duty, parsigSet)
+		err = sub(ctx, duty, set)
 		if err != nil {
 			return err
 		}
