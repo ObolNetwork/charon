@@ -56,6 +56,7 @@ type clusterConfig struct {
 	Threshold      int
 	WithdrawalAddr string
 	Network        string
+	NumDVs         int
 
 	SplitKeys    bool
 	SplitKeysDir string
@@ -86,7 +87,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", defaultWithdrawalAddr, "Ethereum address to receive the returned stake and accrued rewards.")
 	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
-
+	flags.IntVar(&config.NumDVs, "validators", 1, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
 }
@@ -110,12 +111,8 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 		return err
 	}
 
-	// Currently, we assume that we create a cluster of ONLY 1 Distributed Validator
-	// TODO(xenowits): add flag to specify the number of distributed validators in a cluster
-	numDVs := 1
-
 	// Get root bls secrets
-	secrets, err := getKeys(conf, numDVs)
+	secrets, err := getKeys(conf)
 	if err != nil {
 		return err
 	}
@@ -253,7 +250,7 @@ func writeWarning(w io.Writer) {
 }
 
 // getKeys fetches secret keys for each distributed validator.
-func getKeys(conf clusterConfig, numDVs int) ([]*bls_sig.SecretKey, error) {
+func getKeys(conf clusterConfig) ([]*bls_sig.SecretKey, error) {
 	if conf.SplitKeys {
 		if conf.SplitKeysDir == "" {
 			return nil, errors.New("--split-keys-dir required when splitting keys")
@@ -263,7 +260,7 @@ func getKeys(conf clusterConfig, numDVs int) ([]*bls_sig.SecretKey, error) {
 	}
 
 	var secrets []*bls_sig.SecretKey
-	for i := 0; i < numDVs; i++ {
+	for i := 0; i < conf.NumDVs; i++ {
 		_, secret, err := tbls.KeygenWithSeed(rand.Reader)
 		if err != nil {
 			return nil, err
