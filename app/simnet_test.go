@@ -47,7 +47,7 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
-//go:generate go test . -integration -v -slow
+//go:generate go test . -integration -v
 var integration = flag.Bool("integration", false, "Enable docker based integration test")
 
 func TestSimnetNoNetwork_WithAttesterTekuVC(t *testing.T) {
