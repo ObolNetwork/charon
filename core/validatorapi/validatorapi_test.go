@@ -1026,109 +1026,132 @@ func TestComponent_ProposerDuties(t *testing.T) {
 }
 
 func TestComponent_SubmitValidatorRegistration(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	// Create keys (just use normal keys, not split tbls)
 	pubkey, secret, err := tbls.Keygen()
 	require.NoError(t, err)
 
-	const vIdx = 2
-	const epoch = 10
+	const (
+		vIdx  = 1
+		slot  = 123
+		epoch = eth2p0.Epoch(3)
+	)
 
 	// Convert pubkey
 	corePubKey, err := tblsconv.KeyToCore(pubkey)
 	require.NoError(t, err)
 	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
 
-	// Prep beacon mock validators
-	validator := beaconmock.ValidatorSetA[vIdx]
-	validator.Validator.PublicKey, err = tblsconv.KeyToETH2(pubkey)
-	require.NoError(t, err)
-
 	// Configure beacon mock
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
 	// Construct the validator api component
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
 	require.NoError(t, err)
 
-	// Prepare unsigned voluntary exit
-	exit := &eth2p0.VoluntaryExit{
-		Epoch:          epoch,
-		ValidatorIndex: vIdx,
+	unsignedValidatorRegistration := &eth2api.VersionedValidatorRegistration{
+		Version: spec.BuilderVersionV1,
+		V1:      testutil.RandomValidatorRegistration(t),
 	}
 
-	// sign voluntary exit
-	sigRoot, err := exit.HashTreeRoot()
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{corePubKey: nil}, nil
+	})
+
+	// Sign validator (builder) registration
+	sigRoot, err := unsignedValidatorRegistration.V1.HashTreeRoot()
 	require.NoError(t, err)
 
-	domain, err := signing.GetDomain(ctx, bmock, signing.DomainExit, epoch)
+	domain, err := signing.GetDomain(ctx, bmock, signing.DomainApplicationBuilder, epoch)
 	require.NoError(t, err)
 
 	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
 	require.NoError(t, err)
 
-	sig, err := tbls.Sign(secret, sigData[:])
+	s, err := tbls.Sign(secret, sigData[:])
 	require.NoError(t, err)
 
-	signedExit := &eth2p0.SignedVoluntaryExit{
-		Message:   exit,
-		Signature: tblsconv.SigToETH2(sig),
+	sigEth2 := tblsconv.SigToETH2(s)
+	signedValidatorRegistration := &eth2api.VersionedSignedValidatorRegistration{
+		Version: spec.BuilderVersionV1,
+		V1: &eth2v1.SignedValidatorRegistration{
+			Message:   unsignedValidatorRegistration.V1,
+			Signature: sigEth2,
+		},
 	}
 
 	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		signedExit2, ok := set[corePubKey].SignedData.(core.SignedVoluntaryExit)
+		registration, ok := set[corePubKey].SignedData.(core.VersionedSignedValidatorRegistration)
 		require.True(t, ok)
-		require.Equal(t, *signedExit, signedExit2.SignedVoluntaryExit)
-		cancel()
+		require.Equal(t, *signedValidatorRegistration, registration.VersionedSignedValidatorRegistration)
 
-		return ctx.Err()
+		return nil
 	})
 
-	err = vapi.SubmitVoluntaryExit(ctx, signedExit)
-	require.ErrorIs(t, err, context.Canceled)
+	err = vapi.SubmitValidatorRegistration(ctx, signedValidatorRegistration)
+	require.NoError(t, err)
 }
 
-func TestComponent_SubmitVoluntaryExitInvalidSignature(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
+	ctx := context.Background()
 
 	// Create keys (just use normal keys, not split tbls)
 	pubkey, secret, err := tbls.Keygen()
 	require.NoError(t, err)
 
-	const vIdx = 2
+	const (
+		vIdx = 1
+		slot = 123
+	)
 
+	// Convert pubkey
+	corePubKey, err := tblsconv.KeyToCore(pubkey)
+	require.NoError(t, err)
 	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
 
-	validator := beaconmock.ValidatorSetA[vIdx]
-	validator.Validator.PublicKey, err = tblsconv.KeyToETH2(pubkey)
-	require.NoError(t, err)
-
 	// Configure beacon mock
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
 	// Construct the validator api component
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
 	require.NoError(t, err)
 
-	// Register subscriber
-	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		cancel()
-		return ctx.Err()
+	unsignedValidatorRegistration := &eth2api.VersionedValidatorRegistration{
+		Version: spec.BuilderVersionV1,
+		V1:      testutil.RandomValidatorRegistration(t),
+	}
+
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{corePubKey: nil}, nil
 	})
 
-	sig, err := tbls.Sign(secret, []byte("invalid message"))
+	// Add invalid Signature to validator (builder) registration
+
+	s, err := tbls.Sign(secret, []byte("invalid msg"))
 	require.NoError(t, err)
 
-	exit := testutil.RandomExit()
-	exit.Message.ValidatorIndex = vIdx
-	exit.Signature = tblsconv.SigToETH2(sig)
+	sigEth2 := tblsconv.SigToETH2(s)
+	signedValidatorRegistration := &eth2api.VersionedSignedValidatorRegistration{
+		Version: spec.BuilderVersionV1,
+		V1: &eth2v1.SignedValidatorRegistration{
+			Message:   unsignedValidatorRegistration.V1,
+			Signature: sigEth2,
+		},
+	}
 
-	err = vapi.SubmitVoluntaryExit(ctx, exit)
+	// Register subscriber
+	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		registration, ok := set[corePubKey].SignedData.(core.VersionedSignedValidatorRegistration)
+		require.True(t, ok)
+		require.Equal(t, signedValidatorRegistration, registration)
+
+		return nil
+	})
+
+	err = vapi.SubmitValidatorRegistration(ctx, signedValidatorRegistration)
 	require.ErrorContains(t, err, "invalid signature")
 }
