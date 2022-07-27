@@ -447,6 +447,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		EventsFunc: func(context.Context, []string, eth2client.EventHandlerFunc) error {
 			return nil
 		},
+		SubmitValidatorRegistrationsFunc: func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error {
+			return nil
+		},
 	}
 }
 
