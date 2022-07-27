@@ -545,7 +545,6 @@ func (c Component) verifyValidatorRegistrationSignature(ctx context.Context, reg
 
 // SubmitValidatorRegistration receives the partially signed validator (builder) registration.
 func (c Component) SubmitValidatorRegistration(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration) error {
-
 	// Calculate slot epoch
 	// Use timestamp to determine the slot
 	slot := uint64(100000)
