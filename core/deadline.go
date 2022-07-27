@@ -24,6 +24,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 )
 
 // lateFactor defines the number of slots duties may be late.
@@ -56,8 +57,8 @@ type deadlineInput struct {
 	success chan<- bool
 }
 
-// Deadline implements the Deadliner interface.
-type Deadline struct {
+// deadliner implements the Deadliner interface.
+type deadliner struct {
 	inputChan    chan deadlineInput
 	deadlineChan chan Duty
 	clock        clockwork.Clock
@@ -65,12 +66,16 @@ type Deadline struct {
 }
 
 // NewForT returns a Deadline for use in tests.
-func NewForT(ctx context.Context, t *testing.T, deadlineFunc func(Duty) time.Time, clock clockwork.Clock) *Deadline {
+func NewForT(ctx context.Context, t *testing.T, deadlineFunc func(Duty) time.Time, clock clockwork.Clock) Deadliner {
 	t.Helper()
 
-	d := &Deadline{
+	// outputBuffer big enough to support all duty types, which can expire at the same time
+	// while external consumer is synchronously adding duties (so not reading output).
+	const outputBuffer = 10
+
+	d := &deadliner{
 		inputChan:    make(chan deadlineInput),
-		deadlineChan: make(chan Duty),
+		deadlineChan: make(chan Duty, outputBuffer),
 		clock:        clock,
 		quit:         make(chan struct{}),
 	}
@@ -83,8 +88,8 @@ func NewForT(ctx context.Context, t *testing.T, deadlineFunc func(Duty) time.Tim
 // NewDeadliner returns a new instance of Deadline.
 // It runs a goroutine which is responsible for reading and storing duties,
 // and sending the deadlined duty to receiver's deadlineChan.
-func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) *Deadline {
-	d := &Deadline{
+func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) Deadliner {
+	d := &deadliner{
 		inputChan:    make(chan deadlineInput),
 		deadlineChan: make(chan Duty),
 		clock:        clockwork.NewRealClock(),
@@ -96,7 +101,7 @@ func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) *Deadl
 	return d
 }
 
-func (d *Deadline) run(ctx context.Context, deadlineFunc func(Duty) time.Time) {
+func (d *deadliner) run(ctx context.Context, deadlineFunc func(Duty) time.Time) {
 	duties := make(map[Duty]bool)
 	currDuty, currDeadline := getCurrDuty(duties, deadlineFunc)
 	currTimer := d.clock.NewTimer(currDeadline.Sub(d.clock.Now()))
@@ -140,6 +145,8 @@ func (d *Deadline) run(ctx context.Context, deadlineFunc func(Duty) time.Time) {
 			case <-ctx.Done():
 				return
 			case d.deadlineChan <- currDuty:
+			default:
+				log.Warn(ctx, "Deadliner output channel full", nil)
 			}
 
 			delete(duties, currDuty)
@@ -149,25 +156,25 @@ func (d *Deadline) run(ctx context.Context, deadlineFunc func(Duty) time.Time) {
 }
 
 // Add adds a duty to be notified of the deadline. It returns true if the duty was added successfully.
-func (d *Deadline) Add(duty Duty) bool {
-	res := make(chan bool)
+func (d *deadliner) Add(duty Duty) bool {
+	success := make(chan bool)
 
 	select {
 	case <-d.quit:
 		return false
-	case d.inputChan <- deadlineInput{duty: duty, success: res}:
+	case d.inputChan <- deadlineInput{duty: duty, success: success}:
 	}
 
 	select {
 	case <-d.quit:
 		return false
-	case ok := <-res:
+	case ok := <-success:
 		return ok
 	}
 }
 
 // C returns the deadline channel.
-func (d *Deadline) C() <-chan Duty {
+func (d *deadliner) C() <-chan Duty {
 	return d.deadlineChan
 }
 

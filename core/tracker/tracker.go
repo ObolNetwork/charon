@@ -218,12 +218,11 @@ func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet cor
 			return ctx.Err()
 		case <-t.quit:
 			return nil
-		default:
-			t.input <- event{
-				duty:      duty,
-				component: scheduler,
-				pubkey:    pubkey,
-			}
+		case t.input <- event{
+			duty:      duty,
+			component: scheduler,
+			pubkey:    pubkey,
+		}:
 		}
 	}
 
@@ -238,12 +237,11 @@ func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.Un
 			return ctx.Err()
 		case <-t.quit:
 			return nil
-		default:
-			t.input <- event{
-				duty:      duty,
-				component: fetcher,
-				pubkey:    pubkey,
-			}
+		case t.input <- event{
+			duty:      duty,
+			component: fetcher,
+			pubkey:    pubkey,
+		}:
 		}
 	}
 
@@ -258,12 +256,11 @@ func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.
 			return ctx.Err()
 		case <-t.quit:
 			return nil
-		default:
-			t.input <- event{
-				duty:      duty,
-				component: consensus,
-				pubkey:    pubkey,
-			}
+		case t.input <- event{
+			duty:      duty,
+			component: consensus,
+			pubkey:    pubkey,
+		}:
 		}
 	}
 
@@ -278,12 +275,11 @@ func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data co
 			return ctx.Err()
 		case <-t.quit:
 			return nil
-		default:
-			t.input <- event{
-				duty:      duty,
-				component: validatorAPI,
-				pubkey:    pubkey,
-			}
+		case t.input <- event{
+			duty:      duty,
+			component: validatorAPI,
+			pubkey:    pubkey,
+		}:
 		}
 	}
 
@@ -298,13 +294,12 @@ func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.P
 			return ctx.Err()
 		case <-t.quit:
 			return nil
-		default:
-			t.input <- event{
-				duty:      duty,
-				component: parSigEx,
-				pubkey:    pubkey,
-				shareIdx:  pSig.ShareIdx,
-			}
+		case t.input <- event{
+			duty:      duty,
+			component: parSigEx,
+			pubkey:    pubkey,
+			shareIdx:  pSig.ShareIdx,
+		}:
 		}
 	}
 
@@ -319,13 +314,12 @@ func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, dat
 			return ctx.Err()
 		case <-t.quit:
 			return nil
-		default:
-			t.input <- event{
-				duty:      duty,
-				component: parSigDBInternal,
-				pubkey:    pubkey,
-				shareIdx:  pSig.ShareIdx,
-			}
+		case t.input <- event{
+			duty:      duty,
+			component: parSigDBInternal,
+			pubkey:    pubkey,
+			shareIdx:  pSig.ShareIdx,
+		}:
 		}
 	}
 
@@ -339,12 +333,11 @@ func (t *Tracker) ParSigDBThresholdEvent(ctx context.Context, duty core.Duty, pu
 		return ctx.Err()
 	case <-t.quit:
 		return nil
-	default:
-		t.input <- event{
-			duty:      duty,
-			component: parSigDBThreshold,
-			pubkey:    pubkey,
-		}
+	case t.input <- event{
+		duty:      duty,
+		component: parSigDBThreshold,
+		pubkey:    pubkey,
+	}:
 	}
 
 	return nil
@@ -357,12 +350,11 @@ func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.P
 		return ctx.Err()
 	case <-t.quit:
 		return nil
-	default:
-		t.input <- event{
-			duty:      duty,
-			component: sigAgg,
-			pubkey:    pubkey,
-		}
+	case t.input <- event{
+		duty:      duty,
+		component: sigAgg,
+		pubkey:    pubkey,
+	}:
 	}
 
 	return nil
