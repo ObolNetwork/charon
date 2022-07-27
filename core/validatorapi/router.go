@@ -69,7 +69,7 @@ type Handler interface {
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the validatorapi.Handler.
 // All other requests are reserve-proxied to the beacon-node address.
-func NewRouter(h Handler, eth2Cl eth2client.Service, fallbackBeaconAddr string) (*mux.Router, error) {
+func NewRouter(h Handler, eth2Cl eth2client.Service) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints
 	endpoints := []struct {
 		Name    string
@@ -140,7 +140,7 @@ func NewRouter(h Handler, eth2Cl eth2client.Service, fallbackBeaconAddr string) 
 	}
 
 	// Everything else is proxied
-	proxy, err := proxyHandler(eth2Cl, fallbackBeaconAddr)
+	proxy, err := proxyHandler(eth2Cl)
 	if err != nil {
 		return nil, err
 	}
@@ -512,10 +512,10 @@ func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
 }
 
 // proxyHandler returns a reverse proxy handler.
-func proxyHandler(eth2Cl eth2client.Service, fallbackBeaconAddr string) (http.HandlerFunc, error) {
+func proxyHandler(eth2Cl eth2client.Service) (http.HandlerFunc, error) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get active beacon node address.
-		targetURL, err := getBeaconNodeAddress(eth2Cl, fallbackBeaconAddr)
+		targetURL, err := getBeaconNodeAddress(r.Context(), eth2Cl)
 		if err != nil {
 			ctx := log.WithTopic(r.Context(), "vapi")
 			log.Error(ctx, "Proxy target beacon node address", err)
@@ -544,10 +544,23 @@ func proxyHandler(eth2Cl eth2client.Service, fallbackBeaconAddr string) (http.Ha
 }
 
 // getBeaconNodeAddress returns an active beacon node proxy target address.
-func getBeaconNodeAddress(eth2Cl eth2client.Service, fallbackBeaconAddr string) (*url.URL, error) {
+func getBeaconNodeAddress(ctx context.Context, eth2Cl eth2client.Service) (*url.URL, error) {
 	addr := eth2Cl.Address()
 	if addr == "none" {
-		addr = fallbackBeaconAddr
+		// Trigger refresh of inactive clients to hopefully resolve any active clients.
+		syncProvider, ok := eth2Cl.(eth2client.NodeSyncingProvider)
+		if !ok {
+			return nil, errors.New("invalid eth2 client")
+		}
+		_, err := syncProvider.NodeSyncing(ctx)
+		if err != nil {
+			return nil, errors.New("no active beacon nodes") // Not wrapping since error will be confusing.
+		}
+
+		addr = eth2Cl.Address()
+		if addr == "none" {
+			return nil, errors.New("no active beacon nodes")
+		}
 	}
 
 	targetURL, err := url.Parse(addr)
