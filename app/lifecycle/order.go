@@ -26,7 +26,8 @@ type OrderStop int
 
 // Global ordering of start hooks.
 const (
-	StartAggSigDB OrderStart = iota
+	StartTracker OrderStart = iota
+	StartAggSigDB
 	StartRelay
 	StartMonitoringAPI
 	StartValidatorAPI

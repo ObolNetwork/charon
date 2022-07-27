@@ -67,11 +67,11 @@ type Tracker struct {
 	deadliner core.Deadliner
 	quit      chan struct{}
 
-	// failedDutyReporter instruments the duty. It ignores non-failed duties.
-	failedDutyReporter func(core.Duty, bool, string, string)
+	// failedDutyReporter instruments duty failures.
+	failedDutyReporter func(ctx context.Context, duty core.Duty, failed bool, component component, reason string)
 
-	// participationReporter logs and instruments the participation.
-	participationReporter func(context.Context, core.Duty, map[int]bool)
+	// participationReporter instruments duty peer participation.
+	participationReporter func(ctx context.Context, duty core.Duty, participatedShares map[int]bool)
 }
 
 // New returns a new Tracker.
@@ -106,9 +106,13 @@ func (t *Tracker) Run(ctx context.Context) error {
 
 			t.events[e.duty] = append(t.events[e.duty], e)
 		case duty := <-t.deadliner.C():
-			failed, failedComponent, failedMsg := analyseDutyFailed(duty, t.events[duty])
-			t.failedDutyReporter(duty, failed, failedComponent.String(), failedMsg)
+			ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
+			// Analyse failed duties
+			failed, failedComponent, failedMsg := analyseDutyFailed(duty, t.events[duty])
+			t.failedDutyReporter(ctx, duty, failed, failedComponent, failedMsg)
+
+			// Analyse peer participation
 			participatedShares, err := analyseParticipation(t.events[duty])
 			if err != nil {
 				log.Error(ctx, "Invalid participated shares", err)
@@ -146,9 +150,18 @@ func analyseDutyFailed(duty core.Duty, es []event) (bool, component, string) {
 	return true, events[0].component + 1, fmt.Sprintf("%s failed in %s component", duty.String(), (events[0].component + 1).String())
 }
 
-// failedDutyReporter instruments the duty. It ignores non-failed duties.
-// TODO(xenowits): Implement logic for reporting duties.
-func failedDutyReporter(core.Duty, bool, string, string) {}
+// failedDutyReporter instruments failed duties.
+func failedDutyReporter(ctx context.Context, duty core.Duty, failed bool, component component, reason string) {
+	if !failed {
+		return
+	}
+
+	log.Warn(ctx, "Duty failed", nil,
+		z.Any("component", component),
+		z.Str("reason", reason))
+
+	failedCounter.WithLabelValues(duty.String(), component.String()).Inc()
+}
 
 // analyseParticipation returns a set of share indexes of participated peers.
 func analyseParticipation(events []event) (map[int]bool, error) {
@@ -187,9 +200,9 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 
 		if fmt.Sprint(prevAbsent) != fmt.Sprint(absentPeers) {
 			if len(absentPeers) == 0 {
-				log.Info(ctx, "All peers participated in duty", z.Str("duty", duty.String()))
+				log.Info(ctx, "All peers participated in duty")
 			} else {
-				log.Info(ctx, "Not all peers participated in duty", z.Str("duty", duty.String()), z.Any("absent", absentPeers))
+				log.Info(ctx, "Not all peers participated in duty", z.Any("absent", absentPeers))
 			}
 		}
 
@@ -205,12 +218,11 @@ func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet cor
 			return ctx.Err()
 		case <-t.quit:
 			return nil
-		default:
-			t.input <- event{
-				duty:      duty,
-				component: scheduler,
-				pubkey:    pubkey,
-			}
+		case t.input <- event{
+			duty:      duty,
+			component: scheduler,
+			pubkey:    pubkey,
+		}:
 		}
 	}
 
@@ -225,12 +237,11 @@ func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.Un
 			return ctx.Err()
 		case <-t.quit:
 			return nil
-		default:
-			t.input <- event{
-				duty:      duty,
-				component: fetcher,
-				pubkey:    pubkey,
-			}
+		case t.input <- event{
+			duty:      duty,
+			component: fetcher,
+			pubkey:    pubkey,
+		}:
 		}
 	}
 
@@ -245,12 +256,11 @@ func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.
 			return ctx.Err()
 		case <-t.quit:
 			return nil
-		default:
-			t.input <- event{
-				duty:      duty,
-				component: consensus,
-				pubkey:    pubkey,
-			}
+		case t.input <- event{
+			duty:      duty,
+			component: consensus,
+			pubkey:    pubkey,
+		}:
 		}
 	}
 
@@ -265,12 +275,11 @@ func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data co
 			return ctx.Err()
 		case <-t.quit:
 			return nil
-		default:
-			t.input <- event{
-				duty:      duty,
-				component: validatorAPI,
-				pubkey:    pubkey,
-			}
+		case t.input <- event{
+			duty:      duty,
+			component: validatorAPI,
+			pubkey:    pubkey,
+		}:
 		}
 	}
 
@@ -285,13 +294,12 @@ func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.P
 			return ctx.Err()
 		case <-t.quit:
 			return nil
-		default:
-			t.input <- event{
-				duty:      duty,
-				component: parSigEx,
-				pubkey:    pubkey,
-				shareIdx:  pSig.ShareIdx,
-			}
+		case t.input <- event{
+			duty:      duty,
+			component: parSigEx,
+			pubkey:    pubkey,
+			shareIdx:  pSig.ShareIdx,
+		}:
 		}
 	}
 
@@ -306,13 +314,12 @@ func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, dat
 			return ctx.Err()
 		case <-t.quit:
 			return nil
-		default:
-			t.input <- event{
-				duty:      duty,
-				component: parSigDBInternal,
-				pubkey:    pubkey,
-				shareIdx:  pSig.ShareIdx,
-			}
+		case t.input <- event{
+			duty:      duty,
+			component: parSigDBInternal,
+			pubkey:    pubkey,
+			shareIdx:  pSig.ShareIdx,
+		}:
 		}
 	}
 
@@ -326,12 +333,11 @@ func (t *Tracker) ParSigDBThresholdEvent(ctx context.Context, duty core.Duty, pu
 		return ctx.Err()
 	case <-t.quit:
 		return nil
-	default:
-		t.input <- event{
-			duty:      duty,
-			component: parSigDBThreshold,
-			pubkey:    pubkey,
-		}
+	case t.input <- event{
+		duty:      duty,
+		component: parSigDBThreshold,
+		pubkey:    pubkey,
+	}:
 	}
 
 	return nil
@@ -344,12 +350,11 @@ func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.P
 		return ctx.Err()
 	case <-t.quit:
 		return nil
-	default:
-		t.input <- event{
-			duty:      duty,
-			component: sigAgg,
-			pubkey:    pubkey,
-		}
+	case t.input <- event{
+		duty:      duty,
+		component: sigAgg,
+		pubkey:    pubkey,
+	}:
 	}
 
 	return nil
