@@ -35,7 +35,7 @@ import (
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
-func wireMonitoringAPI(life *lifecycle.Manager, addr string, localNode *enode.LocalNode, tcpNode host.Host, eth2Svc eth2client.Service, peerIDs []peer.ID) error {
+func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string, localNode *enode.LocalNode, tcpNode host.Host, eth2Svc eth2client.Service, peerIDs []peer.ID) error {
 	mux := http.NewServeMux()
 
 	// Serve prometheus metrics
@@ -72,6 +72,24 @@ func wireMonitoringAPI(life *lifecycle.Manager, addr string, localNode *enode.Lo
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))
 	life.RegisterStop(lifecycle.StopMonitoringAPI, lifecycle.HookFunc(server.Shutdown))
+
+	go func() {
+		ticker := time.NewTicker(time.Second)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				syncing, err := beaconNodeSyncing(ctx, eth2Cl)
+				if err != nil || syncing || peersReady(ctx, peerIDs, tcpNode) != nil {
+					readyzGauge.Set(0)
+				} else {
+					readyzGauge.Set(1)
+				}
+			}
+		}
+	}()
 
 	return nil
 }
