@@ -65,34 +65,31 @@ type deadliner struct {
 	quit         chan struct{}
 }
 
-// NewForT returns a Deadline for use in tests.
-func NewForT(ctx context.Context, t *testing.T, deadlineFunc func(Duty) time.Time, clock clockwork.Clock) Deadliner {
+// NewDeadlinerForT returns a Deadline for use in tests.
+func NewDeadlinerForT(ctx context.Context, t *testing.T, deadlineFunc func(Duty) time.Time, clock clockwork.Clock) Deadliner {
 	t.Helper()
 
+	return newDeadliner(ctx, deadlineFunc, clock)
+}
+
+// NewDeadliner returns a new instance of Deadline.
+//
+// It also starts a goroutine which is responsible for reading and storing duties,
+// and sending the deadlined duty to receiver's deadlineChan until the context is closed.
+func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) Deadliner {
+	return newDeadliner(ctx, deadlineFunc, clockwork.NewRealClock())
+}
+
+// newDeadliner returns a new Deadliner, this is for internal use only.
+func newDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time, clock clockwork.Clock) Deadliner {
 	// outputBuffer big enough to support all duty types, which can expire at the same time
 	// while external consumer is synchronously adding duties (so not reading output).
 	const outputBuffer = 10
 
 	d := &deadliner{
-		inputChan:    make(chan deadlineInput),
+		inputChan:    make(chan deadlineInput), // Not buffering this since writer wait for response.
 		deadlineChan: make(chan Duty, outputBuffer),
 		clock:        clock,
-		quit:         make(chan struct{}),
-	}
-
-	go d.run(ctx, deadlineFunc)
-
-	return d
-}
-
-// NewDeadliner returns a new instance of Deadline.
-// It runs a goroutine which is responsible for reading and storing duties,
-// and sending the deadlined duty to receiver's deadlineChan.
-func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) Deadliner {
-	d := &deadliner{
-		inputChan:    make(chan deadlineInput),
-		deadlineChan: make(chan Duty),
-		clock:        clockwork.NewRealClock(),
 		quit:         make(chan struct{}),
 	}
 

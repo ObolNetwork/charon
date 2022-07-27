@@ -79,6 +79,7 @@ issues:
     - "defer: prefer not to defer chains of function calls" # Relax revive
     - "avoid control coupling" # Relax revive
     - "shadows an import name" # Relax revive
+    - "confusing-naming" # Relax revive
     - "shadow: declaration of \"err\" shadows declaration" # Relax govet
 
 linters:

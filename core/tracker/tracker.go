@@ -201,6 +201,8 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 		if fmt.Sprint(prevAbsent) != fmt.Sprint(absentPeers) {
 			if len(absentPeers) == 0 {
 				log.Info(ctx, "All peers participated in duty")
+			} else if len(absentPeers) == len(peers) {
+				log.Info(ctx, "No peers participated in duty")
 			} else {
 				log.Info(ctx, "Not all peers participated in duty", z.Any("absent", absentPeers))
 			}

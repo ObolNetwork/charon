@@ -50,7 +50,7 @@ func TestDeadliner(t *testing.T) {
 		}
 	}
 
-	deadliner := core.NewForT(ctx, t, deadlineFuncProvider(), clock)
+	deadliner := core.NewDeadlinerForT(ctx, t, deadlineFuncProvider(), clock)
 
 	wg := &sync.WaitGroup{}
 
