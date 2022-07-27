@@ -46,14 +46,14 @@ and the beacon node via the official [Eth Beacon Node REST API](https://ethereum
 Charon supports any upstream beacon node that serves the Beacon API.
 Charon supports any downstream standalone validator client that consumes the Beacon API.
 
-| Client                                             | Beacon Node | Validator Client | Notes                                   |
-| -------------------------------------------------- | ----------- | ---------------- | --------------------------------------- |
-| [Teku](https://github.com/ConsenSys/teku)          | ✅          | ✅               | Fully supported                         |
-| [Lighthouse](https://github.com/sigp/lighthouse)   | ✅          | ✅               | Fully supported                         |
-| [Lodestar](https://github.com/ChainSafe/lodestar)  | ✅          | ✅               | Fully supported                         |
-| [Vouch](https://github.com/attestantio/vouch)      | \*️⃣         | ✅               | Only validator client provided          |
-| [Prysm](https://github.com/prysmaticlabs/prysm)    | ✅          | 🛑               | Validator client requires gRPC API      |
-| [Nimbus](https://github.com/status-im/nimbus-eth2) | ✅          | \*️⃣              | No standalone validator client provided |
+| Client                                             | Beacon Node | Validator Client | Notes                                           |
+| -------------------------------------------------- | ----------- | --------------- |-------------------------------------------------|
+| [Teku](https://github.com/ConsenSys/teku)          | ✅          | ✅              | Fully supported                                 |
+| [Lighthouse](https://github.com/sigp/lighthouse)   | ✅          | ✅              | Fully supported                                 |
+| [Lodestar](https://github.com/ChainSafe/lodestar)  | ✅          | *️⃣               | Validator client requires Loadestar beacon node |
+| [Vouch](https://github.com/attestantio/vouch)      | \*️⃣         | ✅              | Only validator client provided                  |
+| [Prysm](https://github.com/prysmaticlabs/prysm)    | ✅          | 🛑              | Validator client requires gRPC API              |
+| [Nimbus](https://github.com/status-im/nimbus-eth2) | ✅          | \*️⃣             | No standalone validator client provided         |
 
 ## Project Status
 
