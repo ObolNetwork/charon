@@ -166,7 +166,7 @@ func TestCalculateResults(t *testing.T) {
 				msgs[i], msgs[j] = msgs[j], msgs[i]
 			})
 
-			result, err := calculateResults(msgs, Q)
+			result, err := calculateResult(msgs, Q)
 			require.NoError(t, err)
 			require.Len(t, result.Topics, 1)
 			if len(test.Result) > 0 {
