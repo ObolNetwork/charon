@@ -16,7 +16,6 @@
 package dkg
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"os"
 	"path"
@@ -29,9 +28,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"github.com/obolnetwork/charon/testutil"
 )
 
 // loadDefinition returns the cluster definition from disk (or the test definition if configured).
@@ -127,58 +124,13 @@ func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr
 }
 
 // checkWrites writes sample files to check disk writes and removes sample files after verification.
-func checkWrites(dataDir string, def cluster.Definition) error {
-	var shares []share
-	sigs := make(map[core.PubKey]*bls_sig.Signature)
-	for i := 0; i < def.NumValidators; i++ {
-		tss, sks, err := tbls.GenerateTSS(def.Threshold, len(def.Operators), rand.Reader)
-		if err != nil {
-			return err
-		}
-
-		shares = append(shares, share{
-			PubKey:       tss.PublicKey(),
-			SecretShare:  sks[0],
-			PublicShares: tss.PublicShares(),
-		})
-
-		pk, err := tblsconv.KeyToCore(tss.PublicKey())
-		if err != nil {
-			return err
-		}
-
-		sig, err := testutil.RandomBLSSignature()
-		if err != nil {
-			return err
-		}
-
-		sigs[pk] = sig
+func checkWrites(dataDir string) error {
+	if err := os.WriteFile(path.Join(dataDir, "sample.txt"), []byte{}, 0o444); err != nil {
+		return errors.Wrap(err, "write sample file")
 	}
 
-	if err := writeDepositData(sigs, testutil.RandomETHAddress(), "prater", dataDir); err != nil {
-		return err
-	}
-
-	if err := writeKeystores(dataDir, shares); err != nil {
-		return err
-	}
-
-	lock := cluster.Lock{Definition: def}
-	if err := writeLock(dataDir, lock); err != nil {
-		return err
-	}
-
-	// Cleanup sample files
-	if err := os.Remove(path.Join(dataDir, "deposit-data.json")); err != nil {
-		return errors.Wrap(err, "remove sample deposit-data.json")
-	}
-
-	if err := os.RemoveAll(path.Join(dataDir, "/validator_keys")); err != nil {
-		return errors.Wrap(err, "remove keys")
-	}
-
-	if err := os.Remove(path.Join(dataDir, "cluster-lock.json")); err != nil {
-		return errors.Wrap(err, "remove sample cluster-lock.json")
+	if err := os.Remove(path.Join(dataDir, "sample.txt")); err != nil {
+		return errors.Wrap(os.Remove(path.Join(dataDir, "sample.txt")), "remove sample file")
 	}
 
 	return nil
