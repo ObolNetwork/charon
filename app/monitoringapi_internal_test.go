@@ -126,6 +126,7 @@ func TestStartCheckerSyncing(t *testing.T) {
 	clock.Advance(15 * time.Second)
 	clock.BlockUntil(1)
 
+	// Infinite loop required since mutexes are non-deterministic.
 	for {
 		err := readyErrFunc()
 		if err != nil {
@@ -183,6 +184,7 @@ func TestStartCheckerPingFail(t *testing.T) {
 	clock.Advance(15 * time.Second)
 	clock.BlockUntil(1)
 
+	// Infinite loop required since mutexes are non-deterministic.
 	for {
 		err := readyErrFunc()
 		if err != nil {
