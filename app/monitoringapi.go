@@ -142,9 +142,6 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 
 // peersReady returns an error if quorum peers cannot be pinged (concurrently).
 func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	results := make(chan ping.Result, len(peerIDs))
 	for _, pID := range peerIDs {
 		if tcpNode.ID() == pID {
@@ -152,18 +149,18 @@ func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error
 		}
 
 		go func(pID peer.ID) {
-			select {
-			case <-ctx.Done():
-				return
-			case results <- <-ping.Ping(ctx, tcpNode, pID):
-			}
+			ctx, cancel := context.WithCancel(ctx) // Cancel after reading first result
+			defer cancel()
+
+			results <- <-ping.Ping(ctx, tcpNode, pID)
 		}(pID)
 	}
 
 	var (
 		// Require quorum successes (excluding self). Formula from IBFT 2.0 paper https://arxiv.org/pdf/1909.10194.pdf
-		require = int(math.Ceil(float64(len(peerIDs)*2)/3)) - 1
-		actual  int
+		require  = int(math.Ceil(float64(len(peerIDs)*2)/3)) - 1
+		actual   int
+		errCount int
 	)
 	for {
 		select {
@@ -171,10 +168,16 @@ func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error
 			return ctx.Err()
 		case res := <-results:
 			if res.Error != nil {
-				return res.Error
+				errCount++
+			} else {
+				actual++
 			}
 
-			actual++
+			// Return error if we cannot reach quorum peers.
+			if errCount > (len(peerIDs) - require - 1) {
+				return errors.New("not enough peers")
+			}
+
 			if actual == require {
 				return nil
 			}

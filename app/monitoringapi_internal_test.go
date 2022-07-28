@@ -17,7 +17,6 @@ package app
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -67,24 +66,16 @@ func TestStartCheckerSuccess(t *testing.T) {
 		}
 	}
 
-	var wg sync.WaitGroup
-	for i := 0; i < numNodes; i++ {
-		wg.Add(1)
-		go func(nodeIdx int) {
-			defer wg.Done()
-			clock := clockwork.NewFakeClock()
-			readyErrFunc := startReadyChecker(ctx, hosts[nodeIdx], bmock, peers, clock)
+	clock := clockwork.NewFakeClock()
+	readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock)
 
-			// We wrap the Advance() calls with blockers to make sure that the ticker
-			// can go to sleep and produce ticks without time passing in parallel.
-			clock.BlockUntil(1)
-			clock.Advance(15 * time.Second)
-			clock.BlockUntil(1)
+	// We wrap the Advance() calls with blockers to make sure that the ticker
+	// can go to sleep and produce ticks without time passing in parallel.
+	clock.BlockUntil(1)
+	clock.Advance(15 * time.Second)
+	clock.BlockUntil(1)
 
-			require.NoError(t, readyErrFunc(), nodeIdx)
-		}(i)
-	}
-	wg.Wait()
+	require.NoError(t, readyErrFunc())
 }
 
 func TestStartCheckerSyncing(t *testing.T) {
@@ -126,24 +117,22 @@ func TestStartCheckerSyncing(t *testing.T) {
 		}
 	}
 
-	var wg sync.WaitGroup
-	for i := 0; i < numNodes; i++ {
-		wg.Add(1)
-		go func(nodeIdx int) {
-			defer wg.Done()
-			clock := clockwork.NewFakeClock()
-			readyErrFunc := startReadyChecker(ctx, hosts[nodeIdx], bmock, peers, clock)
+	clock := clockwork.NewFakeClock()
+	readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock)
 
-			// We wrap the Advance() calls with blockers to make sure that the ticker
-			// can go to sleep and produce ticks without time passing in parallel.
-			clock.BlockUntil(1)
-			clock.Advance(15 * time.Second)
-			clock.BlockUntil(1)
+	// We wrap the Advance() calls with blockers to make sure that the ticker
+	// can go to sleep and produce ticks without time passing in parallel.
+	clock.BlockUntil(1)
+	clock.Advance(15 * time.Second)
+	clock.BlockUntil(1)
 
-			require.EqualError(t, readyErrFunc(), "beacon node not synced")
-		}(i)
+	for {
+		err := readyErrFunc()
+		if err != nil {
+			require.EqualError(t, err, "beacon node not synced")
+			break
+		}
 	}
-	wg.Wait()
 }
 
 func TestStartCheckerPingFail(t *testing.T) {
@@ -153,7 +142,11 @@ func TestStartCheckerPingFail(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	const numNodes = 3
+	bmock.NodeSyncingFunc = func(ctx context.Context) (*eth2v1.SyncState, error) {
+		return &eth2v1.SyncState{IsSyncing: false}, nil
+	}
+
+	const numNodes = 5
 	var (
 		peers     []peer.ID
 		hosts     []host.Host
@@ -171,9 +164,9 @@ func TestStartCheckerPingFail(t *testing.T) {
 		hosts = append(hosts, h)
 	}
 
-	// Connect each host with its peers except last one
-	for i := 0; i < numNodes-1; i++ {
-		for k := 0; k < numNodes-1; k++ {
+	// Connect each host with its peers except 3 peers so that quorum number of peers cannot connect.
+	for i := 0; i < numNodes; i++ {
+		for k := 0; k < numNodes-3; k++ {
 			if i == k {
 				continue
 			}
@@ -181,23 +174,20 @@ func TestStartCheckerPingFail(t *testing.T) {
 		}
 	}
 
-	var wg sync.WaitGroup
-	for i := 0; i < numNodes; i++ {
-		wg.Add(1)
-		go func(nodeIdx int) {
-			defer wg.Done()
+	clock := clockwork.NewFakeClock()
+	readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock)
 
-			clock := clockwork.NewFakeClock()
-			readyErrFunc := startReadyChecker(ctx, hosts[nodeIdx], bmock, peers, clock)
+	// We wrap the Advance() calls with blockers to make sure that the ticker
+	// can go to sleep and produce ticks without time passing in parallel.
+	clock.BlockUntil(1)
+	clock.Advance(15 * time.Second)
+	clock.BlockUntil(1)
 
-			// We wrap the Advance() calls with blockers to make sure that the ticker
-			// can go to sleep and produce ticks without time passing in parallel.
-			clock.BlockUntil(1)
-			clock.Advance(15 * time.Second)
-			clock.BlockUntil(1)
-
-			require.EqualError(t, readyErrFunc(), "couldn't ping all peers")
-		}(i)
+	for {
+		err := readyErrFunc()
+		if err != nil {
+			require.EqualError(t, err, "couldn't ping all peers")
+			break
+		}
 	}
-	wg.Wait()
 }
