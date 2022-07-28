@@ -66,7 +66,7 @@ type msgValidator func(*pbv1.PriorityMsg) error
 type tickerProvider func() (<-chan time.Time, func())
 
 // subscriber abstracts the output subscriber callbacks of Prioritiser.
-type subscriber func(ctx context.Context, slot int64, topic string, priorities []string) error
+type subscriber func(ctx context.Context, slot int64, topic string, priorities []*pbv1.PriorityScoredResult) error
 
 // NewForT returns a new prioritiser for testing.
 func NewForT(_ *testing.T, transport Transport,
