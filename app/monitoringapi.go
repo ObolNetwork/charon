@@ -20,10 +20,12 @@ import (
 	"math"
 	"net/http"
 	"net/http/pprof"
+	"sync"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/jonboulle/clockwork"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
@@ -56,7 +58,16 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 		return errors.New("invalid eth2 service")
 	}
 
-	mux.Handle("/readyz", newReadyHandler(tcpNode, eth2Cl, peerIDs))
+	readyErrFunc := startReadyChecker(ctx, tcpNode, eth2Cl, peerIDs, clockwork.NewRealClock())
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		readyErr := readyErrFunc()
+		if readyErr != nil {
+			writeResponse(w, http.StatusInternalServerError, readyErr.Error())
+			return
+		}
+
+		writeResponse(w, http.StatusOK, "ok")
+	})
 
 	// Copied from net/http/pprof/pprof.go
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
@@ -73,53 +84,49 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))
 	life.RegisterStop(lifecycle.StopMonitoringAPI, lifecycle.HookFunc(server.Shutdown))
 
+	return nil
+}
+
+// startReadyChecker returns function which returns an error resulting from ready checks periodically.
+func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID, clock clockwork.Clock) func() error {
+	var (
+		mu       sync.Mutex
+		readyErr error
+	)
 	go func() {
-		ticker := time.NewTicker(time.Second)
+		ticker := clock.NewTicker(10 * time.Second)
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-ticker.Chan():
+				mu.Lock()
 				syncing, err := beaconNodeSyncing(ctx, eth2Cl)
-				if err != nil || syncing || peersReady(ctx, peerIDs, tcpNode) != nil {
+				if err != nil {
+					readyErr = errors.New("failed to get beacon sync state")
+					readyzGauge.Set(0)
+				} else if syncing {
+					readyErr = errors.New("beacon node not synced")
+					readyzGauge.Set(0)
+				} else if peersReady(ctx, peerIDs, tcpNode) != nil {
+					readyErr = errors.New("couldn't ping all peers")
 					readyzGauge.Set(0)
 				} else {
+					readyErr = nil
 					readyzGauge.Set(1)
 				}
+
+				mu.Unlock()
 			}
 		}
 	}()
 
-	return nil
-}
+	return func() error {
+		mu.Lock()
+		defer mu.Unlock()
 
-// newReadyHandler returns a http.HandlerFunc which returns 200 when both the beacon node is synced and all quorum peers can be pinged  in parallel within a timeout. Returns 500 otherwise.
-func newReadyHandler(tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second)
-		defer cancel()
-
-		var ready float64
-		defer func() { readyzGauge.Set(ready) }()
-
-		syncing, err := beaconNodeSyncing(ctx, eth2Cl)
-		if err != nil {
-			writeResponse(w, http.StatusInternalServerError, "Failed to get beacon sync state")
-			return
-		} else if syncing {
-			writeResponse(w, http.StatusInternalServerError, "Beacon node not synced")
-			return
-		}
-
-		err = peersReady(ctx, peerIDs, tcpNode)
-		if err != nil {
-			writeResponse(w, http.StatusInternalServerError, "Couldn't ping all peers")
-			return
-		}
-
-		ready = 1
-		writeResponse(w, http.StatusOK, "ok")
+		return readyErr
 	}
 }
 
@@ -135,6 +142,9 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 
 // peersReady returns an error if quorum peers cannot be pinged (concurrently).
 func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	results := make(chan ping.Result, len(peerIDs))
 	for _, pID := range peerIDs {
 		if tcpNode.ID() == pID {
@@ -142,10 +152,11 @@ func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error
 		}
 
 		go func(pID peer.ID) {
-			ctx, cancel := context.WithCancel(ctx) // Cancel after reading first result
-			defer cancel()
-
-			results <- <-ping.Ping(ctx, tcpNode, pID)
+			select {
+			case <-ctx.Done():
+				return
+			case results <- <-ping.Ping(ctx, tcpNode, pID):
+			}
 		}(pID)
 	}
 
@@ -160,7 +171,7 @@ func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error
 			return ctx.Err()
 		case res := <-results:
 			if res.Error != nil {
-				continue
+				return res.Error
 			}
 
 			actual++
