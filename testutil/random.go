@@ -272,10 +272,8 @@ func RandomValidatorRegistration(t *testing.T) *eth2v1.ValidatorRegistration {
 	t.Helper()
 
 	return &eth2v1.ValidatorRegistration{
-		FeeRecipient: bellatrix.ExecutionAddress{},
-		GasLimit:     rand.Uint64(),
-		Timestamp:    time.Time{},
-		Pubkey:       RandomEth2PubKey(t),
+		GasLimit: rand.Uint64(),
+		Pubkey:   RandomEth2PubKey(t),
 	}
 }
 
