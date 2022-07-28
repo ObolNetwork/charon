@@ -49,14 +49,17 @@ func NewUDPNode(config Config, ln *enode.LocalNode,
 		return nil, errors.Wrap(err, "parse udp address")
 	}
 
-	netlist, err := netutil.ParseNetlist(config.Allowlist)
-	if err != nil {
-		return nil, errors.Wrap(err, "parse allow list")
+	var allowList *netutil.Netlist
+	if config.Allowlist != "" {
+		allowList, err = netutil.ParseNetlist(config.Allowlist) // Note empty string results in "none allowed".
+		if err != nil {
+			return nil, errors.Wrap(err, "parse allow list")
+		}
 	}
 
 	node, err := discover.ListenV5(conn, ln, discover.Config{
 		PrivateKey:  key,
-		NetRestrict: netlist,
+		NetRestrict: allowList,
 		Bootnodes:   bootnodes,
 	})
 	if err != nil {
