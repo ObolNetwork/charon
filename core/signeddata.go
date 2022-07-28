@@ -520,6 +520,33 @@ type versionedRawValidatorRegistrationJSON struct {
 	Registration json.RawMessage `json:"registration"`
 }
 
+// NewVersionedSignedValidatorRegistration is a convenience function that returns a new signed validator (builder) registration.
+func NewVersionedSignedValidatorRegistration(registration *eth2api.VersionedSignedValidatorRegistration) (VersionedSignedValidatorRegistration, error) {
+	switch registration.Version {
+	case spec.BuilderVersionV1:
+		if registration.V1 == nil {
+			return VersionedSignedValidatorRegistration{}, errors.New("no V1 registration")
+		}
+	default:
+		return VersionedSignedValidatorRegistration{}, errors.New("unknown version")
+	}
+
+	return VersionedSignedValidatorRegistration{VersionedSignedValidatorRegistration: *registration}, nil
+}
+
+// NewPartialVersionedSignedValidatorRegistration is a convenience function that returns a new partially signed validator (builder) registration.
+func NewPartialVersionedSignedValidatorRegistration(registration *eth2api.VersionedSignedValidatorRegistration, shareIdx int) (ParSignedData, error) {
+	wrap, err := NewVersionedSignedValidatorRegistration(registration)
+	if err != nil {
+		return ParSignedData{}, err
+	}
+
+	return ParSignedData{
+		SignedData: wrap,
+		ShareIdx:   shareIdx,
+	}, nil
+}
+
 func (r VersionedSignedValidatorRegistration) Clone() (SignedData, error) {
 	return r.clone()
 }
