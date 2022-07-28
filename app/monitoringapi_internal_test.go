@@ -31,165 +31,97 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
-func TestStartCheckerSuccess(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	const numNodes = 3
-	var (
-		peers     []peer.ID
-		hosts     []host.Host
-		hostsInfo []peer.AddrInfo
-	)
-
-	for i := 0; i < numNodes; i++ {
-		h := testutil.CreateHost(t, testutil.AvailableAddr(t))
-		info := peer.AddrInfo{
-			ID:    h.ID(),
-			Addrs: h.Addrs(),
-		}
-		hostsInfo = append(hostsInfo, info)
-		peers = append(peers, h.ID())
-		hosts = append(hosts, h)
+func TestStartChecker(t *testing.T) {
+	tests := []struct {
+		name        string
+		isSyncing   bool
+		numPeers    int
+		absentPeers int
+		err         error
+	}{
+		{
+			name:        "success",
+			isSyncing:   false,
+			numPeers:    5,
+			absentPeers: 0,
+		},
+		{
+			name:        "syncing",
+			isSyncing:   true,
+			numPeers:    5,
+			absentPeers: 0,
+			err:         errReadySyncing,
+		},
+		{
+			name:        "peer ping failing",
+			isSyncing:   false,
+			numPeers:    5,
+			absentPeers: 3,
+			err:         errReadyPingFailing,
+		},
 	}
 
-	// connect each host with its peers
-	for i := 0; i < numNodes; i++ {
-		for k := 0; k < numNodes; k++ {
-			if i == k {
-				continue
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			bmock, err := beaconmock.New()
+			require.NoError(t, err)
+
+			bmock.NodeSyncingFunc = func(ctx context.Context) (*eth2v1.SyncState, error) {
+				return &eth2v1.SyncState{IsSyncing: tt.isSyncing}, nil
 			}
-			hosts[i].Peerstore().AddAddrs(hostsInfo[k].ID, hostsInfo[k].Addrs, peerstore.PermanentAddrTTL)
-		}
-	}
 
-	clock := clockwork.NewFakeClock()
-	readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock)
+			var (
+				peers     []peer.ID
+				hosts     []host.Host
+				hostsInfo []peer.AddrInfo
+			)
 
-	// We wrap the Advance() calls with blockers to make sure that the ticker
-	// can go to sleep and produce ticks without time passing in parallel.
-	clock.BlockUntil(1)
-	clock.Advance(15 * time.Second)
-	clock.BlockUntil(1)
-
-	require.NoError(t, readyErrFunc())
-}
-
-func TestStartCheckerSyncing(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	bmock.NodeSyncingFunc = func(ctx context.Context) (*eth2v1.SyncState, error) {
-		return &eth2v1.SyncState{IsSyncing: true}, nil
-	}
-
-	const numNodes = 3
-	var (
-		peers     []peer.ID
-		hosts     []host.Host
-		hostsInfo []peer.AddrInfo
-	)
-
-	for i := 0; i < numNodes; i++ {
-		h := testutil.CreateHost(t, testutil.AvailableAddr(t))
-		info := peer.AddrInfo{
-			ID:    h.ID(),
-			Addrs: h.Addrs(),
-		}
-		hostsInfo = append(hostsInfo, info)
-		peers = append(peers, h.ID())
-		hosts = append(hosts, h)
-	}
-
-	// connect each host with its peers
-	for i := 0; i < numNodes; i++ {
-		for k := 0; k < numNodes; k++ {
-			if i == k {
-				continue
+			for i := 0; i < tt.numPeers; i++ {
+				h := testutil.CreateHost(t, testutil.AvailableAddr(t))
+				info := peer.AddrInfo{
+					ID:    h.ID(),
+					Addrs: h.Addrs(),
+				}
+				hostsInfo = append(hostsInfo, info)
+				peers = append(peers, h.ID())
+				hosts = append(hosts, h)
 			}
-			hosts[i].Peerstore().AddAddrs(hostsInfo[k].ID, hostsInfo[k].Addrs, peerstore.PermanentAddrTTL)
-		}
-	}
 
-	clock := clockwork.NewFakeClock()
-	readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock)
-
-	// We wrap the Advance() calls with blockers to make sure that the ticker
-	// can go to sleep and produce ticks without time passing in parallel.
-	clock.BlockUntil(1)
-	clock.Advance(15 * time.Second)
-	clock.BlockUntil(1)
-
-	// Infinite loop required since mutexes are non-deterministic.
-	for {
-		err := readyErrFunc()
-		if err != nil {
-			require.EqualError(t, err, "beacon node not synced")
-			break
-		}
-	}
-}
-
-func TestStartCheckerPingFail(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	bmock.NodeSyncingFunc = func(ctx context.Context) (*eth2v1.SyncState, error) {
-		return &eth2v1.SyncState{IsSyncing: false}, nil
-	}
-
-	const numNodes = 5
-	var (
-		peers     []peer.ID
-		hosts     []host.Host
-		hostsInfo []peer.AddrInfo
-	)
-
-	for i := 0; i < numNodes; i++ {
-		h := testutil.CreateHost(t, testutil.AvailableAddr(t))
-		info := peer.AddrInfo{
-			ID:    h.ID(),
-			Addrs: h.Addrs(),
-		}
-		hostsInfo = append(hostsInfo, info)
-		peers = append(peers, h.ID())
-		hosts = append(hosts, h)
-	}
-
-	// Connect each host with its peers except 3 peers so that quorum number of peers cannot connect.
-	for i := 0; i < numNodes; i++ {
-		for k := 0; k < numNodes-3; k++ {
-			if i == k {
-				continue
+			// connect each host with its peers
+			for i := 0; i < tt.numPeers; i++ {
+				for k := 0; k < tt.numPeers-tt.absentPeers; k++ {
+					if i == k {
+						continue
+					}
+					hosts[i].Peerstore().AddAddrs(hostsInfo[k].ID, hostsInfo[k].Addrs, peerstore.PermanentAddrTTL)
+				}
 			}
-			hosts[i].Peerstore().AddAddrs(hostsInfo[k].ID, hostsInfo[k].Addrs, peerstore.PermanentAddrTTL)
-		}
-	}
 
-	clock := clockwork.NewFakeClock()
-	readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock)
+			clock := clockwork.NewFakeClock()
+			readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock)
 
-	// We wrap the Advance() calls with blockers to make sure that the ticker
-	// can go to sleep and produce ticks without time passing in parallel.
-	clock.BlockUntil(1)
-	clock.Advance(15 * time.Second)
-	clock.BlockUntil(1)
+			// We wrap the Advance() calls with blockers to make sure that the ticker
+			// can go to sleep and produce ticks without time passing in parallel.
+			clock.BlockUntil(1)
+			clock.Advance(15 * time.Second)
+			clock.BlockUntil(1)
 
-	// Infinite loop required since mutexes are non-deterministic.
-	for {
-		err := readyErrFunc()
-		if err != nil {
-			require.EqualError(t, err, "couldn't ping all peers")
-			break
-		}
+			if tt.err != nil {
+				require.Eventually(t, func() bool {
+					err = readyErrFunc()
+					if err != nil {
+						require.EqualError(t, err, tt.err.Error())
+						return true
+					}
+
+					return false
+				}, 10*time.Millisecond, time.Millisecond)
+			} else {
+				require.NoError(t, readyErrFunc())
+			}
+		})
 	}
 }
