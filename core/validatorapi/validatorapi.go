@@ -540,7 +540,7 @@ func (c Component) verifyValidatorRegistrationSignature(ctx context.Context, reg
 		return err
 	}
 
-	return c.verifyParSig(ctx, core.DutyBuilderProposer, epoch, pubkey, sigRoot, sig)
+	return c.verifyParSig(ctx, core.DutyBuilderRegistration, epoch, pubkey, sigRoot, sig)
 }
 
 // SubmitValidatorRegistration receives the partially signed validator (builder) registration.
@@ -575,6 +575,19 @@ func (c Component) SubmitValidatorRegistration(ctx context.Context, registration
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.
 		err = sub(ctx, duty, set)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// SubmitValidatorRegistrations receives the partially signed validator (builder) registration.
+func (c Component) SubmitValidatorRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
+
+	for _, registration := range registrations {
+		err := c.SubmitValidatorRegistration(ctx, registration)
 		if err != nil {
 			return err
 		}
