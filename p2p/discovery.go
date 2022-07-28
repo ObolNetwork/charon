@@ -51,7 +51,7 @@ func NewUDPNode(config Config, ln *enode.LocalNode,
 
 	var allowList *netutil.Netlist
 	if config.Allowlist != "" {
-		allowList, err = netutil.ParseNetlist(config.Allowlist) // Note empty string results in "none allowed".
+		allowList, err = netutil.ParseNetlist(config.Allowlist) // Note empty string would result in "none allowed".
 		if err != nil {
 			return nil, errors.Wrap(err, "parse allow list")
 		}
