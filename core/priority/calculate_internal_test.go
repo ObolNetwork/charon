@@ -147,8 +147,8 @@ func TestCalculateResults(t *testing.T) {
 			Name:       "deterministic ordering slot 1",
 			Priorities: pl(xy, xy, yx, yx),
 			Slot:       1,
-			Result:     xy,
-			Scores:     []int64{3998, 3998},
+			Result:     xy,                  // X as always before Y, since we use lower peer IDs for tie breaking.
+			Scores:     []int64{3998, 3998}, // Tied scores: Users of priority protocol can decide how to handle, either something fancy, or just using the provided order.
 		},
 		{
 			Name:       "deterministic ordering slot 9",
