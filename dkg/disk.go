@@ -125,11 +125,35 @@ func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr
 
 // checkWrites writes sample files to check disk writes and removes sample files after verification.
 func checkWrites(dataDir string) error {
-	if err := os.WriteFile(path.Join(dataDir, "sample.txt"), []byte{}, 0o444); err != nil {
-		return errors.Wrap(err, "write sample file")
+	checkBody := []byte("delete me: dummy file used to check write permissions")
+
+	// Write all sample files and directories.
+	if err := os.WriteFile(path.Join(dataDir, "cluster-lock.json"), checkBody, 0o444); err != nil {
+		return errors.Wrap(err, "check writes")
 	}
 
-	if err := os.Remove(path.Join(dataDir, "sample.txt")); err != nil {
+	if err := os.WriteFile(path.Join(dataDir, "deposit-data.json"), checkBody, 0o444); err != nil {
+		return errors.Wrap(err, "check writes")
+	}
+
+	if err := os.MkdirAll(path.Join(dataDir, "validator_keys"), 0o444); err != nil {
+		return errors.Wrap(err, "check writes")
+	}
+
+	if err := os.WriteFile(path.Join(dataDir, "keystore-0.json"), checkBody, 0o444); err != nil {
+		return errors.Wrap(err, "check writes")
+	}
+
+	// Remove all sample files and directories.
+	if err := os.RemoveAll(path.Join(dataDir, "validator_keys")); err != nil {
+		return errors.Wrap(err, "check writes")
+	}
+
+	if err := os.Remove(path.Join(dataDir, "cluster-lock.json")); err != nil {
+		return errors.Wrap(os.Remove(path.Join(dataDir, "sample.txt")), "remove sample file")
+	}
+
+	if err := os.Remove(path.Join(dataDir, "deposit-data.json")); err != nil {
 		return errors.Wrap(os.Remove(path.Join(dataDir, "sample.txt")), "remove sample file")
 	}
 
