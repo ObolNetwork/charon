@@ -9,7 +9,7 @@ require (
 	github.com/attestantio/go-eth2-client v0.11.8-0.20220725205133-c05328b73d87
 	github.com/bufbuild/buf v1.6.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
-	github.com/ethereum/go-ethereum v1.10.20
+	github.com/ethereum/go-ethereum v1.10.21
 	github.com/ferranbt/fastssz v0.0.0-20220103083642-bc5fefefa28b
 	github.com/goccy/go-yaml v1.9.5
 	github.com/gorilla/mux v1.8.0
