@@ -23,7 +23,7 @@ message PriorityMsg {
   bytes signature = 9;
 }
 
-// PriorityTopic defines a single peers proposed priorities for a single topic in the Prioritiser protocol.
+// PriorityTopicProposal defines a single peers proposed priorities for a single topic in the Prioritiser protocol.
 message PriorityTopicProposal {
   string topic = 1;
   repeated string priorities = 2;
