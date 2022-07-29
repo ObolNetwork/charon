@@ -43,17 +43,18 @@ import (
 )
 
 const (
-	clusterName           = "local"
 	defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
 	defaultNetwork        = "prater"
 )
 
 type clusterConfig struct {
+	Name       string
 	ClusterDir string
 	Clean      bool
 
 	NumNodes       int
 	Threshold      int
+	FeeRecipient   string
 	WithdrawalAddr string
 	Network        string
 	NumDVs         int
@@ -81,9 +82,11 @@ func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Co
 }
 
 func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
+	flags.StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
+	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", defaultWithdrawalAddr, "Ethereum address to receive the returned stake and accrued rewards.")
 	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
@@ -352,7 +355,8 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 		})
 	}
 
-	def := cluster.NewDefinition(clusterName, len(dvs), conf.Threshold, "", "", "", ops, rand.Reader)
+	def := cluster.NewDefinition(conf.Name, len(dvs), conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddr,
+		networkToForkVersion[conf.Network], ops, rand.Reader)
 
 	return cluster.Lock{
 		Definition: def,
@@ -430,11 +434,5 @@ func validateClusterConfig(conf clusterConfig) error {
 		return errors.New("unsupported network", z.Str("network", conf.Network))
 	}
 
-	// We cannot allow a zero withdrawal address on mainnet or gnosis.
-	if (conf.Network == "mainnet" || conf.Network == "gnosis") &&
-		conf.WithdrawalAddr == defaultWithdrawalAddr {
-		return errors.New("zero address forbidden on this network", z.Str("network", conf.Network))
-	}
-
-	return nil
+	return validateWithdrawalAddr(conf.WithdrawalAddr, conf.Network)
 }
