@@ -188,7 +188,7 @@ func (x *PriorityMsg) GetSignature() []byte {
 	return nil
 }
 
-// PriorityTopic defines a single peers proposed priorities for a single topic in the Prioritiser protocol.
+// PriorityTopicProposal defines a single peers proposed priorities for a single topic in the Prioritiser protocol.
 type PriorityTopicProposal struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -244,7 +244,7 @@ func (x *PriorityTopicProposal) GetPriorities() []string {
 	return nil
 }
 
-// PriorityTopic defines the cluster wide resulting priorities for a
+// PriorityTopicResult defines the cluster wide resulting priorities for a
 // single topic in the Prioritiser protocol.
 type PriorityTopicResult struct {
 	state         protoimpl.MessageState
