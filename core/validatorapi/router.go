@@ -506,7 +506,7 @@ func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
 }
 
 // submitValidatorRegistrations returns a handler function for the validator (builder) registration submitter endpoint.
-func SubmitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
+func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, body []byte) (interface{}, error) {
 		registration := new(eth2v1.SignedValidatorRegistration)
 		if err := registration.UnmarshalJSON(body); err != nil {

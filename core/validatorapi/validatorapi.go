@@ -499,22 +499,6 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	return nil
 }
 
-func (c Component) verifyValidatorRegistrationParSig(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
-	// Calculate slot epoch
-	epoch, err := c.epochFromSlot(ctx, slot)
-	if err != nil {
-		return err
-	}
-
-	// Randao signing root is the epoch.
-	sigRoot, err := eth2util.EpochHashRoot(epoch)
-	if err != nil {
-		return err
-	}
-
-	return c.verifyParSig(ctx, core.DutyRandao, epoch, pubKey, sigRoot, randao)
-}
-
 func (c Component) verifyValidatorRegistrationSignature(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration, pubkey core.PubKey, slot eth2p0.Slot) error {
 
 	epoch, err := c.epochFromSlot(ctx, slot)
@@ -543,8 +527,8 @@ func (c Component) verifyValidatorRegistrationSignature(ctx context.Context, reg
 	return c.verifyParSig(ctx, core.DutyBuilderRegistration, epoch, pubkey, sigRoot, sig)
 }
 
-// SubmitValidatorRegistration receives the partially signed validator (builder) registration.
-func (c Component) SubmitValidatorRegistration(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration) error {
+// submitRegistration receives the partially signed validator (builder) registration.
+func (c Component) submitRegistration(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration) error {
 	// Calculate slot epoch
 	// Use timestamp to determine the slot
 	slot := uint64(100000)
@@ -583,11 +567,11 @@ func (c Component) SubmitValidatorRegistration(ctx context.Context, registration
 	return nil
 }
 
-// SubmitValidatorRegistrations receives the partially signed validator (builder) registration.
-func (c Component) SubmitValidatorRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
+// SubmitRegistrations receives the partially signed validator (builder) registration.
+func (c Component) SubmitRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
 
 	for _, registration := range registrations {
-		err := c.SubmitValidatorRegistration(ctx, registration)
+		err := c.submitRegistration(ctx, registration)
 		if err != nil {
 			return err
 		}
