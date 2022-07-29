@@ -127,6 +127,31 @@ func TestBroadcastBlindedBeaconBlock(t *testing.T) {
 	<-ctx.Done()
 }
 
+func TestValidatorRegistration(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	registration := testutil.RandomCoreVersionedSignedValidatorRegistration(t).VersionedSignedValidatorRegistration
+
+	aggData := core.VersionedSignedValidatorRegistration{VersionedSignedValidatorRegistration: registration}
+
+	mock.SubmitValidatorRegistrationsFunc = func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
+		require.Equal(t, aggData.VersionedSignedValidatorRegistration, *registrations[0])
+		cancel()
+
+		return ctx.Err()
+	}
+
+	bcaster, err := bcast.New(ctx, mock)
+	require.NoError(t, err)
+
+	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyBuilderRegistration}, "", aggData)
+	require.ErrorIs(t, err, context.Canceled)
+
+	<-ctx.Done()
+}
+
 func TestBroadcastExit(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	mock, err := beaconmock.New()
