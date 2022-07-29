@@ -36,6 +36,7 @@ import (
 )
 
 var (
+	errReadyUnInit           = errors.New("ready check uninitialised")
 	errReadyPingFailing      = errors.New("couldn't ping all peers")
 	errReadySyncing          = errors.New("beacon node not synced")
 	errReadyBeaconNodeFailed = errors.New("failed to get beacon sync state")
@@ -97,7 +98,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID, clock clockwork.Clock) func() error {
 	var (
 		mu       sync.Mutex
-		readyErr error
+		readyErr = errReadyUnInit
 	)
 	go func() {
 		ticker := clock.NewTicker(10 * time.Second)
@@ -109,30 +110,21 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 			case <-ticker.Chan():
 				syncing, err := beaconNodeSyncing(ctx, eth2Cl)
 				if err != nil {
-					mu.Lock()
-					readyErr = errReadyBeaconNodeFailed
-					mu.Unlock()
-
+					err = errReadyBeaconNodeFailed
 					readyzGauge.Set(0)
 				} else if syncing {
-					mu.Lock()
-					readyErr = errReadySyncing
-					mu.Unlock()
-
+					err = errReadySyncing
 					readyzGauge.Set(0)
 				} else if peersReady(ctx, peerIDs, tcpNode) != nil {
-					mu.Lock()
-					readyErr = errReadyPingFailing
-					mu.Unlock()
-
+					err = errReadyPingFailing
 					readyzGauge.Set(0)
 				} else {
-					mu.Lock()
-					readyErr = nil
-					mu.Unlock()
-
 					readyzGauge.Set(1)
 				}
+
+				mu.Lock()
+				readyErr = err
+				mu.Unlock()
 			}
 		}
 	}()

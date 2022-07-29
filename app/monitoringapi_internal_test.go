@@ -120,7 +120,14 @@ func TestStartChecker(t *testing.T) {
 					return false
 				}, 10*time.Millisecond, time.Millisecond)
 			} else {
-				require.NoError(t, readyErrFunc())
+				require.Eventually(t, func() bool {
+					err = readyErrFunc()
+					if err == nil {
+						return true
+					}
+
+					return false
+				}, 10*time.Millisecond, time.Millisecond)
 			}
 		})
 	}
