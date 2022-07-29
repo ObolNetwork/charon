@@ -29,7 +29,7 @@ message PriorityTopicProposal {
   repeated string priorities = 2;
 }
 
-// PriorityTopic defines the cluster wide resulting priorities for a
+// PriorityTopicResult defines the cluster wide resulting priorities for a
 // single topic in the Prioritiser protocol.
 message PriorityTopicResult {
   string topic = 1;
