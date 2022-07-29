@@ -62,7 +62,7 @@ func (s Signature) Clone() (SignedData, error) {
 
 // clone returns a copy of the Signature.
 // It is similar to Clone that returns the SignedData interface.
-//nolint:revive // similar method names.
+
 func (s Signature) clone() Signature {
 	resp := make([]byte, len(s))
 	copy(resp, s)
@@ -152,7 +152,7 @@ func (b VersionedSignedBeaconBlock) Clone() (SignedData, error) {
 
 // clone returns a copy of the VersionedSignedBeaconBlock.
 // It is similar to Clone that returns the SignedData interface.
-//nolint:revive // similar method names.
+
 func (b VersionedSignedBeaconBlock) clone() (VersionedSignedBeaconBlock, error) {
 	var resp VersionedSignedBeaconBlock
 	err := cloneJSONMarshaler(b, &resp)
@@ -301,7 +301,7 @@ func (b VersionedSignedBlindedBeaconBlock) Clone() (SignedData, error) {
 
 // clone returns a copy of the VersionedSignedBlindedBeaconBlock.
 // It is similar to Clone that returns the SignedData interface.
-//nolint:revive // similar method names.
+
 func (b VersionedSignedBlindedBeaconBlock) clone() (VersionedSignedBlindedBeaconBlock, error) {
 	var resp VersionedSignedBlindedBeaconBlock
 	err := cloneJSONMarshaler(b, &resp)
@@ -418,7 +418,7 @@ func (a Attestation) Clone() (SignedData, error) {
 
 // clone returns a copy of the Attestation.
 // It is similar to Clone that returns the SignedData interface.
-//nolint:revive // similar method names.
+
 func (a Attestation) clone() (Attestation, error) {
 	var resp Attestation
 	err := cloneJSONMarshaler(a, &resp)
@@ -475,7 +475,7 @@ func (e SignedVoluntaryExit) Clone() (SignedData, error) {
 
 // clone returns a copy of the SignedVoluntaryExit.
 // It is similar to Clone that returns the SignedData interface.
-//nolint:revive // similar method names.
+
 func (e SignedVoluntaryExit) clone() (SignedVoluntaryExit, error) {
 	var resp SignedVoluntaryExit
 	err := cloneJSONMarshaler(e, &resp)
@@ -553,7 +553,7 @@ func (r VersionedSignedValidatorRegistration) Clone() (SignedData, error) {
 
 // clone returns a copy of the VersionedSignedValidatorRegistration.
 // It is similar to Clone that returns the SignedData interface.
-//nolint:revive // similar method names.
+
 func (r VersionedSignedValidatorRegistration) clone() (VersionedSignedValidatorRegistration, error) {
 	var resp VersionedSignedValidatorRegistration
 	err := cloneJSONMarshaler(r, &resp)

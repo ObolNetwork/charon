@@ -38,7 +38,7 @@ import (
 )
 
 // newFrostP2P returns a p2p frost transport implementation.
-//nolint:dupl
+
 func newFrostP2P(ctx context.Context, tcpNode host.Host, peers map[uint32]peer.ID, clusterID string) *frostP2P {
 	var (
 		round1Recv  = make(chan *pb.FrostRound1Msg, len(peers))

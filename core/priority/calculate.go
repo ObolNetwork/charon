@@ -16,7 +16,6 @@
 package priority
 
 import (
-	"math/rand"
 	"sort"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -39,14 +38,14 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 
 	// Group all priority sets by topic
 	prioritySetsByTopic := make(map[string][][]string)
-	for _, msg := range determineInput(msgs) {
+	for _, msg := range sortInput(msgs) {
 		for _, topic := range msg.Topics {
 			prioritySetsByTopic[topic.Topic] = append(prioritySetsByTopic[topic.Topic], topic.Priorities)
 		}
 	}
 
 	// Calculate cluster wide resulting priorities by topic.
-	var topicResults []*pbv1.PriorityTopic
+	var topicResults []*pbv1.PriorityTopicResult
 	for topic, prioritySet := range prioritySetsByTopic {
 		// Calculate overall score for all priorities in the topic
 		// which effectively orders by count then by overall priority.
@@ -70,12 +69,16 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 
 		// Extract scores with min required count.
 		minScore := (minRequired - 1) * countWeight
-		result := &pbv1.PriorityTopic{Topic: topic}
+		result := &pbv1.PriorityTopicResult{Topic: topic}
 		for _, priority := range allPriorities {
-			if scores[priority] <= minScore {
+			score := scores[priority]
+			if score <= minScore {
 				continue
 			}
-			result.Priorities = append(result.Priorities, priority)
+			result.Priorities = append(result.Priorities, &pbv1.PriorityScoredResult{
+				Priority: priority,
+				Score:    int64(score),
+			})
 		}
 
 		topicResults = append(topicResults, result)
@@ -92,21 +95,12 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 	}, nil
 }
 
-// determineInput returns a deterministic copy of the messages ordered
+// sortInput returns a copy of the messages ordered
 // by peer.
-func determineInput(msgs []*pbv1.PriorityMsg) []*pbv1.PriorityMsg {
+func sortInput(msgs []*pbv1.PriorityMsg) []*pbv1.PriorityMsg {
 	resp := append([]*pbv1.PriorityMsg(nil), msgs...) // Copy to not mutate input param.
 	sort.Slice(resp, func(i, j int) bool {
 		return resp[i].PeerId < resp[j].PeerId
-	})
-
-	// TODO(corver): There is a proposal to remove this shuffling behaviour since:
-	//  - It makes the protocol hard to spec.
-	//  - Flapping of priorities might be less desirable than non-random tiebreakers.
-
-	//nolint:gosec // Math rand used for deterministic behaviour.
-	rand.New(rand.NewSource(resp[0].Slot)).Shuffle(len(resp), func(i, j int) {
-		resp[i], resp[j] = resp[j], resp[i]
 	})
 
 	return resp

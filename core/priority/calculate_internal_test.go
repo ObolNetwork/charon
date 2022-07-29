@@ -46,6 +46,7 @@ func TestCalculateResults(t *testing.T) {
 		Name       string
 		Priorities [][]string
 		Result     []string
+		Scores     []int64
 		Slot       int64 // Defaults to test index if not provided.
 	}{
 		{
@@ -62,83 +63,99 @@ func TestCalculateResults(t *testing.T) {
 			Name:       "Q*v1",
 			Priorities: pl(v1, v1, v1),
 			Result:     []string{"v1"}, // Quorum v1s
+			Scores:     []int64{3000},
 		},
 		{
 			Name:       "N*v1",
 			Priorities: pl(v1, v1, v1, v1, v1),
 			Result:     []string{"v1"}, // All v1s
+			Scores:     []int64{5000},
 		},
 		{
 			Name:       "N-1*v1,1*v2",
 			Priorities: pl(v1, v1, v1, v1, v2),
 			Result:     []string{"v1"}, // Insufficient v2s
+			Scores:     []int64{4999},
 		},
 		{
 			Name:       "N-Q*v1,Q*v2",
 			Priorities: pl(v1, v1, v2, v2, v2),
 			Result:     []string{"v1", "v2"}, // More nodes support v1
+			Scores:     []int64{4997, 3000},
 		},
 		{
 			Name:       "N*v2",
 			Priorities: pl(v2, v2, v2, v2, v2),
 			Result:     []string{"v2", "v1"}, // Most nodes support v1 and v2, but v2 takes precedence.
+			Scores:     []int64{5000, 4995},
 		},
 		{
 			Name:       "N-1*v2,1*down",
 			Priorities: pl(v2, v2, v2, v2),
 			Result:     []string{"v2", "v1"}, // Most nodes support v1 and v2, but v2 takes precedence.
+			Scores:     []int64{4000, 3996},
 		},
 		{
 			Name:       "Q-1*v2,3*down",
 			Priorities: pl(v2, v2),
 			Result:     []string{}, // Insufficient nodes support v1 or v2.
+			Scores:     []int64{5000},
 		},
 		{
 			Name:       "1*v1,N-1*v2",
 			Priorities: pl(v1, v2, v2, v2, v2),
 			Result:     []string{"v1", "v2"}, // More nodes support v1. Note a single node can cause flapping of cluster level ordering.
+			Scores:     []int64{4996, 4000},
 		},
 		{
 			Name:       "1*v1,N-2*v2,1*down",
 			Priorities: pl(v1, v2, v2, v2),
 			Result:     []string{"v1", "v2"}, // More nodes support v1 than v2.
+			Scores:     []int64{3997, 3000},
 		},
 		{
 			Name:       "1*v1,Q-1*v2,2*down",
 			Priorities: pl(v1, v2, v2),
 			Result:     []string{"v1"}, // More nodes support v1. Insufficient nodes support than port v2.
+			Scores:     []int64{2998},
 		},
 		{
 			Name:       "1*v1,N-2*v2,1*v3",
 			Priorities: pl(v1, v2, v2, v2, v3),
 			Result:     []string{"v2", "v1"}, // More nodes support v2 than v1 since v3 also supports v2, but insufficient nodes support v3.
+			Scores:     []int64{3999, 3997},
 		},
 		{
 			Name:       "2*v1,N-3*v2,1*v3",
 			Priorities: pl(v1, v1, v2, v2, v3),
 			Result:     []string{"v1", "v2"}, // More nodes support v1 than v2 since v3 insufficient nodes support v3. Note a single node can cause flapping of cluster level ordering.
+			Scores:     []int64{3998, 2999},
 		},
 		{
 			Name:       "1*v1,1*v2,Q*v3",
 			Priorities: pl(v1, v2, v3, v3, v3),
 			Result:     []string{"v2", "v3"}, // More nodes support v2 than v3, insufficient nodes support v1. Upgrade forced once quorum nodes do not support old version.
+			Scores:     []int64{3997, 3000},
 		},
 		{
 			Name:       "2*v1,Q*v3",
 			Priorities: pl(v1, v1, v3, v3, v3),
 			Result:     []string{"v3", "v2"}, // Most nodes support v2 and v3, v3 takes precedence. Once “all” (excluding incompatible minority) support both v2 and v3, then the cluster upgrades again.
+			Scores:     []int64{3000, 2997},
 		},
 		{
 			Name:       "deterministic ordering slot 1",
 			Priorities: pl(xy, xy, yx, yx),
 			Slot:       1,
-			Result:     xy,
+			Result:     xy,                  // X as always before Y, since we use lower peer IDs for tie breaking.
+			Scores:     []int64{3998, 3998}, // Tied scores: Users of priority protocol can decide how to handle, either something fancy, or just using the provided order.
 		},
 		{
 			Name:       "deterministic ordering slot 9",
 			Priorities: pl(xy, xy, yx, yx),
 			Slot:       9,
-			Result:     yx, // Same input (except for slot), different result.
+			Result:     xy, // Same input (except for slot), same result.
+			Scores:     []int64{3998, 3998},
 		},
 	}
 
@@ -150,7 +167,7 @@ func TestCalculateResults(t *testing.T) {
 					test.Slot = int64(i)
 				}
 				msgs = append(msgs, &pbv1.PriorityMsg{
-					Topics: []*pbv1.PriorityTopic{
+					Topics: []*pbv1.PriorityTopicProposal{
 						{
 							Topic:      "versions",
 							Priorities: prioritySet,
@@ -170,7 +187,16 @@ func TestCalculateResults(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, result.Topics, 1)
 			if len(test.Result) > 0 {
-				require.Equal(t, test.Result, result.Topics[0].Priorities)
+				var actualResult []string
+				var actualScores []int64
+				for _, prio := range result.Topics[0].Priorities {
+					actualResult = append(actualResult, prio.Priority)
+					actualScores = append(actualScores, prio.Score)
+				}
+				require.Equal(t, test.Result, actualResult)
+				if len(test.Scores) != 0 {
+					require.Equal(t, test.Scores, actualScores)
+				}
 			} else {
 				require.Empty(t, result.Topics[0].Priorities)
 			}
