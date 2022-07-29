@@ -43,7 +43,6 @@ import (
 )
 
 const (
-	clusterName           = "local"
 	defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
 	defaultNetwork        = "prater"
 )
@@ -83,7 +82,7 @@ func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Co
 }
 
 func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
-	flags.StringVar(&config.Name, "name", clusterName, "Optional cosmetic cluster name")
+	flags.StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
@@ -356,7 +355,8 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 		})
 	}
 
-	def := cluster.NewDefinition(conf.Name, len(dvs), conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddr, networkToForkVersion[conf.Network], ops, rand.Reader)
+	def := cluster.NewDefinition(conf.Name, len(dvs), conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddr,
+		networkToForkVersion[conf.Network], ops, rand.Reader)
 
 	return cluster.Lock{
 		Definition: def,
