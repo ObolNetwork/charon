@@ -20,10 +20,12 @@ import (
 	"math"
 	"net/http"
 	"net/http/pprof"
+	"sync"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/jonboulle/clockwork"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
@@ -33,9 +35,16 @@ import (
 	"github.com/obolnetwork/charon/app/lifecycle"
 )
 
+var (
+	errReadyUnInit           = errors.New("ready check uninitialised")
+	errReadyPingFailing      = errors.New("couldn't ping all peers")
+	errReadySyncing          = errors.New("beacon node not synced")
+	errReadyBeaconNodeFailed = errors.New("failed to get beacon sync state")
+)
+
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
-func wireMonitoringAPI(life *lifecycle.Manager, addr string, localNode *enode.LocalNode, tcpNode host.Host, eth2Svc eth2client.Service, peerIDs []peer.ID) error {
+func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string, localNode *enode.LocalNode, tcpNode host.Host, eth2Svc eth2client.Service, peerIDs []peer.ID) error {
 	mux := http.NewServeMux()
 
 	// Serve prometheus metrics
@@ -56,7 +65,16 @@ func wireMonitoringAPI(life *lifecycle.Manager, addr string, localNode *enode.Lo
 		return errors.New("invalid eth2 service")
 	}
 
-	mux.Handle("/readyz", newReadyHandler(tcpNode, eth2Cl, peerIDs))
+	readyErrFunc := startReadyChecker(ctx, tcpNode, eth2Cl, peerIDs, clockwork.NewRealClock())
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		readyErr := readyErrFunc()
+		if readyErr != nil {
+			writeResponse(w, http.StatusInternalServerError, readyErr.Error())
+			return
+		}
+
+		writeResponse(w, http.StatusOK, "ok")
+	})
 
 	// Copied from net/http/pprof/pprof.go
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
@@ -76,32 +94,46 @@ func wireMonitoringAPI(life *lifecycle.Manager, addr string, localNode *enode.Lo
 	return nil
 }
 
-// newReadyHandler returns a http.HandlerFunc which returns 200 when both the beacon node is synced and all quorum peers can be pinged  in parallel within a timeout. Returns 500 otherwise.
-func newReadyHandler(tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second)
-		defer cancel()
+// startReadyChecker returns function which returns an error resulting from ready checks periodically.
+func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID, clock clockwork.Clock) func() error {
+	var (
+		mu       sync.Mutex
+		readyErr = errReadyUnInit
+	)
+	go func() {
+		ticker := clock.NewTicker(10 * time.Second)
 
-		var ready float64
-		defer func() { readyzGauge.Set(ready) }()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.Chan():
+				syncing, err := beaconNodeSyncing(ctx, eth2Cl)
+				if err != nil {
+					err = errReadyBeaconNodeFailed
+					readyzGauge.Set(0)
+				} else if syncing {
+					err = errReadySyncing
+					readyzGauge.Set(0)
+				} else if peersReady(ctx, peerIDs, tcpNode) != nil {
+					err = errReadyPingFailing
+					readyzGauge.Set(0)
+				} else {
+					readyzGauge.Set(1)
+				}
 
-		syncing, err := beaconNodeSyncing(ctx, eth2Cl)
-		if err != nil {
-			writeResponse(w, http.StatusInternalServerError, "Failed to get beacon sync state")
-			return
-		} else if syncing {
-			writeResponse(w, http.StatusInternalServerError, "Beacon node not synced")
-			return
+				mu.Lock()
+				readyErr = err
+				mu.Unlock()
+			}
 		}
+	}()
 
-		err = peersReady(ctx, peerIDs, tcpNode)
-		if err != nil {
-			writeResponse(w, http.StatusInternalServerError, "Couldn't ping all peers")
-			return
-		}
+	return func() error {
+		mu.Lock()
+		defer mu.Unlock()
 
-		ready = 1
-		writeResponse(w, http.StatusOK, "ok")
+		return readyErr
 	}
 }
 
@@ -133,8 +165,9 @@ func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error
 
 	var (
 		// Require quorum successes (excluding self). Formula from IBFT 2.0 paper https://arxiv.org/pdf/1909.10194.pdf
-		require = int(math.Ceil(float64(len(peerIDs)*2)/3)) - 1
-		actual  int
+		require  = int(math.Ceil(float64(len(peerIDs)*2)/3)) - 1
+		okCount  int
+		errCount int
 	)
 	for {
 		select {
@@ -142,11 +175,17 @@ func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error
 			return ctx.Err()
 		case res := <-results:
 			if res.Error != nil {
-				continue
+				errCount++
+			} else {
+				okCount++
 			}
 
-			actual++
-			if actual == require {
+			// Return error if we cannot reach quorum peers.
+			if errCount > (len(peerIDs) - require - 1) {
+				return errors.New("not enough peers")
+			}
+
+			if okCount == require {
 				return nil
 			}
 		}
