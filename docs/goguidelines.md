@@ -36,7 +36,7 @@ Instead, it follows a more procedural style for a focus on *functions and values
 
 > Note that we do use types and interfaces and methods and mutable state when required, we just prefer immutable values and functions where applicable.
 
-The following are examples of *functions and values over types 
+The following are examples of *functions and values over types*: 
 ### Prefer functions returning functions over new types with methods #1
 ```go
 // startReadyChecker returns a function that returns true if the app is ready.
