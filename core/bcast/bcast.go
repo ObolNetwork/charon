@@ -130,7 +130,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 	case core.DutyBuilderRegistration:
 		registration, ok := aggData.(core.VersionedSignedValidatorRegistration)
 		if !ok {
-			return errors.New("invalid exit")
+			return errors.New("invalid validator registration")
 		}
 
 		err = b.eth2Cl.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{&registration.VersionedSignedValidatorRegistration})
