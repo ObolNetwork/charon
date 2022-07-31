@@ -23,6 +23,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/phase0"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"go.opentelemetry.io/otel/trace"
@@ -49,6 +50,7 @@ type eth2Provider interface {
 	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
 	eth2client.ValidatorsProvider
+	eth2client.ValidatorRegistrationsSubmitter
 	// Above sorted alphabetically
 }
 
@@ -489,6 +491,87 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.
 		err = sub(ctx, duty, set)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c Component) verifyValidatorRegistrationSignature(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration, pubkey core.PubKey, slot eth2p0.Slot) error {
+
+	epoch, err := c.epochFromSlot(ctx, slot)
+	if err != nil {
+		return err
+	}
+
+	var sig eth2p0.BLSSignature
+	switch registration.Version {
+	case spec.BuilderVersionV1:
+		if registration.V1.Signature == sig {
+			return errors.New("no V1 signature")
+		}
+		sig = registration.V1.Signature
+	default:
+		return errors.New("unknown version")
+	}
+
+	// Verify partial signature
+	// TODO: switch to registration.Root() when implemented on go-eth2-client (PR has been reaised)
+	sigRoot, err := registration.V1.Message.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	return c.verifyParSig(ctx, core.DutyBuilderRegistration, epoch, pubkey, sigRoot, sig)
+}
+
+// submitRegistration receives the partially signed validator (builder) registration.
+func (c Component) submitRegistration(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration) error {
+	// Calculate slot epoch
+	// Use timestamp to determine the slot
+	slot := uint64(100000)
+
+	eth2Pubkey := registration.V1.Message.Pubkey
+
+	pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
+	if err != nil {
+		return err
+	}
+
+	err = c.verifyValidatorRegistrationSignature(ctx, registration, pubkey, phase0.Slot(slot))
+	if err != nil {
+		return err
+	}
+
+	duty := core.NewBuilderRegistrationDuty(int64(slot))
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	log.Debug(ctx, "Validator (builder) registration submitted by validator client")
+
+	signedData, err := core.NewPartialVersionedSignedValidatorRegistration(registration, c.shareIdx)
+	if err != nil {
+		return err
+	}
+
+	set := core.ParSignedDataSet{pubkey: signedData}
+	for _, sub := range c.subs {
+		// No need to clone since sub auto clones.
+		err = sub(ctx, duty, set)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// SubmitRegistrations receives the partially signed validator (builder) registration.
+func (c Component) SubmitRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
+
+	for _, registration := range registrations {
+		err := c.submitRegistration(ctx, registration)
 		if err != nil {
 			return err
 		}

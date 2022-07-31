@@ -1024,3 +1024,134 @@ func TestComponent_ProposerDuties(t *testing.T) {
 	require.Len(t, duties, 1)
 	require.Equal(t, duties[0].PubKey, eth2Share)
 }
+
+func TestComponent_SubmitValidatorRegistration(t *testing.T) {
+	ctx := context.Background()
+
+	// Create keys (just use normal keys, not split tbls)
+	pubkey, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	const (
+		vIdx  = 1
+		slot  = 123
+		epoch = eth2p0.Epoch(3)
+	)
+
+	// Convert pubkey
+	corePubKey, err := tblsconv.KeyToCore(pubkey)
+	require.NoError(t, err)
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
+
+	// Configure beacon mock
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
+	require.NoError(t, err)
+
+	unsignedValidatorRegistration := &eth2api.VersionedValidatorRegistration{
+		Version: spec.BuilderVersionV1,
+		V1:      testutil.RandomValidatorRegistration(t),
+	}
+
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{corePubKey: nil}, nil
+	})
+
+	// Sign validator (builder) registration
+	sigRoot, err := unsignedValidatorRegistration.V1.HashTreeRoot()
+	require.NoError(t, err)
+
+	domain, err := signing.GetDomain(ctx, bmock, signing.DomainApplicationBuilder, epoch)
+	require.NoError(t, err)
+
+	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
+	require.NoError(t, err)
+
+	s, err := tbls.Sign(secret, sigData[:])
+	require.NoError(t, err)
+
+	sigEth2 := tblsconv.SigToETH2(s)
+	signedValidatorRegistration := &eth2api.VersionedSignedValidatorRegistration{
+		Version: spec.BuilderVersionV1,
+		V1: &eth2v1.SignedValidatorRegistration{
+			Message:   unsignedValidatorRegistration.V1,
+			Signature: sigEth2,
+		},
+	}
+
+	// Register subscriber
+	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		registration, ok := set[corePubKey].SignedData.(core.VersionedSignedValidatorRegistration)
+		require.True(t, ok)
+		require.Equal(t, *signedValidatorRegistration, registration.VersionedSignedValidatorRegistration)
+
+		return nil
+	})
+
+	err = vapi.SubmitRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signedValidatorRegistration})
+	require.NoError(t, err)
+}
+
+func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
+	ctx := context.Background()
+
+	// Create keys (just use normal keys, not split tbls)
+	pubkey, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	const (
+		vIdx = 1
+		slot = 123
+	)
+
+	// Convert pubkey
+	corePubKey, err := tblsconv.KeyToCore(pubkey)
+	require.NoError(t, err)
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
+
+	// Configure beacon mock
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
+	require.NoError(t, err)
+
+	unsignedValidatorRegistration := &eth2api.VersionedValidatorRegistration{
+		Version: spec.BuilderVersionV1,
+		V1:      testutil.RandomValidatorRegistration(t),
+	}
+
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{corePubKey: nil}, nil
+	})
+
+	// Add invalid Signature to validator (builder) registration
+
+	s, err := tbls.Sign(secret, []byte("invalid msg"))
+	require.NoError(t, err)
+
+	sigEth2 := tblsconv.SigToETH2(s)
+	signedValidatorRegistration := &eth2api.VersionedSignedValidatorRegistration{
+		Version: spec.BuilderVersionV1,
+		V1: &eth2v1.SignedValidatorRegistration{
+			Message:   unsignedValidatorRegistration.V1,
+			Signature: sigEth2,
+		},
+	}
+
+	// Register subscriber
+	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		registration, ok := set[corePubKey].SignedData.(core.VersionedSignedValidatorRegistration)
+		require.True(t, ok)
+		require.Equal(t, signedValidatorRegistration, registration)
+
+		return nil
+	})
+
+	err = vapi.SubmitRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signedValidatorRegistration})
+	require.ErrorContains(t, err, "invalid signature")
+}

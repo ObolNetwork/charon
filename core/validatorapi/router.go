@@ -63,6 +63,7 @@ type Handler interface {
 	eth2client.ProposerDutiesProvider
 	eth2client.ValidatorsProvider
 	eth2client.VoluntaryExitSubmitter
+	eth2client.ValidatorRegistrationsSubmitter
 	// Above sorted alphabetically.
 }
 
@@ -125,6 +126,11 @@ func NewRouter(h Handler, eth2Cl eth2client.Service) (*mux.Router, error) {
 			Name:    "submit_blinded_block",
 			Path:    "/eth/v1/beacon/blinded_blocks",
 			Handler: submitBlindedBlock(h),
+		},
+		{
+			Name:    "submit_validator_registration",
+			Path:    "/eth/v1/validator/register_validator",
+			Handler: submitValidatorRegistrations(h),
 		},
 		{
 			Name:    "submit_voluntary_exit",
@@ -496,6 +502,24 @@ func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
 		}
 
 		return nil, errors.New("invalid block")
+	}
+}
+
+// submitValidatorRegistrations returns a handler function for the validator (builder) registration submitter endpoint.
+func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, body []byte) (interface{}, error) {
+		registration := new(eth2v1.SignedValidatorRegistration)
+		if err := registration.UnmarshalJSON(body); err != nil {
+			return nil, errors.Wrap(err, "unmarshal signed validator (builder) registration")
+		}
+		registrations := []*eth2api.VersionedSignedValidatorRegistration{
+			{
+				Version: spec.BuilderVersionV1,
+				V1:      registration,
+			},
+		}
+
+		return nil, r.SubmitValidatorRegistrations(ctx, registrations)
 	}
 }
 
