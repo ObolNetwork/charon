@@ -130,7 +130,7 @@ func NewRouter(h Handler, eth2Cl eth2client.Service) (*mux.Router, error) {
 		{
 			Name:    "submit_validator_registration",
 			Path:    "/eth/v1/validator/register_validator",
-			Handler: SubmitValidatorRegistrations(h),
+			Handler: submitValidatorRegistrations(h),
 		},
 		{
 			Name:    "submit_voluntary_exit",

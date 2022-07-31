@@ -17,6 +17,7 @@ package signing
 
 import (
 	"context"
+	"encoding/hex"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -50,6 +51,19 @@ type Eth2DomainProvider interface {
 
 // GetDomain returns the beacon domain for the provided type.
 func GetDomain(ctx context.Context, eth2Cl Eth2DomainProvider, name DomainName, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
+
+	if name == "DOMAIN_APPLICATION_BUILDER" {
+		var domainTyped eth2p0.DomainType
+
+		s := "00000001"
+
+		domainTypedSlice, _ := hex.DecodeString(s)
+
+		copy(domainTyped[:], domainTypedSlice[:4])
+
+		return eth2Cl.Domain(ctx, domainTyped, epoch)
+	}
+
 	spec, err := eth2Cl.Spec(ctx)
 	if err != nil {
 		return eth2p0.Domain{}, err
