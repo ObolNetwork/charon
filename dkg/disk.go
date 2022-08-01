@@ -132,7 +132,7 @@ func checkWrites(dataDir string) error {
 	for _, file := range files {
 		if filepath.Dir(file) != "" {
 			if err := os.MkdirAll(filepath.Join(dataDir, filepath.Dir(file)), 0o777); err != nil {
-				return errors.Wrap(err, "mkdir check writes", z.Str("file", file))
+				return errors.Wrap(err, "mkdir check writes", z.Str("dir", filepath.Dir(file)))
 			}
 		}
 		if err := os.WriteFile(filepath.Join(dataDir, file), checkBody, 0o444); err != nil {
@@ -145,7 +145,7 @@ func checkWrites(dataDir string) error {
 
 		if filepath.Dir(file) != "." {
 			if err := os.RemoveAll(filepath.Join(dataDir, filepath.Dir(file))); err != nil {
-				return errors.Wrap(err, "remove dir check writes", z.Str("file", file))
+				return errors.Wrap(err, "remove dir check writes", z.Str("dir", filepath.Dir(file)))
 			}
 		}
 	}
