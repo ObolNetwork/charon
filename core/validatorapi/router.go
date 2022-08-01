@@ -508,18 +508,20 @@ func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
 // submitValidatorRegistrations returns a handler function for the validator (builder) registration submitter endpoint.
 func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, body []byte) (interface{}, error) {
-		registration := new(eth2v1.SignedValidatorRegistration)
-		if err := registration.UnmarshalJSON(body); err != nil {
-			return nil, errors.Wrap(err, "unmarshal signed validator (builder) registration")
-		}
-		registrations := []*eth2api.VersionedSignedValidatorRegistration{
-			{
-				Version: spec.BuilderVersionV1,
-				V1:      registration,
-			},
+		var unversioned []*eth2v1.SignedValidatorRegistration
+		if err := json.Unmarshal(body, &unversioned); err != nil {
+			return nil, errors.Wrap(err, "unmarshal signed builder registration")
 		}
 
-		return nil, r.SubmitValidatorRegistrations(ctx, registrations)
+		var versioned []*eth2api.VersionedSignedValidatorRegistration
+		for _, registration := range unversioned {
+			versioned = append(versioned, &eth2api.VersionedSignedValidatorRegistration{
+				Version: spec.BuilderVersionV1,
+				V1:      registration,
+			})
+		}
+
+		return nil, r.SubmitValidatorRegistrations(ctx, versioned)
 	}
 }
 

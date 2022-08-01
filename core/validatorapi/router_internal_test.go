@@ -503,21 +503,22 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit_validator_registration", func(t *testing.T) {
-		registrations1 := []*eth2api.VersionedSignedValidatorRegistration{
+		expect := []*eth2api.VersionedSignedValidatorRegistration{
 			{
 				Version: spec.BuilderVersionV1,
 				V1:      testutil.RandomSignedValidatorRegistration(t),
 			},
 		}
 		handler := testHandler{
-			SubmitValidatorRegistrationsFunc: func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
-				require.Equal(t, registrations, registrations1)
+			SubmitValidatorRegistrationsFunc: func(ctx context.Context, actual []*eth2api.VersionedSignedValidatorRegistration) error {
+				require.Equal(t, actual, expect)
+
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitValidatorRegistrations(ctx, registrations1)
+			err := cl.SubmitValidatorRegistrations(ctx, expect)
 			require.NoError(t, err)
 		}
 

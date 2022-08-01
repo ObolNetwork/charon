@@ -284,7 +284,7 @@ func RandomSignedValidatorRegistration(t *testing.T) *eth2v1.SignedValidatorRegi
 		Message: &eth2v1.ValidatorRegistration{
 			FeeRecipient: bellatrix.ExecutionAddress{},
 			GasLimit:     rand.Uint64(),
-			Timestamp:    time.Time{},
+			Timestamp:    time.Now().Truncate(time.Second), // Serialised via unix seconds.
 			Pubkey:       RandomEth2PubKey(t),
 		},
 		Signature: RandomEth2Signature(),

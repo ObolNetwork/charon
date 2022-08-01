@@ -18,12 +18,12 @@ package validatorapi
 import (
 	"context"
 	"fmt"
+	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
-	"github.com/attestantio/go-eth2-client/spec/phase0"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"go.opentelemetry.io/otel/trace"
@@ -46,7 +46,9 @@ type eth2Provider interface {
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.DomainProvider
+	eth2client.GenesisTimeProvider
 	eth2client.ProposerDutiesProvider
+	eth2client.SlotDurationProvider
 	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
 	eth2client.ValidatorsProvider
@@ -56,11 +58,12 @@ type eth2Provider interface {
 
 // dutyDomain maps domains to duties.
 var dutyDomain = map[core.DutyType]signing.DomainName{
-	core.DutyAttester:        signing.DomainBeaconAttester,
-	core.DutyProposer:        signing.DomainBeaconProposer,
-	core.DutyBuilderProposer: signing.DomainBeaconProposer,
-	core.DutyRandao:          signing.DomainRandao,
-	core.DutyExit:            signing.DomainExit,
+	core.DutyAttester:            signing.DomainBeaconAttester,
+	core.DutyProposer:            signing.DomainBeaconProposer,
+	core.DutyBuilderProposer:     signing.DomainBeaconProposer,
+	core.DutyBuilderRegistration: signing.DomainApplicationBuilder,
+	core.DutyRandao:              signing.DomainRandao,
+	core.DutyExit:                signing.DomainExit,
 }
 
 // PubShareFunc abstracts the mapping of validator root public key to tbls public share.
@@ -499,8 +502,7 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	return nil
 }
 
-func (c Component) verifyValidatorRegistrationSignature(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration, pubkey core.PubKey, slot eth2p0.Slot) error {
-
+func (c Component) verifyRegistrationSignature(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration, pubkey core.PubKey, slot eth2p0.Slot) error {
 	epoch, err := c.epochFromSlot(ctx, slot)
 	if err != nil {
 		return err
@@ -529,18 +531,27 @@ func (c Component) verifyValidatorRegistrationSignature(ctx context.Context, reg
 
 // submitRegistration receives the partially signed validator (builder) registration.
 func (c Component) submitRegistration(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration) error {
-	// Calculate slot epoch
-	// Use timestamp to determine the slot
-	slot := uint64(100000)
+	timestamp, err := registration.Timestamp()
+	if err != nil {
+		return err
+	}
+	slot, err := c.slotFromTimestamp(ctx, timestamp)
+	if err != nil {
+		return err
+	}
 
-	eth2Pubkey := registration.V1.Message.Pubkey
+	// Note this is the group pubkey
+	eth2Pubkey, err := registration.PubKey()
+	if err != nil {
+		return err
+	}
 
 	pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
 	if err != nil {
 		return err
 	}
 
-	err = c.verifyValidatorRegistrationSignature(ctx, registration, pubkey, phase0.Slot(slot))
+	err = c.verifyRegistrationSignature(ctx, registration, pubkey, slot)
 	if err != nil {
 		return err
 	}
@@ -548,13 +559,14 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 	duty := core.NewBuilderRegistrationDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	log.Debug(ctx, "Validator (builder) registration submitted by validator client")
+	log.Debug(ctx, "Builder registration submitted by validator client")
 
 	signedData, err := core.NewPartialVersionedSignedValidatorRegistration(registration, c.shareIdx)
 	if err != nil {
 		return err
 	}
 
+	// TODO(corver): Batch these for improved network performance
 	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.
@@ -839,6 +851,22 @@ func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Vali
 	}
 
 	return resp, nil
+}
+
+func (c Component) slotFromTimestamp(ctx context.Context, timestamp time.Time) (eth2p0.Slot, error) {
+	genesis, err := c.eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	slotDuration, err := c.eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	delta := timestamp.Sub(genesis)
+
+	return eth2p0.Slot(delta / slotDuration), nil
 }
 
 func (c Component) epochFromSlot(ctx context.Context, slot eth2p0.Slot) (eth2p0.Epoch, error) {

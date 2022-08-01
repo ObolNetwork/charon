@@ -1032,13 +1032,9 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	pubkey, secret, err := tbls.Keygen()
 	require.NoError(t, err)
 
-	const (
-		vIdx  = 1
-		slot  = 123
-		epoch = eth2p0.Epoch(3)
-	)
-
 	// Convert pubkey
+	eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
+	require.NoError(t, err)
 	corePubKey, err := tblsconv.KeyToCore(pubkey)
 	require.NoError(t, err)
 	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
@@ -1051,20 +1047,19 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
 	require.NoError(t, err)
 
-	unsignedValidatorRegistration := &eth2api.VersionedValidatorRegistration{
+	unsigned := &eth2api.VersionedValidatorRegistration{
 		Version: spec.BuilderVersionV1,
 		V1:      testutil.RandomValidatorRegistration(t),
 	}
-
-	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
-		return core.DutyDefinitionSet{corePubKey: nil}, nil
-	})
-
-	// Sign validator (builder) registration
-	sigRoot, err := unsignedValidatorRegistration.V1.HashTreeRoot()
+	unsigned.V1.Pubkey = eth2Pubkey
+	unsigned.V1.Timestamp, err = bmock.GenesisTime(ctx) // Set timestamp to genesis which should result in epoch 0 and slot 0.
 	require.NoError(t, err)
 
-	domain, err := signing.GetDomain(ctx, bmock, signing.DomainApplicationBuilder, epoch)
+	// Sign validator (builder) registration
+	sigRoot, err := unsigned.V1.HashTreeRoot()
+	require.NoError(t, err)
+
+	domain, err := signing.GetDomain(ctx, bmock, signing.DomainApplicationBuilder, 0)
 	require.NoError(t, err)
 
 	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
@@ -1074,24 +1069,26 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	require.NoError(t, err)
 
 	sigEth2 := tblsconv.SigToETH2(s)
-	signedValidatorRegistration := &eth2api.VersionedSignedValidatorRegistration{
+	signed := &eth2api.VersionedSignedValidatorRegistration{
 		Version: spec.BuilderVersionV1,
 		V1: &eth2v1.SignedValidatorRegistration{
-			Message:   unsignedValidatorRegistration.V1,
+			Message:   unsigned.V1,
 			Signature: sigEth2,
 		},
 	}
 
 	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.NewBuilderRegistrationDuty(0), duty)
+
 		registration, ok := set[corePubKey].SignedData.(core.VersionedSignedValidatorRegistration)
 		require.True(t, ok)
-		require.Equal(t, *signedValidatorRegistration, registration.VersionedSignedValidatorRegistration)
+		require.Equal(t, *signed, registration.VersionedSignedValidatorRegistration)
 
 		return nil
 	})
 
-	err = vapi.SubmitRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signedValidatorRegistration})
+	err = vapi.SubmitRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
 	require.NoError(t, err)
 }
 
@@ -1102,12 +1099,9 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	pubkey, secret, err := tbls.Keygen()
 	require.NoError(t, err)
 
-	const (
-		vIdx = 1
-		slot = 123
-	)
-
 	// Convert pubkey
+	eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
+	require.NoError(t, err)
 	corePubKey, err := tblsconv.KeyToCore(pubkey)
 	require.NoError(t, err)
 	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
@@ -1120,10 +1114,13 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
 	require.NoError(t, err)
 
-	unsignedValidatorRegistration := &eth2api.VersionedValidatorRegistration{
+	unsigned := &eth2api.VersionedValidatorRegistration{
 		Version: spec.BuilderVersionV1,
 		V1:      testutil.RandomValidatorRegistration(t),
 	}
+	unsigned.V1.Pubkey = eth2Pubkey
+	unsigned.V1.Timestamp, err = bmock.GenesisTime(ctx) // Set timestamp to genesis which should result in epoch 0 and slot 0.
+	require.NoError(t, err)
 
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 		return core.DutyDefinitionSet{corePubKey: nil}, nil
@@ -1135,23 +1132,14 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	sigEth2 := tblsconv.SigToETH2(s)
-	signedValidatorRegistration := &eth2api.VersionedSignedValidatorRegistration{
+	signed := &eth2api.VersionedSignedValidatorRegistration{
 		Version: spec.BuilderVersionV1,
 		V1: &eth2v1.SignedValidatorRegistration{
-			Message:   unsignedValidatorRegistration.V1,
+			Message:   unsigned.V1,
 			Signature: sigEth2,
 		},
 	}
 
-	// Register subscriber
-	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		registration, ok := set[corePubKey].SignedData.(core.VersionedSignedValidatorRegistration)
-		require.True(t, ok)
-		require.Equal(t, signedValidatorRegistration, registration)
-
-		return nil
-	})
-
-	err = vapi.SubmitRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signedValidatorRegistration})
+	err = vapi.SubmitRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
 	require.ErrorContains(t, err, "invalid signature")
 }
