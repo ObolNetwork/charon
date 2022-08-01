@@ -1088,7 +1088,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 		return nil
 	})
 
-	err = vapi.SubmitRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
+	err = vapi.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
 	require.NoError(t, err)
 }
 
@@ -1140,6 +1140,6 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 		},
 	}
 
-	err = vapi.SubmitRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
+	err = vapi.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
 	require.ErrorContains(t, err, "invalid signature")
 }

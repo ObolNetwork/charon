@@ -62,8 +62,8 @@ type Handler interface {
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.ProposerDutiesProvider
 	eth2client.ValidatorsProvider
-	eth2client.VoluntaryExitSubmitter
 	eth2client.ValidatorRegistrationsSubmitter
+	eth2client.VoluntaryExitSubmitter
 	// Above sorted alphabetically.
 }
 

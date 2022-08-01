@@ -579,9 +579,8 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 	return nil
 }
 
-// SubmitRegistrations receives the partially signed validator (builder) registration.
-func (c Component) SubmitRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
-
+// SubmitValidatorRegistrations receives the partially signed validator (builder) registration.
+func (c Component) SubmitValidatorRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
 	for _, registration := range registrations {
 		err := c.submitRegistration(ctx, registration)
 		if err != nil {
