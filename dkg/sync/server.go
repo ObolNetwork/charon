@@ -183,10 +183,6 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			return err
 		}
 
-		if msg.Shutdown {
-			s.setShutdown(pID)
-		}
-
 		// Prep response
 		resp := &pb.MsgSyncResponse{
 			SyncTimestamp: msg.Timestamp,
@@ -215,6 +211,7 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 		}
 
 		if msg.Shutdown {
+			s.setShutdown(pID)
 			return nil
 		}
 	}
