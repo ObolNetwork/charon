@@ -75,6 +75,7 @@ var (
 	_ eth2client.TargetAggregatorsPerCommitteeProvider = (*Service)(nil)
 	_ eth2client.ValidatorBalancesProvider             = (*Service)(nil)
 	_ eth2client.ValidatorsProvider                    = (*Service)(nil)
+	_ eth2client.ValidatorRegistrationsSubmitter       = (*Service)(nil)
 	_ eth2client.VoluntaryExitSubmitter                = (*Service)(nil)
 )
 
@@ -123,6 +124,7 @@ type eth2Provider interface {
 	eth2client.TargetAggregatorsPerCommitteeProvider
 	eth2client.ValidatorBalancesProvider
 	eth2client.ValidatorsProvider
+	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.VoluntaryExitSubmitter
 }
 
