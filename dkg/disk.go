@@ -19,12 +19,13 @@ import (
 	"encoding/json"
 	"os"
 	"path"
-	"strings"
+	"path/filepath"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/deposit"
@@ -129,20 +130,22 @@ func checkWrites(dataDir string) error {
 	checkBody := []byte("delete me: dummy file used to check write permissions")
 	files := []string{"cluster-lock.json", "deposit-data.json", "validator_keys/keystore-0.json"}
 	for _, file := range files {
-		if strings.Contains(file, "/") {
-			if err := os.MkdirAll(path.Join(dataDir, path.Dir(file)), 0o777); err != nil {
-				return errors.Wrap(err, "mkdir check writes")
+		if filepath.Dir(file) != "" {
+			if err := os.MkdirAll(filepath.Join(dataDir, filepath.Dir(file)), 0o777); err != nil {
+				return errors.Wrap(err, "mkdir check writes", z.Str("file", file))
 			}
 		}
-		if err := os.WriteFile(path.Join(dataDir, file), checkBody, 0o444); err != nil {
-			return errors.Wrap(err, "write file check writes")
+		if err := os.WriteFile(filepath.Join(dataDir, file), checkBody, 0o444); err != nil {
+			return errors.Wrap(err, "write file check writes", z.Str("file", file))
 		}
-		if err := os.Remove(path.Join(dataDir, file)); err != nil {
-			return errors.Wrap(err, "remove file")
+
+		if err := os.Remove(filepath.Join(dataDir, file)); err != nil {
+			return errors.Wrap(err, "remove file check writes", z.Str("file", file))
 		}
-		if strings.Contains(file, "/") {
-			if err := os.RemoveAll(path.Join(dataDir, path.Dir(file))); err != nil {
-				return errors.Wrap(err, "remove dir check writes")
+
+		if filepath.Dir(file) != "." {
+			if err := os.RemoveAll(filepath.Join(dataDir, filepath.Dir(file))); err != nil {
+				return errors.Wrap(err, "remove dir check writes", z.Str("file", file))
 			}
 		}
 	}
