@@ -18,6 +18,7 @@ package validatorapi
 import (
 	"context"
 	"fmt"
+	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -45,20 +46,24 @@ type eth2Provider interface {
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.DomainProvider
+	eth2client.GenesisTimeProvider
 	eth2client.ProposerDutiesProvider
+	eth2client.SlotDurationProvider
 	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
 	eth2client.ValidatorsProvider
+	eth2client.ValidatorRegistrationsSubmitter
 	// Above sorted alphabetically
 }
 
 // dutyDomain maps domains to duties.
 var dutyDomain = map[core.DutyType]signing.DomainName{
-	core.DutyAttester:        signing.DomainBeaconAttester,
-	core.DutyProposer:        signing.DomainBeaconProposer,
-	core.DutyBuilderProposer: signing.DomainBeaconProposer,
-	core.DutyRandao:          signing.DomainRandao,
-	core.DutyExit:            signing.DomainExit,
+	core.DutyAttester:            signing.DomainBeaconAttester,
+	core.DutyProposer:            signing.DomainBeaconProposer,
+	core.DutyBuilderProposer:     signing.DomainBeaconProposer,
+	core.DutyBuilderRegistration: signing.DomainApplicationBuilder,
+	core.DutyRandao:              signing.DomainRandao,
+	core.DutyExit:                signing.DomainExit,
 }
 
 // PubShareFunc abstracts the mapping of validator root public key to tbls public share.
@@ -497,6 +502,95 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	return nil
 }
 
+func (c Component) verifyRegistrationSignature(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration, pubkey core.PubKey, slot eth2p0.Slot) error {
+	epoch, err := c.epochFromSlot(ctx, slot)
+	if err != nil {
+		return err
+	}
+
+	var sig eth2p0.BLSSignature
+	switch registration.Version {
+	case spec.BuilderVersionV1:
+		if registration.V1.Signature == sig {
+			return errors.New("no V1 signature")
+		}
+		sig = registration.V1.Signature
+	default:
+		return errors.New("unknown version")
+	}
+
+	// Verify partial signature
+	// TODO: switch to registration.Root() when implemented on go-eth2-client (PR has been reaised)
+	sigRoot, err := registration.V1.Message.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	return c.verifyParSig(ctx, core.DutyBuilderRegistration, epoch, pubkey, sigRoot, sig)
+}
+
+// submitRegistration receives the partially signed validator (builder) registration.
+func (c Component) submitRegistration(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration) error {
+	timestamp, err := registration.Timestamp()
+	if err != nil {
+		return err
+	}
+	slot, err := c.slotFromTimestamp(ctx, timestamp)
+	if err != nil {
+		return err
+	}
+
+	// Note this is the group pubkey
+	eth2Pubkey, err := registration.PubKey()
+	if err != nil {
+		return err
+	}
+
+	pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
+	if err != nil {
+		return err
+	}
+
+	err = c.verifyRegistrationSignature(ctx, registration, pubkey, slot)
+	if err != nil {
+		return err
+	}
+
+	duty := core.NewBuilderRegistrationDuty(int64(slot))
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	log.Debug(ctx, "Builder registration submitted by validator client")
+
+	signedData, err := core.NewPartialVersionedSignedValidatorRegistration(registration, c.shareIdx)
+	if err != nil {
+		return err
+	}
+
+	// TODO(corver): Batch these for improved network performance
+	set := core.ParSignedDataSet{pubkey: signedData}
+	for _, sub := range c.subs {
+		// No need to clone since sub auto clones.
+		err = sub(ctx, duty, set)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// SubmitValidatorRegistrations receives the partially signed validator (builder) registration.
+func (c Component) SubmitValidatorRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
+	for _, registration := range registrations {
+		err := c.submitRegistration(ctx, registration)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // SubmitVoluntaryExit receives the partially signed voluntary exit.
 func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
 	vals, err := c.eth2Cl.Validators(ctx, "head", []eth2p0.ValidatorIndex{exit.Message.ValidatorIndex})
@@ -756,6 +850,22 @@ func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Vali
 	}
 
 	return resp, nil
+}
+
+func (c Component) slotFromTimestamp(ctx context.Context, timestamp time.Time) (eth2p0.Slot, error) {
+	genesis, err := c.eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	slotDuration, err := c.eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	delta := timestamp.Sub(genesis)
+
+	return eth2p0.Slot(delta / slotDuration), nil
 }
 
 func (c Component) epochFromSlot(ctx context.Context, slot eth2p0.Slot) (eth2p0.Epoch, error) {

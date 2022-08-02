@@ -502,6 +502,29 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
+	t.Run("submit_validator_registration", func(t *testing.T) {
+		expect := []*eth2api.VersionedSignedValidatorRegistration{
+			{
+				Version: spec.BuilderVersionV1,
+				V1:      testutil.RandomSignedValidatorRegistration(t),
+			},
+		}
+		handler := testHandler{
+			SubmitValidatorRegistrationsFunc: func(ctx context.Context, actual []*eth2api.VersionedSignedValidatorRegistration) error {
+				require.Equal(t, actual, expect)
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			err := cl.SubmitValidatorRegistrations(ctx, expect)
+			require.NoError(t, err)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
 	t.Run("submit_voluntary_exit", func(t *testing.T) {
 		exit1 := testutil.RandomExit()
 
@@ -563,17 +586,18 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 // mocked beacon-node endpoints required by the eth2http client during startup.
 type testHandler struct {
 	Handler
-	ProxyHandler                   http.HandlerFunc
-	AttestationDataFunc            func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
-	AttesterDutiesFunc             func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
-	BeaconBlockProposalFunc        func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
-	SubmitBeaconBlockFunc          func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error
-	BlindedBeaconBlockProposalFunc func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
-	SubmitBlindedBeaconBlockFunc   func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
-	ProposerDutiesFunc             func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
-	ValidatorsFunc                 func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	ValidatorsByPubKeyFunc         func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	SubmitVoluntaryExitFunc        func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
+	ProxyHandler                     http.HandlerFunc
+	AttestationDataFunc              func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
+	AttesterDutiesFunc               func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	BeaconBlockProposalFunc          func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
+	SubmitBeaconBlockFunc            func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error
+	BlindedBeaconBlockProposalFunc   func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
+	SubmitBlindedBeaconBlockFunc     func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
+	ProposerDutiesFunc               func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	ValidatorsFunc                   func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	ValidatorsByPubKeyFunc           func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	SubmitVoluntaryExitFunc          func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
+	SubmitValidatorRegistrationsFunc func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
 }
 
 func (h testHandler) AttestationData(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
@@ -614,6 +638,10 @@ func (h testHandler) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, il 
 
 func (h testHandler) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
 	return h.SubmitVoluntaryExitFunc(ctx, exit)
+}
+
+func (h testHandler) SubmitValidatorRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
+	return h.SubmitValidatorRegistrationsFunc(ctx, registrations)
 }
 
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the

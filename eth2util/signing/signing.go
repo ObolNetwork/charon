@@ -29,10 +29,11 @@ import (
 type DomainName string
 
 const (
-	DomainBeaconProposer DomainName = "DOMAIN_BEACON_PROPOSER"
-	DomainBeaconAttester DomainName = "DOMAIN_BEACON_ATTESTER"
-	DomainRandao         DomainName = "DOMAIN_RANDAO"
-	DomainExit           DomainName = "DOMAIN_VOLUNTARY_EXIT"
+	DomainBeaconProposer     DomainName = "DOMAIN_BEACON_PROPOSER"
+	DomainBeaconAttester     DomainName = "DOMAIN_BEACON_ATTESTER"
+	DomainRandao             DomainName = "DOMAIN_RANDAO"
+	DomainExit               DomainName = "DOMAIN_VOLUNTARY_EXIT"
+	DomainApplicationBuilder DomainName = "DOMAIN_APPLICATION_BUILDER"
 	// DomainDeposit        	         DomainName = "DOMAIN_DEPOSIT"
 	// DomainSelectionProof              DomainName = "DOMAIN_SELECTION_PROOF"
 	// DomainAggregateAndProof           DomainName = "DOMAIN_AGGREGATE_AND_PROOF"
@@ -49,6 +50,12 @@ type Eth2DomainProvider interface {
 
 // GetDomain returns the beacon domain for the provided type.
 func GetDomain(ctx context.Context, eth2Cl Eth2DomainProvider, name DomainName, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
+	// TODO(corver): Remove once https://github.com/attestantio/go-eth2-client/pull/23 is released
+	if name == DomainApplicationBuilder {
+		// See https://github.com/ethereum/builder-specs/blob/main/specs/builder.md#domain-types
+		return eth2Cl.Domain(ctx, eth2p0.DomainType{0, 0, 0, 1}, epoch)
+	}
+
 	spec, err := eth2Cl.Spec(ctx)
 	if err != nil {
 		return eth2p0.Domain{}, err

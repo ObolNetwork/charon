@@ -59,6 +59,7 @@ type Eth2Provider interface {
 	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
 	eth2client.ValidatorsProvider
+	eth2client.ValidatorRegistrationsSubmitter
 	// Above sorted alphabetically.
 }
 

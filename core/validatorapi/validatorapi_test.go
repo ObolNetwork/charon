@@ -1024,3 +1024,122 @@ func TestComponent_ProposerDuties(t *testing.T) {
 	require.Len(t, duties, 1)
 	require.Equal(t, duties[0].PubKey, eth2Share)
 }
+
+func TestComponent_SubmitValidatorRegistration(t *testing.T) {
+	ctx := context.Background()
+
+	// Create keys (just use normal keys, not split tbls)
+	pubkey, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	// Convert pubkey
+	eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
+	require.NoError(t, err)
+	corePubKey, err := tblsconv.KeyToCore(pubkey)
+	require.NoError(t, err)
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
+
+	// Configure beacon mock
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
+	require.NoError(t, err)
+
+	unsigned := &eth2api.VersionedValidatorRegistration{
+		Version: spec.BuilderVersionV1,
+		V1:      testutil.RandomValidatorRegistration(t),
+	}
+	unsigned.V1.Pubkey = eth2Pubkey
+	unsigned.V1.Timestamp, err = bmock.GenesisTime(ctx) // Set timestamp to genesis which should result in epoch 0 and slot 0.
+	require.NoError(t, err)
+
+	// Sign validator (builder) registration
+	sigRoot, err := unsigned.V1.HashTreeRoot()
+	require.NoError(t, err)
+
+	domain, err := signing.GetDomain(ctx, bmock, signing.DomainApplicationBuilder, 0)
+	require.NoError(t, err)
+
+	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
+	require.NoError(t, err)
+
+	s, err := tbls.Sign(secret, sigData[:])
+	require.NoError(t, err)
+
+	sigEth2 := tblsconv.SigToETH2(s)
+	signed := &eth2api.VersionedSignedValidatorRegistration{
+		Version: spec.BuilderVersionV1,
+		V1: &eth2v1.SignedValidatorRegistration{
+			Message:   unsigned.V1,
+			Signature: sigEth2,
+		},
+	}
+
+	// Register subscriber
+	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.NewBuilderRegistrationDuty(0), duty)
+
+		registration, ok := set[corePubKey].SignedData.(core.VersionedSignedValidatorRegistration)
+		require.True(t, ok)
+		require.Equal(t, *signed, registration.VersionedSignedValidatorRegistration)
+
+		return nil
+	})
+
+	err = vapi.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
+	require.NoError(t, err)
+}
+
+func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
+	ctx := context.Background()
+
+	// Create keys (just use normal keys, not split tbls)
+	pubkey, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	// Convert pubkey
+	eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
+	require.NoError(t, err)
+	corePubKey, err := tblsconv.KeyToCore(pubkey)
+	require.NoError(t, err)
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
+
+	// Configure beacon mock
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0)
+	require.NoError(t, err)
+
+	unsigned := &eth2api.VersionedValidatorRegistration{
+		Version: spec.BuilderVersionV1,
+		V1:      testutil.RandomValidatorRegistration(t),
+	}
+	unsigned.V1.Pubkey = eth2Pubkey
+	unsigned.V1.Timestamp, err = bmock.GenesisTime(ctx) // Set timestamp to genesis which should result in epoch 0 and slot 0.
+	require.NoError(t, err)
+
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{corePubKey: nil}, nil
+	})
+
+	// Add invalid Signature to validator (builder) registration
+
+	s, err := tbls.Sign(secret, []byte("invalid msg"))
+	require.NoError(t, err)
+
+	sigEth2 := tblsconv.SigToETH2(s)
+	signed := &eth2api.VersionedSignedValidatorRegistration{
+		Version: spec.BuilderVersionV1,
+		V1: &eth2v1.SignedValidatorRegistration{
+			Message:   unsigned.V1,
+			Signature: sigEth2,
+		},
+	}
+
+	err = vapi.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
+	require.ErrorContains(t, err, "invalid signature")
+}
