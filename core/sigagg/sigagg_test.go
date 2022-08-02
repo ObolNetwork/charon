@@ -394,7 +394,92 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			})
 
 			// Run aggregation
-			err = agg.Aggregate(ctx, core.Duty{Type: core.DutyProposer}, "", parsigs)
+			err = agg.Aggregate(ctx, core.Duty{Type: core.DutyBuilderProposer}, "", parsigs)
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		threshold = 3
+		peers     = 4
+	)
+
+	// Generate private shares
+	tss, secrets, err := tbls.GenerateTSS(threshold, peers, rand.Reader)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		registration *eth2api.VersionedSignedValidatorRegistration
+	}{
+		{
+			name: "V1 registration",
+			registration: &eth2api.VersionedSignedValidatorRegistration{
+				Version: spec.BuilderVersionV1,
+				V1: &eth2v1.SignedValidatorRegistration{
+					Message:   testutil.RandomValidatorRegistration(t),
+					Signature: testutil.RandomEth2Signature(),
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Ignoring Domain for this test
+			msg, err := test.registration.V1.Message.HashTreeRoot()
+			require.NoError(t, err)
+
+			// Create partial signatures (in two formats)
+			var (
+				parsigs []core.ParSignedData
+				psigs   []*bls_sig.PartialSignature
+			)
+			for _, secret := range secrets {
+				psig, err := tbls.PartialSign(secret, msg[:])
+				require.NoError(t, err)
+
+				block, err := core.NewVersionedSignedValidatorRegistration(test.registration)
+				require.NoError(t, err)
+
+				sig := tblsconv.SigToCore(tblsconv.SigFromPartial(psig))
+				signed, err := block.SetSignature(sig)
+				require.NoError(t, err)
+				require.Equal(t, sig, signed.Signature())
+
+				psigs = append(psigs, psig)
+				parsigs = append(parsigs, core.ParSignedData{
+					SignedData: signed,
+					ShareIdx:   int(psig.Identifier),
+				})
+			}
+
+			// Create expected aggregated signature
+			aggSig, err := tbls.Aggregate(psigs)
+			require.NoError(t, err)
+			expect := tblsconv.SigToCore(aggSig)
+
+			agg := sigagg.New(threshold)
+
+			// Assert output
+			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
+				require.Equal(t, expect, aggData.Signature())
+				sig, err := tblsconv.SigFromCore(aggData.Signature())
+				require.NoError(t, err)
+
+				ok, err := tbls.Verify(tss.PublicKey(), msg[:], sig)
+				require.NoError(t, err)
+				require.True(t, ok)
+
+				return nil
+			})
+
+			// Run aggregation
+			err = agg.Aggregate(ctx, core.Duty{Type: core.DutyBuilderRegistration}, "", parsigs)
 			require.NoError(t, err)
 		})
 	}
