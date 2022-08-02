@@ -84,16 +84,20 @@ func NewRelayReserver(tcpNode host.Host, relay Peer) lifecycle.HookFunc {
 				continue
 			}
 
+			// Note a single long-lived reservation (created by server-side) is mapped to
+			// many short-lived limited client-side connections.
+			// When the reservation expires, the server needs to re-reserve.
+			// When the connection expires (stream reset error), then client needs to reconnect.
+
 			log.Debug(ctx, "Relay circuit reserved",
-				z.Any("expire", resv.Expiration),
-				z.Any("limit_duration", resv.LimitDuration),
-				z.Any("limit_data_mb", resv.LimitData/(1<<20)),
+				z.Any("reservation_expire", resv.Expiration),        // Server side reservation expiry (long)
+				z.Any("connection_duration", resv.LimitDuration),    // Client side connection limit (short)
+				z.Any("connection_data_mb", resv.LimitData/(1<<20)), // Client side connection limit (short)
 			)
 
 			select {
 			case <-ctx.Done():
 				return nil
-			case <-time.After(resv.LimitDuration - time.Second*10):
 			case <-time.After(time.Until(resv.Expiration.Add(-time.Minute))):
 			}
 			log.Debug(ctx, "Refreshing relay circuit reservation")
