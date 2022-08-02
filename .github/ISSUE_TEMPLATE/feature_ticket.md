@@ -1,5 +1,5 @@
 ---
-name: "\U0001F680Feature Ticket"
+name: "\U0001F680 Feature Ticket"
 about: Create a new feature for charon
 labels: Enhancement
 ---

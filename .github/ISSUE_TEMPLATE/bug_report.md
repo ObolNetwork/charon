@@ -1,11 +1,11 @@
 ---
-name: "\U0001F41EBug report"
-about: Report a bug or problem with running charon-distributed-validator-node
+name: "\U0001F41E Bug report"
+about: Report a bug or problem with running charon
 labels: Bug
 ---
 <!--
 
-Hellooo! 😄
+Hey there!
 
 To help us tend to your issue faster, please search our currently open issues before submitting a new one.
 Existing issues often contain information about workarounds, resolution, or progress updates.
