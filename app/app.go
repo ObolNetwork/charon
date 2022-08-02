@@ -269,6 +269,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	life.RegisterStop(lifecycle.StopP2PPeerDB, lifecycle.HookFuncMin(peerDB.Close))
 	life.RegisterStop(lifecycle.StopP2PTCPNode, lifecycle.HookFuncErr(tcpNode.Close))
 	life.RegisterStop(lifecycle.StopP2PUDPNode, lifecycle.HookFuncMin(udpNode.Close))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PLogger, lifecycle.HookFunc(p2p.NewConnectionLogger(tcpNode, peerIDs)))
 
 	for _, relay := range relays {
 		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(tcpNode, relay))

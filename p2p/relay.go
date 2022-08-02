@@ -79,7 +79,7 @@ func NewRelayReserver(tcpNode host.Host, relay Peer) lifecycle.HookFunc {
 			resv, err := circuit.Reserve(ctx, tcpNode, addrInfo)
 			if err != nil {
 				log.Warn(ctx, "Reserve relay circuit", err)
-				time.Sleep(time.Second * 5) // TODO(corver): Improve backoff
+				time.Sleep(time.Second * 10) // TODO(corver): Improve backoff
 
 				continue
 			}

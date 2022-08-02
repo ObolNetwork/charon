@@ -142,7 +142,7 @@ func (c *Client) isConnected() bool {
 
 // sendMsgs sends period sync protocol messages on the stream until error or shutdown.
 func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (bool, error) {
-	timer := time.NewTicker(time.Second)
+	timer := time.NewTicker(time.Second * 10)
 	defer timer.Stop()
 
 	first := make(chan struct{}, 1)

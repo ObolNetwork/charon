@@ -19,7 +19,9 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	p2plogging "github.com/ipfs/go-log/v2"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/discover"
@@ -28,10 +30,16 @@ import (
 	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peerstore"
 	"github.com/libp2p/go-libp2p-core/routing"
+	p2pconfig "github.com/libp2p/go-libp2p/config"
+	"github.com/libp2p/go-libp2p/p2p/protocol/holepunch"
+	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
 	ma "github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
@@ -63,13 +71,35 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 		libp2p.ConnectionGater(connGater),
 		// Enable Autonat (required for hole punching)
 		libp2p.EnableNATService(),
-		// Define p2pcfg.AddrsFactory that does not advertise
-		// addresses via libp2p, since we use discv5 for peer discovery.
-		libp2p.AddrsFactory(func([]ma.Multiaddr) []ma.Multiaddr { return nil }),
-
+		// Advertise public addresses for hole punching.
+		libp2p.AddrsFactory(advertisePublicAddrs()),
+		// Query discv5 when no address for peer is known.
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
 			return logWrapRouting(adaptDiscRouting(udpNode, peers, relays)), nil
 		}),
+	}
+
+	// Override defaults for snappy re-resolving of addresses.
+	if featureset.Enabled(featureset.HolePunch) {
+		// Decrease not-currently-connected address TTL to absolute minimum, since
+		// observed public NAT addresses are linked to relay connections that recycle
+		// every two minutes. Rather re-establish relay connection and upgrade that again.
+
+		peerstore.TempAddrTTL = time.Second * 1              // Default is 2 min
+		peerstore.RecentlyConnectedAddrTTL = time.Second * 1 // Default is 30 min
+		peerstore.OwnObservedAddrTTL = time.Minute           // Default is 30 min
+
+		// Only require a single peer (single bootnode) to report our public IP (default is 4).
+		identify.ActivationThresh = 1
+
+		opts = append(opts, libp2p.EnableHolePunching(holepunch.WithTracer(holePunchLogger{})))
+
+		// TODO(corver): Remove debug logging when hole punch moves to beta.
+		for _, module := range []string{"autonat", "p2p-holepunch"} {
+			if err = p2plogging.SetLogLevel(module, "debug"); err != nil {
+				return nil, errors.Wrap(err, "set log level", z.Str("module", module))
+			}
+		}
 	}
 
 	tcpNode, err := libp2p.New(opts...)
@@ -78,6 +108,37 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 	}
 
 	return tcpNode, nil
+}
+
+// NewConnectionLogger returns a lifecycle function to continuously log peer connections.
+func NewConnectionLogger(tcpNode host.Host, peers []peer.ID) func(context.Context) error {
+	return func(ctx context.Context) error {
+		ctx = log.WithTopic(ctx, "p2p")
+		for {
+			time.Sleep(time.Second * 10)
+			for _, pID := range peers {
+				if pID == tcpNode.ID() {
+					continue
+				}
+
+				for i, conn := range tcpNode.Network().ConnsToPeer(pID) {
+					typ := "direct"
+					if _, err := conn.RemoteMultiaddr().ValueForProtocol(ma.P_CIRCUIT); err == nil {
+						typ = "relay"
+					}
+					stat := conn.Stat()
+					log.Debug(ctx, "Peer connection stats",
+						z.Str("peer", PeerName(pID)),
+						z.Int("index", i),
+						z.Bool("transient", stat.Transient),
+						z.Str("type", typ),
+						z.Any("duration", time.Since(stat.Opened).Truncate(time.Second)),
+						z.Any("direction", stat.Direction),
+					)
+				}
+			}
+		}
+	}
 }
 
 // logWrapRouting wraps a peerRoutingFunc in debug logging.
@@ -130,11 +191,10 @@ func adaptDiscRouting(udpNode *discover.UDPv5, peers, relays []Peer) peerRouting
 		// If sequence is 0, we haven't discovered it yet.
 		// If tcp port is 0, this node isn't bound to a port.
 		if resolved.Seq() != 0 && resolved.TCP() != 0 {
-			mAddr, err := multiAddrFromIPPort(resolved.IP(), resolved.TCP())
+			_, err := multiAddrFromIPPort(resolved.IP(), resolved.TCP())
 			if err != nil {
 				return peer.AddrInfo{}, err
 			}
-			mAddrs = append(mAddrs, mAddr)
 		}
 
 		// Add any circuit relays
@@ -178,6 +238,29 @@ func multiAddrViaRelay(relayPeer Peer, peerID peer.ID) (ma.Multiaddr, error) {
 	return transportAddr.Encapsulate(relayAddr), nil
 }
 
+// advertisePublicAddrs returns a libp2p advertised address transformation function
+// that only advertises public addresses (required for hole punching)
+//
+// Private addresses are filtered out since they tend to clog up the peer store with
+// unreachable private addresses that need to timeout before they are removed
+// increasing latency for re-establishing connection.
+//
+// Note that this means hole punching and other advanced features of libp2p requiring
+// advertised addressed will not work on private networks, but this is ok for now since private
+// networks can probably configure direct access via ENRs.
+func advertisePublicAddrs() p2pconfig.AddrsFactory {
+	return func(addrs []ma.Multiaddr) []ma.Multiaddr {
+		var resp []ma.Multiaddr
+		for _, addr := range addrs {
+			if manet.IsPublicAddr(addr) {
+				resp = append(resp, addr)
+			}
+		}
+
+		return resp
+	}
+}
+
 // peerRoutingFunc wraps a function to implement routing.PeerRouting.
 type peerRoutingFunc func(context.Context, peer.ID) (peer.AddrInfo, error)
 
@@ -186,3 +269,12 @@ func (f peerRoutingFunc) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo
 }
 
 var _ routing.PeerRouting = peerRoutingFunc(nil) // interface assertion
+
+type holePunchLogger struct{}
+
+func (holePunchLogger) Trace(e *holepunch.Event) {
+	ctx := log.WithTopic(context.Background(), "holepunch")
+	log.Debug(ctx, "Libp2p holepunch event",
+		z.Str("event", e.Type),
+		z.Str("peer", PeerName(e.Remote)))
+}

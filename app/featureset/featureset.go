@@ -41,6 +41,9 @@ const (
 
 	// BeaconClockSync offsets slot start time by syncing with beacon node events.
 	BeaconClockSync Feature = "beacon_clock_sync"
+
+	// HolePunch enables libp2p hole punching.
+	HolePunch Feature = "p2p_hole_punch"
 )
 
 var (
@@ -48,6 +51,7 @@ var (
 	state = map[Feature]status{
 		QBFTConsensus:   statusStable,
 		BeaconClockSync: statusAlpha,
+		HolePunch:       statusAlpha,
 		// Add all features and there status here.
 	}
 

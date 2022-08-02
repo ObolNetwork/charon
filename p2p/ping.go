@@ -57,7 +57,7 @@ func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID,
 	for ctx.Err() == nil {
 		pingPeerOnce(ctx, svc, p, logFunc, callback)
 
-		const backoff = time.Second
+		const backoff = time.Second * 10
 		time.Sleep(backoff)
 	}
 }
