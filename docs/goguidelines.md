@@ -25,7 +25,7 @@ We take inspiration and guidance from these top-quality go projects.
 
 ## Tradeoffs
 Go is a high-level imperative “getting s@&!t done” language but there are always a
-thousand ways to approach a problem. The Charon codebase doesn't follow the common OOP-like style which emphasises *types and interfaces*. 
+thousand ways to approach a problem. The Charon codebase doesn't follow the common OOP-like style which emphasises *types and interfaces*.
 Instead, it follows a more procedural style for a focus on *functions and values*, [#AlgorthimsAndDataStructuresOverTypes](https://en.wikipedia.org/wiki/Object-oriented_programming#cite_note-48). This style can be summarized by the following tradeoffs:
 
 - Prefer **unexported over exported** types and functions. [#WriteShyCode](https://dave.cheney.net/practical-go/presentations/qcon-china.html#_package_design)
@@ -36,7 +36,7 @@ Instead, it follows a more procedural style for a focus on *functions and values
 
 > Note that we do use types and interfaces and methods and mutable state when required, we just prefer immutable values and functions where applicable.
 
-The following are examples of *functions and values over types*: 
+The following are examples of *functions and values over types*:
 ### Prefer functions returning functions over new types with methods #1
 ```go
 // startReadyChecker returns a function that returns true if the app is ready.
@@ -52,18 +52,18 @@ checker := newReadyChecker(foo, bar)
 for checker.IsReady() { ... }
 ```
 Reasoning: The startReadyChecker contains all state and logic in one function and the resulting isReady function cannot be misused. The checker instance introduces a new type with fields that are accesible and can therefore be misused, it is also at risk of being extended with more logic and coupling.
- 
+
 ### Prefer functions returning functions over new types with methods #2
 ```go
 // newFooHandler returns a http.HandlerFunc for handling foo requests.
 mux.Handle("/foo", newFooHandler(dependencies))
-``` 
-vs 
+```
+vs
 ```go
 // newServer returns a server instance with http.HandlerFunc methods handling all requests (including foo requests).
 server := newServer(dependencies)
 mux.Handle("/foo", server.handleFoo)
-``` 
+```
 Reasoning: The newFooHandler is completely decoupled from other handlers, except via explicit dependencies. The server struct will grow and grow and will attract shared state and coupling.
 
 ### Prefer function local variables and anonumous mutation functions over fields and methods
@@ -76,7 +76,7 @@ func foo() {
 
    // Call updateState when required
 }
-``` 
+```
 vs
 ```go
 type fooer struct {
