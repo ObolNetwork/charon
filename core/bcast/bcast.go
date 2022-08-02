@@ -23,6 +23,7 @@ import (
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -38,6 +39,7 @@ type eth2Provider interface {
 	eth2client.VoluntaryExitSubmitter
 	eth2client.GenesisTimeProvider
 	eth2client.SlotDurationProvider
+	eth2client.ValidatorRegistrationsSubmitter
 }
 
 // New returns a new broadcaster instance.
@@ -119,6 +121,21 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 		err = b.eth2Cl.SubmitBlindedBeaconBlock(ctx, &block.VersionedSignedBlindedBeaconBlock)
 		if err == nil {
 			log.Info(ctx, "Blinded block proposal successfully submitted to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot)),
+			)
+		}
+
+		return err
+
+	case core.DutyBuilderRegistration:
+		registration, ok := aggData.(core.VersionedSignedValidatorRegistration)
+		if !ok {
+			return errors.New("invalid validator registration")
+		}
+
+		err = b.eth2Cl.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{&registration.VersionedSignedValidatorRegistration})
+		if err == nil {
+			log.Info(ctx, "Validator registration successfully submitted to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
