@@ -60,6 +60,10 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Type: core.DutyBuilderProposer,
 			Data: testutil.RandomCoreVersionSignedBlindedBeaconBlock(t),
 		},
+		{
+			Type: core.DutyBuilderRegistration,
+			Data: testutil.RandomCoreVersionedSignedValidatorRegistration(t),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.Type.String(), func(t *testing.T) {
