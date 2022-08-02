@@ -61,7 +61,8 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 		libp2p.UserAgent("obolnetwork-charon/" + version.Version),
 		// Limit connections to DV peers.
 		libp2p.ConnectionGater(connGater),
-
+		// Enable Autonat (required for hole punching)
+		libp2p.EnableNATService(),
 		// Define p2pcfg.AddrsFactory that does not advertise
 		// addresses via libp2p, since we use discv5 for peer discovery.
 		libp2p.AddrsFactory(func([]ma.Multiaddr) []ma.Multiaddr { return nil }),
