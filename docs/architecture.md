@@ -121,6 +121,7 @@ We define the following duty types:
 - `DutyRandao = 3`: Creating a randao reveal signature required as input to DutyProposer
 - `DutyExit = 4`: Voluntary exit
 - `DutyBuilderProposer = 5`: Proposing a blinded block received from the builder network
+- `DutyBuilderRegistration = 6`: Registering a validator to the builder network
 
 > ℹ️ Duty is on a cluster level, not a DV level. A duty defines the “unit of work” for the whole cluster,
 > not just a single DV. This allows the workflow to aggregate and batch multiple DVs in some steps, specifically consensus.
@@ -174,7 +175,7 @@ Multiple `DutyDefinition`s are combined into a single `DutyDefinitionSet` that i
 type DutyDefinitionSet map[PubKey]DutyDefinition
 ```
 
-Note the `DutyRandao` and `DutyExit` isn’t scheduled by the scheduler, since they are initiated directly by VC.
+Note the `DutyRandao`, `DutyExit` & `DutyBuilderRegistration` isn’t scheduled by the scheduler, since they are initiated directly by VC.
 
 > ℹ️ The core workflow follows the immutable architecture approach, with immutable self-contained values flowing between components.
 > Values can be thought of as events or messages and components can be thought of as actors consuming and generating events.
@@ -368,7 +369,7 @@ type ParSignedData struct {
 
 ```
 
-The following `SignedData` implementations are provided: `Attestation`, `VersionedSignedBeaconBlock`, `VersionedSignedBlindedBeaconBlock`, `SignedVoluntaryExit`, and `Signature` which is just a signature without any data used for `DutyRandao`.
+The following `SignedData` implementations are provided: `Attestation`, `VersionedSignedBeaconBlock`, `VersionedSignedBlindedBeaconBlock`, `SignedVoluntaryExit`, `VersionedSignedValidatorRegistration` and `Signature` which is just a signature without any data used for `DutyRandao`.
 
 Multiple `ParSignedData` are combined into a single `ParSignedDataSet` defines as follows:
 ```go
@@ -457,7 +458,7 @@ Duties originating in the `scheduler` (`DutyAttester`, `DutyProposer`, `DutyBuil
 Instead of waiting for the `validatorapi` to submit signatures, these duties directly request
 signatures from the remote signer instance. The flow is otherwise unaffected.
 
-Duties originating in the `validatorapi` (`DutyRandao`, `DutyExit`) has to refactored to
+Duties originating in the `validatorapi` (`DutyRandao`, `DutyExit`, `DutyBuilderRegistration`) has to refactored to
 originate in the `scheduler`, since charon is in full control of the duties in this architecture.
 
 The overall core workflow remains the same, `scheduler` just schedules all the duties.
