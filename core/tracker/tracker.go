@@ -191,10 +191,10 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 		var absentPeers []string
 		for _, peer := range peers {
 			if participatedShares[peer.ShareIdx()] {
-				participationGauge.WithLabelValues(duty.String(), peer.Name).Set(1)
+				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(1)
 			} else {
 				absentPeers = append(absentPeers, peer.Name)
-				participationGauge.WithLabelValues(duty.String(), peer.Name).Set(0)
+				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(0)
 			}
 		}
 
