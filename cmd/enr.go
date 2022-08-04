@@ -76,20 +76,19 @@ func runNewENR(w io.Writer, config p2p.Config, dataDir string) error {
 
 	_, _ = fmt.Fprintln(w, newEnr)
 
-	writeExpandedEnr(w, r.Signature(), r.Seq(), r.IdentityScheme(), pubkeyBytes(&key.PublicKey))
+	writeExpandedEnr(w, r.Signature(), r.Seq(), pubkeyBytes(&key.PublicKey))
 
 	return nil
 }
 
 // writeExpandedEnr writes the expanded form of ENR to the terminal.
-func writeExpandedEnr(w io.Writer, sig []byte, seq uint64, id string, pubkey []byte) {
+func writeExpandedEnr(w io.Writer, sig []byte, seq uint64, pubkey []byte) {
 	var sb strings.Builder
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString("***************** Decoded ENR (see https://enr-viewer.com/ for additional fields) **********************\n")
+	_, _ = sb.WriteString(fmt.Sprintf("secp256k1 pubkey: %#x\n", pubkey))
 	_, _ = sb.WriteString(fmt.Sprintf("signature: %#x\n", sig))
 	_, _ = sb.WriteString(fmt.Sprintf("seq: %d\n", seq))
-	_, _ = sb.WriteString(fmt.Sprintf("id: %s\n", id))
-	_, _ = sb.WriteString(fmt.Sprintf("secp256k1 pubkey: %#x\n", pubkey))
 	_, _ = sb.WriteString("********************************************************************************************************\n")
 	_, _ = sb.WriteString("\n")
 
