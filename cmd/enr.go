@@ -17,12 +17,12 @@ package cmd
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"fmt"
 	"io"
 	"io/fs"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -40,7 +40,7 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, string, bool) error) *cobra.C
 
 	cmd := &cobra.Command{
 		Use:   "enr",
-		Short: "Print this node's Ethereum Node Record",
+		Short: "Prints a new ENR for this node",
 		Long:  `Prints a newly generated Ethereum Node Record (ENR) from this node's charon-enr-private-key`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -82,13 +82,13 @@ func runNewENR(w io.Writer, config p2p.Config, dataDir string, silent bool) erro
 		return err
 	}
 
-	writeExpandedEnr(w, r.Signature(), r.Seq(), MarshalECDSAPubkey(&key.PublicKey))
+	writeExpandedEnr(w, r.Signature(), r.Seq(), pubkeyHex(key.PublicKey))
 
 	return nil
 }
 
 // writeExpandedEnr writes the expanded form of ENR to the terminal.
-func writeExpandedEnr(w io.Writer, sig []byte, seq uint64, pubkey []byte) {
+func writeExpandedEnr(w io.Writer, sig []byte, seq uint64, pubkey string) {
 	var sb strings.Builder
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString("***************** Decoded ENR (see https://enr-viewer.com/ for additional fields) **********************\n")
@@ -101,13 +101,11 @@ func writeExpandedEnr(w io.Writer, sig []byte, seq uint64, pubkey []byte) {
 	_, _ = w.Write([]byte(sb.String()))
 }
 
-// MarshalECDSAPubkey returns compressed public key bytes.
-func MarshalECDSAPubkey(pub *ecdsa.PublicKey) []byte {
-	if pub == nil || pub.X == nil || pub.Y == nil {
-		return nil
-	}
+// pubkeyHex returns compressed public key bytes.
+func pubkeyHex(pubkey ecdsa.PublicKey) string {
+	b := crypto.CompressPubkey(&pubkey)
 
-	return elliptic.MarshalCompressed(elliptic.P256(), pub.X, pub.Y)
+	return fmt.Sprintf("%#x", b)
 }
 
 func bindEnrFlags(flags *pflag.FlagSet, silent *bool) {
