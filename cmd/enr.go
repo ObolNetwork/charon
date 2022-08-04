@@ -71,18 +71,18 @@ func runNewENR(w io.Writer, config p2p.Config, dataDir string, silent bool) erro
 	defer db.Close()
 
 	newEnr := localEnode.Node().String()
-	r, err := p2p.DecodeENR(newEnr)
-	if err != nil {
-		return err
-	}
-
 	_, _ = fmt.Fprintln(w, newEnr)
 
 	if silent {
 		return nil
 	}
 
-	writeExpandedEnr(w, r.Signature(), r.Seq(), pubkeyBytes(&key.PublicKey))
+	r, err := p2p.DecodeENR(newEnr)
+	if err != nil {
+		return err
+	}
+
+	writeExpandedEnr(w, r.Signature(), r.Seq(), MarshalECDSAPubkey(&key.PublicKey))
 
 	return nil
 }
@@ -101,8 +101,8 @@ func writeExpandedEnr(w io.Writer, sig []byte, seq uint64, pubkey []byte) {
 	_, _ = w.Write([]byte(sb.String()))
 }
 
-// pubkeyBytes returns compressed public key bytes.
-func pubkeyBytes(pub *ecdsa.PublicKey) []byte {
+// MarshalECDSAPubkey returns compressed public key bytes.
+func MarshalECDSAPubkey(pub *ecdsa.PublicKey) []byte {
 	if pub == nil || pub.X == nil || pub.Y == nil {
 		return nil
 	}
