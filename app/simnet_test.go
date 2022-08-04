@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -105,16 +107,25 @@ func TestSimnetNoNetwork_WithBuilderProposerMockVCs(t *testing.T) {
 	testSimnet(t, args)
 }
 
+func TestSimnetNoNetwork_WithBuilderRegistrationMockVCs(t *testing.T) {
+	args := newSimnetArgs(t)
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	args.BuilderRegistration = true
+	testSimnet(t, args)
+}
+
 type simnetArgs struct {
-	N          int
-	VMocks     []bool
-	VAPIAddrs  []string
-	P2PKeys    []*ecdsa.PrivateKey
-	SimnetKeys []*bls_sig.SecretKey
-	BMockOpts  []beaconmock.Option
-	Lock       cluster.Lock
-	ErrChan    chan error
-	BuilderAPI bool
+	N                   int
+	VMocks              []bool
+	VAPIAddrs           []string
+	P2PKeys             []*ecdsa.PrivateKey
+	SimnetKeys          []*bls_sig.SecretKey
+	BMockOpts           []beaconmock.Option
+	Lock                cluster.Lock
+	ErrChan             chan error
+	BuilderAPI          bool
+	BuilderRegistration bool
 }
 
 // newSimnetArgs defines the default simnet test args.
@@ -162,6 +173,24 @@ func testSimnet(t *testing.T, args simnetArgs) {
 	featureConf := featureset.DefaultConfig()
 	featureConf.Disabled = []string{string(featureset.QBFTConsensus)} // TODO(corver): Add support for in-memory transport to QBFT.
 
+	// Prep registration if required.
+	reg := testutil.RandomValidatorRegistration(t)
+	pubkey, err := core.PubKey(args.Lock.Validators[0].PubKey).ToETH2()
+	require.NoError(t, err)
+	reg.Pubkey = pubkey
+	getRegChan := func() <-chan *eth2api.VersionedValidatorRegistration {
+		if !args.BuilderRegistration {
+			return nil
+		}
+		regChan := make(chan *eth2api.VersionedValidatorRegistration, 1)
+		regChan <- &eth2api.VersionedValidatorRegistration{
+			Version: spec.BuilderVersionV1,
+			V1:      reg,
+		}
+
+		return regChan
+	}
+
 	type simResult struct {
 		Duty   core.Duty
 		Pubkey core.PubKey
@@ -199,6 +228,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 				SimnetBMockOpts: append([]beaconmock.Option{
 					beaconmock.WithSlotsPerEpoch(1),
 				}, args.BMockOpts...),
+				BuilderRegistration: getRegChan(),
 			},
 			P2P:        p2p.Config{},
 			BuilderAPI: args.BuilderAPI,
@@ -269,7 +299,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 		}
 	})
 
-	err := eg.Wait()
+	err = eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 }

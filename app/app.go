@@ -26,6 +26,7 @@ import (
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -108,8 +109,8 @@ type TestConfig struct {
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
 	// DisablePromWrap disables wrapping prometheus metrics with cluster identifiers.
 	DisablePromWrap bool
-	// BuilderAPI enables the builder API opt-in feature
-	BuilderAPI bool
+	// BuilderRegistration provides a channel for tests to trigger builder registration by the validator mock,
+	BuilderRegistration <-chan *eth2api.VersionedValidatorRegistration
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -641,6 +642,34 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 
 		return nil
 	})
+
+	go func() {
+		for registration := range conf.TestConfig.BuilderRegistration {
+			ctx := log.WithTopic(context.Background(), "vmock")
+
+			addr := "http://" + conf.ValidatorAPIAddr
+			eth2Svc, err := eth2http.New(ctx,
+				eth2http.WithLogLevel(1),
+				eth2http.WithAddress(addr),
+				eth2http.WithTimeout(time.Second*10), // Allow sufficient time to block while fetching duties.
+			)
+			if err != nil {
+				log.Error(ctx, "Cannot connect to validatorapi", err)
+				return
+			}
+			eth2Cl, ok := eth2Svc.(validatormock.Eth2Provider)
+			if !ok {
+				log.Error(ctx, "Invalid eth2 service", nil)
+			}
+
+			err = validatormock.Register(ctx, eth2Cl, signer, registration)
+			if err != nil {
+				log.Warn(ctx, "Mock registration failed", err)
+			} else {
+				log.Info(ctx, "Mock registration submitted to validatorapi")
+			}
+		}
+	}()
 
 	return nil
 }

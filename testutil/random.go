@@ -272,8 +272,9 @@ func RandomValidatorRegistration(t *testing.T) *eth2v1.ValidatorRegistration {
 	t.Helper()
 
 	return &eth2v1.ValidatorRegistration{
-		GasLimit: rand.Uint64(),
-		Pubkey:   RandomEth2PubKey(t),
+		GasLimit:  rand.Uint64(),
+		Pubkey:    RandomEth2PubKey(t),
+		Timestamp: time.Unix(0, 0),
 	}
 }
 

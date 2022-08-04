@@ -338,6 +338,11 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc Sign
 	return eth2Cl.SubmitBlindedBeaconBlock(ctx, signedBlock)
 }
 
+func Register(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, registration *eth2api.VersionedValidatorRegistration) error {
+	// TODO(corver): Sign and submit registration.
+	return nil
+}
+
 // NewSigner returns a singing function supporting the provided private keys.
 func NewSigner(secrets ...*bls_sig.SecretKey) SignFunc {
 	return func(ctx context.Context, pubkey eth2p0.BLSPubKey, msg []byte) (eth2p0.BLSSignature, error) {
