@@ -160,7 +160,7 @@ func failedDutyReporter(ctx context.Context, duty core.Duty, failed bool, compon
 		z.Any("component", component),
 		z.Str("reason", reason))
 
-	failedCounter.WithLabelValues(duty.String(), component.String()).Inc()
+	failedCounter.WithLabelValues(duty.Type.String(), component.String()).Inc()
 }
 
 // analyseParticipation returns a set of share indexes of participated peers.
