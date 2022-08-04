@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -48,7 +49,13 @@ func newCreateEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.C
 }
 
 // runCreateEnrCmd stores a new charon-enr-private-key to disk and prints the ENR for the provided config.
+// It returns an error if the key already exists.
 func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
+	_, err := p2p.LoadPrivKey(dataDir)
+	if err == nil {
+		return errors.New("charon-enr-private-key already exists", z.Str("enr_path", p2p.KeyPath(dataDir)))
+	}
+
 	key, err := p2p.NewSavedPrivKey(dataDir)
 	if err != nil {
 		return err
