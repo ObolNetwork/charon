@@ -24,36 +24,39 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
 )
 
-func newEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.Command {
+func newEnrCmd(runFunc func(io.Writer, p2p.Config, string, bool) error) *cobra.Command {
 	var (
 		config  p2p.Config
 		dataDir string
+		silent  bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "enr",
-		Short: "Print this client's Ethereum Node Record",
+		Short: "Print this node's Ethereum Node Record",
 		Long:  `Prints a newly generated Ethereum Node Record (ENR) from this node's charon-enr-private-key`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(cmd.OutOrStdout(), config, dataDir)
+			return runFunc(cmd.OutOrStdout(), config, dataDir, silent)
 		},
 	}
 
 	bindDataDirFlag(cmd.Flags(), &dataDir)
 	bindP2PFlags(cmd.Flags(), &config)
+	bindEnrFlags(cmd.Flags(), &silent)
 
 	return cmd
 }
 
 // runNewENR loads the p2pkey from disk and prints the ENR for the provided config.
-func runNewENR(w io.Writer, config p2p.Config, dataDir string) error {
+func runNewENR(w io.Writer, config p2p.Config, dataDir string, silent bool) error {
 	key, err := p2p.LoadPrivKey(dataDir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return errors.New("private key not found. If this is your first time running this client, create one with `charon create enr`.", z.Str("enr_path", p2p.KeyPath(dataDir))) //nolint:revive
@@ -68,13 +71,16 @@ func runNewENR(w io.Writer, config p2p.Config, dataDir string) error {
 	defer db.Close()
 
 	newEnr := localEnode.Node().String()
-
 	r, err := p2p.DecodeENR(newEnr)
 	if err != nil {
 		return err
 	}
 
 	_, _ = fmt.Fprintln(w, newEnr)
+
+	if silent {
+		return nil
+	}
 
 	writeExpandedEnr(w, r.Signature(), r.Seq(), pubkeyBytes(&key.PublicKey))
 
@@ -102,4 +108,8 @@ func pubkeyBytes(pub *ecdsa.PublicKey) []byte {
 	}
 
 	return elliptic.MarshalCompressed(elliptic.P256(), pub.X, pub.Y)
+}
+
+func bindEnrFlags(flags *pflag.FlagSet, silent *bool) {
+	flags.BoolVar(silent, "silent", false, "Prints the expanded form of ENR.")
 }
