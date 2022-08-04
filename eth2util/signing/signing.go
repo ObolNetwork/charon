@@ -22,6 +22,10 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // DomainName as defined in eth2 spec.
@@ -42,14 +46,15 @@ const (
 	// DomainContributionAndProof        DomainName = "DOMAIN_CONTRIBUTION_AND_PROOF".
 )
 
-// Eth2DomainProvider is the subset of eth2 beacon api provider required to get a signing domain.
-type Eth2DomainProvider interface {
-	eth2client.SpecProvider
+// Eth2Provider is the subset of eth2 beacon api provider required to get a signing domain.
+type Eth2Provider interface {
 	eth2client.DomainProvider
+	eth2client.SlotsPerEpochProvider
+	eth2client.SpecProvider
 }
 
 // GetDomain returns the beacon domain for the provided type.
-func GetDomain(ctx context.Context, eth2Cl Eth2DomainProvider, name DomainName, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
+func GetDomain(ctx context.Context, eth2Cl Eth2Provider, name DomainName, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
 	// TODO(corver): Remove once https://github.com/attestantio/go-eth2-client/pull/23 is released
 	if name == DomainApplicationBuilder {
 		// See https://github.com/ethereum/builder-specs/blob/main/specs/builder.md#domain-types
@@ -76,7 +81,7 @@ func GetDomain(ctx context.Context, eth2Cl Eth2DomainProvider, name DomainName, 
 
 // GetDataRoot wraps the signing root with the domain and returns signing data hash tree root.
 // The result should be identical to what was signed by the VC.
-func GetDataRoot(ctx context.Context, eth2Cl Eth2DomainProvider, name DomainName, epoch eth2p0.Epoch, root eth2p0.Root) ([32]byte, error) {
+func GetDataRoot(ctx context.Context, eth2Cl Eth2Provider, name DomainName, epoch eth2p0.Epoch, root eth2p0.Root) ([32]byte, error) {
 	domain, err := GetDomain(ctx, eth2Cl, name, epoch)
 	if err != nil {
 		return [32]byte{}, err
@@ -88,4 +93,130 @@ func GetDataRoot(ctx context.Context, eth2Cl Eth2DomainProvider, name DomainName
 	}
 
 	return msg, nil
+}
+
+// NewVerifyFunc returns partial signature verification function which verifies given ParSignedData according to Duty Type.
+//nolint:gocognit
+func NewVerifyFunc(eth2Cl Eth2Provider) func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
+	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, parSig core.ParSignedData) error {
+		switch duty.Type {
+		case core.DutyAttester:
+			att, ok := parSig.SignedData.(core.Attestation)
+			if !ok {
+				return errors.New("invalid attestation")
+			}
+
+			sigRoot, err := att.Data.HashTreeRoot()
+			if err != nil {
+				return errors.Wrap(err, "hash attestation data")
+			}
+
+			return verify(ctx, eth2Cl, DomainBeaconAttester, att.Data.Target.Epoch, sigRoot, att.Attestation.Signature, pubkey)
+		case core.DutyProposer:
+			block, ok := parSig.SignedData.(core.VersionedSignedBeaconBlock)
+			if !ok {
+				return errors.New("invalid block")
+			}
+
+			// Calculate slot epoch
+			epoch, err := epochFromSlot(ctx, eth2Cl, eth2p0.Slot(duty.Slot))
+			if err != nil {
+				return err
+			}
+
+			sigRoot, err := block.Root()
+			if err != nil {
+				return err
+			}
+
+			return verify(ctx, eth2Cl, DomainBeaconProposer, epoch, sigRoot, block.Signature().ToETH2(), pubkey)
+		case core.DutyBuilderProposer:
+			blindedBlock, ok := parSig.SignedData.(core.VersionedSignedBlindedBeaconBlock)
+			if !ok {
+				return errors.New("invalid blinded block")
+			}
+
+			// Calculate slot epoch
+			epoch, err := epochFromSlot(ctx, eth2Cl, eth2p0.Slot(duty.Slot))
+			if err != nil {
+				return err
+			}
+
+			sigRoot, err := blindedBlock.Root()
+			if err != nil {
+				return err
+			}
+
+			return verify(ctx, eth2Cl, DomainBeaconProposer, epoch, sigRoot, blindedBlock.Signature().ToETH2(), pubkey)
+		case core.DutyRandao:
+			randao, ok := parSig.SignedData.(core.Signature)
+			if !ok {
+				return errors.New("invalid randao")
+			}
+
+			// Calculate slot epoch
+			epoch, err := epochFromSlot(ctx, eth2Cl, eth2p0.Slot(duty.Slot))
+			if err != nil {
+				return err
+			}
+
+			sigRoot, err := eth2util.EpochHashRoot(epoch)
+			if err != nil {
+				return err
+			}
+
+			return verify(ctx, eth2Cl, DomainRandao, epoch, sigRoot, randao.ToETH2(), pubkey)
+		case core.DutyExit:
+			exit, ok := parSig.SignedData.(core.SignedVoluntaryExit)
+			if !ok {
+				return errors.New("invalid voluntary exit")
+			}
+
+			sigRoot, err := exit.Message.HashTreeRoot()
+			if err != nil {
+				return err
+			}
+
+			return verify(ctx, eth2Cl, DomainExit, exit.Message.Epoch, sigRoot, exit.SignedVoluntaryExit.Signature, pubkey)
+		default:
+			return errors.New("invalid duty type")
+		}
+	}
+}
+
+func verify(ctx context.Context, eth2Cl Eth2Provider, domain DomainName, epoch eth2p0.Epoch, sigRoot [32]byte, sig eth2p0.BLSSignature, pubkey core.PubKey) error {
+	sigData, err := GetDataRoot(ctx, eth2Cl, domain, epoch, sigRoot)
+	if err != nil {
+		return err
+	}
+
+	// Convert the signature
+	s, err := tblsconv.SigFromETH2(sig)
+	if err != nil {
+		return errors.Wrap(err, "convert signature")
+	}
+
+	// Verify using public share
+	pubshare, err := tblsconv.KeyFromCore(pubkey)
+	if err != nil {
+		return err
+	}
+
+	ok, err := tbls.Verify(pubshare, sigData[:], s)
+	if err != nil {
+		return err
+	} else if !ok {
+		return errors.New("invalid signature")
+	}
+
+	return nil
+}
+
+func epochFromSlot(ctx context.Context, eth2Cl Eth2Provider, slot eth2p0.Slot) (eth2p0.Epoch, error) {
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "getting slots per epoch")
+	}
+
+	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }
