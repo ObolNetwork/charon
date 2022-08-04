@@ -662,7 +662,8 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 				log.Error(ctx, "Invalid eth2 service", nil)
 			}
 
-			err = validatormock.Register(ctx, eth2Cl, signer, registration)
+			// what pubkey should this be - should we be handing in registrations & pubkeys
+			err = validatormock.Register(ctx, eth2Cl, signer, registration, pubshares[0])
 			if err != nil {
 				log.Warn(ctx, "Mock registration failed", err)
 			} else {

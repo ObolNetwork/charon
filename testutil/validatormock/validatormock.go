@@ -338,9 +338,41 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc Sign
 	return eth2Cl.SubmitBlindedBeaconBlock(ctx, signedBlock)
 }
 
-func Register(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, registration *eth2api.VersionedValidatorRegistration) error {
+// this is register (singular) but the underlying submit function is registrations should it be changed to handle multiple registrations
+func Register(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, registration *eth2api.VersionedValidatorRegistration, pubkey eth2p0.BLSPubKey) error {
 	// TODO(corver): Sign and submit registration.
-	return nil
+
+	sigRoot, err := registration.V1.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	// epoch required for the GetDataRoot function not sure what we should set that as
+	sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainApplicationBuilder, eth2p0.Epoch(100), sigRoot)
+	if err != nil {
+		return err
+	}
+
+	// pubkey required for signature
+	sig, err := signFunc(ctx, pubkey, sigData[:])
+	if err != nil {
+		return err
+	}
+
+	// create signed builder registration
+	signedRegistration := new(eth2api.VersionedSignedValidatorRegistration)
+	switch signedRegistration.Version {
+	case spec.BuilderVersionV1:
+		signedRegistration.V1 = &eth2v1.SignedValidatorRegistration{
+			Message:   signedRegistration.V1.Message,
+			Signature: sig,
+		}
+	default:
+		return errors.New("invalid registration")
+	}
+
+	// wrap the single registration in a slice (this would change if we changed the function to be Registrations)
+	return eth2Cl.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signedRegistration})
 }
 
 // NewSigner returns a singing function supporting the provided private keys.
