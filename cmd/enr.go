@@ -16,9 +16,12 @@
 package cmd
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"fmt"
 	"io"
 	"io/fs"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -36,7 +39,7 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.Command
 	cmd := &cobra.Command{
 		Use:   "enr",
 		Short: "Print this client's Ethereum Node Record",
-		Long:  `Return information on this node's Ethereum Node Record (ENR)`,
+		Long:  `Prints a newly generated Ethereum Node Record (ENR) from this node's charon-enr-private-key`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), config, dataDir)
@@ -64,7 +67,40 @@ func runNewENR(w io.Writer, config p2p.Config, dataDir string) error {
 	}
 	defer db.Close()
 
-	_, _ = fmt.Fprintln(w, localEnode.Node().String())
+	newEnr := localEnode.Node().String()
+
+	r, err := p2p.DecodeENR(newEnr)
+	if err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintln(w, newEnr)
+
+	writeExpandedEnr(w, r.Signature(), r.Seq(), r.IdentityScheme(), pubkeyBytes(&key.PublicKey))
 
 	return nil
+}
+
+// writeExpandedEnr writes the expanded form of ENR to the terminal.
+func writeExpandedEnr(w io.Writer, sig []byte, seq uint64, id string, pubkey []byte) {
+	var sb strings.Builder
+	_, _ = sb.WriteString("\n")
+	_, _ = sb.WriteString("***************** Decoded ENR (see https://enr-viewer.com/ for additional fields) **********************\n")
+	_, _ = sb.WriteString(fmt.Sprintf("signature: %#x\n", sig))
+	_, _ = sb.WriteString(fmt.Sprintf("seq: %d\n", seq))
+	_, _ = sb.WriteString(fmt.Sprintf("id: %s\n", id))
+	_, _ = sb.WriteString(fmt.Sprintf("secp256k1 pubkey: %#x\n", pubkey))
+	_, _ = sb.WriteString("********************************************************************************************************\n")
+	_, _ = sb.WriteString("\n")
+
+	_, _ = w.Write([]byte(sb.String()))
+}
+
+// pubkeyBytes returns compressed public key bytes.
+func pubkeyBytes(pub *ecdsa.PublicKey) []byte {
+	if pub == nil || pub.X == nil || pub.Y == nil {
+		return nil
+	}
+
+	return elliptic.MarshalCompressed(elliptic.P256(), pub.X, pub.Y)
 }
