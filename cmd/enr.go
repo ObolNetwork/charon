@@ -35,7 +35,7 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, string, bool) error) *cobra.C
 	var (
 		config  p2p.Config
 		dataDir string
-		silent  bool
+		verbose bool
 	)
 
 	cmd := &cobra.Command{
@@ -44,19 +44,19 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, string, bool) error) *cobra.C
 		Long:  `Prints a newly generated Ethereum Node Record (ENR) from this node's charon-enr-private-key`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(cmd.OutOrStdout(), config, dataDir, silent)
+			return runFunc(cmd.OutOrStdout(), config, dataDir, verbose)
 		},
 	}
 
 	bindDataDirFlag(cmd.Flags(), &dataDir)
 	bindP2PFlags(cmd.Flags(), &config)
-	bindEnrFlags(cmd.Flags(), &silent)
+	bindEnrFlags(cmd.Flags(), &verbose)
 
 	return cmd
 }
 
 // runNewENR loads the p2pkey from disk and prints the ENR for the provided config.
-func runNewENR(w io.Writer, config p2p.Config, dataDir string, silent bool) error {
+func runNewENR(w io.Writer, config p2p.Config, dataDir string, verbose bool) error {
 	key, err := p2p.LoadPrivKey(dataDir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return errors.New("private key not found. If this is your first time running this client, create one with `charon create enr`.", z.Str("enr_path", p2p.KeyPath(dataDir))) //nolint:revive
@@ -73,7 +73,7 @@ func runNewENR(w io.Writer, config p2p.Config, dataDir string, silent bool) erro
 	newEnr := localEnode.Node().String()
 	_, _ = fmt.Fprintln(w, newEnr)
 
-	if silent {
+	if !verbose {
 		return nil
 	}
 
@@ -108,6 +108,6 @@ func pubkeyHex(pubkey ecdsa.PublicKey) string {
 	return fmt.Sprintf("%#x", b)
 }
 
-func bindEnrFlags(flags *pflag.FlagSet, silent *bool) {
-	flags.BoolVar(silent, "silent", false, "Prints the expanded form of ENR.")
+func bindEnrFlags(flags *pflag.FlagSet, verbose *bool) {
+	flags.BoolVar(verbose, "verbose", false, "Prints the expanded form of ENR.")
 }
