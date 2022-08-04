@@ -26,7 +26,7 @@ require (
 	github.com/spf13/viper v1.12.0
 	github.com/stretchr/testify v1.8.0
 	github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.2.0
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.33.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.34.0
 	go.opentelemetry.io/otel v1.9.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.9.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.9.0
