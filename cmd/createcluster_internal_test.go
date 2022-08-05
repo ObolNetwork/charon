@@ -96,7 +96,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 	conf.ClusterDir = dir
 
 	var buf bytes.Buffer
-	err = runCreateCluster(&buf, conf)
+	err = runCreateCluster(context.Background(), &buf, conf)
 	if err != nil {
 		log.Error(context.Background(), "", err)
 	}

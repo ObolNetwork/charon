@@ -16,6 +16,7 @@
 package cmd
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -33,6 +34,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/deposit"
@@ -46,7 +48,6 @@ const (
 	defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
 	defaultNetwork        = "prater"
 	defaultNumNodes       = 4
-	defaultThreshold      = 3
 )
 
 type clusterConfig struct {
@@ -65,7 +66,7 @@ type clusterConfig struct {
 	SplitKeysDir string
 }
 
-func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Command {
+func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig) error) *cobra.Command {
 	var conf clusterConfig
 
 	cmd := &cobra.Command{
@@ -74,7 +75,7 @@ func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Co
 		Long: "Creates a local charon cluster configuration including validator keys, charon p2p keys, cluster-lock.json and a deposit-data.json. " +
 			"See flags for supported features.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(cmd.OutOrStdout(), conf)
+			return runFunc(cmd.Context(), cmd.OutOrStdout(), conf)
 		},
 	}
 
@@ -86,8 +87,8 @@ func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Co
 func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
-	flags.IntVarP(&config.NumNodes, "nodes", "n", defaultNumNodes, "The number of charon nodes in the cluster.")
-	flags.IntVarP(&config.Threshold, "threshold", "t", defaultThreshold, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
+	flags.IntVarP(&config.NumNodes, "nodes", "n", defaultNumNodes, "The number of charon nodes in the cluster. Minimum is 4.")
+	flags.IntVarP(&config.Threshold, "threshold", "t", 0, "The threshold required for signature reconstruction. Strongly suggest leaving empty to defaults to ceil(n*2/3).")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", defaultWithdrawalAddr, "Ethereum address to receive the returned stake and accrued rewards.")
 	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
@@ -97,7 +98,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
 }
 
-func runCreateCluster(w io.Writer, conf clusterConfig) error {
+func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) error {
 	if conf.Clean {
 		// Remove previous directories
 		if err := os.RemoveAll(conf.ClusterDir); err != nil {
@@ -114,6 +115,13 @@ func runCreateCluster(w io.Writer, conf clusterConfig) error {
 
 	if err := validateClusterConfig(conf); err != nil {
 		return err
+	}
+
+	safeThreshold := cluster.Threshold(conf.NumNodes)
+	if conf.Threshold == 0 {
+		conf.Threshold = safeThreshold
+	} else if conf.Threshold != safeThreshold {
+		log.Warn(ctx, "Non standard `--threshold` flag provided, this will affect cluster safety", nil, z.Int("threshold", conf.Threshold), z.Int("safe_threshold", safeThreshold))
 	}
 
 	// Get root bls secrets

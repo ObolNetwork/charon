@@ -76,7 +76,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", ".charon", "The folder to write the output cluster-definition.json file to.")
 	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of distributed validators the cluster will manage (32ETH staked for each).")
-	cmd.Flags().IntVarP(&config.Threshold, "threshold", "t", defaultThreshold, "The threshold required for signature reconstruction. Minimum is ceil(2*n/3).")
+	cmd.Flags().IntVarP(&config.Threshold, "threshold", "t", 0, "The threshold required for signature reconstruction. Strongly suggest leaving empty to defaults to ceil(n*2/3).")
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	cmd.Flags().StringVar(&config.WithdrawalAddress, "withdrawal-address", defaultWithdrawalAddr, "Withdrawal Ethereum address")
 	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
@@ -115,10 +115,11 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		})
 	}
 
-	// Set cluster threshold.
-	if conf.Threshold < cluster.Threshold(len(conf.OperatorENRs)) {
-		conf.Threshold = cluster.Threshold(len(conf.OperatorENRs))
-		log.Info(ctx, "Updated cluster threshold to minimum required", z.Int("min", cluster.Threshold(len(conf.OperatorENRs))))
+	safeThreshold := cluster.Threshold(len(conf.OperatorENRs))
+	if conf.Threshold == 0 {
+		conf.Threshold = safeThreshold
+	} else if conf.Threshold != safeThreshold {
+		log.Warn(ctx, "Non standard `--threshold` flag provided, this will affect cluster safety", nil, z.Int("threshold", conf.Threshold), z.Int("safe_threshold", safeThreshold))
 	}
 
 	if !validNetworks[conf.Network] {
