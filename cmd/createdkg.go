@@ -76,7 +76,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", ".charon", "The folder to write the output cluster-definition.json file to.")
 	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of distributed validators the cluster will manage (32ETH staked for each).")
-	cmd.Flags().IntVarP(&config.Threshold, "threshold", "t", defaultThreshold, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
+	cmd.Flags().IntVarP(&config.Threshold, "threshold", "t", defaultThreshold, "The threshold required for signature reconstruction. Minimum is ceil(2*n/3).")
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	cmd.Flags().StringVar(&config.WithdrawalAddress, "withdrawal-address", defaultWithdrawalAddr, "Withdrawal Ethereum address")
 	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
