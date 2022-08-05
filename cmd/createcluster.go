@@ -444,13 +444,6 @@ func validateClusterConfig(conf clusterConfig) error {
 		return errors.New("insufficient number of nodes (min = 4)")
 	}
 
-	// minReq is the minimum allowable threshold.
-	minThres := cluster.Threshold(conf.NumNodes)
-	//nolint:wrapcheck
-	if conf.Threshold < minThres {
-		return fmt.Errorf("threshold less than minimum (min required >= %d)", minThres)
-	}
-
 	if !validNetworks[conf.Network] {
 		return errors.New("unsupported network", z.Str("network", conf.Network))
 	}

@@ -147,12 +147,3 @@ func TestValidNetwork(t *testing.T) {
 	err = validateClusterConfig(conf)
 	require.NoError(t, err)
 }
-
-func TestInvalidThreshold(t *testing.T) {
-	conf := clusterConfig{
-		NumNodes:  5,
-		Threshold: 3,
-	}
-	err := validateClusterConfig(conf)
-	require.EqualError(t, err, "threshold less than minimum (min required >= 4)")
-}
