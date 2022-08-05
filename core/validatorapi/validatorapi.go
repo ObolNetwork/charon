@@ -259,6 +259,11 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 			return err
 		}
 
+		// Verify signature
+		if err = c.verifySignedData(ctx, c.eth2Cl, pubkey, att); err != nil {
+			return err
+		}
+
 		// Encode partial signed data and add to a set
 		set, ok := setsBySlot[slot]
 		if !ok {
@@ -266,13 +271,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 			setsBySlot[slot] = set
 		}
 
-		// Verify signature
-		pSigData := core.NewPartialAttestation(att, c.shareIdx)
-		if err = c.verifySignedData(ctx, c.eth2Cl, pubkey, att); err != nil {
-			return err
-		}
-
-		set[pubkey] = pSigData
+		set[pubkey] = core.NewPartialAttestation(att, c.shareIdx)
 	}
 
 	// Send sets to subscriptions.
@@ -449,6 +448,10 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	log.Debug(ctx, "Blinded beacon block submitted by validator client")
 
 	signedData, err := core.NewPartialVersionedSignedBlindedBeaconBlock(block, c.shareIdx)
+	if err != nil {
+		return err
+	}
+
 	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.
