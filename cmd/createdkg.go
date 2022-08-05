@@ -105,7 +105,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 	// Don't allow cluster size to be less than 4.
 	if len(conf.OperatorENRs) < 4 {
-		return errors.New("insufficient operator ENRs")
+		return errors.New("insufficient operator ENRs (required >= 4)")
 	}
 
 	var operators []cluster.Operator
@@ -129,7 +129,9 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 	forkVersion := networkToForkVersion[conf.Network]
 
+	// Set cluster threshold.
 	conf.Threshold = int(math.Ceil(float64(2*len(conf.OperatorENRs)+1) / float64(3)))
+
 	def := cluster.NewDefinition(conf.Name, conf.NumValidators, conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddress,
 		forkVersion, operators, crand.Reader)
 

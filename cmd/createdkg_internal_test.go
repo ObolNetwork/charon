@@ -93,7 +93,7 @@ func TestRequireOperatorENRFlag(t *testing.T) {
 		{
 			name: "operator ENRs less than threshold",
 			args: []string{"dkg", "--operator-enrs=enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u"},
-			err:  "insufficient operator ENRs",
+			err:  "insufficient operator ENRs (required >= 4)",
 		},
 	}
 

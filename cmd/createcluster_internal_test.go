@@ -135,6 +135,8 @@ func TestChecksumAddr(t *testing.T) {
 
 func TestValidNetwork(t *testing.T) {
 	conf := clusterConfig{
+		NumNodes:       4,
+		Threshold:      3,
 		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
 		Network:        "gnosis",
 	}

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path"
 	"strings"
@@ -430,6 +431,14 @@ var validNetworks = map[string]bool{
 
 // validateClusterConfig returns an error if the cluster config is invalid.
 func validateClusterConfig(conf clusterConfig) error {
+	if conf.NumNodes < 4 {
+		return errors.New("insufficient number of charon nodes (required >= 4)")
+	}
+
+	if conf.Threshold < int(math.Ceil(float64(2*conf.NumNodes+1)/float64(3))) {
+		return errors.New("threshold less than minimum", z.Int("minimum", int(math.Ceil(float64(2*conf.NumNodes+1)/float64(3)))))
+	}
+
 	if !validNetworks[conf.Network] {
 		return errors.New("unsupported network", z.Str("network", conf.Network))
 	}
