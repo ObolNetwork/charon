@@ -77,7 +77,6 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", ".charon", "The folder to write the output cluster-definition.json file to.")
 	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of distributed validators the cluster will manage (32ETH staked for each).")
-	cmd.Flags().IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	cmd.Flags().StringVar(&config.WithdrawalAddress, "withdrawal-address", defaultWithdrawalAddr, "Withdrawal Ethereum address")
 	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
@@ -104,12 +103,9 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		return errors.New("no enrs provided with the flag --operator-enrs")
 	}
 
-	if len(conf.OperatorENRs) < conf.Threshold {
+	// Don't allow cluster size to be less than 4.
+	if len(conf.OperatorENRs) < 4 {
 		return errors.New("insufficient operator ENRs")
-	}
-
-	if conf.Threshold < int(math.Ceil(float64(2*len(conf.OperatorENRs)+1)/float64(3))) {
-		return errors.New("threshold too low for number of operators")
 	}
 
 	var operators []cluster.Operator
@@ -133,6 +129,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 	forkVersion := networkToForkVersion[conf.Network]
 
+	conf.Threshold = int(math.Ceil(float64(2*len(conf.OperatorENRs)+1) / float64(3)))
 	def := cluster.NewDefinition(conf.Name, conf.NumValidators, conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddress,
 		forkVersion, operators, crand.Reader)
 
