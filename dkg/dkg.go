@@ -59,7 +59,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	ctx = log.WithTopic(ctx, "dkg")
 	defer func() {
 		if err != nil {
-			log.Error(ctx, "Fatal run error", err)
+			log.Error(ctx, "Fatal error", err)
 		}
 	}()
 
@@ -128,6 +128,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	log.Info(ctx, "Connecting to peers...", z.Str("definition_hash", clusterID))
 
+	// Improve UX of "context cancelled" errors when sync fails.
+	ctx = withCtxErr(ctx, "at least one connection in p2p network broke")
+
 	stopSync, err := startSyncProtocol(ctx, tcpNode, key, defHash, peerIds, cancel)
 	if err != nil {
 		return err
@@ -173,7 +176,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Debug(ctx, "Aggregated deposit data signatures")
 
 	if err = stopSync(ctx); err != nil {
-		return errors.Wrap(err, "stop sync")
+		return errors.Wrap(err, "sync shutdown")
 	}
 
 	// Write keystores, deposit data and cluster lock files after exchange of partial signatures in order
@@ -273,7 +276,7 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.Privat
 
 		go func() {
 			err := client.Run(ctx)
-			if err != nil {
+			if err != nil && !errors.Is(err, context.Canceled) { // Only log and fail if this peer errored.
 				log.Error(ctx, "Sync failed to peer", err)
 				onFailure()
 			}
@@ -574,4 +577,24 @@ func forkVersionToNetwork(forkVersion string) (string, error) {
 	default:
 		return "", errors.New("invalid fork version")
 	}
+}
+
+// withCtxErr returns a copy of the context that wraps the context.Canceled with
+// the provided error.
+func withCtxErr(ctx context.Context, wrapMsg string) context.Context {
+	return ctxWrap{Context: ctx, wrapMsg: wrapMsg}
+}
+
+type ctxWrap struct {
+	context.Context
+	wrapMsg string
+}
+
+func (c ctxWrap) Err() error {
+	err := c.Context.Err()
+	if err == nil {
+		return nil
+	}
+
+	return errors.Wrap(err, c.wrapMsg)
 }
