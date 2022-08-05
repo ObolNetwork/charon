@@ -17,13 +17,17 @@ package signing
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -119,111 +123,142 @@ func GetDataRoot(ctx context.Context, eth2Cl Eth2Provider, name DomainName, epoc
 	return msg, nil
 }
 
-// NewVerifyFunc returns partial signature verification function which verifies given ParSignedData according to Duty Type.
-//nolint:gocognit
-func NewVerifyFunc(eth2Cl Eth2Provider) func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
-	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, parSig core.ParSignedData) error {
-		switch duty.Type {
-		case core.DutyAttester:
-			att, ok := parSig.SignedData.(core.Attestation)
-			if !ok {
-				return errors.New("invalid attestation")
-			}
+// TODO(corevr): Create a function that calculates signing roots for all unsigned eth2 types.
+// func UnsignedRoot(ctx context.Context, eth2Cl Eth2Provider, unsigned interface{}) ([32]byte, error) {
+//
+//}
 
-			sigRoot, err := att.Data.HashTreeRoot()
-			if err != nil {
-				return errors.Wrap(err, "hash attestation data")
-			}
+// VerifySignedData verifies any eth2 signed data signature.
+// If it is partially signed, provide the pubshare.
+// If it is aggregate signed, provide the group pubkey.
+func VerifySignedData(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey,
+	eth2SignedType interface{},
+) error {
+	// eth2util shouldn't import core package, so can't use core.SignedData.
+	// To avoid pointer vs non-pointer issues, always get value if pointer is provided.
+	if reflect.TypeOf(eth2SignedType).Kind() == reflect.Pointer {
+		eth2SignedType = reflect.ValueOf(eth2SignedType).Elem().Interface()
+	}
 
-			return verify(ctx, eth2Cl, DomainBeaconAttester, att.Data.Target.Epoch, sigRoot, att.Attestation.Signature, pubkey)
-		case core.DutyProposer:
-			block, ok := parSig.SignedData.(core.VersionedSignedBeaconBlock)
-			if !ok {
-				return errors.New("invalid block")
-			}
-
-			// Calculate slot epoch
-			epoch, err := epochFromSlot(ctx, eth2Cl, eth2p0.Slot(duty.Slot))
-			if err != nil {
-				return err
-			}
-
-			sigRoot, err := block.Root()
-			if err != nil {
-				return err
-			}
-
-			return verify(ctx, eth2Cl, DomainBeaconProposer, epoch, sigRoot, block.Signature().ToETH2(), pubkey)
-		case core.DutyBuilderProposer:
-			blindedBlock, ok := parSig.SignedData.(core.VersionedSignedBlindedBeaconBlock)
-			if !ok {
-				return errors.New("invalid blinded block")
-			}
-
-			// Calculate slot epoch
-			epoch, err := epochFromSlot(ctx, eth2Cl, eth2p0.Slot(duty.Slot))
-			if err != nil {
-				return err
-			}
-
-			sigRoot, err := blindedBlock.Root()
-			if err != nil {
-				return err
-			}
-
-			return verify(ctx, eth2Cl, DomainBeaconProposer, epoch, sigRoot, blindedBlock.Signature().ToETH2(), pubkey)
-		case core.DutyRandao:
-			randao, ok := parSig.SignedData.(core.Signature)
-			if !ok {
-				return errors.New("invalid randao")
-			}
-
-			// Calculate slot epoch
-			epoch, err := epochFromSlot(ctx, eth2Cl, eth2p0.Slot(duty.Slot))
-			if err != nil {
-				return err
-			}
-
-			sigRoot, err := eth2util.EpochHashRoot(epoch)
-			if err != nil {
-				return err
-			}
-
-			return verify(ctx, eth2Cl, DomainRandao, epoch, sigRoot, randao.ToETH2(), pubkey)
-		case core.DutyExit:
-			exit, ok := parSig.SignedData.(core.SignedVoluntaryExit)
-			if !ok {
-				return errors.New("invalid voluntary exit")
-			}
-
-			sigRoot, err := exit.Message.HashTreeRoot()
-			if err != nil {
-				return err
-			}
-
-			return verify(ctx, eth2Cl, DomainExit, exit.Message.Epoch, sigRoot, exit.SignedVoluntaryExit.Signature, pubkey)
-		default:
-			return errors.New("invalid duty type")
+	switch signed := eth2SignedType.(type) {
+	case eth2p0.Attestation:
+		sigRoot, err := signed.Data.HashTreeRoot()
+		if err != nil {
+			return errors.Wrap(err, "hash attestation data")
 		}
+
+		return Verify(ctx, eth2Cl, DomainBeaconAttester, signed.Data.Target.Epoch,
+			sigRoot, signed.Signature, pubkey)
+	case spec.VersionedSignedBeaconBlock:
+
+		slot, err := signed.Slot()
+		if err != nil {
+			return err
+		}
+
+		// Calculate slot epoch
+		epoch, err := epochFromSlot(ctx, eth2Cl, slot)
+		if err != nil {
+			return err
+		}
+
+		sigRoot, err := signed.Root()
+		if err != nil {
+			return err
+		}
+
+		var sig eth2p0.BLSSignature
+		switch signed.Version {
+		case spec.DataVersionPhase0:
+			sig = signed.Phase0.Signature
+		case spec.DataVersionAltair:
+			sig = signed.Altair.Signature
+		case spec.DataVersionBellatrix:
+			sig = signed.Bellatrix.Signature
+		default:
+			return errors.New("unknown version")
+		}
+
+		return Verify(ctx, eth2Cl, DomainBeaconProposer, epoch, sigRoot, sig, pubkey)
+	case eth2api.VersionedSignedBlindedBeaconBlock:
+		slot, err := signed.Slot()
+		if err != nil {
+			return err
+		}
+
+		// Calculate slot epoch
+		epoch, err := epochFromSlot(ctx, eth2Cl, slot)
+		if err != nil {
+			return err
+		}
+
+		sigRoot, err := signed.Root()
+		if err != nil {
+			return err
+		}
+
+		var sig eth2p0.BLSSignature
+		switch signed.Version {
+		case spec.DataVersionBellatrix:
+			sig = signed.Bellatrix.Signature
+		default:
+			return errors.New("unknown version")
+		}
+
+		return Verify(ctx, eth2Cl, DomainBeaconProposer, epoch, sigRoot, sig, pubkey)
+	// case core.Signature:
+	// TODO(corver): Refactor randao SignedData to include epoch.
+	// return errors.New("randao not supported yet")
+
+	// var epoch eth2p0.Epoch
+	//
+	// sigRoot, err := eth2util.EpochHashRoot(epoch)
+	// if err != nil {
+	//	return err
+	//}
+	//
+	// return Verify(ctx, eth2Cl, DomainRandao, epoch, sigRoot, signed.ToETH2(), pubkey)
+	case eth2p0.SignedVoluntaryExit:
+		sigRoot, err := signed.Message.HashTreeRoot()
+		if err != nil {
+			return err
+		}
+
+		return Verify(ctx, eth2Cl, DomainExit, signed.Message.Epoch, sigRoot,
+			signed.Signature, pubkey)
+	case eth2api.VersionedSignedValidatorRegistration:
+		// TODO: switch to signed.Root() when implemented on go-eth2-client (PR has been raised)
+		sigRoot, err := signed.V1.Message.HashTreeRoot()
+		if err != nil {
+			return err
+		}
+
+		return Verify(ctx, eth2Cl, DomainApplicationBuilder, 0, sigRoot,
+			signed.V1.Signature, pubkey)
+	default:
+		return errors.New("unsupported eth2 signed data type", z.Str("type", fmt.Sprintf("%T", eth2SignedType)))
 	}
 }
 
-func verify(ctx context.Context, eth2Cl Eth2Provider, domain DomainName, epoch eth2p0.Epoch, sigRoot [32]byte, sig eth2p0.BLSSignature, pubkey core.PubKey) error {
+// Verify returns an error if the signature doesn't match the eth2 domain signed root.
+// TODO(corver): Unexport this once Randao partial signatures contain their epoch.
+func Verify(ctx context.Context, eth2Cl Eth2Provider, domain DomainName, epoch eth2p0.Epoch,
+	sigRoot [32]byte, sig eth2p0.BLSSignature, pubshare *bls_sig.PublicKey,
+) error {
 	sigData, err := GetDataRoot(ctx, eth2Cl, domain, epoch, sigRoot)
 	if err != nil {
 		return err
+	}
+
+	var zeroSig eth2p0.BLSSignature
+	if sig == zeroSig {
+		return errors.New("no signature found")
 	}
 
 	// Convert the signature
 	s, err := tblsconv.SigFromETH2(sig)
 	if err != nil {
 		return errors.Wrap(err, "convert signature")
-	}
-
-	// Verify using public share
-	pubshare, err := tblsconv.KeyFromCore(pubkey)
-	if err != nil {
-		return err
 	}
 
 	ok, err := tbls.Verify(pubshare, sigData[:], s)
