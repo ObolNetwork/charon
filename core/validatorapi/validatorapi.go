@@ -18,6 +18,7 @@ package validatorapi
 import (
 	"context"
 	"fmt"
+	"testing"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -30,12 +31,10 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
-	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
@@ -56,31 +55,22 @@ type eth2Provider interface {
 	// Above sorted alphabetically
 }
 
-// dutyDomain maps domains to duties.
-var dutyDomain = map[core.DutyType]signing.DomainName{
-	core.DutyAttester:            signing.DomainBeaconAttester,
-	core.DutyProposer:            signing.DomainBeaconProposer,
-	core.DutyBuilderProposer:     signing.DomainBeaconProposer,
-	core.DutyBuilderRegistration: signing.DomainApplicationBuilder,
-	core.DutyRandao:              signing.DomainRandao,
-	core.DutyExit:                signing.DomainExit,
-}
-
 // PubShareFunc abstracts the mapping of validator root public key to tbls public share.
 type PubShareFunc func(pubkey core.PubKey, shareIdx int) (*bls_sig.PublicKey, error)
 
 // NewComponentInsecure returns a new instance of the validator API core workflow component
 // that does not perform signature verification.
-func NewComponentInsecure(eth2Svc eth2client.Service, shareIdx int) (*Component, error) {
+func NewComponentInsecure(_ *testing.T, eth2Svc eth2client.Service, shareIdx int) (*Component, error) {
 	eth2Cl, ok := eth2Svc.(eth2Provider)
 	if !ok {
 		return nil, errors.New("invalid eth2 service")
 	}
 
 	return &Component{
-		skipVerify: true,
-		eth2Cl:     eth2Cl,
-		shareIdx:   shareIdx,
+		eth2Cl:   eth2Cl,
+		shareIdx: shareIdx,
+
+		insecureTest: true,
 	}, nil
 }
 
@@ -150,15 +140,17 @@ func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicK
 }
 
 type Component struct {
-	eth2Cl     eth2Provider
-	shareIdx   int
-	skipVerify bool
+	eth2Cl       eth2Provider
+	shareIdx     int
+	insecureTest bool
 
-	// Mapping public shares (what the VC thinks as its public key) to public keys (the DV root public key)
-
+	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
+	// to public keys (the DV root public key)
 	getVerifyShareFunc func(core.PubKey) (*bls_sig.PublicKey, error)
-	getPubShareFunc    func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, bool)
-	getPubKeyFunc      func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error)
+	// getPubShareFunc return the public shares for a root public key.
+	getPubShareFunc func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, bool)
+	// getPubKeyFunc return the root public key for a public shares.
+	getPubKeyFunc func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error)
 
 	// Registered input functions
 
@@ -243,9 +235,9 @@ func (c Component) AttestationData(parent context.Context, slot eth2p0.Slot, com
 
 // SubmitAttestations implements the eth2client.AttestationsSubmitter for the router.
 func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
+	duty := core.NewAttesterDuty(int64(attestations[0].Data.Slot))
 	if len(attestations) > 0 {
 		// Pick the first attestation slot to use as trace root.
-		duty := core.NewAttesterDuty(int64(attestations[0].Data.Slot))
 		var span trace.Span
 		ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitAttestations")
 		defer span.End()
@@ -267,16 +259,6 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 			return err
 		}
 
-		// Verify signature
-		sigRoot, err := att.Data.HashTreeRoot()
-		if err != nil {
-			return errors.Wrap(err, "hash attestation data")
-		}
-
-		if err := c.verifyParSig(ctx, core.DutyAttester, att.Data.Target.Epoch, pubkey, sigRoot, att.Signature); err != nil {
-			return err
-		}
-
 		// Encode partial signed data and add to a set
 		set, ok := setsBySlot[slot]
 		if !ok {
@@ -284,7 +266,13 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 			setsBySlot[slot] = set
 		}
 
-		set[pubkey] = core.NewPartialAttestation(att, c.shareIdx)
+		// Verify signature
+		pSigData := core.NewPartialAttestation(att, c.shareIdx)
+		if err = c.verifySignedData(ctx, c.eth2Cl, pubkey, att); err != nil {
+			return err
+		}
+
+		set[pubkey] = pSigData
 	}
 
 	// Send sets to subscriptions.
@@ -292,7 +280,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 		duty := core.NewAttesterDuty(slot)
 		ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
-		log.Debug(ctx, "Attestation submitted by validator client")
+		log.Debug(ctx, "Attestation(s) submitted by validator client")
 
 		for _, sub := range c.subs {
 			// No need to clone since sub auto clones.
@@ -314,22 +302,10 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 		return nil, err
 	}
 
-	// Calculate slot epoch
-	epoch, err := c.epochFromSlot(ctx, slot)
-	if err != nil {
-		return nil, err
-	}
-
+	// TODO(corver): Refactor RANDAO partial signature to contain epoch.
 	parSig := core.NewPartialSignature(core.SigFromETH2(randao), c.shareIdx)
 
-	sigRoot, err := eth2util.EpochHashRoot(epoch)
-	if err != nil {
-		return nil, err
-	}
-
-	// Verify randao partial signature
-	err = c.verifyParSig(ctx, core.DutyRandao, epoch, pubkey, sigRoot, randao)
-	if err != nil {
+	if err := c.verifyRandaoParSig(ctx, slot, randao, pubkey); err != nil {
 		return nil, err
 	}
 
@@ -377,21 +353,20 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 		return err
 	}
 
-	err = c.verifyBlockSignature(ctx, block, pubkey, slot)
-	if err != nil {
-		return err
-	}
-
 	// Save Partially Signed Block to ParSigDB
 	duty := core.NewProposerDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	log.Debug(ctx, "Beacon block submitted by validator client")
+	if err = c.verifySignedData(ctx, c.eth2Cl, pubkey, block); err != nil {
+		return err
+	}
 
+	log.Debug(ctx, "Beacon block submitted by validator client")
 	signedData, err := core.NewPartialVersionedSignedBeaconBlock(block, c.shareIdx)
 	if err != nil {
 		return err
 	}
+
 	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.
@@ -412,31 +387,19 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 		return nil, err
 	}
 
-	// Calculate slot epoch
-	epoch, err := c.epochFromSlot(ctx, slot)
-	if err != nil {
+	if err := c.verifyRandaoParSig(ctx, slot, randao, pubkey); err != nil {
 		return nil, err
 	}
 
+	duty := core.NewRandaoDuty(int64(slot))
 	parSig := core.NewPartialSignature(core.SigFromETH2(randao), c.shareIdx)
-
-	sigRoot, err := eth2util.EpochHashRoot(epoch)
-	if err != nil {
-		return nil, err
-	}
-
-	// Verify randao partial signature
-	err = c.verifyParSig(ctx, core.DutyRandao, epoch, pubkey, sigRoot, randao)
-	if err != nil {
-		return nil, err
-	}
 
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.
 		parsigSet := core.ParSignedDataSet{
 			pubkey: parSig,
 		}
-		err := sub(ctx, core.NewRandaoDuty(int64(slot)), parsigSet)
+		err := sub(ctx, duty, parsigSet)
 		if err != nil {
 			return nil, err
 		}
@@ -475,21 +438,17 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 		return err
 	}
 
-	err = c.verifyBlindedBlockSignature(ctx, block, pubkey, slot)
-	if err != nil {
-		return err
-	}
-
 	// Save Partially Signed Blinded Block to ParSigDB
 	duty := core.NewBuilderProposerDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
+	if err = c.verifySignedData(ctx, c.eth2Cl, pubkey, block); err != nil {
+		return err
+	}
+
 	log.Debug(ctx, "Blinded beacon block submitted by validator client")
 
 	signedData, err := core.NewPartialVersionedSignedBlindedBeaconBlock(block, c.shareIdx)
-	if err != nil {
-		return err
-	}
 	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.
@@ -500,28 +459,6 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	}
 
 	return nil
-}
-
-func (c Component) verifyRegistrationSignature(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration, pubkey core.PubKey) error {
-	var sig eth2p0.BLSSignature
-	switch registration.Version {
-	case spec.BuilderVersionV1:
-		if registration.V1.Signature == sig {
-			return errors.New("no V1 signature")
-		}
-		sig = registration.V1.Signature
-	default:
-		return errors.New("unknown version")
-	}
-
-	// Verify partial signature
-	// TODO: switch to registration.Root() when implemented on go-eth2-client (PR has been reaised)
-	sigRoot, err := registration.V1.Message.HashTreeRoot()
-	if err != nil {
-		return err
-	}
-
-	return c.verifyParSig(ctx, core.DutyBuilderRegistration, 0, pubkey, sigRoot, sig) // Epoch not required for registrations.
 }
 
 // submitRegistration receives the partially signed validator (builder) registration.
@@ -546,13 +483,12 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 		return err
 	}
 
-	err = c.verifyRegistrationSignature(ctx, registration, pubkey)
-	if err != nil {
-		return err
-	}
-
 	duty := core.NewBuilderRegistrationDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	if err = c.verifySignedData(ctx, c.eth2Cl, pubkey, registration); err != nil {
+		return err
+	}
 
 	log.Debug(ctx, "Builder registration submitted by validator client")
 
@@ -608,12 +544,6 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 		return err
 	}
 
-	if err := c.verifyExitSignature(ctx, exit, pubkey); err != nil {
-		return err
-	}
-
-	parSigData := core.NewPartialSignedVoluntaryExit(exit, c.shareIdx)
-
 	// Use 1st slot in exit epoch for duty.
 	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
@@ -621,148 +551,21 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 	}
 
 	duty := core.NewVoluntaryExit(int64(slotsPerEpoch) * int64(exit.Message.Epoch))
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
+	if err = c.verifySignedData(ctx, c.eth2Cl, pubkey, exit); err != nil {
+		return err
+	}
+
+	log.Info(ctx, "Voluntary exit submitted by validator client")
+
+	parSigData := core.NewPartialSignedVoluntaryExit(exit, c.shareIdx)
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.
 		err := sub(ctx, duty, core.ParSignedDataSet{pubkey: parSigData})
 		if err != nil {
 			return err
 		}
-	}
-
-	return nil
-}
-
-func (c Component) verifyExitSignature(ctx context.Context, exit *eth2p0.SignedVoluntaryExit, pubkey core.PubKey) error {
-	sigRoot, err := exit.Message.HashTreeRoot()
-	if err != nil {
-		return err
-	}
-
-	err = c.verifyParSig(ctx, core.DutyExit, exit.Message.Epoch, pubkey, sigRoot, exit.Signature)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c Component) verifyBlockSignature(ctx context.Context, block *spec.VersionedSignedBeaconBlock, pubkey core.PubKey, slot eth2p0.Slot) error {
-	epoch, err := c.epochFromSlot(ctx, slot)
-	if err != nil {
-		return err
-	}
-
-	var sig eth2p0.BLSSignature
-	switch block.Version {
-	case spec.DataVersionPhase0:
-		if block.Phase0.Signature == sig {
-			return errors.New("no phase0 signature")
-		}
-		sig = block.Phase0.Signature
-	case spec.DataVersionAltair:
-		if block.Altair.Signature == sig {
-			return errors.New("no altair signature")
-		}
-		sig = block.Altair.Signature
-	case spec.DataVersionBellatrix:
-		if block.Bellatrix.Signature == sig {
-			return errors.New("no bellatrix signature")
-		}
-		sig = block.Bellatrix.Signature
-	default:
-		return errors.New("unknown version")
-	}
-
-	// Verify partial signature
-	sigRoot, err := block.Root()
-	if err != nil {
-		return err
-	}
-
-	return c.verifyParSig(ctx, core.DutyProposer, epoch, pubkey, sigRoot, sig)
-}
-
-func (c Component) verifyBlindedBlockSignature(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock, pubkey core.PubKey, slot eth2p0.Slot) error {
-	epoch, err := c.epochFromSlot(ctx, slot)
-	if err != nil {
-		return err
-	}
-
-	var sig eth2p0.BLSSignature
-	switch block.Version {
-	case spec.DataVersionBellatrix:
-		if block.Bellatrix.Signature == sig {
-			return errors.New("no bellatrix signature")
-		}
-		sig = block.Bellatrix.Signature
-	default:
-		return errors.New("unknown version")
-	}
-
-	// Verify partial signature
-	sigRoot, err := block.Root()
-	if err != nil {
-		return err
-	}
-
-	return c.verifyParSig(ctx, core.DutyBuilderProposer, epoch, pubkey, sigRoot, sig)
-}
-
-func (c Component) verifyRandaoParSig(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
-	// Calculate slot epoch
-	epoch, err := c.epochFromSlot(ctx, slot)
-	if err != nil {
-		return err
-	}
-
-	// Randao signing root is the epoch.
-	sigRoot, err := eth2util.EpochHashRoot(epoch)
-	if err != nil {
-		return err
-	}
-
-	return c.verifyParSig(ctx, core.DutyRandao, epoch, pubKey, sigRoot, randao)
-}
-
-// verifyParSig verifies the partial signature against the root and validator.
-func (c Component) verifyParSig(parent context.Context, typ core.DutyType, epoch eth2p0.Epoch,
-	pubkey core.PubKey, sigRoot eth2p0.Root, sig eth2p0.BLSSignature,
-) error {
-	if c.skipVerify {
-		return nil
-	}
-	ctx, span := tracer.Start(parent, "core/validatorapi.VerifyParSig")
-	defer span.End()
-
-	domain, ok := dutyDomain[typ]
-	if !ok {
-		return errors.New("duty type missing domain name mapping", z.Any("type", typ))
-	}
-
-	// Wrap the signing root with the domain and serialise it.
-	sigData, err := signing.GetDataRoot(ctx, c.eth2Cl, domain, epoch, sigRoot)
-	if err != nil {
-		return err
-	}
-
-	// Convert the signature
-	s, err := tblsconv.SigFromETH2(sig)
-	if err != nil {
-		return errors.Wrap(err, "convert signature")
-	}
-
-	// Verify using public share
-	pubshare, err := c.getVerifyShareFunc(pubkey)
-	if err != nil {
-		return err
-	}
-
-	ok, err = tbls.Verify(pubshare, sigData[:], s)
-	if err != nil {
-		return err
-	} else if !ok {
-		return errors.New("invalid signature")
 	}
 
 	return nil
@@ -895,4 +698,47 @@ func (c Component) getProposerPubkey(ctx context.Context, duty core.Duty) (core.
 	}
 
 	return pubkey, nil
+}
+
+// TODO(corver): Use verifySignedData once randao partial signature contains epoch.
+func (c Component) verifyRandaoParSig(ctx context.Context, slot eth2p0.Slot,
+	randao eth2p0.BLSSignature, pubkey core.PubKey,
+) error {
+	if c.insecureTest {
+		return nil
+	}
+
+	epoch, err := c.epochFromSlot(ctx, slot)
+	if err != nil {
+		return err
+	}
+
+	// Randao signing root is the epoch.
+	sigRoot, err := eth2util.EpochHashRoot(epoch)
+	if err != nil {
+		return err
+	}
+
+	pubshare, err := c.getVerifyShareFunc(pubkey)
+	if err != nil {
+		return err
+	}
+
+	return signing.Verify(ctx, c.eth2Cl, signing.DomainRandao, epoch, sigRoot, randao, pubshare)
+}
+
+// verifySignedData aliases signing.VerifySignedData skipping it for insecureTest.
+func (c Component) verifySignedData(ctx context.Context, eth2Cl signing.Eth2Provider,
+	pubkey core.PubKey, eth2SignedType interface{},
+) error {
+	if c.insecureTest {
+		return nil
+	}
+
+	pubshare, err := c.getVerifyShareFunc(pubkey)
+	if err != nil {
+		return err
+	}
+
+	return signing.VerifySignedData(ctx, eth2Cl, pubshare, eth2SignedType)
 }

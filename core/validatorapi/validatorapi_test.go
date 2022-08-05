@@ -62,7 +62,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
-	component, err := validatorapi.NewComponentInsecure(eth2Svc, 0)
+	component, err := validatorapi.NewComponentInsecure(t, eth2Svc, 0)
 	require.NoError(t, err)
 
 	aggBitsA := bitfield.NewBitlist(commLen)
@@ -133,7 +133,7 @@ func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 		commLen    = 8
 	)
 
-	component, err := validatorapi.NewComponentInsecure(eth2Svc, vIdx)
+	component, err := validatorapi.NewComponentInsecure(t, eth2Svc, vIdx)
 	require.NoError(t, err)
 
 	aggBits := bitfield.NewBitlist(commLen)
@@ -330,7 +330,7 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 		vIdx = 1
 	)
 
-	component, err := validatorapi.NewComponentInsecure(eth2Svc, vIdx)
+	component, err := validatorapi.NewComponentInsecure(t, eth2Svc, vIdx)
 	require.NoError(t, err)
 
 	pk, secret, err := tbls.Keygen()
@@ -577,33 +577,33 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 			block: &spec.VersionedSignedBeaconBlock{
 				Version: spec.DataVersionPhase0,
 				Phase0: &eth2p0.SignedBeaconBlock{
-					Message:   &eth2p0.BeaconBlock{Slot: eth2p0.Slot(123)},
+					Message:   &eth2p0.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomPhase0BeaconBlockBody()},
 					Signature: eth2p0.BLSSignature{},
 				},
 			},
-			errMsg: "no phase0 signature",
+			errMsg: "no signature found",
 		},
 		{
 			name: "no altair sig",
 			block: &spec.VersionedSignedBeaconBlock{
 				Version: spec.DataVersionAltair,
 				Altair: &altair.SignedBeaconBlock{
-					Message:   &altair.BeaconBlock{Slot: eth2p0.Slot(123)},
+					Message:   &altair.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomAltairBeaconBlockBody(t)},
 					Signature: eth2p0.BLSSignature{},
 				},
 			},
-			errMsg: "no altair signature",
+			errMsg: "no signature found",
 		},
 		{
 			name: "no bellatrix sig",
 			block: &spec.VersionedSignedBeaconBlock{
 				Version: spec.DataVersionBellatrix,
 				Bellatrix: &bellatrix.SignedBeaconBlock{
-					Message:   &bellatrix.BeaconBlock{Slot: eth2p0.Slot(123)},
+					Message:   &bellatrix.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomBellatrixBeaconBlockBody(t)},
 					Signature: eth2p0.BLSSignature{},
 				},
 			},
-			errMsg: "no bellatrix signature",
+			errMsg: "no signature found",
 		},
 	}
 
@@ -625,7 +625,7 @@ func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 		vIdx = 1
 	)
 
-	component, err := validatorapi.NewComponentInsecure(eth2Svc, vIdx)
+	component, err := validatorapi.NewComponentInsecure(t, eth2Svc, vIdx)
 	require.NoError(t, err)
 
 	pk, secret, err := tbls.Keygen()
@@ -862,11 +862,11 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidBlock(t *testing.T) {
 			block: &eth2api.VersionedSignedBlindedBeaconBlock{
 				Version: spec.DataVersionBellatrix,
 				Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-					Message:   &eth2v1.BlindedBeaconBlock{Slot: eth2p0.Slot(123)},
+					Message:   &eth2v1.BlindedBeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomBellatrixBlindedBeaconBlockBody(t)},
 					Signature: eth2p0.BLSSignature{},
 				},
 			},
-			errMsg: "no bellatrix signature",
+			errMsg: "no signature found",
 		},
 	}
 
@@ -1059,7 +1059,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	sigRoot, err := unsigned.V1.HashTreeRoot()
 	require.NoError(t, err)
 
-	sigData, err := signing.GetDataRoot(nil, nil, signing.DomainApplicationBuilder, 0, sigRoot)
+	sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainApplicationBuilder, 0, sigRoot)
 	require.NoError(t, err)
 
 	s, err := tbls.Sign(secret, sigData[:])
