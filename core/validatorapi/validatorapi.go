@@ -502,12 +502,7 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	return nil
 }
 
-func (c Component) verifyRegistrationSignature(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration, pubkey core.PubKey, slot eth2p0.Slot) error {
-	epoch, err := c.epochFromSlot(ctx, slot)
-	if err != nil {
-		return err
-	}
-
+func (c Component) verifyRegistrationSignature(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration, pubkey core.PubKey) error {
 	var sig eth2p0.BLSSignature
 	switch registration.Version {
 	case spec.BuilderVersionV1:
@@ -526,7 +521,7 @@ func (c Component) verifyRegistrationSignature(ctx context.Context, registration
 		return err
 	}
 
-	return c.verifyParSig(ctx, core.DutyBuilderRegistration, epoch, pubkey, sigRoot, sig)
+	return c.verifyParSig(ctx, core.DutyBuilderRegistration, 0, pubkey, sigRoot, sig) // Epoch not required for registrations.
 }
 
 // submitRegistration receives the partially signed validator (builder) registration.
@@ -551,7 +546,7 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 		return err
 	}
 
-	err = c.verifyRegistrationSignature(ctx, registration, pubkey, slot)
+	err = c.verifyRegistrationSignature(ctx, registration, pubkey)
 	if err != nil {
 		return err
 	}
@@ -740,8 +735,13 @@ func (c Component) verifyParSig(parent context.Context, typ core.DutyType, epoch
 	ctx, span := tracer.Start(parent, "core/validatorapi.VerifyParSig")
 	defer span.End()
 
+	domain, ok := dutyDomain[typ]
+	if !ok {
+		return errors.New("duty type missing domain name mapping", z.Any("type", typ))
+	}
+
 	// Wrap the signing root with the domain and serialise it.
-	sigData, err := signing.GetDataRoot(ctx, c.eth2Cl, dutyDomain[typ], epoch, sigRoot)
+	sigData, err := signing.GetDataRoot(ctx, c.eth2Cl, domain, epoch, sigRoot)
 	if err != nil {
 		return err
 	}
@@ -758,7 +758,7 @@ func (c Component) verifyParSig(parent context.Context, typ core.DutyType, epoch
 		return err
 	}
 
-	ok, err := tbls.Verify(pubshare, sigData[:], s)
+	ok, err = tbls.Verify(pubshare, sigData[:], s)
 	if err != nil {
 		return err
 	} else if !ok {
@@ -856,6 +856,8 @@ func (c Component) slotFromTimestamp(ctx context.Context, timestamp time.Time) (
 	genesis, err := c.eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return 0, err
+	} else if timestamp.Before(genesis) {
+		return 0, errors.New("registration timestamp before genesis")
 	}
 
 	slotDuration, err := c.eth2Cl.SlotDuration(ctx)

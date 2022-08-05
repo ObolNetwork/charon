@@ -17,11 +17,9 @@
 package validatormock
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -64,7 +62,7 @@ type Eth2Provider interface {
 }
 
 // SignFunc abstract signing done by the validator client.
-type SignFunc func(context.Context, eth2p0.BLSPubKey, []byte) (eth2p0.BLSSignature, error)
+type SignFunc func(ctx context.Context, pubshare eth2p0.BLSPubKey, data []byte) (eth2p0.BLSSignature, error)
 
 // Attest performs attestation duties for the provided slot and pubkeys (validators).
 func Attest(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
@@ -135,7 +133,9 @@ func Attest(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 }
 
 // ProposeBlock proposes block for the given slot.
-func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, slot eth2p0.Slot, addr string, pubkeys ...eth2p0.BLSPubKey) error {
+func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
+	slot eth2p0.Slot, addr string, pubkeys ...eth2p0.BLSPubKey,
+) error {
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
 		return err
@@ -242,7 +242,9 @@ func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, s
 }
 
 // ProposeBlindedBlock proposes blinded block for the given slot.
-func ProposeBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc, slot eth2p0.Slot, addr string, pubkeys ...eth2p0.BLSPubKey) error {
+func ProposeBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
+	slot eth2p0.Slot, addr string, pubkeys ...eth2p0.BLSPubKey,
+) error {
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
 		return err
@@ -338,6 +340,41 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc Sign
 	return eth2Cl.SubmitBlindedBeaconBlock(ctx, signedBlock)
 }
 
+// Register signs and submits the validator builder registration to the validator API.
+func Register(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
+	registration *eth2api.VersionedValidatorRegistration, pubshare eth2p0.BLSPubKey,
+) error {
+	// TODO(corver): refactor to registration.HashTreeRoot() once available.
+	sigRoot, err := registration.V1.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	sigData, err := signing.GetDataRoot(nil, nil, signing.DomainApplicationBuilder, 0, sigRoot)
+	if err != nil {
+		return err
+	}
+
+	sig, err := signFunc(ctx, pubshare, sigData[:])
+	if err != nil {
+		return err
+	}
+
+	// create signed builder registration
+	signedRegistration := new(eth2api.VersionedSignedValidatorRegistration)
+	switch signedRegistration.Version {
+	case spec.BuilderVersionV1:
+		signedRegistration.V1 = &eth2v1.SignedValidatorRegistration{
+			Message:   registration.V1,
+			Signature: sig,
+		}
+	default:
+		return errors.New("invalid registration")
+	}
+
+	return eth2Cl.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signedRegistration})
+}
+
 // NewSigner returns a singing function supporting the provided private keys.
 func NewSigner(secrets ...*bls_sig.SecretKey) SignFunc {
 	return func(ctx context.Context, pubkey eth2p0.BLSPubKey, msg []byte) (eth2p0.BLSSignature, error) {
@@ -375,49 +412,47 @@ func getSecret(secrets []*bls_sig.SecretKey, pubkey eth2p0.BLSPubKey) (*bls_sig.
 	return nil, errors.New("private key not found")
 }
 
-// responseMetadata returns metadata related to responses.
-type responseMetadata struct {
+// versionJSON extracts the version from a response.
+type versionJSON struct {
 	Version spec.DataVersion `json:"version"`
 }
 
-type phase0BeaconBlockProposalJSON struct {
+type phase0BlockJSON struct {
 	Data *eth2p0.BeaconBlock `json:"data"`
 }
 
-type altairBeaconBlockProposalJSON struct {
+type altairBlockJSON struct {
 	Data *altair.BeaconBlock `json:"data"`
 }
 
-type bellatrixBeaconBlockProposalJSON struct {
+type bellatrixBlockJSON struct {
 	Data *bellatrix.BeaconBlock `json:"data"`
 }
 
 // beaconBlockProposal is used rather than go-eth2-client's BeaconBlockProposal to avoid the randao reveal check
 // refer: https://github.com/attestantio/go-eth2-client/blob/906db73739859de06f46dfa91384675ed9300af0/http/beaconblockproposal.go#L87
-func beaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte, addr string) (*spec.VersionedBeaconBlock, error) {
-	url := fmt.Sprintf("/eth/v2/validator/blocks/%d?randao_reveal=%#x&graffiti=%#x", slot, randaoReveal, graffiti)
-	respBodyReader, err := getBlock(url, addr)
+func beaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature,
+	graffiti []byte, addr string,
+) (*spec.VersionedBeaconBlock, error) {
+	endpoint := fmt.Sprintf("/eth/v2/validator/blocks/%d?randao_reveal=%#x&graffiti=%#x",
+		slot, randaoReveal, graffiti)
+	body, err := httpGet(addr, endpoint)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to request beacon block proposal")
 	}
-	if respBodyReader == nil {
-		return nil, errors.New("failed to obtain beacon block proposal")
-	}
 
-	var dataBodyReader bytes.Buffer
-	metadataReader := io.TeeReader(respBodyReader, &dataBodyReader)
-	var metadata responseMetadata
-	if err := json.NewDecoder(metadataReader).Decode(&metadata); err != nil {
-		return nil, errors.Wrap(err, "failed to parse response")
+	var version versionJSON
+	if err := json.Unmarshal(body, &version); err != nil {
+		return nil, errors.Wrap(err, "failed to parse version")
 	}
 	res := &spec.VersionedBeaconBlock{
-		Version: metadata.Version,
+		Version: version.Version,
 	}
 
-	switch metadata.Version {
+	switch version.Version {
 	case spec.DataVersionPhase0:
-		var resp phase0BeaconBlockProposalJSON
-		if err := json.NewDecoder(&dataBodyReader).Decode(&resp); err != nil {
+		var resp phase0BlockJSON
+		if err := json.Unmarshal(body, &resp); err != nil {
 			return nil, errors.Wrap(err, "failed to parse phase 0 beacon block proposal")
 		}
 		// Ensure the data returned to us is as expected given our input.
@@ -426,8 +461,8 @@ func beaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoReveal eth2p
 		}
 		res.Phase0 = resp.Data
 	case spec.DataVersionAltair:
-		var resp altairBeaconBlockProposalJSON
-		if err := json.NewDecoder(&dataBodyReader).Decode(&resp); err != nil {
+		var resp altairBlockJSON
+		if err := json.Unmarshal(body, &resp); err != nil {
 			return nil, errors.Wrap(err, "failed to parse altair beacon block proposal")
 		}
 		// Ensure the data returned to us is as expected given our input.
@@ -436,8 +471,8 @@ func beaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoReveal eth2p
 		}
 		res.Altair = resp.Data
 	case spec.DataVersionBellatrix:
-		var resp bellatrixBeaconBlockProposalJSON
-		if err := json.NewDecoder(&dataBodyReader).Decode(&resp); err != nil {
+		var resp bellatrixBlockJSON
+		if err := json.Unmarshal(body, &resp); err != nil {
 			return nil, errors.Wrap(err, "failed to parse bellatrix beacon block proposal")
 		}
 		// Ensure the data returned to us is as expected given our input.
@@ -446,43 +481,40 @@ func beaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoReveal eth2p
 		}
 		res.Bellatrix = resp.Data
 	default:
-		return nil, errors.New("unsupported block version", z.Any("version", metadata.Version))
+		return nil, errors.New("unsupported block version", z.Any("version", version.Version))
 	}
 
 	return res, nil
 }
 
-// responseMetadata returns metadata related to responses.
-type bellatrixBlindedBeaconBlockProposalJSON struct {
+type bellatrixBlindedBlockJSON struct {
 	Data *eth2v1.BlindedBeaconBlock `json:"data"`
 }
 
 // blindedBeaconBlockProposal is used rather than go-eth2-client's BlindedBeaconBlockProposal to avoid the randao reveal check
 // refer: https://github.com/attestantio/go-eth2-client/blob/dceb0b761e5ea6a75534a7b11d544d91a5d610ee/http/blindedbeaconblockproposal.go#L75
-func blindedBeaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte, addr string) (*eth2api.VersionedBlindedBeaconBlock, error) {
-	url := fmt.Sprintf("/eth/v1/validator/blinded_blocks/%d?randao_reveal=%#x&graffiti=%#x", slot, randaoReveal, graffiti)
-	respBodyReader, err := getBlock(url, addr)
+func blindedBeaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature,
+	graffiti []byte, addr string,
+) (*eth2api.VersionedBlindedBeaconBlock, error) {
+	endpoint := fmt.Sprintf("/eth/v1/validator/blinded_blocks/%d?randao_reveal=%#x&graffiti=%#x",
+		slot, randaoReveal, graffiti)
+	body, err := httpGet(addr, endpoint)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to request beacon block proposal")
 	}
-	if respBodyReader == nil {
-		return nil, errors.New("failed to obtain beacon block proposal")
-	}
 
-	var dataBodyReader bytes.Buffer
-	metadataReader := io.TeeReader(respBodyReader, &dataBodyReader)
-	var metadata responseMetadata
-	if err := json.NewDecoder(metadataReader).Decode(&metadata); err != nil {
-		return nil, errors.Wrap(err, "failed to parse response")
+	var version versionJSON
+	if err := json.Unmarshal(body, &version); err != nil {
+		return nil, errors.Wrap(err, "failed to parse version")
 	}
 	res := &eth2api.VersionedBlindedBeaconBlock{
-		Version: metadata.Version,
+		Version: version.Version,
 	}
 
-	switch metadata.Version {
+	switch version.Version {
 	case spec.DataVersionBellatrix:
-		var resp bellatrixBlindedBeaconBlockProposalJSON
-		if err := json.NewDecoder(&dataBodyReader).Decode(&resp); err != nil {
+		var resp bellatrixBlindedBlockJSON
+		if err := json.Unmarshal(body, &resp); err != nil {
 			return nil, errors.Wrap(err, "failed to parse bellatrix beacon block proposal")
 		}
 		// Ensure the data returned to us is as expected given our input.
@@ -491,13 +523,13 @@ func blindedBeaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoRevea
 		}
 		res.Bellatrix = resp.Data
 	default:
-		return nil, errors.New("unsupported block version", z.Any("version", metadata.Version))
+		return nil, errors.New("unsupported block version", z.Any("version", version.Version))
 	}
 
 	return res, nil
 }
 
-func getBlock(endpoint string, base string) (io.Reader, error) {
+func httpGet(base string, endpoint string) ([]byte, error) {
 	url, err := url.Parse(fmt.Sprintf("%s%s", strings.TrimSuffix(base, "/"), endpoint))
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid endpoint")
@@ -512,15 +544,14 @@ func getBlock(endpoint string, base string) (io.Reader, error) {
 		return nil, nil
 	}
 
-	data, err := ioutil.ReadAll(res.Body)
+	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read GET response")
 	}
 
-	statusFamily := res.StatusCode / 100
-	if statusFamily != 2 {
-		return nil, errors.New("get failed", z.Int("status", res.StatusCode), z.Str("data", string(data)))
+	if res.StatusCode/100 != 2 {
+		return nil, errors.New("get failed", z.Int("status", res.StatusCode), z.Str("body", string(body)))
 	}
 
-	return bytes.NewReader(data), nil
+	return body, nil
 }

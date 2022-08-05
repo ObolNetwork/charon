@@ -28,6 +28,9 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -105,16 +108,25 @@ func TestSimnetNoNetwork_WithBuilderProposerMockVCs(t *testing.T) {
 	testSimnet(t, args)
 }
 
+func TestSimnetNoNetwork_WithBuilderRegistrationMockVCs(t *testing.T) {
+	args := newSimnetArgs(t)
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	args.BuilderRegistration = true
+	testSimnet(t, args)
+}
+
 type simnetArgs struct {
-	N          int
-	VMocks     []bool
-	VAPIAddrs  []string
-	P2PKeys    []*ecdsa.PrivateKey
-	SimnetKeys []*bls_sig.SecretKey
-	BMockOpts  []beaconmock.Option
-	Lock       cluster.Lock
-	ErrChan    chan error
-	BuilderAPI bool
+	N                   int
+	VMocks              []bool
+	VAPIAddrs           []string
+	P2PKeys             []*ecdsa.PrivateKey
+	SimnetKeys          []*bls_sig.SecretKey
+	BMockOpts           []beaconmock.Option
+	Lock                cluster.Lock
+	ErrChan             chan error
+	BuilderAPI          bool
+	BuilderRegistration bool
 }
 
 // newSimnetArgs defines the default simnet test args.
@@ -161,6 +173,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 	lcastTransportFunc := leadercast.NewMemTransportFunc(ctx)
 	featureConf := featureset.DefaultConfig()
 	featureConf.Disabled = []string{string(featureset.QBFTConsensus)} // TODO(corver): Add support for in-memory transport to QBFT.
+	registrationFunc := newRegistrationProvider(t, args)
 
 	type simResult struct {
 		Duty   core.Duty
@@ -199,6 +212,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 				SimnetBMockOpts: append([]beaconmock.Option{
 					beaconmock.WithSlotsPerEpoch(1),
 				}, args.BMockOpts...),
+				BuilderRegistration: registrationFunc(),
 			},
 			P2P:        p2p.Config{},
 			BuilderAPI: args.BuilderAPI,
@@ -244,8 +258,8 @@ func testSimnet(t *testing.T, args simnetArgs) {
 			if counts[res.Duty] == args.N {
 				remaining--
 
-				if res.Duty.Type == core.DutyExit {
-					remaining = 0 // DutyExit is only triggered once per node
+				if res.Duty.Type == core.DutyExit || res.Duty.Type == core.DutyBuilderRegistration {
+					remaining = 0 // DutyExit and DutyBRegis only triggered once per node
 				}
 			}
 			if remaining != 0 {
@@ -272,6 +286,34 @@ func testSimnet(t *testing.T, args simnetArgs) {
 	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
+}
+
+// newRegistrationProvider returns a function that provides identical registration structs for
+// the first validator in the lock file.
+func newRegistrationProvider(t *testing.T, args simnetArgs) func() <-chan *eth2api.VersionedValidatorRegistration {
+	t.Helper()
+
+	pubkey, err := core.PubKey(args.Lock.Validators[0].PubKey).ToETH2()
+	require.NoError(t, err)
+	reg := &eth2api.VersionedValidatorRegistration{
+		Version: spec.BuilderVersionV1,
+		V1: &eth2v1.ValidatorRegistration{
+			FeeRecipient: testutil.RandomExecutionAddress(),
+			GasLimit:     99,
+			Timestamp:    time.Now(),
+			Pubkey:       pubkey,
+		},
+	}
+
+	return func() <-chan *eth2api.VersionedValidatorRegistration {
+		if !args.BuilderRegistration {
+			return nil
+		}
+		regChan := make(chan *eth2api.VersionedValidatorRegistration, 1)
+		regChan <- reg
+
+		return regChan
+	}
 }
 
 type tekuCmd []string

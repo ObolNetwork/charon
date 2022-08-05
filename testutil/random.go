@@ -272,8 +272,9 @@ func RandomValidatorRegistration(t *testing.T) *eth2v1.ValidatorRegistration {
 	t.Helper()
 
 	return &eth2v1.ValidatorRegistration{
-		GasLimit: rand.Uint64(),
-		Pubkey:   RandomEth2PubKey(t),
+		GasLimit:  rand.Uint64(),
+		Pubkey:    RandomEth2PubKey(t),
+		Timestamp: time.Unix(0, 0),
 	}
 }
 
@@ -282,7 +283,7 @@ func RandomSignedValidatorRegistration(t *testing.T) *eth2v1.SignedValidatorRegi
 
 	return &eth2v1.SignedValidatorRegistration{
 		Message: &eth2v1.ValidatorRegistration{
-			FeeRecipient: bellatrix.ExecutionAddress{},
+			FeeRecipient: RandomExecutionAddress(),
 			GasLimit:     rand.Uint64(),
 			Timestamp:    time.Now().Truncate(time.Second), // Serialised via unix seconds.
 			Pubkey:       RandomEth2PubKey(t),
@@ -441,6 +442,13 @@ func RandomBitList() bitfield.Bitlist {
 	index := rand.Intn(size)
 	resp := bitfield.NewBitlist(uint64(size))
 	resp.SetBitAt(uint64(index), true)
+
+	return resp
+}
+
+func RandomExecutionAddress() bellatrix.ExecutionAddress {
+	var resp [20]byte
+	_, _ = rand.Read(resp[:])
 
 	return resp
 }

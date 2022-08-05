@@ -1059,10 +1059,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	sigRoot, err := unsigned.V1.HashTreeRoot()
 	require.NoError(t, err)
 
-	domain, err := signing.GetDomain(ctx, bmock, signing.DomainApplicationBuilder, 0)
-	require.NoError(t, err)
-
-	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
+	sigData, err := signing.GetDataRoot(nil, nil, signing.DomainApplicationBuilder, 0, sigRoot)
 	require.NoError(t, err)
 
 	s, err := tbls.Sign(secret, sigData[:])
