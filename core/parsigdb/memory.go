@@ -153,6 +153,10 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 
 	db.entries[k] = append(db.entries[k], clone)
 
+	if k.Duty.Type == core.DutyExit {
+		exitCounter.WithLabelValues(k.PubKey.String()).Inc()
+	}
+
 	return append([]core.ParSignedData(nil), db.entries[k]...), true, nil
 }
 
