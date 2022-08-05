@@ -34,10 +34,10 @@ type Operator struct {
 	//  Nonce is incremented each time the ENR is added or signed.
 	Nonce int
 
-	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to operator Ethereum Address.
+	// ConfigSignature is a signature of the config_hash using privkey corresponding to operator Ethereum Address.
 	ConfigSignature []byte
 
-	// ENRSignature is a EIP712 signature of the ENR by the Address, authorising the charon node to act on behalf of the operator in the cluster.
+	// ENRSignature is a signature of the ENR by the Address, authorising the charon node to act on behalf of the operator in the cluster.
 	ENRSignature []byte
 }
 

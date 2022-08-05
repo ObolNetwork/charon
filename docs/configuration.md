@@ -21,8 +21,8 @@ The schema of the `cluster-definition.json` is defined as:
       "address": "0x123..abfc",                 // ETH1 address of the operator
       "enr": "enr://abcdef...12345",            // Charon node ENR
       "nonce": 1,                               // Nonce (incremented each time the ENR is added/signed)
-      "config_signature": "0x123456...abcdef",    // EIP712 Signature of config_hash by ETH1 address priv key
-      "enr_signature": "0x123654...abcedf"        // EIP712 Signature of ENR by ETH1 address priv key
+      "config_signature": "0x123456...abcdef",  // Signature of config_hash by ETH1 address priv key
+      "enr_signature": "0x123654...abcedf"      // Signature of ENR by ETH1 address priv key
     }
   ],
   "uuid": "1234-abcdef-1234-abcdef",            // Random unique identifier.
