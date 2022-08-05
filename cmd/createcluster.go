@@ -434,10 +434,11 @@ func validateClusterConfig(conf clusterConfig) error {
 	if conf.NumNodes < 4 {
 		return errors.New("insufficient number of charon nodes (required >= 4)")
 	}
-        // minReq is the minimum allowable threshold.
-        minThres := int(math.Ceil(float64(2*conf.NumNodes+1)/float64(3)))
+
+	// minReq is the minimum allowable threshold.
+	minThres := int(math.Ceil(float64(2*conf.NumNodes+1) / float64(3)))
 	if conf.Threshold < minThres {
-		return errors.New("threshold less than minimum", z.Int("minimum", minThres)
+		return errors.New("threshold less than minimum", z.Int("minimum", minThres))
 	}
 
 	if !validNetworks[conf.Network] {
