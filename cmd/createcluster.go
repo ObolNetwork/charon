@@ -432,14 +432,14 @@ var validNetworks = map[string]bool{
 // validateClusterConfig returns an error if the cluster config is invalid.
 func validateClusterConfig(conf clusterConfig) error {
 	if conf.NumNodes < 4 {
-		return errors.New("insufficient number of charon nodes (required >= 4)")
+		return errors.New("insufficient number of nodes (min required: 4)")
 	}
 
 	// minReq is the minimum allowable threshold.
 	minThres := int(math.Ceil(float64(2*conf.NumNodes+1) / float64(3)))
 	//nolint:wrapcheck
 	if conf.Threshold < minThres {
-		return fmt.Errorf("threshold less than minimum (required >= %d)", minThres)
+		return fmt.Errorf("threshold less than minimum (min required >= %d)", minThres)
 	}
 
 	if !validNetworks[conf.Network] {

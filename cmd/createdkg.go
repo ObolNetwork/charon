@@ -101,7 +101,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 	// Don't allow cluster size to be less than 4.
 	if len(conf.OperatorENRs) < 4 {
-		return errors.New("insufficient operator ENRs (required >= 4)")
+		return errors.New("insufficient operator ENRs (min required >= 4)")
 	}
 
 	var operators []cluster.Operator

@@ -154,5 +154,5 @@ func TestInvalidThreshold(t *testing.T) {
 		Threshold: 3,
 	}
 	err := validateClusterConfig(conf)
-	require.EqualError(t, err, "threshold less than minimum (required >= 4)")
+	require.EqualError(t, err, "threshold less than minimum (min required >= 4)")
 }
