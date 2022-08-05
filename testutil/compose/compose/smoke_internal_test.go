@@ -81,7 +81,7 @@ func TestSmoke(t *testing.T) {
 			Name: "very large",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.NumNodes = 21
-				conf.Threshold = 15
+				conf.Threshold = 14
 				conf.NumValidators = 1000
 				conf.KeyGen = compose.KeyGenCreate
 			},
