@@ -437,8 +437,9 @@ func validateClusterConfig(conf clusterConfig) error {
 
 	// minReq is the minimum allowable threshold.
 	minThres := int(math.Ceil(float64(2*conf.NumNodes+1) / float64(3)))
+	//nolint:wrapcheck
 	if conf.Threshold < minThres {
-		return errors.New("threshold less than minimum", z.Int("minimum", minThres))
+		return fmt.Errorf("threshold less than minimum (required >= %d)", minThres)
 	}
 
 	if !validNetworks[conf.Network] {
