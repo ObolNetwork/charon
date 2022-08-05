@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"path"
 	"strings"
@@ -46,6 +45,8 @@ import (
 const (
 	defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
 	defaultNetwork        = "prater"
+	defaultNumNodes       = 4
+	defaultThreshold      = 3
 )
 
 type clusterConfig struct {
@@ -85,8 +86,8 @@ func newCreateClusterCmd(runFunc func(io.Writer, clusterConfig) error) *cobra.Co
 func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
-	flags.IntVarP(&config.NumNodes, "nodes", "n", 4, "The number of charon nodes in the cluster.")
-	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
+	flags.IntVarP(&config.NumNodes, "nodes", "n", defaultNumNodes, "The number of charon nodes in the cluster.")
+	flags.IntVarP(&config.Threshold, "threshold", "t", defaultThreshold, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", defaultWithdrawalAddr, "Ethereum address to receive the returned stake and accrued rewards.")
 	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, gnosis.")
@@ -431,12 +432,12 @@ var validNetworks = map[string]bool{
 
 // validateClusterConfig returns an error if the cluster config is invalid.
 func validateClusterConfig(conf clusterConfig) error {
-	if conf.NumNodes < 4 {
-		return errors.New("insufficient number of nodes (min required: 4)")
+	if conf.NumNodes < defaultNumNodes {
+		return errors.New("insufficient number of nodes (min = 4)")
 	}
 
 	// minReq is the minimum allowable threshold.
-	minThres := int(math.Ceil(float64(2*conf.NumNodes+1) / float64(3)))
+	minThres := cluster.Threshold(conf.NumNodes)
 	//nolint:wrapcheck
 	if conf.Threshold < minThres {
 		return fmt.Errorf("threshold less than minimum (min required >= %d)", minThres)

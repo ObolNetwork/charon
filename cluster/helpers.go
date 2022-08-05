@@ -20,9 +20,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/common/math"
+	gethMath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 
@@ -74,12 +75,12 @@ func digestEIP712(address string, message []byte, nonce int) ([32]byte, error) {
 		Domain: apitypes.TypedDataDomain{
 			Name:    "ETHChallenger",
 			Version: "1",
-			Salt:    "charon_salt",              // Fixed for now.
-			ChainId: math.NewHexOrDecimal256(1), // Fixed for now.
+			Salt:    "charon_salt",                  // Fixed for now.
+			ChainId: gethMath.NewHexOrDecimal256(1), // Fixed for now.
 		},
 		Message: apitypes.TypedDataMessage{
 			"address": address,
-			"nonce":   math.NewHexOrDecimal256(int64(nonce)),
+			"nonce":   gethMath.NewHexOrDecimal256(int64(nonce)),
 			"message": message,
 		},
 	}
@@ -124,4 +125,9 @@ func (h ethHex) MarshalJSON() ([]byte, error) {
 	}
 
 	return resp, nil
+}
+
+// Threshold returns minimum threshold required for a cluster with given nodes.
+func Threshold(nodes int) int {
+	return int(math.Ceil(float64(2*nodes) / 3))
 }
