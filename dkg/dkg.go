@@ -129,7 +129,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Info(ctx, "Connecting to peers...", z.Str("definition_hash", clusterID))
 
 	// Improve UX of "context cancelled" errors when sync fails.
-	ctx = withCtxErr(ctx, "at least one connection in p2p network broke")
+	ctx = withCtxErr(ctx, "p2p network connection broke, please retry DKG")
 
 	stopSync, err := startSyncProtocol(ctx, tcpNode, key, defHash, peerIds, cancel)
 	if err != nil {
