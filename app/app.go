@@ -616,25 +616,47 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 		}
 	}
 
+	addr := "http://" + conf.ValidatorAPIAddr
 	signer := validatormock.NewSigner(secrets...)
+
+	// Allow some startup races
+	newEth2Cl := func() (validatormock.Eth2Provider, error) {
+		var (
+			ctx = context.Background()
+
+			eth2Svc eth2client.Service
+			err     error
+		)
+		for i := 0; i < 3; i++ {
+			eth2Svc, err = eth2http.New(ctx,
+				eth2http.WithLogLevel(1),
+				eth2http.WithAddress(addr),
+				eth2http.WithTimeout(time.Second*10), // Allow sufficient time to block while fetching duties.
+			)
+			if err == nil {
+				break
+			}
+			time.Sleep(time.Millisecond * 100) // Test startup backoff
+		}
+		if err != nil {
+			return nil, err
+		}
+		eth2Cl, ok := eth2Svc.(validatormock.Eth2Provider)
+		if !ok {
+			return nil, errors.New("invalid eth2 service")
+		}
+
+		return eth2Cl, nil
+	}
 
 	// Trigger validatormock when scheduler triggers new slot.
 	sched.Subscribe(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
 		ctx = log.WithTopic(ctx, "vmock")
 		go func() {
-			addr := "http://" + conf.ValidatorAPIAddr
-			eth2Svc, err := eth2http.New(ctx,
-				eth2http.WithLogLevel(1),
-				eth2http.WithAddress(addr),
-				eth2http.WithTimeout(time.Second*10), // Allow sufficient time to block while fetching duties.
-			)
+			eth2Cl, err := newEth2Cl()
 			if err != nil {
 				log.Error(ctx, "Cannot connect to validatorapi", err)
 				return
-			}
-			eth2Cl, ok := eth2Svc.(validatormock.Eth2Provider)
-			if !ok {
-				log.Error(ctx, "Invalid eth2 service", nil)
 			}
 
 			callValidatorMock(ctx, duty, eth2Cl, signer, pubshares, addr)
@@ -646,23 +668,12 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	go func() {
 		for registration := range conf.TestConfig.BuilderRegistration {
 			ctx := log.WithTopic(context.Background(), "vmock")
-
-			addr := "http://" + conf.ValidatorAPIAddr
-			eth2Svc, err := eth2http.New(ctx,
-				eth2http.WithLogLevel(1),
-				eth2http.WithAddress(addr),
-				eth2http.WithTimeout(time.Second*10), // Allow sufficient time to block while fetching duties.
-			)
+			eth2Cl, err := newEth2Cl()
 			if err != nil {
 				log.Error(ctx, "Cannot connect to validatorapi", err)
 				return
 			}
-			eth2Cl, ok := eth2Svc.(validatormock.Eth2Provider)
-			if !ok {
-				log.Error(ctx, "Invalid eth2 service", nil)
-			}
 
-			// what pubkey should this be - should we be handing in registrations & pubkeys
 			err = validatormock.Register(ctx, eth2Cl, signer, registration, pubshares[0])
 			if err != nil {
 				log.Warn(ctx, "Mock registration failed", err)
@@ -676,7 +687,9 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 }
 
 // callValidatorMock calls appropriate validatormock function to attestation and block proposal.
-func callValidatorMock(ctx context.Context, duty core.Duty, eth2Cl validatormock.Eth2Provider, signer validatormock.SignFunc, pubshares []eth2p0.BLSPubKey, addr string) {
+func callValidatorMock(ctx context.Context, duty core.Duty, eth2Cl validatormock.Eth2Provider,
+	signer validatormock.SignFunc, pubshares []eth2p0.BLSPubKey, addr string,
+) {
 	switch duty.Type {
 	case core.DutyAttester:
 		err := validatormock.Attest(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot), pubshares...)
