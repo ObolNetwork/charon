@@ -26,7 +26,7 @@ import (
 	"github.com/obolnetwork/charon/app/forkjoin"
 )
 
-func TestFastFail(t *testing.T) {
+func TestForkJoin(t *testing.T) {
 	ctx := context.Background()
 
 	const n = 100
