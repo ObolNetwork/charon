@@ -26,41 +26,42 @@ import (
 
 const (
 	defaultWorkers  = 8
-	failFastEnabled = false
+	defaultFailFast = false
 )
 
-// Fork enqueues the input to be processed asynchronously.
+// Fork function enqueues the input to be processed asynchronously.
 // Note Fork will panic if called after Join.
 type Fork[I any] func(I)
 
-// Join closes the input queue and returns the result channel.
+// Join function closes the input queue and returns the result channel.
 // Note Fork will panic if called after Join.
 // Note Join must only be called once, otherwise panics.
-type Join[O any] func() Results[O]
+type Join[I, O any] func() Results[I, O]
 
-// Work defines the function workers will call. It accepts input and returns output types.
-type Work[I, O any] func(context.Context, I) (O, error)
+// Work defines the work function signature workers will call.
+type Work[I, O any] func(ctx context.Context, input I) (output O, err error)
 
-// Results contains enqueued result outputs.
-type Results[O any] <-chan Result[O]
+// Results contains enqueued results.
+type Results[I, O any] <-chan Result[I, O]
 
-// Result is output of the work function.
-type Result[O any] struct {
-	Result O
+// Result contains the input and resulting output from the work function.
+type Result[I, O any] struct {
+	Input  I
+	Output O
 	Err    error
 }
 
 // Flatten blocks and returns all the outputs when all completed and
 // either the first non-context-cancelled error or context-cancelled
-// if all errors are context cancelled (to return real failure reason).
-func (r Results[O]) Flatten() ([]O, error) {
+// if all errors are context-cancelled (to return real failure reason).
+func (r Results[I, O]) Flatten() ([]O, error) {
 	var (
 		ctxErr   error
 		otherErr error
 		resp     []O
 	)
 	for result := range r {
-		resp = append(resp, result.Result)
+		resp = append(resp, result.Output)
 
 		if result.Err == nil {
 			continue
@@ -84,7 +85,7 @@ func (r Results[O]) Flatten() ([]O, error) {
 }
 
 type options struct {
-	w        int
+	workers  int
 	failFast bool
 }
 
@@ -93,12 +94,12 @@ type Option func(*options)
 // WithWorkers returns an option configuring the forkjoin with w number of workers.
 func WithWorkers(w int) Option {
 	return func(o *options) {
-		o.w = w
+		o.workers = w
 	}
 }
 
 // WithFailFast stops execution on any error. Active work function contexts are cancelled
-// and no further inputs are executed.
+// and no further inputs are executed with remaining result errors being set to context cancelled.
 func WithFailFast() Option {
 	return func(o *options) {
 		o.failFast = true
@@ -106,7 +107,7 @@ func WithFailFast() Option {
 }
 
 // New returns a new forkjoin instance with generic input type I and output type O.
-// It provides a pattern for "doing work concurrently (fork) and then waiting for the results (join)".
+// It provides an API for "doing work concurrently (fork) and then waiting for the results (join)".
 //
 // Usage:
 //   var workFunc := func(ctx context.Context, input MyInput) (MyResult, error) {
@@ -125,10 +126,10 @@ func WithFailFast() Option {
 //   // Or block until all results are complete and flatten
 //   results, firstErr := resultChan.Flatten()
 //
-func New[I, O any](ctx context.Context, work Work[I, O], opts ...Option) (Fork[I], Join[O]) {
+func New[I, O any](ctx context.Context, work Work[I, O], opts ...Option) (Fork[I], Join[I, O]) {
 	options := options{
-		w:        defaultWorkers,
-		failFast: failFastEnabled,
+		workers:  defaultWorkers,
+		failFast: defaultFailFast,
 	}
 
 	for _, opt := range opts {
@@ -139,24 +140,28 @@ func New[I, O any](ctx context.Context, work Work[I, O], opts ...Option) (Fork[I
 		wg      sync.WaitGroup
 		zero    O
 		input   = make(chan I)
-		results = make(chan Result[O])
+		results = make(chan Result[I, O])
 	)
 
-	// enqueue output asynchronously since results channel is unbuffered/blocking.
-	enqueueOut := func(o O, err error) {
+	// enqueue result asynchronously since results channel is unbuffered/blocking.
+	enqueue := func(in I, out O, err error) {
 		go func() {
-			results <- Result[O]{Result: o, Err: err}
+			results <- Result[I, O]{
+				Input:  in,
+				Output: out,
+				Err:    err,
+			}
 			wg.Done()
 		}()
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 
-	for i := 0; i < options.w; i++ { // Start workers
+	for i := 0; i < options.workers; i++ { // Start workers
 		go func() {
 			for in := range input { // Process all inputs (channel closed on Join)
 				if ctx.Err() != nil { // Skip work if failed fast
-					enqueueOut(zero, ctx.Err())
+					enqueue(in, zero, ctx.Err())
 					continue
 				}
 
@@ -165,7 +170,7 @@ func New[I, O any](ctx context.Context, work Work[I, O], opts ...Option) (Fork[I
 					cancel()
 				}
 
-				enqueueOut(out, err)
+				enqueue(in, out, err)
 			}
 		}()
 	}
@@ -179,7 +184,7 @@ func New[I, O any](ctx context.Context, work Work[I, O], opts ...Option) (Fork[I
 	// Join returns the results channel that will contain all the results in the future.
 	// It also closes the input queue (causing subsequent calls Fork to panic)
 	// It also starts a shutdown goroutine that closes the results channel when processing completed
-	join := func() Results[O] {
+	join := func() Results[I, O] {
 		close(input)
 
 		go func() {
