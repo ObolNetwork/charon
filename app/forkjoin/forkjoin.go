@@ -26,10 +26,12 @@ import (
 
 const (
 	defaultWorkers  = 8
+	defaultInputBuf = 100
 	defaultFailFast = false
 )
 
 // Fork function enqueues the input to be processed asynchronously.
+// Note Fork may block temporarily while the input buffer is full, see WithInputBuffer.
 // Note Fork will panic if called after Join.
 type Fork[I any] func(I)
 
@@ -85,21 +87,31 @@ func (r Results[I, O]) Flatten() ([]O, error) {
 }
 
 type options struct {
+	inputBuf int
 	workers  int
 	failFast bool
 }
 
 type Option func(*options)
 
-// WithWorkers returns an option configuring the forkjoin with w number of workers.
+// WithWorkers returns an option configuring a forkjoin with w number of workers.
 func WithWorkers(w int) Option {
 	return func(o *options) {
 		o.workers = w
 	}
 }
 
-// WithFailFast stops execution on any error. Active work function contexts are cancelled
-// and no further inputs are executed with remaining result errors being set to context cancelled.
+// WithInputBuffer returns an option configuring a forkjoin with an input buffer of length i.
+// Useful to prevent temporary blocking during calls to Fork.
+func WithInputBuffer(i int) Option {
+	return func(o *options) {
+		o.inputBuf = i
+	}
+}
+
+// WithFailFast returns an option configuring a forkjoin to stop execution on any error.
+// Active work function contexts are cancelled and no further inputs are
+// executed with remaining result errors being set to context cancelled.
 func WithFailFast() Option {
 	return func(o *options) {
 		o.failFast = true
@@ -129,6 +141,7 @@ func WithFailFast() Option {
 func New[I, O any](ctx context.Context, work Work[I, O], opts ...Option) (Fork[I], Join[I, O]) {
 	options := options{
 		workers:  defaultWorkers,
+		inputBuf: defaultInputBuf,
 		failFast: defaultFailFast,
 	}
 
@@ -139,7 +152,7 @@ func New[I, O any](ctx context.Context, work Work[I, O], opts ...Option) (Fork[I
 	var (
 		wg      sync.WaitGroup
 		zero    O
-		input   = make(chan I)
+		input   = make(chan I, options.inputBuf)
 		results = make(chan Result[I, O])
 	)
 
