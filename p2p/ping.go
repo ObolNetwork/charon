@@ -23,6 +23,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -38,6 +39,8 @@ func NewPingService(h host.Host, peers []peer.ID, callback func(peer.ID)) func(c
 	logFunc := newPingLogger(peers)
 
 	return func(ctx context.Context) {
+		ctx = log.WithTopic(ctx, "ping")
+
 		for _, p := range peers {
 			if p == h.ID() {
 				// Do not ping self
@@ -104,33 +107,39 @@ func newPingLogger(peers []peer.ID) func(context.Context, peer.ID, ping.Result) 
 
 	var (
 		mu     sync.Mutex
-		first  = make(map[peer.ID]bool) // first indicates if the peer has logged anything.
-		state  = make(map[peer.ID]bool) // state indicates if the peer is ok or not
-		counts = make(map[peer.ID]int)
+		first  = make(map[peer.ID]bool)  // first indicates if the peer has logged anything.
+		state  = make(map[peer.ID]bool)  // state indicates if the peer is ok or not
+		counts = make(map[peer.ID]int)   // counts indicates number of successful pings; 0 <= x <= hysteresis
+		errs   = make(map[peer.ID]error) // errs contains last non-dail backoff error
 	)
 
 	for _, p := range peers {
 		state[p] = true
 		counts[p] = hysteresis
+		errs[p] = swarm.ErrDialBackoff // This will be over-written with no-dial-backoff errors.
 	}
 
 	return func(ctx context.Context, p peer.ID, result ping.Result) {
 		mu.Lock()
 		defer mu.Unlock()
 
-		prev := counts[p]
+		prev := counts[p] // 0 <= counts[p]
 
 		if result.Error != nil && prev > 0 {
-			counts[p]--
+			counts[p]-- // Decrease success count since ping failed.
 		} else if result.Error == nil && prev < hysteresis {
-			counts[p]++
+			counts[p]++ // Increase success count since ping succeeded.
+		}
+
+		if result.Error != nil && !errors.Is(result.Error, swarm.ErrDialBackoff) {
+			errs[p] = result.Error // Dial backoff errors are not informative, cache others.
 		}
 
 		now := counts[p]
 		ok := state[p]
 
 		if prev > 0 && now == 0 && ok {
-			log.Warn(ctx, "Peer ping failing", nil, z.Str("peer", PeerName(p)), z.Str("error", result.Error.Error()))
+			log.Warn(ctx, "Peer ping failing", nil, z.Str("peer", PeerName(p)), z.Str("error", errs[p].Error()))
 			state[p] = false
 			first[p] = true
 		} else if prev < hysteresis && now == hysteresis && !ok {
