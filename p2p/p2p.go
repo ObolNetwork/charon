@@ -204,6 +204,7 @@ func (n debugLogger) Connected(_ network.Network, conn network.Conn) {
 	log.Debug(n.ctx, "Libp2p new connection",
 		z.Str("peer", PeerName(conn.RemotePeer())),
 		z.Any("peer_address", conn.RemoteMultiaddr()),
+		z.Any("direction", conn.Stat().Direction),
 	)
 }
 
