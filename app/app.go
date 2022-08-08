@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"path"
+	"sync"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -612,47 +613,19 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 		return err
 	}
 
-	addr := "http://" + conf.ValidatorAPIAddr
-
-	// Allow some startup races
-	newEth2Cl := func() (validatormock.Eth2Provider, error) {
-		var (
-			eth2Svc eth2client.Service
-			err     error
-		)
-		for i := 0; i < 3; i++ {
-			eth2Svc, err = eth2http.New(context.Background(),
-				eth2http.WithLogLevel(1),
-				eth2http.WithAddress(addr),
-				eth2http.WithTimeout(time.Second*10), // Allow sufficient time to block while fetching duties.
-			)
-			if err == nil {
-				break
-			}
-			time.Sleep(time.Millisecond * 100) // Test startup backoff
-		}
-		if err != nil {
-			return nil, err
-		}
-		eth2Cl, ok := eth2Svc.(validatormock.Eth2Provider)
-		if !ok {
-			return nil, errors.New("invalid eth2 service")
-		}
-
-		return eth2Cl, nil
-	}
+	eth2Provider := newVMockEth2Provider(conf)
 
 	// Trigger validatormock when scheduler triggers new slot.
 	sched.Subscribe(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
 		ctx = log.WithTopic(ctx, "vmock")
 		go func() {
-			eth2Cl, err := newEth2Cl()
+			eth2Cl, err := eth2Provider()
 			if err != nil {
 				log.Error(ctx, "Cannot connect to validatorapi", err)
 				return
 			}
 
-			callValidatorMock(ctx, duty, eth2Cl, signer, pubshares, addr)
+			callValidatorMock(ctx, duty, eth2Cl, signer, pubshares)
 		}()
 
 		return nil
@@ -661,7 +634,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	go func() {
 		for registration := range conf.TestConfig.BuilderRegistration {
 			ctx := log.WithTopic(context.Background(), "vmock")
-			eth2Cl, err := newEth2Cl()
+			eth2Cl, err := eth2Provider()
 			if err != nil {
 				log.Error(ctx, "Cannot connect to validatorapi", err)
 				return
@@ -677,6 +650,47 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	}()
 
 	return nil
+}
+
+// newVMockEth2Provider returns a function that returns a cached validator mock eth2 provider.
+func newVMockEth2Provider(conf Config) func() (validatormock.Eth2Provider, error) {
+	var (
+		cached validatormock.Eth2Provider
+		mu     sync.Mutex
+	)
+
+	return func() (resp validatormock.Eth2Provider, err error) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		if cached != nil {
+			return cached, nil
+		}
+
+		// Try three times to reduce test startup issues.
+		for i := 0; i < 3; i++ {
+			var eth2Svc eth2client.Service
+			eth2Svc, err = eth2http.New(context.Background(),
+				eth2http.WithLogLevel(1),
+				eth2http.WithAddress("http://"+conf.ValidatorAPIAddr),
+				eth2http.WithTimeout(time.Second*10), // Allow sufficient time to block while fetching duties.
+			)
+			if err != nil {
+				time.Sleep(time.Millisecond * 100) // Test startup backoff
+				continue
+			}
+
+			var ok bool
+			resp, ok = eth2Svc.(validatormock.Eth2Provider)
+			if !ok {
+				return nil, errors.New("invalid eth2 service")
+			}
+
+			cached = resp
+		}
+
+		return resp, err
+	}
 }
 
 func netVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.SignFunc, error) {
@@ -709,7 +723,7 @@ func netVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.Si
 
 // callValidatorMock calls appropriate validatormock function to attestation and block proposal.
 func callValidatorMock(ctx context.Context, duty core.Duty, eth2Cl validatormock.Eth2Provider,
-	signer validatormock.SignFunc, pubshares []eth2p0.BLSPubKey, addr string,
+	signer validatormock.SignFunc, pubshares []eth2p0.BLSPubKey,
 ) {
 	switch duty.Type {
 	case core.DutyAttester:
@@ -720,14 +734,14 @@ func callValidatorMock(ctx context.Context, duty core.Duty, eth2Cl validatormock
 			log.Info(ctx, "Mock attestation submitted to validatorapi", z.I64("slot", duty.Slot))
 		}
 	case core.DutyProposer:
-		err := validatormock.ProposeBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot), addr, pubshares...)
+		err := validatormock.ProposeBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot), pubshares...)
 		if err != nil {
 			log.Warn(ctx, "Mock block proposal failed", err)
 		} else {
 			log.Info(ctx, "Mock block proposal submitted to validatorapi", z.I64("slot", duty.Slot))
 		}
 	case core.DutyBuilderProposer:
-		err := validatormock.ProposeBlindedBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot), addr, pubshares...)
+		err := validatormock.ProposeBlindedBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot), pubshares...)
 		if err != nil {
 			log.Warn(ctx, "Mock blinded block proposal failed", err)
 		} else {

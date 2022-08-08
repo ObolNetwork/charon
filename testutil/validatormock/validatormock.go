@@ -54,6 +54,7 @@ type Eth2Provider interface {
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.DomainProvider
 	eth2client.ProposerDutiesProvider
+	eth2client.Service
 	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
 	eth2client.ValidatorsProvider
@@ -134,7 +135,7 @@ func Attest(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 
 // ProposeBlock proposes block for the given slot.
 func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
-	slot eth2p0.Slot, addr string, pubkeys ...eth2p0.BLSPubKey,
+	slot eth2p0.Slot, pubkeys ...eth2p0.BLSPubKey,
 ) error {
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
@@ -186,7 +187,7 @@ func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 		}
 
 		// Get Unsigned beacon block with given randao and slot
-		block, err = beaconBlockProposal(ctx, slot, randao, nil, addr)
+		block, err = beaconBlockProposal(ctx, slot, randao, nil, eth2Cl.Address())
 		if err != nil {
 			return errors.Wrap(err, "vmock beacon block proposal")
 		}
@@ -243,7 +244,7 @@ func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 
 // ProposeBlindedBlock proposes blinded block for the given slot.
 func ProposeBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
-	slot eth2p0.Slot, addr string, pubkeys ...eth2p0.BLSPubKey,
+	slot eth2p0.Slot, pubkeys ...eth2p0.BLSPubKey,
 ) error {
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
@@ -295,7 +296,7 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc Sign
 		}
 
 		// Get Unsigned beacon block with given randao and slot
-		block, err = blindedBeaconBlockProposal(ctx, slot, randao, nil, addr)
+		block, err = blindedBeaconBlockProposal(ctx, slot, randao, nil, eth2Cl.Address())
 		if err != nil {
 			return errors.Wrap(err, "vmock blinded beacon block proposal")
 		}
