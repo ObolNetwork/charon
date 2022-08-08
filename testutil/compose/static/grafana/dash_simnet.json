@@ -861,7 +861,7 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "increase(core_tracker_failed_duties_total{job=\"$node\"}[30s])",
+          "expr": "sum(increase(core_tracker_failed_duties_total{job=\"$node\"}[30s])) by (duty)",
           "interval": "",
           "legendFormat": "{{duty}}",
           "range": true,

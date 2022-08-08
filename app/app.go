@@ -603,7 +603,7 @@ func (h httpServeHook) Call(context.Context) error {
 // wireValidatorMock wires the validator mock if enabled. The validator mock attestions
 // will be triggered by scheduler's DutyAttester. It connects via http validatorapi.Router.
 func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
-	if !conf.SimnetBMock || !conf.SimnetVMock {
+	if !conf.SimnetVMock {
 		return nil
 	}
 
@@ -619,16 +619,27 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	addr := "http://" + conf.ValidatorAPIAddr
 	signer := validatormock.NewSigner(secrets...)
 
+	if len(secrets) == 0 && len(pubshares) != 0 {
+		return errors.New("validator mock keys empty")
+	}
+	if len(secrets) < len(pubshares) {
+		return errors.New("some validator mock keys missing", z.Int("expect", len(pubshares)), z.Int("found", len(secrets)))
+	}
+	for i, pubshare := range pubshares {
+		_, err := signer(pubshare, []byte("test signing"))
+		if err != nil {
+			return errors.Wrap(err, "validator mock key missing", z.Int("index", i))
+		}
+	}
+
 	// Allow some startup races
 	newEth2Cl := func() (validatormock.Eth2Provider, error) {
 		var (
-			ctx = context.Background()
-
 			eth2Svc eth2client.Service
 			err     error
 		)
 		for i := 0; i < 3; i++ {
-			eth2Svc, err = eth2http.New(ctx,
+			eth2Svc, err = eth2http.New(context.Background(),
 				eth2http.WithLogLevel(1),
 				eth2http.WithAddress(addr),
 				eth2http.WithTimeout(time.Second*10), // Allow sufficient time to block while fetching duties.

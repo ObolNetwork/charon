@@ -70,7 +70,7 @@ func TestAttest(t *testing.T) {
 			}
 
 			// Signature stub function
-			signFunc := func(ctx context.Context, key eth2p0.BLSPubKey, _ []byte) (eth2p0.BLSSignature, error) {
+			signFunc := func(key eth2p0.BLSPubKey, _ []byte) (eth2p0.BLSSignature, error) {
 				var sig eth2p0.BLSSignature
 				copy(sig[:], key[:])
 
@@ -108,7 +108,7 @@ func TestProposeBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Signature stub function
-	signFunc := func(ctx context.Context, key eth2p0.BLSPubKey, _ []byte) (eth2p0.BLSSignature, error) {
+	signFunc := func(key eth2p0.BLSPubKey, _ []byte) (eth2p0.BLSSignature, error) {
 		var sig eth2p0.BLSSignature
 		copy(sig[:], key[:])
 
@@ -152,7 +152,7 @@ func TestProposeBlindedBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Signature stub function
-	signFunc := func(ctx context.Context, key eth2p0.BLSPubKey, _ []byte) (eth2p0.BLSSignature, error) {
+	signFunc := func(key eth2p0.BLSPubKey, _ []byte) (eth2p0.BLSSignature, error) {
 		var sig eth2p0.BLSSignature
 		copy(sig[:], key[:])
 
