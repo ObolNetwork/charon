@@ -607,30 +607,12 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 		return nil
 	}
 
-	secrets := conf.TestConfig.SimnetKeys
-	if len(secrets) == 0 {
-		var err error
-		secrets, err = keystore.LoadKeys(path.Join(conf.DataDir, "/validator_keys"))
-		if err != nil {
-			return err
-		}
+	signer, err := netVMockSigner(conf, pubshares)
+	if err != nil {
+		return err
 	}
 
 	addr := "http://" + conf.ValidatorAPIAddr
-	signer := validatormock.NewSigner(secrets...)
-
-	if len(secrets) == 0 && len(pubshares) != 0 {
-		return errors.New("validator mock keys empty")
-	}
-	if len(secrets) < len(pubshares) {
-		return errors.New("some validator mock keys missing", z.Int("expect", len(pubshares)), z.Int("found", len(secrets)))
-	}
-	for i, pubshare := range pubshares {
-		_, err := signer(pubshare, []byte("test signing"))
-		if err != nil {
-			return errors.Wrap(err, "validator mock key missing", z.Int("index", i))
-		}
-	}
 
 	// Allow some startup races
 	newEth2Cl := func() (validatormock.Eth2Provider, error) {
@@ -695,6 +677,34 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	}()
 
 	return nil
+}
+
+func netVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.SignFunc, error) {
+	secrets := conf.TestConfig.SimnetKeys
+	if len(secrets) == 0 {
+		var err error
+		secrets, err = keystore.LoadKeys(path.Join(conf.DataDir, "/validator_keys"))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	signer := validatormock.NewSigner(secrets...)
+
+	if len(secrets) == 0 && len(pubshares) != 0 {
+		return nil, errors.New("validator mock keys empty")
+	}
+	if len(secrets) < len(pubshares) {
+		return nil, errors.New("some validator mock keys missing", z.Int("expect", len(pubshares)), z.Int("found", len(secrets)))
+	}
+	for i, pubshare := range pubshares {
+		_, err := signer(pubshare, []byte("test signing"))
+		if err != nil {
+			return nil, errors.Wrap(err, "validator mock key missing", z.Int("index", i))
+		}
+	}
+
+	return signer, nil
 }
 
 // callValidatorMock calls appropriate validatormock function to attestation and block proposal.
