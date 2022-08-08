@@ -270,7 +270,7 @@ func TestSignAndVerify(t *testing.T) {
 	require.NoError(t, err)
 
 	// Sign
-	sig, err := validatormock.NewSigner(secretKey)(ctx, eth2Pubkey, sigDataBytes[:])
+	sig, err := validatormock.NewSigner(secretKey)(eth2Pubkey, sigDataBytes[:])
 	require.NoError(t, err)
 
 	// Assert signature

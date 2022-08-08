@@ -62,7 +62,7 @@ type Eth2Provider interface {
 }
 
 // SignFunc abstract signing done by the validator client.
-type SignFunc func(ctx context.Context, pubshare eth2p0.BLSPubKey, data []byte) (eth2p0.BLSSignature, error)
+type SignFunc func(pubshare eth2p0.BLSPubKey, data []byte) (eth2p0.BLSSignature, error)
 
 // Attest performs attestation duties for the provided slot and pubkeys (validators).
 func Attest(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
@@ -114,7 +114,7 @@ func Attest(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 			return err
 		}
 
-		sig, err := signFunc(ctx, duty.PubKey, sigData[:])
+		sig, err := signFunc(duty.PubKey, sigData[:])
 		if err != nil {
 			return err
 		}
@@ -180,7 +180,7 @@ func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 			return err
 		}
 
-		randao, err := signFunc(ctx, duty.PubKey, sigData[:])
+		randao, err := signFunc(duty.PubKey, sigData[:])
 		if err != nil {
 			return err
 		}
@@ -210,7 +210,7 @@ func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 		return err
 	}
 
-	sig, err := signFunc(ctx, pubkey, sigData[:])
+	sig, err := signFunc(pubkey, sigData[:])
 	if err != nil {
 		return err
 	}
@@ -289,7 +289,7 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc Sign
 			return err
 		}
 
-		randao, err := signFunc(ctx, duty.PubKey, sigData[:])
+		randao, err := signFunc(duty.PubKey, sigData[:])
 		if err != nil {
 			return err
 		}
@@ -321,7 +321,7 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc Sign
 		return err
 	}
 
-	sig, err := signFunc(ctx, pubkey, sigData[:])
+	sig, err := signFunc(pubkey, sigData[:])
 	if err != nil {
 		return err
 	}
@@ -357,7 +357,7 @@ func Register(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 		return err
 	}
 
-	sig, err := signFunc(ctx, pubshare, sigData[:])
+	sig, err := signFunc(pubshare, sigData[:])
 	if err != nil {
 		return err
 	}
@@ -379,7 +379,7 @@ func Register(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 
 // NewSigner returns a singing function supporting the provided private keys.
 func NewSigner(secrets ...*bls_sig.SecretKey) SignFunc {
-	return func(ctx context.Context, pubkey eth2p0.BLSPubKey, msg []byte) (eth2p0.BLSSignature, error) {
+	return func(pubkey eth2p0.BLSPubKey, msg []byte) (eth2p0.BLSSignature, error) {
 		secret, err := getSecret(secrets, pubkey)
 		if err != nil {
 			return eth2p0.BLSSignature{}, err
