@@ -23,7 +23,7 @@ import (
 	"math"
 	"strings"
 
-	ethMath "github.com/ethereum/go-ethereum/common/math"
+	ethmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 
@@ -76,11 +76,11 @@ func digestEIP712(address string, message []byte, nonce int) ([32]byte, error) {
 			Name:    "ETHChallenger",
 			Version: "1",
 			Salt:    "charon_salt",                 // Fixed for now.
-			ChainId: ethMath.NewHexOrDecimal256(1), // Fixed for now.
+			ChainId: ethmath.NewHexOrDecimal256(1), // Fixed for now.
 		},
 		Message: apitypes.TypedDataMessage{
 			"address": address,
-			"nonce":   ethMath.NewHexOrDecimal256(int64(nonce)),
+			"nonce":   ethmath.NewHexOrDecimal256(int64(nonce)),
 			"message": message,
 		},
 	}

@@ -47,7 +47,7 @@ import (
 const (
 	defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
 	defaultNetwork        = "prater"
-	defaultNumNodes       = 4
+	minNodes              = 4
 )
 
 type clusterConfig struct {
@@ -87,7 +87,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
-	flags.IntVarP(&config.NumNodes, "nodes", "n", defaultNumNodes, "The number of charon nodes in the cluster. Minimum is 4.")
+	flags.IntVarP(&config.NumNodes, "nodes", "n", minNodes, "The number of charon nodes in the cluster. Minimum is 4.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 0, "The threshold required for signature reconstruction. Strongly suggest leaving empty to defaults to ceil(n*2/3).")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", defaultWithdrawalAddr, "Ethereum address to receive the returned stake and accrued rewards.")
@@ -440,7 +440,7 @@ var validNetworks = map[string]bool{
 
 // validateClusterConfig returns an error if the cluster config is invalid.
 func validateClusterConfig(conf clusterConfig) error {
-	if conf.NumNodes < defaultNumNodes {
+	if conf.NumNodes < minNodes {
 		return errors.New("insufficient number of nodes (min = 4)")
 	}
 
