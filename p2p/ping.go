@@ -110,7 +110,7 @@ func newPingLogger(peers []peer.ID) func(context.Context, peer.ID, ping.Result) 
 		first  = make(map[peer.ID]bool)  // first indicates if the peer has logged anything.
 		state  = make(map[peer.ID]bool)  // state indicates if the peer is ok or not
 		counts = make(map[peer.ID]int)   // counts indicates number of successful pings; 0 <= x <= hysteresis
-		errs   = make(map[peer.ID]error) // errs contains last non-dail backoff error
+		errs   = make(map[peer.ID]error) // errs contains last non-dial backoff error
 	)
 
 	for _, p := range peers {
