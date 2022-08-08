@@ -27,6 +27,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peerstore"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -52,14 +53,13 @@ func TestStartChecker(t *testing.T) {
 			absentPeers: 0,
 			err:         errReadySyncing,
 		},
-		// TODO(corver): Enable once flapping fixed with https://github.com/ObolNetwork/charon/issues/910.
-		//{
-		//	name:        "peer ping failing",
-		//	isSyncing:   false,
-		//	numPeers:    5,
-		//	absentPeers: 3,
-		//	err:         errReadyPingFailing,
-		// },
+		{
+			name:        "peer ping failing",
+			isSyncing:   false,
+			numPeers:    5,
+			absentPeers: 3,
+			err:         errReadyPingFailing,
+		},
 	}
 
 	for _, tt := range tests {
@@ -113,7 +113,7 @@ func TestStartChecker(t *testing.T) {
 			if tt.err != nil {
 				require.Eventually(t, func() bool {
 					err = readyErrFunc()
-					if err != nil {
+					if !errors.Is(err, errReadyUnInit) {
 						require.EqualError(t, err, tt.err.Error())
 						return true
 					}
