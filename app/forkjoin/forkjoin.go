@@ -121,6 +121,10 @@ func WithoutFailFast() Option {
 // New returns a new forkjoin instance with generic input type I and output type O.
 // It provides an API for "doing work concurrently (fork) and then waiting for the results (join)".
 //
+// It fails fast by default, stopping execution on any error. All active work function contexts
+// are cancelled and no further inputs are executed with remaining result errors being set
+// to context cancelled. See WithoutFailFast.
+//
 // Usage:
 //   var workFunc := func(ctx context.Context, input MyInput) (MyResult, error) {
 //     ... do work
