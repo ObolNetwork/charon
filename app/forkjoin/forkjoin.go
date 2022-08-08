@@ -27,7 +27,7 @@ import (
 const (
 	defaultWorkers  = 8
 	defaultInputBuf = 100
-	defaultFailFast = false
+	defaultFailFast = true
 )
 
 // Fork function enqueues the input to be processed asynchronously.
@@ -54,8 +54,10 @@ type Result[I, O any] struct {
 }
 
 // Flatten blocks and returns all the outputs when all completed and
-// either the first non-context-cancelled error or context-cancelled
-// if all errors are context-cancelled (to return real failure reason).
+// the first "real error".
+//
+// A real error is the error that triggered the fail fast, all subsequent
+// results will contain context cancelled errors.
 func (r Results[I, O]) Flatten() ([]O, error) {
 	var (
 		ctxErr   error
@@ -109,12 +111,10 @@ func WithInputBuffer(i int) Option {
 	}
 }
 
-// WithFailFast returns an option configuring a forkjoin to stop execution on any error.
-// Active work function contexts are cancelled and no further inputs are
-// executed with remaining result errors being set to context cancelled.
-func WithFailFast() Option {
+// WithoutFailFast returns an option configuring a forkjoin to not stop execution on any error.
+func WithoutFailFast() Option {
 	return func(o *options) {
-		o.failFast = true
+		o.failFast = false
 	}
 }
 

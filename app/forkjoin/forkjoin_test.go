@@ -86,8 +86,8 @@ func TestForkJoin(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var opts []forkjoin.Option
-			if test.failfast {
-				opts = append(opts, forkjoin.WithFailFast())
+			if !test.failfast {
+				opts = append(opts, forkjoin.WithoutFailFast())
 			}
 
 			fork, join := forkjoin.New[int, int](ctx, test.work, opts...)
