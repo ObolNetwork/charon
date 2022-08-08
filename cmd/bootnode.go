@@ -23,6 +23,7 @@ import (
 	"time"
 
 	relaylog "github.com/ipfs/go-log/v2"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -115,7 +116,11 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	defer udpNode.Close()
 
 	// Setup p2p tcp relay (async for snappy startup)
-	p2pErr := make(chan error, 1)
+	var (
+		p2pErr = make(chan error, 1)
+		logP2P = func() {}
+	)
+
 	go func() {
 		if !config.P2PRelay {
 			return
@@ -142,6 +147,16 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		if err != nil {
 			p2pErr <- err
 			return
+		}
+
+		logP2P = func() {
+			peers := make(map[peer.ID]bool)
+			conns := tcpNode.Network().Conns()
+			for _, conn := range conns {
+				peers[conn.RemotePeer()] = true
+			}
+			log.Info(ctx, "Libp2p TCP open connections", z.Int("total", len(conns)),
+				z.Int("peers", len(peers)))
 		}
 
 		<-ctx.Done()
@@ -177,7 +192,8 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		case err := <-p2pErr:
 			return err
 		case <-ticker.C:
-			log.Info(ctx, "Connected node count", z.Int("n", len(udpNode.AllNodes())))
+			log.Info(ctx, "Discv5 UDP discovered peers", z.Int("peers", len(udpNode.AllNodes())))
+			logP2P()
 		case <-ctx.Done():
 			log.Info(ctx, "Shutting down")
 			return nil
