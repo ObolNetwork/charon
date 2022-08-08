@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p"
 	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/event"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -33,6 +34,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
@@ -180,6 +182,34 @@ func multiAddrViaRelay(relayPeer Peer, peerID peer.ID) (ma.Multiaddr, error) {
 	}
 
 	return transportAddr.Encapsulate(relayAddr), nil
+}
+
+func NewEventCollecter(tcpNode host.Host) lifecycle.HookFuncCtx {
+	return func(ctx context.Context) {
+		sub, err := tcpNode.EventBus().Subscribe(new(event.EvtLocalReachabilityChanged))
+		if err != nil {
+			log.Error(ctx, "Subscribe libp2p events", err)
+			return
+		}
+
+		ctx = log.WithTopic(ctx, "p2p")
+		reachableGauge.Set(float64(network.ReachabilityUnknown))
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case e := <-sub.Out():
+				switch evt := e.(type) {
+				case event.EvtLocalReachabilityChanged:
+					log.Info(ctx, "Libp2p reachablity changed", z.Any("status", evt.Reachability))
+					reachableGauge.Set(float64(evt.Reachability))
+				default:
+					log.Warn(ctx, "Unknown libp2p event", nil, z.Str("type", fmt.Sprintf("%T", e)))
+				}
+			}
+		}
+	}
 }
 
 // peerRoutingFunc wraps a function to implement routing.PeerRouting.
