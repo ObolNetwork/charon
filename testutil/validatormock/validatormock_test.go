@@ -134,9 +134,13 @@ func TestProposeBlock(t *testing.T) {
 	}))
 	defer mockVAPI.Close()
 
+	provider := addrWrap{
+		Eth2Provider: beaconMock,
+		addr:         mockVAPI.URL,
+	}
+
 	// Call propose block function
-	addr := mockVAPI.URL
-	err = validatormock.ProposeBlock(ctx, beaconMock, signFunc, eth2p0.Slot(slotsPerEpoch), addr, valSet.PublicKeys()...)
+	err = validatormock.ProposeBlock(ctx, provider, signFunc, eth2p0.Slot(slotsPerEpoch), valSet.PublicKeys()...)
 	require.NoError(t, err)
 }
 
@@ -178,8 +182,21 @@ func TestProposeBlindedBlock(t *testing.T) {
 	}))
 	defer mockVAPI.Close()
 
+	provider := addrWrap{
+		Eth2Provider: beaconMock,
+		addr:         mockVAPI.URL,
+	}
+
 	// Call propose block function
-	addr := mockVAPI.URL
-	err = validatormock.ProposeBlindedBlock(ctx, beaconMock, signFunc, eth2p0.Slot(slotsPerEpoch), addr, valSet.PublicKeys()...)
+	err = validatormock.ProposeBlindedBlock(ctx, provider, signFunc, eth2p0.Slot(slotsPerEpoch), valSet.PublicKeys()...)
 	require.NoError(t, err)
+}
+
+type addrWrap struct {
+	validatormock.Eth2Provider
+	addr string
+}
+
+func (w addrWrap) Address() string {
+	return w.addr
 }
