@@ -185,6 +185,8 @@ func networkToForkVersion(network string) eth2p0.Version {
 		return [4]byte{0x60, 0x00, 0x00, 0x69}
 	case "kiln":
 		return [4]byte{0x70, 0x00, 0x00, 0x69}
+	case "ropsten":
+		return [4]byte{0x80, 0x00, 0x00, 0x69}
 	case "gnosis":
 		return [4]byte{0x00, 0x00, 0x00, 0x64}
 	case "mainnet": // Default to mainnet

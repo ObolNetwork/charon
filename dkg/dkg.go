@@ -570,6 +570,8 @@ func forkVersionToNetwork(forkVersion string) (string, error) {
 		return "kintsugi", nil
 	case "0x70000069":
 		return "kiln", nil
+	case "0x80000069":
+		return "ropsten", nil
 	case "0x00000064":
 		return "gnosis", nil
 	case "0x00000000":
