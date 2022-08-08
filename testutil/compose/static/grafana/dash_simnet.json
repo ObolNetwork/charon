@@ -845,10 +845,12 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
+          "editorMode": "code",
           "exemplar": true,
           "expr": "increase(core_bcast_broadcast_total{job=\"$node\"}[30s]) ",
           "interval": "",
-          "legendFormat": "{{type}}",
+          "legendFormat": "{{duty}}",
+          "range": true,
           "refId": "A"
         },
         {
@@ -1317,7 +1319,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1406,7 +1409,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1461,7 +1465,7 @@
     "list": [
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": [
             "node0"
           ],
