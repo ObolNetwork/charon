@@ -52,13 +52,14 @@ func TestStartChecker(t *testing.T) {
 			absentPeers: 0,
 			err:         errReadySyncing,
 		},
-		{
-			name:        "peer ping failing",
-			isSyncing:   false,
-			numPeers:    5,
-			absentPeers: 3,
-			err:         errReadyPingFailing,
-		},
+		// TODO(corver): Enable once flapping fixed with https://github.com/ObolNetwork/charon/issues/910.
+		//{
+		//	name:        "peer ping failing",
+		//	isSyncing:   false,
+		//	numPeers:    5,
+		//	absentPeers: 3,
+		//	err:         errReadyPingFailing,
+		// },
 	}
 
 	for _, tt := range tests {
