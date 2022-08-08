@@ -88,7 +88,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", defaultWithdrawalAddr, "Ethereum address to receive the returned stake and accrued rewards.")
-	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kintsugi, kiln, ropsten, gnosis.")
+	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kiln, ropsten, gnosis.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
 	flags.IntVar(&config.NumDVs, "num-validators", 1, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
@@ -421,12 +421,11 @@ func checksumAddr(a string) (string, error) {
 
 // validNetworks defines the set of valid networks.
 var validNetworks = map[string]bool{
-	"prater":   true,
-	"kintsugi": true,
-	"kiln":     true,
-	"ropsten":  true,
-	"gnosis":   true,
-	"mainnet":  true,
+	"prater":  true,
+	"kiln":    true,
+	"ropsten": true,
+	"gnosis":  true,
+	"mainnet": true,
 }
 
 // validateClusterConfig returns an error if the cluster config is invalid.

@@ -566,8 +566,6 @@ func forkVersionToNetwork(forkVersion string) (string, error) {
 	switch forkVersion {
 	case "0x00001020":
 		return "prater", nil
-	case "0x60000069":
-		return "kintsugi", nil
 	case "0x70000069":
 		return "kiln", nil
 	case "0x80000069":
