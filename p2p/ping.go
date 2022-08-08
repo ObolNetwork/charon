@@ -116,14 +116,14 @@ func newPingLogger(peers []peer.ID) func(context.Context, peer.ID, ping.Result) 
 	for _, p := range peers {
 		state[p] = true
 		counts[p] = hysteresis
-		errs[p] = swarm.ErrDialBackoff // This will be over-written with no-dial-backoff errors.
+		errs[p] = swarm.ErrDialBackoff // This will be over-written with no-dial-backoff errors if any.
 	}
 
 	return func(ctx context.Context, p peer.ID, result ping.Result) {
 		mu.Lock()
 		defer mu.Unlock()
 
-		prev := counts[p] // 0 <= counts[p]
+		prev := counts[p]
 
 		if result.Error != nil && prev > 0 {
 			counts[p]-- // Decrease success count since ping failed.
