@@ -73,7 +73,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 	ctx = log.WithCtx(ctx, z.Any("pubkey", pubkey))
 	defer func() {
 		if err == nil {
-			instrumentDuty(duty, pubkey, b.delayFunc(duty.Slot))
+			instrumentDuty(duty, b.delayFunc(duty.Slot))
 		}
 	}()
 

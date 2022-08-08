@@ -28,8 +28,8 @@ var broadcastCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "core",
 	Subsystem: "bcast",
 	Name:      "broadcast_total",
-	Help:      "The total count of successfully broadcast duties by pubkey and type",
-}, []string{"type", "pubkey"})
+	Help:      "The total count of successfully broadcast duties by type",
+}, []string{"duty"})
 
 var broadcastDelay = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: "core",
@@ -37,10 +37,10 @@ var broadcastDelay = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Name:      "broadcast_delay_seconds",
 	Help:      "Duty broadcast delay from start of slot in seconds by type",
 	Buckets:   []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 20, 30, 60},
-}, []string{"type"})
+}, []string{"duty"})
 
 // instrumentDuty increments the duty counter.
-func instrumentDuty(duty core.Duty, pubkey core.PubKey, delay time.Duration) {
-	broadcastCounter.WithLabelValues(duty.Type.String(), pubkey.String()).Inc()
+func instrumentDuty(duty core.Duty, delay time.Duration) {
+	broadcastCounter.WithLabelValues(duty.Type.String()).Inc()
 	broadcastDelay.WithLabelValues(duty.Type.String()).Observe(delay.Seconds())
 }

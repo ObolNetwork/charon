@@ -41,8 +41,8 @@ var (
 		Namespace: "core",
 		Subsystem: "scheduler",
 		Name:      "duty_total",
-		Help:      "The total count of duties scheduled by pubkey and type",
-	}, []string{"type", "pubkey"})
+		Help:      "The total count of duties scheduled by type",
+	}, []string{"duty"})
 
 	syncMedianGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "core",
@@ -74,7 +74,5 @@ func instrumentSlot(slot slot) {
 
 // instrumentDuty increments the duty counter.
 func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
-	for pubkey := range defSet {
-		dutyCounter.WithLabelValues(duty.Type.String(), pubkey.String()).Inc()
-	}
+	dutyCounter.WithLabelValues(duty.Type.String()).Add(float64(len(defSet)))
 }
