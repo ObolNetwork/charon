@@ -27,6 +27,7 @@ import (
 	"github.com/libp2p/go-libp2p"
 	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/routing"
 	ma "github.com/multiformats/go-multiaddr"
@@ -76,6 +77,9 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 	if err != nil {
 		return nil, errors.Wrap(err, "new libp2p node")
 	}
+
+	// Register debug logger.
+	tcpNode.Network().Notify(debugLogger{ctx: log.WithTopic(context.Background(), "p2p")})
 
 	return tcpNode, nil
 }
@@ -185,4 +189,27 @@ func (f peerRoutingFunc) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo
 	return f(ctx, p)
 }
 
-var _ routing.PeerRouting = peerRoutingFunc(nil) // interface assertion
+// debugLogger implements network.Notifee and does debug logging.
+type debugLogger struct {
+	ctx context.Context
+}
+
+func (n debugLogger) Listen(_ network.Network, addr ma.Multiaddr) {
+	log.Debug(n.ctx, "Libp2p listening on address", z.Any("address", addr.String()))
+}
+
+func (debugLogger) ListenClose(network.Network, ma.Multiaddr) {}
+
+func (n debugLogger) Connected(_ network.Network, conn network.Conn) {
+	log.Debug(n.ctx, "Libp2p new connection",
+		z.Str("peer", PeerName(conn.RemotePeer())),
+		z.Any("peer_address", conn.RemoteMultiaddr()),
+	)
+}
+
+func (debugLogger) Disconnected(network.Network, network.Conn) {}
+
+var (
+	_ routing.PeerRouting = peerRoutingFunc(nil) // interface assertion
+	_ network.Notifiee    = debugLogger{}
+)
