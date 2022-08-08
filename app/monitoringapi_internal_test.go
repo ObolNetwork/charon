@@ -113,7 +113,7 @@ func TestStartChecker(t *testing.T) {
 			if tt.err != nil {
 				require.Eventually(t, func() bool {
 					err = readyErrFunc()
-					if !errors.Is(err, errReadyUnInit) {
+					if !errors.Is(err, errReadyUninitialised) {
 						require.EqualError(t, err, tt.err.Error())
 						return true
 					}
