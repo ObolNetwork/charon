@@ -19,7 +19,6 @@ import (
 	"context"
 	crand "crypto/rand"
 	"encoding/json"
-	"math"
 	"os"
 	"path"
 
@@ -77,7 +76,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", ".charon", "The folder to write the output cluster-definition.json file to.")
 	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of distributed validators the cluster will manage (32ETH staked for each).")
-	cmd.Flags().IntVarP(&config.Threshold, "threshold", "t", 3, "The threshold required for signature reconstruction. Minimum is n-(ceil(n/3)-1).")
+	cmd.Flags().IntVarP(&config.Threshold, "threshold", "t", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	cmd.Flags().StringVar(&config.WithdrawalAddress, "withdrawal-address", defaultWithdrawalAddr, "Withdrawal Ethereum address")
 	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kiln, ropsten, gnosis.")
@@ -100,16 +99,9 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		}
 	}()
 
-	if len(conf.OperatorENRs) == 0 {
-		return errors.New("no enrs provided with the flag --operator-enrs")
-	}
-
-	if len(conf.OperatorENRs) < conf.Threshold {
-		return errors.New("insufficient operator ENRs")
-	}
-
-	if conf.Threshold < int(math.Ceil(float64(2*len(conf.OperatorENRs)+1)/float64(3))) {
-		return errors.New("threshold too low for number of operators")
+	// Don't allow cluster size to be less than 4.
+	if len(conf.OperatorENRs) < minNodes {
+		return errors.New("insufficient operator ENRs (min = 4)")
 	}
 
 	var operators []cluster.Operator
@@ -121,6 +113,13 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		operators = append(operators, cluster.Operator{
 			ENR: opENR,
 		})
+	}
+
+	safeThreshold := cluster.Threshold(len(conf.OperatorENRs))
+	if conf.Threshold == 0 {
+		conf.Threshold = safeThreshold
+	} else if conf.Threshold != safeThreshold {
+		log.Warn(ctx, "Non standard `--threshold` flag provided, this will affect cluster safety", nil, z.Int("threshold", conf.Threshold), z.Int("safe_threshold", safeThreshold))
 	}
 
 	if !validNetworks[conf.Network] {

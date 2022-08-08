@@ -96,7 +96,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 	conf.ClusterDir = dir
 
 	var buf bytes.Buffer
-	err = runCreateCluster(&buf, conf)
+	err = runCreateCluster(context.Background(), &buf, conf)
 	if err != nil {
 		log.Error(context.Background(), "", err)
 	}
@@ -135,6 +135,8 @@ func TestChecksumAddr(t *testing.T) {
 
 func TestValidNetwork(t *testing.T) {
 	conf := clusterConfig{
+		NumNodes:       4,
+		Threshold:      3,
 		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
 		Network:        "gnosis",
 	}

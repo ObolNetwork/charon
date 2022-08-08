@@ -48,33 +48,54 @@ func TestCreateDkgValid(t *testing.T) {
 }
 
 func TestCreateDkgInvalid(t *testing.T) {
+	validENRs := []string{
+		"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
+		"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E",
+		"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+	}
+
 	tests := []struct {
-		conf createDKGConfig
+		conf   createDKGConfig
+		errMsg string
 	}{
 		{
-			conf: createDKGConfig{OperatorENRs: []string{"-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u"}},
+			conf: createDKGConfig{OperatorENRs: append([]string{
+				"-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+			}, validENRs...)},
+			errMsg: "invalid ENR: invalid ENR with no prefix (enr:)",
 		},
 		{
-			conf: createDKGConfig{OperatorENRs: []string{"enr:JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u"}},
+			conf: createDKGConfig{OperatorENRs: append([]string{
+				"enr:JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+			}, validENRs...)},
+			errMsg: "invalid ENR: base64 enr: illegal base64 data at input byte 192",
 		},
 		{
-			conf: createDKGConfig{OperatorENRs: []string{"enrJG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u"}},
+			conf: createDKGConfig{OperatorENRs: append([]string{
+				"enrJG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+			}, validENRs...)},
+			errMsg: "invalid ENR: invalid ENR with no prefix (enr:)",
 		},
 		{
-			conf: createDKGConfig{OperatorENRs: []string{"JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u"}},
+			conf: createDKGConfig{OperatorENRs: append([]string{
+				"JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+			}, validENRs...)},
+			errMsg: "invalid ENR: invalid ENR with no prefix (enr:)",
 		},
 		{
-			conf: createDKGConfig{OperatorENRs: []string{""}},
+			conf:   createDKGConfig{OperatorENRs: []string{""}},
+			errMsg: "insufficient operator ENRs (min = 4)",
 		},
 		{
-			conf: createDKGConfig{},
+			conf:   createDKGConfig{},
+			errMsg: "insufficient operator ENRs (min = 4)",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run("create dkg", func(t *testing.T) {
 			err := runCreateDKG(context.Background(), test.conf)
-			require.Error(t, err)
+			require.EqualError(t, err, test.errMsg)
 		})
 	}
 }
@@ -93,17 +114,7 @@ func TestRequireOperatorENRFlag(t *testing.T) {
 		{
 			name: "operator ENRs less than threshold",
 			args: []string{"dkg", "--operator-enrs=enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u"},
-			err:  "insufficient operator ENRs",
-		},
-		{
-			name: "operator ENRs not satisfying quorom with threshold 3",
-			args: []string{"dkg", "--operator-enrs=" +
-				"enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u," +
-				"enr:-JG4QCJiyhc2_ztz5Cb4lSXvtg7J_817HqoBJCzxTNb4Ph6YCSSKEZwCmoS47jIx4rUr--Ta8P1LLFLkNyFs1VDX4PWGAYHt2KubgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u," +
-				"enr:-JG4QMXs9hjecvTC3ruEPPIPKuVFTvOmFadWGj57e5yJXp6tJeCnYy13tuaJHdI_Cy9lfiDxcXepucxLIET1g7Kf_CWGAYHt2Q-ggmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u," +
-				"enr:-JG4QAvg6LWZODaqLJGWxWPbo32OgexN2aPtIhHm5mX2o9zEYCKB_8lR3-mvrhA3SFK5U7EXlSqYwqELbk_Ohgleb_OGAYHt2ZRtgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u," +
-				"enr:-JG4QAOuGeKvAugvPkQDo7plE3SIb-AP64Cyg8V_LXyuyo0RETPOxK8sgAG5KepicpBSR9vNvZ7Oez826vprmsQKKyCGAYHt2dQkgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u"},
-			err: "threshold too low for number of operators",
+			err:  "insufficient operator ENRs (min = 4)",
 		},
 	}
 
