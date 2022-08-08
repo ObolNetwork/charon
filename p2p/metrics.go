@@ -41,6 +41,12 @@ var (
 		Name:      "ping_success",
 		Help:      "Whether the last ping was successful (1) or not (0). Can be used as proxy for connected peers",
 	}, []string{"peer"})
+
+	reachableGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "p2p",
+		Name:      "reachability_status",
+		Help:      "Current libp2p reachability status of this node as detected by autonat: unknown(0), public(1) or private(2).",
+	})
 )
 
 func observePing(p peer.ID, d time.Duration) {
