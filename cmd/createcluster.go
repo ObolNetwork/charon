@@ -46,8 +46,9 @@ import (
 
 const (
 	defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
-	defaultNetwork        = "prater"
+	defaultNetwork        = "goerli"
 	minNodes              = 4
+	prater                = "prater"
 )
 
 type clusterConfig struct {
@@ -91,7 +92,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVarP(&config.Threshold, "threshold", "t", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", defaultWithdrawalAddr, "Ethereum address to receive the returned stake and accrued rewards.")
-	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kiln, ropsten, gnosis.")
+	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, goerli, kiln, ropsten, gnosis.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
 	flags.IntVar(&config.NumDVs, "num-validators", 1, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
@@ -365,6 +366,11 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 		})
 	}
 
+	// "prater" has been renamed to goerli.
+	if conf.Network == prater {
+		conf.Network = "goerli"
+	}
+
 	def := cluster.NewDefinition(conf.Name, len(dvs), conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddr,
 		networkToForkVersion[conf.Network], ops, rand.Reader)
 
@@ -432,6 +438,7 @@ func checksumAddr(a string) (string, error) {
 // validNetworks defines the set of valid networks.
 var validNetworks = map[string]bool{
 	"prater":  true,
+	"goerli":  true,
 	"kiln":    true,
 	"ropsten": true,
 	"gnosis":  true,

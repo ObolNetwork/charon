@@ -72,6 +72,11 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 		return nil, err
 	}
 
+	// "prater" has been renamed to goerli.
+	if network == "prater" {
+		network = "goerli"
+	}
+
 	forkVersion := networkToForkVersion(network)
 
 	var ddList []depositDataJSON
@@ -202,6 +207,8 @@ func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 func networkToForkVersion(network string) eth2p0.Version {
 	switch network {
 	case "prater":
+		return [4]byte{0x00, 0x00, 0x10, 0x20}
+	case "goerli":
 		return [4]byte{0x00, 0x00, 0x10, 0x20}
 	case "kiln":
 		return [4]byte{0x70, 0x00, 0x00, 0x69}
