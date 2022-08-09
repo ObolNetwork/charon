@@ -99,7 +99,7 @@ func (m *ParSigEx) handle(s network.Stream) {
 	// Verify partial signature
 	for pubkey, data := range set {
 		if err = m.verifyFunc(ctx, pubkey, duty, data); err != nil {
-			log.Error(ctx, "", err)
+			log.Error(ctx, "Invalid signature from peer", err, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
 			return
 		}
 	}
