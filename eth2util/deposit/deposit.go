@@ -28,6 +28,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 var (
@@ -40,7 +42,7 @@ var (
 	// DOMAIN_DEPOSIT. See spec: https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#domain-types
 	depositDomainType = eth2p0.DomainType([4]byte{0x03, 0x00, 0x00, 0x00})
 
-	depositCliVersion = "2.1.0"
+	depositCliVersion = "2.3.0"
 )
 
 // getMessageRoot returns a deposit message hash root created by the parameters.
@@ -80,7 +82,27 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 			return nil, err
 		}
 
-		// TODO(corver): Verify signature matches msgRoot.
+		// Verify deposit data signature
+		sigData, err := GetMessageSigningRoot(pubkey, withdrawalAddr, network)
+		if err != nil {
+			return nil, err
+		}
+
+		blsSig, err := tblsconv.SigFromETH2(sig)
+		if err != nil {
+			return nil, err
+		}
+		blsPubkey, err := tblsconv.KeyFromETH2(pubkey)
+		if err != nil {
+			return nil, err
+		}
+
+		ok, err := tbls.Verify(blsPubkey, sigData[:], blsSig)
+		if err != nil {
+			return nil, err
+		} else if !ok {
+			return nil, errors.New("invalid deposit data signature")
+		}
 
 		dd := eth2p0.DepositData{
 			PublicKey:             pubkey,
@@ -180,6 +202,8 @@ func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 func networkToForkVersion(network string) eth2p0.Version {
 	switch network {
 	case "prater":
+		return [4]byte{0x00, 0x00, 0x10, 0x20}
+	case "goerli":
 		return [4]byte{0x00, 0x00, 0x10, 0x20}
 	case "kiln":
 		return [4]byte{0x70, 0x00, 0x00, 0x69}
