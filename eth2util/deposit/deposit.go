@@ -203,8 +203,6 @@ func networkToForkVersion(network string) eth2p0.Version {
 	switch network {
 	case "goerli":
 		return [4]byte{0x00, 0x00, 0x10, 0x20}
-	case "goerli":
-		return [4]byte{0x00, 0x00, 0x10, 0x20}
 	case "kiln":
 		return [4]byte{0x70, 0x00, 0x00, 0x69}
 	case "ropsten":
