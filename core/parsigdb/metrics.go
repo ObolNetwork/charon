@@ -25,4 +25,4 @@ var exitCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 	Subsystem: "parsigdb",
 	Name:      "exit_total",
 	Help:      "Total number of partially signed voluntary exits per public key",
-}, []string{"pubkey"}) // Ok to use pubkey (high cardinality) here since there are very rare
+}, []string{"pubkey"}) // Ok to use pubkey (high cardinality) here since these are very rare
