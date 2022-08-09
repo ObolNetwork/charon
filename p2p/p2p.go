@@ -184,7 +184,8 @@ func multiAddrViaRelay(relayPeer Peer, peerID peer.ID) (ma.Multiaddr, error) {
 	return transportAddr.Encapsulate(relayAddr), nil
 }
 
-func NewEventCollecter(tcpNode host.Host) lifecycle.HookFuncCtx {
+// NewEventCollector returns a lifecycle hook that instruments libp2p events.
+func NewEventCollector(tcpNode host.Host) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
 		sub, err := tcpNode.EventBus().Subscribe(new(event.EvtLocalReachabilityChanged))
 		if err != nil {

@@ -275,7 +275,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	for _, relay := range relays {
 		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(tcpNode, relay))
 	}
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PEventCollector, p2p.NewEventCollecter(tcpNode))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PEventCollector, p2p.NewEventCollector(tcpNode))
 
 	return tcpNode, localEnode, nil
 }
