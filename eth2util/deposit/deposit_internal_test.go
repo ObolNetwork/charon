@@ -35,6 +35,6 @@ func TestWithdrawalCredentials(t *testing.T) {
 }
 
 func TestNetworkToForkVersion(t *testing.T) {
-	actual := networkToForkVersion("prater")
+	actual := networkToForkVersion("goerli")
 	assert.EqualValues(t, eth2p0.Version([4]byte{0x00, 0x00, 0x10, 0x20}), actual)
 }

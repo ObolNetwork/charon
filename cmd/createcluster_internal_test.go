@@ -143,7 +143,7 @@ func TestValidNetwork(t *testing.T) {
 	err := validateClusterConfig(conf)
 	require.Error(t, err, "zero address")
 
-	conf.Network = "prater"
+	conf.Network = "goerli"
 	err = validateClusterConfig(conf)
 	require.NoError(t, err)
 }
