@@ -60,7 +60,7 @@ type exchanger struct {
 }
 
 func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int,
-	verifyFunc func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error,
+	verifyFunc func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error,
 ) *exchanger {
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
@@ -124,8 +124,8 @@ func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, pk core.PubKey,
 // newDKGVerifier returns a verify function to verify partial signatures by parsigex.
 func newDKGVerifier(pubkeyToPubshares map[core.PubKey]map[int]*bls_sig.PublicKey, lockHash []byte,
 	depositDataMsgs map[core.PubKey][]byte,
-) func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error {
-	return func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error {
+) func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
+	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
 		switch sigType(duty.Slot) {
 		case sigLock:
 			pubshare := pubkeyToPubshares[pubkey][data.ShareIdx]

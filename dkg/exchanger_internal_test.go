@@ -96,7 +96,7 @@ func TestExchanger(t *testing.T) {
 	}
 
 	for i := 0; i < nodes; i++ {
-		ex := newExchanger(hosts[i], i, peers, dvs, func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error {
+		ex := newExchanger(hosts[i], i, peers, dvs, func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
 			return nil
 		})
 		exchangers = append(exchangers, ex)
