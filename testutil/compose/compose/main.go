@@ -16,11 +16,11 @@
 // Command compose provides a tool to run, test, debug local charon clusters
 // using docker-compose.
 //
-//  It consists of multiple steps:
-//   - compose new: Creates a new config.json that defines what will be composed.
-//   - compose define: Creates a docker-compose.yml that executes `charon create dkg` if keygen==dkg.
-//   - compose lock: Creates a docker-compose.yml that executes `charon create cluster` or `charon dkg`.
-//   - compose run: Creates a docker-compose.yml that executes `charon run`.
+//	It consists of multiple steps:
+//	 - compose new: Creates a new config.json that defines what will be composed.
+//	 - compose define: Creates a docker-compose.yml that executes `charon create dkg` if keygen==dkg.
+//	 - compose lock: Creates a docker-compose.yml that executes `charon create cluster` or `charon dkg`.
+//	 - compose run: Creates a docker-compose.yml that executes `charon run`.
 package main
 
 import (
