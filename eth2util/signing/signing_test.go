@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -46,7 +47,7 @@ func TestVerifyAttestation(t *testing.T) {
 	sig, pubkey := sign(t, sigData[:])
 	att.Signature = tblsconv.SigToETH2(sig)
 
-	require.NoError(t, signing.VerifySignedData(context.Background(), bmock, pubkey, att))
+	require.NoError(t, signing.VerifyAttestation(context.Background(), bmock, pubkey, *att))
 }
 
 func TestVerifyBeaconBlock(t *testing.T) {
@@ -74,32 +75,29 @@ func TestVerifyBeaconBlock(t *testing.T) {
 
 	versionedBlock := data.(core.VersionedSignedBeaconBlock).VersionedSignedBeaconBlock
 
-	require.NoError(t, signing.VerifySignedData(context.Background(), bmock, pubkey, versionedBlock))
+	require.NoError(t, signing.VerifyBlock(context.Background(), bmock, pubkey, versionedBlock))
 }
 
-//
-// func TestVerifyDutyRandao(t *testing.T) {
-//	duty := core.NewRandaoDuty(123)
-//
-//	bmock, err := beaconmock.New()
-//	require.NoError(t, err)
-//
-//	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())
-//	require.NoError(t, err)
-//
-//	epoch := eth2p0.Epoch(uint64(duty.Slot) / slotsPerEpoch)
-//	sigRoot, err := eth2util.EpochHashRoot(epoch)
-//	require.NoError(t, err)
-//
-//	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainRandao, epoch, sigRoot)
-//	require.NoError(t, err)
-//
-//	sig, pubkey := sign(t, sigData[:])
-//	psig := core.NewPartialSignature(tblsconv.SigToCore(sig), 0)
-//
-//	verifyFunc := signing.NewVerifyFunc(bmock)
-//	require.NoError(t, verifyFunc(context.Background(), duty, pubkey, psig))
-//}
+func TestVerifyDutyRandao(t *testing.T) {
+	duty := core.NewRandaoDuty(123)
+
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())
+	require.NoError(t, err)
+
+	epoch := eth2p0.Epoch(uint64(duty.Slot) / slotsPerEpoch)
+	sigRoot, err := eth2util.EpochHashRoot(epoch)
+	require.NoError(t, err)
+
+	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainRandao, epoch, sigRoot)
+	require.NoError(t, err)
+
+	sig, pubkey := sign(t, sigData[:])
+
+	require.NoError(t, signing.VerifyRandao(context.Background(), bmock, pubkey, tblsconv.SigToETH2(sig), eth2p0.Slot(duty.Slot)))
+}
 
 func TestVerifyVoluntaryExit(t *testing.T) {
 	bmock, err := beaconmock.New()
@@ -116,7 +114,7 @@ func TestVerifyVoluntaryExit(t *testing.T) {
 	sig, pubkey := sign(t, sigData[:])
 	exit.Signature = tblsconv.SigToETH2(sig)
 
-	require.NoError(t, signing.VerifySignedData(context.Background(), bmock, pubkey, exit))
+	require.NoError(t, signing.VerifyVoluntaryExit(context.Background(), bmock, pubkey, *exit))
 }
 
 func TestVerifyBlindedBeaconBlock(t *testing.T) {
@@ -144,7 +142,7 @@ func TestVerifyBlindedBeaconBlock(t *testing.T) {
 
 	versionedBlock := data.(core.VersionedSignedBlindedBeaconBlock).VersionedSignedBlindedBeaconBlock
 
-	require.NoError(t, signing.VerifySignedData(context.Background(), bmock, pubkey, versionedBlock))
+	require.NoError(t, signing.VerifyBlindedBlock(context.Background(), bmock, pubkey, versionedBlock))
 }
 
 func TestVerifyBuilderRegistration(t *testing.T) {
@@ -162,7 +160,7 @@ func TestVerifyBuilderRegistration(t *testing.T) {
 	sig, pubkey := sign(t, sigData[:])
 	registration.V1.Signature = tblsconv.SigToETH2(sig)
 
-	require.NoError(t, signing.VerifySignedData(context.Background(), bmock, pubkey, registration))
+	require.NoError(t, signing.VerifyValidatorRegistration(context.Background(), bmock, pubkey, registration))
 }
 
 func sign(t *testing.T, data []byte) (*bls_sig.Signature, *bls_sig.PublicKey) {
