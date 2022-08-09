@@ -81,7 +81,8 @@ type Retryer[T any] struct {
 
 // DoAsync will execute the function including retries on network or context errors.
 // It is intended to be used asynchronously:
-//   go retryer.DoAsync(ctx, duty, "foo", fn)
+//
+//	go retryer.DoAsync(ctx, duty, "foo", fn)
 func (r *Retryer[T]) DoAsync(parent context.Context, t T, name string, fn func(context.Context) error) {
 	if r.isShutdown() {
 		return

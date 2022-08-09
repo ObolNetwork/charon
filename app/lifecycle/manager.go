@@ -17,13 +17,13 @@
 // of processes by registered start or stop hooks.
 //
 // The following features as supported:
-//  - Start hooks can either be called synchronously or asynchronously.
-//  - Start hooks can use the application context (hard shutdown) or background context (graceful shutdown).
-//  - Stop hooks are synchronous and use a shutdown context with 10s timeout.
-//  - Ordering of start and stop hooks.
-//  - Any error from start hooks immediately triggers graceful shutdown.
-//  - Closing application context triggers graceful shutdown.
-//  - Any error from stop hooks immediately triggers hard shutdown.
+//   - Start hooks can either be called synchronously or asynchronously.
+//   - Start hooks can use the application context (hard shutdown) or background context (graceful shutdown).
+//   - Stop hooks are synchronous and use a shutdown context with 10s timeout.
+//   - Ordering of start and stop hooks.
+//   - Any error from start hooks immediately triggers graceful shutdown.
+//   - Closing application context triggers graceful shutdown.
+//   - Any error from stop hooks immediately triggers hard shutdown.
 package lifecycle
 
 import (

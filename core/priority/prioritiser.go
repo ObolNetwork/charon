@@ -146,6 +146,7 @@ func (p *Prioritiser) Prioritise(slot int64) {
 
 // Run runs the prioritiser until the context is cancelled.
 // Note this will panic if called multiple times.
+//
 //nolint:gocognit // Not that bad I feel.
 func (p *Prioritiser) Run(ctx context.Context) error {
 	defer close(p.quit)
