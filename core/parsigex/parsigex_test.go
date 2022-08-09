@@ -17,6 +17,12 @@ package parsigex_test
 
 import (
 	"context"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/obolnetwork/charon/eth2util/signing"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 	"sync"
 	"testing"
 
@@ -77,7 +83,9 @@ func TestParSigEx(t *testing.T) {
 	// create ParSigEx components for each host
 	for i := 0; i < n; i++ {
 		wg.Add(n - 1)
-		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers)
+		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers, func(_ context.Context, _ core.PubKey, _ core.Duty, _ core.ParSignedData) error {
+			return nil
+		})
 		sigex.Subscribe(func(_ context.Context, d core.Duty, set core.ParSignedDataSet) error {
 			defer wg.Done()
 
@@ -99,4 +107,46 @@ func TestParSigEx(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestParSigExVerifier(t *testing.T) {
+	ctx := context.Background()
+
+	const slot = 123
+
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	slotsPerEpoch, err := bmock.SlotsPerEpoch(ctx)
+	require.NoError(t, err)
+
+	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
+
+	pk, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	sign := func(msg []byte) eth2p0.BLSSignature {
+		sig, err := tbls.Sign(secret, msg)
+		require.NoError(t, err)
+
+		return tblsconv.SigToETH2(sig)
+	}
+
+	verifyFunc := parsigex.NewEth2Verifier(bmock, map[*bls_sig.PublicKey]*bls_sig.PublicKey{pk: pk})
+
+	// Sign Attestation
+	att := core.Attestation{Attestation: *testutil.RandomAttestation()}
+	sigRoot, err := att.Data.HashTreeRoot()
+	require.NoError(t, err)
+	sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconAttester, epoch, sigRoot)
+	require.NoError(t, err)
+	att.Attestation.Signature = sign(sigData[:])
+
+	block := testutil.RandomCoreVersionSignedBeaconBlock(t)
+	sigRoot, err = block.Root()
+	require.NoError(t, err)
+	sigData, err = signing.GetDataRoot(ctx, bmock, signing.DomainBeaconProposer, epoch, sigRoot)
+	require.NoError(t, err)
+	block.VersionedSignedBeaconBlock, err = block.SetSignature(tblsconv.SigToCore(sign(sigData[:])))
+
 }

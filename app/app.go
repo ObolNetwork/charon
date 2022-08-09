@@ -358,7 +358,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if conf.TestConfig.ParSigExFunc != nil {
 		parSigEx = conf.TestConfig.ParSigExFunc()
 	} else {
-		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs)
+		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, parsigex.NewEth2Verifier(eth2Cl, pubSharesByKey))
 	}
 
 	sigAgg := sigagg.New(lock.Threshold)

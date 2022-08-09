@@ -17,6 +17,12 @@ package parsigex
 
 import (
 	"context"
+	eth2client "github.com/attestantio/go-eth2-client"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/eth2util/signing"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"io"
 	"time"
 
@@ -35,12 +41,13 @@ import (
 
 const protocolID = "/charon/parsigex/1.0.0"
 
-func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID) *ParSigEx {
+func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID, verifyFunc func(context.Context, core.PubKey, core.Duty, core.ParSignedData) error) *ParSigEx {
 	parSigEx := &ParSigEx{
-		tcpNode:  tcpNode,
-		sendFunc: sendFunc,
-		peerIdx:  peerIdx,
-		peers:    peers,
+		tcpNode:    tcpNode,
+		sendFunc:   sendFunc,
+		peerIdx:    peerIdx,
+		peers:      peers,
+		verifyFunc: verifyFunc,
 	}
 	parSigEx.tcpNode.SetStreamHandler(protocolID, parSigEx.handle)
 
@@ -50,11 +57,12 @@ func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []
 // ParSigEx exchanges partially signed duty data sets.
 // It ensures that all partial signatures are persisted by all peers.
 type ParSigEx struct {
-	tcpNode  host.Host
-	sendFunc p2p.SendFunc
-	peerIdx  int
-	peers    []peer.ID
-	subs     []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	tcpNode    host.Host
+	sendFunc   p2p.SendFunc
+	peerIdx    int
+	peers      []peer.ID
+	verifyFunc func(context.Context, core.PubKey, core.Duty, core.ParSignedData) error
+	subs       []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
 func (m *ParSigEx) handle(s network.Stream) {
@@ -88,6 +96,14 @@ func (m *ParSigEx) handle(s network.Stream) {
 	var span trace.Span
 	ctx, span = core.StartDutyTrace(ctx, duty, "core/parsigex.Handle")
 	defer span.End()
+
+	// Verify partial signature
+	for pubkey, data := range set {
+		if err = m.verifyFunc(ctx, pubkey, duty, data); err != nil {
+			log.Error(ctx, "", err)
+			return
+		}
+	}
 
 	for _, sub := range m.subs {
 		err := sub(ctx, duty, set)
@@ -129,4 +145,65 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 // is received from a peer. This is not thread safe, it must be called before starting to use parsigex.
 func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
 	m.subs = append(m.subs, fn)
+}
+
+// NewEth2Verifier returns a verifyFunc instance which is responsible to verify the given partial signatures.
+func NewEth2Verifier(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey) func(context.Context, core.PubKey, core.Duty, core.ParSignedData) error {
+	eth2Cl := eth2Svc.(signing.Eth2Provider)
+
+	return func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error {
+		pk, err := tblsconv.KeyFromCore(pubkey)
+		if err != nil {
+			return err
+		}
+
+		pubshare := pubShareByKey[pk]
+
+		switch duty.Type {
+		case core.DutyAttester:
+			att, ok := data.SignedData.(core.Attestation)
+			if !ok {
+				return errors.New("invalid attestation")
+			}
+
+			return signing.VerifyAttestation(ctx, eth2Cl, pubshare, att.Attestation)
+		case core.DutyProposer:
+			block, ok := data.SignedData.(core.VersionedSignedBeaconBlock)
+			if !ok {
+				return errors.New("invalid block")
+			}
+
+			return signing.VerifyBlock(ctx, eth2Cl, pubshare, block.VersionedSignedBeaconBlock)
+		case core.DutyRandao:
+			randao, ok := data.SignedData.(core.Signature)
+			if !ok {
+				return errors.New("invalid randao")
+			}
+
+			return signing.VerifyRandao(ctx, eth2Cl, pubshare, randao.ToETH2(), eth2p0.Slot(duty.Slot))
+		case core.DutyBuilderProposer:
+			blindedBlock, ok := data.SignedData.(core.VersionedSignedBlindedBeaconBlock)
+			if !ok {
+				return errors.New("invalid blinded block")
+			}
+
+			return signing.VerifyBlindedBlock(ctx, eth2Cl, pubshare, blindedBlock.VersionedSignedBlindedBeaconBlock)
+		case core.DutyBuilderRegistration:
+			registration, ok := data.SignedData.(core.VersionedSignedValidatorRegistration)
+			if !ok {
+				return errors.New("invalid builder registration")
+			}
+
+			return signing.VerifyValidatorRegistration(ctx, eth2Cl, pubshare, registration.VersionedSignedValidatorRegistration)
+		case core.DutyExit:
+			exit, ok := data.SignedData.(core.SignedVoluntaryExit)
+			if !ok {
+				return errors.New("invalid voluntary exit")
+			}
+
+			return signing.VerifyVoluntaryExit(ctx, eth2Cl, pubshare, exit.SignedVoluntaryExit)
+		default:
+			return errors.New("unknown duty type")
+		}
+	}
 }

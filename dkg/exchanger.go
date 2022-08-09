@@ -59,7 +59,7 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) *ex
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:   parsigdb.NewMemDB(len(peers)),
-		sigex:   parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers),
+		sigex:   parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, newDKGVerifier()),
 		sigChan: make(chan sigData, len(peers)),
 		numVals: vals,
 	}
@@ -113,4 +113,11 @@ func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, pk core.PubKey,
 	}
 
 	return nil
+}
+
+// TODO(dhruv): Implement verifyFunc for DKG
+func newDKGVerifier() func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error {
+	return func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error {
+		return nil
+	}
 }
