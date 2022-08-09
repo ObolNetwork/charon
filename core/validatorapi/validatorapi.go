@@ -18,6 +18,7 @@ package validatorapi
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -259,12 +260,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 		}
 
 		// Verify signature
-		pubshare, err := c.getVerifyShareFunc(pubkey)
-		if err != nil {
-			return err
-		}
-
-		if err = signing.VerifyAttestation(ctx, c.eth2Cl, pubshare, *att); err != nil {
+		if err = c.verifySignedData(ctx, pubkey, eth2p0.Slot(slot), att); err != nil {
 			return err
 		}
 
@@ -309,12 +305,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	parSig := core.NewPartialSignature(core.SigFromETH2(randao), c.shareIdx)
 
 	// Verify randao signature
-	pubshare, err := c.getVerifyShareFunc(pubkey)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := signing.VerifyRandao(ctx, c.eth2Cl, pubshare, randao, slot); err != nil {
+	if err := c.verifySignedData(ctx, pubkey, slot, randao); err != nil {
 		return nil, err
 	}
 
@@ -367,12 +358,7 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	// Verify block signature
-	pubshare, err := c.getVerifyShareFunc(pubkey)
-	if err != nil {
-		return err
-	}
-
-	if err = signing.VerifyBlock(ctx, c.eth2Cl, pubshare, *block); err != nil {
+	if err = c.verifySignedData(ctx, pubkey, slot, block); err != nil {
 		return err
 	}
 
@@ -403,12 +389,7 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 	}
 
 	// Verify randao signature
-	pubshare, err := c.getVerifyShareFunc(pubkey)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := signing.VerifyRandao(ctx, c.eth2Cl, pubshare, randao, slot); err != nil {
+	if err := c.verifySignedData(ctx, pubkey, slot, randao); err != nil {
 		return nil, err
 	}
 
@@ -463,13 +444,7 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	duty := core.NewBuilderProposerDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	// Verify signature
-	pubshare, err := c.getVerifyShareFunc(pubkey)
-	if err != nil {
-		return err
-	}
-
-	if err = signing.VerifyBlindedBlock(ctx, c.eth2Cl, pubshare, *block); err != nil {
+	if err = c.verifySignedData(ctx, pubkey, slot, block); err != nil {
 		return err
 	}
 
@@ -517,12 +492,7 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 	duty := core.NewBuilderRegistrationDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	pubshare, err := c.getVerifyShareFunc(pubkey)
-	if err != nil {
-		return err
-	}
-
-	if err = signing.VerifyValidatorRegistration(ctx, c.eth2Cl, pubshare, *registration); err != nil {
+	if err = c.verifySignedData(ctx, pubkey, slot, registration); err != nil {
 		return err
 	}
 
@@ -589,12 +559,7 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 	duty := core.NewVoluntaryExit(int64(slotsPerEpoch) * int64(exit.Message.Epoch))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	pubshare, err := c.getVerifyShareFunc(pubkey)
-	if err != nil {
-		return err
-	}
-
-	if err = signing.VerifyVoluntaryExit(ctx, c.eth2Cl, pubshare, *exit); err != nil {
+	if err = c.verifySignedData(ctx, pubkey, eth2p0.Slot(duty.Slot), exit); err != nil {
 		return err
 	}
 
@@ -739,4 +704,41 @@ func (c Component) getProposerPubkey(ctx context.Context, duty core.Duty) (core.
 	}
 
 	return pubkey, nil
+}
+
+// verifySignedData verifies any eth2 signed data signature.
+func (c Component) verifySignedData(ctx context.Context, pubkey core.PubKey, slot eth2p0.Slot,
+	eth2SignedType interface{},
+) error {
+	if c.insecureTest {
+		return nil
+	}
+
+	pubshare, err := c.getVerifyShareFunc(pubkey)
+	if err != nil {
+		return err
+	}
+
+	// eth2util shouldn't import core package, so can't use core.SignedData.
+	// To avoid pointer vs non-pointer issues, always get value if pointer is provided.
+	if reflect.TypeOf(eth2SignedType).Kind() == reflect.Pointer {
+		eth2SignedType = reflect.ValueOf(eth2SignedType).Elem().Interface()
+	}
+
+	switch signed := eth2SignedType.(type) {
+	case eth2p0.Attestation:
+		return signing.VerifyAttestation(ctx, c.eth2Cl, pubshare, signed)
+	case spec.VersionedSignedBeaconBlock:
+		return signing.VerifyBlock(ctx, c.eth2Cl, pubshare, signed)
+	case eth2api.VersionedSignedBlindedBeaconBlock:
+		return signing.VerifyBlindedBlock(ctx, c.eth2Cl, pubshare, signed)
+	case eth2p0.BLSSignature:
+		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, signed, slot)
+	case eth2p0.SignedVoluntaryExit:
+		return signing.VerifyVoluntaryExit(ctx, c.eth2Cl, pubshare, signed)
+	case eth2api.VersionedSignedValidatorRegistration:
+		return signing.VerifyValidatorRegistration(ctx, c.eth2Cl, pubshare, signed)
+	default:
+		return errors.New("unsupported eth2 signed data type", z.Str("type", fmt.Sprintf("%T", eth2SignedType)))
+	}
 }
