@@ -72,6 +72,11 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 		return nil, err
 	}
 
+	// "prater" has been renamed to goerli.
+	if network == "prater" {
+		network = "goerli"
+	}
+
 	forkVersion := networkToForkVersion(network)
 
 	var ddList []depositDataJSON
