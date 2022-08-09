@@ -72,6 +72,12 @@ func TestCreateCluster(t *testing.T) {
 
 				return config
 			},
+		}, {
+			Name: "prater",
+			Config: clusterConfig{
+				NumNodes: minNodes,
+				Network:  "prater",
+			},
 		},
 	}
 	for _, test := range tests {
@@ -81,7 +87,10 @@ func TestCreateCluster(t *testing.T) {
 			}
 
 			test.Config.WithdrawalAddr = defaultWithdrawalAddr
-			test.Config.Network = defaultNetwork
+
+			if test.Config.Network == "" {
+				test.Config.Network = defaultNetwork
+			}
 
 			testCreateCluster(t, test.Config)
 		})
@@ -144,6 +153,10 @@ func TestValidNetwork(t *testing.T) {
 	require.Error(t, err, "zero address")
 
 	conf.Network = "goerli"
+	err = validateClusterConfig(conf)
+	require.NoError(t, err)
+
+	conf.Network = "prater"
 	err = validateClusterConfig(conf)
 	require.NoError(t, err)
 }

@@ -113,6 +113,12 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return errors.Wrap(err, "mkdir")
 	}
 
+	// TODO(xenowits): Remove mapping from prater from goerli after the merge concludes.
+	// Map prater to goerli to ensure backwards compatibility with older cluster definitions and cluster locks.
+	if conf.Network == "prater" {
+		conf.Network = "goerli"
+	}
+
 	if err := validateClusterConfig(conf); err != nil {
 		return err
 	}
@@ -432,6 +438,7 @@ func checksumAddr(a string) (string, error) {
 // validNetworks defines the set of valid networks.
 var validNetworks = map[string]bool{
 	"goerli":  true,
+	"prater":  true, // TODO(xenowits): Remove prater after the goerli/prater merge.
 	"kiln":    true,
 	"ropsten": true,
 	"gnosis":  true,
