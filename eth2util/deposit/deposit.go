@@ -40,7 +40,7 @@ var (
 	// DOMAIN_DEPOSIT. See spec: https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#domain-types
 	depositDomainType = eth2p0.DomainType([4]byte{0x03, 0x00, 0x00, 0x00})
 
-	depositCliVersion = "2.1.0"
+	depositCliVersion = "2.3.0"
 )
 
 // getMessageRoot returns a deposit message hash root created by the parameters.
@@ -180,6 +180,8 @@ func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 func networkToForkVersion(network string) eth2p0.Version {
 	switch network {
 	case "prater":
+		return [4]byte{0x00, 0x00, 0x10, 0x20}
+	case "goerli":
 		return [4]byte{0x00, 0x00, 0x10, 0x20}
 	case "kiln":
 		return [4]byte{0x70, 0x00, 0x00, 0x69}

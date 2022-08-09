@@ -17,7 +17,6 @@ package deposit_test
 
 import (
 	"encoding/hex"
-	"os"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -27,6 +26,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 const (
@@ -35,8 +35,9 @@ const (
 	network        = "prater"
 )
 
+//go:generate go test . -run=TestMarshalDepositData -update -clean
+
 func TestMarshalDepositData(t *testing.T) {
-	file := "testdata/deposit-data.json"
 	privKeys := []string{
 		"01477d4bfbbcebe1fef8d4d6f624ecbb6e3178558bb1b0d6286c816c66842a6d",
 		"5b77c0f0ef7c4ddc123d55b8bd93daeefbd7116764a941c0061a496649e145b5",
@@ -61,10 +62,7 @@ func TestMarshalDepositData(t *testing.T) {
 	actual, err := deposit.MarshalDepositData(sigsByKeys, withdrawalAddr, network)
 	require.NoError(t, err)
 
-	// Not using golden file since output MUST never change.
-	expected, err := os.ReadFile(file)
-	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	testutil.RequireGoldenBytes(t, actual)
 }
 
 // Get the private and public keys in appropriate format for the test.

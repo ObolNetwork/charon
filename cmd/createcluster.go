@@ -432,6 +432,7 @@ func checksumAddr(a string) (string, error) {
 // validNetworks defines the set of valid networks.
 var validNetworks = map[string]bool{
 	"prater":  true,
+	"goerli":  true,
 	"kiln":    true,
 	"ropsten": true,
 	"gnosis":  true,
