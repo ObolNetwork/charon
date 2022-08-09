@@ -74,8 +74,8 @@ var (
 	_ eth2client.SyncCommitteesProvider                = (*Service)(nil)
 	_ eth2client.TargetAggregatorsPerCommitteeProvider = (*Service)(nil)
 	_ eth2client.ValidatorBalancesProvider             = (*Service)(nil)
-	_ eth2client.ValidatorsProvider                    = (*Service)(nil)
 	_ eth2client.ValidatorRegistrationsSubmitter       = (*Service)(nil)
+	_ eth2client.ValidatorsProvider                    = (*Service)(nil)
 	_ eth2client.VoluntaryExitSubmitter                = (*Service)(nil)
 )
 
@@ -123,8 +123,8 @@ type eth2Provider interface {
 	eth2client.SyncCommitteesProvider
 	eth2client.TargetAggregatorsPerCommitteeProvider
 	eth2client.ValidatorBalancesProvider
-	eth2client.ValidatorsProvider
 	eth2client.ValidatorRegistrationsSubmitter
+	eth2client.ValidatorsProvider
 	eth2client.VoluntaryExitSubmitter
 }
 
@@ -472,6 +472,20 @@ func (s *Service) SubmitBlindedBeaconBlock(ctx context.Context, block *api.Versi
 	defer latency(label)()
 
 	err := s.eth2Provider.SubmitBlindedBeaconBlock(ctx, block)
+	if err != nil {
+		incError(label)
+		err = errors.Wrap(err, "eth2http")
+	}
+
+	return err
+}
+
+// SubmitValidatorRegistrations submits a validator registration.
+func (s *Service) SubmitValidatorRegistrations(ctx context.Context, registrations []*api.VersionedSignedValidatorRegistration) error {
+	const label = "submit_validator_registrations"
+	defer latency(label)()
+
+	err := s.eth2Provider.SubmitValidatorRegistrations(ctx, registrations)
 	if err != nil {
 		incError(label)
 		err = errors.Wrap(err, "eth2http")

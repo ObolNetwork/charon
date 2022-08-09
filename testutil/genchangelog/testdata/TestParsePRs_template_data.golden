@@ -1,4 +1,5 @@
 {
+ "Tag": "v0.0.0",
  "Date": "1970-01-01",
  "RangeText": "606e9bc^..eff988a",
  "RangeLink": "https://github.com/obolnetwork/charon/compare/606e9bc^..eff988a",
@@ -7,6 +8,32 @@
    "Name": "feature",
    "Label": "Feature",
    "Issues": [
+    {
+     "Category": "feature",
+     "Title": "Issue#251",
+     "Number": 251,
+     "Label": "#251",
+     "PRs": [
+      {
+       "Label": "#265"
+      },
+      {
+       "Label": "#264"
+      },
+      {
+       "Label": "#263"
+      },
+      {
+       "Label": "#260"
+      },
+      {
+       "Label": "#259"
+      },
+      {
+       "Label": "#258"
+      }
+     ]
+    },
     {
      "Category": "feature",
      "Title": "Issue#220",
@@ -43,38 +70,6 @@
      "PRs": [
       {
        "Label": "#271"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "Name": "misc",
-   "Label": "Misc",
-   "Issues": [
-    {
-     "Category": "misc",
-     "Title": "Issue#251",
-     "Number": 251,
-     "Label": "#251",
-     "PRs": [
-      {
-       "Label": "#265"
-      },
-      {
-       "Label": "#264"
-      },
-      {
-       "Label": "#263"
-      },
-      {
-       "Label": "#260"
-      },
-      {
-       "Label": "#259"
-      },
-      {
-       "Label": "#258"
       }
      ]
     }
