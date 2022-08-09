@@ -15,25 +15,25 @@
 
 // Package beaconmock provides a mock beacon node server and client primarily for testing.
 //
-//	 beaconmock.Mock     validatorapi.Router
-//	┌────┬──────────┐      ┌───────────┐
-//	│    │HTTPServer◄──────┤ proxy     │
-//	│    └────▲─────┐ http │           │           VC
-//	│         │     │      │           ◄────────── (validatormock)
-//	│         │http │      │ served    │   http    (lighthouse)
-//	│      ┌──┴─────┤      │ endpoints │           (teku)
-//	│      │HTTPMock│      └────┬──────┘
-//	└──────┴────────┘           │go
-//	       ▲                    │
-//	       │  ┌─────────────────▼──────┐
-//	       │go│                        │
-//	       └──┤core workflow components│
-//	          │                        │
-//	          └────────────────────────┘
+//   beaconmock.Mock     validatorapi.Router
+//  ┌────┬──────────┐      ┌───────────┐
+//  │    │HTTPServer◄──────┤ proxy     │
+//  │    └────▲─────┐ http │           │           VC
+//  │         │     │      │           ◄────────── (validatormock)
+//  │         │http │      │ served    │   http    (lighthouse)
+//  │      ┌──┴─────┤      │ endpoints │           (teku)
+//  │      │HTTPMock│      └────┬──────┘
+//  └──────┴────────┘           │go
+//         ▲                    │
+//         │  ┌─────────────────▼──────┐
+//         │go│                        │
+//         └──┤core workflow components│
+//            │                        │
+//            └────────────────────────┘
 //
-//	HTTPServer: Serves stubs and static.json endpoints. Used by Mock and proxy.
-//	HTTPMock: *eth2http.Service client connected to HTTPServer.
-//	Mock: Wraps HTTPMock, adds customisable logic. Used by simnet core workflow components.
+//  HTTPServer: Serves stubs and static.json endpoints. Used by Mock and proxy.
+//  HTTPMock: *eth2http.Service client connected to HTTPServer.
+//  Mock: Wraps HTTPMock, adds customisable logic. Used by simnet core workflow components.
 package beaconmock
 
 import (
