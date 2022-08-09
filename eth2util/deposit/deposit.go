@@ -28,6 +28,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 var (
@@ -70,6 +72,11 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 		return nil, err
 	}
 
+	// "prater" has been renamed to goerli.
+	if network == "prater" {
+		network = "goerli"
+	}
+
 	forkVersion := networkToForkVersion(network)
 
 	var ddList []depositDataJSON
@@ -80,7 +87,27 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 			return nil, err
 		}
 
-		// TODO(corver): Verify signature matches msgRoot.
+		// Verify deposit data signature
+		sigData, err := GetMessageSigningRoot(pubkey, withdrawalAddr, network)
+		if err != nil {
+			return nil, err
+		}
+
+		blsSig, err := tblsconv.SigFromETH2(sig)
+		if err != nil {
+			return nil, err
+		}
+		blsPubkey, err := tblsconv.KeyFromETH2(pubkey)
+		if err != nil {
+			return nil, err
+		}
+
+		ok, err := tbls.Verify(blsPubkey, sigData[:], blsSig)
+		if err != nil {
+			return nil, err
+		} else if !ok {
+			return nil, errors.New("invalid deposit data signature")
+		}
 
 		dd := eth2p0.DepositData{
 			PublicKey:             pubkey,
