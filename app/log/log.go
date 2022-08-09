@@ -38,9 +38,10 @@ type (
 // WithCtx returns a copy of the context with which the logging fields are associated.
 // Usage:
 //
-//	ctx := log.WithCtx(ctx, z.Int("slot", 1234))
-//	...
-//	log.Info(ctx, "Slot processed") // Will contain field: slot=1234
+//  ctx := log.WithCtx(ctx, z.Int("slot", 1234))
+//  ...
+//  log.Info(ctx, "Slot processed") // Will contain field: slot=1234
+//
 func WithCtx(ctx context.Context, fields ...z.Field) context.Context {
 	return context.WithValue(ctx, ctxKey{}, append(fields, fieldsFromCtx(ctx)...))
 }

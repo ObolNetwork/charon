@@ -15,12 +15,11 @@
 
 // Command genchangelog provides a tool to generate a changelog.md file from a git commit range.
 // It requires the following:
-//   - Each commit is a squash merged GitHub PR.
-//   - The commit subject contains the PR number '(#123)'.
-//   - Each commit contains a 'category: foo' line in the body.
-//   - Each commit is linked to a Github Issue via a 'ticket: #321' line in the body.
-//   - Only PRs with supported categories linked to Issues will be included in the changelog.
-//
+//  - Each commit is a squash merged GitHub PR.
+//  - The commit subject contains the PR number '(#123)'.
+//  - Each commit contains a 'category: foo' line in the body.
+//  - Each commit is linked to a Github Issue via a 'ticket: #321' line in the body.
+//  - Only PRs with supported categories linked to Issues will be included in the changelog.
 //nolint:forbidigo,gosec,revive
 package main
 
