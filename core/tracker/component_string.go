@@ -31,12 +31,11 @@ func _() {
 	_ = x[parSigEx-5]
 	_ = x[parSigDBThreshold-6]
 	_ = x[sigAgg-7]
-	_ = x[sentinel-8]
 }
 
-const _component_name = "schedulerfetcherconsensusvalidatorAPIparSigDBInternalparSigExparSigDBThresholdsigAggsentinel"
+const _component_name = "schedulerfetcherconsensusvalidatorAPIparSigDBInternalparSigExparSigDBThresholdsigAgg"
 
-var _component_index = [...]uint8{0, 9, 16, 25, 37, 53, 61, 78, 84, 92}
+var _component_index = [...]uint8{0, 9, 16, 25, 37, 53, 61, 78, 84}
 
 func (i component) String() string {
 	if i < 0 || i >= component(len(_component_index)-1) {
