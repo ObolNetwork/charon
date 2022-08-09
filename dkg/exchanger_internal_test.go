@@ -96,7 +96,9 @@ func TestExchanger(t *testing.T) {
 	}
 
 	for i := 0; i < nodes; i++ {
-		ex := newExchanger(hosts[i], i, peers, dvs)
+		ex := newExchanger(hosts[i], i, peers, dvs, func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error {
+			return nil
+		})
 		exchangers = append(exchangers, ex)
 	}
 
@@ -119,3 +121,6 @@ func TestExchanger(t *testing.T) {
 		reflect.DeepEqual(actual[i], expectedData)
 	}
 }
+
+// TODO(dhruv): add tests for DKG verifier.
+func TestNewDKGVerifier(t *testing.T) {}

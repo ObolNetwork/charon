@@ -17,15 +17,11 @@ package parsigex_test
 
 import (
 	"context"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/obolnetwork/charon/eth2util/signing"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"github.com/obolnetwork/charon/testutil/beaconmock"
 	"sync"
 	"testing"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/peerstore"
@@ -33,8 +29,13 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/parsigex"
+	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestParSigEx(t *testing.T) {
@@ -112,7 +113,10 @@ func TestParSigEx(t *testing.T) {
 func TestParSigExVerifier(t *testing.T) {
 	ctx := context.Background()
 
-	const slot = 123
+	const (
+		slot     = 123
+		shareIdx = 1
+	)
 
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
@@ -132,21 +136,89 @@ func TestParSigExVerifier(t *testing.T) {
 		return tblsconv.SigToETH2(sig)
 	}
 
-	verifyFunc := parsigex.NewEth2Verifier(bmock, map[*bls_sig.PublicKey]*bls_sig.PublicKey{pk: pk})
+	pubkey, err := tblsconv.KeyToCore(pk)
+	mp := map[core.PubKey][]*bls_sig.PublicKey{
+		pubkey: {
+			shareIdx - 1: pk,
+		},
+	}
+	verifyFunc := parsigex.NewEth2Verifier(bmock, mp)
+	require.NoError(t, err)
 
-	// Sign Attestation
-	att := core.Attestation{Attestation: *testutil.RandomAttestation()}
-	sigRoot, err := att.Data.HashTreeRoot()
-	require.NoError(t, err)
-	sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconAttester, epoch, sigRoot)
-	require.NoError(t, err)
-	att.Attestation.Signature = sign(sigData[:])
+	t.Run("Verify attestation", func(t *testing.T) {
+		att := testutil.RandomAttestation()
+		sigRoot, err := att.Data.HashTreeRoot()
+		require.NoError(t, err)
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconAttester, att.Data.Target.Epoch, sigRoot)
+		require.NoError(t, err)
+		att.Signature = sign(sigData[:])
+		data := core.NewPartialAttestation(att, shareIdx)
 
-	block := testutil.RandomCoreVersionSignedBeaconBlock(t)
-	sigRoot, err = block.Root()
-	require.NoError(t, err)
-	sigData, err = signing.GetDataRoot(ctx, bmock, signing.DomainBeaconProposer, epoch, sigRoot)
-	require.NoError(t, err)
-	block.VersionedSignedBeaconBlock, err = block.SetSignature(tblsconv.SigToCore(sign(sigData[:])))
+		require.NoError(t, verifyFunc(ctx, pubkey, core.NewAttesterDuty(slot), data))
+	})
 
+	t.Run("Verify block", func(t *testing.T) {
+		block := testutil.RandomVersionSignedBeaconBlock(t)
+		block.Bellatrix.Message.Slot = slot
+		sigRoot, err := block.Root()
+		require.NoError(t, err)
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconProposer, epoch, sigRoot)
+		require.NoError(t, err)
+		block.Bellatrix.Signature = sign(sigData[:])
+		data, err := core.NewPartialVersionedSignedBeaconBlock(block, shareIdx)
+		require.NoError(t, err)
+
+		require.NoError(t, verifyFunc(ctx, pubkey, core.NewProposerDuty(slot), data))
+	})
+
+	t.Run("Verify blinded block", func(t *testing.T) {
+		blindedBlock := testutil.RandomVersionSignedBlindedBeaconBlock(t)
+		blindedBlock.Bellatrix.Message.Slot = slot
+		sigRoot, err := blindedBlock.Root()
+		require.NoError(t, err)
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconProposer, epoch, sigRoot)
+		require.NoError(t, err)
+		blindedBlock.Bellatrix.Signature = sign(sigData[:])
+		data, err := core.NewPartialVersionedSignedBlindedBeaconBlock(blindedBlock, shareIdx)
+		require.NoError(t, err)
+
+		require.NoError(t, verifyFunc(ctx, pubkey, core.NewBuilderProposerDuty(slot), data))
+	})
+
+	t.Run("Verify Randao", func(t *testing.T) {
+		sigRoot, err := eth2util.EpochHashRoot(epoch)
+		require.NoError(t, err)
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainRandao, epoch, sigRoot)
+		require.NoError(t, err)
+		randao := core.NewPartialSignature(core.SigFromETH2(sign(sigData[:])), shareIdx)
+
+		require.NoError(t, verifyFunc(ctx, pubkey, core.NewRandaoDuty(slot), randao))
+	})
+
+	t.Run("Verify Voluntary Exit", func(t *testing.T) {
+		exit := testutil.RandomExit()
+		exit.Message.Epoch = epoch
+		sigRoot, err := exit.Message.HashTreeRoot()
+		require.NoError(t, err)
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainExit, epoch, sigRoot)
+		require.NoError(t, err)
+		exit.Signature = sign(sigData[:])
+		data := core.NewPartialSignedVoluntaryExit(exit, shareIdx)
+		require.NoError(t, err)
+
+		require.NoError(t, verifyFunc(ctx, pubkey, core.NewVoluntaryExit(slot), data))
+	})
+
+	t.Run("Verify validator registration", func(t *testing.T) {
+		reg := testutil.RandomVersionedSignedValidatorRegistration(t)
+		sigRoot, err := reg.V1.Message.HashTreeRoot()
+		require.NoError(t, err)
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainApplicationBuilder, 0, sigRoot)
+		require.NoError(t, err)
+		reg.V1.Signature = sign(sigData[:])
+		data, err := core.NewPartialVersionedSignedValidatorRegistration(reg, shareIdx)
+		require.NoError(t, err)
+
+		require.NoError(t, verifyFunc(ctx, pubkey, core.NewBuilderRegistrationDuty(slot), data))
+	})
 }

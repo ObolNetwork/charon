@@ -17,25 +17,24 @@ package parsigex
 
 import (
 	"context"
-	eth2client "github.com/attestantio/go-eth2-client"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/eth2util/signing"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"io"
 	"time"
 
+	eth2client "github.com/attestantio/go-eth2-client"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -148,16 +147,12 @@ func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedD
 }
 
 // NewEth2Verifier returns a verifyFunc instance which is responsible to verify the given partial signatures.
-func NewEth2Verifier(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey) func(context.Context, core.PubKey, core.Duty, core.ParSignedData) error {
+func NewEth2Verifier(eth2Svc eth2client.Service, pubSharesByKey map[core.PubKey][]*bls_sig.PublicKey) func(context.Context, core.PubKey, core.Duty, core.ParSignedData) error {
 	eth2Cl := eth2Svc.(signing.Eth2Provider)
 
 	return func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error {
-		pk, err := tblsconv.KeyFromCore(pubkey)
-		if err != nil {
-			return err
-		}
-
-		pubshare := pubShareByKey[pk]
+		// ShareIdx is 1-indexed
+		pubshare := pubSharesByKey[pubkey][data.ShareIdx-1]
 
 		switch duty.Type {
 		case core.DutyAttester:

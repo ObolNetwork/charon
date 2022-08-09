@@ -113,8 +113,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "get peer IDs")
 	}
 
-	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators)
-
 	// Register Frost libp2p handlers
 	peerMap := make(map[uint32]peer.ID)
 	for _, p := range peers {
@@ -161,15 +159,52 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("unsupported dkg algorithm")
 	}
 
-	// Sign, exchange and aggregate Lock Hash signatures
-	lock, err := signAndAggLockHash(ctx, shares, def, nodeIdx, ex)
+	dvs, err := dvsFromShares(shares)
 	if err != nil {
 		return err
 	}
+
+	lock := cluster.Lock{
+		Definition: def,
+		Validators: dvs,
+	}
+
+	lockHash, err := lock.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	depositDataMsgs, err := getDepositDataMsgs(shares, def.WithdrawalAddress, network)
+	if err != nil {
+		return err
+	}
+
+	pubkeyToPubshares := make(map[core.PubKey]map[int]*bls_sig.PublicKey)
+	for _, s := range shares {
+		pubkey, err := tblsconv.KeyToCore(s.PubKey)
+		if err != nil {
+			return err
+		}
+
+		pubkeyToPubshares[pubkey] = s.PublicShares
+	}
+	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators, newDKGVerifier(pubkeyToPubshares, lockHash[:], depositDataMsgs))
+
+	// Sign, exchange and aggregate Lock Hash signatures
+	aggSig, err := signAndAggLockHash(ctx, shares, lockHash[:], nodeIdx, ex)
+	if err != nil {
+		return err
+	}
+	lock.SignatureAggregate = aggSig
 	log.Debug(ctx, "Aggregated lock hash signatures")
 
+	set, err := signDepositData(shares, nodeIdx.ShareIdx, depositDataMsgs)
+	if err != nil {
+		return err
+	}
+
 	// Sign, exchange and aggregate Deposit Data signatures
-	aggSigDepositData, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddress, network, nodeIdx)
+	aggSigDepositData, err := signAndAggDepositData(ctx, ex, set, depositDataMsgs)
 	if err != nil {
 		return err
 	}
@@ -308,33 +343,23 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.Privat
 	}, nil
 }
 
-// signAndAggLockHash returns cluster lock file with aggregated signature after signing, exchange and aggregation of partial signatures.
-func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definition, nodeIdx cluster.NodeIdx, ex *exchanger) (cluster.Lock, error) {
-	dvs, err := dvsFromShares(shares)
+// signAndAggLockHash returns aggregated signature after signing, exchange and aggregation of partial signatures of lock hash.
+func signAndAggLockHash(ctx context.Context, shares []share, lockHash []byte, nodeIdx cluster.NodeIdx, ex *exchanger) ([]byte, error) {
+	sigLockHash, err := signLockHash(lockHash, nodeIdx.ShareIdx, shares)
 	if err != nil {
-		return cluster.Lock{}, err
-	}
-
-	lock := cluster.Lock{
-		Definition: def,
-		Validators: dvs,
-	}
-
-	sigLockHash, err := signLockHash(lock, nodeIdx.ShareIdx, shares)
-	if err != nil {
-		return cluster.Lock{}, err
+		return nil, err
 	}
 
 	peerSigs, err := ex.exchange(ctx, sigLock, sigLockHash)
 	if err != nil {
-		return cluster.Lock{}, err
+		return nil, err
 	}
 
 	pubkeyToShares := make(map[core.PubKey]share)
 	for _, sh := range shares {
 		pk, err := tblsconv.KeyToCore(sh.PubKey)
 		if err != nil {
-			return cluster.Lock{}, err
+			return nil, err
 		}
 
 		pubkeyToShares[pk] = sh
@@ -342,38 +367,27 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 
 	aggSigLockHash, aggPkLockHash, err := aggLockHashSig(peerSigs, pubkeyToShares)
 	if err != nil {
-		return cluster.Lock{}, err
+		return nil, err
 	}
 
-	msg, err := lock.HashTreeRoot()
+	verified, err := tbls.Scheme().VerifyMultiSignature(aggPkLockHash, lockHash, aggSigLockHash)
 	if err != nil {
-		return cluster.Lock{}, err
-	}
-
-	verified, err := tbls.Scheme().VerifyMultiSignature(aggPkLockHash, msg[:], aggSigLockHash)
-	if err != nil {
-		return cluster.Lock{}, errors.Wrap(err, "verify multisignature")
+		return nil, errors.Wrap(err, "verify multisignature")
 	} else if !verified {
-		return cluster.Lock{}, errors.New("invalid lock hash aggregated signature")
+		return nil, errors.New("invalid lock hash aggregated signature")
 	}
 
 	sigBytes, err := aggSigLockHash.MarshalBinary()
 	if err != nil {
-		return cluster.Lock{}, errors.Wrap(err, "marshal binary aggSigLockHash")
+		return nil, errors.Wrap(err, "marshal binary aggSigLockHash")
 	}
-	lock.SignatureAggregate = sigBytes
 
-	return lock, nil
+	return sigBytes, nil
 }
 
 // signAndAggDepositData returns aggregated signatures per DV after signing, exchange and aggregation of partial signatures.
-func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, withdrawalAddr string, network string, nodeIdx cluster.NodeIdx) (map[core.PubKey]*bls_sig.Signature, error) {
-	parSig, msgs, err := signDepositData(shares, nodeIdx.ShareIdx, withdrawalAddr, network)
-	if err != nil {
-		return nil, err
-	}
-
-	peerSigs, err := ex.exchange(ctx, sigDepositData, parSig)
+func signAndAggDepositData(ctx context.Context, ex *exchanger, set core.ParSignedDataSet, msgs map[core.PubKey][]byte) (map[core.PubKey]*bls_sig.Signature, error) {
+	peerSigs, err := ex.exchange(ctx, sigDepositData, set)
 	if err != nil {
 		return nil, err
 	}
@@ -436,12 +450,7 @@ func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.P
 }
 
 // signLockHash returns a partially signed dataset containing signatures of the lock hash.
-func signLockHash(lock cluster.Lock, shareIdx int, shares []share) (core.ParSignedDataSet, error) {
-	hash, err := lock.HashTreeRoot()
-	if err != nil {
-		return nil, errors.Wrap(err, "hash lock")
-	}
-
+func signLockHash(lockHash []byte, shareIdx int, shares []share) (core.ParSignedDataSet, error) {
 	set := make(core.ParSignedDataSet)
 	for _, share := range shares {
 		pk, err := tblsconv.KeyToCore(share.PubKey)
@@ -454,7 +463,7 @@ func signLockHash(lock cluster.Lock, shareIdx int, shares []share) (core.ParSign
 			return nil, err
 		}
 
-		sig, err := tbls.Sign(secret, hash[:])
+		sig, err := tbls.Sign(secret, lockHash)
 		if err != nil {
 			return nil, err
 		}
@@ -465,46 +474,58 @@ func signLockHash(lock cluster.Lock, shareIdx int, shares []share) (core.ParSign
 	return set, nil
 }
 
-// signDepositData returns a partially signed dataset containing signatures of the deposit data signing root.
-func signDepositData(shares []share, shareIdx int, withdrawalAddr string, network string) (core.ParSignedDataSet, map[core.PubKey][]byte, error) {
+// getDepositDataMsgs returns deposit data msgs to be signed.
+func getDepositDataMsgs(shares []share, withdrawalAddr string, network string) (map[core.PubKey][]byte, error) {
 	withdrawalAddr, err := checksumAddr(withdrawalAddr)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	msgs := make(map[core.PubKey][]byte)
-	set := make(core.ParSignedDataSet)
 	for _, share := range shares {
 		pubkey, err := tblsconv.KeyToETH2(share.PubKey)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		pk, err := tblsconv.KeyToCore(share.PubKey)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		msg, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, network)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		msgs[pk] = msg[:]
+	}
+
+	return msgs, nil
+}
+
+// signDepositData returns a partially signed dataset containing signatures of the deposit data signing root.
+func signDepositData(shares []share, shareIdx int, msgs map[core.PubKey][]byte) (core.ParSignedDataSet, error) {
+	set := make(core.ParSignedDataSet)
+	for _, share := range shares {
+		pk, err := tblsconv.KeyToCore(share.PubKey)
+		if err != nil {
+			return nil, err
+		}
 
 		secret, err := tblsconv.ShareToSecret(share.SecretShare)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
-		sig, err := tbls.Sign(secret, msg[:])
+		sig, err := tbls.Sign(secret, msgs[pk])
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		set[pk] = core.NewPartialSignature(tblsconv.SigToCore(sig), shareIdx)
 	}
 
-	return set, msgs, nil
+	return set, nil
 }
 
 // aggDepositDataSigs returns the threshold aggregated signatures of the deposit data per DV.

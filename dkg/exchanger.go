@@ -18,13 +18,17 @@ package dkg
 import (
 	"context"
 
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/parsigdb"
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // Note: Following duty types shouldn't be confused with the duty types in core workflow. This was
@@ -55,11 +59,13 @@ type exchanger struct {
 	numVals int
 }
 
-func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) *exchanger {
+func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int,
+	verifyFunc func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error,
+) *exchanger {
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:   parsigdb.NewMemDB(len(peers)),
-		sigex:   parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, newDKGVerifier()),
+		sigex:   parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, verifyFunc),
 		sigChan: make(chan sigData, len(peers)),
 		numVals: vals,
 	}
@@ -115,9 +121,44 @@ func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, pk core.PubKey,
 	return nil
 }
 
-// TODO(dhruv): Implement verifyFunc for DKG
-func newDKGVerifier() func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error {
+// newDKGVerifier returns a verify function to verify partial signatures by parsigex.
+func newDKGVerifier(pubkeyToPubshares map[core.PubKey]map[int]*bls_sig.PublicKey, lockHash []byte,
+	depositDataMsgs map[core.PubKey][]byte,
+) func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error {
 	return func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error {
-		return nil
+		switch sigType(duty.Slot) {
+		case sigLock:
+			pubshare := pubkeyToPubshares[pubkey][data.ShareIdx]
+			sig, err := tblsconv.SigFromCore(data.Signature())
+			if err != nil {
+				return err
+			}
+
+			ok, err := tbls.Verify(pubshare, lockHash, sig)
+			if err != nil {
+				return err
+			} else if !ok {
+				return errors.New("invalid signature")
+			}
+
+			return nil
+		case sigDepositData:
+			pubshare := pubkeyToPubshares[pubkey][data.ShareIdx]
+			sig, err := tblsconv.SigFromCore(data.Signature())
+			if err != nil {
+				return err
+			}
+
+			ok, err := tbls.Verify(pubshare, depositDataMsgs[pubkey], sig)
+			if err != nil {
+				return err
+			} else if !ok {
+				return errors.New("invalid signature")
+			}
+
+			return nil
+		default:
+			return errors.New("invalid signature data")
+		}
 	}
 }
