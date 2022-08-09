@@ -76,7 +76,7 @@ func Attest(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 
-	valMap, err := eth2Cl.ValidatorsByPubKey(ctx, fmt.Sprint(slot), pubkeys)
+	valMap, err := eth2Cl.ValidatorsByPubKey(ctx, "head", pubkeys) // Using head to mitigate future slot issues.
 	if err != nil {
 		return err
 	}
