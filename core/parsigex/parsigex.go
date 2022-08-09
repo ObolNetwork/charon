@@ -40,7 +40,7 @@ import (
 
 const protocolID = "/charon/parsigex/1.0.0"
 
-func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID, verifyFunc func(context.Context, core.PubKey, core.Duty, core.ParSignedData) error) *ParSigEx {
+func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID, verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error) *ParSigEx {
 	parSigEx := &ParSigEx{
 		tcpNode:    tcpNode,
 		sendFunc:   sendFunc,
@@ -60,7 +60,7 @@ type ParSigEx struct {
 	sendFunc   p2p.SendFunc
 	peerIdx    int
 	peers      []peer.ID
-	verifyFunc func(context.Context, core.PubKey, core.Duty, core.ParSignedData) error
+	verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error
 	subs       []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
@@ -98,8 +98,8 @@ func (m *ParSigEx) handle(s network.Stream) {
 
 	// Verify partial signature
 	for pubkey, data := range set {
-		if err = m.verifyFunc(ctx, pubkey, duty, data); err != nil {
-			log.Error(ctx, "Invalid signature from peer", err, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
+		if err = m.verifyFunc(ctx, duty, pubkey, data); err != nil {
+			log.Error(ctx, "Peer exchanged invalid partial signature", err, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
 			return
 		}
 	}
@@ -147,10 +147,10 @@ func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedD
 }
 
 // NewEth2Verifier returns a verifyFunc instance which is responsible to verify the given partial signatures.
-func NewEth2Verifier(eth2Svc eth2client.Service, pubSharesByKey map[core.PubKey][]*bls_sig.PublicKey) func(context.Context, core.PubKey, core.Duty, core.ParSignedData) error {
+func NewEth2Verifier(eth2Svc eth2client.Service, pubSharesByKey map[core.PubKey][]*bls_sig.PublicKey) func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
 	eth2Cl := eth2Svc.(signing.Eth2Provider)
 
-	return func(ctx context.Context, pubkey core.PubKey, duty core.Duty, data core.ParSignedData) error {
+	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
 		// ShareIdx is 1-indexed
 		pubshare := pubSharesByKey[pubkey][data.ShareIdx-1]
 

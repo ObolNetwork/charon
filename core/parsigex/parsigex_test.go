@@ -84,7 +84,7 @@ func TestParSigEx(t *testing.T) {
 	// create ParSigEx components for each host
 	for i := 0; i < n; i++ {
 		wg.Add(n - 1)
-		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers, func(_ context.Context, _ core.PubKey, _ core.Duty, _ core.ParSignedData) error {
+		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers, func(_ context.Context, _ core.Duty, _ core.PubKey, _ core.ParSignedData) error {
 			return nil
 		})
 		sigex.Subscribe(func(_ context.Context, d core.Duty, set core.ParSignedDataSet) error {
@@ -154,7 +154,7 @@ func TestParSigExVerifier(t *testing.T) {
 		att.Signature = sign(sigData[:])
 		data := core.NewPartialAttestation(att, shareIdx)
 
-		require.NoError(t, verifyFunc(ctx, pubkey, core.NewAttesterDuty(slot), data))
+		require.NoError(t, verifyFunc(ctx, core.NewAttesterDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify block", func(t *testing.T) {
@@ -168,7 +168,7 @@ func TestParSigExVerifier(t *testing.T) {
 		data, err := core.NewPartialVersionedSignedBeaconBlock(block, shareIdx)
 		require.NoError(t, err)
 
-		require.NoError(t, verifyFunc(ctx, pubkey, core.NewProposerDuty(slot), data))
+		require.NoError(t, verifyFunc(ctx, core.NewProposerDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify blinded block", func(t *testing.T) {
@@ -182,7 +182,7 @@ func TestParSigExVerifier(t *testing.T) {
 		data, err := core.NewPartialVersionedSignedBlindedBeaconBlock(blindedBlock, shareIdx)
 		require.NoError(t, err)
 
-		require.NoError(t, verifyFunc(ctx, pubkey, core.NewBuilderProposerDuty(slot), data))
+		require.NoError(t, verifyFunc(ctx, core.NewBuilderProposerDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify Randao", func(t *testing.T) {
@@ -192,7 +192,7 @@ func TestParSigExVerifier(t *testing.T) {
 		require.NoError(t, err)
 		randao := core.NewPartialSignature(core.SigFromETH2(sign(sigData[:])), shareIdx)
 
-		require.NoError(t, verifyFunc(ctx, pubkey, core.NewRandaoDuty(slot), randao))
+		require.NoError(t, verifyFunc(ctx, core.NewRandaoDuty(slot), pubkey, randao))
 	})
 
 	t.Run("Verify Voluntary Exit", func(t *testing.T) {
@@ -206,7 +206,7 @@ func TestParSigExVerifier(t *testing.T) {
 		data := core.NewPartialSignedVoluntaryExit(exit, shareIdx)
 		require.NoError(t, err)
 
-		require.NoError(t, verifyFunc(ctx, pubkey, core.NewVoluntaryExit(slot), data))
+		require.NoError(t, verifyFunc(ctx, core.NewVoluntaryExit(slot), pubkey, data))
 	})
 
 	t.Run("Verify validator registration", func(t *testing.T) {
@@ -219,6 +219,6 @@ func TestParSigExVerifier(t *testing.T) {
 		data, err := core.NewPartialVersionedSignedValidatorRegistration(reg, shareIdx)
 		require.NoError(t, err)
 
-		require.NoError(t, verifyFunc(ctx, pubkey, core.NewBuilderRegistrationDuty(slot), data))
+		require.NoError(t, verifyFunc(ctx, core.NewBuilderRegistrationDuty(slot), pubkey, data))
 	})
 }
