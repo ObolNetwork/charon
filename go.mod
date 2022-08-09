@@ -2,9 +2,6 @@ module github.com/obolnetwork/charon
 
 go 1.18
 
-// See https://github.com/prysmaticlabs/grpc-gateway/issues/2
-replace github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/prysmaticlabs/grpc-gateway/v2 v2.3.1-0.20210702154020-550e1cd83ec1
-
 require (
 	github.com/attestantio/go-eth2-client v0.11.8-0.20220725205133-c05328b73d87
 	github.com/bufbuild/buf v1.7.0
