@@ -44,12 +44,15 @@ type createDKGConfig struct {
 	OperatorENRs      []string
 }
 
+// networkToForkVersion maps an ethereum network name (ex: "goerli") to the corresponding fork version (ex: "0x00001020").
+// Note that the fork versions are added in increasing order.
 var networkToForkVersion = map[string]string{
-	"prater":  "0x00001020",
+	"mainnet": "0x00000000",
+	"gnosis":  "0x00000064",
+	"goerli":  "0x00001020",
 	"kiln":    "0x70000069",
 	"ropsten": "0x80000069",
-	"gnosis":  "0x00000064",
-	"mainnet": "0x00000000",
+	"sepolia": "0x90000069",
 }
 
 func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobra.Command {
@@ -79,7 +82,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().IntVarP(&config.Threshold, "threshold", "t", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	cmd.Flags().StringVar(&config.WithdrawalAddress, "withdrawal-address", defaultWithdrawalAddr, "Withdrawal Ethereum address")
-	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kiln, ropsten, gnosis.")
+	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, gnosis, goerli, kiln, ropsten, sepolia.")
 	cmd.Flags().StringVar(&config.DKGAlgo, "dkg-algorithm", "default", "DKG algorithm to use; default, keycast, frost")
 	cmd.Flags().StringSliceVar(&config.OperatorENRs, operatorENRs, nil, "[REQUIRED] Comma-separated list of each operator's Charon ENR address.")
 

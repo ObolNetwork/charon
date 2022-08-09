@@ -41,7 +41,7 @@
       "BLS_WITHDRAWAL_PREFIX": "0x00",
       "BYTES_PER_LOGS_BLOOM": "256",
       "CHURN_LIMIT_QUOTIENT": "65536",
-      "CONFIG_NAME": "prater",
+      "CONFIG_NAME": "goerli",
       "DEPOSIT_CHAIN_ID": "5",
       "DEPOSIT_CONTRACT_ADDRESS": "0xff50ed3d0ec03aC01D4C79aAd74928BFF48a7b2b",
       "DEPOSIT_NETWORK_ID": "5",

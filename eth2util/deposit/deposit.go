@@ -201,8 +201,6 @@ func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 // simply returns the mainnet fork version.
 func networkToForkVersion(network string) eth2p0.Version {
 	switch network {
-	case "prater":
-		return [4]byte{0x00, 0x00, 0x10, 0x20}
 	case "goerli":
 		return [4]byte{0x00, 0x00, 0x10, 0x20}
 	case "kiln":
@@ -211,6 +209,8 @@ func networkToForkVersion(network string) eth2p0.Version {
 		return [4]byte{0x80, 0x00, 0x00, 0x69}
 	case "gnosis":
 		return [4]byte{0x00, 0x00, 0x00, 0x64}
+	case "sepolia":
+		return [4]byte{0x90, 0x00, 0x00, 0x69}
 	case "mainnet": // Default to mainnet
 		fallthrough
 	default:

@@ -32,7 +32,7 @@ import (
 const (
 	// Test output file and it's input values.
 	withdrawalAddr = "0xc0404ed740a69d11201f5ed297c5732f562c6e4e"
-	network        = "prater"
+	network        = "goerli"
 )
 
 //go:generate go test . -run=TestMarshalDepositData -update -clean

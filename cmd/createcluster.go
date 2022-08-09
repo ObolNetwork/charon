@@ -46,7 +46,7 @@ import (
 
 const (
 	defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
-	defaultNetwork        = "prater"
+	defaultNetwork        = "goerli"
 	minNodes              = 4
 )
 
@@ -91,7 +91,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVarP(&config.Threshold, "threshold", "t", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
 	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", defaultWithdrawalAddr, "Ethereum address to receive the returned stake and accrued rewards.")
-	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, prater, kiln, ropsten, gnosis.")
+	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, gnosis, goerli, kiln, ropsten, sepolia.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
 	flags.IntVar(&config.NumDVs, "num-validators", 1, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
@@ -111,6 +111,12 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	// Create cluster directory at given location
 	if err := os.MkdirAll(conf.ClusterDir, 0o755); err != nil {
 		return errors.Wrap(err, "mkdir")
+	}
+
+	// TODO(xenowits): Remove mapping from prater from goerli after the merge concludes.
+	// Map prater to goerli to ensure backwards compatibility with older cluster definitions and cluster locks.
+	if conf.Network == "prater" {
+		conf.Network = "goerli"
 	}
 
 	if err := validateClusterConfig(conf); err != nil {
@@ -431,10 +437,12 @@ func checksumAddr(a string) (string, error) {
 
 // validNetworks defines the set of valid networks.
 var validNetworks = map[string]bool{
-	"prater":  true,
+	"goerli":  true,
+	"prater":  true, // TODO(xenowits): Remove prater after the goerli/prater merge.
 	"kiln":    true,
 	"ropsten": true,
 	"gnosis":  true,
+	"sepolia": true,
 	"mainnet": true,
 }
 
