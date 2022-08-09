@@ -46,6 +46,7 @@ type createDKGConfig struct {
 
 var networkToForkVersion = map[string]string{
 	"prater":  "0x00001020",
+	"goerli":  "0x00001020",
 	"kiln":    "0x70000069",
 	"ropsten": "0x80000069",
 	"gnosis":  "0x00000064",
