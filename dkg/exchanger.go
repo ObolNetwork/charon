@@ -126,14 +126,23 @@ func newDKGVerifier(pubkeyToPubshares map[core.PubKey]map[int]*bls_sig.PublicKey
 	depositDataMsgs map[core.PubKey][]byte,
 ) func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
 	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
+		pubshares, ok := pubkeyToPubshares[pubkey]
+		if !ok {
+			return errors.New("invalid pubkey")
+		}
+
+		pubshare, ok := pubshares[data.ShareIdx]
+		if !ok {
+			return errors.New("invalid shareIdx")
+		}
+
+		sig, err := tblsconv.SigFromCore(data.Signature())
+		if err != nil {
+			return err
+		}
+
 		switch sigType(duty.Slot) {
 		case sigLock:
-			pubshare := pubkeyToPubshares[pubkey][data.ShareIdx]
-			sig, err := tblsconv.SigFromCore(data.Signature())
-			if err != nil {
-				return err
-			}
-
 			ok, err := tbls.Verify(pubshare, lockHash, sig)
 			if err != nil {
 				return err
@@ -143,12 +152,6 @@ func newDKGVerifier(pubkeyToPubshares map[core.PubKey]map[int]*bls_sig.PublicKey
 
 			return nil
 		case sigDepositData:
-			pubshare := pubkeyToPubshares[pubkey][data.ShareIdx]
-			sig, err := tblsconv.SigFromCore(data.Signature())
-			if err != nil {
-				return err
-			}
-
 			ok, err := tbls.Verify(pubshare, depositDataMsgs[pubkey], sig)
 			if err != nil {
 				return err
