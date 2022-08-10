@@ -47,7 +47,7 @@ func TestVerifyAttestation(t *testing.T) {
 	sig, pubkey := sign(t, sigData[:])
 	att.Signature = tblsconv.SigToETH2(sig)
 
-	require.NoError(t, signing.VerifyAttestation(context.Background(), bmock, pubkey, *att))
+	require.NoError(t, signing.VerifyAttestation(context.Background(), bmock, pubkey, att))
 }
 
 func TestVerifyBeaconBlock(t *testing.T) {
@@ -75,7 +75,7 @@ func TestVerifyBeaconBlock(t *testing.T) {
 
 	versionedBlock := data.(core.VersionedSignedBeaconBlock).VersionedSignedBeaconBlock
 
-	require.NoError(t, signing.VerifyBlock(context.Background(), bmock, pubkey, versionedBlock))
+	require.NoError(t, signing.VerifyBlock(context.Background(), bmock, pubkey, &versionedBlock))
 }
 
 func TestVerifyDutyRandao(t *testing.T) {
@@ -114,7 +114,7 @@ func TestVerifyVoluntaryExit(t *testing.T) {
 	sig, pubkey := sign(t, sigData[:])
 	exit.Signature = tblsconv.SigToETH2(sig)
 
-	require.NoError(t, signing.VerifyVoluntaryExit(context.Background(), bmock, pubkey, *exit))
+	require.NoError(t, signing.VerifyVoluntaryExit(context.Background(), bmock, pubkey, exit))
 }
 
 func TestVerifyBlindedBeaconBlock(t *testing.T) {
@@ -142,7 +142,7 @@ func TestVerifyBlindedBeaconBlock(t *testing.T) {
 
 	versionedBlock := data.(core.VersionedSignedBlindedBeaconBlock).VersionedSignedBlindedBeaconBlock
 
-	require.NoError(t, signing.VerifyBlindedBlock(context.Background(), bmock, pubkey, versionedBlock))
+	require.NoError(t, signing.VerifyBlindedBlock(context.Background(), bmock, pubkey, &versionedBlock))
 }
 
 func TestVerifyBuilderRegistration(t *testing.T) {
@@ -160,7 +160,7 @@ func TestVerifyBuilderRegistration(t *testing.T) {
 	sig, pubkey := sign(t, sigData[:])
 	registration.V1.Signature = tblsconv.SigToETH2(sig)
 
-	require.NoError(t, signing.VerifyValidatorRegistration(context.Background(), bmock, pubkey, registration))
+	require.NoError(t, signing.VerifyValidatorRegistration(context.Background(), bmock, pubkey, &registration))
 }
 
 func sign(t *testing.T, data []byte) (*bls_sig.Signature, *bls_sig.PublicKey) {

@@ -260,7 +260,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 
 		// Verify attestation signature
 		err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-			return signing.VerifyAttestation(ctx, c.eth2Cl, pubshare, *att)
+			return signing.VerifyAttestation(ctx, c.eth2Cl, pubshare, att)
 		})
 		if err != nil {
 			return err
@@ -364,7 +364,7 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 
 	// Verify block signature
 	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyBlock(ctx, c.eth2Cl, pubshare, *block)
+		return signing.VerifyBlock(ctx, c.eth2Cl, pubshare, block)
 	})
 	if err != nil {
 		return err
@@ -457,7 +457,7 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 
 	// Verify Blinded block signature
 	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyBlindedBlock(ctx, c.eth2Cl, pubshare, *block)
+		return signing.VerifyBlindedBlock(ctx, c.eth2Cl, pubshare, block)
 	})
 	if err != nil {
 		return err
@@ -508,7 +508,7 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyValidatorRegistration(ctx, c.eth2Cl, pubshare, *registration)
+		return signing.VerifyValidatorRegistration(ctx, c.eth2Cl, pubshare, registration)
 	})
 	if err != nil {
 		return err
@@ -579,7 +579,7 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 
 	// Verify voluntary exit signature
 	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyVoluntaryExit(ctx, c.eth2Cl, pubshare, *exit)
+		return signing.VerifyVoluntaryExit(ctx, c.eth2Cl, pubshare, exit)
 	})
 	if err != nil {
 		return err

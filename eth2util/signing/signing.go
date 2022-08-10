@@ -126,7 +126,7 @@ func GetDataRoot(ctx context.Context, eth2Cl Eth2Provider, name DomainName, epoc
 //
 //}
 
-func VerifyAttestation(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, att eth2p0.Attestation) error {
+func VerifyAttestation(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, att *eth2p0.Attestation) error {
 	sigRoot, err := att.Data.HashTreeRoot()
 	if err != nil {
 		return errors.Wrap(err, "hash attestation data")
@@ -135,7 +135,7 @@ func VerifyAttestation(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig
 	return verify(ctx, eth2Cl, DomainBeaconAttester, att.Data.Target.Epoch, sigRoot, att.Signature, pubkey)
 }
 
-func VerifyBlock(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, block spec.VersionedSignedBeaconBlock) error {
+func VerifyBlock(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, block *spec.VersionedSignedBeaconBlock) error {
 	slot, err := block.Slot()
 	if err != nil {
 		return err
@@ -167,7 +167,7 @@ func VerifyBlock(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.Publi
 	return verify(ctx, eth2Cl, DomainBeaconProposer, epoch, sigRoot, sig, pubkey)
 }
 
-func VerifyBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, block eth2api.VersionedSignedBlindedBeaconBlock) error {
+func VerifyBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
 	slot, err := block.Slot()
 	if err != nil {
 		return err
@@ -210,7 +210,7 @@ func VerifyRandao(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.Publ
 	return verify(ctx, eth2Cl, DomainRandao, epoch, sigRoot, randao, pubkey)
 }
 
-func VerifyVoluntaryExit(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, exit eth2p0.SignedVoluntaryExit) error {
+func VerifyVoluntaryExit(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, exit *eth2p0.SignedVoluntaryExit) error {
 	sigRoot, err := exit.Message.HashTreeRoot()
 	if err != nil {
 		return err
@@ -219,7 +219,7 @@ func VerifyVoluntaryExit(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_s
 	return verify(ctx, eth2Cl, DomainExit, exit.Message.Epoch, sigRoot, exit.Signature, pubkey)
 }
 
-func VerifyValidatorRegistration(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, reg eth2api.VersionedSignedValidatorRegistration) error {
+func VerifyValidatorRegistration(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, reg *eth2api.VersionedSignedValidatorRegistration) error {
 	// TODO: switch to signed.Root() when implemented on go-eth2-client (PR has been raised)
 	sigRoot, err := reg.V1.Message.HashTreeRoot()
 	if err != nil {
