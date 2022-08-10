@@ -45,6 +45,7 @@ type BootnodeConfig struct {
 	AutoP2PKey    bool
 	P2PRelay      bool
 	MaxResPerPeer int
+	MaxConns      int
 	RelayLogLevel string
 }
 
@@ -75,6 +76,7 @@ func bindBootnodeFlag(flags *pflag.FlagSet, config *BootnodeConfig) {
 	flags.BoolVar(&config.P2PRelay, "p2p-relay", true, "Enable libp2p tcp host providing circuit relay to charon clusters")
 	flags.IntVar(&config.MaxResPerPeer, "max-reservations", 30, "Updates max circuit reservations per peer (each valid for 30min)")
 	flags.StringVar(&config.RelayLogLevel, "p2p-relay-loglevel", "", "Libp2p circuit relay log level. E.g., debug, info, warn, error")
+	flags.IntVar(&config.MaxConns, "p2p-max-connections", 1024, "Libp2p maximum number of peers that can connect to this bootnode.")
 }
 
 // RunBootnode starts a p2p-udp discv5 bootnode.
@@ -136,10 +138,9 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		}
 
 		// Increase resource limits
-		const maxConns = 1024
 		limiter := rcmgr.DefaultLimits
-		limiter.SystemBaseLimit.ConnsInbound = maxConns
-		limiter.SystemBaseLimit.FD = maxConns
+		limiter.SystemBaseLimit.ConnsInbound = config.MaxConns
+		limiter.SystemBaseLimit.FD = config.MaxConns
 		limiter.TransientBaseLimit = limiter.SystemBaseLimit
 
 		mgr, err := rcmgr.NewResourceManager(rcmgr.NewStaticLimiter(limiter))
@@ -157,7 +158,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		relayResources := relay.DefaultResources()
 		relayResources.MaxReservationsPerPeer = config.MaxResPerPeer
 		relayResources.MaxReservationsPerIP = config.MaxResPerPeer
-		relayResources.MaxReservations = maxConns
+		relayResources.MaxReservations = config.MaxConns
 
 		relayService, err := relay.New(tcpNode, relay.WithResources(relayResources))
 		if err != nil {
