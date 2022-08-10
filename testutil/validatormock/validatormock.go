@@ -347,13 +347,13 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc Sign
 func Register(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 	registration *eth2api.VersionedValidatorRegistration, pubshare eth2p0.BLSPubKey,
 ) error {
-	// TODO(corver): refactor to registration.HashTreeRoot() once available.
-	sigRoot, err := registration.V1.HashTreeRoot()
+	sigRoot, err := registration.Root()
 	if err != nil {
 		return err
 	}
 
-	sigData, err := signing.GetDataRoot(nil, nil, signing.DomainApplicationBuilder, 0, sigRoot)
+	// Always use epoch 0 for DomainApplicationBuilder
+	sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainApplicationBuilder, 0, sigRoot)
 	if err != nil {
 		return err
 	}

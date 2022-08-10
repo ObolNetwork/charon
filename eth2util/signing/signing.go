@@ -96,21 +96,9 @@ func GetRegistrationDomain() (eth2p0.Domain, error) {
 // GetDataRoot wraps the signing root with the domain and returns signing data hash tree root.
 // The result should be identical to what was signed by the VC.
 func GetDataRoot(ctx context.Context, eth2Cl Eth2Provider, name DomainName, epoch eth2p0.Epoch, root eth2p0.Root) ([32]byte, error) {
-	var (
-		domain eth2p0.Domain
-		err    error
-	)
-	if name == DomainApplicationBuilder {
-		// Builder registration uses non-standard domain.
-		domain, err = GetRegistrationDomain()
-		if err != nil {
-			return [32]byte{}, err
-		}
-	} else {
-		domain, err = GetDomain(ctx, eth2Cl, name, epoch)
-		if err != nil {
-			return [32]byte{}, err
-		}
+	domain, err := GetDomain(ctx, eth2Cl, name, epoch)
+	if err != nil {
+		return [32]byte{}, err
 	}
 
 	msg, err := (&eth2p0.SigningData{ObjectRoot: root, Domain: domain}).HashTreeRoot()
@@ -220,12 +208,12 @@ func VerifyVoluntaryExit(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_s
 }
 
 func VerifyValidatorRegistration(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, reg *eth2api.VersionedSignedValidatorRegistration) error {
-	// TODO: switch to signed.Root() when implemented on go-eth2-client (PR has been raised)
-	sigRoot, err := reg.V1.Message.HashTreeRoot()
+	sigRoot, err := reg.Root()
 	if err != nil {
 		return err
 	}
 
+	// Always use epoch 0 for DomainApplicationBuilder.
 	return verify(ctx, eth2Cl, DomainApplicationBuilder, 0, sigRoot, reg.V1.Signature, pubkey)
 }
 

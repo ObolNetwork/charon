@@ -90,11 +90,17 @@ func TestSimnetNoNetwork_WithExitTekuVC(t *testing.T) {
 }
 
 func TestSimnetNoNetwork_WithBuilderRegistrationTekuVC(t *testing.T) {
+	if !*integration {
+		t.Skip("Skipping Teku integration test")
+	}
+
 	args := newSimnetArgs(t)
-	args.N = 1
-	args = startTeku(t, args, 0, tekuRegister)
+	args.BuilderRegistration = true
+	for i := 0; i < args.N; i++ {
+		args = startTeku(t, args, i, tekuRegister)
+	}
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BuilderAPI = true
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
 	testSimnet(t, args)
 }
 
@@ -330,10 +336,10 @@ type tekuCmd []string
 var (
 	tekuVC       tekuCmd = []string{"validator-client", "--network=auto"}
 	tekuExit     tekuCmd = []string{"voluntary-exit", "--confirmation-enabled=false", "--epoch=1"}
-	tekuRegister tekuCmd = []string{"validator-client", "--network=auto",
-		"--validators-proposer-blinded-blocks-enabled=true",
+	tekuRegister tekuCmd = []string{
+		"validator-client",
+		"--network=auto",
 		"--validators-builder-registration-default-enabled=true",
-		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
 		"--validators-proposer-config-refresh-enabled=true",
 	}
 )
@@ -360,11 +366,15 @@ func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs 
 	tekuArgs = append(tekuArgs, cmd...)
 	tekuArgs = append(tekuArgs,
 		"--validator-keys=/keys:/keys",
-		"--logging=DEBUG",
 		"--log-destination=console",
 		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
-		fmt.Sprintf("--validators-proposer-config=http://%s/get_config", args.VAPIAddrs[node]),
 	)
+
+	if args.BuilderRegistration {
+		tekuArgs = append(tekuArgs,
+			fmt.Sprintf("--validators-proposer-config=http://%s/teku_proposer_config", args.VAPIAddrs[node]),
+		)
+	}
 
 	// Configure docker
 	name := fmt.Sprint(time.Now().UnixNano())

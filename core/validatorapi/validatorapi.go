@@ -85,10 +85,15 @@ func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicK
 		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
 		keysByShare     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
 		sharesByCoreKey = make(map[core.PubKey]*bls_sig.PublicKey)
+		coreSharesByKey = make(map[core.PubKey]core.PubKey)
 	)
 
 	for pubkey, pubshare := range pubShareByKey {
 		coreKey, err := tblsconv.KeyToCore(pubkey)
+		if err != nil {
+			return nil, err
+		}
+		coreShare, err := tblsconv.KeyToCore(pubshare)
 		if err != nil {
 			return nil, err
 		}
@@ -101,6 +106,7 @@ func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicK
 			return nil, err
 		}
 		sharesByCoreKey[coreKey] = pubshare
+		coreSharesByKey[coreKey] = coreShare
 		sharesByKey[key] = share
 		keysByShare[share] = key
 	}
@@ -133,6 +139,7 @@ func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicK
 		getVerifyShareFunc: getVerifyShareFunc,
 		getPubShareFunc:    getPubShareFunc,
 		getPubKeyFunc:      getPubKeyFunc,
+		sharesByKey:        coreSharesByKey,
 		eth2Cl:             eth2Cl,
 		shareIdx:           shareIdx,
 	}, nil
@@ -150,6 +157,8 @@ type Component struct {
 	getPubShareFunc func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, bool)
 	// getPubKeyFunc return the root public key for a public shares.
 	getPubKeyFunc func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error)
+	// sharesByKey contains this nodes public shares (value) by root public (key)
+	sharesByKey map[core.PubKey]core.PubKey
 
 	// Registered input functions
 

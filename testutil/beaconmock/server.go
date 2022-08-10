@@ -111,6 +111,10 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 			},
 		},
 		{
+			Path:    "/eth/v1/validator/prepare_beacon_proposer",
+			Handler: func(w http.ResponseWriter, r *http.Request) {},
+		},
+		{
 			Path: "/eth/v1/events",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				// TODO(corver): Send keep alives
