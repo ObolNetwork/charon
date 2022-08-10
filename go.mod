@@ -3,11 +3,11 @@ module github.com/obolnetwork/charon
 go 1.18
 
 require (
-	github.com/attestantio/go-eth2-client v0.11.8-0.20220725205133-c05328b73d87
+	github.com/attestantio/go-eth2-client v0.13.1
 	github.com/bufbuild/buf v1.7.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/ethereum/go-ethereum v1.10.21
-	github.com/ferranbt/fastssz v0.0.0-20220103083642-bc5fefefa28b
+	github.com/ferranbt/fastssz v0.1.1
 	github.com/goccy/go-yaml v1.9.5
 	github.com/gorilla/mux v1.8.0
 	github.com/ipfs/go-log/v2 v2.5.1
@@ -95,7 +95,7 @@ require (
 	github.com/jhump/protocompile v0.0.0-20220216033700-d705409f108f // indirect
 	github.com/jhump/protoreflect v1.12.1-0.20220721211354-060cc04fc18b // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
-	github.com/klauspost/cpuid/v2 v2.0.12 // indirect
+	github.com/klauspost/cpuid/v2 v2.1.0 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/koron/go-ssdp v0.0.2 // indirect
 	github.com/libp2p/go-buffer-pool v0.0.2 // indirect
@@ -177,7 +177,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/net v0.0.0-20220726230323-06994584191e // indirect
-	golang.org/x/sys v0.0.0-20220727055044-e65921a090b8 // indirect
+	golang.org/x/sys v0.0.0-20220731174439-a90be440212d // indirect
 	golang.org/x/term v0.0.0-20220722155259-a9ba230a4035 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20220517211312-f3a8303e98df // indirect
