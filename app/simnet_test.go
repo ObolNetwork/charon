@@ -89,6 +89,15 @@ func TestSimnetNoNetwork_WithExitTekuVC(t *testing.T) {
 	testSimnet(t, args)
 }
 
+func TestSimnetNoNetwork_WithBuilderRegistrationTekuVC(t *testing.T) {
+	args := newSimnetArgs(t)
+	args.N = 1
+	args = startTeku(t, args, 0, tekuRegister)
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BuilderAPI = true
+	testSimnet(t, args)
+}
+
 func TestSimnetNoNetwork_WithAttesterMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
@@ -210,7 +219,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 					return nil
 				},
 				SimnetBMockOpts: append([]beaconmock.Option{
-					beaconmock.WithSlotsPerEpoch(1),
+					beaconmock.WithSlotsPerEpoch(6),
 				}, args.BMockOpts...),
 				BuilderRegistration: registrationFunc(),
 			},
@@ -319,8 +328,14 @@ func newRegistrationProvider(t *testing.T, args simnetArgs) func() <-chan *eth2a
 type tekuCmd []string
 
 var (
-	tekuVC   tekuCmd = []string{"validator-client", "--network=auto"}
-	tekuExit tekuCmd = []string{"voluntary-exit", "--confirmation-enabled=false", "--epoch=1"}
+	tekuVC       tekuCmd = []string{"validator-client", "--network=auto"}
+	tekuExit     tekuCmd = []string{"voluntary-exit", "--confirmation-enabled=false", "--epoch=1"}
+	tekuRegister tekuCmd = []string{"validator-client", "--network=auto",
+		"--validators-proposer-blinded-blocks-enabled=true",
+		"--validators-builder-registration-default-enabled=true",
+		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
+		"--validators-proposer-config-refresh-enabled=true",
+	}
 )
 
 // startTeku starts a teku validator client for the provided node and returns updated args.
@@ -345,7 +360,10 @@ func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs 
 	tekuArgs = append(tekuArgs, cmd...)
 	tekuArgs = append(tekuArgs,
 		"--validator-keys=/keys:/keys",
+		"--logging=DEBUG",
+		"--log-destination=console",
 		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
+		fmt.Sprintf("--validators-proposer-config=http://%s/get_config", args.VAPIAddrs[node]),
 	)
 
 	// Configure docker
@@ -356,7 +374,7 @@ func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs 
 		fmt.Sprintf("--name=%s", name),
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
 		"--user=root", // Root required to read volume files in GitHub actions.
-		"consensys/teku:latest",
+		"consensys/teku:develop",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
 	t.Logf("docker args: %v", dockerArgs)

@@ -179,7 +179,7 @@ type handlerFunc func(ctx context.Context, params map[string]string, query url.V
 func wrap(endpoint string, handler handlerFunc) http.Handler {
 	wrap := func(w http.ResponseWriter, r *http.Request) {
 		defer observeAPILatency(endpoint)()
-
+		fmt.Printf("🔥!! r.URL=%v\n", r.URL.String())
 		ctx := r.Context()
 		ctx = log.WithTopic(ctx, "vapi")
 		ctx = log.WithCtx(ctx, z.Str("vapi_endpoint", endpoint))
@@ -540,6 +540,7 @@ func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
 // proxyHandler returns a reverse proxy handler.
 func proxyHandler(eth2Cl eth2client.Service) (http.HandlerFunc, error) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("🔥!! proxy r.URL.String()=%v\n", r.URL.String())
 		// Get active beacon node address.
 		targetURL, err := getBeaconNodeAddress(r.Context(), eth2Cl)
 		if err != nil {
