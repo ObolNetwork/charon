@@ -33,7 +33,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -259,8 +258,11 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 			return err
 		}
 
-		// Verify signature
-		if err = c.verifySignedData(ctx, c.eth2Cl, pubkey, att); err != nil {
+		// Verify attestation signature
+		err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
+			return signing.VerifyAttestation(ctx, c.eth2Cl, pubshare, *att)
+		})
+		if err != nil {
 			return err
 		}
 
@@ -304,7 +306,11 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	// TODO(corver): Refactor RANDAO partial signature to contain epoch.
 	parSig := core.NewPartialSignature(core.SigFromETH2(randao), c.shareIdx)
 
-	if err := c.verifyRandaoParSig(ctx, slot, randao, pubkey); err != nil {
+	// Verify randao signature
+	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
+		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, randao, slot)
+	})
+	if err != nil {
 		return nil, err
 	}
 
@@ -356,7 +362,11 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 	duty := core.NewProposerDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	if err = c.verifySignedData(ctx, c.eth2Cl, pubkey, block); err != nil {
+	// Verify block signature
+	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
+		return signing.VerifyBlock(ctx, c.eth2Cl, pubshare, *block)
+	})
+	if err != nil {
 		return err
 	}
 
@@ -386,7 +396,11 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 		return nil, err
 	}
 
-	if err := c.verifyRandaoParSig(ctx, slot, randao, pubkey); err != nil {
+	// Verify randao signature
+	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
+		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, randao, slot)
+	})
+	if err != nil {
 		return nil, err
 	}
 
@@ -441,7 +455,11 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	duty := core.NewBuilderProposerDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	if err = c.verifySignedData(ctx, c.eth2Cl, pubkey, block); err != nil {
+	// Verify Blinded block signature
+	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
+		return signing.VerifyBlindedBlock(ctx, c.eth2Cl, pubshare, *block)
+	})
+	if err != nil {
 		return err
 	}
 
@@ -489,7 +507,10 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 	duty := core.NewBuilderRegistrationDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	if err = c.verifySignedData(ctx, c.eth2Cl, pubkey, registration); err != nil {
+	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
+		return signing.VerifyValidatorRegistration(ctx, c.eth2Cl, pubshare, *registration)
+	})
+	if err != nil {
 		return err
 	}
 
@@ -556,7 +577,11 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 	duty := core.NewVoluntaryExit(int64(slotsPerEpoch) * int64(exit.Message.Epoch))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	if err = c.verifySignedData(ctx, c.eth2Cl, pubkey, exit); err != nil {
+	// Verify voluntary exit signature
+	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
+		return signing.VerifyVoluntaryExit(ctx, c.eth2Cl, pubshare, *exit)
+	})
+	if err != nil {
 		return err
 	}
 
@@ -703,37 +728,7 @@ func (c Component) getProposerPubkey(ctx context.Context, duty core.Duty) (core.
 	return pubkey, nil
 }
 
-// TODO(corver): Use verifySignedData once randao partial signature contains epoch.
-func (c Component) verifyRandaoParSig(ctx context.Context, slot eth2p0.Slot,
-	randao eth2p0.BLSSignature, pubkey core.PubKey,
-) error {
-	if c.insecureTest {
-		return nil
-	}
-
-	epoch, err := c.epochFromSlot(ctx, slot)
-	if err != nil {
-		return err
-	}
-
-	// Randao signing root is the epoch.
-	sigRoot, err := eth2util.EpochHashRoot(epoch)
-	if err != nil {
-		return err
-	}
-
-	pubshare, err := c.getVerifyShareFunc(pubkey)
-	if err != nil {
-		return err
-	}
-
-	return signing.Verify(ctx, c.eth2Cl, signing.DomainRandao, epoch, sigRoot, randao, pubshare)
-}
-
-// verifySignedData aliases signing.VerifySignedData skipping it for insecureTest.
-func (c Component) verifySignedData(ctx context.Context, eth2Cl signing.Eth2Provider,
-	pubkey core.PubKey, eth2SignedType interface{},
-) error {
+func (c Component) verifyPartialSig(pubkey core.PubKey, verifyFunc func(pubshare *bls_sig.PublicKey) error) error {
 	if c.insecureTest {
 		return nil
 	}
@@ -743,5 +738,5 @@ func (c Component) verifySignedData(ctx context.Context, eth2Cl signing.Eth2Prov
 		return err
 	}
 
-	return signing.VerifySignedData(ctx, eth2Cl, pubshare, eth2SignedType)
+	return verifyFunc(pubshare)
 }
