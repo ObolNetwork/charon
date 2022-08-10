@@ -23,7 +23,9 @@ import (
 	"time"
 
 	relaylog "github.com/ipfs/go-log/v2"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/peer"
+	rcmgr "github.com/libp2p/go-libp2p-resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -133,7 +135,19 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 			}
 		}
 
-		tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), udpNode, nil, nil)
+		// Increase resource limits
+		const maxConns = 1024
+		limiter := rcmgr.DefaultLimits
+		limiter.SystemBaseLimit.ConnsInbound = maxConns
+		limiter.SystemBaseLimit.FD = maxConns
+		limiter.TransientBaseLimit = limiter.SystemBaseLimit
+
+		mgr, err := rcmgr.NewResourceManager(rcmgr.NewStaticLimiter(limiter))
+		if err != nil {
+			p2pErr <- errors.Wrap(err, "new resource manager")
+		}
+
+		tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), udpNode, nil, nil, libp2p.ResourceManager(mgr))
 		if err != nil {
 			p2pErr <- errors.Wrap(err, "new tcp node")
 			return
@@ -143,7 +157,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		relayResources := relay.DefaultResources()
 		relayResources.MaxReservationsPerPeer = config.MaxResPerPeer
 		relayResources.MaxReservationsPerIP = config.MaxResPerPeer
-		relayResources.MaxReservations = 1024
+		relayResources.MaxReservations = maxConns
 
 		relayService, err := relay.New(tcpNode, relay.WithResources(relayResources))
 		if err != nil {

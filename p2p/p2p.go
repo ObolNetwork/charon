@@ -42,7 +42,7 @@ import (
 
 // NewTCPNode returns a started tcp-based libp2p host.
 func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
-	udpNode *discover.UDPv5, peers, relays []Peer) (host.Host, error,
+	udpNode *discover.UDPv5, peers, relays []Peer, opts ...libp2p.Option) (host.Host, error,
 ) {
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
@@ -55,7 +55,7 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 	}
 
 	// Init options.
-	opts := []libp2p.Option{
+	defaultOpts := []libp2p.Option{
 		// Set P2P identity key.
 		libp2p.Identity(priv),
 		// Set listen addresses.
@@ -75,7 +75,9 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 		}),
 	}
 
-	tcpNode, err := libp2p.New(opts...)
+	defaultOpts = append(defaultOpts, opts...)
+
+	tcpNode, err := libp2p.New(defaultOpts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new libp2p node")
 	}
