@@ -38,13 +38,18 @@ type Lock struct {
 	SignatureAggregate []byte
 }
 
+// GetTree ssz hashes the Lock object.
+func (l Lock) GetTree() (*ssz.Node, error) {
+	return ssz.ProofTree(l) //nolint:wrapcheck
+}
+
 // HashTreeRoot ssz hashes the Lock object.
 func (l Lock) HashTreeRoot() ([32]byte, error) {
 	return ssz.HashWithDefaultHasher(l) //nolint:wrapcheck
 }
 
 // HashTreeRootWith ssz hashes the Lock object with a hasher.
-func (l Lock) HashTreeRootWith(hh *ssz.Hasher) error {
+func (l Lock) HashTreeRootWith(hh ssz.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'Definition'

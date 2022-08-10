@@ -353,7 +353,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 							DepositCount: 0,
 							BlockHash:    testutil.RandomBytes32(),
 						},
-						Graffiti:          graffiti,
+						Graffiti:          array32(graffiti),
 						ProposerSlashings: []*eth2p0.ProposerSlashing{},
 						AttesterSlashings: []*eth2p0.AttesterSlashing{},
 						Attestations:      []*eth2p0.Attestation{testutil.RandomAttestation(), testutil.RandomAttestation()},
@@ -379,7 +379,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 							DepositCount: 0,
 							BlockHash:    testutil.RandomBytes32(),
 						},
-						Graffiti:          graffiti,
+						Graffiti:          array32(graffiti),
 						ProposerSlashings: []*eth2p0.ProposerSlashing{},
 						AttesterSlashings: []*eth2p0.AttesterSlashing{},
 						Attestations:      []*eth2p0.Attestation{testutil.RandomAttestation(), testutil.RandomAttestation()},
@@ -451,6 +451,13 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return nil
 		},
 	}
+}
+
+func array32(slice []byte) [32]byte {
+	var resp [32]byte
+	copy(resp[:], slice)
+
+	return resp
 }
 
 func mustPKFromHex(pubkeyHex string) eth2p0.BLSPubKey {

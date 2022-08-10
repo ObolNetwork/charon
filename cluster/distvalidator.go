@@ -41,13 +41,18 @@ type DistValidator struct {
 	FeeRecipientAddress string `json:"fee_recipient_address,omitempty"`
 }
 
+// GetTree ssz hashes the DistValidator object.
+func (v DistValidator) GetTree() (*ssz.Node, error) {
+	return ssz.ProofTree(v) //nolint:wrapcheck
+}
+
 // HashTreeRoot ssz hashes the Lock object.
 func (v DistValidator) HashTreeRoot() ([32]byte, error) {
 	return ssz.HashWithDefaultHasher(v) //nolint:wrapcheck
 }
 
 // HashTreeRootWith ssz hashes the Lock object with a hasher.
-func (v DistValidator) HashTreeRootWith(hh *ssz.Hasher) error {
+func (v DistValidator) HashTreeRootWith(hh ssz.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'PubKey'

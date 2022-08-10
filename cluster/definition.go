@@ -164,6 +164,11 @@ func (d Definition) ConfigHash() ([32]byte, error) {
 	return configHash(d)
 }
 
+// GetTree ssz hashes the Definition object.
+func (d Definition) GetTree() (*ssz.Node, error) {
+	return ssz.ProofTree(d) //nolint:wrapcheck
+}
+
 // HashTreeRoot ssz hashes the Definition object.
 func (d Definition) HashTreeRoot() ([32]byte, error) {
 	return ssz.HashWithDefaultHasher(d) //nolint:wrapcheck
@@ -171,7 +176,7 @@ func (d Definition) HashTreeRoot() ([32]byte, error) {
 
 // HashTreeRootWith ssz hashes the Definition object by including all the fields inside Operator.
 // This is done in order to calculate definition_hash of the final Definition object.
-func (d Definition) HashTreeRootWith(hh *ssz.Hasher) error {
+func (d Definition) HashTreeRootWith(hh ssz.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'UUID'

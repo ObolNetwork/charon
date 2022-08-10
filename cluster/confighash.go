@@ -33,6 +33,11 @@ type staticDefinition struct {
 	addresses           []string
 }
 
+// GetTree ssz hashes the staticDefinition object.
+func (d staticDefinition) GetTree() (*ssz.Node, error) {
+	return ssz.ProofTree(d) //nolint:wrapcheck
+}
+
 // HashTreeRoot ssz hashes the staticDefinition object.
 func (d staticDefinition) HashTreeRoot() ([32]byte, error) {
 	return ssz.HashWithDefaultHasher(d) //nolint:wrapcheck
@@ -40,7 +45,7 @@ func (d staticDefinition) HashTreeRoot() ([32]byte, error) {
 
 // HashTreeRootWith ssz hashes the staticDefinition object by including all the fields inside Operator.
 // This is done in order to calculate definition_hash of the final Definition object.
-func (d staticDefinition) HashTreeRootWith(hh *ssz.Hasher) error {
+func (d staticDefinition) HashTreeRootWith(hh ssz.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'uuid'
