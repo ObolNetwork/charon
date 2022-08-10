@@ -72,13 +72,18 @@ func (o Operator) getName() (string, error) {
 	return p2p.PeerName(peer.ID), nil
 }
 
+// GetTree ssz hashes the Operator object.
+func (o Operator) GetTree() (*ssz.Node, error) {
+	return ssz.ProofTree(o) //nolint:wrapcheck
+}
+
 // HashTreeRoot ssz hashes the Definition object.
 func (o Operator) HashTreeRoot() ([32]byte, error) {
 	return ssz.HashWithDefaultHasher(o) //nolint:wrapcheck
 }
 
 // HashTreeRootWith ssz hashes the Operator object with a hasher.
-func (o Operator) HashTreeRootWith(hh *ssz.Hasher) error {
+func (o Operator) HashTreeRootWith(hh ssz.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'Address'
