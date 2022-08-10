@@ -75,24 +75,6 @@ func GetDomain(ctx context.Context, eth2Cl Eth2Provider, name DomainName, epoch 
 	return eth2Cl.Domain(ctx, domainTyped, epoch)
 }
 
-// GetRegistrationDomain returns a non-standard domain for validator builder registration.
-// See https://github.com/ethereum/builder-specs/blob/main/specs/builder.md#signing.
-func GetRegistrationDomain() (eth2p0.Domain, error) {
-	root, err := (&eth2p0.ForkData{}).HashTreeRoot() // Zero fork data
-	if err != nil {
-		return eth2p0.Domain{}, errors.Wrap(err, "hash fork data")
-	}
-
-	// See https://github.com/ethereum/builder-specs/blob/main/specs/builder.md#domain-types.
-	registrationDomainType := eth2p0.DomainType{0, 0, 0, 1}
-
-	var domain eth2p0.Domain
-	copy(domain[0:], registrationDomainType[:])
-	copy(domain[4:], root[:])
-
-	return domain, nil
-}
-
 // GetDataRoot wraps the signing root with the domain and returns signing data hash tree root.
 // The result should be identical to what was signed by the VC.
 func GetDataRoot(ctx context.Context, eth2Cl Eth2Provider, name DomainName, epoch eth2p0.Epoch, root eth2p0.Root) ([32]byte, error) {
