@@ -287,10 +287,11 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 ) error {
 	// Convert and prep public keys and public shares
 	var (
-		corePubkeys    []core.PubKey
-		pubkeys        []eth2p0.BLSPubKey
-		pubshares      []eth2p0.BLSPubKey
-		pubSharesByKey = make(map[*bls_sig.PublicKey]*bls_sig.PublicKey)
+		corePubkeys       []core.PubKey
+		pubkeys           []eth2p0.BLSPubKey
+		pubshares         []eth2p0.BLSPubKey
+		pubSharesByKey    = make(map[*bls_sig.PublicKey]*bls_sig.PublicKey)
+		allPubSharesByKey = make(map[core.PubKey]map[int]*bls_sig.PublicKey) // map[pubkey]map[shareIdx]pubshare
 	)
 	for _, dv := range lock.Validators {
 		pubkey, err := dv.PublicKey()
@@ -301,6 +302,17 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		corePubkey, err := tblsconv.KeyToCore(pubkey)
 		if err != nil {
 			return err
+		}
+
+		allPubShares := make(map[int]*bls_sig.PublicKey)
+		for i, b := range dv.PubShares {
+			pubshare, err := tblsconv.KeyFromBytes(b)
+			if err != nil {
+				return err
+			}
+
+			// share index is 1-indexed
+			allPubShares[i+1] = pubshare
 		}
 
 		pk, err := tblsconv.KeyToETH2(pubkey)
@@ -322,6 +334,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		pubkeys = append(pubkeys, pk)
 		pubSharesByKey[pubkey] = pubShare
 		pubshares = append(pubshares, eth2Share)
+		allPubSharesByKey[corePubkey] = allPubShares
 	}
 
 	peers, err := lock.Peers()
@@ -358,7 +371,12 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if conf.TestConfig.ParSigExFunc != nil {
 		parSigEx = conf.TestConfig.ParSigExFunc()
 	} else {
-		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs)
+		verifyFunc, err := parsigex.NewEth2Verifier(eth2Cl, allPubSharesByKey)
+		if err != nil {
+			return err
+		}
+
+		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc)
 	}
 
 	sigAgg := sigagg.New(lock.Threshold)
