@@ -50,8 +50,8 @@ var (
 
 	relayConnGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "p2p",
-		Name:      "relay_reservation",
-		Help:      "Connected relay reservations by relay peer",
+		Name:      "relay_connections",
+		Help:      "Connected relays by name",
 	}, []string{"peer"})
 )
 

@@ -60,7 +60,6 @@ func NewRelayReserver(tcpNode host.Host, relay Peer) lifecycle.HookFunc {
 		ctx = log.WithTopic(ctx, "relay")
 		name := PeerName(relay.ID)
 		ctx = log.WithCtx(ctx, z.Str("relay_peer", name))
-		relayConnGauge.WithLabelValues(name).Set(0)
 
 		if relay.Enode.TCP() == 0 {
 			log.Debug(ctx, "Relay not accessible")
