@@ -1249,7 +1249,7 @@
       },
       "gridPos": {
         "h": 7,
-        "w": 10,
+        "w": 12,
         "x": 0,
         "y": 16
       },
@@ -1339,8 +1339,8 @@
       },
       "gridPos": {
         "h": 7,
-        "w": 10,
-        "x": 10,
+        "w": 12,
+        "x": 12,
         "y": 16
       },
       "id": 18,
@@ -1370,73 +1370,6 @@
       ],
       "title": "Beacon API request latency (90%)",
       "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "Difference of local vs remote next slot event",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 4,
-        "x": 20,
-        "y": 16
-      },
-      "id": 21,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
-      "pluginVersion": "9.0.4",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "exemplar": true,
-          "expr": "core_scheduler_beacon_node_offset_seconds{job=\"$node\"}",
-          "interval": "",
-          "legendFormat": "",
-          "refId": "A"
-        }
-      ],
-      "title": "Beacon Clock Sync",
-      "type": "stat"
     },
     {
       "datasource": {
@@ -1481,7 +1414,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1618,7 +1552,7 @@
       "type": "timeseries"
     }
   ],
-  "refresh": false,
+  "refresh": "30s",
   "schemaVersion": 36,
   "style": "dark",
   "tags": [],

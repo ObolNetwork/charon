@@ -44,20 +44,6 @@ var (
 		Help:      "The total count of duties scheduled by type",
 	}, []string{"duty"})
 
-	syncMedianGauge = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "core",
-		Subsystem: "scheduler",
-		Name:      "beacon_node_offset_seconds",
-		Help:      "The beacon node clock sync median offset in seconds",
-	})
-
-	syncRTTGauge = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "core",
-		Subsystem: "scheduler",
-		Name:      "beacon_node_rtt_seconds",
-		Help:      "The beacon node clock sync ping rtt in seconds",
-	})
-
 	activeGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "core",
 		Subsystem: "scheduler",
