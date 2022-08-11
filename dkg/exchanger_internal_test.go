@@ -17,20 +17,16 @@ package dkg
 
 import (
 	"context"
-	"crypto/rand"
 	"reflect"
 	"sync"
 	"testing"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/peerstore"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -100,9 +96,7 @@ func TestExchanger(t *testing.T) {
 	}
 
 	for i := 0; i < nodes; i++ {
-		ex := newExchanger(hosts[i], i, peers, dvs, func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
-			return nil
-		})
+		ex := newExchanger(hosts[i], i, peers, dvs)
 		exchangers = append(exchangers, ex)
 	}
 
@@ -123,54 +117,5 @@ func TestExchanger(t *testing.T) {
 
 	for i := 0; i < nodes; i++ {
 		reflect.DeepEqual(actual[i], expectedData)
-	}
-}
-
-func TestDKGVerifier(t *testing.T) {
-	tss, secrets, err := tbls.GenerateTSS(3, 4, rand.Reader)
-	require.NoError(t, err)
-
-	pubkey, err := tblsconv.KeyToCore(tss.PublicKey())
-	require.NoError(t, err)
-
-	pubkeyToPubshares := map[core.PubKey]map[int]*bls_sig.PublicKey{
-		pubkey: tss.PublicShares(),
-	}
-
-	lockHash := []byte("lock hash bytes")
-	depositDataMsgs := map[core.PubKey][]byte{
-		pubkey: []byte("deposit data bytes"),
-	}
-
-	verifyFunc := newDKGVerifier(pubkeyToPubshares, lockHash, depositDataMsgs)
-
-	var lockHashSigs []core.ParSignedData
-	for i, s := range secrets {
-		secret, err := tblsconv.ShareToSecret(s)
-		require.NoError(t, err)
-
-		sig, err := tbls.Sign(secret, lockHash)
-		require.NoError(t, err)
-
-		lockHashSigs = append(lockHashSigs, core.NewPartialSignature(tblsconv.SigToCore(sig), i+1))
-	}
-
-	for _, data := range lockHashSigs {
-		require.NoError(t, verifyFunc(context.Background(), core.NewRandaoDuty(int64(sigLock)), pubkey, data))
-	}
-
-	var depositDataSigs []core.ParSignedData
-	for i, s := range secrets {
-		secret, err := tblsconv.ShareToSecret(s)
-		require.NoError(t, err)
-
-		sig, err := tbls.Sign(secret, depositDataMsgs[pubkey])
-		require.NoError(t, err)
-
-		depositDataSigs = append(depositDataSigs, core.NewPartialSignature(tblsconv.SigToCore(sig), i+1))
-	}
-
-	for _, data := range depositDataSigs {
-		require.NoError(t, verifyFunc(context.Background(), core.NewRandaoDuty(int64(sigDepositData)), pubkey, data))
 	}
 }

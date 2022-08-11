@@ -18,17 +18,13 @@ package dkg
 import (
 	"context"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/parsigdb"
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // Note: Following duty types shouldn't be confused with the duty types in core workflow. This was
@@ -59,13 +55,16 @@ type exchanger struct {
 	numVals int
 }
 
-func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int,
-	verifyFunc func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error,
-) *exchanger {
+func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) *exchanger {
+	// Partial signature roots not known yet, so skip verification in parsigex, rather verify before we aggregate.
+	noopVerifier := func(ctx context.Context, duty core.Duty, key core.PubKey, data core.ParSignedData) error {
+		return nil
+	}
+
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:   parsigdb.NewMemDB(len(peers)),
-		sigex:   parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, verifyFunc),
+		sigex:   parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, noopVerifier),
 		sigChan: make(chan sigData, len(peers)),
 		numVals: vals,
 	}
@@ -119,49 +118,4 @@ func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, pk core.PubKey,
 	}
 
 	return nil
-}
-
-// newDKGVerifier returns a verify function to verify partial signatures by parsigex.
-func newDKGVerifier(pubkeyToPubshares map[core.PubKey]map[int]*bls_sig.PublicKey, lockHash []byte,
-	depositDataMsgs map[core.PubKey][]byte,
-) func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
-	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
-		pubshares, ok := pubkeyToPubshares[pubkey]
-		if !ok {
-			return errors.New("invalid pubkey")
-		}
-
-		pubshare, ok := pubshares[data.ShareIdx]
-		if !ok {
-			return errors.New("invalid shareIdx")
-		}
-
-		sig, err := tblsconv.SigFromCore(data.Signature())
-		if err != nil {
-			return err
-		}
-
-		switch sigType(duty.Slot) {
-		case sigLock:
-			ok, err := tbls.Verify(pubshare, lockHash, sig)
-			if err != nil {
-				return errors.Wrap(err, "verify cluster lock partial signature")
-			} else if !ok {
-				return errors.New("invalid signature")
-			}
-
-			return nil
-		case sigDepositData:
-			ok, err := tbls.Verify(pubshare, depositDataMsgs[pubkey], sig)
-			if err != nil {
-				return errors.Wrap(err, "verify deposit data partial signature")
-			} else if !ok {
-				return errors.New("invalid signature")
-			}
-
-			return nil
-		default:
-			return errors.New("invalid signature type")
-		}
-	}
 }
