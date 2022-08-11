@@ -95,11 +95,11 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 
 // startReadyChecker returns function which returns an error resulting from ready checks periodically.
 func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID, clock clockwork.Clock) func() error {
-	const notConnectedLimit = 3 // Require three rounds of too few connected
+	const minNotConnected = 3 // Require three rounds of too few connected
 	var (
-		mu                sync.Mutex
-		readyErr          = errReadyUninitialised
-		notConnectedCount = notConnectedLimit // Start as not connected.
+		mu                 sync.Mutex
+		readyErr           = errReadyUninitialised
+		notConnectedRounds = minNotConnected // Start as not connected.
 	)
 	go func() {
 		ticker := clock.NewTicker(10 * time.Second)
@@ -110,9 +110,9 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 				return
 			case <-ticker.Chan():
 				if quorumPeersConnected(peerIDs, tcpNode) {
-					notConnectedCount = 0
+					notConnectedRounds = 0
 				} else {
-					notConnectedCount++
+					notConnectedRounds++
 				}
 
 				syncing, err := beaconNodeSyncing(ctx, eth2Cl)
@@ -122,7 +122,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 				} else if syncing {
 					err = errReadySyncing
 					readyzGauge.Set(0)
-				} else if notConnectedCount >= notConnectedLimit {
+				} else if notConnectedRounds >= minNotConnected {
 					err = errReadyTooFewPeers
 					readyzGauge.Set(0)
 				} else {
