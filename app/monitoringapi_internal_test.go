@@ -24,7 +24,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/peerstore"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -54,11 +53,11 @@ func TestStartChecker(t *testing.T) {
 			err:         errReadySyncing,
 		},
 		{
-			name:        "peer ping failing",
+			name:        "too few peers",
 			isSyncing:   false,
 			numPeers:    5,
 			absentPeers: 3,
-			err:         errReadyPingFailing,
+			err:         errReadyTooFewPeers,
 		},
 	}
 
@@ -93,11 +92,13 @@ func TestStartChecker(t *testing.T) {
 
 			// connect each host with its peers
 			for i := 0; i < tt.numPeers; i++ {
-				for k := 0; k < tt.numPeers-tt.absentPeers; k++ {
+				for k := tt.absentPeers; k < tt.numPeers; k++ {
 					if i == k {
 						continue
 					}
-					hosts[i].Peerstore().AddAddrs(hostsInfo[k].ID, hostsInfo[k].Addrs, peerstore.PermanentAddrTTL)
+
+					err := hosts[i].Connect(ctx, hostsInfo[k])
+					require.NoError(t, err)
 				}
 			}
 
@@ -119,7 +120,7 @@ func TestStartChecker(t *testing.T) {
 					}
 
 					return false
-				}, 100*time.Millisecond, time.Millisecond)
+				}, time.Second, 100*time.Millisecond)
 			} else {
 				require.Eventually(t, func() bool {
 					err = readyErrFunc()
@@ -128,7 +129,7 @@ func TestStartChecker(t *testing.T) {
 					}
 
 					return false
-				}, 100*time.Millisecond, time.Millisecond)
+				}, time.Second, 100*time.Millisecond)
 			}
 		})
 	}
