@@ -53,27 +53,27 @@ import (
 //go:generate go test . -integration -v
 var integration = flag.Bool("integration", false, "Enable docker based integration test")
 
-func TestSimnetNoNetwork_WithAttesterTekuVC(t *testing.T) {
-	if !*integration {
-		t.Skip("Skipping Teku integration test")
-	}
+// func TestSimnetNoNetwork_WithAttesterTekuVC(t *testing.T) {
+// 	if !*integration {
+// 		t.Skip("Skipping Teku integration test")
+// 	}
 
-	args := newSimnetArgs(t)
-	args = startTeku(t, args, 0, tekuVC)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	testSimnet(t, args)
-}
+// 	args := newSimnetArgs(t)
+// 	args = startTeku(t, args, 0, tekuVC)
+// 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+// 	testSimnet(t, args)
+// }
 
-func TestSimnetNoNetwork_WithProposerTekuVC(t *testing.T) {
-	if !*integration {
-		t.Skip("Skipping Teku integration test")
-	}
+// func TestSimnetNoNetwork_WithProposerTekuVC(t *testing.T) {
+// 	if !*integration {
+// 		t.Skip("Skipping Teku integration test")
+// 	}
 
-	args := newSimnetArgs(t)
-	args = startTeku(t, args, 0, tekuVC)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	testSimnet(t, args)
-}
+// 	args := newSimnetArgs(t)
+// 	args = startTeku(t, args, 0, tekuVC)
+// 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+// 	testSimnet(t, args)
+// }
 
 func TestSimnetNoNetwork_WithExitTekuVC(t *testing.T) {
 	if !*integration {
@@ -89,47 +89,47 @@ func TestSimnetNoNetwork_WithExitTekuVC(t *testing.T) {
 	testSimnet(t, args)
 }
 
-func TestSimnetNoNetwork_WithBuilderRegistrationTekuVC(t *testing.T) {
-	if !*integration {
-		t.Skip("Skipping Teku integration test")
-	}
+// func TestSimnetNoNetwork_WithBuilderRegistrationTekuVC(t *testing.T) {
+// 	if !*integration {
+// 		t.Skip("Skipping Teku integration test")
+// 	}
 
-	args := newSimnetArgs(t)
-	args.BuilderRegistration = true
-	for i := 0; i < args.N; i++ {
-		args = startTeku(t, args, i, tekuRegister)
-	}
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	testSimnet(t, args)
-}
+// 	args := newSimnetArgs(t)
+// 	args.BuilderRegistration = true
+// 	for i := 0; i < args.N; i++ {
+// 		args = startTeku(t, args, i, tekuRegister)
+// 	}
+// 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+// 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+// 	testSimnet(t, args)
+// }
 
-func TestSimnetNoNetwork_WithAttesterMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	testSimnet(t, args)
-}
+// func TestSimnetNoNetwork_WithAttesterMockVCs(t *testing.T) {
+// 	args := newSimnetArgs(t)
+// 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+// 	testSimnet(t, args)
+// }
 
-func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	testSimnet(t, args)
-}
+// func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
+// 	args := newSimnetArgs(t)
+// 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+// 	testSimnet(t, args)
+// }
 
-func TestSimnetNoNetwork_WithBuilderProposerMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BuilderAPI = true
-	testSimnet(t, args)
-}
+// func TestSimnetNoNetwork_WithBuilderProposerMockVCs(t *testing.T) {
+// 	args := newSimnetArgs(t)
+// 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+// 	args.BuilderAPI = true
+// 	testSimnet(t, args)
+// }
 
-func TestSimnetNoNetwork_WithBuilderRegistrationMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	args.BuilderRegistration = true
-	testSimnet(t, args)
-}
+// func TestSimnetNoNetwork_WithBuilderRegistrationMockVCs(t *testing.T) {
+// 	args := newSimnetArgs(t)
+// 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+// 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+// 	args.BuilderRegistration = true
+// 	testSimnet(t, args)
+// }
 
 type simnetArgs struct {
 	N                   int
@@ -339,7 +339,6 @@ var (
 	tekuRegister tekuCmd = []string{
 		"validator-client",
 		"--network=auto",
-		"--validators-builder-registration-default-enabled=true",
 		"--validators-proposer-config-refresh-enabled=true",
 	}
 )
@@ -365,9 +364,9 @@ func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs 
 	var tekuArgs []string
 	tekuArgs = append(tekuArgs, cmd...)
 	tekuArgs = append(tekuArgs,
-		"--validator-keys=/keys:/keys",
 		"--log-destination=console",
 		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
+		"--validator-keys=/keys:/keys",
 		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
 	)
 
@@ -385,7 +384,7 @@ func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs 
 		fmt.Sprintf("--name=%s", name),
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
 		"--user=root", // Root required to read volume files in GitHub actions.
-		"consensys/teku:develop",
+		"consensys/teku:latest",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
 	t.Logf("docker args: %v", dockerArgs)
