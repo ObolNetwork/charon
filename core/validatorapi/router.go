@@ -551,6 +551,7 @@ func tekuProposerConfig(p TekuProposerConfigProvider) handlerFunc {
 // proxyHandler returns a reverse proxy handler.
 func proxyHandler(eth2Cl eth2client.Service) (http.HandlerFunc, error) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("🔥!! proxy r.URL.String()=%v\n", r.URL.String())
 		// Get active beacon node address.
 		targetURL, err := getBeaconNodeAddress(r.Context(), eth2Cl)
 		if err != nil {
