@@ -58,7 +58,8 @@ func NewRelays(conf Config, bootnodes []*enode.Node) ([]Peer, error) {
 func NewRelayReserver(tcpNode host.Host, relay Peer) lifecycle.HookFunc {
 	return func(ctx context.Context) error {
 		ctx = log.WithTopic(ctx, "relay")
-		ctx = log.WithCtx(ctx, z.Str("relay_peer", PeerName(relay.ID)))
+		name := PeerName(relay.ID)
+		ctx = log.WithCtx(ctx, z.Str("relay_peer", name))
 
 		if relay.Enode.TCP() == 0 {
 			log.Debug(ctx, "Relay not accessible")
@@ -76,6 +77,8 @@ func NewRelayReserver(tcpNode host.Host, relay Peer) lifecycle.HookFunc {
 		}
 
 		for ctx.Err() == nil {
+			relayConnGauge.WithLabelValues(name).Set(0)
+
 			resv, err := circuit.Reserve(ctx, tcpNode, addrInfo)
 			if err != nil {
 				log.Warn(ctx, "Reserve relay circuit", err)
@@ -94,12 +97,24 @@ func NewRelayReserver(tcpNode host.Host, relay Peer) lifecycle.HookFunc {
 				z.Any("connection_duration", resv.LimitDuration),    // Client side connection limit (short)
 				z.Any("connection_data_mb", resv.LimitData/(1<<20)), // Client side connection limit (short)
 			)
+			relayConnGauge.WithLabelValues(name).Set(1)
 
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-time.After(time.Until(resv.Expiration.Add(-time.Minute))):
+			ticker := time.NewTicker(time.Second * 5)
+
+			for ok := true; ok; {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(time.Until(resv.Expiration.Add(-time.Minute))):
+					ok = false
+				case <-ticker.C:
+					if len(tcpNode.Network().ConnsToPeer(relay.ID)) == 0 {
+						log.Warn(ctx, "No connections to relay", nil)
+						ok = false
+					}
+				}
 			}
+
 			log.Debug(ctx, "Refreshing relay circuit reservation")
 		}
 

@@ -47,6 +47,12 @@ var (
 		Name:      "reachability_status",
 		Help:      "Current libp2p reachability status of this node as detected by autonat: unknown(0), public(1) or private(2).",
 	})
+
+	relayConnGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "p2p",
+		Name:      "relay_connections",
+		Help:      "Connected relays by name",
+	}, []string{"peer"})
 )
 
 func observePing(p peer.ID, d time.Duration) {
