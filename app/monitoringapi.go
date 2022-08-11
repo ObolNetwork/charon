@@ -17,7 +17,6 @@ package app
 
 import (
 	"context"
-	"math"
 	"net/http"
 	"net/http/pprof"
 	"sync"
@@ -28,16 +27,16 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/lifecycle"
+	"github.com/obolnetwork/charon/cluster"
 )
 
 var (
 	errReadyUninitialised    = errors.New("ready check uninitialised")
-	errReadyPingFailing      = errors.New("couldn't ping all peers")
+	errReadyTooFewPeers      = errors.New("quorum peers not connected")
 	errReadySyncing          = errors.New("beacon node not synced")
 	errReadyBeaconNodeFailed = errors.New("failed to get beacon sync state")
 )
@@ -96,9 +95,11 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 
 // startReadyChecker returns function which returns an error resulting from ready checks periodically.
 func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID, clock clockwork.Clock) func() error {
+	const notConnectedLimit = 3 // Require three rounds of too few connected
 	var (
-		mu       sync.Mutex
-		readyErr = errReadyUninitialised
+		mu                sync.Mutex
+		readyErr          = errReadyUninitialised
+		notConnectedCount = notConnectedLimit // Start as not connected.
 	)
 	go func() {
 		ticker := clock.NewTicker(10 * time.Second)
@@ -108,6 +109,12 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 			case <-ctx.Done():
 				return
 			case <-ticker.Chan():
+				if quorumPeersConnected(peerIDs, tcpNode) {
+					notConnectedCount = 0
+				} else {
+					notConnectedCount++
+				}
+
 				syncing, err := beaconNodeSyncing(ctx, eth2Cl)
 				if err != nil {
 					err = errReadyBeaconNodeFailed
@@ -115,8 +122,8 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 				} else if syncing {
 					err = errReadySyncing
 					readyzGauge.Set(0)
-				} else if peersReady(ctx, peerIDs, tcpNode) != nil {
-					err = errReadyPingFailing
+				} else if notConnectedCount >= notConnectedLimit {
+					err = errReadyTooFewPeers
 					readyzGauge.Set(0)
 				} else {
 					readyzGauge.Set(1)
@@ -147,49 +154,20 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 	return state.IsSyncing, nil
 }
 
-// peersReady returns an error if quorum peers cannot be pinged (concurrently).
-func peersReady(ctx context.Context, peerIDs []peer.ID, tcpNode host.Host) error {
-	results := make(chan ping.Result, len(peerIDs))
+// quorumPeersConnected returns true if quorum peers are currently connected.
+func quorumPeersConnected(peerIDs []peer.ID, tcpNode host.Host) bool {
+	var count int
 	for _, pID := range peerIDs {
 		if tcpNode.ID() == pID {
-			continue // Don't ping self
+			continue // Don't check self
 		}
 
-		go func(pID peer.ID) {
-			ctx, cancel := context.WithCancel(ctx) // Cancel after reading first result
-			defer cancel()
-
-			results <- <-ping.Ping(ctx, tcpNode, pID)
-		}(pID)
-	}
-
-	var (
-		// Require quorum successes (excluding self). Formula from IBFT 2.0 paper https://arxiv.org/pdf/1909.10194.pdf
-		require  = int(math.Ceil(float64(len(peerIDs)*2)/3)) - 1
-		okCount  int
-		errCount int
-	)
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case res := <-results:
-			if res.Error != nil {
-				errCount++
-			} else {
-				okCount++
-			}
-
-			// Return error if we cannot reach quorum peers.
-			if errCount > (len(peerIDs) - require - 1) {
-				return errors.New("not enough peers")
-			}
-
-			if okCount == require {
-				return nil
-			}
+		if len(tcpNode.Network().ConnsToPeer(pID)) > 0 {
+			count++
 		}
 	}
+
+	return count >= cluster.Threshold(len(peerIDs))
 }
 
 func writeResponse(w http.ResponseWriter, status int, msg string) {
