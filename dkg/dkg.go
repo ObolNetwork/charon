@@ -159,14 +159,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("unsupported dkg algorithm")
 	}
 
-	dvs, err := dvsFromShares(shares)
+	lock, err := getClusterLock(shares, def)
 	if err != nil {
 		return err
-	}
-
-	lock := cluster.Lock{
-		Definition: def,
-		Validators: dvs,
 	}
 
 	lockHash, err := lock.HashTreeRoot()
@@ -211,24 +206,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Write keystores, deposit data and cluster lock files after exchange of partial signatures in order
 	// to prevent partial data writes in case of peer connection lost
 
-	if err := writeKeystores(conf.DataDir, shares); err != nil {
-		return err
-	}
-	log.Debug(ctx, "Saved keyshares to disk")
-
-	if err = writeLock(conf.DataDir, lock); err != nil {
-		return err
-	}
-	log.Debug(ctx, "Saved lock file to disk")
-
-	if err := writeDepositData(aggSigDepositData, def.WithdrawalAddress, network, conf.DataDir); err != nil {
-		return err
-	}
-	log.Debug(ctx, "Saved deposit data file to disk")
-
-	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
-
-	return nil
+	return writeOutput(ctx, shares, lock, aggSigDepositData, conf.DataDir, def.WithdrawalAddress, network)
 }
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
@@ -580,6 +558,42 @@ func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 	}
 
 	return dvs, nil
+}
+
+func getClusterLock(shares []share, def cluster.Definition) (cluster.Lock, error) {
+	dvs, err := dvsFromShares(shares)
+	if err != nil {
+		return cluster.Lock{}, err
+	}
+
+	return cluster.Lock{
+		Definition: def,
+		Validators: dvs,
+	}, nil
+}
+
+// writeOutput writes keystores, cluster-lock.json and deposit-data.json to disk.
+func writeOutput(ctx context.Context, shares []share, lock cluster.Lock, aggSigDepositData map[core.PubKey]*bls_sig.Signature,
+	dataDir string, withdrawalAddr string, network string,
+) error {
+	if err := writeKeystores(dataDir, shares); err != nil {
+		return err
+	}
+	log.Debug(ctx, "Saved keyshares to disk")
+
+	if err := writeLock(dataDir, lock); err != nil {
+		return err
+	}
+	log.Debug(ctx, "Saved lock file to disk")
+
+	if err := writeDepositData(aggSigDepositData, withdrawalAddr, network, dataDir); err != nil {
+		return err
+	}
+	log.Debug(ctx, "Saved deposit data file to disk")
+
+	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
+
+	return nil
 }
 
 func forkVersionToNetwork(forkVersion string) (string, error) {
