@@ -104,6 +104,20 @@ func TestSimnetNoNetwork_WithBuilderRegistrationTekuVC(t *testing.T) {
 	testSimnet(t, args)
 }
 
+func TestSimnetNoNetwork_WithBuilderProposerTekuVC(t *testing.T) {
+	if !*integration {
+		t.Skip("Skipping Teku integration test")
+	}
+
+	args := newSimnetArgs(t)
+	args.BuilderAPI = true
+	for i := 0; i < args.N; i++ {
+		args = startTeku(t, args, i, tekuVC)
+	}
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	testSimnet(t, args)
+}
+
 func TestSimnetNoNetwork_WithAttesterMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
@@ -376,6 +390,11 @@ func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs 
 		tekuArgs = append(tekuArgs,
 			"--validators-proposer-config-refresh-enabled=true",
 			fmt.Sprintf("--validators-proposer-config=http://%s/teku_proposer_config", args.VAPIAddrs[node]),
+		)
+	}
+	if args.BuilderAPI {
+		tekuArgs = append(tekuArgs,
+			"--validators-proposer-blinded-blocks-enabled=true",
 		)
 	}
 
