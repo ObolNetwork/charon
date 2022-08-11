@@ -64,6 +64,7 @@ type Handler interface {
 	eth2client.ValidatorsProvider
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.VoluntaryExitSubmitter
+	TekuProposerConfigProvider
 	// Above sorted alphabetically.
 }
 
@@ -137,7 +138,11 @@ func NewRouter(h Handler, eth2Cl eth2client.Service) (*mux.Router, error) {
 			Path:    "/eth/v1/beacon/pool/voluntary_exits",
 			Handler: submitExit(h),
 		},
-		// TODO(corver): Add more endpoints
+		{
+			Name:    "teku_proposer_config",
+			Path:    "/teku_proposer_config",
+			Handler: tekuProposerConfig(h),
+		},
 	}
 
 	r := mux.NewRouter()
@@ -534,6 +539,12 @@ func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
 		}
 
 		return nil, p.SubmitVoluntaryExit(ctx, exit)
+	}
+}
+
+func tekuProposerConfig(p TekuProposerConfigProvider) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, _ []byte) (interface{}, error) {
+		return p.TekuProposerConfig(ctx)
 	}
 }
 

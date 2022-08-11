@@ -17,8 +17,12 @@ package signing_test
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"testing"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
@@ -145,16 +149,59 @@ func TestVerifyBlindedBeaconBlock(t *testing.T) {
 	require.NoError(t, signing.VerifyBlindedBlock(context.Background(), bmock, pubkey, &versionedBlock))
 }
 
+func TestVerifyRegistrationReference(t *testing.T) {
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	// Test data obtained from teku.
+
+	secretShareBytes, err := hex.DecodeString("345768c0245f1dc702df9e50e811002f61ebb2680b3d5931527ef59f96cbaf9b")
+	require.NoError(t, err)
+
+	secretShare, err := tblsconv.SecretFromBytes(secretShareBytes)
+	require.NoError(t, err)
+
+	registrationJSON := `
+ {
+  "message": {
+   "fee_recipient": "0x000000000000000000000000000000000000dead",
+   "gas_limit": "30000000",
+   "timestamp": "1646092800",
+   "pubkey": "0x86966350b672bd502bfbdb37a6ea8a7392e8fb7f5ebb5c5e2055f4ee168ebfab0fef63084f28c9f62c3ba71f825e527e"
+  },
+  "signature": "0xb101da0fc08addcc5d010ee569f6bbbdca049a5cb27efad231565bff2e3af504ec2bb87b11ed22843e9c1094f1dfe51a0b2a5ad1808df18530a2f59f004032dbf6281ecf0fc3df86d032da5b9d32a3d282c05923de491381f8f28c2863a00180"
+ }`
+
+	registration := new(eth2v1.SignedValidatorRegistration)
+	err = json.Unmarshal([]byte(registrationJSON), registration)
+	require.NoError(t, err)
+
+	sigRoot, err := registration.Message.HashTreeRoot()
+	require.NoError(t, err)
+
+	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainApplicationBuilder, 0, sigRoot)
+	require.NoError(t, err)
+
+	sig, err := tbls.Sign(secretShare, sigData[:])
+	require.NoError(t, err)
+
+	sigEth2 := tblsconv.SigToETH2(sig)
+	require.Equal(t,
+		fmt.Sprintf("%x", registration.Signature),
+		fmt.Sprintf("%x", sigEth2),
+	)
+}
+
 func TestVerifyBuilderRegistration(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
 	registration := testutil.RandomCoreVersionedSignedValidatorRegistration(t).VersionedSignedValidatorRegistration
 
-	sigRoot, err := registration.V1.Message.HashTreeRoot()
+	sigRoot, err := registration.Root()
 	require.NoError(t, err)
 
-	sigData, err := signing.GetDataRoot(nil, nil, signing.DomainApplicationBuilder, 0, sigRoot)
+	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainApplicationBuilder, 0, sigRoot)
 	require.NoError(t, err)
 
 	sig, pubkey := sign(t, sigData[:])

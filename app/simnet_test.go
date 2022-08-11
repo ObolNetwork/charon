@@ -89,6 +89,21 @@ func TestSimnetNoNetwork_WithExitTekuVC(t *testing.T) {
 	testSimnet(t, args)
 }
 
+func TestSimnetNoNetwork_WithBuilderRegistrationTekuVC(t *testing.T) {
+	if !*integration {
+		t.Skip("Skipping Teku integration test")
+	}
+
+	args := newSimnetArgs(t)
+	args.BuilderRegistration = true
+	for i := 0; i < args.N; i++ {
+		args = startTeku(t, args, i, tekuVC)
+	}
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	testSimnet(t, args)
+}
+
 func TestSimnetNoNetwork_WithAttesterMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
@@ -319,8 +334,17 @@ func newRegistrationProvider(t *testing.T, args simnetArgs) func() <-chan *eth2a
 type tekuCmd []string
 
 var (
-	tekuVC   tekuCmd = []string{"validator-client", "--network=auto"}
-	tekuExit tekuCmd = []string{"voluntary-exit", "--confirmation-enabled=false", "--epoch=1"}
+	tekuVC tekuCmd = []string{
+		"validator-client",
+		"--network=auto",
+		"--log-destination=console",
+		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
+	}
+	tekuExit tekuCmd = []string{
+		"voluntary-exit",
+		"--confirmation-enabled=false",
+		"--epoch=1",
+	}
 )
 
 // startTeku starts a teku validator client for the provided node and returns updated args.
@@ -348,6 +372,13 @@ func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs 
 		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
 	)
 
+	if args.BuilderRegistration {
+		tekuArgs = append(tekuArgs,
+			"--validators-proposer-config-refresh-enabled=true",
+			fmt.Sprintf("--validators-proposer-config=http://%s/teku_proposer_config", args.VAPIAddrs[node]),
+		)
+	}
+
 	// Configure docker
 	name := fmt.Sprint(time.Now().UnixNano())
 	dockerArgs := []string{
@@ -356,7 +387,7 @@ func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs 
 		fmt.Sprintf("--name=%s", name),
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
 		"--user=root", // Root required to read volume files in GitHub actions.
-		"consensys/teku:latest",
+		"consensys/teku:develop",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
 	t.Logf("docker args: %v", dockerArgs)

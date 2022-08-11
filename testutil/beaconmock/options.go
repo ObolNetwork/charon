@@ -31,6 +31,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/prysmaticlabs/go-bitfield"
@@ -343,10 +344,10 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		httpServer: httpServer,
 		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
 			return &spec.VersionedBeaconBlock{
-				Version: spec.DataVersionAltair,
-				Altair: &altair.BeaconBlock{
+				Version: spec.DataVersionBellatrix,
+				Bellatrix: &bellatrix.BeaconBlock{
 					Slot: slot,
-					Body: &altair.BeaconBlockBody{
+					Body: &bellatrix.BeaconBlockBody{
 						RANDAOReveal: randaoReveal,
 						ETH1Data: &eth2p0.ETH1Data{
 							DepositRoot:  testutil.RandomRoot(),
@@ -363,6 +364,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 							SyncCommitteeBits:      bitfield.NewBitvector512(),
 							SyncCommitteeSignature: testutil.RandomEth2Signature(),
 						},
+						ExecutionPayload: testutil.RandomExecutionPayLoad(),
 					},
 				},
 			}, nil

@@ -431,7 +431,7 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Ignoring Domain for this test
-			msg, err := test.registration.V1.Message.HashTreeRoot()
+			msg, err := test.registration.Root()
 			require.NoError(t, err)
 
 			// Create partial signatures (in two formats)
