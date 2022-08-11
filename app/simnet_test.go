@@ -75,34 +75,34 @@ var integration = flag.Bool("integration", false, "Enable docker based integrati
 // 	testSimnet(t, args)
 // }
 
-func TestSimnetNoNetwork_WithExitTekuVC(t *testing.T) {
-	if !*integration {
-		t.Skip("Skipping Teku integration test")
-	}
-
-	args := newSimnetArgs(t)
-	for i := 0; i < args.N; i++ {
-		args = startTeku(t, args, i, tekuExit)
-	}
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	testSimnet(t, args)
-}
-
-// func TestSimnetNoNetwork_WithBuilderRegistrationTekuVC(t *testing.T) {
+// func TestSimnetNoNetwork_WithExitTekuVC(t *testing.T) {
 // 	if !*integration {
 // 		t.Skip("Skipping Teku integration test")
 // 	}
 
 // 	args := newSimnetArgs(t)
-// 	args.BuilderRegistration = true
 // 	for i := 0; i < args.N; i++ {
-// 		args = startTeku(t, args, i, tekuRegister)
+// 		args = startTeku(t, args, i, tekuExit)
 // 	}
 // 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 // 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
 // 	testSimnet(t, args)
 // }
+
+func TestSimnetNoNetwork_WithBuilderRegistrationTekuVC(t *testing.T) {
+	if !*integration {
+		t.Skip("Skipping Teku integration test")
+	}
+
+	args := newSimnetArgs(t)
+	args.BuilderRegistration = true
+	for i := 0; i < args.N; i++ {
+		args = startTeku(t, args, i, tekuRegister)
+	}
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	testSimnet(t, args)
+}
 
 // func TestSimnetNoNetwork_WithAttesterMockVCs(t *testing.T) {
 // 	args := newSimnetArgs(t)
@@ -334,11 +334,22 @@ func newRegistrationProvider(t *testing.T, args simnetArgs) func() <-chan *eth2a
 type tekuCmd []string
 
 var (
-	tekuVC       tekuCmd = []string{"validator-client", "--network=auto"}
-	tekuExit     tekuCmd = []string{"voluntary-exit", "--confirmation-enabled=false", "--epoch=1"}
+	tekuVC tekuCmd = []string{
+		"validator-client",
+		"--network=auto",
+		"--log-destination=console",
+		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
+	}
+	tekuExit tekuCmd = []string{
+		"voluntary-exit",
+		"--confirmation-enabled=false",
+		"--epoch=1",
+	}
 	tekuRegister tekuCmd = []string{
 		"validator-client",
 		"--network=auto",
+		"--log-destination=console",
+		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
 		"--validators-proposer-config-refresh-enabled=true",
 	}
 )
@@ -364,8 +375,6 @@ func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs 
 	var tekuArgs []string
 	tekuArgs = append(tekuArgs, cmd...)
 	tekuArgs = append(tekuArgs,
-		"--log-destination=console",
-		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
 		"--validator-keys=/keys:/keys",
 		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
 	)
