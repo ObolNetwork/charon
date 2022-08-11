@@ -367,6 +367,7 @@ func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs 
 	tekuArgs = append(tekuArgs,
 		"--validator-keys=/keys:/keys",
 		"--log-destination=console",
+		"--validators-proposer-default-fee-recipient=0x5692549a764a1B7CC93A56619A05A9fc92B4b567",
 		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
 	)
 
