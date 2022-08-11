@@ -97,7 +97,7 @@ func TestSimnetNoNetwork_WithBuilderRegistrationTekuVC(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BuilderRegistration = true
 	for i := 0; i < args.N; i++ {
-		args = startTeku(t, args, i, tekuRegister)
+		args = startTeku(t, args, i, tekuVC)
 	}
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
@@ -345,13 +345,6 @@ var (
 		"--confirmation-enabled=false",
 		"--epoch=1",
 	}
-	tekuRegister tekuCmd = []string{
-		"validator-client",
-		"--network=auto",
-		"--log-destination=console",
-		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
-		"--validators-proposer-config-refresh-enabled=true",
-	}
 )
 
 // startTeku starts a teku validator client for the provided node and returns updated args.
@@ -381,6 +374,7 @@ func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs 
 
 	if args.BuilderRegistration {
 		tekuArgs = append(tekuArgs,
+			"--validators-proposer-config-refresh-enabled=true",
 			fmt.Sprintf("--validators-proposer-config=http://%s/teku_proposer_config", args.VAPIAddrs[node]),
 		)
 	}
