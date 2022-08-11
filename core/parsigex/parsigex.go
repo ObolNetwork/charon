@@ -99,7 +99,7 @@ func (m *ParSigEx) handle(s network.Stream) {
 	// Verify partial signature
 	for pubkey, data := range set {
 		if err = m.verifyFunc(ctx, duty, pubkey, data); err != nil {
-			log.Error(ctx, "Peer exchanged invalid partial signature", err, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
+			log.Error(ctx, "Peer exchanged invalid partial signature", err)
 			return
 		}
 	}
@@ -146,7 +146,7 @@ func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedD
 	m.subs = append(m.subs, fn)
 }
 
-// NewEth2Verifier returns a verifyFunc instance which is responsible to verify the given partial signatures.
+// NewEth2Verifier returns a partial signature verification function for core workflow eth2 signatures.
 func NewEth2Verifier(eth2Svc eth2client.Service, pubSharesByKey map[core.PubKey]map[int]*bls_sig.PublicKey) (func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error, error) {
 	eth2Cl, ok := eth2Svc.(signing.Eth2Provider)
 	if !ok {
@@ -156,7 +156,7 @@ func NewEth2Verifier(eth2Svc eth2client.Service, pubSharesByKey map[core.PubKey]
 	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
 		pubshares, ok := pubSharesByKey[pubkey]
 		if !ok {
-			return errors.New("invalid pubkey")
+			return errors.New("unknown pubkey, not part of cluster lock")
 		}
 
 		pubshare, ok := pubshares[data.ShareIdx]

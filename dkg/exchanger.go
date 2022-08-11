@@ -145,7 +145,7 @@ func newDKGVerifier(pubkeyToPubshares map[core.PubKey]map[int]*bls_sig.PublicKey
 		case sigLock:
 			ok, err := tbls.Verify(pubshare, lockHash, sig)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "verify cluster lock partial signature")
 			} else if !ok {
 				return errors.New("invalid signature")
 			}
@@ -154,14 +154,14 @@ func newDKGVerifier(pubkeyToPubshares map[core.PubKey]map[int]*bls_sig.PublicKey
 		case sigDepositData:
 			ok, err := tbls.Verify(pubshare, depositDataMsgs[pubkey], sig)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "verify deposit data partial signature")
 			} else if !ok {
 				return errors.New("invalid signature")
 			}
 
 			return nil
 		default:
-			return errors.New("invalid signature data")
+			return errors.New("invalid signature type")
 		}
 	}
 }

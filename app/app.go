@@ -291,7 +291,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		pubkeys           []eth2p0.BLSPubKey
 		pubshares         []eth2p0.BLSPubKey
 		pubSharesByKey    = make(map[*bls_sig.PublicKey]*bls_sig.PublicKey)
-		allPubSharesByKey = make(map[core.PubKey]map[int]*bls_sig.PublicKey)
+		allPubSharesByKey = make(map[core.PubKey]map[int]*bls_sig.PublicKey) // map[pubkey]map[shareIdx]pubshare
 	)
 	for _, dv := range lock.Validators {
 		pubkey, err := dv.PublicKey()
@@ -311,6 +311,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 				return err
 			}
 
+			// share index is 1-indexed
 			allPubShares[i+1] = pubshare
 		}
 
