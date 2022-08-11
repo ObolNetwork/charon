@@ -177,6 +177,12 @@ func isTemporaryBeaconErr(err error) bool {
 		return true
 	}
 
+	// More timing issues:
+	//  - Attestations must be from the current or previous epoch
+	if strings.Contains(err.Error(), "current or previous") {
+		return true
+	}
+
 	// TODO(corver): Add more checks here.
 
 	return false
