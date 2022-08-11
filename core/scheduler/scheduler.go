@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -453,13 +452,6 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 		return nil, err
 	}
 
-	pingFunc := newBeaconPinger(ctx, eth2Cl)
-
-	syncOffset, err := newClockSyncer(ctx, eth2Cl, pingFunc, clock, genesis, slotDuration)
-	if err != nil {
-		return nil, err
-	}
-
 	chainAge := clock.Since(genesis)
 	height := int64(chainAge / slotDuration)
 	startTime := genesis.Add(time.Duration(height) * slotDuration)
@@ -478,17 +470,6 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 			height++
 			startTime = startTime.Add(slotDuration)
 			delay := startTime.Sub(clock.Now())
-
-			if featureset.Enabled(featureset.BeaconClockSync) {
-				// Add offset to start time to account for beacon node clock skew.
-				delay += syncOffset()
-			}
-
-			if height%10 == 0 { // Log offset every minute or so.
-				log.Debug(ctx, "Beacon node clock sync: remote vs local next slot event",
-					z.Any("offset", syncOffset()),
-					z.Any("beacon_clock_sync_enabled", featureset.Enabled(featureset.BeaconClockSync)))
-			}
 
 			select {
 			case <-ctx.Done():

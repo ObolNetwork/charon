@@ -38,16 +38,12 @@ type Feature string
 const (
 	// QBFTConsensus introduces qbft consensus, see https://github.com/ObolNetwork/charon/issues/445.
 	QBFTConsensus Feature = "qbft_consensus"
-
-	// BeaconClockSync offsets slot start time by syncing with beacon node events.
-	BeaconClockSync Feature = "beacon_clock_sync"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		QBFTConsensus:   statusStable,
-		BeaconClockSync: statusAlpha,
+		QBFTConsensus: statusStable,
 		// Add all features and there status here.
 	}
 
