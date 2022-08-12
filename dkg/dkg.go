@@ -384,17 +384,7 @@ func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, w
 		return nil, err
 	}
 
-	pubkeyToShares := make(map[core.PubKey]map[int]*bls_sig.PublicKey)
-	for _, sh := range shares {
-		pk, err := tblsconv.KeyToCore(sh.PubKey)
-		if err != nil {
-			return nil, err
-		}
-
-		pubkeyToShares[pk] = sh.PublicShares
-	}
-
-	aggSigDepositData, err := aggDepositDataSigs(peerSigs, pubkeyToShares, msgs)
+	aggSigDepositData, err := aggDepositDataSigs(peerSigs, shares, msgs)
 	if err != nil {
 		return nil, err
 	}
@@ -537,7 +527,17 @@ func signDepositData(shares []share, shareIdx int, withdrawalAddr string, networ
 }
 
 // aggDepositDataSigs returns the threshold aggregated signatures of the deposit data per DV.
-func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, pubkeyToPubshares map[core.PubKey]map[int]*bls_sig.PublicKey, msgs map[core.PubKey][]byte) (map[core.PubKey]*bls_sig.Signature, error) {
+func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []share, msgs map[core.PubKey][]byte) (map[core.PubKey]*bls_sig.Signature, error) {
+	pubkeyToPubShares := make(map[core.PubKey]map[int]*bls_sig.PublicKey)
+	for _, sh := range shares {
+		pk, err := tblsconv.KeyToCore(sh.PubKey)
+		if err != nil {
+			return nil, err
+		}
+
+		pubkeyToPubShares[pk] = sh.PublicShares
+	}
+
 	resp := make(map[core.PubKey]*bls_sig.Signature)
 
 	for pk, psigsData := range data {
@@ -548,7 +548,7 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, pubkeyToPubsh
 				return nil, errors.Wrap(err, "signature from core")
 			}
 
-			pubshares, ok := pubkeyToPubshares[pk]
+			pubshares, ok := pubkeyToPubShares[pk]
 			if !ok {
 				// peerIdx is 0-indexed while shareIdx is 1-indexed
 				return nil, errors.New("invalid pubkey in deposit data partial signature from peer",
