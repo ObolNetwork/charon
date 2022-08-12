@@ -19,6 +19,8 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"net"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/discover"
@@ -31,25 +33,111 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/expbackoff"
-	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// NewUDPNode starts and returns a discv5 UDP implementation.
-func NewUDPNode(config Config, ln *enode.LocalNode,
-	key *ecdsa.PrivateKey, bootnodes []*enode.Node,
-) (*discover.UDPv5, error) {
-	// Setup discv5 udp listener.
+// MutableUDPNode wraps a discv5 udp node providing support to recreate it if bootnodes change.
+type MutableUDPNode struct {
+	mu          sync.Mutex
+	udpNode     *discover.UDPv5
+	prevNames   []string
+	refreshFunc func(bootnodes []*enode.Node) (*discover.UDPv5, error)
+}
+
+func (n *MutableUDPNode) Set(node *discover.UDPv5) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	n.udpNode = node
+}
+
+// maybeRefresh recreates the udp node if different mutable bootnodes are present.
+func (n *MutableUDPNode) maybeRefresh(mutables []*MutablePeer) error {
+	var (
+		bootnodes []*enode.Node
+		names     []string
+	)
+	for _, mutable := range mutables {
+		p, ok := mutable.Peer()
+		if !ok {
+			continue
+		}
+		bootnodes = append(bootnodes, &p.Enode)
+		names = append(names, p.Name)
+	}
+	if len(bootnodes) == 0 {
+		names = []string{"empty"}
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if strings.Join(n.prevNames, ",") == strings.Join(names, ",") {
+		return nil
+	}
+
+	n.prevNames = names
+
+	if n.udpNode != nil {
+		n.udpNode.Close()
+		n.udpNode = nil
+	}
+
+	udpNode, err := n.refreshFunc(bootnodes)
+	if err != nil {
+		n.prevNames = nil
+
+		return err
+	}
+
+	n.udpNode = udpNode
+
+	return nil
+}
+
+func (n *MutableUDPNode) Close() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.udpNode == nil {
+		return
+	}
+
+	n.udpNode.Close()
+	n.udpNode = nil
+}
+
+func (n *MutableUDPNode) Resolve(node *enode.Node) *enode.Node {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.udpNode == nil {
+		return node // Return node if it cannot be found as per udpNode.Resolve.
+	}
+
+	return n.udpNode.Resolve(node)
+}
+
+func (n *MutableUDPNode) AllNodes() []*enode.Node {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.udpNode == nil {
+		return nil
+	}
+
+	return n.udpNode.AllNodes()
+}
+
+// NewUDPNode starts and returns a discv5 UDP provider.
+func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode,
+	key *ecdsa.PrivateKey, bootnodes []*MutablePeer,
+) (*MutableUDPNode, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "resolve udp address")
-	}
-
-	conn, err := net.ListenUDP("udp", udpAddr)
-	if err != nil {
-		return nil, errors.Wrap(err, "parse udp address")
 	}
 
 	var allowList *netutil.Netlist
@@ -60,16 +148,40 @@ func NewUDPNode(config Config, ln *enode.LocalNode,
 		}
 	}
 
-	node, err := discover.ListenV5(conn, ln, discover.Config{
-		PrivateKey:  key,
-		NetRestrict: allowList,
-		Bootnodes:   bootnodes,
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "discv5 listen")
+	mutable := &MutableUDPNode{
+		refreshFunc: func(bootnodes []*enode.Node) (*discover.UDPv5, error) {
+			conn, err := net.ListenUDP("udp", udpAddr)
+			if err != nil {
+				return nil, errors.Wrap(err, "listen udp")
+			}
+
+			udpNode, err := discover.ListenV5(conn, ln, discover.Config{
+				PrivateKey:  key,
+				NetRestrict: allowList,
+				Bootnodes:   bootnodes,
+			})
+			if err != nil {
+				return nil, errors.Wrap(err, "discv5 listen")
+			}
+
+			return udpNode, nil
+		},
 	}
 
-	return node, nil
+	// Subscribe to any bootnode updates, which recreates the udp node with new bootnodes
+	// since there is no way to update them...
+	for _, bootnode := range bootnodes {
+		bootnode.Subscribe(func(Peer) {
+			if err := mutable.maybeRefresh(bootnodes); err != nil {
+				log.Error(ctx, "Recreate discv5 udp node", err)
+			} else {
+				log.Debug(ctx, "Recreated new discv5 udp node")
+			}
+		})
+	}
+
+	// Return a refreshed mutable udp node
+	return mutable, mutable.maybeRefresh(bootnodes)
 }
 
 // NewLocalEnode returns a local enode and a peer DB or an error.
@@ -139,12 +251,8 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 
 // NewDiscoveryRouter returns a life cycle hook that links discv5 to libp2p by
 // continuously polling discv5 for latest peer ENRs and adding then to libp2p peer store.
-func NewDiscoveryRouter(tcpNode host.Host, udpNode *discover.UDPv5, peers []Peer) lifecycle.HookFuncCtx {
+func NewDiscoveryRouter(tcpNode host.Host, udpNode *MutableUDPNode, peers []Peer) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
-		if !featureset.Enabled(featureset.InvertLibP2PRouting) {
-			return
-		}
-
 		ctx = log.WithTopic(ctx, "p2p")
 		baseDelay := expbackoff.WithBaseDelay(time.Millisecond * 100) // Poll quickly on startup
 		maxDelay := expbackoff.WithMaxDelay(routedAddrTTL * 9 / 10)   // Slow down to 90% of ttl
@@ -181,7 +289,7 @@ func NewDiscoveryRouter(tcpNode host.Host, udpNode *discover.UDPv5, peers []Peer
 
 // getDiscoveredAddress returns the peer's address as discovered by discv5,
 // it returns false if the peer isn't discovered.
-func getDiscoveredAddress(udpNode *discover.UDPv5, p Peer) (ma.Multiaddr, bool, error) {
+func getDiscoveredAddress(udpNode *MutableUDPNode, p Peer) (ma.Multiaddr, bool, error) {
 	resolved := udpNode.Resolve(&p.Enode)
 	if resolved.Seq() == 0 || resolved.TCP() == 0 {
 		return nil, false, nil // Not discovered

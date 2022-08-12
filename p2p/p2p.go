@@ -19,11 +19,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	"sync"
-
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/p2p/discover"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p"
 	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/event"
@@ -34,7 +30,6 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
@@ -42,9 +37,8 @@ import (
 )
 
 // NewTCPNode returns a started tcp-based libp2p host.
-func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
-	udpNode *discover.UDPv5, peers, relays []Peer, opts ...libp2p.Option) (host.Host, error,
-) {
+func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater, opts ...libp2p.Option,
+) (host.Host, error) {
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
 		return nil, err
@@ -72,13 +66,6 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 		libp2p.AddrsFactory(func([]ma.Multiaddr) []ma.Multiaddr { return nil }),
 	}
 
-	if !featureset.Enabled(featureset.InvertLibP2PRouting) {
-		opt := libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
-			return logWrapRouting(adaptDiscRouting(udpNode, peers, relays)), nil
-		})
-		defaultOpts = append(defaultOpts, opt)
-	}
-
 	defaultOpts = append(defaultOpts, opts...)
 
 	tcpNode, err := libp2p.New(defaultOpts...)
@@ -90,87 +77,6 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 	tcpNode.Network().Notify(debugLogger{ctx: log.WithTopic(context.Background(), "p2p")})
 
 	return tcpNode, nil
-}
-
-// logWrapRouting wraps a peerRoutingFunc in debug logging.
-func logWrapRouting(fn peerRoutingFunc) peerRoutingFunc {
-	var failing sync.Map // map[peer.syncProtoID]struct{}
-	return func(ctx context.Context, p peer.ID) (peer.AddrInfo, error) {
-		ctx = log.WithTopic(ctx, "p2p")
-
-		res, err := fn(ctx, p)
-		if err != nil {
-			if _, ok := failing.Load(p); !ok {
-				log.Debug(ctx, "Peer routing request failure",
-					z.Any("error", err), z.Str("peer", PeerName(p)))
-			}
-			failing.Store(p, struct{}{})
-		} else {
-			log.Debug(ctx, "Peer routing request success",
-				z.Any("addrs", res.Addrs), z.Str("peer", PeerName(p)))
-			failing.Delete(p)
-		}
-
-		return res, err
-	}
-}
-
-// adaptDiscRouting returns a function that adapts p2p routing requests to discv5 lookups.
-func adaptDiscRouting(udpNode *discover.UDPv5, peers, relays []Peer) peerRoutingFunc {
-	peerMap := make(map[peer.ID]enode.Node)
-	for _, p := range peers {
-		peerMap[p.ID] = p.Enode
-	}
-
-	for _, relay := range relays {
-		peerMap[relay.ID] = relay.Enode
-	}
-
-	return func(ctx context.Context, peerID peer.ID) (peer.AddrInfo, error) {
-		node, ok := peerMap[peerID]
-		if !ok {
-			return peer.AddrInfo{}, errors.New("unknown peer")
-		}
-
-		var mAddrs []ma.Multiaddr
-
-		resolved := udpNode.Resolve(&node)
-		if resolved == nil {
-			return peer.AddrInfo{}, errors.New("peer not resolved")
-		}
-
-		// If sequence is 0, we haven't discovered it yet.
-		// If tcp port is 0, this node isn't bound to a port.
-		if resolved.Seq() != 0 && resolved.TCP() != 0 {
-			mAddr, err := multiAddrFromIPPort(resolved.IP(), resolved.TCP())
-			if err != nil {
-				return peer.AddrInfo{}, err
-			}
-			mAddrs = append(mAddrs, mAddr)
-		}
-
-		// Add any circuit relays
-		for _, relay := range relays {
-			if relay.Enode.TCP() == 0 {
-				continue
-			}
-
-			relayAddr, err := multiAddrViaRelay(relay, peerID)
-			if err != nil {
-				return peer.AddrInfo{}, err
-			}
-			mAddrs = append(mAddrs, relayAddr)
-		}
-
-		if len(mAddrs) == 0 {
-			return peer.AddrInfo{}, errors.New("peer not accessible")
-		}
-
-		return peer.AddrInfo{
-			ID:    peerID,
-			Addrs: mAddrs,
-		}, nil
-	}
 }
 
 // multiAddrViaRelay returns a multiaddr to the peer via the relay.

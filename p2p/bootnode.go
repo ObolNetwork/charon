@@ -30,21 +30,18 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// NewUDPBootnodes returns the udp bootnodes from the config.
+// NewUDPBootnodes returns the discv5 udp bootnodes from the config.
 func NewUDPBootnodes(ctx context.Context, config Config, peers []Peer,
 	localEnode enode.ID, lockHashHex string,
-) ([]*enode.Node, error) {
-	var resp []*enode.Node
+) ([]*MutablePeer, error) {
+	var resp []*MutablePeer
 	for _, rawURL := range config.UDPBootnodes {
 		if strings.HasPrefix(rawURL, "http") {
-			// Resolve bootnode ENR via http, retry for 1min with 5sec backoff.
-			inner, cancel := context.WithTimeout(ctx, time.Minute)
-			var err error
-			rawURL, err = queryBootnodeENR(inner, rawURL, time.Second*5, lockHashHex)
-			cancel()
-			if err != nil {
-				return nil, err
-			}
+			mutable := new(MutablePeer)
+			go resolveBootnode(ctx, rawURL, lockHashHex, mutable.Set)
+			resp = append(resp, mutable)
+
+			continue
 		}
 
 		node, err := enode.Parse(enode.V4ID{}, rawURL)
@@ -52,7 +49,13 @@ func NewUDPBootnodes(ctx context.Context, config Config, peers []Peer,
 			return nil, errors.Wrap(err, "invalid bootnode address")
 		}
 
-		resp = append(resp, node)
+		r := node.Record()
+		p, err := NewPeer(*r, -1)
+		if err != nil {
+			return nil, err
+		}
+
+		resp = append(resp, NewMutablePeer(p))
 	}
 
 	if config.UDPBootLock {
@@ -61,12 +64,63 @@ func NewUDPBootnodes(ctx context.Context, config Config, peers []Peer,
 				// Do not include ourselves as bootnode.
 				continue
 			}
-			node := p.Enode // Copy loop variable
-			resp = append(resp, &node)
+
+			resp = append(resp, NewMutablePeer(p))
 		}
 	}
 
-	return resp, nil
+	if len(resp) == 0 {
+		return nil, nil
+	}
+
+	// Wait until at least one bootnode ENR is resolved
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	for ctx.Err() == nil {
+		var resolved bool
+		for _, node := range resp {
+			if _, ok := node.Peer(); ok {
+				resolved = true
+			}
+		}
+		if resolved {
+			return resp, nil
+		}
+		time.Sleep(time.Second * 1)
+	}
+
+	return nil, errors.Wrap(ctx.Err(), "timeout resolving bootnode ENR")
+}
+
+func resolveBootnode(ctx context.Context, rawURL, lockHashHex string, callback func(Peer)) {
+	var prevENR string
+	for ctx.Err() == nil {
+		node, err := queryBootnodeENR(ctx, rawURL, time.Second*5, lockHashHex)
+		if err != nil {
+			log.Error(ctx, "Failed resolving bootnode ENR from URL", err, z.Str("url", rawURL))
+			return
+		}
+
+		newENR := node.String()
+		if prevENR != newENR {
+			prevENR = newENR
+
+			r := node.Record()
+			p, err := NewPeer(*r, -1)
+			if err != nil {
+				log.Error(ctx, "Failed to create bootnode peer", err)
+			} else {
+				log.Info(ctx, "Resolved new bootnode ENR",
+					z.Str("peer", p.Name),
+					z.Str("url", rawURL),
+					z.Str("enr", newENR),
+				)
+				callback(p)
+			}
+		}
+
+		time.Sleep(time.Minute * 5) // Wait 5min before checking again.
+	}
 }
 
 // queryBootnodeENR returns the bootnode ENR via a http GET query to the url.
@@ -75,43 +129,54 @@ func NewUDPBootnodes(ctx context.Context, config Config, peers []Peer,
 // when bootnodes are deployed in docker-compose or kubernetes
 //
 // It retries until the context is cancelled.
-func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Duration, lockHashHex string) (string, error) {
+func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Duration, lockHashHex string) (*enode.Node, error) {
 	parsedURL, err := url.Parse(bootnodeURL)
 	if err != nil {
-		return "", errors.Wrap(err, "parse bootnode url")
+		return nil, errors.Wrap(err, "parse bootnode url")
 	} else if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return "", errors.New("invalid bootnode url")
+		return nil, errors.New("invalid bootnode url")
 	}
 
 	var client http.Client
 	for ctx.Err() == nil {
 		req, err := http.NewRequestWithContext(ctx, "GET", bootnodeURL, nil)
 		if err != nil {
-			return "", errors.Wrap(err, "new request")
+			return nil, errors.Wrap(err, "new request")
 		}
 		req.Header.Set("Charon-Cluster", lockHashHex)
 
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Warn(ctx, "Failure querying bootnode ENR, trying again in 5s...", err)
+			log.Warn(ctx, "Failure querying bootnode ENR (will try again)", err)
 			time.Sleep(backoff)
 
 			continue
 		} else if resp.StatusCode/100 != 2 {
-			return "", errors.New("non-200 response querying bootnode ENR",
-				z.Int("status_code", resp.StatusCode))
+			log.Warn(ctx, "Non-200 response querying bootnode ENR (will try again)", nil, z.Int("status_code", resp.StatusCode))
+			time.Sleep(backoff)
+
+			continue
 		}
 
 		b, err := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		if err != nil {
-			return "", errors.Wrap(err, "read response body")
+			log.Warn(ctx, "Failure reading bootnode ENR (will try again)", err)
+			time.Sleep(backoff)
+
+			continue
 		}
 
-		log.Info(ctx, "Queried bootnode ENR", z.Str("url", bootnodeURL), z.Str("enr", string(b)))
+		node, err := enode.Parse(enode.V4ID{}, string(b))
+		if err != nil {
+			log.Warn(ctx, "Failure parsing ENR (will try again)", err, z.Str("enr", string(b)))
+			time.Sleep(backoff)
 
-		return string(b), nil
+			continue
+		}
+
+		return node, nil
 	}
 
-	return "", errors.Wrap(ctx.Err(), "timeout querying bootnode ENR")
+	return nil, errors.Wrap(ctx.Err(), "timeout querying bootnode ENR")
 }

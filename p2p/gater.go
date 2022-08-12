@@ -26,19 +26,15 @@ import (
 var _ connmgr.ConnectionGater = ConnGater{}
 
 // NewConnGater return a new connection gater that limits access to the cluster peers and relays.
-func NewConnGater(peers []peer.ID, relays []Peer) (ConnGater, error) {
+func NewConnGater(peers []peer.ID, relays []*MutablePeer) (ConnGater, error) {
 	peerMap := make(map[peer.ID]bool)
 	for _, peerID := range peers {
 		peerMap[peerID] = true
 	}
 
-	// Allow connections to/from relays.
-	for _, relay := range relays {
-		peerMap[relay.ID] = true
-	}
-
 	return ConnGater{
 		peerIDs: peerMap,
+		relays:  relays,
 		open:    false,
 	}, nil
 }
@@ -53,6 +49,7 @@ func NewOpenGater() ConnGater {
 // ConnGater filters incoming connections by the cluster peers.
 type ConnGater struct {
 	peerIDs map[peer.ID]bool
+	relays  []*MutablePeer
 	open    bool
 }
 
@@ -77,7 +74,18 @@ func (c ConnGater) InterceptSecured(_ network.Direction, id peer.ID, _ network.C
 		return true
 	}
 
-	return c.peerIDs[id]
+	if c.peerIDs[id] {
+		return true
+	}
+
+	for _, relay := range c.relays {
+		p, ok := relay.Peer()
+		if ok && p.ID == id {
+			return true
+		}
+	}
+
+	return false
 }
 
 // InterceptUpgraded does nothing.

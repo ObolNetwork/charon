@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestInterceptSecured(t *testing.T) {
@@ -56,12 +57,20 @@ func TestP2PConnGating(t *testing.T) {
 
 	keyA, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
-	nodeA, err := libp2p.New(libp2p.Identity(keyA), libp2p.ConnectionGater(c))
+	nodeA, err := libp2p.New(
+		libp2p.Identity(keyA),
+		libp2p.ConnectionGater(c),
+		libp2p.ListenAddrs(testutil.AvailableMultiAddr(t)))
+	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 
 	keyB, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
-	nodeB, err := libp2p.New(libp2p.Identity(keyB))
+	nodeB, err := libp2p.New(
+		libp2p.Identity(keyB),
+		libp2p.ListenAddrs(testutil.AvailableMultiAddr(t)),
+	)
+	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 
 	addr := peer.AddrInfo{

@@ -214,29 +214,29 @@ func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, pe
 		return nil, nil, errors.Wrap(err, "new bootnodes")
 	}
 
-	udpNode, err := p2p.NewUDPNode(p2pConf, localEnode, key, bootnodes)
+	udpNode, err := p2p.NewUDPNode(ctx, p2pConf, localEnode, key, bootnodes)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "")
 	}
 
-	relays, err := p2p.NewRelays(p2pConf, bootnodes)
-	if err != nil {
-		return nil, nil, err
-	}
+	relays := p2p.NewRelays(p2pConf, bootnodes)
 
-	tcpNode, err := p2p.NewTCPNode(p2pConf, key, p2p.NewOpenGater(), udpNode, peers, relays)
+	tcpNode, err := p2p.NewTCPNode(p2pConf, key, p2p.NewOpenGater())
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "")
 	}
 
 	for _, relay := range relays {
-		go func(relay p2p.Peer) {
+		go func(relay *p2p.MutablePeer) {
 			err := p2p.NewRelayReserver(tcpNode, relay)(ctx)
 			if err != nil {
 				log.Error(ctx, "Reserve relay error", err)
 			}
 		}(relay)
 	}
+
+	go p2p.NewRelayRouter(tcpNode, peers, relays)(ctx)
+	go p2p.NewDiscoveryRouter(tcpNode, udpNode, peers)(ctx)
 
 	return tcpNode, func() {
 		db.Close()

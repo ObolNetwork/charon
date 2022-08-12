@@ -514,6 +514,27 @@ func AvailableAddr(t *testing.T) *net.TCPAddr {
 	return addr
 }
 
+// AvailableMultiAddr returns an available local tcp address as a multiaddr.
+//
+// Note that this is unfortunately only best-effort. Since the port is not
+// "locked" or "reserved", other processes sometimes grab the port.
+// Remember to call SkipIfBindErr as workaround for this issue.
+func AvailableMultiAddr(t *testing.T) multiaddr.Multiaddr {
+	t.Helper()
+
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	defer l.Close()
+
+	h, p, err := net.SplitHostPort(l.Addr().String())
+	require.NoError(t, err)
+
+	addr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%s", h, p))
+	require.NoError(t, err)
+
+	return addr
+}
+
 func CreateHost(t *testing.T, addr *net.TCPAddr) host.Host {
 	t.Helper()
 	pkey, _, err := p2pcrypto.GenerateSecp256k1Key(crand.Reader)

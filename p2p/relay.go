@@ -19,7 +19,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/peerstore"
@@ -27,7 +26,6 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
@@ -40,51 +38,41 @@ import (
 var routedAddrTTL = peerstore.TempAddrTTL + 1
 
 // NewRelays returns the libp2p circuit relays from bootnodes if enabled.
-func NewRelays(conf Config, bootnodes []*enode.Node) ([]Peer, error) {
+func NewRelays(conf Config, bootnodes []*MutablePeer) []*MutablePeer {
 	if !conf.BootnodeRelay {
-		return nil, nil
+		return nil
 	} else if conf.UDPBootLock {
 		// Relays not supported via manifest bootnodes yet.
-		return nil, nil
+		return nil
 	}
 
-	var resp []Peer
-	for _, bootnode := range bootnodes {
-		record := bootnode.Record()
-		p, err := NewPeer(*record, -1)
-		if err != nil {
-			return nil, err
-		}
-		resp = append(resp, p)
-	}
-
-	return resp, nil
+	return bootnodes
 }
 
 // NewRelayReserver returns a life cycle hook function that continuously
 // reserves a relay circuit until the context is closed.
-func NewRelayReserver(tcpNode host.Host, relay Peer) lifecycle.HookFunc {
+func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc {
 	return func(ctx context.Context) error {
 		ctx = log.WithTopic(ctx, "relay")
-		name := PeerName(relay.ID)
-		ctx = log.WithCtx(ctx, z.Str("relay_peer", name))
-
-		if relay.Enode.TCP() == 0 {
-			log.Debug(ctx, "Relay not accessible")
-			return nil
-		}
-
-		bootAddr, err := multiAddrFromIPPort(relay.Enode.IP(), relay.Enode.TCP())
-		if err != nil {
-			return errors.Wrap(err, "relay address")
-		}
-
-		addrInfo := peer.AddrInfo{
-			ID:    relay.ID,
-			Addrs: []ma.Multiaddr{bootAddr},
-		}
-
 		for ctx.Err() == nil {
+			relayPeer, ok := relay.Peer()
+			if !ok || relayPeer.Enode.TCP() == 0 {
+				time.Sleep(time.Second * 10)
+				continue
+			}
+
+			name := PeerName(relayPeer.ID)
+			ctx = log.WithCtx(ctx, z.Str("relay_peer", name))
+
+			bootAddr, err := multiAddrFromIPPort(relayPeer.Enode.IP(), relayPeer.Enode.TCP())
+			if err != nil {
+				return errors.Wrap(err, "relay address")
+			}
+
+			addrInfo := peer.AddrInfo{
+				ID:    relayPeer.ID,
+				Addrs: []ma.Multiaddr{bootAddr},
+			}
 			relayConnGauge.WithLabelValues(name).Set(0)
 
 			resv, err := circuit.Reserve(ctx, tcpNode, addrInfo)
@@ -116,7 +104,7 @@ func NewRelayReserver(tcpNode host.Host, relay Peer) lifecycle.HookFunc {
 				case <-time.After(time.Until(resv.Expiration.Add(-time.Minute))):
 					ok = false
 				case <-ticker.C:
-					if len(tcpNode.Network().ConnsToPeer(relay.ID)) == 0 {
+					if len(tcpNode.Network().ConnsToPeer(relayPeer.ID)) == 0 {
 						log.Warn(ctx, "No connections to relay", nil)
 						ok = false
 					}
@@ -132,11 +120,8 @@ func NewRelayReserver(tcpNode host.Host, relay Peer) lifecycle.HookFunc {
 
 // NewRelayRouter returns a life cycle hook that routes peers via relays in libp2p by
 // continuously adding peer relay addresses to libp2p peer store.
-func NewRelayRouter(tcpNode host.Host, peers []Peer, relays []Peer) lifecycle.HookFuncCtx {
+func NewRelayRouter(tcpNode host.Host, peers []Peer, relays []*MutablePeer) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
-		if !featureset.Enabled(featureset.InvertLibP2PRouting) {
-			return
-		}
 		if len(relays) == 0 {
 			return
 		}
@@ -150,8 +135,9 @@ func NewRelayRouter(tcpNode host.Host, peers []Peer, relays []Peer) lifecycle.Ho
 					continue
 				}
 
-				for _, relay := range relays {
-					if relay.Enode.TCP() == 0 {
+				for _, mutable := range relays {
+					relay, ok := mutable.Peer()
+					if !ok || relay.Enode.TCP() == 0 {
 						continue
 					}
 

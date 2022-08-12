@@ -242,22 +242,19 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return nil, nil, err
 	}
 
-	udpNode, err := p2p.NewUDPNode(conf.P2P, localEnode, p2pKey, bootnodes)
+	udpNode, err := p2p.NewUDPNode(ctx, conf.P2P, localEnode, p2pKey, bootnodes)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	relays, err := p2p.NewRelays(conf.P2P, bootnodes)
-	if err != nil {
-		return nil, nil, err
-	}
+	relays := p2p.NewRelays(conf.P2P, bootnodes)
 
 	connGater, err := p2p.NewConnGater(peerIDs, relays)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater, udpNode, peers, relays)
+	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater)
 	if err != nil {
 		return nil, nil, err
 	}

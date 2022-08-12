@@ -113,7 +113,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	}
 	defer db.Close()
 
-	udpNode, err := p2p.NewUDPNode(config.P2PConfig, localEnode, key, nil)
+	udpNode, err := p2p.NewUDPNode(ctx, config.P2PConfig, localEnode, key, nil)
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
@@ -148,7 +148,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 			p2pErr <- errors.Wrap(err, "new resource manager")
 		}
 
-		tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), udpNode, nil, nil, libp2p.ResourceManager(mgr))
+		tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), libp2p.ResourceManager(mgr))
 		if err != nil {
 			p2pErr <- errors.Wrap(err, "new tcp node")
 			return
@@ -172,9 +172,16 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 			for _, conn := range conns {
 				peers[conn.RemotePeer()] = true
 			}
-			log.Info(ctx, "Libp2p TCP open connections", z.Int("total", len(conns)),
-				z.Int("peers", len(peers)))
+			log.Info(ctx, "Libp2p TCP open connections",
+				z.Int("total", len(conns)),
+				z.Int("peers", len(peers)),
+			)
 		}
+
+		log.Info(ctx, "Libp2p TCP relay started",
+			z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
+			z.Any("p2p_tcp_addr", config.P2PConfig.TCPAddrs),
+		)
 
 		<-ctx.Done()
 		_ = tcpNode.Close()
@@ -192,8 +199,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		serverErr <- server.ListenAndServe()
 	}()
 
-	log.Info(ctx, "Bootnode started",
-		z.Str("http_addr", config.HTTPAddr),
+	log.Info(ctx, "Discv5 UDP bootnode started",
 		z.Str("p2p_udp_addr", config.P2PConfig.UDPAddr),
 		z.Str("enr", localEnode.Node().String()),
 	)
