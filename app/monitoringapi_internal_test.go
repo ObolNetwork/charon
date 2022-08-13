@@ -59,6 +59,12 @@ func TestStartChecker(t *testing.T) {
 			absentPeers: 3,
 			err:         errReadyTooFewPeers,
 		},
+		{
+			name:        "success",
+			isSyncing:   false,
+			numPeers:    4,
+			absentPeers: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -90,16 +96,10 @@ func TestStartChecker(t *testing.T) {
 				hosts = append(hosts, h)
 			}
 
-			// connect each host with its peers
-			for i := 0; i < tt.numPeers; i++ {
-				for k := tt.absentPeers; k < tt.numPeers; k++ {
-					if i == k {
-						continue
-					}
-
-					err := hosts[i].Connect(ctx, hostsInfo[k])
-					require.NoError(t, err)
-				}
+			// connect first peer with other peers, excluding absent ones
+			for i := tt.absentPeers + 1; i < tt.numPeers; i++ {
+				err := hosts[0].Connect(ctx, hostsInfo[i])
+				require.NoError(t, err)
 			}
 
 			clock := clockwork.NewFakeClock()

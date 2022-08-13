@@ -167,7 +167,8 @@ func quorumPeersConnected(peerIDs []peer.ID, tcpNode host.Host) bool {
 		}
 	}
 
-	return count >= cluster.Threshold(len(peerIDs))
+	// Excluding self when comparing with threshold, since we need to connect to threshold - 1 no. of peers.
+	return count >= cluster.Threshold(len(peerIDs))-1
 }
 
 func writeResponse(w http.ResponseWriter, status int, msg string) {
