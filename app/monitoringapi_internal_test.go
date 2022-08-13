@@ -59,6 +59,12 @@ func TestStartChecker(t *testing.T) {
 			absentPeers: 3,
 			err:         errReadyTooFewPeers,
 		},
+		{
+			name:        "success",
+			isSyncing:   false,
+			numPeers:    4,
+			absentPeers: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -91,8 +97,8 @@ func TestStartChecker(t *testing.T) {
 			}
 
 			// connect each host with its peers
-			for i := 0; i < tt.numPeers; i++ {
-				for k := tt.absentPeers; k < tt.numPeers; k++ {
+			for i := 0; i < tt.numPeers-tt.absentPeers; i++ {
+				for k := 0; k < tt.numPeers-tt.absentPeers; k++ {
 					if i == k {
 						continue
 					}
