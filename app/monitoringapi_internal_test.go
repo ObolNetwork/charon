@@ -96,7 +96,7 @@ func TestStartChecker(t *testing.T) {
 				hosts = append(hosts, h)
 			}
 
-			// connect each host with its peers
+			// connect first peer with other peers, excluding absent ones
 			for i := tt.absentPeers + 1; i < tt.numPeers; i++ {
 				err := hosts[0].Connect(ctx, hostsInfo[i])
 				require.NoError(t, err)
