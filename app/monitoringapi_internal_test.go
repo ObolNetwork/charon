@@ -97,15 +97,9 @@ func TestStartChecker(t *testing.T) {
 			}
 
 			// connect each host with its peers
-			for i := 0; i < tt.numPeers-tt.absentPeers; i++ {
-				for k := 0; k < tt.numPeers-tt.absentPeers; k++ {
-					if i == k {
-						continue
-					}
-
-					err := hosts[i].Connect(ctx, hostsInfo[k])
-					require.NoError(t, err)
-				}
+			for i := tt.absentPeers + 1; i < tt.numPeers; i++ {
+				err := hosts[0].Connect(ctx, hostsInfo[i])
+				require.NoError(t, err)
 			}
 
 			clock := clockwork.NewFakeClock()
