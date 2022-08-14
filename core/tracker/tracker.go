@@ -71,7 +71,7 @@ type Tracker struct {
 	failedDutyReporter func(ctx context.Context, duty core.Duty, failed bool, component component, reason string)
 
 	// participationReporter instruments duty peer participation.
-	participationReporter func(ctx context.Context, duty core.Duty, participatedShares map[int]bool)
+	participationReporter func(ctx context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedPeers map[int]bool)
 }
 
 // New returns a new Tracker.
@@ -113,11 +113,11 @@ func (t *Tracker) Run(ctx context.Context) error {
 			t.failedDutyReporter(ctx, duty, failed, failedComponent, failedMsg)
 
 			// Analyse peer participation
-			participatedShares, err := analyseParticipation(t.events[duty])
+			participatedShares, unexpectedPeers, err := analyseParticipation(ctx, duty, t.events)
 			if err != nil {
 				log.Error(ctx, "Invalid participated shares", err)
 			} else {
-				t.participationReporter(ctx, duty, participatedShares)
+				t.participationReporter(ctx, duty, participatedShares, unexpectedPeers)
 			}
 
 			delete(t.events, duty)
@@ -164,34 +164,88 @@ func failedDutyReporter(ctx context.Context, duty core.Duty, failed bool, compon
 }
 
 // analyseParticipation returns a set of share indexes of participated peers.
-func analyseParticipation(events []event) (map[int]bool, error) {
+func analyseParticipation(ctx context.Context, duty core.Duty, allEvents map[core.Duty][]event) (map[int]bool, map[int]bool, error) {
 	// Set of shareIdx of participated peers.
 	resp := make(map[int]bool)
+	unexpectedPeers := make(map[int]bool)
 
-	for _, e := range events {
+	for _, e := range allEvents[duty] {
 		// If we get a parSigDBInternal event, then the current node participated successfully.
 		// If we get a parSigEx event, then the corresponding peer with e.shareIdx participated successfully.
-		if e.component == parSigEx || e.component == parSigDBInternal {
+		if e.component == parSigEx {
+			if err := validateParticipation(duty, e.pubkey, allEvents); err != nil {
+				log.Warn(ctx, "Unexpected event found", err, z.Int("ShareIdx", e.shareIdx))
+				unexpectedPeers[e.shareIdx] = true
+
+				continue
+			}
+
 			if e.shareIdx == 0 {
-				return nil, errors.New("shareIdx empty", z.Any("component", e.component))
+				return nil, nil, errors.New("shareIdx empty", z.Any("component", e.component))
+			}
+			resp[e.shareIdx] = true
+		} else if e.component == parSigDBInternal {
+			if e.shareIdx == 0 {
+				return nil, nil, errors.New("shareIdx empty", z.Any("component", e.component))
 			}
 			resp[e.shareIdx] = true
 		}
 	}
 
-	return resp, nil
+	return resp, unexpectedPeers, nil
 }
 
-// newParticipationReporter returns a new participation reporter function which logs and instruments peer participation.
-func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty, map[int]bool) {
+// validateParticipation validates events from peers for a given duty.
+func validateParticipation(duty core.Duty, pubkey core.PubKey, allEvents map[core.Duty][]event) error {
+	if len(allEvents[duty]) == 0 {
+		return errors.New("no events to validate")
+	}
+
+	// Cannot validate validatorAPI triggered duties.
+	if duty.Type == core.DutyExit || duty.Type == core.DutyBuilderRegistration {
+		return nil
+	}
+
+	if duty.Type == core.DutyRandao {
+		// Check that if we got DutyProposer event from scheduler.
+		for _, e := range allEvents[core.NewProposerDuty(duty.Slot)] {
+			if e.component == scheduler && e.pubkey == pubkey {
+				return nil
+			}
+		}
+
+		// Check that if we got DutyBuilderProposer event from scheduler.
+		for _, e := range allEvents[core.NewBuilderProposerDuty(duty.Slot)] {
+			if e.component == scheduler && e.pubkey == pubkey {
+				return nil
+			}
+		}
+	}
+
+	// For all other duties check for scheduler event.
+	for _, e := range allEvents[duty] {
+		if e.component == scheduler && e.pubkey == pubkey {
+			return nil
+		}
+	}
+
+	return errors.New("unexpected event", z.Str("duty", duty.String()),
+		z.Str("pubkey", pubkey.String()))
+}
+
+// newParticipationReporter returns a new participation reporter function which logs and instruments peer participation
+// and unexpectedPeers.
+func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty, map[int]bool, map[int]bool) {
 	// prevAbsent is the set of peers who didn't participated in the last duty.
 	var prevAbsent []string
 
-	return func(ctx context.Context, duty core.Duty, participatedShares map[int]bool) {
+	return func(ctx context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedPeers map[int]bool) {
 		var absentPeers []string
 		for _, peer := range peers {
 			if participatedShares[peer.ShareIdx()] {
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(1)
+			} else if unexpectedPeers[peer.ShareIdx()] {
+				unexpectedEventsCounter.WithLabelValues(peer.Name).Inc()
 			} else {
 				absentPeers = append(absentPeers, peer.Name)
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(0)
