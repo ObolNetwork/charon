@@ -392,19 +392,22 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if err != nil {
 		return err
 	}
-	deadliner := core.NewDeadliner(ctx, deadlineFunc)
+
+	deadlinerFunc := func() core.Deadliner {
+		return core.NewDeadliner(ctx, deadlineFunc)
+	}
 
 	retryer, err := retry.New[core.Duty](deadlineFunc)
 	if err != nil {
 		return err
 	}
 
-	cons, startCons, err := newConsensus(conf, lock, tcpNode, p2pKey, sender, nodeIdx)
+	cons, startCons, err := newConsensus(conf, lock, tcpNode, p2pKey, sender, nodeIdx, deadlinerFunc())
 	if err != nil {
 		return err
 	}
 
-	wireTracker(life, deadliner, peers, sched, fetch, cons, vapi, parSigDB, parSigEx, sigAgg)
+	wireTracker(life, deadlinerFunc(), peers, sched, fetch, cons, vapi, parSigDB, parSigEx, sigAgg)
 
 	core.Wire(sched, fetch, cons, dutyDB, vapi,
 		parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster,
@@ -521,7 +524,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 
 // newConsensus returns a new consensus component and its start lifecycle hook.
 func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
-	sender *p2p.Sender, nodeIdx cluster.NodeIdx,
+	sender *p2p.Sender, nodeIdx cluster.NodeIdx, deadliner core.Deadliner,
 ) (core.Consensus, lifecycle.IHookFunc, error) {
 	peers, err := lock.Peers()
 	if err != nil {
@@ -533,7 +536,7 @@ func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *ecd
 	}
 
 	if featureset.Enabled(featureset.QBFTConsensus) {
-		comp, err := consensus.New(tcpNode, sender, peers, p2pKey)
+		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner)
 		if err != nil {
 			return nil, nil, err
 		}
