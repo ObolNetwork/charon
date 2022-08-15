@@ -344,6 +344,15 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	sender := new(p2p.Sender)
 
+	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	deadlinerFunc := func() core.Deadliner {
+		return core.NewDeadliner(ctx, deadlineFunc)
+	}
+
 	sched, err := scheduler.New(corePubkeys, eth2Cl, conf.BuilderAPI)
 	if err != nil {
 		return err
@@ -354,7 +363,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	dutyDB := dutydb.NewMemDB()
+	dutyDB := dutydb.NewMemDB(deadlinerFunc())
 
 	vapi, err := validatorapi.NewComponent(eth2Cl, pubSharesByKey, nodeIdx.ShareIdx)
 	if err != nil {
@@ -386,15 +395,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	broadcaster, err := bcast.New(ctx, eth2Cl)
 	if err != nil {
 		return err
-	}
-
-	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl)
-	if err != nil {
-		return err
-	}
-
-	deadlinerFunc := func() core.Deadliner {
-		return core.NewDeadliner(ctx, deadlineFunc)
 	}
 
 	retryer, err := retry.New[core.Duty](deadlineFunc)
