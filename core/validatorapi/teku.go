@@ -32,7 +32,7 @@ type TekuProposerConfig struct {
 
 type TekuBuilder struct {
 	Enabled   bool              `json:"enabled"`
-	Overrides map[string]string `json:"registration_overrides"`
+	Overrides map[string]string `json:"registration_overrides,omitempty"`
 }
 
 const dead = "0x000000000000000000000000000000000000dead"
