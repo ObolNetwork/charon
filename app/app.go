@@ -538,7 +538,7 @@ func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *ecd
 			return nil, nil, err
 		}
 
-		return comp, lifecycle.HookFuncCtx(comp.Start), nil
+		return comp, lifecycle.HookFuncMin(comp.Start), nil
 	}
 
 	var lcastTransport leadercast.Transport

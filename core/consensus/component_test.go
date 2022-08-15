@@ -93,7 +93,7 @@ func TestComponent(t *testing.T) {
 			results <- set
 			return nil
 		})
-		c.Start(log.WithCtx(ctx, z.Int("node", i)))
+		c.Start()
 
 		components = append(components, c)
 	}

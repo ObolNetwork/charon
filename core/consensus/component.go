@@ -138,8 +138,8 @@ func (c *Component) Subscribe(fn func(ctx context.Context, duty core.Duty, set c
 }
 
 // Start registers the libp2p receive handler. This should only be called once.
-func (c *Component) Start(ctx context.Context) {
-	c.tcpNode.SetStreamHandler(protocolID, c.makeHandler(ctx))
+func (c *Component) Start() {
+	c.tcpNode.SetStreamHandler(protocolID, c.handle)
 }
 
 // Propose participants in a consensus instance proposing the provided data.
@@ -193,61 +193,62 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 	return nil
 }
 
-// makeHandler returns a consensus libp2p handler.
-func (c *Component) makeHandler(ctx context.Context) func(s network.Stream) {
+// handle processes an incoming consensus wire message.
+func (c *Component) handle(s network.Stream) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	ctx = log.WithTopic(ctx, "qbft")
-	return func(s network.Stream) {
-		ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
-		defer s.Close()
+	ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
+	defer cancel()
+	defer s.Close()
 
-		b, err := io.ReadAll(s)
-		if err != nil {
-			log.Error(ctx, "Failed reading stream", err)
+	b, err := io.ReadAll(s)
+	if err != nil {
+		log.Error(ctx, "Failed reading stream", err)
+		return
+	}
+
+	pbMsg := new(pbv1.ConsensusMsg)
+	if err := proto.Unmarshal(b, pbMsg); err != nil {
+		log.Error(ctx, "Failed unmarshalling proto", err)
+		return
+	}
+
+	if pbMsg.Msg == nil || pbMsg.Msg.Duty == nil {
+		log.Error(ctx, "Invalid consensus message", errors.New("nil msg"))
+		return
+	}
+
+	duty := core.DutyFromProto(pbMsg.Msg.Duty)
+	if !duty.Type.Valid() {
+		log.Error(ctx, "Invalid duty type", errors.New("", z.Str("type", duty.Type.String())))
+		return
+	}
+
+	if ok, err := verifyMsgSig(pbMsg.Msg, c.pubkeys[pbMsg.Msg.PeerIdx]); err != nil || !ok {
+		log.Error(ctx, "Invalid message signature", err)
+		return
+	}
+
+	for _, msg := range pbMsg.Justification {
+		if ok, err := verifyMsgSig(msg, c.pubkeys[msg.PeerIdx]); err != nil || !ok {
+			log.Error(ctx, "Invalid justification signature", err)
 			return
 		}
+	}
 
-		pbMsg := new(pbv1.ConsensusMsg)
-		if err := proto.Unmarshal(b, pbMsg); err != nil {
-			log.Error(ctx, "Failed unmarshalling proto", err)
-			return
-		}
+	msg, err := newMsg(pbMsg.Msg, pbMsg.Justification)
+	if err != nil {
+		log.Error(ctx, "Create message pbMsg", err)
+		return
+	}
 
-		if pbMsg.Msg == nil || pbMsg.Msg.Duty == nil {
-			log.Error(ctx, "Invalid consensus message", errors.New("nil msg"))
-			return
-		}
-
-		duty := core.DutyFromProto(pbMsg.Msg.Duty)
-		if !duty.Type.Valid() {
-			log.Error(ctx, "Invalid duty type", errors.New("", z.Str("type", duty.Type.String())))
-			return
-		}
-
-		if ok, err := verifyMsgSig(pbMsg.Msg, c.pubkeys[pbMsg.Msg.PeerIdx]); err != nil || !ok {
-			log.Error(ctx, "Invalid message signature", err)
-			return
-		}
-
-		for _, msg := range pbMsg.Justification {
-			if ok, err := verifyMsgSig(msg, c.pubkeys[msg.PeerIdx]); err != nil || !ok {
-				log.Error(ctx, "Invalid justification signature", err)
-				return
-			}
-		}
-
-		msg, err := newMsg(pbMsg.Msg, pbMsg.Justification)
-		if err != nil {
-			log.Error(ctx, "Create message pbMsg", err)
-			return
-		}
-
-		select {
-		case c.getRecvBuffer(duty) <- msg:
-			// TODO(corver): Trim channels on duty deadline.
-		default:
-			log.Error(ctx, "Receive buffer full", err)
-			return
-		}
+	select {
+	case c.getRecvBuffer(duty) <- msg:
+	// TODO(corver): Trim channels on duty deadline.
+	case <-ctx.Done():
+		log.Error(ctx, "Receive buffer timeout", ctx.Err())
+	default:
+		log.Error(ctx, "Receive buffer full", err)
 	}
 }
 
