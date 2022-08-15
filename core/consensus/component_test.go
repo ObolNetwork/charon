@@ -87,13 +87,13 @@ func TestComponent(t *testing.T) {
 			hosts[i].Peerstore().AddAddrs(hostsInfo[j].ID, hostsInfo[j].Addrs, peerstore.PermanentAddrTTL)
 		}
 
-		c, err := consensus.New(hosts[i], new(p2p.Sender), peers, p2pkeys[i])
+		c, err := consensus.New(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{})
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set
 			return nil
 		})
-		c.Start()
+		c.Start(log.WithCtx(ctx, z.Int("node", i)))
 
 		components = append(components, c)
 	}
@@ -132,4 +132,17 @@ func TestComponent(t *testing.T) {
 			}
 		}
 	}
+}
+
+// testDeadliner is a mock deadliner implementation.
+type testDeadliner struct {
+	deadlineChan chan core.Duty
+}
+
+func (testDeadliner) Add(core.Duty) bool {
+	return true
+}
+
+func (t testDeadliner) C() <-chan core.Duty {
+	return t.deadlineChan
 }
