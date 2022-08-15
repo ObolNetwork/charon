@@ -18,6 +18,7 @@ package dutydb_test
 import (
 	"context"
 	"runtime"
+	"sync"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -32,7 +33,7 @@ import (
 )
 
 func TestShutdown(t *testing.T) {
-	db := dutydb.NewMemDB()
+	db := dutydb.NewMemDB(new(testDeadliner))
 
 	errChan := make(chan error, 1)
 	go func() {
@@ -50,7 +51,7 @@ func TestShutdown(t *testing.T) {
 
 func TestMemDB(t *testing.T) {
 	ctx := context.Background()
-	db := dutydb.NewMemDB()
+	db := dutydb.NewMemDB(new(testDeadliner))
 
 	// Nothing in the DB, so expect error
 	_, err := db.PubKeyByAttestation(ctx, 0, 0, 0)
@@ -139,7 +140,7 @@ func TestMemDB(t *testing.T) {
 
 func TestMemDBProposer(t *testing.T) {
 	ctx := context.Background()
-	db := dutydb.NewMemDB()
+	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const queries = 3
 	slots := [queries]int64{123, 456, 789}
@@ -190,7 +191,7 @@ func TestMemDBProposer(t *testing.T) {
 
 func TestMemDBClashingBlocks(t *testing.T) {
 	ctx := context.Background()
-	db := dutydb.NewMemDB()
+	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const slot = 123
 	block1 := &spec.VersionedBeaconBlock{
@@ -227,7 +228,7 @@ func TestMemDBClashingBlocks(t *testing.T) {
 
 func TestMemDBClashProposer(t *testing.T) {
 	ctx := context.Background()
-	db := dutydb.NewMemDB()
+	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const slot = 123
 
@@ -267,7 +268,7 @@ func TestMemDBClashProposer(t *testing.T) {
 
 func TestMemDBBuilderProposer(t *testing.T) {
 	ctx := context.Background()
-	db := dutydb.NewMemDB()
+	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const queries = 3
 	slots := [queries]int64{123, 456, 789}
@@ -318,7 +319,7 @@ func TestMemDBBuilderProposer(t *testing.T) {
 
 func TestMemDBClashingBlindedBlocks(t *testing.T) {
 	ctx := context.Background()
-	db := dutydb.NewMemDB()
+	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const slot = 123
 	block1 := &eth2api.VersionedBlindedBeaconBlock{
@@ -355,7 +356,7 @@ func TestMemDBClashingBlindedBlocks(t *testing.T) {
 
 func TestMemDBClashBuilderProposer(t *testing.T) {
 	ctx := context.Background()
-	db := dutydb.NewMemDB()
+	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const slot = 123
 
@@ -391,4 +392,68 @@ func TestMemDBClashBuilderProposer(t *testing.T) {
 		pubkey: unsignedB,
 	})
 	require.ErrorContains(t, err, "clashing blinded blocks")
+}
+
+func TestDutyExpiry(t *testing.T) {
+	ctx := context.Background()
+	deadliner := &testDeadliner{ch: make(chan core.Duty, 10)}
+	db := dutydb.NewMemDB(deadliner)
+
+	// Add attestation data
+	const slot = int64(123)
+	att1 := testutil.RandomCoreAttestationData(t)
+	att1.Duty.Slot = eth2p0.Slot(slot)
+	err := db.Store(ctx, core.NewAttesterDuty(slot), core.UnsignedDataSet{
+		testutil.RandomCorePubKey(t): att1,
+	})
+	require.NoError(t, err)
+
+	// Ensure it exists
+	pk, err := db.PubKeyByAttestation(ctx, int64(att1.Data.Slot), int64(att1.Data.Index), int64(att1.Duty.ValidatorCommitteeIndex))
+	require.NoError(t, err)
+	require.NotEmpty(t, pk)
+
+	// Expire attestation
+	deadliner.expire()
+
+	// Store another duty which deletes expired duties
+	err = db.Store(ctx, core.NewProposerDuty(slot+1), core.UnsignedDataSet{
+		testutil.RandomCorePubKey(t): testutil.RandomCoreVersionBeaconBlock(t),
+	})
+	require.NoError(t, err)
+
+	// Pubkey not found.
+	_, err = db.PubKeyByAttestation(ctx, int64(att1.Data.Slot), int64(att1.Data.Index), int64(att1.Duty.ValidatorCommitteeIndex))
+	require.Error(t, err)
+}
+
+// testDeadliner is a mock deadliner implementation.
+type testDeadliner struct {
+	mu    sync.Mutex
+	added []core.Duty
+	ch    chan core.Duty
+}
+
+func (d *testDeadliner) Add(duty core.Duty) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.added = append(d.added, duty)
+
+	return true
+}
+
+func (d *testDeadliner) C() <-chan core.Duty {
+	return d.ch
+}
+
+func (d *testDeadliner) expire() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	for _, duty := range d.added {
+		d.ch <- duty
+	}
+
+	d.added = nil
 }
