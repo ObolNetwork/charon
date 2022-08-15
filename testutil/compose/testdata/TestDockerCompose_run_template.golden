@@ -77,7 +77,24 @@
      "Value": "alpha"
     }
    ],
-   "Ports": null
+   "Ports": [
+    {
+     "External": 3600,
+     "Internal": 3600
+    },
+    {
+     "External": 3610,
+     "Internal": 3610
+    },
+    {
+     "External": 3620,
+     "Internal": 3620
+    },
+    {
+     "External": 3630,
+     "Internal": 3630
+    }
+   ]
   },
   {
    "ImageTag": "",
@@ -152,7 +169,24 @@
      "Value": "alpha"
     }
    ],
-   "Ports": null
+   "Ports": [
+    {
+     "External": 13600,
+     "Internal": 3600
+    },
+    {
+     "External": 13610,
+     "Internal": 3610
+    },
+    {
+     "External": 13620,
+     "Internal": 3620
+    },
+    {
+     "External": 13630,
+     "Internal": 3630
+    }
+   ]
   },
   {
    "ImageTag": "",
@@ -227,7 +261,24 @@
      "Value": "alpha"
     }
    ],
-   "Ports": null
+   "Ports": [
+    {
+     "External": 23600,
+     "Internal": 3600
+    },
+    {
+     "External": 23610,
+     "Internal": 3610
+    },
+    {
+     "External": 23620,
+     "Internal": 3620
+    },
+    {
+     "External": 23630,
+     "Internal": 3630
+    }
+   ]
   },
   {
    "ImageTag": "",
@@ -302,7 +353,24 @@
      "Value": "alpha"
     }
    ],
-   "Ports": null
+   "Ports": [
+    {
+     "External": 33600,
+     "Internal": 3600
+    },
+    {
+     "External": 33610,
+     "Internal": 3610
+    },
+    {
+     "External": 33620,
+     "Internal": 3620
+    },
+    {
+     "External": 33630,
+     "Internal": 3630
+    }
+   ]
   }
  ],
  "VCs": [

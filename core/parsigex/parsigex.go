@@ -26,7 +26,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -65,7 +64,7 @@ type ParSigEx struct {
 }
 
 func (m *ParSigEx) handle(s network.Stream) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	ctx = log.WithTopic(ctx, "parsigex")
 	ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
 	defer cancel()
@@ -92,8 +91,7 @@ func (m *ParSigEx) handle(s network.Stream) {
 		return
 	}
 
-	var span trace.Span
-	ctx, span = core.StartDutyTrace(ctx, duty, "core/parsigex.Handle")
+	ctx, span := core.StartDutyTrace(ctx, duty, "core/parsigex.Handle")
 	defer span.End()
 
 	// Verify partial signature
