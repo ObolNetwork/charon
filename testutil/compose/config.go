@@ -35,6 +35,13 @@ const (
 	cmdCreateDKG     = "[create,dkg]"
 )
 
+var charonPorts = []port{
+	{External: 3600, Internal: 3600}, // # Validator API
+	{External: 3610, Internal: 3610}, // # Libp2p
+	{External: 3620, Internal: 3620}, // # Monitoring
+	{External: 3630, Internal: 3630}, // # Discv5
+}
+
 // VCType defines a validator client type.
 type VCType string
 

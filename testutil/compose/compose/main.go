@@ -117,6 +117,9 @@ func newDockerCmd(use string, short string, runFunc runFunc) *cobra.Command {
 	dir := addDirFlag(cmd.Flags())
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		_, err := newRunnerFunc(use, *dir, *up, runFunc)(cmd.Context())
+		if err != nil {
+			log.Error(cmd.Context(), "Fatal error", err)
+		}
 		return err
 	}
 
@@ -137,6 +140,11 @@ func newAutoCmd(tmplCallbacks map[string]func(data *compose.TmplData)) *cobra.Co
 	printYML := cmd.Flags().Bool("print-yml", false, "Print generated docker-compose.yml files.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) (err error) {
+		defer func() {
+			if err != nil {
+				log.Error(cmd.Context(), "Fatal error", err)
+			}
+		}()
 		runFuncs := map[string]func(context.Context) (compose.TmplData, error){
 			"define": newRunnerFunc("define", *dir, false, compose.Define),
 			"lock":   newRunnerFunc("lock", *dir, false, compose.Lock),

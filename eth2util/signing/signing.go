@@ -25,6 +25,7 @@ import (
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -203,6 +204,9 @@ func VerifyValidatorRegistration(ctx context.Context, eth2Cl Eth2Provider, pubke
 func verify(ctx context.Context, eth2Cl Eth2Provider, domain DomainName, epoch eth2p0.Epoch,
 	sigRoot [32]byte, sig eth2p0.BLSSignature, pubshare *bls_sig.PublicKey,
 ) error {
+	ctx, span := tracer.Start(ctx, "eth2util.verify")
+	defer span.End()
+
 	sigData, err := GetDataRoot(ctx, eth2Cl, domain, epoch, sigRoot)
 	if err != nil {
 		return err
@@ -219,6 +223,7 @@ func verify(ctx context.Context, eth2Cl Eth2Provider, domain DomainName, epoch e
 		return errors.Wrap(err, "convert signature")
 	}
 
+	span.AddEvent("tbls.Verify")
 	ok, err := tbls.Verify(pubshare, sigData[:], s)
 	if err != nil {
 		return err
