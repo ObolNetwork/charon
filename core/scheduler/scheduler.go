@@ -139,6 +139,12 @@ func (s *Scheduler) Run() error {
 
 // GetDutyDefinition returns the definition for a duty if resolved already, otherwise an error.
 func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+	if duty.Type == core.DutyBuilderProposer && !s.builderAPI {
+		return nil, errors.New("builder-api not enabled, but duty builder proposer requested")
+	} else if duty.Type == core.DutyProposer && s.builderAPI {
+		return nil, errors.New("builder-api enabled, but duty proposer requested")
+	}
+
 	slotsPerEpoch, err := s.eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
 		return nil, err
