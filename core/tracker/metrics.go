@@ -34,4 +34,11 @@ var (
 		Name:      "failed_duties_total",
 		Help:      "Total number of failed duties by component",
 	}, []string{"duty", "component"})
+
+	unexpectedEventsCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "unexpected_events_total",
+		Help:      "Total number of unexpected events by peer",
+	}, []string{"peer"})
 )
