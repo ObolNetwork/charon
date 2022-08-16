@@ -29,13 +29,15 @@ import (
 )
 
 // NewMemDB returns a new in-memory dutyDB instance.
-func NewMemDB() *MemDB {
+func NewMemDB(deadliner core.Deadliner) *MemDB {
 	return &MemDB{
 		attDuties:        make(map[attKey]*eth2p0.AttestationData),
 		attPubKeys:       make(map[pkKey]core.PubKey),
+		attKeysBySlot:    make(map[int64][]pkKey),
 		builderProDuties: make(map[int64]*eth2api.VersionedBlindedBeaconBlock),
 		proDuties:        make(map[int64]*spec.VersionedBeaconBlock),
 		shutdown:         make(chan struct{}),
+		deadliner:        deadliner,
 	}
 }
 
@@ -45,12 +47,14 @@ type MemDB struct {
 	mu                sync.Mutex
 	attDuties         map[attKey]*eth2p0.AttestationData
 	attPubKeys        map[pkKey]core.PubKey
+	attKeysBySlot     map[int64][]pkKey
 	attQueries        []attQuery
 	builderProDuties  map[int64]*eth2api.VersionedBlindedBeaconBlock
 	builderProQueries []builderProQuery
 	proDuties         map[int64]*spec.VersionedBeaconBlock
 	proQueries        []proQuery
 	shutdown          chan struct{}
+	deadliner         core.Deadliner
 }
 
 // Shutdown results in all blocking queries to return shutdown errors.
@@ -63,6 +67,10 @@ func (db *MemDB) Shutdown() {
 func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.UnsignedDataSet) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
+
+	if !db.deadliner.Add(duty) {
+		return errors.New("not storing unsigned data for expired duty", z.Any("duty", duty))
+	}
 
 	switch duty.Type {
 	case core.DutyProposer:
@@ -99,6 +107,24 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 		db.resolveAttQueriesUnsafe()
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
+	}
+
+	// Delete all expired duties.
+	for {
+		var deleted bool
+		select {
+		case duty := <-db.deadliner.C():
+			err := db.deleteDutyUnsafe(duty)
+			if err != nil {
+				return err
+			}
+			deleted = true
+		default:
+		}
+
+		if !deleted {
+			break
+		}
 	}
 
 	return nil
@@ -213,6 +239,7 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 		}
 	} else {
 		db.attPubKeys[pKey] = pubkey
+		db.attKeysBySlot[int64(attData.Duty.Slot)] = append(db.attKeysBySlot[int64(attData.Duty.Slot)], pKey)
 	}
 
 	// Store key and value for AwaitAttestation
@@ -357,6 +384,26 @@ func (db *MemDB) resolveBuilderProQueriesUnsafe() {
 	}
 
 	db.builderProQueries = unresolved
+}
+
+// deleteDutyUnsafe deletes the duty from the database. It is unsafe since it assumes the lock is held.
+func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
+	switch duty.Type {
+	case core.DutyProposer:
+		delete(db.proDuties, duty.Slot)
+	case core.DutyBuilderProposer:
+		delete(db.builderProDuties, duty.Slot)
+	case core.DutyAttester:
+		for _, key := range db.attKeysBySlot[duty.Slot] {
+			delete(db.attPubKeys, key)
+			delete(db.attDuties, attKey{Slot: key.Slot, CommIdx: key.CommIdx})
+		}
+		delete(db.attKeysBySlot, duty.Slot)
+	default:
+		return errors.New("unknown duty type")
+	}
+
+	return nil
 }
 
 // attKey is the key to lookup an attester value in the DB.
