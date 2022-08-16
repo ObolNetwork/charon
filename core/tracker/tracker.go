@@ -45,6 +45,18 @@ const (
 	sentinel
 )
 
+// These constants are used for improving messages for why a duty failed.
+const (
+	fetcherMsg                  = "couldn't fetch duty data from the beacon node"
+	fetcherProposerThresholdMsg = "couldn't propose block due to insufficient partial randao signatures"
+	fetcherProposerMsg          = "couldn't propose block since randao duty failed"
+	consensusMsg                = "consensus algorithm didn't complete"
+	validatorAPIMsg             = "signed duty not submitted by local validator client"
+	parSigDBInternalMsg         = "partial signature database didn't trigger partial signature exchange"
+	parSigExMsg                 = "no partial signatures received from peers"
+	parSigDBThresholdMsg        = "insufficient partial signatures received, minimum required threshold not reached"
+)
+
 // event represents an event emitted by a core workflow component.
 type event struct {
 	duty      core.Duty
@@ -159,29 +171,29 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 
 	switch comp {
 	case fetcher:
-		msg = "couldn't fetch duty data from the beacon node"
+		msg = fetcherMsg
 
 		if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
 			// Proposer duties may fail if core.DutyRandao fails
 			randaoFailed, randaoComp := dutyFailedComponent(allEvents[core.NewRandaoDuty(duty.Slot)])
 			if randaoFailed {
 				if randaoComp == parSigDBThreshold {
-					msg = "couldn't propose block due to insufficient partial randao signatures"
+					msg = fetcherProposerThresholdMsg
 				} else {
-					msg = "couldn't propose block since randao duty failed"
+					msg = fetcherProposerMsg
 				}
 			}
 		}
 	case consensus:
-		msg = "consensus algorithm didn't complete"
+		msg = consensusMsg
 	case validatorAPI:
-		msg = "signed duty not submitted by local validator client"
+		msg = validatorAPIMsg
 	case parSigDBInternal:
-		msg = "partial signature database didn't trigger partial signature exchange"
+		msg = parSigDBInternalMsg
 	case parSigEx:
-		msg = "no partial signatures received from peers"
+		msg = parSigExMsg
 	case parSigDBThreshold:
-		msg = "insufficient partial signatures received, minimum required threshold not reached"
+		msg = parSigDBThresholdMsg
 	default:
 		msg = fmt.Sprintf("%s duty failed at %s", duty.String(), comp.String())
 	}

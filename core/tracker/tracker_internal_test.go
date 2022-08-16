@@ -44,7 +44,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 			require.Equal(t, testData[0].duty, failedDuty)
 			require.True(t, isFailed)
 			require.Equal(t, consensus, component)
-			require.Equal(t, msg, "consensus algorithm didn't complete")
+			require.Equal(t, msg, consensusMsg)
 			count++
 
 			if count == len(testData) {
@@ -133,7 +133,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg := analyseDutyFailed(attDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, fetcher)
-		require.Equal(t, msg, "couldn't fetch duty data from the beacon node")
+		require.Equal(t, msg, fetcherMsg)
 
 		// Failed at consensus
 		events[attDuty] = append(events[attDuty], event{
@@ -144,7 +144,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(attDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, consensus)
-		require.Equal(t, msg, "consensus algorithm didn't complete")
+		require.Equal(t, msg, consensusMsg)
 
 		// Failed at validatorAPI
 		events[attDuty] = append(events[attDuty], event{
@@ -155,7 +155,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(attDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, validatorAPI)
-		require.Equal(t, msg, "signed duty not submitted by local validator client")
+		require.Equal(t, msg, validatorAPIMsg)
 
 		// Failed at parsigDBInternal
 		events[attDuty] = append(events[attDuty], event{
@@ -166,7 +166,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(attDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, parSigDBInternal)
-		require.Equal(t, msg, "partial signature database didn't trigger partial signature exchange")
+		require.Equal(t, msg, parSigDBInternalMsg)
 
 		// Failed at parsigEx
 		events[attDuty] = append(events[attDuty], event{
@@ -177,7 +177,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(attDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, parSigEx)
-		require.Equal(t, msg, "no partial signatures received from peers")
+		require.Equal(t, msg, parSigExMsg)
 
 		// Failed at parsigDBThreshold
 		events[attDuty] = append(events[attDuty], event{
@@ -188,7 +188,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(attDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, parSigDBThreshold)
-		require.Equal(t, msg, "insufficient partial signatures received, minimum required threshold not reached")
+		require.Equal(t, msg, parSigDBThresholdMsg)
 	})
 
 	t.Run("FailedAtFetcherAsRandaoFailed", func(t *testing.T) {
@@ -215,7 +215,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg := analyseDutyFailed(proposerDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, fetcher)
-		require.Equal(t, msg, "couldn't propose block since randao duty failed")
+		require.Equal(t, msg, fetcherProposerMsg)
 
 		// Randao failed at parSigDBThreshold
 		events[randaoDuty] = append(events[randaoDuty], event{
@@ -226,7 +226,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(proposerDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, fetcher)
-		require.Equal(t, msg, "couldn't propose block due to insufficient partial randao signatures")
+		require.Equal(t, msg, fetcherProposerThresholdMsg)
 	})
 
 	t.Run("DutySuccess", func(t *testing.T) {
