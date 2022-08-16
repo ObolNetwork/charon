@@ -112,12 +112,8 @@ func (t *Tracker) Run(ctx context.Context) error {
 			t.failedDutyReporter(ctx, duty, failed, failedComponent, failedMsg)
 
 			// Analyse peer participation
-			participatedShares, unexpectedShares, err := analyseParticipation(duty, t.events)
-			if err != nil {
-				log.Error(ctx, "Invalid participated shares", err)
-			} else {
-				t.participationReporter(ctx, duty, participatedShares, unexpectedShares)
-			}
+			participatedShares, unexpectedShares := analyseParticipation(duty, t.events)
+			t.participationReporter(ctx, duty, participatedShares, unexpectedShares)
 
 			delete(t.events, duty)
 		}
@@ -163,7 +159,7 @@ func failedDutyReporter(ctx context.Context, duty core.Duty, failed bool, compon
 }
 
 // analyseParticipation returns a set of share indexes of participated peers.
-func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (map[int]bool, map[int]bool, error) {
+func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (map[int]bool, map[int]bool) {
 	// Set of shareIdx of participated peers.
 	resp := make(map[int]bool)
 	unexpectedShares := make(map[int]bool)
@@ -188,7 +184,7 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (map[
 		}
 	}
 
-	return resp, unexpectedShares, nil
+	return resp, unexpectedShares
 }
 
 // isParSigEventExpected return true if partially signed data events is expected for the given duty and pubkey.
