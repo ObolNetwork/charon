@@ -45,6 +45,18 @@ const (
 	sentinel
 )
 
+// These constants are used for improving messages for why a duty failed.
+const (
+	fetcherMsg                  = "couldn't fetch duty data from the beacon node"
+	fetcherProposerThresholdMsg = "couldn't propose block due to insufficient partial randao signatures"
+	fetcherProposerMsg          = "couldn't propose block since randao duty failed"
+	consensusMsg                = "consensus algorithm didn't complete"
+	validatorAPIMsg             = "signed duty not submitted by local validator client"
+	parSigDBInternalMsg         = "partial signature database didn't trigger partial signature exchange"
+	parSigExMsg                 = "no partial signatures received from peers"
+	parSigDBThresholdMsg        = "insufficient partial signatures received, minimum required threshold not reached"
+)
+
 // event represents an event emitted by a core workflow component.
 type event struct {
 	duty      core.Duty
@@ -108,7 +120,7 @@ func (t *Tracker) Run(ctx context.Context) error {
 			ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
 			// Analyse failed duties
-			failed, failedComponent, failedMsg := analyseDutyFailed(duty, t.events[duty])
+			failed, failedComponent, failedMsg := analyseDutyFailed(duty, t.events)
 			t.failedDutyReporter(ctx, duty, failed, failedComponent, failedMsg)
 
 			// Analyse peer participation
@@ -120,9 +132,9 @@ func (t *Tracker) Run(ctx context.Context) error {
 	}
 }
 
-// analyseDutyFailed detects if a duty failed. It returns true if the duty didn't complete the sigagg component.
-// If it failed, it also returns the component where it failed and a human friendly error message explaining why.
-func analyseDutyFailed(duty core.Duty, es []event) (bool, component, string) {
+// dutyFailedComponent returns true if the duty failed. It also returns the component where the duty got stuck.  If the duty didn't get stuck, it
+// returns the sigAgg component. It assumes that all the input events are for a single duty.
+func dutyFailedComponent(es []event) (bool, component) {
 	events := make([]event, len(es))
 	copy(events, es)
 
@@ -132,17 +144,61 @@ func analyseDutyFailed(duty core.Duty, es []event) (bool, component, string) {
 	})
 
 	if len(events) == 0 {
-		return false, sentinel, "No events to analyse"
+		return false, sentinel
 	}
 
-	if events[0].component == sigAgg {
-		// Duty completed successfully
+	c := events[0].component
+	if c == sigAgg {
+		return false, sigAgg
+	}
+
+	return true, c + 1
+}
+
+// analyseDutyFailed detects if the given duty failed. It returns false if the duty didn't fail, i.e., the duty didn't get stuck and completes the sigAgg component.
+// It returns true if the duty failed. It also returns the component where the duty got stuck and a human friendly error message explaining why.
+func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, component, string) {
+	var (
+		failed bool
+		comp   component
+		msg    string
+	)
+
+	failed, comp = dutyFailedComponent(allEvents[duty])
+	if !failed {
 		return false, sigAgg, ""
 	}
 
-	// TODO(xenowits): Improve message to have more specific details.
-	//  Ex: If the duty got stuck during validatorAPI, we can say "the VC didn't successfully submit a signed duty").
-	return true, events[0].component + 1, fmt.Sprintf("%s failed in %s component", duty.String(), (events[0].component + 1).String())
+	switch comp {
+	case fetcher:
+		msg = fetcherMsg
+
+		if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
+			// Proposer duties may fail if core.DutyRandao fails
+			randaoFailed, randaoComp := dutyFailedComponent(allEvents[core.NewRandaoDuty(duty.Slot)])
+			if randaoFailed {
+				if randaoComp == parSigDBThreshold {
+					msg = fetcherProposerThresholdMsg
+				} else {
+					msg = fetcherProposerMsg
+				}
+			}
+		}
+	case consensus:
+		msg = consensusMsg
+	case validatorAPI:
+		msg = validatorAPIMsg
+	case parSigDBInternal:
+		msg = parSigDBInternalMsg
+	case parSigEx:
+		msg = parSigExMsg
+	case parSigDBThreshold:
+		msg = parSigDBThresholdMsg
+	default:
+		msg = fmt.Sprintf("%s duty failed at %s", duty.String(), comp.String())
+	}
+
+	return true, comp, msg
 }
 
 // failedDutyReporter instruments failed duties.
@@ -224,7 +280,7 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 // newParticipationReporter returns a new participation reporter function which logs and instruments peer participation
 // and unexpectedPeers.
 func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty, map[int]bool, map[int]bool) {
-	// prevAbsent is the set of peers who didn't participated in the last duty.
+	// prevAbsent is the set of peers who didn't participate in the last duty.
 	var prevAbsent []string
 
 	return func(ctx context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedShares map[int]bool) {
