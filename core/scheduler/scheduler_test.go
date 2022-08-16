@@ -316,10 +316,11 @@ func TestScheduler_GetDuty(t *testing.T) {
 	clock := newTestClock(t0)
 	sched := scheduler.NewForT(t, clock, new(delayer).delay, pubkeys, eth2Cl, false)
 
-	_, err = sched.GetDutyDefinition(context.Background(), core.Duty{Slot: 0, Type: core.DutyAttester})
-	// due to current design we will return an error if we request the duty of a slot that has not been resolved
-	// by the scheduler yet. With DutyResolver, we will have always an answer
-	require.Error(t, err, "epoch not resolved yet")
+	_, err = sched.GetDutyDefinition(context.Background(), core.NewAttesterDuty(0))
+	require.ErrorContains(t, err, "epoch not resolved yet")
+
+	_, err = sched.GetDutyDefinition(context.Background(), core.NewBuilderProposerDuty(0))
+	require.ErrorContains(t, err, "builder-api not enabled")
 
 	slotDuration, err := eth2Cl.SlotDuration(context.Background())
 	require.NoError(t, err)
