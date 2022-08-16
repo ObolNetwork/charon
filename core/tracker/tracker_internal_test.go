@@ -230,37 +230,13 @@ func TestAnalyseDutyFailed(t *testing.T) {
 	})
 
 	t.Run("DutySuccess", func(t *testing.T) {
-		events := map[core.Duty][]event{
-			attDuty: {
-				{
-					duty:      attDuty,
-					component: scheduler,
-				},
-				{
-					duty:      attDuty,
-					component: fetcher,
-				},
-				{
-					duty:      attDuty,
-					component: consensus,
-				},
-				{
-					duty:      attDuty,
-					component: validatorAPI,
-				},
-				{
-					duty:      attDuty,
-					component: parSigDBInternal,
-				},
-				{
-					duty:      attDuty,
-					component: parSigEx,
-				},
-				{
-					duty:      attDuty,
-					component: parSigDBThreshold,
-				},
-			},
+		var (
+			events  = make(map[core.Duty][]event)
+			attDuty = core.NewAttesterDuty(int64(1))
+		)
+
+		for comp := scheduler; comp < sentinel; comp++ {
+			events[attDuty] = append(events[attDuty], event{component: comp})
 		}
 
 		failed, comp, msg := analyseDutyFailed(proposerDuty, events)
