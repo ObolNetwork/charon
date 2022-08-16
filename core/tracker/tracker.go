@@ -136,8 +136,11 @@ func dutyFailedComponent(es []event) (bool, component) {
 	}
 
 	c := events[0].component
+	if c == sigAgg {
+		return false, sigAgg
+	}
 
-	return c != sigAgg, c + 1
+	return true, c + 1
 }
 
 // analyseDutyFailed detects if the given duty failed. It returns false if the duty didn't fail, i.e., the duty didn't get stuck and completes the sigAgg component.
@@ -160,12 +163,12 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 
 		if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
 			// Proposer duties may fail if core.DutyRandao fails
-			f, c := dutyFailedComponent(allEvents[core.NewRandaoDuty(duty.Slot)])
-			if f {
-				if c == parSigEx { // DutyRandao failed at parSigEx
-					msg = "couldn't propose duty as randao failed to exchange partial signatures"
-				} else if c == parSigDBThreshold { // DutyRandao failed at parSigDB
-					msg = "couldn't propose duty as randao failed due to insufficient partial signatures"
+			randaoFailed, randaoComp := dutyFailedComponent(allEvents[core.NewRandaoDuty(duty.Slot)])
+			if randaoFailed {
+				if randaoComp == parSigDBThreshold {
+					msg = "couldn't propose block due to insufficient partial randao signatures"
+				} else {
+					msg = "couldn't propose block since randao duty failed"
 				}
 			}
 		}
@@ -173,15 +176,10 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 		msg = "consensus algorithm didn't complete"
 	case validatorAPI:
 		msg = "signed duty not submitted by local validator client"
-
-		if duty.Type == core.DutyRandao || duty.Type == core.DutyExit || duty.Type == core.DutyBuilderProposer {
-			// These duties start from vapi and may fail even when VC submits signed duty but BN is down
-			msg = "signed duty not submitted by local validator client or couldn't fetch duty data from the beacon node"
-		}
 	case parSigDBInternal:
 		msg = "partial signature database didn't trigger partial signature exchange"
 	case parSigEx:
-		msg = "no partial signature received from peers"
+		msg = "no partial signatures received from peers"
 	case parSigDBThreshold:
 		msg = "insufficient partial signatures received, minimum required threshold not reached"
 	default:

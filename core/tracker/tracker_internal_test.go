@@ -177,7 +177,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(attDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, parSigEx)
-		require.Equal(t, msg, "no partial signature received from peers")
+		require.Equal(t, msg, "no partial signatures received from peers")
 
 		// Failed at parsigDBThreshold
 		events[attDuty] = append(events[attDuty], event{
@@ -215,7 +215,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg := analyseDutyFailed(proposerDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, fetcher)
-		require.Equal(t, msg, "couldn't propose duty as randao failed to exchange partial signatures")
+		require.Equal(t, msg, "couldn't propose block since randao duty failed")
 
 		// Randao failed at parSigDBThreshold
 		events[randaoDuty] = append(events[randaoDuty], event{
@@ -226,7 +226,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(proposerDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, fetcher)
-		require.Equal(t, msg, "couldn't propose duty as randao failed due to insufficient partial signatures")
+		require.Equal(t, msg, "couldn't propose block due to insufficient partial randao signatures")
 	})
 
 	t.Run("DutySuccess", func(t *testing.T) {
@@ -267,6 +267,39 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		require.False(t, failed)
 		require.Equal(t, comp, sigAgg)
 		require.Equal(t, msg, "")
+	})
+}
+
+func TestDutyFailedComponent(t *testing.T) {
+	var events []event
+	for comp := scheduler; comp < sentinel; comp++ {
+		events = append(events, event{component: comp})
+	}
+
+	t.Run("DutySuccess", func(t *testing.T) {
+		failed, comp := dutyFailedComponent(events)
+		require.False(t, failed)
+		require.Equal(t, comp, sigAgg)
+	})
+
+	t.Run("EmptyEvents", func(t *testing.T) {
+		f, comp := dutyFailedComponent([]event{})
+		require.False(t, f)
+		require.Equal(t, comp, sentinel)
+	})
+
+	t.Run("DutyFailed", func(t *testing.T) {
+		// Remove the last component (sigAgg) from the events array.
+		events = events[:len(events)-1]
+		f, comp := dutyFailedComponent(events)
+		require.True(t, f)
+		require.Equal(t, comp, sigAgg)
+
+		// Remove the second-last component (parsigDBThreshold) from the events array.
+		events = events[:len(events)-1]
+		f, comp = dutyFailedComponent(events)
+		require.True(t, f)
+		require.Equal(t, comp, parSigDBThreshold)
 	})
 }
 
