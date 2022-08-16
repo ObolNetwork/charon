@@ -120,6 +120,7 @@ func newDockerCmd(use string, short string, runFunc runFunc) *cobra.Command {
 		if err != nil {
 			log.Error(cmd.Context(), "Fatal error", err)
 		}
+
 		return err
 	}
 
