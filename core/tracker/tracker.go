@@ -158,8 +158,8 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 	case fetcher:
 		msg = "couldn't fetch duty data from the beacon node"
 
-		// Proposer duties may fail if core.DutyRandao fails
 		if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
+			// Proposer duties may fail if core.DutyRandao fails
 			f, c := dutyFailedComponent(allEvents[core.NewRandaoDuty(duty.Slot)])
 			if f {
 				if c == parSigEx { // DutyRandao failed at parSigEx
@@ -172,9 +172,10 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 	case consensus:
 		msg = "consensus algorithm didn't complete"
 	case validatorAPI:
-		if duty.Type == core.DutyAttester || duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
-			msg = "signed duty not submitted by local validator client"
-		} else { // other duties start from vapi and may fail even when VC submits signed duty but BN is down
+		msg = "signed duty not submitted by local validator client"
+
+		if duty.Type == core.DutyRandao || duty.Type == core.DutyExit || duty.Type == core.DutyBuilderProposer {
+			// These duties start from vapi and may fail even when VC submits signed duty but BN is down
 			msg = "signed duty not submitted by local validator client or couldn't fetch duty data from the beacon node"
 		}
 	case parSigDBInternal:
@@ -184,7 +185,7 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 	case parSigDBThreshold:
 		msg = "insufficient partial signatures received, minimum required threshold not reached"
 	default:
-		msg = fmt.Sprintf("duty failed at %s", comp.String())
+		msg = fmt.Sprintf("%s duty failed at %s", duty.String(), comp.String())
 	}
 
 	return true, comp, msg
