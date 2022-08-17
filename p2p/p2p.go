@@ -34,6 +34,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
@@ -128,21 +129,23 @@ func adaptDiscRouting(udpNode *discover.UDPv5, peers, relays []Peer) peerRouting
 			return peer.AddrInfo{}, errors.New("unknown peer")
 		}
 
-		resolved := udpNode.Resolve(&node)
-		if resolved == nil {
-			return peer.AddrInfo{}, errors.New("peer not resolved")
-		}
-
 		var mAddrs []ma.Multiaddr
 
-		// If sequence is 0, we haven't discovered it yet.
-		// If tcp port is 0, this node isn't bound to a port.
-		if resolved.Seq() != 0 && resolved.TCP() != 0 {
-			mAddr, err := multiAddrFromIPPort(resolved.IP(), resolved.TCP())
-			if err != nil {
-				return peer.AddrInfo{}, err
+		if !featureset.Enabled(featureset.InvertDiscv5) {
+			resolved := udpNode.Resolve(&node)
+			if resolved == nil {
+				return peer.AddrInfo{}, errors.New("peer not resolved")
 			}
-			mAddrs = append(mAddrs, mAddr)
+
+			// If sequence is 0, we haven't discovered it yet.
+			// If tcp port is 0, this node isn't bound to a port.
+			if resolved.Seq() != 0 && resolved.TCP() != 0 {
+				mAddr, err := multiAddrFromIPPort(resolved.IP(), resolved.TCP())
+				if err != nil {
+					return peer.AddrInfo{}, err
+				}
+				mAddrs = append(mAddrs, mAddr)
+			}
 		}
 
 		// Add any circuit relays

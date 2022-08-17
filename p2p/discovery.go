@@ -16,23 +16,27 @@
 package p2p
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"net"
+	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
+	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peerstore"
+	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/expbackoff"
+	"github.com/obolnetwork/charon/app/featureset"
+	"github.com/obolnetwork/charon/app/lifecycle"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
-
-// UDPNode wraps a discv5 udp node and adds the bootnodes relays.
-type UDPNode struct {
-	*discover.UDPv5
-	Relays []Peer
-}
 
 // NewUDPNode starts and returns a discv5 UDP implementation.
 func NewUDPNode(config Config, ln *enode.LocalNode,
@@ -132,4 +136,63 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 	}
 
 	return node, db, nil
+}
+
+// NewDiscoveryAdapter returns a life cycle hook that links discv5 to libp2p by
+// continuously polling discv5 for latest peer ERNs and adding then to libp2p peer store.
+func NewDiscoveryAdapter(tcpNode host.Host, udpNode *discover.UDPv5, peers []Peer) lifecycle.HookFuncCtx {
+	return func(ctx context.Context) {
+		if !featureset.Enabled(featureset.InvertDiscv5) {
+			return
+		}
+
+		ctx = log.WithTopic(ctx, "p2p")
+		ttl := peerstore.TempAddrTTL
+		baseDelay := expbackoff.WithBaseDelay(time.Millisecond * 100) // Poll quickly on startup
+		maxDelay := expbackoff.WithMaxDelay(ttl * 9 / 10)             // Slow down to 90% of ttl
+		backoff := expbackoff.New(ctx, baseDelay, maxDelay)
+		addrs := make(map[peer.ID]string)
+
+		for ctx.Err() == nil {
+			for _, p := range peers {
+				if p.ID == tcpNode.ID() {
+					// Skip self
+					continue
+				}
+
+				addr, ok, err := getDiscoveredAddress(udpNode, p)
+				if err != nil {
+					log.Error(ctx, "Failed discovering peer address", err)
+				} else if ok {
+					addrStr := addr.String()
+					if addrs[p.ID] != addrStr {
+						log.Info(ctx, "Discovered new peer address",
+							z.Str("peer", PeerName(p.ID)),
+							z.Str("address", addrStr))
+						addrs[p.ID] = addrStr
+					}
+
+					tcpNode.Peerstore().AddAddr(p.ID, addr, ttl)
+				}
+			}
+
+			backoff()
+		}
+	}
+}
+
+// getDiscoveredAddress returns the peer's address as discovered by discv5,
+// it returns false if the peer isn't discovered.
+func getDiscoveredAddress(udpNode *discover.UDPv5, p Peer) (ma.Multiaddr, bool, error) {
+	resolved := udpNode.Resolve(&p.Enode)
+	if resolved.Seq() == 0 || resolved.TCP() == 0 {
+		return nil, false, nil // Not discovered
+	}
+
+	addr, err := multiAddrFromIPPort(resolved.IP(), resolved.TCP())
+	if err != nil {
+		return nil, false, err
+	}
+
+	return addr, true, nil
 }

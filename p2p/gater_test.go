@@ -71,7 +71,7 @@ func TestP2PConnGating(t *testing.T) {
 
 	err = nodeA.Connect(context.Background(), addr)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), fmt.Sprintf("gater rejected connection with peer %s and addr %s", addr.ID, addr.Addrs[0]))
+	require.Contains(t, err.Error(), fmt.Sprintf("gater rejected connection with peer %s", addr.ID))
 }
 
 func TestOpenGater(t *testing.T) {

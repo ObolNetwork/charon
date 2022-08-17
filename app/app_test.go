@@ -40,10 +40,11 @@ import (
 	"github.com/obolnetwork/charon/cmd"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 //go:generate go test . -v -run=TestPingCluster -slow
-var slow = flag.Bool("slow", false, "enable slow tests")
+var slow = flag.Bool("slow", true, "enable slow tests")
 
 // TestPingCluster starts a cluster of charon nodes and waits for each node to ping all the others.
 // It relies on discv5 for peer discovery.
@@ -51,7 +52,7 @@ func TestPingCluster(t *testing.T) {
 	// Nodes bind to lock ENR addresses.
 	// Discv5 can just use those as bootnodes.
 	t.Run("bind_enrs", func(t *testing.T) {
-		pingCluster(t, pingTest{
+		pingClusterAB(t, pingTest{
 			Slow:         false,
 			BootLock:     true,
 			BindENRAddrs: true,
@@ -62,7 +63,7 @@ func TestPingCluster(t *testing.T) {
 	// Nodes bind to random localhost ports (not the lock ENRs), with only single bootnode.
 	// Discv5 will resolve peers via bootnode.
 	t.Run("bootnode_only", func(t *testing.T) {
-		pingCluster(t, pingTest{
+		pingClusterAB(t, pingTest{
 			BindLocalhost: true,
 			BootLock:      false,
 			Bootnode:      true,
@@ -72,7 +73,7 @@ func TestPingCluster(t *testing.T) {
 	// Nodes bind to random 0.0.0.0 ports (but use 127.0.0.1 as external IP), with only single bootnode.
 	// Discv5 will resolve peers via bootnode and external IP.
 	t.Run("external_ip", func(t *testing.T) {
-		pingCluster(t, pingTest{
+		pingClusterAB(t, pingTest{
 			ExternalIP: "127.0.0.1",
 			BindZeroIP: true,
 			BootLock:   false,
@@ -83,7 +84,7 @@ func TestPingCluster(t *testing.T) {
 	// Nodes bind to 0.0.0.0 (but use localhost as external host), with only single bootnode.
 	// Discv5 will resolve peers via bootnode and external host.
 	t.Run("external_host", func(t *testing.T) {
-		pingCluster(t, pingTest{
+		pingClusterAB(t, pingTest{
 			ExternalHost: "localhost",
 			BindZeroIP:   true,
 			BootLock:     false,
@@ -96,7 +97,7 @@ func TestPingCluster(t *testing.T) {
 	// Node discv5 will not resolve direct address, nodes will connect to bootnode,
 	// and libp2p will relay via bootnode.
 	t.Run("bootnode_relay", func(t *testing.T) {
-		pingCluster(t, pingTest{
+		pingClusterAB(t, pingTest{
 			BootnodeRelay: true,
 			BindZeroPort:  true,
 			Bootnode:      true,
@@ -108,7 +109,7 @@ func TestPingCluster(t *testing.T) {
 	// Discv5 times out resolving stale ENRs, then resolves peers via external node.
 	// This is slow due to discv5 internal timeouts, run with -slow.
 	t.Run("bootnode_and_stale_enrs", func(t *testing.T) {
-		pingCluster(t, pingTest{
+		pingClusterAB(t, pingTest{
 			Slow:          true,
 			BindLocalhost: true,
 			BootLock:      true,
@@ -132,6 +133,19 @@ type pingTest struct {
 
 	ExternalIP   string
 	ExternalHost string
+}
+
+// TODO(corver): Remove once featureset.InvertDiscv5 launched.
+func pingClusterAB(t *testing.T, test pingTest) {
+	t.Helper()
+	t.Run("pushdisc", func(t *testing.T) {
+		featureset.EnableForT(t, featureset.InvertDiscv5)
+		pingCluster(t, test)
+	})
+	t.Run("pulldisc", func(t *testing.T) {
+		featureset.DisableForT(t, featureset.InvertDiscv5)
+		pingCluster(t, test)
+	})
 }
 
 func pingCluster(t *testing.T, test pingTest) {
@@ -178,6 +192,10 @@ func pingCluster(t *testing.T, test pingTest) {
 				P2PKey:          p2pKeys[i],
 				PingCallback:    asserter.Callback(t, i),
 				DisablePromWrap: true,
+				SimnetBMockOpts: []beaconmock.Option{
+					beaconmock.WithNoAttesterDuties(),
+					beaconmock.WithNoProposerDuties(),
+				},
 			},
 			P2P: p2p.Config{
 				UDPBootnodes:  bootnodes,
