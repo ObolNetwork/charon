@@ -143,6 +143,11 @@ func NewRouter(h Handler, eth2Cl eth2client.Service) (*mux.Router, error) {
 			Path:    "/teku_proposer_config",
 			Handler: tekuProposerConfig(h),
 		},
+		{
+			Name:    "lighthouse_validator_definitions",
+			Path:    "/lighthouse_validator_definitions",
+			Handler: lighthouseValidatorDefinitions(h),
+		},
 	}
 
 	r := mux.NewRouter()
