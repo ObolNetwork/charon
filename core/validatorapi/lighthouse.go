@@ -15,54 +15,52 @@
 
 package validatorapi
 
-import (
-	"context"
-	"fmt"
-)
-
-type LighthouseValidatorDefinitionsResponse struct {
-	Proposers map[string]TekuProposerConfig `json:"proposer_config"`
-	Default   TekuProposerConfig            `json:"default_config"`
+type LighthouseValidatorDefinitionJSON struct {
+	Enabled                    bool   `json:"enabled"`
+	VotingPublicKey            string `json:"voting_public_key"`
+	Type                       string `json:"type"`
+	VotingKeystorePath         string `json:"voting_keystore_path"`
+	VotingKeystorePasswordPath string `json:"voting_keystore_password_path"`
+	SuggestedFeeRecipient      string `json:"suggested_fee_recipient"`
+	GasLimit                   uint   `json:"gas_limit"`
+	BuilderProposals           bool   `json:"builder_proposals"`
+	BuilderPubkeyOverride      string `json:"builder_pubkey_override"`
 }
 
-type LighthouseValidatorDefinitions struct {
-	FeeRecipient string      `json:"fee_recipient"`
-	Builder      TekuBuilder `json:"builder"`
-}
+// type LighthouseValidatorDefinitionYAML struct {
+// 	Enabled                    bool   `yaml:"enabled"`
+// 	VotingPublicKey            string `yaml:"voting_public_key"`
+// 	Type                       string `yaml:"type"`
+// 	VotingKeystorePath         string `yaml:"voting_keystore_path"`
+// 	VotingKeystorePasswordPath string `yaml:"voting_keystore_password_path"`
+// 	SuggestedFeeRecipient      string `yaml:"suggested_fee_recipient"`
+// 	GasLimit                   uint   `yaml:"gas_limit"`
+// 	BuilderProposals           bool   `yaml:"builder_proposals"`
+// 	BuilderPubkeyOverride      string `yaml:"builder_pubkey_override"`
+// }
 
-const dead = "0x000000000000000000000000000000000000dead"
+const gasLimit = 30000000
 
 type LighthouseValidatorDefinitionsProvider interface {
-	LighthouseValidatorDefinitions(ctx context.Context) (LighthouseValidatorDefinitionsResponse, error)
+	LighthouseValidatorDefinitions() ([]LighthouseValidatorDefinitionJSON, error)
 }
 
-func (c Component) LighthouseValidatorDefinitions(ctx context.Context) (LighthouseValidatorDefinitionsResponse, error) {
-	resp := LighthouseValidatorDefinitionsResponse{
-		Proposers: make(map[string]TekuProposerConfig),
-		Default: TekuProposerConfig{ // Default doesn't make sense, disable for now.
-			FeeRecipient: dead,
-			Builder: TekuBuilder{
-				Enabled: false,
-			},
-		},
-	}
-
-	genesis, err := c.eth2Cl.GenesisTime(ctx)
-	if err != nil {
-		return TekuProposerConfigResponse{}, nil
-	}
+func (c Component) LighthouseValidatorDefinitions() ([]LighthouseValidatorDefinitionJSON, error) {
+	resp := []LighthouseValidatorDefinitionJSON{}
 
 	for pubkey, pubshare := range c.sharesByKey {
-		resp.Proposers[string(pubshare)] = TekuProposerConfig{
-			FeeRecipient: dead,
-			Builder: TekuBuilder{
-				Enabled: true,
-				Overrides: map[string]string{
-					"timestamp":  fmt.Sprint(genesis.Unix()),
-					"public_key": string(pubkey),
-				},
-			},
-		}
+		resp = append(resp, LighthouseValidatorDefinitionJSON{
+			Enabled:         true,
+			VotingPublicKey: string(pubshare),
+			// Asking whether these need to be defined in lighthouse discord
+			// Type: dead,
+			// VotingKeystorePath: dead,
+			// VotingKeystorePasswordPath: dead,
+			SuggestedFeeRecipient: string(pubkey),
+			GasLimit:              gasLimit,
+			BuilderProposals:      true,
+			BuilderPubkeyOverride: dead,
+		})
 	}
 
 	return resp, nil

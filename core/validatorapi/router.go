@@ -64,6 +64,7 @@ type Handler interface {
 	eth2client.ValidatorsProvider
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.VoluntaryExitSubmitter
+	LighthouseValidatorDefinitionsProvider
 	TekuProposerConfigProvider
 	// Above sorted alphabetically.
 }
@@ -550,6 +551,12 @@ func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
 func tekuProposerConfig(p TekuProposerConfigProvider) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, _ []byte) (interface{}, error) {
 		return p.TekuProposerConfig(ctx)
+	}
+}
+
+func lighthouseValidatorDefinitions(p LighthouseValidatorDefinitionsProvider) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, _ []byte) (interface{}, error) {
+		return p.LighthouseValidatorDefinitions()
 	}
 }
 
