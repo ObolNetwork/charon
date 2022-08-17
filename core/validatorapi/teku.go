@@ -36,7 +36,7 @@ type TekuBuilder struct {
 	Overrides map[string]string `json:"registration_overrides,omitempty"`
 }
 
-var feeRecipient = ""
+var feeRecipient = "0x000000000000000000000000000000000000dead"
 
 // var cluster.Lock lock
 
