@@ -36,16 +36,6 @@ type TekuBuilder struct {
 	Overrides map[string]string `json:"registration_overrides,omitempty"`
 }
 
-var feeRecipient = "0x000000000000000000000000000000000000dead"
-
-// var cluster.Lock lock
-
-// if address, ok := lock["fee_recipient"]; ok {
-//     feeRecipient = lock["fee_recipient"]
-// } else {
-// 	feeRecipient = lock["withdrawal_address"]
-// }
-
 const gasLimit = 30000000
 
 type TekuProposerConfigProvider interface {
@@ -56,7 +46,7 @@ func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigRe
 	resp := TekuProposerConfigResponse{
 		Proposers: make(map[string]TekuProposerConfig),
 		Default: TekuProposerConfig{ // Default doesn't make sense, disable for now.
-			FeeRecipient: feeRecipient,
+			FeeRecipient: c.feeRecipient,
 			Builder: TekuBuilder{
 				Enabled:  false,
 				GasLimit: gasLimit,
@@ -71,7 +61,7 @@ func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigRe
 
 	for pubkey, pubshare := range c.sharesByKey {
 		resp.Proposers[string(pubshare)] = TekuProposerConfig{
-			FeeRecipient: feeRecipient,
+			FeeRecipient: c.feeRecipient,
 			Builder: TekuBuilder{
 				Enabled:  true,
 				GasLimit: gasLimit,
