@@ -32,10 +32,21 @@ type TekuProposerConfig struct {
 
 type TekuBuilder struct {
 	Enabled   bool              `json:"enabled"`
+	GasLimit  uint              `json:"gas_limit"`
 	Overrides map[string]string `json:"registration_overrides,omitempty"`
 }
 
-const dead = "0x000000000000000000000000000000000000dead"
+var feeRecipient = ""
+
+// var cluster.Lock lock
+
+// if address, ok := lock["fee_recipient"]; ok {
+//     feeRecipient = lock["fee_recipient"]
+// } else {
+// 	feeRecipient = lock["withdrawal_address"]
+// }
+
+const gasLimit = 30000000
 
 type TekuProposerConfigProvider interface {
 	TekuProposerConfig(ctx context.Context) (TekuProposerConfigResponse, error)
@@ -45,9 +56,10 @@ func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigRe
 	resp := TekuProposerConfigResponse{
 		Proposers: make(map[string]TekuProposerConfig),
 		Default: TekuProposerConfig{ // Default doesn't make sense, disable for now.
-			FeeRecipient: dead,
+			FeeRecipient: feeRecipient,
 			Builder: TekuBuilder{
-				Enabled: false,
+				Enabled:  false,
+				GasLimit: gasLimit,
 			},
 		},
 	}
@@ -59,9 +71,10 @@ func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigRe
 
 	for pubkey, pubshare := range c.sharesByKey {
 		resp.Proposers[string(pubshare)] = TekuProposerConfig{
-			FeeRecipient: dead,
+			FeeRecipient: feeRecipient,
 			Builder: TekuBuilder{
-				Enabled: true,
+				Enabled:  true,
+				GasLimit: gasLimit,
 				Overrides: map[string]string{
 					"timestamp":  fmt.Sprint(genesis.Unix()),
 					"public_key": string(pubkey),

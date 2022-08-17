@@ -164,6 +164,7 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 
 	const n = 3
 	lock, p2pKeys, secretShares := cluster.NewForT(t, 1, n, n, 99)
+	// set lock["fee_recipient"] to 0x000000000000000000000000000000000000dead ?
 
 	var secrets []*bls_sig.SecretKey
 	for _, share := range secretShares[0] {
