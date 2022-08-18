@@ -4,4 +4,4 @@
 MOD=$(go list -m)
 PKGS=$(echo "$@"| xargs -n1 dirname | sort -u | sed -e "s#^#${MOD}/#")
 
-go test $PKGS
+go test -timeout=5m $PKGS
