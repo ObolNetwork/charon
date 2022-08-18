@@ -40,18 +40,20 @@ func TestQueryBootnodeENR(t *testing.T) {
 	err = enode.SignV4(&r, p2pKey)
 	require.NoError(t, err)
 
-	record, err := EncodeENR(r)
+	db, err := enode.OpenDB("")
 	require.NoError(t, err)
+
+	enrStr := enode.NewLocalNode(db, p2pKey).Node().String()
 
 	const header = "foo/bar"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, header, r.Header.Get("Charon-Cluster"))
-		_, _ = w.Write([]byte(record))
+		_, _ = w.Write([]byte(enrStr))
 	}))
 
 	resp, err := queryBootnodeENR(context.Background(), srv.URL, 0, header)
 	require.NoError(t, err)
-	require.Equal(t, record, resp)
+	require.Equal(t, enrStr, resp.String())
 }
 
 func TestQueryBootnodeENR_DNS(t *testing.T) {

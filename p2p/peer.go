@@ -17,6 +17,7 @@ package p2p
 
 import (
 	"crypto/ecdsa"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -81,4 +82,49 @@ func NewPeer(record enr.Record, index int) (Peer, error) {
 		Index: index,
 		Name:  PeerName(id),
 	}, nil
+}
+
+// NewMutablePeer returns a new non-empty mutable peer.
+func NewMutablePeer(p Peer) *MutablePeer {
+	return &MutablePeer{peer: &p}
+}
+
+// MutablePeer defines a mutable peer used mostly for stateless bootnodes/relays that change ID on restart
+// but have a consistent URL to resolve them. The zero value is a valid empty MutablePeer.
+type MutablePeer struct {
+	mu   sync.Mutex
+	peer *Peer
+	subs []func(Peer)
+}
+
+// Set updates the mutable enode and calls all subscribers.
+func (p *MutablePeer) Set(peer Peer) {
+	p.mu.Lock()
+	p.peer = &peer
+	clone := append([]func(Peer){}, p.subs...)
+	p.mu.Unlock()
+
+	for _, sub := range clone {
+		sub(peer)
+	}
+}
+
+// Peer returns the current peer or false if not available.
+func (p *MutablePeer) Peer() (Peer, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.peer == nil {
+		return Peer{}, false
+	}
+
+	return *p.peer, true
+}
+
+// Subscribe registers a function that is called when the peer is updated.
+func (p *MutablePeer) Subscribe(sub func(Peer)) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.subs = append(p.subs, sub)
 }

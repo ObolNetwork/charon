@@ -289,7 +289,8 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 			if participatedShares[peer.ShareIdx()] {
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(1)
 			} else if unexpectedShares[peer.ShareIdx()] {
-				log.Warn(ctx, "Unexpected event found", nil, z.Str("peer", peer.Name), z.Str("duty", duty.String()))
+				// TODO(corver): Enable with https://github.com/ObolNetwork/charon/issues/993
+				// log.Warn(ctx, "Unexpected event found", nil, z.Str("peer", peer.Name), z.Str("duty", duty.String()))
 				unexpectedEventsCounter.WithLabelValues(peer.Name).Inc()
 			} else {
 				absentPeers = append(absentPeers, peer.Name)
