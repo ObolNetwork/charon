@@ -39,15 +39,15 @@ const (
 	// QBFTConsensus introduces qbft consensus, see https://github.com/ObolNetwork/charon/issues/445.
 	QBFTConsensus Feature = "qbft_consensus"
 
-	// InvertDiscv5 enables the new push based discv5 integration and disables the old pull based.
-	InvertDiscv5 Feature = "invert_discv5"
+	// InvertLibP2PRouting enables the new push based libp2p routing and disables the old pull based.
+	InvertLibP2PRouting Feature = "invert_libp2p_routing"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		QBFTConsensus: statusStable,
-		InvertDiscv5:  statusAlpha,
+		QBFTConsensus:       statusStable,
+		InvertLibP2PRouting: statusAlpha,
 		// Add all features and there status here.
 	}
 

@@ -22,14 +22,22 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peerstore"
 	circuit "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/client"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
+
+// routedAddrTTL is a peer store TTL used to notify libp2p of peer addresses.
+// We use a custom TTL (different from well-known peer store TTLs) since
+// this mitigates against other libp2p services (like Identify) modifying
+// or removing them.
+var routedAddrTTL = peerstore.TempAddrTTL + 1
 
 // NewRelays returns the libp2p circuit relays from bootnodes if enabled.
 func NewRelays(conf Config, bootnodes []*enode.Node) ([]Peer, error) {
@@ -119,5 +127,49 @@ func NewRelayReserver(tcpNode host.Host, relay Peer) lifecycle.HookFunc {
 		}
 
 		return nil
+	}
+}
+
+// NewRelayRouter returns a life cycle hook that routes peers via relays in libp2p by
+// continuously adding peer relay addresses to libp2p peer store.
+func NewRelayRouter(tcpNode host.Host, peers []Peer, relays []Peer) lifecycle.HookFuncCtx {
+	return func(ctx context.Context) {
+		if !featureset.Enabled(featureset.InvertLibP2PRouting) {
+			return
+		}
+		if len(relays) == 0 {
+			return
+		}
+
+		ctx = log.WithTopic(ctx, "p2p")
+
+		for ctx.Err() == nil {
+			for _, p := range peers {
+				if p.ID == tcpNode.ID() {
+					// Skip self
+					continue
+				}
+
+				for _, relay := range relays {
+					if relay.Enode.TCP() == 0 {
+						continue
+					}
+
+					relayAddr, err := multiAddrViaRelay(relay, p.ID)
+					if err != nil {
+						log.Error(ctx, "Failed discovering peer address", err)
+						continue
+					}
+
+					tcpNode.Peerstore().AddAddr(p.ID, relayAddr, routedAddrTTL)
+				}
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(routedAddrTTL * 9 / 10):
+			}
+		}
 	}
 }

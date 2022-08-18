@@ -139,11 +139,11 @@ type pingTest struct {
 func pingClusterAB(t *testing.T, test pingTest) {
 	t.Helper()
 	t.Run("pushdisc", func(t *testing.T) {
-		featureset.EnableForT(t, featureset.InvertDiscv5)
+		featureset.EnableForT(t, featureset.InvertLibP2PRouting)
 		pingCluster(t, test)
 	})
 	t.Run("pulldisc", func(t *testing.T) {
-		featureset.DisableForT(t, featureset.InvertDiscv5)
+		featureset.DisableForT(t, featureset.InvertLibP2PRouting)
 		pingCluster(t, test)
 	})
 }

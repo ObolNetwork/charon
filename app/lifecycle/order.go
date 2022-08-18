@@ -32,7 +32,7 @@ const (
 	StartMonitoringAPI
 	StartValidatorAPI
 	StartP2PPing
-	StartP2PDiscAdapter
+	StartP2PRouters
 	StartP2PConsensus
 	StartSimulator
 	StartScheduler
