@@ -70,10 +70,13 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater,
 		// Define p2pcfg.AddrsFactory that does not advertise
 		// addresses via libp2p, since we use discv5 for peer discovery.
 		libp2p.AddrsFactory(func([]ma.Multiaddr) []ma.Multiaddr { return nil }),
+	}
 
-		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
+	if !featureset.Enabled(featureset.InvertLibP2PRouting) {
+		opt := libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
 			return logWrapRouting(adaptDiscRouting(udpNode, peers, relays)), nil
-		}),
+		})
+		defaultOpts = append(defaultOpts, opt)
 	}
 
 	defaultOpts = append(defaultOpts, opts...)
@@ -131,21 +134,19 @@ func adaptDiscRouting(udpNode *discover.UDPv5, peers, relays []Peer) peerRouting
 
 		var mAddrs []ma.Multiaddr
 
-		if !featureset.Enabled(featureset.InvertDiscv5) {
-			resolved := udpNode.Resolve(&node)
-			if resolved == nil {
-				return peer.AddrInfo{}, errors.New("peer not resolved")
-			}
+		resolved := udpNode.Resolve(&node)
+		if resolved == nil {
+			return peer.AddrInfo{}, errors.New("peer not resolved")
+		}
 
-			// If sequence is 0, we haven't discovered it yet.
-			// If tcp port is 0, this node isn't bound to a port.
-			if resolved.Seq() != 0 && resolved.TCP() != 0 {
-				mAddr, err := multiAddrFromIPPort(resolved.IP(), resolved.TCP())
-				if err != nil {
-					return peer.AddrInfo{}, err
-				}
-				mAddrs = append(mAddrs, mAddr)
+		// If sequence is 0, we haven't discovered it yet.
+		// If tcp port is 0, this node isn't bound to a port.
+		if resolved.Seq() != 0 && resolved.TCP() != 0 {
+			mAddr, err := multiAddrFromIPPort(resolved.IP(), resolved.TCP())
+			if err != nil {
+				return peer.AddrInfo{}, err
 			}
+			mAddrs = append(mAddrs, mAddr)
 		}
 
 		// Add any circuit relays

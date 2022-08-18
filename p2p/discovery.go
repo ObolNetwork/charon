@@ -27,7 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/peerstore"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -138,18 +137,17 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 	return node, db, nil
 }
 
-// NewDiscoveryAdapter returns a life cycle hook that links discv5 to libp2p by
-// continuously polling discv5 for latest peer ERNs and adding then to libp2p peer store.
-func NewDiscoveryAdapter(tcpNode host.Host, udpNode *discover.UDPv5, peers []Peer) lifecycle.HookFuncCtx {
+// NewDiscoveryRouter returns a life cycle hook that links discv5 to libp2p by
+// continuously polling discv5 for latest peer ENRs and adding then to libp2p peer store.
+func NewDiscoveryRouter(tcpNode host.Host, udpNode *discover.UDPv5, peers []Peer) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
-		if !featureset.Enabled(featureset.InvertDiscv5) {
+		if !featureset.Enabled(featureset.InvertLibP2PRouting) {
 			return
 		}
 
 		ctx = log.WithTopic(ctx, "p2p")
-		ttl := peerstore.TempAddrTTL
 		baseDelay := expbackoff.WithBaseDelay(time.Millisecond * 100) // Poll quickly on startup
-		maxDelay := expbackoff.WithMaxDelay(ttl * 9 / 10)             // Slow down to 90% of ttl
+		maxDelay := expbackoff.WithMaxDelay(routedAddrTTL * 9 / 10)   // Slow down to 90% of ttl
 		backoff := expbackoff.New(ctx, baseDelay, maxDelay)
 		addrs := make(map[peer.ID]string)
 
@@ -172,7 +170,7 @@ func NewDiscoveryAdapter(tcpNode host.Host, udpNode *discover.UDPv5, peers []Pee
 						addrs[p.ID] = addrStr
 					}
 
-					tcpNode.Peerstore().AddAddr(p.ID, addr, ttl)
+					tcpNode.Peerstore().AddAddr(p.ID, addr, routedAddrTTL)
 				}
 			}
 
