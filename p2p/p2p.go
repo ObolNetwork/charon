@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/libp2p/go-libp2p"
 	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
