@@ -169,7 +169,7 @@ func pingCluster(t *testing.T, test pingTest) {
 		bootnodes = append(bootnodes, bootAddr)
 	}
 
-	const n = 2
+	const n = 3
 	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, 0)
 	asserter := &pingAsserter{
 		asserter: asserter{
