@@ -74,7 +74,9 @@ func NewComponentInsecure(_ *testing.T, eth2Svc eth2client.Service, shareIdx int
 }
 
 // NewComponent returns a new instance of the validator API core workflow component.
-func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey, shareIdx int) (*Component, error) {
+func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey,
+	shareIdx int, feeRecipient string,
+) (*Component, error) {
 	eth2Cl, ok := eth2Svc.(eth2Provider)
 	if !ok {
 		return nil, errors.New("invalid eth2 service")
@@ -142,6 +144,7 @@ func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicK
 		sharesByKey:        coreSharesByKey,
 		eth2Cl:             eth2Cl,
 		shareIdx:           shareIdx,
+		feeRecipient:       feeRecipient,
 	}, nil
 }
 
@@ -149,6 +152,7 @@ type Component struct {
 	eth2Cl       eth2Provider
 	shareIdx     int
 	insecureTest bool
+	feeRecipient string
 
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
 	// to public keys (the DV root public key)
