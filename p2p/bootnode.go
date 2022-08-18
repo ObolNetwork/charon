@@ -92,6 +92,8 @@ func NewUDPBootnodes(ctx context.Context, config Config, peers []Peer,
 	return nil, errors.Wrap(ctx.Err(), "timeout resolving bootnode ENR")
 }
 
+// resolveBootnode continuously resolves the bootnode ENR from the HTTP url and returns
+// the new bootnode ENR/Peer when it changes via the callback.
 func resolveBootnode(ctx context.Context, rawURL, lockHashHex string, callback func(Peer)) {
 	var prevENR string
 	for ctx.Err() == nil {
