@@ -35,10 +35,13 @@ import (
 )
 
 // New returns a new Retryer instance.
-func New[T any](timeoutFunc func(T) time.Time) (*Retryer[T], error) {
+func New[T any](timeoutFunc func(T) (time.Time, bool)) (*Retryer[T], error) {
 	// ctxTimeoutFunc returns a context that is cancelled when duties for a slot have elapsed.
 	ctxTimeoutFunc := func(ctx context.Context, t T) (context.Context, context.CancelFunc) {
-		return context.WithDeadline(ctx, timeoutFunc(t))
+		// Ignoring boolean value as it is of no use here.
+		timeout, _ := timeoutFunc(t)
+
+		return context.WithDeadline(ctx, timeout)
 	}
 
 	// backoffProvider is a naive constant 1s backoff function.

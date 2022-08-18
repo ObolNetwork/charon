@@ -74,9 +74,12 @@ type Tracker struct {
 	input chan event
 
 	// events stores all the events corresponding to a particular duty.
-	events    map[core.Duty][]event
-	deadliner core.Deadliner
-	quit      chan struct{}
+	events map[core.Duty][]event
+	// analyser returns duty from analyser.C() when it is deadlined to analyse for failures and participation.
+	analyser core.Deadliner
+	// deleter returns duty from deleter.C() after 2 * deadline time to delete from memory.
+	deleter core.Deadliner
+	quit    chan struct{}
 
 	// failedDutyReporter instruments duty failures.
 	failedDutyReporter func(ctx context.Context, duty core.Duty, failed bool, component component, reason string)
@@ -86,12 +89,13 @@ type Tracker struct {
 }
 
 // New returns a new Tracker.
-func New(deadliner core.Deadliner, peers []p2p.Peer) *Tracker {
+func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer) *Tracker {
 	t := &Tracker{
 		input:                 make(chan event),
 		events:                make(map[core.Duty][]event),
 		quit:                  make(chan struct{}),
-		deadliner:             deadliner,
+		analyser:              analyser,
+		deleter:               deleter,
 		failedDutyReporter:    failedDutyReporter,
 		participationReporter: newParticipationReporter(peers),
 	}
@@ -110,13 +114,13 @@ func (t *Tracker) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case e := <-t.input:
-			if !t.deadliner.Add(e.duty) {
+			if !t.analyser.Add(e.duty) && !t.deleter.Add(e.duty) {
 				// Ignore expired duties
 				continue
 			}
 
 			t.events[e.duty] = append(t.events[e.duty], e)
-		case duty := <-t.deadliner.C():
+		case duty := <-t.analyser.C():
 			ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
 			// Analyse failed duties
@@ -126,7 +130,7 @@ func (t *Tracker) Run(ctx context.Context) error {
 			// Analyse peer participation
 			participatedShares, unexpectedShares := analyseParticipation(duty, t.events)
 			t.participationReporter(ctx, duty, participatedShares, unexpectedShares)
-
+		case duty := <-t.deleter.C():
 			delete(t.events, duty)
 		}
 	}
@@ -223,14 +227,7 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (map[
 	for _, e := range allEvents[duty] {
 		// If we get a parSigDBInternal event, then the current node participated successfully.
 		// If we get a parSigEx event, then the corresponding peer with e.shareIdx participated successfully.
-		if e.component == parSigEx {
-			if !isParSigEventExpected(duty, e.pubkey, allEvents) {
-				unexpectedShares[e.shareIdx] = true
-				continue
-			}
-
-			resp[e.shareIdx] = true
-		} else if e.component == parSigDBInternal {
+		if e.component == parSigEx || e.component == parSigDBInternal {
 			if !isParSigEventExpected(duty, e.pubkey, allEvents) {
 				unexpectedShares[e.shareIdx] = true
 				continue

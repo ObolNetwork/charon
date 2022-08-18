@@ -66,7 +66,7 @@ type deadliner struct {
 }
 
 // NewDeadlinerForT returns a Deadline for use in tests.
-func NewDeadlinerForT(ctx context.Context, t *testing.T, deadlineFunc func(Duty) time.Time, clock clockwork.Clock) Deadliner {
+func NewDeadlinerForT(ctx context.Context, t *testing.T, deadlineFunc func(Duty) (time.Time, bool), clock clockwork.Clock) Deadliner {
 	t.Helper()
 
 	return newDeadliner(ctx, deadlineFunc, clock)
@@ -76,12 +76,12 @@ func NewDeadlinerForT(ctx context.Context, t *testing.T, deadlineFunc func(Duty)
 //
 // It also starts a goroutine which is responsible for reading and storing duties,
 // and sending the deadlined duty to receiver's deadlineChan until the context is closed.
-func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time) Deadliner {
+func NewDeadliner(ctx context.Context, deadlineFunc func(Duty) (time.Time, bool)) Deadliner {
 	return newDeadliner(ctx, deadlineFunc, clockwork.NewRealClock())
 }
 
 // newDeadliner returns a new Deadliner, this is for internal use only.
-func newDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time, clock clockwork.Clock) Deadliner {
+func newDeadliner(ctx context.Context, deadlineFunc func(Duty) (time.Time, bool), clock clockwork.Clock) Deadliner {
 	// outputBuffer big enough to support all duty types, which can expire at the same time
 	// while external consumer is synchronously adding duties (so not reading output).
 	const outputBuffer = 10
@@ -98,7 +98,7 @@ func newDeadliner(ctx context.Context, deadlineFunc func(Duty) time.Time, clock 
 	return d
 }
 
-func (d *deadliner) run(ctx context.Context, deadlineFunc func(Duty) time.Time) {
+func (d *deadliner) run(ctx context.Context, deadlineFunc func(Duty) (time.Time, bool)) {
 	duties := make(map[Duty]bool)
 	currDuty, currDeadline := getCurrDuty(duties, deadlineFunc)
 	currTimer := d.clock.NewTimer(currDeadline.Sub(d.clock.Now()))
@@ -121,7 +121,8 @@ func (d *deadliner) run(ctx context.Context, deadlineFunc func(Duty) time.Time) 
 		case <-ctx.Done():
 			return
 		case input := <-d.inputChan:
-			deadline := deadlineFunc(input.duty)
+			// Ignoring boolean value
+			deadline, _ := deadlineFunc(input.duty)
 			expired := deadline.Before(d.clock.Now())
 
 			input.success <- !expired
@@ -176,12 +177,12 @@ func (d *deadliner) C() <-chan Duty {
 }
 
 // getCurrDuty gets the duty to process next along-with the duty deadline. It selects duty with the latest deadline.
-func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) time.Time) (Duty, time.Time) {
+func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) (time.Time, bool)) (Duty, time.Time) {
 	var currDuty Duty
 	currDeadline := time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	for duty := range duties {
-		dutyDeadline := deadlineFunc(duty)
+		dutyDeadline, _ := deadlineFunc(duty)
 		if currDeadline.After(dutyDeadline) {
 			currDuty = duty
 			currDeadline = dutyDeadline
@@ -192,7 +193,7 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) time.Time) (
 }
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines.
-func NewDutyDeadlineFunc(ctx context.Context, eth2Svc eth2client.Service) (func(Duty) time.Time, error) {
+func NewDutyDeadlineFunc(ctx context.Context, eth2Svc eth2client.Service) (func(Duty) (time.Time, bool), error) {
 	eth2Cl, ok := eth2Svc.(slotTimeProvider)
 	if !ok {
 		return nil, errors.New("invalid eth2 service")
@@ -208,15 +209,15 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Svc eth2client.Service) (func(
 		return nil, err
 	}
 
-	return func(duty Duty) time.Time {
+	return func(duty Duty) (time.Time, bool) {
 		if duty.Type == DutyExit || duty.Type == DutyBuilderRegistration {
 			// Do not timeout exit or registration duties.
-			return time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+			return time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC), false
 		}
 
 		start := genesis.Add(duration * time.Duration(duty.Slot))
 		end := start.Add(duration * time.Duration(lateFactor))
 
-		return end
+		return end, true
 	}, nil
 }
