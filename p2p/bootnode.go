@@ -119,7 +119,7 @@ func resolveBootnode(ctx context.Context, rawURL, lockHashHex string, callback f
 			}
 		}
 
-		time.Sleep(time.Minute * 5) // Wait 5min before checking again.
+		time.Sleep(time.Minute * 2) // Wait 2min before checking again.
 	}
 }
 
