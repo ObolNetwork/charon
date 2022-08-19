@@ -388,7 +388,7 @@ func randomName(pk ecdsa.PublicKey) string { //nolint:deadcode
 	return fmt.Sprintf("%s-%s", adjectives[adjIdx], nouns[nounIdx])
 }
 
-// PeerName calculates the polynomial rolling hash of the peerID string.
+// PeerName returns a deterministic pseudo random human friendly name for the peer ID.
 func PeerName(id peer.ID) string {
 	// p is chosen to be 59 because it's prime and roughly equal to the no of different characters
 	// you can have in base58 encoded strings. Base58 encoded strings can consist of 58 different

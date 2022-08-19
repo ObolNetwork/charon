@@ -17,7 +17,7 @@ package p2p
 
 import (
 	"context"
-	"sync"
+	"fmt"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
@@ -27,16 +27,15 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
 
 // NewPingService returns a start function of a p2p ping service that pings all peers every second
 // and collects metrics.
-// TODO(corver): Cluster wide req/resp doesn't scale since it is O(n^2).
 func NewPingService(h host.Host, peers []peer.ID, callback func(peer.ID)) func(context.Context) {
 	svc := ping.NewPingService(h)
-	logFunc := newPingLogger(peers)
 
 	return func(ctx context.Context) {
 		ctx = log.WithTopic(ctx, "ping")
@@ -47,27 +46,26 @@ func NewPingService(h host.Host, peers []peer.ID, callback func(peer.ID)) func(c
 				continue
 			}
 
-			go pingPeer(ctx, svc, p, logFunc, callback)
+			go pingPeer(ctx, svc, p, callback)
 		}
 	}
 }
 
 // pingPeer starts (and restarts) a long-lived ping service stream, pinging the peer every second until some error.
 // It returns when the context is cancelled.
-func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID,
-	logFunc func(context.Context, peer.ID, ping.Result), callback func(peer.ID),
+func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID, callback func(peer.ID),
 ) {
+	backoff := expbackoff.New(ctx, expbackoff.WithMaxDelay(time.Second*30)) // Start quick, then slow down
+	logFunc := newPingLogger(svc.Host, p)
 	for ctx.Err() == nil {
 		pingPeerOnce(ctx, svc, p, logFunc, callback)
-
-		const backoff = time.Second
-		time.Sleep(backoff)
+		backoff()
 	}
 }
 
 // pingPeerOnce starts a long lived ping connection with the peer and returns on first error.
 func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
-	logFunc func(context.Context, peer.ID, ping.Result), callback func(peer.ID),
+	logFunc func(context.Context, ping.Result), callback func(peer.ID),
 ) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -78,7 +76,7 @@ func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 			return
 		}
 
-		logFunc(ctx, p, result)
+		logFunc(ctx, result)
 
 		if result.Error != nil {
 			incPingError(p)
@@ -88,6 +86,7 @@ func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 		}
 
 		observePing(p, result.RTT)
+
 		if callback != nil {
 			callback(p)
 		}
@@ -100,54 +99,98 @@ func isRelayError(err error) bool {
 		errors.Is(err, network.ErrResourceScopeClosed)
 }
 
-// newPingLogger returns stateful logging function that logs ping failures
-// and recoveries after applying hysteresis; only logging after N opposite results.
-func newPingLogger(peers []peer.ID) func(context.Context, peer.ID, ping.Result) {
-	const hysteresis = 5 // N = 5
-
+// newPingLogger returns stateful logging function that logs "real" dial errors when they change or every 10min.
+// This is the main logger of "why are we not connected to peer X".
+func newPingLogger(tcpNode host.Host, p peer.ID) func(context.Context, ping.Result) {
 	var (
-		mu     sync.Mutex
-		first  = make(map[peer.ID]bool)  // first indicates if the peer has logged anything.
-		state  = make(map[peer.ID]bool)  // state indicates if the peer is ok or not
-		counts = make(map[peer.ID]int)   // counts indicates number of successful pings; 0 <= x <= hysteresis
-		errs   = make(map[peer.ID]error) // errs contains last non-dial backoff error
+		prevMsgs         = make(map[string]string)
+		prevResolvedMsgs = make(map[string]string)
+		prevSuccess      bool
+		clearedAt        = time.Now()
+		clearPeriod      = time.Minute * 10 // Log same msgs every 10min
 	)
 
-	for _, p := range peers {
-		state[p] = true
-		counts[p] = hysteresis
-		errs[p] = swarm.ErrDialBackoff // This will be over-written with no-dial-backoff errors if any.
+	sameMsgs := func(msgs map[string]string) bool {
+		return fmt.Sprint(msgs) == fmt.Sprint(prevMsgs) || fmt.Sprint(msgs) == fmt.Sprint(prevResolvedMsgs)
 	}
 
-	return func(ctx context.Context, p peer.ID, result ping.Result) {
-		mu.Lock()
-		defer mu.Unlock()
+	return func(ctx context.Context, result ping.Result) {
+		if result.Error == nil && prevSuccess {
+			// All still good
+			return
+		} else if result.Error == nil && !prevSuccess {
+			// Reconnected
+			log.Info(ctx, "Peer connected", z.Str("peer", PeerName(p)), z.Any("rtt", result.RTT))
+			prevSuccess = true
 
-		prev := counts[p]
-
-		if result.Error != nil && prev > 0 {
-			counts[p]-- // Decrease success count since ping failed.
-		} else if result.Error == nil && prev < hysteresis {
-			counts[p]++ // Increase success count since ping succeeded.
+			return
 		}
 
-		if result.Error != nil && !errors.Is(result.Error, swarm.ErrDialBackoff) {
-			errs[p] = result.Error // Dial backoff errors are not informative, cache others.
+		if time.Since(clearedAt) > clearPeriod {
+			prevMsgs = make(map[string]string)
+			prevResolvedMsgs = make(map[string]string)
+			clearedAt = time.Now()
 		}
 
-		now := counts[p]
-		ok := state[p]
+		msgs, ok := dialErrMsgs(result.Error)
+		if !ok { // Unexpected non-dial reason...
+			if prevSuccess {
+				log.Warn(ctx, "Peer ping failing", nil, z.Str("peer", PeerName(p)), z.Str("error", result.Error.Error()))
+			}
+			prevSuccess = false
 
-		if prev > 0 && now == 0 && ok {
-			log.Warn(ctx, "Peer ping failing", nil, z.Str("peer", PeerName(p)), z.Str("error", errs[p].Error()))
-			state[p] = false
-			first[p] = true
-		} else if prev < hysteresis && now == hysteresis && !ok {
-			log.Info(ctx, "Peer ping recovered", z.Str("peer", PeerName(p)), z.Any("rtt", result.RTT))
-			state[p] = true
-		} else if result.Error == nil && !first[p] {
-			log.Info(ctx, "Peer ping success", z.Str("peer", PeerName(p)), z.Any("rtt", result.RTT))
-			first[p] = true
+			return
 		}
+
+		if !prevSuccess && sameMsgs(msgs) {
+			// Still failing for the same reasons, don't log
+			return
+		}
+
+		prevMsgs = msgs
+		prevSuccess = false
+
+		// Log when failing after success or failing for different reasons
+
+		if hasErrDialBackoff(result.Error) {
+			msgs = resolveBackoffMsgs(ctx, tcpNode, p) // Best effort resolving of dial backoff errors.
+			if len(msgs) == 0 || sameMsgs(msgs) {
+				// No more errors, or same messages, ok well...
+				return
+			}
+			prevResolvedMsgs = msgs
+		}
+
+		// TODO(corver): Reconsider this logging format
+		opts := []z.Field{z.Str("peer", PeerName(p))}
+		for addr, msg := range msgs {
+			opts = append(opts, z.Str(addr, msg))
+		}
+
+		log.Warn(ctx, "Peer not connected", nil, opts...)
 	}
+}
+
+func resolveBackoffMsgs(ctx context.Context, tcpNode host.Host, p peer.ID) map[string]string {
+	net, ok := tcpNode.Network().(*swarm.Swarm)
+	if !ok {
+		log.Error(ctx, "Not a swarm network", nil)
+		return nil
+	}
+
+	net.Backoff().Clear(p)
+
+	_, err := net.DialPeer(ctx, p)
+	if err == nil {
+		// Connected now....
+		return nil
+	}
+
+	msgs, ok := dialErrMsgs(err)
+	if !ok { // Some other error
+		log.Warn(ctx, "Peer dial failing", nil, z.Str("peer", PeerName(p)), z.Str("error", err.Error()))
+		return nil
+	}
+
+	return msgs
 }

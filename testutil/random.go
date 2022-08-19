@@ -535,7 +535,7 @@ func AvailableMultiAddr(t *testing.T) multiaddr.Multiaddr {
 	return addr
 }
 
-func CreateHost(t *testing.T, addr *net.TCPAddr) host.Host {
+func CreateHost(t *testing.T, addr *net.TCPAddr, opts ...libp2p.Option) host.Host {
 	t.Helper()
 	pkey, _, err := p2pcrypto.GenerateSecp256k1Key(crand.Reader)
 	require.NoError(t, err)
@@ -543,7 +543,11 @@ func CreateHost(t *testing.T, addr *net.TCPAddr) host.Host {
 	addrs, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", addr.IP, addr.Port))
 	require.NoError(t, err)
 
-	h, err := libp2p.New(libp2p.Identity(pkey), libp2p.ListenAddrs(addrs))
+	opts2 := []libp2p.Option{libp2p.Identity(pkey), libp2p.ListenAddrs(addrs)}
+	opts2 = append(opts2, opts...)
+
+	h, err := libp2p.New(opts2...)
+
 	require.NoError(t, err)
 
 	return h
