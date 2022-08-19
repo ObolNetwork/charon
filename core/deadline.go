@@ -122,12 +122,17 @@ func (d *deadliner) run(ctx context.Context, deadlineFunc func(Duty) (time.Time,
 			return
 		case input := <-d.inputChan:
 			deadline, canExpire := deadlineFunc(input.duty)
+			if !canExpire {
+				// Drop duties that never expire
+				input.success <- false
+				continue
+			}
 			expired := deadline.Before(d.clock.Now())
 
 			input.success <- !expired
 
-			// Ignore expired duties or the ones that cannot expire.
-			if expired || !canExpire {
+			// Ignore expired duties
+			if expired {
 				continue
 			}
 
@@ -181,7 +186,12 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) (time.Time, 
 	currDeadline := time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	for duty := range duties {
-		dutyDeadline, _ := deadlineFunc(duty)
+		dutyDeadline, ok := deadlineFunc(duty)
+		if !ok {
+			// Ignore the duties that never expire.
+			continue
+		}
+
 		if currDeadline.After(dutyDeadline) {
 			currDuty = duty
 			currDeadline = dutyDeadline
@@ -191,7 +201,7 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) (time.Time, 
 	return currDuty, currDeadline
 }
 
-// NewDutyDeadlineFunc returns the function that provides duty deadlines.
+// NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
 func NewDutyDeadlineFunc(ctx context.Context, eth2Svc eth2client.Service) (func(Duty) (time.Time, bool), error) {
 	eth2Cl, ok := eth2Svc.(slotTimeProvider)
 	if !ok {
@@ -211,7 +221,7 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Svc eth2client.Service) (func(
 	return func(duty Duty) (time.Time, bool) {
 		if duty.Type == DutyExit || duty.Type == DutyBuilderRegistration {
 			// Do not timeout exit or registration duties.
-			return time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC), false
+			return time.Time{}, false
 		}
 
 		start := genesis.Add(duration * time.Duration(duty.Slot))

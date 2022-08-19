@@ -75,9 +75,9 @@ type Tracker struct {
 
 	// events stores all the events corresponding to a particular duty.
 	events map[core.Duty][]event
-	// analyser returns duty from analyser.C() when it is deadlined to analyse for failures and participation.
+	// analyser triggers duty analysis.
 	analyser core.Deadliner
-	// deleter returns duty from deleter.C() after 2 * deadline time to delete from memory.
+	// deleter triggers duty deletion after all associated analysis are done.
 	deleter core.Deadliner
 	quit    chan struct{}
 
@@ -88,7 +88,7 @@ type Tracker struct {
 	participationReporter func(ctx context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedPeers map[int]bool)
 }
 
-// New returns a new Tracker.
+// New returns a new Tracker. The deleter deadliner must return well after analyser deadliner since duties of the same slot are often analysed together.
 func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer) *Tracker {
 	t := &Tracker{
 		input:                 make(chan event),
@@ -114,9 +114,8 @@ func (t *Tracker) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case e := <-t.input:
-			if !t.analyser.Add(e.duty) && !t.deleter.Add(e.duty) {
-				// Ignore expired duties
-				continue
+			if !t.deleter.Add(e.duty) || !t.analyser.Add(e.duty) {
+				continue // Ignore expired or never expiring duties
 			}
 
 			t.events[e.duty] = append(t.events[e.duty], e)

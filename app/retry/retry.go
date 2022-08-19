@@ -38,8 +38,10 @@ import (
 func New[T any](timeoutFunc func(T) (time.Time, bool)) (*Retryer[T], error) {
 	// ctxTimeoutFunc returns a context that is cancelled when duties for a slot have elapsed.
 	ctxTimeoutFunc := func(ctx context.Context, t T) (context.Context, context.CancelFunc) {
-		// Ignoring boolean value as it is of no use here.
-		timeout, _ := timeoutFunc(t)
+		timeout, ok := timeoutFunc(t)
+		if !ok {
+			return ctx, func() {}
+		}
 
 		return context.WithDeadline(ctx, timeout)
 	}
