@@ -131,6 +131,7 @@ type Component struct {
 	// Mutable state
 	recvMu      sync.Mutex
 	recvBuffers map[core.Duty]chan msg // Instance outer receive buffers.
+	recvDropped map[core.Duty]bool
 }
 
 // Subscribe registers a callback for unsigned duty data proposals from leaders.
@@ -219,13 +220,13 @@ func (c *Component) handle(s network.Stream) {
 
 	b, err := io.ReadAll(s)
 	if err != nil {
-		log.Error(ctx, "Failed reading stream", err)
+		log.Error(ctx, "Failed reading consensus stream", err)
 		return
 	}
 
 	pbMsg := new(pbv1.ConsensusMsg)
 	if err := proto.Unmarshal(b, pbMsg); err != nil {
-		log.Error(ctx, "Failed unmarshalling proto", err)
+		log.Error(ctx, "Failed unmarshalling consensus proto", err)
 		return
 	}
 
@@ -236,38 +237,41 @@ func (c *Component) handle(s network.Stream) {
 
 	duty := core.DutyFromProto(pbMsg.Msg.Duty)
 	if !duty.Type.Valid() {
-		log.Error(ctx, "Invalid duty type", errors.New("", z.Str("type", duty.Type.String())))
+		log.Error(ctx, "Invalid consensus duty type", errors.New("", z.Str("type", duty.Type.String())))
 		return
 	}
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	if ok, err := verifyMsgSig(pbMsg.Msg, c.pubkeys[pbMsg.Msg.PeerIdx]); err != nil || !ok {
-		log.Error(ctx, "Invalid message signature", err)
+		log.Error(ctx, "Invalid consensus message signature", err)
 		return
 	}
 
 	for _, msg := range pbMsg.Justification {
 		if ok, err := verifyMsgSig(msg, c.pubkeys[msg.PeerIdx]); err != nil || !ok {
-			log.Error(ctx, "Invalid justification signature", err)
+			log.Error(ctx, "Invalid consensus justification signature", err)
 			return
 		}
 	}
 	msg, err := newMsg(pbMsg.Msg, pbMsg.Justification)
 	if err != nil {
-		log.Error(ctx, "Create message pbMsg", err)
+		log.Error(ctx, "Create consensus message", err)
 		return
 	}
 
 	if !c.deadliner.Add(duty) {
-		log.Warn(ctx, "Dropping consensus message for expired duty", nil, z.Any("duty", duty))
+		log.Warn(ctx, "Dropping peer consensus message for expired duty", nil)
 		return
 	}
 
 	select {
 	case c.getRecvBuffer(duty) <- msg:
 	case <-ctx.Done():
-		log.Error(ctx, "Receive buffer timeout", ctx.Err())
+		log.Error(ctx, "Dropping peer consensus message due to timeout", ctx.Err())
 	default:
-		log.Error(ctx, "Receive buffer full", err)
+		if c.markRecvDropped(duty) {
+			log.Warn(ctx, "Dropping peer consensus messages, duty not scheduled locally", nil)
+		}
 	}
 }
 
@@ -285,12 +289,24 @@ func (c *Component) getRecvBuffer(duty core.Duty) chan msg {
 	return ch
 }
 
-// deleteRecvChan deletes the receive channel for the duty.
+// markRecvDropped marks receives as dropped for the duty and returns true if this is the first.
+func (c *Component) markRecvDropped(duty core.Duty) bool {
+	c.recvMu.Lock()
+	defer c.recvMu.Unlock()
+
+	prev := c.recvDropped[duty]
+	c.recvDropped[duty] = true
+
+	return !prev
+}
+
+// deleteRecvChan deletes the receive channel and recvDropped map entry for the duty.
 func (c *Component) deleteRecvChan(duty core.Duty) {
 	c.recvMu.Lock()
 	defer c.recvMu.Unlock()
 
 	delete(c.recvBuffers, duty)
+	delete(c.recvDropped, duty)
 }
 
 // getPeerIdx returns the local peer index.
