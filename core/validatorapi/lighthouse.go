@@ -15,7 +15,7 @@
 
 package validatorapi
 
-type LighthouseValidatorDefinitionJSON struct {
+type LighthouseValidatorDefinition struct {
 	Enabled                    bool   `json:"enabled"`
 	VotingPublicKey            string `json:"voting_public_key"`
 	Type                       string `json:"type"`
@@ -27,39 +27,27 @@ type LighthouseValidatorDefinitionJSON struct {
 	BuilderPubkeyOverride      string `json:"builder_pubkey_override"`
 }
 
-// type LighthouseValidatorDefinitionYAML struct {
-// 	Enabled                    bool   `yaml:"enabled"`
-// 	VotingPublicKey            string `yaml:"voting_public_key"`
-// 	Type                       string `yaml:"type"`
-// 	VotingKeystorePath         string `yaml:"voting_keystore_path"`
-// 	VotingKeystorePasswordPath string `yaml:"voting_keystore_password_path"`
-// 	SuggestedFeeRecipient      string `yaml:"suggested_fee_recipient"`
-// 	GasLimit                   uint   `yaml:"gas_limit"`
-// 	BuilderProposals           bool   `yaml:"builder_proposals"`
-// 	BuilderPubkeyOverride      string `yaml:"builder_pubkey_override"`
-// }
-
 const gasLimit = 30000000
 
 type LighthouseValidatorDefinitionsProvider interface {
-	LighthouseValidatorDefinitions() ([]LighthouseValidatorDefinitionJSON, error)
+	LighthouseValidatorDefinitions() ([]LighthouseValidatorDefinition, error)
 }
 
-func (c Component) LighthouseValidatorDefinitions() ([]LighthouseValidatorDefinitionJSON, error) {
-	resp := []LighthouseValidatorDefinitionJSON{}
+func (c Component) LighthouseValidatorDefinitions() ([]LighthouseValidatorDefinition, error) {
+	var resp []LighthouseValidatorDefinition
 
 	for pubkey, pubshare := range c.sharesByKey {
-		resp = append(resp, LighthouseValidatorDefinitionJSON{
+		resp = append(resp, LighthouseValidatorDefinition{
 			Enabled:         true,
 			VotingPublicKey: string(pubshare),
 			// Asking whether these need to be defined in lighthouse discord
 			// Type: dead,
 			// VotingKeystorePath: dead,
 			// VotingKeystorePasswordPath: dead,
-			SuggestedFeeRecipient: string(pubkey),
+			SuggestedFeeRecipient: c.feeRecipient,
 			GasLimit:              gasLimit,
 			BuilderProposals:      true,
-			BuilderPubkeyOverride: dead,
+			BuilderPubkeyOverride: string(pubkey),
 		})
 	}
 
