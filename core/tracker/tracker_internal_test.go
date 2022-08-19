@@ -35,9 +35,8 @@ func TestTrackerFailedDuty(t *testing.T) {
 
 	t.Run("FailAtConsensus", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		deadliner := testDeadliner{
-			deadlineChan: make(chan core.Duty),
-		}
+		analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
+		deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
 
 		count := 0
 		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, component component, msg string) {
@@ -52,7 +51,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 			}
 		}
 
-		tr := New(deadliner, []p2p.Peer{})
+		tr := New(analyser, deleter, []p2p.Peer{})
 		tr.failedDutyReporter = failedDutyReporter
 		tr.participationReporter = func(_ context.Context, _ core.Duty, _ map[int]bool, _ map[int]bool) {}
 
@@ -62,7 +61,10 @@ func TestTrackerFailedDuty(t *testing.T) {
 				require.NoError(t, tr.FetcherEvent(ctx, td.duty, td.unsignedDataSet))
 
 				// Explicitly mark the current duty as deadlined.
-				deadliner.deadlineChan <- td.duty
+				analyser.deadlineChan <- td.duty
+
+				// Delete duty from events.
+				deleter.deadlineChan <- td.duty
 			}
 		}()
 
@@ -71,9 +73,8 @@ func TestTrackerFailedDuty(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		deadliner := testDeadliner{
-			deadlineChan: make(chan core.Duty),
-		}
+		analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
+		deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
 
 		count := 0
 		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, component component, msg string) {
@@ -88,7 +89,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 			}
 		}
 
-		tr := New(deadliner, []p2p.Peer{})
+		tr := New(analyser, deleter, []p2p.Peer{})
 		tr.failedDutyReporter = failedDutyReporter
 
 		go func() {
@@ -105,7 +106,10 @@ func TestTrackerFailedDuty(t *testing.T) {
 				}
 
 				// Explicitly mark the current duty as deadlined.
-				deadliner.deadlineChan <- td.duty
+				analyser.deadlineChan <- td.duty
+
+				// Delete duty from events.
+				deleter.deadlineChan <- td.duty
 			}
 		}()
 
@@ -333,8 +337,9 @@ func TestTrackerParticipation(t *testing.T) {
 		psigDataPerDutyPerPeer[td.duty] = data
 	}
 
-	deadliner := testDeadliner{deadlineChan: make(chan core.Duty)}
-	tr := New(deadliner, peers)
+	analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
+	deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
+	tr := New(analyser, deleter, peers)
 
 	var (
 		count             int
@@ -376,7 +381,10 @@ func TestTrackerParticipation(t *testing.T) {
 			}
 
 			// Explicitly mark the current duty as deadlined.
-			deadliner.deadlineChan <- td.duty
+			analyser.deadlineChan <- td.duty
+
+			// Delete duty from events.
+			deleter.deadlineChan <- td.duty
 		}
 	}()
 
@@ -390,7 +398,8 @@ func TestUnexpectedParticipation(t *testing.T) {
 	)
 
 	var peers []p2p.Peer
-	deadliner := testDeadliner{deadlineChan: make(chan core.Duty)}
+	analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
+	deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
 	data := core.NewPartialSignature(testutil.RandomCoreSignature(), unexpectedPeer)
 	pubkey := testutil.RandomCorePubKey(t)
 	participation := make(map[int]bool)
@@ -405,7 +414,7 @@ func TestUnexpectedParticipation(t *testing.T) {
 	for _, d := range duties {
 		t.Run(d.String(), func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
-			tr := New(deadliner, peers)
+			tr := New(analyser, deleter, peers)
 
 			tr.participationReporter = func(_ context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedPeers map[int]bool) {
 				require.Equal(t, d, duty)
@@ -416,12 +425,59 @@ func TestUnexpectedParticipation(t *testing.T) {
 
 			go func(duty core.Duty) {
 				require.NoError(t, tr.ParSigExEvent(ctx, duty, core.ParSignedDataSet{pubkey: data}))
-				deadliner.deadlineChan <- duty
+				analyser.deadlineChan <- duty
+				deleter.deadlineChan <- duty
 			}(d)
 
 			require.ErrorIs(t, tr.Run(ctx), context.Canceled)
 		})
 	}
+}
+
+func TestDutyRandaoUnexpected(t *testing.T) {
+	const (
+		slot      = 123
+		validPeer = 1
+	)
+
+	dutyRandao := core.NewRandaoDuty(slot)
+	dutyProposer := core.NewProposerDuty(slot)
+
+	var peers []p2p.Peer
+	analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
+	deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
+
+	data := core.NewPartialSignature(testutil.RandomCoreSignature(), validPeer)
+	pubkey := testutil.RandomCorePubKey(t)
+	participation := make(map[int]bool)
+	unexpected := map[int]bool{1: true}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	tr := New(analyser, deleter, peers)
+
+	tr.participationReporter = func(_ context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedPeers map[int]bool) {
+		if duty.Type == core.DutyProposer {
+			return
+		}
+
+		require.Equal(t, dutyRandao, duty)
+		require.True(t, reflect.DeepEqual(unexpectedPeers, unexpected))
+		require.True(t, reflect.DeepEqual(participatedShares, participation))
+
+		cancel()
+	}
+
+	go func() {
+		require.NoError(t, tr.SchedulerEvent(ctx, dutyProposer, core.DutyDefinitionSet{pubkey: core.NewProposerDefinition(testutil.RandomProposerDuty(t))}))
+		require.NoError(t, tr.ParSigExEvent(ctx, dutyRandao, core.ParSignedDataSet{pubkey: data}))
+
+		analyser.deadlineChan <- dutyProposer
+		// Trim Proposer events before Randao deadline
+		deleter.deadlineChan <- dutyProposer
+		analyser.deadlineChan <- dutyRandao
+	}()
+
+	require.ErrorIs(t, tr.Run(ctx), context.Canceled)
 }
 
 func TestDutyRandaoExpected(t *testing.T) {
@@ -434,7 +490,8 @@ func TestDutyRandaoExpected(t *testing.T) {
 	dutyProposer := core.NewProposerDuty(slot)
 
 	var peers []p2p.Peer
-	deadliner := testDeadliner{deadlineChan: make(chan core.Duty)}
+	analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
+	deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
 
 	data := core.NewPartialSignature(testutil.RandomCoreSignature(), validPeer)
 	pubkey := testutil.RandomCorePubKey(t)
@@ -442,9 +499,13 @@ func TestDutyRandaoExpected(t *testing.T) {
 	unexpected := make(map[int]bool)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	tr := New(deadliner, peers)
+	tr := New(analyser, deleter, peers)
 
 	tr.participationReporter = func(_ context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedPeers map[int]bool) {
+		if duty.Type == core.DutyProposer {
+			return
+		}
+
 		require.Equal(t, dutyRandao, duty)
 		require.True(t, reflect.DeepEqual(unexpectedPeers, unexpected))
 		require.True(t, reflect.DeepEqual(participatedShares, participation))
@@ -456,13 +517,16 @@ func TestDutyRandaoExpected(t *testing.T) {
 		require.NoError(t, tr.SchedulerEvent(ctx, dutyProposer, core.DutyDefinitionSet{pubkey: core.NewProposerDefinition(testutil.RandomProposerDuty(t))}))
 		require.NoError(t, tr.ParSigExEvent(ctx, dutyRandao, core.ParSignedDataSet{pubkey: data}))
 
-		deadliner.deadlineChan <- dutyRandao
+		analyser.deadlineChan <- dutyProposer
+		analyser.deadlineChan <- dutyRandao
+		// Trim Proposer events after Randao deadline
+		deleter.deadlineChan <- dutyProposer
 	}()
 
 	require.ErrorIs(t, tr.Run(ctx), context.Canceled)
 }
 
-// testDeadliner is a mock deadliner implementation.
+// testDeadliner is a mock analyser implementation.
 type testDeadliner struct {
 	deadlineChan chan core.Duty
 }

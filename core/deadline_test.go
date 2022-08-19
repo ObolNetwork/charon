@@ -35,18 +35,18 @@ func TestDeadliner(t *testing.T) {
 	expiredDuties, nonExpiredDuties, voluntaryExits, dutyExpired := setupData(t)
 	clock := clockwork.NewFakeClock()
 
-	deadlineFuncProvider := func() func(duty core.Duty) time.Time {
+	deadlineFuncProvider := func() func(duty core.Duty) (time.Time, bool) {
 		startTime := clock.Now()
-		return func(duty core.Duty) time.Time {
+		return func(duty core.Duty) (time.Time, bool) {
 			if duty.Type == core.DutyExit {
-				return startTime.Add(time.Hour)
+				return startTime.Add(time.Hour), true
 			}
 
 			if dutyExpired(duty) {
-				return startTime.Add(-1 * time.Hour)
+				return startTime.Add(-1 * time.Hour), true
 			}
 
-			return startTime.Add(time.Duration(duty.Slot) * time.Second)
+			return startTime.Add(time.Duration(duty.Slot) * time.Second), true
 		}
 	}
 
