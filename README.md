@@ -68,6 +68,6 @@ The status of supported duties are (🚧 means "under construction"):
 | _Attestation_                        | ✅      | ✅            |
 | _Attestation Aggregation_            | 🚧      | 🚧            |
 | _Block Proposal_                     | ✅      | ✅            |
-| _Blinded Block Proposal (mev-boost)_ | 🚧      | 🚧            |
+| _Blinded Block Proposal (mev-boost)_ | [✅](https://ropsten.beaconcha.in/block/555067)      | 🚧            |
 | _Sync Committee Attestation_         | 🚧      | 🚧            |
 | _Sync Committee Aggregation_         | 🚧      | 🚧            |
