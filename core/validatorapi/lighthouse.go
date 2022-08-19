@@ -38,12 +38,8 @@ func (c Component) LighthouseValidatorDefinitions() ([]LighthouseValidatorDefini
 
 	for pubkey, pubshare := range c.sharesByKey {
 		resp = append(resp, LighthouseValidatorDefinition{
-			Enabled:         true,
-			VotingPublicKey: string(pubshare),
-			// Asking whether these need to be defined in lighthouse discord
-			// Type: dead,
-			// VotingKeystorePath: dead,
-			// VotingKeystorePasswordPath: dead,
+			Enabled:               true,
+			VotingPublicKey:       string(pubshare),
 			SuggestedFeeRecipient: c.feeRecipient,
 			GasLimit:              gasLimit,
 			BuilderProposals:      true,
