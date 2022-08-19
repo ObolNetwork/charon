@@ -300,7 +300,7 @@ func (c *Component) markRecvDropped(duty core.Duty) bool {
 	return !prev
 }
 
-// deleteRecvChan deletes the receive channel for the duty.
+// deleteRecvChan deletes the receive channel and recvDropped map entry for the duty.
 func (c *Component) deleteRecvChan(duty core.Duty) {
 	c.recvMu.Lock()
 	defer c.recvMu.Unlock()
