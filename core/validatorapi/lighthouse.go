@@ -15,6 +15,8 @@
 
 package validatorapi
 
+import "context"
+
 type LighthouseValidatorDefinition struct {
 	Enabled                    bool   `json:"enabled"`
 	VotingPublicKey            string `json:"voting_public_key"`
@@ -27,13 +29,11 @@ type LighthouseValidatorDefinition struct {
 	BuilderPubkeyOverride      string `json:"builder_pubkey_override"`
 }
 
-const gasLimit = 30000000
-
 type LighthouseValidatorDefinitionsProvider interface {
-	LighthouseValidatorDefinitions() ([]LighthouseValidatorDefinition, error)
+	LighthouseValidatorDefinitions(ctx context.Context) ([]LighthouseValidatorDefinition, error)
 }
 
-func (c Component) LighthouseValidatorDefinitions() ([]LighthouseValidatorDefinition, error) {
+func (c Component) LighthouseValidatorDefinitions(_ context.Context) ([]LighthouseValidatorDefinition, error) {
 	var resp []LighthouseValidatorDefinition
 
 	for pubkey, pubshare := range c.sharesByKey {

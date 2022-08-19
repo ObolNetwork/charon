@@ -556,7 +556,7 @@ func tekuProposerConfig(p TekuProposerConfigProvider) handlerFunc {
 
 func lighthouseValidatorDefinitions(p LighthouseValidatorDefinitionsProvider) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, _ []byte) (interface{}, error) {
-		return p.LighthouseValidatorDefinitions()
+		return p.LighthouseValidatorDefinitions(ctx)
 	}
 }
 
