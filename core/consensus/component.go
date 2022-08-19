@@ -267,7 +267,7 @@ func (c *Component) handle(s network.Stream) {
 	select {
 	case c.getRecvBuffer(duty) <- msg:
 	case <-ctx.Done():
-		log.Error(ctx, "Dropping peer consensus message due to shutdown", ctx.Err())
+		log.Error(ctx, "Dropping peer consensus message due to timeout", ctx.Err())
 	default:
 		if c.markRecvDropped(duty) {
 			log.Warn(ctx, "Dropping peer consensus messages, duty not scheduled locally", nil)
