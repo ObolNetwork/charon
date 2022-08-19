@@ -121,7 +121,6 @@ func (d *deadliner) run(ctx context.Context, deadlineFunc func(Duty) (time.Time,
 		case <-ctx.Done():
 			return
 		case input := <-d.inputChan:
-			// Ignoring boolean value
 			deadline, canExpire := deadlineFunc(input.duty)
 			expired := deadline.Before(d.clock.Now())
 
