@@ -25,7 +25,7 @@ import (
 	relaylog "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/peer"
-	rcmgr "github.com/libp2p/go-libp2p-resource-manager"
+	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -143,7 +143,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		limiter.SystemBaseLimit.FD = config.MaxConns
 		limiter.TransientBaseLimit = limiter.SystemBaseLimit
 
-		mgr, err := rcmgr.NewResourceManager(rcmgr.NewStaticLimiter(limiter))
+		mgr, err := rcmgr.NewResourceManager(rcmgr.NewFixedLimiter(limiter.Scale(1<<30, config.MaxConns))) // 1GB Memory
 		if err != nil {
 			p2pErr <- errors.Wrap(err, "new resource manager")
 		}
