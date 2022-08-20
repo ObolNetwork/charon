@@ -407,6 +407,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	wireTracker(ctx, life, deadlineFunc, peers, sched, fetch, cons, vapi, parSigDB, parSigEx, sigAgg)
+	wireRecaster(sched, sigAgg, broadcaster)
 
 	core.Wire(sched, fetch, cons, dutyDB, vapi,
 		parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster,
@@ -435,6 +436,15 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	return nil
 }
 
+// wireRecaster wires the rebroadcaster component to scheduler, sigAgg and broadcaster.
+// This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
+func wireRecaster(sched core.Scheduler, sigAgg core.SigAgg, broadcaster core.Broadcaster) {
+	recaster := bcast.NewRecaster()
+	sched.SubscribeSlots(recaster.SlotTicket)
+	sigAgg.Subscribe(recaster.Store)
+	recaster.Subscribe(broadcaster.Broadcast)
+}
+
 // wireTracker creates a new tracker instance and wires it to the components with "output events".
 func wireTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(duty core.Duty) (time.Time, bool), peers []p2p.Peer,
 	sched core.Scheduler, fetcher core.Fetcher, cons core.Consensus, vapi core.ValidatorAPI,
@@ -452,7 +462,7 @@ func wireTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func
 	})
 	trackr := tracker.New(analyser, deleter, peers)
 
-	sched.Subscribe(trackr.SchedulerEvent)
+	sched.SubscribeDuties(trackr.SchedulerEvent)
 	fetcher.Subscribe(trackr.FetcherEvent)
 	cons.Subscribe(trackr.ConsensusEvent)
 	vapi.Subscribe(trackr.ValidatorAPIEvent)
@@ -647,7 +657,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	eth2Provider := newVMockEth2Provider(conf)
 
 	// Trigger validatormock when scheduler triggers new slot.
-	sched.Subscribe(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
+	sched.SubscribeDuties(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
 		ctx = log.WithTopic(ctx, "vmock")
 		go func() {
 			eth2Cl, err := eth2Provider()

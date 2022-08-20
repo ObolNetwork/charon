@@ -25,8 +25,11 @@ import (
 
 // Scheduler triggers the start of a duty workflow.
 type Scheduler interface {
-	// Subscribe registers a callback for fetching a duty.
-	Subscribe(func(context.Context, Duty, DutyDefinitionSet) error)
+	// SubscribeDuties subscribes a callback function for triggered duties.
+	SubscribeDuties(func(context.Context, Duty, DutyDefinitionSet) error)
+
+	// SubscribeSlots subscribes a callback function for triggered slots.
+	SubscribeSlots(func(context.Context, Slot) error)
 
 	// GetDutyDefinition returns the definition set for a duty if already resolved.
 	GetDutyDefinition(context.Context, Duty) (DutyDefinitionSet, error)
@@ -154,7 +157,8 @@ type Broadcaster interface {
 // wireFuncs defines the core workflow components as a list input and output functions
 // instead as interfaces, since functions are easier to wrap than interfaces.
 type wireFuncs struct {
-	SchedulerSubscribe                  func(func(context.Context, Duty, DutyDefinitionSet) error)
+	SchedulerSubscribeDuties            func(func(context.Context, Duty, DutyDefinitionSet) error)
+	SchedulerSubscribeSlots             func(func(context.Context, Slot) error)
 	SchedulerGetDutyDefinition          func(context.Context, Duty) (DutyDefinitionSet, error)
 	FetcherFetch                        func(context.Context, Duty, DutyDefinitionSet) error
 	FetcherSubscribe                    func(func(context.Context, Duty, UnsignedDataSet) error)
@@ -202,7 +206,8 @@ func Wire(sched Scheduler,
 	opts ...WireOption,
 ) {
 	w := wireFuncs{
-		SchedulerSubscribe:                  sched.Subscribe,
+		SchedulerSubscribeDuties:            sched.SubscribeDuties,
+		SchedulerSubscribeSlots:             sched.SubscribeSlots,
 		SchedulerGetDutyDefinition:          sched.GetDutyDefinition,
 		FetcherFetch:                        fetch.Fetch,
 		FetcherSubscribe:                    fetch.Subscribe,
@@ -237,7 +242,7 @@ func Wire(sched Scheduler,
 		opt(&w)
 	}
 
-	w.SchedulerSubscribe(w.FetcherFetch)
+	w.SchedulerSubscribeDuties(w.FetcherFetch)
 	w.FetcherSubscribe(w.ConsensusPropose)
 	w.FetcherRegisterAggSigDB(w.AggSigDBAwait)
 	w.ConsensusSubscribe(w.DutyDBStore)
