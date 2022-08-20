@@ -74,9 +74,11 @@ func bindBootnodeFlag(flags *pflag.FlagSet, config *BootnodeConfig) {
 	flags.StringVar(&config.HTTPAddr, "bootnode-http-address", "127.0.0.1:3640", "Listening address (ip and port) for the bootnode http server serving runtime ENR")
 	flags.BoolVar(&config.AutoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory")
 	flags.BoolVar(&config.P2PRelay, "p2p-relay", true, "Enable libp2p tcp host providing circuit relay to charon clusters")
-	flags.IntVar(&config.MaxResPerPeer, "max-reservations", 30, "Updates max circuit reservations per peer (each valid for 30min)")
 	flags.StringVar(&config.RelayLogLevel, "p2p-relay-loglevel", "", "Libp2p circuit relay log level. E.g., debug, info, warn, error")
-	flags.IntVar(&config.MaxConns, "p2p-max-connections", 1024, "Libp2p maximum number of peers that can connect to this bootnode.")
+
+	// Decrease defaults after this has been addressed https://github.com/libp2p/go-libp2p/issues/1713
+	flags.IntVar(&config.MaxResPerPeer, "max-reservations", 512, "Updates max circuit reservations per peer (each valid for 30min)") // TODO(corver): Align flag name to p2p-max-reservations
+	flags.IntVar(&config.MaxConns, "p2p-max-connections", 16384, "Libp2p maximum number of peers that can connect to this bootnode.")
 }
 
 // RunBootnode starts a p2p-udp discv5 bootnode.

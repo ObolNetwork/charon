@@ -26,6 +26,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
@@ -54,10 +55,12 @@ func NewRelays(conf Config, bootnodes []*MutablePeer) []*MutablePeer {
 func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc {
 	return func(ctx context.Context) error {
 		ctx = log.WithTopic(ctx, "relay")
+		backoff, resetBackoff := expbackoff.NewWithReset(ctx)
+
 		for ctx.Err() == nil {
 			relayPeer, ok := relay.Peer()
 			if !ok || relayPeer.Enode.TCP() == 0 {
-				time.Sleep(time.Second * 10)
+				time.Sleep(time.Second * 10) // Constant 10s backoff ok for mutexed lookups
 				continue
 			}
 
@@ -78,10 +81,11 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 			resv, err := circuit.Reserve(ctx, tcpNode, addrInfo)
 			if err != nil {
 				log.Warn(ctx, "Reserve relay circuit", err)
-				time.Sleep(time.Second * 5) // TODO(corver): Improve backoff
+				backoff()
 
 				continue
 			}
+			resetBackoff()
 
 			// Note a single long-lived reservation (created by server-side) is mapped to
 			// many short-lived limited client-side connections.

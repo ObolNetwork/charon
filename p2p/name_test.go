@@ -18,6 +18,7 @@ package p2p_test
 import (
 	"testing"
 
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/p2p"
@@ -32,4 +33,23 @@ func TestPeerName(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, peer.Name, "happy-floor")
+}
+
+func Test(t *testing.T) {
+	tests := []struct {
+		peerID string
+		name   string
+	}{
+		{
+			peerID: "16Uiu2HAmDTemdrDfAgG1DX5q3NmfART3PcTFZe69yrNHdde3Qq3v",
+			name:   "different-course",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p, err := peer.Decode(test.peerID)
+			require.NoError(t, err)
+			require.Equal(t, test.name, p2p.PeerName(p))
+		})
+	}
 }
