@@ -440,7 +440,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 // This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
 func wireRecaster(sched core.Scheduler, sigAgg core.SigAgg, broadcaster core.Broadcaster) {
 	recaster := bcast.NewRecaster()
-	sched.SubscribeSlots(recaster.SlotTicket)
+	sched.SubscribeSlots(recaster.SlotTicked)
 	sigAgg.Subscribe(recaster.Store)
 	recaster.Subscribe(broadcaster.Broadcast)
 }

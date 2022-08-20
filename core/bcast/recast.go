@@ -51,6 +51,7 @@ func (r *Recaster) Subscribe(sub func(context.Context, core.Duty, core.PubKey, c
 	r.subs = append(r.subs, sub)
 }
 
+// Store stores aggregate signed duty registrations for rebroadcasting.
 func (r *Recaster) Store(_ context.Context, duty core.Duty,
 	pubkey core.PubKey, aggData core.SignedData,
 ) (err error) {
@@ -81,7 +82,8 @@ func (r *Recaster) Store(_ context.Context, duty core.Duty,
 	return nil
 }
 
-func (r *Recaster) SlotTicket(ctx context.Context, slot core.Slot) error {
+// SlotTicked is called when new slots tick.
+func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 	if !slot.FirstInEpoch() {
 		return nil
 	}
