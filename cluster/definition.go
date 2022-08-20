@@ -22,7 +22,7 @@ import (
 	"time"
 
 	ssz "github.com/ferranbt/fastssz"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"

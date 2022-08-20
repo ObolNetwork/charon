@@ -33,8 +33,8 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/automaxprocs/maxprocs"
 

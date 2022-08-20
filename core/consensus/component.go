@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 

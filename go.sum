@@ -400,8 +400,6 @@ github.com/libp2p/go-libp2p v0.22.0 h1:2Tce0kHOp5zASFKJbNzRElvh0iZwdtG5uZheNW8ch
 github.com/libp2p/go-libp2p v0.22.0/go.mod h1:UDolmweypBSjQb2f7xutPnwZ/fxioLbMBxSjRksxxU4=
 github.com/libp2p/go-libp2p-asn-util v0.2.0 h1:rg3+Os8jbnO5DxkC7K/Utdi+DkY3q/d1/1q+8WeNAsw=
 github.com/libp2p/go-libp2p-asn-util v0.2.0/go.mod h1:WoaWxbHKBymSN41hWSq/lGKJEca7TNm58+gGJi2WsLI=
-github.com/libp2p/go-libp2p-core v0.20.0 h1:PGKM74+T+O/FaZNARNW32i90RMBHCcgd/hkum2UQ5eY=
-github.com/libp2p/go-libp2p-core v0.20.0/go.mod h1:6zR8H7CvQWgYLsbG4on6oLNSGcyKaYFSEYyDt51+bIY=
 github.com/libp2p/go-libp2p-testing v0.11.0 h1:+R7FRl/U3Y00neyBSM2qgDzqz3HkWH24U9nMlascHL4=
 github.com/libp2p/go-msgio v0.2.0 h1:W6shmB+FeynDrUVl2dgFQvzfBZcXiyqY4VmpQLu9FqU=
 github.com/libp2p/go-msgio v0.2.0/go.mod h1:dBVM1gW3Jk9XqHkU4eKdGvVHdLa51hoGfll6jMJMSlY=

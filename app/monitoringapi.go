@@ -25,8 +25,8 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/jonboulle/clockwork"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
