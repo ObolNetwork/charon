@@ -662,6 +662,418 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false,
+            "minWidth": 0,
+            "width": 90
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "index": 1,
+                  "text": "❌"
+                },
+                "1": {
+                  "index": 0,
+                  "text": "✅"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "noValue": "N/A",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Latency"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": 0,
+                      "result": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "to": 150
+                    },
+                    "type": "range"
+                  },
+                  {
+                    "options": {
+                      "from": 150,
+                      "result": {
+                        "color": "yellow",
+                        "index": 1
+                      },
+                      "to": 300
+                    },
+                    "type": "range"
+                  },
+                  {
+                    "options": {
+                      "from": 300,
+                      "result": {
+                        "color": "orange",
+                        "index": 2
+                      },
+                      "to": 500
+                    },
+                    "type": "range"
+                  },
+                  {
+                    "options": {
+                      "from": 500,
+                      "result": {
+                        "color": "red",
+                        "index": 3
+                      },
+                      "to": 100000
+                    },
+                    "type": "range"
+                  }
+                ]
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "lcd-gauge"
+              },
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "You"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "⭐"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "auto"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 0,
+                        "text": "--"
+                      },
+                      "1": {
+                        "index": 1,
+                        "text": "--"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Peer"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 16,
+        "x": 0,
+        "y": 5
+      },
+      "id": 54,
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "frameIndex": 0,
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "You"
+          }
+        ]
+      },
+      "pluginVersion": "9.0.4",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(p2p_ping_success{job=\"$node\"}) by (peer)",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[30s])) by (le,peer))  * 1000",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(core_tracker_participation{job=\"$node\", duty=\"attester\"}) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(core_tracker_participation{job=\"$node\", duty=\"proposer\"}) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(core_tracker_participation{job=\"$node\", duty=\"randao\"}) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(p2p_ping_success{job=\"$node\"}) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "F"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "seriesToColumns",
+          "options": {
+            "byField": "peer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true,
+              "Value #F": false
+            },
+            "indexByName": {
+              "Time 1": 2,
+              "Time 2": 4,
+              "Time 3": 6,
+              "Time 4": 8,
+              "Time 5": 11,
+              "Time 6": 12,
+              "Value #A": 3,
+              "Value #B": 5,
+              "Value #C": 7,
+              "Value #D": 10,
+              "Value #E": 9,
+              "Value #F": 1,
+              "peer": 0
+            },
+            "renameByName": {
+              "Value #A": "Connected",
+              "Value #B": "Latency",
+              "Value #C": "Attest",
+              "Value #D": "Propose",
+              "Value #E": "Randao",
+              "Value #F": "You",
+              "peer": "Peer"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 5
+      },
+      "id": 25,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[30s])) by (le,peer))  ",
+          "interval": "",
+          "legendFormat": "{{peer}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Peer ping latency (90%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -715,9 +1127,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 8,
+        "w": 12,
         "x": 0,
-        "y": 5
+        "y": 11
       },
       "id": 13,
       "options": {
@@ -805,9 +1217,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 8,
-        "x": 8,
-        "y": 5
+        "w": 12,
+        "x": 12,
+        "y": 11
       },
       "id": 14,
       "options": {
@@ -835,97 +1247,6 @@
         }
       ],
       "title": "Warnings by topic",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisSoftMin": 0,
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 16,
-        "y": 5
-      },
-      "id": 25,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "right"
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "exemplar": true,
-          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[30s])) by (le,peer))  ",
-          "interval": "",
-          "legendFormat": "{{peer}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Peer ping latency (90%)",
       "type": "timeseries"
     },
     {
@@ -987,7 +1308,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 9
+        "y": 15
       },
       "id": 7,
       "options": {
@@ -1092,7 +1413,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 9
+        "y": 15
       },
       "id": 5,
       "options": {
@@ -1157,7 +1478,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 9
+        "y": 15
       },
       "id": 26,
       "options": {
@@ -1251,7 +1572,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 22
       },
       "id": 17,
       "options": {
@@ -1341,7 +1662,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 22
       },
       "id": 18,
       "options": {
@@ -1431,7 +1752,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 23
+        "y": 29
       },
       "id": 15,
       "options": {
@@ -1521,7 +1842,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 23
+        "y": 29
       },
       "id": 24,
       "options": {
@@ -1612,7 +1933,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 30
+        "y": 36
       },
       "id": 50,
       "options": {
@@ -1716,7 +2037,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 30
+        "y": 36
       },
       "id": 52,
       "links": [],
@@ -1825,7 +2146,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 30
+        "y": 36
       },
       "id": 49,
       "options": {
