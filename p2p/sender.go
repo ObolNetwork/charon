@@ -88,7 +88,11 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 		}
 	} else if failure && (len(state.buffer) == 1 || !state.failing) {
 		// First attempt failed or state changed to failing
-		log.Warn(ctx, "P2P sending failing", err, z.Str("peer", PeerName(peerID)))
+
+		if _, ok := dialErrMsgs(err); !ok { // Only log non-dial errors
+			log.Warn(ctx, "P2P sending failing", err, z.Str("peer", PeerName(peerID)))
+		}
+
 		state.failing = true
 	}
 

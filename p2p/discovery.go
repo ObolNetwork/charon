@@ -291,7 +291,7 @@ func NewDiscoveryRouter(tcpNode host.Host, udpNode *MutableUDPNode, peers []Peer
 // it returns false if the peer isn't discovered.
 func getDiscoveredAddress(udpNode *MutableUDPNode, p Peer) (ma.Multiaddr, bool, error) {
 	resolved := udpNode.Resolve(&p.Enode)
-	if resolved.Seq() == 0 || resolved.TCP() == 0 {
+	if resolved.Seq() == p.Enode.Seq() || resolved.TCP() == 0 {
 		return nil, false, nil // Not discovered
 	}
 
