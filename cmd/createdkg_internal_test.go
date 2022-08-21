@@ -62,25 +62,25 @@ func TestCreateDkgInvalid(t *testing.T) {
 			conf: createDKGConfig{OperatorENRs: append([]string{
 				"-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
 			}, validENRs...)},
-			errMsg: "invalid ENR: invalid ENR with no prefix (enr:)",
+			errMsg: "invalid ENR: decode ENR: missing 'enr:' prefix for base64-encoded record",
 		},
 		{
 			conf: createDKGConfig{OperatorENRs: append([]string{
 				"enr:JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
 			}, validENRs...)},
-			errMsg: "invalid ENR: base64 enr: illegal base64 data at input byte 192",
+			errMsg: "invalid ENR: decode ENR: rlp: expected List",
 		},
 		{
 			conf: createDKGConfig{OperatorENRs: append([]string{
 				"enrJG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
 			}, validENRs...)},
-			errMsg: "invalid ENR: invalid ENR with no prefix (enr:)",
+			errMsg: "invalid ENR: decode ENR: missing 'enr:' prefix for base64-encoded record",
 		},
 		{
 			conf: createDKGConfig{OperatorENRs: append([]string{
 				"JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
 			}, validENRs...)},
-			errMsg: "invalid ENR: invalid ENR with no prefix (enr:)",
+			errMsg: "invalid ENR: decode ENR: missing 'enr:' prefix for base64-encoded record",
 		},
 		{
 			conf:   createDKGConfig{OperatorENRs: []string{""}},
