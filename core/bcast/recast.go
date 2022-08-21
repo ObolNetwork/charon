@@ -87,6 +87,7 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 	if !slot.FirstInEpoch() {
 		return nil
 	}
+	ctx = log.WithTopic(ctx, "bcast")
 
 	// Copy locked things before doing IO
 	var (
@@ -107,8 +108,6 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 			err := sub(ctx, tuple.duty, pubkey, tuple.aggData)
 			if err != nil {
 				log.Error(ctx, "Rebroadcast duty error (will retry next epoch)", err)
-			} else {
-				log.Debug(ctx, "Rebroadcasted duty")
 			}
 		}
 	}
