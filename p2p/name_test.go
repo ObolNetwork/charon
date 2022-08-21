@@ -18,7 +18,7 @@ package p2p_test
 import (
 	"testing"
 
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/p2p"
