@@ -25,7 +25,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// hasErrDialBackoff returns true if the error is contains swarm.ErrDialBackoff.
+// hasErrDialBackoff returns true if the error contains swarm.ErrDialBackoff.
 func hasErrDialBackoff(err error) bool {
 	dErr := new(swarm.DialError)
 	if !errors.As(err, &dErr) {
