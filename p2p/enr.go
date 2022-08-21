@@ -16,47 +16,36 @@
 package p2p
 
 import (
-	"bytes"
-	"encoding/base64"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
-	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
 
 // EncodeENR returns an encoded string format of the enr record.
 func EncodeENR(record enr.Record) (string, error) {
-	var buf bytes.Buffer
-	if err := record.EncodeRLP(&buf); err != nil {
-		return "", errors.Wrap(err, "encode rlp")
+	n, err := enode.New(enode.V4ID{}, &record)
+	if err != nil {
+		return "", errors.Wrap(err, "encode ENR")
 	}
 
-	return "enr:" + base64.URLEncoding.EncodeToString(buf.Bytes()), nil
+	return n.String(), nil
 }
 
 // DecodeENR returns a enr record decoded from the string.
 // See reference github.com/ethereum/go-ethereum@v1.10.10/p2p/dnsdisc/tree.go:378.
 func DecodeENR(enrStr string) (enr.Record, error) {
-	if enrStr == "" {
-		return enr.Record{}, errors.New("enr empty")
-	}
-	ok := strings.HasPrefix(enrStr, "enr:")
-	if !ok {
-		return enr.Record{}, errors.New("invalid ENR with no prefix (enr:)")
+	// Ensure backwards compatibility with older versions with padded ENR strings.
+	if strings.HasSuffix(enrStr, "=") {
+		enrStr = enrStr[:len(enrStr)-1]
 	}
 
-	enrStr = strings.TrimPrefix(enrStr, "enr:")
-	enrBytes, err := base64.URLEncoding.DecodeString(enrStr)
+	node, err := enode.Parse(enode.V4ID{}, enrStr)
 	if err != nil {
-		return enr.Record{}, errors.Wrap(err, "base64 enr")
+		return enr.Record{}, errors.Wrap(err, "decode ENR")
 	}
 
-	var record enr.Record
-	if err := rlp.DecodeBytes(enrBytes, &record); err != nil {
-		return enr.Record{}, errors.Wrap(err, "rlp enr")
-	}
-
-	return record, nil
+	return *node.Record(), nil
 }

@@ -51,7 +51,13 @@ func TestDecodeENR_InvalidRLP(t *testing.T) {
 }
 
 func TestDecodeENR_Oversize(t *testing.T) {
-	_, err := p2p.DecodeENR("enr:-IS4QBnEa-Oftjk7-sGRAY7IrvL5YjATdcHbqR5l2aXX2M25CiawfwaXh0k9hm98dCfdnqhz9mE-BfemFdjuL9KtHqgBgmlkgnY0gmlwhB72zxGJc2VjcDI1NmsxoQMaK8SspTrUgB8IYVI3qDgFYsHymPVsWlvIW477kxaKUIN0Y3CCJpUAAAA=")
+	_, err := p2p.DecodeENR("enr:-IS4QBnEa-Oftjk7-sGRAY7IrvL5YjATdcHbqR5l2aXX2M25CiawfwaXh0k9hm98dCfdnqhz9mE-BfemFdjuL9KtHqgBgmlkgnY0gmlwhB72zxGJc2VjcDI1NmsxoQMaK8SspTrUgB8IYVI3qDgFYsHymPVsWlvIW477kxaKUIN0Y3CCJpUAAAA")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "input contains more than one value")
+}
+
+func TestBackwardsENR(t *testing.T) {
+	oldVersionENR := "enr:-HW4QHwvU8usykhaKQ_cxyAaAck_TlS0zr9nLNXDODQll87ifLECDsnczJz7vC_aVTKq9Q8aC3UIKWwls1i4TmEXLAuAgmlkgnY0iXNlY3AyNTZrMaEDhry2ryLc-Y39laN92yfixHghkWIjLeQ4orBvDQy20jA="
+	_, err := p2p.DecodeENR(oldVersionENR)
+	require.NoError(t, err)
 }
