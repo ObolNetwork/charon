@@ -146,6 +146,7 @@ func (s *Scheduler) Run() error {
 	}
 }
 
+// emitCoreSlot calls all slot subscribes with the provided slot.
 func (s *Scheduler) emitCoreSlot(ctx context.Context, slot core.Slot) {
 	for _, sub := range s.slotSubs {
 		err := sub(ctx, slot)
