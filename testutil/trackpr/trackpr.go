@@ -13,8 +13,8 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// The unticketedpr command verifies if a ticket with a "none" tag is present in the closed PR. If such a PR exists,
-// the command sets NONE_TICKET_PRESENT to true.
+// Command trackpr verifies if a ticket with a "none" tag is present in the closed PR. If such a PR exists,
+// the command sets UNTICKETED_PR to true.
 //
 //nolint:wrapcheck,revive,cyclop,forbidigo
 package main
@@ -95,13 +95,16 @@ func saveToGithubEnv(key string, val bool) error {
 // unticketedPR returns true if the ticket is "none" for the PR and returns false otherwise.
 // It doesn't verify the body and assumes verifyPR step has already succeeded.
 func unticketedPR(body string) bool {
+	const ticketTag = "ticket:"
+
 	for _, line := range strings.Split(body, "\n") {
-		const ticketTag = "ticket:"
-		if strings.HasPrefix(line, ticketTag) {
-			ticket := strings.TrimSpace(strings.TrimPrefix(line, ticketTag))
-			if ticket == "none" {
-				return true
-			}
+		if !strings.HasPrefix(line, ticketTag) {
+			continue
+		}
+
+		ticket := strings.TrimSpace(strings.TrimPrefix(line, ticketTag))
+		if ticket == "none" {
+			return true
 		}
 	}
 

@@ -17,8 +17,8 @@ jobs:
       - name: Verify PR
         run: go run testutil/verifypr/verifypr.go
 
-      - name: Set env.NONE_TICKET_PRESENT
-        run: go run testutil/unticketedpr/unticketedpr.go
+      - name: Set env.UNTICKETED_PR
+        run: go run testutil/trackpr/trackpr.go
 
       - name: Add PR To Project
         if: ${{ success() && env.UNTICKETED_PR }}
