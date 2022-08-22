@@ -328,7 +328,7 @@ func keyToENR(key *ecdsa.PrivateKey) (string, error) {
 
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "resolve udp address")
 	}
 
 	var r enr.Record
