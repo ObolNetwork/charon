@@ -31,13 +31,7 @@ func EncodeENR(record enr.Record) (string, error) {
 		return "", errors.Wrap(err, "encode ENR")
 	}
 
-	// Ensure backwards compatibility of Encoded ENR with previous version's decoder.
-	resp := n.String()
-	for len(resp)%4 != 0 {
-		resp += "="
-	}
-
-	return resp, nil
+	return n.String(), nil
 }
 
 // DecodeENR returns a enr record decoded from the string.

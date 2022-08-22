@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net"
 	"os"
 	"os/exec"
 	"path"
@@ -315,26 +316,32 @@ func copyStaticFolders(dir string) error {
 }
 
 func keyToENR(key *ecdsa.PrivateKey) (string, error) {
-	var r enr.Record
-	r.SetSeq(0)
-
-	err := enode.SignV4(&r, key)
-	if err != nil {
-		return "", errors.Wrap(err, "sign enr")
+	config := p2p.Config{
+		TCPAddrs: []string{"127.0.0.1:3610"},
+		UDPAddr:  "127.0.0.1:3630",
 	}
 
-	resp, err := p2p.EncodeENR(r)
+	tcpAddrs, err := config.ParseTCPAddrs()
 	if err != nil {
 		return "", err
 	}
 
-	// Ensure backwards compatibility of Encoded ENR with previous version's decoder.
-	// TODO(dhruv): remove this once we've come a long way post v0.10.0
-	for len(resp)%4 != 0 {
-		resp += "="
+	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
+	if err != nil {
+		return "", err
 	}
 
-	return resp, nil
+	var r enr.Record
+	r.Set(enr.IPv4(tcpAddrs[0].IP.To4()))
+	r.Set(enr.TCP(tcpAddrs[0].Port))
+	r.Set(enr.UDP(udpAddr.Port))
+	r.SetSeq(1)
+
+	if err = enode.SignV4(&r, key); err != nil {
+		return "", errors.Wrap(err, "sign enr")
+	}
+
+	return p2p.EncodeENR(r)
 }
 
 // p2pSeed can be overridden in tests for deterministic p2pkeys.

@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path"
 	"strings"
@@ -389,10 +390,29 @@ func newPeer(conf clusterConfig, peerIdx int) (p2p.Peer, error) {
 		return p2p.Peer{}, errors.Wrap(err, "create charon-enr-private-key")
 	}
 
-	var r enr.Record
-	err = enode.SignV4(&r, p2pKey)
+	p2pConfig := p2p.Config{
+		TCPAddrs: []string{"127.0.0.1:3610"},
+		UDPAddr:  "127.0.0.1:3630",
+	}
+
+	tcpAddrs, err := p2pConfig.ParseTCPAddrs()
 	if err != nil {
-		return p2p.Peer{}, errors.Wrap(err, "enode sign")
+		return p2p.Peer{}, err
+	}
+
+	udpAddr, err := net.ResolveUDPAddr("udp", p2pConfig.UDPAddr)
+	if err != nil {
+		return p2p.Peer{}, errors.Wrap(err, "resolve udp address")
+	}
+
+	var r enr.Record
+	r.Set(enr.IPv4(tcpAddrs[0].IP.To4()))
+	r.Set(enr.TCP(tcpAddrs[0].Port))
+	r.Set(enr.UDP(udpAddr.Port))
+	r.SetSeq(1)
+
+	if err = enode.SignV4(&r, p2pKey); err != nil {
+		return p2p.Peer{}, errors.Wrap(err, "sign enr")
 	}
 
 	peer, err := p2p.NewPeer(r, peerIdx)

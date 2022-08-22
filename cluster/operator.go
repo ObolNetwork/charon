@@ -115,7 +115,7 @@ type operatorJSONv1x1 struct {
 	ENRSignature    []byte `json:"enr_signature"`
 }
 
-// operatorJSONv1x1 is the json formatter of Operator for versions v1.2 and later.
+// operatorJSONv1x2 is the json formatter of Operator for versions v1.2 and later.
 type operatorJSONv1x2 struct {
 	Address         string `json:"address"`
 	ENR             string `json:"enr"`
