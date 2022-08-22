@@ -43,7 +43,7 @@ func TestComponent(t *testing.T) {
 		nodes = 4
 	)
 
-	lock, p2pkeys, _ := cluster.NewForT(t, 0, 0, nodes, 0)
+	lock, p2pkeys, _ := cluster.NewForT(t, 1, nodes, nodes, 0)
 
 	var (
 		peers       []p2p.Peer

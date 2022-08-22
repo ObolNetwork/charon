@@ -173,6 +173,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err != nil {
 		return err
 	}
+	if !conf.NoVerify {
+		if err := lock.Verify(); err != nil {
+			return errors.Wrap(err, "invalid lock file")
+		}
+	}
 	log.Debug(ctx, "Aggregated lock hash signatures")
 
 	// Sign, exchange and aggregate Deposit Data signatures
@@ -369,10 +374,6 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 		return cluster.Lock{}, errors.Wrap(err, "marshal binary aggSigLockHash")
 	}
 	lock.SignatureAggregate = sigBytes
-
-	if err := lock.Verify(); err != nil {
-		return cluster.Lock{}, errors.Wrap(err, "invalid lock file")
-	}
 
 	return lock, nil
 }
