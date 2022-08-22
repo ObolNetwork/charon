@@ -26,8 +26,6 @@ import (
 	"strings"
 )
 
-const noneTicket = "none"
-
 func main() {
 	err := run()
 	if err != nil {
@@ -41,8 +39,12 @@ type PR struct {
 	Body  string
 }
 
+const (
+	prenv = "GITHUB_PR"
+	ghEnv = "GITHUB_ENV"
+)
+
 func run() error {
-	const prenv = "GITHUB_PR"
 	fmt.Println("Verifying charon PR against template")
 	fmt.Printf("Parsing %s\n", prenv)
 
@@ -54,42 +56,50 @@ func run() error {
 	}
 
 	var pr PR
-	err := json.Unmarshal([]byte(prJSON), &pr)
-	if err != nil {
+	if err := json.Unmarshal([]byte(prJSON), &pr); err != nil {
 		return fmt.Errorf("unmarshal %s failed: %w", prenv, err)
 	}
 
 	fmt.Printf("PR Title: %s\n", pr.Title)
 	fmt.Printf("PR Body:\n%s\n####\n", pr.Body)
 
-	env_filename, _ := os.LookupEnv("GITHUB_ENV")
-	f, err := os.OpenFile(env_filename, os.O_RDWR, 0o666)
-	if err != nil {
-		return fmt.Errorf("error opening github env file")
-	}
-
-	// save to env file: echo "{environment_variable_name}={value}" >> $GITHUB_ENV
-	keyVal := []byte(fmt.Sprintf("%s=%t", "NONE_TICKET_PRESENT", containsNoneTicket(pr.Body, noneTicket)))
-	if _, err := f.Write(keyVal); err != nil {
-		return fmt.Errorf("writing to github env file failed: %w", err)
-	}
-
-	// close file
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("writing to github env file failed: %w", err)
+	if err := saveToGithubEnv("UNTICKETED_PR", unticketedPR(pr.Body)); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// noneTicket returns true if the ticket is "none" and returns false otherwise.
+// saveToGithubEnv stores the key value pair to the GITHUB_ENV environment file.
+func saveToGithubEnv(key string, val bool) error {
+	filename, _ := os.LookupEnv(ghEnv)
+	f, err := os.OpenFile(filename, os.O_RDWR, 0o666)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+
+	// write key value pair to file
+	keyVal := []byte(fmt.Sprintf("%s=%t", key, val))
+	if _, err := f.Write(keyVal); err != nil {
+		return fmt.Errorf("failed to write to file: %w", err)
+	}
+
+	// close file
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("failed to close file: %w", err)
+	}
+
+	return nil
+}
+
+// unticketedPR returns true if the ticket is "none" for the PR and returns false otherwise.
 // It doesn't verify the body and assumes verifyPR step has already succeeded.
-func containsNoneTicket(body, noneTicket string) bool {
+func unticketedPR(body string) bool {
 	for _, line := range strings.Split(body, "\n") {
 		const ticketTag = "ticket:"
 		if strings.HasPrefix(line, ticketTag) {
 			ticket := strings.TrimSpace(strings.TrimPrefix(line, ticketTag))
-			if ticket == noneTicket {
+			if ticket == "none" {
 				return true
 			}
 		}

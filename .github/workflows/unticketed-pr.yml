@@ -21,7 +21,7 @@ jobs:
         run: go run testutil/unticketedpr/unticketedpr.go
 
       - name: Add PR To Project
-        if: ${{ success() && env.NONE_TICKET_PRESENT }}
+        if: ${{ success() && env.UNTICKETED_PR }}
         uses: actions/add-to-project@v0.3.0
         with:
           project-url: https://github.com/orgs/ObolNetwork/projects/7
