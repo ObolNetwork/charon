@@ -323,7 +323,18 @@ func keyToENR(key *ecdsa.PrivateKey) (string, error) {
 		return "", errors.Wrap(err, "sign enr")
 	}
 
-	return p2p.EncodeENR(r)
+	resp, err := p2p.EncodeENR(r)
+	if err != nil {
+		return "", err
+	}
+
+	// Ensure backwards compatibility of Encoded ENR with previous version's decoder.
+	// TODO(dhruv): remove this once we've come a long way post v0.10.0
+	for len(resp)%4 != 0 {
+		resp += "="
+	}
+
+	return resp, nil
 }
 
 // p2pSeed can be overridden in tests for deterministic p2pkeys.
