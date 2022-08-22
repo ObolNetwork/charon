@@ -37,18 +37,11 @@ type NodeIdx struct {
 	ShareIdx int
 }
 
-// NewDefinition returns a new definition with populated with latest version, timestamp and UUID.
-func NewDefinition(
-	name string,
-	numVals int,
-	threshold int,
-	feeRecipient string,
-	withdrawalAddress string,
-	forkVersionHex string,
-	operators []Operator,
-	random io.Reader,
+// NewDefinition returns a new definition with populated latest version, timestamp and UUID.
+func NewDefinition(name string, numVals int, threshold int, feeRecipient string, withdrawalAddress string,
+	forkVersionHex string, operators []Operator, random io.Reader,
 ) Definition {
-	s := Definition{
+	return Definition{
 		Version:             currentVersion,
 		Name:                name,
 		UUID:                uuid(random),
@@ -61,8 +54,6 @@ func NewDefinition(
 		ForkVersion:         forkVersionHex,
 		Operators:           operators,
 	}
-
-	return s
 }
 
 // Definition defines an intended charon cluster configuration.
@@ -123,40 +114,48 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 	return NodeIdx{}, errors.New("peer not in definition")
 }
 
-// Sealed returns true if all config signatures are fully populated and valid. A "sealed" definition is ready for use in DKG.
-func (d Definition) Sealed() (bool, error) {
+// Verify returns true if all config signatures are fully populated and valid. A verified definition is ready for use in DKG.
+func (d Definition) Verify() error {
 	configHash, err := d.ConfigHash()
 	if err != nil {
-		return false, errors.Wrap(err, "config hash")
+		return errors.Wrap(err, "config hash")
 	}
 
 	for _, o := range d.Operators {
+		if len(o.ENRSignature) == 0 {
+			return errors.New("empty operator enr signature", z.Str("operator_address", o.Address))
+		}
+
+		if len(o.ConfigSignature) == 0 {
+			return errors.New("empty operator config signature", z.Str("operator_address", o.Address))
+		}
+
 		// Check that we have a valid config signature for each operator.
 		digest, err := digestEIP712(o.Address, configHash[:], 0)
 		if err != nil {
-			return false, err
+			return err
 		}
 
 		if ok, err := verifySig(o.Address, digest[:], o.ConfigSignature); err != nil {
-			return false, err
+			return err
 		} else if !ok {
-			return false, errors.Wrap(err, "config signature mismatch")
+			return errors.New("invalid operator config signature", z.Str("operator_address", o.Address))
 		}
 
 		// Check that we have a valid enr signature for each operator.
 		digest, err = digestEIP712(o.Address, []byte(o.ENR), 0)
 		if err != nil {
-			return false, err
+			return err
 		}
 
 		if ok, err := verifySig(o.Address, digest[:], o.ENRSignature); err != nil {
-			return false, err
+			return err
 		} else if !ok {
-			return false, errors.Wrap(err, "enr signature mismatch")
+			return errors.New("invalid operator enr signature", z.Str("operator_address", o.Address))
 		}
 	}
 
-	return true, nil
+	return nil
 }
 
 // ConfigHash returns the config hash of the definition object.

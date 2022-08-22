@@ -39,7 +39,7 @@ import (
 // It also returns the peer p2p keys and BLS secret shares. If the seed is zero a random cluster on available loopback
 // ports is generated, else a deterministic cluster is generated.
 // Note this is not defined in testutil since it is tightly coupled with the cluster package.
-func NewForT(t *testing.T, dv, k, n, seed int) (Lock, []*ecdsa.PrivateKey, [][]*bls_sig.SecretKeyShare) {
+func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock, []*ecdsa.PrivateKey, [][]*bls_sig.SecretKeyShare) {
 	t.Helper()
 
 	var (
@@ -102,24 +102,43 @@ func NewForT(t *testing.T, dv, k, n, seed int) (Lock, []*ecdsa.PrivateKey, [][]*
 		enrStr, err := p2p.EncodeENR(r)
 		require.NoError(t, err)
 
-		ops = append(ops, Operator{
+		op := Operator{
 			Address: crypto.PubkeyToAddress(p2pKey.PublicKey).String(),
 			ENR:     enrStr,
-		})
+		}
 
+		ops = append(ops, op)
 		p2pKeys = append(p2pKeys, p2pKey)
 	}
 
-	// TODO(corver): Add signatures.
+	def := NewDefinition("test cluster", dv, k,
+		testutil.RandomETHAddress(), testutil.RandomETHAddress(),
+		"0x00000000", ops, random)
 
-	return Lock{
-		Definition: NewDefinition(
-			"test cluster", dv, k,
-			testutil.RandomETHAddress(), testutil.RandomETHAddress(),
-			"0x00000000", ops, random),
+	for _, opt := range opts {
+		opt(&def)
+	}
+	confHash, err := def.ConfigHash()
+	require.NoError(t, err)
+
+	for i := 0; i < n; i++ {
+		def.Operators[i], err = signOperator(p2pKeys[i], def.Operators[i], confHash)
+		require.NoError(t, err)
+	}
+
+	lock := Lock{
+		Definition:         def,
 		Validators:         vals,
 		SignatureAggregate: nil,
-	}, p2pKeys, dvShares
+	}
+
+	lockHash, err := lock.HashTreeRoot()
+	require.NoError(t, err)
+
+	lock.SignatureAggregate, err = aggSign(dvShares, lockHash[:])
+	require.NoError(t, err)
+
+	return lock, p2pKeys, dvShares
 }
 
 // getAddrFunc returns either actual available ports for zero seeds

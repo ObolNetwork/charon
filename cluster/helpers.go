@@ -16,6 +16,7 @@
 package cluster
 
 import (
+	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -23,11 +24,14 @@ import (
 	"math"
 	"strings"
 
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	ethmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // uuid returns a random uuid.
@@ -52,6 +56,69 @@ func verifySig(addr string, digest []byte, sig []byte) (bool, error) {
 	actual = strings.ToLower(strings.TrimPrefix(actual, "0x"))
 
 	return actual == expect, nil
+}
+
+// signOperator return the operator with config hash and enr EIP712 signatures by the provided k1 private key.
+func signOperator(secret *ecdsa.PrivateKey, operator Operator, configHash [32]byte) (Operator, error) {
+	var err error
+	operator.ConfigSignature, err = signEIP712(secret, operator.Address, configHash[:])
+	if err != nil {
+		return Operator{}, err
+	}
+
+	operator.ENRSignature, err = signEIP712(secret, operator.Address, []byte(operator.ENR))
+	if err != nil {
+		return Operator{}, err
+	}
+
+	return operator, nil
+}
+
+// aggSign returns a bls aggregate signatures of the message signed by all the shares.
+func aggSign(secrets [][]*bls_sig.SecretKeyShare, message []byte) ([]byte, error) {
+	var sigs []*bls_sig.Signature
+	for _, shares := range secrets {
+		for _, share := range shares {
+			secret, err := tblsconv.ShareToSecret(share)
+			if err != nil {
+				return nil, err
+			}
+			sig, err := tbls.Sign(secret, message)
+			if err != nil {
+				return nil, err
+			}
+			sigs = append(sigs, sig)
+		}
+	}
+
+	aggSig, err := tbls.Scheme().AggregateSignatures(sigs...)
+	if err != nil {
+		return nil, errors.Wrap(err, "aggregate signatures")
+	}
+
+	b, err := aggSig.MarshalBinary()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal signature")
+	}
+
+	return b, nil
+}
+
+// signEIP712 signs the config hash digest and returns the signature.
+func signEIP712(secret *ecdsa.PrivateKey, address string, message []byte) ([]byte, error) {
+	const nonce = 0
+
+	digest, err := digestEIP712(address, message, nonce)
+	if err != nil {
+		return nil, err
+	}
+
+	sig, err := crypto.Sign(digest[:], secret)
+	if err != nil {
+		return nil, errors.Wrap(err, "sign EIP712")
+	}
+
+	return sig, nil
 }
 
 // digestEIP712 returns EIP712 digest hash.

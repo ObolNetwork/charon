@@ -75,6 +75,7 @@ type Config struct {
 	Log              log.Config
 	Feature          featureset.Config
 	LockFile         string
+	NoVerify         bool
 	DataDir          string
 	MonitoringAddr   string
 	ValidatorAPIAddr string
@@ -134,11 +135,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	hash, timestamp := version.GitCommit()
+	gitHash, gitTimestamp := version.GitCommit()
 	log.Info(ctx, "Charon starting",
 		z.Str("version", version.Version),
-		z.Str("git_commit_hash", hash),
-		z.Str("git_commit_time", timestamp),
+		z.Str("git_commit_hash", gitHash),
+		z.Str("git_commit_time", gitTimestamp),
 	)
 
 	// Wire processes and their dependencies
@@ -151,6 +152,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 	lock, err := loadLock(conf)
 	if err != nil {
 		return err
+	}
+
+	if err := lock.Verify(); err != nil && !conf.NoVerify {
+		return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
+	} else if err != nil && conf.NoVerify {
+		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
 	}
 
 	lockHash, err := lock.HashTreeRoot()

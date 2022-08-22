@@ -42,10 +42,11 @@ import (
 )
 
 type Config struct {
-	DefFile string
-	DataDir string
-	P2P     p2p.Config
-	Log     log.Config
+	DefFile  string
+	NoVerify bool
+	DataDir  string
+	P2P      p2p.Config
+	Log      log.Config
 
 	TestDef     *cluster.Definition
 	TestSigning bool
@@ -70,6 +71,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 	def, err := loadDefinition(conf)
 	if err != nil {
 		return err
+	}
+
+	if err := def.Verify(); err != nil && !conf.NoVerify {
+		return errors.Wrap(err, "cluster definition signature verification failed. Run with --no-verify to bypass verification at own risk")
+	} else if err != nil && conf.NoVerify {
+		log.Warn(ctx, "Ignoring failed cluster definition signature verification due to --no-verify flag", err)
 	}
 
 	if err = checkWrites(conf.DataDir); err != nil {
@@ -320,17 +327,17 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 		Validators: dvs,
 	}
 
-	hash, err := lock.HashTreeRoot()
+	lockHash, err := lock.HashTreeRoot()
 	if err != nil {
-		return cluster.Lock{}, errors.Wrap(err, "hash lock")
+		return cluster.Lock{}, errors.Wrap(err, "lockHash lock")
 	}
 
-	sigLockHash, err := signLockHash(nodeIdx.ShareIdx, shares, hash[:])
+	lockHashSig, err := signLockHash(nodeIdx.ShareIdx, shares, lockHash[:])
 	if err != nil {
 		return cluster.Lock{}, err
 	}
 
-	peerSigs, err := ex.exchange(ctx, sigLock, sigLockHash)
+	peerSigs, err := ex.exchange(ctx, sigLock, lockHashSig)
 	if err != nil {
 		return cluster.Lock{}, err
 	}
@@ -345,17 +352,12 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 		pubkeyToShares[pk] = sh
 	}
 
-	aggSigLockHash, aggPkLockHash, err := aggLockHashSig(peerSigs, pubkeyToShares, hash[:])
+	aggSigLockHash, aggPkLockHash, err := aggLockHashSig(peerSigs, pubkeyToShares, lockHash[:])
 	if err != nil {
 		return cluster.Lock{}, err
 	}
 
-	msg, err := lock.HashTreeRoot()
-	if err != nil {
-		return cluster.Lock{}, err
-	}
-
-	verified, err := tbls.Scheme().VerifyMultiSignature(aggPkLockHash, msg[:], aggSigLockHash)
+	verified, err := tbls.Scheme().VerifyMultiSignature(aggPkLockHash, lockHash[:], aggSigLockHash)
 	if err != nil {
 		return cluster.Lock{}, errors.Wrap(err, "verify multisignature")
 	} else if !verified {
@@ -367,6 +369,10 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 		return cluster.Lock{}, errors.Wrap(err, "marshal binary aggSigLockHash")
 	}
 	lock.SignatureAggregate = sigBytes
+
+	if err := lock.Verify(); err != nil {
+		return cluster.Lock{}, errors.Wrap(err, "invalid lock file")
+	}
 
 	return lock, nil
 }
@@ -405,7 +411,7 @@ func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, w
 }
 
 // aggLockHashSig returns the aggregated multi signature of the lock hash
-// signed by all the distributed validator group private keys.
+// signed by all the private key shares of all the distributed validators.
 func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.PubKey]share, hash []byte) (*bls_sig.MultiSignature, *bls_sig.MultiPublicKey, error) {
 	var (
 		sigs    []*bls_sig.Signature
