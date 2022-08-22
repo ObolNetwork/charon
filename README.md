@@ -61,13 +61,13 @@ It is still early days for the Obol Network and things are under active developm
 We are moving fast so check back in regularly to track the progress.
 
 Charon is a distributed validator, so its main responsibility is performing validation duties.
-The status of supported duties are (🚧 means "under construction"):
+The status of supported duties are (🚧  means "under construction"):
 
-| Duty                                 | Teku VC | Lighthouse VC |
-| ------------------------------------ | ------- | ------------- |
-| _Attestation_                        | ✅      | ✅            |
-| _Attestation Aggregation_            | 🚧      | 🚧            |
-| _Block Proposal_                     | ✅      | ✅            |
-| _Blinded Block Proposal (mev-boost)_ | [✅](https://ropsten.beaconcha.in/block/555067)      | 🚧            |
-| _Sync Committee Attestation_         | 🚧      | 🚧            |
-| _Sync Committee Aggregation_         | 🚧      | 🚧            |
+| Duty                                 | Teku | Lighthouse | Lodestar | Nimbus | Vouch | Prysm |
+| ------------------------------------ |:-------:|:-------------:|:-----:|:-----:|:-----:|:-----:|
+| _Attestation_                        | ✅      | ✅            | 🚧      | 🚧     | 🚧      | 🚧     |
+| _Attestation Aggregation_            | 🚧      | 🚧            | 🚧      | 🚧     | 🚧      | 🚧     |
+| _Block Proposal_                     | ✅      | ✅            | 🚧      | 🚧     | 🚧      | 🚧     |
+| _Blinded Block Proposal (mev-boost)_ | [✅](https://ropsten.beaconcha.in/block/555067)      | [✅](https://ropsten.etherscan.io/block/12822070)            | 🚧      | 🚧     | 🚧      | 🚧     |
+| _Sync Committee Attestation_         | 🚧      | 🚧            | 🚧      | 🚧     | 🚧      | 🚧     |
+| _Sync Committee Aggregation_         | 🚧      | 🚧            | 🚧      | 🚧     | 🚧      | 🚧     |
