@@ -1,0 +1,28 @@
+name: Add unticketed PRs to github board
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  add_issue:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PR: ${{ toJSON(github.event.pull_request) }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "1.18.0"
+
+      - name: Verify PR
+        run: go run testutil/verifypr/verifypr.go
+
+      - name: Set env.NONE_TICKET_PRESENT
+        run: go run testutil/unticketedpr/unticketedpr.go
+
+      - name: Add PR To Project
+        if: ${{ success() && env.NONE_TICKET_PRESENT }}
+        uses: actions/add-to-project@v0.3.0
+        with:
+          project-url: https://github.com/orgs/twin-devs/projects/1/
+          github-token: ${{ secrets.GH_TOKEN }}
