@@ -44,16 +44,16 @@ There is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/ch
 Charon integrates into the Ethereum consensus stack as a middleware between the validator client
 and the beacon node via the official [Eth Beacon Node REST API](https://ethereum.github.io/beacon-APIs/#/).
 Charon supports any upstream beacon node that serves the Beacon API.
-Charon supports any downstream standalone validator client that consumes the Beacon API.
+Charon aims to support any downstream standalone validator client that consumes the Beacon API.
 
 | Client                                             | Beacon Node | Validator Client | Notes                                           |
-| -------------------------------------------------- | ----------- | --------------- |-------------------------------------------------|
-| [Teku](https://github.com/ConsenSys/teku)          | ✅          | ✅              | Fully supported                                 |
-| [Lighthouse](https://github.com/sigp/lighthouse)   | ✅          | ✅              | Fully supported                                 |
-| [Lodestar](https://github.com/ChainSafe/lodestar)  | ✅          | *️⃣               | Validator client requires Loadestar beacon node |
-| [Vouch](https://github.com/attestantio/vouch)      | \*️⃣         | ✅              | Only validator client provided                  |
-| [Prysm](https://github.com/prysmaticlabs/prysm)    | ✅          | 🛑              | Validator client requires gRPC API              |
-| [Nimbus](https://github.com/status-im/nimbus-eth2) | ✅          | \*️⃣             | No standalone validator client provided         |
+| -------------------------------------------------- | :---------: | :--------------: | ----------------------------------------------- |
+| [Teku](https://github.com/ConsenSys/teku)          |     ✅      |        ✅        | Fully supported                                 |
+| [Lighthouse](https://github.com/sigp/lighthouse)   |     ✅      |        ✅        | Fully supported                                 |
+| [Lodestar](https://github.com/ChainSafe/lodestar)  |     ✅      |       \*️⃣        | Validator client requires Loadestar beacon node |
+| [Vouch](https://github.com/attestantio/vouch)      |     \*️⃣     |        ✅        | Only validator client provided                  |
+| [Prysm](https://github.com/prysmaticlabs/prysm)    |     ✅      |        🛑        | Validator client requires gRPC API              |
+| [Nimbus](https://github.com/status-im/nimbus-eth2) |     ✅      |       \*️⃣        | No standalone validator client provided         |
 
 ## Project Status
 
@@ -61,13 +61,13 @@ It is still early days for the Obol Network and things are under active developm
 We are moving fast so check back in regularly to track the progress.
 
 Charon is a distributed validator, so its main responsibility is performing validation duties.
-The status of supported duties are (🚧  means "under construction"):
+The following table outlines which clients have produced which duties on a public testnet, and which are still under construction (🚧 )
 
-| Duty                                 | Teku | Lighthouse | Lodestar | Nimbus | Vouch | Prysm |
-| ------------------------------------ |:-------:|:-------------:|:-----:|:-----:|:-----:|:-----:|
-| _Attestation_                        | ✅      | ✅            | 🚧      | 🚧     | 🚧      | 🚧     |
-| _Attestation Aggregation_            | 🚧      | 🚧            | 🚧      | 🚧     | 🚧      | 🚧     |
-| _Block Proposal_                     | ✅      | ✅            | 🚧      | 🚧     | 🚧      | 🚧     |
-| _Blinded Block Proposal (mev-boost)_ | [✅](https://ropsten.beaconcha.in/block/555067)      | [✅](https://ropsten.etherscan.io/block/12822070)            | 🚧      | 🚧     | 🚧      | 🚧     |
-| _Sync Committee Attestation_         | 🚧      | 🚧            | 🚧      | 🚧     | 🚧      | 🚧     |
-| _Sync Committee Aggregation_         | 🚧      | 🚧            | 🚧      | 🚧     | 🚧      | 🚧     |
+| Duty \ Client                        |                      Teku                       |                    Lighthouse                     | Lodestar | Nimbus | Vouch | Prysm |
+| ------------------------------------ | :---------------------------------------------: | :-----------------------------------------------: | :------: | :----: | :---: | :---: |
+| _Attestation_                        |                       ✅                        |                        ✅                         |    🚧    |   🚧   |  🚧   |  🚧   |
+| _Attestation Aggregation_            |                       🚧                        |                        🚧                         |    🚧    |   🚧   |  🚧   |  🚧   |
+| _Block Proposal_                     |                       ✅                        |                        ✅                         |    🚧    |   🚧   |  🚧   |  🚧   |
+| _Blinded Block Proposal (mev-boost)_ | [✅](https://ropsten.beaconcha.in/block/555067) | [✅](https://ropsten.etherscan.io/block/12822070) |    🚧    |   🚧   |  🚧   |  🚧   |
+| _Sync Committee Attestation_         |                       🚧                        |                        🚧                         |    🚧    |   🚧   |  🚧   |  🚧   |
+| _Sync Committee Aggregation_         |                       🚧                        |                        🚧                         |    🚧    |   🚧   |  🚧   |  🚧   |
