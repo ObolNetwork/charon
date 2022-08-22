@@ -19,6 +19,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -314,4 +315,37 @@ func (s ParSignedDataSet) Clone() (ParSignedDataSet, error) {
 	}
 
 	return resp, nil
+}
+
+// Slot is a beacon chain slot including chain metadata to infer epoch and next slot.
+type Slot struct {
+	Slot          int64
+	Time          time.Time
+	SlotDuration  time.Duration
+	SlotsPerEpoch int64
+}
+
+// Next returns the next slot.
+func (s Slot) Next() Slot {
+	return Slot{
+		Slot:          s.Slot + 1,
+		Time:          s.Time.Add(s.SlotDuration),
+		SlotsPerEpoch: s.SlotsPerEpoch,
+		SlotDuration:  s.SlotDuration,
+	}
+}
+
+// Epoch returns the epoch of the slot.
+func (s Slot) Epoch() int64 {
+	return s.Slot / s.SlotsPerEpoch
+}
+
+// LastInEpoch returns true if this is the last slot in the epoch.
+func (s Slot) LastInEpoch() bool {
+	return s.Slot%s.SlotsPerEpoch == s.SlotsPerEpoch-1
+}
+
+// FirstInEpoch returns true if this is the first slot in the epoch.
+func (s Slot) FirstInEpoch() bool {
+	return s.Slot%s.SlotsPerEpoch == 0
 }

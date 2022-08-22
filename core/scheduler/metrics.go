@@ -53,7 +53,7 @@ var (
 )
 
 // instrumentSlot sets the current slot and epoch metrics.
-func instrumentSlot(slot slot) {
+func instrumentSlot(slot core.Slot) {
 	slotGauge.Set(float64(slot.Slot))
 	epochGauge.Set(float64(slot.Epoch()))
 }

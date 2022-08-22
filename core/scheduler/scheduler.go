@@ -94,14 +94,21 @@ type Scheduler struct {
 	resolvedEpoch uint64
 	duties        map[core.Duty]core.DutyDefinitionSet
 	dutiesMutex   sync.Mutex
-	subs          []func(context.Context, core.Duty, core.DutyDefinitionSet) error
+	dutySubs      []func(context.Context, core.Duty, core.DutyDefinitionSet) error
+	slotSubs      []func(context.Context, core.Slot) error
 	builderAPI    bool
 }
 
-// Subscribe registers a callback for triggering a duty.
+// SubscribeDuties subscribes a callback function for triggered duties.
 // Note this should be called *before* Start.
-func (s *Scheduler) Subscribe(fn func(context.Context, core.Duty, core.DutyDefinitionSet) error) {
-	s.subs = append(s.subs, fn)
+func (s *Scheduler) SubscribeDuties(fn func(context.Context, core.Duty, core.DutyDefinitionSet) error) {
+	s.dutySubs = append(s.dutySubs, fn)
+}
+
+// SubscribeSlots subscribes a callback function for triggered slots.
+// Note this should be called *before* Start.
+func (s *Scheduler) SubscribeSlots(fn func(context.Context, core.Slot) error) {
+	s.slotSubs = append(s.slotSubs, fn)
 }
 
 func (s *Scheduler) Stop() {
@@ -132,7 +139,19 @@ func (s *Scheduler) Run() error {
 
 			instrumentSlot(slot)
 
+			go s.emitCoreSlot(slotCtx, slot)
+
 			s.scheduleSlot(slotCtx, slot)
+		}
+	}
+}
+
+// emitCoreSlot calls all slot subscribes with the provided slot.
+func (s *Scheduler) emitCoreSlot(ctx context.Context, slot core.Slot) {
+	for _, sub := range s.slotSubs {
+		err := sub(ctx, slot)
+		if err != nil {
+			log.Error(ctx, "Emit scheduled slot event", err)
 		}
 	}
 }
@@ -165,7 +184,7 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 }
 
 // scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
-func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) {
+func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	if s.getResolvedEpoch() != uint64(slot.Epoch()) {
 		err := s.resolveDuties(ctx, slot)
 		if err != nil {
@@ -196,7 +215,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) {
 			ctx, span := core.StartDutyTrace(ctx, duty, "core/scheduler.scheduleSlot")
 			defer span.End()
 
-			for _, sub := range s.subs {
+			for _, sub := range s.dutySubs {
 				clone, err := defSet.Clone() // Clone for each subscriber.
 				if err != nil {
 					log.Error(ctx, "Cloning duty definition set", err)
@@ -210,7 +229,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) {
 		}()
 	}
 
-	if slot.IsLastInEpoch() {
+	if slot.LastInEpoch() {
 		err := s.resolveDuties(ctx, slot.Next())
 		if err != nil {
 			log.Warn(ctx, "Resolving duties error (retrying next slot)", err)
@@ -220,7 +239,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot slot) {
 
 // delaySlotOffset blocks until the slot offset for the duty has been reached and return true.
 // It returns false if the context is cancelled.
-func delaySlotOffset(ctx context.Context, slot slot, duty core.Duty, delayFunc delayFunc) bool {
+func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayFunc delayFunc) bool {
 	fn, ok := slotOffsets[duty.Type]
 	if !ok {
 		return true
@@ -239,7 +258,7 @@ func delaySlotOffset(ctx context.Context, slot slot, duty core.Duty, delayFunc d
 }
 
 // resolveDuties resolves the duties for the slot's epoch, caching the results.
-func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
+func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.pubkeys, slot.Slot)
 	if err != nil {
 		return err
@@ -268,8 +287,8 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot slot) error {
 }
 
 // resolveAttDuties resolves attester duties for the given validators.
-func (s *Scheduler) resolveAttDuties(ctx context.Context, slot slot, vals validators) error {
-	attDuties, err := s.eth2Cl.AttesterDuties(ctx, slot.Epoch(), vals.Indexes())
+func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals validators) error {
+	attDuties, err := s.eth2Cl.AttesterDuties(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
 	if err != nil {
 		return err
 	}
@@ -317,8 +336,8 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot slot, vals valida
 }
 
 // resolveProposerDuties resolves proposer duties for the given validators.
-func (s *Scheduler) resolveProDuties(ctx context.Context, slot slot, vals validators) error {
-	proDuties, err := s.eth2Cl.ProposerDuties(ctx, slot.Epoch(), vals.Indexes())
+func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals validators) error {
+	proDuties, err := s.eth2Cl.ProposerDuties(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
 	if err != nil {
 		return err
 	}
@@ -415,34 +434,9 @@ func (s *Scheduler) isEpochResolved(epoch uint64) bool {
 	return s.getResolvedEpoch() >= epoch
 }
 
-// slot is a beacon chain slot and includes chain metadata to infer epoch and next slot.
-type slot struct {
-	Slot          int64
-	Time          time.Time
-	SlotsPerEpoch int64
-	SlotDuration  time.Duration
-}
-
-func (s slot) Next() slot {
-	return slot{
-		Slot:          s.Slot + 1,
-		Time:          s.Time.Add(s.SlotDuration),
-		SlotsPerEpoch: s.SlotsPerEpoch,
-		SlotDuration:  s.SlotDuration,
-	}
-}
-
-func (s slot) Epoch() eth2p0.Epoch {
-	return eth2p0.Epoch(s.Slot / s.SlotsPerEpoch)
-}
-
-func (s slot) IsLastInEpoch() bool {
-	return s.Slot%s.SlotsPerEpoch == s.SlotsPerEpoch-1
-}
-
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
 // It is also populated with the current slot immediately.
-func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clock) (<-chan slot, error) {
+func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clock) (<-chan core.Slot, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return nil, err
@@ -462,11 +456,11 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 	height := int64(chainAge / slotDuration)
 	startTime := genesis.Add(time.Duration(height) * slotDuration)
 
-	resp := make(chan slot)
+	resp := make(chan core.Slot)
 
 	go func() {
 		for {
-			resp <- slot{
+			resp <- core.Slot{
 				Slot:          height,
 				Time:          startTime,
 				SlotsPerEpoch: int64(slotsPerEpoch),

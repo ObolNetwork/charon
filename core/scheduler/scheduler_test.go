@@ -74,7 +74,7 @@ func TestIntegration(t *testing.T) {
 
 	count := 10
 
-	s.Subscribe(func(ctx context.Context, duty core.Duty, set core.DutyDefinitionSet) error {
+	s.SubscribeDuties(func(ctx context.Context, duty core.Duty, set core.DutyDefinitionSet) error {
 		for idx, data := range set {
 			t.Logf("Duty triggered: vidx=%v slot=%v committee=%v\n", idx, duty.Slot, data.(core.AttesterDefinition).CommitteeIndex)
 		}
@@ -248,7 +248,7 @@ func TestSchedulerDuties(t *testing.T) {
 				results []result
 				mu      sync.Mutex
 			)
-			sched.Subscribe(func(ctx context.Context, duty core.Duty, set core.DutyDefinitionSet) error {
+			sched.SubscribeDuties(func(ctx context.Context, duty core.Duty, set core.DutyDefinitionSet) error {
 				// Make result human-readable
 				resultSet := make(map[core.PubKey]string)
 				for pubkey, def := range set {
