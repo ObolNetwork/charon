@@ -13,4 +13,11 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package beaconmock
+package eth2wrap
+
+import apiv1 "github.com/attestantio/go-eth2-client/api/v1"
+
+// isSyncStateOk returns tue if the sync state is not syncing.
+func isSyncStateOk(s *apiv1.SyncState) bool {
+	return !s.IsSyncing
+}

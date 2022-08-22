@@ -31,10 +31,11 @@ import (
 	"strings"
 	"text/template"
 
+	"golang.org/x/tools/imports"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"golang.org/x/tools/go/packages"
-	"golang.org/x/tools/imports"
 )
 
 var (
@@ -50,15 +51,8 @@ import (
 {{- end}}
 )
 
-// Interface assertions
-var (
-    _ eth2client.Service = (*Service)(nil)
-
-	{{range .Providers}} _ eth2client.{{.}} = (*Service)(nil)
-    {{end -}}
-)
-
-type eth2Provider interface {
+// Client defines all go-eth2-client interfaces used in charon.
+type Client interface {
     eth2client.Service
 
     {{range .Providers}} eth2client.{{.}}
@@ -66,15 +60,24 @@ type eth2Provider interface {
 }
 
 {{range .Methods}}
-	{{.Doc -}}
-	func (s *Service) {{.Name}}({{.Params}}) ({{.ResultTypes}}) {
+	{{.Doc}}
+    {{- if not .Latency}}// Note this endpoint is cached in go-eth2-client.
+    {{end -}}
+	func (m multi) {{.Name}}({{.Params}}) ({{.ResultTypes}}) {
 		const label = "{{.Label}}"
-		defer latency(label)()
+		{{if .Latency}}defer latency(label)() {{end}}
 
-		{{.ResultNames}} := s.eth2Provider.{{.Name}}({{.ParamNames}})
+
+		{{.ResultNames}} := {{.DoFunc}}(ctx, m.clients,
+			func(ctx context.Context, cl Client) ({{.ResultTypes}}){
+				return cl.{{.Name}}({{.ParamNames}})
+			},
+			{{.SuccessFunc}}
+		)
+
 		if err != nil {
 			incError(label)
-			err = errors.Wrap(err, "eth2http")
+			err = errors.Wrap(err, "eth2wrap")
 		}
 
 		return {{.ResultNames}}
@@ -82,36 +85,42 @@ type eth2Provider interface {
 {{end}}
 `
 
-	// skip some provider methods.
-	skip = map[string]bool{
-		// eth2http/eth2multi doesn't implement these
-		"GenesisValidatorsRoot": true,
-		"Index":                 true,
-		"PubKey":                true,
-		"SyncState":             true,
-		"EpochFromStateID":      true,
-		"SlotFromStateID":       true,
-		"NodeClient":            true,
+	// interfaces defines all the interfaces to implement and whether to measure latency for each.
+	interfaces = map[string]bool{
+		"AttestationDataProvider":            true,
+		"AttestationsSubmitter":              true,
+		"AttesterDutiesProvider":             true,
+		"BeaconBlockProposalProvider":        true,
+		"BeaconBlockSubmitter":               true,
+		"BeaconCommitteesProvider":           true,
+		"BlindedBeaconBlockProposalProvider": true,
+		"BlindedBeaconBlockSubmitter":        true,
+		"DepositContractProvider":            false,
+		"DomainProvider":                     false,
+		"EventsProvider":                     true,
+		"ForkProvider":                       true,
+		"ForkScheduleProvider":               true,
+		"GenesisProvider":                    false,
+		"GenesisTimeProvider":                false,
+		"NodeSyncingProvider":                true,
+		"NodeVersionProvider":                false,
+		"ProposerDutiesProvider":             true,
+		"SlotDurationProvider":               false,
+		"SlotsPerEpochProvider":              false,
+		"SpecProvider":                       false,
+		"ValidatorsProvider":                 true,
+		"ValidatorRegistrationsSubmitter":    true,
+		"VoluntaryExitSubmitter":             true,
 	}
 
-	cached = map[string]bool{
-		// these are cached, so no need to instrument.
-		"GenesisTime":                   true,
-		"Domain":                        true,
-		"Spec":                          true,
-		"Genesis":                       true,
-		"ForkSchedule":                  true,
-		"DepositContract":               true,
-		"TargetAggregatorsPerCommittee": true,
-		"FarFutureEpoch":                true,
-		"SlotsPerEpoch":                 true,
-		"SlotDuration":                  true,
-		"NodeVersion":                   true,
-		"SlotFromStateID":               true,
-	}
-
+	// addImport indicates which types need hardcoded imports.
 	addImport = map[string]string{
 		"EventHandlerFunc": "eth2client",
+	}
+
+	// successFuncs indicates which endpoints have custom success functions.
+	successFuncs = map[string]string{
+		"NodeSyncing": "isSyncStateOk",
 	}
 
 	skipImport = map[string]bool{
@@ -120,10 +129,13 @@ type eth2Provider interface {
 )
 
 type Method struct {
-	Name    string
-	Doc     string
-	params  []Field
-	results []Field
+	Name        string
+	Doc         string
+	Latency     bool
+	DoFunc      string
+	SuccessFunc string
+	params      []Field
+	results     []Field
 }
 
 func (m Method) Label() string {
@@ -307,11 +319,13 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, []string, error) {
 					continue
 				}
 
-				if !strings.HasSuffix(typeSpec.Name.Name, "Provider") && !strings.HasSuffix(typeSpec.Name.Name, "Submitter") {
+				latency, add := interfaces[typeSpec.Name.Name]
+				if !add {
 					continue
 				}
 
-				var addProvider bool
+				providers = append(providers, typeSpec.Name.Name)
+
 				for _, method := range iface.Methods.List {
 					fnType, ok := method.Type.(*ast.FuncType)
 					if !ok {
@@ -319,15 +333,6 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, []string, error) {
 					}
 
 					name := method.Names[0].Name
-
-					if skip[name] {
-						continue
-					}
-
-					addProvider = true
-					if cached[name] {
-						continue
-					}
 
 					var params []Field
 					for _, param := range fnType.Params.List {
@@ -378,16 +383,26 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, []string, error) {
 						}
 					}
 
-					methods = append(methods, Method{
-						Name:    name,
-						Doc:     doc,
-						params:  params,
-						results: results,
-					})
-				}
+					successFunc := "nil,"
+					if fn, ok := successFuncs[name]; ok {
+						successFunc = fn + ","
+					}
 
-				if addProvider {
-					providers = append(providers, typeSpec.Name.Name)
+					dofunc := "provide"
+					if len(results) == 1 {
+						dofunc = "submit"
+						successFunc = ""
+					}
+
+					methods = append(methods, Method{
+						Name:        name,
+						Doc:         doc,
+						Latency:     latency,
+						DoFunc:      dofunc,
+						SuccessFunc: successFunc,
+						params:      params,
+						results:     results,
+					})
 				}
 			}
 		}

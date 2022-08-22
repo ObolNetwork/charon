@@ -88,3 +88,13 @@ func (s structured) Stack() zap.Field {
 func (s structured) Unwrap() error {
 	return s.err
 }
+
+// Is returns true if err is equaled to this structured error.
+func (s structured) Is(err error) bool {
+	var other structured
+	if !stderrors.As(err, &other) {
+		return false
+	}
+
+	return stderrors.Is(s.err, other.err)
+}

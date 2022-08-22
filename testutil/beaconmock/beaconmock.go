@@ -126,7 +126,7 @@ func defaultHTTPMock() Mock {
 // Create a new instance with default behaviour via New and then override any function.
 type Mock struct {
 	HTTPMock
-	missingEth2Methods
+
 	httpServer *http.Server
 	overrides  []staticOverride
 	clock      clockwork.Clock
@@ -146,6 +146,7 @@ type Mock struct {
 	NodeSyncingFunc                  func(context.Context) (*eth2v1.SyncState, error)
 	EventsFunc                       func(context.Context, []string, eth2client.EventHandlerFunc) error
 	SubmitValidatorRegistrationsFunc func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error
+	SlotsPerEpochFunc                func(context.Context) (uint64, error)
 }
 
 func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
@@ -206,6 +207,10 @@ func (m Mock) Events(ctx context.Context, topics []string, handler eth2client.Ev
 
 func (m Mock) SubmitValidatorRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
 	return m.SubmitValidatorRegistrationsFunc(ctx, registrations)
+}
+
+func (m Mock) SlotsPerEpoch(ctx context.Context) (uint64, error) {
+	return m.SlotsPerEpochFunc(ctx)
 }
 
 func (Mock) Name() string {
