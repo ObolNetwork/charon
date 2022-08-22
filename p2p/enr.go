@@ -31,16 +31,20 @@ func EncodeENR(record enr.Record) (string, error) {
 		return "", errors.Wrap(err, "encode ENR")
 	}
 
-	return n.String(), nil
+	// Ensure backwards compatibility of Encoded ENR with previous version's decoder.
+	resp := n.String()
+	for len(resp)%4 != 0 {
+		resp += "="
+	}
+
+	return resp, nil
 }
 
 // DecodeENR returns a enr record decoded from the string.
 // See reference github.com/ethereum/go-ethereum@v1.10.10/p2p/dnsdisc/tree.go:378.
 func DecodeENR(enrStr string) (enr.Record, error) {
-	// Ensure backwards compatibility with older versions with padded ENR strings.
-	if strings.HasSuffix(enrStr, "=") {
-		enrStr = enrStr[:len(enrStr)-1]
-	}
+	// Ensure backwards compatibility with older versions with encoded ENR strings.
+	enrStr = strings.TrimRight(enrStr, "=")
 
 	node, err := enode.Parse(enode.V4ID{}, enrStr)
 	if err != nil {

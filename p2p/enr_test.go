@@ -16,12 +16,18 @@
 package p2p_test
 
 import (
+	"bytes"
+	"encoding/base64"
+	"math/rand"
 	"testing"
+	"time"
 
+	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestDecodeENR(t *testing.T) {
@@ -57,7 +63,21 @@ func TestDecodeENR_Oversize(t *testing.T) {
 }
 
 func TestBackwardsENR(t *testing.T) {
-	oldVersionENR := "enr:-HW4QHwvU8usykhaKQ_cxyAaAck_TlS0zr9nLNXDODQll87ifLECDsnczJz7vC_aVTKq9Q8aC3UIKWwls1i4TmEXLAuAgmlkgnY0iXNlY3AyNTZrMaEDhry2ryLc-Y39laN92yfixHghkWIjLeQ4orBvDQy20jA="
-	_, err := p2p.DecodeENR(oldVersionENR)
-	require.NoError(t, err)
+	random := rand.New(rand.NewSource(time.Now().Unix()))
+	for i := 0; i < 1000; i++ {
+		_, record := testutil.RandomENR(t, random)
+		enrStr := encodeOldVersion(t, record)
+
+		_, err := p2p.DecodeENR(enrStr)
+		require.NoError(t, err)
+	}
+}
+
+func encodeOldVersion(t *testing.T, r enr.Record) string {
+	t.Helper()
+
+	var buf bytes.Buffer
+	require.NoError(t, r.EncodeRLP(&buf))
+
+	return "enr:" + base64.URLEncoding.EncodeToString(buf.Bytes())
 }
