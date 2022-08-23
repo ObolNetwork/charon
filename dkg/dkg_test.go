@@ -48,21 +48,27 @@ func TestDKG(t *testing.T) {
 		vals  = 2
 	)
 
+	withAlgo := func(algo string) func(*cluster.Definition) {
+		return func(d *cluster.Definition) {
+			d.DKGAlgorithm = algo
+		}
+	}
+
 	t.Run("keycast", func(t *testing.T) {
-		lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0)
-		lock.Definition.DKGAlgorithm = "keycast"
+		lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0, withAlgo("keycast"))
 		testDKG(t, lock.Definition, keys)
 	})
 
 	t.Run("frost", func(t *testing.T) {
-		lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0)
-		lock.Definition.DKGAlgorithm = "frost"
+		lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0, withAlgo("frost"))
 		testDKG(t, lock.Definition, keys)
 	})
 }
 
 func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) {
 	t.Helper()
+
+	require.NoError(t, def.Verify())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -143,6 +149,7 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 
 		var lock cluster.Lock
 		require.NoError(t, json.Unmarshal(lockFile, &lock))
+		require.NoError(t, lock.Verify())
 		locks = append(locks, lock)
 	}
 

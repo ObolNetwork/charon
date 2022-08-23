@@ -75,6 +75,10 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
+    },
+    {
+     "Key": "no-verify",
+     "Value": "\"true\""
     }
    ],
    "Ports": null
@@ -150,6 +154,10 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
+    },
+    {
+     "Key": "no-verify",
+     "Value": "\"true\""
     }
    ],
    "Ports": null
@@ -225,6 +233,10 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
+    },
+    {
+     "Key": "no-verify",
+     "Value": "\"true\""
     }
    ],
    "Ports": null
@@ -300,6 +312,10 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
+    },
+    {
+     "Key": "no-verify",
+     "Value": "\"true\""
     }
    ],
    "Ports": null

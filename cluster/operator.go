@@ -41,22 +41,6 @@ type Operator struct {
 	ENRSignature []byte
 }
 
-// VerifySignature returns an error if the ENR signature doesn't match the address and enr fields.
-func (o Operator) VerifySignature() error {
-	digest, err := digestEIP712(o.Address, []byte(o.ENR), o.Nonce)
-	if err != nil {
-		return err
-	}
-
-	if ok, err := verifySig(o.Address, digest[:], o.ENRSignature); err != nil {
-		return err
-	} else if !ok {
-		return errors.New("invalid operator enr signature")
-	}
-
-	return nil
-}
-
 // getName returns a deterministic name for operator based on its ENR.
 func (o Operator) getName() (string, error) {
 	enr, err := p2p.DecodeENR(o.ENR)

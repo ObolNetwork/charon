@@ -19,10 +19,13 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // Lock extends the cluster config Definition with bls threshold public keys and checksums.
@@ -33,8 +36,10 @@ type Lock struct {
 	// Validators are the distributed validators (n*32ETH) managed by the cluster.
 	Validators []DistValidator
 
-	// SignatureAggregate is the bls aggregate signature of the lock hash signed by each DV pubkey.
-	// It acts as an attestation by all the distributed validators of the charon cluster they are part of.
+	// SignatureAggregate is the bls aggregate signature of the lock hash signed by
+	// all the private key shares of all the distributed validators.
+	// It acts as an attestation by all the distributed validators
+	// of the charon cluster they are part of.
 	SignatureAggregate []byte
 }
 
@@ -138,6 +143,48 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 	}
 
 	*l = lock
+
+	return nil
+}
+
+// Verify returns true if all config signatures are fully populated and valid.
+// A verified lock is ready for use in charon run.
+func (l Lock) Verify() error {
+	if err := l.Definition.Verify(); err != nil {
+		return errors.Wrap(err, "invalid definition")
+	}
+
+	if len(l.SignatureAggregate) == 0 {
+		return errors.New("empty lock aggregate signature")
+	}
+
+	sig, err := tblsconv.SigFromBytes(l.SignatureAggregate)
+	if err != nil {
+		return err
+	}
+
+	var pubkeys []*bls_sig.PublicKey
+	for _, val := range l.Validators {
+		for _, share := range val.PubShares {
+			pubkey, err := tblsconv.KeyFromBytes(share)
+			if err != nil {
+				return err
+			}
+			pubkeys = append(pubkeys, pubkey)
+		}
+	}
+
+	hash, err := l.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	ok, err := tbls.Scheme().FastAggregateVerify(pubkeys, hash[:], sig)
+	if err != nil {
+		return errors.Wrap(err, "verify lock signature aggregate")
+	} else if !ok {
+		return errors.New("invalid lock signature aggregate")
+	}
 
 	return nil
 }

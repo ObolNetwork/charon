@@ -86,6 +86,16 @@ func KeyToCore(key *bls_sig.PublicKey) (core.PubKey, error) {
 	return core.PubKeyFromBytes(b)
 }
 
+// SigFromBytes converts bytes into a kryptology bls signature.
+func SigFromBytes(sig []byte) (*bls_sig.Signature, error) {
+	point, err := new(bls12381.G2).FromCompressed((*[96]byte)(sig))
+	if err != nil {
+		return nil, errors.Wrap(err, "uncompress sig")
+	}
+
+	return &bls_sig.Signature{Value: *point}, nil
+}
+
 // SigFromETH2 converts an eth2 phase0 bls signature into a kryptology bls signature.
 func SigFromETH2(sig eth2p0.BLSSignature) (*bls_sig.Signature, error) {
 	point, err := new(bls12381.G2).FromCompressed((*[96]byte)(sig[:]))

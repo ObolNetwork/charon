@@ -112,6 +112,7 @@ Flags:
       --log-format string               Log format; console, logfmt or json (default "console")
       --log-level string                Log level; debug, info, warn or error (default "info")
       --monitoring-address string       Listening address (ip and port) for the monitoring API (prometheus, pprof). (default "127.0.0.1:3620")
+      --no-verify                       Disables cluster definition and lock file verification.
       --p2p-allowlist string            Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.
       --p2p-bootnode-relay              Enables using bootnodes as libp2p circuit relays. Useful if some charon nodes are not have publicly accessible.
       --p2p-bootnodes strings           Comma-separated list of discv5 bootnode URLs or ENRs. (default [http://bootnode.gcp.obol.tech:3640/enr])

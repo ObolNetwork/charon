@@ -47,12 +47,17 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 	}
 
 	bindRunFlags(cmd, &conf)
+	bindNoVerifyFlag(cmd.Flags(), &conf.NoVerify)
 	bindDataDirFlag(cmd.Flags(), &conf.DataDir)
 	bindP2PFlags(cmd.Flags(), &conf.P2P)
 	bindLogFlags(cmd.Flags(), &conf.Log)
 	bindFeatureFlags(cmd.Flags(), &conf.Feature)
 
 	return cmd
+}
+
+func bindNoVerifyFlag(flags *pflag.FlagSet, config *bool) {
+	flags.BoolVar(config, "no-verify", false, "Disables cluster definition and lock file verification.")
 }
 
 func bindRunFlags(cmd *cobra.Command, config *app.Config) {

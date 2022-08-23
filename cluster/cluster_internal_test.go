@@ -27,42 +27,25 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestENRSignature(t *testing.T) {
-	_, op := randomOperator(t)
-	require.NoError(t, op.VerifySignature())
-}
-
-func TestDefinitionSealed(t *testing.T) {
+func TestDefinitionVerify(t *testing.T) {
+	secret0, op0 := randomOperator(t)
 	secret1, op1 := randomOperator(t)
-	secret2, op2 := randomOperator(t)
 
 	definition := NewDefinition("test definition", 1, 2,
-		"", "", "", []Operator{op1, op2},
+		"", "", "", []Operator{op0, op1},
 		rand.New(rand.NewSource(1)))
 
 	configHash, err := definition.ConfigHash()
 	require.NoError(t, err)
 
-	definition.Operators[0].ConfigSignature = configSignature(t, secret1, op1.Address, configHash)
-	definition.Operators[1].ConfigSignature = configSignature(t, secret2, op2.Address, configHash)
-
-	sealed, err := definition.Sealed()
-	require.NoError(t, err)
-	require.True(t, sealed)
-}
-
-// configSignature signs the config hash digest and returns the signature.
-func configSignature(t *testing.T, secret *ecdsa.PrivateKey, addr string, configHash [32]byte) []byte {
-	t.Helper()
-
-	nonce := 0
-	digest, err := digestEIP712(addr, configHash[:], nonce)
+	definition.Operators[0], err = signOperator(secret0, op0, configHash)
 	require.NoError(t, err)
 
-	sig, err := crypto.Sign(digest[:], secret)
+	definition.Operators[1], err = signOperator(secret1, op1, configHash)
 	require.NoError(t, err)
 
-	return sig
+	err = definition.Verify()
+	require.NoError(t, err)
 }
 
 // randomOperator returns a random ETH1 private key and populated operator struct (excluding config signature).
@@ -72,18 +55,8 @@ func randomOperator(t *testing.T) (*ecdsa.PrivateKey, Operator) {
 	secret, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
-	enr := fmt.Sprintf("enr://%x", testutil.RandomBytes32())
-	nonce := 0
-	addr := fmt.Sprintf("%#x", crypto.PubkeyToAddress(secret.PublicKey))
-	digest, err := digestEIP712(addr, []byte(enr), nonce)
-	require.NoError(t, err)
-	sig, err := crypto.Sign(digest[:], secret)
-	require.NoError(t, err)
-
 	return secret, Operator{
-		Address:      addr,
-		ENR:          enr,
-		Nonce:        nonce,
-		ENRSignature: sig,
+		Address: fmt.Sprintf("%#x", crypto.PubkeyToAddress(secret.PublicKey)),
+		ENR:     fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
 	}
 }
