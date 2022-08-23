@@ -50,6 +50,9 @@ func DefaultConfig() Config {
 
 // Init initialises the global feature set state.
 func Init(ctx context.Context, config Config) error {
+	initMu.Lock()
+	defer initMu.Unlock()
+
 	var ok bool
 	for s := statusAlpha; s < statusSentinel; s++ {
 		if strings.ToLower(config.MinStatus) == strings.ToLower(s.String()) {
