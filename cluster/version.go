@@ -15,13 +15,17 @@
 
 package cluster
 
+import "testing"
+
 const (
-	currentVersion = v1_1
+	currentVersion = v1_2
 	dkgAlgo        = "default"
 
-	v1_2 = "v1.2.0" // Draft
-	v1_1 = "v1.1.0" // Default
+	v1_2 = "v1.2.0" // Default
+	v1_1 = "v1.1.0"
 	v1_0 = "v1.0.0"
+
+	zeroNonce = 0
 )
 
 var supportedVersions = map[string]bool{
@@ -36,4 +40,14 @@ func isJSONv1x1(version string) bool {
 
 func isJSONv1x2(version string) bool {
 	return version == v1_2
+}
+
+// SupportedVersionsForT returns the supported definition versions for testing purposes only.
+func SupportedVersionsForT(*testing.T) []string {
+	var resp []string
+	for version := range supportedVersions {
+		resp = append(resp, version)
+	}
+
+	return resp
 }

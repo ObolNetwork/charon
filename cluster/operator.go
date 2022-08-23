@@ -31,9 +31,6 @@ type Operator struct {
 	// ENR identifies the charon node.
 	ENR string
 
-	//  Nonce is incremented each time the ENR is added or signed.
-	Nonce int
-
 	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to operator Ethereum Address.
 	ConfigSignature []byte
 
@@ -76,8 +73,29 @@ func (o Operator) HashTreeRootWith(hh ssz.HashWalker) error {
 	// Field (1) 'ENR'
 	hh.PutBytes([]byte(o.ENR))
 
+	// Field (2) 'ConfigSignature'
+	hh.PutBytes(o.ConfigSignature)
+
+	// Field (3) 'ENRSignature'
+	hh.PutBytes(o.ENRSignature)
+
+	hh.Merkleize(indx)
+
+	return nil
+}
+
+// HashTreeRootWithV1x1 ssz hashes the Operator object with a hasher for versions v1.0.0 and v1.1.0
+func (o Operator) HashTreeRootWithV1x1(hh ssz.HashWalker) error {
+	indx := hh.Index()
+
+	// Field (0) 'Address'
+	hh.PutBytes([]byte(o.Address))
+
+	// Field (1) 'ENR'
+	hh.PutBytes([]byte(o.ENR))
+
 	// Field (2) 'Nonce'
-	hh.PutUint64(uint64(o.Nonce))
+	hh.PutUint64(zeroNonce) // Older versions had a zero nonce
 
 	// Field (3) 'ConfigSignature'
 	hh.PutBytes(o.ConfigSignature)
@@ -94,7 +112,7 @@ func (o Operator) HashTreeRootWith(hh ssz.HashWalker) error {
 type operatorJSONv1x1 struct {
 	Address         string `json:"address"`
 	ENR             string `json:"enr"`
-	Nonce           int    `json:"nonce"`
+	Nonce           int    `json:"nonce"` // Always 0
 	ConfigSignature []byte `json:"config_signature"`
 	ENRSignature    []byte `json:"enr_signature"`
 }
@@ -103,24 +121,25 @@ type operatorJSONv1x1 struct {
 type operatorJSONv1x2 struct {
 	Address         string `json:"address"`
 	ENR             string `json:"enr"`
-	Nonce           int    `json:"nonce"`
 	ConfigSignature ethHex `json:"config_signature"`
 	ENRSignature    ethHex `json:"enr_signature"`
 }
 
-func operatorsFromV1x1(operators []operatorJSONv1x1) []Operator {
+func operatorsFromV1x1(operators []operatorJSONv1x1) ([]Operator, error) {
 	var resp []Operator
 	for _, o := range operators {
+		if o.Nonce != 0 {
+			return nil, errors.New("non-zero operator nonce not supported")
+		}
 		resp = append(resp, Operator{
 			Address:         o.Address,
 			ENR:             o.ENR,
-			Nonce:           o.Nonce,
 			ConfigSignature: o.ConfigSignature,
 			ENRSignature:    o.ENRSignature,
 		})
 	}
 
-	return resp
+	return resp, nil
 }
 
 func operatorsToV1x1(operators []Operator) []operatorJSONv1x1 {
@@ -129,7 +148,7 @@ func operatorsToV1x1(operators []Operator) []operatorJSONv1x1 {
 		resp = append(resp, operatorJSONv1x1{
 			Address:         o.Address,
 			ENR:             o.ENR,
-			Nonce:           o.Nonce,
+			Nonce:           zeroNonce,
 			ConfigSignature: o.ConfigSignature,
 			ENRSignature:    o.ENRSignature,
 		})
@@ -144,7 +163,6 @@ func operatorsFromV1x2(operators []operatorJSONv1x2) []Operator {
 		resp = append(resp, Operator{
 			Address:         o.Address,
 			ENR:             o.ENR,
-			Nonce:           o.Nonce,
 			ConfigSignature: o.ConfigSignature,
 			ENRSignature:    o.ENRSignature,
 		})
@@ -159,7 +177,6 @@ func operatorsToV1x2(operators []Operator) []operatorJSONv1x2 {
 		resp = append(resp, operatorJSONv1x2{
 			Address:         o.Address,
 			ENR:             o.ENR,
-			Nonce:           o.Nonce,
 			ConfigSignature: o.ConfigSignature,
 			ENRSignature:    o.ENRSignature,
 		})

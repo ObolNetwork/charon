@@ -12,13 +12,13 @@
    {
     "address": "0x6bf84c7174cb7476364cc3dbd968b0f7172ed857",
     "enr": "enr://ff094279db1944ebd7a19d0f7bbacbe0255aa5b7d44bec40f84c892b9bffd436",
-    "nonce": 1,
+    "nonce": 0,
     "config_signature": "KbAiO+6l9PdDkfRF0Vr9QpQEA3T2kkuYy/hxP42WLXw=",
     "enr_signature": "jQGRksJCJOLK/Mrjph+1hrFDI6a8j5598dkpMz/5k5M="
    }
   ],
   "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
-  "version": "v1.1.0",
+  "version": "v1.0.0",
   "timestamp": "2022-07-19T18:19:58+02:00",
   "num_validators": 2,
   "threshold": 3,
@@ -26,8 +26,8 @@
   "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
   "dkg_algorithm": "default",
   "fork_version": "0x00000002",
-  "config_hash": "2aQgQp1b6QndUKjumibFjupLfcIObxLdo1mQPRcqogE=",
-  "definition_hash": "PZt47OFSnfSvu6YYN8GnjB6+p6IApPAo6qvfq1hOJWI="
+  "config_hash": "pTgnB2W41w8kxoQfnyZry6vVu0dL5PSNwiyMg8j4RPs=",
+  "definition_hash": "gonIm0TCEd8VTUQaZ5kv3+v/ZgyI+dYqBRt6OkdlU7w="
  },
  "distributed_validators": [
   {
@@ -46,5 +46,5 @@
   }
  ],
  "signature_aggregate": "O+pvWzr23gN0NmxHGeQ6GwZ9ibx/AfH1c5gWWaRP8Xo=",
- "lock_hash": "eTtY56eXcUpCPa52lFHSpj5cNGCLAegX/UK1UuEOUmA="
+ "lock_hash": "Kl7aLN7eIy/9FQiYIZiDjHr+WhO+hgCbPXVv3TdakA4="
 }
