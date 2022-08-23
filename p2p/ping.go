@@ -28,13 +28,38 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/expbackoff"
+	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
 
+// TestPingConfig overrides ping config for testing.
+type TestPingConfig struct {
+	// Disable disables pinging.
+	Disable bool
+	// Callback is called on successful pings.
+	Callback func(peer.ID)
+	// MaxBackoff overrides default max backoff.
+	MaxBackoff time.Duration
+}
+
 // NewPingService returns a start function of a p2p ping service that pings all peers every second
 // and collects metrics.
-func NewPingService(h host.Host, peers []peer.ID, callback func(peer.ID)) func(context.Context) {
+func NewPingService(h host.Host, peers []peer.ID, conf TestPingConfig) lifecycle.HookFuncCtx {
+	if conf.Disable {
+		return func(ctx context.Context) {}
+	}
+
+	maxBackoff := time.Second * 30 // Sweet spot between not spamming, but snappy recovery.
+	if conf.MaxBackoff != 0 {
+		maxBackoff = conf.MaxBackoff
+	}
+
+	callback := func(peer.ID) {}
+	if conf.Callback != nil {
+		callback = conf.Callback
+	}
+
 	svc := ping.NewPingService(h)
 
 	return func(ctx context.Context) {
@@ -46,7 +71,7 @@ func NewPingService(h host.Host, peers []peer.ID, callback func(peer.ID)) func(c
 				continue
 			}
 
-			go pingPeer(ctx, svc, p, callback)
+			go pingPeer(ctx, svc, p, callback, maxBackoff)
 		}
 	}
 }
@@ -54,8 +79,9 @@ func NewPingService(h host.Host, peers []peer.ID, callback func(peer.ID)) func(c
 // pingPeer starts (and restarts) a long-lived ping service stream, pinging the peer every second until some error.
 // It returns when the context is cancelled.
 func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID, callback func(peer.ID),
+	maxBackoff time.Duration,
 ) {
-	backoff := expbackoff.New(ctx, expbackoff.WithMaxDelay(time.Second*30)) // Start quick, then slow down
+	backoff := expbackoff.New(ctx, expbackoff.WithMaxDelay(maxBackoff)) // Start quick, then slow down
 	logFunc := newPingLogger(svc.Host, p)
 	for ctx.Err() == nil {
 		pingPeerOnce(ctx, svc, p, logFunc, callback)
@@ -86,10 +112,7 @@ func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 		}
 
 		observePing(p, result.RTT)
-
-		if callback != nil {
-			callback(p)
-		}
+		callback(p)
 	}
 }
 
