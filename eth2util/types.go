@@ -52,6 +52,7 @@ func (s SignedEpoch) HashTreeRootWith(hh ssz.HashWalker) error {
 }
 
 func (s SignedEpoch) MarshalJSON() ([]byte, error) {
+	//nolint:gosimple
 	resp, err := json.Marshal(signedEpochJSON{
 		Epoch:     s.Epoch,
 		Signature: s.Signature,

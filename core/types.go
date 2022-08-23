@@ -164,9 +164,10 @@ func NewBuilderRegistrationDuty(slot int64) Duty {
 
 // NewSignatureDuty returns a new Signature duty. It is a convenience function that is
 // slightly more readable and concise than the struct literal equivalent:
-//   core.Duty{Slot: slot, Type: core.DutySignature}
-//   vs
-//   core.NewSignatureDuty(slot)
+//
+//	core.Duty{Slot: slot, Type: core.DutySignature}
+//	vs
+//	core.NewSignatureDuty(slot)
 func NewSignatureDuty(slot int64) Duty {
 	return Duty{
 		Slot: slot,
