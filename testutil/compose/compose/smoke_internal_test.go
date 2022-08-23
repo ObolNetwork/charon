@@ -86,7 +86,7 @@ func TestSmoke(t *testing.T) {
 				conf.KeyGen = compose.KeyGenCreate
 			},
 		},
-		// TODO(dhruv): enable version matrix tests for dkg once we have compatible versions
+		// TODO(dhruv): enable version matrix tests for dkg once we have compatible versions also uncomment pegImageTag function.
 		//{
 		//	Name:     "run version matrix with dkg",
 		//	PrintYML: true,
@@ -174,7 +174,7 @@ func copyPrebuiltBinary(t *testing.T, dir string, binary string) {
 
 // pegImageTag pegs the charon docker image tag for one of the nodes.
 // It overrides the default that uses locally built latest version.
-func pegImageTag(nodes []compose.TmplNode, index int, imageTag string) {
-	nodes[index].ImageTag = imageTag
-	nodes[index].Entrypoint = "/usr/local/bin/charon" // Use contains binary, not locally built latest version.
-}
+// func pegImageTag(nodes []compose.TmplNode, index int, imageTag string) {
+//	nodes[index].ImageTag = imageTag
+//	nodes[index].Entrypoint = "/usr/local/bin/charon" // Use contains binary, not locally built latest version.
+//}
