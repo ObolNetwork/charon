@@ -452,6 +452,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitValidatorRegistrationsFunc: func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error {
 			return nil
 		},
+		SlotsPerEpochFunc: func(ctx context.Context) (uint64, error) {
+			return httpMock.SlotsPerEpoch(ctx)
+		},
 	}
 }
 

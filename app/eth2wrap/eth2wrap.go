@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/forkjoin"
 )
 
 //go:generate go run genwrap/genwrap.go
@@ -49,57 +50,109 @@ var (
 	}, []string{"endpoint"})
 
 	// Interface assertions.
-	_ eth2Provider = (*eth2http.Service)(nil)
-	_ eth2Provider = (*eth2multi.Service)(nil)
+	_ Client = (*eth2http.Service)(nil)
+	_ Client = (*eth2multi.Service)(nil)
+	_ Client = multi{}
 )
 
-// Wrap returns an instrumented wrapped eth2 service.
-func Wrap(eth2Svc eth2client.Service) (*Service, error) {
-	eth2Cl, ok := eth2Svc.(eth2Provider)
-	if !ok {
-		return nil, errors.New("invalid eth2 service")
+// Wrap returns a new multi instrumented client wrapping the provided eth2 services.
+func Wrap(eth2Svcs ...eth2client.Service) (Client, error) {
+	if len(eth2Svcs) == 0 {
+		return nil, errors.New("eth2 services empty")
+	}
+	var clients []Client
+	for _, eth2Svc := range eth2Svcs {
+		cl, ok := eth2Svc.(Client)
+		if !ok {
+			return nil, errors.New("invalid eth2 service")
+		}
+		clients = append(clients, cl)
 	}
 
-	return &Service{eth2Provider: eth2Cl}, nil
+	return multi{clients: clients}, nil
 }
 
-// NewHTTPService returns a new instrumented eth2 http service.
-func NewHTTPService(ctx context.Context, timeout time.Duration, addresses ...string) (*Service, error) {
-	var (
-		eth2Svc eth2client.Service
-		err     error
-	)
-	if len(addresses) == 0 {
-		return nil, errors.New("no addresses")
-	} else if len(addresses) == 1 {
-		eth2Svc, err = eth2http.New(ctx,
+// NewMultiHTTP returns a new instrumented multi eth2 http client.
+func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses ...string) (Client, error) {
+	var eth2Svcs []eth2client.Service
+	for _, address := range addresses {
+		eth2Svc, err := eth2http.New(ctx,
 			eth2http.WithLogLevel(zeroLogInfo),
-			eth2http.WithAddress(addresses[0]),
+			eth2http.WithAddress(address),
 			eth2http.WithTimeout(timeout),
 		)
-	} else {
-		eth2Svc, err = eth2multi.New(ctx,
-			eth2multi.WithLogLevel(zeroLogInfo),
-			eth2multi.WithMonitor(eth2Monitor{}),
-			eth2multi.WithAddresses(addresses),
-			eth2multi.WithTimeout(timeout),
-		)
-	}
-	if err != nil {
-		return nil, errors.Wrap(err, "new eth2 client")
+		if err != nil {
+			return nil, errors.Wrap(err, "new eth2 client")
+		}
+		eth2Svcs = append(eth2Svcs, eth2Svc)
 	}
 
-	eth2Cl, ok := eth2Svc.(eth2Provider)
-	if !ok {
-		return nil, errors.New("invalid eth2 service")
-	}
-
-	return &Service{eth2Provider: eth2Cl}, nil
+	return Wrap(eth2Svcs...)
 }
 
-// Service wraps an eth2Provider adding prometheus metrics and error wrapping.
-type Service struct {
-	eth2Provider
+// multi implements Client by wrapping multiple clients, calling them in parallel
+// and returning the first successful response.
+// It also adds prometheus metrics and error wrapping.
+type multi struct {
+	clients []Client
+}
+
+func (multi) Name() string {
+	return "eth2wrap.multi"
+}
+
+func (m multi) Address() string {
+	// TODO(corver): return "best" address.
+	return m.clients[0].Address()
+}
+
+// provide calls the work function with each client in parallel, returning the
+// first successful result or first error.
+func provide[O any](ctx context.Context, clients []Client,
+	work forkjoin.Work[Client, O], isSuccess func(O) bool,
+) (O, error) {
+	if isSuccess == nil {
+		isSuccess = func(o O) bool { return true }
+	}
+
+	fork, join := forkjoin.New(ctx, work,
+		forkjoin.WithoutFailFast(),
+		forkjoin.WithWorkers(len(clients)),
+		forkjoin.WithInputBuffer(len(clients)),
+	)
+	for _, client := range clients {
+		fork(client)
+	}
+
+	var (
+		nokResp forkjoin.Result[Client, O]
+		zero    O
+	)
+	for res := range join() {
+		if ctx.Err() != nil {
+			return zero, ctx.Err()
+		} else if res.Err == nil && isSuccess(res.Output) {
+			return res.Output, nil
+		} else {
+			nokResp = res
+		}
+	}
+
+	return nokResp.Output, nokResp.Err
+}
+
+type empty struct{}
+
+// submit proxies provide, but returns nil instead of a successful result.
+func submit(ctx context.Context, clients []Client, work func(context.Context, Client) error) error {
+	_, err := provide(ctx, clients,
+		func(ctx context.Context, cl Client) (empty, error) {
+			return empty{}, work(ctx, cl)
+		},
+		nil,
+	)
+
+	return err
 }
 
 // latency measures endpoint latency.
@@ -115,11 +168,4 @@ func latency(endpoint string) func() {
 // incError increments the error counter.
 func incError(endpoint string) {
 	errorCount.WithLabelValues(endpoint).Inc()
-}
-
-// eth2Monitor implements eth2metrics.Monitor enabling eth2multi prometheus metrics.
-type eth2Monitor struct{}
-
-func (eth2Monitor) Presenter() string {
-	return "prometheus"
 }
