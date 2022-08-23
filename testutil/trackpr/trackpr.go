@@ -17,7 +17,7 @@
 // the command sets UNTICKETED_PR to true.
 //
 //nolint:wrapcheck,revive,cyclop,forbidigo
-package main
+package trackpr
 
 import (
 	"encoding/json"
