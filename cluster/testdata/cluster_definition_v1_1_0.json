@@ -11,7 +11,7 @@
   {
    "address": "0x6bf84c7174cb7476364cc3dbd968b0f7172ed857",
    "enr": "enr://ff094279db1944ebd7a19d0f7bbacbe0255aa5b7d44bec40f84c892b9bffd436",
-   "nonce": 1,
+   "nonce": 0,
    "config_signature": "KbAiO+6l9PdDkfRF0Vr9QpQEA3T2kkuYy/hxP42WLXw=",
    "enr_signature": "jQGRksJCJOLK/Mrjph+1hrFDI6a8j5598dkpMz/5k5M="
   }
@@ -26,5 +26,5 @@
  "dkg_algorithm": "default",
  "fork_version": "0x00000002",
  "config_hash": "2aQgQp1b6QndUKjumibFjupLfcIObxLdo1mQPRcqogE=",
- "definition_hash": "PZt47OFSnfSvu6YYN8GnjB6+p6IApPAo6qvfq1hOJWI="
+ "definition_hash": "O0DA0gbjs6vEdg+cLHBv5tDaZ+53uryGyR9/9M29uZg="
 }

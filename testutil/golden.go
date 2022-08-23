@@ -35,12 +35,23 @@ var (
 
 var cleanOnce sync.Once
 
+// WithFilename configures a custom golden test filename.
+func WithFilename(name string) func(*string) {
+	return func(filename *string) {
+		*filename = name
+	}
+}
+
 // RequireGoldenBytes asserts that a golden testdata file exists containing the exact data.
 // This is heavily inspired from https://github.com/sebdah/goldie.
-func RequireGoldenBytes(t *testing.T, data []byte) {
+func RequireGoldenBytes(t *testing.T, data []byte, opts ...func(*string)) {
 	t.Helper()
 
-	filename := path.Join("testdata", strings.ReplaceAll(t.Name(), "/", "_")+".golden")
+	filename := strings.ReplaceAll(t.Name(), "/", "_") + ".golden"
+	for _, opt := range opts {
+		opt(&filename)
+	}
+	filename = path.Join("testdata", filename)
 
 	if *update {
 		if *clean {
@@ -68,11 +79,11 @@ func RequireGoldenBytes(t *testing.T, data []byte) {
 
 // RequireGoldenJSON asserts that a golden testdata file exists containing the JSON serialised form of the data object.
 // This is heavily inspired from https://github.com/sebdah/goldie.
-func RequireGoldenJSON(t *testing.T, data interface{}) {
+func RequireGoldenJSON(t *testing.T, data interface{}, opts ...func(*string)) {
 	t.Helper()
 
 	b, err := json.MarshalIndent(data, "", " ")
 	require.NoError(t, err)
 
-	RequireGoldenBytes(t, b)
+	RequireGoldenBytes(t, b, opts...)
 }

@@ -131,7 +131,7 @@ func (d Definition) Verify() error {
 		}
 
 		// Check that we have a valid config signature for each operator.
-		digest, err := digestEIP712(o.Address, configHash[:], 0)
+		digest, err := digestEIP712(o.Address, configHash[:], zeroNonce)
 		if err != nil {
 			return err
 		}
@@ -143,7 +143,7 @@ func (d Definition) Verify() error {
 		}
 
 		// Check that we have a valid enr signature for each operator.
-		digest, err = digestEIP712(o.Address, []byte(o.ENR), 0)
+		digest, err = digestEIP712(o.Address, []byte(o.ENR), zeroNonce)
 		if err != nil {
 			return err
 		}
@@ -210,8 +210,14 @@ func (d Definition) HashTreeRootWith(hh ssz.HashWalker) error {
 		subIndx := hh.Index()
 		num := uint64(len(d.Operators))
 		for _, operator := range d.Operators {
-			if err := operator.HashTreeRootWith(hh); err != nil {
-				return err
+			if isJSONv1x1(d.Version) { // Initial operator struct versions had a zero nonce.
+				if err := operator.HashTreeRootWithV1x1(hh); err != nil {
+					return err
+				}
+			} else {
+				if err := operator.HashTreeRootWith(hh); err != nil {
+					return err
+				}
 			}
 		}
 		hh.MerkleizeWithMixin(subIndx, num, num)
@@ -396,6 +402,11 @@ func unmarshalDefinitionV1x1(data []byte) (def Definition, configHashJSON, defHa
 		return Definition{}, nil, nil, errors.Wrap(err, "unmarshal definition v1_1")
 	}
 
+	operators, err := operatorsFromV1x1(defJSON.Operators)
+	if err != nil {
+		return Definition{}, nil, nil, err
+	}
+
 	def = Definition{
 		Name:                defJSON.Name,
 		UUID:                defJSON.UUID,
@@ -407,7 +418,7 @@ func unmarshalDefinitionV1x1(data []byte) (def Definition, configHashJSON, defHa
 		WithdrawalAddress:   defJSON.WithdrawalAddress,
 		DKGAlgorithm:        defJSON.DKGAlgorithm,
 		ForkVersion:         defJSON.ForkVersion,
-		Operators:           operatorsFromV1x1(defJSON.Operators),
+		Operators:           operators,
 	}
 
 	return def, defJSON.ConfigHash, defJSON.DefinitionHash, nil
