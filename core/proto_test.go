@@ -27,6 +27,7 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -202,7 +203,7 @@ func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
 	return map[core.DutyType]core.SignedData{
 		core.DutyAttester: core.Attestation{Attestation: *testutil.RandomAttestation()},
 		core.DutyExit:     core.SignedVoluntaryExit{SignedVoluntaryExit: *testutil.RandomExit()},
-		core.DutyRandao:   core.SignedRandao{Epoch: testutil.RandomEpoch(), BLSSignature: testutil.RandomEth2Signature()},
+		core.DutyRandao:   core.SignedRandao{eth2util.SignedEpoch{Epoch: testutil.RandomEpoch(), Signature: testutil.RandomEth2Signature()}},
 		core.DutyProposer: core.VersionedSignedBeaconBlock{
 			VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
 				Version: spec.DataVersionBellatrix,

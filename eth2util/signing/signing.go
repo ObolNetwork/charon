@@ -159,13 +159,13 @@ func VerifyBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls
 	return verify(ctx, eth2Cl, DomainBeaconProposer, epoch, sigRoot, sig, pubkey)
 }
 
-func VerifyRandao(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, randao eth2p0.BLSSignature, epoch eth2p0.Epoch) error {
-	sigRoot, err := eth2util.EpochHashRoot(epoch)
+func VerifyRandao(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, randao eth2util.SignedEpoch) error {
+	sigRoot, err := randao.EpochHashRoot()
 	if err != nil {
 		return err
 	}
 
-	return verify(ctx, eth2Cl, DomainRandao, epoch, sigRoot, randao, pubkey)
+	return verify(ctx, eth2Cl, DomainRandao, randao.Epoch, sigRoot, randao.Signature, pubkey)
 }
 
 func VerifyVoluntaryExit(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, exit *eth2p0.SignedVoluntaryExit) error {

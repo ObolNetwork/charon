@@ -51,7 +51,10 @@ func TestParSigEx(t *testing.T) {
 
 	pubkey := testutil.RandomCorePubKey(t)
 	data := core.ParSignedDataSet{
-		pubkey: core.NewPartialSignedRandao(epoch, testutil.RandomEth2Signature(), shareIdx),
+		pubkey: core.NewPartialSignedRandao(eth2util.SignedEpoch{
+			Epoch:     epoch,
+			Signature: testutil.RandomEth2Signature(),
+		}, shareIdx),
 	}
 
 	var (
@@ -192,11 +195,14 @@ func TestParSigExVerifier(t *testing.T) {
 	})
 
 	t.Run("Verify Randao", func(t *testing.T) {
-		sigRoot, err := eth2util.EpochHashRoot(epoch)
+		sigEpoch := eth2util.SignedEpoch{Epoch: epoch}
+		sigRoot, err := sigEpoch.EpochHashRoot()
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainRandao, epoch, sigRoot)
 		require.NoError(t, err)
-		randao := core.NewPartialSignedRandao(epoch, sign(sigData[:]), shareIdx)
+
+		sigEpoch.Signature = sign(sigData[:])
+		randao := core.NewPartialSignedRandao(sigEpoch, shareIdx)
 
 		require.NoError(t, verifyFunc(ctx, core.NewRandaoDuty(slot), pubkey, randao))
 	})

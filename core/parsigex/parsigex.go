@@ -177,7 +177,7 @@ func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[
 				return errors.New("invalid randao")
 			}
 
-			return signing.VerifyRandao(ctx, eth2Cl, pubshare, randao.BLSSignature, randao.Epoch)
+			return signing.VerifyRandao(ctx, eth2Cl, pubshare, randao.SignedEpoch)
 		case core.DutyBuilderProposer:
 			blindedBlock, ok := data.SignedData.(core.VersionedSignedBlindedBeaconBlock)
 			if !ok {

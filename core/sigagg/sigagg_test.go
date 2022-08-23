@@ -31,6 +31,7 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/sigagg"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
@@ -120,7 +121,10 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 		require.NoError(t, err)
 
 		sig := tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
-		parsig := core.NewPartialSignedRandao(epoch, sig, int(psig.Identifier))
+		parsig := core.NewPartialSignedRandao(eth2util.SignedEpoch{
+			Epoch:     epoch,
+			Signature: sig,
+		}, int(psig.Identifier))
 
 		psigs = append(psigs, psig)
 		parsigs = append(parsigs, parsig)

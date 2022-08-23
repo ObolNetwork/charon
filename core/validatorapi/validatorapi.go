@@ -33,6 +33,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -294,11 +295,16 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 		return nil, err
 	}
 
-	parSig := core.NewPartialSignedRandao(epoch, randao, c.shareIdx)
+	sigEpoch := eth2util.SignedEpoch{
+		Epoch:     epoch,
+		Signature: randao,
+	}
+
+	parSig := core.NewPartialSignedRandao(sigEpoch, c.shareIdx)
 
 	// Verify randao signature
 	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, randao, epoch)
+		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, sigEpoch)
 	})
 	if err != nil {
 		return nil, err
@@ -391,16 +397,21 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 		return nil, err
 	}
 
+	sigEpoch := eth2util.SignedEpoch{
+		Epoch:     epoch,
+		Signature: randao,
+	}
+
 	// Verify randao signature
 	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, randao, epoch)
+		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, sigEpoch)
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	duty := core.NewRandaoDuty(int64(slot))
-	parSig := core.NewPartialSignedRandao(epoch, randao, c.shareIdx)
+	parSig := core.NewPartialSignedRandao(sigEpoch, c.shareIdx)
 
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.

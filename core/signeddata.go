@@ -26,6 +26,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 var (
@@ -638,24 +639,20 @@ func (r *VersionedSignedValidatorRegistration) UnmarshalJSON(input []byte) error
 }
 
 // NewPartialSignedRandao is a convenience function that returns a new partially signed Randao Reveal.
-func NewPartialSignedRandao(epoch eth2p0.Epoch, sig eth2p0.BLSSignature, shareIdx int) ParSignedData {
+func NewPartialSignedRandao(randao eth2util.SignedEpoch, shareIdx int) ParSignedData {
 	return ParSignedData{
-		SignedData: SignedRandao{
-			Epoch:        epoch,
-			BLSSignature: sig,
-		},
-		ShareIdx: shareIdx,
+		SignedData: SignedRandao{randao},
+		ShareIdx:   shareIdx,
 	}
 }
 
 // SignedRandao is a signed Randao Reveal which implements SignedData.
 type SignedRandao struct {
-	Epoch        eth2p0.Epoch
-	BLSSignature eth2p0.BLSSignature
+	eth2util.SignedEpoch
 }
 
 func (s SignedRandao) Signature() Signature {
-	return SigFromETH2(s.BLSSignature)
+	return SigFromETH2(s.SignedEpoch.Signature)
 }
 
 func (s SignedRandao) SetSignature(sig Signature) (SignedData, error) {
@@ -664,7 +661,7 @@ func (s SignedRandao) SetSignature(sig Signature) (SignedData, error) {
 		return nil, err
 	}
 
-	resp.BLSSignature = sig.ToETH2()
+	resp.SignedEpoch.Signature = sig.ToETH2()
 
 	return resp, nil
 }
@@ -675,8 +672,8 @@ func (s SignedRandao) Clone() (SignedData, error) {
 
 func (s SignedRandao) MarshalJSON() ([]byte, error) {
 	resp, err := json.Marshal(signedRandaoJSON{
-		Epoch:        s.Epoch,
-		BLSSignature: s.BLSSignature,
+		Epoch:        s.SignedEpoch.Epoch,
+		BLSSignature: s.SignedEpoch.Signature,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal signed randao")
@@ -691,8 +688,8 @@ func (s *SignedRandao) UnmarshalJSON(input []byte) error {
 		return errors.Wrap(err, "unmarshal signed randao")
 	}
 
-	s.Epoch = randao.Epoch
-	s.BLSSignature = randao.BLSSignature
+	s.SignedEpoch.Epoch = randao.Epoch
+	s.SignedEpoch.Signature = randao.BLSSignature
 
 	return nil
 }

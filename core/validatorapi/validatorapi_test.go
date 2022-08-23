@@ -34,6 +34,7 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/validatorapi"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -367,7 +368,10 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 
 	component.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		require.Equal(t, set, core.ParSignedDataSet{
-			pubkey: core.NewPartialSignedRandao(epoch, randao, vIdx),
+			pubkey: core.NewPartialSignedRandao(eth2util.SignedEpoch{
+				Epoch:     epoch,
+				Signature: randao,
+			}, vIdx),
 		})
 		require.Equal(t, duty, core.NewRandaoDuty(slot))
 
@@ -661,7 +665,10 @@ func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 
 	component.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		require.Equal(t, set, core.ParSignedDataSet{
-			pubkey: core.NewPartialSignedRandao(epoch, randao, vIdx),
+			pubkey: core.NewPartialSignedRandao(eth2util.SignedEpoch{
+				Epoch:     epoch,
+				Signature: randao,
+			}, vIdx),
 		})
 		require.Equal(t, duty, core.NewRandaoDuty(slot))
 
