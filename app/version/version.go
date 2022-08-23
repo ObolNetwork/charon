@@ -22,6 +22,8 @@ import "runtime/debug"
 const Version = "v0.9.0"
 
 // GitCommit returns the git commit hash and timestamp from build info.
+//
+//nolint:nonamedreturns // confusing return argument otherwise.
 func GitCommit() (hash string, timestamp string) {
 	hash, timestamp = "unknown", "unknown"
 

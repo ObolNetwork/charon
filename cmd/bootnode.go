@@ -197,7 +197,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		mux.HandleFunc("/enr", func(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte(localEnode.Node().String()))
 		})
-		server := http.Server{Addr: config.HTTPAddr, Handler: mux}
+		server := http.Server{Addr: config.HTTPAddr, Handler: mux, ReadHeaderTimeout: time.Second}
 		serverErr <- server.ListenAndServe()
 	}()
 

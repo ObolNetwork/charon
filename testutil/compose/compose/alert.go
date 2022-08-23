@@ -31,7 +31,7 @@ const alertsPolled = "alerts_polled"
 
 // startAlertCollector starts a goroutine that polls prometheus alerts until the context is closed and returns
 // a channel on which the received alert descriptions will be sent.
-func startAlertCollector(ctx context.Context, dir string) (chan string, error) {
+func startAlertCollector(ctx context.Context, dir string) chan string {
 	resp := make(chan string, 100)
 
 	go func() {
@@ -81,7 +81,7 @@ func startAlertCollector(ctx context.Context, dir string) (chan string, error) {
 		}
 	}()
 
-	return resp, nil
+	return resp
 }
 
 func getActiveAlerts(alerts promAlerts) []string {

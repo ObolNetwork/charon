@@ -103,35 +103,19 @@ type distValidatorJSONv1x2 struct {
 func distValidatorsFromV1x1(distValidators []distValidatorJSONv1x1) []DistValidator {
 	var resp []DistValidator
 	for _, dv := range distValidators {
-		var shares [][]byte
-		for _, share := range dv.PubShares {
-			shares = append(shares, share)
-		}
-		resp = append(resp, DistValidator{
-			PubKey:              dv.PubKey,
-			PubShares:           shares,
-			FeeRecipientAddress: dv.FeeRecipientAddress,
-		})
+		resp = append(resp, DistValidator(dv)) // Same struct definition so can just convert/cast.
 	}
 
 	return resp
 }
 
-func distValidatorsToV1x1(distValidators []DistValidator) ([]distValidatorJSONv1x1, error) {
+func distValidatorsToV1x1(distValidators []DistValidator) []distValidatorJSONv1x1 {
 	var resp []distValidatorJSONv1x1
 	for _, dv := range distValidators {
-		var shares []ethHex
-		for _, share := range dv.PubShares {
-			shares = append(shares, share)
-		}
-		resp = append(resp, distValidatorJSONv1x1{
-			PubKey:              dv.PubKey,
-			PubShares:           dv.PubShares,
-			FeeRecipientAddress: dv.FeeRecipientAddress,
-		})
+		resp = append(resp, distValidatorJSONv1x1(dv)) // Same struct definition so can just convert/cast.
 	}
 
-	return resp, nil
+	return resp
 }
 
 func distValidatorsFromV1x2(distValidators []distValidatorJSONv1x2) []DistValidator {

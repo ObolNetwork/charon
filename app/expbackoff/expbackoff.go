@@ -91,17 +91,18 @@ func WithBaseDelay(d time.Duration) func(*Config) {
 // The backoff function returns immediately after the context is cancelled.
 //
 // Usage:
-//  backoff := expbackoff.New(ctx)
-//  for ctx.Err() == nil {
-//    resp, err := doThing(ctx)
-//    if err != nil {
-//      backoff()
-//      continue
-//    } else {
-//      return resp
-//    }
-//  }
-func New(ctx context.Context, opts ...func(*Config)) (backoff func()) {
+//
+//	backoff := expbackoff.New(ctx)
+//	for ctx.Err() == nil {
+//	  resp, err := doThing(ctx)
+//	  if err != nil {
+//	    backoff()
+//	    continue
+//	  } else {
+//	    return resp
+//	  }
+//	}
+func New(ctx context.Context, opts ...func(*Config)) (backoff func()) { //nolint:nonamedreturns // Opaque return type
 	backoff, _ = NewWithReset(ctx, opts...)
 	return backoff
 }
@@ -112,18 +113,19 @@ func New(ctx context.Context, opts ...func(*Config)) (backoff func()) {
 // The backoff function returns immediately after the context is cancelled.
 //
 // Usage:
-//  backoff, reset := expbackoff.NewWithReset(ctx)
-//  for ctx.Err() == nil {
-//    resp, err := doThing(ctx)
-//    if err != nil {
-//      backoff()
-//      continue
-//    } else {
-//      reset()
-//      // Do something with the response.
-//    }
-//  }
-func NewWithReset(ctx context.Context, opts ...func(*Config)) (backoff func(), reset func()) {
+//
+//	backoff, reset := expbackoff.NewWithReset(ctx)
+//	for ctx.Err() == nil {
+//	  resp, err := doThing(ctx)
+//	  if err != nil {
+//	    backoff()
+//	    continue
+//	  } else {
+//	    reset()
+//	    // Do something with the response.
+//	  }
+//	}
+func NewWithReset(ctx context.Context, opts ...func(*Config)) (backoff func(), reset func()) { //nolint:nonamedreturns // Opaque return types
 	conf := DefaultConfig
 	for _, opt := range opts {
 		opt(&conf)

@@ -37,8 +37,6 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
-const infoLevel = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
-
 var integration = flag.Bool("integration", false, "enable integration test, requires BEACON_URL vars.")
 
 // TestIntegration runs an integration test for the Scheduler.

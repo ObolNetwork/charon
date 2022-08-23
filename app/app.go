@@ -116,7 +116,7 @@ type TestConfig struct {
 // Run is the entrypoint for running a charon DVC instance.
 // All processes and their dependencies are wired and added
 // to the life cycle manager which handles starting and graceful shutdown.
-func Run(ctx context.Context, conf Config) (err error) {
+func Run(ctx context.Context, conf Config) (err error) { //nolint:nonamedreturn // Referenced in defer
 	ctx = log.WithTopic(ctx, "app-start")
 	defer func() {
 		if err != nil {
@@ -286,7 +286,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	// Convert and prep public keys and public shares
 	var (
 		corePubkeys       []core.PubKey
-		pubkeys           []eth2p0.BLSPubKey
 		pubshares         []eth2p0.BLSPubKey
 		pubSharesByKey    = make(map[*bls_sig.PublicKey]*bls_sig.PublicKey)
 		allPubSharesByKey = make(map[core.PubKey]map[int]*bls_sig.PublicKey) // map[pubkey]map[shareIdx]pubshare
@@ -313,11 +312,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			allPubShares[i+1] = pubshare
 		}
 
-		pk, err := tblsconv.KeyToETH2(pubkey)
-		if err != nil {
-			return err
-		}
-
 		pubShare, err := dv.PublicShare(nodeIdx.PeerIdx)
 		if err != nil {
 			return err
@@ -329,7 +323,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		corePubkeys = append(corePubkeys, corePubkey)
-		pubkeys = append(pubkeys, pk)
 		pubSharesByKey[pubkey] = pubShare
 		pubshares = append(pubshares, eth2Share)
 		allPubSharesByKey[corePubkey] = allPubShares
@@ -572,7 +565,7 @@ func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *ecd
 
 	lcast := leadercast.New(lcastTransport, nodeIdx.PeerIdx, len(peerIDs))
 
-	return lcast, lifecycle.HookFunc(lcast.Run), nil
+	return lcast, lifecycle.HookFuncCtx(lcast.Run), nil
 }
 
 // createMockValidators creates mock validators identified by their public shares.
@@ -602,8 +595,9 @@ func wireVAPIRouter(life *lifecycle.Manager, vapiAddr string, eth2Cl eth2wrap.Cl
 	}
 
 	server := &http.Server{
-		Addr:    vapiAddr,
-		Handler: vrouter,
+		Addr:              vapiAddr,
+		Handler:           vrouter,
+		ReadHeaderTimeout: time.Second,
 	}
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartValidatorAPI, httpServeHook(server.ListenAndServe))

@@ -585,27 +585,6 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 	return nil
 }
 
-func (c Component) submitRandaoDuty(ctx context.Context, pubKey core.PubKey, slot eth2p0.Slot, randao eth2p0.BLSSignature) error {
-	parsigSet := core.ParSignedDataSet{
-		pubKey: core.NewPartialSignature(core.SigFromETH2(randao), c.shareIdx),
-	}
-
-	log.Debug(ctx, "Randao submitted by validator client")
-
-	duty := core.NewRandaoDuty(int64(slot))
-	ctx = log.WithCtx(ctx, z.Any("duty", duty))
-
-	for _, sub := range c.subs {
-		// No need to clone since sub auto clones.
-		err := sub(ctx, duty, parsigSet)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (c Component) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 	duties, err := c.eth2Cl.AttesterDuties(ctx, epoch, validatorIndices)
 	if err != nil {
@@ -685,15 +664,6 @@ func (c Component) slotFromTimestamp(ctx context.Context, timestamp time.Time) (
 	delta := timestamp.Sub(genesis)
 
 	return eth2p0.Slot(delta / slotDuration), nil
-}
-
-func (c Component) epochFromSlot(ctx context.Context, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, errors.Wrap(err, "getting slots per epoch")
-	}
-
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }
 
 func (c Component) getProposerPubkey(ctx context.Context, duty core.Duty) (core.PubKey, error) {

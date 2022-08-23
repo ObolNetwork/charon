@@ -126,22 +126,22 @@ func WithoutFailFast() Option {
 // to context cancelled. See WithoutFailFast.
 //
 // Usage:
-//   var workFunc := func(ctx context.Context, input MyInput) (MyResult, error) {
-//     ... do work
-//     return result, nil
-//   }
 //
-//   fork, join := forkjoin.New[MyInput,MyResult](ctx, workFunc)
-//   for _, in := range inputs {
-//     fork(in) // Note that calling fork AFTER join panics!
-//   }
+//	var workFunc := func(ctx context.Context, input MyInput) (MyResult, error) {
+//	  ... do work
+//	  return result, nil
+//	}
 //
-//   resultChan := join()
-//   // Either read results from the channel as they appear
-//   for result := range resultChan { ... }
-//   // Or block until all results are complete and flatten
-//   results, firstErr := resultChan.Flatten()
+//	fork, join := forkjoin.New[MyInput,MyResult](ctx, workFunc)
+//	for _, in := range inputs {
+//	  fork(in) // Note that calling fork AFTER join panics!
+//	}
 //
+//	resultChan := join()
+//	// Either read results from the channel as they appear
+//	for result := range resultChan { ... }
+//	// Or block until all results are complete and flatten
+//	results, firstErr := resultChan.Flatten()
 func New[I, O any](ctx context.Context, work Work[I, O], opts ...Option) (Fork[I], Join[I, O]) {
 	options := options{
 		workers:  defaultWorkers,

@@ -63,7 +63,7 @@ func TestMemTransport(t *testing.T) {
 		casts = append(casts, c)
 
 		go func() {
-			require.NoError(t, c.Run(ctx))
+			c.Run(ctx)
 		}()
 	}
 
@@ -179,7 +179,7 @@ func TestP2PTransport(t *testing.T) {
 		casts = append(casts, c)
 
 		go func() {
-			require.NoError(t, c.Run(ctx))
+			c.Run(ctx)
 		}()
 	}
 

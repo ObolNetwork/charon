@@ -174,7 +174,7 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 		_, _ = w.Write(resp)
 	}))
 
-	s := http.Server{Addr: addr, Handler: r}
+	s := http.Server{Addr: addr, Handler: r, ReadHeaderTimeout: time.Second}
 	s.RegisterOnShutdown(func() {
 		close(shutdown)
 	})
@@ -205,7 +205,8 @@ func newHTTPMock(overrides ...staticOverride) (HTTPMock, *http.Server, error) {
 
 	// Wait for server to be up
 	for {
-		resp, err := http.Get(addr + "/up")
+		resp, err := http.Get(addr + "/up") //nolint:noctx // Non-critical code
+		_ = resp.Body.Close()
 		if err == nil && resp.StatusCode == http.StatusOK {
 			break
 		}

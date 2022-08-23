@@ -267,7 +267,7 @@ func WithDeterministicProposerDuties(factor int) Option {
 		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			// if indices slice is empty then it would use 0th index or in that case first validator will be the proposer always
 			// this would be the case when validator calls for block proposer and expects proposer duties from beacon node.
-			if indices == nil || len(indices) == 0 {
+			if len(indices) == 0 {
 				indices = []eth2p0.ValidatorIndex{0}
 			}
 

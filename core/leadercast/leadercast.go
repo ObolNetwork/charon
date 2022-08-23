@@ -50,13 +50,13 @@ type LeaderCast struct {
 	subs []func(context.Context, core.Duty, core.UnsignedDataSet) error
 }
 
-func (l *LeaderCast) Run(ctx context.Context) error {
+func (l *LeaderCast) Run(ctx context.Context) {
 	ctx = log.WithTopic(ctx, "lcast")
 
 	for {
 		source, duty, data, err := l.transport.AwaitNext(ctx)
 		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
-			return nil
+			return
 		} else if err != nil {
 			log.Error(ctx, "Await next leader duty", err)
 			continue

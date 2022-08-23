@@ -97,7 +97,7 @@ func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr
 	for pk, sig := range aggSigs {
 		blsPubKey, err := tblsconv.KeyFromCore(pk)
 		if err != nil {
-			return nil
+			return err
 		}
 
 		pubkey, err := tblsconv.KeyToETH2(blsPubKey)

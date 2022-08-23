@@ -16,11 +16,11 @@
 // Command compose provides a tool to run, test, debug local charon clusters
 // using docker-compose.
 //
-//  It consists of multiple steps:
-//   - compose new: Creates a new config.json that defines what will be composed.
-//   - compose define: Creates a docker-compose.yml that executes `charon create dkg` if keygen==dkg.
-//   - compose lock: Creates a docker-compose.yml that executes `charon create cluster` or `charon dkg`.
-//   - compose run: Creates a docker-compose.yml that executes `charon run`.
+//	It consists of multiple steps:
+//	 - compose new: Creates a new config.json that defines what will be composed.
+//	 - compose define: Creates a docker-compose.yml that executes `charon create dkg` if keygen==dkg.
+//	 - compose lock: Creates a docker-compose.yml that executes `charon create cluster` or `charon dkg`.
+//	 - compose run: Creates a docker-compose.yml that executes `charon run`.
 package main
 
 import (
@@ -198,10 +198,7 @@ func newAutoCmd(tmplCallbacks map[string]func(data *compose.TmplData)) *cobra.Co
 			defer cancel()
 		}
 
-		alerts, err := startAlertCollector(ctx, *dir)
-		if err != nil {
-			return err
-		}
+		alerts := startAlertCollector(ctx, *dir)
 
 		defer func() {
 			_ = execDown(rootCtx, *dir)

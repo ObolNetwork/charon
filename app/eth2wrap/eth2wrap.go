@@ -157,7 +157,8 @@ func submit(ctx context.Context, clients []Client, work func(context.Context, Cl
 
 // latency measures endpoint latency.
 // Usage:
-//  defer latency("endpoint")()
+//
+//	defer latency("endpoint")()
 func latency(endpoint string) func() {
 	t0 := time.Now()
 	return func() {

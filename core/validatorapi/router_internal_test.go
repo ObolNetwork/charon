@@ -155,7 +155,7 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		callback := func(_ context.Context, baseURL string) {
-			req, err := http.NewRequestWithContext(cctx, "GET", baseURL+"/eth/v1/beacon/states/head/validators/12", nil)
+			req, err := http.NewRequestWithContext(cctx, http.MethodGet, baseURL+"/eth/v1/beacon/states/head/validators/12", nil)
 			require.NoError(t, err)
 
 			_, err = new(http.Client).Do(req)
