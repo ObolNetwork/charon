@@ -674,20 +674,11 @@ func (s SignedRandao) Clone() (SignedData, error) {
 }
 
 func (s SignedRandao) MarshalJSON() ([]byte, error) {
-	resp, err := json.Marshal(s.SignedEpoch)
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal signed randao")
-	}
-
-	return resp, nil
+	return s.SignedEpoch.MarshalJSON()
 }
 
 func (s *SignedRandao) UnmarshalJSON(input []byte) error {
-	if err := json.Unmarshal(input, &s.SignedEpoch); err != nil {
-		return errors.Wrap(err, "unmarshal signed randao")
-	}
-
-	return nil
+	return s.SignedEpoch.UnmarshalJSON(input)
 }
 
 func (s SignedRandao) clone() (SignedRandao, error) {
