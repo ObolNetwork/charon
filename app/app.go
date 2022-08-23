@@ -91,14 +91,12 @@ type Config struct {
 
 // TestConfig defines additional test-only config.
 type TestConfig struct {
+	p2p.TestPingConfig
+
 	// Lock provides the lock explicitly, skips loading from disk.
 	Lock *cluster.Lock
 	// P2PKey provides the p2p privkey explicitly, skips loading from keystore on disk.
 	P2PKey *ecdsa.PrivateKey
-	// DisablePing disables the ping service.
-	DisablePing bool
-	// PingCallback is called when a ping was completed to a peer.
-	PingCallback func(peer.ID)
 	// ParSigExFunc provides an in-memory partial signature exchange.
 	ParSigExFunc func() core.ParSigEx
 	// LcastTransportFunc provides an in-memory leader cast transport.
@@ -266,12 +264,6 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return nil, nil, err
 	}
 
-	if !conf.TestConfig.DisablePing {
-		startPing := p2p.NewPingService(tcpNode, peerIDs, conf.TestConfig.PingCallback)
-
-		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, lifecycle.HookFuncCtx(startPing))
-	}
-
 	life.RegisterStop(lifecycle.StopP2PPeerDB, lifecycle.HookFuncMin(peerDB.Close))
 	life.RegisterStop(lifecycle.StopP2PTCPNode, lifecycle.HookFuncErr(tcpNode.Close))
 	life.RegisterStop(lifecycle.StopP2PUDPNode, lifecycle.HookFuncMin(udpNode.Close))
@@ -279,6 +271,8 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	for _, relay := range relays {
 		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(tcpNode, relay))
 	}
+
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, p2p.NewPingService(tcpNode, peerIDs, conf.TestConfig.TestPingConfig))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PEventCollector, p2p.NewEventCollector(tcpNode))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewDiscoveryRouter(tcpNode, udpNode, peers))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewRelayRouter(tcpNode, peers, relays))

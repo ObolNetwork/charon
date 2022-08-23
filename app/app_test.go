@@ -175,9 +175,12 @@ func pingCluster(t *testing.T, test pingTest) {
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: testutil.AvailableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
+				TestPingConfig: p2p.TestPingConfig{
+					Callback:   asserter.Callback(t, i),
+					MaxBackoff: time.Second,
+				},
 				Lock:            &lock,
 				P2PKey:          p2pKeys[i],
-				PingCallback:    asserter.Callback(t, i),
 				DisablePromWrap: true,
 				SimnetBMockOpts: []beaconmock.Option{
 					beaconmock.WithNoAttesterDuties(),
