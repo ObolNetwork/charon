@@ -37,7 +37,7 @@ type NodeIdx struct {
 	ShareIdx int
 }
 
-// NewDefinition returns a new definition with populated latest version, timestamp and UUID.
+// NewDefinition returns a new definition populated with the latest version, timestamp and UUID.
 func NewDefinition(name string, numVals int, threshold int, feeRecipient string, withdrawalAddress string,
 	forkVersionHex string, operators []Operator, random io.Reader,
 ) Definition {
