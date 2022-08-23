@@ -390,8 +390,7 @@ func newPeer(conf clusterConfig, peerIdx int) (p2p.Peer, error) {
 	}
 
 	var r enr.Record
-	err = enode.SignV4(&r, p2pKey)
-	if err != nil {
+	if err = enode.SignV4(&r, p2pKey); err != nil {
 		return p2p.Peer{}, errors.Wrap(err, "enode sign")
 	}
 

@@ -16,12 +16,18 @@
 package p2p_test
 
 import (
+	"bytes"
+	"encoding/base64"
+	"math/rand"
 	"testing"
+	"time"
 
+	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestDecodeENR(t *testing.T) {
@@ -51,7 +57,28 @@ func TestDecodeENR_InvalidRLP(t *testing.T) {
 }
 
 func TestDecodeENR_Oversize(t *testing.T) {
-	_, err := p2p.DecodeENR("enr:-IS4QBnEa-Oftjk7-sGRAY7IrvL5YjATdcHbqR5l2aXX2M25CiawfwaXh0k9hm98dCfdnqhz9mE-BfemFdjuL9KtHqgBgmlkgnY0gmlwhB72zxGJc2VjcDI1NmsxoQMaK8SspTrUgB8IYVI3qDgFYsHymPVsWlvIW477kxaKUIN0Y3CCJpUAAAA=")
+	_, err := p2p.DecodeENR("enr:-IS4QBnEa-Oftjk7-sGRAY7IrvL5YjATdcHbqR5l2aXX2M25CiawfwaXh0k9hm98dCfdnqhz9mE-BfemFdjuL9KtHqgBgmlkgnY0gmlwhB72zxGJc2VjcDI1NmsxoQMaK8SspTrUgB8IYVI3qDgFYsHymPVsWlvIW477kxaKUIN0Y3CCJpUAAAA")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "input contains more than one value")
+}
+
+func TestBackwardsENR(t *testing.T) {
+	random := rand.New(rand.NewSource(time.Now().Unix()))
+	for i := 0; i < 100; i++ {
+		_, record := testutil.RandomENR(t, random)
+		enrStr := encodeOldVersion(t, record)
+
+		_, err := p2p.DecodeENR(enrStr)
+		require.NoError(t, err)
+	}
+}
+
+// encodeOldVersion returns encoded ENR string with padding which is supported by v0.9.0 or earlier.
+func encodeOldVersion(t *testing.T, r enr.Record) string {
+	t.Helper()
+
+	var buf bytes.Buffer
+	require.NoError(t, r.EncodeRLP(&buf))
+
+	return "enr:" + base64.URLEncoding.EncodeToString(buf.Bytes())
 }

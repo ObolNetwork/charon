@@ -318,8 +318,7 @@ func keyToENR(key *ecdsa.PrivateKey) (string, error) {
 	var r enr.Record
 	r.SetSeq(0)
 
-	err := enode.SignV4(&r, key)
-	if err != nil {
+	if err := enode.SignV4(&r, key); err != nil {
 		return "", errors.Wrap(err, "sign enr")
 	}
 
