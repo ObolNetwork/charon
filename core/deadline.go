@@ -20,22 +20,15 @@ import (
 	"testing"
 	"time"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 )
 
 // lateFactor defines the number of slots duties may be late.
 // See https://pintail.xyz/posts/modelling-the-impact-of-altair/#proposer-and-delay-rewards.
 const lateFactor = 5
-
-// slotTimeProvider defines eth2client interface for resolving slot start times.
-type slotTimeProvider interface {
-	eth2client.GenesisTimeProvider
-	eth2client.SlotDurationProvider
-}
 
 // Deadliner provides duty Deadline functionality. The C method isn’t thread safe and
 // may only be used by a single goroutine. So, multiple instances are required
@@ -202,12 +195,7 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) (time.Time, 
 }
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
-func NewDutyDeadlineFunc(ctx context.Context, eth2Svc eth2client.Service) (func(Duty) (time.Time, bool), error) {
-	eth2Cl, ok := eth2Svc.(slotTimeProvider)
-	if !ok {
-		return nil, errors.New("invalid eth2 service")
-	}
-
+func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(Duty) (time.Time, bool), error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return nil, err

@@ -44,6 +44,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -71,7 +72,7 @@ type Handler interface {
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the validatorapi.Handler.
 // All other requests are reserve-proxied to the beacon-node address.
-func NewRouter(h Handler, eth2Cl eth2client.Service) (*mux.Router, error) {
+func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints
 	endpoints := []struct {
 		Name    string
@@ -151,12 +152,7 @@ func NewRouter(h Handler, eth2Cl eth2client.Service) (*mux.Router, error) {
 	}
 
 	// Everything else is proxied
-	proxy, err := proxyHandler(eth2Cl)
-	if err != nil {
-		return nil, err
-	}
-
-	r.PathPrefix("/").Handler(proxy)
+	r.PathPrefix("/").Handler(proxyHandler(eth2Cl))
 
 	return r, nil
 }
@@ -549,7 +545,7 @@ func tekuProposerConfig(p TekuProposerConfigProvider) handlerFunc {
 }
 
 // proxyHandler returns a reverse proxy handler.
-func proxyHandler(eth2Cl eth2client.Service) (http.HandlerFunc, error) {
+func proxyHandler(eth2Cl eth2wrap.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get active beacon node address.
 		targetURL, err := getBeaconNodeAddress(r.Context(), eth2Cl)
@@ -577,11 +573,11 @@ func proxyHandler(eth2Cl eth2client.Service) (http.HandlerFunc, error) {
 
 		defer observeAPILatency("proxy")()
 		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, r)
-	}, nil
+	}
 }
 
 // getBeaconNodeAddress returns an active beacon node proxy target address.
-func getBeaconNodeAddress(ctx context.Context, eth2Cl eth2client.Service) (*url.URL, error) {
+func getBeaconNodeAddress(ctx context.Context, eth2Cl eth2wrap.Client) (*url.URL, error) {
 	addr := eth2Cl.Address()
 	if addr == "none" {
 		// Trigger refresh of inactive clients to hopefully resolve any active clients.

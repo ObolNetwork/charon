@@ -44,7 +44,7 @@ import (
 
 func TestComponent_ValidSubmitAttestations(t *testing.T) {
 	ctx := context.Background()
-	eth2Svc, err := beaconmock.New()
+	eth2Cl, err := beaconmock.New()
 	require.NoError(t, err)
 
 	const (
@@ -62,7 +62,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
-	component, err := validatorapi.NewComponentInsecure(t, eth2Svc, 0)
+	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, 0)
 	require.NoError(t, err)
 
 	aggBitsA := bitfield.NewBitlist(commLen)
@@ -122,7 +122,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 
 func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 	ctx := context.Background()
-	eth2Svc, err := beaconmock.New()
+	eth2Cl, err := beaconmock.New()
 	require.NoError(t, err)
 
 	const (
@@ -133,7 +133,7 @@ func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 		commLen    = 8
 	)
 
-	component, err := validatorapi.NewComponentInsecure(t, eth2Svc, vIdx)
+	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, vIdx)
 	require.NoError(t, err)
 
 	aggBits := bitfield.NewBitlist(commLen)
@@ -322,7 +322,7 @@ func padTo(b []byte, size int) []byte {
 
 func TestComponent_BeaconBlockProposal(t *testing.T) {
 	ctx := context.Background()
-	eth2Svc, err := beaconmock.New()
+	eth2Cl, err := beaconmock.New()
 	require.NoError(t, err)
 
 	const (
@@ -330,7 +330,7 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 		vIdx = 1
 	)
 
-	component, err := validatorapi.NewComponentInsecure(t, eth2Svc, vIdx)
+	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, vIdx)
 	require.NoError(t, err)
 
 	pk, secret, err := tbls.Keygen()
@@ -617,7 +617,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 
 func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 	ctx := context.Background()
-	eth2Svc, err := beaconmock.New()
+	eth2Cl, err := beaconmock.New()
 	require.NoError(t, err)
 
 	const (
@@ -625,7 +625,7 @@ func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 		vIdx = 1
 	)
 
-	component, err := validatorapi.NewComponentInsecure(t, eth2Svc, vIdx)
+	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, vIdx)
 	require.NoError(t, err)
 
 	pk, secret, err := tbls.Keygen()

@@ -22,33 +22,18 @@ import (
 	"strings"
 	"time"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
 
-type eth2Provider interface {
-	eth2client.AttestationsSubmitter
-	eth2client.BeaconBlockSubmitter
-	eth2client.BlindedBeaconBlockSubmitter
-	eth2client.VoluntaryExitSubmitter
-	eth2client.GenesisTimeProvider
-	eth2client.SlotDurationProvider
-	eth2client.ValidatorRegistrationsSubmitter
-}
-
 // New returns a new broadcaster instance.
-func New(ctx context.Context, eth2Svc eth2client.Service) (Broadcaster, error) {
-	eth2Cl, ok := eth2Svc.(eth2Provider)
-	if !ok {
-		return Broadcaster{}, errors.New("invalid eth2 service")
-	}
-
+func New(ctx context.Context, eth2Cl eth2wrap.Client) (Broadcaster, error) {
 	delayFunc, err := newDelayFunc(ctx, eth2Cl)
 	if err != nil {
 		return Broadcaster{}, err
@@ -61,7 +46,7 @@ func New(ctx context.Context, eth2Svc eth2client.Service) (Broadcaster, error) {
 }
 
 type Broadcaster struct {
-	eth2Cl    eth2Provider
+	eth2Cl    eth2wrap.Client
 	delayFunc func(slot int64) time.Duration
 }
 
@@ -165,7 +150,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 }
 
 // newDelayFunc returns a function that calculates the delay since the start of a slot.
-func newDelayFunc(ctx context.Context, eth2Cl eth2Provider) (func(slot int64) time.Duration, error) {
+func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot int64) time.Duration, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return nil, err

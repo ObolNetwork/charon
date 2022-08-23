@@ -18,13 +18,13 @@ package signing
 import (
 	"context"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/tbls"
@@ -49,15 +49,8 @@ const (
 	// DomainContributionAndProof        DomainName = "DOMAIN_CONTRIBUTION_AND_PROOF".
 )
 
-// Eth2Provider is the subset of eth2 beacon api provider required to get a signing domain.
-type Eth2Provider interface {
-	eth2client.DomainProvider
-	eth2client.SlotsPerEpochProvider
-	eth2client.SpecProvider
-}
-
 // GetDomain returns the beacon domain for the provided type.
-func GetDomain(ctx context.Context, eth2Cl Eth2Provider, name DomainName, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
+func GetDomain(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
 	spec, err := eth2Cl.Spec(ctx)
 	if err != nil {
 		return eth2p0.Domain{}, err
@@ -78,7 +71,7 @@ func GetDomain(ctx context.Context, eth2Cl Eth2Provider, name DomainName, epoch 
 
 // GetDataRoot wraps the signing root with the domain and returns signing data hash tree root.
 // The result should be identical to what was signed by the VC.
-func GetDataRoot(ctx context.Context, eth2Cl Eth2Provider, name DomainName, epoch eth2p0.Epoch, root eth2p0.Root) ([32]byte, error) {
+func GetDataRoot(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, epoch eth2p0.Epoch, root eth2p0.Root) ([32]byte, error) {
 	domain, err := GetDomain(ctx, eth2Cl, name, epoch)
 	if err != nil {
 		return [32]byte{}, err
@@ -93,11 +86,11 @@ func GetDataRoot(ctx context.Context, eth2Cl Eth2Provider, name DomainName, epoc
 }
 
 // TODO(corevr): Create a function that calculates signing roots for all unsigned eth2 types.
-// func UnsignedRoot(ctx context.Context, eth2Cl Eth2Provider, unsigned interface{}) ([32]byte, error) {
+// func UnsignedRoot(ctx context.Context, eth2Cl eth2wrap.Client, unsigned interface{}) ([32]byte, error) {
 //
 //}
 
-func VerifyAttestation(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, att *eth2p0.Attestation) error {
+func VerifyAttestation(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, att *eth2p0.Attestation) error {
 	sigRoot, err := att.Data.HashTreeRoot()
 	if err != nil {
 		return errors.Wrap(err, "hash attestation data")
@@ -106,7 +99,7 @@ func VerifyAttestation(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig
 	return verify(ctx, eth2Cl, DomainBeaconAttester, att.Data.Target.Epoch, sigRoot, att.Signature, pubkey)
 }
 
-func VerifyBlock(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, block *spec.VersionedSignedBeaconBlock) error {
+func VerifyBlock(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, block *spec.VersionedSignedBeaconBlock) error {
 	slot, err := block.Slot()
 	if err != nil {
 		return err
@@ -138,7 +131,7 @@ func VerifyBlock(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.Publi
 	return verify(ctx, eth2Cl, DomainBeaconProposer, epoch, sigRoot, sig, pubkey)
 }
 
-func VerifyBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
+func VerifyBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
 	slot, err := block.Slot()
 	if err != nil {
 		return err
@@ -166,7 +159,7 @@ func VerifyBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_si
 	return verify(ctx, eth2Cl, DomainBeaconProposer, epoch, sigRoot, sig, pubkey)
 }
 
-func VerifyRandao(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, randao eth2p0.BLSSignature, slot eth2p0.Slot) error {
+func VerifyRandao(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, randao eth2p0.BLSSignature, slot eth2p0.Slot) error {
 	// Calculate slot epoch
 	epoch, err := epochFromSlot(ctx, eth2Cl, slot)
 	if err != nil {
@@ -181,7 +174,7 @@ func VerifyRandao(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.Publ
 	return verify(ctx, eth2Cl, DomainRandao, epoch, sigRoot, randao, pubkey)
 }
 
-func VerifyVoluntaryExit(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, exit *eth2p0.SignedVoluntaryExit) error {
+func VerifyVoluntaryExit(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, exit *eth2p0.SignedVoluntaryExit) error {
 	sigRoot, err := exit.Message.HashTreeRoot()
 	if err != nil {
 		return err
@@ -190,7 +183,7 @@ func VerifyVoluntaryExit(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_s
 	return verify(ctx, eth2Cl, DomainExit, exit.Message.Epoch, sigRoot, exit.Signature, pubkey)
 }
 
-func VerifyValidatorRegistration(ctx context.Context, eth2Cl Eth2Provider, pubkey *bls_sig.PublicKey, reg *eth2api.VersionedSignedValidatorRegistration) error {
+func VerifyValidatorRegistration(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, reg *eth2api.VersionedSignedValidatorRegistration) error {
 	sigRoot, err := reg.Root()
 	if err != nil {
 		return err
@@ -201,7 +194,7 @@ func VerifyValidatorRegistration(ctx context.Context, eth2Cl Eth2Provider, pubke
 }
 
 // verify returns an error if the signature doesn't match the eth2 domain signed root.
-func verify(ctx context.Context, eth2Cl Eth2Provider, domain DomainName, epoch eth2p0.Epoch,
+func verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoch eth2p0.Epoch,
 	sigRoot [32]byte, sig eth2p0.BLSSignature, pubshare *bls_sig.PublicKey,
 ) error {
 	ctx, span := tracer.Start(ctx, "eth2util.verify")
@@ -234,7 +227,7 @@ func verify(ctx context.Context, eth2Cl Eth2Provider, domain DomainName, epoch e
 	return nil
 }
 
-func epochFromSlot(ctx context.Context, eth2Cl Eth2Provider, slot eth2p0.Slot) (eth2p0.Epoch, error) {
+func epochFromSlot(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot) (eth2p0.Epoch, error) {
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
 		return 0, errors.Wrap(err, "getting slots per epoch")

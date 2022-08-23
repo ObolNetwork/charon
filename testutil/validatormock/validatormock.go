@@ -25,7 +25,6 @@ import (
 	"net/url"
 	"strings"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
@@ -36,6 +35,7 @@ import (
 	"github.com/prysmaticlabs/go-bitfield"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
@@ -43,30 +43,11 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-// Eth2Provider defines the eth2 beacon api providers required to perform attestations.
-type Eth2Provider interface {
-	eth2client.AttestationDataProvider
-	eth2client.AttestationsSubmitter
-	eth2client.AttesterDutiesProvider
-	eth2client.BeaconBlockProposalProvider
-	eth2client.BeaconBlockSubmitter
-	eth2client.BlindedBeaconBlockProposalProvider
-	eth2client.BlindedBeaconBlockSubmitter
-	eth2client.DomainProvider
-	eth2client.ProposerDutiesProvider
-	eth2client.Service
-	eth2client.SlotsPerEpochProvider
-	eth2client.SpecProvider
-	eth2client.ValidatorsProvider
-	eth2client.ValidatorRegistrationsSubmitter
-	// Above sorted alphabetically.
-}
-
 // SignFunc abstract signing done by the validator client.
 type SignFunc func(pubshare eth2p0.BLSPubKey, data []byte) (eth2p0.BLSSignature, error)
 
 // Attest performs attestation duties for the provided slot and pubkeys (validators).
-func Attest(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
+func Attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	slot eth2p0.Slot, pubkeys ...eth2p0.BLSPubKey,
 ) error {
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
@@ -134,7 +115,7 @@ func Attest(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 }
 
 // ProposeBlock proposes block for the given slot.
-func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
+func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	slot eth2p0.Slot, pubkeys ...eth2p0.BLSPubKey,
 ) error {
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
@@ -243,7 +224,7 @@ func ProposeBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
 }
 
 // ProposeBlindedBlock proposes blinded block for the given slot.
-func ProposeBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
+func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	slot eth2p0.Slot, pubkeys ...eth2p0.BLSPubKey,
 ) error {
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
@@ -344,7 +325,7 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl Eth2Provider, signFunc Sign
 }
 
 // Register signs and submits the validator builder registration to the validator API.
-func Register(ctx context.Context, eth2Cl Eth2Provider, signFunc SignFunc,
+func Register(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	registration *eth2api.VersionedValidatorRegistration, pubshare eth2p0.BLSPubKey,
 ) error {
 	sigRoot, err := registration.Root()

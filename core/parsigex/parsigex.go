@@ -20,7 +20,6 @@ import (
 	"io"
 	"time"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -29,6 +28,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -145,12 +145,7 @@ func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedD
 }
 
 // NewEth2Verifier returns a partial signature verification function for core workflow eth2 signatures.
-func NewEth2Verifier(eth2Svc eth2client.Service, pubSharesByKey map[core.PubKey]map[int]*bls_sig.PublicKey) (func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error, error) {
-	eth2Cl, ok := eth2Svc.(signing.Eth2Provider)
-	if !ok {
-		return nil, errors.New("invalid eth2 service")
-	}
-
+func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[int]*bls_sig.PublicKey) (func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error, error) {
 	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
 		pubshares, ok := pubSharesByKey[pubkey]
 		if !ok {
