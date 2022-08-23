@@ -111,8 +111,11 @@ func (m multi) Address() string {
 func provide[O any](ctx context.Context, clients []Client,
 	work forkjoin.Work[Client, O], isSuccess func(O) bool,
 ) (O, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	if isSuccess == nil {
-		isSuccess = func(o O) bool { return true }
+		isSuccess = func(O) bool { return true }
 	}
 
 	fork, join := forkjoin.New(ctx, work,

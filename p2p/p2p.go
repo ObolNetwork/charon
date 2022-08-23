@@ -139,7 +139,7 @@ type debugLogger struct {
 }
 
 func (n debugLogger) Listen(_ network.Network, addr ma.Multiaddr) {
-	log.Debug(n.ctx, "Libp2p listening on address", z.Any("address", addr.String()))
+	log.Debug(n.ctx, "Libp2p listening on address", z.Str("address", NamedAddr(addr)))
 }
 
 func (debugLogger) ListenClose(network.Network, ma.Multiaddr) {}
@@ -147,7 +147,7 @@ func (debugLogger) ListenClose(network.Network, ma.Multiaddr) {}
 func (n debugLogger) Connected(_ network.Network, conn network.Conn) {
 	log.Debug(n.ctx, "Libp2p new connection",
 		z.Str("peer", PeerName(conn.RemotePeer())),
-		z.Any("peer_address", conn.RemoteMultiaddr()),
+		z.Any("peer_address", NamedAddr(conn.RemoteMultiaddr())),
 		z.Any("direction", conn.Stat().Direction),
 	)
 }
