@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
@@ -44,7 +45,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Fatal("success at last")
+	log.Printf("success at last")
 }
 
 func getProjectData(client *githubv4.Client, org string, projectNumber int) error {
@@ -53,6 +54,7 @@ func getProjectData(client *githubv4.Client, org string, projectNumber int) erro
 		"number": githubv4.Int(projectNumber),
 	}
 
+	// Note that we query for the first 25 fields.
 	var query struct {
 		Organization struct {
 			ProjectV2 struct {
@@ -80,14 +82,16 @@ func getProjectData(client *githubv4.Client, org string, projectNumber int) erro
 							ID            githubv4.ID     `graphql:"id"`
 							Name          githubv4.String `graphql:"name"`
 							Configuration struct {
-								Iterations struct {
-									ID    githubv4.ID     `graphql:"id"`
-									Title githubv4.String `graphql:"title"`
+								Iterations []struct {
+									ID        githubv4.ID     `graphql:"id"`
+									Title     githubv4.String `graphql:"title"`
+									Duration  int             `graphql:"duration"`
+									StartDate string          `graphql:"startDate"`
 								} `graphql:"iterations"`
 							} `graphql:"configuration"`
 						} `graphql:"... on ProjectV2IterationField"`
 					} `graphql:"nodes"`
-				} `graphql:"fields(first:10)"`
+				} `graphql:"fields(first:25)"`
 			} `graphql:"projectV2(number: $number)"`
 		} `graphql:"organization(login: $org)"`
 	}
@@ -129,11 +133,24 @@ func getProjectData(client *githubv4.Client, org string, projectNumber int) erro
 			}
 		}
 
-		fmt.Println("possible", node.ProjectV2IterationField.Name)
-
-		// sprint iteration
+		// sprint iteration: https://docs.github.com/en/graphql/reference/objects#projectv2iterationfielditeration
 		if node.ProjectV2IterationField.Name == "Sprint" {
-			sprintFieldID = node.ProjectV2IterationField.ID
+			for _, iter := range node.ProjectV2IterationField.Configuration.Iterations {
+				layout := "2006-01-02"
+
+				startDate, err := time.Parse(layout, iter.StartDate)
+				if err != nil {
+					fmt.Println("error", err.Error())
+				}
+
+				endDate := startDate.AddDate(0, 0, iter.Duration)
+
+				currSprint := time.Now().Before(endDate)
+
+				if currSprint {
+					sprintFieldID = iter.ID
+				}
+			}
 		}
 	}
 
