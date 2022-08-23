@@ -300,7 +300,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 		Signature: randao,
 	}
 
-	parSig := core.NewPartialSignedRandao(sigEpoch, c.shareIdx)
+	parSig := core.NewPartialSignedRandao(sigEpoch.Epoch, sigEpoch.Signature, c.shareIdx)
 
 	// Verify randao signature
 	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
@@ -402,6 +402,8 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 		Signature: randao,
 	}
 
+	parSig := core.NewPartialSignedRandao(sigEpoch.Epoch, sigEpoch.Signature, c.shareIdx)
+
 	// Verify randao signature
 	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
 		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, sigEpoch)
@@ -411,7 +413,6 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 	}
 
 	duty := core.NewRandaoDuty(int64(slot))
-	parSig := core.NewPartialSignedRandao(sigEpoch, c.shareIdx)
 
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.

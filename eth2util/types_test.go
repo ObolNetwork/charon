@@ -27,7 +27,7 @@ import (
 func TestEpochHashRoot(t *testing.T) {
 	epoch := eth2util.SignedEpoch{Epoch: 2}
 
-	resp, err := epoch.EpochHashRoot()
+	resp, err := epoch.HashTreeRoot()
 	require.NoError(t, err)
 	require.Equal(t,
 		"0200000000000000000000000000000000000000000000000000000000000000",

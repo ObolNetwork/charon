@@ -152,7 +152,7 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		pubkey = duty.PubKey
 
 		// create randao reveal to propose block
-		sigRoot, err := eth2util.SignedEpoch{Epoch: epoch}.EpochHashRoot()
+		sigRoot, err := eth2util.SignedEpoch{Epoch: epoch}.HashTreeRoot()
 		if err != nil {
 			return err
 		}
@@ -261,7 +261,7 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 		pubkey = duty.PubKey
 
 		// create randao reveal to propose block
-		sigRoot, err := eth2util.SignedEpoch{Epoch: epoch}.EpochHashRoot()
+		sigRoot, err := eth2util.SignedEpoch{Epoch: epoch}.HashTreeRoot()
 		if err != nil {
 			return err
 		}

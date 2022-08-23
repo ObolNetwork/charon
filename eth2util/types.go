@@ -16,6 +16,8 @@
 package eth2util
 
 import (
+	"encoding/json"
+
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 
@@ -28,21 +30,52 @@ type SignedEpoch struct {
 	Signature eth2p0.BLSSignature
 }
 
-// EpochHashRoot returns the ssz hash root of the epoch.
-func (s SignedEpoch) EpochHashRoot() ([32]byte, error) {
-	hasher := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hasher)
+// GetTree ssz hashes the SignedEpoch object.
+func (s SignedEpoch) GetTree() (*ssz.Node, error) {
+	return ssz.ProofTree(s) //nolint:wrapcheck
+}
 
-	indx := hasher.Index()
+// HashTreeRoot ssz hashes the SignedEpoch object.
+func (s SignedEpoch) HashTreeRoot() ([32]byte, error) {
+	return ssz.HashWithDefaultHasher(s) //nolint:wrapcheck
+}
 
-	hasher.PutUint64(uint64(s.Epoch))
+// HashTreeRootWith ssz hashes the epoch from SignedEpoch.
+func (s SignedEpoch) HashTreeRootWith(hh ssz.HashWalker) error {
+	indx := hh.Index()
 
-	hasher.Merkleize(indx)
+	hh.PutUint64(uint64(s.Epoch))
 
-	hash, err := hasher.HashRoot()
+	hh.Merkleize(indx)
+
+	return nil
+}
+
+func (s SignedEpoch) MarshalJSON() ([]byte, error) {
+	resp, err := json.Marshal(signedEpochJSON{
+		Epoch:     s.Epoch,
+		Signature: s.Signature,
+	})
 	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash epoch")
+		return nil, errors.Wrap(err, "marshal signed epoch")
 	}
 
-	return hash, nil
+	return resp, nil
+}
+
+func (s *SignedEpoch) UnmarshalJSON(b []byte) error {
+	var resp signedEpochJSON
+	if err := json.Unmarshal(b, &resp); err != nil {
+		return errors.Wrap(err, "unmarshal signed epoch")
+	}
+
+	s.Epoch = resp.Epoch
+	s.Signature = resp.Signature
+
+	return nil
+}
+
+type signedEpochJSON struct {
+	Epoch     eth2p0.Epoch        `json:"epoch"`
+	Signature eth2p0.BLSSignature `json:"signature"`
 }

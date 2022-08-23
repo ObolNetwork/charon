@@ -160,7 +160,7 @@ func VerifyBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls
 }
 
 func VerifyRandao(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, randao eth2util.SignedEpoch) error {
-	sigRoot, err := randao.EpochHashRoot()
+	sigRoot, err := randao.HashTreeRoot()
 	if err != nil {
 		return err
 	}

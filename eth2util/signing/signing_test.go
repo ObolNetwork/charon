@@ -92,7 +92,7 @@ func TestVerifyDutyRandao(t *testing.T) {
 	require.NoError(t, err)
 
 	randao := eth2util.SignedEpoch{Epoch: eth2p0.Epoch(uint64(duty.Slot) / slotsPerEpoch)}
-	sigRoot, err := randao.EpochHashRoot()
+	sigRoot, err := randao.HashTreeRoot()
 	require.NoError(t, err)
 
 	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainRandao, randao.Epoch, sigRoot)
