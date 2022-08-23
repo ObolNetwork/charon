@@ -58,7 +58,7 @@ func verifySig(addr string, digest []byte, sig []byte) (bool, error) {
 	return actual == expect, nil
 }
 
-// signOperator return the operator with config hash and enr EIP712 signatures by the provided k1 private key.
+// signOperator returns the operator with signed config hash and enr.
 func signOperator(secret *ecdsa.PrivateKey, operator Operator, configHash [32]byte) (Operator, error) {
 	var err error
 	operator.ConfigSignature, err = signEIP712(secret, operator.Address, configHash[:])
@@ -104,7 +104,7 @@ func aggSign(secrets [][]*bls_sig.SecretKeyShare, message []byte) ([]byte, error
 	return b, nil
 }
 
-// signEIP712 signs the config hash digest and returns the signature.
+// signEIP712 signs the message and returns the signature.
 func signEIP712(secret *ecdsa.PrivateKey, address string, message []byte) ([]byte, error) {
 	const nonce = 0
 
@@ -121,7 +121,7 @@ func signEIP712(secret *ecdsa.PrivateKey, address string, message []byte) ([]byt
 	return sig, nil
 }
 
-// digestEIP712 returns EIP712 digest hash.
+// digestEIP712 returns a EIP712 digest hash.
 // See reference https://medium.com/alpineintel/issuing-and-verifying-eip-712-challenges-with-go-32635ca78aaf.
 func digestEIP712(address string, message []byte, nonce int) ([32]byte, error) {
 	signerData := apitypes.TypedData{
