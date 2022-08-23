@@ -64,7 +64,7 @@ func TestDecodeENR_Oversize(t *testing.T) {
 
 func TestBackwardsENR(t *testing.T) {
 	random := rand.New(rand.NewSource(time.Now().Unix()))
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 100; i++ {
 		_, record := testutil.RandomENR(t, random)
 		enrStr := encodeOldVersion(t, record)
 
@@ -73,6 +73,7 @@ func TestBackwardsENR(t *testing.T) {
 	}
 }
 
+// encodeOldVersion returns encoded ENR string with padding which is supported by v0.9.0 or earlier.
 func encodeOldVersion(t *testing.T, r enr.Record) string {
 	t.Helper()
 

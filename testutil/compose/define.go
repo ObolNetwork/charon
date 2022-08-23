@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"net"
 	"os"
 	"os/exec"
 	"path"
@@ -316,28 +315,10 @@ func copyStaticFolders(dir string) error {
 }
 
 func keyToENR(key *ecdsa.PrivateKey) (string, error) {
-	config := p2p.Config{
-		TCPAddrs: []string{"127.0.0.1:3610"},
-		UDPAddr:  "127.0.0.1:3630",
-	}
-
-	tcpAddrs, err := config.ParseTCPAddrs()
-	if err != nil {
-		return "", err
-	}
-
-	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
-	if err != nil {
-		return "", errors.Wrap(err, "resolve udp address")
-	}
-
 	var r enr.Record
-	r.Set(enr.IPv4(tcpAddrs[0].IP.To4()))
-	r.Set(enr.TCP(tcpAddrs[0].Port))
-	r.Set(enr.UDP(udpAddr.Port))
-	r.SetSeq(1)
+	r.SetSeq(0)
 
-	if err = enode.SignV4(&r, key); err != nil {
+	if err := enode.SignV4(&r, key); err != nil {
 		return "", errors.Wrap(err, "sign enr")
 	}
 

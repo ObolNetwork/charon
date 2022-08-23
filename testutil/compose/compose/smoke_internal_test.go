@@ -86,23 +86,24 @@ func TestSmoke(t *testing.T) {
 				conf.KeyGen = compose.KeyGenCreate
 			},
 		},
-		{
-			Name:     "run version matrix with dkg",
-			PrintYML: true,
-			ConfigFunc: func(conf *compose.Config) {
-				conf.KeyGen = compose.KeyGenDKG
-			},
-			DefineTmplFunc: func(data *compose.TmplData) {
-				// v8.0.0 of charon generates v1.0.0 definition files required by older versions.
-				pegImageTag(data.Nodes, 0, "v0.8.0")
-			},
-			RunTmplFunc: func(data *compose.TmplData) {
-				// Node 0 is latest
-				pegImageTag(data.Nodes, 1, "v0.8.0")
-				pegImageTag(data.Nodes, 2, "v0.8.0")
-				pegImageTag(data.Nodes, 3, "v0.7.0")
-			},
-		},
+		// TODO(dhruv): enable version matrix tests for dkg once we have compatible versions
+		//{
+		//	Name:     "run version matrix with dkg",
+		//	PrintYML: true,
+		//	ConfigFunc: func(conf *compose.Config) {
+		//		conf.KeyGen = compose.KeyGenDKG
+		//	},
+		//	DefineTmplFunc: func(data *compose.TmplData) {
+		//		// v0.8.0 of charon generates v1.0.0 definition files required by older versions.
+		//		pegImageTag(data.Nodes, 0, "v0.9.0")
+		//	},
+		//	RunTmplFunc: func(data *compose.TmplData) {
+		//		// Node 0 is latest
+		//		pegImageTag(data.Nodes, 1, "v0.8.0")
+		//		pegImageTag(data.Nodes, 2, "v0.8.0")
+		//		pegImageTag(data.Nodes, 3, "v0.7.0")
+		//	},
+		// },
 		{
 			Name: "teku versions", // TODO(corver): Do the same for lighthouse.
 			ConfigFunc: func(conf *compose.Config) {

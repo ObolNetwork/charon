@@ -38,6 +38,7 @@ func EncodeENR(record enr.Record) (string, error) {
 // See reference github.com/ethereum/go-ethereum@v1.10.10/p2p/dnsdisc/tree.go:378.
 func DecodeENR(enrStr string) (enr.Record, error) {
 	// Ensure backwards compatibility with older versions with encoded ENR strings.
+	// Older version ENR strings were base64 padded strings with "=" as padding character.
 	enrStr = strings.TrimRight(enrStr, "=")
 
 	node, err := enode.Parse(enode.V4ID{}, enrStr)
