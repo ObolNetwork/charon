@@ -134,7 +134,6 @@ func newNodeEnvs(index int, validatorMock bool, conf Config) []kv {
 		{"simnet-beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},
 		{"log-level", "debug"},
 		{"feature-set", conf.FeatureSet},
-		{"no-verify", `"true"`},
 	}
 }
 

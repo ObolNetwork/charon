@@ -140,6 +140,10 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 	def.DKGAlgorithm = conf.DKGAlgo
 
+	if err := def.Verify(); err != nil {
+		return err
+	}
+
 	b, err := json.MarshalIndent(def, "", " ")
 	if err != nil {
 		return errors.Wrap(err, "marshal definition")
