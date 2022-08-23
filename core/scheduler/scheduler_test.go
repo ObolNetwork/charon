@@ -25,12 +25,12 @@ import (
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/scheduler"
 	"github.com/obolnetwork/charon/testutil"
@@ -57,7 +57,7 @@ func TestIntegration(t *testing.T) {
 
 	ctx := context.Background()
 
-	eth2Cl, err := eth2http.New(ctx, eth2http.WithAddress(beaconURL), eth2http.WithLogLevel(infoLevel))
+	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second*2, beaconURL)
 	require.NoError(t, err)
 
 	// Use random actual mainnet validators

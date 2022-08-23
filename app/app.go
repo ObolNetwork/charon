@@ -212,9 +212,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	if err := wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs); err != nil {
-		return err
-	}
+	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs)
 
 	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, peerIDs); err != nil {
 		return err
@@ -283,7 +281,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 // wireCoreWorkflow wires the core workflow components.
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
-	eth2Cl eth2client.Service, peerIDs []peer.ID,
+	eth2Cl eth2wrap.Client, peerIDs []peer.ID,
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -500,7 +498,7 @@ func eth2PubKeys(validators []cluster.DistValidator) ([]eth2p0.BLSPubKey, error)
 // simnet or a multi http client to a real beacon node.
 func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 	validators []cluster.DistValidator,
-) (eth2client.Service, error) {
+) (eth2wrap.Client, error) {
 	pubkeys, err := eth2PubKeys(validators)
 	if err != nil {
 		return nil, err
@@ -597,7 +595,7 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 }
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
-func wireVAPIRouter(life *lifecycle.Manager, vapiAddr string, eth2Cl eth2client.Service, handler validatorapi.Handler) error {
+func wireVAPIRouter(life *lifecycle.Manager, vapiAddr string, eth2Cl eth2wrap.Client, handler validatorapi.Handler) error {
 	vrouter, err := validatorapi.NewRouter(handler, eth2Cl)
 	if err != nil {
 		return errors.Wrap(err, "new monitoring server")
@@ -655,7 +653,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 		return err
 	}
 
-	eth2Provider := newVMockEth2Provider(conf)
+	eth2Provider := newVMockEth2Client(conf)
 
 	// Trigger validatormock when scheduler triggers new slot.
 	sched.SubscribeDuties(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
@@ -694,14 +692,14 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	return nil
 }
 
-// newVMockEth2Provider returns a function that returns a cached validator mock eth2 provider.
-func newVMockEth2Provider(conf Config) func() (validatormock.Eth2Provider, error) {
+// newVMockEth2Client returns a function that returns a cached validator mock eth2 client.
+func newVMockEth2Client(conf Config) func() (eth2wrap.Client, error) {
 	var (
-		cached validatormock.Eth2Provider
+		cached eth2wrap.Client
 		mu     sync.Mutex
 	)
 
-	return func() (resp validatormock.Eth2Provider, err error) {
+	return func() (eth2wrap.Client, error) {
 		mu.Lock()
 		defer mu.Unlock()
 
@@ -710,6 +708,10 @@ func newVMockEth2Provider(conf Config) func() (validatormock.Eth2Provider, error
 		}
 
 		// Try three times to reduce test startup issues.
+		var (
+			eth2Cl eth2wrap.Client
+			err    error
+		)
 		for i := 0; i < 3; i++ {
 			var eth2Svc eth2client.Service
 			eth2Svc, err = eth2http.New(context.Background(),
@@ -723,15 +725,15 @@ func newVMockEth2Provider(conf Config) func() (validatormock.Eth2Provider, error
 			}
 
 			var ok bool
-			resp, ok = eth2Svc.(validatormock.Eth2Provider)
+			eth2Cl, ok = eth2Svc.(eth2wrap.Client)
 			if !ok {
 				return nil, errors.New("invalid eth2 service")
 			}
 
-			cached = resp
+			cached = eth2Cl
 		}
 
-		return resp, err
+		return eth2Cl, err
 	}
 }
 
@@ -764,7 +766,7 @@ func netVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.Si
 }
 
 // callValidatorMock calls appropriate validatormock function to attestation and block proposal.
-func callValidatorMock(ctx context.Context, duty core.Duty, eth2Cl validatormock.Eth2Provider,
+func callValidatorMock(ctx context.Context, duty core.Duty, eth2Cl eth2wrap.Client,
 	signer validatormock.SignFunc, pubshares []eth2p0.BLSPubKey,
 ) {
 	switch duty.Type {

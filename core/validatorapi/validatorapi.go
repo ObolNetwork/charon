@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
@@ -30,6 +29,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -37,34 +37,12 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-type eth2Provider interface {
-	eth2client.AttesterDutiesProvider
-	eth2client.BeaconBlockProposalProvider
-	eth2client.BeaconBlockSubmitter
-	eth2client.BlindedBeaconBlockSubmitter
-	eth2client.BlindedBeaconBlockProposalProvider
-	eth2client.DomainProvider
-	eth2client.GenesisTimeProvider
-	eth2client.ProposerDutiesProvider
-	eth2client.SlotDurationProvider
-	eth2client.SlotsPerEpochProvider
-	eth2client.SpecProvider
-	eth2client.ValidatorsProvider
-	eth2client.ValidatorRegistrationsSubmitter
-	// Above sorted alphabetically
-}
-
 // PubShareFunc abstracts the mapping of validator root public key to tbls public share.
 type PubShareFunc func(pubkey core.PubKey, shareIdx int) (*bls_sig.PublicKey, error)
 
 // NewComponentInsecure returns a new instance of the validator API core workflow component
 // that does not perform signature verification.
-func NewComponentInsecure(_ *testing.T, eth2Svc eth2client.Service, shareIdx int) (*Component, error) {
-	eth2Cl, ok := eth2Svc.(eth2Provider)
-	if !ok {
-		return nil, errors.New("invalid eth2 service")
-	}
-
+func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*Component, error) {
 	return &Component{
 		eth2Cl:   eth2Cl,
 		shareIdx: shareIdx,
@@ -74,14 +52,9 @@ func NewComponentInsecure(_ *testing.T, eth2Svc eth2client.Service, shareIdx int
 }
 
 // NewComponent returns a new instance of the validator API core workflow component.
-func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey,
+func NewComponent(eth2Cl eth2wrap.Client, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey,
 	shareIdx int, feeRecipient string,
 ) (*Component, error) {
-	eth2Cl, ok := eth2Svc.(eth2Provider)
-	if !ok {
-		return nil, errors.New("invalid eth2 service")
-	}
-
 	// Create pubkey mappings.
 	var (
 		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
@@ -149,7 +122,7 @@ func NewComponent(eth2Svc eth2client.Service, pubShareByKey map[*bls_sig.PublicK
 }
 
 type Component struct {
-	eth2Cl       eth2Provider
+	eth2Cl       eth2wrap.Client
 	shareIdx     int
 	insecureTest bool
 	feeRecipient string

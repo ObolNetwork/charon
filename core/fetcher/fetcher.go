@@ -19,29 +19,17 @@ import (
 	"context"
 	"fmt"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
 
-// eth2Provider defines the eth2 provider subset used by this package.
-type eth2Provider interface {
-	eth2client.AttestationDataProvider
-	eth2client.BeaconBlockProposalProvider
-	eth2client.BlindedBeaconBlockProposalProvider
-}
-
 // New returns a new fetcher instance.
-func New(eth2Svc eth2client.Service) (*Fetcher, error) {
-	eth2Cl, ok := eth2Svc.(eth2Provider)
-	if !ok {
-		return nil, errors.New("invalid eth2 service")
-	}
-
+func New(eth2Cl eth2wrap.Client) (*Fetcher, error) {
 	return &Fetcher{
 		eth2Cl: eth2Cl,
 	}, nil
@@ -49,7 +37,7 @@ func New(eth2Svc eth2client.Service) (*Fetcher, error) {
 
 // Fetcher fetches proposed duty data.
 type Fetcher struct {
-	eth2Cl       eth2Provider
+	eth2Cl       eth2wrap.Client
 	subs         []func(context.Context, core.Duty, core.UnsignedDataSet) error
 	aggSigDBFunc func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 }

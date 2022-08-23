@@ -50,24 +50,13 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 )
 
 // Interface assertions.
 var (
-	_ HTTPMock                                      = Mock{}
-	_ eth2client.AttestationDataProvider            = Mock{}
-	_ eth2client.AttestationsSubmitter              = Mock{}
-	_ eth2client.AttesterDutiesProvider             = Mock{}
-	_ eth2client.BlindedBeaconBlockProposalProvider = Mock{}
-	_ eth2client.BlindedBeaconBlockSubmitter        = Mock{}
-	_ eth2client.BeaconBlockProposalProvider        = Mock{}
-	_ eth2client.BeaconBlockSubmitter               = Mock{}
-	_ eth2client.ProposerDutiesProvider             = Mock{}
-	_ eth2client.Service                            = Mock{}
-	_ eth2client.ValidatorsProvider                 = Mock{}
-	_ eth2client.VoluntaryExitSubmitter             = Mock{}
-	_ eth2client.EventsProvider                     = Mock{}
-	_ eth2client.ValidatorRegistrationsSubmitter    = Mock{}
+	_ HTTPMock        = Mock{}
+	_ eth2wrap.Client = Mock{}
 )
 
 // New returns a new beacon client mock configured with the default and provided options.
@@ -122,7 +111,7 @@ func defaultHTTPMock() Mock {
 	}
 }
 
-// Mock provides a mock beacon client and implements eth2client.Service and many of the eth2client Providers.
+// Mock provides a mock beacon client and implements eth2wrap.Client.
 // Create a new instance with default behaviour via New and then override any function.
 type Mock struct {
 	HTTPMock

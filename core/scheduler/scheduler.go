@@ -22,40 +22,27 @@ import (
 	"testing"
 	"time"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
-
-// eth2Provider defines the eth2 provider subset used by this package.
-type eth2Provider interface {
-	eth2client.AttesterDutiesProvider
-	eth2client.EventsProvider
-	eth2client.GenesisTimeProvider
-	eth2client.NodeSyncingProvider
-	eth2client.ProposerDutiesProvider
-	eth2client.SlotDurationProvider
-	eth2client.SlotsPerEpochProvider
-	eth2client.ValidatorsProvider
-	// Above sorted alphabetically.
-}
 
 // delayFunc abstracts slot offset delaying/sleeping for deterministic tests.
 type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
 
 // NewForT returns a new scheduler for testing supporting a fake clock.
 func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys []core.PubKey,
-	eth2Svc eth2client.Service, builderAPI bool,
+	eth2Cl eth2wrap.Client, builderAPI bool,
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(pubkeys, eth2Svc, builderAPI)
+	s, err := New(pubkeys, eth2Cl, builderAPI)
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -65,12 +52,7 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys [
 }
 
 // New returns a new scheduler.
-func New(pubkeys []core.PubKey, eth2Svc eth2client.Service, builderAPI bool) (*Scheduler, error) {
-	eth2Cl, ok := eth2Svc.(eth2Provider)
-	if !ok {
-		return nil, errors.New("invalid eth2 client service")
-	}
-
+func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderAPI bool) (*Scheduler, error) {
 	return &Scheduler{
 		eth2Cl:  eth2Cl,
 		pubkeys: pubkeys,
@@ -86,7 +68,7 @@ func New(pubkeys []core.PubKey, eth2Svc eth2client.Service, builderAPI bool) (*S
 }
 
 type Scheduler struct {
-	eth2Cl        eth2Provider
+	eth2Cl        eth2wrap.Client
 	pubkeys       []core.PubKey
 	quit          chan struct{}
 	clock         clockwork.Clock
@@ -436,7 +418,7 @@ func (s *Scheduler) isEpochResolved(epoch uint64) bool {
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
 // It is also populated with the current slot immediately.
-func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clock) (<-chan core.Slot, error) {
+func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) (<-chan core.Slot, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return nil, err
@@ -483,7 +465,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clo
 }
 
 // resolveActiveValidators returns the active validators (including their validator index) for the slot.
-func resolveActiveValidators(ctx context.Context, eth2Cl eth2Provider,
+func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 	pubkeys []core.PubKey, slot int64,
 ) (validators, error) {
 	var e2pks []eth2p0.BLSPubKey
@@ -528,7 +510,7 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2Provider,
 }
 
 // waitChainStart blocks until the beacon chain has started.
-func waitChainStart(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clock) {
+func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
 	for {
 		genesis, err := eth2Cl.GenesisTime(ctx)
 		if err != nil {
@@ -553,7 +535,7 @@ func waitChainStart(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Cl
 }
 
 // waitBeaconSync blocks until the beacon node is synced.
-func waitBeaconSync(ctx context.Context, eth2Cl eth2Provider, clock clockwork.Clock) {
+func waitBeaconSync(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
 	for {
 		state, err := eth2Cl.NodeSyncing(ctx)
 		if err != nil {

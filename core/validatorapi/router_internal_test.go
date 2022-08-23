@@ -38,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -52,7 +53,7 @@ func TestRouterIntegration(t *testing.T) {
 		t.Skip("Skipping integration test since BEACON_URL not found")
 	}
 
-	r, err := NewRouter(Handler(nil), testBeaconAddr(beaconURL))
+	r, err := NewRouter(Handler(nil), testBeaconAddr{addr: beaconURL})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -551,7 +552,7 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(handler, testBeaconAddr(proxy.URL))
+	r, err := NewRouter(handler, testBeaconAddr{addr: proxy.URL})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -572,7 +573,7 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(handler, testBeaconAddr(proxy.URL))
+	r, err := NewRouter(handler, testBeaconAddr{addr: proxy.URL})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -701,12 +702,11 @@ func nest(data interface{}, nests ...string) interface{} {
 }
 
 // testBeaconAddr implements eth2client.Service only returning an address.
-type testBeaconAddr string
-
-func (t testBeaconAddr) Name() string {
-	return string(t)
+type testBeaconAddr struct {
+	eth2wrap.Client
+	addr string
 }
 
 func (t testBeaconAddr) Address() string {
-	return string(t)
+	return t.addr
 }

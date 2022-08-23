@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/cluster"
 )
@@ -43,7 +44,9 @@ var (
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
-func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string, localNode *enode.LocalNode, tcpNode host.Host, eth2Svc eth2client.Service, peerIDs []peer.ID) error {
+func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string,
+	localNode *enode.LocalNode, tcpNode host.Host, eth2Cl eth2wrap.Client, peerIDs []peer.ID,
+) {
 	mux := http.NewServeMux()
 
 	// Serve prometheus metrics
@@ -58,11 +61,6 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 	mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		writeResponse(w, http.StatusOK, "ok")
 	}))
-
-	eth2Cl, ok := eth2Svc.(eth2client.NodeSyncingProvider)
-	if !ok {
-		return errors.New("invalid eth2 service")
-	}
 
 	readyErrFunc := startReadyChecker(ctx, tcpNode, eth2Cl, peerIDs, clockwork.NewRealClock())
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
@@ -89,8 +87,6 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))
 	life.RegisterStop(lifecycle.StopMonitoringAPI, lifecycle.HookFunc(server.Shutdown))
-
-	return nil
 }
 
 // startReadyChecker returns function which returns an error resulting from ready checks periodically.

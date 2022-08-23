@@ -72,7 +72,6 @@ issues:
     - path: '(.+)_test\.go'
       linters:
         - bodyclose
-        - exhaustruct
         - gosec
         - noctx
         - revive
@@ -83,6 +82,7 @@ issues:
     - "shadows an import name" # Relax revive
     - "confusing-naming" # Relax revive
     - "shadow: declaration of \"err\" shadows declaration" # Relax govet
+    - "bls_sig contains underscore" # Relax nosnakecase
 
 linters:
   enable-all: true
@@ -91,6 +91,7 @@ linters:
     - containedctx
     - cyclop
     - exhaustivestruct
+    - exhaustruct
     - funlen
     - forcetypeassert
     - gci

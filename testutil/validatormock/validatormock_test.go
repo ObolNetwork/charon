@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 	"github.com/obolnetwork/charon/testutil/validatormock"
@@ -135,8 +136,8 @@ func TestProposeBlock(t *testing.T) {
 	defer mockVAPI.Close()
 
 	provider := addrWrap{
-		Eth2Provider: beaconMock,
-		addr:         mockVAPI.URL,
+		Client: beaconMock,
+		addr:   mockVAPI.URL,
 	}
 
 	// Call propose block function
@@ -183,8 +184,8 @@ func TestProposeBlindedBlock(t *testing.T) {
 	defer mockVAPI.Close()
 
 	provider := addrWrap{
-		Eth2Provider: beaconMock,
-		addr:         mockVAPI.URL,
+		Client: beaconMock,
+		addr:   mockVAPI.URL,
 	}
 
 	// Call propose block function
@@ -193,7 +194,7 @@ func TestProposeBlindedBlock(t *testing.T) {
 }
 
 type addrWrap struct {
-	validatormock.Eth2Provider
+	eth2wrap.Client
 	addr string
 }
 
