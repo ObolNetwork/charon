@@ -330,6 +330,11 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 		vIdx = 1
 	)
 
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(context.Background())
+	require.NoError(t, err)
+
+	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
+
 	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, vIdx)
 	require.NoError(t, err)
 
@@ -362,7 +367,7 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 
 	component.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		require.Equal(t, set, core.ParSignedDataSet{
-			pubkey: core.NewPartialSignature(core.SigFromETH2(randao), vIdx),
+			pubkey: core.NewPartialSignedRandao(epoch, randao, vIdx),
 		})
 		require.Equal(t, duty, core.NewRandaoDuty(slot))
 
@@ -619,6 +624,11 @@ func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 		vIdx = 1
 	)
 
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(context.Background())
+	require.NoError(t, err)
+
+	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
+
 	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, vIdx)
 	require.NoError(t, err)
 
@@ -651,7 +661,7 @@ func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 
 	component.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		require.Equal(t, set, core.ParSignedDataSet{
-			pubkey: core.NewPartialSignature(core.SigFromETH2(randao), vIdx),
+			pubkey: core.NewPartialSignedRandao(epoch, randao, vIdx),
 		})
 		require.Equal(t, duty, core.NewRandaoDuty(slot))
 

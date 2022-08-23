@@ -369,7 +369,7 @@ type ParSignedData struct {
 
 ```
 
-The following `SignedData` implementations are provided: `Attestation`, `VersionedSignedBeaconBlock`, `VersionedSignedBlindedBeaconBlock`, `SignedVoluntaryExit`, `VersionedSignedValidatorRegistration` and `Signature` which is just a signature without any data used for `DutyRandao`.
+The following `SignedData` implementations are provided: `Attestation`, `VersionedSignedBeaconBlock`, `VersionedSignedBlindedBeaconBlock`, `SignedVoluntaryExit`, `VersionedSignedValidatorRegistration` and `SignedRandao` which is used for `DutyRandao`.
 
 Multiple `ParSignedData` are combined into a single `ParSignedDataSet` defines as follows:
 ```go

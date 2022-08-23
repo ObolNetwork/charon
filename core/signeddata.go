@@ -637,7 +637,8 @@ func (r *VersionedSignedValidatorRegistration) UnmarshalJSON(input []byte) error
 	return nil
 }
 
-func NewPartiallySignedRandao(epoch eth2p0.Epoch, sig eth2p0.BLSSignature, shareIdx int) ParSignedData {
+// NewPartialSignedRandao is a convenience function that returns a new partially signed Randao Reveal.
+func NewPartialSignedRandao(epoch eth2p0.Epoch, sig eth2p0.BLSSignature, shareIdx int) ParSignedData {
 	return ParSignedData{
 		SignedData: SignedRandao{
 			Epoch:        epoch,
@@ -647,6 +648,7 @@ func NewPartiallySignedRandao(epoch eth2p0.Epoch, sig eth2p0.BLSSignature, share
 	}
 }
 
+// SignedRandao is a signed Randao Reveal which implements SignedData.
 type SignedRandao struct {
 	Epoch        eth2p0.Epoch
 	BLSSignature eth2p0.BLSSignature
@@ -657,7 +659,14 @@ func (s SignedRandao) Signature() Signature {
 }
 
 func (s SignedRandao) SetSignature(sig Signature) (SignedData, error) {
-	return nil, nil
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.BLSSignature = sig.ToETH2()
+
+	return resp, nil
 }
 
 func (s SignedRandao) Clone() (SignedData, error) {
@@ -665,10 +674,26 @@ func (s SignedRandao) Clone() (SignedData, error) {
 }
 
 func (s SignedRandao) MarshalJSON() ([]byte, error) {
-	return nil, nil
+	resp, err := json.Marshal(signedRandaoJSON{
+		Epoch:        s.Epoch,
+		BLSSignature: s.BLSSignature,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal signed randao")
+	}
+
+	return resp, nil
 }
 
 func (s *SignedRandao) UnmarshalJSON(input []byte) error {
+	var randao signedRandaoJSON
+	if err := json.Unmarshal(input, &randao); err != nil {
+		return errors.Wrap(err, "unmarshal signed randao")
+	}
+
+	s.Epoch = randao.Epoch
+	s.BLSSignature = randao.BLSSignature
+
 	return nil
 }
 

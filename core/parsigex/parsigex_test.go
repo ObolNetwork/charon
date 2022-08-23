@@ -39,7 +39,11 @@ import (
 )
 
 func TestParSigEx(t *testing.T) {
-	n := 3
+	const (
+		n        = 3
+		epoch    = 123
+		shareIdx = 0
+	)
 	duty := core.Duty{
 		Slot: 123,
 		Type: core.DutyRandao,
@@ -47,7 +51,7 @@ func TestParSigEx(t *testing.T) {
 
 	pubkey := testutil.RandomCorePubKey(t)
 	data := core.ParSignedDataSet{
-		pubkey: core.NewPartialSignature(testutil.RandomCoreSignature(), 0),
+		pubkey: core.NewPartialSignedRandao(epoch, testutil.RandomEth2Signature(), shareIdx),
 	}
 
 	var (
@@ -192,7 +196,7 @@ func TestParSigExVerifier(t *testing.T) {
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainRandao, epoch, sigRoot)
 		require.NoError(t, err)
-		randao := core.NewPartialSignature(core.SigFromETH2(sign(sigData[:])), shareIdx)
+		randao := core.NewPartialSignedRandao(epoch, sign(sigData[:]), shareIdx)
 
 		require.NoError(t, verifyFunc(ctx, core.NewRandaoDuty(slot), pubkey, randao))
 	})

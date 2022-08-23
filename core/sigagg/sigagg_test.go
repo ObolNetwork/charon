@@ -99,6 +99,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	ctx := context.Background()
 
 	const (
+		epoch     = 123
 		threshold = 3
 		peers     = 4
 	)
@@ -119,7 +120,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 		require.NoError(t, err)
 
 		sig := tblsconv.SigToETH2(tblsconv.SigFromPartial(psig))
-		parsig := core.NewPartialSignature(core.SigFromETH2(sig), int(psig.Identifier))
+		parsig := core.NewPartialSignedRandao(epoch, sig, int(psig.Identifier))
 
 		psigs = append(psigs, psig)
 		parsigs = append(parsigs, parsig)

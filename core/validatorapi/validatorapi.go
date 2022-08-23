@@ -289,12 +289,16 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 		return nil, err
 	}
 
-	// TODO(corver): Refactor RANDAO partial signature to contain epoch.
-	parSig := core.NewPartialSignature(core.SigFromETH2(randao), c.shareIdx)
+	epoch, err := c.epochFromSlot(ctx, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	parSig := core.NewPartialSignedRandao(epoch, randao, c.shareIdx)
 
 	// Verify randao signature
 	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, randao, slot)
+		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, randao, epoch)
 	})
 	if err != nil {
 		return nil, err
@@ -382,16 +386,21 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 		return nil, err
 	}
 
+	epoch, err := c.epochFromSlot(ctx, slot)
+	if err != nil {
+		return nil, err
+	}
+
 	// Verify randao signature
 	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, randao, slot)
+		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, randao, epoch)
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	duty := core.NewRandaoDuty(int64(slot))
-	parSig := core.NewPartialSignature(core.SigFromETH2(randao), c.shareIdx)
+	parSig := core.NewPartialSignedRandao(epoch, randao, c.shareIdx)
 
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.
@@ -664,6 +673,15 @@ func (c Component) slotFromTimestamp(ctx context.Context, timestamp time.Time) (
 	delta := timestamp.Sub(genesis)
 
 	return eth2p0.Slot(delta / slotDuration), nil
+}
+
+func (c Component) epochFromSlot(ctx context.Context, slot eth2p0.Slot) (eth2p0.Epoch, error) {
+	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "getting slots per epoch")
+	}
+
+	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }
 
 func (c Component) getProposerPubkey(ctx context.Context, duty core.Duty) (core.PubKey, error) {

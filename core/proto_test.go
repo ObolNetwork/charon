@@ -202,7 +202,7 @@ func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
 	return map[core.DutyType]core.SignedData{
 		core.DutyAttester: core.Attestation{Attestation: *testutil.RandomAttestation()},
 		core.DutyExit:     core.SignedVoluntaryExit{SignedVoluntaryExit: *testutil.RandomExit()},
-		core.DutyRandao:   testutil.RandomCoreSignature(),
+		core.DutyRandao:   core.SignedRandao{Epoch: testutil.RandomEpoch(), BLSSignature: testutil.RandomEth2Signature()},
 		core.DutyProposer: core.VersionedSignedBeaconBlock{
 			VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
 				Version: spec.DataVersionBellatrix,

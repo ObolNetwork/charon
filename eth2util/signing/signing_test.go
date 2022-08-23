@@ -100,7 +100,7 @@ func TestVerifyDutyRandao(t *testing.T) {
 
 	sig, pubkey := sign(t, sigData[:])
 
-	require.NoError(t, signing.VerifyRandao(context.Background(), bmock, pubkey, tblsconv.SigToETH2(sig), eth2p0.Slot(duty.Slot)))
+	require.NoError(t, signing.VerifyRandao(context.Background(), bmock, pubkey, tblsconv.SigToETH2(sig), epoch))
 }
 
 func TestVerifyVoluntaryExit(t *testing.T) {
