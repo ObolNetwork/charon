@@ -637,6 +637,56 @@ func (r *VersionedSignedValidatorRegistration) UnmarshalJSON(input []byte) error
 	return nil
 }
 
+func NewPartiallySignedRandao(epoch eth2p0.Epoch, sig eth2p0.BLSSignature, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: SignedRandao{
+			Epoch:        epoch,
+			BLSSignature: sig,
+		},
+		ShareIdx: shareIdx,
+	}
+}
+
+type SignedRandao struct {
+	Epoch        eth2p0.Epoch
+	BLSSignature eth2p0.BLSSignature
+}
+
+func (s SignedRandao) Signature() Signature {
+	return SigFromETH2(s.BLSSignature)
+}
+
+func (s SignedRandao) SetSignature(sig Signature) (SignedData, error) {
+	return nil, nil
+}
+
+func (s SignedRandao) Clone() (SignedData, error) {
+	return s.clone()
+}
+
+func (s SignedRandao) MarshalJSON() ([]byte, error) {
+	return nil, nil
+}
+
+func (s *SignedRandao) UnmarshalJSON(input []byte) error {
+	return nil
+}
+
+func (s SignedRandao) clone() (SignedRandao, error) {
+	var resp SignedRandao
+	err := cloneJSONMarshaler(s, &resp)
+	if err != nil {
+		return SignedRandao{}, errors.Wrap(err, "clone randao")
+	}
+
+	return resp, nil
+}
+
+type signedRandaoJSON struct {
+	Epoch        eth2p0.Epoch        `json:"epoch"`
+	BLSSignature eth2p0.BLSSignature `json:"signature"`
+}
+
 // cloneJSONMarshaler clones the marshaler by serialising to-from json
 // since eth2 types contains pointers. The result is stored
 // in the value pointed to by v.
