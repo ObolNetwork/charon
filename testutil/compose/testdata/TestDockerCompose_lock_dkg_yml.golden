@@ -30,7 +30,6 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
-      CHARON_NO_VERIFY: "true"
     
   node1:
     <<: *node-base
@@ -53,7 +52,6 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
-      CHARON_NO_VERIFY: "true"
     
   node2:
     <<: *node-base
@@ -76,7 +74,6 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
-      CHARON_NO_VERIFY: "true"
     
   node3:
     <<: *node-base
@@ -99,7 +96,6 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
-      CHARON_NO_VERIFY: "true"
     
   bootnode:
     <<: *node-base

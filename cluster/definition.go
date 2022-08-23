@@ -121,7 +121,14 @@ func (d Definition) Verify() error {
 		return errors.Wrap(err, "config hash")
 	}
 
+	var noSigs int
 	for _, o := range d.Operators {
+		// Completely unsigned operators are also fine, assuming a single cluster-wide operator.
+		if o.Address == "" && len(o.ENRSignature) == 0 && len(o.ConfigSignature) == 0 {
+			noSigs++
+			continue
+		}
+
 		if len(o.ENRSignature) == 0 {
 			return errors.New("empty operator enr signature", z.Str("operator_address", o.Address))
 		}
@@ -153,6 +160,10 @@ func (d Definition) Verify() error {
 		} else if !ok {
 			return errors.New("invalid operator enr signature", z.Str("operator_address", o.Address))
 		}
+	}
+
+	if noSigs > 0 && noSigs != len(d.Operators) {
+		return errors.New("some operators signed others not")
 	}
 
 	return nil

@@ -152,7 +152,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	if err = writeLock(conf, dvs, peers); err != nil {
+	if err = writeLock(conf, dvs, peers, shareSets); err != nil {
 		return err
 	}
 
@@ -316,8 +316,18 @@ func writeDepositData(conf clusterConfig, secrets []*bls_sig.SecretKey) error {
 }
 
 // writeLock creates a cluster lock and writes it to disk.
-func writeLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) error {
+func writeLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer, shareSets [][]*bls_sig.SecretKeyShare) error {
 	lock, err := newLock(conf, dvs, peers)
+	if err != nil {
+		return err
+	}
+
+	lockHash, err := lock.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	lock.SignatureAggregate, err = aggSign(shareSets, lockHash[:])
 	if err != nil {
 		return err
 	}
@@ -456,4 +466,34 @@ func validateClusterConfig(conf clusterConfig) error {
 	}
 
 	return validateWithdrawalAddr(conf.WithdrawalAddr, conf.Network)
+}
+
+// aggSign returns a bls aggregate signatures of the message signed by all the shares.
+func aggSign(secrets [][]*bls_sig.SecretKeyShare, message []byte) ([]byte, error) {
+	var sigs []*bls_sig.Signature
+	for _, shares := range secrets {
+		for _, share := range shares {
+			secret, err := tblsconv.ShareToSecret(share)
+			if err != nil {
+				return nil, err
+			}
+			sig, err := tbls.Sign(secret, message)
+			if err != nil {
+				return nil, err
+			}
+			sigs = append(sigs, sig)
+		}
+	}
+
+	aggSig, err := tbls.Scheme().AggregateSignatures(sigs...)
+	if err != nil {
+		return nil, errors.Wrap(err, "aggregate signatures")
+	}
+
+	b, err := aggSig.MarshalBinary()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal signature")
+	}
+
+	return b, nil
 }

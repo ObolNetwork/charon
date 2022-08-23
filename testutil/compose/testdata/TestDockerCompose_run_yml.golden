@@ -30,7 +30,6 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
-      CHARON_NO_VERIFY: "true"
     
     ports:
       - "3600:3600"
@@ -62,7 +61,6 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
-      CHARON_NO_VERIFY: "true"
     
     ports:
       - "13600:3600"
@@ -94,7 +92,6 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
-      CHARON_NO_VERIFY: "true"
     
     ports:
       - "23600:3600"
@@ -126,7 +123,6 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
-      CHARON_NO_VERIFY: "true"
     
     ports:
       - "33600:3600"
