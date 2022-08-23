@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
@@ -32,7 +33,10 @@ import (
 )
 
 // logger is the global logger.
-var logger = newConsoleLogger(zapcore.DebugLevel)
+var (
+	logger = newConsoleLogger(zapcore.DebugLevel)
+	initMu sync.Mutex
+)
 
 // Config defines the logging configuration.
 type Config struct {
@@ -60,6 +64,9 @@ func DefaultConfig() Config {
 
 // InitLogger initialises the global logger based on the provided config.
 func InitLogger(config Config) error {
+	initMu.Lock()
+	defer initMu.Unlock()
+
 	level, err := config.ZapLevel()
 	if err != nil {
 		return err

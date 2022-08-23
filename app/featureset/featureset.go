@@ -16,6 +16,8 @@
 // Package featureset defines a set of global features and their rollout status.
 package featureset
 
+import "sync"
+
 //go:generate stringer -type=status -trimprefix=status
 
 // status enumerates the rollout status of a feature.
@@ -49,6 +51,8 @@ var (
 
 	// minStatus defines the minimum enabled status.
 	minStatus = statusStable
+
+	initMu sync.Mutex
 )
 
 // Enabled returns true if the feature is enabled.
