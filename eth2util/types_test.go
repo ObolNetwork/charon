@@ -13,30 +13,24 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package eth2util
+package eth2util_test
 
 import (
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
+	"encoding/hex"
+	"testing"
 
-	"github.com/obolnetwork/charon/app/errors"
+	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/eth2util"
 )
 
-// EpochHashRoot returns the ssz hash root of the epoch.
-func EpochHashRoot(epoch eth2p0.Epoch) ([32]byte, error) {
-	hasher := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hasher)
+func TestEpochHashRoot(t *testing.T) {
+	epoch := eth2util.SignedEpoch{Epoch: 2}
 
-	indx := hasher.Index()
-
-	hasher.PutUint64(uint64(epoch))
-
-	hasher.Merkleize(indx)
-
-	hash, err := hasher.HashRoot()
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash epoch")
-	}
-
-	return hash, nil
+	resp, err := epoch.HashTreeRoot()
+	require.NoError(t, err)
+	require.Equal(t,
+		"0200000000000000000000000000000000000000000000000000000000000000",
+		hex.EncodeToString(resp[:]),
+	)
 }

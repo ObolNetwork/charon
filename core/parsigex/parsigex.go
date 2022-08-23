@@ -20,7 +20,6 @@ import (
 	"io"
 	"time"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -173,12 +172,12 @@ func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[
 
 			return signing.VerifyBlock(ctx, eth2Cl, pubshare, &block.VersionedSignedBeaconBlock)
 		case core.DutyRandao:
-			randao, ok := data.SignedData.(core.Signature)
+			randao, ok := data.SignedData.(core.SignedRandao)
 			if !ok {
 				return errors.New("invalid randao")
 			}
 
-			return signing.VerifyRandao(ctx, eth2Cl, pubshare, randao.ToETH2(), eth2p0.Slot(duty.Slot))
+			return signing.VerifyRandao(ctx, eth2Cl, pubshare, randao.SignedEpoch)
 		case core.DutyBuilderProposer:
 			blindedBlock, ok := data.SignedData.(core.VersionedSignedBlindedBeaconBlock)
 			if !ok {

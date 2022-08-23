@@ -91,16 +91,17 @@ func TestVerifyDutyRandao(t *testing.T) {
 	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())
 	require.NoError(t, err)
 
-	epoch := eth2p0.Epoch(uint64(duty.Slot) / slotsPerEpoch)
-	sigRoot, err := eth2util.EpochHashRoot(epoch)
+	randao := eth2util.SignedEpoch{Epoch: eth2p0.Epoch(uint64(duty.Slot) / slotsPerEpoch)}
+	sigRoot, err := randao.HashTreeRoot()
 	require.NoError(t, err)
 
-	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainRandao, epoch, sigRoot)
+	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainRandao, randao.Epoch, sigRoot)
 	require.NoError(t, err)
 
 	sig, pubkey := sign(t, sigData[:])
+	randao.Signature = tblsconv.SigToETH2(sig)
 
-	require.NoError(t, signing.VerifyRandao(context.Background(), bmock, pubkey, tblsconv.SigToETH2(sig), eth2p0.Slot(duty.Slot)))
+	require.NoError(t, signing.VerifyRandao(context.Background(), bmock, pubkey, randao))
 }
 
 func TestVerifyVoluntaryExit(t *testing.T) {

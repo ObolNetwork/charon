@@ -26,6 +26,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 var (
@@ -635,6 +636,59 @@ func (r *VersionedSignedValidatorRegistration) UnmarshalJSON(input []byte) error
 	r.VersionedSignedValidatorRegistration = resp
 
 	return nil
+}
+
+// NewPartialSignedRandao is a convenience function that returns a new partially signed Randao Reveal.
+func NewPartialSignedRandao(epoch eth2p0.Epoch, randao eth2p0.BLSSignature, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: SignedRandao{SignedEpoch: eth2util.SignedEpoch{
+			Epoch:     epoch,
+			Signature: randao,
+		}},
+		ShareIdx: shareIdx,
+	}
+}
+
+// SignedRandao is a signed Randao Reveal which implements SignedData.
+type SignedRandao struct {
+	eth2util.SignedEpoch
+}
+
+func (s SignedRandao) Signature() Signature {
+	return SigFromETH2(s.SignedEpoch.Signature)
+}
+
+func (s SignedRandao) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.SignedEpoch.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (s SignedRandao) Clone() (SignedData, error) {
+	return s.clone()
+}
+
+func (s SignedRandao) MarshalJSON() ([]byte, error) {
+	return s.SignedEpoch.MarshalJSON()
+}
+
+func (s *SignedRandao) UnmarshalJSON(input []byte) error {
+	return s.SignedEpoch.UnmarshalJSON(input)
+}
+
+func (s SignedRandao) clone() (SignedRandao, error) {
+	var resp SignedRandao
+	err := cloneJSONMarshaler(s, &resp)
+	if err != nil {
+		return SignedRandao{}, errors.Wrap(err, "clone randao")
+	}
+
+	return resp, nil
 }
 
 // cloneJSONMarshaler clones the marshaler by serialising to-from json

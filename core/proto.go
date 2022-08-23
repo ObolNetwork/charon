@@ -73,6 +73,12 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedDa
 		}
 		signedData = e
 	case DutyRandao:
+		var s SignedRandao
+		if err := json.Unmarshal(data.Data, &s); err != nil {
+			return ParSignedData{}, errors.Wrap(err, "unmarshal signed randao")
+		}
+		signedData = s
+	case DutySignature:
 		var s Signature
 		if err := json.Unmarshal(data.Data, &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal signature")

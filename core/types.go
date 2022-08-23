@@ -35,13 +35,14 @@ const (
 	DutyUnknown             DutyType = 0
 	DutyProposer            DutyType = 1
 	DutyAttester            DutyType = 2
-	DutyRandao              DutyType = 3
+	DutySignature           DutyType = 3
 	DutyExit                DutyType = 4
 	DutyBuilderProposer     DutyType = 5
 	DutyBuilderRegistration DutyType = 6
+	DutyRandao              DutyType = 7
 	// Only ever append new types here...
 
-	dutySentinel DutyType = 7 // Must always be last
+	dutySentinel DutyType = 8 // Must always be last
 )
 
 func (d DutyType) Valid() bool {
@@ -57,6 +58,7 @@ func (d DutyType) String() string {
 		DutyExit:                "exit",
 		DutyBuilderProposer:     "builder_proposer",
 		DutyBuilderRegistration: "builder_registration",
+		DutySignature:           "signature",
 	}[d]
 }
 
@@ -157,6 +159,19 @@ func NewBuilderRegistrationDuty(slot int64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyBuilderRegistration,
+	}
+}
+
+// NewSignatureDuty returns a new Signature duty. It is a convenience function that is
+// slightly more readable and concise than the struct literal equivalent:
+//
+//	core.Duty{Slot: slot, Type: core.DutySignature}
+//	vs
+//	core.NewSignatureDuty(slot)
+func NewSignatureDuty(slot int64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutySignature,
 	}
 }
 
