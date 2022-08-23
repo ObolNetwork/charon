@@ -18,6 +18,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path"
 	"path/filepath"
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
@@ -46,12 +48,14 @@ func TestCreateCluster(t *testing.T) {
 			Config: clusterConfig{
 				NumNodes:  4,
 				Threshold: 3,
+				NumDVs:    1,
 			},
 		}, {
 			Name: "splitkeys",
 			Config: clusterConfig{
 				NumNodes:  4,
 				Threshold: 3,
+				NumDVs:    1,
 				SplitKeys: true,
 			},
 			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
@@ -75,8 +79,10 @@ func TestCreateCluster(t *testing.T) {
 		}, {
 			Name: "prater",
 			Config: clusterConfig{
-				NumNodes: minNodes,
-				Network:  "prater",
+				NumNodes:  minNodes,
+				Threshold: 3,
+				NumDVs:    2,
+				Network:   "prater",
 			},
 		},
 	}
@@ -128,6 +134,16 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 		}
 
 		testutil.RequireGoldenJSON(t, files)
+	})
+
+	t.Run("valid lock", func(t *testing.T) {
+		b, err := os.ReadFile(path.Join(dir, "cluster-lock.json"))
+		require.NoError(t, err)
+
+		var lock cluster.Lock
+		require.NoError(t, json.Unmarshal(b, &lock))
+
+		require.NoError(t, lock.Verify())
 	})
 }
 

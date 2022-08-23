@@ -155,6 +155,10 @@ func (l Lock) Verify() error {
 	}
 
 	if len(l.SignatureAggregate) == 0 {
+		if isJSONv1x1(l.Version) {
+			return nil // Earlier versions of `charon create cluster` didn't populate SignatureAggregate.
+		}
+
 		return errors.New("empty lock aggregate signature")
 	}
 
