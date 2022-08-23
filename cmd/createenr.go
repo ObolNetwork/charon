@@ -67,7 +67,7 @@ func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 	}
 	defer db.Close()
 
-	keyPath := fmt.Sprintf("%s", p2p.KeyPath(dataDir))
+	keyPath := p2p.KeyPath(dataDir)
 
 	_, _ = fmt.Fprintf(w, "Created ENR private key: %s\n", keyPath)
 	_, _ = fmt.Fprintln(w, localEnode.Node().String())

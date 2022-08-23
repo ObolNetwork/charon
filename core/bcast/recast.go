@@ -54,7 +54,7 @@ func (r *Recaster) Subscribe(sub func(context.Context, core.Duty, core.PubKey, c
 // Store stores aggregate signed duty registrations for rebroadcasting.
 func (r *Recaster) Store(_ context.Context, duty core.Duty,
 	pubkey core.PubKey, aggData core.SignedData,
-) (err error) {
+) error {
 	if duty.Type != core.DutyBuilderRegistration {
 		return nil
 	}

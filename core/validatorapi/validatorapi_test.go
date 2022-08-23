@@ -483,30 +483,24 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
-	randao := tblsconv.SigToETH2(sig)
-	unsignedBlock := &spec.VersionedBeaconBlock{
-		Version: spec.DataVersionPhase0,
-		Phase0:  testutil.RandomPhase0BeaconBlock(),
-	}
-	unsignedBlock.Phase0.Body.RANDAOReveal = randao
-	unsignedBlock.Phase0.Slot = slot
-	unsignedBlock.Phase0.ProposerIndex = vIdx
-
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 		return core.DutyDefinitionSet{corePubKey: nil}, nil
 	})
 
 	// Add invalid Signature to beacon block
-
 	s, err := tbls.Sign(secret, []byte("invalid msg"))
 	require.NoError(t, err)
 
-	sigEth2 := tblsconv.SigToETH2(s)
+	unsignedBlock := testutil.RandomPhase0BeaconBlock()
+	unsignedBlock.Body.RANDAOReveal = tblsconv.SigToETH2(sig)
+	unsignedBlock.Slot = slot
+	unsignedBlock.ProposerIndex = vIdx
+
 	signedBlock := &spec.VersionedSignedBeaconBlock{
 		Version: spec.DataVersionPhase0,
 		Phase0: &eth2p0.SignedBeaconBlock{
-			Message:   unsignedBlock.Phase0,
-			Signature: sigEth2,
+			Message:   unsignedBlock,
+			Signature: tblsconv.SigToETH2(s),
 		},
 	}
 
@@ -700,21 +694,17 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
-	randao := tblsconv.SigToETH2(sig)
-	unsignedBlindedBlock := &eth2api.VersionedBlindedBeaconBlock{
-		Version:   spec.DataVersionBellatrix,
-		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(t),
-	}
-	unsignedBlindedBlock.Bellatrix.Body.RANDAOReveal = randao
-	unsignedBlindedBlock.Bellatrix.Slot = slot
-	unsignedBlindedBlock.Bellatrix.ProposerIndex = vIdx
+	unsignedBlindedBlock := testutil.RandomBellatrixBlindedBeaconBlock(t)
+	unsignedBlindedBlock.Body.RANDAOReveal = tblsconv.SigToETH2(sig)
+	unsignedBlindedBlock.Slot = slot
+	unsignedBlindedBlock.ProposerIndex = vIdx
 
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 		return core.DutyDefinitionSet{corePubKey: nil}, nil
 	})
 
 	// Sign blinded beacon block
-	sigRoot, err := unsignedBlindedBlock.Root()
+	sigRoot, err := unsignedBlindedBlock.HashTreeRoot()
 	require.NoError(t, err)
 
 	domain, err := signing.GetDomain(ctx, bmock, signing.DomainBeaconProposer, epoch)
@@ -730,7 +720,7 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	signedBlindedBlock := &eth2api.VersionedSignedBlindedBeaconBlock{
 		Version: spec.DataVersionBellatrix,
 		Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-			Message:   unsignedBlindedBlock.Bellatrix,
+			Message:   unsignedBlindedBlock,
 			Signature: sigEth2,
 		},
 	}
@@ -778,14 +768,10 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
-	randao := tblsconv.SigToETH2(sig)
-	unsignedBlindedBlock := &eth2api.VersionedBlindedBeaconBlock{
-		Version:   spec.DataVersionPhase0,
-		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(t),
-	}
-	unsignedBlindedBlock.Bellatrix.Body.RANDAOReveal = randao
-	unsignedBlindedBlock.Bellatrix.Slot = slot
-	unsignedBlindedBlock.Bellatrix.ProposerIndex = vIdx
+	unsignedBlindedBlock := testutil.RandomBellatrixBlindedBeaconBlock(t)
+	unsignedBlindedBlock.Body.RANDAOReveal = tblsconv.SigToETH2(sig)
+	unsignedBlindedBlock.Slot = slot
+	unsignedBlindedBlock.ProposerIndex = vIdx
 
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 		return core.DutyDefinitionSet{corePubKey: nil}, nil
@@ -800,7 +786,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 	signedBlindedBlock := &eth2api.VersionedSignedBlindedBeaconBlock{
 		Version: spec.DataVersionBellatrix,
 		Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-			Message:   unsignedBlindedBlock.Bellatrix,
+			Message:   unsignedBlindedBlock,
 			Signature: sigEth2,
 		},
 	}
@@ -1047,16 +1033,13 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
 	require.NoError(t, err)
 
-	unsigned := &eth2api.VersionedValidatorRegistration{
-		Version: spec.BuilderVersionV1,
-		V1:      testutil.RandomValidatorRegistration(t),
-	}
-	unsigned.V1.Pubkey = eth2Pubkey
-	unsigned.V1.Timestamp, err = bmock.GenesisTime(ctx) // Set timestamp to genesis which should result in epoch 0 and slot 0.
+	unsigned := testutil.RandomValidatorRegistration(t)
+	unsigned.Pubkey = eth2Pubkey
+	unsigned.Timestamp, err = bmock.GenesisTime(ctx) // Set timestamp to genesis which should result in epoch 0 and slot 0.
 	require.NoError(t, err)
 
 	// Sign validator (builder) registration
-	sigRoot, err := unsigned.V1.HashTreeRoot()
+	sigRoot, err := unsigned.HashTreeRoot()
 	require.NoError(t, err)
 
 	sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainApplicationBuilder, 0, sigRoot)
@@ -1069,7 +1052,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	signed := &eth2api.VersionedSignedValidatorRegistration{
 		Version: spec.BuilderVersionV1,
 		V1: &eth2v1.SignedValidatorRegistration{
-			Message:   unsigned.V1,
+			Message:   unsigned,
 			Signature: sigEth2,
 		},
 	}
@@ -1111,12 +1094,9 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
 	require.NoError(t, err)
 
-	unsigned := &eth2api.VersionedValidatorRegistration{
-		Version: spec.BuilderVersionV1,
-		V1:      testutil.RandomValidatorRegistration(t),
-	}
-	unsigned.V1.Pubkey = eth2Pubkey
-	unsigned.V1.Timestamp, err = bmock.GenesisTime(ctx) // Set timestamp to genesis which should result in epoch 0 and slot 0.
+	unsigned := testutil.RandomValidatorRegistration(t)
+	unsigned.Pubkey = eth2Pubkey
+	unsigned.Timestamp, err = bmock.GenesisTime(ctx) // Set timestamp to genesis which should result in epoch 0 and slot 0.
 	require.NoError(t, err)
 
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
@@ -1132,7 +1112,7 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	signed := &eth2api.VersionedSignedValidatorRegistration{
 		Version: spec.BuilderVersionV1,
 		V1: &eth2v1.SignedValidatorRegistration{
-			Message:   unsigned.V1,
+			Message:   unsigned,
 			Signature: sigEth2,
 		},
 	}

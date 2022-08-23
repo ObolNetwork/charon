@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -518,17 +518,18 @@ func httpGet(base string, endpoint string) ([]byte, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid endpoint")
 	}
-	res, err := http.Get(url.String())
+	res, err := http.Get(url.String()) //nolint:noctx // Test code
 	if err != nil {
 		return nil, errors.Wrap(err, "http get")
 	}
+	defer res.Body.Close()
 
 	if res.StatusCode == 404 {
 		// Nothing found.  This is not an error, so we return nil on both counts.
 		return nil, nil
 	}
 
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read GET response")
 	}

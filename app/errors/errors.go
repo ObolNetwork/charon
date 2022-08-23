@@ -18,7 +18,7 @@
 package errors
 
 import (
-	// nolint:revive
+	//nolint:revive
 	stderrors "errors"
 	"fmt"
 

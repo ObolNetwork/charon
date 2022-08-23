@@ -84,9 +84,10 @@ func (d Duty) String() string {
 
 // NewAttesterDuty returns a new attester duty. It is a convenience function that is
 // slightly more readable and concise than the struct literal equivalent:
-//   core.Duty{Slot: slot, Type: core.DutyAttester}
-//   vs
-//   core.NewAttesterDuty(slot)
+//
+//	core.Duty{Slot: slot, Type: core.DutyAttester}
+//	vs
+//	core.NewAttesterDuty(slot)
 func NewAttesterDuty(slot int64) Duty {
 	return Duty{
 		Slot: slot,
@@ -96,9 +97,10 @@ func NewAttesterDuty(slot int64) Duty {
 
 // NewRandaoDuty returns a new randao duty. It is a convenience function that is
 // slightly more readable and concise than the struct literal equivalent:
-//   core.Duty{Slot: slot, Type: core.DutyRandao}
-//   vs
-//   core.NewRandaoDuty(slot)
+//
+//	core.Duty{Slot: slot, Type: core.DutyRandao}
+//	vs
+//	core.NewRandaoDuty(slot)
 func NewRandaoDuty(slot int64) Duty {
 	return Duty{
 		Slot: slot,
@@ -108,9 +110,10 @@ func NewRandaoDuty(slot int64) Duty {
 
 // NewProposerDuty returns a new proposer duty. It is a convenience function that is
 // slightly more readable and concise than the struct literal equivalent:
-//   core.Duty{Slot: slot, Type: core.DutyProposer}
-//   vs
-//   core.NewProposerDuty(slot)
+//
+//	core.Duty{Slot: slot, Type: core.DutyProposer}
+//	vs
+//	core.NewProposerDuty(slot)
 func NewProposerDuty(slot int64) Duty {
 	return Duty{
 		Slot: slot,
@@ -120,9 +123,10 @@ func NewProposerDuty(slot int64) Duty {
 
 // NewVoluntaryExit returns a new voluntary exit duty. It is a convenience function that is
 // slightly more readable and concise than the struct literal equivalent:
-//   core.Duty{Slot: slot, Type: core.DutyExit}
-//   vs
-//   core.NewVoluntaryExit(slot)
+//
+//	core.Duty{Slot: slot, Type: core.DutyExit}
+//	vs
+//	core.NewVoluntaryExit(slot)
 func NewVoluntaryExit(slot int64) Duty {
 	return Duty{
 		Slot: slot,
@@ -132,9 +136,10 @@ func NewVoluntaryExit(slot int64) Duty {
 
 // NewBuilderProposerDuty returns a new builder proposer duty. It is a convenience function that is
 // slightly more readable and concise than the struct literal equivalent:
-//   core.Duty{Slot: slot, Type: core.DutyBuilderProposer}
-//   vs
-//   core.NewBuilderProposerDuty(slot)
+//
+//	core.Duty{Slot: slot, Type: core.DutyBuilderProposer}
+//	vs
+//	core.NewBuilderProposerDuty(slot)
 func NewBuilderProposerDuty(slot int64) Duty {
 	return Duty{
 		Slot: slot,
@@ -144,9 +149,10 @@ func NewBuilderProposerDuty(slot int64) Duty {
 
 // NewBuilderRegistrationDuty returns a new builder registration duty. It is a convenience function that is
 // slightly more readable and concise than the struct literal equivalent:
-//   core.Duty{Slot: slot, Type: core.DutyBuilderRegistration}
-//   vs
-//   core.NewBuilderRegistrationDuty(slot)
+//
+//	core.Duty{Slot: slot, Type: core.DutyBuilderRegistration}
+//	vs
+//	core.NewBuilderRegistrationDuty(slot)
 func NewBuilderRegistrationDuty(slot int64) Duty {
 	return Duty{
 		Slot: slot,

@@ -116,7 +116,7 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 				clones = append(clones, clone)
 			}
 
-			if err := sub(ctx, duty, pubkey, sigs); err != nil {
+			if err := sub(ctx, duty, pubkey, clones); err != nil {
 				return err
 			}
 		}

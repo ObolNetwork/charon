@@ -107,11 +107,11 @@ func sortInput(msgs []*pbv1.PriorityMsg) []*pbv1.PriorityMsg {
 }
 
 // validateMsgs returns an error if the messages are invalid such that:
-//  - messages contain duplicate peers,
-//  - messages do not contain identical slots,
-//  - individual peers contain duplicate topics,
-//  - individual topics contain duplicate priorities,
-//  - individual topics contain more than 1000 priorities.
+//   - messages contain duplicate peers,
+//   - messages do not contain identical slots,
+//   - individual peers contain duplicate topics,
+//   - individual topics contain duplicate priorities,
+//   - individual topics contain more than 1000 priorities.
 func validateMsgs(msgs []*pbv1.PriorityMsg) error {
 	if len(msgs) == 0 {
 		return errors.New("messages empty")

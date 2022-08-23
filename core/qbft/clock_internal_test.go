@@ -27,7 +27,6 @@ type fakeClock struct {
 	now   time.Time
 	chans []chan time.Time
 	times []time.Time
-	stop  chan struct{}
 }
 
 // NewTimer returns a new timer channel and stop function.

@@ -141,7 +141,7 @@ func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Dura
 
 	var client http.Client
 	for ctx.Err() == nil {
-		req, err := http.NewRequestWithContext(ctx, "GET", bootnodeURL, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, bootnodeURL, nil)
 		if err != nil {
 			return nil, errors.Wrap(err, "new request")
 		}

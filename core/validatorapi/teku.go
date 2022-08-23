@@ -56,7 +56,7 @@ func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigRe
 
 	genesis, err := c.eth2Cl.GenesisTime(ctx)
 	if err != nil {
-		return TekuProposerConfigResponse{}, nil
+		return TekuProposerConfigResponse{}, err
 	}
 
 	for pubkey, pubshare := range c.sharesByKey {

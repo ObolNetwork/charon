@@ -15,11 +15,12 @@
 
 // Command genchangelog provides a tool to generate a changelog.md file from a git commit range.
 // It requires the following:
-//  - Each commit is a squash merged GitHub PR.
-//  - The commit subject contains the PR number '(#123)'.
-//  - Each commit contains a 'category: foo' line in the body.
-//  - Each commit is linked to a Github Issue via a 'ticket: #321' line in the body.
-//  - Only PRs with supported categories linked to Issues will be included in the changelog.
+//   - Each commit is a squash merged GitHub PR.
+//   - The commit subject contains the PR number '(#123)'.
+//   - Each commit contains a 'category: foo' line in the body.
+//   - Each commit is linked to a Github Issue via a 'ticket: #321' line in the body.
+//   - Only PRs with supported categories linked to Issues will be included in the changelog.
+//
 //nolint:forbidigo,gosec,revive
 package main
 
@@ -165,7 +166,7 @@ func run(gitRange string, output string) error {
 // getIssueTitle returns the issue title and status via the github API.
 func getIssueTitle(number int) (string, string, error) {
 	u := fmt.Sprintf("https://api.github.com/repos/obolnetwork/charon/issues/%d", number)
-	resp, err := http.Get(u)
+	resp, err := http.Get(u) //nolint:noctx // Non-critical code
 	if err != nil {
 		return "", "", errors.Wrap(err, "query github issue")
 	}

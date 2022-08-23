@@ -296,7 +296,7 @@ func writeDepositData(conf clusterConfig, secrets []*bls_sig.SecretKey) error {
 	// Create deposit message signatures
 	msgSigs, err := signDepositDatas(secrets, conf.WithdrawalAddr, conf.Network)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	// Serialize the deposit data into bytes

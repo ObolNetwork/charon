@@ -98,7 +98,7 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 
 func (l *Lock) UnmarshalJSON(data []byte) error {
 	// Get the version directly
-	//nolint:revive // Nested structs fine for reading.
+
 	version := struct {
 		Definition struct {
 			Version string `json:"version"`
@@ -190,13 +190,9 @@ func (l Lock) Verify() error {
 }
 
 func marshalLockV1x1(lock Lock, lockHash [32]byte) ([]byte, error) {
-	vals, err := distValidatorsToV1x1(lock.Validators)
-	if err != nil {
-		return nil, err
-	}
 	resp, err := json.Marshal(lockJSONv1x1{
 		Definition:         lock.Definition,
-		Validators:         vals,
+		Validators:         distValidatorsToV1x1(lock.Validators),
 		SignatureAggregate: lock.SignatureAggregate,
 		LockHash:           lockHash[:],
 	})

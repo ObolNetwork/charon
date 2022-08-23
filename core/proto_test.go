@@ -189,8 +189,7 @@ func TestMarshalAttestation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, b, b2)
 
-	var a core.SignedData
-	a = &core.Attestation{}
+	a := new(core.Attestation)
 	err = json.Unmarshal(b, a)
 	require.NoError(t, err)
 

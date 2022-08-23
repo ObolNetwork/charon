@@ -16,9 +16,7 @@
 package p2p
 
 import (
-	"crypto/ecdsa"
 	"fmt"
-	"math/big"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -372,21 +370,6 @@ var (
 		"zealous",
 	}
 )
-
-// randomName returns a deterministic name for an ecdsa public key. The name consists of a noun
-// and an adjective separated by a hyphen. The noun is calculated using PublicKey's X coordinate
-// while the adjective is calculated using PublicKey's Y coordinate.
-func randomName(pk ecdsa.PublicKey) string { //nolint:deadcode
-	// calculate the index of the adjective using X % ADJ_LEN
-	adjLen := big.NewInt(int64(len(adjectives)))
-	adjIdx := new(big.Int).Rem(pk.X, adjLen).Uint64()
-
-	// similarly, calculate the index of the noun using Y % NOUN_LEN
-	nounLen := big.NewInt(int64(len(nouns)))
-	nounIdx := new(big.Int).Rem(pk.Y, nounLen).Uint64()
-
-	return fmt.Sprintf("%s-%s", adjectives[adjIdx], nouns[nounIdx])
-}
 
 // PeerName returns a deterministic pseudo random human friendly name for the peer ID.
 func PeerName(id peer.ID) string {

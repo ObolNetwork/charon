@@ -156,7 +156,7 @@ func startAllHooks(
 ) error {
 	for _, h := range startHooks {
 		if startAppCtx.Err() != nil {
-			break
+			return nil //nolint:nilerr // Just return when ctx closed.
 		}
 
 		switch h.StartType {

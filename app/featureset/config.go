@@ -55,7 +55,7 @@ func Init(ctx context.Context, config Config) error {
 
 	var ok bool
 	for s := statusAlpha; s < statusSentinel; s++ {
-		if strings.ToLower(config.MinStatus) == strings.ToLower(s.String()) {
+		if strings.EqualFold(config.MinStatus, s.String()) {
 			minStatus = s
 			ok = true
 
@@ -69,7 +69,7 @@ func Init(ctx context.Context, config Config) error {
 	for _, f := range config.Enabled {
 		var ok bool
 		for feature := range state {
-			if strings.ToLower(string(feature)) == strings.ToLower(f) {
+			if strings.EqualFold(string(feature), f) {
 				state[feature] = enable
 				ok = true
 			}
@@ -81,8 +81,9 @@ func Init(ctx context.Context, config Config) error {
 
 	for _, f := range config.Disabled {
 		var ok bool
+
 		for feature := range state {
-			if strings.ToLower(string(feature)) == strings.ToLower(f) {
+			if strings.EqualFold(string(feature), f) {
 				state[feature] = disable
 				ok = true
 			}

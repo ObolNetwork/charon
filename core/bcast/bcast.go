@@ -53,7 +53,7 @@ type Broadcaster struct {
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
 func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 	pubkey core.PubKey, aggData core.SignedData,
-) (err error) {
+) (err error) { //nolint:nonamedreturn // Handled in defer
 	ctx = log.WithTopic(ctx, "bcast")
 	ctx = log.WithCtx(ctx, z.Any("pubkey", pubkey))
 	defer func() {
