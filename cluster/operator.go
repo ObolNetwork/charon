@@ -84,7 +84,7 @@ func (o Operator) HashTreeRootWith(hh ssz.HashWalker) error {
 	return nil
 }
 
-// HashTreeRootWithV1x1 ssz hashes the Operator object with a hasher for versions v1.0.0 and v1.1.0
+// HashTreeRootWithV1x1 ssz hashes the Operator object with a hasher for versions v1.0.0 and v1.1.0.
 func (o Operator) HashTreeRootWithV1x1(hh ssz.HashWalker) error {
 	indx := hh.Index()
 

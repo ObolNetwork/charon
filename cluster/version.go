@@ -17,6 +17,7 @@ package cluster
 
 import "testing"
 
+//nolint:nosnakecase // v1dot2 is worse than v1_2
 const (
 	currentVersion = v1_2
 	dkgAlgo        = "default"
