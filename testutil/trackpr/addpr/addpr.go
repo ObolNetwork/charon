@@ -19,18 +19,57 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 const (
 	organization  = "twin-devs"
-	projectNumber = 1
+	projectNumber = githubv4.Int(1)
 )
+
+// https://docs.github.com/en/graphql/reference/input-objects#projectv2fieldvalue
+type ProjectV2FieldValue struct {
+	Date                 githubv4.Date   `json:"date,omitempty"`
+	IterationID          githubv4.ID     `json:"iterationId,omitempty"`
+	Number               githubv4.Float  `json:"number,omitempty"`
+	SingleSelectOptionID githubv4.String `json:"singleSelectOptionId,omitempty"`
+	Text                 githubv4.String `json:"text,omitempty"`
+}
+
+// https://docs.github.com/en/graphql/reference/input-objects#updateprojectv2itemfieldvalueinput
+type UpdateProjectV2ItemFieldValueInput struct {
+	ClientMutationID githubv4.String     `json:"clientMutationId,omitempty"`
+	FieldID          githubv4.ID         `json:"fieldId"`
+	ItemID           githubv4.ID         `json:"itemId"`
+	ProjectID        githubv4.ID         `json:"projectId"`
+	Value            ProjectV2FieldValue `json:"value"`
+}
+
+// https://docs.github.com/en/graphql/reference/input-objects#addprojectv2itembyidinput
+type AddProjectV2ItemByIDInput struct {
+	// The ID of the Project to add the item to. (Required.)
+	ProjectID githubv4.ID `json:"projectId"`
+	// The content id of the item (Issue or PullRequest). (Required.)
+	ContentID githubv4.ID `json:"contentId"`
+
+	// A unique identifier for the client performing the mutation. (Optional.)
+	ClientMutationID *githubv4.String `json:"clientMutationId,omitempty"`
+}
+
+type config struct {
+	projectID       githubv4.ID
+	statusFieldID   githubv4.ID
+	doneOptionID    githubv4.String
+	sizeFieldID     githubv4.ID
+	sprintFieldID   githubv4.ID
+	currIterationID githubv4.ID
+}
 
 func main() {
 	src := oauth2.StaticTokenSource(
@@ -40,18 +79,111 @@ func main() {
 	httpClient := oauth2.NewClient(context.Background(), src)
 
 	client := githubv4.NewClient(httpClient)
-	if err := getProjectData(client, organization, projectNumber); err != nil {
+
+	// Step 1: Get project data
+	conf, err := getProjectData(client, organization, projectNumber)
+	if err != nil {
 		fmt.Printf("failed to get project data: %s\n", err.Error())
 		os.Exit(1)
 	}
+	fmt.Println("config:", conf)
 
-	log.Printf("success at last")
+	// Step 2: Add PR to project
+	itemID, err := addToProject(client, conf.projectID)
+	if err != nil {
+		fmt.Printf("failed to add to project: %s\n", err.Error())
+	}
+	fmt.Println("itemID", itemID)
+
+	// Step 3: Set size, status and sprint iteration fields
+	err = setFields(client, itemID, conf)
+	if err != nil {
+		fmt.Printf("failed to set fields: %s", err.Error())
+	}
 }
 
-func getProjectData(client *githubv4.Client, org string, projectNumber int) error {
+// setFields sets the size, status and sprint fields to the project item.
+func setFields(client *githubv4.Client, itemID githubv4.ID, conf config) error {
+	// https://docs.github.com/en/graphql/reference/mutations#updateprojectv2itemfieldvalue
+	var mutateStatus struct {
+		UpdateProjectV2ItemFieldValue struct {
+			ProjectV2Item struct {
+				ID githubv4.ID `graphql:"id"`
+			} `graphql:"projectV2Item"`
+		} `graphql:"updateProjectV2ItemFieldValue(input: $input)"`
+	}
+
+	inputStatus := UpdateProjectV2ItemFieldValueInput{
+		ProjectID: conf.projectID,
+		ItemID:    itemID,
+		FieldID:   conf.statusFieldID,
+		Value: ProjectV2FieldValue{
+			SingleSelectOptionID: conf.doneOptionID,
+		},
+	}
+
+	err := client.Mutate(context.Background(), &mutateStatus, inputStatus, nil)
+	if err != nil {
+		return errors.Wrap(err, "set status")
+	}
+
+	var mutateSprint struct {
+		UpdateProjectV2ItemFieldValue struct {
+			ProjectV2Item struct {
+				ID githubv4.ID `graphql:"id"`
+			} `graphql:"projectV2Item"`
+		} `graphql:"updateProjectV2ItemFieldValue(input: $input)"`
+	}
+
+	inputSprint := UpdateProjectV2ItemFieldValueInput{
+		ProjectID: conf.projectID,
+		ItemID:    itemID,
+		FieldID:   conf.sprintFieldID,
+		Value: ProjectV2FieldValue{
+			IterationID: conf.currIterationID,
+		},
+	}
+
+	err = client.Mutate(context.Background(), &mutateSprint, inputSprint, nil)
+	if err != nil {
+		return errors.Wrap(err, "set sprint")
+	}
+
+	return nil
+}
+
+// addToProject adds the PR to the GitHub project board. It doesn't set any of the fields.
+func addToProject(client *githubv4.Client, projectID githubv4.ID) (githubv4.ID, error) {
+	prID, ok := os.LookupEnv("PR_ID")
+	if !ok {
+		return nil, fmt.Errorf("cannot find PR_ID in env")
+	}
+
+	var mutation struct {
+		AddProjectV2ItemByID struct {
+			Item struct {
+				ID githubv4.ID `graphql:"id"`
+			} `graphql:"item"`
+		} `graphql:"addProjectV2ItemById(input: $input)"`
+	}
+
+	input := AddProjectV2ItemByIDInput{
+		ContentID: prID,
+		ProjectID: projectID,
+	}
+
+	err := client.Mutate(context.Background(), &mutation, input, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return mutation.AddProjectV2ItemByID.Item.ID, nil
+}
+
+func getProjectData(client *githubv4.Client, org string, projectNumber githubv4.Int) (config, error) {
 	variables := map[string]interface{}{
 		"org":    githubv4.String(org),
-		"number": githubv4.Int(projectNumber),
+		"number": projectNumber,
 	}
 
 	// Note that we query for the first 25 fields.
@@ -72,7 +204,7 @@ func getProjectData(client *githubv4.Client, org string, projectNumber int) erro
 							ID      githubv4.ID     `graphql:"id"`
 							Name    githubv4.String `graphql:"name"`
 							Options []struct {
-								ID   githubv4.ID     `graphql:"id"`
+								ID   githubv4.String `graphql:"id"`
 								Name githubv4.String `graphql:"name"`
 							}
 						} `graphql:"... on ProjectV2SingleSelectField"`
@@ -98,43 +230,40 @@ func getProjectData(client *githubv4.Client, org string, projectNumber int) erro
 
 	err := client.Query(context.Background(), &query, variables)
 	if err != nil {
-		return err
+		return config{}, err
 	}
 
-	var (
-		projectID     githubv4.ID
-		statusFieldID githubv4.ID
-		doneOptionID  githubv4.ID
-		sizeFieldID   githubv4.ID
-		sprintFieldID githubv4.ID
-	)
+	var conf config
 
-	projectID = query.Organization.ProjectV2.ID
+	conf.projectID = query.Organization.ProjectV2.ID
 
 	if len(query.Organization.ProjectV2.Fields.Nodes) == 0 {
-		return fmt.Errorf("empty list of fields")
+		return config{}, fmt.Errorf("empty list of fields")
 	}
 
-	// Get status field id and done option id
 	for _, node := range query.Organization.ProjectV2.Fields.Nodes {
 		// Sprint sizing
 		if node.ProjectV2Field.Name == "Size" {
-			sizeFieldID = node.ProjectV2Field.ID
+			conf.sizeFieldID = node.ProjectV2Field.ID
 		}
 
-		// PR status
+		// PR status: https://docs.github.com/en/graphql/reference/objects#projectv2singleselectfield
 		if node.ProjectV2SingleSelectField.Name == "Status" {
-			statusFieldID = node.ProjectV2SingleSelectField.ID
+			conf.statusFieldID = node.ProjectV2SingleSelectField.ID
 
 			for _, opt := range node.ProjectV2SingleSelectField.Options {
 				if opt.Name == "Done" {
-					doneOptionID = opt.ID
+					conf.doneOptionID = opt.ID
 				}
+
+				fmt.Printf("status name: %s and id: %s\n", opt.Name, opt.ID)
 			}
 		}
 
 		// sprint iteration: https://docs.github.com/en/graphql/reference/objects#projectv2iterationfielditeration
 		if node.ProjectV2IterationField.Name == "Sprint" {
+			conf.sprintFieldID = node.ProjectV2IterationField.ID
+
 			for _, iter := range node.ProjectV2IterationField.Configuration.Iterations {
 				layout := "2006-01-02"
 
@@ -146,19 +275,14 @@ func getProjectData(client *githubv4.Client, org string, projectNumber int) erro
 				endDate := startDate.AddDate(0, 0, iter.Duration)
 
 				currSprint := time.Now().Before(endDate)
-
 				if currSprint {
-					sprintFieldID = iter.ID
+					conf.currIterationID = iter.ID
 				}
 			}
 		}
 	}
 
-	fmt.Println("project id", projectID)
-	fmt.Println("status field id", statusFieldID)
-	fmt.Println("done option id", doneOptionID)
-	fmt.Println("size field id", sizeFieldID)
-	fmt.Println("sprint field id", sprintFieldID)
+	// Ensure none of the fields is nil.
 
-	return nil
+	return conf, nil
 }
