@@ -114,8 +114,9 @@ func WithWorkers(w int) Option {
 	}
 }
 
-// WithInputBuffer returns an option configuring a forkjoin with an input buffer of length i.
-// Useful to prevent temporary blocking during calls to Fork.
+// WithInputBuffer returns an option configuring a forkjoin with an input buffer
+// of length i overriding the default of 100.
+// Useful to prevent temporary blocking during calls to Fork if enqueuing more than 100 inputs.
 func WithInputBuffer(i int) Option {
 	return func(o *options) {
 		o.inputBuf = i
@@ -129,7 +130,7 @@ func WithoutFailFast() Option {
 	}
 }
 
-// New returns a new forkjoin instance with generic input type I and output type O.
+// New returns fork, join, and cancel functions with generic input type I and output type O.
 // It provides an API for "doing work concurrently (fork) and then waiting for the results (join)".
 //
 // It fails fast by default, stopping execution on any error. All active work function contexts
@@ -143,15 +144,16 @@ func WithoutFailFast() Option {
 //	  return result, nil
 //	}
 //
-//	fork, join := forkjoin.New[MyInput,MyResult](ctx, workFunc)
+//	fork, join, cancel := forkjoin.New[MyInput,MyResult](ctx, workFunc)
+//	defer cancel() // Release any remaining resources.
+//
 //	for _, in := range inputs {
 //	  fork(in) // Note that calling fork AFTER join panics!
 //	}
 //
-//	resultChan, cancel := join()
-//	defer cancel()
+//	resultChan := join()
 //
-//	// Either read results from the channel as they appear calling Close when done
+//	// Either read results from the channel as they appear
 //	for result := range resultChan { ... }
 //
 //	// Or block until all results are complete and flatten
@@ -174,7 +176,7 @@ func New[I, O any](rootCtx context.Context, work Work[I, O], opts ...Option) (Fo
 		input      = make(chan I, options.inputBuf)
 		results    = make(chan Result[I, O])
 		dropOutput = make(chan struct{})
-		cleaned    = make(chan struct{})
+		done       = make(chan struct{})
 	)
 
 	workCtx, cancelWorkers := context.WithCancel(rootCtx)
@@ -238,23 +240,23 @@ func New[I, O any](rootCtx context.Context, work Work[I, O], opts ...Option) (Fo
 		close(input)
 
 		go func() {
-			// Auto clean when done
+			// Auto close result channel when done
 			wg.Wait()
 			close(results)
-			close(cleaned)
+			close(done)
 		}()
 
 		return results
 	}
 
-	// Manual clean, remaining results are dropped.
-	clean := func() {
+	// cancel, drop remaining results and cancel workers if not done already.
+	cancel := func() {
 		close(dropOutput)
 		cancelWorkers()
 		if options.waitOnCancel {
-			<-cleaned
+			<-done
 		}
 	}
 
-	return fork, join, clean
+	return fork, join, cancel
 }

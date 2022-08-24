@@ -20,9 +20,8 @@ The schema of the `cluster-definition.json` is defined as:
     {
       "address": "0x123..abfc",                 // ETH1 address of the operator
       "enr": "enr://abcdef...12345",            // Charon node ENR
-      "nonce": 1,                               // Nonce (incremented each time the ENR is added/signed)
-      "config_signature": "0x123456...abcdef",    // EIP712 Signature of config_hash by ETH1 address priv key
-      "enr_signature": "0x123654...abcedf"        // EIP712 Signature of ENR by ETH1 address priv key
+      "config_signature": "0x123456...abcdef",  // EIP712 Signature of config_hash by ETH1 address priv key
+      "enr_signature": "0x123654...abcedf"      // EIP712 Signature of ENR by ETH1 address priv key
     }
   ],
   "uuid": "1234-abcdef-1234-abcdef",            // Random unique identifier.
@@ -34,8 +33,8 @@ The schema of the `cluster-definition.json` is defined as:
   "withdrawal_address": "0x123..abfc",          // ETH1 withdrawal address
   "dkg_algorithm": "foo_dkg_v1" ,               // Optional DKG algorithm for key generation
   "fork_version": "0x00112233",                 // Chain/Network identifier
-  "config_hash": "abcfde...acbfed",             // Hash of the static (non-changing) fields
-  "definition_hash": "abcdef...abcedef"         // Final hash of all fields
+  "config_hash": "0xabcfde...acbfed",           // Hash of the static (non-changing) fields
+  "definition_hash": "0xabcdef...abcedef"       // Final hash of all fields
 }
 ```
 
@@ -48,12 +47,12 @@ The `cluster-lock.json` has the following schema:
   "distributed_validators": [                               // Length equal to num_validators.
     {
       "distributed_public_key":  "0x123..abfc",             // DV root pubkey
-      "public_shares": [ "abc...fed", "cfd...bfe"],         // length of num_operators
+      "public_shares": [ "0x123..abfc", "0x123..abfc"],     // length of num_operators
       "fee_recipient": "0x123..abfc"                        // Defaults to withdrawal address if not set, can be edited manually
     }
   ],
-  "lock_hash": "abcdef...abcedef",                          // Config_hash plus distributed_validators
-  "signature_aggregate": "abcdef...abcedef"                 // BLS aggregate signature of the lock hash signed by each DV pubkey.
+  "lock_hash": "0xabcdef...abcedef",                        // Config_hash plus distributed_validators
+  "signature_aggregate": "0xabcdef...abcedef"               // BLS aggregate signature of the lock hash signed by all the public shares of all the distributed validators.
 }
 ```
 
@@ -62,18 +61,19 @@ The `cluster-lock.json` has the following schema:
 ### Cluster Config Change Log
 
 The following is the historical change log of the cluster config:
-- `v1.2.0` **draft**:
+- `v1.2.0` **default**:
   - Refactored all base64 fields to Ethereum's standard 0x prefixed hex.
     - Refactored definition operator signatures: `config_signature` and `enr_signature`.
     - Refactored definition fields: `config_hash` and `definition_hash`.
     - Refactored lock fields: `lock_hash`, `signature_aggregate` and `distributed_validators.public_shares`.
-  - See example [definition.json](../cluster/testdata/definition_v1_2_0.json) and [lock.json](../cluster/testdata/lock_v1_2_0.json)
-- `v1.1.0` **default**:
+  - Remove definition operator `nonce` field since it isn't used for anything. Only support `nonce=0` for older versions.
+  - See example [definition.json](../cluster/testdata/cluster_definition_v1_2_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_2_0.json)
+- `v1.1.0`:
   - Added cosmetic `Timestamp` field to cluster definition to help identification by humans.
-  - See example [definition.json](../cluster/testdata/definition_v1_1_0.json) and [lock.json](../cluster/testdata/lock_v1_1_0.json)
+  - See example [definition.json](../cluster/testdata/cluster_definition_v1_1_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_1_0.json)
 - `v1.0.0`:
   - Initial definition and lock versions.
-  - See example [definition.json](../cluster/testdata/definition_v1_0_0.json) and [lock.json](../cluster/testdata/lock_v1_0_0.json)
+  - See example [definition.json](../cluster/testdata/cluster_definition_v1_0_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_0_0.json)
 
 This version of Charon (logic) supports the following cluster config versions (files): `v1.0.0`, `v1.1.0`, `v1.2.0`.
 
