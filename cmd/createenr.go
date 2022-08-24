@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -63,7 +64,12 @@ func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 		return err
 	}
 
-	enrStr, err := createENR(key, config)
+	record, err := createENR(key, config)
+	if err != nil {
+		return err
+	}
+
+	enrStr, err := p2p.EncodeENR(record)
 	if err != nil {
 		return err
 	}
@@ -78,19 +84,20 @@ func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 	return nil
 }
 
-func createENR(key *ecdsa.PrivateKey, config p2p.Config) (string, error) {
+// createENR returns enr.Record used by charon create enr and charon enr commands.
+func createENR(key *ecdsa.PrivateKey, config p2p.Config) (enr.Record, error) {
 	node, _, err := p2p.NewLocalEnode(config, key)
 	if err != nil {
-		return "", err
+		return enr.Record{}, err
 	}
 
 	record := node.Node().Record()
 	record.SetSeq(0)
 	if err = enode.SignV4(record, key); err != nil {
-		return "", errors.Wrap(err, "sign enr")
+		return enr.Record{}, errors.Wrap(err, "sign enr")
 	}
 
-	return p2p.EncodeENR(*record)
+	return *record, nil
 }
 
 // writeEnrWarning writes backup key warning to the terminal.

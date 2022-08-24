@@ -64,7 +64,12 @@ func runNewENR(w io.Writer, config p2p.Config, dataDir string, verbose bool) err
 		return err
 	}
 
-	enrStr, err := createENR(key, config)
+	r, err := createENR(key, config)
+	if err != nil {
+		return err
+	}
+
+	enrStr, err := p2p.EncodeENR(r)
 	if err != nil {
 		return err
 	}
@@ -73,11 +78,6 @@ func runNewENR(w io.Writer, config p2p.Config, dataDir string, verbose bool) err
 
 	if !verbose {
 		return nil
-	}
-
-	r, err := p2p.DecodeENR(enrStr)
-	if err != nil {
-		return err
 	}
 
 	writeExpandedEnr(w, r.Signature(), r.Seq(), pubkeyHex(key.PublicKey))
