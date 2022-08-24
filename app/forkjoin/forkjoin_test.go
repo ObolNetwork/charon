@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/forkjoin"
@@ -85,12 +86,15 @@ func TestForkJoin(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			defer goleak.VerifyNone(t)
+
 			var opts []forkjoin.Option
 			if !test.failfast {
 				opts = append(opts, forkjoin.WithoutFailFast())
 			}
 
-			fork, join := forkjoin.New[int, int](ctx, test.work, opts...)
+			fork, join, cancel := forkjoin.New[int, int](ctx, test.work, opts...)
+			defer cancel()
 
 			var allOutput []int
 			for i := 0; i < n; i++ {
@@ -116,10 +120,12 @@ func TestForkJoin(t *testing.T) {
 }
 
 func TestPanic(t *testing.T) {
-	fork, join := forkjoin.New[int, int](context.Background(), nil)
-	resp, err := join().Flatten()
-	require.NoError(t, err)
-	require.Empty(t, resp)
+	defer goleak.VerifyNone(t)
+
+	fork, join, cancel := forkjoin.New[int, int](context.Background(), nil)
+	defer cancel()
+
+	join()
 
 	// Calling fork after join panics
 	require.Panics(t, func() {
@@ -130,4 +136,19 @@ func TestPanic(t *testing.T) {
 	require.Panics(t, func() {
 		join()
 	})
+}
+
+func TestLeak(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	fork, join, cancel := forkjoin.New[int, int](
+		context.Background(),
+		func(ctx context.Context, i int) (int, error) { return i, nil },
+		forkjoin.WithWaitOnCancel(),
+	)
+	fork(1)
+	fork(2)
+	results := join()
+	<-results // Read 1 or 2
+	cancel()  // Fails if not called.
 }
