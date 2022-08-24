@@ -111,21 +111,18 @@ func (m multi) Address() string {
 func provide[O any](ctx context.Context, clients []Client,
 	work forkjoin.Work[Client, O], isSuccess func(O) bool,
 ) (O, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	if isSuccess == nil {
 		isSuccess = func(O) bool { return true }
 	}
 
-	fork, join := forkjoin.New(ctx, work,
+	fork, join, cancel := forkjoin.New(ctx, work,
 		forkjoin.WithoutFailFast(),
 		forkjoin.WithWorkers(len(clients)),
-		forkjoin.WithInputBuffer(len(clients)),
 	)
 	for _, client := range clients {
 		fork(client)
 	}
+	defer cancel()
 
 	var (
 		nokResp forkjoin.Result[Client, O]

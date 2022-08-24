@@ -25,9 +25,10 @@ import (
 )
 
 const (
-	defaultWorkers  = 8
-	defaultInputBuf = 100
-	defaultFailFast = true
+	defaultWorkers      = 8
+	defaultInputBuf     = 100
+	defaultFailFast     = true
+	defaultWaitOnCancel = false
 )
 
 // Fork function enqueues the input to be processed asynchronously.
@@ -89,12 +90,22 @@ func (r Results[I, O]) Flatten() ([]O, error) {
 }
 
 type options struct {
-	inputBuf int
-	workers  int
-	failFast bool
+	inputBuf     int
+	workers      int
+	failFast     bool
+	waitOnCancel bool
 }
 
 type Option func(*options)
+
+// WithWaitOnCancel returns an option configuring a forkjoin to wait for all workers to return when canceling.
+// The default behaviour just cancels the worker context and closes the output channel without waiting
+// for the workers to return.
+func WithWaitOnCancel() Option {
+	return func(o *options) {
+		o.waitOnCancel = true
+	}
+}
 
 // WithWorkers returns an option configuring a forkjoin with w number of workers.
 func WithWorkers(w int) Option {
@@ -137,16 +148,20 @@ func WithoutFailFast() Option {
 //	  fork(in) // Note that calling fork AFTER join panics!
 //	}
 //
-//	resultChan := join()
-//	// Either read results from the channel as they appear
+//	resultChan, cancel := join()
+//	defer cancel()
+//
+//	// Either read results from the channel as they appear calling Close when done
 //	for result := range resultChan { ... }
+//
 //	// Or block until all results are complete and flatten
 //	results, firstErr := resultChan.Flatten()
-func New[I, O any](ctx context.Context, work Work[I, O], opts ...Option) (Fork[I], Join[I, O]) {
+func New[I, O any](rootCtx context.Context, work Work[I, O], opts ...Option) (Fork[I], Join[I, O], context.CancelFunc) {
 	options := options{
-		workers:  defaultWorkers,
-		inputBuf: defaultInputBuf,
-		failFast: defaultFailFast,
+		workers:      defaultWorkers,
+		inputBuf:     defaultInputBuf,
+		failFast:     defaultFailFast,
+		waitOnCancel: defaultWaitOnCancel,
 	}
 
 	for _, opt := range opts {
@@ -154,37 +169,43 @@ func New[I, O any](ctx context.Context, work Work[I, O], opts ...Option) (Fork[I
 	}
 
 	var (
-		wg      sync.WaitGroup
-		zero    O
-		input   = make(chan I, options.inputBuf)
-		results = make(chan Result[I, O])
+		wg         sync.WaitGroup
+		zero       O
+		input      = make(chan I, options.inputBuf)
+		results    = make(chan Result[I, O])
+		dropOutput = make(chan struct{})
+		cleaned    = make(chan struct{})
 	)
+
+	workCtx, cancelWorkers := context.WithCancel(rootCtx)
 
 	// enqueue result asynchronously since results channel is unbuffered/blocking.
 	enqueue := func(in I, out O, err error) {
 		go func() {
-			results <- Result[I, O]{
+			select {
+			case results <- Result[I, O]{
 				Input:  in,
 				Output: out,
 				Err:    err,
+			}:
+			case <-dropOutput:
+				// Dropping output.
 			}
 			wg.Done()
 		}()
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-
 	for i := 0; i < options.workers; i++ { // Start workers
 		go func() {
 			for in := range input { // Process all inputs (channel closed on Join)
-				if ctx.Err() != nil { // Skip work if failed fast
-					enqueue(in, zero, ctx.Err())
+				if workCtx.Err() != nil { // Skip work if failed fast
+					enqueue(in, zero, workCtx.Err())
 					continue
 				}
 
-				out, err := work(ctx, in)
+				out, err := work(workCtx, in)
 				if options.failFast && err != nil { // Maybe fail fast
-					cancel()
+					cancelWorkers()
 				}
 
 				enqueue(in, out, err)
@@ -194,8 +215,20 @@ func New[I, O any](ctx context.Context, work Work[I, O], opts ...Option) (Fork[I
 
 	// Fork enqueues inputs, keeping track of how many was enqueued.
 	fork := func(i I) {
+		var added bool
+		defer func() {
+			// Handle panic use-case as well as rootCtx done.
+			if !added {
+				wg.Done()
+			}
+		}()
+
 		wg.Add(1)
-		input <- i
+		select {
+		case input <- i:
+			added = true
+		case <-rootCtx.Done():
+		}
 	}
 
 	// Join returns the results channel that will contain all the results in the future.
@@ -205,14 +238,23 @@ func New[I, O any](ctx context.Context, work Work[I, O], opts ...Option) (Fork[I
 		close(input)
 
 		go func() {
-			// Cleanup when done
+			// Auto clean when done
 			wg.Wait()
 			close(results)
-			cancel()
+			close(cleaned)
 		}()
 
 		return results
 	}
 
-	return fork, join
+	// Manual clean, remaining results are dropped.
+	clean := func() {
+		close(dropOutput)
+		cancelWorkers()
+		if options.waitOnCancel {
+			<-cleaned
+		}
+	}
+
+	return fork, join, clean
 }
