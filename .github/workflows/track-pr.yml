@@ -1,0 +1,22 @@
+name: track-pr
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  trackpr:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PR: ${{ toJSON(github.event.pull_request) }}
+      PR_ID: ${{ github.event.pull_request.node_id }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.19'
+
+      # Add PR to project board.
+      - name: "Track PR"
+        if: ${{ success() }}
+        run: go run testutil/trackpr/trackpr.go
