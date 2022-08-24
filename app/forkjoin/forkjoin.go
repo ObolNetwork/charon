@@ -249,7 +249,7 @@ func New[I, O any](rootCtx context.Context, work Work[I, O], opts ...Option) (Fo
 		return results
 	}
 
-	// cancel, drop remaining results if not done.
+	// cancel, drop remaining results and cancel workers if not done already.
 	cancel := func() {
 		close(dropOutput)
 		cancelWorkers()
