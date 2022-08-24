@@ -16,10 +16,13 @@
 package cmd
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -61,20 +64,40 @@ func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 		return err
 	}
 
-	localEnode, db, err := p2p.NewLocalEnode(config, key)
+	record, err := createENR(key, config)
 	if err != nil {
-		return errors.Wrap(err, "failed to open enode")
+		return err
 	}
-	defer db.Close()
+
+	enrStr, err := p2p.EncodeENR(record)
+	if err != nil {
+		return err
+	}
 
 	keyPath := p2p.KeyPath(dataDir)
 
 	_, _ = fmt.Fprintf(w, "Created ENR private key: %s\n", keyPath)
-	_, _ = fmt.Fprintln(w, localEnode.Node().String())
+	_, _ = fmt.Fprintln(w, enrStr)
 
 	writeEnrWarning(w, keyPath)
 
 	return nil
+}
+
+// createENR returns enr.Record used by charon create enr and charon enr commands.
+func createENR(key *ecdsa.PrivateKey, config p2p.Config) (enr.Record, error) {
+	node, _, err := p2p.NewLocalEnode(config, key)
+	if err != nil {
+		return enr.Record{}, err
+	}
+
+	record := node.Node().Record()
+	record.SetSeq(0)
+	if err = enode.SignV4(record, key); err != nil {
+		return enr.Record{}, errors.Wrap(err, "sign enr")
+	}
+
+	return *record, nil
 }
 
 // writeEnrWarning writes backup key warning to the terminal.
