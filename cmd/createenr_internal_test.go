@@ -16,10 +16,14 @@
 package cmd
 
 import (
+	"crypto/ecdsa"
 	"io"
+	"math/rand"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/p2p"
@@ -31,4 +35,23 @@ func TestRunCreateEnr(t *testing.T) {
 
 	err = runCreateEnrCmd(io.Discard, p2p.Config{}, temp)
 	require.NoError(t, err)
+}
+
+func TestCreateENR(t *testing.T) {
+	config := p2p.Config{
+		TCPAddrs: []string{"127.0.0.1:3610"},
+		UDPAddr:  "127.0.0.1:3630",
+	}
+
+	key, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(time.Now().Unix())))
+	require.NoError(t, err)
+
+	originalENR, err := createENR(key, config)
+	require.NoError(t, err)
+
+	for i := 0; i < 100; i++ {
+		enrStr, err := createENR(key, config)
+		require.NoError(t, err)
+		require.Equal(t, originalENR, enrStr)
+	}
 }

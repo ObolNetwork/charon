@@ -64,13 +64,11 @@ func runNewENR(w io.Writer, config p2p.Config, dataDir string, verbose bool) err
 		return err
 	}
 
-	localEnode, db, err := p2p.NewLocalEnode(config, key)
+	newEnr, err := createENR(key, config)
 	if err != nil {
-		return errors.Wrap(err, "failed to open peer DB")
+		return err
 	}
-	defer db.Close()
 
-	newEnr := localEnode.Node().String()
 	_, _ = fmt.Fprintln(w, newEnr)
 
 	if !verbose {
