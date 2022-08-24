@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//nolint:wrapcheck,cyclop,forbidigo, exhaustruct
+//nolint:wrapcheck,cyclop, exhaustruct
 package main
 
 import (
@@ -32,7 +32,7 @@ import (
 
 const (
 	// Name of the GitHub organization.
-	organization = "twin-devs"
+	organization = "ObolNetwork"
 	// The number of the project. For ex: https://github.com/orgs/ObolNetwork/projects/1 has projectNumber 1.
 	projectNumber = githubv4.Int(1)
 )
@@ -121,7 +121,7 @@ func main() {
 }
 
 // getProjectData gets project data given the name of the GitHub organization and the project id.
-func getProjectData(client *githubv4.Client, org string, projectNumber githubv4.Int) (config, error) {
+func getProjectData(client *githubv4.Client, org string, projectNumber githubv4.Int) (config, error) { //nolint:gocognit
 	variables := map[string]interface{}{
 		"org":    githubv4.String(org),
 		"number": projectNumber,

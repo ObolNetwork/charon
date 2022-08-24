@@ -35,7 +35,7 @@ const (
 )
 
 // Unticketed returns true if the ticket is "none" for the PR and returns false otherwise.
-// It doesn't verify the body and assumes verifyPR step has already succeeded.
+// It doesn't verify the body and assumes the PR body is already verified before it is merged and closed.
 func Unticketed() (bool, error) {
 	fmt.Println("Verifying charon PR against template")
 	fmt.Printf("Parsing %s\n", prenv)
