@@ -19,11 +19,9 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"io"
-	"net"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -65,12 +63,12 @@ func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 		return err
 	}
 
-	keyPath := p2p.KeyPath(dataDir)
-
 	enrStr, err := createENR(key, config)
 	if err != nil {
 		return err
 	}
+
+	keyPath := p2p.KeyPath(dataDir)
 
 	_, _ = fmt.Fprintf(w, "Created ENR private key: %s\n", keyPath)
 	_, _ = fmt.Fprintln(w, enrStr)
@@ -81,29 +79,18 @@ func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 }
 
 func createENR(key *ecdsa.PrivateKey, config p2p.Config) (string, error) {
-	tcpAddrs, err := config.ParseTCPAddrs()
+	node, _, err := p2p.NewLocalEnode(config, key)
 	if err != nil {
 		return "", err
 	}
 
-	var r enr.Record
-	for _, addr := range tcpAddrs {
-		r.Set(enr.IP(addr.IP))
-		r.Set(enr.TCP(addr.Port))
+	record := node.Node().Record()
+	record.SetSeq(0)
+	if err = enode.SignV4(record, key); err != nil {
+		return "", errors.Wrap(err, "sign enr")
 	}
 
-	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
-	if err != nil {
-		return "", errors.Wrap(err, "resolve udp address")
-	}
-
-	r.SetSeq(0)
-	r.Set(enr.UDP(udpAddr.Port))
-	if err = enode.SignV4(&r, key); err != nil {
-		return "", errors.Wrap(err, "sign enr record")
-	}
-
-	return p2p.EncodeENR(r)
+	return p2p.EncodeENR(*record)
 }
 
 // writeEnrWarning writes backup key warning to the terminal.

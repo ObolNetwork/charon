@@ -64,18 +64,18 @@ func runNewENR(w io.Writer, config p2p.Config, dataDir string, verbose bool) err
 		return err
 	}
 
-	newEnr, err := createENR(key, config)
+	enrStr, err := createENR(key, config)
 	if err != nil {
 		return err
 	}
 
-	_, _ = fmt.Fprintln(w, newEnr)
+	_, _ = fmt.Fprintln(w, enrStr)
 
 	if !verbose {
 		return nil
 	}
 
-	r, err := p2p.DecodeENR(newEnr)
+	r, err := p2p.DecodeENR(enrStr)
 	if err != nil {
 		return err
 	}

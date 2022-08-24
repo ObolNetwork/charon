@@ -46,12 +46,10 @@ func TestCreateENR(t *testing.T) {
 	key, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(time.Now().Unix())))
 	require.NoError(t, err)
 
-	originalENR, err := createENR(key, config)
+	enr1, err := createENR(key, config)
 	require.NoError(t, err)
 
-	for i := 0; i < 100; i++ {
-		enrStr, err := createENR(key, config)
-		require.NoError(t, err)
-		require.Equal(t, originalENR, enrStr)
-	}
+	enr2, err := createENR(key, config)
+	require.NoError(t, err)
+	require.Equal(t, enr1, enr2)
 }
