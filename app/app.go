@@ -184,11 +184,11 @@ func Run(ctx context.Context, conf Config) (err error) { //nolint:nonamedreturn 
 	}
 
 	log.Info(ctx, "Lock file loaded",
+		z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
+		z.Int("peer_index", nodeIdx.PeerIdx),
 		z.Str("cluster_hash", lockHashHex),
 		z.Str("cluster_name", lock.Name),
 		z.Int("peers", len(lock.Operators)),
-		z.Str("peer_id", p2p.PeerName(tcpNode.ID())),
-		z.Int("peer_index", nodeIdx.PeerIdx),
 		z.Str("enr", localEnode.Node().String()))
 
 	if !conf.TestConfig.DisablePromWrap {

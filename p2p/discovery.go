@@ -270,7 +270,7 @@ func NewDiscoveryRouter(tcpNode host.Host, udpNode *MutableUDPNode, peers []Peer
 				if err != nil {
 					log.Error(ctx, "Failed discovering peer address", err)
 				} else if ok {
-					addrStr := addr.String()
+					addrStr := NamedAddr(addr)
 					if addrs[p.ID] != addrStr {
 						log.Info(ctx, "Discovered new peer address",
 							z.Str("peer", PeerName(p.ID)),
