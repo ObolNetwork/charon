@@ -232,6 +232,8 @@ func getProjectData(client *githubv4.Client, org string, projectNumber githubv4.
 				currSprint := time.Now().Before(endDate)
 				if currSprint {
 					conf.currIterationID = iter.ID
+					// Get the earliest current sprint
+					break
 				}
 			}
 		}

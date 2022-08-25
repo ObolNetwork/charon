@@ -25,30 +25,17 @@ import (
 	"strings"
 )
 
-const (
-	prenv = "GITHUB_PR"
-)
+const prenv = "GITHUB_PR"
 
-// Unticketed returns true if the ticket is "none" for the PR and returns false otherwise.
-// It doesn't verify the body and assumes the PR body is already verified before it is merged and closed.
+// Unticketed returns true if the ticket is "none" for the PR and returns false otherwise. It doesn't verify the PR body
+// and assumes that PR verification step is already complete. Only call Unticketed after Verify.
 func Unticketed() (bool, error) {
-	fmt.Println("Verifying charon PR against template")
-	fmt.Printf("Parsing %s\n", prenv)
-
 	prJSON, _ := os.LookupEnv(prenv)
-
-	if strings.Contains(prJSON, "build(deps)") && strings.Contains(prJSON, "dependabot") {
-		fmt.Println("Skipping dependabot PR")
-		return false, nil
-	}
 
 	var pr PR
 	if err := json.Unmarshal([]byte(prJSON), &pr); err != nil {
 		return false, fmt.Errorf("unmarshal %s failed: %w", prenv, err)
 	}
-
-	fmt.Printf("PR Title: %s\n", pr.Title)
-	fmt.Printf("PR Body:\n%s\n####\n", pr.Body)
 
 	const ticketTag = "ticket:"
 

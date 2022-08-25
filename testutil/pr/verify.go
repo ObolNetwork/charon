@@ -79,8 +79,6 @@ func Verify() error {
 		return err
 	}
 
-	fmt.Println("✅ Success")
-
 	return nil
 }
 

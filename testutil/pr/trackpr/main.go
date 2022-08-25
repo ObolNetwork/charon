@@ -22,8 +22,15 @@ import (
 )
 
 func main() {
-	err := pr.Track()
+	err := pr.Verify()
+	if err != nil {
+		log.Fatalf("❌ PR verification failed: " + err.Error())
+	}
+	log.Println("✅ Verification Success")
+
+	err = pr.Track()
 	if err != nil {
 		log.Fatalf("❌ " + err.Error())
 	}
+	log.Println("✅ Tracking Success")
 }
