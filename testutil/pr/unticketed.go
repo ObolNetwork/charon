@@ -15,7 +15,7 @@
 
 // Package pr provides functions to check and process pull requests.
 
-//nolint:wrapcheck,cyclop,forbidigo
+//nolint:wrapcheck,cyclop
 package pr
 
 import (
