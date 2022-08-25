@@ -13,8 +13,10 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//nolint:wrapcheck,cyclop, exhaustruct
-package main
+// Package pr provides functions to process GitHub pull requests.
+
+//nolint:wrapcheck,cyclop,exhaustruct,revive
+package pr
 
 import (
 	"context"
@@ -27,7 +29,6 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/testutil/trackpr/pr"
 )
 
 const (
@@ -79,11 +80,13 @@ type config struct {
 	currIterationID githubv4.ID
 }
 
-func main() {
+// Track tracks a PR without a ticket and adds it to the GitHub board.
+func Track() error {
 	// Ensure only PRs with no associated ticket gets through.
-	unticketed, err := pr.Unticketed()
+	unticketed, err := Unticketed()
 	if err != nil {
-		log.Fatalf("check pr ticket: %s\n", err.Error())
+		return errors.Wrap(err, "check pr ticket")
+		// log.Fatalf("check pr ticket: %s\n", err.Error())
 	} else if !unticketed {
 		log.Println("ticket exists for this PR")
 		os.Exit(0)
@@ -91,7 +94,7 @@ func main() {
 
 	ghToken, ok := os.LookupEnv("GH_TOKEN")
 	if !ok {
-		log.Fatalf("github token not found\n")
+		return errors.Wrap(err, "github token not found")
 	}
 
 	src := oauth2.StaticTokenSource(
@@ -104,20 +107,22 @@ func main() {
 	// Step 1: Get project data
 	conf, err := getProjectData(client, organization, projectNumber)
 	if err != nil {
-		log.Fatalf("failed to get project data: %s\n", err.Error())
+		return errors.Wrap(err, "failed to get project data")
 	}
 
 	// Step 2: Add PR to project board
 	itemID, err := addToProject(client, conf.projectID)
 	if err != nil {
-		log.Fatalf("failed to add to project: %s\n", err.Error())
+		return errors.Wrap(err, "failed to add to project")
 	}
 
 	// Step 3: Set size, status and sprint iteration fields
 	err = setFields(client, itemID, conf)
 	if err != nil {
-		log.Fatalf("failed to set fields: %s\n", err.Error())
+		return errors.Wrap(err, "failed to set fields")
 	}
+
+	return nil
 }
 
 // getProjectData gets project data given the name of the GitHub organization and the project id.

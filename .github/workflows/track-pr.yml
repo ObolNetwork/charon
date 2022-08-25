@@ -19,4 +19,4 @@ jobs:
       # Add PR to project board.
       - name: "Track PR"
         if: ${{ success() }}
-        run: go run testutil/trackpr/trackpr.go
+        run: go run testutil/pr/trackpr/main.go

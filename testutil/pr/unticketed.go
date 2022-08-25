@@ -14,7 +14,7 @@
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Package pr provides functions to check and process pull requests.
-//
+
 //nolint:wrapcheck,cyclop,forbidigo
 package pr
 
@@ -24,11 +24,6 @@ import (
 	"os"
 	"strings"
 )
-
-type PR struct {
-	Title string
-	Body  string
-}
 
 const (
 	prenv = "GITHUB_PR"

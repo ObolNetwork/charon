@@ -13,10 +13,10 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Command verifypr provides a tool to verify charon PRs against the template defined in docs/contibuting.md.
-//
+// Package pr provides functions to process GitHub pull requests.
+
 //nolint:wrapcheck,revive,gocognit,cyclop,nestif,forbidigo
-package main
+package pr
 
 import (
 	"context"
@@ -35,20 +35,13 @@ import (
 
 var titlePrefix = regexp.MustCompile(`^[*\w]+(/[*\w]+)?$`)
 
-func main() {
-	err := run()
-	if err != nil {
-		fmt.Print("❌ " + err.Error())
-		os.Exit(1)
-	}
-}
-
 type PR struct {
 	Title string
 	Body  string
 }
 
-func run() error {
+// Verify verifies that the charon PRs correspond to the template defined in docs/contibuting.md.
+func Verify() error {
 	if err := featureset.Init(context.Background(), featureset.Config{MinStatus: "alpha"}); err != nil {
 		return err
 	}
