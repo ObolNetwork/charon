@@ -122,7 +122,14 @@ type tplPR struct {
 func main() {
 	flag.Parse()
 
-	err := run(*rangeFlag, *outputFlag)
+	token, ok := os.LookupEnv("GITHUB_TOKEN")
+	if ok {
+		fmt.Println("Using Github access token from GITHUB_TOKEN env var")
+	} else {
+		fmt.Println("GITHUB_TOKEN env var not set, using unauthenticated API")
+	}
+
+	err := run(*rangeFlag, *outputFlag, token)
 	if err != nil {
 		applog.Error(context.Background(), "Run error", err)
 		os.Exit(1)
@@ -130,7 +137,7 @@ func main() {
 }
 
 // run runs the command.
-func run(gitRange string, output string) error {
+func run(gitRange string, output string, token string) error {
 	if gitRange == "" {
 		tags, err := getLatestTags(2)
 		if err != nil {
@@ -146,7 +153,7 @@ func run(gitRange string, output string) error {
 		return err
 	}
 
-	data, err := tplDataFromPRs(prs, gitRange, getIssueTitle)
+	data, err := tplDataFromPRs(prs, gitRange, makeIssueFunc(token))
 	if err != nil {
 		return err
 	}
@@ -163,51 +170,61 @@ func run(gitRange string, output string) error {
 	return nil
 }
 
-// getIssueTitle returns the issue title and status via the github API.
-func getIssueTitle(number int) (string, string, error) {
-	u := fmt.Sprintf("https://api.github.com/repos/obolnetwork/charon/issues/%d", number)
-	resp, err := http.Get(u) //nolint:noctx // Non-critical code
-	if err != nil {
-		return "", "", errors.Wrap(err, "query github issue")
-	}
-	defer resp.Body.Close()
+// makeIssueFunc returns a function that resolves an issue's title and status via the github API.
+func makeIssueFunc(token string) func(int) (issue string, status string, err error) {
+	return func(number int) (string, string, error) {
+		u := fmt.Sprintf("https://api.github.com/repos/obolnetwork/charon/issues/%d", number)
+		req, err := http.NewRequest(http.MethodGet, u, nil) //nolint:noctx // Non-critical code
+		if err != nil {
+			return "", "", errors.Wrap(err, "new request")
+		}
+		if token != "" {
+			req.SetBasicAuth(token, "x-oauth-basic")
+		}
 
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", "", errors.Wrap(err, "read body")
-	}
+		resp, err := new(http.Client).Do(req)
+		if err != nil {
+			return "", "", errors.Wrap(err, "query github issue")
+		}
+		defer resp.Body.Close()
 
-	// Common error fields
-	opts := []z.Field{
-		z.Str("url", u),
-		z.Str("body", string(b)),
-		z.Int("issue", number),
-	}
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return "", "", errors.Wrap(err, "read body")
+		}
 
-	// Check if it is an error response
-	var errResp struct {
-		Message string `json:"message"`
-		Docs    string `json:"documentation_url"`
-	}
-	if err = json.Unmarshal(b, &errResp); err != nil {
-		return "", "", errors.Wrap(err, "unmarshal issue", opts...)
-	} else if errResp.Message != "" && errResp.Docs != "" {
-		return "", errResp.Message, nil
-	}
+		// Common error fields
+		opts := []z.Field{
+			z.Str("url", u),
+			z.Str("body", string(b)),
+			z.Int("issue", number),
+		}
 
-	// Else parse the issue response
-	var issueResp struct {
-		Title string `json:"title"`
-		State string `json:"state"`
-	}
-	err = json.Unmarshal(b, &issueResp)
-	if err != nil {
-		return "", "", errors.Wrap(err, "unmarshal issue", opts...)
-	} else if issueResp.Title == "" {
-		return "", "", errors.New("invalid issue response, missing title", opts...)
-	}
+		// Check if it is an error response
+		var errResp struct {
+			Message string `json:"message"`
+			Docs    string `json:"documentation_url"`
+		}
+		if err = json.Unmarshal(b, &errResp); err != nil {
+			return "", "", errors.Wrap(err, "unmarshal issue", opts...)
+		} else if errResp.Message != "" && errResp.Docs != "" {
+			return "", errResp.Message, nil
+		}
 
-	return issueResp.Title, issueResp.State, nil
+		// Else parse the issue response
+		var issueResp struct {
+			Title string `json:"title"`
+			State string `json:"state"`
+		}
+		err = json.Unmarshal(b, &issueResp)
+		if err != nil {
+			return "", "", errors.Wrap(err, "unmarshal issue", opts...)
+		} else if issueResp.Title == "" {
+			return "", "", errors.New("invalid issue response, missing title", opts...)
+		}
+
+		return issueResp.Title, issueResp.State, nil
+	}
 }
 
 // execTemplate returns the executed changelog template.
