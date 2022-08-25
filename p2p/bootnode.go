@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -95,13 +96,17 @@ func NewUDPBootnodes(ctx context.Context, config Config, peers []Peer,
 // resolveBootnode continuously resolves the bootnode ENR from the HTTP url and returns
 // the new bootnode ENR/Peer when it changes via the callback.
 func resolveBootnode(ctx context.Context, rawURL, lockHashHex string, callback func(Peer)) {
-	var prevENR string
+	var (
+		prevENR        string
+		backoff, reset = expbackoff.NewWithReset(ctx)
+	)
 	for ctx.Err() == nil {
-		node, err := queryBootnodeENR(ctx, rawURL, time.Second*5, lockHashHex)
+		node, err := queryBootnodeENR(ctx, rawURL, backoff, lockHashHex)
 		if err != nil {
 			log.Error(ctx, "Failed resolving bootnode ENR from URL", err, z.Str("url", rawURL))
 			return
 		}
+		reset()
 
 		newENR := node.String()
 		if prevENR != newENR {
@@ -131,7 +136,7 @@ func resolveBootnode(ctx context.Context, rawURL, lockHashHex string, callback f
 // when bootnodes are deployed in docker-compose or kubernetes
 //
 // It retries until the context is cancelled.
-func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Duration, lockHashHex string) (*enode.Node, error) {
+func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff func(), lockHashHex string) (*enode.Node, error) {
 	parsedURL, err := url.Parse(bootnodeURL)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse bootnode url")
@@ -139,8 +144,16 @@ func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Dura
 		return nil, errors.New("invalid bootnode url")
 	}
 
-	var client http.Client
+	var (
+		client    http.Client
+		doBackoff bool
+	)
 	for ctx.Err() == nil {
+		if doBackoff {
+			backoff()
+		}
+		doBackoff = true
+
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, bootnodeURL, nil)
 		if err != nil {
 			return nil, errors.Wrap(err, "new request")
@@ -150,13 +163,9 @@ func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Dura
 		resp, err := client.Do(req)
 		if err != nil {
 			log.Warn(ctx, "Failure querying bootnode ENR (will try again)", err)
-			time.Sleep(backoff)
-
 			continue
 		} else if resp.StatusCode/100 != 2 {
 			log.Warn(ctx, "Non-200 response querying bootnode ENR (will try again)", nil, z.Int("status_code", resp.StatusCode))
-			time.Sleep(backoff)
-
 			continue
 		}
 
@@ -164,16 +173,12 @@ func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff time.Dura
 		_ = resp.Body.Close()
 		if err != nil {
 			log.Warn(ctx, "Failure reading bootnode ENR (will try again)", err)
-			time.Sleep(backoff)
-
 			continue
 		}
 
 		node, err := enode.Parse(enode.V4ID{}, string(b))
 		if err != nil {
 			log.Warn(ctx, "Failure parsing ENR (will try again)", err, z.Str("enr", string(b)))
-			time.Sleep(backoff)
-
 			continue
 		}
 

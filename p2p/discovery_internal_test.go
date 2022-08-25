@@ -51,7 +51,7 @@ func TestQueryBootnodeENR(t *testing.T) {
 		_, _ = w.Write([]byte(enrStr))
 	}))
 
-	resp, err := queryBootnodeENR(context.Background(), srv.URL, 0, header)
+	resp, err := queryBootnodeENR(context.Background(), srv.URL, func() {}, header)
 	require.NoError(t, err)
 	require.Equal(t, enrStr, resp.String())
 }
@@ -60,7 +60,7 @@ func TestQueryBootnodeENR_DNS(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
 	defer cancel()
 
-	_, err := queryBootnodeENR(ctx, "http://this.does.not.exist:123", 0, "")
+	_, err := queryBootnodeENR(ctx, "http://this.does.not.exist:123", func() {}, "")
 	require.Error(t, err)
 	require.True(t, errors.Is(err, context.DeadlineExceeded))
 }
@@ -69,12 +69,12 @@ func TestQueryBootnodeENR_Timeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
 	defer cancel()
 
-	_, err := queryBootnodeENR(ctx, "http://127.0.0.1:1", 0, "")
+	_, err := queryBootnodeENR(ctx, "http://127.0.0.1:1", func() {}, "")
 	require.Error(t, err)
 	require.True(t, errors.Is(err, context.DeadlineExceeded))
 }
 
 func TestQueryBootnodeENR_Invalid(t *testing.T) {
-	_, err := queryBootnodeENR(context.Background(), "this is not a url", 0, "")
+	_, err := queryBootnodeENR(context.Background(), "this is not a url", func() {}, "")
 	require.Error(t, err)
 }
