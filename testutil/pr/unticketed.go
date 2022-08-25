@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package pr provides functions to check and process pull requests.
+// Package pr provides functions to process GitHub pull requests.
 
 //nolint:wrapcheck,cyclop
 package pr
