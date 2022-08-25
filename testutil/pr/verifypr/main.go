@@ -24,7 +24,7 @@ import (
 func main() {
 	err := pr.Verify()
 	if err != nil {
-		log.Fatalf("❌ " + err.Error())
+		log.Fatalf("❌ Verification failed: " + err.Error())
 	}
 
 	log.Println("✅ Verification Success")
