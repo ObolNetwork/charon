@@ -21,7 +21,7 @@
 //   - Each commit is linked to a Github Issue via a 'ticket: #321' line in the body.
 //   - Only PRs with supported categories linked to Issues will be included in the changelog.
 //
-//nolint:forbidigo,gosec,revive
+//nolint:forbidigo,gosec
 package main
 
 import (
