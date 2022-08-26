@@ -39,32 +39,6 @@ const (
 	projectNumber = gh.Int(1)
 )
 
-// projectV2FieldValue is a value to use in updateProjectV2ItemFieldValueInput.
-// https://docs.github.com/en/graphql/reference/input-objects#projectv2fieldvalue
-type projectV2FieldValue struct {
-	IterationID          gh.ID     `json:"iterationId,omitempty"`
-	Number               gh.Float  `json:"number,omitempty"`
-	SingleSelectOptionID gh.String `json:"singleSelectOptionId,omitempty"`
-}
-
-// updateProjectV2ItemFieldValueInput is an input for UpdateProjectV2ItemFieldValue.
-// https://docs.github.com/en/graphql/reference/input-objects#updateprojectv2itemfieldvalueinput
-type updateProjectV2ItemFieldValueInput struct {
-	FieldID   gh.ID               `json:"fieldId"`
-	ItemID    gh.ID               `json:"itemId"`
-	ProjectID gh.ID               `json:"projectId"`
-	Value     projectV2FieldValue `json:"value"`
-}
-
-// addProjectV2ItemByIdInput is an input for AddProjectV2ItemById.
-// https://docs.github.com/en/graphql/reference/input-objects#addprojectv2itembyidinput
-type addProjectV2ItemByIdInput struct { //nolint:revive,stylecheck
-	// The ID of the Project to add the item to. (Required.)
-	ProjectID gh.ID `json:"projectId"`
-	// The content id of the item (Issue or PullRequest). (Required.)
-	ContentID gh.ID `json:"contentId"`
-}
-
 // config represents the input fields used in graphql mutations.
 type config struct {
 	projectID       gh.ID
@@ -107,7 +81,7 @@ func Track(ghToken string) error {
 	}
 
 	// Step 2: Add PR to project board
-	itemID, err := addToProject(ctx, client, conf.projectID, prID)
+	itemID, err := addProjectItem(ctx, client, conf.projectID, prID)
 	if err != nil {
 		return errors.Wrap(err, "failed to add to project")
 	}
@@ -123,51 +97,10 @@ func Track(ghToken string) error {
 
 // getProjectData gets project data given the name of the GitHub organization and the project id.
 func getProjectData(ctx context.Context, client *gh.Client, org string, projectNumber gh.Int) (config, error) { //nolint:gocognit
+	query := &projectQuery{}
 	variables := map[string]interface{}{
 		"org":    gh.String(org),
 		"number": projectNumber,
-	}
-
-	// Note that we query for the first 25 fields.
-	var query struct {
-		Organization struct {
-			ProjectV2 struct {
-				ID     gh.ID `graphql:"id"`
-				Fields struct {
-					Nodes []struct {
-						// For Size field
-						ProjectV2Field struct {
-							ID   gh.ID     `graphql:"id"`
-							Name gh.String `graphql:"name"`
-						} `graphql:"... on ProjectV2Field"`
-
-						// For Status field
-						ProjectV2SingleSelectField struct {
-							ID      gh.ID     `graphql:"id"`
-							Name    gh.String `graphql:"name"`
-							Options []struct {
-								ID   gh.String `graphql:"id"`
-								Name gh.String `graphql:"name"`
-							}
-						} `graphql:"... on ProjectV2SingleSelectField"`
-
-						// For Sprint field
-						ProjectV2IterationField struct {
-							ID            gh.ID     `graphql:"id"`
-							Name          gh.String `graphql:"name"`
-							Configuration struct {
-								Iterations []struct {
-									ID        gh.ID     `graphql:"id"`
-									Title     gh.String `graphql:"title"`
-									Duration  int       `graphql:"duration"`
-									StartDate string    `graphql:"startDate"`
-								} `graphql:"iterations"`
-							} `graphql:"configuration"`
-						} `graphql:"... on ProjectV2IterationField"`
-					} `graphql:"nodes"`
-				} `graphql:"fields(first:25)"`
-			} `graphql:"projectV2(number: $number)"`
-		} `graphql:"organization(login: $org)"`
 	}
 
 	err := client.Query(ctx, &query, variables)
@@ -242,27 +175,20 @@ func getProjectData(ctx context.Context, client *gh.Client, org string, projectN
 	return conf, nil
 }
 
-// addToProject adds the PR to the GitHub project board and returns the ID of the added item. It doesn't set any of the item's fields.
-func addToProject(ctx context.Context, client *gh.Client, projectID gh.ID, prID string) (gh.ID, error) {
-	var mutation struct {
-		AddProjectV2ItemByID struct {
-			Item struct {
-				ID gh.ID `graphql:"id"`
-			} `graphql:"item"`
-		} `graphql:"addProjectV2ItemById(input: $input)"`
-	}
-
+// addProjectItem adds the PR to the GitHub project board and returns the ID of the added item. It doesn't set any of the item's fields.
+func addProjectItem(ctx context.Context, client *gh.Client, projectID gh.ID, prID string) (gh.ID, error) {
+	m := &addItemMutation{}
 	input := addProjectV2ItemByIdInput{
 		ContentID: prID,
 		ProjectID: projectID,
 	}
 
-	err := client.Mutate(ctx, &mutation, input, nil)
+	err := client.Mutate(ctx, m, input, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return mutation.AddProjectV2ItemByID.Item.ID, nil
+	return m.AddProjectV2ItemByID.Item.ID, nil
 }
 
 // setFields sets the size, status and sprint fields to the project item.
@@ -284,15 +210,7 @@ func setFields(ctx context.Context, client *gh.Client, itemID gh.ID, conf config
 
 // setSize sets the size field of the input item.
 func setSize(ctx context.Context, client *gh.Client, itemID gh.ID, conf config) error {
-	// https://docs.github.com/en/graphql/reference/mutations#updateprojectv2itemfieldvalue
-	var mutation struct {
-		UpdateProjectV2ItemFieldValue struct {
-			ProjectV2Item struct {
-				ID gh.ID `graphql:"id"`
-			} `graphql:"projectV2Item"`
-		} `graphql:"updateProjectV2ItemFieldValue(input: $input)"`
-	}
-
+	m := &setSizeMutation{}
 	input := updateProjectV2ItemFieldValueInput{
 		ProjectID: conf.projectID,
 		ItemID:    itemID,
@@ -302,22 +220,14 @@ func setSize(ctx context.Context, client *gh.Client, itemID gh.ID, conf config) 
 		},
 	}
 
-	err := client.Mutate(ctx, &mutation, input, nil)
+	err := client.Mutate(ctx, m, input, nil)
 
 	return err
 }
 
 // setStatus sets the status field of the input item.
 func setStatus(ctx context.Context, client *gh.Client, itemID gh.ID, conf config) error {
-	// https://docs.github.com/en/graphql/reference/mutations#updateprojectv2itemfieldvalue
-	var mutation struct {
-		UpdateProjectV2ItemFieldValue struct {
-			ProjectV2Item struct {
-				ID gh.ID `graphql:"id"`
-			} `graphql:"projectV2Item"`
-		} `graphql:"updateProjectV2ItemFieldValue(input: $input)"`
-	}
-
+	m := &setStatusMutation{}
 	input := updateProjectV2ItemFieldValueInput{
 		ProjectID: conf.projectID,
 		ItemID:    itemID,
@@ -327,21 +237,14 @@ func setStatus(ctx context.Context, client *gh.Client, itemID gh.ID, conf config
 		},
 	}
 
-	err := client.Mutate(ctx, &mutation, input, nil)
+	err := client.Mutate(ctx, m, input, nil)
 
 	return err
 }
 
 // setSprint sets the sprint field of the input item.
 func setSprint(ctx context.Context, client *gh.Client, itemID gh.ID, conf config) error {
-	var mutation struct {
-		UpdateProjectV2ItemFieldValue struct {
-			ProjectV2Item struct {
-				ID gh.ID `graphql:"id"`
-			} `graphql:"projectV2Item"`
-		} `graphql:"updateProjectV2ItemFieldValue(input: $input)"`
-	}
-
+	m := &setSprintMutation{}
 	input := updateProjectV2ItemFieldValueInput{
 		ProjectID: conf.projectID,
 		ItemID:    itemID,
@@ -351,7 +254,7 @@ func setSprint(ctx context.Context, client *gh.Client, itemID gh.ID, conf config
 		},
 	}
 
-	err := client.Mutate(ctx, &mutation, input, nil)
+	err := client.Mutate(ctx, m, input, nil)
 
 	return err
 }
