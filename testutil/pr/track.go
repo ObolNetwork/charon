@@ -15,7 +15,7 @@
 
 // Package pr provides functions to process GitHub pull requests.
 
-//nolint:wrapcheck,cyclop,exhaustruct,revive
+//nolint:wrapcheck,cyclop,exhaustruct
 package pr
 
 import (
