@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	gh "github.com/shurcooL/githubv4"
@@ -41,21 +42,18 @@ const (
 // projectV2FieldValue is a value to use in updateProjectV2ItemFieldValueInput.
 // https://docs.github.com/en/graphql/reference/input-objects#projectv2fieldvalue
 type projectV2FieldValue struct {
-	Date                 gh.String `json:"date,omitempty"`
 	IterationID          gh.ID     `json:"iterationId,omitempty"`
 	Number               gh.Float  `json:"number,omitempty"`
 	SingleSelectOptionID gh.String `json:"singleSelectOptionId,omitempty"`
-	Text                 gh.String `json:"text,omitempty"`
 }
 
 // updateProjectV2ItemFieldValueInput is an input for UpdateProjectV2ItemFieldValue.
 // https://docs.github.com/en/graphql/reference/input-objects#updateprojectv2itemfieldvalueinput
 type updateProjectV2ItemFieldValueInput struct {
-	ClientMutationID gh.String           `json:"clientMutationId,omitempty"`
-	FieldID          gh.ID               `json:"fieldId"`
-	ItemID           gh.ID               `json:"itemId"`
-	ProjectID        gh.ID               `json:"projectId"`
-	Value            projectV2FieldValue `json:"value"`
+	FieldID   gh.ID               `json:"fieldId"`
+	ItemID    gh.ID               `json:"itemId"`
+	ProjectID gh.ID               `json:"projectId"`
+	Value     projectV2FieldValue `json:"value"`
 }
 
 // addProjectV2ItemByIdInput is an input for AddProjectV2ItemById.
@@ -65,9 +63,6 @@ type addProjectV2ItemByIdInput struct { //nolint:revive,stylecheck
 	ProjectID gh.ID `json:"projectId"`
 	// The content id of the item (Issue or PullRequest). (Required.)
 	ContentID gh.ID `json:"contentId"`
-
-	// A unique identifier for the client performing the mutation. (Optional.)
-	ClientMutationID *gh.String `json:"clientMutationId,omitempty"`
 }
 
 // config represents the input fields used in graphql mutations.
@@ -83,10 +78,10 @@ type config struct {
 // Track tracks a PR without a ticket and adds it to the GitHub board.
 func Track(ghToken string) error {
 	// Ensure only PRs with no associated ticket gets through.
-	unticketed, err := Unticketed()
+	ok, err := unticketed()
 	if err != nil {
 		return errors.Wrap(err, "check pr ticket")
-	} else if !unticketed {
+	} else if !ok {
 		log.Println("ticket exists for this PR")
 		return nil
 	}
@@ -359,4 +354,33 @@ func setSprint(ctx context.Context, client *gh.Client, itemID gh.ID, conf config
 	err := client.Mutate(ctx, &mutation, input, nil)
 
 	return err
+}
+
+// unticketed returns true if the ticket is "none" for the PR and returns false otherwise. It doesn't verify the PR body
+// and assumes that PR verification step is already complete. Only call unticketed after Verify.
+func unticketed() (bool, error) {
+	pr, err := prFromEnv()
+	if err != nil {
+		return false, err
+	}
+
+	// Skip dependabot PRs.
+	if strings.Contains(pr.Title, "build(deps)") && strings.Contains(pr.Body, "dependabot") {
+		return false, nil
+	}
+
+	const ticketTag = "ticket:"
+
+	for _, line := range strings.Split(pr.Body, "\n") {
+		if !strings.HasPrefix(line, ticketTag) {
+			continue
+		}
+
+		ticket := strings.TrimSpace(strings.TrimPrefix(line, ticketTag))
+		if ticket == "none" {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }

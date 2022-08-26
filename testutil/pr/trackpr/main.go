@@ -23,18 +23,12 @@ import (
 )
 
 func main() {
-	err := pr.Verify()
-	if err != nil {
-		log.Fatalf("❌ Verification failed: " + err.Error())
-	}
-	log.Println("✅ Verification Success")
-
 	ghToken, ok := os.LookupEnv("GH_TOKEN")
 	if !ok {
 		log.Fatalf("❌ Github token not found")
 	}
 
-	err = pr.Track(ghToken)
+	err := pr.Track(ghToken)
 	if err != nil {
 		log.Fatalf("❌ Tracking failed: " + err.Error())
 	}

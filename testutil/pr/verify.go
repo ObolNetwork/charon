@@ -20,9 +20,11 @@ package pr
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -36,6 +38,25 @@ var titlePrefix = regexp.MustCompile(`^[*\w]+(/[*\w]+)?$`)
 type PR struct {
 	Title string
 	Body  string
+}
+
+// prFromEnv fetches the GitHub pull request body from env and returns the unmarshalled PR output.
+func prFromEnv() (PR, error) {
+	const prEnv = "GITHUB_PR"
+	prJSON, ok := os.LookupEnv(prEnv)
+	if !ok {
+		return PR{}, fmt.Errorf("environments variable not set: %s", prEnv)
+	} else if strings.TrimSpace(prJSON) == "" {
+		return PR{}, fmt.Errorf("environments variable empty: %s", prEnv)
+	}
+
+	var pr PR
+	err := json.Unmarshal([]byte(prJSON), &pr)
+	if err != nil {
+		return PR{}, fmt.Errorf("unmarshal %s failed: %w", prEnv, err)
+	}
+
+	return pr, nil
 }
 
 // Verify verifies that the charon PRs correspond to the template defined in docs/contibuting.md.
