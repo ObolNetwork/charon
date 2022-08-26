@@ -17,6 +17,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/obolnetwork/charon/testutil/pr"
 )
@@ -28,7 +29,12 @@ func main() {
 	}
 	log.Println("✅ Verification Success")
 
-	err = pr.Track()
+	ghToken, ok := os.LookupEnv("GH_TOKEN")
+	if !ok {
+		log.Fatalf("❌ Github token not found")
+	}
+
+	err = pr.Track(ghToken)
 	if err != nil {
 		log.Fatalf("❌ Tracking failed: " + err.Error())
 	}

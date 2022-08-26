@@ -25,16 +25,36 @@ import (
 	"strings"
 )
 
-const prenv = "GITHUB_PR"
+// prFromEnv fetches the GitHub pull request body from env and returns the unmarshalled PR output.
+func prFromEnv() (PR, error) {
+	const prEnv = "GITHUB_PR"
+	prJSON, ok := os.LookupEnv(prEnv)
+	if !ok {
+		return PR{}, fmt.Errorf("environments variable not set: %s", prEnv)
+	} else if strings.TrimSpace(prJSON) == "" {
+		return PR{}, fmt.Errorf("environments variable empty: %s", prEnv)
+	}
+
+	var pr PR
+	err := json.Unmarshal([]byte(prJSON), &pr)
+	if err != nil {
+		return PR{}, fmt.Errorf("unmarshal %s failed: %w", prEnv, err)
+	}
+
+	return pr, nil
+}
 
 // Unticketed returns true if the ticket is "none" for the PR and returns false otherwise. It doesn't verify the PR body
 // and assumes that PR verification step is already complete. Only call Unticketed after Verify.
 func Unticketed() (bool, error) {
-	prJSON, _ := os.LookupEnv(prenv)
+	pr, err := prFromEnv()
+	if err != nil {
+		return false, err
+	}
 
-	var pr PR
-	if err := json.Unmarshal([]byte(prJSON), &pr); err != nil {
-		return false, fmt.Errorf("unmarshal %s failed: %w", prenv, err)
+	// Skip dependabot PRs.
+	if strings.Contains(pr.Title, "build(deps)") && strings.Contains(pr.Body, "dependabot") {
+		return false, nil
 	}
 
 	const ticketTag = "ticket:"

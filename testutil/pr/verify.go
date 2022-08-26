@@ -20,11 +20,9 @@ package pr
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -46,28 +44,17 @@ func Verify() error {
 		return err
 	}
 
-	const prenv = "GITHUB_PR"
-	fmt.Println("Verifying charon PR against template")
-	fmt.Printf("Parsing %s\n", prenv)
-
-	prJSON, ok := os.LookupEnv(prenv)
-	if !ok {
-		return fmt.Errorf("environments variable not set: %s", prenv)
-	} else if strings.TrimSpace(prJSON) == "" {
-		return fmt.Errorf("environments variable empty: %s", prenv)
+	pr, err := prFromEnv()
+	if err != nil {
+		return err
 	}
 
-	if strings.Contains(prJSON, "build(deps)") && strings.Contains(prJSON, "dependabot") {
-		fmt.Println("Skipping dependabot PR")
+	// Skip dependabot PRs.
+	if strings.Contains(pr.Title, "build(deps)") && strings.Contains(pr.Body, "dependabot") {
 		return nil
 	}
 
-	var pr PR
-	err := json.Unmarshal([]byte(prJSON), &pr)
-	if err != nil {
-		return fmt.Errorf("unmarshal %s failed: %w", prenv, err)
-	}
-
+	fmt.Printf("Verifying charon PR against template\n")
 	fmt.Printf("PR Title: %s\n", pr.Title)
 	fmt.Printf("## PR Body:\n%s\n####\n", pr.Body)
 
