@@ -182,11 +182,14 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "exemplar": true,
+          "editorMode": "code",
+          "exemplar": false,
           "expr": "(\n  sum(app_git_commit{job=\"$node\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{job=\"$node\"}) by (version)\n)\n   + on(job) group_left(lock_hash)\n(\n   0 * sum(app_lock_hash{job=\"$node\"}) by (lock_hash)\n)",
           "hide": false,
+          "instant": true,
           "interval": "",
           "legendFormat": "",
+          "range": false,
           "refId": "B"
         }
       ],
@@ -284,11 +287,14 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "exemplar": true,
+          "editorMode": "code",
+          "exemplar": false,
           "expr": "app_monitoring_readyz{job=\"$node\"} ",
           "hide": false,
+          "instant": true,
           "interval": "",
           "legendFormat": "",
+          "range": false,
           "refId": "A"
         }
       ],
@@ -577,11 +583,14 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "exemplar": true,
+          "editorMode": "code",
+          "exemplar": false,
           "expr": "p2p_reachability_status{job=\"$node\"}",
           "hide": false,
+          "instant": true,
           "interval": "",
           "legendFormat": "",
+          "range": false,
           "refId": "A"
         }
       ],
@@ -865,7 +874,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[30s])) by (le,peer))  * 1000",
+          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[$__rate_interval])) by (le,peer))  * 1000",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1060,7 +1069,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[30s])) by (le,peer))  ",
+          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[$__rate_interval])) by (le,peer))  ",
           "interval": "",
           "legendFormat": "{{peer}}",
           "refId": "A"
@@ -1150,7 +1159,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "increase(app_log_error_total{job=\"$node\"}[30s]) ",
+          "expr": "increase(app_log_error_total{job=\"$node\"}[$__rate_interval]) ",
           "interval": "",
           "legendFormat": "{{topic}}",
           "refId": "A"
@@ -1240,7 +1249,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "increase(app_log_warn_total{job=\"$node\"}[30s]) ",
+          "expr": "increase(app_log_warn_total{job=\"$node\"}[$__rate_interval]) ",
           "interval": "",
           "legendFormat": "{{topic}}",
           "refId": "A"
@@ -1330,7 +1339,7 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "increase(core_bcast_broadcast_total{job=\"$node\"}[30s]) ",
+          "expr": "increase(core_bcast_broadcast_total{job=\"$node\"}[$__rate_interval]) ",
           "interval": "",
           "legendFormat": "{{duty}}",
           "range": true,
@@ -1342,7 +1351,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "increase(core_scheduler_current_epoch{job=\"$node\"}[30s]) * 0.2",
+          "expr": "increase(core_scheduler_current_epoch{job=\"$node\"}[$__rate_interval]) * 0.2",
           "hide": false,
           "interval": "",
           "legendFormat": "epoch boundry",
@@ -1435,7 +1444,7 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "sum(increase(core_tracker_failed_duties_total{job=\"$node\"}[30s])) by (duty)",
+          "expr": "sum(increase(core_tracker_failed_duties_total{job=\"$node\"}[$__rate_interval])) by (duty)",
           "interval": "",
           "legendFormat": "{{duty}}",
           "range": true,
@@ -1555,7 +1564,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1592,7 +1602,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "rate(app_eth2_latency_seconds_count{job=\"$node\"}[30s]) ",
+          "expr": "rate(app_eth2_latency_seconds_count{job=\"$node\"}[$__rate_interval]) ",
           "interval": "",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
@@ -1644,7 +1654,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1681,7 +1692,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "histogram_quantile(0.90, sum(rate(app_eth2_latency_seconds_bucket[30s])) by (le,endpoint)) ",
+          "expr": "histogram_quantile(0.90, sum(rate(app_eth2_latency_seconds_bucket[$__rate_interval])) by (le,endpoint)) ",
           "interval": "",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
@@ -1733,7 +1744,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1770,7 +1782,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "rate(core_validatorapi_request_latency_seconds_count{job=\"$node\"}[30s])",
+          "expr": "rate(core_validatorapi_request_latency_seconds_count{job=\"$node\"}[$__rate_interval])",
           "interval": "",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
@@ -1822,7 +1834,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1859,7 +1872,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "histogram_quantile(0.90, sum(rate(core_validatorapi_request_latency_seconds_bucket[30s])) by (le,endpoint)) ",
+          "expr": "histogram_quantile(0.90, sum(rate(core_validatorapi_request_latency_seconds_bucket[$__rate_interval])) by (le,endpoint)) ",
           "interval": "",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
@@ -1912,7 +1925,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2015,7 +2029,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2110,7 +2125,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2235,7 +2251,7 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {},
