@@ -28,7 +28,12 @@ func main() {
 		log.Fatalf("❌ Github token not found")
 	}
 
-	err := pr.Track(ghToken)
+	prID, ok := os.LookupEnv("PR_ID")
+	if !ok {
+		log.Fatalf("cannot find PR_ID in env")
+	}
+
+	err := pr.Track(ghToken, prID)
 	if err != nil {
 		log.Fatalf("❌ Tracking failed: " + err.Error())
 	}

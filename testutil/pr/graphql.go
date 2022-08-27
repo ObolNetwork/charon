@@ -97,29 +97,9 @@ type addItemMutation struct {
 	} `graphql:"addProjectV2ItemById(input: $input)"`
 }
 
-// setSizeMutation sets the size field of the project item.
-// https://docs.github.com/en/graphql/reference/mutations#updateprojectv2itemfieldvalue
-type setSizeMutation struct {
-	UpdateProjectV2ItemFieldValue struct {
-		ProjectV2Item struct {
-			ID gh.ID `graphql:"id"`
-		} `graphql:"projectV2Item"`
-	} `graphql:"updateProjectV2ItemFieldValue(input: $input)"`
-}
-
-// setStatusMutation sets the status (ex: "Done", "In Progress" etc.) field of the project item.
-// https://docs.github.com/en/graphql/reference/mutations#updateprojectv2itemfieldvalue
-type setStatusMutation struct {
-	UpdateProjectV2ItemFieldValue struct {
-		ProjectV2Item struct {
-			ID gh.ID `graphql:"id"`
-		} `graphql:"projectV2Item"`
-	} `graphql:"updateProjectV2ItemFieldValue(input: $input)"`
-}
-
 // setSprintMutation sets the sprint (ex: "Sprint 1", "Sprint 4" etc.) field of the project item.
 // https://docs.github.com/en/graphql/reference/mutations#updateprojectv2itemfieldvalue
-type setSprintMutation struct {
+type setFieldMutation struct {
 	UpdateProjectV2ItemFieldValue struct {
 		ProjectV2Item struct {
 			ID gh.ID `graphql:"id"`

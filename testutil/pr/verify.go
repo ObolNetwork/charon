@@ -21,7 +21,6 @@ package pr
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -30,6 +29,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
 )
 
@@ -45,15 +45,15 @@ func prFromEnv() (PR, error) {
 	const prEnv = "GITHUB_PR"
 	prJSON, ok := os.LookupEnv(prEnv)
 	if !ok {
-		return PR{}, fmt.Errorf("environments variable not set: %s", prEnv)
+		return PR{}, errors.New(fmt.Sprintf("%s env variable not set", prEnv))
 	} else if strings.TrimSpace(prJSON) == "" {
-		return PR{}, fmt.Errorf("environments variable empty: %s", prEnv)
+		return PR{}, errors.New(fmt.Sprintf("%s env variable empty", prEnv))
 	}
 
 	var pr PR
 	err := json.Unmarshal([]byte(prJSON), &pr)
 	if err != nil {
-		return PR{}, fmt.Errorf("unmarshal %s failed: %w", prEnv, err)
+		return PR{}, errors.Wrap(err, "unmarshal PR body")
 	}
 
 	return pr, nil
@@ -97,7 +97,7 @@ func verifyTitle(title string) error {
 	}
 
 	if !titlePrefix.Match([]byte(split[0])) {
-		return fmt.Errorf("title prefix doesn't match regex %s", titlePrefix)
+		return errors.New(fmt.Sprintf("title prefix doesn't match regex %s", titlePrefix))
 	}
 
 	suffix := split[1]
@@ -174,7 +174,7 @@ func verifyBody(body string) error {
 			}
 
 			if !ok {
-				return fmt.Errorf("invalid category %s, not in %s", cat, allows)
+				return errors.New(fmt.Sprintf("invalid category %s, not in %s", cat, allows))
 			}
 
 			foundCategory = true

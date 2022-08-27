@@ -20,9 +20,7 @@ package pr
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
@@ -49,8 +47,8 @@ type config struct {
 	currIterationID gh.ID
 }
 
-// Track tracks a PR without a ticket and adds it to the GitHub board.
-func Track(ghToken string) error {
+// Track tracks a PR without a ticket and adds it to the GitHub board. It accepts GitHub token and PR ID as inputs.
+func Track(ghToken, prID string) error {
 	// Ensure only PRs with no associated ticket gets through.
 	ok, err := unticketed()
 	if err != nil {
@@ -65,19 +63,13 @@ func Track(ghToken string) error {
 	src := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: ghToken},
 	)
-
 	httpClient := oauth2.NewClient(ctx, src)
 	client := gh.NewClient(httpClient)
 
 	// Step 1: Get project data
-	conf, err := getProjectData(ctx, client, organization, projectNumber)
+	conf, err := getProjectData(ctx, client)
 	if err != nil {
 		return errors.Wrap(err, "failed to get project data")
-	}
-
-	prID, ok := os.LookupEnv("PR_ID")
-	if !ok {
-		return fmt.Errorf("cannot find PR_ID in env")
 	}
 
 	// Step 2: Add PR to project board
@@ -96,10 +88,10 @@ func Track(ghToken string) error {
 }
 
 // getProjectData gets project data given the name of the GitHub organization and the project id.
-func getProjectData(ctx context.Context, client *gh.Client, org string, projectNumber gh.Int) (config, error) { //nolint:gocognit
+func getProjectData(ctx context.Context, client *gh.Client) (config, error) { //nolint:gocognit
 	query := &projectQuery{}
 	variables := map[string]interface{}{
-		"org":    gh.String(org),
+		"org":    gh.String(organization),
 		"number": projectNumber,
 	}
 
@@ -108,57 +100,60 @@ func getProjectData(ctx context.Context, client *gh.Client, org string, projectN
 		return config{}, errors.Wrap(err, "query project data")
 	}
 
-	var conf config
+	var (
+		conf    config
+		project = query.Organization.ProjectV2
+	)
 
-	if query.Organization.ProjectV2.ID == nil {
-		return config{}, fmt.Errorf("project id absent")
+	if project.ID == nil {
+		return config{}, errors.New("project id absent")
 	}
-	conf.projectID = query.Organization.ProjectV2.ID
+	conf.projectID = project.ID
 
-	if len(query.Organization.ProjectV2.Fields.Nodes) == 0 {
-		return config{}, fmt.Errorf("empty list of fields")
+	if len(project.Fields.Nodes) == 0 {
+		return config{}, errors.New("empty list of fields")
 	}
 
-	for _, node := range query.Organization.ProjectV2.Fields.Nodes {
+	for _, node := range project.Fields.Nodes {
 		// Sprint sizing
 		if node.ProjectV2Field.Name == "Size" {
 			conf.sizeFieldID = node.ProjectV2Field.ID
 		}
 
+		statusField := node.ProjectV2SingleSelectField
 		// PR status: https://docs.github.com/en/graphql/reference/objects#projectv2singleselectfield
-		if node.ProjectV2SingleSelectField.Name == "Status" {
-			conf.statusFieldID = node.ProjectV2SingleSelectField.ID
+		if statusField.Name == "Status" {
+			conf.statusFieldID = statusField.ID
 
-			if len(node.ProjectV2SingleSelectField.Options) == 0 {
-				return config{}, fmt.Errorf("status fields absent")
+			if len(statusField.Options) == 0 {
+				return config{}, errors.New("status fields absent")
 			}
 
-			for _, opt := range node.ProjectV2SingleSelectField.Options {
+			for _, opt := range statusField.Options {
 				if opt.Name == "Done" {
 					conf.doneOptionID = opt.ID
 				}
 			}
 		}
 
+		sprintField := node.ProjectV2IterationField
 		// sprint iteration: https://docs.github.com/en/graphql/reference/objects#projectv2iterationfielditeration
-		if node.ProjectV2IterationField.Name == "Sprint" {
-			conf.sprintFieldID = node.ProjectV2IterationField.ID
+		if sprintField.Name == "Sprint" {
+			conf.sprintFieldID = sprintField.ID
 
-			if len(node.ProjectV2IterationField.Configuration.Iterations) == 0 {
-				return config{}, fmt.Errorf("sprint iterations absent")
+			if len(sprintField.Configuration.Iterations) == 0 {
+				return config{}, errors.New("sprint iterations absent")
 			}
 
-			for _, iter := range node.ProjectV2IterationField.Configuration.Iterations {
-				layout := "2006-01-02"
-
-				startDate, err := time.Parse(layout, iter.StartDate)
+			for _, iter := range sprintField.Configuration.Iterations {
+				startDate, err := time.Parse("2006-01-02", iter.StartDate)
 				if err != nil {
 					return config{}, errors.Wrap(err, "parse date")
 				}
 
 				endDate := startDate.AddDate(0, 0, iter.Duration)
 
-				currSprint := time.Now().Before(endDate)
+				currSprint := time.Now().After(startDate) && time.Now().Before(endDate)
 				if currSprint {
 					conf.currIterationID = iter.ID
 					// Get the earliest current sprint
@@ -169,7 +164,7 @@ func getProjectData(ctx context.Context, client *gh.Client, org string, projectN
 	}
 
 	if conf.statusFieldID == nil || conf.doneOptionID == "" || conf.sizeFieldID == nil || conf.sprintFieldID == nil || conf.currIterationID == nil {
-		return config{}, fmt.Errorf("config field absent")
+		return config{}, errors.New("config field absent")
 	}
 
 	return conf, nil
@@ -193,30 +188,30 @@ func addProjectItem(ctx context.Context, client *gh.Client, projectID gh.ID, prI
 
 // setFields sets the size, status and sprint fields to the project item.
 func setFields(ctx context.Context, client *gh.Client, itemID gh.ID, conf config) error {
-	if err := setStatus(ctx, client, itemID, conf); err != nil {
+	if err := setStatus(ctx, client, conf.projectID, itemID, conf.statusFieldID, conf.doneOptionID); err != nil {
 		return errors.Wrap(err, "set status")
 	}
 
-	if err := setSprint(ctx, client, itemID, conf); err != nil {
+	if err := setSprint(ctx, client, conf.projectID, itemID, conf.sprintFieldID, conf.currIterationID); err != nil {
 		return errors.Wrap(err, "set sprint")
 	}
 
-	if err := setSize(ctx, client, itemID, conf); err != nil {
+	if err := setSize(ctx, client, conf.projectID, itemID, conf.sizeFieldID, 1); err != nil {
 		return errors.Wrap(err, "set size")
 	}
 
 	return nil
 }
 
-// setSize sets the size field of the input item.
-func setSize(ctx context.Context, client *gh.Client, itemID gh.ID, conf config) error {
-	m := &setSizeMutation{}
+// setSize sets the size field (ex: 1, 2 etc.) of the project item.
+func setSize(ctx context.Context, client *gh.Client, projectID, itemID, sizeFieldID gh.ID, size gh.Float) error {
+	m := &setFieldMutation{}
 	input := updateProjectV2ItemFieldValueInput{
-		ProjectID: conf.projectID,
+		ProjectID: projectID,
 		ItemID:    itemID,
-		FieldID:   conf.sizeFieldID,
+		FieldID:   sizeFieldID,
 		Value: projectV2FieldValue{
-			Number: gh.Float(1),
+			Number: size,
 		},
 	}
 
@@ -225,15 +220,15 @@ func setSize(ctx context.Context, client *gh.Client, itemID gh.ID, conf config) 
 	return err
 }
 
-// setStatus sets the status field of the input item.
-func setStatus(ctx context.Context, client *gh.Client, itemID gh.ID, conf config) error {
-	m := &setStatusMutation{}
+// setStatus sets the status field (ex: "Done", "In Progress" etc.) of the project item.
+func setStatus(ctx context.Context, client *gh.Client, projectID, itemID, statusFieldID gh.ID, doneOptionID gh.String) error {
+	m := &setFieldMutation{}
 	input := updateProjectV2ItemFieldValueInput{
-		ProjectID: conf.projectID,
+		ProjectID: projectID,
 		ItemID:    itemID,
-		FieldID:   conf.statusFieldID,
+		FieldID:   statusFieldID,
 		Value: projectV2FieldValue{
-			SingleSelectOptionID: conf.doneOptionID,
+			SingleSelectOptionID: doneOptionID,
 		},
 	}
 
@@ -242,15 +237,15 @@ func setStatus(ctx context.Context, client *gh.Client, itemID gh.ID, conf config
 	return err
 }
 
-// setSprint sets the sprint field of the input item.
-func setSprint(ctx context.Context, client *gh.Client, itemID gh.ID, conf config) error {
-	m := &setSprintMutation{}
+// setSprint sets the sprint field (ex: "Sprint 1", "Sprint 4" etc.) of the project item.
+func setSprint(ctx context.Context, client *gh.Client, projectID, itemID, sprintFieldID, iterationID gh.ID) error {
+	m := &setFieldMutation{}
 	input := updateProjectV2ItemFieldValueInput{
-		ProjectID: conf.projectID,
+		ProjectID: projectID,
 		ItemID:    itemID,
-		FieldID:   conf.sprintFieldID,
+		FieldID:   sprintFieldID,
 		Value: projectV2FieldValue{
-			IterationID: conf.currIterationID,
+			IterationID: iterationID,
 		},
 	}
 
