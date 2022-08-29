@@ -21,7 +21,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"regexp"
@@ -78,9 +78,9 @@ func verify() error {
 		return nil
 	}
 
-	fmt.Printf("Verifying charon PR against template\n")
-	fmt.Printf("PR Title: %s\n", pr.Title)
-	fmt.Printf("## PR Body:\n%s\n####\n", pr.Body)
+	log.Printf("Verifying charon PR against template\n")
+	log.Printf("PR Title: %s\n", pr.Title)
+	log.Printf("## PR Body:\n%s\n####\n", pr.Body)
 
 	if err := verifyTitle(pr.Title); err != nil {
 		return err
