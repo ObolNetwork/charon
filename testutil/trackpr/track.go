@@ -119,6 +119,7 @@ func getProjectData(ctx context.Context, client *gh.Client, organization string,
 		"number": gh.Int(projectNumber),
 	}
 
+	log.Println("variables: ", variables)
 	err := client.Query(ctx, &query, variables)
 	if err != nil {
 		return projectData{}, errors.Wrap(err, "query project data")
