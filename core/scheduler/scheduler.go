@@ -502,6 +502,8 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 			return nil, err
 		}
 
+		instrumentValidator(pubkey, val.Balance)
+
 		resp = append(resp, validator{
 			PubKey: pubkey,
 			VIdx:   index,

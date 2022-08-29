@@ -575,8 +575,9 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 		vIdx := eth2p0.ValidatorIndex(i)
 
 		resp[vIdx] = &eth2v1.Validator{
-			Index:  vIdx,
-			Status: eth2v1.ValidatorStateActiveOngoing,
+			Balance: eth2p0.Gwei(31300000000),
+			Index:   vIdx,
+			Status:  eth2v1.ValidatorStateActiveOngoing,
 			Validator: &eth2p0.Validator{
 				WithdrawalCredentials: []byte("12345678901234567890123456789012"),
 				PublicKey:             pubkey,

@@ -98,7 +98,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.0",
       "targets": [
         {
           "datasource": {
@@ -175,7 +175,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.0",
       "targets": [
         {
           "datasource": {
@@ -280,7 +280,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.0",
       "targets": [
         {
           "datasource": {
@@ -351,7 +351,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.0",
       "targets": [
         {
           "datasource": {
@@ -419,7 +419,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.0",
       "targets": [
         {
           "datasource": {
@@ -487,7 +487,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.0",
       "targets": [
         {
           "datasource": {
@@ -576,7 +576,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.0",
       "targets": [
         {
           "datasource": {
@@ -648,7 +648,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.0",
       "targets": [
         {
           "datasource": {
@@ -852,7 +852,7 @@
           }
         ]
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.0",
       "targets": [
         {
           "datasource": {
@@ -998,6 +998,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
@@ -1055,7 +1057,8 @@
         "legend": {
           "calcs": [],
           "displayMode": "list",
-          "placement": "right"
+          "placement": "right",
+          "showLegend": true
         },
         "tooltip": {
           "mode": "single",
@@ -1089,6 +1092,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1145,7 +1150,8 @@
         "legend": {
           "calcs": [],
           "displayMode": "list",
-          "placement": "right"
+          "placement": "right",
+          "showLegend": true
         },
         "tooltip": {
           "mode": "single",
@@ -1179,6 +1185,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1235,7 +1243,8 @@
         "legend": {
           "calcs": [],
           "displayMode": "list",
-          "placement": "right"
+          "placement": "right",
+          "showLegend": true
         },
         "tooltip": {
           "mode": "single",
@@ -1263,38 +1272,16 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
+      "description": "Total balance of validators",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "bars",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
           },
           "mappings": [],
           "thresholds": {
@@ -1311,7 +1298,62 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Balance"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": 32,
+                      "result": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "to": 100
+                    },
+                    "type": "range"
+                  },
+                  {
+                    "options": {
+                      "from": 30,
+                      "result": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "to": 32
+                    },
+                    "type": "range"
+                  },
+                  {
+                    "options": {
+                      "from": 0,
+                      "result": {
+                        "color": "red",
+                        "index": 2
+                      },
+                      "to": 30
+                    },
+                    "type": "range"
+                  }
+                ]
+              },
+              {
+                "id": "unit",
+                "value": "ETH"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 7,
@@ -1319,18 +1361,18 @@
         "x": 0,
         "y": 15
       },
-      "id": 7,
+      "id": 56,
       "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
         },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
+        "showHeader": true
       },
+      "pluginVersion": "9.1.0",
       "targets": [
         {
           "datasource": {
@@ -1338,28 +1380,46 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "exemplar": true,
-          "expr": "increase(core_bcast_broadcast_total{job=\"$node\"}[$__rate_interval]) ",
-          "interval": "",
-          "legendFormat": "{{duty}}",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "exemplar": true,
-          "expr": "increase(core_scheduler_current_epoch{job=\"$node\"}[$__rate_interval]) * 0.2",
+          "exemplar": false,
+          "expr": "core_scheduler_validator_balance_gwei{job=\"$node\"} / 1000000000",
+          "format": "table",
           "hide": false,
-          "interval": "",
-          "legendFormat": "epoch boundry",
+          "instant": true,
+          "legendFormat": "{{pubkey}}",
+          "range": false,
           "refId": "B"
         }
       ],
-      "title": "Completed duties by type ",
-      "type": "timeseries"
+      "title": "Validator Balance",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "__name__": true,
+              "__name__ 1": true,
+              "__name__ 2": true,
+              "instance": true,
+              "instance 1": true,
+              "instance 2": true,
+              "job": true,
+              "job 1": true,
+              "job 2": true
+            },
+            "indexByName": {},
+            "renameByName": {
+              "Value": "Balance",
+              "Value #A": "Effectiveness",
+              "Value #B": "Balance",
+              "pubkey": "Public Key"
+            }
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "datasource": {
@@ -1372,6 +1432,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1429,7 +1491,8 @@
         "legend": {
           "calcs": [],
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
           "mode": "single",
@@ -1504,7 +1567,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.0",
       "targets": [
         {
           "datasource": {
@@ -1532,10 +1595,12 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
+            "drawStyle": "bars",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -1544,7 +1609,7 @@
               "viz": false
             },
             "lineInterpolation": "linear",
-            "lineWidth": 2,
+            "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -1572,8 +1637,7 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "reqps"
+          }
         },
         "overrides": []
       },
@@ -1583,12 +1647,13 @@
         "x": 0,
         "y": 22
       },
-      "id": 17,
+      "id": 7,
       "options": {
         "legend": {
           "calcs": [],
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
           "mode": "single",
@@ -1601,14 +1666,28 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
+          "editorMode": "code",
           "exemplar": true,
-          "expr": "rate(app_eth2_latency_seconds_count{job=\"$node\"}[$__rate_interval]) ",
+          "expr": "increase(core_bcast_broadcast_total{job=\"$node\"}[$__rate_interval]) ",
           "interval": "",
-          "legendFormat": "{{endpoint}}",
+          "legendFormat": "{{duty}}",
+          "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "increase(core_scheduler_current_epoch{job=\"$node\"}[$__rate_interval]) * 0.2",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "epoch boundry",
+          "refId": "B"
         }
       ],
-      "title": "Beacon API requests rate",
+      "title": "Completed duties by type ",
       "type": "timeseries"
     },
     {
@@ -1622,6 +1701,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1678,7 +1759,8 @@
         "legend": {
           "calcs": [],
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
           "mode": "single",
@@ -1712,6 +1794,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1763,12 +1847,13 @@
         "x": 0,
         "y": 29
       },
-      "id": 15,
+      "id": 17,
       "options": {
         "legend": {
           "calcs": [],
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
           "mode": "single",
@@ -1782,13 +1867,13 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "rate(core_validatorapi_request_latency_seconds_count{job=\"$node\"}[$__rate_interval])",
+          "expr": "rate(app_eth2_latency_seconds_count{job=\"$node\"}[$__rate_interval]) ",
           "interval": "",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
         }
       ],
-      "title": "Validator API requests rate",
+      "title": "Beacon API requests rate",
       "type": "timeseries"
     },
     {
@@ -1802,6 +1887,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1858,7 +1945,8 @@
         "legend": {
           "calcs": [],
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
           "mode": "single",
@@ -1892,6 +1980,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1920,7 +2010,6 @@
             }
           },
           "mappings": [],
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1934,22 +2023,23 @@
               }
             ]
           },
-          "unit": "decbytes"
+          "unit": "reqps"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 7,
-        "w": 8,
+        "w": 12,
         "x": 0,
         "y": 36
       },
-      "id": 50,
+      "id": 15,
       "options": {
         "legend": {
           "calcs": [],
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
           "mode": "single",
@@ -1962,28 +2052,14 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "editorMode": "code",
           "exemplar": true,
-          "expr": "go_memstats_alloc_bytes{job=\"$node\"}",
+          "expr": "rate(core_validatorapi_request_latency_seconds_count{job=\"$node\"}[$__rate_interval])",
           "interval": "",
-          "legendFormat": "Allocated Memory",
-          "range": true,
+          "legendFormat": "{{endpoint}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "go_memstats_heap_inuse_bytes{job=\"$node\"}",
-          "hide": true,
-          "legendFormat": "Inuse Heap",
-          "range": true,
-          "refId": "B"
         }
       ],
-      "title": "Memory",
+      "title": "Validator API requests rate",
       "type": "timeseries"
     },
     {
@@ -1997,101 +2073,8 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 36
-      },
-      "id": 52,
-      "links": [],
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "9.0.4",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "irate(process_cpu_seconds_total{job=\"$node\"}[$__rate_interval])",
-          "intervalFactor": 2,
-          "legendFormat": "CPU",
-          "metric": "go_gc_duration_seconds",
-          "range": true,
-          "refId": "A",
-          "step": 4
-        }
-      ],
-      "title": "CPU",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -2153,8 +2136,8 @@
       },
       "gridPos": {
         "h": 7,
-        "w": 8,
-        "x": 16,
+        "w": 12,
+        "x": 12,
         "y": 36
       },
       "id": 49,
@@ -2162,7 +2145,8 @@
         "legend": {
           "calcs": [],
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
           "mode": "single",
@@ -2198,10 +2182,214 @@
       ],
       "title": "Go Routines and File Descriptors",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 43
+      },
+      "id": 50,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": true,
+          "expr": "go_memstats_alloc_bytes{job=\"$node\"}",
+          "interval": "",
+          "legendFormat": "Allocated Memory",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "go_memstats_heap_inuse_bytes{job=\"$node\"}",
+          "hide": true,
+          "legendFormat": "Inuse Heap",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Memory",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 43
+      },
+      "id": 52,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "9.0.4",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "irate(process_cpu_seconds_total{job=\"$node\"}[$__rate_interval])",
+          "intervalFactor": 2,
+          "legendFormat": "CPU",
+          "metric": "go_gc_duration_seconds",
+          "range": true,
+          "refId": "A",
+          "step": 4
+        }
+      ],
+      "title": "CPU",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
-  "schemaVersion": 36,
+  "schemaVersion": 37,
   "style": "dark",
   "tags": [],
   "templating": {
@@ -2251,7 +2439,7 @@
     ]
   },
   "time": {
-    "from": "now-15m",
+    "from": "now-5m",
     "to": "now"
   },
   "timepicker": {},

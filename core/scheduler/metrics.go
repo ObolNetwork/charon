@@ -16,6 +16,7 @@
 package scheduler
 
 import (
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -50,6 +51,13 @@ var (
 		Name:      "validators_active",
 		Help:      "Number of active validators",
 	})
+
+	balanceGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "scheduler",
+		Name:      "validator_balance_gwei",
+		Help:      "Total balance of a validator by public key",
+	}, []string{"pubkey"})
 )
 
 // instrumentSlot sets the current slot and epoch metrics.
@@ -61,4 +69,9 @@ func instrumentSlot(slot core.Slot) {
 // instrumentDuty increments the duty counter.
 func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 	dutyCounter.WithLabelValues(duty.Type.String()).Add(float64(len(defSet)))
+}
+
+// instrumentValidator sets the validator balance.
+func instrumentValidator(pubkey core.PubKey, totalBal eth2p0.Gwei) {
+	balanceGauge.WithLabelValues(pubkey.String()).Set(float64(totalBal))
 }
