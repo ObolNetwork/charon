@@ -6,7 +6,7 @@ on:
 jobs:
   trackpr:
 #    if: github.event.pull_request.merged == true
-    permissions: read-all|write-all
+    permissions: write-all
     runs-on: ubuntu-latest
     env:
       GITHUB_PR: ${{ toJSON(github.event.pull_request) }}
