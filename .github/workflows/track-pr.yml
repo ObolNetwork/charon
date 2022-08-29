@@ -17,4 +17,4 @@ jobs:
 
       # Add PR to project board.
       - name: "Track PR"
-        run: go run testutil/pr/trackpr/main.go
+        run: go run testutil/pr/track/main.go
