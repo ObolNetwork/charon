@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Command trackpr tracks a PR without a ticket and adds it to GitHub project board.
 package main
 
 import (
@@ -47,12 +48,12 @@ func run(ctx context.Context) error {
 		return errors.New("env not set", z.Str("key", "GH_TOKEN"))
 	}
 
-	p, err := PRFromEnv()
+	pr, err := PRFromEnv()
 	if err != nil {
 		return err
 	}
 
-	err = track(ctx, ghToken, p, organization, projectNumber)
+	err = track(ctx, ghToken, pr, organization, projectNumber)
 	if err != nil {
 		return err
 	}

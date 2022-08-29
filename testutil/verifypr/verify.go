@@ -13,8 +13,8 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package pr provides functions to process GitHub pull requests.
-
+// Command verifypr provides a tool to verify charon PRs against the template defined in docs/contibuting.md.
+//
 //nolint:wrapcheck,revive,gocognit,cyclop,nestif,forbidigo
 package main
 

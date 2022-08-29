@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Command trackpr tracks a PR without a ticket and adds it to GitHub project board.
 package main
 
 import gh "github.com/shurcooL/githubv4"

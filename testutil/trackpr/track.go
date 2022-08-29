@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Command trackpr tracks a PR without a ticket and adds it to GitHub project board.
+//
 //nolint:wrapcheck,cyclop,exhaustruct
 package main
 
@@ -67,7 +69,7 @@ func PRFromEnv() (PR, error) {
 	return pr, nil
 }
 
-// track PR without a ticket and add it to the GitHub project board of the organization.
+// track adds a PR without a ticket to the GitHub project board of the organization. It sets size as 1, iteration as current and status as done.
 func track(ctx context.Context, ghToken string, pr PR, organization string, projectNumber int) error {
 	ok := shouldTrack(pr)
 	if !ok {
