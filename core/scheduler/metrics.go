@@ -52,11 +52,11 @@ var (
 		Help:      "Number of active validators",
 	})
 
-	effectiveBalanceGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	balanceGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "core",
 		Subsystem: "scheduler",
-		Name:      "validator_effective_balance_gwei",
-		Help:      "Effective balance of a validator by public key",
+		Name:      "validator_balance_gwei",
+		Help:      "Total balance of a validator by public key",
 	}, []string{"pubkey"})
 
 	effectivenessGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
@@ -81,6 +81,6 @@ func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 // instrumentValidator sets the validator effectiveness and effective balance.
 func instrumentValidator(pubkey core.PubKey, effectiveBal, totalBal eth2p0.Gwei) {
 	effectiveness := (float64(effectiveBal) / float64(totalBal)) * 100
-	effectiveBalanceGauge.WithLabelValues(pubkey.String()).Set(float64(effectiveBal))
+	balanceGauge.WithLabelValues(pubkey.String()).Set(float64(totalBal))
 	effectivenessGauge.WithLabelValues(pubkey.String()).Set(effectiveness)
 }

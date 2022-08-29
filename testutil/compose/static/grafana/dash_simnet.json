@@ -1272,7 +1272,7 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
-      "description": "Effectiveness and Effective balance of validators",
+      "description": "Effectiveness and Total balance of validators",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1459,7 +1459,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "core_scheduler_validator_effective_balance_gwei{job=\"$node\"} / 1000000000",
+          "expr": "core_scheduler_validator_balance_gwei{job=\"$node\"} / 1000000000",
           "format": "table",
           "hide": false,
           "legendFormat": "{{pubkey}}",
@@ -1492,7 +1492,7 @@
             "indexByName": {},
             "renameByName": {
               "Value #A": "Effectiveness",
-              "Value #B": "Effective Balance",
+              "Value #B": "Balance",
               "pubkey": "Public Key"
             }
           }
