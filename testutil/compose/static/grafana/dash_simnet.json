@@ -1272,7 +1272,7 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
-      "description": "Effectiveness and Total balance of validators",
+      "description": "Total balance of validators",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1299,71 +1299,6 @@
           }
         },
         "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Effectiveness"
-            },
-            "properties": [
-              {
-                "id": "custom.displayMode",
-                "value": "color-text"
-              },
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "from": 90,
-                      "result": {
-                        "color": "green",
-                        "index": 0
-                      },
-                      "to": 100
-                    },
-                    "type": "range"
-                  },
-                  {
-                    "options": {
-                      "from": 80,
-                      "result": {
-                        "color": "yellow",
-                        "index": 1
-                      },
-                      "to": 90
-                    },
-                    "type": "range"
-                  },
-                  {
-                    "options": {
-                      "from": 70,
-                      "result": {
-                        "color": "orange",
-                        "index": 2
-                      },
-                      "to": 80
-                    },
-                    "type": "range"
-                  },
-                  {
-                    "options": {
-                      "from": 0,
-                      "result": {
-                        "color": "red",
-                        "index": 3
-                      },
-                      "to": 70
-                    },
-                    "type": "range"
-                  }
-                ]
-              },
-              {
-                "id": "unit",
-                "value": "percent"
-              }
-            ]
-          },
           {
             "matcher": {
               "id": "byName",
@@ -1446,51 +1381,37 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "core_scheduler_validator_effectiveness_percentage{job=\"$node\"}",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "{{pubkey}}",
-          "range": false,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
           "expr": "core_scheduler_validator_balance_gwei{job=\"$node\"} / 1000000000",
           "format": "table",
           "hide": false,
+          "instant": true,
           "legendFormat": "{{pubkey}}",
-          "range": true,
+          "range": false,
           "refId": "B"
         }
       ],
-      "title": "Validator Effectiveness",
+      "title": "Validator Balance",
       "transformations": [
-        {
-          "id": "seriesToColumns",
-          "options": {
-            "byField": "pubkey"
-          }
-        },
         {
           "id": "organize",
           "options": {
             "excludeByName": {
+              "Time": true,
               "Time 1": true,
               "Time 2": true,
               "__name__": true,
               "__name__ 1": true,
               "__name__ 2": true,
+              "instance": true,
               "instance 1": true,
               "instance 2": true,
+              "job": true,
               "job 1": true,
               "job 2": true
             },
             "indexByName": {},
             "renameByName": {
+              "Value": "Balance",
               "Value #A": "Effectiveness",
               "Value #B": "Balance",
               "pubkey": "Public Key"
@@ -1907,7 +1828,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1999,7 +1921,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2091,7 +2014,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2184,7 +2108,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
