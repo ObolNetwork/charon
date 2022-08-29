@@ -5,10 +5,11 @@ on:
 
 jobs:
   trackpr:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     env:
       GITHUB_PR: ${{ toJSON(github.event.pull_request) }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GH_ORG_ADMIN_SECRET }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v2
