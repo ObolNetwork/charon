@@ -36,12 +36,13 @@ import (
 var titlePrefix = regexp.MustCompile(`^[*\w]+(/[*\w]+)?$`)
 
 type PR struct {
-	Title string
-	Body  string
+	Title string `json:"title"`
+	Body  string `json:"body"`
+	ID    string `json:"node_id"`
 }
 
-// prFromEnv fetches the GitHub pull request body from env and returns the unmarshalled PR output.
-func prFromEnv() (PR, error) {
+// FromEnv fetches the GitHub pull request body from env and returns the unmarshalled PR output.
+func FromEnv() (PR, error) {
 	const prEnv = "GITHUB_PR"
 	prJSON, ok := os.LookupEnv(prEnv)
 	if !ok {
@@ -65,7 +66,7 @@ func Verify() error {
 		return err
 	}
 
-	pr, err := prFromEnv()
+	pr, err := FromEnv()
 	if err != nil {
 		return err
 	}

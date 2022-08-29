@@ -257,7 +257,7 @@ func setSprint(ctx context.Context, client *gh.Client, projectID, itemID, sprint
 // unticketed returns true if the ticket is "none" for the PR and returns false otherwise. It doesn't verify the PR body
 // and assumes that PR verification step is already complete. Only call unticketed after Verify.
 func unticketed() (bool, error) {
-	pr, err := prFromEnv()
+	pr, err := FromEnv()
 	if err != nil {
 		return false, err
 	}
