@@ -72,27 +72,27 @@ func (n *MutableUDPNode) maybeRefresh(mutables []*MutablePeer) error {
 	}
 
 	n.mu.Lock()
-	defer n.mu.Unlock()
+	unchanged := strings.Join(n.prevNames, ",") == strings.Join(names, ",")
+	n.mu.Unlock()
 
-	if strings.Join(n.prevNames, ",") == strings.Join(names, ",") {
+	if unchanged {
 		return nil
-	}
-
-	n.prevNames = names
-
-	if n.udpNode != nil {
-		n.udpNode.Close()
-		n.udpNode = nil
 	}
 
 	udpNode, err := n.refreshFunc(bootnodes)
 	if err != nil {
-		n.prevNames = nil
-
 		return err
 	}
 
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.udpNode != nil {
+		n.udpNode.Close()
+	}
+
 	n.udpNode = udpNode
+	n.prevNames = names
 
 	return nil
 }
