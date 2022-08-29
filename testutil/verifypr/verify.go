@@ -21,8 +21,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"regexp"
@@ -30,53 +29,58 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 var titlePrefix = regexp.MustCompile(`^[*\w]+(/[*\w]+)?$`)
 
-func main() {
-	err := run()
-	if err != nil {
-		fmt.Print("❌ " + err.Error())
-		os.Exit(1)
-	}
-}
-
 type PR struct {
-	Title string
-	Body  string
+	Title string `json:"title"`
+	Body  string `json:"body"`
+	ID    string `json:"node_id"`
 }
 
-func run() error {
+// PRFromEnv returns the PR by parsing it from "GITHUB_PR" env var or an error.
+func PRFromEnv() (PR, error) {
+	const prEnv = "GITHUB_PR"
+	prJSON, ok := os.LookupEnv(prEnv)
+	if !ok || strings.TrimSpace(prJSON) == "" {
+		return PR{}, errors.New("env variable not set", z.Str("var", prEnv))
+	}
+
+	var pr PR
+	if err := json.Unmarshal([]byte(prJSON), &pr); err != nil {
+		return PR{}, errors.Wrap(err, "unmarshal PR body")
+	}
+
+	if pr.Title == "" || pr.Body == "" || pr.ID == "" {
+		return PR{}, errors.New("pr field not set")
+	}
+
+	return pr, nil
+}
+
+// verify returns an error if the PR doesn't correspond to the template defined in docs/contibuting.md.
+func verify() error {
 	if err := featureset.Init(context.Background(), featureset.Config{MinStatus: "alpha"}); err != nil {
 		return err
 	}
 
-	const prenv = "GITHUB_PR"
-	fmt.Println("Verifying charon PR against template")
-	fmt.Printf("Parsing %s\n", prenv)
-
-	prJSON, ok := os.LookupEnv(prenv)
-	if !ok {
-		return fmt.Errorf("environments variable not set: %s", prenv)
-	} else if strings.TrimSpace(prJSON) == "" {
-		return fmt.Errorf("environments variable empty: %s", prenv)
+	pr, err := PRFromEnv()
+	if err != nil {
+		return err
 	}
 
-	if strings.Contains(prJSON, "build(deps)") && strings.Contains(prJSON, "dependabot") {
-		fmt.Println("Skipping dependabot PR")
+	// Skip dependabot PRs.
+	if strings.Contains(pr.Title, "build(deps)") && strings.Contains(pr.Body, "dependabot") {
 		return nil
 	}
 
-	var pr PR
-	err := json.Unmarshal([]byte(prJSON), &pr)
-	if err != nil {
-		return fmt.Errorf("unmarshal %s failed: %w", prenv, err)
-	}
-
-	fmt.Printf("PR Title: %s\n", pr.Title)
-	fmt.Printf("## PR Body:\n%s\n####\n", pr.Body)
+	log.Printf("Verifying charon PR against template\n")
+	log.Printf("PR Title: %s\n", pr.Title)
+	log.Printf("## PR Body:\n%s\n####\n", pr.Body)
 
 	if err := verifyTitle(pr.Title); err != nil {
 		return err
@@ -85,8 +89,6 @@ func run() error {
 	if err := verifyBody(pr.Body); err != nil {
 		return err
 	}
-
-	fmt.Println("✅ Success")
 
 	return nil
 }
@@ -98,7 +100,7 @@ func verifyTitle(title string) error {
 	}
 
 	if !titlePrefix.Match([]byte(split[0])) {
-		return fmt.Errorf("title prefix doesn't match regex %s", titlePrefix)
+		return errors.New("title prefix doesn't match regex")
 	}
 
 	suffix := split[1]
@@ -175,7 +177,7 @@ func verifyBody(body string) error {
 			}
 
 			if !ok {
-				return fmt.Errorf("invalid category %s, not in %s", cat, allows)
+				return errors.New("invalid category", z.Str("category", cat), z.Any("allows", allows))
 			}
 
 			foundCategory = true

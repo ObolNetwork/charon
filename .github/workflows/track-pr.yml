@@ -1,18 +1,19 @@
-name: verify-pr
+name: track-pr
 on:
   pull_request:
-    types: [opened, reopened, edited, synchronize]
+    types: [closed]
 
 jobs:
-  verify:
+  trackpr:
     runs-on: ubuntu-latest
     env:
       GITHUB_PR: ${{ toJSON(github.event.pull_request) }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v2
         with:
           go-version: '1.19'
 
-      - name: "Verify PR"
-        run: go run github.com/obolnetwork/charon/testutil/verifypr
+      - name: "Track PR"
+        run: go run github.com/obolnetwork/charon/testutil/trackpr
