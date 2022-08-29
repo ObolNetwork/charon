@@ -47,7 +47,6 @@ func run(ctx context.Context) error {
 	if !ok {
 		return errors.New("env not set", z.Str("key", "GH_TOKEN"))
 	}
-	log.Println("obolt" + ghToken + "obolt")
 
 	pr, err := PRFromEnv()
 	if err != nil {
