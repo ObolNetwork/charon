@@ -15,4 +15,4 @@ jobs:
           go-version: '1.19'
 
       - name: "Verify PR"
-        run: go run testutil/verifypr/*
+        run: go run testutil/verifypr/main.go testutil/verifypr/verify.go
