@@ -1367,7 +1367,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Effective Balance"
+              "options": "Balance"
             },
             "properties": [
               {
