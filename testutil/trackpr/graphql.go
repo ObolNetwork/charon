@@ -13,8 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package pr provides functions to process GitHub pull requests.
-package pr
+package main
 
 import gh "github.com/shurcooL/githubv4"
 
@@ -44,7 +43,7 @@ type addProjectV2ItemByIdInput struct { //nolint:revive,stylecheck
 	ContentID gh.ID `json:"contentId"`
 }
 
-// projectQuery represents the graphql response for querying a GitHub project. Note that we query only for the first 25 fields.
+// projectQuery represents the graphql response when querying GitHub graphql API for a project. Note that we query only for the first 25 fields.
 // https://docs.github.com/en/graphql/reference/queries#organization
 type projectQuery struct {
 	Organization struct {
@@ -87,7 +86,7 @@ type projectQuery struct {
 	} `graphql:"organization(login: $org)"`
 }
 
-// addItemMutation adds the item to the project board.
+// addItemMutation adds item to the project board.
 // https://docs.github.com/en/graphql/reference/mutations#addprojectv2itembyid
 type addItemMutation struct {
 	AddProjectV2ItemByID struct {
@@ -97,7 +96,7 @@ type addItemMutation struct {
 	} `graphql:"addProjectV2ItemById(input: $input)"`
 }
 
-// setFieldMutation sets the sprint (ex: "Sprint 1", "Sprint 4" etc.) field of the project item.
+// setFieldMutation sets field of the project item.
 // https://docs.github.com/en/graphql/reference/mutations#updateprojectv2itemfieldvalue
 type setFieldMutation struct {
 	UpdateProjectV2ItemFieldValue struct {

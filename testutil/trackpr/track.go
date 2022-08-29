@@ -13,14 +13,15 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package pr provides functions to process GitHub pull requests.
-
 //nolint:wrapcheck,cyclop,exhaustruct
-package pr
+package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -28,16 +29,10 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
-const (
-	// Name of the GitHub organization.
-	organization = "ObolNetwork"
-	// The number of the project. For ex: https://github.com/orgs/ObolNetwork/projects/1 has projectNumber 1.
-	projectNumber = gh.Int(1)
-)
-
-// projectData represents the input fields used in graphql mutations.
+// projectData represents data related to a GitHub project.
 type projectData struct {
 	projectID       gh.ID
 	statusFieldID   gh.ID
@@ -47,23 +42,50 @@ type projectData struct {
 	currIterationID gh.ID
 }
 
-// Track tracks a PR without a ticket and adds it to the GitHub board. It accepts GitHub token and PR ID as inputs.
-func Track(ctx context.Context, ghToken string, pr PR) error {
-	// Ensure only PRs with no associated ticket gets through.
-	ok, err := shouldTrack(pr)
-	if err != nil {
-		return errors.Wrap(err, "check pr ticket")
-	} else if !ok {
-		log.Println("ticket doesn't need to be tracked ")
+type PR struct {
+	Title string `json:"title"`
+	Body  string `json:"body"`
+	ID    string `json:"node_id"`
+}
+
+// PRFromEnv returns the PR by parsing it from "GITHUB_PR" env var or an error.
+func PRFromEnv() (PR, error) {
+	const prEnv = "GITHUB_PR"
+	prJSON, ok := os.LookupEnv(prEnv)
+	if !ok {
+		return PR{}, errors.New("env variable not set", z.Str("var", prEnv))
+	} else if strings.TrimSpace(prJSON) == "" {
+		return PR{}, errors.New(fmt.Sprintf("%s env variable empty", prEnv))
+	}
+
+	var pr PR
+	if err := json.Unmarshal([]byte(prJSON), &pr); err != nil {
+		return PR{}, errors.Wrap(err, "unmarshal PR body")
+	}
+
+	if pr.Title == "" || pr.Body == "" || pr.ID == "" {
+		return PR{}, errors.New("pr field not set")
+	}
+
+	return pr, nil
+}
+
+// track PR without a ticket and add it to the GitHub project board of the organization.
+func track(ctx context.Context, ghToken string, pr PR, organization string, projectNumber int) error {
+	ok := shouldTrack(pr)
+	if !ok {
+		log.Println("pr doesn't need to be tracked")
 		return nil
 	}
 
 	client := gh.NewClient(oauth2.NewClient(ctx,
-		oauth2.StaticTokenSource(&oauth2.Token{AccessToken: ghToken}),
+		oauth2.StaticTokenSource(&oauth2.Token{
+			AccessToken: ghToken,
+		}),
 	))
 
 	// Step 1: Get project data
-	data, err := getProjectData(ctx, client)
+	data, err := getProjectData(ctx, client, organization, projectNumber)
 	if err != nil {
 		return errors.Wrap(err, "failed to get project data")
 	}
@@ -90,12 +112,12 @@ func Track(ctx context.Context, ghToken string, pr PR) error {
 	return nil
 }
 
-// getProjectData gets project data given the name of the GitHub organization and the project id.
-func getProjectData(ctx context.Context, client *gh.Client) (projectData, error) { //nolint:gocognit
+// getProjectData returns project data for the GitHub project.
+func getProjectData(ctx context.Context, client *gh.Client, organization string, projectNumber int) (projectData, error) { //nolint:gocognit
 	query := new(projectQuery)
 	variables := map[string]interface{}{
 		"org":    gh.String(organization),
-		"number": projectNumber,
+		"number": gh.Int(projectNumber),
 	}
 
 	err := client.Query(ctx, &query, variables)
@@ -104,26 +126,26 @@ func getProjectData(ctx context.Context, client *gh.Client) (projectData, error)
 	}
 
 	var (
-		conf    projectData
+		data    projectData
 		project = query.Organization.ProjectV2
 	)
 
-	conf.projectID = project.ID
+	data.projectID = project.ID
 
 	for _, node := range project.Fields.Nodes {
 		// Sprint sizing
 		if node.ProjectV2Field.Name == "Size" {
-			conf.sizeFieldID = node.ProjectV2Field.ID
+			data.sizeFieldID = node.ProjectV2Field.ID
 		}
 
 		statusField := node.ProjectV2SingleSelectField
 		// PR status: https://docs.github.com/en/graphql/reference/objects#projectv2singleselectfield
 		if statusField.Name == "Status" {
-			conf.statusFieldID = statusField.ID
+			data.statusFieldID = statusField.ID
 
 			for _, opt := range statusField.Options {
 				if opt.Name == "Done" {
-					conf.doneOptionID = opt.ID
+					data.doneOptionID = opt.ID
 				}
 			}
 		}
@@ -131,7 +153,7 @@ func getProjectData(ctx context.Context, client *gh.Client) (projectData, error)
 		sprintField := node.ProjectV2IterationField
 		// sprint iteration: https://docs.github.com/en/graphql/reference/objects#projectv2iterationfielditeration
 		if sprintField.Name == "Sprint" {
-			conf.sprintFieldID = sprintField.ID
+			data.sprintFieldID = sprintField.ID
 
 			for _, iter := range sprintField.Configuration.Iterations {
 				startDate, err := time.Parse("2006-01-02", iter.StartDate)
@@ -143,7 +165,7 @@ func getProjectData(ctx context.Context, client *gh.Client) (projectData, error)
 
 				currSprint := time.Now().After(startDate) && time.Now().Before(endDate)
 				if currSprint {
-					conf.currIterationID = iter.ID
+					data.currIterationID = iter.ID
 					// Get the earliest current sprint
 					break
 				}
@@ -151,14 +173,14 @@ func getProjectData(ctx context.Context, client *gh.Client) (projectData, error)
 		}
 	}
 
-	if conf.statusFieldID == nil || conf.doneOptionID == "" || conf.sizeFieldID == nil || conf.sprintFieldID == nil || conf.currIterationID == nil {
+	if data.projectID == nil || data.statusFieldID == nil || data.doneOptionID == "" || data.sizeFieldID == nil || data.sprintFieldID == nil || data.currIterationID == nil {
 		return projectData{}, errors.New("projectData field absent")
 	}
 
-	return conf, nil
+	return data, nil
 }
 
-// addProjectItem adds the PR to the GitHub project board and returns the ID of the added item. It doesn't set any of the item's fields.
+// addProjectItem adds an item (issue/PR) to the GitHub project board and returns the ID of the added item. It doesn't set any of the item's fields.
 func addProjectItem(ctx context.Context, client *gh.Client, projectID gh.ID, contentID string) (gh.ID, error) {
 	m := new(addItemMutation)
 	input := addProjectV2ItemByIdInput{
@@ -176,7 +198,7 @@ func addProjectItem(ctx context.Context, client *gh.Client, projectID gh.ID, con
 
 // setSize sets the size field (ex: 1, 2 etc.) of the project item.
 func setSize(ctx context.Context, client *gh.Client, projectID, itemID, sizeFieldID gh.ID, size gh.Float) error {
-	m := &setFieldMutation{}
+	m := new(setFieldMutation)
 	input := updateProjectV2ItemFieldValueInput{
 		ProjectID: projectID,
 		ItemID:    itemID,
@@ -193,7 +215,7 @@ func setSize(ctx context.Context, client *gh.Client, projectID, itemID, sizeFiel
 
 // setStatus sets the status field (ex: "Done", "In Progress" etc.) of the project item.
 func setStatus(ctx context.Context, client *gh.Client, projectID, itemID, statusFieldID gh.ID, doneOptionID gh.String) error {
-	m := &setFieldMutation{}
+	m := new(setFieldMutation)
 	input := updateProjectV2ItemFieldValueInput{
 		ProjectID: projectID,
 		ItemID:    itemID,
@@ -210,7 +232,7 @@ func setStatus(ctx context.Context, client *gh.Client, projectID, itemID, status
 
 // setSprint sets the sprint field (ex: "Sprint 1", "Sprint 4" etc.) of the project item.
 func setSprint(ctx context.Context, client *gh.Client, projectID, itemID, sprintFieldID, iterationID gh.ID) error {
-	m := &setFieldMutation{}
+	m := new(setFieldMutation)
 	input := updateProjectV2ItemFieldValueInput{
 		ProjectID: projectID,
 		ItemID:    itemID,
@@ -226,11 +248,11 @@ func setSprint(ctx context.Context, client *gh.Client, projectID, itemID, sprint
 }
 
 // shouldTrack returns true if the ticket is "none" for the PR and returns false otherwise. It doesn't verify the PR body
-// and assumes that PR verification step is already complete. Only call shouldTrack after Verify.
-func shouldTrack(pr PR) (bool, error) {
+// and assumes that PR verification step is already complete. Only call shouldTrack after verify.
+func shouldTrack(pr PR) bool {
 	// Skip dependabot PRs.
 	if strings.Contains(pr.Title, "build(deps)") && strings.Contains(pr.Body, "dependabot") {
-		return false, nil
+		return false
 	}
 
 	const ticketTag = "ticket:"
@@ -242,9 +264,9 @@ func shouldTrack(pr PR) (bool, error) {
 
 		ticket := strings.TrimSpace(strings.TrimPrefix(line, ticketTag))
 		if ticket == "none" {
-			return true, nil
+			return true
 		}
 	}
 
-	return false, nil
+	return false
 }

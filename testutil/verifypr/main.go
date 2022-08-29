@@ -16,37 +16,14 @@
 package main
 
 import (
-	"github.com/obolnetwork/charon/app/errors"
 	"log"
-	"os"
-
-	"github.com/obolnetwork/charon/testutil/pr"
 )
 
 func main() {
-	if err := run(); err != nil {
-		log.Printf("❌ Fatal error: %#v\n", err)
-		os.Exit(1)
-	}
-
-	log.Println("✅ Success")
-}
-
-func run() error {
-	ghToken, ok := os.LookupEnv("GH_TOKEN")
-	if !ok {
-		return errors.New("GH_TOKEN not set")
-	}
-
-	p, err := pr.FromEnv()
+	err := verify()
 	if err != nil {
-		return err
+		log.Fatalf("❌ Verification failed: %+v\n", err)
 	}
 
-	err = pr.Track(ghToken, p)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	log.Println("✅ Verification Success")
 }

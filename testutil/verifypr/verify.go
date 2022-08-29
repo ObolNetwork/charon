@@ -16,13 +16,12 @@
 // Package pr provides functions to process GitHub pull requests.
 
 //nolint:wrapcheck,revive,gocognit,cyclop,nestif,forbidigo
-package pr
+package main
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/obolnetwork/charon/app/z"
 	"net/url"
 	"os"
 	"regexp"
@@ -32,6 +31,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 var titlePrefix = regexp.MustCompile(`^[*\w]+(/[*\w]+)?$`)
@@ -42,9 +42,8 @@ type PR struct {
 	ID    string `json:"node_id"`
 }
 
-// FromEnv returns the PR by parsing it from a GITHUB_PR env var or an error.
-// The expected env var should be of schema: TODO(corver): add link.
-func FromEnv() (PR, error) {
+// PRFromEnv returns the PR by parsing it from "GITHUB_PR" env var or an error.
+func PRFromEnv() (PR, error) {
 	const prEnv = "GITHUB_PR"
 	prJSON, ok := os.LookupEnv(prEnv)
 	if !ok {
@@ -54,23 +53,24 @@ func FromEnv() (PR, error) {
 	}
 
 	var pr PR
-	err := json.Unmarshal([]byte(prJSON), &pr)
-	if err != nil {
+	if err := json.Unmarshal([]byte(prJSON), &pr); err != nil {
 		return PR{}, errors.Wrap(err, "unmarshal PR body")
 	}
 
-	// TODO(corver): validate PR fields.
+	if pr.Title == "" || pr.Body == "" || pr.ID == "" {
+		return PR{}, errors.New("pr field not set")
+	}
 
 	return pr, nil
 }
 
-// Verify verifies that the charon PRs correspond to the template defined in docs/contibuting.md.
-func Verify() error {
+// verify returns an error if the PR doesn't correspond to the template defined in docs/contibuting.md.
+func verify() error {
 	if err := featureset.Init(context.Background(), featureset.Config{MinStatus: "alpha"}); err != nil {
 		return err
 	}
 
-	pr, err := FromEnv()
+	pr, err := PRFromEnv()
 	if err != nil {
 		return err
 	}

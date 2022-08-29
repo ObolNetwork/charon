@@ -16,16 +16,46 @@
 package main
 
 import (
+	"context"
 	"log"
+	"os"
 
-	"github.com/obolnetwork/charon/testutil/pr"
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
+)
+
+const (
+	// Name of the GitHub organization.
+	organization = "ObolNetwork"
+	// The number of the project. For ex: https://github.com/orgs/ObolNetwork/projects/1 has projectNumber 1.
+	projectNumber = 1
 )
 
 func main() {
-	err := pr.Verify()
-	if err != nil {
-		log.Fatalf("❌ Verification failed: " + err.Error())
+	ctx := context.Background()
+	if err := run(ctx); err != nil {
+		log.Printf("❌ Fatal error: %#v\n", err)
+		os.Exit(1)
 	}
 
-	log.Println("✅ Verification Success")
+	log.Println("✅ Success")
+}
+
+func run(ctx context.Context) error {
+	ghToken, ok := os.LookupEnv("GH_TOKEN")
+	if !ok {
+		return errors.New("env not set", z.Str("key", "GH_TOKEN"))
+	}
+
+	p, err := PRFromEnv()
+	if err != nil {
+		return err
+	}
+
+	err = track(ctx, ghToken, p, organization, projectNumber)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
