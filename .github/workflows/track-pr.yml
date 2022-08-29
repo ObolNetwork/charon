@@ -5,6 +5,7 @@ on:
 
 jobs:
   trackpr:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     env:
       GITHUB_PR: ${{ toJSON(github.event.pull_request) }}
