@@ -16,6 +16,7 @@
 package scheduler
 
 import (
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -50,6 +51,20 @@ var (
 		Name:      "validators_active",
 		Help:      "Number of active validators",
 	})
+
+	effectiveBalanceGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "scheduler",
+		Name:      "validator_effective_balance_gwei",
+		Help:      "Effective balance of a validator by public key",
+	}, []string{"pubkey"})
+
+	effectivenessGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "scheduler",
+		Name:      "validator_effectiveness_percentage",
+		Help:      "Effectiveness of a validator by public key",
+	}, []string{"pubkey"})
 )
 
 // instrumentSlot sets the current slot and epoch metrics.
@@ -61,4 +76,11 @@ func instrumentSlot(slot core.Slot) {
 // instrumentDuty increments the duty counter.
 func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 	dutyCounter.WithLabelValues(duty.Type.String()).Add(float64(len(defSet)))
+}
+
+// instrumentValidator sets the validator effectiveness and effective balance.
+func instrumentValidator(pubkey core.PubKey, effectiveBal, totalBal eth2p0.Gwei) {
+	effectiveness := float64(effectiveBal) / float64(totalBal)
+	effectiveBalanceGauge.WithLabelValues(pubkey.String()).Set(float64(effectiveBal))
+	effectivenessGauge.WithLabelValues(pubkey.String()).Set(effectiveness)
 }
