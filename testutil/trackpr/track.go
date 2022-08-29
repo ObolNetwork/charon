@@ -129,6 +129,8 @@ func getProjectData(ctx context.Context, client *gh.Client, organization string,
 		project = query.Organization.ProjectV2
 	)
 
+	log.Println("project", project)
+
 	data.projectID = project.ID
 
 	for _, node := range project.Fields.Nodes {
