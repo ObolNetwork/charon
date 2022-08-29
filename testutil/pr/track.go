@@ -37,8 +37,8 @@ const (
 	projectNumber = gh.Int(1)
 )
 
-// config represents the input fields used in graphql mutations.
-type config struct {
+// projectData represents the input fields used in graphql mutations.
+type projectData struct {
 	projectID       gh.ID
 	statusFieldID   gh.ID
 	doneOptionID    gh.String
@@ -48,48 +48,51 @@ type config struct {
 }
 
 // Track tracks a PR without a ticket and adds it to the GitHub board. It accepts GitHub token and PR ID as inputs.
-func Track(ghToken, prID string) error {
+func Track(ctx context.Context, ghToken string, pr PR) error {
 	// Ensure only PRs with no associated ticket gets through.
-	ok, err := unticketed()
+	ok, err := shouldTrack(pr)
 	if err != nil {
 		return errors.Wrap(err, "check pr ticket")
 	} else if !ok {
-		log.Println("ticket exists for this PR")
+		log.Println("ticket doesn't need to be tracked ")
 		return nil
 	}
 
-	ctx := context.Background()
-
-	src := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: ghToken},
-	)
-	httpClient := oauth2.NewClient(ctx, src)
-	client := gh.NewClient(httpClient)
+	client := gh.NewClient(oauth2.NewClient(ctx,
+		oauth2.StaticTokenSource(&oauth2.Token{AccessToken: ghToken}),
+	))
 
 	// Step 1: Get project data
-	conf, err := getProjectData(ctx, client)
+	data, err := getProjectData(ctx, client)
 	if err != nil {
 		return errors.Wrap(err, "failed to get project data")
 	}
 
 	// Step 2: Add PR to project board
-	itemID, err := addProjectItem(ctx, client, conf.projectID, prID)
+	itemID, err := addProjectItem(ctx, client, data.projectID, pr.ID)
 	if err != nil {
 		return errors.Wrap(err, "failed to add to project")
 	}
 
 	// Step 3: Set size, status and sprint iteration fields
-	err = setFields(ctx, client, itemID, conf)
-	if err != nil {
-		return errors.Wrap(err, "failed to set fields")
+	if err := setStatus(ctx, client, data.projectID, itemID, data.statusFieldID, data.doneOptionID); err != nil {
+		return errors.Wrap(err, "set status")
+	}
+
+	if err := setSprint(ctx, client, data.projectID, itemID, data.sprintFieldID, data.currIterationID); err != nil {
+		return errors.Wrap(err, "set sprint")
+	}
+
+	if err := setSize(ctx, client, data.projectID, itemID, data.sizeFieldID, 1); err != nil {
+		return errors.Wrap(err, "set size")
 	}
 
 	return nil
 }
 
 // getProjectData gets project data given the name of the GitHub organization and the project id.
-func getProjectData(ctx context.Context, client *gh.Client) (config, error) { //nolint:gocognit
-	query := &projectQuery{}
+func getProjectData(ctx context.Context, client *gh.Client) (projectData, error) { //nolint:gocognit
+	query := new(projectQuery)
 	variables := map[string]interface{}{
 		"org":    gh.String(organization),
 		"number": projectNumber,
@@ -97,22 +100,15 @@ func getProjectData(ctx context.Context, client *gh.Client) (config, error) { //
 
 	err := client.Query(ctx, &query, variables)
 	if err != nil {
-		return config{}, errors.Wrap(err, "query project data")
+		return projectData{}, errors.Wrap(err, "query project data")
 	}
 
 	var (
-		conf    config
+		conf    projectData
 		project = query.Organization.ProjectV2
 	)
 
-	if project.ID == nil {
-		return config{}, errors.New("project id absent")
-	}
 	conf.projectID = project.ID
-
-	if len(project.Fields.Nodes) == 0 {
-		return config{}, errors.New("empty list of fields")
-	}
 
 	for _, node := range project.Fields.Nodes {
 		// Sprint sizing
@@ -124,10 +120,6 @@ func getProjectData(ctx context.Context, client *gh.Client) (config, error) { //
 		// PR status: https://docs.github.com/en/graphql/reference/objects#projectv2singleselectfield
 		if statusField.Name == "Status" {
 			conf.statusFieldID = statusField.ID
-
-			if len(statusField.Options) == 0 {
-				return config{}, errors.New("status fields absent")
-			}
 
 			for _, opt := range statusField.Options {
 				if opt.Name == "Done" {
@@ -141,14 +133,10 @@ func getProjectData(ctx context.Context, client *gh.Client) (config, error) { //
 		if sprintField.Name == "Sprint" {
 			conf.sprintFieldID = sprintField.ID
 
-			if len(sprintField.Configuration.Iterations) == 0 {
-				return config{}, errors.New("sprint iterations absent")
-			}
-
 			for _, iter := range sprintField.Configuration.Iterations {
 				startDate, err := time.Parse("2006-01-02", iter.StartDate)
 				if err != nil {
-					return config{}, errors.Wrap(err, "parse date")
+					return projectData{}, errors.Wrap(err, "parse date")
 				}
 
 				endDate := startDate.AddDate(0, 0, iter.Duration)
@@ -164,17 +152,17 @@ func getProjectData(ctx context.Context, client *gh.Client) (config, error) { //
 	}
 
 	if conf.statusFieldID == nil || conf.doneOptionID == "" || conf.sizeFieldID == nil || conf.sprintFieldID == nil || conf.currIterationID == nil {
-		return config{}, errors.New("config field absent")
+		return projectData{}, errors.New("projectData field absent")
 	}
 
 	return conf, nil
 }
 
 // addProjectItem adds the PR to the GitHub project board and returns the ID of the added item. It doesn't set any of the item's fields.
-func addProjectItem(ctx context.Context, client *gh.Client, projectID gh.ID, prID string) (gh.ID, error) {
-	m := &addItemMutation{}
+func addProjectItem(ctx context.Context, client *gh.Client, projectID gh.ID, contentID string) (gh.ID, error) {
+	m := new(addItemMutation)
 	input := addProjectV2ItemByIdInput{
-		ContentID: prID,
+		ContentID: contentID,
 		ProjectID: projectID,
 	}
 
@@ -184,23 +172,6 @@ func addProjectItem(ctx context.Context, client *gh.Client, projectID gh.ID, prI
 	}
 
 	return m.AddProjectV2ItemByID.Item.ID, nil
-}
-
-// setFields sets the size, status and sprint fields to the project item.
-func setFields(ctx context.Context, client *gh.Client, itemID gh.ID, conf config) error {
-	if err := setStatus(ctx, client, conf.projectID, itemID, conf.statusFieldID, conf.doneOptionID); err != nil {
-		return errors.Wrap(err, "set status")
-	}
-
-	if err := setSprint(ctx, client, conf.projectID, itemID, conf.sprintFieldID, conf.currIterationID); err != nil {
-		return errors.Wrap(err, "set sprint")
-	}
-
-	if err := setSize(ctx, client, conf.projectID, itemID, conf.sizeFieldID, 1); err != nil {
-		return errors.Wrap(err, "set size")
-	}
-
-	return nil
 }
 
 // setSize sets the size field (ex: 1, 2 etc.) of the project item.
@@ -254,14 +225,9 @@ func setSprint(ctx context.Context, client *gh.Client, projectID, itemID, sprint
 	return err
 }
 
-// unticketed returns true if the ticket is "none" for the PR and returns false otherwise. It doesn't verify the PR body
-// and assumes that PR verification step is already complete. Only call unticketed after Verify.
-func unticketed() (bool, error) {
-	pr, err := FromEnv()
-	if err != nil {
-		return false, err
-	}
-
+// shouldTrack returns true if the ticket is "none" for the PR and returns false otherwise. It doesn't verify the PR body
+// and assumes that PR verification step is already complete. Only call shouldTrack after Verify.
+func shouldTrack(pr PR) (bool, error) {
 	// Skip dependabot PRs.
 	if strings.Contains(pr.Title, "build(deps)") && strings.Contains(pr.Body, "dependabot") {
 		return false, nil

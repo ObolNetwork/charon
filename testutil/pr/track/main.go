@@ -16,6 +16,7 @@
 package main
 
 import (
+	"github.com/obolnetwork/charon/app/errors"
 	"log"
 	"os"
 
@@ -23,22 +24,29 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Printf("❌ Fatal error: %#v\n", err)
+		os.Exit(1)
+	}
+
+	log.Println("✅ Success")
+}
+
+func run() error {
 	ghToken, ok := os.LookupEnv("GH_TOKEN")
 	if !ok {
-		log.Fatalf("❌ Github token not found")
+		return errors.New("GH_TOKEN not set")
 	}
 
 	p, err := pr.FromEnv()
 	if err != nil {
-		log.Fatalf("pr not found")
-	} else if p.ID == "" {
-		log.Fatalf("pr ID not found")
+		return err
 	}
 
-	err = pr.Track(ghToken, p.ID)
+	err = pr.Track(ghToken, p)
 	if err != nil {
-		log.Fatalf("❌ Tracking failed: " + err.Error())
+		return err
 	}
 
-	log.Println("✅ Tracking Success")
+	return nil
 }

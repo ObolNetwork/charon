@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/obolnetwork/charon/app/z"
 	"net/url"
 	"os"
 	"regexp"
@@ -41,12 +42,13 @@ type PR struct {
 	ID    string `json:"node_id"`
 }
 
-// FromEnv fetches the GitHub pull request body from env and returns the unmarshalled PR output.
+// FromEnv returns the PR by parsing it from a GITHUB_PR env var or an error.
+// The expected env var should be of schema: TODO(corver): add link.
 func FromEnv() (PR, error) {
 	const prEnv = "GITHUB_PR"
 	prJSON, ok := os.LookupEnv(prEnv)
 	if !ok {
-		return PR{}, errors.New(fmt.Sprintf("%s env variable not set", prEnv))
+		return PR{}, errors.New("env variable not set", z.Str("var", prEnv))
 	} else if strings.TrimSpace(prJSON) == "" {
 		return PR{}, errors.New(fmt.Sprintf("%s env variable empty", prEnv))
 	}
@@ -56,6 +58,8 @@ func FromEnv() (PR, error) {
 	if err != nil {
 		return PR{}, errors.Wrap(err, "unmarshal PR body")
 	}
+
+	// TODO(corver): validate PR fields.
 
 	return pr, nil
 }

@@ -97,7 +97,7 @@ type addItemMutation struct {
 	} `graphql:"addProjectV2ItemById(input: $input)"`
 }
 
-// setSprintMutation sets the sprint (ex: "Sprint 1", "Sprint 4" etc.) field of the project item.
+// setFieldMutation sets the sprint (ex: "Sprint 1", "Sprint 4" etc.) field of the project item.
 // https://docs.github.com/en/graphql/reference/mutations#updateprojectv2itemfieldvalue
 type setFieldMutation struct {
 	UpdateProjectV2ItemFieldValue struct {
