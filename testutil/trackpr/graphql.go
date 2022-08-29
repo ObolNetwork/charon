@@ -17,26 +17,26 @@ package main
 
 import gh "github.com/shurcooL/githubv4"
 
-// projectV2FieldValue is a value to use in updateProjectV2ItemFieldValueInput.
+// ProjectV2FieldValue is a value to use in UpdateProjectV2ItemFieldValueInput.
 // https://docs.github.com/en/graphql/reference/input-objects#projectv2fieldvalue
-type projectV2FieldValue struct {
+type ProjectV2FieldValue struct {
 	IterationID          gh.ID     `json:"iterationId,omitempty"`
 	Number               gh.Float  `json:"number,omitempty"`
 	SingleSelectOptionID gh.String `json:"singleSelectOptionId,omitempty"`
 }
 
-// updateProjectV2ItemFieldValueInput is an input for UpdateProjectV2ItemFieldValue.
+// UpdateProjectV2ItemFieldValueInput is an input for UpdateProjectV2ItemFieldValue.
 // https://docs.github.com/en/graphql/reference/input-objects#updateprojectv2itemfieldvalueinput
-type updateProjectV2ItemFieldValueInput struct {
+type UpdateProjectV2ItemFieldValueInput struct {
 	FieldID   gh.ID               `json:"fieldId"`
 	ItemID    gh.ID               `json:"itemId"`
 	ProjectID gh.ID               `json:"projectId"`
-	Value     projectV2FieldValue `json:"value"`
+	Value     ProjectV2FieldValue `json:"value"`
 }
 
-// addProjectV2ItemByIdInput is an input for AddProjectV2ItemById.
+// AddProjectV2ItemByIdInput is an input for AddProjectV2ItemById.
 // https://docs.github.com/en/graphql/reference/input-objects#addprojectv2itembyidinput
-type addProjectV2ItemByIdInput struct { //nolint:revive,stylecheck
+type AddProjectV2ItemByIdInput struct { //nolint:revive,stylecheck
 	// The ID of the Project to add the item to. (Required.)
 	ProjectID gh.ID `json:"projectId"`
 	// The content id of the item (Issue or PullRequest). (Required.)

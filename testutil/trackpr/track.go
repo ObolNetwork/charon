@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -52,10 +51,8 @@ type PR struct {
 func PRFromEnv() (PR, error) {
 	const prEnv = "GITHUB_PR"
 	prJSON, ok := os.LookupEnv(prEnv)
-	if !ok {
+	if !ok || strings.TrimSpace(prJSON) == "" {
 		return PR{}, errors.New("env variable not set", z.Str("var", prEnv))
-	} else if strings.TrimSpace(prJSON) == "" {
-		return PR{}, errors.New(fmt.Sprintf("%s env variable empty", prEnv))
 	}
 
 	var pr PR
@@ -183,7 +180,7 @@ func getProjectData(ctx context.Context, client *gh.Client, organization string,
 // addProjectItem adds an item (issue/PR) to the GitHub project board and returns the ID of the added item. It doesn't set any of the item's fields.
 func addProjectItem(ctx context.Context, client *gh.Client, projectID gh.ID, contentID string) (gh.ID, error) {
 	m := new(addItemMutation)
-	input := addProjectV2ItemByIdInput{
+	input := AddProjectV2ItemByIdInput{
 		ContentID: contentID,
 		ProjectID: projectID,
 	}
@@ -199,11 +196,11 @@ func addProjectItem(ctx context.Context, client *gh.Client, projectID gh.ID, con
 // setSize sets the size field (ex: 1, 2 etc.) of the project item.
 func setSize(ctx context.Context, client *gh.Client, projectID, itemID, sizeFieldID gh.ID, size gh.Float) error {
 	m := new(setFieldMutation)
-	input := updateProjectV2ItemFieldValueInput{
+	input := UpdateProjectV2ItemFieldValueInput{
 		ProjectID: projectID,
 		ItemID:    itemID,
 		FieldID:   sizeFieldID,
-		Value: projectV2FieldValue{
+		Value: ProjectV2FieldValue{
 			Number: size,
 		},
 	}
@@ -216,11 +213,11 @@ func setSize(ctx context.Context, client *gh.Client, projectID, itemID, sizeFiel
 // setStatus sets the status field (ex: "Done", "In Progress" etc.) of the project item.
 func setStatus(ctx context.Context, client *gh.Client, projectID, itemID, statusFieldID gh.ID, doneOptionID gh.String) error {
 	m := new(setFieldMutation)
-	input := updateProjectV2ItemFieldValueInput{
+	input := UpdateProjectV2ItemFieldValueInput{
 		ProjectID: projectID,
 		ItemID:    itemID,
 		FieldID:   statusFieldID,
-		Value: projectV2FieldValue{
+		Value: ProjectV2FieldValue{
 			SingleSelectOptionID: doneOptionID,
 		},
 	}
@@ -233,11 +230,11 @@ func setStatus(ctx context.Context, client *gh.Client, projectID, itemID, status
 // setSprint sets the sprint field (ex: "Sprint 1", "Sprint 4" etc.) of the project item.
 func setSprint(ctx context.Context, client *gh.Client, projectID, itemID, sprintFieldID, iterationID gh.ID) error {
 	m := new(setFieldMutation)
-	input := updateProjectV2ItemFieldValueInput{
+	input := UpdateProjectV2ItemFieldValueInput{
 		ProjectID: projectID,
 		ItemID:    itemID,
 		FieldID:   sprintFieldID,
-		Value: projectV2FieldValue{
+		Value: ProjectV2FieldValue{
 			IterationID: iterationID,
 		},
 	}

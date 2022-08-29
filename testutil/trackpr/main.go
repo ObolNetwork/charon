@@ -34,7 +34,7 @@ const (
 func main() {
 	ctx := context.Background()
 	if err := run(ctx); err != nil {
-		log.Printf("❌ Fatal error: %#v\n", err)
+		log.Printf("❌ Fatal error: %+v\n", err)
 		os.Exit(1)
 	}
 

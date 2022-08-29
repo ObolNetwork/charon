@@ -17,12 +17,14 @@ package main
 
 import (
 	"log"
+	"os"
 )
 
 func main() {
 	err := verify()
 	if err != nil {
-		log.Fatalf("❌ Verification failed: %+v\n", err)
+		log.Printf("❌ Verification failed: %+v\n", err)
+		os.Exit(1)
 	}
 
 	log.Println("✅ Verification Success")

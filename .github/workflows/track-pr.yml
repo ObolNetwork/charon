@@ -16,4 +16,4 @@ jobs:
           go-version: '1.19'
 
       - name: "Track PR"
-        run: go run testutil/trackpr/main.go
+        run: go run testutil/trackpr/*

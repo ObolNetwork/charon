@@ -46,10 +46,8 @@ type PR struct {
 func PRFromEnv() (PR, error) {
 	const prEnv = "GITHUB_PR"
 	prJSON, ok := os.LookupEnv(prEnv)
-	if !ok {
+	if !ok || strings.TrimSpace(prJSON) == "" {
 		return PR{}, errors.New("env variable not set", z.Str("var", prEnv))
-	} else if strings.TrimSpace(prJSON) == "" {
-		return PR{}, errors.New(fmt.Sprintf("%s env variable empty", prEnv))
 	}
 
 	var pr PR
@@ -102,7 +100,7 @@ func verifyTitle(title string) error {
 	}
 
 	if !titlePrefix.Match([]byte(split[0])) {
-		return errors.New(fmt.Sprintf("title prefix doesn't match regex %s", titlePrefix))
+		return errors.New("title prefix doesn't match regex")
 	}
 
 	suffix := split[1]
