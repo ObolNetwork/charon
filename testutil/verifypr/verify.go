@@ -15,7 +15,7 @@
 
 // Command verifypr provides a tool to verify charon PRs against the template defined in docs/contibuting.md.
 //
-//nolint:wrapcheck,revive,gocognit,cyclop,nestif,forbidigo
+//nolint:revive,gocognit,cyclop,nestif
 package main
 
 import (
