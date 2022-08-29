@@ -1302,7 +1302,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Effectiveness (0.0 - 1.0)"
+              "options": "Effectiveness"
             },
             "properties": [
               {
@@ -1314,34 +1314,34 @@
                 "value": [
                   {
                     "options": {
-                      "from": 0.9,
+                      "from": 90,
                       "result": {
                         "color": "green",
                         "index": 0
                       },
-                      "to": 1
+                      "to": 100
                     },
                     "type": "range"
                   },
                   {
                     "options": {
-                      "from": 0.8,
+                      "from": 80,
                       "result": {
                         "color": "yellow",
                         "index": 1
                       },
-                      "to": 0.9
+                      "to": 90
                     },
                     "type": "range"
                   },
                   {
                     "options": {
-                      "from": 0.7,
+                      "from": 70,
                       "result": {
                         "color": "orange",
                         "index": 2
                       },
-                      "to": 0.8
+                      "to": 80
                     },
                     "type": "range"
                   },
@@ -1352,18 +1352,22 @@
                         "color": "red",
                         "index": 3
                       },
-                      "to": 0.7
+                      "to": 70
                     },
                     "type": "range"
                   }
                 ]
+              },
+              {
+                "id": "unit",
+                "value": "percent"
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Effective Balance (ether)"
+              "options": "Effective Balance"
             },
             "properties": [
               {
@@ -1407,6 +1411,10 @@
                     "type": "range"
                   }
                 ]
+              },
+              {
+                "id": "unit",
+                "value": "ETH"
               }
             ]
           }
@@ -1483,8 +1491,8 @@
             },
             "indexByName": {},
             "renameByName": {
-              "Value #A": "Effectiveness (0.0 - 1.0)",
-              "Value #B": "Effective Balance (ether)",
+              "Value #A": "Effectiveness",
+              "Value #B": "Effective Balance",
               "pubkey": "Public Key"
             }
           }
@@ -1899,8 +1907,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1992,8 +1999,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2085,8 +2091,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2179,8 +2184,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2300,8 +2304,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2407,8 +2410,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",

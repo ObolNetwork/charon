@@ -63,7 +63,7 @@ var (
 		Namespace: "core",
 		Subsystem: "scheduler",
 		Name:      "validator_effectiveness_percentage",
-		Help:      "Effectiveness of a validator by public key",
+		Help:      "Effectiveness of a validator by public key [0-100]",
 	}, []string{"pubkey"})
 )
 
@@ -80,7 +80,7 @@ func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 
 // instrumentValidator sets the validator effectiveness and effective balance.
 func instrumentValidator(pubkey core.PubKey, effectiveBal, totalBal eth2p0.Gwei) {
-	effectiveness := float64(effectiveBal) / float64(totalBal)
+	effectiveness := (float64(effectiveBal) / float64(totalBal)) * 100
 	effectiveBalanceGauge.WithLabelValues(pubkey.String()).Set(float64(effectiveBal))
 	effectivenessGauge.WithLabelValues(pubkey.String()).Set(effectiveness)
 }
