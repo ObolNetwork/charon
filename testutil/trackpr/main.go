@@ -29,7 +29,7 @@ const (
 	// Name of the GitHub organization.
 	organization = "ObolNetwork"
 	// The number of the project. For ex: https://github.com/orgs/ObolNetwork/projects/1 has projectNumber 1.
-	projectNumber = 1
+	projectNumber = 7
 )
 
 func main() {
