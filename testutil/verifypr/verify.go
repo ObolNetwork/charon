@@ -177,7 +177,7 @@ func verifyBody(body string) error {
 			}
 
 			if !ok {
-				return errors.New(fmt.Sprintf("invalid category %s, not in %s", cat, allows))
+				return errors.New("invalid category", z.Str("category", cat), z.Any("allows", allows))
 			}
 
 			foundCategory = true
