@@ -1429,14 +1429,17 @@
               "instance 2": true,
               "job": true,
               "job 1": true,
-              "job 2": true
+              "job 2": true,
+              "pubkey": true,
+              "pubkey_full": false
             },
             "indexByName": {},
             "renameByName": {
               "Value": "Balance",
               "Value #A": "Effectiveness",
               "Value #B": "Balance",
-              "pubkey": "Public Key"
+              "pubkey": "Public Key",
+              "pubkey_full": "Public Key"
             }
           }
         }
@@ -1850,7 +1853,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1942,7 +1946,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2034,7 +2039,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2127,7 +2133,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2247,7 +2254,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2353,7 +2361,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",

@@ -57,7 +57,7 @@ var (
 		Subsystem: "scheduler",
 		Name:      "validator_balance_gwei",
 		Help:      "Total balance of a validator by public key",
-	}, []string{"pubkey"})
+	}, []string{"pubkey_full", "pubkey"})
 )
 
 // instrumentSlot sets the current slot and epoch metrics.
@@ -73,5 +73,5 @@ func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 
 // instrumentValidator sets the validator balance.
 func instrumentValidator(pubkey core.PubKey, totalBal eth2p0.Gwei) {
-	balanceGauge.WithLabelValues(string(pubkey)).Set(float64(totalBal))
+	balanceGauge.WithLabelValues(string(pubkey), pubkey.String()).Set(float64(totalBal))
 }
