@@ -24,6 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
+  "iteration": 1661934025805,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -78,7 +79,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 4,
         "x": 0,
         "y": 1
@@ -98,7 +99,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -158,7 +159,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 4,
         "x": 4,
         "y": 1
@@ -175,7 +176,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.1.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -184,7 +185,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "(\n  sum(app_git_commit{job=\"$node\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{job=\"$node\"}) by (version)\n)\n   + on(job) group_left(lock_hash)\n(\n   0 * sum(app_lock_hash{job=\"$node\"}) by (lock_hash)\n)",
+          "expr": "(\n  sum(app_git_commit{job=\"$node\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{job=\"$node\"}) by (version)\n)\n   + on(job) group_left(lock_hash)\n(\n   0 * sum(app_lock_hash{job=\"$node\"}) by (lock_hash)\n)\n   + on(job) group_left(threshold)\n(\n   0 * sum(app_threshold{job=\"$node\"}) by (threshold)\n)\n   + on(job) group_left(num_validators)\n(\n   0 * sum(app_num_validators{job=\"$node\"}) by (num_validators)\n)",
           "hide": false,
           "instant": true,
           "interval": "",
@@ -203,103 +204,6 @@
         }
       ],
       "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "Node is healthy if Beacon Node connected and synced and at least quorum peers are connected.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "orange",
-                  "index": 1,
-                  "text": "NOK"
-                },
-                "1": {
-                  "color": "green",
-                  "index": 0,
-                  "text": "OK"
-                }
-              },
-              "type": "value"
-            },
-            {
-              "options": {
-                "match": "null",
-                "result": {
-                  "index": 2,
-                  "text": "Dead"
-                }
-              },
-              "type": "special"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 2,
-        "x": 8,
-        "y": 1
-      },
-      "id": 48,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
-      "pluginVersion": "9.1.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "app_monitoring_readyz{job=\"$node\"} ",
-          "hide": false,
-          "instant": true,
-          "interval": "",
-          "legendFormat": "",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Healthy",
-      "type": "stat"
     },
     {
       "datasource": {
@@ -332,8 +236,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
-        "x": 10,
+        "w": 4,
+        "x": 8,
         "y": 1
       },
       "id": 22,
@@ -351,7 +255,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -400,8 +304,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
-        "x": 13,
+        "w": 4,
+        "x": 12,
         "y": 1
       },
       "id": 28,
@@ -419,7 +323,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -468,7 +372,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
+        "w": 4,
         "x": 16,
         "y": 1
       },
@@ -487,7 +391,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -503,6 +407,75 @@
         }
       ],
       "title": "# Relays Connected",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "description": "Number of partial signatures collected per voluntary exiting validator.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "noValue": "None",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 27,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "sum(core_parsigdb_exit_totalcore_{job=\"$node\"}) by (pubkey)",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Voluntary Exits",
       "type": "stat"
     },
     {
@@ -556,10 +529,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 2,
-        "x": 19,
-        "y": 1
+        "h": 2,
+        "w": 8,
+        "x": 8,
+        "y": 5
       },
       "id": 46,
       "options": {
@@ -576,7 +549,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -602,14 +575,41 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
-      "description": "Number of partial signatures collected per voluntary exiting validator.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "fixed"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
-          "noValue": "None",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -623,32 +623,29 @@
               }
             ]
           },
-          "unit": "none"
+          "unit": "s"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 21,
-        "y": 1
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 5
       },
-      "id": 27,
+      "id": 25,
       "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
         },
-        "textMode": "auto"
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
-      "pluginVersion": "9.1.0",
       "targets": [
         {
           "datasource": {
@@ -656,15 +653,14 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "sum(core_parsigdb_exit_totalcore_{job=\"$node\"}) by (pubkey)",
-          "hide": false,
+          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[$__rate_interval])) by (le,peer))  ",
           "interval": "",
-          "legendFormat": "",
+          "legendFormat": "{{peer}}",
           "refId": "A"
         }
       ],
-      "title": "Voluntary Exits",
-      "type": "stat"
+      "title": "Peer ping latency (90%)",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -829,10 +825,10 @@
         ]
       },
       "gridPos": {
-        "h": 6,
-        "w": 16,
+        "h": 5,
+        "w": 12,
         "x": 0,
-        "y": 5
+        "y": 7
       },
       "id": 54,
       "options": {
@@ -852,7 +848,7 @@
           }
         ]
       },
-      "pluginVersion": "9.1.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -992,17 +988,111 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
+      "description": "Node is healthy if Beacon Node connected and synced and at least quorum peers are connected.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "orange",
+                  "index": 1,
+                  "text": "NOK"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "OK"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "index": 2,
+                  "text": "Dead"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 7
+      },
+      "id": 48,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "app_monitoring_readyz{job=\"$node\"} ",
+          "hide": false,
+          "instant": true,
+          "interval": "",
+          "legendFormat": "",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Healthy",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
-            "axisSoftMin": 0,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 0,
@@ -1013,7 +1103,7 @@
               "viz": false
             },
             "lineInterpolation": "linear",
-            "lineWidth": 2,
+            "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -1029,6 +1119,7 @@
             }
           },
           "mappings": [],
+          "noValue": "No warnings",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1041,18 +1132,17 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "s"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 16,
-        "y": 5
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 11
       },
-      "id": 25,
+      "id": 14,
       "options": {
         "legend": {
           "calcs": [],
@@ -1072,13 +1162,13 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[$__rate_interval])) by (le,peer))  ",
+          "expr": "increase(app_log_warn_total{job=\"$node\"}[$__rate_interval]) ",
           "interval": "",
-          "legendFormat": "{{peer}}",
+          "legendFormat": "{{topic}}",
           "refId": "A"
         }
       ],
-      "title": "Peer ping latency (90%)",
+      "title": "Warnings by topic",
       "type": "timeseries"
     },
     {
@@ -1092,8 +1182,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1143,7 +1231,7 @@
         "h": 4,
         "w": 12,
         "x": 0,
-        "y": 11
+        "y": 12
       },
       "id": 13,
       "options": {
@@ -1172,99 +1260,6 @@
         }
       ],
       "title": "Errors by topic",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "noValue": "No warnings",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 12,
-        "x": 12,
-        "y": 11
-      },
-      "id": 14,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "exemplar": true,
-          "expr": "increase(app_log_warn_total{job=\"$node\"}[$__rate_interval]) ",
-          "interval": "",
-          "legendFormat": "{{topic}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Warnings by topic",
       "type": "timeseries"
     },
     {
@@ -1381,7 +1376,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 15
+        "y": 16
       },
       "id": 56,
       "options": {
@@ -1394,7 +1389,7 @@
         },
         "showHeader": true
       },
-      "pluginVersion": "9.1.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -1457,8 +1452,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1509,7 +1502,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 15
+        "y": 16
       },
       "id": 5,
       "options": {
@@ -1575,7 +1568,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 15
+        "y": 16
       },
       "id": 26,
       "options": {
@@ -1592,7 +1585,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -1620,8 +1613,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1670,7 +1661,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 22
+        "y": 23
       },
       "id": 7,
       "options": {
@@ -1726,8 +1717,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1777,7 +1766,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 22
+        "y": 23
       },
       "id": 18,
       "options": {
@@ -1819,8 +1808,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1870,7 +1857,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 29
+        "y": 30
       },
       "id": 17,
       "options": {
@@ -1912,8 +1899,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1963,7 +1948,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 29
+        "y": 30
       },
       "id": 24,
       "options": {
@@ -2005,8 +1990,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -2056,7 +2039,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 36
+        "y": 37
       },
       "id": 15,
       "options": {
@@ -2098,8 +2081,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -2163,7 +2144,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 36
+        "y": 37
       },
       "id": 49,
       "options": {
@@ -2254,8 +2235,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2271,7 +2251,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 43
+        "y": 44
       },
       "id": 50,
       "options": {
@@ -2361,8 +2341,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2378,7 +2357,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 43
+        "y": 44
       },
       "id": 52,
       "links": [],
@@ -2416,7 +2395,7 @@
     }
   ],
   "refresh": "30s",
-  "schemaVersion": 37,
+  "schemaVersion": 36,
   "style": "dark",
   "tags": [],
   "templating": {

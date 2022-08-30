@@ -16,6 +16,8 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -28,6 +30,18 @@ var (
 		Name:      "version",
 		Help:      "Constant gauge with label set to current app version",
 	}, []string{"version"})
+
+	thresholdGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Name:      "threshold",
+		Help:      "Constant gauge with label set to cluster threshold",
+	}, []string{"threshold"})
+
+	numValidatorsGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Name:      "num_validators",
+		Help:      "Constant gauge with label set to number of validators in the cluster",
+	}, []string{"num_validators"})
 
 	gitGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
@@ -55,11 +69,13 @@ var (
 	})
 )
 
-func initStartupMetrics(lockHash string) {
+func initStartupMetrics(lockHash string, threshold, numValidators int) {
 	versionGauge.WithLabelValues(version.Version).Set(1)
 	startGauge.SetToCurrentTime()
 
 	hash, _ := version.GitCommit()
 	gitGauge.WithLabelValues(hash).Set(1)
 	lockHashGauge.WithLabelValues(lockHash).Set(1)
+	thresholdGauge.WithLabelValues(fmt.Sprintf("%d", threshold)).Set(1)
+	numValidatorsGauge.WithLabelValues(fmt.Sprintf("%d", numValidators)).Set(1)
 }
