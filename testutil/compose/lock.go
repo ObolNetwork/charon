@@ -50,6 +50,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			{"cluster-dir", "/compose"},
 			{"split-existing-keys", fmt.Sprintf(`"%v"`, conf.SplitKeysDir != "")},
 			{"split-keys-dir", splitKeysDir},
+			{"num-validators", fmt.Sprint(conf.NumValidators)},
 		}}
 
 		data = TmplData{

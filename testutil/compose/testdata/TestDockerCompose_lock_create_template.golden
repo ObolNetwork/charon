@@ -27,6 +27,10 @@
     {
      "Key": "split-keys-dir",
      "Value": ""
+    },
+    {
+     "Key": "num-validators",
+     "Value": "1"
     }
    ],
    "Ports": null

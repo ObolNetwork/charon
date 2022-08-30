@@ -1272,7 +1272,7 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
-      "description": "Total balance of validators",
+      "description": "Total balance of validators with links to beaconcha.in for each public key.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1288,7 +1288,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "light-blue",
                 "value": null
               },
               {
@@ -1352,6 +1352,28 @@
                 "value": "ETH"
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Public Key"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "beaconcha.in",
+                    "url": "http://beaconcha.in/validator/${__data.fields[\"Public Key\"]}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              }
+            ]
           }
         ]
       },
@@ -1390,7 +1412,7 @@
           "refId": "B"
         }
       ],
-      "title": "Validator Balance",
+      "title": "Validators",
       "transformations": [
         {
           "id": "organize",
@@ -1407,14 +1429,17 @@
               "instance 2": true,
               "job": true,
               "job 1": true,
-              "job 2": true
+              "job 2": true,
+              "pubkey": true,
+              "pubkey_full": false
             },
             "indexByName": {},
             "renameByName": {
               "Value": "Balance",
               "Value #A": "Effectiveness",
               "Value #B": "Balance",
-              "pubkey": "Public Key"
+              "pubkey": "Public Key",
+              "pubkey_full": "Public Key"
             }
           }
         }
@@ -2229,7 +2254,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2335,7 +2361,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",

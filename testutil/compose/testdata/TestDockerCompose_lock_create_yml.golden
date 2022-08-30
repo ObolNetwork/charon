@@ -18,6 +18,7 @@ services:
       CHARON_CLUSTER_DIR: /compose
       CHARON_SPLIT_EXISTING_KEYS: "false"
       CHARON_SPLIT_KEYS_DIR: 
+      CHARON_NUM_VALIDATORS: 1
     
 networks:
   compose:
