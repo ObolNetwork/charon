@@ -281,6 +281,7 @@ func newNewCmd() *cobra.Command {
 	extBootnode := cmd.Flags().String("external-bootnode", "", "Optional external bootnode HTTP url.")
 	splitKeys := cmd.Flags().String("split-keys-dir", conf.SplitKeysDir, "Directory containing keys to split for keygen==create, or empty not to split.")
 	featureSet := cmd.Flags().String("feature-set", conf.FeatureSet, "Minimum feature set to enable: alpha, beta, stable")
+	numVals := cmd.Flags().Int("num-validators", conf.NumValidators, "Number of distributed validators.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
@@ -289,6 +290,7 @@ func newNewCmd() *cobra.Command {
 		conf.SplitKeysDir = *splitKeys
 		conf.FeatureSet = *featureSet
 		conf.ExternalBootnode = *extBootnode
+		conf.NumValidators = *numVals
 
 		ctx := log.WithTopic(cmd.Context(), "new")
 		if err := compose.New(ctx, *dir, conf); err != nil {

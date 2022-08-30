@@ -73,5 +73,5 @@ func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 
 // instrumentValidator sets the validator balance.
 func instrumentValidator(pubkey core.PubKey, totalBal eth2p0.Gwei) {
-	balanceGauge.WithLabelValues(pubkey.String()).Set(float64(totalBal))
+	balanceGauge.WithLabelValues(string(pubkey)).Set(float64(totalBal))
 }

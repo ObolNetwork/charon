@@ -1272,7 +1272,7 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
-      "description": "Total balance of validators",
+      "description": "Total balance of validators with links to beaconcha.in for each public key.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1288,7 +1288,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "light-blue",
                 "value": null
               },
               {
@@ -1352,6 +1352,28 @@
                 "value": "ETH"
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Public Key"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "beaconcha.in",
+                    "url": "http://beaconcha.in/validator/${__data.fields[\"Public Key\"]}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              }
+            ]
           }
         ]
       },
@@ -1390,7 +1412,7 @@
           "refId": "B"
         }
       ],
-      "title": "Validator Balance",
+      "title": "Validators",
       "transformations": [
         {
           "id": "organize",
@@ -1828,8 +1850,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1921,8 +1942,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2014,8 +2034,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2108,8 +2127,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
