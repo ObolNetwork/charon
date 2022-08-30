@@ -173,7 +173,7 @@ func getProjectData(ctx context.Context, client *gh.Client, organization string,
 	}
 
 	if data.projectID == nil || data.statusFieldID == nil || data.doneOptionID == "" || data.sizeFieldID == nil || data.sprintFieldID == nil || data.currIterationID == nil {
-		return projectData{}, errors.New("projectData field absent")
+		return projectData{}, errors.New("projectData field absent", z.Any("data", data))
 	}
 
 	return data, nil
