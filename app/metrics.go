@@ -16,6 +16,8 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -28,6 +30,24 @@ var (
 		Name:      "version",
 		Help:      "Constant gauge with label set to current app version",
 	}, []string{"version"})
+
+	thresholdGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Name:      "threshold",
+		Help:      "Constant gauge with label set to cluster threshold",
+	}, []string{"threshold"})
+
+	numOperatorsGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Name:      "num_operators",
+		Help:      "Constant gauge with label set to the number of operators in the cluster",
+	}, []string{"num_operators"})
+
+	peerNameGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Name:      "peer_name",
+		Help:      "Constant gauge with label set to the name of the cluster peer",
+	}, []string{"peer_name"})
 
 	gitGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
@@ -55,11 +75,14 @@ var (
 	})
 )
 
-func initStartupMetrics(lockHash string) {
+func initStartupMetrics(lockHash, peerName string, threshold, numOperators int) {
 	versionGauge.WithLabelValues(version.Version).Set(1)
 	startGauge.SetToCurrentTime()
 
 	hash, _ := version.GitCommit()
 	gitGauge.WithLabelValues(hash).Set(1)
 	lockHashGauge.WithLabelValues(lockHash).Set(1)
+	thresholdGauge.WithLabelValues(fmt.Sprintf("%d", threshold)).Set(1)
+	numOperatorsGauge.WithLabelValues(fmt.Sprintf("%d", numOperators)).Set(1)
+	peerNameGauge.WithLabelValues(peerName).Set(1)
 }
