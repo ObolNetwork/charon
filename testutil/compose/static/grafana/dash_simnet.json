@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "iteration": 1661951089155,
+  "iteration": 1661952379199,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -110,7 +110,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "(\n  sum(app_git_commit{job=\"$node\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{job=\"$node\"}) by (version)\n)\n   + on(job) group_left(lock_hash)\n(\n   0 * sum(app_lock_hash{job=\"$node\"}) by (lock_hash)\n)\n  + on(job) group_left(threshold)\n(\n   0 * sum(app_threshold{job=\"$node\"}) by (threshold)\n)\n   + on(job) group_left(num_validators)\n(\n   0 * sum(app_num_validators{job=\"$node\"}) by (num_validators)\n)\n   + on(job) group_left(peer_name)\n(\n   0 * sum(app_peer_name{job=\"$node\"}) by (peer_name)\n)",
+          "expr": "(\n  sum(app_git_commit{job=\"$node\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{job=\"$node\"}) by (version)\n)\n   + on(job) group_left(lock_hash)\n(\n   0 * sum(app_lock_hash{job=\"$node\"}) by (lock_hash)\n)\n  + on(job) group_left(threshold)\n(\n   0 * sum(app_threshold{job=\"$node\"}) by (threshold)\n)\n   + on(job) group_left(num_operators)\n(\n   0 * sum(app_num_operators{job=\"$node\"}) by (num_operators)\n)\n   + on(job) group_left(peer_name)\n(\n   0 * sum(app_peer_name{job=\"$node\"}) by (peer_name)\n)",
           "hide": false,
           "instant": true,
           "interval": "",
@@ -1645,8 +1645,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1749,8 +1748,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1840,8 +1838,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1931,8 +1928,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2022,8 +2018,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2114,8 +2109,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2233,8 +2227,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2338,8 +2331,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
