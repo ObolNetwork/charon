@@ -43,6 +43,12 @@ var (
 		Help:      "Constant gauge with label set to number of validators in the cluster",
 	}, []string{"num_validators"})
 
+	peerNameGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Name:      "peer_name",
+		Help:      "Constant gauge with label set to the name of the cluster peer",
+	}, []string{"peer_name"})
+
 	gitGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
 		Name:      "git_commit",
@@ -69,7 +75,7 @@ var (
 	})
 )
 
-func initStartupMetrics(lockHash string, threshold, numValidators int) {
+func initStartupMetrics(lockHash, peerName string, threshold, numValidators int) {
 	versionGauge.WithLabelValues(version.Version).Set(1)
 	startGauge.SetToCurrentTime()
 
@@ -78,4 +84,5 @@ func initStartupMetrics(lockHash string, threshold, numValidators int) {
 	lockHashGauge.WithLabelValues(lockHash).Set(1)
 	thresholdGauge.WithLabelValues(fmt.Sprintf("%d", threshold)).Set(1)
 	numValidatorsGauge.WithLabelValues(fmt.Sprintf("%d", numValidators)).Set(1)
+	peerNameGauge.WithLabelValues(peerName).Set(1)
 }
