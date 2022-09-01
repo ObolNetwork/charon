@@ -17,6 +17,9 @@ package dkg
 
 import (
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -33,10 +36,15 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-// loadDefinition returns the cluster definition from disk (or the test definition if configured).
+// loadDefinition returns the cluster definition from disk or network. It returns the test definition if configured.
 func loadDefinition(conf Config) (cluster.Definition, error) {
 	if conf.TestDef != nil {
 		return *conf.TestDef, nil
+	}
+
+	_, err := url.ParseRequestURI(conf.DefFile)
+	if err == nil {
+		return fetchDefinition(conf.DefFile)
 	}
 
 	buf, err := os.ReadFile(conf.DefFile)
@@ -51,6 +59,27 @@ func loadDefinition(conf Config) (cluster.Definition, error) {
 	}
 
 	return res, nil
+}
+
+// fetchDefinition fetches cluster definition file from a remote URI.
+func fetchDefinition(url string) (cluster.Definition, error) {
+	resp, err := http.Get(url) //nolint:gosec,noctx
+	if err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "fetch file")
+	}
+	defer resp.Body.Close()
+
+	buf, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "read response body")
+	}
+
+	def := new(cluster.Definition)
+	if err := def.UnmarshalJSON(buf); err != nil {
+		return cluster.Definition{}, err
+	}
+
+	return *def, nil
 }
 
 // writeKeystores writes the private share keystores to disk.
