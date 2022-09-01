@@ -19,6 +19,7 @@ package eth2wrap
 
 import (
 	"context"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -39,6 +40,7 @@ type Client interface {
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
 	eth2client.BeaconCommitteesProvider
+	eth2exp.BeaconCommitteeSubscriptionsSubmitter
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.DepositContractProvider
