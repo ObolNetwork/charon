@@ -82,8 +82,7 @@ func TestSmoke(t *testing.T) {
 			ConfigFunc: func(conf *compose.Config) {
 				conf.NumNodes = 21
 				conf.Threshold = 14
-
-				conf.NumValidators = 100
+				conf.NumValidators = 100 // TODO(dhruv): Increase to 1000 once we have faster way to create keystores
 				conf.KeyGen = compose.KeyGenCreate
 			},
 		},
