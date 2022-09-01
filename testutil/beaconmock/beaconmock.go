@@ -39,7 +39,6 @@ package beaconmock
 import (
 	"context"
 	"fmt"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"net/http"
 	"time"
 
@@ -52,6 +51,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // Interface assertions.
