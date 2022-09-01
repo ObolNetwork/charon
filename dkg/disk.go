@@ -23,6 +23,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -36,14 +37,13 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-// loadDefinition returns the cluster definition from disk or network. It returns the test definition if configured.
+// loadDefinition returns the cluster definition from disk or an HTTP URL. It returns the test definition if configured.
 func loadDefinition(conf Config) (cluster.Definition, error) {
 	if conf.TestDef != nil {
 		return *conf.TestDef, nil
 	}
 
-	_, err := url.ParseRequestURI(conf.DefFile)
-	if err == nil {
+	if validURI(conf.DefFile) {
 		return fetchDefinition(conf.DefFile)
 	}
 
@@ -63,7 +63,11 @@ func loadDefinition(conf Config) (cluster.Definition, error) {
 
 // fetchDefinition fetches cluster definition file from a remote URI.
 func fetchDefinition(url string) (cluster.Definition, error) {
-	resp, err := http.Get(url) //nolint:gosec,noctx
+	client := http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	resp, err := client.Get(url) //nolint:noctx
 	if err != nil {
 		return cluster.Definition{}, errors.Wrap(err, "fetch file")
 	}
@@ -74,12 +78,12 @@ func fetchDefinition(url string) (cluster.Definition, error) {
 		return cluster.Definition{}, errors.Wrap(err, "read response body")
 	}
 
-	def := new(cluster.Definition)
-	if err := def.UnmarshalJSON(buf); err != nil {
+	var res cluster.Definition
+	if err := json.Unmarshal(buf, &res); err != nil {
 		return cluster.Definition{}, err
 	}
 
-	return *def, nil
+	return res, nil
 }
 
 // writeKeystores writes the private share keystores to disk.
@@ -180,4 +184,11 @@ func checkWrites(dataDir string) error {
 	}
 
 	return nil
+}
+
+// validURI returns true if the input string is a valid HTTP/HTTPS URI.
+func validURI(str string) bool {
+	u, err := url.Parse(str)
+
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }

@@ -16,12 +16,16 @@
 package dkg
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
 )
@@ -74,6 +78,82 @@ func TestFetchDefinition(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("fetchDefinition() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadDefinition(t *testing.T) {
+	// Valid definition
+	lock, _, _ := cluster.NewForT(t, 1, 2, 3, 0)
+	validDef := lock.Definition
+	validFile := "valid-cluster-definition.json"
+	b, err := json.MarshalIndent(validDef, "", " ")
+	require.NoError(t, err)
+	err = os.WriteFile(validFile, b, 0o666)
+	require.NoError(t, err)
+
+	// Invalid definition
+	invalidDef := cluster.Definition{}
+	invalidFile := "invalid-cluster-definition.json"
+	err = os.WriteFile(invalidFile, []byte{1, 2, 3}, 0o666)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, os.Remove(validFile))
+		require.NoError(t, os.Remove(invalidFile))
+	}()
+
+	type args struct {
+		conf Config
+	}
+
+	tests := []struct {
+		name    string
+		args    args
+		want    cluster.Definition
+		wantErr bool
+	}{
+		{
+			name: "Load valid definition",
+			args: args{
+				conf: Config{
+					DefFile: validFile,
+				},
+			},
+			want:    validDef,
+			wantErr: false,
+		},
+		{
+			name: "Definition file doesn't exist",
+			args: args{
+				conf: Config{
+					DefFile: "",
+				},
+			},
+			want:    invalidDef,
+			wantErr: true,
+		},
+		{
+			name: "Load invalid definition",
+			args: args{
+				conf: Config{
+					DefFile: invalidFile,
+				},
+			},
+			want:    invalidDef,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := loadDefinition(tt.args.conf)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("loadDefinition() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("loadDefinition() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
