@@ -80,7 +80,7 @@ func fetchDefinition(url string) (cluster.Definition, error) {
 
 	var res cluster.Definition
 	if err := json.Unmarshal(buf, &res); err != nil {
-		return cluster.Definition{}, err
+		return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
 	}
 
 	return res, nil
