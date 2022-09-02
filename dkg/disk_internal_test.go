@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -48,38 +47,34 @@ func TestFetchDefinition(t *testing.T) {
 	}))
 	defer server.Close()
 
-	type args struct {
-		url string
-	}
 	tests := []struct {
 		name    string
-		args    args
+		url     string
 		want    cluster.Definition
 		wantErr bool
 	}{
 		{
 			name:    "Fetch valid definition",
-			args:    args{url: fmt.Sprintf("%s/%s", server.URL, "validDef")},
+			url:     fmt.Sprintf("%s/%s", server.URL, "validDef"),
 			want:    validDef,
 			wantErr: false,
 		},
 		{
 			name:    "Fetch invalid definition",
-			args:    args{url: fmt.Sprintf("%s/%s", server.URL, "invalidDef")},
+			url:     fmt.Sprintf("%s/%s", server.URL, "invalidDef"),
 			want:    invalidDef,
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := fetchDefinition(context.Background(), tt.args.url)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("fetchDefinition() error = %v, wantErr %v", err, tt.wantErr)
+			got, err := fetchDefinition(context.Background(), tt.url)
+			if tt.wantErr {
+				require.Error(t, err)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("fetchDefinition() got = %v, want %v", got, tt.want)
-			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -105,57 +100,40 @@ func TestLoadDefinition(t *testing.T) {
 		require.NoError(t, os.Remove(invalidFile))
 	}()
 
-	type args struct {
-		conf Config
-	}
-
 	tests := []struct {
 		name    string
-		args    args
+		defFile string
 		want    cluster.Definition
 		wantErr bool
 	}{
 		{
-			name: "Load valid definition",
-			args: args{
-				conf: Config{
-					DefFile: validFile,
-				},
-			},
+			name:    "Load valid definition",
+			defFile: validFile,
 			want:    validDef,
 			wantErr: false,
 		},
 		{
-			name: "Definition file doesn't exist",
-			args: args{
-				conf: Config{
-					DefFile: "",
-				},
-			},
+			name:    "Definition file doesn't exist",
+			defFile: "",
 			want:    invalidDef,
 			wantErr: true,
 		},
 		{
-			name: "Load invalid definition",
-			args: args{
-				conf: Config{
-					DefFile: invalidFile,
-				},
-			},
+			name:    "Load invalid definition",
+			defFile: invalidFile,
 			want:    invalidDef,
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := loadDefinition(context.Background(), tt.args.conf)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("loadDefinition() error = %v, wantErr %v", err, tt.wantErr)
+			got, err := loadDefinition(context.Background(), Config{DefFile: tt.defFile})
+			if tt.wantErr {
+				require.Error(t, err)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("loadDefinition() got = %v, want %v", got, tt.want)
-			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
