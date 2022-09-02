@@ -582,3 +582,21 @@ func (m multi) GenesisTime(ctx context.Context) (time.Time, error) {
 
 	return res0, err
 }
+
+func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	const label = "submit_beacon_committee_subscriptions"
+
+	res0, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) ([]eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+			return cl.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
+		},
+		nil,
+	)
+
+	if err != nil {
+		incError(label)
+		err = errors.Wrap(err, "eth2wrap")
+	}
+
+	return res0, err
+}

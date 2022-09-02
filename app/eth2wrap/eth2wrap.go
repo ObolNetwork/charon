@@ -22,12 +22,12 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2http "github.com/attestantio/go-eth2-client/http"
-	eth2multi "github.com/attestantio/go-eth2-client/multi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/forkjoin"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 //go:generate go run genwrap/genwrap.go
@@ -50,8 +50,7 @@ var (
 	}, []string{"endpoint"})
 
 	// Interface assertions.
-	_ Client = (*eth2http.Service)(nil)
-	_ Client = (*eth2multi.Service)(nil)
+	_ Client = (*httpWrap)(nil)
 	_ Client = multi{}
 )
 
@@ -84,7 +83,9 @@ func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses ...strin
 		if err != nil {
 			return nil, errors.Wrap(err, "new eth2 client")
 		}
-		eth2Svcs = append(eth2Svcs, eth2Svc)
+
+		// Append wrapped eth2http which contains all the experimental methods from eth2util/eth2exp.
+		eth2Svcs = append(eth2Svcs, httpWrap{eth2Svc.(*eth2http.Service)})
 	}
 
 	return Wrap(eth2Svcs...)
@@ -104,6 +105,27 @@ func (multi) Name() string {
 func (m multi) Address() string {
 	// TODO(corver): return "best" address.
 	return m.clients[0].Address()
+}
+
+func NewWrapHTTP(eth2Svc eth2client.Service) (Client, error) {
+	httpCl, ok := eth2Svc.(*eth2http.Service)
+	if !ok {
+		return nil, errors.New("invalid eth2http client")
+	}
+
+	return httpWrap{httpCl}, nil
+}
+
+// httpWrap implements Client by wrapping eth2http.Service,
+// also implements experimental interfaces which are absent in eth2http.Service.
+type httpWrap struct {
+	*eth2http.Service
+}
+
+// SubmitBeaconCommitteeSubscriptions implements eth2exp.BeaconCommitteeSubscriptionsSubmitter.
+// TODO(dhruv): Implement this method when there's need to connect to external beacon node.
+func (httpWrap) SubmitBeaconCommitteeSubscriptions(context.Context, []*eth2exp.BeaconCommitteeSubscription) ([]eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	return nil, nil
 }
 
 // provide calls the work function with each client in parallel, returning the

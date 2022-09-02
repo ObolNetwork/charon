@@ -24,6 +24,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -63,4 +64,38 @@ func TestAttestationData(t *testing.T) {
 	attData, err := bmock.AttestationData(context.Background(), 1, 2)
 	require.NoError(t, err)
 	testutil.RequireGoldenJSON(t, attData)
+}
+
+func TestBeaconCommitteeSubscriptions(t *testing.T) {
+	const (
+		slotA = 123
+		slotB = 456
+		vIdxA = 1
+		vIdxB = 2
+		vIdxC = 3
+	)
+
+	aggregators := map[eth2p0.Slot]eth2p0.ValidatorIndex{
+		slotA: vIdxA,
+		slotB: vIdxB,
+	}
+
+	bmock, err := beaconmock.New(beaconmock.WithAttestationAggregation(aggregators))
+	require.NoError(t, err)
+
+	expected := []eth2exp.BeaconCommitteeSubscriptionResponse{
+		{ValidatorIndex: vIdxA, IsAggregator: true},
+		{ValidatorIndex: vIdxB, IsAggregator: true},
+		{ValidatorIndex: vIdxC, IsAggregator: false},
+	}
+
+	subs := []*eth2exp.BeaconCommitteeSubscription{
+		{Slot: slotA, ValidatorIndex: vIdxA},
+		{Slot: slotB, ValidatorIndex: vIdxB},
+		{Slot: slotA, ValidatorIndex: vIdxC},
+	}
+
+	actual, err := bmock.SubmitBeaconCommitteeSubscriptions(context.Background(), subs)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
 }

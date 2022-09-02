@@ -719,10 +719,9 @@ func newVMockEth2Client(conf Config) func() (eth2wrap.Client, error) {
 				continue
 			}
 
-			var ok bool
-			eth2Cl, ok = eth2Svc.(eth2wrap.Client)
-			if !ok {
-				return nil, errors.New("invalid eth2 service")
+			eth2Cl, err = eth2wrap.NewWrapHTTP(eth2Svc)
+			if err != nil {
+				return nil, err
 			}
 
 			cached = eth2Cl
