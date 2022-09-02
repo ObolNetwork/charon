@@ -22,6 +22,7 @@ import (
 )
 
 // BeaconCommitteeSubscriptionsSubmitter is the interface for submitting beacon committee subnet subscription requests.
+// TODO(dhruv): Should be removed once it is supported by go-eth2-client.
 type BeaconCommitteeSubscriptionsSubmitter interface {
 	// SubmitBeaconCommitteeSubscriptions subscribes to beacon committees.
 	SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscriptions []*BeaconCommitteeSubscription) ([]BeaconCommitteeSubscriptionResponse, error)
