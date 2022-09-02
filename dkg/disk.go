@@ -16,6 +16,7 @@
 package dkg
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -38,13 +39,13 @@ import (
 )
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It returns the test definition if configured.
-func loadDefinition(conf Config) (cluster.Definition, error) {
+func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error) {
 	if conf.TestDef != nil {
 		return *conf.TestDef, nil
 	}
 
 	if validURI(conf.DefFile) {
-		return fetchDefinition(conf.DefFile)
+		return fetchDefinition(ctx, conf.DefFile)
 	}
 
 	buf, err := os.ReadFile(conf.DefFile)
@@ -62,12 +63,16 @@ func loadDefinition(conf Config) (cluster.Definition, error) {
 }
 
 // fetchDefinition fetches cluster definition file from a remote URI.
-func fetchDefinition(url string) (cluster.Definition, error) {
-	client := http.Client{
-		Timeout: 5 * time.Second,
+func fetchDefinition(ctx context.Context, url string) (cluster.Definition, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "create http request")
 	}
 
-	resp, err := client.Get(url) //nolint:noctx
+	resp, err := new(http.Client).Do(req)
 	if err != nil {
 		return cluster.Definition{}, errors.Wrap(err, "fetch file")
 	}

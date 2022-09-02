@@ -16,6 +16,7 @@
 package dkg
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -71,7 +72,7 @@ func TestFetchDefinition(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := fetchDefinition(tt.args.url)
+			got, err := fetchDefinition(context.Background(), tt.args.url)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("fetchDefinition() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -147,7 +148,7 @@ func TestLoadDefinition(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := loadDefinition(tt.args.conf)
+			got, err := loadDefinition(context.Background(), tt.args.conf)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("loadDefinition() error = %v, wantErr %v", err, tt.wantErr)
 				return
