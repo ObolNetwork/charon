@@ -30,9 +30,9 @@ func KeyPath(datadir string) string {
 	return path.Join(datadir, "charon-enr-private-key")
 }
 
-// LoadPrivKey returns the ecdsa k1 key saved in the directory.
-func LoadPrivKey(dataDir string) (*ecdsa.PrivateKey, error) {
-	key, err := crypto.LoadECDSA(KeyPath(dataDir))
+// LoadPrivKey returns the ecdsa k1 key saved in the file.
+func LoadPrivKey(privKey string) (*ecdsa.PrivateKey, error) {
+	key, err := crypto.LoadECDSA(privKey)
 	if err != nil {
 		return nil, errors.Wrap(err, "load priv key")
 	}

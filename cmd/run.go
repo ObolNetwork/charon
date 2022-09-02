@@ -48,7 +48,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 
 	bindRunFlags(cmd, &conf)
 	bindNoVerifyFlag(cmd.Flags(), &conf.NoVerify)
-	bindDataDirFlag(cmd.Flags(), &conf.DataDir)
+	bindDataDirFlag(cmd, &conf.DataDir)
 	bindP2PFlags(cmd.Flags(), &conf.P2P)
 	bindLogFlags(cmd.Flags(), &conf.Log)
 	bindFeatureFlags(cmd.Flags(), &conf.Feature)
@@ -72,6 +72,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().BoolVar(&config.SimnetBMock, "simnet-beacon-mock", false, "Enables an internal mock beacon node for running a simnet.")
 	cmd.Flags().BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.")
 	cmd.Flags().BoolVar(&config.BuilderAPI, "builder-api", false, "Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.")
+	cmd.Flags().StringVar(&config.PrivKey, "private-key", ".charon/charon-enr-private-key", "The path to the enr private key.")
 
 	preRunE := cmd.PreRunE // Allow multiple wraps of PreRunE.
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
@@ -100,8 +101,22 @@ func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
 }
 
-func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
-	flags.StringVar(dataDir, "data-dir", ".charon", "The directory where charon will store all its internal data")
+func bindDataDirFlag(cmd *cobra.Command, dataDir *string) {
+	cmd.Flags().StringVar(dataDir, "data-dir", ".charon", "The directory where charon stores all its internal data. Deprecated.")
+
+	preRunE := cmd.PreRunE // Allow multiple wraps of PreRunE.
+	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		ctx := log.WithTopic(cmd.Context(), "cmd")
+		if *dataDir != "" {
+			log.Warn(ctx, "Deprecated flag 'data-dir'. Explicitly specify 'lock-file' for cluster-lock or 'private-key' for charon-enr-private-key", nil)
+		}
+
+		if preRunE != nil {
+			return preRunE(cmd, args)
+		}
+
+		return nil
+	}
 }
 
 func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {

@@ -77,6 +77,7 @@ type Config struct {
 	LockFile         string
 	NoVerify         bool
 	DataDir          string
+	PrivKey          string
 	MonitoringAddr   string
 	ValidatorAPIAddr string
 	BeaconNodeAddrs  []string
@@ -167,7 +168,7 @@ func Run(ctx context.Context, conf Config) (err error) { //nolint:nonamedreturn 
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
 		var err error
-		p2pKey, err = p2p.LoadPrivKey(conf.DataDir)
+		p2pKey, err = p2p.LoadPrivKey(conf.PrivKey)
 		if err != nil {
 			return err
 		}

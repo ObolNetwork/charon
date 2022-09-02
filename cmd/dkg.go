@@ -39,7 +39,7 @@ this command at the same time.`,
 		},
 	}
 
-	bindDataDirFlag(cmd.Flags(), &config.DataDir)
+	bindDataDirFlag(cmd, &config.DataDir)
 	bindDefDirFlag(cmd.Flags(), &config.DefFile)
 	bindNoVerifyFlag(cmd.Flags(), &config.NoVerify)
 	bindP2PFlags(cmd.Flags(), &config.P2P)
