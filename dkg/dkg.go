@@ -70,7 +70,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	def, err := loadDefinition(conf)
+	def, err := loadDefinition(ctx, conf)
 	if err != nil {
 		return err
 	}

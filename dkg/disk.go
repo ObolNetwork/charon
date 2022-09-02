@@ -16,10 +16,15 @@
 package dkg
 
 import (
+	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -33,10 +38,14 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-// loadDefinition returns the cluster definition from disk (or the test definition if configured).
-func loadDefinition(conf Config) (cluster.Definition, error) {
+// loadDefinition returns the cluster definition from disk or an HTTP URL. It returns the test definition if configured.
+func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error) {
 	if conf.TestDef != nil {
 		return *conf.TestDef, nil
+	}
+
+	if validURI(conf.DefFile) {
+		return fetchDefinition(ctx, conf.DefFile)
 	}
 
 	buf, err := os.ReadFile(conf.DefFile)
@@ -47,6 +56,35 @@ func loadDefinition(conf Config) (cluster.Definition, error) {
 	var res cluster.Definition
 	err = json.Unmarshal(buf, &res)
 	if err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
+	}
+
+	return res, nil
+}
+
+// fetchDefinition fetches cluster definition file from a remote URI.
+func fetchDefinition(ctx context.Context, url string) (cluster.Definition, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "create http request")
+	}
+
+	resp, err := new(http.Client).Do(req)
+	if err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "fetch file")
+	}
+	defer resp.Body.Close()
+
+	buf, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "read response body")
+	}
+
+	var res cluster.Definition
+	if err := json.Unmarshal(buf, &res); err != nil {
 		return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
 	}
 
@@ -151,4 +189,11 @@ func checkWrites(dataDir string) error {
 	}
 
 	return nil
+}
+
+// validURI returns true if the input string is a valid HTTP/HTTPS URI.
+func validURI(str string) bool {
+	u, err := url.Parse(str)
+
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
