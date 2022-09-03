@@ -48,6 +48,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
@@ -59,6 +60,7 @@ type Handler interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
+	eth2exp.BeaconCommitteeSubscriptionsSubmitterV2
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.ProposerDutiesProvider
@@ -143,6 +145,11 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 			Name:    "teku_proposer_config",
 			Path:    "/teku_proposer_config",
 			Handler: tekuProposerConfig(h),
+		},
+		{
+			Name:    "submit_beacon_committee_subscriptions_v2",
+			Path:    "/eth/v2/validator/beacon_committee_subscriptions",
+			Handler: submitBeaconCommitteeSubscriptionsV2(h),
 		},
 	}
 
@@ -523,6 +530,23 @@ func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) 
 		}
 
 		return nil, r.SubmitValidatorRegistrations(ctx, versioned)
+	}
+}
+
+// submitBeaconCommitteeSubscriptionsV2 receives beacon committee slot signatures and returns attestation aggregators.
+func submitBeaconCommitteeSubscriptionsV2(r eth2exp.BeaconCommitteeSubscriptionsSubmitterV2) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, body []byte) (res interface{}, err error) {
+		var subs []*eth2exp.BeaconCommitteeSubscription
+		if err := json.Unmarshal(body, &subs); err != nil {
+			return nil, errors.Wrap(err, "unmarshal beacon committee subscription v2")
+		}
+
+		resp, err := r.SubmitBeaconCommitteeSubscriptionsV2(ctx, subs)
+		if err != nil {
+			return nil, err
+		}
+
+		return submitBeaconCommitteeSubscriptionsV2JSON{Data: resp}, nil
 	}
 }
 

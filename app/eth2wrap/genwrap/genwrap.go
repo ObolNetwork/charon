@@ -46,6 +46,7 @@ var (
 import (
 	"github.com/obolnetwork/charon/app/errors"
 	eth2client "github.com/attestantio/go-eth2-client"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 {{- range .Imports}}
 	{{.}}
 {{- end}}
@@ -57,6 +58,7 @@ type Client interface {
 
     {{range .Providers}} eth2client.{{.}}
     {{end -}}
+	eth2exp.BeaconCommitteeSubscriptionsSubmitterV2
 }
 
 {{range .Methods}}

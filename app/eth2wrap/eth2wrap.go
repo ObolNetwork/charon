@@ -17,7 +17,14 @@
 package eth2wrap
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -27,6 +34,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/forkjoin"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -107,6 +115,23 @@ func (m multi) Address() string {
 	return m.clients[0].Address()
 }
 
+func (m multi) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	const label = "submit_beacon_committee_subscriptions_v2"
+
+	res0, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+			return cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, subscriptions)
+		},
+		nil,
+	)
+	if err != nil {
+		incError(label)
+		err = errors.Wrap(err, "eth2wrap")
+	}
+
+	return res0, err
+}
+
 func NewWrapHTTP(eth2Svc eth2client.Service) (Client, error) {
 	httpCl, ok := eth2Svc.(*eth2http.Service)
 	if !ok {
@@ -122,10 +147,57 @@ type httpWrap struct {
 	*eth2http.Service
 }
 
-// SubmitBeaconCommitteeSubscriptions implements eth2exp.BeaconCommitteeSubscriptionsSubmitter.
-// TODO(dhruv): Implement this method when there's need to connect to external beacon node.
-func (httpWrap) SubmitBeaconCommitteeSubscriptions(context.Context, []*eth2exp.BeaconCommitteeSubscription) ([]eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-	return nil, nil
+type submitBeaconCommitteeSubscriptionsV2JSON struct {
+	Data []*eth2exp.BeaconCommitteeSubscriptionResponse `json:"data"`
+}
+
+// SubmitBeaconCommitteeSubscriptionsV2 implements eth2exp.BeaconCommitteeSubscriptionsSubmitterV2.
+func (h httpWrap) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	var reqBodyReader bytes.Buffer
+	if err := json.NewEncoder(&reqBodyReader).Encode(subscriptions); err != nil {
+		return nil, errors.Wrap(err, "failed to encode beacon committee subscriptions")
+	}
+
+	respBodyReader, err := httpPost(ctx, h.Address(), "/eth/v2/validator/beacon_committee_subscriptions", &reqBodyReader)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp submitBeaconCommitteeSubscriptionsV2JSON
+	if err := json.NewDecoder(respBodyReader).Decode(&resp); err != nil {
+		return nil, errors.Wrap(err, "failed to parse submit beacon committee subscriptions V2 response")
+	}
+
+	return resp.Data, nil
+}
+
+func httpPost(ctx context.Context, base string, endpoint string, body io.Reader) (io.Reader, error) {
+	url, err := url.Parse(fmt.Sprintf("%s%s", strings.TrimSuffix(base, "/"), endpoint))
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid endpoint")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url.String(), body)
+	if err != nil {
+		return nil, errors.Wrap(err, "new POST request with ctx")
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to call POST endpoint")
+	}
+	defer res.Body.Close()
+
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read GET response")
+	}
+
+	if res.StatusCode/100 != 2 {
+		return nil, errors.New("get failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
+	}
+
+	return bytes.NewReader(data), nil
 }
 
 // provide calls the work function with each client in parallel, returning the

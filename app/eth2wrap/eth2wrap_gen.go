@@ -19,7 +19,6 @@ package eth2wrap
 
 import (
 	"context"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -28,6 +27,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // Client defines all go-eth2-client interfaces used in charon.
@@ -40,7 +40,6 @@ type Client interface {
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
 	eth2client.BeaconCommitteesProvider
-	eth2exp.BeaconCommitteeSubscriptionsSubmitter
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.DepositContractProvider
@@ -59,6 +58,7 @@ type Client interface {
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.ValidatorsProvider
 	eth2client.VoluntaryExitSubmitter
+	eth2exp.BeaconCommitteeSubscriptionsSubmitterV2
 }
 
 // NodeVersion returns a free-text string with the node version.
@@ -571,24 +571,6 @@ func (m multi) GenesisTime(ctx context.Context) (time.Time, error) {
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (time.Time, error) {
 			return cl.GenesisTime(ctx)
-		},
-		nil,
-	)
-
-	if err != nil {
-		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
-	}
-
-	return res0, err
-}
-
-func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-	const label = "submit_beacon_committee_subscriptions"
-
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-			return cl.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
 		},
 		nil,
 	)

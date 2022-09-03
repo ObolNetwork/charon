@@ -17,13 +17,19 @@ package beaconmock_test
 
 import (
 	"context"
+	"math/rand"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	eth2client "github.com/attestantio/go-eth2-client"
+	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -67,6 +73,8 @@ func TestAttestationData(t *testing.T) {
 }
 
 func TestBeaconCommitteeSubscriptions(t *testing.T) {
+	ctx := context.Background()
+
 	const (
 		slotA = 123
 		slotB = 456
@@ -83,19 +91,57 @@ func TestBeaconCommitteeSubscriptions(t *testing.T) {
 	bmock, err := beaconmock.New(beaconmock.WithAttestationAggregation(aggregators))
 	require.NoError(t, err)
 
-	expected := []eth2exp.BeaconCommitteeSubscriptionResponse{
+	expected := []*eth2exp.BeaconCommitteeSubscriptionResponse{
 		{ValidatorIndex: vIdxA, IsAggregator: true},
 		{ValidatorIndex: vIdxB, IsAggregator: true},
 		{ValidatorIndex: vIdxC, IsAggregator: false},
 	}
 
 	subs := []*eth2exp.BeaconCommitteeSubscription{
-		{Slot: slotA, ValidatorIndex: vIdxA},
-		{Slot: slotB, ValidatorIndex: vIdxB},
-		{Slot: slotA, ValidatorIndex: vIdxC},
+		{
+			Slot:             slotA,
+			ValidatorIndex:   vIdxA,
+			CommitteesAtSlot: rand.Uint64(),
+			CommitteeIndex:   eth2p0.CommitteeIndex(rand.Uint64()),
+			SlotSignature:    testutil.RandomEth2Signature(),
+		},
+		{
+			Slot:             slotB,
+			ValidatorIndex:   vIdxB,
+			CommitteesAtSlot: rand.Uint64(),
+			CommitteeIndex:   eth2p0.CommitteeIndex(rand.Uint64()),
+			SlotSignature:    testutil.RandomEth2Signature(),
+		},
+		{
+			Slot:             slotA,
+			ValidatorIndex:   vIdxC,
+			CommitteesAtSlot: rand.Uint64(),
+			CommitteeIndex:   eth2p0.CommitteeIndex(rand.Uint64()),
+			SlotSignature:    testutil.RandomEth2Signature(),
+		},
 	}
 
-	actual, err := bmock.SubmitBeaconCommitteeSubscriptions(context.Background(), subs)
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	vapiRouter, err := validatorapi.NewRouter(vapi, bmock)
+	require.NoError(t, err)
+
+	server := httptest.NewServer(vapiRouter)
+	defer server.Close()
+
+	var eth2Svc eth2client.Service
+	eth2Svc, err = eth2http.New(ctx,
+		eth2http.WithLogLevel(1),
+		eth2http.WithAddress(server.URL),
+	)
+	require.NoError(t, err)
+
+	eth2Cl, err := eth2wrap.NewWrapHTTP(eth2Svc)
+	require.NoError(t, err)
+
+	// Submit subscriptions to beaconmock through validatorapi.
+	actual, err := eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, subs)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }

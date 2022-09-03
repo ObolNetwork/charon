@@ -137,7 +137,7 @@ type Mock struct {
 	EventsFunc                             func(context.Context, []string, eth2client.EventHandlerFunc) error
 	SubmitValidatorRegistrationsFunc       func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error
 	SlotsPerEpochFunc                      func(context.Context) (uint64, error)
-	SubmitBeaconCommitteeSubscriptionsFunc func(context.Context, []*eth2exp.BeaconCommitteeSubscription) ([]eth2exp.BeaconCommitteeSubscriptionResponse, error)
+	SubmitBeaconCommitteeSubscriptionsFunc func(context.Context, []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error)
 }
 
 func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
@@ -200,7 +200,7 @@ func (m Mock) SubmitValidatorRegistrations(ctx context.Context, registrations []
 	return m.SubmitValidatorRegistrationsFunc(ctx, registrations)
 }
 
-func (m Mock) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+func (m Mock) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
 	return m.SubmitBeaconCommitteeSubscriptionsFunc(ctx, subscriptions)
 }
 
