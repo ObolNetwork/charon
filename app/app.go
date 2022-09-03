@@ -75,9 +75,8 @@ type Config struct {
 	Feature             featureset.Config
 	LockFile            string
 	NoVerify            bool
-	DataDir             string
-	PrivKey             string
-	SimnetValidatorKeys string
+	DataDir             string // deprecated
+	PrivKeyFile         string
 	MonitoringAddr      string
 	ValidatorAPIAddr    string
 	BeaconNodeAddrs     []string
@@ -85,6 +84,7 @@ type Config struct {
 	JaegerService       string
 	SimnetBMock         bool
 	SimnetVMock         bool
+	SimnetValidatorKeys string
 	BuilderAPI          bool
 
 	TestConfig TestConfig
@@ -168,7 +168,7 @@ func Run(ctx context.Context, conf Config) (err error) { //nolint:nonamedreturn 
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
 		var err error
-		p2pKey, err = p2p.LoadPrivKey(conf.PrivKey)
+		p2pKey, err = p2p.LoadPrivKey(conf.PrivKeyFile)
 		if err != nil {
 			return err
 		}
@@ -733,7 +733,6 @@ func netVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.Si
 	if len(secrets) == 0 {
 		var err error
 		secrets, err = keystore.LoadKeys(conf.SimnetValidatorKeys)
-		// secrets, err = keystore.LoadKeys(path.Join(conf.DataDir, "/validator_keys"))
 		if err != nil {
 			return nil, err
 		}

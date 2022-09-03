@@ -113,5 +113,5 @@ func bindEnrFlags(flags *pflag.FlagSet, verbose *bool) {
 }
 
 func bindPrivKeyFileFlag(flags *pflag.FlagSet, privKeyFile *string) {
-	flags.StringVar(privKeyFile, "private-key", ".charon/charon-enr-private-key", "The path where enr private key will be saved.")
+	flags.StringVar(privKeyFile, "private-key", ".charon/charon-enr-private-key", "The path where your enr private key will be saved.")
 }

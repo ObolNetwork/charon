@@ -203,7 +203,7 @@ func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddr string, netwo
 func createPeers(conf clusterConfig, shareSets [][]*bls_sig.SecretKeyShare) ([]p2p.Peer, error) {
 	var peers []p2p.Peer
 	for i := 0; i < conf.NumNodes; i++ {
-		peerDir := nodeDir(conf.ClusterDir, i)
+		peerDir := fmt.Sprintf("%s/node%d", conf.ClusterDir, i)
 		peer, err := newPeer(peerDir, i)
 		if err != nil {
 			return nil, err
@@ -431,11 +431,6 @@ func writeOutput(out io.Writer, conf clusterConfig) {
 	_, _ = sb.WriteString("│  │  ├─ keystore-*.txt\tKeystore password files for keystore-*.json\n")
 
 	_, _ = fmt.Fprint(out, sb.String())
-}
-
-// nodeDir returns a node directory.
-func nodeDir(clusterDir string, i int) string {
-	return fmt.Sprintf("%s/node%d", clusterDir, i)
 }
 
 // checksumAddr returns a valid EIP55-compliant checksummed ethereum address. Returns an error if a valid address cannot be constructed.

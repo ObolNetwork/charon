@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"sync"
 	"testing"
 	"time"
@@ -245,14 +246,15 @@ func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
+	privKeyFile := path.Join(dir, "charon-enr-private-key")
 
 	addr := testutil.AvailableAddr(t).String()
 
 	errChan := make(chan error, 1)
 	go func() {
 		errChan <- cmd.RunBootnode(ctx, cmd.BootnodeConfig{
-			DataDir:  dir,
-			HTTPAddr: addr,
+			PrivKeyFile: privKeyFile,
+			HTTPAddr:    addr,
 			P2PConfig: p2p.Config{
 				UDPAddr:  testutil.AvailableAddr(t).String(),
 				TCPAddrs: []string{testutil.AvailableAddr(t).String()},

@@ -35,7 +35,6 @@ func TestRunBootnode(t *testing.T) {
 	privKeyFile := path.Join(temp, "charon-enr-private-key")
 
 	config := BootnodeConfig{
-		DataDir:     temp,
 		PrivKeyFile: privKeyFile,
 		LogConfig:   log.DefaultConfig(),
 		P2PConfig:   p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},
@@ -59,7 +58,6 @@ func TestRunBootnodeAutoP2P(t *testing.T) {
 	privKeyFile := path.Join(temp, "charon-enr-private-key")
 
 	config := BootnodeConfig{
-		DataDir:     temp,
 		PrivKeyFile: privKeyFile,
 		LogConfig:   log.DefaultConfig(),
 		P2PConfig:   p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},

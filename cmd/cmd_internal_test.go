@@ -63,7 +63,6 @@ func TestCmdFlags(t *testing.T) {
 			Name: "run command",
 			Args: slice("run"),
 			Envs: map[string]string{
-				"CHARON_DATA_DIR":              "from_env",
 				"CHARON_BEACON_NODE_ENDPOINTS": "http://beacon.node",
 			},
 			AppConfig: &app.Config{
@@ -84,8 +83,7 @@ func TestCmdFlags(t *testing.T) {
 					Disabled:  nil,
 				},
 				LockFile:            ".charon/cluster-lock.json",
-				DataDir:             "from_env",
-				PrivKey:             ".charon/charon-enr-private-key",
+				PrivKeyFile:         ".charon/charon-enr-private-key",
 				SimnetValidatorKeys: ".charon/validator_keys",
 				MonitoringAddr:      "127.0.0.1:3620",
 				ValidatorAPIAddr:    "127.0.0.1:3600",

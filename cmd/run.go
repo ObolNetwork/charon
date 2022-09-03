@@ -73,7 +73,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.")
 	cmd.Flags().StringVar(&config.SimnetValidatorKeys, "simnet-validator-keys", ".charon/validator_keys", "The path to the directory containing simnet validator key shares.")
 	cmd.Flags().BoolVar(&config.BuilderAPI, "builder-api", false, "Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.")
-	cmd.Flags().StringVar(&config.PrivKey, "private-key", ".charon/charon-enr-private-key", "The path to the enr private key.")
+	cmd.Flags().StringVar(&config.PrivKeyFile, "private-key", ".charon/charon-enr-private-key", "The path to the enr private key.")
 
 	preRunE := cmd.PreRunE // Allow multiple wraps of PreRunE.
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {

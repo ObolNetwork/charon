@@ -23,9 +23,9 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// LoadPrivKey returns the ecdsa k1 key saved in the file.
-func LoadPrivKey(privKey string) (*ecdsa.PrivateKey, error) {
-	key, err := crypto.LoadECDSA(privKey)
+// LoadPrivKey returns the ecdsa k1 private key from the file.
+func LoadPrivKey(privKeyFile string) (*ecdsa.PrivateKey, error) {
+	key, err := crypto.LoadECDSA(privKeyFile)
 	if err != nil {
 		return nil, errors.Wrap(err, "load priv key")
 	}

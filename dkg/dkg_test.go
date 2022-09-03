@@ -79,9 +79,10 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	// Setup
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
+	privKeyFile := path.Join(dir, "charon-enr-private-key")
 
 	conf := dkg.Config{
-		DataDir: dir,
+		PrivKeyFile: privKeyFile,
 		P2P: p2p.Config{
 			UDPBootnodes: []string{bootnode},
 		},
@@ -96,8 +97,9 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
 		conf.P2P.UDPAddr = testutil.AvailableAddr(t).String()
 
-		conf.PrivKeyFile = path.Join(dir, fmt.Sprintf("node%d", i), "charon-enr-private-key")
-		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
+		require.NoError(t, os.MkdirAll(path.Join(dir, fmt.Sprintf("node%d", i)), 0o766))
+		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
+		conf.PrivKeyFile = path.Join(conf.DataDir, "charon-enr-private-key")
 
 		err := crypto.SaveECDSA(conf.PrivKeyFile, p2pKeys[i])
 		require.NoError(t, err)
@@ -201,14 +203,15 @@ func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
+	privKeyFile := path.Join(dir, "charon-enr-private-key")
 
 	addr := testutil.AvailableAddr(t).String()
 
 	errChan := make(chan error, 1)
 	go func() {
 		errChan <- cmd.RunBootnode(ctx, cmd.BootnodeConfig{
-			DataDir:  dir,
-			HTTPAddr: addr,
+			PrivKeyFile: privKeyFile,
+			HTTPAddr:    addr,
 			P2PConfig: p2p.Config{
 				UDPAddr:  testutil.AvailableAddr(t).String(),
 				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
