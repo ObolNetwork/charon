@@ -144,6 +144,8 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 	case core.DutyRandao:
 		// Randao is an internal duty, not broadcasted to beacon chain
 		return nil
+	case core.DutyPrepareAggregator:
+
 	default:
 		return errors.New("unsupported duty type")
 	}

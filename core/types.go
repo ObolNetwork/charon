@@ -56,6 +56,7 @@ func (d DutyType) String() string {
 		DutyAttester:            "attester",
 		DutyProposer:            "proposer",
 		DutyRandao:              "randao",
+		DutyPrepareAggregator:   "prepare_aggregator",
 		DutyExit:                "exit",
 		DutyBuilderProposer:     "builder_proposer",
 		DutyBuilderRegistration: "builder_registration",
@@ -109,6 +110,19 @@ func NewRandaoDuty(slot int64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyRandao,
+	}
+}
+
+// NewPrepareAggregatorDuty returns a new prepare aggregator duty. It is a convenience function that is
+// slightly more readable and concise than the struct literal equivalent:
+//
+//	core.Duty{Slot: slot, Type: core.DutyPrepareAggregator}
+//	vs
+//	core.NewPrepareAggregatorDuty(slot)
+func NewPrepareAggregatorDuty(slot int64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutyPrepareAggregator,
 	}
 }
 
