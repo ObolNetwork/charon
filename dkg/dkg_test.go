@@ -93,12 +93,13 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	var eg errgroup.Group
 	for i := 0; i < len(def.Operators); i++ {
 		conf := conf
-		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
 		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
 		conf.P2P.UDPAddr = testutil.AvailableAddr(t).String()
 
+		conf.PrivKeyFile = path.Join(dir, fmt.Sprintf("node%d", i), "charon-enr-private-key")
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
-		err := crypto.SaveECDSA(p2p.KeyPath(conf.DataDir), p2pKeys[i])
+
+		err := crypto.SaveECDSA(conf.PrivKeyFile, p2pKeys[i])
 		require.NoError(t, err)
 
 		eg.Go(func() error {

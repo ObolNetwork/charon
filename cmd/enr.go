@@ -33,9 +33,10 @@ import (
 
 func newEnrCmd(runFunc func(io.Writer, p2p.Config, string, bool) error) *cobra.Command {
 	var (
-		config  p2p.Config
-		dataDir string
-		verbose bool
+		config      p2p.Config
+		dataDir     string
+		privKeyFile string
+		verbose     bool
 	)
 
 	cmd := &cobra.Command{
@@ -44,11 +45,12 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, string, bool) error) *cobra.C
 		Long:  `Prints a newly generated Ethereum Node Record (ENR) from this node's charon-enr-private-key`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(cmd.OutOrStdout(), config, dataDir, verbose)
+			return runFunc(cmd.OutOrStdout(), config, privKeyFile, verbose)
 		},
 	}
 
 	bindDataDirFlag(cmd, &dataDir)
+	bindPrivKeyFileFlag(cmd.Flags(), &privKeyFile)
 	bindP2PFlags(cmd.Flags(), &config)
 	bindEnrFlags(cmd.Flags(), &verbose)
 
@@ -56,10 +58,10 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, string, bool) error) *cobra.C
 }
 
 // runNewENR loads the p2pkey from disk and prints the ENR for the provided config.
-func runNewENR(w io.Writer, config p2p.Config, dataDir string, verbose bool) error {
-	key, err := p2p.LoadPrivKey(dataDir)
+func runNewENR(w io.Writer, config p2p.Config, privKeyFile string, verbose bool) error {
+	key, err := p2p.LoadPrivKey(privKeyFile)
 	if errors.Is(err, fs.ErrNotExist) {
-		return errors.New("private key not found. If this is your first time running this client, create one with `charon create enr`.", z.Str("enr_path", p2p.KeyPath(dataDir))) //nolint:revive
+		return errors.New("private key not found. If this is your first time running this client, create one with `charon create enr`.", z.Str("enr_path", privKeyFile)) //nolint:revive
 	} else if err != nil {
 		return err
 	}
@@ -108,4 +110,8 @@ func pubkeyHex(pubkey ecdsa.PublicKey) string {
 
 func bindEnrFlags(flags *pflag.FlagSet, verbose *bool) {
 	flags.BoolVar(verbose, "verbose", false, "Prints the expanded form of ENR.")
+}
+
+func bindPrivKeyFileFlag(flags *pflag.FlagSet, privKeyFile *string) {
+	flags.StringVar(privKeyFile, "private-key", ".charon/charon-enr-private-key", "The path where enr private key will be saved.")
 }

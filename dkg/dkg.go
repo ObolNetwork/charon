@@ -42,11 +42,12 @@ import (
 )
 
 type Config struct {
-	DefFile  string
-	NoVerify bool
-	DataDir  string
-	P2P      p2p.Config
-	Log      log.Config
+	DefFile     string
+	PrivKeyFile string
+	NoVerify    bool
+	DataDir     string
+	P2P         p2p.Config
+	Log         log.Config
 
 	TestDef     *cluster.Definition
 	TestSigning bool
@@ -101,7 +102,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	clusterID := base64.StdEncoding.EncodeToString(defHash[:])
 
-	key, err := p2p.LoadPrivKey(conf.DataDir)
+	key, err := p2p.LoadPrivKey(conf.PrivKeyFile)
 	if err != nil {
 		return err
 	}

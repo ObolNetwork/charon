@@ -39,6 +39,7 @@ import (
 // BootnodeConfig defines the config of the bootnode.
 type BootnodeConfig struct {
 	DataDir       string
+	PrivKeyFile   string
 	HTTPAddr      string
 	P2PConfig     p2p.Config
 	LogConfig     log.Config
@@ -63,6 +64,7 @@ func newBootnodeCmd(runFunc func(context.Context, BootnodeConfig) error) *cobra.
 	}
 
 	bindDataDirFlag(cmd, &config.DataDir)
+	bindPrivKeyFileFlag(cmd.Flags(), &config.PrivKeyFile)
 	bindBootnodeFlag(cmd.Flags(), &config)
 	bindP2PFlags(cmd.Flags(), &config.P2PConfig)
 	bindLogFlags(cmd.Flags(), &config.LogConfig)
@@ -92,15 +94,15 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		return err
 	}
 
-	key, err := p2p.LoadPrivKey(config.DataDir)
+	key, err := p2p.LoadPrivKey(config.PrivKeyFile)
 	if errors.Is(err, os.ErrNotExist) {
 		if !config.AutoP2PKey {
 			return errors.New("charon-enr-private-key not found in data dir (run with --auto-p2pkey to auto generate)")
 		}
 
-		log.Info(ctx, "Automatically creating charon-enr-private-key", z.Str("path", p2p.KeyPath(config.DataDir)))
+		log.Info(ctx, "Automatically creating charon-enr-private-key", z.Str("path", config.PrivKeyFile))
 
-		key, err = p2p.NewSavedPrivKey(config.DataDir)
+		key, err = p2p.NewSavedPrivKey(config.PrivKeyFile)
 		if err != nil {
 			return err
 		}

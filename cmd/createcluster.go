@@ -203,7 +203,8 @@ func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddr string, netwo
 func createPeers(conf clusterConfig, shareSets [][]*bls_sig.SecretKeyShare) ([]p2p.Peer, error) {
 	var peers []p2p.Peer
 	for i := 0; i < conf.NumNodes; i++ {
-		peer, err := newPeer(conf, i)
+		peerDir := nodeDir(conf.ClusterDir, i)
+		peer, err := newPeer(peerDir, i)
 		if err != nil {
 			return nil, err
 		}
@@ -219,11 +220,11 @@ func createPeers(conf clusterConfig, shareSets [][]*bls_sig.SecretKeyShare) ([]p
 			secrets = append(secrets, secret)
 		}
 
-		if err := os.MkdirAll(path.Join(nodeDir(conf.ClusterDir, i), "/validator_keys"), 0o755); err != nil {
+		if err := os.MkdirAll(path.Join(peerDir, "validator_keys"), 0o755); err != nil {
 			return nil, errors.Wrap(err, "mkdir validator_keys")
 		}
 
-		if err := keystore.StoreKeys(secrets, path.Join(nodeDir(conf.ClusterDir, i), "/validator_keys")); err != nil {
+		if err := keystore.StoreKeys(secrets, path.Join(peerDir, "validator_keys")); err != nil {
 			return nil, err
 		}
 	}
@@ -391,10 +392,12 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 }
 
 // newPeer returns a new peer, generating a p2pkey and ENR and node directory and run script in the process.
-func newPeer(conf clusterConfig, peerIdx int) (p2p.Peer, error) {
-	dir := nodeDir(conf.ClusterDir, peerIdx)
+func newPeer(dir string, peerIdx int) (p2p.Peer, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return p2p.Peer{}, errors.Wrap(err, "mkdir node dir")
+	}
 
-	p2pKey, err := p2p.NewSavedPrivKey(dir)
+	p2pKey, err := p2p.NewSavedPrivKey(path.Join(dir, "charon-enr-private-key"))
 	if err != nil {
 		return p2p.Peer{}, errors.Wrap(err, "create charon-enr-private-key")
 	}

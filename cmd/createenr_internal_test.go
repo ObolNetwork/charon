@@ -20,6 +20,7 @@ import (
 	"io"
 	"math/rand"
 	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -33,7 +34,8 @@ func TestRunCreateEnr(t *testing.T) {
 	temp, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	err = runCreateEnrCmd(io.Discard, p2p.Config{}, temp)
+	privKeyFile := path.Join(temp, "charon-enr-private-key")
+	err = runCreateEnrCmd(io.Discard, p2p.Config{}, privKeyFile)
 	require.NoError(t, err)
 }
 

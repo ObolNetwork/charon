@@ -32,8 +32,9 @@ import (
 
 func newCreateEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.Command {
 	var (
-		config  p2p.Config
-		dataDir string
+		config      p2p.Config
+		dataDir     string
+		privKeyFile string
 	)
 
 	cmd := &cobra.Command{
@@ -41,25 +42,26 @@ func newCreateEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.C
 		Short: "Create an Ethereum Node Record (ENR) private key to identify this charon client",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(cmd.OutOrStdout(), config, dataDir)
+			return runFunc(cmd.OutOrStdout(), config, privKeyFile)
 		},
 	}
 
-	bindDataDirFlag(cmd, &dataDir)
 	bindP2PFlags(cmd.Flags(), &config)
+	bindDataDirFlag(cmd, &dataDir)
+	bindPrivKeyFileFlag(cmd.Flags(), &privKeyFile)
 
 	return cmd
 }
 
 // runCreateEnrCmd stores a new charon-enr-private-key to disk and prints the ENR for the provided config.
 // It returns an error if the key already exists.
-func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
-	_, err := p2p.LoadPrivKey(dataDir)
+func runCreateEnrCmd(w io.Writer, config p2p.Config, privKeyFile string) error {
+	_, err := p2p.LoadPrivKey(privKeyFile)
 	if err == nil {
-		return errors.New("charon-enr-private-key already exists", z.Str("enr_path", p2p.KeyPath(dataDir)))
+		return errors.New("charon-enr-private-key already exists", z.Str("enr_path", privKeyFile))
 	}
 
-	key, err := p2p.NewSavedPrivKey(dataDir)
+	key, err := p2p.NewSavedPrivKey(privKeyFile)
 	if err != nil {
 		return err
 	}
@@ -74,12 +76,10 @@ func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 		return err
 	}
 
-	keyPath := p2p.KeyPath(dataDir)
-
-	_, _ = fmt.Fprintf(w, "Created ENR private key: %s\n", keyPath)
+	_, _ = fmt.Fprintf(w, "Created ENR private key: %s\n", privKeyFile)
 	_, _ = fmt.Fprintln(w, enrStr)
 
-	writeEnrWarning(w, keyPath)
+	writeEnrWarning(w, privKeyFile)
 
 	return nil
 }

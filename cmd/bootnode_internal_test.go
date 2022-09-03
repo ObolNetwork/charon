@@ -19,6 +19,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,15 +32,17 @@ import (
 func TestRunBootnode(t *testing.T) {
 	temp, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
+	privKeyFile := path.Join(temp, "charon-enr-private-key")
 
 	config := BootnodeConfig{
-		DataDir:   temp,
-		LogConfig: log.DefaultConfig(),
-		P2PConfig: p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},
-		HTTPAddr:  testutil.AvailableAddr(t).String(),
+		DataDir:     temp,
+		PrivKeyFile: privKeyFile,
+		LogConfig:   log.DefaultConfig(),
+		P2PConfig:   p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},
+		HTTPAddr:    testutil.AvailableAddr(t).String(),
 	}
 
-	err = runCreateEnrCmd(io.Discard, config.P2PConfig, temp)
+	err = runCreateEnrCmd(io.Discard, config.P2PConfig, privKeyFile)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -53,12 +56,14 @@ func TestRunBootnode(t *testing.T) {
 func TestRunBootnodeAutoP2P(t *testing.T) {
 	temp, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
+	privKeyFile := path.Join(temp, "charon-enr-private-key")
 
 	config := BootnodeConfig{
-		DataDir:   temp,
-		LogConfig: log.DefaultConfig(),
-		P2PConfig: p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},
-		HTTPAddr:  testutil.AvailableAddr(t).String(),
+		DataDir:     temp,
+		PrivKeyFile: privKeyFile,
+		LogConfig:   log.DefaultConfig(),
+		P2PConfig:   p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},
+		HTTPAddr:    testutil.AvailableAddr(t).String(),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

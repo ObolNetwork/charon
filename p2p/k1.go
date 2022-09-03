@@ -17,18 +17,11 @@ package p2p
 
 import (
 	"crypto/ecdsa"
-	"os"
-	"path"
 
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
-
-// KeyPath returns the charon-enr-private-key path relative to the data dir.
-func KeyPath(datadir string) string {
-	return path.Join(datadir, "charon-enr-private-key")
-}
 
 // LoadPrivKey returns the ecdsa k1 key saved in the file.
 func LoadPrivKey(privKey string) (*ecdsa.PrivateKey, error) {
@@ -40,18 +33,14 @@ func LoadPrivKey(privKey string) (*ecdsa.PrivateKey, error) {
 	return key, nil
 }
 
-// NewSavedPrivKey generates a new ecdsa k1 key and saves it to the directory.
-func NewSavedPrivKey(datadir string) (*ecdsa.PrivateKey, error) {
-	if err := os.MkdirAll(datadir, 0o755); err != nil {
-		return nil, errors.Wrap(err, "mkdir")
-	}
-
+// NewSavedPrivKey generates a new ecdsa k1 private key and saves it to the key file path.
+func NewSavedPrivKey(privKeyFile string) (*ecdsa.PrivateKey, error) {
 	key, err := crypto.GenerateKey()
 	if err != nil {
 		return nil, errors.Wrap(err, "gen key")
 	}
 
-	err = crypto.SaveECDSA(KeyPath(datadir), key)
+	err = crypto.SaveECDSA(privKeyFile, key)
 	if err != nil {
 		return nil, errors.Wrap(err, "save key")
 	}

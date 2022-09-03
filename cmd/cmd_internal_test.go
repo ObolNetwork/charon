@@ -40,7 +40,7 @@ func TestCmdFlags(t *testing.T) {
 		AppConfig     *app.Config
 		P2PConfig     *p2p.Config
 		Envs          map[string]string
-		Datadir       string
+		PrivKeyFile   string
 		ErrorMsg      string
 	}{
 		{
@@ -83,19 +83,21 @@ func TestCmdFlags(t *testing.T) {
 					Enabled:   nil,
 					Disabled:  nil,
 				},
-				LockFile:         ".charon/cluster-lock.json",
-				DataDir:          "from_env",
-				MonitoringAddr:   "127.0.0.1:3620",
-				ValidatorAPIAddr: "127.0.0.1:3600",
-				BeaconNodeAddrs:  []string{"http://beacon.node"},
-				JaegerAddr:       "",
-				JaegerService:    "charon",
+				LockFile:            ".charon/cluster-lock.json",
+				DataDir:             "from_env",
+				PrivKey:             ".charon/charon-enr-private-key",
+				SimnetValidatorKeys: ".charon/validator_keys",
+				MonitoringAddr:      "127.0.0.1:3620",
+				ValidatorAPIAddr:    "127.0.0.1:3600",
+				BeaconNodeAddrs:     []string{"http://beacon.node"},
+				JaegerAddr:          "",
+				JaegerService:       "charon",
 			},
 		},
 		{
-			Name:    "create enr",
-			Args:    slice("create", "enr"),
-			Datadir: ".charon",
+			Name:        "create enr",
+			Args:        slice("create", "enr"),
+			PrivKeyFile: ".charon/charon-enr-private-key",
 			P2PConfig: &p2p.Config{
 				UDPBootnodes: []string{"http://bootnode.lb.gcp.obol.tech:3640/enr"},
 				UDPAddr:      "127.0.0.1:3630",
@@ -125,11 +127,10 @@ func TestCmdFlags(t *testing.T) {
 					return nil
 				}),
 				newCreateCmd(
-					newCreateEnrCmd(func(_ io.Writer, config p2p.Config, datadir string) error {
+					newCreateEnrCmd(func(_ io.Writer, config p2p.Config, privKeyFile string) error {
 						require.NotNil(t, test.P2PConfig)
 						require.Equal(t, *test.P2PConfig, config)
-						require.Equal(t, test.Datadir, datadir)
-
+						require.Equal(t, test.PrivKeyFile, privKeyFile)
 						return nil
 					}),
 				),
