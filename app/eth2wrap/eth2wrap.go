@@ -177,12 +177,15 @@ func httpPost(ctx context.Context, base string, endpoint string, body io.Reader)
 		return nil, errors.Wrap(err, "invalid endpoint")
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, time.Second*2) // refer eth2ClientTimeout in app/app.go#71
+	defer cancel()
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url.String(), body)
 	if err != nil {
 		return nil, errors.Wrap(err, "new POST request with ctx")
 	}
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := new(http.Client).Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to call POST endpoint")
 	}
