@@ -38,6 +38,10 @@ The schema of the `cluster-definition.json` is defined as:
 }
 ```
 
+See the [cluster.Definition](../cluster/definition.go) and [cluster.Operator](../cluster/operator.go) Go structs for
+details on how this `cluster-definition.json` object is (de)serialised and how the [SSZ](https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md)
+config hash and definition hash are calculated.
+
 The above `cluster-definition.json` is provided as input to the DKG which generates keys and the `cluster-lock.json` file.
 
 The `cluster-lock.json` has the following schema:

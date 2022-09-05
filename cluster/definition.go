@@ -56,41 +56,53 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipient string,
 	}
 }
 
-// Definition defines an intended charon cluster configuration.
+// Definition defines an intended charon cluster configuration excluding validators.
+// Note the following struct tag meanings:
+//   - json: json field name. Suffix 0xhex indicates bytes are formatted as 0x prefixed hex strings.
+//   - ssz: ssz equivalent. Either uint64 for numbers, BytesN for fixed length bytes, ByteList[MaxN]
+//     for variable length strings, or CompositeList[MaxN] for nested object arrays.
+//   - config_hash: field ordering when calculating config hash. Some fields are excluded indicated by `-`.
+//   - definition_hash: field ordering when calculating definition hash. Some fields are excluded indicated by `-`.
 type Definition struct {
-	// Name is an optional cosmetic identifier
-	Name string
+	// Name is an human-readable cosmetic identifier. Max 256 chars.
+	Name string `json:"name" ssz:"ByteList[256]" config_hash:"0" definition_hash:"0"`
 
-	// UUID is a random unique identifier
-	UUID string
+	// UUID is a human-readable random unique identifier. Max 64 chars.
+	UUID string `json:"uuid" ssz:"ByteList[64]" config_hash:"1" definition_hash:"1"`
 
-	// Version is the schema version of this definition.
-	Version string
+	// Version is the schema version of this definition. Max 16 chars.
+	Version string `json:"version" ssz:"ByteList[16]" config_hash:"2" definition_hash:"2"`
 
-	// Timestamp is the human readable timestamp of this definition.
+	// Timestamp is the human-readable timestamp of this definition. Max 32 chars.
 	// Note that this was added in v1.1.0, so may be empty for older versions.
-	Timestamp string
+	Timestamp string `json:"timestamp" ssz:"ByteList[32]" config_hash:"10" definition_hash:"10"`
 
 	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
-	NumValidators int
+	NumValidators int `json:"num_validators" ssz:"uint64" config_hash:"3" definition_hash:"3"`
 
 	// Threshold required for signature reconstruction. Defaults to safe value for number of nodes/peers.
-	Threshold int
+	Threshold int `json:"threshold" ssz:"uint64" config_hash:"4" definition_hash:"4"`
 
-	// FeeRecipientAddress Ethereum address.
-	FeeRecipientAddress string
+	// FeeRecipientAddress 20 byte Ethereum address.
+	FeeRecipientAddress []byte `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"5" definition_hash:"5"`
 
-	// WithdrawalAddress Ethereum address.
-	WithdrawalAddress string
+	// WithdrawalAddress 20 byte Ethereum address.
+	WithdrawalAddress []byte `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"6" definition_hash:"6"`
 
-	// DKGAlgorithm to use for key generation.
-	DKGAlgorithm string
+	// DKGAlgorithm to use for key generation. Max 32 chars.
+	DKGAlgorithm string `json:"dkg_algorithm" ssz:"ByteList[32]" config_hash:"7" definition_hash:"7"`
 
-	// ForkVersion defines the cluster's beacon chain hex fork definitionVersion (network/chain identifier).
-	ForkVersion string
+	// ForkVersion defines the cluster's 4 byte beacon chain fork version (network/chain identifier).
+	ForkVersion []byte `json:"fork_version,0xhex" ssz:"Bytes4" config_hash:"8" definition_hash:"8"`
 
-	// Operators define the charon nodes in the cluster and their operators.
-	Operators []Operator
+	// Operators define the charon nodes in the cluster and their operators. Max 256 operators.
+	Operators []Operator `json:"operators" ssz:"CompositeList[256]" config_hash:"8" definition_hash:"8"`
+
+	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.
+	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"11"`
+
+	// DefinitionHash uniquely identifies a cluster definition including operator ENRs and signatures.
+	DefinitionHash []byte `json:"definition_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"-"`
 }
 
 // NodeIdx returns the node index for the peer.
