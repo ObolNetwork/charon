@@ -33,6 +33,7 @@ import (
 // Client defines all go-eth2-client interfaces used in charon.
 type Client interface {
 	eth2client.Service
+	eth2exp.BeaconCommitteeSubscriptionsSubmitterV2
 
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
@@ -58,7 +59,6 @@ type Client interface {
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.ValidatorsProvider
 	eth2client.VoluntaryExitSubmitter
-	eth2exp.BeaconCommitteeSubscriptionsSubmitterV2
 }
 
 // NodeVersion returns a free-text string with the node version.

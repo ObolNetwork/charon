@@ -133,13 +133,13 @@ func (b *BeaconCommitteeSubscription) UnmarshalJSON(input []byte) error {
 }
 
 // String returns a string version of the structure.
-func (b *BeaconCommitteeSubscription) String() string {
+func (b *BeaconCommitteeSubscription) String() (string, error) {
 	data, err := json.Marshal(b)
 	if err != nil {
-		return fmt.Sprintf("ERR: %v", err)
+		return "", errors.Wrap(err, "marshal BeaconCommitteeSubscription")
 	}
 
-	return string(data)
+	return string(data), nil
 }
 
 // BeaconCommitteeSubscriptionResponse is the response from beacon node after submitting BeaconCommitteeSubscription.

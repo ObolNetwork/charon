@@ -55,10 +55,10 @@ import (
 // Client defines all go-eth2-client interfaces used in charon.
 type Client interface {
     eth2client.Service
+	eth2exp.BeaconCommitteeSubscriptionsSubmitterV2
 
     {{range .Providers}} eth2client.{{.}}
     {{end -}}
-	eth2exp.BeaconCommitteeSubscriptionsSubmitterV2
 }
 
 {{range .Methods}}
