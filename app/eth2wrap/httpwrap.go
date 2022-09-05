@@ -31,9 +31,9 @@ import (
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
-// httpWrap implements Client by wrapping eth2http.Service,
-// also implements experimental interfaces which are absent in eth2http.Service.
-type httpWrap struct {
+// httpAdapter implements Client by wrapping eth2http.Service adding the experimental
+// interfaces not present go-eth2-client.
+type httpAdapter struct {
 	*eth2http.Service
 }
 
@@ -42,7 +42,7 @@ type submitBeaconCommitteeSubscriptionsV2JSON struct {
 }
 
 // SubmitBeaconCommitteeSubscriptionsV2 implements eth2exp.BeaconCommitteeSubscriptionsSubmitterV2.
-func (h httpWrap) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+func (h httpAdapter) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
 	reqBody, err := json.Marshal(subscriptions)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal submit beacon committee subscriptions V2 request")

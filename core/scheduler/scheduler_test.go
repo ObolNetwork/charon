@@ -207,7 +207,7 @@ func TestSchedulerDuties(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			// Wrap ProposerDuties to returns some errors
+			// Instrument ProposerDuties to returns some errors
 			origFunc := eth2Cl.ProposerDutiesFunc
 			eth2Cl.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 				if test.PropErrs > 0 {

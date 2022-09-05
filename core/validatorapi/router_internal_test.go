@@ -567,7 +567,25 @@ func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
 
 	bmock, err := beaconmock.New(beaconmock.WithAttestationAggregation(aggregators))
 	require.NoError(t, err)
+	testHandler := testHandler{SubmitBeaconCommitteeSubscriptionsV2Func: bmock.SubmitBeaconCommitteeSubscriptionsFunc}
 
+	proxy := httptest.NewServer(testHandler.newBeaconHandler(t))
+	defer proxy.Close()
+
+	r, err := NewRouter(testHandler, testBeaconAddr{addr: proxy.URL})
+	require.NoError(t, err)
+
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	var eth2Svc eth2client.Service
+	eth2Svc, err = eth2http.New(ctx,
+		eth2http.WithLogLevel(1),
+		eth2http.WithAddress(server.URL),
+	)
+	require.NoError(t, err)
+
+	// Submit subscriptions to beaconmock through validatorapi.
 	expected := []*eth2exp.BeaconCommitteeSubscriptionResponse{
 		{ValidatorIndex: vIdxA, IsAggregator: true},
 		{ValidatorIndex: vIdxB, IsAggregator: true},
@@ -598,26 +616,7 @@ func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
 		},
 	}
 
-	vapi, err := NewComponentInsecure(t, bmock, 0)
-	require.NoError(t, err)
-
-	vapiRouter, err := NewRouter(vapi, bmock)
-	require.NoError(t, err)
-
-	server := httptest.NewServer(vapiRouter)
-	defer server.Close()
-
-	var eth2Svc eth2client.Service
-	eth2Svc, err = eth2http.New(ctx,
-		eth2http.WithLogLevel(1),
-		eth2http.WithAddress(server.URL),
-	)
-	require.NoError(t, err)
-
-	eth2Cl, err := eth2wrap.NewWrapHTTP(eth2Svc)
-	require.NoError(t, err)
-
-	// Submit subscriptions to beaconmock through validatorapi.
+	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service))
 	actual, err := eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, subs)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -665,18 +664,19 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 // mocked beacon-node endpoints required by the eth2http client during startup.
 type testHandler struct {
 	Handler
-	ProxyHandler                     http.HandlerFunc
-	AttestationDataFunc              func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
-	AttesterDutiesFunc               func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
-	BeaconBlockProposalFunc          func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
-	SubmitBeaconBlockFunc            func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error
-	BlindedBeaconBlockProposalFunc   func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
-	SubmitBlindedBeaconBlockFunc     func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
-	ProposerDutiesFunc               func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
-	ValidatorsFunc                   func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	ValidatorsByPubKeyFunc           func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	SubmitVoluntaryExitFunc          func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
-	SubmitValidatorRegistrationsFunc func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
+	ProxyHandler                             http.HandlerFunc
+	AttestationDataFunc                      func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
+	AttesterDutiesFunc                       func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	BeaconBlockProposalFunc                  func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
+	SubmitBeaconBlockFunc                    func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error
+	BlindedBeaconBlockProposalFunc           func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
+	SubmitBlindedBeaconBlockFunc             func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
+	ProposerDutiesFunc                       func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	ValidatorsFunc                           func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	ValidatorsByPubKeyFunc                   func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	SubmitVoluntaryExitFunc                  func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
+	SubmitValidatorRegistrationsFunc         func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
+	SubmitBeaconCommitteeSubscriptionsV2Func func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error)
 }
 
 func (h testHandler) AttestationData(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
@@ -721,6 +721,10 @@ func (h testHandler) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.Signe
 
 func (h testHandler) SubmitValidatorRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
 	return h.SubmitValidatorRegistrationsFunc(ctx, registrations)
+}
+
+func (h testHandler) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	return h.SubmitBeaconCommitteeSubscriptionsV2Func(ctx, subscriptions)
 }
 
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the
