@@ -34,6 +34,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -604,6 +605,12 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 	}
 
 	return nil
+}
+
+// SubmitBeaconCommitteeSubscriptionsV2 submits slot signatures to determine aggregators for attestation aggregation.
+// TODO(dhruv): Implement this as part of https://github.com/ObolNetwork/charon/issues/1067
+func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	return c.eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, subscriptions)
 }
 
 func (c Component) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {

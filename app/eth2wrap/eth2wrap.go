@@ -20,14 +20,13 @@ import (
 	"context"
 	"time"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	eth2http "github.com/attestantio/go-eth2-client/http"
-	eth2multi "github.com/attestantio/go-eth2-client/multi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/forkjoin"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 //go:generate go run genwrap/genwrap.go
@@ -50,31 +49,27 @@ var (
 	}, []string{"endpoint"})
 
 	// Interface assertions.
-	_ Client = (*eth2http.Service)(nil)
-	_ Client = (*eth2multi.Service)(nil)
+	_ Client = (*httpAdapter)(nil)
 	_ Client = multi{}
 )
 
-// Wrap returns a new multi instrumented client wrapping the provided eth2 services.
-func Wrap(eth2Svcs ...eth2client.Service) (Client, error) {
-	if len(eth2Svcs) == 0 {
-		return nil, errors.New("eth2 services empty")
-	}
-	var clients []Client
-	for _, eth2Svc := range eth2Svcs {
-		cl, ok := eth2Svc.(Client)
-		if !ok {
-			return nil, errors.New("invalid eth2 service")
-		}
-		clients = append(clients, cl)
+// Instrument returns a new multi instrumented client using the provided clients as backends.
+func Instrument(clients ...Client) (Client, error) {
+	if len(clients) == 0 {
+		return nil, errors.New("clients empty")
 	}
 
 	return multi{clients: clients}, nil
 }
 
+// AdaptEth2HTTP returns a Client wrapping an eth2http service by adding experimental endpoints.
+func AdaptEth2HTTP(eth2Svc *eth2http.Service) Client {
+	return httpAdapter{Service: eth2Svc}
+}
+
 // NewMultiHTTP returns a new instrumented multi eth2 http client.
 func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses ...string) (Client, error) {
-	var eth2Svcs []eth2client.Service
+	var clients []Client
 	for _, address := range addresses {
 		eth2Svc, err := eth2http.New(ctx,
 			eth2http.WithLogLevel(zeroLogInfo),
@@ -84,10 +79,15 @@ func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses ...strin
 		if err != nil {
 			return nil, errors.Wrap(err, "new eth2 client")
 		}
-		eth2Svcs = append(eth2Svcs, eth2Svc)
+		eth2Http, ok := eth2Svc.(*eth2http.Service)
+		if !ok {
+			return nil, errors.New("invalid eth2 http service")
+		}
+
+		clients = append(clients, AdaptEth2HTTP(eth2Http))
 	}
 
-	return Wrap(eth2Svcs...)
+	return Instrument(clients...)
 }
 
 // multi implements Client by wrapping multiple clients, calling them in parallel
@@ -104,6 +104,23 @@ func (multi) Name() string {
 func (m multi) Address() string {
 	// TODO(corver): return "best" address.
 	return m.clients[0].Address()
+}
+
+func (m multi) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	const label = "submit_beacon_committee_subscriptions_v2"
+
+	res0, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+			return cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, subscriptions)
+		},
+		nil,
+	)
+	if err != nil {
+		incError(label)
+		err = errors.Wrap(err, "eth2wrap")
+	}
+
+	return res0, err
 }
 
 // provide calls the work function with each client in parallel, returning the

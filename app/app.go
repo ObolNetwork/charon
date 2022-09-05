@@ -192,7 +192,7 @@ func Run(ctx context.Context, conf Config) (err error) { //nolint:nonamedreturn 
 		z.Str("enr", localEnode.Node().String()))
 
 	if !conf.TestConfig.DisablePromWrap {
-		// Wrap prometheus metrics with cluster and node identifiers.
+		// Instrument prometheus metrics with cluster and node identifiers.
 		prometheus.DefaultRegisterer = prometheus.WrapRegistererWith(prometheus.Labels{
 			"cluster_hash":      lockHashHex,
 			"cluster_name":      lock.Name,
@@ -511,7 +511,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 			return nil, err
 		}
 
-		wrap, err := eth2wrap.Wrap(bmock)
+		wrap, err := eth2wrap.Instrument(bmock)
 		if err != nil {
 			return nil, err
 		}
@@ -703,10 +703,7 @@ func newVMockEth2Client(conf Config) func() (eth2wrap.Client, error) {
 		}
 
 		// Try three times to reduce test startup issues.
-		var (
-			eth2Cl eth2wrap.Client
-			err    error
-		)
+		var err error
 		for i := 0; i < 3; i++ {
 			var eth2Svc eth2client.Service
 			eth2Svc, err = eth2http.New(context.Background(),
@@ -718,17 +715,15 @@ func newVMockEth2Client(conf Config) func() (eth2wrap.Client, error) {
 				time.Sleep(time.Millisecond * 100) // Test startup backoff
 				continue
 			}
-
-			var ok bool
-			eth2Cl, ok = eth2Svc.(eth2wrap.Client)
+			eth2Http, ok := eth2Svc.(*eth2http.Service)
 			if !ok {
-				return nil, errors.New("invalid eth2 service")
+				return nil, errors.New("invalid eth2 http service")
 			}
 
-			cached = eth2Cl
+			cached = eth2wrap.AdaptEth2HTTP(eth2Http)
 		}
 
-		return eth2Cl, err
+		return cached, err
 	}
 }
 

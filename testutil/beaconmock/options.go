@@ -39,6 +39,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -333,6 +334,23 @@ func WithNoAttesterDuties() Option {
 func WithClock(clock clockwork.Clock) Option {
 	return func(mock *Mock) {
 		mock.clock = clock
+	}
+}
+
+// WithAttestationAggregation configures the mock to override SubmitBeaconCommitteeSubscriptionsFunc.
+func WithAttestationAggregation(aggregators map[eth2p0.Slot]eth2p0.ValidatorIndex) Option {
+	return func(mock *Mock) {
+		mock.SubmitBeaconCommitteeSubscriptionsFunc = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+			var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
+			for _, sub := range subscriptions {
+				resp = append(resp, &eth2exp.BeaconCommitteeSubscriptionResponse{
+					ValidatorIndex: sub.ValidatorIndex,
+					IsAggregator:   aggregators[sub.Slot] == sub.ValidatorIndex,
+				})
+			}
+
+			return resp, nil
+		}
 	}
 }
 

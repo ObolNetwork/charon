@@ -131,7 +131,7 @@ func TestMulti(t *testing.T) {
 				}
 			}
 
-			eth2Cl, err := eth2wrap.Wrap(cl1, cl2)
+			eth2Cl, err := eth2wrap.Instrument(cl1, cl2)
 			require.NoError(t, err)
 
 			go test.handle(cl1Resp, cl2Resp, cancel)
@@ -156,7 +156,7 @@ func TestSyncState(t *testing.T) {
 		return &eth2v1.SyncState{IsSyncing: true}, nil
 	}
 
-	eth2Cl, err := eth2wrap.Wrap(cl1, cl2)
+	eth2Cl, err := eth2wrap.Instrument(cl1, cl2)
 	require.NoError(t, err)
 
 	resp, err := eth2Cl.NodeSyncing(context.Background())

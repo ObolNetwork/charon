@@ -27,11 +27,13 @@ import (
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // Client defines all go-eth2-client interfaces used in charon.
 type Client interface {
 	eth2client.Service
+	eth2exp.BeaconCommitteeSubscriptionsSubmitterV2
 
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter

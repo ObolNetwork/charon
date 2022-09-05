@@ -46,6 +46,7 @@ var (
 import (
 	"github.com/obolnetwork/charon/app/errors"
 	eth2client "github.com/attestantio/go-eth2-client"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 {{- range .Imports}}
 	{{.}}
 {{- end}}
@@ -54,6 +55,7 @@ import (
 // Client defines all go-eth2-client interfaces used in charon.
 type Client interface {
     eth2client.Service
+	eth2exp.BeaconCommitteeSubscriptionsSubmitterV2
 
     {{range .Providers}} eth2client.{{.}}
     {{end -}}
