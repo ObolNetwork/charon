@@ -27,6 +27,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 var (
@@ -689,6 +690,56 @@ func (s SignedRandao) clone() (SignedRandao, error) {
 	}
 
 	return resp, nil
+}
+
+// NewPartialSignedBeaconCommitteeSubscription is a convenience function which returns new partially signed BeaconCommitteeSubscription.
+func NewPartialSignedBeaconCommitteeSubscription(sub eth2exp.BeaconCommitteeSubscription, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: sub},
+		ShareIdx:   shareIdx,
+	}
+}
+
+// SignedBeaconCommitteeSubscription is a Signed BeaconCommitteeSubscription which implements SignedData.
+type SignedBeaconCommitteeSubscription struct {
+	eth2exp.BeaconCommitteeSubscription
+}
+
+func (s SignedBeaconCommitteeSubscription) Signature() Signature {
+	return SigFromETH2(s.SlotSignature)
+}
+
+func (s SignedBeaconCommitteeSubscription) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.SlotSignature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (s SignedBeaconCommitteeSubscription) Clone() (SignedData, error) {
+	return s.clone()
+}
+
+func (s SignedBeaconCommitteeSubscription) clone() (SignedBeaconCommitteeSubscription, error) {
+	var resp SignedBeaconCommitteeSubscription
+	err := cloneJSONMarshaler(s, &resp)
+	if err != nil {
+		return SignedBeaconCommitteeSubscription{}, errors.Wrap(err, "clone BeaconCommitteeSubscription")
+	}
+
+	return resp, nil
+}
+
+func (s SignedBeaconCommitteeSubscription) MarshalJSON() ([]byte, error) {
+	return s.BeaconCommitteeSubscription.MarshalJSON()
+}
+
+func (s *SignedBeaconCommitteeSubscription) UnmarshalJSON(input []byte) error {
+	return s.BeaconCommitteeSubscription.UnmarshalJSON(input)
 }
 
 // cloneJSONMarshaler clones the marshaler by serialising to-from json
