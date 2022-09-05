@@ -29,59 +29,56 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestSetBlockSig(t *testing.T) {
-	block := core.VersionedSignedBeaconBlock{
-		VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
-			Version: spec.DataVersionBellatrix,
-			Bellatrix: &bellatrix.SignedBeaconBlock{
-				Message:   testutil.RandomBellatrixBeaconBlock(t),
-				Signature: testutil.RandomEth2Signature(),
+func TestSignedDataSetSignature(t *testing.T) {
+	const nonZero = 123
+
+	tests := []struct {
+		name string
+		data core.SignedData
+	}{
+		{
+			name: "version signed beacon block",
+			data: core.VersionedSignedBeaconBlock{
+				VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
+					Version: spec.DataVersionBellatrix,
+					Bellatrix: &bellatrix.SignedBeaconBlock{
+						Message:   testutil.RandomBellatrixBeaconBlock(t),
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "version signed blinded beacon block",
+			data: core.VersionedSignedBlindedBeaconBlock{
+				VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
+					Version: spec.DataVersionBellatrix,
+					Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
+						Message:   testutil.RandomBellatrixBlindedBeaconBlock(t),
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed beacon committee subscription",
+			data: core.SignedBeaconCommitteeSubscription{
+				BeaconCommitteeSubscription: eth2exp.BeaconCommitteeSubscription{
+					ValidatorIndex:   testutil.RandomVIdx(),
+					Slot:             testutil.RandomSlot(),
+					CommitteeIndex:   testutil.RandomCommIdx(),
+					CommitteesAtSlot: nonZero,
+					SlotSignature:    testutil.RandomEth2Signature(),
+				},
 			},
 		},
 	}
 
-	clone, err := block.SetSignature(testutil.RandomCoreSignature())
-	require.NoError(t, err)
-	require.NotEqual(t, clone.Signature(), block.Signature())
-}
-
-func TestSetBlindedBlockSig(t *testing.T) {
-	block := core.VersionedSignedBlindedBeaconBlock{
-		VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
-			Version: spec.DataVersionBellatrix,
-			Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-				Message:   testutil.RandomBellatrixBlindedBeaconBlock(t),
-				Signature: testutil.RandomEth2Signature(),
-			},
-		},
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clone, err := test.data.SetSignature(testutil.RandomCoreSignature())
+			require.NoError(t, err)
+			require.NotEqual(t, clone.Signature(), test.data.Signature())
+		})
 	}
-
-	clone, err := block.SetSignature(testutil.RandomCoreSignature())
-	require.NoError(t, err)
-	require.NotEqual(t, clone.Signature(), block.Signature())
-}
-
-func TestSetVersionedValidatorRegistrationSig(t *testing.T) {
-	registration := testutil.RandomCoreVersionedSignedValidatorRegistration(t)
-
-	clone, err := registration.SetSignature(testutil.RandomCoreSignature())
-	require.NoError(t, err)
-	require.NotEqual(t, clone.Signature(), registration.Signature())
-}
-
-func TestSetBeaconCommitteeSubscription(t *testing.T) {
-	const commAtSlot = 123
-	sub := core.SignedBeaconCommitteeSubscription{
-		BeaconCommitteeSubscription: eth2exp.BeaconCommitteeSubscription{
-			ValidatorIndex:   testutil.RandomVIdx(),
-			Slot:             testutil.RandomSlot(),
-			CommitteeIndex:   testutil.RandomCommIdx(),
-			CommitteesAtSlot: commAtSlot,
-			SlotSignature:    testutil.RandomEth2Signature(),
-		},
-	}
-
-	clone, err := sub.SetSignature(testutil.RandomCoreSignature())
-	require.NoError(t, err)
-	require.NotEqual(t, clone.Signature(), sub.Signature())
 }
