@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -66,4 +67,21 @@ func TestSetVersionedValidatorRegistrationSig(t *testing.T) {
 	clone, err := registration.SetSignature(testutil.RandomCoreSignature())
 	require.NoError(t, err)
 	require.NotEqual(t, clone.Signature(), registration.Signature())
+}
+
+func TestSetBeaconCommitteeSubscription(t *testing.T) {
+	const commAtSlot = 123
+	sub := core.SignedBeaconCommitteeSubscription{
+		BeaconCommitteeSubscription: eth2exp.BeaconCommitteeSubscription{
+			ValidatorIndex:   testutil.RandomVIdx(),
+			Slot:             testutil.RandomSlot(),
+			CommitteeIndex:   testutil.RandomCommIdx(),
+			CommitteesAtSlot: commAtSlot,
+			SlotSignature:    testutil.RandomEth2Signature(),
+		},
+	}
+
+	clone, err := sub.SetSignature(testutil.RandomCoreSignature())
+	require.NoError(t, err)
+	require.NotEqual(t, clone.Signature(), sub.Signature())
 }
