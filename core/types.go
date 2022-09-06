@@ -53,14 +53,13 @@ func (d DutyType) Valid() bool {
 func (d DutyType) String() string {
 	return map[DutyType]string{
 		DutyUnknown:             "unknown",
-		DutyAttester:            "attester",
 		DutyProposer:            "proposer",
-		DutyRandao:              "randao",
-		DutyPrepareAggregator:   "prepare_aggregator",
+		DutyAttester:            "attester",
+		DutySignature:           "signature",
 		DutyExit:                "exit",
 		DutyBuilderProposer:     "builder_proposer",
 		DutyBuilderRegistration: "builder_registration",
-		DutySignature:           "signature",
+		DutyRandao:              "randao",
 		DutyPrepareAggregator:   "prepare_aggregator",
 	}[d]
 }
@@ -110,19 +109,6 @@ func NewRandaoDuty(slot int64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyRandao,
-	}
-}
-
-// NewPrepareAggregatorDuty returns a new prepare aggregator duty. It is a convenience function that is
-// slightly more readable and concise than the struct literal equivalent:
-//
-//	core.Duty{Slot: slot, Type: core.DutyPrepareAggregator}
-//	vs
-//	core.NewPrepareAggregatorDuty(slot)
-func NewPrepareAggregatorDuty(slot int64) Duty {
-	return Duty{
-		Slot: slot,
-		Type: DutyPrepareAggregator,
 	}
 }
 
