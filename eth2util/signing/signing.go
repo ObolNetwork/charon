@@ -27,6 +27,7 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -41,8 +42,8 @@ const (
 	DomainRandao             DomainName = "DOMAIN_RANDAO"
 	DomainExit               DomainName = "DOMAIN_VOLUNTARY_EXIT"
 	DomainApplicationBuilder DomainName = "DOMAIN_APPLICATION_BUILDER"
+	DomainSelectionProof     DomainName = "DOMAIN_SELECTION_PROOF"
 	// DomainDeposit        	         DomainName = "DOMAIN_DEPOSIT"
-	// DomainSelectionProof              DomainName = "DOMAIN_SELECTION_PROOF"
 	// DomainAggregateAndProof           DomainName = "DOMAIN_AGGREGATE_AND_PROOF"
 	// DomainSyncCommittee               DomainName = "DOMAIN_SYNC_COMMITTEE"
 	// DomainSyncCommitteeSelectionProof DomainName = "DOMAIN_SYNC_COMMITTEE_SELECTION_PROOF"
@@ -185,6 +186,20 @@ func VerifyValidatorRegistration(ctx context.Context, eth2Cl eth2wrap.Client, pu
 
 	// Always use epoch 0 for DomainApplicationBuilder.
 	return verify(ctx, eth2Cl, DomainApplicationBuilder, 0, sigRoot, reg.V1.Signature, pubkey)
+}
+
+func VerifyBeaconCommitteeSubscription(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, sub *eth2exp.BeaconCommitteeSubscription) error {
+	epoch, err := epochFromSlot(ctx, eth2Cl, sub.Slot)
+	if err != nil {
+		return err
+	}
+
+	sigRoot, err := eth2util.SlotHashRoot(sub.Slot)
+	if err != nil {
+		return err
+	}
+
+	return verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, sub.SlotSignature, pubkey)
 }
 
 // verify returns an error if the signature doesn't match the eth2 domain signed root.
