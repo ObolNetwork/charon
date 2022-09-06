@@ -114,6 +114,8 @@ func bindPrivKeyFlag(cmd *cobra.Command, dataDir, privKeyFile *string) { //nolin
 			if _, err := os.Open(*privKeyFile); errors.Is(err, os.ErrNotExist) {
 				return errors.New("private key file doesn't exist")
 			}
+
+			return nil
 		}
 
 		// --data-dir present but --private-key absent

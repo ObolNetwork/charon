@@ -122,9 +122,9 @@ Flags:
       --p2p-external-ip string          The IP address advertised by libp2p. This may be used to advertise an external IP.
       --p2p-tcp-address strings         Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. (default [127.0.0.1:3610])
       --p2p-udp-address string          Listening UDP address (ip and port) for discv5 discovery. (default "127.0.0.1:3630")
-      --private-key string              The path to the enr private key. (default ".charon/charon-enr-private-key")
+      --private-key string              The path to the charon enr private key. (default ".charon/charon-enr-private-key")
       --simnet-beacon-mock              Enables an internal mock beacon node for running a simnet.
-      --simnet-validator-keys string    The path to the directory containing simnet validator key shares. (default ".charon/validator_keys")
+      --simnet-validator-keys string    The directory containing the simnet validator key shares. (default ".charon/validator_keys")
       --simnet-validator-mock           Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.
       --validator-api-address string    Listening address (ip and port) for validator-facing traffic proxying the beacon-node API. (default "127.0.0.1:3600")
 
