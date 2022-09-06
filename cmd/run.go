@@ -46,7 +46,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 		},
 	}
 
-	bindPrivKeyFlag(cmd, &conf.DataDir, &conf.PrivKeyFile)
+	bindPrivKeyFlag(cmd, &conf.PrivKeyFile)
 	bindRunFlags(cmd, &conf)
 	bindNoVerifyFlag(cmd.Flags(), &conf.NoVerify)
 	bindP2PFlags(cmd.Flags(), &conf.P2P)
@@ -96,8 +96,11 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	}
 }
 
-func bindPrivKeyFlag(cmd *cobra.Command, dataDir, privKeyFile *string) { //nolint:gocognit
-	charonEnrPrivKey := ".charon/charon-enr-private-key"
+func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string) { //nolint:gocognit
+	var (
+		dataDir          *string
+		charonEnrPrivKey = ".charon/charon-enr-private-key"
+	)
 
 	cmd.Flags().StringVar(dataDir, "data-dir", "", "The directory where charon stores all its internal data. Deprecated.")
 	cmd.Flags().StringVar(privKeyFile, "private-key", charonEnrPrivKey, "The path to the charon enr private key.")
@@ -105,21 +108,29 @@ func bindPrivKeyFlag(cmd *cobra.Command, dataDir, privKeyFile *string) { //nolin
 	preRunE := cmd.PreRunE // Allow multiple wraps of PreRunE.
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
 		ctx := log.WithTopic(cmd.Context(), "cmd")
+
 		if *dataDir != "" {
 			log.Warn(ctx, "Deprecated flag 'data-dir' used, please use new flag 'private-key'.", nil)
+		}
 
-			if *privKeyFile == charonEnrPrivKey { // use --data-dir as --private-key is not set
-				*privKeyFile = p2p.KeyPath(*dataDir)
-			} else { // override --data-dir with --private-key as both flags are set
-				log.Warn(ctx, "'private-key' flag would take precedence as both 'data-dir' and 'private-key' flags are provided.", nil)
+		if _, err := os.Open(*privKeyFile); err == nil {
+			return nil
+		}
+
+		if *dataDir != "" {
+			keyPath := p2p.KeyPath(*dataDir)
+			if _, err := os.Open(keyPath); errors.Is(err, os.ErrNotExist) {
+				return errors.New("private key file not found")
 			}
+
+			*privKeyFile = keyPath
 		}
 
 		if preRunE != nil {
 			return preRunE(cmd, args)
 		}
 
-		return nil
+		return errors.New("private key file not found")
 	}
 }
 

@@ -75,7 +75,6 @@ type Config struct {
 	Feature             featureset.Config
 	LockFile            string
 	NoVerify            bool
-	DataDir             string // deprecated
 	PrivKeyFile         string
 	MonitoringAddr      string
 	ValidatorAPIAddr    string
