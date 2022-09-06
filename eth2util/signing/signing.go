@@ -22,7 +22,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -195,7 +194,7 @@ func VerifyBeaconCommitteeSubscription(ctx context.Context, eth2Cl eth2wrap.Clie
 		return err
 	}
 
-	sigRoot, err := SlotHashRoot(sub.Slot)
+	sigRoot, err := eth2util.SlotHashRoot(sub.Slot)
 	if err != nil {
 		return err
 	}
@@ -244,23 +243,4 @@ func epochFromSlot(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot
 	}
 
 	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
-}
-
-// SlotHashRoot returns the ssz hash root of the slot.
-func SlotHashRoot(slot eth2p0.Slot) ([32]byte, error) {
-	hasher := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hasher)
-
-	indx := hasher.Index()
-
-	hasher.PutUint64(uint64(slot))
-
-	hasher.Merkleize(indx)
-
-	hash, err := hasher.HashRoot()
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash epoch")
-	}
-
-	return hash, nil
 }
