@@ -17,7 +17,6 @@ package signing
 
 import (
 	"context"
-	"encoding/binary"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec"
@@ -196,8 +195,7 @@ func VerifyBeaconCommitteeSubscription(ctx context.Context, eth2Cl eth2wrap.Clie
 		return err
 	}
 
-	sszUint64 := SSZUint64(sub.Slot)
-	sigRoot, err := sszUint64.HashTreeRoot()
+	sigRoot, err := SlotHashRoot(sub.Slot)
 	if err != nil {
 		return err
 	}
@@ -248,26 +246,21 @@ func epochFromSlot(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot
 	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }
 
-// SSZUint64 implements ssz.HashRoot for uint64 types.
-type SSZUint64 uint64
+// SlotHashRoot returns the ssz hash root of the slot.
+func SlotHashRoot(slot eth2p0.Slot) ([32]byte, error) {
+	hasher := ssz.DefaultHasherPool.Get()
+	defer ssz.DefaultHasherPool.Put(hasher)
 
-func (s SSZUint64) GetTree() (*ssz.Node, error) {
-	return ssz.ProofTree(s) //nolint:wrapcheck
-}
+	indx := hasher.Index()
 
-func (s SSZUint64) HashTreeRoot() ([32]byte, error) {
-	buf := make([]byte, 8)
-	binary.LittleEndian.PutUint64(buf, uint64(s))
-	var root [32]byte
-	copy(root[:], buf)
+	hasher.PutUint64(uint64(slot))
 
-	return root, nil
-}
+	hasher.Merkleize(indx)
 
-func (s SSZUint64) HashTreeRootWith(hh ssz.HashWalker) error {
-	indx := hh.Index()
-	hh.PutUint64(uint64(s))
-	hh.Merkleize(indx)
+	hash, err := hasher.HashRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash epoch")
+	}
 
-	return nil
+	return hash, nil
 }

@@ -628,12 +628,6 @@ func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, sub
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 	for _, sub := range subscriptions {
-		data := core.NewPartialSignedBeaconCommitteeSubscription(*sub, c.shareIdx)
-		_, ok := psigsBySlot[sub.Slot]
-		if !ok {
-			psigsBySlot[sub.Slot] = make(core.ParSignedDataSet)
-		}
-
 		eth2Pubkey, err := vals[sub.ValidatorIndex].PubKey(ctx)
 		if err != nil {
 			return nil, err
@@ -652,7 +646,12 @@ func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, sub
 			return nil, err
 		}
 
-		psigsBySlot[sub.Slot][pubkey] = data
+		_, ok := psigsBySlot[sub.Slot]
+		if !ok {
+			psigsBySlot[sub.Slot] = make(core.ParSignedDataSet)
+		}
+
+		psigsBySlot[sub.Slot][pubkey] = core.NewPartialSignedBeaconCommitteeSubscription(sub, c.shareIdx)
 	}
 
 	for slot, data := range psigsBySlot {

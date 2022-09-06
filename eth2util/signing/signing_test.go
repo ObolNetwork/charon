@@ -224,8 +224,7 @@ func TestVerifyBeaconCommitteeSubscription(t *testing.T) {
 		CommitteeIndex:   eth2p0.CommitteeIndex(rand.Uint64()),
 	}
 
-	sszUint64 := signing.SSZUint64(sub.Slot)
-	sigRoot, err := sszUint64.HashTreeRoot()
+	sigRoot, err := signing.SlotHashRoot(sub.Slot)
 	require.NoError(t, err)
 
 	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())

@@ -692,10 +692,15 @@ func (s SignedRandao) clone() (SignedRandao, error) {
 	return resp, nil
 }
 
+// NewBeaconCommitteeSubscription is a convenience function which returns new signed BeaconCommitteeSubscription.
+func NewBeaconCommitteeSubscription(sub *eth2exp.BeaconCommitteeSubscription) SignedBeaconCommitteeSubscription {
+	return SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *sub}
+}
+
 // NewPartialSignedBeaconCommitteeSubscription is a convenience function which returns new partially signed BeaconCommitteeSubscription.
-func NewPartialSignedBeaconCommitteeSubscription(sub eth2exp.BeaconCommitteeSubscription, shareIdx int) ParSignedData {
+func NewPartialSignedBeaconCommitteeSubscription(sub *eth2exp.BeaconCommitteeSubscription, shareIdx int) ParSignedData {
 	return ParSignedData{
-		SignedData: SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: sub},
+		SignedData: NewBeaconCommitteeSubscription(sub),
 		ShareIdx:   shareIdx,
 	}
 }
