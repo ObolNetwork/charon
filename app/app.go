@@ -71,21 +71,21 @@ import (
 const eth2ClientTimeout = time.Second * 2
 
 type Config struct {
-	P2P                 p2p.Config
-	Log                 log.Config
-	Feature             featureset.Config
-	LockFile            string
-	NoVerify            bool
-	PrivKeyFile         string
-	MonitoringAddr      string
-	ValidatorAPIAddr    string
-	BeaconNodeAddrs     []string
-	JaegerAddr          string
-	JaegerService       string
-	SimnetBMock         bool
-	SimnetVMock         bool
-	SimnetValidatorKeys string
-	BuilderAPI          bool
+	P2P                    p2p.Config
+	Log                    log.Config
+	Feature                featureset.Config
+	LockFile               string
+	NoVerify               bool
+	PrivKeyFile            string
+	MonitoringAddr         string
+	ValidatorAPIAddr       string
+	BeaconNodeAddrs        []string
+	JaegerAddr             string
+	JaegerService          string
+	SimnetBMock            bool
+	SimnetVMock            bool
+	SimnetValidatorKeysDir string
+	BuilderAPI             bool
 
 	TestConfig TestConfig
 }
@@ -732,7 +732,7 @@ func netVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.Si
 	secrets := conf.TestConfig.SimnetKeys
 	if len(secrets) == 0 {
 		var err error
-		secrets, err = keystore.LoadKeys(conf.SimnetValidatorKeys)
+		secrets, err = keystore.LoadKeys(conf.SimnetValidatorKeysDir)
 		if err != nil {
 			return nil, err
 		}
