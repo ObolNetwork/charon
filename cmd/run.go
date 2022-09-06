@@ -107,43 +107,11 @@ func bindPrivKeyFlag(cmd *cobra.Command, dataDir, privKeyFile *string) { //nolin
 		ctx := log.WithTopic(cmd.Context(), "cmd")
 		if *dataDir != "" {
 			log.Warn(ctx, "Deprecated flag 'data-dir' used, please use new flag 'private-key'.", nil)
-		}
 
-		// --data-dir absent but --private-key present
-		if *dataDir == "" && *privKeyFile != charonEnrPrivKey {
-			if _, err := os.Open(*privKeyFile); errors.Is(err, os.ErrNotExist) {
-				return errors.New("private key file doesn't exist")
-			}
-
-			return nil
-		}
-
-		// --data-dir present but --private-key absent
-		if *dataDir != "" && *privKeyFile == charonEnrPrivKey {
-			if _, err := os.Open(p2p.KeyPath(*dataDir)); errors.Is(err, os.ErrNotExist) {
-				return errors.New("private key file doesn't exist")
-			}
-			*privKeyFile = p2p.KeyPath(*dataDir)
-
-			return nil
-		}
-
-		// both --data-dir AND --private-key absent
-		if *dataDir == "" && *privKeyFile == charonEnrPrivKey {
-			if _, err := os.Open(*privKeyFile); errors.Is(err, os.ErrNotExist) {
-				return errors.New("private key file doesn't exist")
-			}
-
-			return nil
-		}
-
-		// both --data-dir AND --private-key present
-		if *dataDir != "" && *privKeyFile != charonEnrPrivKey {
-			if _, err := os.Open(*privKeyFile); errors.Is(err, os.ErrNotExist) { // private-key file doesn't exist
-				if _, err := os.Open(*dataDir); errors.Is(err, os.ErrNotExist) { // data-dir/charon-enr-private-key doesn't exist
-					return errors.New("private-key file doesn't exist")
-				}
+			if *privKeyFile == charonEnrPrivKey { // use --data-dir as --private-key is not set
 				*privKeyFile = p2p.KeyPath(*dataDir)
+			} else { // override --data-dir with --private-key as both flags are set
+				log.Warn(ctx, "'private-key' flag would take precedence as both 'data-dir' and 'private-key' flags are provided.", nil)
 			}
 		}
 
@@ -158,24 +126,6 @@ func bindPrivKeyFlag(cmd *cobra.Command, dataDir, privKeyFile *string) { //nolin
 func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 	flags.StringVar(&config.Format, "log-format", "console", "Log format; console, logfmt or json")
 	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
-}
-
-func bindDataDirFlag(cmd *cobra.Command, dataDir *string) {
-	cmd.Flags().StringVar(dataDir, "data-dir", "", "The directory where charon stores all its internal data. Deprecated.")
-
-	preRunE := cmd.PreRunE // Allow multiple wraps of PreRunE.
-	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-		ctx := log.WithTopic(cmd.Context(), "cmd")
-		if *dataDir != "" {
-			log.Warn(ctx, "Deprecated flag 'data-dir'. Explicitly specify 'lock-file' for cluster-lock or 'private-key' for charon-enr-private-key.", nil)
-		}
-
-		if preRunE != nil {
-			return preRunE(cmd, args)
-		}
-
-		return nil
-	}
 }
 
 func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {

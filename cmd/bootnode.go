@@ -63,8 +63,7 @@ func newBootnodeCmd(runFunc func(context.Context, BootnodeConfig) error) *cobra.
 		},
 	}
 
-	bindDataDirFlag(cmd, &config.DataDir)
-	bindPrivKeyFileFlag(cmd.Flags(), &config.PrivKeyFile)
+	bindPrivKeyFlag(cmd, &config.DataDir, &config.PrivKeyFile)
 	bindBootnodeFlag(cmd.Flags(), &config)
 	bindP2PFlags(cmd.Flags(), &config.P2PConfig)
 	bindLogFlags(cmd.Flags(), &config.LogConfig)

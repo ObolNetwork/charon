@@ -49,8 +49,7 @@ func newEnrCmd(runFunc func(io.Writer, p2p.Config, string, bool) error) *cobra.C
 		},
 	}
 
-	bindDataDirFlag(cmd, &dataDir)
-	bindPrivKeyFileFlag(cmd.Flags(), &privKeyFile)
+	bindPrivKeyFlag(cmd, &dataDir, &privKeyFile)
 	bindP2PFlags(cmd.Flags(), &config)
 	bindEnrFlags(cmd.Flags(), &verbose)
 
@@ -110,8 +109,4 @@ func pubkeyHex(pubkey ecdsa.PublicKey) string {
 
 func bindEnrFlags(flags *pflag.FlagSet, verbose *bool) {
 	flags.BoolVar(verbose, "verbose", false, "Prints the expanded form of ENR.")
-}
-
-func bindPrivKeyFileFlag(flags *pflag.FlagSet, privKeyFile *string) {
-	flags.StringVar(privKeyFile, "private-key", ".charon/charon-enr-private-key", "The path where your enr private key will be saved or fetched from.")
 }

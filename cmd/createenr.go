@@ -47,8 +47,7 @@ func newCreateEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.C
 	}
 
 	bindP2PFlags(cmd.Flags(), &config)
-	bindDataDirFlag(cmd, &dataDir)
-	bindPrivKeyFileFlag(cmd.Flags(), &privKeyFile)
+	bindPrivKeyFlag(cmd, &dataDir, &privKeyFile)
 
 	return cmd
 }

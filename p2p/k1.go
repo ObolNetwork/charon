@@ -29,7 +29,7 @@ func KeyPath(datadir string) string {
 	return path.Join(datadir, "charon-enr-private-key")
 }
 
-// LoadPrivKey returns the ecdsa k1 private key from the file.
+// LoadPrivKey returns the ecdsa k1 private key from file.
 func LoadPrivKey(privKeyFile string) (*ecdsa.PrivateKey, error) {
 	key, err := crypto.LoadECDSA(privKeyFile)
 	if err != nil {

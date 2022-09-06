@@ -39,9 +39,8 @@ this command at the same time.`,
 		},
 	}
 
-	bindDataDirFlag(cmd, &config.DataDir)
+	bindPrivKeyFlag(cmd, &config.DataDir, &config.PrivKeyFile)
 	bindDefDirFlag(cmd.Flags(), &config.DefFile)
-	bindPrivKeyFileFlag(cmd.Flags(), &config.PrivKeyFile)
 	bindNoVerifyFlag(cmd.Flags(), &config.NoVerify)
 	bindP2PFlags(cmd.Flags(), &config.P2P)
 	bindLogFlags(cmd.Flags(), &config.Log)
