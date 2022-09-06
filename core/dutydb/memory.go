@@ -26,6 +26,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // NewMemDB returns a new in-memory dutyDB instance.
@@ -53,6 +54,9 @@ type MemDB struct {
 	builderProQueries []builderProQuery
 	proDuties         map[int64]*spec.VersionedBeaconBlock
 	proQueries        []proQuery
+	commResDuties     map[commResKey]*eth2exp.BeaconCommitteeSubscriptionResponse
+	commResQueries    []commResQuery
+	commResKeysBySlot map[int64][]commResKey
 	shutdown          chan struct{}
 	deadliner         core.Deadliner
 }
@@ -105,6 +109,14 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 			}
 		}
 		db.resolveAttQueriesUnsafe()
+	case core.DutyPrepareAggregator:
+		for _, unsignedData := range unsignedSet {
+			err := db.storeBeaconCommitteeSubscriptionResponseUnsafe(duty.Slot, unsignedData)
+			if err != nil {
+				return err
+			}
+		}
+		db.resolveCommResQueriesUnsafe()
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
 	}
@@ -184,6 +196,30 @@ func (db *MemDB) AwaitAttestation(ctx context.Context, slot int64, commIdx int64
 		Response: response,
 	})
 	db.resolveAttQueriesUnsafe()
+	db.mu.Unlock()
+
+	select {
+	case <-db.shutdown:
+		return nil, errors.New("dutydb shutdown")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case value := <-response:
+		return value, nil
+	}
+}
+
+// AwaitCommitteeSubscriptionResponse implements core.DutyDB, see its godoc.
+func (db *MemDB) AwaitCommitteeSubscriptionResponse(ctx context.Context, slot int64, vIdx int64) (*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	db.mu.Lock()
+	response := make(chan *eth2exp.BeaconCommitteeSubscriptionResponse, 1) // Buffer of one so resolving never blocks
+	db.commResQueries = append(db.commResQueries, commResQuery{
+		Key: commResKey{
+			Slot: slot,
+			Vidx: vIdx,
+		},
+		Response: response,
+	})
+	db.resolveCommResQueriesUnsafe()
 	db.mu.Unlock()
 
 	select {
@@ -335,6 +371,36 @@ func (db *MemDB) storeBlindedBeaconBlockUnsafe(unsignedData core.UnsignedData) e
 	return nil
 }
 
+// storeBeaconCommitteeSubscriptionResponseUnsafe stores BeaconCommitteeSubscriptionResponse.
+// It is unsafe since it assumes the lock is held.
+func (db *MemDB) storeBeaconCommitteeSubscriptionResponseUnsafe(slot int64, unsignedData core.UnsignedData) error {
+	cloned, err := unsignedData.Clone()
+	if err != nil {
+		return err
+	}
+
+	res, ok := cloned.(core.BeaconCommitteeSubscriptionResponse)
+	if !ok {
+		return errors.New("invalid committee subscription response")
+	}
+
+	key := commResKey{
+		Slot: slot,
+		Vidx: int64(res.ValidatorIndex),
+	}
+
+	if existing, ok := db.commResDuties[key]; ok {
+		if existing.ValidatorIndex != res.ValidatorIndex || existing.IsAggregator != res.IsAggregator {
+			return errors.New("clashing committee subscription response", z.Any("key", key))
+		}
+	} else {
+		db.commResDuties[key] = &res.BeaconCommitteeSubscriptionResponse
+		db.commResKeysBySlot[slot] = append(db.commResKeysBySlot[slot], key)
+	}
+
+	return nil
+}
+
 // resolveAttQueriesUnsafe resolve any attQuery to a result if found.
 // It is unsafe since it assume that the lock is held.
 func (db *MemDB) resolveAttQueriesUnsafe() {
@@ -386,6 +452,23 @@ func (db *MemDB) resolveBuilderProQueriesUnsafe() {
 	db.builderProQueries = unresolved
 }
 
+// resolveCommResQueriesUnsafe resolve any commResQuery to a result if found.
+// It is unsafe since it assume that the lock is held.
+func (db *MemDB) resolveCommResQueriesUnsafe() {
+	var unresolved []commResQuery
+	for _, query := range db.commResQueries {
+		value, ok := db.commResDuties[query.Key]
+		if !ok {
+			unresolved = append(unresolved, query)
+			continue
+		}
+
+		query.Response <- value
+	}
+
+	db.commResQueries = unresolved
+}
+
 // deleteDutyUnsafe deletes the duty from the database. It is unsafe since it assumes the lock is held.
 func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 	switch duty.Type {
@@ -399,6 +482,11 @@ func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 			delete(db.attDuties, attKey{Slot: key.Slot, CommIdx: key.CommIdx})
 		}
 		delete(db.attKeysBySlot, duty.Slot)
+	case core.DutyPrepareAggregator:
+		for _, key := range db.commResKeysBySlot[duty.Slot] {
+			delete(db.commResDuties, key)
+		}
+		delete(db.commResKeysBySlot, duty.Slot)
 	default:
 		return errors.New("unknown duty type")
 	}
@@ -419,6 +507,12 @@ type pkKey struct {
 	ValCommIdx int64
 }
 
+// commResKey is the key to lookup committee subnet response in the DB.
+type commResKey struct {
+	Slot int64
+	Vidx int64
+}
+
 // attQuery is a waiting attQuery with a response channel.
 type attQuery struct {
 	Key      attKey
@@ -435,4 +529,10 @@ type proQuery struct {
 type builderProQuery struct {
 	Key      int64
 	Response chan<- *eth2api.VersionedBlindedBeaconBlock
+}
+
+// commResQuery is a waiting commResQuery with a response channel.
+type commResQuery struct {
+	Key      commResKey
+	Response chan<- *eth2exp.BeaconCommitteeSubscriptionResponse
 }
