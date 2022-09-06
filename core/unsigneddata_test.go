@@ -26,35 +26,6 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestCloneVersionedBeaconBlock(t *testing.T) {
-	block := testutil.RandomCoreVersionBeaconBlock(t)
-	slot1, err := block.Slot()
-	require.NoError(t, err)
-
-	clone, err := block.Clone()
-	require.NoError(t, err)
-	block2 := clone.(core.VersionedBeaconBlock)
-	slot2, err := block2.Slot()
-	require.NoError(t, err)
-
-	require.Equal(t, slot1, slot2)
-}
-
-func TestCloneVersionedBlindedBeaconBlock(t *testing.T) {
-	block := testutil.RandomCoreVersionBlindedBeaconBlock(t)
-	slot1, err := block.Slot()
-	require.NoError(t, err)
-
-	clone, err := block.Clone()
-	require.NoError(t, err)
-	block2 := clone.(core.VersionedBlindedBeaconBlock)
-	slot2, err := block2.Slot()
-	require.NoError(t, err)
-
-	require.Equal(t, slot1, slot2)
-	require.True(t, reflect.DeepEqual(block, block2))
-}
-
 func TestCloneUnsignedData(t *testing.T) {
 	tests := []struct {
 		name string
