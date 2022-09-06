@@ -51,3 +51,7 @@ this command at the same time.`,
 func bindDefDirFlag(flags *pflag.FlagSet, dataDir *string) {
 	flags.StringVar(dataDir, "definition-file", ".charon/cluster-definition.json", "The path to the cluster definition file or an HTTP URL.")
 }
+
+func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
+	flags.StringVar(dataDir, "data-dir", ".charon", "The directory where charon will store all its internal data")
+}

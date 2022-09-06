@@ -22,7 +22,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"net/http"
-	"path"
 	"sync"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -71,20 +71,21 @@ import (
 const eth2ClientTimeout = time.Second * 2
 
 type Config struct {
-	P2P              p2p.Config
-	Log              log.Config
-	Feature          featureset.Config
-	LockFile         string
-	NoVerify         bool
-	DataDir          string
-	MonitoringAddr   string
-	ValidatorAPIAddr string
-	BeaconNodeAddrs  []string
-	JaegerAddr       string
-	JaegerService    string
-	SimnetBMock      bool
-	SimnetVMock      bool
-	BuilderAPI       bool
+	P2P                 p2p.Config
+	Log                 log.Config
+	Feature             featureset.Config
+	LockFile            string
+	NoVerify            bool
+	PrivKeyFile         string
+	MonitoringAddr      string
+	ValidatorAPIAddr    string
+	BeaconNodeAddrs     []string
+	JaegerAddr          string
+	JaegerService       string
+	SimnetBMock         bool
+	SimnetVMock         bool
+	SimnetValidatorKeys string
+	BuilderAPI          bool
 
 	TestConfig TestConfig
 }
@@ -167,9 +168,9 @@ func Run(ctx context.Context, conf Config) (err error) { //nolint:nonamedreturn 
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
 		var err error
-		p2pKey, err = p2p.LoadPrivKey(conf.DataDir)
+		p2pKey, err = crypto.LoadECDSA(conf.PrivKeyFile)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "load priv key")
 		}
 	}
 
@@ -731,7 +732,7 @@ func netVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.Si
 	secrets := conf.TestConfig.SimnetKeys
 	if len(secrets) == 0 {
 		var err error
-		secrets, err = keystore.LoadKeys(path.Join(conf.DataDir, "/validator_keys"))
+		secrets, err = keystore.LoadKeys(conf.SimnetValidatorKeys)
 		if err != nil {
 			return nil, err
 		}
