@@ -17,16 +17,19 @@ package signing
 
 import (
 	"context"
+	"encoding/binary"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -41,8 +44,8 @@ const (
 	DomainRandao             DomainName = "DOMAIN_RANDAO"
 	DomainExit               DomainName = "DOMAIN_VOLUNTARY_EXIT"
 	DomainApplicationBuilder DomainName = "DOMAIN_APPLICATION_BUILDER"
+	DomainSelectionProof     DomainName = "DOMAIN_SELECTION_PROOF"
 	// DomainDeposit        	         DomainName = "DOMAIN_DEPOSIT"
-	// DomainSelectionProof              DomainName = "DOMAIN_SELECTION_PROOF"
 	// DomainAggregateAndProof           DomainName = "DOMAIN_AGGREGATE_AND_PROOF"
 	// DomainSyncCommittee               DomainName = "DOMAIN_SYNC_COMMITTEE"
 	// DomainSyncCommitteeSelectionProof DomainName = "DOMAIN_SYNC_COMMITTEE_SELECTION_PROOF"
@@ -187,6 +190,21 @@ func VerifyValidatorRegistration(ctx context.Context, eth2Cl eth2wrap.Client, pu
 	return verify(ctx, eth2Cl, DomainApplicationBuilder, 0, sigRoot, reg.V1.Signature, pubkey)
 }
 
+func VerifyBeaconCommitteeSubscription(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, sub *eth2exp.BeaconCommitteeSubscription) error {
+	epoch, err := epochFromSlot(ctx, eth2Cl, sub.Slot)
+	if err != nil {
+		return err
+	}
+
+	sszUint64 := SSZUint64(sub.Slot)
+	sigRoot, err := sszUint64.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	return verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, sub.SlotSignature, pubkey)
+}
+
 // verify returns an error if the signature doesn't match the eth2 domain signed root.
 func verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoch eth2p0.Epoch,
 	sigRoot [32]byte, sig eth2p0.BLSSignature, pubshare *bls_sig.PublicKey,
@@ -228,4 +246,28 @@ func epochFromSlot(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot
 	}
 
 	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
+}
+
+// SSZUint64 implements ssz.HashRoot for uint64 types.
+type SSZUint64 uint64
+
+func (s SSZUint64) GetTree() (*ssz.Node, error) {
+	return ssz.ProofTree(s) //nolint:wrapcheck
+}
+
+func (s SSZUint64) HashTreeRoot() ([32]byte, error) {
+	buf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(buf, uint64(s))
+	var root [32]byte
+	copy(root[:], buf)
+
+	return root, nil
+}
+
+func (s SSZUint64) HashTreeRootWith(hh ssz.HashWalker) error {
+	indx := hh.Index()
+	hh.PutUint64(uint64(s))
+	hh.Merkleize(indx)
+
+	return nil
 }
