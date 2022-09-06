@@ -32,13 +32,15 @@ import (
 // NewMemDB returns a new in-memory dutyDB instance.
 func NewMemDB(deadliner core.Deadliner) *MemDB {
 	return &MemDB{
-		attDuties:        make(map[attKey]*eth2p0.AttestationData),
-		attPubKeys:       make(map[pkKey]core.PubKey),
-		attKeysBySlot:    make(map[int64][]pkKey),
-		builderProDuties: make(map[int64]*eth2api.VersionedBlindedBeaconBlock),
-		proDuties:        make(map[int64]*spec.VersionedBeaconBlock),
-		shutdown:         make(chan struct{}),
-		deadliner:        deadliner,
+		attDuties:         make(map[attKey]*eth2p0.AttestationData),
+		attPubKeys:        make(map[pkKey]core.PubKey),
+		attKeysBySlot:     make(map[int64][]pkKey),
+		builderProDuties:  make(map[int64]*eth2api.VersionedBlindedBeaconBlock),
+		proDuties:         make(map[int64]*spec.VersionedBeaconBlock),
+		commResDuties:     make(map[commResKey]*eth2exp.BeaconCommitteeSubscriptionResponse),
+		commResKeysBySlot: make(map[int64][]commResKey),
+		shutdown:          make(chan struct{}),
+		deadliner:         deadliner,
 	}
 }
 
@@ -390,7 +392,7 @@ func (db *MemDB) storeBeaconCommitteeSubscriptionResponseUnsafe(slot int64, unsi
 	}
 
 	if existing, ok := db.commResDuties[key]; ok {
-		if existing.ValidatorIndex != res.ValidatorIndex || existing.IsAggregator != res.IsAggregator {
+		if existing.IsAggregator != res.IsAggregator {
 			return errors.New("clashing committee subscription response", z.Any("key", key))
 		}
 	} else {
