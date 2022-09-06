@@ -141,13 +141,13 @@ type Component struct {
 
 	// Registered input functions
 
-	pubKeyByAttFunc                  func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
-	awaitAttFunc                     func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
-	awaitBlockFunc                   func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
-	awaitBlindedBlockFunc            func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
-	awaitCommitteeSubnetResponseFunc func(ctx context.Context, validatorIndex eth2p0.ValidatorIndex, slot eth2p0.Slot) (*eth2exp.BeaconCommitteeSubscriptionResponse, error)
-	dutyDefFunc                      func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
-	subs                             []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	pubKeyByAttFunc                        func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
+	awaitAttFunc                           func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
+	awaitBlockFunc                         func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
+	awaitBlindedBlockFunc                  func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
+	awaitCommitteeSubscriptionResponseFunc func(ctx context.Context, slot int64, validatorIndex int64) (*eth2exp.BeaconCommitteeSubscriptionResponse, error)
+	dutyDefFunc                            func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
+	subs                                   []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
 func (c *Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -213,10 +213,10 @@ func (c *Component) RegisterAwaitBlindedBeaconBlock(fn func(ctx context.Context,
 	c.awaitBlindedBlockFunc = fn
 }
 
-// RegisterAwaitCommitteeSubnetResponse registers a function to query BeaconCommitteeResponse.
+// RegisterAwaitCommitteeSubscriptionResponse registers a function to query BeaconCommitteeResponse.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitCommitteeSubnetResponse(fn func(ctx context.Context, validatorIndex eth2p0.ValidatorIndex, slot eth2p0.Slot) (*eth2exp.BeaconCommitteeSubscriptionResponse, error)) {
-	c.awaitCommitteeSubnetResponseFunc = fn
+func (c *Component) RegisterAwaitCommitteeSubscriptionResponse(fn func(ctx context.Context, slot int64, validatorIndex int64) (*eth2exp.BeaconCommitteeSubscriptionResponse, error)) {
+	c.awaitCommitteeSubscriptionResponseFunc = fn
 }
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
@@ -668,7 +668,7 @@ func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, sub
 	// Query BeaconCommitteeSubscriptionResponse (this is blocking).
 	var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
 	for _, sub := range subscriptions {
-		res, err := c.awaitCommitteeSubnetResponseFunc(ctx, sub.ValidatorIndex, sub.Slot)
+		res, err := c.awaitCommitteeSubscriptionResponseFunc(ctx, int64(sub.Slot), int64(sub.ValidatorIndex))
 		if err != nil {
 			return nil, err
 		}

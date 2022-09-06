@@ -1251,8 +1251,8 @@ func TestComponent_SubmitBeaconCommitteeSubscriptionsV2(t *testing.T) {
 	vapi, err := validatorapi.NewComponentInsecure(t, eth2Cl, 0)
 	require.NoError(t, err)
 
-	vapi.RegisterAwaitCommitteeSubnetResponse(func(ctx context.Context, validatorIndex eth2p0.ValidatorIndex, slot eth2p0.Slot) (*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-		return vIdxToResp[validatorIndex], nil
+	vapi.RegisterAwaitCommitteeSubscriptionResponse(func(_ context.Context, _ int64, validatorIndex int64) (*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+		return vIdxToResp[eth2p0.ValidatorIndex(validatorIndex)], nil
 	})
 
 	actual, err := vapi.SubmitBeaconCommitteeSubscriptionsV2(ctx, subs)
