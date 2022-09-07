@@ -21,8 +21,6 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // Scheduler triggers the start of a duty workflow.
@@ -72,10 +70,6 @@ type DutyDB interface {
 	// slot, committee index and validator committee index. This allows mapping of attestation
 	// data response to validator.
 	PubKeyByAttestation(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
-
-	// AwaitCommitteeSubscriptionResponse returns the BeaconCommitteeSubscriptionResponse
-	// for the provided slot and validator index.
-	AwaitCommitteeSubscriptionResponse(ctx context.Context, slot, vIdx int64) (*eth2exp.BeaconCommitteeSubscriptionResponse, error)
 }
 
 // Consensus comes to consensus on proposed duty data.

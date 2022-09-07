@@ -26,14 +26,12 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 var (
 	_ UnsignedData = AttestationData{}
 	_ UnsignedData = VersionedBeaconBlock{}
 	_ UnsignedData = VersionedBlindedBeaconBlock{}
-	_ UnsignedData = BeaconCommitteeSubscriptionResponse{}
 )
 
 // AttestationData wraps the eth2 attestation data and adds the original duty.
@@ -259,49 +257,6 @@ func (b *VersionedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
 	*b = VersionedBlindedBeaconBlock{VersionedBlindedBeaconBlock: resp}
 
 	return nil
-}
-
-type BeaconCommitteeSubscriptionResponse struct {
-	eth2exp.BeaconCommitteeSubscriptionResponse
-}
-
-func (b BeaconCommitteeSubscriptionResponse) Clone() (UnsignedData, error) {
-	var resp BeaconCommitteeSubscriptionResponse
-	err := cloneJSONMarshaler(b, &resp)
-	if err != nil {
-		return nil, errors.Wrap(err, "clone subscription response")
-	}
-
-	return resp, nil
-}
-
-func (b BeaconCommitteeSubscriptionResponse) MarshalJSON() ([]byte, error) {
-	resp, err := json.Marshal(beaconCommitteeSubscriptionResponseJSON{
-		ValidatorIndex: b.ValidatorIndex,
-		IsAggregator:   b.IsAggregator,
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal subscription response")
-	}
-
-	return resp, nil
-}
-
-func (b *BeaconCommitteeSubscriptionResponse) UnmarshalJSON(input []byte) error {
-	var resp beaconCommitteeSubscriptionResponseJSON
-	if err := json.Unmarshal(input, &resp); err != nil {
-		return errors.Wrap(err, "unmarshal subscription response")
-	}
-
-	b.IsAggregator = resp.IsAggregator
-	b.ValidatorIndex = resp.ValidatorIndex
-
-	return nil
-}
-
-type beaconCommitteeSubscriptionResponseJSON struct {
-	ValidatorIndex eth2p0.ValidatorIndex `json:"validator_index"`
-	IsAggregator   bool                  `json:"is_aggregator"`
 }
 
 // UnmarshalUnsignedData returns an instantiated unsigned data based on the duty type.

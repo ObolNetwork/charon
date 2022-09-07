@@ -29,7 +29,6 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/dutydb"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -426,77 +425,6 @@ func TestDutyExpiry(t *testing.T) {
 	// Pubkey not found.
 	_, err = db.PubKeyByAttestation(ctx, int64(att1.Data.Slot), int64(att1.Data.Index), int64(att1.Duty.ValidatorCommitteeIndex))
 	require.Error(t, err)
-}
-
-func TestMemDBCommSubResponse(t *testing.T) {
-	ctx := context.Background()
-	db := dutydb.NewMemDB(new(testDeadliner))
-
-	const queries = 3
-	slots := [queries]int64{123, 456, 789}
-	vIdxs := [queries]int64{1, 2, 3}
-
-	type response struct {
-		commSubRes *eth2exp.BeaconCommitteeSubscriptionResponse
-	}
-	var awaitResponse [queries]chan response
-	for i := 0; i < queries; i++ {
-		awaitResponse[i] = make(chan response)
-		go func(slot int) {
-			res, err := db.AwaitCommitteeSubscriptionResponse(ctx, slots[slot], vIdxs[slot])
-			require.NoError(t, err)
-			awaitResponse[slot] <- response{commSubRes: res}
-		}(i)
-	}
-
-	data := make([]*eth2exp.BeaconCommitteeSubscriptionResponse, queries)
-	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
-	for i := 0; i < queries; i++ {
-		data[i] = &eth2exp.BeaconCommitteeSubscriptionResponse{
-			ValidatorIndex: eth2p0.ValidatorIndex(vIdxs[i]),
-			IsAggregator:   false,
-		}
-		pubkeysByIdx[eth2p0.ValidatorIndex(i)] = testutil.RandomCorePubKey(t)
-
-		require.NoError(t, db.Store(ctx, core.NewPrepareAggregatorDuty(slots[i]), core.UnsignedDataSet{
-			pubkeysByIdx[eth2p0.ValidatorIndex(vIdxs[i])]: core.BeaconCommitteeSubscriptionResponse{BeaconCommitteeSubscriptionResponse: *data[i]},
-		}))
-	}
-
-	// Get and assert the responses
-	for i := 0; i < queries; i++ {
-		actualData := <-awaitResponse[i]
-		require.Equal(t, data[i], actualData.commSubRes)
-	}
-}
-
-func TestMemDBClashingCommSubResponse(t *testing.T) {
-	ctx := context.Background()
-	db := dutydb.NewMemDB(new(testDeadliner))
-
-	const (
-		slot = 123
-		vIdx = 1
-	)
-	res1 := &eth2exp.BeaconCommitteeSubscriptionResponse{
-		ValidatorIndex: vIdx,
-		IsAggregator:   false,
-	}
-	res2 := &eth2exp.BeaconCommitteeSubscriptionResponse{
-		ValidatorIndex: vIdx,
-		IsAggregator:   true,
-	}
-	pubkey := testutil.RandomCorePubKey(t)
-
-	// Store the responses
-	duty := core.NewPrepareAggregatorDuty(slot)
-	require.NoError(t, db.Store(ctx, duty, core.UnsignedDataSet{
-		pubkey: core.BeaconCommitteeSubscriptionResponse{BeaconCommitteeSubscriptionResponse: *res1},
-	}))
-
-	require.ErrorContains(t, db.Store(ctx, duty, core.UnsignedDataSet{
-		pubkey: core.BeaconCommitteeSubscriptionResponse{BeaconCommitteeSubscriptionResponse: *res2},
-	}), "clashing committee subscription response")
 }
 
 // testDeadliner is a mock deadliner implementation.

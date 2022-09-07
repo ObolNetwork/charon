@@ -16,45 +16,38 @@
 package core_test
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestCloneUnsignedData(t *testing.T) {
-	tests := []struct {
-		name string
-		data core.UnsignedData
-	}{
-		{
-			name: "versioned beacon block",
-			data: testutil.RandomCoreVersionBeaconBlock(t),
-		},
-		{
-			name: "versioned blinded beacon block",
-			data: testutil.RandomCoreVersionBlindedBeaconBlock(t),
-		},
-		{
-			name: "beacon committee subscription response",
-			data: core.BeaconCommitteeSubscriptionResponse{
-				BeaconCommitteeSubscriptionResponse: eth2exp.BeaconCommitteeSubscriptionResponse{
-					ValidatorIndex: testutil.RandomVIdx(),
-					IsAggregator:   false,
-				},
-			},
-		},
-	}
+func TestCloneVersionedBeaconBlock(t *testing.T) {
+	block := testutil.RandomCoreVersionBeaconBlock(t)
+	slot1, err := block.Slot()
+	require.NoError(t, err)
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			clone, err := test.data.Clone()
-			require.NoError(t, err)
-			require.True(t, reflect.DeepEqual(test.data, clone))
-		})
-	}
+	clone, err := block.Clone()
+	require.NoError(t, err)
+	block2 := clone.(core.VersionedBeaconBlock)
+	slot2, err := block2.Slot()
+	require.NoError(t, err)
+
+	require.Equal(t, slot1, slot2)
+}
+
+func TestCloneVersionedBlindedBeaconBlock(t *testing.T) {
+	block := testutil.RandomCoreVersionBlindedBeaconBlock(t)
+	slot1, err := block.Slot()
+	require.NoError(t, err)
+
+	clone, err := block.Clone()
+	require.NoError(t, err)
+	block2 := clone.(core.VersionedBlindedBeaconBlock)
+	slot2, err := block2.Slot()
+	require.NoError(t, err)
+
+	require.Equal(t, slot1, slot2)
 }
