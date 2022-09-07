@@ -16,7 +16,6 @@
 package cluster
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"time"
@@ -316,44 +315,22 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 	}
 
 	var (
-		def            Definition
-		configHashJSON []byte
-		defHashJSON    []byte
-		err            error
+		def Definition
+		err error
 	)
 	switch {
 	case isJSONv1x1(version.Version):
-		def, configHashJSON, defHashJSON, err = unmarshalDefinitionV1x1(data)
+		def, err = unmarshalDefinitionV1x1(data)
 		if err != nil {
 			return err
 		}
 	case isJSONv1x2(version.Version):
-		def, configHashJSON, defHashJSON, err = unmarshalDefinitionV1x2(data)
+		def, err = unmarshalDefinitionV1x2(data)
 		if err != nil {
 			return err
 		}
 	default:
 		return errors.New("unsupported version")
-	}
-
-	// Verify config_hash
-	configHash, err := def.ConfigHash()
-	if err != nil {
-		return errors.Wrap(err, "config hash")
-	}
-
-	if !bytes.Equal(configHashJSON, configHash[:]) {
-		return errors.New("invalid config hash")
-	}
-
-	// Verify definition_hash
-	defHash, err := def.HashTreeRoot()
-	if err != nil {
-		return errors.Wrap(err, "definition hash")
-	}
-
-	if !bytes.Equal(defHashJSON, defHash[:]) {
-		return errors.New("invalid definition hash")
 	}
 
 	*d = def
@@ -407,18 +384,18 @@ func marshalDefinitionV1x2(def Definition, configHash, defHash [32]byte) ([]byte
 	return resp, nil
 }
 
-func unmarshalDefinitionV1x1(data []byte) (def Definition, configHashJSON, defHashJSON []byte, err error) {
+func unmarshalDefinitionV1x1(data []byte) (Definition, error) {
 	var defJSON definitionJSONv1x1
 	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return Definition{}, nil, nil, errors.Wrap(err, "unmarshal definition v1_1")
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1_1")
 	}
 
 	operators, err := operatorsFromV1x1(defJSON.Operators)
 	if err != nil {
-		return Definition{}, nil, nil, err
+		return Definition{}, err
 	}
 
-	def = Definition{
+	return Definition{
 		Name:                defJSON.Name,
 		UUID:                defJSON.UUID,
 		Version:             defJSON.Version,
@@ -430,18 +407,16 @@ func unmarshalDefinitionV1x1(data []byte) (def Definition, configHashJSON, defHa
 		DKGAlgorithm:        defJSON.DKGAlgorithm,
 		ForkVersion:         defJSON.ForkVersion,
 		Operators:           operators,
-	}
-
-	return def, defJSON.ConfigHash, defJSON.DefinitionHash, nil
+	}, nil
 }
 
-func unmarshalDefinitionV1x2(data []byte) (def Definition, configHashJSON, defHashJSON []byte, err error) {
+func unmarshalDefinitionV1x2(data []byte) (Definition, error) {
 	var defJSON definitionJSONv1x2
 	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return Definition{}, nil, nil, errors.Wrap(err, "unmarshal definition v1v2")
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1v2")
 	}
 
-	def = Definition{
+	return Definition{
 		Name:                defJSON.Name,
 		UUID:                defJSON.UUID,
 		Version:             defJSON.Version,
@@ -453,9 +428,7 @@ func unmarshalDefinitionV1x2(data []byte) (def Definition, configHashJSON, defHa
 		DKGAlgorithm:        defJSON.DKGAlgorithm,
 		ForkVersion:         defJSON.ForkVersion,
 		Operators:           operatorsFromV1x2(defJSON.Operators),
-	}
-
-	return def, defJSON.ConfigHash, defJSON.DefinitionHash, nil
+	}, nil
 }
 
 // definitionJSONv1x1 is the json formatter of Definition for versions v1.0.0 and v1.1.1.

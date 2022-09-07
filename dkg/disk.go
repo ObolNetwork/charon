@@ -16,6 +16,7 @@
 package dkg
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -57,6 +58,18 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	err = json.Unmarshal(buf, &res)
 	if err != nil {
 		return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
+	}
+
+	// Verify config hash and definition hash from json string and resultant cluster.Definition.
+	if !conf.NoVerify {
+		expected, err := json.Marshal(res)
+		if err != nil {
+			return cluster.Definition{}, errors.Wrap(err, "marshal definition")
+		}
+
+		if !bytes.Equal(expected, buf) {
+			return cluster.Definition{}, errors.New("invalid cluster definition")
+		}
 	}
 
 	return res, nil
