@@ -47,6 +47,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -333,6 +334,18 @@ func RandomVersionedSignedValidatorRegistration(t *testing.T) *eth2api.Versioned
 	return &eth2api.VersionedSignedValidatorRegistration{
 		Version: spec.BuilderVersionV1,
 		V1:      RandomSignedValidatorRegistration(t),
+	}
+}
+
+func RandomBeaconCommitteeSubscription(t *testing.T) *eth2exp.BeaconCommitteeSubscription {
+	t.Helper()
+
+	return &eth2exp.BeaconCommitteeSubscription{
+		ValidatorIndex:   RandomVIdx(),
+		Slot:             RandomSlot(),
+		CommitteeIndex:   RandomCommIdx(),
+		CommitteesAtSlot: rand.Uint64(),
+		SlotSignature:    RandomEth2Signature(),
 	}
 }
 
