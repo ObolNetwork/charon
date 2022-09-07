@@ -62,7 +62,7 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 
 	// Verify config hash and definition hash from json string and resultant cluster.Definition.
 	if !conf.NoVerify {
-		expected, err := json.Marshal(res)
+		expected, err := json.MarshalIndent(res, "", " ")
 		if err != nil {
 			return cluster.Definition{}, errors.Wrap(err, "marshal definition")
 		}

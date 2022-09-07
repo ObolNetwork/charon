@@ -84,7 +84,7 @@ func TestLoadDefinition(t *testing.T) {
 	lock, _, _ := cluster.NewForT(t, 1, 2, 3, 0)
 	validDef := lock.Definition
 	validFile := "valid-cluster-definition.json"
-	b, err := json.Marshal(validDef)
+	b, err := json.MarshalIndent(validDef, "", " ")
 	require.NoError(t, err)
 	err = os.WriteFile(validFile, b, 0o666)
 	require.NoError(t, err)
