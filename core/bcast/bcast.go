@@ -30,6 +30,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // New returns a new broadcaster instance.
@@ -144,6 +145,18 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty,
 	case core.DutyRandao:
 		// Randao is an internal duty, not broadcasted to beacon chain
 		return nil
+	case core.DutyPrepareAggregator:
+		subscription, ok := aggData.(core.SignedBeaconCommitteeSubscription)
+		if !ok {
+			return errors.New("invalid beacon committee subscription")
+		}
+
+		_, err = b.eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, []*eth2exp.BeaconCommitteeSubscription{&subscription.BeaconCommitteeSubscription})
+		if err == nil {
+			log.Info(ctx, "Beacon committee subscription successfully submitted to beacon node", nil)
+		}
+
+		return err
 	default:
 		return errors.New("unsupported duty type")
 	}

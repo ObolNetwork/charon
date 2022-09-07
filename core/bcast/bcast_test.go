@@ -28,6 +28,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/bcast"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -170,6 +171,30 @@ func TestBroadcastExit(t *testing.T) {
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyExit}, "", aggData)
+	require.ErrorIs(t, err, context.Canceled)
+
+	<-ctx.Done()
+}
+
+func TestBroadcastBeaconCommitteeSubscription(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	subscription := testutil.RandomBeaconCommitteeSubscription(t)
+	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *subscription}
+
+	mock.SubmitBeaconCommitteeSubscriptionsFunc = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+		require.Equal(t, aggData.BeaconCommitteeSubscription, *subscriptions[0])
+		cancel()
+
+		return []*eth2exp.BeaconCommitteeSubscriptionResponse{}, ctx.Err()
+	}
+
+	bcaster, err := bcast.New(ctx, mock)
+	require.NoError(t, err)
+
+	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyPrepareAggregator}, "", aggData)
 	require.ErrorIs(t, err, context.Canceled)
 
 	<-ctx.Done()

@@ -53,13 +53,13 @@ func (d DutyType) Valid() bool {
 func (d DutyType) String() string {
 	return map[DutyType]string{
 		DutyUnknown:             "unknown",
-		DutyAttester:            "attester",
 		DutyProposer:            "proposer",
-		DutyRandao:              "randao",
+		DutyAttester:            "attester",
+		DutySignature:           "signature",
 		DutyExit:                "exit",
 		DutyBuilderProposer:     "builder_proposer",
 		DutyBuilderRegistration: "builder_registration",
-		DutySignature:           "signature",
+		DutyRandao:              "randao",
 		DutyPrepareAggregator:   "prepare_aggregator",
 	}[d]
 }
