@@ -199,6 +199,13 @@ func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[
 			}
 
 			return signing.VerifyVoluntaryExit(ctx, eth2Cl, pubshare, &exit.SignedVoluntaryExit)
+		case core.DutyPrepareAggregator:
+			subscription, ok := data.SignedData.(core.SignedBeaconCommitteeSubscription)
+			if !ok {
+				return errors.New("invalid beacon committee subscription")
+			}
+
+			return signing.VerifyBeaconCommitteeSubscription(ctx, eth2Cl, pubshare, &subscription.BeaconCommitteeSubscription)
 		default:
 			return errors.New("unknown duty type")
 		}
