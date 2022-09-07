@@ -14,6 +14,8 @@ services:
     
     environment:
       CHARON_DATA_DIR: /compose/node0
+      CHARON_PRIVATE_KEY_FILE: /compose/node0/charon-enr-private-key
+      CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node0/validator_keys
       CHARON_JAEGER_SERVICE: node0
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
@@ -45,6 +47,8 @@ services:
     
     environment:
       CHARON_DATA_DIR: /compose/node1
+      CHARON_PRIVATE_KEY_FILE: /compose/node1/charon-enr-private-key
+      CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node1/validator_keys
       CHARON_JAEGER_SERVICE: node1
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
@@ -76,6 +80,8 @@ services:
     
     environment:
       CHARON_DATA_DIR: /compose/node2
+      CHARON_PRIVATE_KEY_FILE: /compose/node2/charon-enr-private-key
+      CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node2/validator_keys
       CHARON_JAEGER_SERVICE: node2
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
@@ -107,6 +113,8 @@ services:
     
     environment:
       CHARON_DATA_DIR: /compose/node3
+      CHARON_PRIVATE_KEY_FILE: /compose/node3/charon-enr-private-key
+      CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node3/validator_keys
       CHARON_JAEGER_SERVICE: node3
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json

@@ -40,6 +40,7 @@ func TestCmdFlags(t *testing.T) {
 		AppConfig     *app.Config
 		P2PConfig     *p2p.Config
 		Envs          map[string]string
+		PrivKeyFile   string
 		Datadir       string
 		ErrorMsg      string
 	}{
@@ -63,7 +64,6 @@ func TestCmdFlags(t *testing.T) {
 			Name: "run command",
 			Args: slice("run"),
 			Envs: map[string]string{
-				"CHARON_DATA_DIR":              "from_env",
 				"CHARON_BEACON_NODE_ENDPOINTS": "http://beacon.node",
 			},
 			AppConfig: &app.Config{
@@ -83,13 +83,14 @@ func TestCmdFlags(t *testing.T) {
 					Enabled:   nil,
 					Disabled:  nil,
 				},
-				LockFile:         ".charon/cluster-lock.json",
-				DataDir:          "from_env",
-				MonitoringAddr:   "127.0.0.1:3620",
-				ValidatorAPIAddr: "127.0.0.1:3600",
-				BeaconNodeAddrs:  []string{"http://beacon.node"},
-				JaegerAddr:       "",
-				JaegerService:    "charon",
+				LockFile:               ".charon/cluster-lock.json",
+				PrivKeyFile:            ".charon/charon-enr-private-key",
+				SimnetValidatorKeysDir: ".charon/validator_keys",
+				MonitoringAddr:         "127.0.0.1:3620",
+				ValidatorAPIAddr:       "127.0.0.1:3600",
+				BeaconNodeAddrs:        []string{"http://beacon.node"},
+				JaegerAddr:             "",
+				JaegerService:          "charon",
 			},
 		},
 		{
@@ -139,6 +140,16 @@ func TestCmdFlags(t *testing.T) {
 			for k, v := range test.Envs {
 				require.NoError(t, os.Setenv(k, v))
 			}
+
+			require.NoError(t, os.Mkdir(".charon", 0o755))
+			defer func() {
+				require.NoError(t, os.RemoveAll(".charon"))
+			}()
+			if test.AppConfig != nil {
+				_, err := p2p.NewSavedPrivKey(test.AppConfig.PrivKeyFile)
+				require.NoError(t, err)
+			}
+
 			t.Cleanup(func() {
 				for k := range test.Envs {
 					require.NoError(t, os.Unsetenv(k))

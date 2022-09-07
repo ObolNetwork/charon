@@ -46,9 +46,9 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 		},
 	}
 
+	bindPrivKeyFlag(cmd, &conf.PrivKeyFile)
 	bindRunFlags(cmd, &conf)
 	bindNoVerifyFlag(cmd.Flags(), &conf.NoVerify)
-	bindDataDirFlag(cmd.Flags(), &conf.DataDir)
 	bindP2PFlags(cmd.Flags(), &conf.P2P)
 	bindLogFlags(cmd.Flags(), &conf.Log)
 	bindFeatureFlags(cmd.Flags(), &conf.Feature)
@@ -71,6 +71,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.JaegerService, "jaeger-service", "charon", "Service name used for jaeger tracing.")
 	cmd.Flags().BoolVar(&config.SimnetBMock, "simnet-beacon-mock", false, "Enables an internal mock beacon node for running a simnet.")
 	cmd.Flags().BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.")
+	cmd.Flags().StringVar(&config.SimnetValidatorKeysDir, "simnet-validator-keys-dir", ".charon/validator_keys", "The directory containing the simnet validator key shares.")
 	cmd.Flags().BoolVar(&config.BuilderAPI, "builder-api", false, "Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.")
 
 	preRunE := cmd.PreRunE // Allow multiple wraps of PreRunE.
@@ -95,13 +96,38 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	}
 }
 
+func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string) {
+	var dataDir string
+
+	cmd.Flags().StringVar(&dataDir, "data-dir", "", "Deprecated, please use 'private-key-file'.")
+	cmd.Flags().StringVar(privKeyFile, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file.")
+
+	preRunE := cmd.PreRunE // Allow multiple wraps of PreRunE.
+	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		ctx := log.WithTopic(cmd.Context(), "cmd")
+		if dataDir != "" {
+			log.Warn(ctx, "Deprecated flag 'data-dir' used, please use new flag 'private-key-file'.", nil)
+		}
+
+		if _, err := os.Open(*privKeyFile); err == nil { //nolint:revive
+			// Ignore data-dir since priv key file is present
+		} else if _, err := os.Open(p2p.KeyPath(dataDir)); err == nil { //nolint:revive
+			*privKeyFile = p2p.KeyPath(dataDir)
+		} else {
+			return errors.New("charon enr private key file not found in either `data-dir` or `private-key-file`")
+		}
+
+		if preRunE != nil {
+			return preRunE(cmd, args)
+		}
+
+		return nil
+	}
+}
+
 func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 	flags.StringVar(&config.Format, "log-format", "console", "Log format; console, logfmt or json")
 	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
-}
-
-func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
-	flags.StringVar(dataDir, "data-dir", ".charon", "The directory where charon will store all its internal data")
 }
 
 func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {
