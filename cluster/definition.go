@@ -16,6 +16,7 @@
 package cluster
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"time"
@@ -163,6 +164,58 @@ func (d Definition) Verify() error {
 
 	if noSigs > 0 && noSigs != len(d.Operators) {
 		return errors.New("some operators signed others not")
+	}
+
+	return nil
+}
+
+func (d Definition) VerifyHashesJSON(data []byte) error {
+	var configHashJSON, definitionHashJSON []byte
+	switch {
+	case isJSONv1x1(d.Version):
+		hashes := struct {
+			ConfigHash     []byte `json:"config_hash"`
+			DefinitionHash []byte `json:"definition_hash"`
+		}{}
+		if err := json.Unmarshal(data, &hashes); err != nil {
+			return errors.Wrap(err, "unmarshal hashes")
+		}
+
+		configHashJSON = hashes.ConfigHash
+		definitionHashJSON = hashes.DefinitionHash
+	case isJSONv1x2(d.Version):
+		hashes := struct {
+			ConfigHash     ethHex `json:"config_hash"`
+			DefinitionHash ethHex `json:"definition_hash"`
+		}{}
+		if err := json.Unmarshal(data, &hashes); err != nil {
+			return errors.Wrap(err, "unmarshal hashes")
+		}
+
+		configHashJSON = hashes.ConfigHash
+		definitionHashJSON = hashes.DefinitionHash
+	default:
+		return errors.New("unsupported version")
+	}
+
+	// Verify config_hash
+	confHash, err := d.ConfigHash()
+	if err != nil {
+		return errors.Wrap(err, "config hash")
+	}
+
+	if !bytes.Equal(configHashJSON, confHash[:]) {
+		return errors.New("invalid config hash")
+	}
+
+	// Verify definition_hash
+	defHash, err := d.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "definition hash")
+	}
+
+	if !bytes.Equal(definitionHashJSON, defHash[:]) {
+		return errors.New("invalid definition hash")
 	}
 
 	return nil
