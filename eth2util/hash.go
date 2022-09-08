@@ -18,6 +18,7 @@ package eth2util
 import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
+	"github.com/minio/sha256-simd"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -39,4 +40,15 @@ func SlotHashRoot(slot eth2p0.Slot) ([32]byte, error) {
 	}
 
 	return hash, nil
+}
+
+// SHA256 calculates the sha256 checksum of the input data. https://github.com/ethereum/consensus-specs/blob/v0.9.3/specs/core/0_beacon-chain.md#hash
+func SHA256(data []byte) [32]byte {
+	h := sha256.New()
+	h.Write(data)
+
+	var b [32]byte
+	h.Sum(b[:0])
+
+	return b
 }
