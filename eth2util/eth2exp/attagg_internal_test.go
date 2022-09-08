@@ -17,8 +17,13 @@ package eth2exp
 
 import (
 	"context"
+	"encoding/json"
+	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,6 +46,64 @@ func TestCalculateCommitteeSubscriptionResponse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := CalculateCommitteeSubscriptionResponse(context.Background(), tt.beaconNode, tt.subscription)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGetCommitteeLength(t *testing.T) {
+	var (
+		commIdx = 123
+		commLen = 140
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		res := getCommitteesResponse{
+			Data: []struct {
+				Index      int   `json:"index"`
+				Validators []int `json:"validators"`
+			}([]struct {
+				Index      int
+				Validators []int
+			}{
+				{
+					Index:      commIdx,
+					Validators: rand.Perm(commLen),
+				},
+			}),
+		}
+
+		b, _ := json.Marshal(res)
+		_, _ = w.Write(b)
+	}))
+	defer server.Close()
+
+	tests := []struct {
+		name       string
+		beaconNode string
+		commIdx    phase0.CommitteeIndex
+		slot       phase0.Slot
+		want       int
+		wantErr    bool
+	}{
+		{
+			name:       "happy path",
+			beaconNode: server.URL,
+			commIdx:    phase0.CommitteeIndex(commIdx),
+			slot:       2,
+			want:       commLen,
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getCommitteeLength(context.Background(), tt.beaconNode, tt.commIdx, tt.slot)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

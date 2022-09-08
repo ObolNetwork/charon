@@ -36,6 +36,14 @@ import (
 // targetAggregatorsPerCommittee defines the number of aggregators inside one committee. https://github.com/ethereum/consensus-specs/blob/0ba5b3b5c5bb58fbe0f094dcd02dedc4ff1c6f7c/specs/phase0/validator.md#misc
 const targetAggregatorsPerCommittee = 16
 
+// getCommitteesResponse is the HTTP response for /eth/v1/beacon/states/{state_id}/committees (https://ethereum.github.io/beacon-APIs/#/Beacon/getEpochCommittees).
+type getCommitteesResponse struct {
+	Data []struct {
+		Index      int   `json:"index"`
+		Validators []int `json:"validators"`
+	} `json:"data"`
+}
+
 // BeaconCommitteeSubscriptionsSubmitterV2 is the interface for submitting beacon committee subnet subscription requests.
 // TODO(dhruv): Should be removed once it is supported by go-eth2-client.
 type BeaconCommitteeSubscriptionsSubmitterV2 interface {
@@ -171,7 +179,7 @@ func CalculateCommitteeSubscriptionResponse(ctx context.Context, beaconNode stri
 	}, nil
 }
 
-// isAggregator returns true if the signature is from the input validator. https://github.com/prysmaticlabs/prysm/blob/b4d2395a38ea6cac15cb720672af12eeaf4d97a1/beacon-chain/core/helpers/attestation.go#L49
+// isAggregator returns true if the signature is from the input validator. https://github.com/ethereum/consensus-specs/blob/0ba5b3b5c5bb58fbe0f094dcd02dedc4ff1c6f7c/specs/phase0/validator.md#aggregation-selection
 func isAggregator(committeeLen uint64, slotSig eth2p0.BLSSignature) bool {
 	modulo := uint64(1)
 
@@ -213,13 +221,6 @@ func getCommitteeLength(ctx context.Context, beaconNode string, commIdx eth2p0.C
 	buf, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return 0, errors.Wrap(err, "read response body")
-	}
-
-	type getCommitteesResponse struct {
-		Data []struct {
-			Index      int   `json:"index"`
-			Validators []int `json:"validators"`
-		} `json:"data"`
 	}
 
 	var res getCommitteesResponse
