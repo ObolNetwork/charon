@@ -322,12 +322,7 @@ func writeLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer, shareSets [
 		return err
 	}
 
-	lockHash, err := lock.HashTreeRoot()
-	if err != nil {
-		return err
-	}
-
-	lock.SignatureAggregate, err = aggSign(shareSets, lockHash[:])
+	lock.SignatureAggregate, err = aggSign(shareSets, lock.LockHash)
 	if err != nil {
 		return err
 	}
@@ -360,7 +355,7 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 
 	var vals []cluster.DistValidator
 	for _, dv := range dvs {
-		pk, err := tblsconv.KeyToCore(dv.PublicKey())
+		pk, err := dv.PublicKey().MarshalBinary()
 		if err != nil {
 			return cluster.Lock{}, err
 		}
@@ -376,7 +371,7 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 		}
 
 		vals = append(vals, cluster.DistValidator{
-			PubKey:    string(pk),
+			PubKey:    pk,
 			PubShares: pubshares,
 		})
 	}
@@ -387,10 +382,12 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 		return cluster.Lock{}, err
 	}
 
-	return cluster.Lock{
+	l := cluster.Lock{
 		Definition: def,
 		Validators: vals,
-	}, nil
+	}
+
+	return l.SetLockHash()
 }
 
 // newPeer returns a new peer, generating a p2pkey and ENR and node directory and run script in the process.

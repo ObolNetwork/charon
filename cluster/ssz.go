@@ -29,6 +29,7 @@ const (
 	sszMaxTimestamp    = 32
 	sszMaxDKGAlgorithm = 32
 	sszMaxOperators    = 256
+	sszMaxValidators   = 65536
 )
 
 // hashDefinition returns a config or definition hash. The config hash excludes operator ENRs and signatures
@@ -215,6 +216,130 @@ func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error 
 		// Field 11) 'ConfigHash' Bytes32
 		hh.PutBytes(d.ConfigHash)
 	}
+
+	hh.Merkleize(indx)
+
+	return nil
+}
+
+// hashLock returns a lock hash.
+func hashLock(l Lock) ([32]byte, error) {
+	var hashFunc func(Lock, ssz.HashWalker) error
+	if isJSONv1x0(l.Version) || isJSONv1x1(l.Version) || isJSONv1x2(l.Version) {
+		hashFunc = hashLockLegacy
+	} else if isJSONv1x3(l.Version) { //nolint:revive // Early return not applicable to else if
+		hashFunc = hashLockV1x3
+	} else {
+		return [32]byte{}, errors.New("unknown version")
+	}
+
+	hh := ssz.DefaultHasherPool.Get()
+	defer ssz.DefaultHasherPool.Put(hh)
+
+	if err := hashFunc(l, hh); err != nil {
+		return [32]byte{}, err
+	}
+
+	resp, err := hh.HashRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash root")
+	}
+
+	return resp, nil
+}
+
+func hashLockV1x3(l Lock, hh ssz.HashWalker) error {
+	indx := hh.Index()
+
+	// Field (0) 'Definition' Composite
+	if err := hashDefinitionV1x3(l.Definition, hh, false); err != nil {
+		return err
+	}
+
+	// Field (1) 'Validators' CompositeList[65536]
+	{
+		subIndx := hh.Index()
+		num := uint64(len(l.Validators))
+		for _, validator := range l.Validators {
+			if err := hashValidatorV1x3(validator, hh); err != nil {
+				return err
+			}
+		}
+		hh.MerkleizeWithMixin(subIndx, num, sszMaxValidators)
+	}
+
+	hh.Merkleize(indx)
+
+	return nil
+}
+
+func hashValidatorV1x3(v DistValidator, hh ssz.HashWalker) error {
+	indx := hh.Index()
+
+	// Field (0) 'PubKey' Bytes48
+	hh.PutBytes(v.PubKey)
+
+	// Field (1) 'Pubshares' CompositeList[256]
+	{
+		subIndx := hh.Index()
+		num := uint64(len(v.PubShares))
+		for _, pubshare := range v.PubShares {
+			hh.PutBytes(pubshare) // Bytes48
+		}
+		hh.MerkleizeWithMixin(subIndx, num, sszMaxOperators)
+	}
+
+	// Field (2) 'FeeRecipientAddress' Bytes20
+	hh.PutBytes(v.FeeRecipientAddress)
+
+	hh.Merkleize(indx)
+
+	return nil
+}
+
+func hashLockLegacy(l Lock, hh ssz.HashWalker) error {
+	indx := hh.Index()
+
+	// Field (0) 'Definition'
+	if err := hashDefinitionLegacy(l.Definition, hh, false); err != nil {
+		return err
+	}
+
+	// Field (1) 'Validators'
+	{
+		subIndx := hh.Index()
+		num := uint64(len(l.Validators))
+		for _, validator := range l.Validators {
+			if err := hashValidatorLegacy(validator, hh); err != nil {
+				return err
+			}
+		}
+		hh.MerkleizeWithMixin(subIndx, num, num)
+	}
+
+	hh.Merkleize(indx)
+
+	return nil
+}
+
+func hashValidatorLegacy(v DistValidator, hh ssz.HashWalker) error {
+	indx := hh.Index()
+
+	// Field (0) 'PubKey'
+	hh.PutBytes([]byte(to0xHex(v.PubKey)))
+
+	// Field (1) 'Pubshares'
+	{
+		subIndx := hh.Index()
+		num := uint64(len(v.PubShares))
+		for _, pubshare := range v.PubShares {
+			hh.PutBytes(pubshare)
+		}
+		hh.MerkleizeWithMixin(subIndx, num, num)
+	}
+
+	// Field (2) 'FeeRecipientAddress'
+	hh.PutBytes([]byte(to0xHex(v.FeeRecipientAddress)))
 
 	hh.Merkleize(indx)
 

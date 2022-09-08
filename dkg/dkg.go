@@ -330,12 +330,12 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 		Validators: dvs,
 	}
 
-	lockHash, err := lock.HashTreeRoot()
+	lock, err = lock.SetLockHash()
 	if err != nil {
-		return cluster.Lock{}, errors.Wrap(err, "lockHash lock")
+		return cluster.Lock{}, err
 	}
 
-	lockHashSig, err := signLockHash(nodeIdx.ShareIdx, shares, lockHash[:])
+	lockHashSig, err := signLockHash(nodeIdx.ShareIdx, shares, lock.LockHash)
 	if err != nil {
 		return cluster.Lock{}, err
 	}
@@ -355,12 +355,12 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 		pubkeyToShares[pk] = sh
 	}
 
-	aggSigLockHash, aggPkLockHash, err := aggLockHashSig(peerSigs, pubkeyToShares, lockHash[:])
+	aggSigLockHash, aggPkLockHash, err := aggLockHashSig(peerSigs, pubkeyToShares, lock.LockHash)
 	if err != nil {
 		return cluster.Lock{}, err
 	}
 
-	verified, err := tbls.Scheme().VerifyMultiSignature(aggPkLockHash, lockHash[:], aggSigLockHash)
+	verified, err := tbls.Scheme().VerifyMultiSignature(aggPkLockHash, lock.LockHash, aggSigLockHash)
 	if err != nil {
 		return cluster.Lock{}, errors.Wrap(err, "verify multisignature")
 	} else if !verified {
@@ -600,7 +600,7 @@ func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 		}
 
 		dvs = append(dvs, cluster.DistValidator{
-			PubKey:    fmt.Sprintf("%#x", msg.PubKey),
+			PubKey:    msg.PubKey,
 			PubShares: msg.PubShares,
 		})
 	}

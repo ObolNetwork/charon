@@ -16,68 +16,41 @@
 package cluster
 
 import (
-	"encoding/hex"
-	"strings"
-
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	ssz "github.com/ferranbt/fastssz"
 
-	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // DistValidator is a distributed validator (1x32ETH) managed by the cluster.
 type DistValidator struct {
 	// PubKey is the distributed validator group public key.
-	PubKey string `json:"distributed_public_key"`
+	PubKey []byte `json:"distributed_public_key"  ssz:"Bytes48" lock_hash:"0"`
 
 	// PubShares are the public keys corresponding to each node's secret key share.
 	// It can be used to verify a partial signature created by any node in the cluster.
-	PubShares [][]byte `json:"public_shares,omitempty"`
+	PubShares [][]byte `json:"public_shares,omitempty" ssz:"CompositeList[256],Bytes48" lock_hash:"1"`
 
 	// FeeRecipientAddress Ethereum address override for this validator, defaults to definition withdrawal address.
-	FeeRecipientAddress string `json:"fee_recipient_address,omitempty"`
+	FeeRecipientAddress []byte `json:"fee_recipient_address,omitempty" ssz:"Bytes20" lock_hash:"2"`
 }
 
-// GetTree ssz hashes the DistValidator object.
-func (v DistValidator) GetTree() (*ssz.Node, error) {
-	return ssz.ProofTree(v) //nolint:wrapcheck
-}
-
-// HashTreeRoot ssz hashes the Lock object.
-func (v DistValidator) HashTreeRoot() ([32]byte, error) {
-	return ssz.HashWithDefaultHasher(v) //nolint:wrapcheck
-}
-
-// HashTreeRootWith ssz hashes the Lock object with a hasher.
-func (v DistValidator) HashTreeRootWith(hh ssz.HashWalker) error {
-	indx := hh.Index()
-
-	// Field (0) 'PubKey'
-	hh.PutBytes([]byte(v.PubKey))
-
-	// Field (1) 'Pubshares'
-	{
-		subIndx := hh.Index()
-		num := uint64(len(v.PubShares))
-		for _, pubshare := range v.PubShares {
-			hh.PutBytes(pubshare)
-		}
-		hh.MerkleizeWithMixin(subIndx, num, num)
-	}
-
-	// Field (2) 'FeeRecipientAddress'
-	hh.PutBytes([]byte(v.FeeRecipientAddress))
-
-	hh.Merkleize(indx)
-
-	return nil
-}
-
-// PublicKey returns the validator group public key.
+// PublicKey returns the validator BLS group public key.
 func (v DistValidator) PublicKey() (*bls_sig.PublicKey, error) {
-	return tblsconv.KeyFromCore(core.PubKey(v.PubKey))
+	return tblsconv.KeyFromBytes(v.PubKey)
+}
+
+// PublicKeyHex returns the validator hex group public key.
+func (v DistValidator) PublicKeyHex() string {
+	return to0xHex(v.PubKey)
+}
+
+// PublicKeyETH2 returns the validator eth2client group public key.
+func (v DistValidator) PublicKeyETH2() eth2p0.BLSPubKey {
+	var resp eth2p0.BLSPubKey
+	copy(resp[:], v.PubKey)
+
+	return resp
 }
 
 // PublicShare returns a peer's threshold BLS public share.
@@ -87,22 +60,26 @@ func (v DistValidator) PublicShare(peerIdx int) (*bls_sig.PublicKey, error) {
 
 // distValidatorJSONv1x1 is the json formatter of DistValidator for versions v1.0.0 and v1.1.0.
 type distValidatorJSONv1x1 struct {
-	PubKey              string   `json:"distributed_public_key"`
+	PubKey              ethHex   `json:"distributed_public_key"`
 	PubShares           [][]byte `json:"public_shares,omitempty"`
-	FeeRecipientAddress string   `json:"fee_recipient_address,omitempty"`
+	FeeRecipientAddress ethHex   `json:"fee_recipient_address,omitempty"`
 }
 
 // distValidatorJSONv1x2 is the json formatter of DistValidator for versions v1.2.0 and later.
 type distValidatorJSONv1x2 struct {
 	PubKey              ethHex   `json:"distributed_public_key"`
 	PubShares           []ethHex `json:"public_shares,omitempty"`
-	FeeRecipientAddress string   `json:"fee_recipient_address,omitempty"`
+	FeeRecipientAddress ethHex   `json:"fee_recipient_address,omitempty"`
 }
 
 func distValidatorsFromV1x1(distValidators []distValidatorJSONv1x1) []DistValidator {
 	var resp []DistValidator
 	for _, dv := range distValidators {
-		resp = append(resp, DistValidator(dv)) // Same struct definition so can just convert/cast.
+		resp = append(resp, DistValidator{
+			PubKey:              dv.PubKey,
+			PubShares:           dv.PubShares,
+			FeeRecipientAddress: dv.FeeRecipientAddress,
+		})
 	}
 
 	return resp
@@ -111,13 +88,17 @@ func distValidatorsFromV1x1(distValidators []distValidatorJSONv1x1) []DistValida
 func distValidatorsToV1x1(distValidators []DistValidator) []distValidatorJSONv1x1 {
 	var resp []distValidatorJSONv1x1
 	for _, dv := range distValidators {
-		resp = append(resp, distValidatorJSONv1x1(dv)) // Same struct definition so can just convert/cast.
+		resp = append(resp, distValidatorJSONv1x1{
+			PubKey:              dv.PubKey,
+			PubShares:           dv.PubShares,
+			FeeRecipientAddress: dv.FeeRecipientAddress,
+		})
 	}
 
 	return resp
 }
 
-func distValidatorsFromV1x2(distValidators []distValidatorJSONv1x2) []DistValidator {
+func distValidatorsFromV1x2or3(distValidators []distValidatorJSONv1x2) []DistValidator {
 	var resp []DistValidator
 	for _, dv := range distValidators {
 		var shares [][]byte
@@ -125,7 +106,7 @@ func distValidatorsFromV1x2(distValidators []distValidatorJSONv1x2) []DistValida
 			shares = append(shares, share)
 		}
 		resp = append(resp, DistValidator{
-			PubKey:              to0xHex(dv.PubKey),
+			PubKey:              dv.PubKey,
 			PubShares:           shares,
 			FeeRecipientAddress: dv.FeeRecipientAddress,
 		})
@@ -134,7 +115,7 @@ func distValidatorsFromV1x2(distValidators []distValidatorJSONv1x2) []DistValida
 	return resp
 }
 
-func distValidatorsToV1x2(distValidators []DistValidator) ([]distValidatorJSONv1x2, error) {
+func distValidatorsToV1x2or3(distValidators []DistValidator) []distValidatorJSONv1x2 {
 	var resp []distValidatorJSONv1x2
 	for _, dv := range distValidators {
 		var shares []ethHex
@@ -142,16 +123,12 @@ func distValidatorsToV1x2(distValidators []DistValidator) ([]distValidatorJSONv1
 			shares = append(shares, share)
 		}
 
-		pk, err := hex.DecodeString(strings.TrimPrefix(dv.PubKey, "0x"))
-		if err != nil {
-			return nil, errors.Wrap(err, "decode pubkey")
-		}
 		resp = append(resp, distValidatorJSONv1x2{
-			PubKey:              pk,
+			PubKey:              dv.PubKey,
 			PubShares:           shares,
 			FeeRecipientAddress: dv.FeeRecipientAddress,
 		})
 	}
 
-	return resp, nil
+	return resp
 }
