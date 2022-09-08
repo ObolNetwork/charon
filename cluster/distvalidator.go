@@ -16,7 +16,6 @@
 package cluster
 
 import (
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -43,14 +42,6 @@ func (v DistValidator) PublicKey() (*bls_sig.PublicKey, error) {
 // PublicKeyHex returns the validator hex group public key.
 func (v DistValidator) PublicKeyHex() string {
 	return to0xHex(v.PubKey)
-}
-
-// PublicKeyETH2 returns the validator eth2client group public key.
-func (v DistValidator) PublicKeyETH2() eth2p0.BLSPubKey {
-	var resp eth2p0.BLSPubKey
-	copy(resp[:], v.PubKey)
-
-	return resp
 }
 
 // PublicShare returns a peer's threshold BLS public share.

@@ -322,13 +322,15 @@ func testSimnet(t *testing.T, args simnetArgs) {
 func newRegistrationProvider(t *testing.T, args simnetArgs) func() <-chan *eth2api.VersionedValidatorRegistration {
 	t.Helper()
 
+	pubkey, err := core.PubKey(args.Lock.Validators[0].PublicKeyHex()).ToETH2()
+	require.NoError(t, err)
 	reg := &eth2api.VersionedValidatorRegistration{
 		Version: spec.BuilderVersionV1,
 		V1: &eth2v1.ValidatorRegistration{
 			FeeRecipient: testutil.RandomExecutionAddress(),
 			GasLimit:     99,
 			Timestamp:    time.Now(),
-			Pubkey:       args.Lock.Validators[0].PublicKeyETH2(),
+			Pubkey:       pubkey,
 		},
 	}
 
