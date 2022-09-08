@@ -305,27 +305,32 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		return errors.New("unsupported version")
 	}
 
+	*d = def
+
+	return nil
+}
+
+// VerifyHashes returns an error if hashes populated from json object doesn't matches actual hashes.
+func (d Definition) VerifyHashes() error {
 	// Verify config_hash
-	configHash, err := hashDefinition(def, true)
+	configHash, err := hashDefinition(d, true)
 	if err != nil {
 		return errors.Wrap(err, "config hash")
 	}
 
-	if !bytes.Equal(def.ConfigHash, configHash[:]) {
+	if !bytes.Equal(d.ConfigHash, configHash[:]) {
 		return errors.New("invalid config hash")
 	}
 
 	// Verify definition_hash
-	defHash, err := hashDefinition(def, false)
+	defHash, err := hashDefinition(d, false)
 	if err != nil {
 		return errors.Wrap(err, "definition hash")
 	}
 
-	if !bytes.Equal(def.DefinitionHash, defHash[:]) {
+	if !bytes.Equal(d.DefinitionHash, defHash[:]) {
 		return errors.New("invalid definition hash")
 	}
-
-	*d = def
 
 	return nil
 }

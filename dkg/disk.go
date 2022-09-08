@@ -30,6 +30,7 @@ import (
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
@@ -57,6 +58,12 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	err = json.Unmarshal(buf, &res)
 	if err != nil {
 		return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
+	}
+
+	if err := res.VerifyHashes(); err != nil && !conf.NoVerify {
+		return cluster.Definition{}, errors.Wrap(err, "cluster definition hashes verification failed. Run with --no-verify to bypass verification at own risk")
+	} else if err != nil && conf.NoVerify {
+		log.Warn(ctx, "Ignoring failed cluster definition hashes verification due to --no-verify flag", err)
 	}
 
 	return res, nil
