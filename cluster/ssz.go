@@ -34,11 +34,11 @@ const (
 // hashDefinition returns a config or definition hash. The config hash excludes operator ENRs and signatures
 // while the definition hash includes all fields.
 func hashDefinition(d Definition, configOnly bool) ([32]byte, error) {
-	var fn func(Definition, ssz.HashWalker, bool) error
+	var hashFunc func(Definition, ssz.HashWalker, bool) error
 	if isJSONv1x0(d.Version) || isJSONv1x1(d.Version) || isJSONv1x2(d.Version) {
-		fn = hashDefinitionLegacy
+		hashFunc = hashDefinitionLegacy
 	} else if isJSONv1x3(d.Version) { //nolint:revive // Early return not applicable to else if
-		fn = hashDefinitionV1x3
+		hashFunc = hashDefinitionV1x3
 	} else {
 		return [32]byte{}, errors.New("unknown version")
 	}
@@ -46,7 +46,7 @@ func hashDefinition(d Definition, configOnly bool) ([32]byte, error) {
 	hh := ssz.DefaultHasherPool.Get()
 	defer ssz.DefaultHasherPool.Put(hh)
 
-	if err := fn(d, hh, configOnly); err != nil {
+	if err := hashFunc(d, hh, configOnly); err != nil {
 		return [32]byte{}, err
 	}
 

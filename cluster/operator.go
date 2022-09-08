@@ -42,10 +42,6 @@ type Operator struct {
 	ENRSignature []byte `json:"enr_signature,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"3"`
 }
 
-func (o Operator) addressHex() string {
-	return to0xHex(o.Address)
-}
-
 // getName returns a deterministic name for operator based on its ENR.
 func (o Operator) getName() (string, error) {
 	enr, err := p2p.DecodeENR(o.ENR)
@@ -84,7 +80,7 @@ func operatorsFromV1x1(operators []operatorJSONv1x1) ([]Operator, error) {
 		if o.Nonce != 0 {
 			return nil, errors.New("non-zero operator nonce not supported")
 		}
-		addr, err := from0xHex(o.Address, 20)
+		addr, err := from0xHex(o.Address, addrLen)
 		if err != nil {
 			return nil, errors.Wrap(err, "decode address", z.Str("address", o.Address))
 		}
@@ -104,7 +100,7 @@ func operatorsToV1x1(operators []Operator) []operatorJSONv1x1 {
 	var resp []operatorJSONv1x1
 	for _, o := range operators {
 		resp = append(resp, operatorJSONv1x1{
-			Address:         o.addressHex(),
+			Address:         to0xHex(o.Address),
 			ENR:             o.ENR,
 			Nonce:           zeroNonce,
 			ConfigSignature: o.ConfigSignature,

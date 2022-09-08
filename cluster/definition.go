@@ -28,6 +28,11 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+const (
+	addrLen        = 20
+	forkVersionLen = 4
+)
+
 // NodeIdx represents the index of a node/peer/share in the cluster as operator order in cluster definition.
 type NodeIdx struct {
 	// PeerIdx is the index of a peer in the peer list (it 0-indexed).
@@ -52,17 +57,17 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddress 
 	}
 
 	var err error
-	def.FeeRecipientAddress, err = from0xHex(feeRecipientAddress, 20)
+	def.FeeRecipientAddress, err = from0xHex(feeRecipientAddress, addrLen)
 	if err != nil {
 		return Definition{}, err
 	}
 
-	def.WithdrawalAddress, err = from0xHex(withdrawalAddress, 20)
+	def.WithdrawalAddress, err = from0xHex(withdrawalAddress, addrLen)
 	if err != nil {
 		return Definition{}, err
 	}
 
-	def.ForkVersion, err = from0xHex(forkVersionHex, 4)
+	def.ForkVersion, err = from0xHex(forkVersionHex, forkVersionLen)
 	if err != nil {
 		return Definition{}, err
 	}
@@ -156,15 +161,15 @@ func (d Definition) Verify() error {
 		}
 
 		if len(o.ENRSignature) == 0 {
-			return errors.New("empty operator enr signature", z.Str("operator_address", o.addressHex()))
+			return errors.New("empty operator enr signature", z.Str("operator_address", to0xHex(o.Address)))
 		}
 
 		if len(o.ConfigSignature) == 0 {
-			return errors.New("empty operator config signature", z.Str("operator_address", o.addressHex()))
+			return errors.New("empty operator config signature", z.Str("operator_address", to0xHex(o.Address)))
 		}
 
 		// Check that we have a valid config signature for each operator.
-		digest, err := digestEIP712(o.addressHex(), configHash[:], zeroNonce)
+		digest, err := digestEIP712(to0xHex(o.Address), configHash[:], zeroNonce)
 		if err != nil {
 			return err
 		}
@@ -172,11 +177,11 @@ func (d Definition) Verify() error {
 		if ok, err := verifySig(o.Address, digest[:], o.ConfigSignature); err != nil {
 			return err
 		} else if !ok {
-			return errors.New("invalid operator config signature", z.Str("operator_address", o.addressHex()))
+			return errors.New("invalid operator config signature", z.Str("operator_address", to0xHex(o.Address)))
 		}
 
 		// Check that we have a valid enr signature for each operator.
-		digest, err = digestEIP712(o.addressHex(), []byte(o.ENR), zeroNonce)
+		digest, err = digestEIP712(to0xHex(o.Address), []byte(o.ENR), zeroNonce)
 		if err != nil {
 			return err
 		}
@@ -184,7 +189,7 @@ func (d Definition) Verify() error {
 		if ok, err := verifySig(o.Address, digest[:], o.ENRSignature); err != nil {
 			return err
 		} else if !ok {
-			return errors.New("invalid operator enr signature", z.Str("operator_address", o.addressHex()))
+			return errors.New("invalid operator enr signature", z.Str("operator_address", to0xHex(o.Address)))
 		}
 	}
 
@@ -395,17 +400,17 @@ func unmarshalDefinitionV1x0or1(data []byte) (def Definition, err error) {
 		Operators:      operators,
 	}
 
-	def.FeeRecipientAddress, err = from0xHex(defJSON.FeeRecipientAddress, 20)
+	def.FeeRecipientAddress, err = from0xHex(defJSON.FeeRecipientAddress, addrLen)
 	if err != nil {
 		return Definition{}, err
 	}
 
-	def.WithdrawalAddress, err = from0xHex(defJSON.WithdrawalAddress, 20)
+	def.WithdrawalAddress, err = from0xHex(defJSON.WithdrawalAddress, addrLen)
 	if err != nil {
 		return Definition{}, err
 	}
 
-	def.ForkVersion, err = from0xHex(defJSON.ForkVersion, 4)
+	def.ForkVersion, err = from0xHex(defJSON.ForkVersion, forkVersionLen)
 	if err != nil {
 		return Definition{}, err
 	}
