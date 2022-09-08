@@ -310,8 +310,8 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// VerifyHashes returns an error if hashes populated from json object doesn't matches actual hashes.
-func (d Definition) VerifyHashes() error {
+// VerifyDefinitionHashes returns an error if hashes populated from json object doesn't matches actual hashes.
+func (d Definition) VerifyDefinitionHashes() error {
 	// Verify config_hash
 	configHash, err := hashDefinition(d, true)
 	if err != nil {
