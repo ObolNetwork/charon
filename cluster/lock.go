@@ -86,15 +86,15 @@ func (l Lock) HashTreeRootWith(hh ssz.HashWalker) error {
 }
 
 func (l Lock) MarshalJSON() ([]byte, error) {
-	// Marshal lock hashDefinition
+	// Marshal lock hash
 	lockHash, err := l.HashTreeRoot()
 	if err != nil {
-		return nil, errors.Wrap(err, "hashDefinition lock")
+		return nil, errors.Wrap(err, "hash lock")
 	}
 
 	switch {
 	case isJSONv1x0(l.Version) || isJSONv1x1(l.Version):
-		return marshalLockV1x0o1(l, lockHash)
+		return marshalLockV1x0or1(l, lockHash)
 	case isJSONv1x2(l.Version) || isJSONv1x3(l.Version):
 		return marshalLockV1x2or3(l, lockHash)
 	default:
@@ -141,11 +141,11 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 
 	hash, err := lock.HashTreeRoot()
 	if err != nil {
-		return errors.Wrap(err, "hashDefinition lock")
+		return errors.Wrap(err, "hash lock")
 	}
 
 	if !bytes.Equal(lockHashJSON, hash[:]) {
-		return errors.New("invalid lock hashDefinition")
+		return errors.New("invalid lock hash")
 	}
 
 	*l = lock
@@ -199,7 +199,7 @@ func (l Lock) Verify() error {
 	return nil
 }
 
-func marshalLockV1x0o1(lock Lock, lockHash [32]byte) ([]byte, error) {
+func marshalLockV1x0or1(lock Lock, lockHash [32]byte) ([]byte, error) {
 	resp, err := json.Marshal(lockJSONv1x1{
 		Definition:         lock.Definition,
 		Validators:         distValidatorsToV1x1(lock.Validators),
