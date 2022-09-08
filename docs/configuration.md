@@ -65,6 +65,11 @@ The `cluster-lock.json` has the following schema:
 ### Cluster Config Change Log
 
 The following is the historical change log of the cluster config:
+- `v1.3.0` **draft**:
+  - Refactored hash calculations by aligning with SSZ common types:
+    - `ByteList[MaxN]`: Variable length with max limit for strings.
+    - `BytesN`: Fixed length byte.
+    - `Uint64`: numbers.
 - `v1.2.0` **default**:
   - Refactored all base64 fields to Ethereum's standard 0x prefixed hex.
     - Refactored definition operator signatures: `config_signature` and `enr_signature`.
