@@ -381,8 +381,11 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 		})
 	}
 
-	def := cluster.NewDefinition(conf.Name, len(dvs), conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddr,
+	def, err := cluster.NewDefinition(conf.Name, len(dvs), conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddr,
 		networkToForkVersion[conf.Network], ops, rand.Reader)
+	if err != nil {
+		return cluster.Lock{}, err
+	}
 
 	return cluster.Lock{
 		Definition: def,

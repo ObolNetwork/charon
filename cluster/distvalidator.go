@@ -17,7 +17,6 @@ package cluster
 
 import (
 	"encoding/hex"
-	"fmt"
 	"strings"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -126,7 +125,7 @@ func distValidatorsFromV1x2(distValidators []distValidatorJSONv1x2) []DistValida
 			shares = append(shares, share)
 		}
 		resp = append(resp, DistValidator{
-			PubKey:              fmt.Sprintf("%#x", dv.PubKey),
+			PubKey:              to0xHex(dv.PubKey),
 			PubShares:           shares,
 			FeeRecipientAddress: dv.FeeRecipientAddress,
 		})

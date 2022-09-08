@@ -52,7 +52,8 @@ func TestKeyCastNoNetwork(t *testing.T) {
 		})
 	}
 
-	def := cluster.NewDefinition("test def", vals, nodes, "", "", "", ops, random)
+	def, err := cluster.NewDefinition("test def", vals, nodes, "", "", "", ops, random)
+	require.NoError(t, err)
 
 	tp := new(memTransport)
 

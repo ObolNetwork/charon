@@ -135,8 +135,11 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 	forkVersion := networkToForkVersion[conf.Network]
 
-	def := cluster.NewDefinition(conf.Name, conf.NumValidators, conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddress,
+	def, err := cluster.NewDefinition(conf.Name, conf.NumValidators, conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddress,
 		forkVersion, operators, crand.Reader)
+	if err != nil {
+		return err
+	}
 
 	def.DKGAlgorithm = conf.DKGAlgo
 

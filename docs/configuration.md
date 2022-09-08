@@ -38,6 +38,10 @@ The schema of the `cluster-definition.json` is defined as:
 }
 ```
 
+See the [cluster.Definition](../cluster/definition.go) and [cluster.Operator](../cluster/operator.go) Go structs for
+details on how this `cluster-definition.json` object is (de)serialised and how the [SSZ](https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md)
+config hash and definition hash are calculated.
+
 The above `cluster-definition.json` is provided as input to the DKG which generates keys and the `cluster-lock.json` file.
 
 The `cluster-lock.json` has the following schema:
@@ -61,6 +65,11 @@ The `cluster-lock.json` has the following schema:
 ### Cluster Config Change Log
 
 The following is the historical change log of the cluster config:
+- `v1.3.0` **draft**:
+  - Refactored hash calculations by aligning with SSZ common types:
+    - `ByteList[MaxN]`: Variable length with max limit for strings.
+    - `BytesN`: Fixed length byte.
+    - `Uint64`: numbers.
 - `v1.2.0` **default**:
   - Refactored all base64 fields to Ethereum's standard 0x prefixed hex.
     - Refactored definition operator signatures: `config_signature` and `enr_signature`.

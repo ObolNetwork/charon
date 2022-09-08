@@ -18,8 +18,10 @@ package validatorapi_test
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	mrand "math/rand"
+	"strings"
 	"sync"
 	"testing"
 
@@ -189,7 +191,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, nil)
 	require.NoError(t, err)
 
 	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error) {
@@ -282,7 +284,7 @@ func TestSignAndVerify(t *testing.T) {
 	// Setup validatorapi component.
 	vapi, err := validatorapi.NewComponent(bmock, map[*bls_sig.PublicKey]*bls_sig.PublicKey{
 		pubkey: pubkey,
-	}, 0, "")
+	}, 0, nil)
 	require.NoError(t, err)
 	vapi.RegisterPubKeyByAttestation(func(context.Context, int64, int64, int64) (core.PubKey, error) {
 		return tblsconv.KeyToCore(pubkey)
@@ -404,7 +406,7 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, nil)
 	require.NoError(t, err)
 
 	// Prepare unsigned beacon block
@@ -482,7 +484,7 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, nil)
 	require.NoError(t, err)
 
 	// Prepare unsigned beacon block
@@ -540,7 +542,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, nil)
 	require.NoError(t, err)
 
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
@@ -698,7 +700,7 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, nil)
 	require.NoError(t, err)
 
 	// Prepare unsigned beacon block
@@ -772,7 +774,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, nil)
 	require.NoError(t, err)
 
 	// Prepare unsigned beacon block
@@ -832,7 +834,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, nil)
 	require.NoError(t, err)
 
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
@@ -902,7 +904,7 @@ func TestComponent_SubmitVoluntaryExit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, nil)
 	require.NoError(t, err)
 
 	// Prepare unsigned voluntary exit
@@ -964,7 +966,7 @@ func TestComponent_SubmitVoluntaryExitInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, nil)
 	require.NoError(t, err)
 
 	// Register subscriber
@@ -1014,7 +1016,7 @@ func TestComponent_ProposerDuties(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, nil)
 	require.NoError(t, err)
 
 	duties, err := vapi.ProposerDuties(ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
@@ -1042,7 +1044,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, nil)
 	require.NoError(t, err)
 
 	unsigned := testutil.RandomValidatorRegistration(t)
@@ -1103,7 +1105,7 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, nil)
 	require.NoError(t, err)
 
 	unsigned := testutil.RandomValidatorRegistration(t)
@@ -1147,7 +1149,10 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	feeRecipient := "0x123"
+	feeRecipientHex := "0x123456"
+	feeRecipient, err := hex.DecodeString(strings.TrimPrefix(feeRecipientHex, "0x"))
+	require.NoError(t, err)
+
 	// Construct the validator api component
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, feeRecipient)
 	require.NoError(t, err)
@@ -1164,7 +1169,7 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 	require.Equal(t, validatorapi.TekuProposerConfigResponse{
 		Proposers: map[string]validatorapi.TekuProposerConfig{
 			string(pk): {
-				FeeRecipient: feeRecipient,
+				FeeRecipient: feeRecipientHex,
 				Builder: validatorapi.TekuBuilder{
 					Enabled:  true,
 					GasLimit: 30000000,
@@ -1176,7 +1181,7 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 			},
 		},
 		Default: validatorapi.TekuProposerConfig{
-			FeeRecipient: feeRecipient,
+			FeeRecipient: feeRecipientHex,
 			Builder: validatorapi.TekuBuilder{
 				Enabled:  false,
 				GasLimit: 30000000,
