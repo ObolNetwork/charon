@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestGenerateTSS(t *testing.T) {
@@ -89,4 +90,41 @@ func TestAggregateSignatures(t *testing.T) {
 	result, err := tbls.Verify(tss.PublicKey(), msg, sig)
 	require.NoError(t, err)
 	require.Equal(t, true, result)
+}
+
+func BenchmarkVerify(b *testing.B) {
+	type tuple struct {
+		PubKey *bls_sig.PublicKey
+		Secret *bls_sig.SecretKey
+		Sig    *bls_sig.Signature
+		Msg    []byte
+	}
+
+	const count = 100 // Create 100 different signatures to verify
+	var tuples []tuple
+	for i := 0; i < count; i++ {
+		pubkey, secret, err := tbls.Keygen()
+		require.NoError(b, err)
+
+		msg := testutil.RandomBytes32()
+
+		sig, err := tbls.Sign(secret, msg)
+		require.NoError(b, err)
+
+		tuples = append(tuples, tuple{
+			PubKey: pubkey,
+			Secret: secret,
+			Sig:    sig,
+			Msg:    msg,
+		})
+	}
+
+	b.Run("verify", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			tuple := tuples[i%count]
+			result, err := tbls.Verify(tuple.PubKey, tuple.Msg, tuple.Sig)
+			require.NoError(b, err)
+			require.Equal(b, true, result)
+		}
+	})
 }
