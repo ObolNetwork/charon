@@ -83,7 +83,6 @@ func TestEncode(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, b1, b2)
-		require.Equal(t, definition, definition2)
 
 		lock := cluster.Lock{
 			Definition:         definition,
@@ -127,7 +126,6 @@ func TestEncode(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, b1, b2)
-		require.Equal(t, lock, lock2)
 	}
 }
 

@@ -16,6 +16,7 @@
 package dkg
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -74,7 +75,7 @@ func TestFetchDefinition(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
+			require.True(t, compareDefinitions(t, got, tt.want))
 		})
 	}
 }
@@ -160,7 +161,19 @@ func TestLoadDefinition(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
+			require.True(t, compareDefinitions(t, got, tt.want))
 		})
 	}
+}
+
+func compareDefinitions(t *testing.T, a, b cluster.Definition) bool {
+	t.Helper()
+
+	b1, err := json.Marshal(a)
+	require.NoError(t, err)
+
+	b2, err := json.Marshal(b)
+	require.NoError(t, err)
+
+	return bytes.Equal(b1, b2)
 }
