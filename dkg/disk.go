@@ -64,7 +64,7 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	if err := res.VerifyHashesJSON(buf); err != nil && !conf.NoVerify {
 		return cluster.Definition{}, errors.Wrap(err, "cluster definition hash verification failed. Run with --no-verify to bypass verification at own risk")
 	} else if err != nil && conf.NoVerify {
-		log.Warn(ctx, "Ignoring failed cluster definition signature verification due to --no-verify flag", err)
+		log.Warn(ctx, "Ignoring failed cluster definition hash verification due to --no-verify flag", err)
 	}
 
 	return res, nil
