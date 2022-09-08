@@ -16,8 +16,6 @@
 package cluster
 
 import (
-	ssz "github.com/ferranbt/fastssz"
-
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
@@ -44,6 +42,10 @@ type Operator struct {
 	ENRSignature []byte `json:"enr_signature,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"3"`
 }
 
+func (o Operator) addressHex() string {
+	return to0xHex(o.Address)
+}
+
 // getName returns a deterministic name for operator based on its ENR.
 func (o Operator) getName() (string, error) {
 	enr, err := p2p.DecodeENR(o.ENR)
@@ -59,61 +61,6 @@ func (o Operator) getName() (string, error) {
 	return p2p.PeerName(peer.ID), nil
 }
 
-// GetTree ssz hashes the Operator object.
-func (o Operator) GetTree() (*ssz.Node, error) {
-	return ssz.ProofTree(o) //nolint:wrapcheck
-}
-
-// HashTreeRoot ssz hashes the Definition object.
-func (o Operator) HashTreeRoot() ([32]byte, error) {
-	return ssz.HashWithDefaultHasher(o) //nolint:wrapcheck
-}
-
-// HashTreeRootWith ssz hashes the Operator object with a hasher.
-func (o Operator) HashTreeRootWith(hh ssz.HashWalker) error {
-	indx := hh.Index()
-
-	// Field (0) 'Address'
-	hh.PutBytes([]byte(o.Address))
-
-	// Field (1) 'ENR'
-	hh.PutBytes([]byte(o.ENR))
-
-	// Field (2) 'ConfigSignature'
-	hh.PutBytes(o.ConfigSignature)
-
-	// Field (3) 'ENRSignature'
-	hh.PutBytes(o.ENRSignature)
-
-	hh.Merkleize(indx)
-
-	return nil
-}
-
-// HashTreeRootWithV1x1 ssz hashes the Operator object with a hasher for versions v1.0.0 and v1.1.0.
-func (o Operator) HashTreeRootWithV1x1(hh ssz.HashWalker) error {
-	indx := hh.Index()
-
-	// Field (0) 'Address'
-	hh.PutBytes([]byte(o.Address))
-
-	// Field (1) 'ENR'
-	hh.PutBytes([]byte(o.ENR))
-
-	// Field (2) 'Nonce'
-	hh.PutUint64(zeroNonce) // Older versions had a zero nonce
-
-	// Field (3) 'ConfigSignature'
-	hh.PutBytes(o.ConfigSignature)
-
-	// Field (4) 'ENRSignature'
-	hh.PutBytes(o.ENRSignature)
-
-	hh.Merkleize(indx)
-
-	return nil
-}
-
 // operatorJSONv1x1 is the json formatter of Operator for versions v1.0.0 and v1.1.0.
 type operatorJSONv1x1 struct {
 	Address         string `json:"address"`
@@ -123,9 +70,9 @@ type operatorJSONv1x1 struct {
 	ENRSignature    []byte `json:"enr_signature"`
 }
 
-// operatorJSONv1x2 is the json formatter of Operator for versions v1.2 and later.
+// operatorJSONv1x2 is the json formatter of Operator for versions v1.2.
 type operatorJSONv1x2 struct {
-	Address         string `json:"address"`
+	Address         ethHex `json:"address"`
 	ENR             string `json:"enr"`
 	ConfigSignature ethHex `json:"config_signature"`
 	ENRSignature    ethHex `json:"enr_signature"`
@@ -137,8 +84,13 @@ func operatorsFromV1x1(operators []operatorJSONv1x1) ([]Operator, error) {
 		if o.Nonce != 0 {
 			return nil, errors.New("non-zero operator nonce not supported")
 		}
+		addr, err := from0xHex(o.Address, 20)
+		if err != nil {
+			return nil, errors.Wrap(err, "decode address", z.Str("address", o.Address))
+		}
+
 		resp = append(resp, Operator{
-			Address:         o.Address,
+			Address:         addr,
 			ENR:             o.ENR,
 			ConfigSignature: o.ConfigSignature,
 			ENRSignature:    o.ENRSignature,
@@ -152,7 +104,7 @@ func operatorsToV1x1(operators []Operator) []operatorJSONv1x1 {
 	var resp []operatorJSONv1x1
 	for _, o := range operators {
 		resp = append(resp, operatorJSONv1x1{
-			Address:         o.Address,
+			Address:         o.addressHex(),
 			ENR:             o.ENR,
 			Nonce:           zeroNonce,
 			ConfigSignature: o.ConfigSignature,
@@ -163,7 +115,7 @@ func operatorsToV1x1(operators []Operator) []operatorJSONv1x1 {
 	return resp
 }
 
-func operatorsFromV1x2(operators []operatorJSONv1x2) []Operator {
+func operatorsFromV1x2or3(operators []operatorJSONv1x2) []Operator {
 	var resp []Operator
 	for _, o := range operators {
 		resp = append(resp, Operator{

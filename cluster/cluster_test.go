@@ -35,7 +35,7 @@ func TestEncode(t *testing.T) {
 		vStr := strings.ReplaceAll(version, ".", "_")
 		rand.Seed(1)
 
-		definition := cluster.NewDefinition(
+		definition, err := cluster.NewDefinition(
 			"test definition",
 			2,
 			3,
@@ -44,13 +44,13 @@ func TestEncode(t *testing.T) {
 			"0x00000002",
 			[]cluster.Operator{
 				{
-					Address:         testutil.RandomETHAddress(),
+					Address:         testutil.RandomBytes20(),
 					ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
 					ConfigSignature: testutil.RandomBytes32(),
 					ENRSignature:    testutil.RandomBytes32(),
 				},
 				{
-					Address:         testutil.RandomETHAddress(),
+					Address:         testutil.RandomBytes20(),
 					ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
 					ConfigSignature: testutil.RandomBytes32(),
 					ENRSignature:    testutil.RandomBytes32(),
@@ -58,6 +58,7 @@ func TestEncode(t *testing.T) {
 			},
 			rand.New(rand.NewSource(0)),
 		)
+		require.NoError(t, err)
 		definition.Version = version
 		definition.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
 
@@ -65,12 +66,6 @@ func TestEncode(t *testing.T) {
 			testutil.RequireGoldenJSON(t, definition,
 				testutil.WithFilename("cluster_definition_"+vStr+".json"))
 		})
-
-		hash1, err := definition.HashTreeRoot()
-		require.NoError(t, err)
-		hash2, err := definition.HashTreeRoot()
-		require.NoError(t, err)
-		require.Equal(t, hash1, hash2)
 
 		b1, err := json.Marshal(definition)
 		require.NoError(t, err)
@@ -83,6 +78,9 @@ func TestEncode(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, b1, b2)
+
+		definition, err = definition.SetHashes()
+		require.NoError(t, err)
 		require.Equal(t, definition, definition2)
 
 		lock := cluster.Lock{
@@ -105,14 +103,14 @@ func TestEncode(t *testing.T) {
 			},
 		}
 
-		t.Run("_lock_json"+vStr, func(t *testing.T) {
+		t.Run("lock_json_"+vStr, func(t *testing.T) {
 			testutil.RequireGoldenJSON(t, lock,
 				testutil.WithFilename("cluster_lock_"+vStr+".json"))
 		})
 
-		hash1, err = lock.HashTreeRoot()
+		hash1, err := lock.HashTreeRoot()
 		require.NoError(t, err)
-		hash2, err = lock.HashTreeRoot()
+		hash2, err := lock.HashTreeRoot()
 		require.NoError(t, err)
 		require.Equal(t, hash1, hash2)
 

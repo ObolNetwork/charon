@@ -31,11 +31,12 @@ func TestDefinitionVerify(t *testing.T) {
 	secret0, op0 := randomOperator(t)
 	secret1, op1 := randomOperator(t)
 
-	definition := NewDefinition("test definition", 1, 2,
+	definition, err := NewDefinition("test definition", 1, 2,
 		"", "", "", []Operator{op0, op1},
 		rand.New(rand.NewSource(1)))
+	require.NoError(t, err)
 
-	configHash, err := definition.ConfigHash()
+	configHash, err := hashDefinition(definition, true)
 	require.NoError(t, err)
 
 	definition.Operators[0], err = signOperator(secret0, op0, configHash)
@@ -55,8 +56,10 @@ func randomOperator(t *testing.T) (*ecdsa.PrivateKey, Operator) {
 	secret, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
+	addr := crypto.PubkeyToAddress(secret.PublicKey)
+
 	return secret, Operator{
-		Address: fmt.Sprintf("%#x", crypto.PubkeyToAddress(secret.PublicKey)),
+		Address: addr[:],
 		ENR:     fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
 	}
 }

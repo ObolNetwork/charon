@@ -18,7 +18,6 @@ package cluster
 import (
 	"crypto/ecdsa"
 	crand "crypto/rand"
-	"fmt"
 	"io"
 	"math/rand"
 	"net"
@@ -76,7 +75,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		}
 
 		vals = append(vals, DistValidator{
-			PubKey:    fmt.Sprintf("%#x", pk),
+			PubKey:    to0xHex(pk),
 			PubShares: pubshares,
 		})
 		dvShares = append(dvShares, shares)
@@ -102,8 +101,9 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		enrStr, err := p2p.EncodeENR(r)
 		require.NoError(t, err)
 
+		addr := crypto.PubkeyToAddress(p2pKey.PublicKey)
 		op := Operator{
-			Address: crypto.PubkeyToAddress(p2pKey.PublicKey).String(),
+			Address: addr[:],
 			ENR:     enrStr,
 		}
 
@@ -111,20 +111,24 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		p2pKeys = append(p2pKeys, p2pKey)
 	}
 
-	def := NewDefinition("test cluster", dv, k,
+	def, err := NewDefinition("test cluster", dv, k,
 		testutil.RandomETHAddress(), testutil.RandomETHAddress(),
 		"0x00000000", ops, random)
+	require.NoError(t, err)
 
 	for _, opt := range opts {
 		opt(&def)
 	}
-	confHash, err := def.ConfigHash()
+	confHash, err := hashDefinition(def, true)
 	require.NoError(t, err)
 
 	for i := 0; i < n; i++ {
 		def.Operators[i], err = signOperator(p2pKeys[i], def.Operators[i], confHash)
 		require.NoError(t, err)
 	}
+
+	def, err = def.SetHashes()
+	require.NoError(t, err)
 
 	lock := Lock{
 		Definition:         def,

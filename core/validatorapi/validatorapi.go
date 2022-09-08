@@ -55,7 +55,7 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 
 // NewComponent returns a new instance of the validator API core workflow component.
 func NewComponent(eth2Cl eth2wrap.Client, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey,
-	shareIdx int, feeRecipient string,
+	shareIdx int, feeRecipientAddress []byte,
 ) (*Component, error) {
 	// Create pubkey mappings.
 	var (
@@ -113,21 +113,21 @@ func NewComponent(eth2Cl eth2wrap.Client, pubShareByKey map[*bls_sig.PublicKey]*
 	}
 
 	return &Component{
-		getVerifyShareFunc: getVerifyShareFunc,
-		getPubShareFunc:    getPubShareFunc,
-		getPubKeyFunc:      getPubKeyFunc,
-		sharesByKey:        coreSharesByKey,
-		eth2Cl:             eth2Cl,
-		shareIdx:           shareIdx,
-		feeRecipient:       feeRecipient,
+		getVerifyShareFunc:  getVerifyShareFunc,
+		getPubShareFunc:     getPubShareFunc,
+		getPubKeyFunc:       getPubKeyFunc,
+		sharesByKey:         coreSharesByKey,
+		eth2Cl:              eth2Cl,
+		shareIdx:            shareIdx,
+		feeRecipientAddress: feeRecipientAddress,
 	}, nil
 }
 
 type Component struct {
-	eth2Cl       eth2wrap.Client
-	shareIdx     int
-	insecureTest bool
-	feeRecipient string
+	eth2Cl              eth2wrap.Client
+	shareIdx            int
+	insecureTest        bool
+	feeRecipientAddress []byte
 
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
 	// to public keys (the DV root public key)

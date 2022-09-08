@@ -46,7 +46,7 @@ func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigRe
 	resp := TekuProposerConfigResponse{
 		Proposers: make(map[string]TekuProposerConfig),
 		Default: TekuProposerConfig{ // Default doesn't make sense, disable for now.
-			FeeRecipient: c.feeRecipient,
+			FeeRecipient: fmt.Sprintf("%#x", c.feeRecipientAddress),
 			Builder: TekuBuilder{
 				Enabled:  false,
 				GasLimit: gasLimit,
@@ -61,7 +61,7 @@ func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigRe
 
 	for pubkey, pubshare := range c.sharesByKey {
 		resp.Proposers[string(pubshare)] = TekuProposerConfig{
-			FeeRecipient: c.feeRecipient,
+			FeeRecipient: fmt.Sprintf("%#x", c.feeRecipientAddress),
 			Builder: TekuBuilder{
 				Enabled:  true,
 				GasLimit: gasLimit,

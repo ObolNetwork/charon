@@ -16,6 +16,7 @@
 package cluster
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
@@ -28,8 +29,10 @@ import (
 	ethmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
+	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -43,30 +46,26 @@ func uuid(random io.Reader) string {
 }
 
 // verifySig returns true if the signature matches the digest and address.
-func verifySig(addr string, digest []byte, sig []byte) (bool, error) {
+func verifySig(expectedAddr []byte, digest []byte, sig []byte) (bool, error) {
 	pubkey, err := crypto.SigToPub(digest, sig)
 	if err != nil {
 		return false, errors.Wrap(err, "pubkey from signature")
 	}
 
-	expect := crypto.PubkeyToAddress(*pubkey).String()
-	actual := addr
+	actualAddr := crypto.PubkeyToAddress(*pubkey)
 
-	expect = strings.ToLower(strings.TrimPrefix(expect, "0x"))
-	actual = strings.ToLower(strings.TrimPrefix(actual, "0x"))
-
-	return actual == expect, nil
+	return bytes.Equal(expectedAddr, actualAddr[:]), nil
 }
 
 // signOperator returns the operator with signed config hash and enr.
 func signOperator(secret *ecdsa.PrivateKey, operator Operator, configHash [32]byte) (Operator, error) {
 	var err error
-	operator.ConfigSignature, err = signEIP712(secret, operator.Address, configHash[:])
+	operator.ConfigSignature, err = signEIP712(secret, to0xHex(operator.Address), configHash[:])
 	if err != nil {
 		return Operator{}, err
 	}
 
-	operator.ENRSignature, err = signEIP712(secret, operator.Address, []byte(operator.ENR))
+	operator.ENRSignature, err = signEIP712(secret, to0xHex(operator.Address), []byte(operator.ENR))
 	if err != nil {
 		return Operator{}, err
 	}
@@ -186,7 +185,7 @@ func (h *ethHex) UnmarshalJSON(data []byte) error {
 }
 
 func (h ethHex) MarshalJSON() ([]byte, error) {
-	resp, err := json.Marshal(fmt.Sprintf("%#x", h))
+	resp, err := json.Marshal(to0xHex(h))
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal hex")
 	}
@@ -198,4 +197,43 @@ func (h ethHex) MarshalJSON() ([]byte, error) {
 // This formula has been taken from: https://github.com/ObolNetwork/charon/blob/a8fc3185bdda154412fe034dcd07c95baf5c1aaf/core/qbft/qbft.go#L63
 func Threshold(nodes int) int {
 	return int(math.Ceil(float64(2*nodes) / 3))
+}
+
+// putByteList appends a ssz byte list.
+// See reference: github.com/attestantio/go-eth2-client/spec/bellatrix/executionpayload_encoding.go:277-284.
+func putByteList(h ssz.HashWalker, b []byte, limit int) error {
+	elemIndx := h.Index()
+	byteLen := len(b)
+	if byteLen > limit {
+		return ssz.ErrIncorrectListSize
+	}
+	h.PutBytes(b)
+	h.MerkleizeWithMixin(elemIndx, uint64(byteLen), uint64(limit+31)/32)
+
+	return nil
+}
+
+// to0xHex returns the bytes as a 0x prefixed hex string.
+func to0xHex(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%#x", b)
+}
+
+// to0xHex returns bytes represented by the hex string.
+func from0xHex(s string, length int) ([]byte, error) {
+	if s == "" {
+		return nil, nil
+	}
+
+	b, err := hex.DecodeString(strings.TrimPrefix(s, "0x"))
+	if err != nil {
+		return nil, errors.Wrap(err, "decode hex")
+	} else if len(b) != length {
+		return nil, errors.Wrap(err, "invalid hex length", z.Int("expect", length), z.Int("actual", len(b)))
+	}
+
+	return b, nil
 }

@@ -129,7 +129,7 @@ func writeLock(datadir string, lock cluster.Lock) error {
 }
 
 // writeDepositData writes deposit data file to disk.
-func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr string, network string, dataDir string) error {
+func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr []byte, network string, dataDir string) error {
 	// Create deposit message signatures
 	aggSigsEth2 := make(map[eth2p0.BLSPubKey]eth2p0.BLSSignature)
 	for pk, sig := range aggSigs {
@@ -148,7 +148,7 @@ func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr
 	}
 
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(aggSigsEth2, withdrawalAddr, network)
+	bytes, err := deposit.MarshalDepositData(aggSigsEth2, checksumAddr(withdrawalAddr), network)
 	if err != nil {
 		return err
 	}

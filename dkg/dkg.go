@@ -19,7 +19,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	crand "crypto/rand"
-	"encoding/base64"
 	"fmt"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -95,11 +94,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	defHash, err := def.HashTreeRoot()
-	if err != nil {
-		return errors.Wrap(err, "hash definition")
-	}
-	clusterID := base64.StdEncoding.EncodeToString(defHash[:])
+	defHash := def.DefinitionHash
+	clusterID := fmt.Sprintf("%#x", defHash)
 
 	key, err := p2p.LoadPrivKey(conf.DataDir)
 	if err != nil {
@@ -261,7 +257,7 @@ func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, pe
 
 // startSyncProtocol sets up a sync protocol server and clients for each peer and returns a shutdown function
 // when all peers are connected.
-func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.PrivateKey, defHash [32]byte, peerIDs []peer.ID,
+func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.PrivateKey, defHash []byte, peerIDs []peer.ID,
 	onFailure func(),
 ) (func(context.Context) error, error) {
 	// Sign definition hash with charon-enr-private-key
@@ -381,7 +377,7 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 }
 
 // signAndAggDepositData returns aggregated signatures per DV after signing, exchange and aggregation of partial signatures.
-func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, withdrawalAddr string, network string, nodeIdx cluster.NodeIdx) (map[core.PubKey]*bls_sig.Signature, error) {
+func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, withdrawalAddr []byte, network string, nodeIdx cluster.NodeIdx) (map[core.PubKey]*bls_sig.Signature, error) {
 	parSig, msgs, err := signDepositData(shares, nodeIdx.ShareIdx, withdrawalAddr, network)
 	if err != nil {
 		return nil, err
@@ -493,11 +489,8 @@ func signLockHash(shareIdx int, shares []share, hash []byte) (core.ParSignedData
 }
 
 // signDepositData returns a partially signed dataset containing signatures of the deposit data signing root.
-func signDepositData(shares []share, shareIdx int, withdrawalAddr string, network string) (core.ParSignedDataSet, map[core.PubKey][]byte, error) {
-	withdrawalAddr, err := checksumAddr(withdrawalAddr)
-	if err != nil {
-		return nil, nil, err
-	}
+func signDepositData(shares []share, shareIdx int, withdrawalAddr []byte, network string) (core.ParSignedDataSet, map[core.PubKey][]byte, error) {
+	withdrawalHex := checksumAddr(withdrawalAddr)
 
 	msgs := make(map[core.PubKey][]byte)
 	set := make(core.ParSignedDataSet)
@@ -512,7 +505,7 @@ func signDepositData(shares []share, shareIdx int, withdrawalAddr string, networ
 			return nil, nil, err
 		}
 
-		msg, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, network)
+		msg, err := deposit.GetMessageSigningRoot(pubkey, withdrawalHex, network)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -593,12 +586,8 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []shar
 	return resp, nil
 }
 
-func checksumAddr(a string) (string, error) {
-	if !common.IsHexAddress(a) {
-		return "", errors.New("invalid address")
-	}
-
-	return common.HexToAddress(a).Hex(), nil
+func checksumAddr(a []byte) string {
+	return common.BytesToAddress(a).Hex()
 }
 
 // dvsFromShares returns the shares as a slice of cluster distributed validator types.
@@ -619,8 +608,8 @@ func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 	return dvs, nil
 }
 
-func forkVersionToNetwork(forkVersion string) (string, error) {
-	switch forkVersion {
+func forkVersionToNetwork(forkVersion []byte) (string, error) {
+	switch fmt.Sprintf("%#x", forkVersion) {
 	case "0x00001020":
 		return "goerli", nil
 	case "0x70000069":

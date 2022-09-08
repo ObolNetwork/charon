@@ -58,8 +58,14 @@ func (l Lock) HashTreeRootWith(hh ssz.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'Definition'
-	if err := l.Definition.HashTreeRootWith(hh); err != nil {
-		return err
+	if isJSONv1x0(l.Version) || isJSONv1x1(l.Version) || isJSONv1x2(l.Version) {
+		if err := hashDefinitionLegacy(l.Definition, hh, false); err != nil {
+			return err
+		}
+	} else if isJSONv1x3(l.Version) {
+		if err := hashDefinitionV1x3(l.Definition, hh, false); err != nil {
+			return err
+		}
 	}
 
 	// Field (1) 'Validators'
@@ -80,17 +86,17 @@ func (l Lock) HashTreeRootWith(hh ssz.HashWalker) error {
 }
 
 func (l Lock) MarshalJSON() ([]byte, error) {
-	// Marshal lock hash
+	// Marshal lock hashDefinition
 	lockHash, err := l.HashTreeRoot()
 	if err != nil {
-		return nil, errors.Wrap(err, "hash lock")
+		return nil, errors.Wrap(err, "hashDefinition lock")
 	}
 
 	switch {
-	case isJSONv1x1(l.Version):
-		return marshalLockV1x1(l, lockHash)
-	case isJSONv1x2(l.Version):
-		return marshalLockV1x2(l, lockHash)
+	case isJSONv1x0(l.Version) || isJSONv1x1(l.Version):
+		return marshalLockV1x0o1(l, lockHash)
+	case isJSONv1x2(l.Version) || isJSONv1x3(l.Version):
+		return marshalLockV1x2or3(l, lockHash)
 	default:
 		return nil, errors.New("unsupported version")
 	}
@@ -119,13 +125,13 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		err          error
 	)
 	switch {
-	case isJSONv1x1(version.Definition.Version):
-		lock, lockHashJSON, err = unmarshalLockV1x1(data)
+	case isJSONv1x0(version.Definition.Version) || isJSONv1x1(version.Definition.Version):
+		lock, lockHashJSON, err = unmarshalLockV1x0or1(data)
 		if err != nil {
 			return err
 		}
-	case isJSONv1x2(version.Definition.Version):
-		lock, lockHashJSON, err = unmarshalLockV1x2(data)
+	case isJSONv1x2(version.Definition.Version) || isJSONv1x3(version.Definition.Version):
+		lock, lockHashJSON, err = unmarshalLockV1x2or3(data)
 		if err != nil {
 			return err
 		}
@@ -135,11 +141,11 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 
 	hash, err := lock.HashTreeRoot()
 	if err != nil {
-		return errors.Wrap(err, "hash lock")
+		return errors.Wrap(err, "hashDefinition lock")
 	}
 
 	if !bytes.Equal(lockHashJSON, hash[:]) {
-		return errors.New("invalid lock hash")
+		return errors.New("invalid lock hashDefinition")
 	}
 
 	*l = lock
@@ -155,7 +161,7 @@ func (l Lock) Verify() error {
 	}
 
 	if len(l.SignatureAggregate) == 0 {
-		if isJSONv1x1(l.Version) {
+		if isJSONv1x0(l.Version) || isJSONv1x1(l.Version) {
 			return nil // Earlier versions of `charon create cluster` didn't populate SignatureAggregate.
 		}
 
@@ -193,7 +199,7 @@ func (l Lock) Verify() error {
 	return nil
 }
 
-func marshalLockV1x1(lock Lock, lockHash [32]byte) ([]byte, error) {
+func marshalLockV1x0o1(lock Lock, lockHash [32]byte) ([]byte, error) {
 	resp, err := json.Marshal(lockJSONv1x1{
 		Definition:         lock.Definition,
 		Validators:         distValidatorsToV1x1(lock.Validators),
@@ -207,7 +213,7 @@ func marshalLockV1x1(lock Lock, lockHash [32]byte) ([]byte, error) {
 	return resp, nil
 }
 
-func marshalLockV1x2(lock Lock, lockHash [32]byte) ([]byte, error) {
+func marshalLockV1x2or3(lock Lock, lockHash [32]byte) ([]byte, error) {
 	vals, err := distValidatorsToV1x2(lock.Validators)
 	if err != nil {
 		return nil, err
@@ -225,7 +231,7 @@ func marshalLockV1x2(lock Lock, lockHash [32]byte) ([]byte, error) {
 	return resp, nil
 }
 
-func unmarshalLockV1x1(data []byte) (lock Lock, lockHashJSON []byte, err error) {
+func unmarshalLockV1x0or1(data []byte) (lock Lock, lockHashJSON []byte, err error) {
 	var lockJSON lockJSONv1x1
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
 		return Lock{}, nil, errors.Wrap(err, "unmarshal definition")
@@ -240,7 +246,7 @@ func unmarshalLockV1x1(data []byte) (lock Lock, lockHashJSON []byte, err error) 
 	return lock, lockJSON.LockHash, nil
 }
 
-func unmarshalLockV1x2(data []byte) (lock Lock, lockHashJSON []byte, err error) {
+func unmarshalLockV1x2or3(data []byte) (lock Lock, lockHashJSON []byte, err error) {
 	var lockJSON lockJSONv1x2
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
 		return Lock{}, nil, errors.Wrap(err, "unmarshal definition")

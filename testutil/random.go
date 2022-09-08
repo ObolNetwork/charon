@@ -469,6 +469,10 @@ func RandomETHAddress() string {
 	return fmt.Sprintf("%#x", RandomBytes32()[:20])
 }
 
+func RandomBytes20() []byte {
+	return RandomBytes32()[:20]
+}
+
 func RandomBytes32() []byte {
 	var resp [32]byte
 	_, _ = rand.Read(resp[:])
