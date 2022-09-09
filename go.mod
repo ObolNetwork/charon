@@ -14,6 +14,7 @@ require (
 	github.com/jsternberg/zap-logfmt v1.3.0
 	github.com/libp2p/go-libp2p v0.22.0
 	github.com/multiformats/go-multiaddr v0.7.0
+	github.com/minio/sha256-simd v1.0.0
 	github.com/prometheus/client_golang v1.13.0
 	github.com/prysmaticlabs/go-bitfield v0.0.0-20210809151128-385d8c5e3fb7
 	github.com/shurcooL/githubv4 v0.0.0-20220520033151-0b4e3294ff00
