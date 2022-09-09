@@ -145,22 +145,22 @@ func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error 
 	indx := hh.Index()
 
 	// Field (0) 'UUID' ByteList[64]
-	if err := putByteList(hh, []byte(d.UUID), sszMaxUUID); err != nil {
+	if err := putByteList(hh, []byte(d.UUID), sszMaxUUID, "uuid"); err != nil {
 		return err
 	}
 
 	// Field (1) 'Name' ByteList[256]
-	if err := putByteList(hh, []byte(d.Name), sszMaxName); err != nil {
+	if err := putByteList(hh, []byte(d.Name), sszMaxName, "name"); err != nil {
 		return err
 	}
 
 	// Field (2) 'version' ByteList[16]
-	if err := putByteList(hh, []byte(d.Version), sszMaxVersion); err != nil {
+	if err := putByteList(hh, []byte(d.Version), sszMaxVersion, "version"); err != nil {
 		return err
 	}
 
 	// Field (3) 'Timestamp' ByteList[32]
-	if err := putByteList(hh, []byte(d.Timestamp), sszMaxTimestamp); err != nil {
+	if err := putByteList(hh, []byte(d.Timestamp), sszMaxTimestamp, "timestamp"); err != nil {
 		return err
 	}
 
@@ -177,7 +177,7 @@ func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error 
 	hh.PutBytes(d.WithdrawalAddress)
 
 	// Field (8) 'DKGAlgorithm' ByteList[32]
-	if err := putByteList(hh, []byte(d.DKGAlgorithm), sszMaxDKGAlgorithm); err != nil {
+	if err := putByteList(hh, []byte(d.DKGAlgorithm), sszMaxDKGAlgorithm, "dkg_algorithm"); err != nil {
 		return err
 	}
 
@@ -196,7 +196,7 @@ func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error 
 
 			if !configOnly {
 				// Field (1) 'ENR' ByteList[1024]
-				if err := putByteList(hh, []byte(o.ENR), sszMaxENR); err != nil {
+				if err := putByteList(hh, []byte(o.ENR), sszMaxENR, "enr"); err != nil {
 					return err
 				}
 
