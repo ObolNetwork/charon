@@ -337,9 +337,7 @@ func RandomVersionedSignedValidatorRegistration(t *testing.T) *eth2api.Versioned
 	}
 }
 
-func RandomBeaconCommitteeSubscription(t *testing.T) *eth2exp.BeaconCommitteeSubscription {
-	t.Helper()
-
+func RandomBeaconCommitteeSubscription() *eth2exp.BeaconCommitteeSubscription {
 	return &eth2exp.BeaconCommitteeSubscription{
 		ValidatorIndex:   RandomVIdx(),
 		Slot:             RandomSlot(),

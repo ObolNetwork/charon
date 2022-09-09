@@ -40,7 +40,6 @@ var staticJSON []byte
 // It serves all proxied endpoints not handled by charon's validatorapi.
 // Endpoints include static endpoints defined in static.json and a few stubbed paths.
 type HTTPMock interface {
-	eth2client.BeaconCommitteesProvider
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
 	eth2client.ForkProvider
@@ -73,10 +72,6 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 	}{
 		{
 			Path:    "/up", // Can be used to test if server is up.
-			Handler: func(w http.ResponseWriter, r *http.Request) {},
-		},
-		{
-			Path:    "/eth/v1/validator/beacon_committee_subscriptions",
 			Handler: func(w http.ResponseWriter, r *http.Request) {},
 		},
 		{

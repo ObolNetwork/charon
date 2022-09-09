@@ -181,7 +181,7 @@ func TestBroadcastBeaconCommitteeSubscription(t *testing.T) {
 	mock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	subscription := testutil.RandomBeaconCommitteeSubscription(t)
+	subscription := testutil.RandomBeaconCommitteeSubscription()
 	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *subscription}
 
 	mock.SubmitBeaconCommitteeSubscriptionsFunc = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
