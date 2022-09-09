@@ -248,6 +248,7 @@ func hashLock(l Lock) ([32]byte, error) {
 	return resp, nil
 }
 
+// hashLockV1x3 hashes the latest lock hash.
 func hashLockV1x3(l Lock, hh ssz.HashWalker) error {
 	indx := hh.Index()
 
@@ -273,6 +274,7 @@ func hashLockV1x3(l Lock, hh ssz.HashWalker) error {
 	return nil
 }
 
+// hashValidatorV1x3 hashes the distributed validator.
 func hashValidatorV1x3(v DistValidator, hh ssz.HashWalker) error {
 	indx := hh.Index()
 
@@ -297,6 +299,7 @@ func hashValidatorV1x3(v DistValidator, hh ssz.HashWalker) error {
 	return nil
 }
 
+// hashLockLegacy hashes the legacy lock.
 func hashLockLegacy(l Lock, hh ssz.HashWalker) error {
 	indx := hh.Index()
 
@@ -322,6 +325,7 @@ func hashLockLegacy(l Lock, hh ssz.HashWalker) error {
 	return nil
 }
 
+// hashValidatorLegacy hashes the legacy distributed validator.
 func hashValidatorLegacy(v DistValidator, hh ssz.HashWalker) error {
 	indx := hh.Index()
 
