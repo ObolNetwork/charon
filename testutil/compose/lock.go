@@ -118,9 +118,7 @@ func newNodeEnvs(index int, validatorMock bool, conf Config) []kv {
 	}
 
 	return []kv{
-		{"data-dir", fmt.Sprintf("/compose/node%d", index)},
 		{"private-key-file", fmt.Sprintf("/compose/node%d/charon-enr-private-key", index)},
-		{"simnet-validator-keys-dir", fmt.Sprintf("/compose/node%d/validator_keys", index)},
 		{"jaeger-service", fmt.Sprintf("node%d", index)},
 		{"jaeger-address", "jaeger:6831"},
 		{"definition-file", "/compose/cluster-definition.json"},
@@ -133,8 +131,9 @@ func newNodeEnvs(index int, validatorMock bool, conf Config) []kv {
 		{"p2p-bootnodes", p2pBootnodes},
 		{"p2p-bootnode-relay", fmt.Sprintf(`"%v"`, p2pRelay)},
 		{"beacon-node-endpoint", beaconNode},
-		{"simnet-validator-mock", fmt.Sprintf(`"%v"`, validatorMock)},
 		{"simnet-beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},
+		{"simnet-validator-mock", fmt.Sprintf(`"%v"`, validatorMock)},
+		{"simnet-validator-keys-dir", fmt.Sprintf("/compose/node%d/validator_keys", index)},
 		{"log-level", "debug"},
 		{"feature-set", conf.FeatureSet},
 	}

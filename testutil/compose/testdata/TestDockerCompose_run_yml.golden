@@ -13,9 +13,7 @@ services:
     <<: *node-base
     
     environment:
-      CHARON_DATA_DIR: /compose/node0
       CHARON_PRIVATE_KEY_FILE: /compose/node0/charon-enr-private-key
-      CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node0/validator_keys
       CHARON_JAEGER_SERVICE: node0
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
@@ -28,8 +26,9 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_BEACON_NODE_ENDPOINT: 
-      CHARON_SIMNET_VALIDATOR_MOCK: "false"
       CHARON_SIMNET_BEACON_MOCK: "true"
+      CHARON_SIMNET_VALIDATOR_MOCK: "false"
+      CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node0/validator_keys
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
     
@@ -46,9 +45,7 @@ services:
     <<: *node-base
     
     environment:
-      CHARON_DATA_DIR: /compose/node1
       CHARON_PRIVATE_KEY_FILE: /compose/node1/charon-enr-private-key
-      CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node1/validator_keys
       CHARON_JAEGER_SERVICE: node1
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
@@ -61,8 +58,9 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_BEACON_NODE_ENDPOINT: 
-      CHARON_SIMNET_VALIDATOR_MOCK: "false"
       CHARON_SIMNET_BEACON_MOCK: "true"
+      CHARON_SIMNET_VALIDATOR_MOCK: "false"
+      CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node1/validator_keys
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
     
@@ -79,9 +77,7 @@ services:
     <<: *node-base
     
     environment:
-      CHARON_DATA_DIR: /compose/node2
       CHARON_PRIVATE_KEY_FILE: /compose/node2/charon-enr-private-key
-      CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node2/validator_keys
       CHARON_JAEGER_SERVICE: node2
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
@@ -94,8 +90,9 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_BEACON_NODE_ENDPOINT: 
-      CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_BEACON_MOCK: "true"
+      CHARON_SIMNET_VALIDATOR_MOCK: "true"
+      CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node2/validator_keys
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
     
@@ -112,9 +109,7 @@ services:
     <<: *node-base
     
     environment:
-      CHARON_DATA_DIR: /compose/node3
       CHARON_PRIVATE_KEY_FILE: /compose/node3/charon-enr-private-key
-      CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node3/validator_keys
       CHARON_JAEGER_SERVICE: node3
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
@@ -127,8 +122,9 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_BEACON_NODE_ENDPOINT: 
-      CHARON_SIMNET_VALIDATOR_MOCK: "false"
       CHARON_SIMNET_BEACON_MOCK: "true"
+      CHARON_SIMNET_VALIDATOR_MOCK: "false"
+      CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node3/validator_keys
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
     

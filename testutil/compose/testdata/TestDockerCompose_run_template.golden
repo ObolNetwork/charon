@@ -9,16 +9,8 @@
    "Entrypoint": "",
    "EnvVars": [
     {
-     "Key": "data-dir",
-     "Value": "/compose/node0"
-    },
-    {
      "Key": "private-key-file",
      "Value": "/compose/node0/charon-enr-private-key"
-    },
-    {
-     "Key": "simnet-validator-keys-dir",
-     "Value": "/compose/node0/validator_keys"
     },
     {
      "Key": "jaeger-service",
@@ -69,12 +61,16 @@
      "Value": ""
     },
     {
+     "Key": "simnet-beacon_mock",
+     "Value": "\"true\""
+    },
+    {
      "Key": "simnet-validator-mock",
      "Value": "\"false\""
     },
     {
-     "Key": "simnet-beacon_mock",
-     "Value": "\"true\""
+     "Key": "simnet-validator-keys-dir",
+     "Value": "/compose/node0/validator_keys"
     },
     {
      "Key": "log-level",
@@ -109,16 +105,8 @@
    "Entrypoint": "",
    "EnvVars": [
     {
-     "Key": "data-dir",
-     "Value": "/compose/node1"
-    },
-    {
      "Key": "private-key-file",
      "Value": "/compose/node1/charon-enr-private-key"
-    },
-    {
-     "Key": "simnet-validator-keys-dir",
-     "Value": "/compose/node1/validator_keys"
     },
     {
      "Key": "jaeger-service",
@@ -169,12 +157,16 @@
      "Value": ""
     },
     {
+     "Key": "simnet-beacon_mock",
+     "Value": "\"true\""
+    },
+    {
      "Key": "simnet-validator-mock",
      "Value": "\"false\""
     },
     {
-     "Key": "simnet-beacon_mock",
-     "Value": "\"true\""
+     "Key": "simnet-validator-keys-dir",
+     "Value": "/compose/node1/validator_keys"
     },
     {
      "Key": "log-level",
@@ -209,16 +201,8 @@
    "Entrypoint": "",
    "EnvVars": [
     {
-     "Key": "data-dir",
-     "Value": "/compose/node2"
-    },
-    {
      "Key": "private-key-file",
      "Value": "/compose/node2/charon-enr-private-key"
-    },
-    {
-     "Key": "simnet-validator-keys-dir",
-     "Value": "/compose/node2/validator_keys"
     },
     {
      "Key": "jaeger-service",
@@ -269,12 +253,16 @@
      "Value": ""
     },
     {
+     "Key": "simnet-beacon_mock",
+     "Value": "\"true\""
+    },
+    {
      "Key": "simnet-validator-mock",
      "Value": "\"true\""
     },
     {
-     "Key": "simnet-beacon_mock",
-     "Value": "\"true\""
+     "Key": "simnet-validator-keys-dir",
+     "Value": "/compose/node2/validator_keys"
     },
     {
      "Key": "log-level",
@@ -309,16 +297,8 @@
    "Entrypoint": "",
    "EnvVars": [
     {
-     "Key": "data-dir",
-     "Value": "/compose/node3"
-    },
-    {
      "Key": "private-key-file",
      "Value": "/compose/node3/charon-enr-private-key"
-    },
-    {
-     "Key": "simnet-validator-keys-dir",
-     "Value": "/compose/node3/validator_keys"
     },
     {
      "Key": "jaeger-service",
@@ -369,12 +349,16 @@
      "Value": ""
     },
     {
+     "Key": "simnet-beacon_mock",
+     "Value": "\"true\""
+    },
+    {
      "Key": "simnet-validator-mock",
      "Value": "\"false\""
     },
     {
-     "Key": "simnet-beacon_mock",
-     "Value": "\"true\""
+     "Key": "simnet-validator-keys-dir",
+     "Value": "/compose/node3/validator_keys"
     },
     {
      "Key": "log-level",
