@@ -21,27 +21,20 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/eth2util"
 )
 
-// targetAggregatorsPerCommittee defines the number of aggregators inside one committee. https://github.com/ethereum/consensus-specs/blob/0ba5b3b5c5bb58fbe0f094dcd02dedc4ff1c6f7c/specs/phase0/validator.md#misc
-const targetAggregatorsPerCommittee = 16
-
-// getCommitteesResponse is the HTTP response for /eth/v1/beacon/states/{state_id}/committees (https://ethereum.github.io/beacon-APIs/#/Beacon/getEpochCommittees).
-type getCommitteesResponse struct {
-	Data []struct {
-		Index      int   `json:"index"`
-		Validators []int `json:"validators"`
-	} `json:"data"`
+type eth2Provider interface {
+	eth2client.BeaconCommitteesProvider
+	eth2client.SlotsPerEpochProvider
+	eth2client.SpecProvider
 }
 
 // BeaconCommitteeSubscriptionsSubmitterV2 is the interface for submitting beacon committee subnet subscription requests.
@@ -167,76 +160,77 @@ type BeaconCommitteeSubscriptionResponse struct {
 }
 
 // CalculateCommitteeSubscriptionResponse returns a BeaconCommitteeSubscriptionResponse with IsAggregator field set to true if the validator is an aggregator.
-func CalculateCommitteeSubscriptionResponse(ctx context.Context, beaconNode string, subscription BeaconCommitteeSubscription) (BeaconCommitteeSubscriptionResponse, error) {
-	committeeLen, err := getCommitteeLength(ctx, beaconNode, subscription.CommitteeIndex, subscription.Slot)
+func CalculateCommitteeSubscriptionResponse(ctx context.Context, eth2Svc eth2client.Service, subscription BeaconCommitteeSubscription) (BeaconCommitteeSubscriptionResponse, error) {
+	eth2Cl, ok := eth2Svc.(eth2Provider)
+	if !ok {
+		return BeaconCommitteeSubscriptionResponse{}, errors.New("invalid eth2 service")
+	}
+
+	committeeLen, err := getCommitteeLength(ctx, eth2Cl, subscription.CommitteeIndex, subscription.Slot)
+	if err != nil {
+		return BeaconCommitteeSubscriptionResponse{}, err
+	}
+
+	isAgg, err := isAggregator(ctx, eth2Cl, int64(committeeLen), subscription.SlotSignature)
 	if err != nil {
 		return BeaconCommitteeSubscriptionResponse{}, err
 	}
 
 	return BeaconCommitteeSubscriptionResponse{
 		ValidatorIndex: subscription.ValidatorIndex,
-		IsAggregator:   isAggregator(uint64(committeeLen), subscription.SlotSignature),
+		IsAggregator:   isAgg,
 	}, nil
 }
 
-// isAggregator returns true if the signature is from the input validator. https://github.com/ethereum/consensus-specs/blob/0ba5b3b5c5bb58fbe0f094dcd02dedc4ff1c6f7c/specs/phase0/validator.md#aggregation-selection
-func isAggregator(committeeLen uint64, slotSig eth2p0.BLSSignature) bool {
-	modulo := uint64(1)
+// isAggregator returns true if the signature is from the input validator. https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#aggregation-selection
+func isAggregator(ctx context.Context, eth2Cl eth2Provider, commLen int64, slotSig eth2p0.BLSSignature) (bool, error) {
+	spec, err := eth2Cl.Spec(ctx)
+	if err != nil {
+		return false, errors.Wrap(err, "get eth2 spec")
+	}
 
-	if committeeLen/targetAggregatorsPerCommittee > 1 {
-		modulo = committeeLen / targetAggregatorsPerCommittee
+	aggsPerComm, ok := spec["TARGET_AGGREGATORS_PER_COMMITTEE"].(uint64)
+	if !ok {
+		return false, errors.New("invalid TARGET_AGGREGATORS_PER_COMMITTEE")
+	}
+
+	modulo := commLen / int64(aggsPerComm)
+	if modulo < 1 {
+		modulo = 1
 	}
 
 	b := eth2util.SHA256(slotSig[:])
 
-	return binary.LittleEndian.Uint64(b[:8])%modulo == 0
+	return binary.LittleEndian.Uint64(b[:8])%uint64(modulo) == 0, nil
 }
 
-// getCommitteeLength calls the beacon node endpoint '/eth/v1/beacon/states/{state_id}/committees' and returns the number of validators in the input committee at the given slot.
-func getCommitteeLength(ctx context.Context, beaconNode string, commIdx eth2p0.CommitteeIndex, slot eth2p0.Slot) (int, error) {
-	u, err := url.Parse(beaconNode)
+// getCommitteeLength returns the number of validators in the input committee at the given slot.
+func getCommitteeLength(ctx context.Context, eth2Cl eth2Provider, commIdx eth2p0.CommitteeIndex, slot eth2p0.Slot) (int, error) {
+	epoch, err := epochFromSlot(ctx, eth2Cl, slot)
 	if err != nil {
-		return 0, errors.Wrap(err, "invalid beacon node endpoint")
+		return 0, err
 	}
 
-	stateID := "head" // canonical head in beacon node's view
-	u = u.JoinPath(fmt.Sprintf("/eth/v1/beacon/states/%s/committees", stateID))
-
-	q := u.Query()
-	q.Set("index", strconv.Itoa(int(commIdx)))
-	q.Set("slot", strconv.Itoa(int(slot)))
-	u.RawQuery = q.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	comms, err := eth2Cl.BeaconCommitteesAtEpoch(ctx, "head", epoch)
 	if err != nil {
-		return 0, errors.Wrap(err, "create http request")
+		return 0, errors.Wrap(err, "get beacon committees at epoch")
 	}
 
-	resp, err := new(http.Client).Do(req)
-	if err != nil {
-		return 0, errors.Wrap(err, "fetch committee subscription")
-	}
-	defer resp.Body.Close()
-
-	buf, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return 0, errors.Wrap(err, "read response body")
-	}
-
-	var res getCommitteesResponse
-	if err := json.Unmarshal(buf, &res); err != nil {
-		return 0, errors.Wrap(err, "unmarshal get committee response")
-	}
-
-	committeeLen := -1
-	for _, d := range res.Data {
-		if eth2p0.CommitteeIndex(d.Index) == commIdx {
-			committeeLen = len(d.Validators)
+	for _, d := range comms {
+		if d.Slot == slot && d.Index == commIdx {
+			return len(d.Validators), nil
 		}
 	}
-	if committeeLen == -1 {
-		return 0, errors.New("committee index absent in beacon node response")
+
+	return 0, errors.New("committee not found for desired slot and committee index")
+}
+
+// epochFromSlot returns the epoch corresponding to the input slot.
+func epochFromSlot(ctx context.Context, eth2Cl eth2Provider, slot eth2p0.Slot) (eth2p0.Epoch, error) {
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "get slots per epoch")
 	}
 
-	return committeeLen, nil
+	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }

@@ -40,7 +40,6 @@ var staticJSON []byte
 // It serves all proxied endpoints not handled by charon's validatorapi.
 // Endpoints include static endpoints defined in static.json and a few stubbed paths.
 type HTTPMock interface {
-	eth2client.BeaconCommitteesProvider
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
 	eth2client.ForkProvider

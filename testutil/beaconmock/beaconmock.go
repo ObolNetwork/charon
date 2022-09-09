@@ -124,6 +124,8 @@ type Mock struct {
 	AttestationDataFunc                    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	BlindedBeaconBlockProposalFunc         func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
+	BeaconCommitteesFunc                   func(ctx context.Context, stateID string) ([]*eth2v1.BeaconCommittee, error)
+	BeaconCommitteesAtEpochFunc            func(ctx context.Context, stateID string, epoch eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error)
 	BeaconBlockProposalFunc                func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	SubmitAttestationsFunc                 func(context.Context, []*eth2p0.Attestation) error
@@ -166,6 +168,14 @@ func (m Mock) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, 
 
 func (m Mock) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
 	return m.BeaconBlockProposalFunc(ctx, slot, randaoReveal, graffiti)
+}
+
+func (m Mock) BeaconCommittees(ctx context.Context, stateID string) ([]*eth2v1.BeaconCommittee, error) {
+	return m.BeaconCommitteesFunc(ctx, stateID)
+}
+
+func (m Mock) BeaconCommitteesAtEpoch(ctx context.Context, stateID string, epoch eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
+	return m.BeaconCommitteesAtEpochFunc(ctx, stateID, epoch)
 }
 
 func (m Mock) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {

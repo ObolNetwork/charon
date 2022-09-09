@@ -217,6 +217,17 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 	}
 }
 
+// WithTargetAggregatorsPerCommittee configures the http mock with the provided slots per epoch.
+func WithTargetAggregatorsPerCommittee(targetAggregatorsPerCommittee int) Option {
+	return func(mock *Mock) {
+		mock.overrides = append(mock.overrides, staticOverride{
+			Endpoint: "/eth/v1/config/spec",
+			Key:      "TARGET_AGGREGATORS_PER_COMMITTEE",
+			Value:    fmt.Sprint(targetAggregatorsPerCommittee),
+		})
+	}
+}
+
 // WithDeterministicAttesterDuties configures the mock to provide deterministic duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
 func WithDeterministicAttesterDuties(factor int) Option {

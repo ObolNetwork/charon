@@ -45,6 +45,8 @@ func SlotHashRoot(slot eth2p0.Slot) ([32]byte, error) {
 // SHA256 calculates the sha256 checksum of the input data. https://github.com/ethereum/consensus-specs/blob/v0.9.3/specs/core/0_beacon-chain.md#hash
 func SHA256(data []byte) [32]byte {
 	h := sha256.New()
+
+	// Write method in the Hash interface never returns an error, so the error isn't handled. See: https://pkg.go.dev/hash#Hash
 	h.Write(data)
 
 	var b [32]byte
