@@ -67,7 +67,7 @@ func TestCalculateCommitteeSubscriptionResponse(t *testing.T) {
 		SlotSignature:  blssig,
 	}
 
-	t.Run("is aggregator", func(t *testing.T) {
+	t.Run("aggregator", func(t *testing.T) {
 		commLen := 43
 		bmock.BeaconCommitteesAtEpochFunc = func(_ context.Context, _ string, _ eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
 			return []*eth2v1.BeaconCommittee{beaconCommittee(commLen)}, nil
@@ -79,7 +79,7 @@ func TestCalculateCommitteeSubscriptionResponse(t *testing.T) {
 		require.True(t, resp.IsAggregator)
 	})
 
-	t.Run("is not aggregator", func(t *testing.T) {
+	t.Run("not an aggregator", func(t *testing.T) {
 		commLen := 61
 		bmock.BeaconCommitteesAtEpochFunc = func(_ context.Context, _ string, _ eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
 			return []*eth2v1.BeaconCommittee{beaconCommittee(commLen)}, nil
