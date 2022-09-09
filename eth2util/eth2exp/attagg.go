@@ -28,6 +28,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 )
 
@@ -222,7 +223,7 @@ func getCommitteeLength(ctx context.Context, eth2Cl eth2Provider, commIdx eth2p0
 		}
 	}
 
-	return 0, errors.New("committee not found for desired slot and committee index")
+	return 0, errors.New("committee not found", z.I64("slot", int64(slot)), z.I64("committee_index", int64(commIdx)))
 }
 
 // epochFromSlot returns the epoch corresponding to the input slot.
