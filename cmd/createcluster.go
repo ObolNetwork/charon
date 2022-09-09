@@ -357,7 +357,7 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 	for _, dv := range dvs {
 		pk, err := dv.PublicKey().MarshalBinary()
 		if err != nil {
-			return cluster.Lock{}, err
+			return cluster.Lock{}, errors.Wrap(err, "marshal pubkey")
 		}
 
 		var pubshares [][]byte

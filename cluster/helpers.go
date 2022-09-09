@@ -201,11 +201,11 @@ func Threshold(nodes int) int {
 
 // putByteList appends a ssz byte list.
 // See reference: github.com/attestantio/go-eth2-client/spec/bellatrix/executionpayload_encoding.go:277-284.
-func putByteList(h ssz.HashWalker, b []byte, limit int) error {
+func putByteList(h ssz.HashWalker, b []byte, limit int, field string) error {
 	elemIndx := h.Index()
 	byteLen := len(b)
 	if byteLen > limit {
-		return ssz.ErrIncorrectListSize
+		return errors.Wrap(ssz.ErrIncorrectListSize, "put byte list", z.Str("field", field))
 	}
 	h.PutBytes(b)
 	h.MerkleizeWithMixin(elemIndx, uint64(byteLen), uint64(limit+31)/32)
