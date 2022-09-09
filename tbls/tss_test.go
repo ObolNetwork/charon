@@ -93,6 +93,10 @@ func TestAggregateSignatures(t *testing.T) {
 }
 
 func BenchmarkVerify(b *testing.B) {
+	b.StopTimer()
+
+	// Create b.N unique signatures to verify.
+
 	type tuple struct {
 		PubKey *bls_sig.PublicKey
 		Secret *bls_sig.SecretKey
@@ -100,9 +104,8 @@ func BenchmarkVerify(b *testing.B) {
 		Msg    []byte
 	}
 
-	const count = 100 // Create 100 different signatures to verify
 	var tuples []tuple
-	for i := 0; i < count; i++ {
+	for i := 0; i < b.N; i++ {
 		pubkey, secret, err := tbls.Keygen()
 		require.NoError(b, err)
 
@@ -119,12 +122,12 @@ func BenchmarkVerify(b *testing.B) {
 		})
 	}
 
-	b.Run("verify", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			tuple := tuples[i%count]
-			result, err := tbls.Verify(tuple.PubKey, tuple.Msg, tuple.Sig)
-			require.NoError(b, err)
-			require.Equal(b, true, result)
-		}
-	})
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		tuple := tuples[i]
+		result, err := tbls.Verify(tuple.PubKey, tuple.Msg, tuple.Sig)
+		require.NoError(b, err)
+		require.Equal(b, true, result)
+	}
 }
