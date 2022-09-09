@@ -64,7 +64,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 
 		var nodes []TmplNode
 		for i := 0; i < conf.NumNodes; i++ {
-			n := TmplNode{EnvVars: newNodeEnvs(i, true, conf)}
+			n := TmplNode{EnvVars: newNodeEnvs(i, conf, "")}
 			nodes = append(nodes, n)
 		}
 
@@ -96,7 +96,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 }
 
 // newNodeEnvs returns the default node environment variable to run a charon docker container.
-func newNodeEnvs(index int, validatorMock bool, conf Config) []kv {
+func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 	beaconMock := false
 	beaconNode := conf.BeaconNode
 	if beaconNode == "mock" {
@@ -117,27 +117,38 @@ func newNodeEnvs(index int, validatorMock bool, conf Config) []kv {
 		p2pRelay = "true"
 	}
 
-	return []kv{
-		{"data-dir", fmt.Sprintf("/compose/node%d", index)},
+	// Common config
+	kvs := []kv{
 		{"private-key-file", fmt.Sprintf("/compose/node%d/charon-enr-private-key", index)},
-		{"simnet-validator-keys-dir", fmt.Sprintf("/compose/node%d/validator_keys", index)},
-		{"jaeger-service", fmt.Sprintf("node%d", index)},
-		{"jaeger-address", "jaeger:6831"},
-		{"definition-file", "/compose/cluster-definition.json"},
-		{"lock-file", lockFile},
 		{"monitoring-address", "0.0.0.0:3620"},
-		{"validator-api-address", "0.0.0.0:3600"},
 		{"p2p-external-hostname", fmt.Sprintf("node%d", index)},
 		{"p2p-tcp-address", "0.0.0.0:3610"},
 		{"p2p_udp_address", "0.0.0.0:3630"},
 		{"p2p-bootnodes", p2pBootnodes},
 		{"p2p-bootnode-relay", fmt.Sprintf(`"%v"`, p2pRelay)},
-		{"beacon-node-endpoint", beaconNode},
-		{"simnet-validator-mock", fmt.Sprintf(`"%v"`, validatorMock)},
-		{"simnet-beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},
 		{"log-level", "debug"},
 		{"feature-set", conf.FeatureSet},
 	}
+
+	if conf.Step == stepDefined {
+		// Define lock config
+		return append(kvs,
+			kv{"data-dir", fmt.Sprintf("/compose/node%d", index)},
+			kv{"definition-file", "/compose/cluster-definition.json"},
+		)
+	}
+
+	// Define run config
+	return append(kvs,
+		kv{"jaeger-service", fmt.Sprintf("node%d", index)},
+		kv{"jaeger-address", "jaeger:6831"},
+		kv{"lock-file", lockFile},
+		kv{"validator-api-address", "0.0.0.0:3600"},
+		kv{"beacon-node-endpoint", beaconNode},
+		kv{"simnet-beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},
+		kv{"simnet-validator-mock", fmt.Sprintf(`"%v"`, vcType == VCMock)},
+		kv{"simnet-validator-keys-dir", fmt.Sprintf("/compose/node%d/validator_keys", index)},
+	)
 }
 
 // LoadConfig returns the config loaded from disk.
