@@ -14,23 +14,22 @@ services:
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node0/charon-enr-private-key
-      CHARON_JAEGER_SERVICE: node0
-      CHARON_JAEGER_ADDRESS: jaeger:6831
-      CHARON_DEFINITION_FILE: /compose/cluster-definition.json
-      CHARON_LOCK_FILE: /compose/cluster-lock.json
       CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
-      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_P2P_EXTERNAL_HOSTNAME: node0
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
+      CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
+      CHARON_JAEGER_SERVICE: node0
+      CHARON_JAEGER_ADDRESS: jaeger:6831
+      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINT: 
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_SIMNET_VALIDATOR_MOCK: "false"
       CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node0/validator_keys
-      CHARON_LOG_LEVEL: debug
-      CHARON_FEATURE_SET: alpha
     
     ports:
       - "3600:3600"
@@ -46,23 +45,22 @@ services:
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node1/charon-enr-private-key
-      CHARON_JAEGER_SERVICE: node1
-      CHARON_JAEGER_ADDRESS: jaeger:6831
-      CHARON_DEFINITION_FILE: /compose/cluster-definition.json
-      CHARON_LOCK_FILE: /compose/cluster-lock.json
       CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
-      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_P2P_EXTERNAL_HOSTNAME: node1
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
+      CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
+      CHARON_JAEGER_SERVICE: node1
+      CHARON_JAEGER_ADDRESS: jaeger:6831
+      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINT: 
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_SIMNET_VALIDATOR_MOCK: "false"
       CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node1/validator_keys
-      CHARON_LOG_LEVEL: debug
-      CHARON_FEATURE_SET: alpha
     
     ports:
       - "13600:3600"
@@ -78,23 +76,22 @@ services:
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node2/charon-enr-private-key
-      CHARON_JAEGER_SERVICE: node2
-      CHARON_JAEGER_ADDRESS: jaeger:6831
-      CHARON_DEFINITION_FILE: /compose/cluster-definition.json
-      CHARON_LOCK_FILE: /compose/cluster-lock.json
       CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
-      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_P2P_EXTERNAL_HOSTNAME: node2
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
+      CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
+      CHARON_JAEGER_SERVICE: node2
+      CHARON_JAEGER_ADDRESS: jaeger:6831
+      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINT: 
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node2/validator_keys
-      CHARON_LOG_LEVEL: debug
-      CHARON_FEATURE_SET: alpha
     
     ports:
       - "23600:3600"
@@ -110,23 +107,22 @@ services:
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node3/charon-enr-private-key
-      CHARON_JAEGER_SERVICE: node3
-      CHARON_JAEGER_ADDRESS: jaeger:6831
-      CHARON_DEFINITION_FILE: /compose/cluster-definition.json
-      CHARON_LOCK_FILE: /compose/cluster-lock.json
       CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
-      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_P2P_EXTERNAL_HOSTNAME: node3
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
+      CHARON_LOG_LEVEL: debug
+      CHARON_FEATURE_SET: alpha
+      CHARON_JAEGER_SERVICE: node3
+      CHARON_JAEGER_ADDRESS: jaeger:6831
+      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINT: 
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_SIMNET_VALIDATOR_MOCK: "false"
       CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node3/validator_keys
-      CHARON_LOG_LEVEL: debug
-      CHARON_FEATURE_SET: alpha
     
     ports:
       - "33600:3600"

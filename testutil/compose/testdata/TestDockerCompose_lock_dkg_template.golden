@@ -13,28 +13,8 @@
      "Value": "/compose/node0/charon-enr-private-key"
     },
     {
-     "Key": "jaeger-service",
-     "Value": "node0"
-    },
-    {
-     "Key": "jaeger-address",
-     "Value": "jaeger:6831"
-    },
-    {
-     "Key": "definition-file",
-     "Value": "/compose/cluster-definition.json"
-    },
-    {
-     "Key": "lock-file",
-     "Value": "/compose/node0/cluster-lock.json"
-    },
-    {
      "Key": "monitoring-address",
      "Value": "0.0.0.0:3620"
-    },
-    {
-     "Key": "validator-api-address",
-     "Value": "0.0.0.0:3600"
     },
     {
      "Key": "p2p-external-hostname",
@@ -57,28 +37,20 @@
      "Value": "\"false\""
     },
     {
-     "Key": "beacon-node-endpoint",
-     "Value": ""
-    },
-    {
-     "Key": "simnet-beacon_mock",
-     "Value": "\"true\""
-    },
-    {
-     "Key": "simnet-validator-mock",
-     "Value": "\"true\""
-    },
-    {
-     "Key": "simnet-validator-keys-dir",
-     "Value": "/compose/node0/validator_keys"
-    },
-    {
      "Key": "log-level",
      "Value": "debug"
     },
     {
      "Key": "feature-set",
      "Value": "alpha"
+    },
+    {
+     "Key": "data-dir",
+     "Value": "/compose/node0"
+    },
+    {
+     "Key": "definition-file",
+     "Value": "/compose/cluster-definition.json"
     }
    ],
    "Ports": null
@@ -92,28 +64,8 @@
      "Value": "/compose/node1/charon-enr-private-key"
     },
     {
-     "Key": "jaeger-service",
-     "Value": "node1"
-    },
-    {
-     "Key": "jaeger-address",
-     "Value": "jaeger:6831"
-    },
-    {
-     "Key": "definition-file",
-     "Value": "/compose/cluster-definition.json"
-    },
-    {
-     "Key": "lock-file",
-     "Value": "/compose/node1/cluster-lock.json"
-    },
-    {
      "Key": "monitoring-address",
      "Value": "0.0.0.0:3620"
-    },
-    {
-     "Key": "validator-api-address",
-     "Value": "0.0.0.0:3600"
     },
     {
      "Key": "p2p-external-hostname",
@@ -136,28 +88,20 @@
      "Value": "\"false\""
     },
     {
-     "Key": "beacon-node-endpoint",
-     "Value": ""
-    },
-    {
-     "Key": "simnet-beacon_mock",
-     "Value": "\"true\""
-    },
-    {
-     "Key": "simnet-validator-mock",
-     "Value": "\"true\""
-    },
-    {
-     "Key": "simnet-validator-keys-dir",
-     "Value": "/compose/node1/validator_keys"
-    },
-    {
      "Key": "log-level",
      "Value": "debug"
     },
     {
      "Key": "feature-set",
      "Value": "alpha"
+    },
+    {
+     "Key": "data-dir",
+     "Value": "/compose/node1"
+    },
+    {
+     "Key": "definition-file",
+     "Value": "/compose/cluster-definition.json"
     }
    ],
    "Ports": null
@@ -171,28 +115,8 @@
      "Value": "/compose/node2/charon-enr-private-key"
     },
     {
-     "Key": "jaeger-service",
-     "Value": "node2"
-    },
-    {
-     "Key": "jaeger-address",
-     "Value": "jaeger:6831"
-    },
-    {
-     "Key": "definition-file",
-     "Value": "/compose/cluster-definition.json"
-    },
-    {
-     "Key": "lock-file",
-     "Value": "/compose/node2/cluster-lock.json"
-    },
-    {
      "Key": "monitoring-address",
      "Value": "0.0.0.0:3620"
-    },
-    {
-     "Key": "validator-api-address",
-     "Value": "0.0.0.0:3600"
     },
     {
      "Key": "p2p-external-hostname",
@@ -215,28 +139,20 @@
      "Value": "\"false\""
     },
     {
-     "Key": "beacon-node-endpoint",
-     "Value": ""
-    },
-    {
-     "Key": "simnet-beacon_mock",
-     "Value": "\"true\""
-    },
-    {
-     "Key": "simnet-validator-mock",
-     "Value": "\"true\""
-    },
-    {
-     "Key": "simnet-validator-keys-dir",
-     "Value": "/compose/node2/validator_keys"
-    },
-    {
      "Key": "log-level",
      "Value": "debug"
     },
     {
      "Key": "feature-set",
      "Value": "alpha"
+    },
+    {
+     "Key": "data-dir",
+     "Value": "/compose/node2"
+    },
+    {
+     "Key": "definition-file",
+     "Value": "/compose/cluster-definition.json"
     }
    ],
    "Ports": null
@@ -250,28 +166,8 @@
      "Value": "/compose/node3/charon-enr-private-key"
     },
     {
-     "Key": "jaeger-service",
-     "Value": "node3"
-    },
-    {
-     "Key": "jaeger-address",
-     "Value": "jaeger:6831"
-    },
-    {
-     "Key": "definition-file",
-     "Value": "/compose/cluster-definition.json"
-    },
-    {
-     "Key": "lock-file",
-     "Value": "/compose/node3/cluster-lock.json"
-    },
-    {
      "Key": "monitoring-address",
      "Value": "0.0.0.0:3620"
-    },
-    {
-     "Key": "validator-api-address",
-     "Value": "0.0.0.0:3600"
     },
     {
      "Key": "p2p-external-hostname",
@@ -294,28 +190,20 @@
      "Value": "\"false\""
     },
     {
-     "Key": "beacon-node-endpoint",
-     "Value": ""
-    },
-    {
-     "Key": "simnet-beacon_mock",
-     "Value": "\"true\""
-    },
-    {
-     "Key": "simnet-validator-mock",
-     "Value": "\"true\""
-    },
-    {
-     "Key": "simnet-validator-keys-dir",
-     "Value": "/compose/node3/validator_keys"
-    },
-    {
      "Key": "log-level",
      "Value": "debug"
     },
     {
      "Key": "feature-set",
      "Value": "alpha"
+    },
+    {
+     "Key": "data-dir",
+     "Value": "/compose/node3"
+    },
+    {
+     "Key": "definition-file",
+     "Value": "/compose/cluster-definition.json"
     }
    ],
    "Ports": null
