@@ -268,7 +268,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 			case res = <-results:
 			}
 
-			require.EqualValues(t, args.Lock.Validators[0].PubKey, res.Pubkey)
+			require.EqualValues(t, args.Lock.Validators[0].PublicKeyHex(), res.Pubkey)
 
 			// Assert the data and signature from all nodes are the same per duty.
 			if counts[res.Duty] == 0 {
@@ -322,7 +322,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 func newRegistrationProvider(t *testing.T, args simnetArgs) func() <-chan *eth2api.VersionedValidatorRegistration {
 	t.Helper()
 
-	pubkey, err := core.PubKey(args.Lock.Validators[0].PubKey).ToETH2()
+	pubkey, err := core.PubKey(args.Lock.Validators[0].PublicKeyHex()).ToETH2()
 	require.NoError(t, err)
 	reg := &eth2api.VersionedValidatorRegistration{
 		Version: spec.BuilderVersionV1,

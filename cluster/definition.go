@@ -234,8 +234,8 @@ func (d Definition) PeerIDs() ([]peer.ID, error) {
 	return resp, nil
 }
 
-// SetHashes returns a copy of the definition with the config hash and definition hash populated.
-func (d Definition) SetHashes() (Definition, error) {
+// SetDefinitionHashes returns a copy of the definition with the config hash and definition hash populated.
+func (d Definition) SetDefinitionHashes() (Definition, error) {
 	// Marshal config hash
 	configHash, err := hashDefinition(d, true)
 	if err != nil {
@@ -256,7 +256,7 @@ func (d Definition) SetHashes() (Definition, error) {
 }
 
 func (d Definition) MarshalJSON() ([]byte, error) {
-	d, err := d.SetHashes()
+	d, err := d.SetDefinitionHashes()
 	if err != nil {
 		return nil, err
 	}

@@ -156,12 +156,10 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	// Ensure locks hashes are identical.
 	var hash []byte
 	for i, lock := range locks {
-		h, err := lock.HashTreeRoot()
-		require.NoError(t, err)
 		if i == 0 {
-			hash = h[:]
+			hash = lock.LockHash
 		} else {
-			require.Equal(t, hash, h[:])
+			require.Equal(t, hash, lock.LockHash)
 		}
 	}
 

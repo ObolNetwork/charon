@@ -159,11 +159,7 @@ func Run(ctx context.Context, conf Config) (err error) { //nolint:nonamedreturn 
 		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
 	}
 
-	lockHash, err := lock.HashTreeRoot()
-	if err != nil {
-		return err
-	}
-	lockHashHex := hex.EncodeToString(lockHash[:])[:7]
+	lockHashHex := hex.EncodeToString(lock.LockHash)[:7]
 
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {

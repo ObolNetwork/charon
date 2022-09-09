@@ -75,7 +75,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		}
 
 		vals = append(vals, DistValidator{
-			PubKey:    to0xHex(pk),
+			PubKey:    pk,
 			PubShares: pubshares,
 		})
 		dvShares = append(dvShares, shares)
@@ -127,7 +127,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		require.NoError(t, err)
 	}
 
-	def, err = def.SetHashes()
+	def, err = def.SetDefinitionHashes()
 	require.NoError(t, err)
 
 	lock := Lock{
@@ -136,10 +136,10 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		SignatureAggregate: nil,
 	}
 
-	lockHash, err := lock.HashTreeRoot()
+	lock, err = lock.SetLockHash()
 	require.NoError(t, err)
 
-	lock.SignatureAggregate, err = aggSign(dvShares, lockHash[:])
+	lock.SignatureAggregate, err = aggSign(dvShares, lock.LockHash)
 	require.NoError(t, err)
 
 	return lock, p2pKeys, dvShares

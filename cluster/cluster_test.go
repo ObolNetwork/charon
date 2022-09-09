@@ -46,7 +46,7 @@ func TestEncode(t *testing.T) {
 				{
 					Address:         testutil.RandomBytes20(),
 					ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
-					ConfigSignature: testutil.RandomBytes32(),
+					ConfigSignature: testutil.RandomBytes32(), // TODO(corver): Change sigs to Bytes65.
 					ENRSignature:    testutil.RandomBytes32(),
 				},
 				{
@@ -79,7 +79,7 @@ func TestEncode(t *testing.T) {
 
 		require.Equal(t, b1, b2)
 
-		definition, err = definition.SetHashes()
+		definition, err = definition.SetDefinitionHashes()
 		require.NoError(t, err)
 		require.Equal(t, definition, definition2)
 
@@ -88,13 +88,13 @@ func TestEncode(t *testing.T) {
 			SignatureAggregate: testutil.RandomBytes32(),
 			Validators: []cluster.DistValidator{
 				{
-					PubKey: testutil.RandomETHAddress(),
+					PubKey: testutil.RandomBytes20(), // TODO(corver): Change sigs to Bytes48.
 					PubShares: [][]byte{
-						testutil.RandomBytes32(),
+						testutil.RandomBytes32(), // TODO(corver): Change sigs to Bytes48.
 						testutil.RandomBytes32(),
 					},
 				}, {
-					PubKey: testutil.RandomETHAddress(),
+					PubKey: testutil.RandomBytes20(),
 					PubShares: [][]byte{
 						testutil.RandomBytes32(),
 						testutil.RandomBytes32(),
@@ -108,12 +108,6 @@ func TestEncode(t *testing.T) {
 				testutil.WithFilename("cluster_lock_"+vStr+".json"))
 		})
 
-		hash1, err := lock.HashTreeRoot()
-		require.NoError(t, err)
-		hash2, err := lock.HashTreeRoot()
-		require.NoError(t, err)
-		require.Equal(t, hash1, hash2)
-
 		b1, err = json.Marshal(lock)
 		require.NoError(t, err)
 
@@ -125,6 +119,9 @@ func TestEncode(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, b1, b2)
+
+		lock, err = lock.SetLockHash()
+		require.NoError(t, err)
 		require.Equal(t, lock, lock2)
 	}
 }

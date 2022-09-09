@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -31,63 +30,24 @@ import (
 // Lock extends the cluster config Definition with bls threshold public keys and checksums.
 type Lock struct {
 	// Definition is embedded and extended by Lock.
-	Definition
+	Definition `json:"cluster_definition" ssz:"Composite" lock_hash:"0"`
 
 	// Validators are the distributed validators (n*32ETH) managed by the cluster.
-	Validators []DistValidator
+	Validators []DistValidator `json:"distributed_validators" ssz:"Composite[65536]" lock_hash:"1"`
+
+	// LockHash uniquely identifies a cluster lock.
+	LockHash []byte `json:"lock_hash" ssz:"Bytes32" lock_hash:"-"`
 
 	// SignatureAggregate is the bls aggregate signature of the lock hash signed by
 	// all the private key shares of all the distributed validators.
 	// It acts as an attestation by all the distributed validators
 	// of the charon cluster they are part of.
-	SignatureAggregate []byte
-}
-
-// GetTree ssz hashes the Lock object.
-func (l Lock) GetTree() (*ssz.Node, error) {
-	return ssz.ProofTree(l) //nolint:wrapcheck
-}
-
-// HashTreeRoot ssz hashes the Lock object.
-func (l Lock) HashTreeRoot() ([32]byte, error) {
-	return ssz.HashWithDefaultHasher(l) //nolint:wrapcheck
-}
-
-// HashTreeRootWith ssz hashes the Lock object with a hasher.
-func (l Lock) HashTreeRootWith(hh ssz.HashWalker) error {
-	indx := hh.Index()
-
-	// Field (0) 'Definition'
-	if isJSONv1x0(l.Version) || isJSONv1x1(l.Version) || isJSONv1x2(l.Version) {
-		if err := hashDefinitionLegacy(l.Definition, hh, false); err != nil {
-			return err
-		}
-	} else if isJSONv1x3(l.Version) {
-		if err := hashDefinitionV1x3(l.Definition, hh, false); err != nil {
-			return err
-		}
-	}
-
-	// Field (1) 'Validators'
-	{
-		subIndx := hh.Index()
-		num := uint64(len(l.Validators))
-		for _, validator := range l.Validators {
-			if err := validator.HashTreeRootWith(hh); err != nil {
-				return err
-			}
-		}
-		hh.MerkleizeWithMixin(subIndx, num, num)
-	}
-
-	hh.Merkleize(indx)
-
-	return nil
+	SignatureAggregate []byte `json:"signature_aggregate" ssz:"Bytes96" lock_hash:"-"`
 }
 
 func (l Lock) MarshalJSON() ([]byte, error) {
 	// Marshal lock hash
-	lockHash, err := l.HashTreeRoot()
+	lockHash, err := hashLock(l)
 	if err != nil {
 		return nil, errors.Wrap(err, "hash lock")
 	}
@@ -104,7 +64,6 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 
 func (l *Lock) UnmarshalJSON(data []byte) error {
 	// Get the version directly
-
 	version := struct {
 		Definition struct {
 			Version string `json:"version"`
@@ -120,18 +79,17 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 	}
 
 	var (
-		lock         Lock
-		lockHashJSON []byte
-		err          error
+		lock Lock
+		err  error
 	)
 	switch {
 	case isJSONv1x0(version.Definition.Version) || isJSONv1x1(version.Definition.Version):
-		lock, lockHashJSON, err = unmarshalLockV1x0or1(data)
+		lock, err = unmarshalLockV1x0or1(data)
 		if err != nil {
 			return err
 		}
 	case isJSONv1x2(version.Definition.Version) || isJSONv1x3(version.Definition.Version):
-		lock, lockHashJSON, err = unmarshalLockV1x2or3(data)
+		lock, err = unmarshalLockV1x2or3(data)
 		if err != nil {
 			return err
 		}
@@ -139,18 +97,30 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		return errors.New("unsupported version")
 	}
 
-	hash, err := lock.HashTreeRoot()
+	hash, err := hashLock(lock)
 	if err != nil {
 		return errors.Wrap(err, "hash lock")
 	}
 
-	if !bytes.Equal(lockHashJSON, hash[:]) {
+	if !bytes.Equal(lock.LockHash, hash[:]) {
 		return errors.New("invalid lock hash")
 	}
 
 	*l = lock
 
 	return nil
+}
+
+// SetLockHash returns a copy of the lock with the lock hash populated.
+func (l Lock) SetLockHash() (Lock, error) {
+	lockHash, err := hashLock(l)
+	if err != nil {
+		return Lock{}, err
+	}
+
+	l.LockHash = lockHash[:]
+
+	return l, nil
 }
 
 // Verify returns true if all config signatures are fully populated and valid.
@@ -184,7 +154,7 @@ func (l Lock) Verify() error {
 		}
 	}
 
-	hash, err := l.HashTreeRoot()
+	hash, err := hashLock(l)
 	if err != nil {
 		return err
 	}
@@ -200,7 +170,7 @@ func (l Lock) Verify() error {
 }
 
 func marshalLockV1x0or1(lock Lock, lockHash [32]byte) ([]byte, error) {
-	resp, err := json.Marshal(lockJSONv1x1{
+	resp, err := json.Marshal(lockJSONv1x0or1{
 		Definition:         lock.Definition,
 		Validators:         distValidatorsToV1x1(lock.Validators),
 		SignatureAggregate: lock.SignatureAggregate,
@@ -214,13 +184,9 @@ func marshalLockV1x0or1(lock Lock, lockHash [32]byte) ([]byte, error) {
 }
 
 func marshalLockV1x2or3(lock Lock, lockHash [32]byte) ([]byte, error) {
-	vals, err := distValidatorsToV1x2(lock.Validators)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := json.Marshal(lockJSONv1x2{
+	resp, err := json.Marshal(lockJSONv1x2or3{
 		Definition:         lock.Definition,
-		Validators:         vals,
+		Validators:         distValidatorsToV1x2or3(lock.Validators),
 		SignatureAggregate: lock.SignatureAggregate,
 		LockHash:           lockHash[:],
 	})
@@ -231,46 +197,48 @@ func marshalLockV1x2or3(lock Lock, lockHash [32]byte) ([]byte, error) {
 	return resp, nil
 }
 
-func unmarshalLockV1x0or1(data []byte) (lock Lock, lockHashJSON []byte, err error) {
-	var lockJSON lockJSONv1x1
+func unmarshalLockV1x0or1(data []byte) (lock Lock, err error) {
+	var lockJSON lockJSONv1x0or1
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
-		return Lock{}, nil, errors.Wrap(err, "unmarshal definition")
+		return Lock{}, errors.Wrap(err, "unmarshal definition")
 	}
 
 	lock = Lock{
 		Definition:         lockJSON.Definition,
 		Validators:         distValidatorsFromV1x1(lockJSON.Validators),
 		SignatureAggregate: lockJSON.SignatureAggregate,
+		LockHash:           lockJSON.LockHash,
 	}
 
-	return lock, lockJSON.LockHash, nil
+	return lock, nil
 }
 
-func unmarshalLockV1x2or3(data []byte) (lock Lock, lockHashJSON []byte, err error) {
-	var lockJSON lockJSONv1x2
+func unmarshalLockV1x2or3(data []byte) (lock Lock, err error) {
+	var lockJSON lockJSONv1x2or3
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
-		return Lock{}, nil, errors.Wrap(err, "unmarshal definition")
+		return Lock{}, errors.Wrap(err, "unmarshal definition")
 	}
 
 	lock = Lock{
 		Definition:         lockJSON.Definition,
-		Validators:         distValidatorsFromV1x2(lockJSON.Validators),
+		Validators:         distValidatorsFromV1x2or3(lockJSON.Validators),
 		SignatureAggregate: lockJSON.SignatureAggregate,
+		LockHash:           lockJSON.LockHash,
 	}
 
-	return lock, lockJSON.LockHash, nil
+	return lock, nil
 }
 
-// lockJSONv1x1 is the json formatter of Lock for versions v1.0.0 and v1.1.0.
-type lockJSONv1x1 struct {
+// lockJSONv1x0or1 is the json formatter of Lock for versions v1.0.0 and v1.1.0.
+type lockJSONv1x0or1 struct {
 	Definition         Definition              `json:"cluster_definition"`
 	Validators         []distValidatorJSONv1x1 `json:"distributed_validators"`
 	SignatureAggregate []byte                  `json:"signature_aggregate"`
 	LockHash           []byte                  `json:"lock_hash"`
 }
 
-// lockJSONv1x2 is the json formatter of Lock for versions v1.2.0 and later.
-type lockJSONv1x2 struct {
+// lockJSONv1x2or3 is the json formatter of Lock for versions v1.2.0 and later.
+type lockJSONv1x2or3 struct {
 	Definition         Definition              `json:"cluster_definition"`
 	Validators         []distValidatorJSONv1x2 `json:"distributed_validators"`
 	SignatureAggregate ethHex                  `json:"signature_aggregate"`
