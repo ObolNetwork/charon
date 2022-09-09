@@ -47,10 +47,10 @@ func SHA256(data []byte) [32]byte {
 	h := sha256.New()
 
 	// Write method in the Hash interface never returns an error, so the error isn't handled. See: https://pkg.go.dev/hash#Hash
-	h.Write(data)
+	_, _ = h.Write(data)
 
 	var b [32]byte
-	h.Sum(b[:0])
+	copy(b[:], h.Sum(nil))
 
 	return b
 }

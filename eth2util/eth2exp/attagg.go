@@ -171,7 +171,7 @@ func CalculateCommitteeSubscriptionResponse(ctx context.Context, eth2Svc eth2cli
 		return BeaconCommitteeSubscriptionResponse{}, err
 	}
 
-	isAgg, err := isAggregator(ctx, eth2Cl, int64(committeeLen), subscription.SlotSignature)
+	isAgg, err := IsAggregator(ctx, eth2Cl, int64(committeeLen), subscription.SlotSignature)
 	if err != nil {
 		return BeaconCommitteeSubscriptionResponse{}, err
 	}
@@ -182,8 +182,8 @@ func CalculateCommitteeSubscriptionResponse(ctx context.Context, eth2Svc eth2cli
 	}, nil
 }
 
-// isAggregator returns true if the signature is from the input validator. https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#aggregation-selection
-func isAggregator(ctx context.Context, eth2Cl eth2Provider, commLen int64, slotSig eth2p0.BLSSignature) (bool, error) {
+// IsAggregator returns true if the signature is from the input validator. https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#aggregation-selection
+func IsAggregator(ctx context.Context, eth2Cl eth2Provider, commLen int64, slotSig eth2p0.BLSSignature) (bool, error) {
 	spec, err := eth2Cl.Spec(ctx)
 	if err != nil {
 		return false, errors.Wrap(err, "get eth2 spec")

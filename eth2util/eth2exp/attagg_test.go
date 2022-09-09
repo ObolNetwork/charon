@@ -17,6 +17,7 @@ package eth2exp_test
 
 import (
 	"context"
+	"encoding/hex"
 	"math/rand"
 	"testing"
 
@@ -119,5 +120,30 @@ func TestCalculateCommitteeSubscriptionResponse(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, resp.ValidatorIndex, subscription.ValidatorIndex)
 		require.False(t, resp.IsAggregator)
+	})
+}
+
+func TestIsAggregator(t *testing.T) {
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	sig, err := hex.DecodeString("8776a37d6802c4797d113169c5fcfda50e68a32058eb6356a6f00d06d7da64c841a00c7c38b9b94a204751eca53707bd03523ce4797827d9bacff116a6e776a20bbccff4b683bf5201b610797ed0502557a58a65c8395f8a1649b976c3112d15")
+	require.NoError(t, err)
+	blsSig, err := tblsconv.SigFromBytes(sig)
+	require.NoError(t, err)
+	eth2Sig := tblsconv.SigToETH2(blsSig)
+
+	t.Run("is aggregator", func(t *testing.T) {
+		commLen := 3
+		isAgg, err := eth2exp.IsAggregator(context.Background(), bmock, int64(commLen), eth2Sig)
+		require.NoError(t, err)
+		require.True(t, isAgg)
+	})
+
+	t.Run("is not aggregator", func(t *testing.T) {
+		commLen := 64
+		isAgg, err := eth2exp.IsAggregator(context.Background(), bmock, int64(commLen), eth2Sig)
+		require.NoError(t, err)
+		require.False(t, isAgg)
 	})
 }
