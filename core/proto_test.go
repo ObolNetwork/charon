@@ -67,7 +67,7 @@ func TestParSignedDataSetProto(t *testing.T) {
 		},
 		{
 			Type: core.DutyPrepareAggregator,
-			Data: core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *testutil.RandomBeaconCommitteeSubscription(t)},
+			Data: core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *testutil.RandomBeaconCommitteeSubscription()},
 		},
 	}
 	for _, test := range tests {
@@ -217,6 +217,6 @@ func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
 				},
 			},
 		},
-		core.DutyPrepareAggregator: core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *testutil.RandomBeaconCommitteeSubscription(t)},
+		core.DutyPrepareAggregator: core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *testutil.RandomBeaconCommitteeSubscription()},
 	}
 }

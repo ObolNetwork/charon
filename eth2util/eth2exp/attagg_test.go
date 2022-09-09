@@ -60,32 +60,51 @@ func TestCalculateCommitteeSubscriptionResponse(t *testing.T) {
 	sig, _ := tbls.Sign(secret, sigData[:])
 	blssig := tblsconv.SigToETH2(sig)
 
+	subscription := eth2exp.BeaconCommitteeSubscription{
+		ValidatorIndex: eth2p0.ValidatorIndex(1),
+		Slot:           slot,
+		CommitteeIndex: commIdx,
+		SlotSignature:  blssig,
+	}
+
+	t.Run("aggregator", func(t *testing.T) {
+		// https://github.com/prysmaticlabs/prysm/blob/8627fe72e80009ae162430140bcfff6f209d7a32/beacon-chain/core/helpers/attestation_test.go#L28
+		sig, err := hex.DecodeString("8776a37d6802c4797d113169c5fcfda50e68a32058eb6356a6f00d06d7da64c841a00c7c38b9b94a204751eca53707bd03523ce4797827d9bacff116a6e776a20bbccff4b683bf5201b610797ed0502557a58a65c8395f8a1649b976c3112d15")
+		require.NoError(t, err)
+		blsSig, err := tblsconv.SigFromBytes(sig)
+		require.NoError(t, err)
+		subscription.SlotSignature = tblsconv.SigToETH2(blsSig)
+
+		// https://github.com/prysmaticlabs/prysm/blob/8627fe72e80009ae162430140bcfff6f209d7a32/beacon-chain/core/helpers/attestation_test.go#L26
+		commLen := 3
+		bmock.BeaconCommitteesAtEpochFunc = func(_ context.Context, _ string, _ eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
+			return []*eth2v1.BeaconCommittee{beaconCommittee(commLen)}, nil
+		}
+
+		resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &subscription)
+		require.NoError(t, err)
+		require.Equal(t, resp.ValidatorIndex, subscription.ValidatorIndex)
+		require.True(t, resp.IsAggregator)
+
+		// https://github.com/prysmaticlabs/prysm/blob/fc509cc220a82efd555704d41aa362903a06ab9e/beacon-chain/core/helpers/attestation_test.go#L39
+		commLen = 64
+		bmock.BeaconCommitteesAtEpochFunc = func(_ context.Context, _ string, _ eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
+			return []*eth2v1.BeaconCommittee{beaconCommittee(commLen)}, nil
+		}
+
+		resp, err = eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &subscription)
+		require.NoError(t, err)
+		require.Equal(t, resp.ValidatorIndex, subscription.ValidatorIndex)
+		require.False(t, resp.IsAggregator)
+	})
+
 	t.Run("is aggregator", func(t *testing.T) {
 		commLen := 43
-		var vals []eth2p0.ValidatorIndex
-		for idx := 1; idx <= commLen; idx++ {
-			vals = append(vals, eth2p0.ValidatorIndex(idx))
-		}
-		comms := []*eth2v1.BeaconCommittee{
-			{
-				Slot:       slot,
-				Index:      commIdx,
-				Validators: vals,
-			},
-		}
-
 		bmock.BeaconCommitteesAtEpochFunc = func(_ context.Context, _ string, _ eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
-			return comms, nil
+			return []*eth2v1.BeaconCommittee{beaconCommittee(commLen)}, nil
 		}
 
-		subscription := eth2exp.BeaconCommitteeSubscription{
-			ValidatorIndex: eth2p0.ValidatorIndex(1),
-			Slot:           slot,
-			CommitteeIndex: commIdx,
-			SlotSignature:  blssig,
-		}
-
-		resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, subscription)
+		resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &subscription)
 		require.NoError(t, err)
 		require.Equal(t, resp.ValidatorIndex, subscription.ValidatorIndex)
 		require.True(t, resp.IsAggregator)
@@ -93,57 +112,27 @@ func TestCalculateCommitteeSubscriptionResponse(t *testing.T) {
 
 	t.Run("is not aggregator", func(t *testing.T) {
 		commLen := 61
-		var vals []eth2p0.ValidatorIndex
-		for idx := 1; idx <= commLen; idx++ {
-			vals = append(vals, eth2p0.ValidatorIndex(idx))
-		}
-		comms := []*eth2v1.BeaconCommittee{
-			{
-				Slot:       slot,
-				Index:      commIdx,
-				Validators: vals,
-			},
-		}
-
 		bmock.BeaconCommitteesAtEpochFunc = func(_ context.Context, _ string, _ eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
-			return comms, nil
+			return []*eth2v1.BeaconCommittee{beaconCommittee(commLen)}, nil
 		}
 
-		subscription := eth2exp.BeaconCommitteeSubscription{
-			ValidatorIndex: eth2p0.ValidatorIndex(1),
-			Slot:           slot,
-			CommitteeIndex: commIdx,
-			SlotSignature:  blssig,
-		}
-
-		resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, subscription)
+		resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &subscription)
 		require.NoError(t, err)
 		require.Equal(t, resp.ValidatorIndex, subscription.ValidatorIndex)
 		require.False(t, resp.IsAggregator)
 	})
 }
 
-func TestIsAggregator(t *testing.T) {
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
+// beaconCommittees returns a BeaconCommittee with the list of commLen validator indexes.
+func beaconCommittee(commLen int) *eth2v1.BeaconCommittee {
+	var vals []eth2p0.ValidatorIndex
+	for idx := 1; idx <= commLen; idx++ {
+		vals = append(vals, eth2p0.ValidatorIndex(idx))
+	}
 
-	sig, err := hex.DecodeString("8776a37d6802c4797d113169c5fcfda50e68a32058eb6356a6f00d06d7da64c841a00c7c38b9b94a204751eca53707bd03523ce4797827d9bacff116a6e776a20bbccff4b683bf5201b610797ed0502557a58a65c8395f8a1649b976c3112d15")
-	require.NoError(t, err)
-	blsSig, err := tblsconv.SigFromBytes(sig)
-	require.NoError(t, err)
-	eth2Sig := tblsconv.SigToETH2(blsSig)
-
-	t.Run("is aggregator", func(t *testing.T) {
-		commLen := 3
-		isAgg, err := eth2exp.IsAggregator(context.Background(), bmock, int64(commLen), eth2Sig)
-		require.NoError(t, err)
-		require.True(t, isAgg)
-	})
-
-	t.Run("is not aggregator", func(t *testing.T) {
-		commLen := 64
-		isAgg, err := eth2exp.IsAggregator(context.Background(), bmock, int64(commLen), eth2Sig)
-		require.NoError(t, err)
-		require.False(t, isAgg)
-	})
+	return &eth2v1.BeaconCommittee{
+		Slot:       eth2p0.Slot(1),
+		Index:      eth2p0.CommitteeIndex(1),
+		Validators: vals,
+	}
 }

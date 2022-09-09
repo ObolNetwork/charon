@@ -231,7 +231,7 @@ func TestParSigExVerifier(t *testing.T) {
 	})
 
 	t.Run("Verify beacon committee subscription", func(t *testing.T) {
-		sub := testutil.RandomBeaconCommitteeSubscription(t)
+		sub := testutil.RandomBeaconCommitteeSubscription()
 		sub.Slot = slot
 		sigRoot, err := eth2util.SlotHashRoot(sub.Slot)
 		require.NoError(t, err)

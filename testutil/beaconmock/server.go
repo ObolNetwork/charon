@@ -75,10 +75,6 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 			Handler: func(w http.ResponseWriter, r *http.Request) {},
 		},
 		{
-			Path:    "/eth/v1/validator/beacon_committee_subscriptions",
-			Handler: func(w http.ResponseWriter, r *http.Request) {},
-		},
-		{
 			Path: "/eth/v1/validator/duties/sync/{epoch}",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(`{"data":[]}`))

@@ -26,10 +26,10 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/minio/sha256-simd"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/eth2util"
 )
 
 type eth2Provider interface {
@@ -160,31 +160,27 @@ type BeaconCommitteeSubscriptionResponse struct {
 	IsAggregator bool
 }
 
-// CalculateCommitteeSubscriptionResponse returns a BeaconCommitteeSubscriptionResponse with IsAggregator field set to true if the validator is an aggregator.
-func CalculateCommitteeSubscriptionResponse(ctx context.Context, eth2Svc eth2client.Service, subscription BeaconCommitteeSubscription) (BeaconCommitteeSubscriptionResponse, error) {
-	eth2Cl, ok := eth2Svc.(eth2Provider)
-	if !ok {
-		return BeaconCommitteeSubscriptionResponse{}, errors.New("invalid eth2 service")
-	}
-
+// CalculateCommitteeSubscriptionResponse returns a BeaconCommitteeSubscriptionResponse with isAggregator field set to true if the validator is an aggregator.
+func CalculateCommitteeSubscriptionResponse(ctx context.Context, eth2Cl eth2Provider, subscription *BeaconCommitteeSubscription) (*BeaconCommitteeSubscriptionResponse, error) {
 	committeeLen, err := getCommitteeLength(ctx, eth2Cl, subscription.CommitteeIndex, subscription.Slot)
 	if err != nil {
-		return BeaconCommitteeSubscriptionResponse{}, err
+		return nil, err
 	}
 
-	isAgg, err := IsAggregator(ctx, eth2Cl, int64(committeeLen), subscription.SlotSignature)
+	isAgg, err := isAggregator(ctx, eth2Cl, uint64(committeeLen), subscription.SlotSignature)
 	if err != nil {
-		return BeaconCommitteeSubscriptionResponse{}, err
+		return nil, err
 	}
 
-	return BeaconCommitteeSubscriptionResponse{
+	return &BeaconCommitteeSubscriptionResponse{
 		ValidatorIndex: subscription.ValidatorIndex,
 		IsAggregator:   isAgg,
 	}, nil
 }
 
-// IsAggregator returns true if the signature is from the input validator. https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#aggregation-selection
-func IsAggregator(ctx context.Context, eth2Cl eth2Provider, commLen int64, slotSig eth2p0.BLSSignature) (bool, error) {
+// isAggregator returns true if the validator is the attestation aggregator for the given committee.
+// Refer: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#aggregation-selection
+func isAggregator(ctx context.Context, eth2Cl eth2Provider, commLen uint64, slotSig eth2p0.BLSSignature) (bool, error) {
 	spec, err := eth2Cl.Spec(ctx)
 	if err != nil {
 		return false, errors.Wrap(err, "get eth2 spec")
@@ -195,14 +191,18 @@ func IsAggregator(ctx context.Context, eth2Cl eth2Provider, commLen int64, slotS
 		return false, errors.New("invalid TARGET_AGGREGATORS_PER_COMMITTEE")
 	}
 
-	modulo := commLen / int64(aggsPerComm)
+	modulo := commLen / aggsPerComm
 	if modulo < 1 {
 		modulo = 1
 	}
 
-	b := eth2util.SHA256(slotSig[:])
+	h := sha256.New()
+	_, err = h.Write(slotSig[:])
+	if err != nil {
+		return false, errors.Wrap(err, "calculate sha256")
+	}
 
-	return binary.LittleEndian.Uint64(b[:8])%uint64(modulo) == 0, nil
+	return binary.LittleEndian.Uint64(h.Sum(nil)[:8])%modulo == 0, nil
 }
 
 // getCommitteeLength returns the number of validators in the input committee at the given slot.
