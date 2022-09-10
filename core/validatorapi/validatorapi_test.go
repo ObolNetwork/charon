@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	mrand "math/rand"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -37,6 +38,7 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/validatorapi"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
@@ -1194,74 +1196,74 @@ func TestComponent_SubmitBeaconCommitteeSubscriptionsV2(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		slotA = 123
-		slotB = 456
-		vIdxA = 1
-		vIdxB = 2
-		vIdxC = 3
+		slot    = 1
+		vIdx    = 1
+		commIdx = 1
+		commLen = 43
 	)
 
-	eth2Cl, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSet{
-		vIdxA: &eth2v1.Validator{
-			Index:     vIdxA,
-			Validator: &eth2p0.Validator{PublicKey: testutil.RandomEth2PubKey(t)},
-		},
-		vIdxB: &eth2v1.Validator{
-			Index:     vIdxB,
-			Validator: &eth2p0.Validator{PublicKey: testutil.RandomEth2PubKey(t)},
-		},
-		vIdxC: &eth2v1.Validator{
-			Index:     vIdxC,
-			Validator: &eth2p0.Validator{PublicKey: testutil.RandomEth2PubKey(t)},
-		},
-	}))
+	eth2Cl, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
 	require.NoError(t, err)
 
-	// Submit subscriptions to validatorapi.
-	expected := []*eth2exp.BeaconCommitteeSubscriptionResponse{
-		{ValidatorIndex: vIdxA, IsAggregator: true},
-		{ValidatorIndex: vIdxB, IsAggregator: true},
-		{ValidatorIndex: vIdxC, IsAggregator: false},
-	}
+	_, secret, err := tbls.KeygenWithSeed(mrand.New(mrand.NewSource(1)))
+	require.NoError(t, err)
 
-	vIdxToResp := make(map[eth2p0.ValidatorIndex]*eth2exp.BeaconCommitteeSubscriptionResponse)
-	for _, res := range expected {
-		vIdxToResp[res.ValidatorIndex] = res
-	}
+	sigRoot, err := eth2util.SlotHashRoot(slot)
+	require.NoError(t, err)
 
-	subs := []*eth2exp.BeaconCommitteeSubscription{
-		{
-			Slot:             slotA,
-			ValidatorIndex:   vIdxA,
-			CommitteesAtSlot: mrand.Uint64(),
-			CommitteeIndex:   eth2p0.CommitteeIndex(mrand.Uint64()),
-			SlotSignature:    testutil.RandomEth2Signature(),
-		},
-		{
-			Slot:             slotB,
-			ValidatorIndex:   vIdxB,
-			CommitteesAtSlot: mrand.Uint64(),
-			CommitteeIndex:   eth2p0.CommitteeIndex(mrand.Uint64()),
-			SlotSignature:    testutil.RandomEth2Signature(),
-		},
-		{
-			Slot:             slotA,
-			ValidatorIndex:   vIdxC,
-			CommitteesAtSlot: mrand.Uint64(),
-			CommitteeIndex:   eth2p0.CommitteeIndex(mrand.Uint64()),
-			SlotSignature:    testutil.RandomEth2Signature(),
-		},
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	require.NoError(t, err)
+
+	sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainSelectionProof, eth2p0.Epoch(uint64(slot)/slotsPerEpoch), sigRoot)
+	require.NoError(t, err)
+
+	sig, _ := tbls.Sign(secret, sigData[:])
+	blssig := tblsconv.SigToETH2(sig)
+
+	eth2Cl.BeaconCommitteesAtEpochFunc = func(_ context.Context, stateID string, epoch eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
+		require.Equal(t, "head", stateID)
+		require.Equal(t, eth2p0.Epoch(uint64(slot)/slotsPerEpoch), epoch)
+
+		var vals []eth2p0.ValidatorIndex
+		for idx := 1; idx <= commLen; idx++ {
+			vals = append(vals, eth2p0.ValidatorIndex(idx))
+		}
+
+		return []*eth2v1.BeaconCommittee{
+			{
+				Slot:       slot,
+				Index:      commIdx,
+				Validators: vals,
+			},
+		}, nil
 	}
 
 	vapi, err := validatorapi.NewComponentInsecure(t, eth2Cl, 0)
 	require.NoError(t, err)
 
-	vapi.RegisterAwaitCommitteeSubscriptionResponse(func(_ context.Context, _ int64, validatorIndex int64) (*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-		return vIdxToResp[eth2p0.ValidatorIndex(validatorIndex)], nil
+	subs := []*eth2exp.BeaconCommitteeSubscription{
+		{
+			ValidatorIndex: vIdx,
+			Slot:           slot,
+			CommitteeIndex: commIdx,
+			SlotSignature:  blssig,
+		},
+	}
+
+	vapi.RegisterAggSigDB(func(_ context.Context, duty core.Duty, _ core.PubKey) (core.SignedData, error) {
+		require.Equal(t, core.NewPrepareAggregatorDuty(slot), duty)
+
+		return core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *subs[0]}, nil
 	})
+
+	expected := []*eth2exp.BeaconCommitteeSubscriptionResponse{
+		{
+			ValidatorIndex: vIdx,
+			IsAggregator:   true,
+		},
+	}
 
 	actual, err := vapi.SubmitBeaconCommitteeSubscriptionsV2(ctx, subs)
 	require.NoError(t, err)
-
-	require.Equal(t, expected, actual)
+	require.True(t, reflect.DeepEqual(expected, actual))
 }

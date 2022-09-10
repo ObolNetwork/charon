@@ -50,14 +50,15 @@ func TestCalculateCommitteeSubscriptionResponse(t *testing.T) {
 	sigRoot, err := eth2util.SlotHashRoot(slot)
 	require.NoError(t, err)
 
-	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())
+	slotsPerEpoch, err := bmock.SlotsPerEpoch(ctx)
 	require.NoError(t, err)
 
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
-	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainSelectionProof, epoch, sigRoot)
+	sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainSelectionProof, epoch, sigRoot)
 	require.NoError(t, err)
 
-	sig, _ := tbls.Sign(secret, sigData[:])
+	sig, err := tbls.Sign(secret, sigData[:])
+	require.NoError(t, err)
 	blssig := tblsconv.SigToETH2(sig)
 
 	subscription := eth2exp.BeaconCommitteeSubscription{
