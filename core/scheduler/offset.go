@@ -21,15 +21,14 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// slotOffsets defines the offsets
-// at which duties should be triggered.
+// slotOffsets defines the offsets at which duties should be triggered.
 var slotOffsets = map[core.DutyType]func(time.Duration) time.Duration{
-	core.DutyAttester: fraction(1, 3), // 1/3 slot duration
+	core.DutyAttester:          fraction(1, 3), // 1/3 slot duration
+	core.DutyPrepareAggregator: fraction(2, 3), // 2/3 slot duration
 	// TODO(corver): Add more duties
 }
 
-// fraction returns a function that calculates slot offset
-// based on the fraction x/y of total slot duration.
+// fraction returns a function that calculates slot offset based on the fraction x/y of total slot duration.
 func fraction(x, y int64) func(time.Duration) time.Duration {
 	return func(total time.Duration) time.Duration {
 		return (total * time.Duration(x)) / time.Duration(y)
