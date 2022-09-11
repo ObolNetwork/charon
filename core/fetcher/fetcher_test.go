@@ -65,8 +65,7 @@ func TestFetchAttester(t *testing.T) {
 		pubkeysByIdx[vIdxA]: core.NewAttesterDefinition(&dutyA),
 		pubkeysByIdx[vIdxB]: core.NewAttesterDefinition(&dutyB),
 	}
-	duty := core.Duty{Type: core.DutyAttester, Slot: slot}
-
+	duty := core.NewAttesterDuty(slot)
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 	fetch, err := fetcher.New(bmock)
@@ -92,6 +91,65 @@ func TestFetchAttester(t *testing.T) {
 	err = fetch.Fetch(ctx, duty, defSet)
 	require.NoError(t, err)
 }
+
+// func TestFetchAggregator(t *testing.T) {
+// 	ctx := context.Background()
+//
+// 	const (
+// 		slot    = 1
+// 		vIdxA   = 2
+// 		vIdxB   = 3
+// 		notZero = 99 // Validation require non-zero values
+// 	)
+//
+// 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
+// 		vIdxA: testutil.RandomCorePubKey(t),
+// 		vIdxB: testutil.RandomCorePubKey(t),
+// 	}
+//
+// 	defSet := core.DutyDefinitionSet{
+// 		pubkeysByIdx[vIdxA]: core.NewEmptyDefinition(),
+// 		pubkeysByIdx[vIdxB]: core.NewEmptyDefinition(),
+// 	}
+// 	duty := core.NewAggregatorDuty(slot)
+//
+// 	bmock, err := beaconmock.New()
+// 	require.NoError(t, err)
+// 	fetch, err := fetcher.New(bmock)
+// 	require.NoError(t, err)
+//
+// 	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+// 		require.Equal(t, duty, resDuty)
+// 		require.Len(t, resDataSet, 2)
+//
+// 		// dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.AggregatedAttestation)
+// 		// require.EqualValues(t, slot, dutyDataA.Data.Slot)
+// 		// require.EqualValues(t, vIdxA, dutyDataA.Data.Index)
+// 		//
+// 		// dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.AggregatedAttestation)
+// 		// require.EqualValues(t, slot, dutyDataB.Data.Slot)
+// 		// require.EqualValues(t, vIdxB, dutyDataB.Data.Index)
+//
+// 		return nil
+// 	})
+//
+// 	err = fetch.Fetch(ctx, duty, defSet)
+// 	require.NoError(t, err)
+//
+// 	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+// 		sub := eth2exp.BeaconCommitteeSubscription{
+// 			ValidatorIndex:   0,
+// 			Slot:             0,
+// 			CommitteeIndex:   0,
+// 			CommitteesAtSlot: 0,
+// 			SlotSignature:    eth2p0.BLSSignature{},
+// 		}
+//
+// 		return core.SignedBeaconCommitteeSubscription{
+// 			BeaconCommitteeSubscription: sub,
+// 		}, nil
+// 	})
+// }
 
 func TestFetchProposer(t *testing.T) {
 	ctx := context.Background()
@@ -119,7 +177,7 @@ func TestFetchProposer(t *testing.T) {
 		pubkeysByIdx[vIdxA]: core.NewProposerDefinition(&dutyA),
 		pubkeysByIdx[vIdxB]: core.NewProposerDefinition(&dutyB),
 	}
-	duty := core.Duty{Type: core.DutyProposer, Slot: slot}
+	duty := core.NewProposerDuty(slot)
 
 	randaoA := testutil.RandomCoreSignature()
 	randaoB := testutil.RandomCoreSignature()
@@ -186,7 +244,7 @@ func TestFetchBuilderProposer(t *testing.T) {
 		pubkeysByIdx[vIdxA]: core.NewProposerDefinition(&dutyA),
 		pubkeysByIdx[vIdxB]: core.NewProposerDefinition(&dutyB),
 	}
-	duty := core.Duty{Type: core.DutyBuilderProposer, Slot: slot}
+	duty := core.NewBuilderProposerDuty(slot)
 
 	randaoA := testutil.RandomCoreSignature()
 	randaoB := testutil.RandomCoreSignature()

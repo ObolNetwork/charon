@@ -803,8 +803,7 @@ func (s *SignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 }
 
 // cloneJSONMarshaler clones the marshaler by serialising to-from json
-// since eth2 types contains pointers. The result is stored
-// in the value pointed to by v.
+// since eth2 types contain pointers. The result is stored in the value pointed to by v.
 func cloneJSONMarshaler(data json.Marshaler, v any) error {
 	bytes, err := data.MarshalJSON()
 	if err != nil {
