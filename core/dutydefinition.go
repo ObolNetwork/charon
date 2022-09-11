@@ -16,8 +16,6 @@
 package core
 
 import (
-	"encoding/json"
-
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -78,18 +76,18 @@ func (d ProposerDefinition) MarshalJSON() ([]byte, error) {
 	return d.ProposerDuty.MarshalJSON()
 }
 
-// Definition represents an empty struct implementing DutyDefinition.
-type Definition struct{}
+// EmptyDefinition is an empty implementation of DutyDefinition.
+type EmptyDefinition struct{}
 
-// NewDefinition returns a convenience function that returns a new Definition.
-func NewDefinition() Definition {
-	return Definition{}
+// NewEmptyDefinition returns a convenience function that returns a new EmptyDefinition.
+func NewEmptyDefinition() EmptyDefinition {
+	return EmptyDefinition{}
 }
 
-func (d Definition) Clone() (DutyDefinition, error) { //nolint:revive
-	return Definition{}, nil
+func (EmptyDefinition) Clone() (DutyDefinition, error) {
+	return EmptyDefinition{}, nil
 }
 
-func (d Definition) MarshalJSON() ([]byte, error) {
-	return json.Marshal(d) //nolint:wrapcheck
+func (EmptyDefinition) MarshalJSON() ([]byte, error) {
+	return nil, nil
 }

@@ -176,20 +176,20 @@ func TestSchedulerDuties(t *testing.T) {
 			// All duties grouped in first slot of epoch
 			Name:    "grouped",
 			Factor:  0,
-			Results: 2,
+			Results: 3,
 		},
 		{
 			// All duties spread in first N slots of epoch (N is number of validators)
 			Name:    "spread",
 			Factor:  1,
-			Results: 6,
+			Results: 9,
 		},
 		{
 			// All duties spread in first N slots of epoch (except first proposer errors)
 			Name:     "spread_errors",
 			Factor:   1,
 			PropErrs: 1,
-			Results:  5,
+			Results:  8,
 		},
 	}
 
@@ -317,6 +317,9 @@ func TestScheduler_GetDuty(t *testing.T) {
 	_, err = sched.GetDutyDefinition(context.Background(), core.NewAttesterDuty(0))
 	require.ErrorContains(t, err, "epoch not resolved yet")
 
+	_, err = sched.GetDutyDefinition(context.Background(), core.NewAggregatorDuty(0))
+	require.ErrorContains(t, err, "epoch not resolved yet")
+
 	_, err = sched.GetDutyDefinition(context.Background(), core.NewBuilderProposerDuty(0))
 	require.ErrorContains(t, err, "builder-api not enabled")
 
@@ -324,13 +327,18 @@ func TestScheduler_GetDuty(t *testing.T) {
 	require.NoError(t, err)
 
 	clock.CallbackAfter(t0.Add(slotDuration).Add(time.Second), func() {
-		res, err := sched.GetDutyDefinition(context.Background(), core.Duty{Slot: 0, Type: core.DutyAttester})
-
+		res, err := sched.GetDutyDefinition(context.Background(), core.NewAttesterDuty(0))
 		require.NoError(t, err)
 
 		pubKeys, err := valSet.CorePubKeys()
 		require.NoError(t, err)
 
+		for _, pubKey := range pubKeys {
+			require.NotNil(t, res[pubKey])
+		}
+
+		res, err = sched.GetDutyDefinition(context.Background(), core.NewAggregatorDuty(0))
+		require.NoError(t, err)
 		for _, pubKey := range pubKeys {
 			require.NotNil(t, res[pubKey])
 		}

@@ -311,7 +311,8 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 
 		// Also schedule DutyAggregator.
 		duty = core.NewAggregatorDuty(int64(attDuty.Slot))
-		if !s.setDutyDefinition(duty, pubkey, core.NewDefinition()) {
+
+		if !s.setDutyDefinition(duty, pubkey, core.NewEmptyDefinition()) {
 			log.Info(attCtx, "Couldn't schedule attestation aggregator duty")
 		}
 

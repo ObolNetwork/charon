@@ -21,7 +21,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// slotOffsets defines the offsets at which duties should be triggered.
+// slotOffsets defines the offsets at which the duties should be triggered.
 var slotOffsets = map[core.DutyType]func(time.Duration) time.Duration{
 	core.DutyAttester:          fraction(1, 3), // 1/3 slot duration
 	core.DutyPrepareAggregator: fraction(2, 3), // 2/3 slot duration
