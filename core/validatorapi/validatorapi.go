@@ -663,31 +663,7 @@ func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, sub
 		}
 	}
 
-	var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
-	for slot, data := range psigsBySlot {
-		duty := core.NewPrepareAggregatorDuty(int64(slot))
-		for pk := range data {
-			// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
-			s, err := c.aggSigDBFunc(ctx, duty, pk)
-			if err != nil {
-				return nil, err
-			}
-
-			sub, ok := s.(core.SignedBeaconCommitteeSubscription)
-			if !ok {
-				return nil, errors.New("invalid beacon committee subscription")
-			}
-
-			res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, c.eth2Cl, &sub.BeaconCommitteeSubscription)
-			if err != nil {
-				return nil, err
-			}
-
-			resp = append(resp, res)
-		}
-	}
-
-	return resp, nil
+	return c.getCommResponse(ctx, psigsBySlot)
 }
 
 func (c Component) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
@@ -809,4 +785,32 @@ func (c Component) verifyPartialSig(pubkey core.PubKey, verifyFunc func(pubshare
 	}
 
 	return verifyFunc(pubshare)
+}
+
+func (c Component) getCommResponse(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
+	for slot, data := range psigsBySlot {
+		duty := core.NewPrepareAggregatorDuty(int64(slot))
+		for pk := range data {
+			// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
+			s, err := c.aggSigDBFunc(ctx, duty, pk)
+			if err != nil {
+				return nil, err
+			}
+
+			sub, ok := s.(core.SignedBeaconCommitteeSubscription)
+			if !ok {
+				return nil, errors.New("invalid beacon committee subscription")
+			}
+
+			res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, c.eth2Cl, &sub.BeaconCommitteeSubscription)
+			if err != nil {
+				return nil, err
+			}
+
+			resp = append(resp, res)
+		}
+	}
+
+	return resp, nil
 }
