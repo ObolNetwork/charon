@@ -102,6 +102,10 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		}
 	}()
 
+	if _, err := os.Stat(path.Join(conf.OutputDir, "cluster-definition.json")); err == nil {
+		return errors.New("existing cluster-definition.json found. Try again after deleting it")
+	}
+
 	// Don't allow cluster size to be less than 4.
 	if len(conf.OperatorENRs) < minNodes {
 		return errors.New("insufficient operator ENRs (min = 4)")
