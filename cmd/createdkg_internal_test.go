@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -125,4 +126,18 @@ func TestRequireOperatorENRFlag(t *testing.T) {
 			require.EqualError(t, cmd.Execute(), test.err)
 		})
 	}
+}
+
+func TestExistingClusterDefinition(t *testing.T) {
+	outDir := ".charon"
+	b := []byte("sample definition")
+	require.NoError(t, os.Mkdir(".charon", 0o755))
+	require.NoError(t, os.WriteFile(path.Join(outDir, "cluster-definition.json"), b, 0o600))
+	defer func() {
+		require.NoError(t, os.RemoveAll(outDir))
+	}()
+
+	cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
+	cmd.SetArgs([]string{"dkg", "--operator-enrs=enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u"})
+	require.EqualError(t, cmd.Execute(), "existing cluster-definition.json found. Try again after deleting it")
 }
