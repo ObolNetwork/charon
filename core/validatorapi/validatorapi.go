@@ -141,13 +141,13 @@ type Component struct {
 
 	// Registered input functions
 
-	pubKeyByAttFunc                        func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
-	awaitAttFunc                           func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
-	awaitBlockFunc                         func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
-	awaitBlindedBlockFunc                  func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
-	awaitCommitteeSubscriptionResponseFunc func(ctx context.Context, slot int64, validatorIndex int64) (*eth2exp.BeaconCommitteeSubscriptionResponse, error)
-	dutyDefFunc                            func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
-	subs                                   []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	pubKeyByAttFunc       func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
+	awaitAttFunc          func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
+	awaitBlockFunc        func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
+	awaitBlindedBlockFunc func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
+	aggSigDBFunc          func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
+	dutyDefFunc           func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
+	subs                  []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
 func (c *Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -213,10 +213,9 @@ func (c *Component) RegisterAwaitBlindedBeaconBlock(fn func(ctx context.Context,
 	c.awaitBlindedBlockFunc = fn
 }
 
-// RegisterAwaitCommitteeSubscriptionResponse registers a function to query BeaconCommitteeResponse.
-// It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitCommitteeSubscriptionResponse(fn func(ctx context.Context, slot int64, validatorIndex int64) (*eth2exp.BeaconCommitteeSubscriptionResponse, error)) {
-	c.awaitCommitteeSubscriptionResponseFunc = fn
+// RegisterAggSigDB registers a function to get resolved aggregated signed data from the AggSigDB.
+func (c *Component) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)) {
+	c.aggSigDBFunc = fn
 }
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
@@ -664,18 +663,7 @@ func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, sub
 		}
 	}
 
-	// Query BeaconCommitteeSubscriptionResponse (this is blocking).
-	var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
-	for _, sub := range subscriptions {
-		res, err := c.awaitCommitteeSubscriptionResponseFunc(ctx, int64(sub.Slot), int64(sub.ValidatorIndex))
-		if err != nil {
-			return nil, err
-		}
-
-		resp = append(resp, res)
-	}
-
-	return resp, nil
+	return c.getCommResponse(ctx, psigsBySlot)
 }
 
 func (c Component) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
@@ -797,4 +785,32 @@ func (c Component) verifyPartialSig(pubkey core.PubKey, verifyFunc func(pubshare
 	}
 
 	return verifyFunc(pubshare)
+}
+
+func (c Component) getCommResponse(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
+	for slot, data := range psigsBySlot {
+		duty := core.NewPrepareAggregatorDuty(int64(slot))
+		for pk := range data {
+			// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
+			s, err := c.aggSigDBFunc(ctx, duty, pk)
+			if err != nil {
+				return nil, err
+			}
+
+			sub, ok := s.(core.SignedBeaconCommitteeSubscription)
+			if !ok {
+				return nil, errors.New("invalid beacon committee subscription")
+			}
+
+			res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, c.eth2Cl, &sub.BeaconCommitteeSubscription)
+			if err != nil {
+				return nil, err
+			}
+
+			resp = append(resp, res)
+		}
+	}
+
+	return resp, nil
 }
