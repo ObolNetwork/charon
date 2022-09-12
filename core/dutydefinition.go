@@ -75,3 +75,19 @@ func (d ProposerDefinition) Clone() (DutyDefinition, error) {
 func (d ProposerDefinition) MarshalJSON() ([]byte, error) {
 	return d.ProposerDuty.MarshalJSON()
 }
+
+// EmptyDefinition is an empty implementation of DutyDefinition.
+type EmptyDefinition struct{}
+
+// NewEmptyDefinition returns a convenience function that returns a new EmptyDefinition.
+func NewEmptyDefinition() EmptyDefinition {
+	return EmptyDefinition{}
+}
+
+func (EmptyDefinition) Clone() (DutyDefinition, error) {
+	return EmptyDefinition{}, nil
+}
+
+func (EmptyDefinition) MarshalJSON() ([]byte, error) {
+	return nil, nil
+}

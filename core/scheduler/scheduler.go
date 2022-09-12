@@ -36,7 +36,7 @@ import (
 // delayFunc abstracts slot offset delaying/sleeping for deterministic tests.
 type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
 
-// NewForT returns a new scheduler for testing supporting a fake clock.
+// NewForT returns a new scheduler for testing using a fake clock.
 func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys []core.PubKey,
 	eth2Cl eth2wrap.Client, builderAPI bool,
 ) *Scheduler {
@@ -128,7 +128,7 @@ func (s *Scheduler) Run() error {
 	}
 }
 
-// emitCoreSlot calls all slot subscribes with the provided slot.
+// emitCoreSlot calls all slot subscriptions with the provided slot.
 func (s *Scheduler) emitCoreSlot(ctx context.Context, slot core.Slot) {
 	for _, sub := range s.slotSubs {
 		err := sub(ctx, slot)
@@ -158,8 +158,8 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 
 	defSet, ok := s.getDutyDefinitionSet(duty)
 	if !ok {
-		return nil, errors.New("duty not resolved although epoch is marked as resolved",
-			z.Any("duty", duty))
+		return nil, errors.New("duty not resolved although epoch is resolved",
+			z.Any("duty", duty), z.U64("epoch", epoch))
 	}
 
 	return defSet.Clone() // Clone before returning.
@@ -288,7 +288,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 			continue
 		}
 
-		duty := core.Duty{Slot: int64(attDuty.Slot), Type: core.DutyAttester}
+		duty := core.NewAttesterDuty(int64(attDuty.Slot))
 
 		pubkey, ok := vals.PubKeyFromIndex(attDuty.ValidatorIndex)
 		if !ok {
@@ -306,6 +306,12 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 			z.U64("slot", uint64(attDuty.Slot)),
 			z.U64("commidx", uint64(attDuty.CommitteeIndex)),
 			z.Any("pubkey", pubkey))
+
+		// Schedule aggregation duty as well.
+		aggDuty := core.NewAggregatorDuty(int64(attDuty.Slot))
+		if !s.setDutyDefinition(aggDuty, pubkey, core.NewEmptyDefinition()) {
+			continue
+		}
 	}
 
 	if len(remaining) > 0 {

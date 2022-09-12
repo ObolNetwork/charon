@@ -154,7 +154,7 @@ type Broadcaster interface {
 	Broadcast(context.Context, Duty, PubKey, SignedData) error
 }
 
-// wireFuncs defines the core workflow components as a list input and output functions
+// wireFuncs defines the core workflow components as a list of input and output functions
 // instead as interfaces, since functions are easier to wrap than interfaces.
 type wireFuncs struct {
 	SchedulerSubscribeDuties            func(func(context.Context, Duty, DutyDefinitionSet) error)
