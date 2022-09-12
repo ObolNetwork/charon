@@ -192,7 +192,7 @@ func NewPrepareAggregatorDuty(slot int64) Duty {
 	}
 }
 
-// NewAggregatorDuty returns a new prepare aggregator duty. It is a convenience function that is
+// NewAggregatorDuty returns a new aggregator duty. It is a convenience function that is
 // slightly more readable and concise than the struct literal equivalent:
 //
 //	core.Duty{Slot: slot, Type: core.DutyAggregator}
