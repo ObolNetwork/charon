@@ -80,6 +80,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 		log.Warn(ctx, "Ignoring failed cluster definition signature verification due to --no-verify flag", err)
 	}
 
+	if len(def.DefinitionHash) == 0 { // Ensure we have a definition hash
+		def, err = def.SetDefinitionHashes()
+		if err != nil {
+			return err
+		}
+	}
+
 	if err = checkWrites(conf.DataDir); err != nil {
 		return err
 	}
