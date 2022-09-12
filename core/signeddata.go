@@ -798,7 +798,7 @@ func (s SignedAggregateAndProof) MarshalJSON() ([]byte, error) {
 	return s.SignedAggregateAndProof.MarshalJSON()
 }
 
-func (s SignedAggregateAndProof) UnmarshalJSON(input []byte) error {
+func (s *SignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 	return s.SignedAggregateAndProof.UnmarshalJSON(input)
 }
 

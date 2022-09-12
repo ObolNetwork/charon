@@ -188,7 +188,7 @@ func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty 
 	c.dutyDefFunc = fn
 }
 
-func (c *Component) RegisterAggregatedAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
+func (c *Component) RegisterAwaitAggregatedAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
 	c.awaitAggAttFunc = fn
 }
 
