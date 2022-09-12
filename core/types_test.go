@@ -36,9 +36,10 @@ func TestBackwardsCompatability(t *testing.T) {
 	require.EqualValues(t, 6, core.DutyBuilderRegistration)
 	require.EqualValues(t, 7, core.DutyRandao)
 	require.EqualValues(t, 8, core.DutyPrepareAggregator)
+	require.EqualValues(t, 9, core.DutyAggregator)
 	// Add more types here.
 
-	const sentinel = core.DutyType(9)
+	const sentinel = core.DutyType(10)
 	for i := core.DutyUnknown; i <= sentinel; i++ {
 		if i == core.DutyUnknown {
 			require.False(t, i.Valid())

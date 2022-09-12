@@ -41,9 +41,10 @@ const (
 	DutyBuilderRegistration DutyType = 6
 	DutyRandao              DutyType = 7
 	DutyPrepareAggregator   DutyType = 8
+	DutyAggregator          DutyType = 9
 	// Only ever append new types here...
 
-	dutySentinel DutyType = 9 // Must always be last
+	dutySentinel DutyType = 10 // Must always be last
 )
 
 func (d DutyType) Valid() bool {
@@ -61,6 +62,7 @@ func (d DutyType) String() string {
 		DutyBuilderRegistration: "builder_registration",
 		DutyRandao:              "randao",
 		DutyPrepareAggregator:   "prepare_aggregator",
+		DutyAggregator:          "aggregator",
 	}[d]
 }
 
@@ -187,6 +189,19 @@ func NewPrepareAggregatorDuty(slot int64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyPrepareAggregator,
+	}
+}
+
+// NewAggregatorDuty returns a new aggregator duty. It is a convenience function that is
+// slightly more readable and concise than the struct literal equivalent:
+//
+//	core.Duty{Slot: slot, Type: core.DutyAggregator}
+//	vs
+//	core.NewAggregatorDuty(slot)
+func NewAggregatorDuty(slot int64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutyAggregator,
 	}
 }
 
