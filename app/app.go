@@ -159,7 +159,7 @@ func Run(ctx context.Context, conf Config) (err error) { //nolint:nonamedreturn 
 		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
 	}
 
-	if conf.NoVerify { // Ensure we have a definition hash
+	if len(lock.LockHash) == 0 { // Ensure we have a lock hash
 		lock, err = lock.SetLockHash()
 		if err != nil {
 			return err
