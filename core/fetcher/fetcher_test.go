@@ -17,6 +17,7 @@ package fetcher_test
 
 import (
 	"context"
+	"math/rand"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/fetcher"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -92,64 +94,96 @@ func TestFetchAttester(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// func TestFetchAggregator(t *testing.T) {
-// 	ctx := context.Background()
-//
-// 	const (
-// 		slot    = 1
-// 		vIdxA   = 2
-// 		vIdxB   = 3
-// 		notZero = 99 // Validation require non-zero values
-// 	)
-//
-// 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
-// 		vIdxA: testutil.RandomCorePubKey(t),
-// 		vIdxB: testutil.RandomCorePubKey(t),
-// 	}
-//
-// 	defSet := core.DutyDefinitionSet{
-// 		pubkeysByIdx[vIdxA]: core.NewEmptyDefinition(),
-// 		pubkeysByIdx[vIdxB]: core.NewEmptyDefinition(),
-// 	}
-// 	duty := core.NewAggregatorDuty(slot)
-//
-// 	bmock, err := beaconmock.New()
-// 	require.NoError(t, err)
-// 	fetch, err := fetcher.New(bmock)
-// 	require.NoError(t, err)
-//
-// 	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
-// 		require.Equal(t, duty, resDuty)
-// 		require.Len(t, resDataSet, 2)
-//
-// 		// dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.AggregatedAttestation)
-// 		// require.EqualValues(t, slot, dutyDataA.Data.Slot)
-// 		// require.EqualValues(t, vIdxA, dutyDataA.Data.Index)
-// 		//
-// 		// dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.AggregatedAttestation)
-// 		// require.EqualValues(t, slot, dutyDataB.Data.Slot)
-// 		// require.EqualValues(t, vIdxB, dutyDataB.Data.Index)
-//
-// 		return nil
-// 	})
-//
-// 	err = fetch.Fetch(ctx, duty, defSet)
-// 	require.NoError(t, err)
-//
-// 	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
-// 		sub := eth2exp.BeaconCommitteeSubscription{
-// 			ValidatorIndex:   0,
-// 			Slot:             0,
-// 			CommitteeIndex:   0,
-// 			CommitteesAtSlot: 0,
-// 			SlotSignature:    eth2p0.BLSSignature{},
-// 		}
-//
-// 		return core.SignedBeaconCommitteeSubscription{
-// 			BeaconCommitteeSubscription: sub,
-// 		}, nil
-// 	})
-// }
+func TestFetchAggregator(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		slot     = 1
+		vIdxA    = 2
+		vIdxB    = 3
+		commIdxA = 4
+		commIdxB = 5
+		commLen  = 6
+	)
+
+	duty := core.NewAggregatorDuty(slot)
+
+	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
+		vIdxA: testutil.RandomCorePubKey(t),
+		vIdxB: testutil.RandomCorePubKey(t),
+	}
+
+	defSet := core.DutyDefinitionSet{
+		pubkeysByIdx[vIdxA]: core.NewEmptyDefinition(),
+		pubkeysByIdx[vIdxB]: core.NewEmptyDefinition(),
+	}
+
+	signedCommSubByPubKey := map[core.PubKey]core.SignedData{
+		pubkeysByIdx[vIdxA]: randomSignedBeaconCommitteeSubscription(vIdxA, slot, commIdxA),
+		pubkeysByIdx[vIdxB]: randomSignedBeaconCommitteeSubscription(vIdxB, slot, commIdxB),
+	}
+
+	attByPubKey := map[core.PubKey]core.SignedData{
+		pubkeysByIdx[vIdxA]: core.Attestation{
+			Attestation: *testutil.RandomAttestation(),
+		},
+		pubkeysByIdx[vIdxB]: core.Attestation{
+			Attestation: *testutil.RandomAttestation(),
+		},
+	}
+
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	bmock.BeaconCommitteesAtEpochFunc = func(_ context.Context, _ string, _ eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
+		return []*eth2v1.BeaconCommittee{
+			beaconCommittee(commIdxA, commLen),
+			beaconCommittee(commIdxB, commLen),
+		}, nil
+	}
+
+	bmock.AggregateAttestationFunc = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
+		for _, att := range attByPubKey {
+			a := att.(core.Attestation)
+			if a.Data.BeaconBlockRoot == root {
+				return &a.Attestation, nil
+			}
+		}
+
+		return &eth2p0.Attestation{}, nil
+	}
+
+	fetch, err := fetcher.New(bmock)
+	require.NoError(t, err)
+
+	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+		if duty.Type == core.DutyAttester {
+			return attByPubKey[key], nil
+		}
+
+		return signedCommSubByPubKey[key], nil
+	})
+
+	err = fetch.Fetch(ctx, duty, defSet)
+	require.NoError(t, err)
+
+	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+		require.Equal(t, duty, resDuty)
+		require.Len(t, resDataSet, 2)
+
+		for pubkey, aggAtt := range resDataSet {
+			aggregated, ok := aggAtt.(core.AggregatedAttestation)
+			require.True(t, ok)
+
+			att, ok := attByPubKey[pubkey].(core.Attestation)
+			require.True(t, ok)
+
+			require.Equal(t, aggregated.Attestation, att.Attestation)
+		}
+
+		return nil
+	})
+}
 
 func TestFetchProposer(t *testing.T) {
 	ctx := context.Background()
@@ -308,5 +342,35 @@ func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block co
 		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
 	default:
 		require.Fail(t, "invalid block")
+	}
+}
+
+// randomSignedBeaconCommitteeSubscription returns a SignedBeaconCommitteeSubscription with the inputs and a random slot signature.
+func randomSignedBeaconCommitteeSubscription(vIdx, slot, commIdx int) core.SignedBeaconCommitteeSubscription {
+	return core.SignedBeaconCommitteeSubscription{
+		BeaconCommitteeSubscription: eth2exp.BeaconCommitteeSubscription{
+			ValidatorIndex:   eth2p0.ValidatorIndex(vIdx),
+			Slot:             eth2p0.Slot(slot),
+			CommitteeIndex:   eth2p0.CommitteeIndex(commIdx),
+			CommitteesAtSlot: rand.Uint64(),
+			SlotSignature:    testutil.RandomEth2Signature(),
+		},
+	}
+}
+
+// beaconCommittee returns a BeaconCommittee with the given committee index and a list of commLen validator indexes.
+func beaconCommittee(commIdx, commLen int) *eth2v1.BeaconCommittee {
+	var (
+		slot = eth2p0.Slot(1)
+		vals []eth2p0.ValidatorIndex
+	)
+	for idx := 1; idx <= commLen; idx++ {
+		vals = append(vals, eth2p0.ValidatorIndex(idx))
+	}
+
+	return &eth2v1.BeaconCommittee{
+		Slot:       slot,
+		Index:      eth2p0.CommitteeIndex(commIdx),
+		Validators: vals,
 	}
 }

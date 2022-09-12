@@ -142,12 +142,12 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 	resp := make(core.UnsignedDataSet)
 	for pubkey := range defSet {
 		// Query AggSigDB for DutyPrepareAggregator to get beacon committee subscription.
-		aggData, err := f.aggSigDBFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey)
+		prepAggData, err := f.aggSigDBFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
 
-		sub, ok := aggData.(core.SignedBeaconCommitteeSubscription)
+		sub, ok := prepAggData.(core.SignedBeaconCommitteeSubscription)
 		if !ok {
 			return core.UnsignedDataSet{}, errors.New("invalid beacon committee subscription")
 		}

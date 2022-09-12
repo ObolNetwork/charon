@@ -122,7 +122,7 @@ func TestIsAggregator(t *testing.T) {
 	})
 }
 
-// beaconCommittees returns a BeaconCommittee with the list of commLen validator indexes.
+// beaconCommittee returns a BeaconCommittee with the list of commLen validator indexes.
 func beaconCommittee(commLen int) *eth2v1.BeaconCommittee {
 	var (
 		slot    = eth2p0.Slot(1)

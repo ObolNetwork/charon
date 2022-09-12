@@ -81,6 +81,7 @@ type attestationDataJSON struct {
 	Duty *eth2v1.AttesterDuty    `json:"attestation_duty"`
 }
 
+// AggregatedAttestation wraps Attestation and implements the UnsignedData interface.
 type AggregatedAttestation struct {
 	eth2p0.Attestation
 }
