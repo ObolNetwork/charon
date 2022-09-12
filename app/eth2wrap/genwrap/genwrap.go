@@ -89,6 +89,8 @@ type Client interface {
 
 	// interfaces defines all the interfaces to implement and whether to measure latency for each.
 	interfaces = map[string]bool{
+		"AggregateAttestationProvider":       true,
+		"AggregateAttestationsSubmitter":     true,
 		"AttestationDataProvider":            true,
 		"AttestationsSubmitter":              true,
 		"AttesterDutiesProvider":             true,

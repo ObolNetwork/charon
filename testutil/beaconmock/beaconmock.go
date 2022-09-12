@@ -140,6 +140,8 @@ type Mock struct {
 	SubmitValidatorRegistrationsFunc       func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error
 	SlotsPerEpochFunc                      func(context.Context) (uint64, error)
 	SubmitBeaconCommitteeSubscriptionsFunc func(context.Context, []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error)
+	AggregateAttestationFunc               func(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)
+	SubmitAggregateAttestationsFunc        func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
 }
 
 func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
@@ -212,6 +214,14 @@ func (m Mock) SubmitValidatorRegistrations(ctx context.Context, registrations []
 
 func (m Mock) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
 	return m.SubmitBeaconCommitteeSubscriptionsFunc(ctx, subscriptions)
+}
+
+func (m Mock) AggregateAttestation(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error) {
+	return m.AggregateAttestationFunc(ctx, slot, attestationDataRoot)
+}
+
+func (m Mock) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
+	return m.SubmitAggregateAttestationsFunc(ctx, aggregateAndProofs)
 }
 
 func (m Mock) SlotsPerEpoch(ctx context.Context) (uint64, error) {

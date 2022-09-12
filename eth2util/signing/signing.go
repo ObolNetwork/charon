@@ -43,8 +43,8 @@ const (
 	DomainExit               DomainName = "DOMAIN_VOLUNTARY_EXIT"
 	DomainApplicationBuilder DomainName = "DOMAIN_APPLICATION_BUILDER"
 	DomainSelectionProof     DomainName = "DOMAIN_SELECTION_PROOF"
+	DomainAggregateAndProof  DomainName = "DOMAIN_AGGREGATE_AND_PROOF"
 	// DomainDeposit        	         DomainName = "DOMAIN_DEPOSIT"
-	// DomainAggregateAndProof           DomainName = "DOMAIN_AGGREGATE_AND_PROOF"
 	// DomainSyncCommittee               DomainName = "DOMAIN_SYNC_COMMITTEE"
 	// DomainSyncCommitteeSelectionProof DomainName = "DOMAIN_SYNC_COMMITTEE_SELECTION_PROOF"
 	// DomainContributionAndProof        DomainName = "DOMAIN_CONTRIBUTION_AND_PROOF".
@@ -200,6 +200,20 @@ func VerifyBeaconCommitteeSubscription(ctx context.Context, eth2Cl eth2wrap.Clie
 	}
 
 	return verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, sub.SlotSignature, pubkey)
+}
+
+func VerifyAggregateAndProof(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.SignedAggregateAndProof) error {
+	epoch, err := epochFromSlot(ctx, eth2Cl, agg.Message.Aggregate.Data.Slot)
+	if err != nil {
+		return err
+	}
+
+	sigRoot, err := agg.Message.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	return verify(ctx, eth2Cl, DomainAggregateAndProof, epoch, sigRoot, agg.Signature, pubkey)
 }
 
 // verify returns an error if the signature doesn't match the eth2 domain signed root.
