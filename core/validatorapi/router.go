@@ -55,6 +55,8 @@ import (
 // Handler defines the request handler providing the business logic
 // for the validator API router.
 type Handler interface {
+	eth2client.AggregateAttestationProvider
+	eth2client.AggregateAttestationsSubmitter
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
@@ -150,6 +152,16 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 			Name:    "submit_beacon_committee_subscriptions_v2",
 			Path:    "/eth/v2/validator/beacon_committee_subscriptions",
 			Handler: submitBeaconCommitteeSubscriptionsV2(h),
+		},
+		{
+			Name:    "aggregate_attestation",
+			Path:    "/eth/v1/validator/aggregate_attestation",
+			Handler: aggregateAttestation(h),
+		},
+		{
+			Name:    "submit_aggregate_and_proofs",
+			Path:    "/eth/v1/validator/aggregate_and_proofs",
+			Handler: submitAggregateAttestations(h),
 		},
 	}
 
@@ -264,7 +276,7 @@ func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
 
 // attestationData returns a handler function for the attestation data endpoint.
 func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+	return func(ctx context.Context, params map[string]string, query url.Values, _ []byte) (interface{}, error) {
 		slot, err := uintQuery(query, "slot")
 		if err != nil {
 			return nil, err
@@ -565,6 +577,53 @@ func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
 func tekuProposerConfig(p TekuProposerConfigProvider) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, _ []byte) (interface{}, error) {
 		return p.TekuProposerConfig(ctx)
+	}
+}
+
+func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, _ []byte) (interface{}, error) {
+		slot, err := uintQuery(query, "slot")
+		if err != nil {
+			return nil, err
+		}
+
+		var attDataRoot eth2p0.Root
+		b, err := hexQuery(query, "attestation_data_root")
+		if err != nil {
+			return nil, err
+		}
+		if len(b) != len(attDataRoot) {
+			return nil, errors.New("input attestation_data_root has wrong length")
+		}
+		copy(attDataRoot[:], b)
+
+		data, err := p.AggregateAttestation(ctx, eth2p0.Slot(slot), attDataRoot)
+		if err != nil {
+			return nil, err
+		}
+
+		return struct {
+			Data *eth2p0.Attestation `json:"data"`
+		}{
+			Data: data,
+		}, nil
+	}
+}
+
+func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		var aggs []*eth2p0.SignedAggregateAndProof
+		err := json.Unmarshal(body, &aggs)
+		if err != nil {
+			return nil, errors.Wrap(err, "unmarshal signed aggregate and proofs")
+		}
+
+		err = s.SubmitAggregateAttestations(ctx, aggs)
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, nil
 	}
 }
 
