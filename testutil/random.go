@@ -347,6 +347,21 @@ func RandomBeaconCommitteeSubscription() *eth2exp.BeaconCommitteeSubscription {
 	}
 }
 
+func RandomSignedAggregateAndProof() *eth2p0.SignedAggregateAndProof {
+	return &eth2p0.SignedAggregateAndProof{
+		Message:   RandomAggregateAndProof(),
+		Signature: RandomEth2Signature(),
+	}
+}
+
+func RandomAggregateAndProof() *eth2p0.AggregateAndProof {
+	return &eth2p0.AggregateAndProof{
+		AggregatorIndex: RandomVIdx(),
+		Aggregate:       RandomAttestation(),
+		SelectionProof:  RandomEth2Signature(),
+	}
+}
+
 func RandomSyncAggregate(t *testing.T) *altair.SyncAggregate {
 	t.Helper()
 

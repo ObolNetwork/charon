@@ -155,6 +155,18 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		}
 
 		return err
+	case core.DutyAggregator:
+		aggAndProof, ok := aggData.(core.SignedAggregateAndProof)
+		if !ok {
+			return errors.New("invalid aggregate and proof")
+		}
+
+		err = b.eth2Cl.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{&aggAndProof.SignedAggregateAndProof})
+		if err == nil {
+			log.Info(ctx, "Attestation aggregation successfully submitted to beacon node", nil)
+		}
+
+		return err
 	default:
 		return errors.New("unsupported duty type")
 	}
