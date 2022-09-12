@@ -1267,3 +1267,52 @@ func TestComponent_SubmitBeaconCommitteeSubscriptionsV2(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, reflect.DeepEqual(expected, actual))
 }
+
+func TestComponent_SubmitAggregateAttestations(t *testing.T) {
+	ctx := context.Background()
+
+	const vIdx = 1
+
+	agg := &eth2p0.SignedAggregateAndProof{
+		Message: &eth2p0.AggregateAndProof{
+			AggregatorIndex: vIdx,
+			Aggregate:       testutil.RandomAttestation(),
+			SelectionProof:  testutil.RandomEth2Signature(),
+		},
+		Signature: testutil.RandomEth2Signature(),
+	}
+
+	slot := agg.Message.Aggregate.Data.Slot
+	pubkey := beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
+
+	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	vapi.RegisterAggSigDB(func(_ context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+		require.Equal(t, core.NewPrepareAggregatorDuty(int64(slot)), duty)
+
+		eth2Pubkey, err := key.ToETH2()
+		require.NoError(t, err)
+		require.Equal(t, eth2Pubkey, pubkey)
+
+		return core.NewBeaconCommitteeSubscription(&eth2exp.BeaconCommitteeSubscription{SlotSignature: agg.Message.SelectionProof}), nil
+	})
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.NewAggregatorDuty(int64(slot)), duty)
+
+		pk, err := core.PubKeyFromBytes(pubkey[:])
+		require.NoError(t, err)
+
+		data, ok := set[pk]
+		require.True(t, ok)
+		require.Equal(t, core.NewPartialSignedAggregateAndProof(agg, 0), data)
+
+		return nil
+	})
+
+	require.NoError(t, vapi.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{agg}))
+}

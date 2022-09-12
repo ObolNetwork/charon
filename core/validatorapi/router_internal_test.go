@@ -622,6 +622,46 @@ func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
+func TestSubmitAggregateAttestations(t *testing.T) {
+	ctx := context.Background()
+
+	const vIdx = 1
+
+	agg := &eth2p0.SignedAggregateAndProof{
+		Message: &eth2p0.AggregateAndProof{
+			AggregatorIndex: vIdx,
+			Aggregate:       testutil.RandomAttestation(),
+			SelectionProof:  testutil.RandomEth2Signature(),
+		},
+		Signature: testutil.RandomEth2Signature(),
+	}
+
+	testHandler := testHandler{SubmitAggregateAttestationsFunc: func(_ context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
+		require.Equal(t, agg, aggregateAndProofs[0])
+
+		return nil
+	}}
+	proxy := httptest.NewServer(testHandler.newBeaconHandler(t))
+	defer proxy.Close()
+
+	r, err := NewRouter(testHandler, testBeaconAddr{addr: proxy.URL})
+	require.NoError(t, err)
+
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	var eth2Svc eth2client.Service
+	eth2Svc, err = eth2http.New(ctx,
+		eth2http.WithLogLevel(1),
+		eth2http.WithAddress(server.URL),
+	)
+	require.NoError(t, err)
+
+	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service))
+	err = eth2Cl.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{agg})
+	require.NoError(t, err)
+}
+
 // testRouter is a helper function to test router endpoints with an eth2http client. The outer test
 // provides the mocked test handler and a callback that does the client side test.
 func testRouter(t *testing.T, handler testHandler, callback func(context.Context, *eth2http.Service)) {
@@ -677,6 +717,7 @@ type testHandler struct {
 	SubmitVoluntaryExitFunc                  func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
 	SubmitValidatorRegistrationsFunc         func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
 	SubmitBeaconCommitteeSubscriptionsV2Func func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error)
+	SubmitAggregateAttestationsFunc          func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
 }
 
 func (h testHandler) AttestationData(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
@@ -725,6 +766,10 @@ func (h testHandler) SubmitValidatorRegistrations(ctx context.Context, registrat
 
 func (h testHandler) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
 	return h.SubmitBeaconCommitteeSubscriptionsV2Func(ctx, subscriptions)
+}
+
+func (h testHandler) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
+	return h.SubmitAggregateAttestationsFunc(ctx, aggregateAndProofs)
 }
 
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the
