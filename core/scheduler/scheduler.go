@@ -300,23 +300,18 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 			continue
 		}
 
-		attCtx := log.WithCtx(ctx,
+		log.Info(ctx, "Resolved attester duty",
 			z.U64("epoch", uint64(slot.Epoch())),
 			z.U64("vidx", uint64(attDuty.ValidatorIndex)),
 			z.U64("slot", uint64(attDuty.Slot)),
 			z.U64("commidx", uint64(attDuty.CommitteeIndex)),
 			z.Any("pubkey", pubkey))
 
-		log.Info(attCtx, "Resolved attester duty")
-
-		// Also schedule DutyAggregator.
-		duty = core.NewAggregatorDuty(int64(attDuty.Slot))
-
-		if !s.setDutyDefinition(duty, pubkey, core.NewEmptyDefinition()) {
-			log.Info(attCtx, "Couldn't schedule attestation aggregator duty")
+		// Schedule aggregation duty as well.
+		aggDuty := core.NewAggregatorDuty(int64(attDuty.Slot))
+		if !s.setDutyDefinition(aggDuty, pubkey, core.NewEmptyDefinition()) {
+			continue
 		}
-
-		log.Info(attCtx, "Scheduled attestation aggregator duty")
 	}
 
 	if len(remaining) > 0 {
