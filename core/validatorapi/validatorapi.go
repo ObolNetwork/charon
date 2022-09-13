@@ -157,7 +157,7 @@ func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot i
 	c.awaitBlockFunc = fn
 }
 
-// RegisterAwaitBlindedBeaconBlock registers a function to query unsigned blinded block.
+// RegisterAwaitBlindedBeaconBlock registers a function to query unsigned blinded beacon block.
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterAwaitBlindedBeaconBlock(fn func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)) {
 	c.awaitBlindedBlockFunc = fn
@@ -181,6 +181,17 @@ func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty 
 	c.dutyDefFunc = fn
 }
 
+// RegisterAwaitAggregatedAttestation registers a function to query aggregated attestation.
+// It supports a single function, since it is an input of the component.
+func (c *Component) RegisterAwaitAggregatedAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
+	c.awaitAggAttFunc = fn
+}
+
+// RegisterAggSigDB registers a function to get resolved aggregated signed data from AggSigDB.
+func (c *Component) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)) {
+	c.aggSigDBFunc = fn
+}
+
 // Subscribe registers a partial signed data set store function.
 // It supports multiple functions since it is the output of the component.
 func (c *Component) Subscribe(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
@@ -193,15 +204,6 @@ func (c *Component) Subscribe(fn func(context.Context, core.Duty, core.ParSigned
 
 		return fn(ctx, duty, clone)
 	})
-}
-
-func (c *Component) RegisterAwaitAggregatedAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
-	c.awaitAggAttFunc = fn
-}
-
-// RegisterAggSigDB registers a function to get resolved aggregated signed data from AggSigDB.
-func (c *Component) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)) {
-	c.aggSigDBFunc = fn
 }
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.

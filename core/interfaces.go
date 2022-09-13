@@ -48,8 +48,7 @@ type Fetcher interface {
 	RegisterAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
 }
 
-// DutyDB persists unsigned duty data sets and makes it available for querying. It also acts
-// as slashing database.
+// DutyDB persists unsigned duty data sets and makes it available for querying. It also acts as slashing database.
 type DutyDB interface {
 	// Store stores the unsigned duty data set.
 	Store(context.Context, Duty, UnsignedDataSet) error
@@ -81,8 +80,7 @@ type Consensus interface {
 	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
 }
 
-// ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the
-// DutyDB and stores partial signed data in the ParSigDB.
+// ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
 	// RegisterAwaitBeaconBlock registers a function to query a unsigned beacon block by slot.
 	RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error))
@@ -99,14 +97,14 @@ type ValidatorAPI interface {
 	// RegisterGetDutyDefinition registers a function to query duty definitions.
 	RegisterGetDutyDefinition(func(context.Context, Duty) (DutyDefinitionSet, error))
 
-	// Subscribe registers a function to store partially signed data sets.
-	Subscribe(func(context.Context, Duty, ParSignedDataSet) error)
-
-	// RegisterAwaitAggregatedAttestation registers a function to query attestation.
+	// RegisterAwaitAggregatedAttestation registers a function to query aggregated attestation.
 	RegisterAwaitAggregatedAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error))
 
 	// RegisterAggSigDB registers a function to query aggregated signed data from aggSigDB.
 	RegisterAggSigDB(fn func(context.Context, Duty, PubKey) (SignedData, error))
+
+	// Subscribe registers a function to store partially signed data sets.
+	Subscribe(func(context.Context, Duty, ParSignedDataSet) error)
 }
 
 // ParSigDB persists partial signatures and sends them to the
