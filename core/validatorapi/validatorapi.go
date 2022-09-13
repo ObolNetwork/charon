@@ -678,6 +678,10 @@ func (c Component) AggregateAttestation(ctx context.Context, slot eth2p0.Slot, a
 }
 
 // SubmitAggregateAttestations receives partially signed aggregateAndProofs.
+// - It queries aggsigdb to get selection proof (slot signature).
+// - It overrides selection proof with the above obtained from aggsigdb.
+// - It verifies partial signature on AggregateAndProof.
+// - It then calls all the subscribers for further steps on partially signed aggregate and proof.
 func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
 	var valIdxs []eth2p0.ValidatorIndex
 	for _, agg := range aggregateAndProofs {
@@ -689,9 +693,10 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 		return err
 	}
 
-	// Get selection proofs (slot signatures).
+	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 	for _, agg := range aggregateAndProofs {
-		duty := core.NewPrepareAggregatorDuty(int64(agg.Message.Aggregate.Data.Slot))
+		slot := agg.Message.Aggregate.Data.Slot
+		duty := core.NewPrepareAggregatorDuty(int64(slot))
 		eth2Pubkey, err := vals[agg.Message.AggregatorIndex].PubKey(ctx)
 		if err != nil {
 			return err
@@ -702,6 +707,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 			return err
 		}
 
+		// Get selection proof (slot signature).
 		// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
 		s, err := c.aggSigDBFunc(ctx, duty, pk)
 		if err != nil {
@@ -715,19 +721,6 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 
 		// Override selection proof with slot signature from subscription.
 		agg.Message.SelectionProof = sub.SlotSignature
-	}
-
-	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
-	for _, agg := range aggregateAndProofs {
-		eth2Pubkey, err := vals[agg.Message.AggregatorIndex].PubKey(ctx)
-		if err != nil {
-			return err
-		}
-
-		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
-		if err != nil {
-			return err
-		}
 
 		// Verify Signature.
 		err = c.verifyPartialSig(pk, func(pubshare *bls_sig.PublicKey) error {
@@ -737,12 +730,12 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 			return err
 		}
 
-		_, ok := psigsBySlot[agg.Message.Aggregate.Data.Slot]
+		_, ok = psigsBySlot[slot]
 		if !ok {
-			psigsBySlot[agg.Message.Aggregate.Data.Slot] = make(core.ParSignedDataSet)
+			psigsBySlot[slot] = make(core.ParSignedDataSet)
 		}
 
-		psigsBySlot[agg.Message.Aggregate.Data.Slot][pk] = core.NewPartialSignedAggregateAndProof(agg, c.shareIdx)
+		psigsBySlot[slot][pk] = core.NewPartialSignedAggregateAndProof(agg, c.shareIdx)
 	}
 
 	for slot, data := range psigsBySlot {
