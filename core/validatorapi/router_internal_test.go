@@ -567,7 +567,7 @@ func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
 
 	bmock, err := beaconmock.New(beaconmock.WithAttestationAggregation(aggregators))
 	require.NoError(t, err)
-	testHandler := testHandler{SubmitBeaconCommitteeSubscriptionsV2Func: bmock.SubmitBeaconCommitteeSubscriptionsFunc}
+	testHandler := testHandler{SubmitBeaconCommitteeSubscriptionsV2Func: bmock.SubmitBeaconCommitteeSubscriptionsV2Func}
 
 	proxy := httptest.NewServer(testHandler.newBeaconHandler(t))
 	defer proxy.Close()

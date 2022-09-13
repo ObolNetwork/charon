@@ -40,6 +40,7 @@ type Client interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
+	eth2client.BeaconCommitteeSubscriptionsSubmitter
 	eth2client.BeaconCommitteesProvider
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
@@ -269,6 +270,25 @@ func (m multi) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSigne
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitBeaconBlock(ctx, block)
+		},
+	)
+
+	if err != nil {
+		incError(label)
+		err = errors.Wrap(err, "eth2wrap")
+	}
+
+	return err
+}
+
+// SubmitBeaconCommitteeSubscriptions subscribes to beacon committees.
+func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscriptions []*apiv1.BeaconCommitteeSubscription) error {
+	const label = "submit_beacon_committee_subscriptions"
+	defer latency(label)()
+
+	err := submit(ctx, m.clients,
+		func(ctx context.Context, cl Client) error {
+			return cl.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
 		},
 	)
 

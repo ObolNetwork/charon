@@ -17,6 +17,7 @@ package bcast_test
 
 import (
 	"context"
+	mrand "math/rand"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -28,7 +29,11 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/bcast"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
+	"github.com/obolnetwork/charon/eth2util/signing"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -176,7 +181,7 @@ func TestBroadcastExit(t *testing.T) {
 	<-ctx.Done()
 }
 
-func TestBroadcastBeaconCommitteeSubscription(t *testing.T) {
+func TestBroadcastBeaconCommitteeSubscriptionV2(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	mock, err := beaconmock.New()
 	require.NoError(t, err)
@@ -184,11 +189,96 @@ func TestBroadcastBeaconCommitteeSubscription(t *testing.T) {
 	subscription := testutil.RandomBeaconCommitteeSubscription()
 	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *subscription}
 
-	mock.SubmitBeaconCommitteeSubscriptionsFunc = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
 		require.Equal(t, aggData.BeaconCommitteeSubscription, *subscriptions[0])
 		cancel()
 
 		return []*eth2exp.BeaconCommitteeSubscriptionResponse{}, ctx.Err()
+	}
+
+	// To avoid further call to v1 SubmitBeaconCommitteeSubscriptions.
+	mock.SlotsPerEpochFunc = func(ctx context.Context) (uint64, error) {
+		return 0, ctx.Err()
+	}
+
+	bcaster, err := bcast.New(ctx, mock)
+	require.NoError(t, err)
+
+	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyPrepareAggregator}, "", aggData)
+	require.ErrorIs(t, err, context.Canceled)
+
+	<-ctx.Done()
+}
+
+func TestBroadcastBeaconCommitteeSubscriptionV1(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	const (
+		slot    = 1
+		vIdx    = 1
+		commIdx = 1
+		commLen = 43
+	)
+
+	mock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	_, secret, err := tbls.KeygenWithSeed(mrand.New(mrand.NewSource(1)))
+	require.NoError(t, err)
+
+	sigRoot, err := eth2util.SlotHashRoot(slot)
+	require.NoError(t, err)
+
+	slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
+	require.NoError(t, err)
+
+	sigData, err := signing.GetDataRoot(ctx, mock, signing.DomainSelectionProof, eth2p0.Epoch(uint64(1)/slotsPerEpoch), sigRoot)
+	require.NoError(t, err)
+
+	sig, _ := tbls.Sign(secret, sigData[:])
+	blssig := tblsconv.SigToETH2(sig)
+
+	mock.BeaconCommitteesAtEpochFunc = func(_ context.Context, stateID string, epoch eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
+		require.Equal(t, "head", stateID)
+		require.Equal(t, eth2p0.Epoch(uint64(slot)/slotsPerEpoch), epoch)
+
+		var vals []eth2p0.ValidatorIndex
+		for idx := 1; idx <= commLen; idx++ {
+			vals = append(vals, eth2p0.ValidatorIndex(idx))
+		}
+
+		return []*eth2v1.BeaconCommittee{
+			{
+				Slot:       slot,
+				Index:      commIdx,
+				Validators: vals,
+			},
+		}, nil
+	}
+
+	subscription := eth2exp.BeaconCommitteeSubscription{
+		ValidatorIndex: vIdx,
+		Slot:           slot,
+		CommitteeIndex: commIdx,
+		SlotSignature:  blssig,
+	}
+	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: subscription}
+
+	mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+		require.Equal(t, aggData.BeaconCommitteeSubscription, *subscriptions[0])
+
+		return nil, errors.New("404 not found")
+	}
+	mock.SubmitBeaconCommitteeSubscriptionsFunc = func(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error {
+		require.Equal(t, eth2v1.BeaconCommitteeSubscription{
+			ValidatorIndex: vIdx,
+			Slot:           slot,
+			CommitteeIndex: commIdx,
+			IsAggregator:   true,
+		}, *subscriptions[0])
+		cancel()
+
+		return ctx.Err()
 	}
 
 	bcaster, err := bcast.New(ctx, mock)

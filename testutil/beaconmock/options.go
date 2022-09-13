@@ -337,10 +337,10 @@ func WithClock(clock clockwork.Clock) Option {
 	}
 }
 
-// WithAttestationAggregation configures the mock to override SubmitBeaconCommitteeSubscriptionsFunc.
+// WithAttestationAggregation configures the mock to override SubmitBeaconCommitteeSubscriptionsV2Func.
 func WithAttestationAggregation(aggregators map[eth2p0.Slot]eth2p0.ValidatorIndex) Option {
 	return func(mock *Mock) {
-		mock.SubmitBeaconCommitteeSubscriptionsFunc = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+		mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
 			var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
 			for _, sub := range subscriptions {
 				resp = append(resp, &eth2exp.BeaconCommitteeSubscriptionResponse{

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -144,12 +145,35 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		// Randao is an internal duty, not broadcasted to beacon chain
 		return nil
 	case core.DutyPrepareAggregator:
-		subscription, ok := aggData.(core.SignedBeaconCommitteeSubscription)
+		sub, ok := aggData.(core.SignedBeaconCommitteeSubscription)
 		if !ok {
-			return errors.New("invalid beacon committee subscription")
+			return errors.New("invalid beacon committee sub")
 		}
 
-		_, err = b.eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, []*eth2exp.BeaconCommitteeSubscription{&subscription.BeaconCommitteeSubscription})
+		_, err = b.eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, []*eth2exp.BeaconCommitteeSubscription{&sub.BeaconCommitteeSubscription})
+		if err == nil {
+			return nil
+		}
+
+		log.Debug(ctx, "V2 submit beacon committee subscriptions failed")
+
+		// Beacon node doesn't support v2 SubmitBeaconCommitteeSubscriptions endpoint (yet). Try with v1.
+		res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, b.eth2Cl, &sub.BeaconCommitteeSubscription)
+		if err != nil {
+			return err
+		}
+
+		subs := []*eth2v1.BeaconCommitteeSubscription{
+			{
+				ValidatorIndex:   sub.ValidatorIndex,
+				Slot:             sub.Slot,
+				CommitteeIndex:   sub.CommitteeIndex,
+				CommitteesAtSlot: sub.CommitteesAtSlot,
+				IsAggregator:     res.IsAggregator,
+			},
+		}
+
+		err = b.eth2Cl.SubmitBeaconCommitteeSubscriptions(ctx, subs)
 		if err == nil {
 			log.Info(ctx, "Beacon committee subscription successfully submitted to beacon node", nil)
 		}

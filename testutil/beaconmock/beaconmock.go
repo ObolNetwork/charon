@@ -121,25 +121,26 @@ type Mock struct {
 	overrides  []staticOverride
 	clock      clockwork.Clock
 
-	AttestationDataFunc                    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
-	AttesterDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
-	BlindedBeaconBlockProposalFunc         func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
-	BeaconCommitteesFunc                   func(ctx context.Context, stateID string) ([]*eth2v1.BeaconCommittee, error)
-	BeaconCommitteesAtEpochFunc            func(ctx context.Context, stateID string, epoch eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error)
-	BeaconBlockProposalFunc                func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
-	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
-	SubmitAttestationsFunc                 func(context.Context, []*eth2p0.Attestation) error
-	SubmitBeaconBlockFunc                  func(context.Context, *spec.VersionedSignedBeaconBlock) error
-	SubmitBlindedBeaconBlockFunc           func(context.Context, *eth2api.VersionedSignedBlindedBeaconBlock) error
-	SubmitVoluntaryExitFunc                func(context.Context, *eth2p0.SignedVoluntaryExit) error
-	ValidatorsByPubKeyFunc                 func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	ValidatorsFunc                         func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	GenesisTimeFunc                        func(context.Context) (time.Time, error)
-	NodeSyncingFunc                        func(context.Context) (*eth2v1.SyncState, error)
-	EventsFunc                             func(context.Context, []string, eth2client.EventHandlerFunc) error
-	SubmitValidatorRegistrationsFunc       func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error
-	SlotsPerEpochFunc                      func(context.Context) (uint64, error)
-	SubmitBeaconCommitteeSubscriptionsFunc func(context.Context, []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error)
+	AttestationDataFunc                      func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
+	AttesterDutiesFunc                       func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	BlindedBeaconBlockProposalFunc           func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
+	BeaconCommitteesFunc                     func(ctx context.Context, stateID string) ([]*eth2v1.BeaconCommittee, error)
+	BeaconCommitteesAtEpochFunc              func(ctx context.Context, stateID string, epoch eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error)
+	BeaconBlockProposalFunc                  func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
+	ProposerDutiesFunc                       func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	SubmitAttestationsFunc                   func(context.Context, []*eth2p0.Attestation) error
+	SubmitBeaconBlockFunc                    func(context.Context, *spec.VersionedSignedBeaconBlock) error
+	SubmitBlindedBeaconBlockFunc             func(context.Context, *eth2api.VersionedSignedBlindedBeaconBlock) error
+	SubmitVoluntaryExitFunc                  func(context.Context, *eth2p0.SignedVoluntaryExit) error
+	ValidatorsByPubKeyFunc                   func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	ValidatorsFunc                           func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	GenesisTimeFunc                          func(context.Context) (time.Time, error)
+	NodeSyncingFunc                          func(context.Context) (*eth2v1.SyncState, error)
+	EventsFunc                               func(context.Context, []string, eth2client.EventHandlerFunc) error
+	SubmitValidatorRegistrationsFunc         func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error
+	SlotsPerEpochFunc                        func(context.Context) (uint64, error)
+	SubmitBeaconCommitteeSubscriptionsV2Func func(context.Context, []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error)
+	SubmitBeaconCommitteeSubscriptionsFunc   func(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error
 }
 
 func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
@@ -211,6 +212,10 @@ func (m Mock) SubmitValidatorRegistrations(ctx context.Context, registrations []
 }
 
 func (m Mock) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	return m.SubmitBeaconCommitteeSubscriptionsV2Func(ctx, subscriptions)
+}
+
+func (m Mock) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error {
 	return m.SubmitBeaconCommitteeSubscriptionsFunc(ctx, subscriptions)
 }
 
