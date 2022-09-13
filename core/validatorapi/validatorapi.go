@@ -151,7 +151,7 @@ type Component struct {
 	subs                  []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
-// RegisterAwaitBeaconBlock registers a function to query unsigned block.
+// RegisterAwaitBeaconBlock registers a function to query unsigned beacon block.
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)) {
 	c.awaitBlockFunc = fn
@@ -187,7 +187,7 @@ func (c *Component) RegisterAwaitAggregatedAttestation(fn func(ctx context.Conte
 	c.awaitAggAttFunc = fn
 }
 
-// RegisterAggSigDB registers a function to get resolved aggregated signed data from AggSigDB.
+// RegisterAggSigDB registers a function to query aggregated signed data from aggSigDB.
 func (c *Component) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)) {
 	c.aggSigDBFunc = fn
 }

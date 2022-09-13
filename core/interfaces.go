@@ -82,10 +82,10 @@ type Consensus interface {
 
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
-	// RegisterAwaitBeaconBlock registers a function to query a unsigned beacon block by slot.
+	// RegisterAwaitBeaconBlock registers a function to query unsigned beacon block by slot.
 	RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error))
 
-	// RegisterAwaitBlindedBeaconBlock registers a function to query a unsigned blinded beacon block by slot.
+	// RegisterAwaitBlindedBeaconBlock registers a function to query unsigned blinded beacon block by slot.
 	RegisterAwaitBlindedBeaconBlock(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
