@@ -17,7 +17,6 @@ package fetcher_test
 
 import (
 	"context"
-	"math/rand"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -27,7 +26,6 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/fetcher"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -119,8 +117,8 @@ func TestFetchAggregator(t *testing.T) {
 	}
 
 	signedCommSubByPubKey := map[core.PubKey]core.SignedData{
-		pubkeysByIdx[vIdxA]: randomSignedBeaconCommitteeSubscription(vIdxA, slot, commIdxA),
-		pubkeysByIdx[vIdxB]: randomSignedBeaconCommitteeSubscription(vIdxB, slot, commIdxB),
+		pubkeysByIdx[vIdxA]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxA, slot, commIdxA),
+		pubkeysByIdx[vIdxB]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxB, slot, commIdxB),
 	}
 
 	attByPubKey := map[core.PubKey]core.SignedData{
@@ -342,19 +340,6 @@ func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block co
 		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
 	default:
 		require.Fail(t, "invalid block")
-	}
-}
-
-// randomSignedBeaconCommitteeSubscription returns a SignedBeaconCommitteeSubscription with the inputs and a random slot signature.
-func randomSignedBeaconCommitteeSubscription(vIdx, slot, commIdx int) core.SignedBeaconCommitteeSubscription {
-	return core.SignedBeaconCommitteeSubscription{
-		BeaconCommitteeSubscription: eth2exp.BeaconCommitteeSubscription{
-			ValidatorIndex:   eth2p0.ValidatorIndex(vIdx),
-			Slot:             eth2p0.Slot(slot),
-			CommitteeIndex:   eth2p0.CommitteeIndex(commIdx),
-			CommitteesAtSlot: rand.Uint64(),
-			SlotSignature:    testutil.RandomEth2Signature(),
-		},
 	}
 }
 

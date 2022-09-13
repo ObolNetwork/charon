@@ -30,6 +30,7 @@ import (
 
 var (
 	_ UnsignedData = AttestationData{}
+	_ UnsignedData = AggregatedAttestation{}
 	_ UnsignedData = VersionedBeaconBlock{}
 	_ UnsignedData = VersionedBlindedBeaconBlock{}
 )

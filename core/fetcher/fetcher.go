@@ -157,6 +157,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 			return core.UnsignedDataSet{}, err
 		}
 
+		// This validator isn't an aggregator for this slot.
 		if !res.IsAggregator {
 			continue
 		}
