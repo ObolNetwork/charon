@@ -747,6 +747,61 @@ func (s *SignedBeaconCommitteeSubscription) UnmarshalJSON(input []byte) error {
 	return s.BeaconCommitteeSubscription.UnmarshalJSON(input)
 }
 
+// NewSignedAggregateAndProof is a convenience function which returns new signed SignedAggregateAndProof.
+func NewSignedAggregateAndProof(data *eth2p0.SignedAggregateAndProof) SignedAggregateAndProof {
+	return SignedAggregateAndProof{SignedAggregateAndProof: *data}
+}
+
+// NewPartialSignedAggregateAndProof is a convenience function which returns new partially signed SignedAggregateAndProof.
+func NewPartialSignedAggregateAndProof(data *eth2p0.SignedAggregateAndProof, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSignedAggregateAndProof(data),
+		ShareIdx:   shareIdx,
+	}
+}
+
+// SignedAggregateAndProof wraps eth2p0.SignedAggregateAndProof which implements SignedData.
+type SignedAggregateAndProof struct {
+	eth2p0.SignedAggregateAndProof
+}
+
+func (s SignedAggregateAndProof) Signature() Signature {
+	return SigFromETH2(s.SignedAggregateAndProof.Signature)
+}
+
+func (s SignedAggregateAndProof) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.SignedAggregateAndProof.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (s SignedAggregateAndProof) Clone() (SignedData, error) {
+	return s.clone()
+}
+
+func (s SignedAggregateAndProof) clone() (SignedAggregateAndProof, error) {
+	var resp SignedAggregateAndProof
+	err := cloneJSONMarshaler(s, &resp)
+	if err != nil {
+		return SignedAggregateAndProof{}, errors.Wrap(err, "clone signed aggregate and proof")
+	}
+
+	return resp, nil
+}
+
+func (s SignedAggregateAndProof) MarshalJSON() ([]byte, error) {
+	return s.SignedAggregateAndProof.MarshalJSON()
+}
+
+func (s *SignedAggregateAndProof) UnmarshalJSON(input []byte) error {
+	return s.SignedAggregateAndProof.UnmarshalJSON(input)
+}
+
 // cloneJSONMarshaler clones the marshaler by serialising to-from json
 // since eth2 types contains pointers. The result is stored
 // in the value pointed to by v.
