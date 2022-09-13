@@ -196,6 +196,11 @@ func TestBroadcastBeaconCommitteeSubscriptionV2(t *testing.T) {
 		return []*eth2exp.BeaconCommitteeSubscriptionResponse{}, ctx.Err()
 	}
 
+	// To avoid further call to v1 SubmitBeaconCommitteeSubscriptions.
+	mock.SlotsPerEpochFunc = func(ctx context.Context) (uint64, error) {
+		return 0, ctx.Err()
+	}
+
 	bcaster, err := bcast.New(ctx, mock)
 	require.NoError(t, err)
 

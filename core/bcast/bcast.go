@@ -151,29 +151,31 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		}
 
 		_, err = b.eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, []*eth2exp.BeaconCommitteeSubscription{&sub.BeaconCommitteeSubscription})
-		if err != nil && strings.Contains(err.Error(), "404") {
-			// Beacon node doesn't support v2 SubmitBeaconCommitteeSubscriptions endpoint (yet). Try with v1.
-			res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, b.eth2Cl, &sub.BeaconCommitteeSubscription)
-			if err != nil {
-				return err
-			}
+		if err == nil {
+			return nil
+		}
 
-			subs := []*eth2v1.BeaconCommitteeSubscription{
-				{
-					ValidatorIndex:   sub.ValidatorIndex,
-					Slot:             sub.Slot,
-					CommitteeIndex:   sub.CommitteeIndex,
-					CommitteesAtSlot: sub.CommitteesAtSlot,
-					IsAggregator:     res.IsAggregator,
-				},
-			}
+		log.Debug(ctx, "V2 submit beacon committee subscriptions failed")
 
-			err = b.eth2Cl.SubmitBeaconCommitteeSubscriptions(ctx, subs)
-			if err == nil {
-				log.Info(ctx, "Beacon committee subscription successfully submitted to beacon node", nil)
-			}
-
+		// Beacon node doesn't support v2 SubmitBeaconCommitteeSubscriptions endpoint (yet). Try with v1.
+		res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, b.eth2Cl, &sub.BeaconCommitteeSubscription)
+		if err != nil {
 			return err
+		}
+
+		subs := []*eth2v1.BeaconCommitteeSubscription{
+			{
+				ValidatorIndex:   sub.ValidatorIndex,
+				Slot:             sub.Slot,
+				CommitteeIndex:   sub.CommitteeIndex,
+				CommitteesAtSlot: sub.CommitteesAtSlot,
+				IsAggregator:     res.IsAggregator,
+			},
+		}
+
+		err = b.eth2Cl.SubmitBeaconCommitteeSubscriptions(ctx, subs)
+		if err == nil {
+			log.Info(ctx, "Beacon committee subscription successfully submitted to beacon node", nil)
 		}
 
 		return err
