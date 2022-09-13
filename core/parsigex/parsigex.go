@@ -206,6 +206,13 @@ func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[
 			}
 
 			return signing.VerifyBeaconCommitteeSubscription(ctx, eth2Cl, pubshare, &subscription.BeaconCommitteeSubscription)
+		case core.DutyAggregator:
+			aggAndProof, ok := data.SignedData.(core.SignedAggregateAndProof)
+			if !ok {
+				return errors.New("invalid aggregate and proof")
+			}
+
+			return signing.VerifyAggregateAndProof(ctx, eth2Cl, pubshare, &aggAndProof.SignedAggregateAndProof)
 		default:
 			return errors.New("unknown duty type")
 		}
