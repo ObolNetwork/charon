@@ -101,6 +101,12 @@ type ValidatorAPI interface {
 
 	// Subscribe registers a function to store partially signed data sets.
 	Subscribe(func(context.Context, Duty, ParSignedDataSet) error)
+
+	// RegisterAwaitAggregatedAttestation registers a function to query attestation.
+	RegisterAwaitAggregatedAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error))
+
+	// RegisterAggSigDB registers a function to query aggregated signed data from aggSigDB.
+	RegisterAggSigDB(fn func(context.Context, Duty, PubKey) (SignedData, error))
 }
 
 // ParSigDB persists partial signatures and sends them to the

@@ -151,23 +151,16 @@ type Component struct {
 	subs                  []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
-func (c *Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-	duties, err := c.eth2Cl.ProposerDuties(ctx, epoch, validatorIndices)
-	if err != nil {
-		return nil, err
-	}
+// RegisterAwaitBeaconBlock registers a function to query unsigned block.
+// It supports a single function, since it is an input of the component.
+func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)) {
+	c.awaitBlockFunc = fn
+}
 
-	// Replace root public keys with public shares
-	for i := 0; i < len(duties); i++ {
-		pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
-		if !ok {
-			// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
-			continue
-		}
-		duties[i].PubKey = pubshare
-	}
-
-	return duties, nil
+// RegisterAwaitBlindedBeaconBlock registers a function to query unsigned blinded block.
+// It supports a single function, since it is an input of the component.
+func (c *Component) RegisterAwaitBlindedBeaconBlock(fn func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)) {
+	c.awaitBlindedBlockFunc = fn
 }
 
 // RegisterAwaitAttestation registers a function to query attestation data.
@@ -188,10 +181,6 @@ func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty 
 	c.dutyDefFunc = fn
 }
 
-func (c *Component) RegisterAwaitAggregatedAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
-	c.awaitAggAttFunc = fn
-}
-
 // Subscribe registers a partial signed data set store function.
 // It supports multiple functions since it is the output of the component.
 func (c *Component) Subscribe(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
@@ -206,19 +195,11 @@ func (c *Component) Subscribe(fn func(context.Context, core.Duty, core.ParSigned
 	})
 }
 
-// RegisterAwaitBeaconBlock registers a function to query unsigned block.
-// It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)) {
-	c.awaitBlockFunc = fn
+func (c *Component) RegisterAwaitAggregatedAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
+	c.awaitAggAttFunc = fn
 }
 
-// RegisterAwaitBlindedBeaconBlock registers a function to query unsigned blinded block.
-// It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitBlindedBeaconBlock(fn func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)) {
-	c.awaitBlindedBlockFunc = fn
-}
-
-// RegisterAggSigDB registers a function to get resolved aggregated signed data from the AggSigDB.
+// RegisterAggSigDB registers a function to get resolved aggregated signed data from AggSigDB.
 func (c *Component) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)) {
 	c.aggSigDBFunc = fn
 }
@@ -749,6 +730,25 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 	}
 
 	return nil
+}
+
+func (c Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+	duties, err := c.eth2Cl.ProposerDuties(ctx, epoch, validatorIndices)
+	if err != nil {
+		return nil, err
+	}
+
+	// Replace root public keys with public shares
+	for i := 0; i < len(duties); i++ {
+		pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
+		if !ok {
+			// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
+			continue
+		}
+		duties[i].PubKey = pubshare
+	}
+
+	return duties, nil
 }
 
 func (c Component) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
