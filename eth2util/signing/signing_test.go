@@ -240,6 +240,34 @@ func TestVerifyBeaconCommitteeSubscription(t *testing.T) {
 	require.NoError(t, signing.VerifyBeaconCommitteeSubscription(context.Background(), bmock, pubkey, sub))
 }
 
+func TestVerifyAggregateAndProof(t *testing.T) {
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	agg := &eth2p0.SignedAggregateAndProof{
+		Message: &eth2p0.AggregateAndProof{
+			AggregatorIndex: testutil.RandomVIdx(),
+			Aggregate:       testutil.RandomAttestation(),
+			SelectionProof:  testutil.RandomEth2Signature(),
+		},
+	}
+
+	sigRoot, err := agg.Message.HashTreeRoot()
+	require.NoError(t, err)
+
+	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())
+	require.NoError(t, err)
+	epoch := eth2p0.Epoch(uint64(agg.Message.Aggregate.Data.Slot) / slotsPerEpoch)
+
+	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainAggregateAndProof, epoch, sigRoot)
+	require.NoError(t, err)
+
+	sig, pubkey := sign(t, sigData[:])
+	agg.Signature = tblsconv.SigToETH2(sig)
+
+	require.NoError(t, signing.VerifyAggregateAndProof(context.Background(), bmock, pubkey, agg))
+}
+
 func sign(t *testing.T, data []byte) (*bls_sig.Signature, *bls_sig.PublicKey) {
 	t.Helper()
 
