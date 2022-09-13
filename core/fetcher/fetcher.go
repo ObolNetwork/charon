@@ -26,6 +26,7 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // New returns a new fetcher instance.
@@ -71,6 +72,11 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 		if err != nil {
 			return errors.Wrap(err, "fetch proposer data")
 		}
+	case core.DutyAggregator:
+		unsignedSet, err = f.fetchAggregatorData(ctx, duty.Slot, defSet)
+		if err != nil {
+			return errors.Wrap(err, "fetch aggregator data")
+		}
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
 	}
@@ -89,8 +95,8 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 	return nil
 }
 
-// RegisterAggSigDB registers a function to get resolved aggregated signed data from the AggSigDB.
-// Note: This is not thread safe should be called *before* Fetch.
+// RegisterAggSigDB registers a function to get resolved aggregated signed data from AggSigDB.
+// Note: This is not thread safe and should only be called *before* Fetch.
 func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)) {
 	f.aggSigDBFunc = fn
 }
@@ -108,15 +114,17 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 			return nil, errors.New("invalid attester definition")
 		}
 
-		eth2AttData, ok := dataByCommIdx[attDuty.CommitteeIndex]
+		commIdx := attDuty.CommitteeIndex
+
+		eth2AttData, ok := dataByCommIdx[commIdx]
 		if !ok {
 			var err error
-			eth2AttData, err = f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), attDuty.CommitteeIndex)
+			eth2AttData, err = f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), commIdx)
 			if err != nil {
 				return nil, err
 			}
 
-			dataByCommIdx[attDuty.CommitteeIndex] = eth2AttData
+			dataByCommIdx[commIdx] = eth2AttData
 		}
 
 		attData := core.AttestationData{
@@ -130,14 +138,60 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 	return resp, nil
 }
 
+func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	resp := make(core.UnsignedDataSet)
+	for pubkey := range defSet {
+		// Query AggSigDB for DutyPrepareAggregator to get beacon committee subscription.
+		prepAggData, err := f.aggSigDBFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey)
+		if err != nil {
+			return core.UnsignedDataSet{}, err
+		}
+
+		sub, ok := prepAggData.(core.SignedBeaconCommitteeSubscription)
+		if !ok {
+			return core.UnsignedDataSet{}, errors.New("invalid beacon committee subscription")
+		}
+
+		res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, f.eth2Cl, &sub.BeaconCommitteeSubscription)
+		if err != nil {
+			return core.UnsignedDataSet{}, err
+		}
+
+		// This validator isn't an aggregator for this slot.
+		if !res.IsAggregator {
+			continue
+		}
+
+		// Query AggSigDB for DutyAttester to get attestation data root.
+		attData, err := f.aggSigDBFunc(ctx, core.NewAttesterDuty(slot), pubkey)
+		if err != nil {
+			return core.UnsignedDataSet{}, err
+		}
+
+		att, ok := attData.(core.Attestation)
+		if !ok {
+			return core.UnsignedDataSet{}, errors.New("invalid attestation")
+		}
+
+		// Query BN for aggregate attestation.
+		aggAtt, err := f.eth2Cl.AggregateAttestation(ctx, eth2p0.Slot(slot), att.Data.BeaconBlockRoot)
+		if err != nil {
+			return core.UnsignedDataSet{}, err
+		}
+
+		resp[pubkey] = core.AggregatedAttestation{
+			Attestation: *aggAtt,
+		}
+	}
+
+	return resp, nil
+}
+
 func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
 	for pubkey := range defSet {
 		// Fetch previously aggregated randao reveal from AggSigDB
-		dutyRandao := core.Duty{
-			Slot: slot,
-			Type: core.DutyRandao,
-		}
+		dutyRandao := core.NewRandaoDuty(slot)
 		randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
 		if err != nil {
 			return nil, err

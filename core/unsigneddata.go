@@ -30,13 +30,14 @@ import (
 
 var (
 	_ UnsignedData = AttestationData{}
+	_ UnsignedData = AggregatedAttestation{}
 	_ UnsignedData = VersionedBeaconBlock{}
 	_ UnsignedData = VersionedBlindedBeaconBlock{}
 )
 
 // AttestationData wraps the eth2 attestation data and adds the original duty.
 // The original duty allows mapping the partial signed response from the VC
-// backed to the validator pubkey via the aggregation bits field.
+// back to the validator pubkey via the aggregation bits field.
 type AttestationData struct {
 	Data eth2p0.AttestationData
 	Duty eth2v1.AttesterDuty
@@ -79,6 +80,39 @@ func (a *AttestationData) UnmarshalJSON(data []byte) error {
 type attestationDataJSON struct {
 	Data *eth2p0.AttestationData `json:"attestation_data"`
 	Duty *eth2v1.AttesterDuty    `json:"attestation_duty"`
+}
+
+// AggregatedAttestation wraps Attestation and implements the UnsignedData interface.
+type AggregatedAttestation struct {
+	eth2p0.Attestation
+}
+
+func (a AggregatedAttestation) Clone() (UnsignedData, error) {
+	var resp AggregatedAttestation
+	err := cloneJSONMarshaler(a, &resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "clone aggregated attestation")
+	}
+
+	return resp, nil
+}
+
+func (a AggregatedAttestation) MarshalJSON() ([]byte, error) {
+	resp, err := json.Marshal(a)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal aggregated attestation")
+	}
+
+	return resp, nil
+}
+
+func (a *AggregatedAttestation) UnmarshalJSON(input []byte) error { //nolint:revive
+	var att AggregatedAttestation
+	if err := json.Unmarshal(input, &att); err != nil {
+		return errors.Wrap(err, "unmarshal aggregated attestation")
+	}
+
+	return nil
 }
 
 // NewVersionedBeaconBlock validates and returns a new wrapped VersionedBeaconBlock.

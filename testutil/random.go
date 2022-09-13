@@ -347,6 +347,19 @@ func RandomBeaconCommitteeSubscription() *eth2exp.BeaconCommitteeSubscription {
 	}
 }
 
+// RandomSignedBeaconCommitteeSubscription returns a SignedBeaconCommitteeSubscription with the inputs and a random slot signature.
+func RandomSignedBeaconCommitteeSubscription(vIdx, slot, commIdx int) core.SignedBeaconCommitteeSubscription {
+	return core.SignedBeaconCommitteeSubscription{
+		BeaconCommitteeSubscription: eth2exp.BeaconCommitteeSubscription{
+			ValidatorIndex:   eth2p0.ValidatorIndex(vIdx),
+			Slot:             eth2p0.Slot(slot),
+			CommitteeIndex:   eth2p0.CommitteeIndex(commIdx),
+			CommitteesAtSlot: rand.Uint64(),
+			SlotSignature:    RandomEth2Signature(),
+		},
+	}
+}
+
 func RandomSyncAggregate(t *testing.T) *altair.SyncAggregate {
 	t.Helper()
 
