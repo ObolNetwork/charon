@@ -747,12 +747,12 @@ func (s *SignedBeaconCommitteeSubscription) UnmarshalJSON(input []byte) error {
 	return s.BeaconCommitteeSubscription.UnmarshalJSON(input)
 }
 
-// NewSignedAggregateAndProof is a convenience function which returns new signed SignedAggregateAndProof.
+// NewSignedAggregateAndProof is a convenience function which returns a new signed SignedAggregateAndProof.
 func NewSignedAggregateAndProof(data *eth2p0.SignedAggregateAndProof) SignedAggregateAndProof {
 	return SignedAggregateAndProof{SignedAggregateAndProof: *data}
 }
 
-// NewPartialSignedAggregateAndProof is a convenience function which returns new partially signed SignedAggregateAndProof.
+// NewPartialSignedAggregateAndProof is a convenience function which returns a new partially signed SignedAggregateAndProof.
 func NewPartialSignedAggregateAndProof(data *eth2p0.SignedAggregateAndProof, shareIdx int) ParSignedData {
 	return ParSignedData{
 		SignedData: NewSignedAggregateAndProof(data),
@@ -760,7 +760,7 @@ func NewPartialSignedAggregateAndProof(data *eth2p0.SignedAggregateAndProof, sha
 	}
 }
 
-// SignedAggregateAndProof wraps eth2p0.SignedAggregateAndProof which implements SignedData.
+// SignedAggregateAndProof wraps eth2p0.SignedAggregateAndProof and implements SignedData.
 type SignedAggregateAndProof struct {
 	eth2p0.SignedAggregateAndProof
 }

@@ -90,11 +90,10 @@ func TestSignedDataSetSignature(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var zeroSig core.Signature
 			clone, err := test.data.SetSignature(testutil.RandomCoreSignature())
 			require.NoError(t, err)
 			require.NotEqual(t, clone.Signature(), test.data.Signature())
-			require.NotEqual(t, clone.Signature(), zeroSig)
+			require.NotEmpty(t, clone.Signature())
 		})
 	}
 }
