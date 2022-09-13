@@ -22,7 +22,6 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -70,19 +69,6 @@ func TestSignedDataSetSignature(t *testing.T) {
 					CommitteeIndex:   testutil.RandomCommIdx(),
 					CommitteesAtSlot: nonZero,
 					SlotSignature:    testutil.RandomEth2Signature(),
-				},
-			},
-		},
-		{
-			name: "signed aggregate and proof",
-			data: core.SignedAggregateAndProof{
-				SignedAggregateAndProof: eth2p0.SignedAggregateAndProof{
-					Message: &eth2p0.AggregateAndProof{
-						AggregatorIndex: 0,
-						Aggregate:       testutil.RandomAttestation(),
-						SelectionProof:  testutil.RandomEth2Signature(),
-					},
-					Signature: testutil.RandomEth2Signature(),
 				},
 			},
 		},
