@@ -35,8 +35,6 @@ type Client interface {
 	eth2client.Service
 	eth2exp.BeaconCommitteeSubscriptionsSubmitterV2
 
-	eth2client.AggregateAttestationProvider
-	eth2client.AggregateAttestationsSubmitter
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
@@ -182,45 +180,6 @@ func (m multi) BeaconCommitteesAtEpoch(ctx context.Context, stateID string, epoc
 	}
 
 	return res0, err
-}
-
-// AggregateAttestation fetches the aggregate attestation given an attestation.
-func (m multi) AggregateAttestation(ctx context.Context, slot phase0.Slot, attestationDataRoot phase0.Root) (*phase0.Attestation, error) {
-	const label = "aggregate_attestation"
-	defer latency(label)()
-
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*phase0.Attestation, error) {
-			return cl.AggregateAttestation(ctx, slot, attestationDataRoot)
-		},
-		nil,
-	)
-
-	if err != nil {
-		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
-	}
-
-	return res0, err
-}
-
-// SubmitAggregateAttestations submits aggregate attestations.
-func (m multi) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*phase0.SignedAggregateAndProof) error {
-	const label = "submit_aggregate_attestations"
-	defer latency(label)()
-
-	err := submit(ctx, m.clients,
-		func(ctx context.Context, cl Client) error {
-			return cl.SubmitAggregateAttestations(ctx, aggregateAndProofs)
-		},
-	)
-
-	if err != nil {
-		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
-	}
-
-	return err
 }
 
 // AttestationData fetches the attestation data for the given slot and committee index.
