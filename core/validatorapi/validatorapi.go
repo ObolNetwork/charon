@@ -145,6 +145,7 @@ type Component struct {
 	awaitAttFunc          func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
 	awaitBlockFunc        func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
 	awaitBlindedBlockFunc func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
+	awaitAggAttFunc       func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)
 	aggSigDBFunc          func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	dutyDefFunc           func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	subs                  []func(context.Context, core.Duty, core.ParSignedDataSet) error
@@ -185,6 +186,10 @@ func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slo
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)) {
 	c.dutyDefFunc = fn
+}
+
+func (c *Component) RegisterAwaitAggregatedAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
+	c.awaitAggAttFunc = fn
 }
 
 // Subscribe registers a partial signed data set store function.
@@ -664,6 +669,86 @@ func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, sub
 	}
 
 	return c.getCommResponse(ctx, psigsBySlot)
+}
+
+// AggregateAttestation fetches the aggregate attestation given an attestation.
+// Note: It queries aggregated attestation from DutyDB (this is blocking).
+func (c Component) AggregateAttestation(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error) {
+	return c.awaitAggAttFunc(ctx, int64(slot), attestationDataRoot)
+}
+
+// SubmitAggregateAttestations receives partially signed aggregateAndProofs.
+// - It queries aggsigdb to get selection proof (slot signature).
+// - It overrides selection proof with the above obtained from aggsigdb.
+// - It verifies partial signature on AggregateAndProof.
+// - It then calls all the subscribers for further steps on partially signed aggregate and proof.
+func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
+	var valIdxs []eth2p0.ValidatorIndex
+	for _, agg := range aggregateAndProofs {
+		valIdxs = append(valIdxs, agg.Message.AggregatorIndex)
+	}
+
+	vals, err := c.eth2Cl.Validators(ctx, "head", valIdxs)
+	if err != nil {
+		return err
+	}
+
+	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+	for _, agg := range aggregateAndProofs {
+		slot := agg.Message.Aggregate.Data.Slot
+		duty := core.NewPrepareAggregatorDuty(int64(slot))
+		eth2Pubkey, err := vals[agg.Message.AggregatorIndex].PubKey(ctx)
+		if err != nil {
+			return err
+		}
+
+		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
+		if err != nil {
+			return err
+		}
+
+		// Get selection proof (slot signature).
+		// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
+		s, err := c.aggSigDBFunc(ctx, duty, pk)
+		if err != nil {
+			return err
+		}
+
+		sub, ok := s.(core.SignedBeaconCommitteeSubscription)
+		if !ok {
+			return errors.New("slot signature not found")
+		}
+
+		// Override selection proof with slot signature from subscription.
+		agg.Message.SelectionProof = sub.SlotSignature
+
+		// Verify Signature.
+		err = c.verifyPartialSig(pk, func(pubshare *bls_sig.PublicKey) error {
+			return signing.VerifyAggregateAndProof(ctx, c.eth2Cl, pubshare, agg)
+		})
+		if err != nil {
+			return err
+		}
+
+		_, ok = psigsBySlot[slot]
+		if !ok {
+			psigsBySlot[slot] = make(core.ParSignedDataSet)
+		}
+
+		psigsBySlot[slot][pk] = core.NewPartialSignedAggregateAndProof(agg, c.shareIdx)
+	}
+
+	for slot, data := range psigsBySlot {
+		duty := core.NewAggregatorDuty(int64(slot))
+		for _, sub := range c.subs {
+			err = sub(ctx, duty, data)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func (c Component) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
