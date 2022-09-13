@@ -22,6 +22,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -72,6 +73,19 @@ func TestSignedDataSetSignature(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "signed aggregate and proof",
+			data: core.SignedAggregateAndProof{
+				SignedAggregateAndProof: eth2p0.SignedAggregateAndProof{
+					Message: &eth2p0.AggregateAndProof{
+						AggregatorIndex: 0,
+						Aggregate:       testutil.RandomAttestation(),
+						SelectionProof:  testutil.RandomEth2Signature(),
+					},
+					Signature: testutil.RandomEth2Signature(),
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -79,6 +93,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 			clone, err := test.data.SetSignature(testutil.RandomCoreSignature())
 			require.NoError(t, err)
 			require.NotEqual(t, clone.Signature(), test.data.Signature())
+			require.NotEmpty(t, clone.Signature())
 		})
 	}
 }
