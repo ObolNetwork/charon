@@ -215,8 +215,8 @@ func isAggregator(ctx context.Context, eth2Cl eth2Provider, commLen uint64, slot
 	}
 
 	hash := h.Sum(nil)
-	last8bytes := hash[:8]
-	asUint64 := binary.LittleEndian.Uint64(last8bytes)
+	lowest8bytes := hash[0:8]
+	asUint64 := binary.LittleEndian.Uint64(lowest8bytes)
 
 	return asUint64%modulo == 0, nil
 }
