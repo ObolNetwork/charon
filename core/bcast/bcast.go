@@ -165,10 +165,10 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 
 		subs := []*eth2v1.BeaconCommitteeSubscription{
 			{
-				ValidatorIndex:   sub.ValidatorIndex,
-				Slot:             sub.Slot,
-				CommitteeIndex:   sub.CommitteeIndex,
-				CommitteesAtSlot: sub.CommitteesAtSlot,
+				ValidatorIndex:   res.ValidatorIndex,
+				Slot:             res.Slot,
+				CommitteeIndex:   res.CommitteeIndex,
+				CommitteesAtSlot: res.CommitteesAtSlot,
 				IsAggregator:     res.IsAggregator,
 			},
 		}
