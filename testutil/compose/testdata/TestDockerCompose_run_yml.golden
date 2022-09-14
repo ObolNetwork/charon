@@ -8,9 +8,19 @@ x-node-base: &node-base
   volumes: [testdir:/compose]
   depends_on: [bootnode] 
 
+# Requires: docker plugin install  grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
+x-logging: &logging
+  logging:
+  
+    driver: loki
+    options:
+      loki-url: http://localhost:3100/loki/api/v1/push
+  
+
 services:
   node0:
     <<: *node-base
+    <<: *logging
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node0/charon-enr-private-key
@@ -42,6 +52,7 @@ services:
       
   node1:
     <<: *node-base
+    <<: *logging
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node1/charon-enr-private-key
@@ -73,6 +84,7 @@ services:
       
   node2:
     <<: *node-base
+    <<: *logging
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node2/charon-enr-private-key
@@ -104,6 +116,7 @@ services:
       
   node3:
     <<: *node-base
+    <<: *logging
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node3/charon-enr-private-key
@@ -135,6 +148,7 @@ services:
       
   bootnode:
     <<: *node-base
+    <<: *logging
     command: bootnode
     depends_on: []
     environment:
@@ -146,6 +160,7 @@ services:
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
   
   vc0-teku:
+    <<: *logging
     image: consensys/teku:latest
     command: |
       validator-client
@@ -162,6 +177,7 @@ services:
       - .:/compose
   
   vc1-lighthouse:
+    <<: *logging
     build: lighthouse
     networks: [compose]
     depends_on: [node1]
@@ -171,6 +187,7 @@ services:
       - .:/compose
   
   vc3-teku:
+    <<: *logging
     image: consensys/teku:latest
     command: |
       validator-client
@@ -220,5 +237,18 @@ services:
     ports:
       - "16686:16686"
     
+
+  
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    networks: [compose]
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./loki/loki.yml:/etc/loki/loki.yml
+  
+
+
 networks:
   compose:

@@ -14,5 +14,6 @@
  "VCs": null,
  "Bootnode": false,
  "Monitoring": false,
- "MonitoringPorts": false
+ "MonitoringPorts": false,
+ "Loki": false
 }
