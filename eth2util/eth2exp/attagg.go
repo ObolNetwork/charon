@@ -214,7 +214,11 @@ func isAggregator(ctx context.Context, eth2Cl eth2Provider, commLen uint64, slot
 		return false, errors.Wrap(err, "calculate sha256")
 	}
 
-	return binary.LittleEndian.Uint64(h.Sum(nil)[:8])%modulo == 0, nil
+	hash := h.Sum(nil)
+	last8bytes := hash[:8]
+	asUint64 := binary.LittleEndian.Uint64(last8bytes)
+
+	return asUint64%modulo == 0, nil
 }
 
 // getCommitteeLength returns the number of validators in the input committee at the given slot.
