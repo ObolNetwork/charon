@@ -60,14 +60,10 @@ func NewPeer(record enr.Record, index int) (Peer, error) {
 	}
 
 	ecdsaPubkey := ecdsa.PublicKey(enodePubkey)
-	p2pPubkey, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(crypto.CompressPubkey(&ecdsaPubkey))
-	if err != nil {
-		return Peer{}, errors.Wrap(err, "convert pubkey")
-	}
 
-	id, err := peer.IDFromPublicKey(p2pPubkey)
+	id, err := PeerIDFromKey(&ecdsaPubkey)
 	if err != nil {
-		return Peer{}, errors.Wrap(err, "p2p id from pubkey")
+		return Peer{}, err
 	}
 
 	node, err := enode.New(new(enode.V4ID), &record)
@@ -82,6 +78,21 @@ func NewPeer(record enr.Record, index int) (Peer, error) {
 		Index: index,
 		Name:  PeerName(id),
 	}, nil
+}
+
+// PeerIDFromKey returns the peer ID of the private key.
+func PeerIDFromKey(pubkey *ecdsa.PublicKey) (peer.ID, error) {
+	p2pPubkey, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(crypto.CompressPubkey(pubkey))
+	if err != nil {
+		return "", errors.Wrap(err, "convert pubkey")
+	}
+
+	id, err := peer.IDFromPublicKey(p2pPubkey)
+	if err != nil {
+		return "", errors.Wrap(err, "p2p id from pubkey")
+	}
+
+	return id, nil
 }
 
 // NewMutablePeer returns a new non-empty mutable peer.

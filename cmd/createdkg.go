@@ -147,7 +147,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 	def.DKGAlgorithm = conf.DKGAlgo
 
-	if err := def.Verify(); err != nil {
+	if err := def.VerifySignatures(); err != nil {
 		return err
 	}
 

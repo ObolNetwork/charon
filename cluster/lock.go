@@ -123,10 +123,10 @@ func (l Lock) SetLockHash() (Lock, error) {
 	return l, nil
 }
 
-// Verify returns true if all config signatures are fully populated and valid.
+// VerifySignatures returns true if all config signatures are fully populated and valid.
 // A verified lock is ready for use in charon run.
-func (l Lock) Verify() error {
-	if err := l.Definition.Verify(); err != nil {
+func (l Lock) VerifySignatures() error {
+	if err := l.Definition.VerifySignatures(); err != nil {
 		return errors.Wrap(err, "invalid definition")
 	}
 

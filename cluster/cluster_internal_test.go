@@ -45,7 +45,7 @@ func TestDefinitionVerify(t *testing.T) {
 	definition.Operators[1], err = signOperator(secret1, op1, configHash)
 	require.NoError(t, err)
 
-	err = definition.Verify()
+	err = definition.VerifySignatures()
 	require.NoError(t, err)
 }
 

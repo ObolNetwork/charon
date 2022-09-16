@@ -45,28 +45,50 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 		return *conf.TestDef, nil
 	}
 
+	// Fetch definition from URI or disk
+
+	var def cluster.Definition
 	if validURI(conf.DefFile) {
-		return fetchDefinition(ctx, conf.DefFile)
+		var err error
+		def, err = fetchDefinition(ctx, conf.DefFile)
+		if err != nil {
+			return cluster.Definition{}, errors.Wrap(err, "read definition")
+		}
+	} else {
+		buf, err := os.ReadFile(conf.DefFile)
+		if err != nil {
+			return cluster.Definition{}, errors.Wrap(err, "read definition")
+		}
+
+		if err = json.Unmarshal(buf, &def); err != nil {
+			return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
+		}
 	}
 
-	buf, err := os.ReadFile(conf.DefFile)
-	if err != nil {
-		return cluster.Definition{}, errors.Wrap(err, "read definition")
-	}
+	// Verify
 
-	var res cluster.Definition
-	err = json.Unmarshal(buf, &res)
-	if err != nil {
-		return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
-	}
-
-	if err := res.VerifyDefinitionHashes(); err != nil && !conf.NoVerify {
+	if err := def.VerifyHashes(); err != nil && !conf.NoVerify {
 		return cluster.Definition{}, errors.Wrap(err, "cluster definition hashes verification failed. Run with --no-verify to bypass verification at own risk")
 	} else if err != nil && conf.NoVerify {
 		log.Warn(ctx, "Ignoring failed cluster definition hashes verification due to --no-verify flag", err)
 	}
 
-	return res, nil
+	if err := def.VerifySignatures(); err != nil && !conf.NoVerify {
+		return cluster.Definition{}, errors.Wrap(err, "cluster definition signature verification failed. Run with --no-verify to bypass verification at own risk")
+	} else if err != nil && conf.NoVerify {
+		log.Warn(ctx, "Ignoring failed cluster definition signature verification due to --no-verify flag", err)
+	}
+
+	// Ensure we have a definition hash in case of no-verify.
+	if len(def.DefinitionHash) == 0 {
+		var err error
+		def, err = def.SetDefinitionHashes()
+		if err != nil {
+			return cluster.Definition{}, err
+		}
+	}
+
+	return def, nil
 }
 
 // fetchDefinition fetches cluster definition file from a remote URI.
@@ -172,15 +194,15 @@ func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr
 
 // checkWrites writes sample files to check disk writes and removes sample files after verification.
 func checkWrites(dataDir string) error {
-	checkBody := []byte("delete me: dummy file used to check write permissions")
-	files := []string{"cluster-lock.json", "deposit-data.json", "validator_keys/keystore-0.json"}
-	for _, file := range files {
+	const checkBody = "delete me: dummy file used to check write permissions"
+	for _, file := range []string{"cluster-lock.json", "deposit-data.json", "validator_keys/keystore-0.json"} {
 		if filepath.Dir(file) != "" {
 			if err := os.MkdirAll(filepath.Join(dataDir, filepath.Dir(file)), 0o777); err != nil {
 				return errors.Wrap(err, "mkdir check writes", z.Str("dir", filepath.Dir(file)))
 			}
 		}
-		if err := os.WriteFile(filepath.Join(dataDir, file), checkBody, 0o444); err != nil {
+
+		if err := os.WriteFile(filepath.Join(dataDir, file), []byte(checkBody), 0o444); err != nil {
 			return errors.Wrap(err, "write file check writes", z.Str("file", file))
 		}
 
