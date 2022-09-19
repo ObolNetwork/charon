@@ -154,27 +154,39 @@ func (b *BeaconCommitteeSubscription) String() (string, error) {
 
 // BeaconCommitteeSubscriptionResponse is the response from beacon node after submitting BeaconCommitteeSubscription.
 type BeaconCommitteeSubscriptionResponse struct {
-	// ValidatorIndex is the index of the validator that made the subscription request.
+	// ValidatorIndex is the index of the validator the made the subscription request.
 	ValidatorIndex eth2p0.ValidatorIndex
+	// Slot is the slot for which the validator is attesting.
+	Slot eth2p0.Slot
+	// CommitteeIndex is the index of the committee of which the validator is a member at the given slot.
+	CommitteeIndex eth2p0.CommitteeIndex
+	// CommitteesAtSlot is the number of committees at the given slot.
+	CommitteesAtSlot uint64
 	// IsAggregator indicates whether the validator is an attestation aggregator.
 	IsAggregator bool
+	// SelectionProof is the slot signature proving the validator is an aggregator for this slot and committee.
+	SelectionProof eth2p0.BLSSignature
 }
 
 // CalculateCommitteeSubscriptionResponse returns a BeaconCommitteeSubscriptionResponse with isAggregator field set to true if the validator is an aggregator.
-func CalculateCommitteeSubscriptionResponse(ctx context.Context, eth2Cl eth2Provider, subscription *BeaconCommitteeSubscription) (*BeaconCommitteeSubscriptionResponse, error) {
-	committeeLen, err := getCommitteeLength(ctx, eth2Cl, subscription.CommitteeIndex, subscription.Slot)
+func CalculateCommitteeSubscriptionResponse(ctx context.Context, eth2Cl eth2Provider, sub *BeaconCommitteeSubscription) (*BeaconCommitteeSubscriptionResponse, error) {
+	committeeLen, err := getCommitteeLength(ctx, eth2Cl, sub.CommitteeIndex, sub.Slot)
 	if err != nil {
 		return nil, err
 	}
 
-	isAgg, err := isAggregator(ctx, eth2Cl, uint64(committeeLen), subscription.SlotSignature)
+	isAgg, err := isAggregator(ctx, eth2Cl, uint64(committeeLen), sub.SlotSignature)
 	if err != nil {
 		return nil, err
 	}
 
 	return &BeaconCommitteeSubscriptionResponse{
-		ValidatorIndex: subscription.ValidatorIndex,
-		IsAggregator:   isAgg,
+		ValidatorIndex:   sub.ValidatorIndex,
+		Slot:             sub.Slot,
+		CommitteeIndex:   sub.CommitteeIndex,
+		CommitteesAtSlot: sub.CommitteesAtSlot,
+		SelectionProof:   sub.SlotSignature,
+		IsAggregator:     isAgg,
 	}, nil
 }
 
@@ -202,7 +214,11 @@ func isAggregator(ctx context.Context, eth2Cl eth2Provider, commLen uint64, slot
 		return false, errors.Wrap(err, "calculate sha256")
 	}
 
-	return binary.LittleEndian.Uint64(h.Sum(nil)[:8])%modulo == 0, nil
+	hash := h.Sum(nil)
+	lowest8bytes := hash[0:8]
+	asUint64 := binary.LittleEndian.Uint64(lowest8bytes)
+
+	return asUint64%modulo == 0, nil
 }
 
 // getCommitteeLength returns the number of validators in the input committee at the given slot.
@@ -211,6 +227,8 @@ func getCommitteeLength(ctx context.Context, eth2Cl eth2Provider, commIdx eth2p0
 	if err != nil {
 		return 0, err
 	}
+
+	// TODO(corver): Maybe refactor to either use specific slot when querying or ignore slot in check below.
 
 	comms, err := eth2Cl.BeaconCommitteesAtEpoch(ctx, "head", epoch)
 	if err != nil {

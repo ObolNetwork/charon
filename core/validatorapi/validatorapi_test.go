@@ -21,7 +21,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	mrand "math/rand"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -1258,14 +1257,17 @@ func TestComponent_SubmitBeaconCommitteeSubscriptionsV2(t *testing.T) {
 
 	expected := []*eth2exp.BeaconCommitteeSubscriptionResponse{
 		{
+			Slot:           slot,
+			CommitteeIndex: commIdx,
 			ValidatorIndex: vIdx,
 			IsAggregator:   true,
+			SelectionProof: blssig,
 		},
 	}
 
 	actual, err := vapi.SubmitBeaconCommitteeSubscriptionsV2(ctx, subs)
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(expected, actual))
+	require.Equal(t, expected, actual)
 }
 
 func TestComponent_SubmitAggregateAttestations(t *testing.T) {
