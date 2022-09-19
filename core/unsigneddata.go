@@ -82,7 +82,12 @@ type attestationDataJSON struct {
 	Duty *eth2v1.AttesterDuty    `json:"attestation_duty"`
 }
 
-// AggregatedAttestation wraps Attestation and implements the UnsignedData interface.
+// NewAggregatedAttestation returns a new aggregated attestation.
+func NewAggregatedAttestation(att *eth2p0.Attestation) AggregatedAttestation {
+	return AggregatedAttestation{Attestation: *att}
+}
+
+// AggregatedAttestation wraps un unsigned aggregated attestation and implements the UnsignedData interface.
 type AggregatedAttestation struct {
 	eth2p0.Attestation
 }
@@ -98,19 +103,16 @@ func (a AggregatedAttestation) Clone() (UnsignedData, error) {
 }
 
 func (a AggregatedAttestation) MarshalJSON() ([]byte, error) {
-	resp, err := json.Marshal(a)
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal aggregated attestation")
-	}
-
-	return resp, nil
+	return a.Attestation.MarshalJSON()
 }
 
 func (a *AggregatedAttestation) UnmarshalJSON(input []byte) error { //nolint:revive
-	var att AggregatedAttestation
+	var att eth2p0.Attestation
 	if err := json.Unmarshal(input, &att); err != nil {
 		return errors.Wrap(err, "unmarshal aggregated attestation")
 	}
+
+	*a = AggregatedAttestation{Attestation: att}
 
 	return nil
 }

@@ -189,6 +189,31 @@ func TestMemDBProposer(t *testing.T) {
 	}
 }
 
+func TestMemDBAggregator(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const queries = 3
+
+	for i := 0; i < queries; i++ {
+		agg := testutil.RandomAttestation()
+		set := core.UnsignedDataSet{
+			testutil.RandomCorePubKey(t): core.NewAggregatedAttestation(agg),
+		}
+		slot := int64(agg.Data.Slot)
+		go func() {
+			err := db.Store(ctx, core.NewAggregatorDuty(slot), set)
+			require.NoError(t, err)
+		}()
+
+		root, err := agg.Data.HashTreeRoot()
+		require.NoError(t, err)
+		resp, err := db.AwaitAggAttestation(ctx, slot, root)
+		require.NoError(t, err)
+		require.Equal(t, agg, resp)
+	}
+}
+
 func TestMemDBClashingBlocks(t *testing.T) {
 	ctx := context.Background()
 	db := dutydb.NewMemDB(new(testDeadliner))

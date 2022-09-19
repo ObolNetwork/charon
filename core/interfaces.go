@@ -69,6 +69,10 @@ type DutyDB interface {
 	// slot, committee index and validator committee index. This allows mapping of attestation
 	// data response to validator.
 	PubKeyByAttestation(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
+
+	// AwaitAggAttestation blocks and returns the aggregated attestation for the slot
+	// and attestation when available.
+	AwaitAggAttestation(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
 }
 
 // Consensus comes to consensus on proposed duty data.
@@ -97,8 +101,8 @@ type ValidatorAPI interface {
 	// RegisterGetDutyDefinition registers a function to query duty definitions.
 	RegisterGetDutyDefinition(func(context.Context, Duty) (DutyDefinitionSet, error))
 
-	// RegisterAwaitAggregatedAttestation registers a function to query aggregated attestation.
-	RegisterAwaitAggregatedAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error))
+	// RegisterAwaitAggAttestation registers a function to query aggregated attestation.
+	RegisterAwaitAggAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error))
 
 	// RegisterAggSigDB registers a function to query aggregated signed data from aggSigDB.
 	RegisterAggSigDB(fn func(context.Context, Duty, PubKey) (SignedData, error))
@@ -174,11 +178,13 @@ type wireFuncs struct {
 	DutyDBAwaitBlindedBeaconBlock       func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
 	DutyDBAwaitAttestation              func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
 	DutyDBPubKeyByAttestation           func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
+	DutyDBAwaitAggAttestation           func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
 	VAPIRegisterAwaitAttestation        func(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
 	VAPIRegisterAwaitBeaconBlock        func(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error))
 	VAPIRegisterAwaitBlindedBeaconBlock func(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error))
 	VAPIRegisterGetDutyDefinition       func(func(context.Context, Duty) (DutyDefinitionSet, error))
 	VAPIRegisterPubKeyByAttestation     func(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
+	VAPIRegisterAwaitAggAttestation     func(func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error))
 	VAPISubscribe                       func(func(context.Context, Duty, ParSignedDataSet) error)
 	ParSigDBStoreInternal               func(context.Context, Duty, ParSignedDataSet) error
 	ParSigDBStoreExternal               func(context.Context, Duty, ParSignedDataSet) error
@@ -223,11 +229,13 @@ func Wire(sched Scheduler,
 		DutyDBAwaitBeaconBlock:              dutyDB.AwaitBeaconBlock,
 		DutyDBAwaitBlindedBeaconBlock:       dutyDB.AwaitBlindedBeaconBlock,
 		DutyDBPubKeyByAttestation:           dutyDB.PubKeyByAttestation,
+		DutyDBAwaitAggAttestation:           dutyDB.AwaitAggAttestation,
 		VAPIRegisterAwaitBeaconBlock:        vapi.RegisterAwaitBeaconBlock,
 		VAPIRegisterAwaitBlindedBeaconBlock: vapi.RegisterAwaitBlindedBeaconBlock,
 		VAPIRegisterAwaitAttestation:        vapi.RegisterAwaitAttestation,
 		VAPIRegisterGetDutyDefinition:       vapi.RegisterGetDutyDefinition,
 		VAPIRegisterPubKeyByAttestation:     vapi.RegisterPubKeyByAttestation,
+		VAPIRegisterAwaitAggAttestation:     vapi.RegisterAwaitAggAttestation,
 		VAPISubscribe:                       vapi.Subscribe,
 		ParSigDBStoreInternal:               parSigDB.StoreInternal,
 		ParSigDBStoreExternal:               parSigDB.StoreExternal,
@@ -255,6 +263,7 @@ func Wire(sched Scheduler,
 	w.VAPIRegisterAwaitAttestation(w.DutyDBAwaitAttestation)
 	w.VAPIRegisterGetDutyDefinition(w.SchedulerGetDutyDefinition)
 	w.VAPIRegisterPubKeyByAttestation(w.DutyDBPubKeyByAttestation)
+	w.VAPIRegisterAwaitAggAttestation(w.DutyDBAwaitAggAttestation)
 	w.VAPISubscribe(w.ParSigDBStoreInternal)
 	w.ParSigDBSubscribeInternal(w.ParSigExBroadcast)
 	w.ParSigExSubscribe(w.ParSigDBStoreExternal)
