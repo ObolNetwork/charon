@@ -212,5 +212,6 @@
  "VCs": null,
  "Bootnode": true,
  "Monitoring": false,
- "MonitoringPorts": false
+ "MonitoringPorts": false,
+ "Loki": false
 }

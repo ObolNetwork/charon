@@ -17,5 +17,6 @@
   "mock"
  ],
  "feature_set": "alpha",
- "disable_monitoring_ports": false
+ "disable_monitoring_ports": false,
+ "disable_loki": false
 }

@@ -405,5 +405,6 @@
  ],
  "Bootnode": true,
  "Monitoring": true,
- "MonitoringPorts": true
+ "MonitoringPorts": true,
+ "Loki": true
 }

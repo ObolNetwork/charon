@@ -114,6 +114,9 @@ type Config struct {
 
 	// DisableMonitoringPorts defines whether to disable prometheus and jaeger monitoring  port binding.
 	DisableMonitoringPorts bool `json:"disable_monitoring_ports"`
+
+	// DisableLoki defines whether to loki logging driver should be configured.
+	DisableLoki bool `json:"disable_loki"`
 }
 
 // entrypoint returns the path to the charon binary based on the BuildLocal field.
