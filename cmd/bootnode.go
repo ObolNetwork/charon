@@ -161,6 +161,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		relayResources.MaxReservationsPerPeer = config.MaxResPerPeer
 		relayResources.MaxReservationsPerIP = config.MaxResPerPeer
 		relayResources.MaxReservations = config.MaxConns
+		relayResources.MaxCircuits = config.MaxResPerPeer
 
 		relayService, err := relay.New(tcpNode, relay.WithResources(relayResources))
 		if err != nil {
