@@ -154,7 +154,7 @@ func (b *BeaconCommitteeSubscription) String() (string, error) {
 
 // BeaconCommitteeSubscriptionResponse is the response from beacon node after submitting BeaconCommitteeSubscription.
 type BeaconCommitteeSubscriptionResponse struct {
-	// ValidatorIdex is the index of the validator making the subscription request.
+	// ValidatorIndex is the index of the validator the made the subscription request.
 	ValidatorIndex eth2p0.ValidatorIndex
 	// Slot is the slot for which the validator is attesting.
 	Slot eth2p0.Slot
