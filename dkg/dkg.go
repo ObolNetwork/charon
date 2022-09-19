@@ -74,19 +74,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	if err := def.Verify(); err != nil && !conf.NoVerify {
-		return errors.Wrap(err, "cluster definition signature verification failed. Run with --no-verify to bypass verification at own risk")
-	} else if err != nil && conf.NoVerify {
-		log.Warn(ctx, "Ignoring failed cluster definition signature verification due to --no-verify flag", err)
-	}
-
-	if len(def.DefinitionHash) == 0 { // Ensure we have a definition hash
-		def, err = def.SetDefinitionHashes()
-		if err != nil {
-			return err
-		}
-	}
-
 	if err = checkWrites(conf.DataDir); err != nil {
 		return err
 	}
@@ -101,13 +88,21 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	defHash := def.DefinitionHash
-	clusterID := fmt.Sprintf("%#x", defHash)
+	clusterID := fmt.Sprintf("%#x", def.DefinitionHash)
 
 	key, err := p2p.LoadPrivKey(conf.DataDir)
 	if err != nil {
 		return err
 	}
+
+	pID, err := p2p.PeerIDFromKey(&key.PublicKey)
+	if err != nil {
+		return err
+	}
+
+	log.Info(ctx, "Starting local DKG peer...",
+		z.Str("local_peer", p2p.PeerName(pID)),
+		z.Str("definition_hash", clusterID))
 
 	tcpNode, shutdown, err := setupP2P(ctx, key, conf.P2P, peers, clusterID)
 	if err != nil {
@@ -138,17 +133,17 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	tp := newFrostP2P(ctx, tcpNode, peerMap, clusterID)
 
-	log.Info(ctx, "Connecting to peers...", z.Str("definition_hash", clusterID))
+	log.Info(ctx, "Waiting to connecting to all peers...", z.Str("definition_hash", clusterID))
 
 	// Improve UX of "context cancelled" errors when sync fails.
 	ctx = withCtxErr(ctx, "p2p connection failed, please retry DKG")
 
-	stopSync, err := startSyncProtocol(ctx, tcpNode, key, defHash, peerIds, cancel)
+	stopSync, err := startSyncProtocol(ctx, tcpNode, key, def.DefinitionHash, peerIds, cancel)
 	if err != nil {
 		return err
 	}
 
-	log.Info(ctx, "Starting DKG ceremony")
+	log.Info(ctx, "All peers connected, starting DKG ceremony")
 
 	var shares []share
 	switch def.DKGAlgorithm {
@@ -179,7 +174,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 	if !conf.NoVerify {
-		if err := lock.Verify(); err != nil {
+		if err := lock.VerifySignatures(); err != nil {
 			return errors.Wrap(err, "invalid lock file")
 		}
 	}

@@ -25,6 +25,6 @@ import (
 
 func TestVerifyLock(t *testing.T) {
 	lock, _, _ := cluster.NewForT(t, 3, 3, 4, 0)
-	require.NoError(t, lock.Definition.Verify())
-	require.NoError(t, lock.Verify())
+	require.NoError(t, lock.Definition.VerifySignatures())
+	require.NoError(t, lock.VerifySignatures())
 }

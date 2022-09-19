@@ -145,8 +145,8 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 	return NodeIdx{}, errors.New("peer not in definition")
 }
 
-// Verify returns true if all config signatures are fully populated and valid. A verified definition is ready for use in DKG.
-func (d Definition) Verify() error {
+// VerifySignatures returns true if all config signatures are fully populated and valid. A verified definition is ready for use in DKG.
+func (d Definition) VerifySignatures() error {
 	configHash, err := hashDefinition(d, true)
 	if err != nil {
 		return errors.Wrap(err, "config hash")
@@ -310,9 +310,8 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// VerifyDefinitionHashes returns an error if hashes populated from json object doesn't matches actual hashes.
-func (d Definition) VerifyDefinitionHashes() error {
-	// Verify config_hash
+// VerifyHashes returns an error if hashes populated from json object doesn't matches actual hashes.
+func (d Definition) VerifyHashes() error {
 	configHash, err := hashDefinition(d, true)
 	if err != nil {
 		return errors.Wrap(err, "config hash")
