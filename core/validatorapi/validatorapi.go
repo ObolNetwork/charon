@@ -145,7 +145,7 @@ type Component struct {
 	awaitAttFunc          func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
 	awaitBlockFunc        func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
 	awaitBlindedBlockFunc func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
-	awaitAggAttFunc       func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)
+	awaitAggAttFunc       func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
 	aggSigDBFunc          func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	dutyDefFunc           func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	subs                  []func(context.Context, core.Duty, core.ParSignedDataSet) error
@@ -181,9 +181,9 @@ func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty 
 	c.dutyDefFunc = fn
 }
 
-// RegisterAwaitAggregatedAttestation registers a function to query aggregated attestation.
+// RegisterAwaitAggAttestation registers a function to query an aggregated attestation.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitAggregatedAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
+func (c *Component) RegisterAwaitAggAttestation(fn func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
 	c.awaitAggAttFunc = fn
 }
 
@@ -654,8 +654,8 @@ func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, sub
 	return c.getCommResponse(ctx, psigsBySlot)
 }
 
-// AggregateAttestation fetches the aggregate attestation given an attestation.
-// Note: It queries aggregated attestation from DutyDB (this is blocking).
+// AggregateAttestation returns the aggregate attestation for the given attestation root.
+// It does a blocking query to DutyAggregator unsigned data from dutyDB.
 func (c Component) AggregateAttestation(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error) {
 	return c.awaitAggAttFunc(ctx, int64(slot), attestationDataRoot)
 }
