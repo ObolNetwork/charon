@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -86,16 +87,15 @@ type vMockCallback func(context.Context, vMockState) error
 
 // newVMockWrapper returns a stateful validator mock wrapper function.
 func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey) (func(context.Context, int64, vMockCallback), error) {
+	// Immutable state and providers.
 	signFunc, err := newVMockSigner(conf, pubshares)
 	if err != nil {
 		return nil, err
 	}
 
-	// Lazy instantiate since charon validator API isn't ready yet.
-	eth2ClProvider := lazyProvider(func() (eth2wrap.Client, error) {
-		return newVMockEth2Client(conf)
-	})
+	eth2ClProvider := newVMockEth2Provider(conf)
 
+	// Mutable state
 	var (
 		mu       sync.Mutex
 		attester = new(validatormock.SlotAttester)
@@ -135,23 +135,44 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey) (func(context.Co
 	}, nil
 }
 
-// newVMockEth2Client returns a function that returns a cached validator mock eth2 client.
-func newVMockEth2Client(conf Config) (eth2wrap.Client, error) {
-	eth2Svc, err := eth2http.New(context.Background(),
-		eth2http.WithLogLevel(1),
-		eth2http.WithAddress("http://"+conf.ValidatorAPIAddr),
-		eth2http.WithTimeout(time.Second*10), // Allow sufficient time to block while fetching duties.
+// newVMockEth2Provider returns a function that returns a cached validator mock eth2 client.
+func newVMockEth2Provider(conf Config) func() (eth2wrap.Client, error) {
+	var (
+		cached eth2wrap.Client
+		mu     sync.Mutex
 	)
-	if err != nil {
-		return nil, err
-	}
 
-	eth2Http, ok := eth2Svc.(*eth2http.Service)
-	if !ok {
-		return nil, errors.New("invalid eth2 http service")
-	}
+	return func() (eth2wrap.Client, error) {
+		mu.Lock()
+		defer mu.Unlock()
 
-	return eth2wrap.AdaptEth2HTTP(eth2Http), nil
+		if cached != nil {
+			return cached, nil
+		}
+
+		// Try three times to reduce test startup issues.
+		var err error
+		for i := 0; i < 3; i++ {
+			var eth2Svc eth2client.Service
+			eth2Svc, err = eth2http.New(context.Background(),
+				eth2http.WithLogLevel(1),
+				eth2http.WithAddress("http://"+conf.ValidatorAPIAddr),
+				eth2http.WithTimeout(time.Second*10), // Allow sufficient time to block while fetching duties.
+			)
+			if err != nil {
+				time.Sleep(time.Millisecond * 100) // Test startup backoff
+				continue
+			}
+			eth2Http, ok := eth2Svc.(*eth2http.Service)
+			if !ok {
+				return nil, errors.New("invalid eth2 http service")
+			}
+
+			cached = eth2wrap.AdaptEth2HTTP(eth2Http)
+		}
+
+		return cached, err
+	}
 }
 
 // newVMockSigner returns a validator mock sign function using keystore loaded from disk.
@@ -213,35 +234,8 @@ func handleVMockDuty(ctx context.Context, duty core.Duty, eth2Cl eth2wrap.Client
 		}
 		log.Info(ctx, "Mock blinded block proposal submitted to validatorapi", z.I64("slot", duty.Slot))
 	default:
-		return errors.New("Invalid duty type")
+		return errors.New("invalid duty type")
 	}
 
 	return nil
-}
-
-// lazyProvider returns a lazy provider function that instantiates and caches T
-// when called.
-func lazyProvider[T any](newT func() (T, error)) func() (T, error) {
-	var (
-		mu     sync.Mutex
-		value  T
-		cached bool
-	)
-
-	return func() (T, error) {
-		mu.Lock()
-		defer mu.Unlock()
-
-		if cached {
-			return value, nil
-		}
-
-		var err error
-		value, err = newT()
-		if err == nil {
-			cached = true
-		}
-
-		return value, err
-	}
 }
