@@ -24,30 +24,34 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestCloneVersionedBeaconBlock(t *testing.T) {
-	block := testutil.RandomCoreVersionBeaconBlock(t)
-	slot1, err := block.Slot()
-	require.NoError(t, err)
+func TestUnsignedDataClone(t *testing.T) {
+	tests := []struct {
+		name string
+		data core.UnsignedData
+	}{
+		{
+			name: "attestation data",
+			data: testutil.RandomCoreAttestationData(t),
+		},
+		{
+			name: "versioned beacon block",
+			data: testutil.RandomCoreVersionBeaconBlock(t),
+		},
+		{
+			name: "versioned blinded beacon block",
+			data: testutil.RandomCoreVersionBlindedBeaconBlock(t),
+		},
+		{
+			name: "aggregated attestation",
+			data: core.NewAggregatedAttestation(testutil.RandomAttestation()),
+		},
+	}
 
-	clone, err := block.Clone()
-	require.NoError(t, err)
-	block2 := clone.(core.VersionedBeaconBlock)
-	slot2, err := block2.Slot()
-	require.NoError(t, err)
-
-	require.Equal(t, slot1, slot2)
-}
-
-func TestCloneVersionedBlindedBeaconBlock(t *testing.T) {
-	block := testutil.RandomCoreVersionBlindedBeaconBlock(t)
-	slot1, err := block.Slot()
-	require.NoError(t, err)
-
-	clone, err := block.Clone()
-	require.NoError(t, err)
-	block2 := clone.(core.VersionedBlindedBeaconBlock)
-	slot2, err := block2.Slot()
-	require.NoError(t, err)
-
-	require.Equal(t, slot1, slot2)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clone, err := test.data.Clone()
+			require.NoError(t, err)
+			require.Equal(t, test.data, clone)
+		})
+	}
 }
