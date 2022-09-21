@@ -228,15 +228,13 @@ func getCommitteeLength(ctx context.Context, eth2Cl eth2Provider, commIdx eth2p0
 		return 0, err
 	}
 
-	// TODO(corver): Maybe refactor to either use specific slot when querying or ignore slot in check below.
-
 	comms, err := eth2Cl.BeaconCommitteesAtEpoch(ctx, "head", epoch)
 	if err != nil {
 		return 0, errors.Wrap(err, "get beacon committees at epoch")
 	}
 
 	for _, d := range comms {
-		if d.Slot == slot && d.Index == commIdx {
+		if d.Index == commIdx {
 			return len(d.Validators), nil
 		}
 	}

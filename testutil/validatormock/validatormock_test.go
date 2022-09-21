@@ -37,16 +37,19 @@ import (
 
 func TestAttest(t *testing.T) {
 	tests := []struct {
-		DutyFactor int
-		Expect     int
+		DutyFactor         int
+		ExpectAttestations int
+		ExpectAggregations int
 	}{
 		{
-			DutyFactor: 0, // All validators in first slot of epoch
-			Expect:     3,
+			DutyFactor:         0, // All validators in first slot of epoch
+			ExpectAttestations: 3,
+			ExpectAggregations: 2,
 		},
 		{
-			DutyFactor: 1, // Validators spread over 1st, 2nd, 3rd slots of epoch
-			Expect:     1,
+			DutyFactor:         1, // Validators spread over 1st, 2nd, 3rd slots of epoch
+			ExpectAttestations: 1,
+			ExpectAggregations: 1,
 		},
 	}
 	for _, test := range tests {
@@ -65,8 +68,13 @@ func TestAttest(t *testing.T) {
 
 			// Callback to collect attestations
 			var atts []*eth2p0.Attestation
+			var aggs []*eth2p0.SignedAggregateAndProof
 			beaconMock.SubmitAttestationsFunc = func(_ context.Context, attestations []*eth2p0.Attestation) error {
 				atts = attestations
+				return nil
+			}
+			beaconMock.SubmitAggregateAttestationsFunc = func(_ context.Context, aggAndProofs []*eth2p0.SignedAggregateAndProof) error {
+				aggs = aggAndProofs
 				return nil
 			}
 
@@ -82,17 +90,22 @@ func TestAttest(t *testing.T) {
 			slotsPerEpoch, err := beaconMock.SlotsPerEpoch(ctx)
 			require.NoError(t, err)
 
-			// Call attest function
-			err = validatormock.Attest(ctx,
-				beaconMock, signFunc,
-				eth2p0.Slot(slotsPerEpoch),
-				valSet.PublicKeys()...,
-			)
-			require.NoError(t, err)
+			attester := validatormock.NewSlotAttester(beaconMock, eth2p0.Slot(slotsPerEpoch), signFunc, valSet.PublicKeys())
+
+			require.NoError(t, attester.Prepare(ctx))
+			require.NoError(t, attester.Attest(ctx))
+			require.NoError(t, attester.Aggregate(ctx))
 
 			// Assert length and expected attestations
-			require.Len(t, atts, test.Expect)
-			testutil.RequireGoldenJSON(t, atts)
+			require.Len(t, atts, test.ExpectAttestations)
+			require.Len(t, aggs, test.ExpectAggregations)
+
+			t.Run("attestations", func(t *testing.T) {
+				testutil.RequireGoldenJSON(t, atts)
+			})
+			t.Run("aggregations", func(t *testing.T) {
+				testutil.RequireGoldenJSON(t, aggs)
+			})
 		})
 	}
 }

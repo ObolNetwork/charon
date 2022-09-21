@@ -216,8 +216,15 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	bmock.SubmitAttestationsFunc = vapi.SubmitAttestations
 
 	// Run attestation using validator mock
-	err = validatormock.Attest(ctx, bmock, validatormock.NewSigner(secret), eth2p0.Slot(epochSlot), validator.Validator.PublicKey)
-	require.NoError(t, err)
+	attester := validatormock.NewSlotAttester(
+		bmock,
+		eth2p0.Slot(epochSlot),
+		validatormock.NewSigner(secret),
+		[]eth2p0.BLSPubKey{validator.Validator.PublicKey},
+	)
+
+	require.NoError(t, attester.Prepare(ctx))
+	require.NoError(t, attester.Attest(ctx))
 }
 
 // TestSignAndVerify signs and verifies the signature.
@@ -1249,7 +1256,7 @@ func TestComponent_SubmitBeaconCommitteeSubscriptionsV2(t *testing.T) {
 		},
 	}
 
-	vapi.RegisterAggSigDB(func(_ context.Context, duty core.Duty, _ core.PubKey) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, _ core.PubKey) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareAggregatorDuty(slot), duty)
 
 		return core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *subs[0]}, nil
@@ -1293,7 +1300,7 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
 	require.NoError(t, err)
 
-	vapi.RegisterAggSigDB(func(_ context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareAggregatorDuty(int64(slot)), duty)
 
 		eth2Pubkey, err := key.ToETH2()

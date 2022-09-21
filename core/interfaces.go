@@ -105,7 +105,7 @@ type ValidatorAPI interface {
 	RegisterAwaitAggAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error))
 
 	// RegisterAggSigDB registers a function to query aggregated signed data from aggSigDB.
-	RegisterAggSigDB(fn func(context.Context, Duty, PubKey) (SignedData, error))
+	RegisterAwaitAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
 
 	// Subscribe registers a function to store partially signed data sets.
 	Subscribe(func(context.Context, Duty, ParSignedDataSet) error)
@@ -185,6 +185,7 @@ type wireFuncs struct {
 	VAPIRegisterGetDutyDefinition       func(func(context.Context, Duty) (DutyDefinitionSet, error))
 	VAPIRegisterPubKeyByAttestation     func(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
 	VAPIRegisterAwaitAggAttestation     func(func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error))
+	VAPIRegisterAwaitAggSigDB           func(func(context.Context, Duty, PubKey) (SignedData, error))
 	VAPISubscribe                       func(func(context.Context, Duty, ParSignedDataSet) error)
 	ParSigDBStoreInternal               func(context.Context, Duty, ParSignedDataSet) error
 	ParSigDBStoreExternal               func(context.Context, Duty, ParSignedDataSet) error
@@ -236,6 +237,7 @@ func Wire(sched Scheduler,
 		VAPIRegisterGetDutyDefinition:       vapi.RegisterGetDutyDefinition,
 		VAPIRegisterPubKeyByAttestation:     vapi.RegisterPubKeyByAttestation,
 		VAPIRegisterAwaitAggAttestation:     vapi.RegisterAwaitAggAttestation,
+		VAPIRegisterAwaitAggSigDB:           vapi.RegisterAwaitAggSigDB,
 		VAPISubscribe:                       vapi.Subscribe,
 		ParSigDBStoreInternal:               parSigDB.StoreInternal,
 		ParSigDBStoreExternal:               parSigDB.StoreExternal,
@@ -264,6 +266,7 @@ func Wire(sched Scheduler,
 	w.VAPIRegisterGetDutyDefinition(w.SchedulerGetDutyDefinition)
 	w.VAPIRegisterPubKeyByAttestation(w.DutyDBPubKeyByAttestation)
 	w.VAPIRegisterAwaitAggAttestation(w.DutyDBAwaitAggAttestation)
+	w.VAPIRegisterAwaitAggSigDB(w.AggSigDBAwait)
 	w.VAPISubscribe(w.ParSigDBStoreInternal)
 	w.ParSigDBSubscribeInternal(w.ParSigExBroadcast)
 	w.ParSigExSubscribe(w.ParSigDBStoreExternal)

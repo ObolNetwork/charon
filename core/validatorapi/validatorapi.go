@@ -146,7 +146,7 @@ type Component struct {
 	awaitBlockFunc        func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
 	awaitBlindedBlockFunc func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
 	awaitAggAttFunc       func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
-	aggSigDBFunc          func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
+	awaitAggSigDBFunc     func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	dutyDefFunc           func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	subs                  []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
@@ -187,9 +187,9 @@ func (c *Component) RegisterAwaitAggAttestation(fn func(ctx context.Context, slo
 	c.awaitAggAttFunc = fn
 }
 
-// RegisterAggSigDB registers a function to query aggregated signed data from aggSigDB.
-func (c *Component) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)) {
-	c.aggSigDBFunc = fn
+// RegisterAwaitAggSigDB registers a function to query aggregated signed data from aggSigDB.
+func (c *Component) RegisterAwaitAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)) {
+	c.awaitAggSigDBFunc = fn
 }
 
 // Subscribe registers a partial signed data set store function.
@@ -692,7 +692,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 
 		// Get selection proof (slot signature).
 		// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
-		s, err := c.aggSigDBFunc(ctx, duty, pk)
+		s, err := c.awaitAggSigDBFunc(ctx, duty, pk)
 		if err != nil {
 			return err
 		}
@@ -880,7 +880,7 @@ func (c Component) getCommResponse(ctx context.Context, psigsBySlot map[eth2p0.S
 		duty := core.NewPrepareAggregatorDuty(int64(slot))
 		for pk := range data {
 			// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
-			s, err := c.aggSigDBFunc(ctx, duty, pk)
+			s, err := c.awaitAggSigDBFunc(ctx, duty, pk)
 			if err != nil {
 				return nil, err
 			}

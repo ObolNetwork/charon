@@ -22,13 +22,10 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"net/http"
-	"sync"
 	"time"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -61,11 +58,9 @@ import (
 	"github.com/obolnetwork/charon/core/sigagg"
 	"github.com/obolnetwork/charon/core/tracker"
 	"github.com/obolnetwork/charon/core/validatorapi"
-	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
-	"github.com/obolnetwork/charon/testutil/validatormock"
 )
 
 const eth2ClientTimeout = time.Second * 2
@@ -409,8 +404,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	// TODO(dhruv): Add wireTracker once the tracker component is ready with deadliner implementation.
-
 	if conf.TestConfig.BroadcastCallback != nil {
 		sigAgg.Subscribe(conf.TestConfig.BroadcastCallback)
 	}
@@ -631,154 +624,4 @@ func (h httpServeHook) Call(context.Context) error {
 	}
 
 	return nil
-}
-
-// wireValidatorMock wires the validator mock if enabled. The validator mock attestions
-// will be triggered by scheduler's DutyAttester. It connects via http validatorapi.Router.
-func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
-	if !conf.SimnetVMock {
-		return nil
-	}
-
-	signer, err := netVMockSigner(conf, pubshares)
-	if err != nil {
-		return err
-	}
-
-	eth2Provider := newVMockEth2Client(conf)
-
-	// Trigger validatormock when scheduler triggers new slot.
-	sched.SubscribeDuties(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
-		ctx = log.WithTopic(ctx, "vmock")
-		go func() {
-			eth2Cl, err := eth2Provider()
-			if err != nil {
-				log.Error(ctx, "Cannot connect to validatorapi", err)
-				return
-			}
-
-			callValidatorMock(ctx, duty, eth2Cl, signer, pubshares)
-		}()
-
-		return nil
-	})
-
-	go func() {
-		for registration := range conf.TestConfig.BuilderRegistration {
-			ctx := log.WithTopic(context.Background(), "vmock")
-			eth2Cl, err := eth2Provider()
-			if err != nil {
-				log.Error(ctx, "Cannot connect to validatorapi", err)
-				return
-			}
-
-			err = validatormock.Register(ctx, eth2Cl, signer, registration, pubshares[0])
-			if err != nil {
-				log.Warn(ctx, "Mock registration failed", err)
-			} else {
-				log.Info(ctx, "Mock registration submitted to validatorapi")
-			}
-		}
-	}()
-
-	return nil
-}
-
-// newVMockEth2Client returns a function that returns a cached validator mock eth2 client.
-func newVMockEth2Client(conf Config) func() (eth2wrap.Client, error) {
-	var (
-		cached eth2wrap.Client
-		mu     sync.Mutex
-	)
-
-	return func() (eth2wrap.Client, error) {
-		mu.Lock()
-		defer mu.Unlock()
-
-		if cached != nil {
-			return cached, nil
-		}
-
-		// Try three times to reduce test startup issues.
-		var err error
-		for i := 0; i < 3; i++ {
-			var eth2Svc eth2client.Service
-			eth2Svc, err = eth2http.New(context.Background(),
-				eth2http.WithLogLevel(1),
-				eth2http.WithAddress("http://"+conf.ValidatorAPIAddr),
-				eth2http.WithTimeout(time.Second*10), // Allow sufficient time to block while fetching duties.
-			)
-			if err != nil {
-				time.Sleep(time.Millisecond * 100) // Test startup backoff
-				continue
-			}
-			eth2Http, ok := eth2Svc.(*eth2http.Service)
-			if !ok {
-				return nil, errors.New("invalid eth2 http service")
-			}
-
-			cached = eth2wrap.AdaptEth2HTTP(eth2Http)
-		}
-
-		return cached, err
-	}
-}
-
-func netVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.SignFunc, error) {
-	secrets := conf.TestConfig.SimnetKeys
-	if len(secrets) == 0 {
-		var err error
-		secrets, err = keystore.LoadKeys(conf.SimnetValidatorKeysDir)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	signer := validatormock.NewSigner(secrets...)
-
-	if len(secrets) == 0 && len(pubshares) != 0 {
-		return nil, errors.New("validator mock keys empty")
-	}
-	if len(secrets) < len(pubshares) {
-		return nil, errors.New("some validator mock keys missing", z.Int("expect", len(pubshares)), z.Int("found", len(secrets)))
-	}
-	for i, pubshare := range pubshares {
-		_, err := signer(pubshare, []byte("test signing"))
-		if err != nil {
-			return nil, errors.Wrap(err, "validator mock key missing", z.Int("index", i))
-		}
-	}
-
-	return signer, nil
-}
-
-// callValidatorMock calls appropriate validatormock function to attestation and block proposal.
-func callValidatorMock(ctx context.Context, duty core.Duty, eth2Cl eth2wrap.Client,
-	signer validatormock.SignFunc, pubshares []eth2p0.BLSPubKey,
-) {
-	switch duty.Type {
-	case core.DutyAttester:
-		err := validatormock.Attest(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot), pubshares...)
-		if err != nil {
-			log.Warn(ctx, "Mock attestation failed", err)
-		} else {
-			log.Info(ctx, "Mock attestation submitted to validatorapi", z.I64("slot", duty.Slot))
-		}
-	case core.DutyProposer:
-		err := validatormock.ProposeBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot), pubshares...)
-		if err != nil {
-			log.Warn(ctx, "Mock block proposal failed", err)
-		} else {
-			log.Info(ctx, "Mock block proposal submitted to validatorapi", z.I64("slot", duty.Slot))
-		}
-	case core.DutyBuilderProposer:
-		err := validatormock.ProposeBlindedBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot), pubshares...)
-		if err != nil {
-			log.Warn(ctx, "Mock blinded block proposal failed", err)
-		} else {
-			log.Info(ctx, "Mock blinded block proposal submitted to validatorapi", z.I64("slot", duty.Slot))
-		}
-	default:
-		log.Warn(ctx, "Invalid duty type", nil)
-	}
 }
