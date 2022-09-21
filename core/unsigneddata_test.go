@@ -51,14 +51,7 @@ func TestUnsignedDataClone(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			clone, err := test.data.Clone()
 			require.NoError(t, err)
-
-			b1, err := test.data.MarshalJSON()
-			require.NoError(t, err)
-
-			b2, err := clone.MarshalJSON()
-			require.NoError(t, err)
-
-			require.Equal(t, b1, b2)
+			require.Equal(t, test.data, clone)
 		})
 	}
 }
