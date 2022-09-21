@@ -22,6 +22,7 @@ import (
 
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
@@ -69,6 +70,13 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Type: core.DutyPrepareAggregator,
 			Data: core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *testutil.RandomBeaconCommitteeSubscription()},
 		},
+		{
+			Type: core.DutyAggregator,
+			Data: core.SignedAggregateAndProof{SignedAggregateAndProof: eth2p0.SignedAggregateAndProof{
+				Message:   testutil.RandomAggregateAndProof(),
+				Signature: testutil.RandomEth2Signature(),
+			}},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.Type.String(), func(t *testing.T) {
@@ -115,6 +123,10 @@ func TestUnsignedDataToProto(t *testing.T) {
 		{
 			Type: core.DutyBuilderProposer,
 			Data: testutil.RandomCoreVersionBlindedBeaconBlock(t),
+		},
+		{
+			Type: core.DutyAggregator,
+			Data: core.NewAggregatedAttestation(testutil.RandomAttestation()),
 		},
 	}
 
@@ -218,5 +230,9 @@ func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
 			},
 		},
 		core.DutyPrepareAggregator: core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *testutil.RandomBeaconCommitteeSubscription()},
+		core.DutyAggregator: core.SignedAggregateAndProof{SignedAggregateAndProof: eth2p0.SignedAggregateAndProof{
+			Message:   testutil.RandomAggregateAndProof(),
+			Signature: testutil.RandomEth2Signature(),
+		}},
 	}
 }
