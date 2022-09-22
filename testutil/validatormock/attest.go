@@ -118,14 +118,10 @@ func (a *SlotAttester) Attest(ctx context.Context) error {
 
 // Aggregate should be called at latest 2/3 into the slot, it does slot attestation aggregations.
 func (a *SlotAttester) Aggregate(ctx context.Context) error {
-	s := a.slot
 	// Wait for Prepare and Attest to complete
 	<-a.selectinsOK
 	<-a.datasOK
 
-	if a.slot != s {
-		panic("what!")
-	}
 	return aggregate(ctx, a.eth2Cl, a.signFunc, a.slot, a.vals, a.selections, a.datas)
 }
 
