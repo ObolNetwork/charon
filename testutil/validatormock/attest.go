@@ -40,13 +40,13 @@ type (
 // NewSlotAttester returns a new SlotAttester.
 func NewSlotAttester(eth2Cl eth2wrap.Client, slot eth2p0.Slot, signFunc SignFunc, pubkeys []eth2p0.BLSPubKey) *SlotAttester {
 	return &SlotAttester{
-		eth2Cl:      eth2Cl,
-		slot:        slot,
-		pubkeys:     pubkeys,
-		signFunc:    signFunc,
-		dutiesOK:    make(chan struct{}),
-		selectinsOK: make(chan struct{}),
-		datasOK:     make(chan struct{}),
+		eth2Cl:       eth2Cl,
+		slot:         slot,
+		pubkeys:      pubkeys,
+		signFunc:     signFunc,
+		dutiesOK:     make(chan struct{}),
+		selectionsOK: make(chan struct{}),
+		datasOK:      make(chan struct{}),
 	}
 }
 
@@ -59,13 +59,13 @@ type SlotAttester struct {
 	signFunc SignFunc
 
 	// Mutable fields
-	vals        validators
-	duties      duties
-	selections  selections
-	datas       datas
-	dutiesOK    chan struct{}
-	selectinsOK chan struct{}
-	datasOK     chan struct{}
+	vals         validators
+	duties       duties
+	selections   selections
+	datas        datas
+	dutiesOK     chan struct{}
+	selectionsOK chan struct{}
+	datasOK      chan struct{}
 }
 
 // Slot returns the attester slot.
@@ -96,7 +96,7 @@ func (a *SlotAttester) Prepare(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	close(a.selectinsOK)
+	close(a.selectionsOK)
 
 	return nil
 }
@@ -104,7 +104,7 @@ func (a *SlotAttester) Prepare(ctx context.Context) error {
 // Attest should be called at latest 1/3 into the slot, it does slot attestations.
 func (a *SlotAttester) Attest(ctx context.Context) error {
 	// Wait for Prepare complete
-	<-a.dutiesOK
+	wait(ctx, a.dutiesOK)
 
 	var err error
 	a.datas, err = attest(ctx, a.eth2Cl, a.signFunc, a.slot, a.duties)
@@ -119,10 +119,19 @@ func (a *SlotAttester) Attest(ctx context.Context) error {
 // Aggregate should be called at latest 2/3 into the slot, it does slot attestation aggregations.
 func (a *SlotAttester) Aggregate(ctx context.Context) error {
 	// Wait for Prepare and Attest to complete
-	<-a.selectinsOK
-	<-a.datasOK
+	wait(ctx, a.selectionsOK, a.datasOK)
 
 	return aggregate(ctx, a.eth2Cl, a.signFunc, a.slot, a.vals, a.selections, a.datas)
+}
+
+// wait returns when either all the channels or the context is closed.
+func wait(ctx context.Context, chs ...chan struct{}) {
+	for _, ch := range chs {
+		select {
+		case <-ctx.Done():
+		case <-ch:
+		}
+	}
 }
 
 // activeValidators returns the head active validators for the public keys.
