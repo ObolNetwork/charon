@@ -47,6 +47,20 @@ func uuid(random io.Reader) string {
 
 // verifySig returns true if the signature matches the digest and address.
 func verifySig(expectedAddr []byte, digest []byte, sig []byte) (bool, error) {
+	if len(sig) != 65 {
+		return false, errors.New("invalid signature length", z.Int("siglen", len(sig)))
+	}
+
+	// https://github.com/ethereum/go-ethereum/issues/19751#issuecomment-504900739
+	// TL;DR: Metamask signatures end with 0x1b (27) or 0x1c (28) while go-ethereum/crypto signatures end with 0x0(0) or 0x1(1) and both are correct.
+	if sig[64] != 0 && sig[64] != 1 && sig[64] != 27 && sig[64] != 28 {
+		return false, errors.New("invalid recovery id", z.Any("id", sig[64]))
+	}
+
+	if sig[64] == 27 || sig[64] == 28 {
+		sig[64] -= 27 // Make the last byte 0 or 1 as that is the canonical V value.
+	}
+
 	pubkey, err := crypto.SigToPub(digest, sig)
 	if err != nil {
 		return false, errors.Wrap(err, "pubkey from signature")
