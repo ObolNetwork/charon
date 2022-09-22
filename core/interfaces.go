@@ -46,6 +46,9 @@ type Fetcher interface {
 	// RegisterAggSigDB registers a function to get resolved aggregated
 	// signed data from the AggSigDB (e.g., randao reveals).
 	RegisterAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
+
+	// RegisterAwaitAttData registers a function to get attestation data from DutyDB.
+	RegisterAwaitAttData(func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error))
 }
 
 // DutyDB persists unsigned duty data sets and makes it available for querying. It also acts as slashing database.

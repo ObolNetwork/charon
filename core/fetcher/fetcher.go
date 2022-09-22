@@ -38,9 +38,10 @@ func New(eth2Cl eth2wrap.Client) (*Fetcher, error) {
 
 // Fetcher fetches proposed duty data.
 type Fetcher struct {
-	eth2Cl       eth2wrap.Client
-	subs         []func(context.Context, core.Duty, core.UnsignedDataSet) error
-	aggSigDBFunc func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
+	eth2Cl           eth2wrap.Client
+	subs             []func(context.Context, core.Duty, core.UnsignedDataSet) error
+	aggSigDBFunc     func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
+	awaitAttDataFunc func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error)
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -99,6 +100,12 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 // Note: This is not thread safe and should only be called *before* Fetch.
 func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)) {
 	f.aggSigDBFunc = fn
+}
+
+// RegisterAwaitAttData registers a function to get attestation data from DutyDB.
+// Note: This is not thread safe and should only be called *before* Fetch.
+func (f *Fetcher) RegisterAwaitAttData(fn func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error)) {
+	f.awaitAttDataFunc = fn
 }
 
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.
@@ -162,19 +169,19 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 			continue
 		}
 
-		// Query AggSigDB for DutyAttester to get attestation data root.
-		attData, err := f.aggSigDBFunc(ctx, core.NewAttesterDuty(slot), pubkey)
+		// Query DutyDB for Attestation data to get attestation data root.
+		attData, err := f.awaitAttDataFunc(ctx, slot, int64(res.CommitteeIndex))
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
 
-		att, ok := attData.(core.Attestation)
-		if !ok {
-			return core.UnsignedDataSet{}, errors.New("invalid attestation")
+		dataRoot, err := attData.HashTreeRoot()
+		if err != nil {
+			return core.UnsignedDataSet{}, err
 		}
 
 		// Query BN for aggregate attestation.
-		aggAtt, err := f.eth2Cl.AggregateAttestation(ctx, eth2p0.Slot(slot), att.Data.BeaconBlockRoot)
+		aggAtt, err := f.eth2Cl.AggregateAttestation(ctx, eth2p0.Slot(slot), dataRoot)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
