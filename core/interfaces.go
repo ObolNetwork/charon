@@ -46,6 +46,9 @@ type Fetcher interface {
 	// RegisterAggSigDB registers a function to get resolved aggregated
 	// signed data from the AggSigDB (e.g., randao reveals).
 	RegisterAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
+
+	// RegisterAwaitAttData registers a function to get attestation data from DutyDB.
+	RegisterAwaitAttData(func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error))
 }
 
 // DutyDB persists unsigned duty data sets and makes it available for querying. It also acts as slashing database.
@@ -171,6 +174,7 @@ type wireFuncs struct {
 	FetcherFetch                        func(context.Context, Duty, DutyDefinitionSet) error
 	FetcherSubscribe                    func(func(context.Context, Duty, UnsignedDataSet) error)
 	FetcherRegisterAggSigDB             func(func(context.Context, Duty, PubKey) (SignedData, error))
+	FetcherRegisterAwaitAttData         func(func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error))
 	ConsensusPropose                    func(context.Context, Duty, UnsignedDataSet) error
 	ConsensusSubscribe                  func(func(context.Context, Duty, UnsignedDataSet) error)
 	DutyDBStore                         func(context.Context, Duty, UnsignedDataSet) error
@@ -223,6 +227,7 @@ func Wire(sched Scheduler,
 		FetcherFetch:                        fetch.Fetch,
 		FetcherSubscribe:                    fetch.Subscribe,
 		FetcherRegisterAggSigDB:             fetch.RegisterAggSigDB,
+		FetcherRegisterAwaitAttData:         fetch.RegisterAwaitAttData,
 		ConsensusPropose:                    cons.Propose,
 		ConsensusSubscribe:                  cons.Subscribe,
 		DutyDBStore:                         dutyDB.Store,
@@ -259,6 +264,7 @@ func Wire(sched Scheduler,
 	w.SchedulerSubscribeDuties(w.FetcherFetch)
 	w.FetcherSubscribe(w.ConsensusPropose)
 	w.FetcherRegisterAggSigDB(w.AggSigDBAwait)
+	w.FetcherRegisterAwaitAttData(w.DutyDBAwaitAttestation)
 	w.ConsensusSubscribe(w.DutyDBStore)
 	w.VAPIRegisterAwaitBeaconBlock(w.DutyDBAwaitBeaconBlock)
 	w.VAPIRegisterAwaitBlindedBeaconBlock(w.DutyDBAwaitBlindedBeaconBlock)

@@ -121,13 +121,9 @@ func TestFetchAggregator(t *testing.T) {
 		pubkeysByIdx[vIdxB]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxB, slot, commIdxB),
 	}
 
-	attByPubKey := map[core.PubKey]core.SignedData{
-		pubkeysByIdx[vIdxA]: core.Attestation{
-			Attestation: *testutil.RandomAttestation(),
-		},
-		pubkeysByIdx[vIdxB]: core.Attestation{
-			Attestation: *testutil.RandomAttestation(),
-		},
+	attByCommIdx := map[int64]*eth2p0.Attestation{
+		commIdxA: testutil.RandomAttestation(),
+		commIdxB: testutil.RandomAttestation(),
 	}
 
 	bmock, err := beaconmock.New()
@@ -141,10 +137,11 @@ func TestFetchAggregator(t *testing.T) {
 	}
 
 	bmock.AggregateAttestationFunc = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
-		for _, att := range attByPubKey {
-			a := att.(core.Attestation)
-			if a.Data.BeaconBlockRoot == root {
-				return &a.Attestation, nil
+		for _, att := range attByCommIdx {
+			dataRoot, err := att.Data.HashTreeRoot()
+			require.NoError(t, err)
+			if dataRoot == root {
+				return att, nil
 			}
 		}
 
@@ -155,11 +152,13 @@ func TestFetchAggregator(t *testing.T) {
 	require.NoError(t, err)
 
 	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
-		if duty.Type == core.DutyAttester {
-			return attByPubKey[key], nil
-		}
+		require.Equal(t, core.NewPrepareAggregatorDuty(slot), duty)
 
 		return signedCommSubByPubKey[key], nil
+	})
+
+	fetch.RegisterAwaitAttData(func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error) {
+		return attByCommIdx[commIdx].Data, nil
 	})
 
 	err = fetch.Fetch(ctx, duty, defSet)
@@ -169,14 +168,14 @@ func TestFetchAggregator(t *testing.T) {
 		require.Equal(t, duty, resDuty)
 		require.Len(t, resDataSet, 2)
 
-		for pubkey, aggAtt := range resDataSet {
+		for _, aggAtt := range resDataSet {
 			aggregated, ok := aggAtt.(core.AggregatedAttestation)
 			require.True(t, ok)
 
-			att, ok := attByPubKey[pubkey].(core.Attestation)
+			att, ok := attByCommIdx[int64(aggregated.Attestation.Data.Index)]
 			require.True(t, ok)
 
-			require.Equal(t, aggregated.Attestation, att.Attestation)
+			require.Equal(t, aggregated.Attestation, *att)
 		}
 
 		return nil
