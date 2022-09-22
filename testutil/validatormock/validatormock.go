@@ -32,7 +32,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/prysmaticlabs/go-bitfield"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -45,74 +44,6 @@ import (
 
 // SignFunc abstract signing done by the validator client.
 type SignFunc func(pubshare eth2p0.BLSPubKey, data []byte) (eth2p0.BLSSignature, error)
-
-// Attest performs attestation duties for the provided slot and pubkeys (validators).
-func Attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
-	slot eth2p0.Slot, pubkeys ...eth2p0.BLSPubKey,
-) error {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return err
-	}
-
-	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
-
-	valMap, err := eth2Cl.ValidatorsByPubKey(ctx, "head", pubkeys) // Using head to mitigate future slot issues.
-	if err != nil {
-		return err
-	}
-
-	var indexes []eth2p0.ValidatorIndex
-	for index, val := range valMap {
-		if !val.Status.IsActive() {
-			continue
-		}
-		indexes = append(indexes, index)
-	}
-
-	duties, err := eth2Cl.AttesterDuties(ctx, epoch, indexes)
-	if err != nil {
-		return err
-	}
-
-	var atts []*eth2p0.Attestation
-	for _, duty := range duties {
-		if duty.Slot != slot {
-			continue
-		}
-
-		data, err := eth2Cl.AttestationData(ctx, duty.Slot, duty.CommitteeIndex)
-		if err != nil {
-			return err
-		}
-
-		root, err := data.HashTreeRoot()
-		if err != nil {
-			return errors.Wrap(err, "hash attestation")
-		}
-
-		sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconAttester, data.Target.Epoch, root)
-		if err != nil {
-			return err
-		}
-
-		sig, err := signFunc(duty.PubKey, sigData[:])
-		if err != nil {
-			return err
-		}
-
-		aggBits := bitfield.NewBitlist(duty.CommitteeLength)
-		aggBits.SetBitAt(duty.ValidatorCommitteeIndex, true)
-
-		atts = append(atts, &eth2p0.Attestation{
-			AggregationBits: aggBits,
-			Data:            data,
-			Signature:       sig,
-		})
-	}
-
-	return eth2Cl.SubmitAttestations(ctx, atts)
-}
 
 // ProposeBlock proposes block for the given slot.
 func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,

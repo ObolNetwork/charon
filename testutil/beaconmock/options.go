@@ -217,7 +217,8 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 	}
 }
 
-// WithDeterministicAttesterDuties configures the mock to provide deterministic duties based on provided arguments and config.
+// WithDeterministicAttesterDuties configures the mock to provide deterministic
+// duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
 func WithDeterministicAttesterDuties(factor int) Option {
 	return func(mock *Mock) {
@@ -253,6 +254,43 @@ func WithDeterministicAttesterDuties(factor int) Option {
 					CommitteeLength:         slotsPerEpoch,
 					CommitteesAtSlot:        slotsPerEpoch,
 					ValidatorCommitteeIndex: uint64(index),
+				})
+			}
+
+			return resp, nil
+		}
+
+		mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subs []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+			var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
+			for _, sub := range subs {
+				// Is aggregator if signature sends on 1
+				isAggregator := (sub.SlotSignature[0] & 0x01) == 0x01
+				resp = append(resp, &eth2exp.BeaconCommitteeSubscriptionResponse{
+					ValidatorIndex:   sub.ValidatorIndex,
+					Slot:             sub.Slot,
+					CommitteeIndex:   sub.CommitteeIndex,
+					CommitteesAtSlot: sub.CommitteesAtSlot,
+					IsAggregator:     isAggregator,
+					SelectionProof:   sub.SlotSignature,
+				})
+			}
+
+			return resp, nil
+		}
+
+		mock.BeaconCommitteesAtEpochFunc = func(ctx context.Context, stateID string, epoch eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
+			// Duties above uses this number of committees
+			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			var resp []*eth2v1.BeaconCommittee
+			for i := 0; i < int(slotsPerEpoch); i++ {
+				resp = append(resp, &eth2v1.BeaconCommittee{
+					Slot:       0, // TODO(corver): Beacon mock might need to be stateful at some point.
+					Index:      eth2p0.CommitteeIndex(i),
+					Validators: []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(i)},
 				})
 			}
 
@@ -414,30 +452,30 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 				},
 			}, nil
 		},
-		ProposerDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		ProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return []*eth2v1.ProposerDuty{}, nil
 		},
-		AttesterDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+		BeaconCommitteesFunc: func(context.Context, string) ([]*eth2v1.BeaconCommittee, error) {
+			return []*eth2v1.BeaconCommittee{}, nil
+		},
+		BeaconCommitteesAtEpochFunc: func(context.Context, string, eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
+			return []*eth2v1.BeaconCommittee{}, nil
+		},
+		AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return []*eth2v1.AttesterDuty{}, nil
 		},
 		AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
-			epoch, err := currentEpoch(ctx, httpMock, clock)
+			return stubAttestationData(ctx, httpMock, clock, slot, index)
+		},
+		AggregateAttestationFunc: func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
+			attData, err := stubAttestationData(ctx, httpMock, clock, slot, 1)
 			if err != nil {
 				return nil, err
 			}
 
-			return &eth2p0.AttestationData{
-				Slot:            slot,
-				Index:           index,
-				BeaconBlockRoot: stubRoot(epoch),
-				Source: &eth2p0.Checkpoint{
-					Epoch: eth2p0.Epoch(epoch - 1),
-					Root:  stubRoot(epoch - 1),
-				},
-				Target: &eth2p0.Checkpoint{
-					Epoch: eth2p0.Epoch(epoch),
-					Root:  stubRoot(epoch),
-				},
+			return &eth2p0.Attestation{
+				AggregationBits: bitfield.NewBitlist(0),
+				Data:            attData,
 			}, nil
 		},
 		ValidatorsFunc: func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
@@ -470,10 +508,46 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitValidatorRegistrationsFunc: func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error {
 			return nil
 		},
+		SubmitBeaconCommitteeSubscriptionsV2Func: func(_ context.Context, subs []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+			var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
+			for _, sub := range subs {
+				resp = append(resp, &eth2exp.BeaconCommitteeSubscriptionResponse{
+					ValidatorIndex:   sub.ValidatorIndex,
+					Slot:             sub.Slot,
+					CommitteeIndex:   sub.CommitteeIndex,
+					CommitteesAtSlot: sub.CommitteesAtSlot,
+					IsAggregator:     false,
+					SelectionProof:   sub.SlotSignature,
+				})
+			}
+
+			return resp, nil
+		},
 		SlotsPerEpochFunc: func(ctx context.Context) (uint64, error) {
 			return httpMock.SlotsPerEpoch(ctx)
 		},
 	}
+}
+
+func stubAttestationData(ctx context.Context, httpMock HTTPMock, clock clockwork.Clock, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+	epoch, err := currentEpoch(ctx, httpMock, clock)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2p0.AttestationData{
+		Slot:            slot,
+		Index:           index,
+		BeaconBlockRoot: stubRoot(epoch),
+		Source: &eth2p0.Checkpoint{
+			Epoch: eth2p0.Epoch(epoch - 1),
+			Root:  stubRoot(epoch - 1),
+		},
+		Target: &eth2p0.Checkpoint{
+			Epoch: eth2p0.Epoch(epoch),
+			Root:  stubRoot(epoch),
+		},
+	}, nil
 }
 
 func array32(slice []byte) [32]byte {
