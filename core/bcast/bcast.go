@@ -53,7 +53,7 @@ type Broadcaster struct {
 }
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
-func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.PubKey, aggData core.SignedData) (err error) { //nolint:nonamedreturn,gocognit // Handled in defer
+func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.PubKey, aggData core.SignedData) (err error) { //nolint:gocognit
 	ctx = log.WithTopic(ctx, "bcast")
 	ctx = log.WithCtx(ctx, z.Any("pubkey", pubkey))
 	defer func() {
@@ -175,7 +175,8 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 
 		err = b.eth2Cl.SubmitBeaconCommitteeSubscriptions(ctx, subs)
 		if err == nil {
-			log.Info(ctx, "Beacon committee subscription successfully submitted to beacon node", nil)
+			log.Info(ctx, "Beacon committee subscription successfully submitted to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot)))
 		}
 
 		return err
@@ -187,7 +188,8 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 
 		err = b.eth2Cl.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{&aggAndProof.SignedAggregateAndProof})
 		if err == nil {
-			log.Info(ctx, "Attestation aggregation successfully submitted to beacon node", nil)
+			log.Info(ctx, "Attestation aggregation successfully submitted to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot)))
 		}
 
 		return err

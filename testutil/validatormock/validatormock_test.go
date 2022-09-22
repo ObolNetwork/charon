@@ -44,12 +44,12 @@ func TestAttest(t *testing.T) {
 		{
 			DutyFactor:         0, // All validators in first slot of epoch
 			ExpectAttestations: 3,
-			ExpectAggregations: 2,
+			ExpectAggregations: 1, // Only VIdx 2 is aggregator
 		},
 		{
 			DutyFactor:         1, // Validators spread over 1st, 2nd, 3rd slots of epoch
 			ExpectAttestations: 1,
-			ExpectAggregations: 1,
+			ExpectAggregations: 0, // VIdx 1 is not aggregator
 		},
 	}
 	for _, test := range tests {

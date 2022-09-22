@@ -23,6 +23,6 @@ import (
 )
 
 func TestStubRoot(t *testing.T) {
-	root := stubRoot(1)
-	require.Equal(t, "0x59b7938aec659956a33c86dd8aca840c00000000000000000000000000000000", fmt.Sprintf("%#x", root))
+	root := mustRoot(1)
+	require.Equal(t, "0x0100000000000000000000000000000000000000000000000000000000000000", fmt.Sprintf("%#x", root))
 }

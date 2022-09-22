@@ -88,6 +88,10 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 			},
 		},
 		{
+			Path:    "/eth/v1/validator/beacon_committee_subscriptions",
+			Handler: func(w http.ResponseWriter, r *http.Request) {},
+		},
+		{
 			Path: "/eth/v1/node/version",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(`{"data": {"version": "charon/static_beacon_mock"}}`))

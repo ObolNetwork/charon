@@ -102,7 +102,7 @@ func WithBaseDelay(d time.Duration) func(*Config) {
 //	    return resp
 //	  }
 //	}
-func New(ctx context.Context, opts ...func(*Config)) (backoff func()) { //nolint:nonamedreturns // Opaque return type
+func New(ctx context.Context, opts ...func(*Config)) (backoff func()) {
 	backoff, _ = NewWithReset(ctx, opts...)
 	return backoff
 }
@@ -125,7 +125,7 @@ func New(ctx context.Context, opts ...func(*Config)) (backoff func()) { //nolint
 //	    // Do something with the response.
 //	  }
 //	}
-func NewWithReset(ctx context.Context, opts ...func(*Config)) (backoff func(), reset func()) { //nolint:nonamedreturns // Opaque return types
+func NewWithReset(ctx context.Context, opts ...func(*Config)) (backoff func(), reset func()) {
 	conf := DefaultConfig
 	for _, opt := range opts {
 		opt(&conf)

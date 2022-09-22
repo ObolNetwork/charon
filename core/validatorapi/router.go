@@ -611,7 +611,7 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 }
 
 func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, body []byte) (interface{}, error) {
 		var aggs []*eth2p0.SignedAggregateAndProof
 		err := json.Unmarshal(body, &aggs)
 		if err != nil {

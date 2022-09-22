@@ -17,10 +17,8 @@ package beaconmock
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"hash/fnv"
 	"net/http"
 	"sort"
 	"strings"
@@ -263,8 +261,9 @@ func WithDeterministicAttesterDuties(factor int) Option {
 		mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subs []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
 			var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
 			for _, sub := range subs {
-				// Is aggregator if signature sends on 1
-				isAggregator := (sub.SlotSignature[0] & 0x01) == 0x01
+				// Is aggregator if ValidatorIndex is even
+				isAggregator := sub.ValidatorIndex%2 == 0
+
 				resp = append(resp, &eth2exp.BeaconCommitteeSubscriptionResponse{
 					ValidatorIndex:   sub.ValidatorIndex,
 					Slot:             sub.Slot,
@@ -394,6 +393,8 @@ func WithAttestationAggregation(aggregators map[eth2p0.Slot]eth2p0.ValidatorInde
 
 // defaultMock returns a minimum viable mock that doesn't panic and returns mostly empty responses.
 func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clock) Mock {
+	attStore := newAttestationStore(httpMock)
+
 	return Mock{
 		clock:      clock,
 		HTTPMock:   httpMock,
@@ -465,10 +466,10 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return []*eth2v1.AttesterDuty{}, nil
 		},
 		AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
-			return stubAttestationData(ctx, httpMock, clock, slot, index)
+			return attStore.NewAttestationData(ctx, slot, index)
 		},
 		AggregateAttestationFunc: func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
-			attData, err := stubAttestationData(ctx, httpMock, clock, slot, 1)
+			attData, err := attStore.AttestationDataByRoot(root)
 			if err != nil {
 				return nil, err
 			}
@@ -523,31 +524,13 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 
 			return resp, nil
 		},
+		SubmitAggregateAttestationsFunc: func(context.Context, []*eth2p0.SignedAggregateAndProof) error {
+			return nil
+		},
 		SlotsPerEpochFunc: func(ctx context.Context) (uint64, error) {
 			return httpMock.SlotsPerEpoch(ctx)
 		},
 	}
-}
-
-func stubAttestationData(ctx context.Context, httpMock HTTPMock, clock clockwork.Clock, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
-	epoch, err := currentEpoch(ctx, httpMock, clock)
-	if err != nil {
-		return nil, err
-	}
-
-	return &eth2p0.AttestationData{
-		Slot:            slot,
-		Index:           index,
-		BeaconBlockRoot: stubRoot(epoch),
-		Source: &eth2p0.Checkpoint{
-			Epoch: eth2p0.Epoch(epoch - 1),
-			Root:  stubRoot(epoch - 1),
-		},
-		Target: &eth2p0.Checkpoint{
-			Epoch: eth2p0.Epoch(epoch),
-			Root:  stubRoot(epoch),
-		},
-	}, nil
 }
 
 func array32(slice []byte) [32]byte {
@@ -570,35 +553,4 @@ func mustPKFromHex(pubkeyHex string) eth2p0.BLSPubKey {
 	}
 
 	return resp
-}
-
-// stubRoot return a stub dependent root for an epoch.
-func stubRoot(epoch uint64) eth2p0.Root {
-	h := fnv.New128a()
-	_ = binary.Write(h, binary.LittleEndian, epoch)
-
-	var r eth2p0.Root
-	copy(r[:], h.Sum(nil))
-
-	return r
-}
-
-// currentEpoch returns the current epoch.
-func currentEpoch(ctx context.Context, eth2Cl HTTPMock, clock clockwork.Clock) (uint64, error) {
-	genesis, err := eth2Cl.GenesisTime(ctx)
-	if err != nil {
-		return 0, err
-	}
-	slotsDuration, err := eth2Cl.SlotDuration(ctx)
-	if err != nil {
-		return 0, err
-	}
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	epoch := uint64(clock.Since(genesis)/slotsDuration) / slotsPerEpoch
-
-	return epoch, nil
 }
