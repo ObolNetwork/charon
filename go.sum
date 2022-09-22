@@ -684,8 +684,8 @@ github.com/viant/assertly v0.4.8/go.mod h1:aGifi++jvCrUaklKEKT0BU95igDNaqkvz+49u
 github.com/viant/toolbox v0.24.0/go.mod h1:OxMCG57V0PXuIP2HNQrtJf2CjqdmbrOx5EkMILuUhzM=
 github.com/wealdtech/go-eth2-types/v2 v2.6.0 h1:djgMv1A40bstgkg6L1ZA7eowR/Gbmj1ZWnBdrK39lhY=
 github.com/wealdtech/go-eth2-types/v2 v2.6.0/go.mod h1:psOez/ZRBzZSDl5hiNDwRf5ZqQujNE6h5FxAz09Koxg=
-github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.2.0 h1:HgIK30YsXxgR6Ra6pvxW1KFUPbx7BpIIK1VGhOlmCm4=
-github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.2.0/go.mod h1:qqIU42c9sXcNYsiEjUQoOOWYZfZDL1zmyLtz3t+wN2s=
+github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.3.0 h1:3Kx2QvKU/4PP0d7+e3+q9G+QiXQprNQPeAXsWOcfKRI=
+github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.3.0/go.mod h1:qqIU42c9sXcNYsiEjUQoOOWYZfZDL1zmyLtz3t+wN2s=
 github.com/wealdtech/go-eth2-wallet-types/v2 v2.9.0 h1:XqWgsONVqsPvciuEXxM/QU4hYouBVk0+5/pGqDMGUHQ=
 github.com/wealdtech/go-eth2-wallet-types/v2 v2.9.0/go.mod h1:7Ad2xp27vOQRQWQsIeHBdU/YiyEt6klBeh5gwnNnlwE=
 github.com/yuin/goldmark v1.1.25/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
