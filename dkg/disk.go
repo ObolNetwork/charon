@@ -54,6 +54,8 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 		if err != nil {
 			return cluster.Definition{}, errors.Wrap(err, "read definition")
 		}
+
+		log.Info(ctx, "Definition file loaded from remote URI", z.Str("URI", conf.DefFile))
 	} else {
 		buf, err := os.ReadFile(conf.DefFile)
 		if err != nil {
@@ -63,6 +65,8 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 		if err = json.Unmarshal(buf, &def); err != nil {
 			return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
 		}
+
+		log.Info(ctx, "Definition file loaded from disk", z.Str("location", conf.DefFile))
 	}
 
 	// Verify
@@ -93,7 +97,7 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 
 // fetchDefinition fetches cluster definition file from a remote URI.
 func fetchDefinition(ctx context.Context, url string) (cluster.Definition, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
