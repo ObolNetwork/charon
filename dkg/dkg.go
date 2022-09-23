@@ -180,7 +180,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Debug(ctx, "Aggregated lock hash signatures")
 
 	// Sign, exchange and aggregate Deposit Data signatures
-	aggSigDepositData, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddress, network, nodeIdx)
+	aggSigDepositData, err := signAndAggDepositData(ctx, ex, shares, string(def.WithdrawalAddress), network, nodeIdx)
 	if err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Saved lock file to disk")
 
-	if err := writeDepositData(aggSigDepositData, def.WithdrawalAddress, network, conf.DataDir); err != nil {
+	if err := writeDepositData(aggSigDepositData, string(def.WithdrawalAddress), network, conf.DataDir); err != nil {
 		return err
 	}
 	log.Debug(ctx, "Saved deposit data file to disk")
@@ -378,7 +378,7 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 }
 
 // signAndAggDepositData returns aggregated signatures per DV after signing, exchange and aggregation of partial signatures.
-func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, withdrawalAddr []byte, network string, nodeIdx cluster.NodeIdx) (map[core.PubKey]*bls_sig.Signature, error) {
+func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, withdrawalAddr string, network string, nodeIdx cluster.NodeIdx) (map[core.PubKey]*bls_sig.Signature, error) {
 	parSig, msgs, err := signDepositData(shares, nodeIdx.ShareIdx, withdrawalAddr, network)
 	if err != nil {
 		return nil, err
@@ -490,7 +490,7 @@ func signLockHash(shareIdx int, shares []share, hash []byte) (core.ParSignedData
 }
 
 // signDepositData returns a partially signed dataset containing signatures of the deposit data signing root.
-func signDepositData(shares []share, shareIdx int, withdrawalAddr []byte, network string) (core.ParSignedDataSet, map[core.PubKey][]byte, error) {
+func signDepositData(shares []share, shareIdx int, withdrawalAddr string, network string) (core.ParSignedDataSet, map[core.PubKey][]byte, error) {
 	withdrawalHex := checksumAddr(withdrawalAddr)
 
 	msgs := make(map[core.PubKey][]byte)
@@ -587,8 +587,8 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []shar
 	return resp, nil
 }
 
-func checksumAddr(a []byte) string {
-	return common.BytesToAddress(a).Hex()
+func checksumAddr(addr string) string {
+	return common.HexToAddress(addr).Hex()
 }
 
 // dvsFromShares returns the shares as a slice of cluster distributed validator types.
