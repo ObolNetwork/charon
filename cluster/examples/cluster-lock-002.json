@@ -1,0 +1,53 @@
+{
+ "cluster_definition": {
+  "operators": [
+   {
+    "address": "",
+    "enr": "enr:-HW4QO2jhGDd344Z2EX1N--buWYb-1z9iXm_C0loYu_KjoJUaI3U5DTu9X_8cCeROuqM4Z5h_kHlcehV82g8AmXT0hiAgmlkgnY0iXNlY3AyNTZrMaECLl0mTvEFTSKpCqV27mD_wSwSD2ao0EDAgIIpphuO3p4",
+    "config_signature": "",
+    "enr_signature": ""
+   },
+   {
+    "address": "",
+    "enr": "enr:-HW4QNnv0C97ZAl8Rn15T6w9RGthIXXmzaL3bqw7IOb1Ro3bZo8QmOLxzU5WxgIx0pBFD4ckE1C4nwhXcJWVXtVlM7iAgmlkgnY0iXNlY3AyNTZrMaECFPYf-EILk473NRft-8hODjIyfPbpzhYH5-oVydpA-QY",
+    "config_signature": "",
+    "enr_signature": ""
+   },
+   {
+    "address": "",
+    "enr": "enr:-HW4QNjh1NldUY5eK9NV7yxbE4JwZNj5Z3iMNTN5OyRN-KtNF26olG_cHYA_K6oqKvs7CpK63TqNsXliIV7OoKKLUfuAgmlkgnY0iXNlY3AyNTZrMaEC6OIF7AmR-YvOvKS4UQmmkp4k31Npyk4Q48aWjr07fCM",
+    "config_signature": "",
+    "enr_signature": ""
+   },
+   {
+    "address": "",
+    "enr": "enr:-HW4QBB8SQOxews5EtL7wTrvOj9-VmxN6ZbPuVTxU_q1SPwiS13DVc6EjQn0amFcMFhwhK0oBn4m-VYSVTgQ24uSWBiAgmlkgnY0iXNlY3AyNTZrMaEDpL-qsdNH9bwvY4W5Bx4bZTwGBTkmQrLn7a7P0QLUs34",
+    "config_signature": "",
+    "enr_signature": ""
+   }
+  ],
+  "uuid": "B13CF764-AFB4-1783-C620-205ABF26B9FE",
+  "version": "v1.2.0",
+  "timestamp": "2022-09-22T18:19:43+02:00",
+  "num_validators": 1,
+  "threshold": 3,
+  "withdrawal_address": "0x040c94af7e82Be87295880f83ea44f96A7a4ce3C",
+  "dkg_algorithm": "default",
+  "fork_version": "0x00001020",
+  "config_hash": "0x44c189a433cc7325c10eff28d40cd95dcf0bbfb49dc0f0c47fc62893e92e7c3f",
+  "definition_hash": "0x38b028fb56a6f49ef7a6bcff7a7df39f7a7b3ef94cbf1c6b8f4f8aeb69142522"
+ },
+ "distributed_validators": [
+  {
+   "distributed_public_key": "0x970a41e8c62816529da9622ae98a9dea3be44fc13779a78ae82f1a3d52194f4fecc1fb11c2ed70dca286a3868700cba5",
+   "public_shares": [
+    "0xb6cfaa15fdd88aeb4a46c6260b74b380f783c5a6df103f39c6e8ec4fbda4aae6a0f63f10874e8e877ca1a6de6c3423ce",
+    "0xb9673ea6efb7a7fe7749148f2ded9c70b61aa74f200ff34bb4f6ce462229180e2ac1d174b8a7c47662cda32fea443b86",
+    "0xaf4a11e072748b5ecef004440c5f224a114cec72cfb4c41f10d1b25c9635206dc7aa177227d6a1f58b1726dacb022740",
+    "0xb8474c3fb80d77f60de976bc3f743b8f7941eda5e5d12d473e48ed048ca0e1c6c824c22dde68d439e081edd7676457df"
+   ]
+  }
+ ],
+ "signature_aggregate": "0x8a97e1c49e83b63baba99994d6832a80e2ffc8159827573671f6f73559b56bb2ba03eb21bf8cb97b9e7fc37c1c990b2c138ac99805469996b620b6cb19f0000c74b2510f864ed7cf0074915319cf8cede6f672f355009a7e4882b68f7615667f",
+ "lock_hash": "0x59d5440d155cdb5bce74c0ae208cde2839363c6450cb829a1986a461a30d0a35"
+}

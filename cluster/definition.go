@@ -28,10 +28,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const (
-	addrLen        = 20
-	forkVersionLen = 4
-)
+const forkVersionLen = 4
 
 // NodeIdx represents the index of a node/peer/share in the cluster as operator order in cluster definition.
 type NodeIdx struct {
@@ -46,27 +43,19 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddress 
 	forkVersionHex string, operators []Operator, random io.Reader,
 ) (Definition, error) {
 	def := Definition{
-		Version:       currentVersion,
-		Name:          name,
-		UUID:          uuid(random),
-		Timestamp:     time.Now().Format(time.RFC3339),
-		NumValidators: numVals,
-		Threshold:     threshold,
-		DKGAlgorithm:  dkgAlgo,
-		Operators:     operators,
+		Version:             currentVersion,
+		Name:                name,
+		UUID:                uuid(random),
+		Timestamp:           time.Now().Format(time.RFC3339),
+		NumValidators:       numVals,
+		Threshold:           threshold,
+		DKGAlgorithm:        dkgAlgo,
+		WithdrawalAddress:   EthAddr(withdrawalAddress),
+		FeeRecipientAddress: EthAddr(feeRecipientAddress),
+		Operators:           operators,
 	}
 
 	var err error
-	def.FeeRecipientAddress, err = from0xHex(feeRecipientAddress, addrLen)
-	if err != nil {
-		return Definition{}, err
-	}
-
-	def.WithdrawalAddress, err = from0xHex(withdrawalAddress, addrLen)
-	if err != nil {
-		return Definition{}, err
-	}
-
 	def.ForkVersion, err = from0xHex(forkVersionHex, forkVersionLen)
 	if err != nil {
 		return Definition{}, err
@@ -103,10 +92,10 @@ type Definition struct {
 	Threshold int `json:"threshold" ssz:"uint64" config_hash:"5" definition_hash:"5"`
 
 	// FeeRecipientAddress 20 byte Ethereum address.
-	FeeRecipientAddress []byte `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"6" definition_hash:"6"`
+	FeeRecipientAddress EthAddr `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"6" definition_hash:"6"`
 
 	// WithdrawalAddress 20 byte Ethereum address.
-	WithdrawalAddress []byte `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"7" definition_hash:"7"`
+	WithdrawalAddress EthAddr `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"7" definition_hash:"7"`
 
 	// DKGAlgorithm to use for key generation. Max 32 chars.
 	DKGAlgorithm string `json:"dkg_algorithm" ssz:"ByteList[32]" config_hash:"8" definition_hash:"8"`
@@ -161,15 +150,15 @@ func (d Definition) VerifySignatures() error {
 		}
 
 		if len(o.ENRSignature) == 0 {
-			return errors.New("empty operator enr signature", z.Str("operator_address", to0xHex(o.Address)))
+			return errors.New("empty operator enr signature", z.Any("operator_address", o.Address))
 		}
 
 		if len(o.ConfigSignature) == 0 {
-			return errors.New("empty operator config signature", z.Str("operator_address", to0xHex(o.Address)))
+			return errors.New("empty operator config signature", z.Any("operator_address", o.Address))
 		}
 
 		// Check that we have a valid config signature for each operator.
-		digest, err := digestEIP712(to0xHex(o.Address), configHash[:], zeroNonce)
+		digest, err := digestEIP712(o.Address, configHash[:], zeroNonce)
 		if err != nil {
 			return err
 		}
@@ -177,11 +166,11 @@ func (d Definition) VerifySignatures() error {
 		if ok, err := verifySig(o.Address, digest[:], o.ConfigSignature); err != nil {
 			return err
 		} else if !ok {
-			return errors.New("invalid operator config signature", z.Str("operator_address", to0xHex(o.Address)))
+			return errors.New("invalid operator config signature", z.Any("operator_address", o.Address))
 		}
 
 		// Check that we have a valid enr signature for each operator.
-		digest, err = digestEIP712(to0xHex(o.Address), []byte(o.ENR), zeroNonce)
+		digest, err = digestEIP712(o.Address, []byte(o.ENR), zeroNonce)
 		if err != nil {
 			return err
 		}
@@ -189,7 +178,7 @@ func (d Definition) VerifySignatures() error {
 		if ok, err := verifySig(o.Address, digest[:], o.ENRSignature); err != nil {
 			return err
 		} else if !ok {
-			return errors.New("invalid operator enr signature", z.Str("operator_address", to0xHex(o.Address)))
+			return errors.New("invalid operator enr signature", z.Any("operator_address", o.Address))
 		}
 	}
 
@@ -342,8 +331,8 @@ func marshalDefinitionV1x0or1(def Definition) ([]byte, error) {
 		Timestamp:           def.Timestamp,
 		NumValidators:       def.NumValidators,
 		Threshold:           def.Threshold,
-		FeeRecipientAddress: to0xHex(def.FeeRecipientAddress),
-		WithdrawalAddress:   to0xHex(def.WithdrawalAddress),
+		FeeRecipientAddress: def.FeeRecipientAddress,
+		WithdrawalAddress:   def.WithdrawalAddress,
 		DKGAlgorithm:        def.DKGAlgorithm,
 		ForkVersion:         to0xHex(def.ForkVersion),
 		Operators:           operatorsToV1x1(def.Operators),
@@ -392,26 +381,18 @@ func unmarshalDefinitionV1x0or1(data []byte) (def Definition, err error) {
 	}
 
 	def = Definition{
-		Name:           defJSON.Name,
-		UUID:           defJSON.UUID,
-		Version:        defJSON.Version,
-		Timestamp:      defJSON.Timestamp,
-		NumValidators:  defJSON.NumValidators,
-		Threshold:      defJSON.Threshold,
-		DKGAlgorithm:   defJSON.DKGAlgorithm,
-		ConfigHash:     defJSON.ConfigHash,
-		DefinitionHash: defJSON.DefinitionHash,
-		Operators:      operators,
-	}
-
-	def.FeeRecipientAddress, err = from0xHex(defJSON.FeeRecipientAddress, addrLen)
-	if err != nil {
-		return Definition{}, err
-	}
-
-	def.WithdrawalAddress, err = from0xHex(defJSON.WithdrawalAddress, addrLen)
-	if err != nil {
-		return Definition{}, err
+		Name:                defJSON.Name,
+		UUID:                defJSON.UUID,
+		Version:             defJSON.Version,
+		Timestamp:           defJSON.Timestamp,
+		NumValidators:       defJSON.NumValidators,
+		Threshold:           defJSON.Threshold,
+		DKGAlgorithm:        defJSON.DKGAlgorithm,
+		ConfigHash:          defJSON.ConfigHash,
+		DefinitionHash:      defJSON.DefinitionHash,
+		Operators:           operators,
+		FeeRecipientAddress: defJSON.FeeRecipientAddress,
+		WithdrawalAddress:   defJSON.WithdrawalAddress,
 	}
 
 	def.ForkVersion, err = from0xHex(defJSON.ForkVersion, forkVersionLen)
@@ -456,8 +437,8 @@ type definitionJSONv1x0or1 struct {
 	Timestamp           string             `json:"timestamp,omitempty"`
 	NumValidators       int                `json:"num_validators"`
 	Threshold           int                `json:"threshold"`
-	FeeRecipientAddress string             `json:"fee_recipient_address,omitempty"`
-	WithdrawalAddress   string             `json:"withdrawal_address,omitempty"`
+	FeeRecipientAddress EthAddr            `json:"fee_recipient_address,omitempty"`
+	WithdrawalAddress   EthAddr            `json:"withdrawal_address,omitempty"`
 	DKGAlgorithm        string             `json:"dkg_algorithm"`
 	ForkVersion         string             `json:"fork_version"`
 	ConfigHash          []byte             `json:"config_hash"`
@@ -473,8 +454,8 @@ type definitionJSONv1x2or3 struct {
 	Timestamp           string             `json:"timestamp,omitempty"`
 	NumValidators       int                `json:"num_validators"`
 	Threshold           int                `json:"threshold"`
-	FeeRecipientAddress ethHex             `json:"fee_recipient_address,omitempty"`
-	WithdrawalAddress   ethHex             `json:"withdrawal_address,omitempty"`
+	FeeRecipientAddress EthAddr            `json:"fee_recipient_address,omitempty"`
+	WithdrawalAddress   EthAddr            `json:"withdrawal_address,omitempty"`
 	DKGAlgorithm        string             `json:"dkg_algorithm"`
 	ForkVersion         ethHex             `json:"fork_version"`
 	ConfigHash          ethHex             `json:"config_hash"`

@@ -29,8 +29,8 @@ import (
 //   - config_hash: field ordering when calculating config hash. Some fields are excluded indicated by `-`.
 //   - definition_hash: field ordering when calculating definition hash. Some fields are excluded indicated by `-`.
 type Operator struct {
-	// The Ethereum address of the operator
-	Address []byte `json:"address,0xhex" ssz:"Bytes20" config_hash:"0" definition_hash:"0"`
+	// The 20 byte Ethereum address of the operator
+	Address EthAddr `json:"address,0xhex" ssz:"Bytes20" config_hash:"0" definition_hash:"0"`
 
 	// ENR identifies the charon node. Max 1024 chars.
 	ENR string `json:"enr" ssz:"ByteList[1024]" config_hash:"-" definition_hash:"1"`
@@ -59,19 +59,19 @@ func (o Operator) getName() (string, error) {
 
 // operatorJSONv1x1 is the json formatter of Operator for versions v1.0.0 and v1.1.0.
 type operatorJSONv1x1 struct {
-	Address         string `json:"address"`
-	ENR             string `json:"enr"`
-	Nonce           int    `json:"nonce"` // Always 0
-	ConfigSignature []byte `json:"config_signature"`
-	ENRSignature    []byte `json:"enr_signature"`
+	Address         EthAddr `json:"address"`
+	ENR             string  `json:"enr"`
+	Nonce           int     `json:"nonce"` // Always 0
+	ConfigSignature []byte  `json:"config_signature"`
+	ENRSignature    []byte  `json:"enr_signature"`
 }
 
 // operatorJSONv1x2 is the json formatter of Operator for versions v1.2.
 type operatorJSONv1x2 struct {
-	Address         ethHex `json:"address"`
-	ENR             string `json:"enr"`
-	ConfigSignature ethHex `json:"config_signature"`
-	ENRSignature    ethHex `json:"enr_signature"`
+	Address         EthAddr `json:"address"`
+	ENR             string  `json:"enr"`
+	ConfigSignature ethHex  `json:"config_signature"`
+	ENRSignature    ethHex  `json:"enr_signature"`
 }
 
 func operatorsFromV1x1(operators []operatorJSONv1x1) ([]Operator, error) {
@@ -80,13 +80,9 @@ func operatorsFromV1x1(operators []operatorJSONv1x1) ([]Operator, error) {
 		if o.Nonce != 0 {
 			return nil, errors.New("non-zero operator nonce not supported")
 		}
-		addr, err := from0xHex(o.Address, addrLen)
-		if err != nil {
-			return nil, errors.Wrap(err, "decode address", z.Str("address", o.Address))
-		}
 
 		resp = append(resp, Operator{
-			Address:         addr,
+			Address:         o.Address,
 			ENR:             o.ENR,
 			ConfigSignature: o.ConfigSignature,
 			ENRSignature:    o.ENRSignature,
@@ -100,7 +96,7 @@ func operatorsToV1x1(operators []Operator) []operatorJSONv1x1 {
 	var resp []operatorJSONv1x1
 	for _, o := range operators {
 		resp = append(resp, operatorJSONv1x1{
-			Address:         to0xHex(o.Address),
+			Address:         o.Address,
 			ENR:             o.ENR,
 			Nonce:           zeroNonce,
 			ConfigSignature: o.ConfigSignature,
