@@ -62,19 +62,19 @@ var (
 
 	thresholdGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "cluster",
-		Name:      "threshold_number",
+		Name:      "threshold",
 		Help:      "Aggregation threshold in the cluster lock",
 	})
 
 	operatorsGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "cluster",
-		Name:      "operators_number",
+		Name:      "operators",
 		Help:      "Number of operators in the cluster lock",
 	})
 
 	validatorsGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "cluster",
-		Name:      "validators_number",
+		Name:      "validators",
 		Help:      "Number of validators in the cluster lock",
 	})
 )
