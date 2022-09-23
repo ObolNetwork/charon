@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/obolnetwork/charon/app/version"
+	"github.com/obolnetwork/charon/dkg"
 )
 
 var (
@@ -77,17 +78,42 @@ var (
 		Name:      "validators",
 		Help:      "Number of validators in the cluster lock",
 	})
+
+	networkGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "cluster",
+		Name:      "network",
+		Help:      "Constant gauge with label set to the current network (chain)",
+	}, []string{"network"})
 )
 
-func initStartupMetrics(lockHash, peerName string, threshold, numOperators, numValidators int) {
-	versionGauge.WithLabelValues(version.Version).Set(1)
+func initStartupMetrics(lockHash, peerName string, threshold, numOperators, numValidators int, forkVersion []byte) error {
 	startGauge.SetToCurrentTime()
+	err := setNetworkGauge(forkVersion)
+	if err != nil {
+		return err
+	}
 
 	hash, _ := version.GitCommit()
 	gitGauge.WithLabelValues(hash).Set(1)
+	versionGauge.WithLabelValues(version.Version).Set(1)
 	lockHashGauge.WithLabelValues(lockHash).Set(1)
+	peerNameGauge.WithLabelValues(peerName).Set(1)
+
 	thresholdGauge.Set(float64(threshold))
 	operatorsGauge.Set(float64(numOperators))
 	validatorsGauge.Set(float64(numValidators))
-	peerNameGauge.WithLabelValues(peerName).Set(1)
+
+	return nil
+}
+
+// setNetworkGauge sets the gauge to the current network/chain (ex: goerli, mainnet etc.).
+func setNetworkGauge(forkVersion []byte) error {
+	network, err := dkg.ForkVersionToNetwork(forkVersion)
+	if err != nil {
+		return err
+	}
+
+	networkGauge.WithLabelValues(network)
+
+	return nil
 }

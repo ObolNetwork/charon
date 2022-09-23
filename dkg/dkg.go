@@ -78,7 +78,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	network, err := forkVersionToNetwork(def.ForkVersion)
+	network, err := ForkVersionToNetwork(def.ForkVersion)
 	if err != nil {
 		return err
 	}
@@ -609,7 +609,7 @@ func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 	return dvs, nil
 }
 
-func forkVersionToNetwork(forkVersion []byte) (string, error) {
+func ForkVersionToNetwork(forkVersion []byte) (string, error) {
 	switch fmt.Sprintf("%#x", forkVersion) {
 	case "0x00001020":
 		return "goerli", nil
