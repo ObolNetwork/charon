@@ -46,14 +46,14 @@ func TestEncode(t *testing.T) {
 				{
 					Address:         testutil.RandomBytes20(),
 					ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
-					ConfigSignature: testutil.RandomSecp256k1Key(),
-					ENRSignature:    testutil.RandomSecp256k1Key(),
+					ConfigSignature: testutil.RandomSecp256k1Signature(),
+					ENRSignature:    testutil.RandomSecp256k1Signature(),
 				},
 				{
 					Address:         testutil.RandomBytes20(),
 					ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
-					ConfigSignature: testutil.RandomSecp256k1Key(),
-					ENRSignature:    testutil.RandomSecp256k1Key(),
+					ConfigSignature: testutil.RandomSecp256k1Signature(),
+					ENRSignature:    testutil.RandomSecp256k1Signature(),
 				},
 			},
 			rand.New(rand.NewSource(0)),
@@ -135,9 +135,3 @@ func TestUnsupportedVersion(t *testing.T) {
 	err = json.Unmarshal([]byte(`{"cluster_definition":{"version":"invalid"}}`), &lock)
 	require.ErrorContains(t, err, "unsupported definition version")
 }
-
-// func TestRandomBytes32(t *testing.T) {
-// 	for i := 0; i < 1200; i++ {
-// 		fmt.Println(testutil.RandomBytes32())
-// 	}
-// }

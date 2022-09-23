@@ -58,7 +58,7 @@ func verifySig(expectedAddr []byte, digest []byte, sig []byte) (bool, error) {
 	}
 
 	if sig[64] == 27 || sig[64] == 28 {
-		sig[64] -= 27 // Make the last byte 0 or 1 as that is the canonical V value.
+		sig[64] -= 27 // Make the last byte 0 or 1 since that is the canonical V value.
 	}
 
 	pubkey, err := crypto.SigToPub(digest, sig)
