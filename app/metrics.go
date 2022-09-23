@@ -16,8 +16,6 @@
 package app
 
 import (
-	"fmt"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -31,18 +29,6 @@ var (
 		Help:      "Constant gauge with label set to current app version",
 	}, []string{"version"})
 
-	thresholdGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "app",
-		Name:      "threshold",
-		Help:      "Constant gauge with label set to cluster threshold",
-	}, []string{"threshold"})
-
-	numOperatorsGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "app",
-		Name:      "num_operators",
-		Help:      "Constant gauge with label set to the number of operators in the cluster",
-	}, []string{"num_operators"})
-
 	peerNameGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
 		Name:      "peer_name",
@@ -54,12 +40,6 @@ var (
 		Name:      "git_commit",
 		Help:      "Constant gauge with label set to current git commit hash",
 	}, []string{"git_hash"})
-
-	lockHashGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "app",
-		Name:      "lock_hash",
-		Help:      "Constant gauge with label set to current cluster lock hash",
-	}, []string{"lock_hash"})
 
 	startGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "app",
@@ -73,16 +53,41 @@ var (
 		Name:      "readyz",
 		Help:      "Set to 1 if monitoring api `/readyz` endpoint returned 200 or else 0",
 	})
+
+	lockHashGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "cluster",
+		Name:      "lock_hash",
+		Help:      "Constant gauge with label set to current cluster lock hash",
+	}, []string{"lock_hash"})
+
+	thresholdGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "cluster",
+		Name:      "threshold",
+		Help:      "Aggregation threshold in the cluster lock",
+	})
+
+	operatorsGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "cluster",
+		Name:      "operators",
+		Help:      "Number of operators in the cluster lock",
+	})
+
+	validatorsGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "cluster",
+		Name:      "validators",
+		Help:      "Number of validators in the cluster lock",
+	})
 )
 
-func initStartupMetrics(lockHash, peerName string, threshold, numOperators int) {
+func initStartupMetrics(lockHash, peerName string, threshold, numOperators, numValidators int) {
 	versionGauge.WithLabelValues(version.Version).Set(1)
 	startGauge.SetToCurrentTime()
 
 	hash, _ := version.GitCommit()
 	gitGauge.WithLabelValues(hash).Set(1)
 	lockHashGauge.WithLabelValues(lockHash).Set(1)
-	thresholdGauge.WithLabelValues(fmt.Sprintf("%d", threshold)).Set(1)
-	numOperatorsGauge.WithLabelValues(fmt.Sprintf("%d", numOperators)).Set(1)
+	thresholdGauge.Set(float64(threshold))
+	operatorsGauge.Set(float64(numOperators))
+	validatorsGauge.Set(float64(numValidators))
 	peerNameGauge.WithLabelValues(peerName).Set(1)
 }

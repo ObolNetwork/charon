@@ -246,7 +246,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 		return err
 	}
 
-	activeGauge.Set(float64(len(vals)))
+	activeValsGauge.Set(float64(len(vals)))
 
 	if len(vals) == 0 {
 		log.Info(ctx, "No active DVs for slot", z.I64("slot", slot.Slot))
