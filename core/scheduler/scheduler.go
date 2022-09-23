@@ -53,8 +53,6 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys [
 
 // New returns a new scheduler.
 func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderAPI bool) (*Scheduler, error) {
-	totalValsGauge.Set(float64(len(pubkeys)))
-
 	return &Scheduler{
 		eth2Cl:  eth2Cl,
 		pubkeys: pubkeys,

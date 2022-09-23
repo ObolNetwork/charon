@@ -29,18 +29,6 @@ var (
 		Help:      "Constant gauge with label set to current app version",
 	}, []string{"version"})
 
-	thresholdGauge = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "app",
-		Name:      "threshold",
-		Help:      "Threshold for the cluster",
-	})
-
-	numOperatorsGauge = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "app",
-		Name:      "num_operators",
-		Help:      "Number of operators in the cluster",
-	})
-
 	peerNameGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
 		Name:      "peer_name",
@@ -52,12 +40,6 @@ var (
 		Name:      "git_commit",
 		Help:      "Constant gauge with label set to current git commit hash",
 	}, []string{"git_hash"})
-
-	lockHashGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "app",
-		Name:      "lock_hash",
-		Help:      "Constant gauge with label set to current cluster lock hash",
-	}, []string{"lock_hash"})
 
 	startGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "app",
@@ -71,9 +53,33 @@ var (
 		Name:      "readyz",
 		Help:      "Set to 1 if monitoring api `/readyz` endpoint returned 200 or else 0",
 	})
+
+	lockHashGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "cluster",
+		Name:      "lock_hash",
+		Help:      "Constant gauge with label set to current cluster lock hash",
+	}, []string{"lock_hash"})
+
+	thresholdGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "cluster",
+		Name:      "threshold_number",
+		Help:      "Aggregation threshold for the cluster",
+	})
+
+	operatorsGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "cluster",
+		Name:      "operators_number",
+		Help:      "Number of operators in the cluster",
+	})
+
+	validatorsGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "cluster",
+		Name:      "validators_number",
+		Help:      "Number of validators",
+	})
 )
 
-func initStartupMetrics(lockHash, peerName string, threshold, numOperators int) {
+func initStartupMetrics(lockHash, peerName string, threshold, numOperators, numValidators int) {
 	versionGauge.WithLabelValues(version.Version).Set(1)
 	startGauge.SetToCurrentTime()
 
@@ -81,6 +87,7 @@ func initStartupMetrics(lockHash, peerName string, threshold, numOperators int) 
 	gitGauge.WithLabelValues(hash).Set(1)
 	lockHashGauge.WithLabelValues(lockHash).Set(1)
 	thresholdGauge.Set(float64(threshold))
-	numOperatorsGauge.Set(float64(numOperators))
+	operatorsGauge.Set(float64(numOperators))
+	validatorsGauge.Set(float64(numValidators))
 	peerNameGauge.WithLabelValues(peerName).Set(1)
 }
