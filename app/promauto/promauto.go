@@ -33,11 +33,10 @@ func WrapAndRegister(labels prometheus.Labels) {
 }
 
 type wrappingRegisterer struct {
-	target  prometheus.Registerer
-	wrapped bool
 	mu      sync.Mutex
-
+	target  prometheus.Registerer
 	pending []prometheus.Collector
+	wrapped bool
 }
 
 // WrapAndRegister wraps the default register with the provided labels and registers all pending collectors.
@@ -58,6 +57,7 @@ func (r *wrappingRegisterer) WrapAndRegister(labels prometheus.Labels) {
 	r.wrapped = true
 }
 
+// MustRegister implements prometheus.Registerer.
 func (r *wrappingRegisterer) MustRegister(collector ...prometheus.Collector) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -69,10 +69,12 @@ func (r *wrappingRegisterer) MustRegister(collector ...prometheus.Collector) {
 	r.pending = append(r.pending, collector...)
 }
 
+// Register implements prometheus.Registerer.
 func (*wrappingRegisterer) Register(prometheus.Collector) error {
 	panic("wrappingRegisterer.Register not supported")
 }
 
+// Unregister implements prometheus.Registerer.
 func (*wrappingRegisterer) Unregister(prometheus.Collector) bool {
 	panic("wrappingRegisterer.Unregister not supported")
 }
