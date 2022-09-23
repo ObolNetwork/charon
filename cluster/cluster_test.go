@@ -46,14 +46,14 @@ func TestEncode(t *testing.T) {
 				{
 					Address:         testutil.RandomBytes20(),
 					ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
-					ConfigSignature: testutil.RandomBytes32(), // TODO(corver): Change sigs to Bytes65.
-					ENRSignature:    testutil.RandomBytes32(),
+					ConfigSignature: testutil.RandomSecp256k1Signature(),
+					ENRSignature:    testutil.RandomSecp256k1Signature(),
 				},
 				{
 					Address:         testutil.RandomBytes20(),
 					ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
-					ConfigSignature: testutil.RandomBytes32(),
-					ENRSignature:    testutil.RandomBytes32(),
+					ConfigSignature: testutil.RandomSecp256k1Signature(),
+					ENRSignature:    testutil.RandomSecp256k1Signature(),
 				},
 			},
 			rand.New(rand.NewSource(0)),
