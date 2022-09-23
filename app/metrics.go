@@ -16,8 +16,6 @@
 package app
 
 import (
-	"fmt"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -31,23 +29,17 @@ var (
 		Help:      "Constant gauge with label set to current app version",
 	}, []string{"version"})
 
-	thresholdGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	thresholdGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "app",
 		Name:      "threshold",
-		Help:      "Constant gauge with label set to cluster threshold",
-	}, []string{"threshold"})
+		Help:      "Threshold for the cluster",
+	})
 
-	numOperatorsGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	numOperatorsGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "app",
 		Name:      "num_operators",
-		Help:      "Constant gauge with label set to the number of operators in the cluster",
-	}, []string{"num_operators"})
-
-	numValidatorsGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "app",
-		Name:      "num_validators",
-		Help:      "Constant gauge with label set to the number of validators in the cluster",
-	}, []string{"num_validators"})
+		Help:      "Number of operators in the cluster",
+	})
 
 	peerNameGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
@@ -81,15 +73,14 @@ var (
 	})
 )
 
-func initStartupMetrics(lockHash, peerName string, threshold, numOperators int, numValidators int) {
+func initStartupMetrics(lockHash, peerName string, threshold, numOperators int) {
 	versionGauge.WithLabelValues(version.Version).Set(1)
 	startGauge.SetToCurrentTime()
 
 	hash, _ := version.GitCommit()
 	gitGauge.WithLabelValues(hash).Set(1)
 	lockHashGauge.WithLabelValues(lockHash).Set(1)
-	thresholdGauge.WithLabelValues(fmt.Sprintf("%d", threshold)).Set(1)
-	numOperatorsGauge.WithLabelValues(fmt.Sprintf("%d", numOperators)).Set(1)
-	numValidatorsGauge.WithLabelValues(fmt.Sprintf("%d", numValidators)).Set(1)
+	thresholdGauge.Set(float64(threshold))
+	numOperatorsGauge.Set(float64(numOperators))
 	peerNameGauge.WithLabelValues(peerName).Set(1)
 }

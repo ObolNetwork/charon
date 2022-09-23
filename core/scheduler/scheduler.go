@@ -53,6 +53,8 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys [
 
 // New returns a new scheduler.
 func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderAPI bool) (*Scheduler, error) {
+	numValsGauge.Set(float64(len(pubkeys)))
+
 	return &Scheduler{
 		eth2Cl:  eth2Cl,
 		pubkeys: pubkeys,
@@ -246,7 +248,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 		return err
 	}
 
-	activeGauge.Set(float64(len(vals)))
+	activeValsGauge.Set(float64(len(vals)))
 
 	if len(vals) == 0 {
 		log.Info(ctx, "No active DVs for slot", z.I64("slot", slot.Slot))

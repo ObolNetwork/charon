@@ -45,11 +45,18 @@ var (
 		Help:      "The total count of duties scheduled by type",
 	}, []string{"duty"})
 
-	activeGauge = promauto.NewGauge(prometheus.GaugeOpts{
+	activeValsGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "core",
 		Subsystem: "scheduler",
 		Name:      "validators_active",
 		Help:      "Number of active validators",
+	})
+
+	numValsGauge = promauto.NewGauge(prometheus.GaugeOpts{ //nolint:promlinter
+		Namespace: "core",
+		Subsystem: "scheduler",
+		Name:      "validators_total",
+		Help:      "Total number of validators (this is constant)",
 	})
 
 	balanceGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{

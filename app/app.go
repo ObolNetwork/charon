@@ -197,7 +197,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 			"cluster_peer_name": p2p.PeerName(tcpNode.ID()),
 		}, prometheus.DefaultRegisterer)
 	}
-	initStartupMetrics(lockHashHex, p2p.PeerName(tcpNode.ID()), lock.Threshold, len(lock.Operators), lock.NumValidators)
+	initStartupMetrics(lockHashHex, p2p.PeerName(tcpNode.ID()), lock.Threshold, len(lock.Operators))
 
 	eth2Cl, err := newETH2Client(ctx, conf, life, lock.Validators)
 	if err != nil {
