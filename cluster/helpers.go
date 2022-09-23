@@ -37,6 +37,9 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
+// The length of secp256k1 signatures.
+const k1SigLen = 65
+
 // uuid returns a random uuid.
 func uuid(random io.Reader) string {
 	b := make([]byte, 16)
@@ -47,7 +50,7 @@ func uuid(random io.Reader) string {
 
 // verifySig returns true if the signature matches the digest and address.
 func verifySig(expectedAddr []byte, digest []byte, sig []byte) (bool, error) {
-	if len(sig) != 65 {
+	if len(sig) != k1SigLen {
 		return false, errors.New("invalid signature length", z.Int("siglen", len(sig)))
 	}
 
