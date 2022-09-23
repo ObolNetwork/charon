@@ -103,7 +103,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 
 		addr := crypto.PubkeyToAddress(p2pKey.PublicKey)
 		op := Operator{
-			Address: EthAddr(addr.Hex()),
+			Address: addr.Hex(),
 			ENR:     enrStr,
 		}
 

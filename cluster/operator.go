@@ -30,7 +30,7 @@ import (
 //   - definition_hash: field ordering when calculating definition hash. Some fields are excluded indicated by `-`.
 type Operator struct {
 	// The 20 byte Ethereum address of the operator
-	Address EthAddr `json:"address,0xhex" ssz:"Bytes20" config_hash:"0" definition_hash:"0"`
+	Address string `json:"address,0xhex" ssz:"Bytes20" config_hash:"0" definition_hash:"0"`
 
 	// ENR identifies the charon node. Max 1024 chars.
 	ENR string `json:"enr" ssz:"ByteList[1024]" config_hash:"-" definition_hash:"1"`
@@ -59,19 +59,19 @@ func (o Operator) getName() (string, error) {
 
 // operatorJSONv1x1 is the json formatter of Operator for versions v1.0.0 and v1.1.0.
 type operatorJSONv1x1 struct {
-	Address         EthAddr `json:"address"`
-	ENR             string  `json:"enr"`
-	Nonce           int     `json:"nonce"` // Always 0
-	ConfigSignature []byte  `json:"config_signature"`
-	ENRSignature    []byte  `json:"enr_signature"`
+	Address         string `json:"address"`
+	ENR             string `json:"enr"`
+	Nonce           int    `json:"nonce"` // Always 0
+	ConfigSignature []byte `json:"config_signature"`
+	ENRSignature    []byte `json:"enr_signature"`
 }
 
 // operatorJSONv1x2 is the json formatter of Operator for versions v1.2.
 type operatorJSONv1x2 struct {
-	Address         EthAddr `json:"address"`
-	ENR             string  `json:"enr"`
-	ConfigSignature ethHex  `json:"config_signature"`
-	ENRSignature    ethHex  `json:"enr_signature"`
+	Address         string `json:"address"`
+	ENR             string `json:"enr"`
+	ConfigSignature ethHex `json:"config_signature"`
+	ENRSignature    ethHex `json:"enr_signature"`
 }
 
 func operatorsFromV1x1(operators []operatorJSONv1x1) ([]Operator, error) {

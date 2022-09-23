@@ -353,7 +353,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc())
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, pubSharesByKey, nodeIdx.ShareIdx, string(lock.FeeRecipientAddress))
+	vapi, err := validatorapi.NewComponent(eth2Cl, pubSharesByKey, nodeIdx.ShareIdx, lock.FeeRecipientAddress)
 	if err != nil {
 		return err
 	}

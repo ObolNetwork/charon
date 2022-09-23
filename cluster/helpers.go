@@ -50,6 +50,7 @@ func uuid(random io.Reader) string {
 
 // verifySig returns true if the signature matches the digest and address.
 func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
+<<<<<<< HEAD
 	if len(sig) != k1SigLen {
 		return false, errors.New("invalid signature length", z.Int("siglen", len(sig)))
 	}
@@ -63,6 +64,11 @@ func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
 
 	if sig[64] == 27 || sig[64] == 28 {
 		sig[64] -= 27 // Make the last byte 0 or 1 since that is the canonical V value.
+=======
+	addrBytes, err := from0xHex(expectedAddr, addressLen)
+	if err != nil {
+		return false, err
+>>>>>>> 743a008 (cleanup)
 	}
 
 	pubkey, err := crypto.SigToPub(digest, sig)
@@ -127,7 +133,7 @@ func aggSign(secrets [][]*bls_sig.SecretKeyShare, message []byte) ([]byte, error
 }
 
 // signEIP712 signs the message and returns the signature.
-func signEIP712(secret *ecdsa.PrivateKey, address EthAddr, message []byte) ([]byte, error) {
+func signEIP712(secret *ecdsa.PrivateKey, address string, message []byte) ([]byte, error) {
 	const nonce = 0
 
 	digest, err := digestEIP712(address, message, nonce)
@@ -145,7 +151,7 @@ func signEIP712(secret *ecdsa.PrivateKey, address EthAddr, message []byte) ([]by
 
 // digestEIP712 returns a EIP712 digest hash.
 // See reference https://medium.com/alpineintel/issuing-and-verifying-eip-712-challenges-with-go-32635ca78aaf.
-func digestEIP712(address EthAddr, message []byte, nonce int) ([32]byte, error) {
+func digestEIP712(address string, message []byte, nonce int) ([32]byte, error) {
 	signerData := apitypes.TypedData{
 		Types: apitypes.Types{
 			"Challenge": []apitypes.Type{
@@ -168,7 +174,7 @@ func digestEIP712(address EthAddr, message []byte, nonce int) ([32]byte, error) 
 			ChainId: ethmath.NewHexOrDecimal256(1), // Fixed for now.
 		},
 		Message: apitypes.TypedDataMessage{
-			"address": string(address),
+			"address": address,
 			"nonce":   ethmath.NewHexOrDecimal256(int64(nonce)),
 			"message": message,
 		},
@@ -186,24 +192,6 @@ func digestEIP712(address EthAddr, message []byte, nonce int) ([32]byte, error) 
 	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
 
 	return crypto.Keccak256Hash(rawData), nil
-}
-
-// EthAddr represents an ethereum address that may be checksummed
-// and is json formatted as 0x prefixed hex.
-type EthAddr string
-
-// Bytes returns the hex address as bytes.
-func (h EthAddr) Bytes() ([]byte, error) {
-	if h == "" {
-		return nil, nil
-	}
-
-	resp, err := hex.DecodeString(strings.TrimPrefix(string(h), "0x"))
-	if err != nil {
-		return nil, errors.Wrap(err, "ethereum address to bytes", z.Any("address", h))
-	}
-
-	return resp, nil
 }
 
 // ethHex represents a byte slices that is json formatted as 0x prefixed hex.

@@ -28,7 +28,10 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const forkVersionLen = 4
+const (
+	forkVersionLen = 4
+	addressLen     = 20
+)
 
 // NodeIdx represents the index of a node/peer/share in the cluster as operator order in cluster definition.
 type NodeIdx struct {
@@ -50,8 +53,8 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddress 
 		NumValidators:       numVals,
 		Threshold:           threshold,
 		DKGAlgorithm:        dkgAlgo,
-		WithdrawalAddress:   EthAddr(withdrawalAddress),
-		FeeRecipientAddress: EthAddr(feeRecipientAddress),
+		WithdrawalAddress:   withdrawalAddress,
+		FeeRecipientAddress: feeRecipientAddress,
 		Operators:           operators,
 	}
 
@@ -92,10 +95,10 @@ type Definition struct {
 	Threshold int `json:"threshold" ssz:"uint64" config_hash:"5" definition_hash:"5"`
 
 	// FeeRecipientAddress 20 byte Ethereum address.
-	FeeRecipientAddress EthAddr `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"6" definition_hash:"6"`
+	FeeRecipientAddress string `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"6" definition_hash:"6"`
 
 	// WithdrawalAddress 20 byte Ethereum address.
-	WithdrawalAddress EthAddr `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"7" definition_hash:"7"`
+	WithdrawalAddress string `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"7" definition_hash:"7"`
 
 	// DKGAlgorithm to use for key generation. Max 32 chars.
 	DKGAlgorithm string `json:"dkg_algorithm" ssz:"ByteList[32]" config_hash:"8" definition_hash:"8"`
@@ -144,7 +147,7 @@ func (d Definition) VerifySignatures() error {
 	var noSigs int
 	for _, o := range d.Operators {
 		// Completely unsigned operators are also fine, assuming a single cluster-wide operator.
-		if len(o.Address) == 0 && len(o.ENRSignature) == 0 && len(o.ConfigSignature) == 0 {
+		if o.Address == "" && len(o.ENRSignature) == 0 && len(o.ConfigSignature) == 0 {
 			noSigs++
 			continue
 		}
@@ -437,8 +440,8 @@ type definitionJSONv1x0or1 struct {
 	Timestamp           string             `json:"timestamp,omitempty"`
 	NumValidators       int                `json:"num_validators"`
 	Threshold           int                `json:"threshold"`
-	FeeRecipientAddress EthAddr            `json:"fee_recipient_address,omitempty"`
-	WithdrawalAddress   EthAddr            `json:"withdrawal_address,omitempty"`
+	FeeRecipientAddress string             `json:"fee_recipient_address,omitempty"`
+	WithdrawalAddress   string             `json:"withdrawal_address,omitempty"`
 	DKGAlgorithm        string             `json:"dkg_algorithm"`
 	ForkVersion         string             `json:"fork_version"`
 	ConfigHash          []byte             `json:"config_hash"`
@@ -454,8 +457,8 @@ type definitionJSONv1x2or3 struct {
 	Timestamp           string             `json:"timestamp,omitempty"`
 	NumValidators       int                `json:"num_validators"`
 	Threshold           int                `json:"threshold"`
-	FeeRecipientAddress EthAddr            `json:"fee_recipient_address,omitempty"`
-	WithdrawalAddress   EthAddr            `json:"withdrawal_address,omitempty"`
+	FeeRecipientAddress string             `json:"fee_recipient_address,omitempty"`
+	WithdrawalAddress   string             `json:"withdrawal_address,omitempty"`
 	DKGAlgorithm        string             `json:"dkg_algorithm"`
 	ForkVersion         ethHex             `json:"fork_version"`
 	ConfigHash          ethHex             `json:"config_hash"`

@@ -144,12 +144,12 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 
 // hashDefinitionV1x3 hashes the latest definition.
 func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error {
-	feeRecipientAddress, err := d.FeeRecipientAddress.Bytes()
+	feeRecipientAddress, err := from0xHex(d.FeeRecipientAddress, addressLen)
 	if err != nil {
 		return err
 	}
 
-	withdrawalAddress, err := d.WithdrawalAddress.Bytes()
+	withdrawalAddress, err := from0xHex(d.WithdrawalAddress, addressLen)
 	if err != nil {
 		return err
 	}
@@ -204,7 +204,7 @@ func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error 
 			indx := hh.Index()
 
 			// Field (0) 'Address' Bytes20
-			addrBytes, err := o.Address.Bytes()
+			addrBytes, err := from0xHex(o.Address, addressLen)
 			if err != nil {
 				return err
 			}
