@@ -40,10 +40,13 @@ type (
 // NewSlotAttester returns a new SlotAttester.
 func NewSlotAttester(eth2Cl eth2wrap.Client, slot eth2p0.Slot, signFunc SignFunc, pubkeys []eth2p0.BLSPubKey) *SlotAttester {
 	return &SlotAttester{
-		eth2Cl:   eth2Cl,
-		slot:     slot,
-		pubkeys:  pubkeys,
-		signFunc: signFunc,
+		eth2Cl:       eth2Cl,
+		slot:         slot,
+		pubkeys:      pubkeys,
+		signFunc:     signFunc,
+		dutiesOK:     make(chan struct{}),
+		selectionsOK: make(chan struct{}),
+		datasOK:      make(chan struct{}),
 	}
 }
 
@@ -56,10 +59,13 @@ type SlotAttester struct {
 	signFunc SignFunc
 
 	// Mutable fields
-	vals       validators
-	duties     duties
-	selections selections
-	datas      datas
+	vals         validators
+	duties       duties
+	selections   selections
+	datas        datas
+	dutiesOK     chan struct{}
+	selectionsOK chan struct{}
+	datasOK      chan struct{}
 }
 
 // Slot returns the attester slot.
@@ -71,6 +77,7 @@ func (a *SlotAttester) Slot() eth2p0.Slot {
 // - Filters active validators for the slot (this could be cached at start of epoch)
 // - Fetches attester duties for the slot (this could be cached at start of epoch).
 // - Prepares aggregation duties for slot attesters.
+// It panics if called more than once.
 func (a *SlotAttester) Prepare(ctx context.Context) error {
 	var err error
 
@@ -83,29 +90,48 @@ func (a *SlotAttester) Prepare(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	close(a.dutiesOK)
 
 	a.selections, err = prepareAggregators(ctx, a.eth2Cl, a.signFunc, a.vals, a.duties, a.slot)
 	if err != nil {
 		return err
 	}
+	close(a.selectionsOK)
 
 	return nil
 }
 
 // Attest should be called at latest 1/3 into the slot, it does slot attestations.
 func (a *SlotAttester) Attest(ctx context.Context) error {
+	// Wait for Prepare complete
+	wait(ctx, a.dutiesOK)
+
 	var err error
 	a.datas, err = attest(ctx, a.eth2Cl, a.signFunc, a.slot, a.duties)
 	if err != nil {
 		return err
 	}
+	close(a.datasOK)
 
 	return nil
 }
 
 // Aggregate should be called at latest 2/3 into the slot, it does slot attestation aggregations.
 func (a *SlotAttester) Aggregate(ctx context.Context) error {
+	// Wait for Prepare and Attest to complete
+	wait(ctx, a.selectionsOK, a.datasOK)
+
 	return aggregate(ctx, a.eth2Cl, a.signFunc, a.slot, a.vals, a.selections, a.datas)
+}
+
+// wait returns when either all the channels or the context is closed.
+func wait(ctx context.Context, chs ...chan struct{}) {
+	for _, ch := range chs {
+		select {
+		case <-ctx.Done():
+		case <-ch:
+		}
+	}
 }
 
 // activeValidators returns the head active validators for the public keys.
@@ -227,7 +253,7 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 
 // attest does attestations for the provided attesters and returns the attestation datas.
 func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot eth2p0.Slot, duties duties,
-) ([]*eth2p0.AttestationData, error) {
+) (datas, error) {
 	if len(duties) == 0 {
 		return nil, nil
 	}
@@ -240,7 +266,7 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 
 	var (
 		atts  []*eth2p0.Attestation
-		datas []*eth2p0.AttestationData
+		datas datas
 	)
 	for commIdx, duties := range dutyByComm {
 		data, err := eth2Cl.AttestationData(ctx, slot, commIdx)

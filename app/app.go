@@ -112,7 +112,7 @@ type TestConfig struct {
 // Run is the entrypoint for running a charon DVC instance.
 // All processes and their dependencies are wired and added
 // to the life cycle manager which handles starting and graceful shutdown.
-func Run(ctx context.Context, conf Config) (err error) { //nolint:nonamedreturn // Referenced in defer
+func Run(ctx context.Context, conf Config) (err error) {
 	ctx = log.WithTopic(ctx, "app-start")
 	defer func() {
 		if err != nil {

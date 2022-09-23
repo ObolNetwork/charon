@@ -13,30 +13,26 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package version
+package testutil
 
-import "runtime/debug"
+import (
+	"context"
+	"testing"
 
-// Version is the release version of the codebase.
-// Usually overridden by tag names when building binaries.
-const Version = "v0.10.0"
+	"github.com/stretchr/testify/require"
 
-// GitCommit returns the git commit hash and timestamp from build info.
-func GitCommit() (hash string, timestamp string) {
-	hash, timestamp = "unknown", "unknown"
+	"github.com/obolnetwork/charon/app/log"
+)
 
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return hash, timestamp
+// RequireNoError extends require.NoError with additional error stack trace and
+// structured field logging for improved test debugging.
+func RequireNoError(t *testing.T, err error) {
+	t.Helper()
+
+	if err == nil {
+		return
 	}
 
-	for _, s := range info.Settings {
-		if s.Key == "vcs.revision" {
-			hash = s.Value[:7]
-		} else if s.Key == "vcs.time" {
-			timestamp = s.Value
-		}
-	}
-
-	return hash, timestamp
+	log.Error(context.Background(), "Unexpected test error", err)
+	require.NoErrorf(t, err, "See error log above for more info")
 }

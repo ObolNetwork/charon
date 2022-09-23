@@ -39,6 +39,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/leadercast"
@@ -61,7 +62,8 @@ func TestSimnetNoNetwork_WithAttesterTekuVC(t *testing.T) {
 	args := newSimnetArgs(t)
 	args = startTeku(t, args, 0, tekuVC)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	testSimnet(t, args)
+	expect := newSimnetExpect(args.N, core.DutyAttester /*core.DutyPrepareAggregator, core.DutyAggregator*/) // Teku doesn't support v2 attestation aggregation.
+	testSimnet(t, args, expect)
 }
 
 func TestSimnetNoNetwork_WithProposerTekuVC(t *testing.T) {
@@ -72,7 +74,8 @@ func TestSimnetNoNetwork_WithProposerTekuVC(t *testing.T) {
 	args := newSimnetArgs(t)
 	args = startTeku(t, args, 0, tekuVC)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	testSimnet(t, args)
+	expect := newSimnetExpect(args.N, core.DutyProposer, core.DutyRandao)
+	testSimnet(t, args, expect)
 }
 
 func TestSimnetNoNetwork_WithExitTekuVC(t *testing.T) {
@@ -86,7 +89,8 @@ func TestSimnetNoNetwork_WithExitTekuVC(t *testing.T) {
 	}
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	testSimnet(t, args)
+	expect := newSimnetExpect(args.N, core.DutyExit)
+	testSimnet(t, args, expect)
 }
 
 func TestSimnetNoNetwork_WithBuilderRegistrationTekuVC(t *testing.T) {
@@ -101,7 +105,8 @@ func TestSimnetNoNetwork_WithBuilderRegistrationTekuVC(t *testing.T) {
 	}
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	testSimnet(t, args)
+	expect := newSimnetExpect(args.N, core.DutyBuilderRegistration)
+	testSimnet(t, args, expect)
 }
 
 func TestSimnetNoNetwork_WithBuilderProposerTekuVC(t *testing.T) {
@@ -115,26 +120,30 @@ func TestSimnetNoNetwork_WithBuilderProposerTekuVC(t *testing.T) {
 		args = startTeku(t, args, i, tekuVC)
 	}
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	testSimnet(t, args)
+	expect := newSimnetExpect(args.N, core.DutyBuilderProposer, core.DutyRandao)
+	testSimnet(t, args, expect)
 }
 
 func TestSimnetNoNetwork_WithAttesterMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	testSimnet(t, args)
+	expect := newSimnetExpect(args.N, core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator)
+	testSimnet(t, args, expect)
 }
 
 func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	testSimnet(t, args)
+	expect := newSimnetExpect(args.N, core.DutyProposer, core.DutyRandao)
+	testSimnet(t, args, expect)
 }
 
 func TestSimnetNoNetwork_WithBuilderProposerMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 	args.BuilderAPI = true
-	testSimnet(t, args)
+	expect := newSimnetExpect(args.N, core.DutyBuilderProposer, core.DutyRandao)
+	testSimnet(t, args, expect)
 }
 
 func TestSimnetNoNetwork_WithBuilderRegistrationMockVCs(t *testing.T) {
@@ -142,7 +151,8 @@ func TestSimnetNoNetwork_WithBuilderRegistrationMockVCs(t *testing.T) {
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
 	args.BuilderRegistration = true
-	testSimnet(t, args)
+	expect := newSimnetExpect(args.N, core.DutyBuilderRegistration)
+	testSimnet(t, args, expect)
 }
 
 type simnetArgs struct {
@@ -192,9 +202,48 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 	}
 }
 
+// simnetExpect defines which duties (including how many of each) are expected in simnet tests.
+type simnetExpect struct {
+	counts map[core.DutyType]int
+	Errs   chan error
+}
+
+// Assert tests whether the duty is expected and also updates internal counters.
+func (e simnetExpect) Assert(t *testing.T, typ core.DutyType) {
+	t.Helper()
+	if _, ok := e.counts[typ]; !ok {
+		e.Errs <- errors.New("unexpected duty type", z.Any("type", typ))
+	}
+	e.counts[typ]--
+}
+
+// Done returns true if all duties have been asserted sufficient number of times.
+func (e simnetExpect) Done() bool {
+	for _, v := range e.counts {
+		if v > 0 {
+			return false
+		}
+	}
+
+	return true
+}
+
+// newSimnetExpect returns a new simnetExpect with all duties of equal count.
+func newSimnetExpect(count int, duties ...core.DutyType) simnetExpect {
+	counts := make(map[core.DutyType]int)
+	for _, duty := range duties {
+		counts[duty] = count
+	}
+
+	return simnetExpect{
+		counts: counts,
+		Errs:   make(chan error, 1),
+	}
+}
+
 // testSimnet spins of a simnet cluster or N charon nodes connected via in-memory transports.
 // It asserts successful end-2-end attestation broadcast from all nodes for 2 slots.
-func testSimnet(t *testing.T, args simnetArgs) {
+func testSimnet(t *testing.T, args simnetArgs, expect simnetExpect) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -231,11 +280,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 				ParSigExFunc:       parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
 				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
-					if duty.Type == core.DutyRandao {
-						return nil
-					}
 					results <- simResult{Duty: duty, Pubkey: key, Data: data}
-
 					return nil
 				},
 				SimnetBMockOpts: append([]beaconmock.Option{
@@ -255,11 +300,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 
 	// Assert results
 	go func() {
-		var (
-			remaining = 2
-			counts    = make(map[core.Duty]int)
-			datas     = make(map[core.Duty]core.SignedData)
-		)
+		datas := make(map[core.Duty]core.SignedData)
 		for {
 			var res simResult
 			select {
@@ -271,7 +312,7 @@ func testSimnet(t *testing.T, args simnetArgs) {
 			require.EqualValues(t, args.Lock.Validators[0].PublicKeyHex(), res.Pubkey)
 
 			// Assert the data and signature from all nodes are the same per duty.
-			if counts[res.Duty] == 0 {
+			if _, ok := datas[res.Duty]; !ok {
 				datas[res.Duty] = res.Data
 			} else {
 				expect, err := datas[res.Duty].MarshalJSON()
@@ -282,22 +323,13 @@ func testSimnet(t *testing.T, args simnetArgs) {
 				require.Equal(t, datas[res.Duty].Signature(), res.Data.Signature())
 			}
 
-			// Assert we get results from all peers.
-			counts[res.Duty]++
-			if counts[res.Duty] == args.N {
-				remaining--
+			// Assert we get results for all types from all peers.
+			expect.Assert(t, res.Duty.Type)
 
-				if res.Duty.Type == core.DutyExit || res.Duty.Type == core.DutyBuilderRegistration {
-					remaining = 0 // DutyExit and DutyBRegis only triggered once per node
-				}
+			if expect.Done() {
+				cancel()
+				return
 			}
-			if remaining != 0 {
-				continue
-			}
-
-			cancel()
-
-			return
 		}
 	}()
 
@@ -309,12 +341,15 @@ func testSimnet(t *testing.T, args simnetArgs) {
 		case err := <-args.ErrChan:
 			cancel()
 			return err
+		case err := <-expect.Errs:
+			cancel()
+			return err
 		}
 	})
 
 	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
-	require.NoError(t, err)
+	testutil.RequireNoError(t, err)
 }
 
 // newRegistrationProvider returns a function that provides identical registration structs for
