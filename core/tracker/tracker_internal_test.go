@@ -51,7 +51,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 			}
 		}
 
-		tr := New(analyser, deleter, []p2p.Peer{})
+		tr := New(analyser, deleter, []p2p.Peer{}, 0)
 		tr.failedDutyReporter = failedDutyReporter
 		tr.participationReporter = func(_ context.Context, _ core.Duty, _ map[int]bool, _ map[int]bool) {}
 
@@ -89,7 +89,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 			}
 		}
 
-		tr := New(analyser, deleter, []p2p.Peer{})
+		tr := New(analyser, deleter, []p2p.Peer{}, 0)
 		tr.failedDutyReporter = failedDutyReporter
 
 		go func() {
@@ -339,7 +339,7 @@ func TestTrackerParticipation(t *testing.T) {
 
 	analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
 	deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
-	tr := New(analyser, deleter, peers)
+	tr := New(analyser, deleter, peers, 0)
 
 	var (
 		count             int
@@ -414,7 +414,7 @@ func TestUnexpectedParticipation(t *testing.T) {
 	for _, d := range duties {
 		t.Run(d.String(), func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
-			tr := New(analyser, deleter, peers)
+			tr := New(analyser, deleter, peers, 0)
 
 			tr.participationReporter = func(_ context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedPeers map[int]bool) {
 				require.Equal(t, d, duty)
@@ -453,7 +453,7 @@ func TestDutyRandaoUnexpected(t *testing.T) {
 	unexpected := map[int]bool{1: true}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	tr := New(analyser, deleter, peers)
+	tr := New(analyser, deleter, peers, 0)
 
 	tr.participationReporter = func(_ context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedPeers map[int]bool) {
 		if duty.Type == core.DutyProposer {
@@ -499,7 +499,7 @@ func TestDutyRandaoExpected(t *testing.T) {
 	unexpected := make(map[int]bool)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	tr := New(analyser, deleter, peers)
+	tr := New(analyser, deleter, peers, 0)
 
 	tr.participationReporter = func(_ context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedPeers map[int]bool) {
 		if duty.Type == core.DutyProposer {
@@ -605,4 +605,25 @@ func setupData(t *testing.T, slots []int) ([]testDutyData, []core.PubKey) {
 	}
 
 	return data, []core.PubKey{pubkeysByIdx[vIdxA], pubkeysByIdx[vIdxB]}
+}
+
+func TestFromSlot(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
+	deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
+
+	const thisSlot = 1
+	const fromSlot = 2
+	tr := New(analyser, deleter, nil, fromSlot)
+
+	go func() {
+		require.NoError(t, tr.Run(ctx))
+	}()
+
+	require.NoError(t, tr.SigAggEvent(ctx, core.NewAggregatorDuty(thisSlot), "", nil))
+	require.NoError(t, tr.ValidatorAPIEvent(ctx, core.NewProposerDuty(thisSlot), nil))
+	require.NoError(t, tr.SchedulerEvent(ctx, core.NewAggregatorDuty(thisSlot), nil))
+	require.Empty(t, tr.events)
 }

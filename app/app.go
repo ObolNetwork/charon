@@ -395,7 +395,10 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	wireTracker(ctx, life, deadlineFunc, peers, sched, fetch, cons, vapi, parSigDB, parSigEx, sigAgg)
+	if err := wireTracker(ctx, life, deadlineFunc, peers, eth2Cl, sched, fetch, cons, vapi, parSigDB, parSigEx, sigAgg); err != nil {
+		return err
+	}
+
 	wireRecaster(sched, sigAgg, broadcaster)
 
 	core.Wire(sched, fetch, cons, dutyDB, vapi,
@@ -433,10 +436,11 @@ func wireRecaster(sched core.Scheduler, sigAgg core.SigAgg, broadcaster core.Bro
 }
 
 // wireTracker creates a new tracker instance and wires it to the components with "output events".
-func wireTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(duty core.Duty) (time.Time, bool), peers []p2p.Peer,
+func wireTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(duty core.Duty) (time.Time, bool),
+	peers []p2p.Peer, ethCl eth2wrap.Client,
 	sched core.Scheduler, fetcher core.Fetcher, cons core.Consensus, vapi core.ValidatorAPI,
 	parSigDB core.ParSigDB, parSigEx core.ParSigEx, sigAgg core.SigAgg,
-) {
+) error {
 	analyser := core.NewDeadliner(ctx, deadlineFunc)
 	deleter := core.NewDeadliner(ctx, func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
@@ -447,7 +451,13 @@ func wireTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func
 		// To delete duties after 2 * deadline.
 		return d.Add(time.Until(d)), true
 	})
-	trackr := tracker.New(analyser, deleter, peers)
+
+	trackFrom, err := calculateTrackerDelay(ctx, ethCl, time.Now())
+	if err != nil {
+		return err
+	}
+
+	trackr := tracker.New(analyser, deleter, peers, trackFrom)
 
 	sched.SubscribeDuties(trackr.SchedulerEvent)
 	fetcher.Subscribe(trackr.FetcherEvent)
@@ -459,6 +469,35 @@ func wireTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func
 	sigAgg.Subscribe(trackr.SigAggEvent)
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartTracker, lifecycle.HookFunc(trackr.Run))
+
+	return nil
+}
+
+// calculateTrackerDelay returns the slot to start tracking from. This mitigates noisy failed duties on
+// startup due to downstream VC startup delays.
+func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Time) (int64, error) {
+	const maxDelayTime = time.Second * 10 // We want to delay at most 10 seconds
+	const minDelaySlots = 2               // But we do not want to delay less than 2 slots
+
+	genesisTime, err := cl.GenesisTime(ctx)
+	if err != nil {
+		return 0, err
+	}
+	slotDuration, err := cl.SlotDuration(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	currentSlot := int64(now.Sub(genesisTime) / slotDuration)
+
+	maxDelayTimeSlot := currentSlot + int64(maxDelayTime/slotDuration) + 1
+	minDelaySlot := currentSlot + minDelaySlots
+
+	if maxDelayTimeSlot < minDelaySlot {
+		return minDelaySlot, nil
+	}
+
+	return maxDelayTimeSlot, nil
 }
 
 // eth2PubKeys returns a list of BLS pubkeys of validators in the cluster lock.
