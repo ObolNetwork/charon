@@ -52,7 +52,7 @@ var (
 		Help:      "Number of active validators",
 	})
 
-	numValsGauge = promauto.NewGauge(prometheus.GaugeOpts{ //nolint:promlinter
+	totalValsGauge = promauto.NewGauge(prometheus.GaugeOpts{ //nolint:promlinter
 		Namespace: "core",
 		Subsystem: "scheduler",
 		Name:      "validators_total",
