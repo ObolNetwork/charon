@@ -22,10 +22,10 @@ import (
 
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/forkjoin"
+	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 

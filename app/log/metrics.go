@@ -19,7 +19,8 @@ import (
 	"context"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"github.com/obolnetwork/charon/app/promauto"
 )
 
 var (

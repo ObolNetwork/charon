@@ -41,6 +41,7 @@ import (
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/retry"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
@@ -188,14 +189,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Int("peers", len(lock.Operators)),
 		z.Str("enr", localEnode.Node().String()))
 
-	if !conf.TestConfig.DisablePromWrap {
-		// Instrument prometheus metrics with cluster and node identifiers.
-		prometheus.DefaultRegisterer = prometheus.WrapRegistererWith(prometheus.Labels{
+	// Instrument prometheus metrics with cluster and node identifiers.
+	if conf.TestConfig.DisablePromWrap {
+		promauto.WrapAndRegister(nil)
+	} else {
+		promauto.WrapAndRegister(prometheus.Labels{
 			"cluster_hash":      lockHashHex,
 			"cluster_name":      lock.Name,
-			"cluster_enr":       lock.Operators[nodeIdx.PeerIdx].ENR,
 			"cluster_peer_name": p2p.PeerName(tcpNode.ID()),
-		}, prometheus.DefaultRegisterer)
+		})
 	}
 
 	initStartupMetrics(
