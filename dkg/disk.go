@@ -18,6 +18,7 @@ package dkg
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -54,6 +55,9 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 		if err != nil {
 			return cluster.Definition{}, errors.Wrap(err, "read definition")
 		}
+
+		log.Info(ctx, "Cluster definition downloaded from URL", z.Str("URL", conf.DefFile),
+			z.Str("definition_hash", fmt.Sprintf("%#x", def.DefinitionHash)))
 	} else {
 		buf, err := os.ReadFile(conf.DefFile)
 		if err != nil {
@@ -63,6 +67,9 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 		if err = json.Unmarshal(buf, &def); err != nil {
 			return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
 		}
+
+		log.Info(ctx, "Cluster definition loaded from disk", z.Str("path", conf.DefFile),
+			z.Str("definition_hash", fmt.Sprintf("%#x", def.DefinitionHash)))
 	}
 
 	// Verify
@@ -93,7 +100,7 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 
 // fetchDefinition fetches cluster definition file from a remote URI.
 func fetchDefinition(ctx context.Context, url string) (cluster.Definition, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
