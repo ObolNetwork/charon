@@ -16,6 +16,7 @@
 package app
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/json"
 	"math/rand"
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestLoadLock(t *testing.T) {
@@ -63,4 +65,42 @@ func TestVerifyP2PKey(t *testing.T) {
 	key, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(time.Now().Unix())))
 	require.NoError(t, err)
 	require.Error(t, verifyP2PKey(lock, key))
+}
+
+func TestCalculateTrackerDelay(t *testing.T) {
+	tests := []struct {
+		name         string
+		slotDuration time.Duration
+		slotDelay    int64
+	}{
+		{
+			name:         "slow slots",
+			slotDuration: time.Second,
+			slotDelay:    11,
+		},
+		{
+			name:         "fast slots",
+			slotDuration: time.Second * 12,
+			slotDelay:    2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			const currentSlot = 100
+
+			ctx := context.Background()
+			now := time.Now()
+			genesis := now.Add(-test.slotDuration * currentSlot)
+
+			bmock, err := beaconmock.New(
+				beaconmock.WithSlotDuration(test.slotDuration),
+				beaconmock.WithGenesisTime(genesis),
+			)
+			require.NoError(t, err)
+
+			fromSlot, err := calculateTrackerDelay(ctx, bmock, now)
+			require.NoError(t, err)
+			require.EqualValues(t, currentSlot+test.slotDelay, fromSlot)
+		})
+	}
 }
