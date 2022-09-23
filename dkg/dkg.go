@@ -101,8 +101,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	log.Info(ctx, "Starting local DKG peer...",
-		z.Str("local_peer", p2p.PeerName(pID)),
-		z.Str("definition_hash", clusterID))
+		z.Str("local_peer", p2p.PeerName(pID)))
 
 	tcpNode, shutdown, err := setupP2P(ctx, key, conf.P2P, peers, clusterID)
 	if err != nil {
@@ -133,7 +132,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	tp := newFrostP2P(ctx, tcpNode, peerMap, clusterID)
 
-	log.Info(ctx, "Waiting to connecting to all peers...", z.Str("definition_hash", clusterID))
+	log.Info(ctx, "Waiting to connecting to all peers...")
 
 	// Improve UX of "context cancelled" errors when sync fails.
 	ctx = withCtxErr(ctx, "p2p connection failed, please retry DKG")

@@ -18,6 +18,7 @@ package dkg
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -55,7 +56,8 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 			return cluster.Definition{}, errors.Wrap(err, "read definition")
 		}
 
-		log.Info(ctx, "Definition file loaded from remote URI", z.Str("URI", conf.DefFile))
+		log.Info(ctx, "Cluster definition downloaded from URL", z.Str("URL", conf.DefFile),
+			z.Str("definition_hash", fmt.Sprintf("%#x", def.DefinitionHash)))
 	} else {
 		buf, err := os.ReadFile(conf.DefFile)
 		if err != nil {
@@ -66,7 +68,8 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 			return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
 		}
 
-		log.Info(ctx, "Definition file loaded from disk", z.Str("location", conf.DefFile))
+		log.Info(ctx, "Cluster definition loaded from disk", z.Str("path", conf.DefFile),
+			z.Str("definition_hash", fmt.Sprintf("%#x", def.DefinitionHash)))
 	}
 
 	// Verify
