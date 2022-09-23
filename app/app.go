@@ -476,8 +476,8 @@ func wireTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func
 // calculateTrackerDelay returns the slot to start tracking from. This mitigates noisy failed duties on
 // startup due to downstream VC startup delays.
 func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Time) (int64, error) {
-	const maxDelayTime = time.Second * 10 // We want to delay at least 10 seconds
-	const minDelaySlots = 2               // But we do not want to delay more than 2 slots
+	const maxDelayTime = time.Second * 10 // We want to delay at most 10 seconds
+	const minDelaySlots = 2               // But we do not want to delay less than 2 slots
 
 	genesisTime, err := cl.GenesisTime(ctx)
 	if err != nil {
