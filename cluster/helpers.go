@@ -37,8 +37,12 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-// The length of secp256k1 signatures.
-const k1SigLen = 65
+const (
+	// k1SigLen is the length of secp256k1 signatures.
+	k1SigLen = 65
+	// k1RecIdx is the secp256k1 signature recovery id index.
+	k1RecIdx = 64
+)
 
 // uuid returns a random uuid.
 func uuid(random io.Reader) string {
@@ -49,19 +53,19 @@ func uuid(random io.Reader) string {
 }
 
 // verifySig returns true if the signature matches the digest and address.
-func verifySig(expectedAddr []byte, digest []byte, sig []byte) (bool, error) {
+func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
 	if len(sig) != k1SigLen {
 		return false, errors.New("invalid signature length", z.Int("siglen", len(sig)))
 	}
 
 	// https://github.com/ethereum/go-ethereum/issues/19751#issuecomment-504900739
 	// TL;DR: Metamask signatures end with 0x1b (27) or 0x1c (28) while go-ethereum/crypto signatures end with 0x0(0) or 0x1(1) and both are correct.
-	if sig[64] != 0 && sig[64] != 1 && sig[64] != 27 && sig[64] != 28 {
-		return false, errors.New("invalid recovery id", z.Any("id", sig[64]))
+	if sig[k1RecIdx] != 0 && sig[k1RecIdx] != 1 && sig[k1RecIdx] != 27 && sig[k1RecIdx] != 28 {
+		return false, errors.New("invalid recovery id", z.Any("id", sig[k1RecIdx]))
 	}
 
-	if sig[64] == 27 || sig[64] == 28 {
-		sig[64] -= 27 // Make the last byte 0 or 1 since that is the canonical V value.
+	if sig[k1RecIdx] == 27 || sig[k1RecIdx] == 28 {
+		sig[k1RecIdx] -= 27 // Make the last byte 0 or 1 since that is the canonical V value.
 	}
 
 	pubkey, err := crypto.SigToPub(digest, sig)
@@ -71,18 +75,23 @@ func verifySig(expectedAddr []byte, digest []byte, sig []byte) (bool, error) {
 
 	actualAddr := crypto.PubkeyToAddress(*pubkey)
 
-	return bytes.Equal(expectedAddr, actualAddr[:]), nil
+	addrBytes, err := from0xHex(expectedAddr, addressLen)
+	if err != nil {
+		return false, err
+	}
+
+	return bytes.Equal(addrBytes, actualAddr[:]), nil
 }
 
 // signOperator returns the operator with signed config hash and enr.
 func signOperator(secret *ecdsa.PrivateKey, operator Operator, configHash [32]byte) (Operator, error) {
 	var err error
-	operator.ConfigSignature, err = signEIP712(secret, to0xHex(operator.Address), configHash[:])
+	operator.ConfigSignature, err = signEIP712(secret, operator.Address, configHash[:])
 	if err != nil {
 		return Operator{}, err
 	}
 
-	operator.ENRSignature, err = signEIP712(secret, to0xHex(operator.Address), []byte(operator.ENR))
+	operator.ENRSignature, err = signEIP712(secret, operator.Address, []byte(operator.ENR))
 	if err != nil {
 		return Operator{}, err
 	}

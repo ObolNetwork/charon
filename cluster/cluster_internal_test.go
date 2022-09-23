@@ -59,7 +59,7 @@ func randomOperator(t *testing.T) (*ecdsa.PrivateKey, Operator) {
 	addr := crypto.PubkeyToAddress(secret.PublicKey)
 
 	return secret, Operator{
-		Address: addr[:],
+		Address: addr.Hex(),
 		ENR:     fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
 	}
 }

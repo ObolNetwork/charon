@@ -79,10 +79,10 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 	hh.PutUint64(uint64(d.Threshold))
 
 	// Field (5) 'feeRecipientAddress'
-	hh.PutBytes([]byte(to0xHex(d.FeeRecipientAddress)))
+	hh.PutBytes([]byte(d.FeeRecipientAddress))
 
 	// Field (6) 'withdrawalAddress'
-	hh.PutBytes([]byte(to0xHex(d.WithdrawalAddress)))
+	hh.PutBytes([]byte(d.WithdrawalAddress))
 
 	// Field (7) 'dkgAlgorithm'
 	hh.PutBytes([]byte(d.DKGAlgorithm))
@@ -96,29 +96,31 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 		num := uint64(len(d.Operators))
 		for _, o := range d.Operators {
 			if configOnly {
-				hh.PutBytes([]byte(to0xHex(o.Address)))
-			} else {
-				subIdx := hh.Index()
+				hh.PutBytes([]byte(o.Address))
 
-				// Field (0) 'Address'
-				hh.PutBytes([]byte(to0xHex(o.Address)))
-
-				// Field (1) 'ENR'
-				hh.PutBytes([]byte(o.ENR))
-
-				if isJSONv1x0(d.Version) || isJSONv1x1(d.Version) {
-					// Field (2) 'Nonce'
-					hh.PutUint64(zeroNonce) // Older versions had a zero nonce
-				}
-
-				// Field (2 or 3) 'ConfigSignature'
-				hh.PutBytes(o.ConfigSignature)
-
-				// Field (3 or 4) 'ENRSignature'
-				hh.PutBytes(o.ENRSignature)
-
-				hh.Merkleize(subIdx)
+				continue
 			}
+
+			subIdx := hh.Index()
+
+			// Field (0) 'Address'
+			hh.PutBytes([]byte(o.Address))
+
+			// Field (1) 'ENR'
+			hh.PutBytes([]byte(o.ENR))
+
+			if isJSONv1x0(d.Version) || isJSONv1x1(d.Version) {
+				// Field (2) 'Nonce'
+				hh.PutUint64(zeroNonce) // Older versions had a zero nonce
+			}
+
+			// Field (2 or 3) 'ConfigSignature'
+			hh.PutBytes(o.ConfigSignature)
+
+			// Field (3 or 4) 'ENRSignature'
+			hh.PutBytes(o.ENRSignature)
+
+			hh.Merkleize(subIdx)
 		}
 		hh.MerkleizeWithMixin(subIndx, num, num)
 	}
@@ -142,6 +144,16 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 
 // hashDefinitionV1x3 hashes the latest definition.
 func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error {
+	feeRecipientAddress, err := from0xHex(d.FeeRecipientAddress, addressLen)
+	if err != nil {
+		return err
+	}
+
+	withdrawalAddress, err := from0xHex(d.WithdrawalAddress, addressLen)
+	if err != nil {
+		return err
+	}
+
 	indx := hh.Index()
 
 	// Field (0) 'UUID' ByteList[64]
@@ -171,10 +183,10 @@ func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error 
 	hh.PutUint64(uint64(d.Threshold))
 
 	// Field (6) 'FeeRecipientAddress' Bytes20
-	hh.PutBytes(d.FeeRecipientAddress)
+	hh.PutBytes(feeRecipientAddress)
 
 	// Field (7) 'WithdrawalAddress' Bytes20
-	hh.PutBytes(d.WithdrawalAddress)
+	hh.PutBytes(withdrawalAddress)
 
 	// Field (8) 'DKGAlgorithm' ByteList[32]
 	if err := putByteList(hh, []byte(d.DKGAlgorithm), sszMaxDKGAlgorithm, "dkg_algorithm"); err != nil {
@@ -192,7 +204,11 @@ func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error 
 			indx := hh.Index()
 
 			// Field (0) 'Address' Bytes20
-			hh.PutBytes(o.Address)
+			addrBytes, err := from0xHex(o.Address, addressLen)
+			if err != nil {
+				return err
+			}
+			hh.PutBytes(addrBytes)
 
 			if !configOnly {
 				// Field (1) 'ENR' ByteList[1024]
