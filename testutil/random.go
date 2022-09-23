@@ -522,6 +522,16 @@ func RandomBitList() bitfield.Bitlist {
 	return resp
 }
 
+// RandomSecp256k1Key returns a random secp256k1 ECDSA signature with the last byte set to 0.
+func RandomSecp256k1Key() []byte {
+	var resp [65]byte
+	_, _ = rand.Read(resp[:])
+
+	resp[64] = byte(0)
+
+	return resp[:]
+}
+
 func RandomExecutionAddress() bellatrix.ExecutionAddress {
 	var resp [20]byte
 	_, _ = rand.Read(resp[:])
