@@ -522,12 +522,15 @@ func RandomBitList() bitfield.Bitlist {
 	return resp
 }
 
-// RandomSecp256k1Signature returns a random secp256k1 ECDSA signature with the last byte set to 0.
+// RandomSecp256k1Signature returns a random secp256k1 ECDSA signature with the last byte set to 0, 1, 27 or 28.
 func RandomSecp256k1Signature() []byte {
 	var resp [65]byte
 	_, _ = rand.Read(resp[:])
 
-	resp[64] = byte(0)
+	r1 := resp[0] % 2        // 0 or 1
+	r2 := 27 * (resp[1] % 2) // 0 or 27
+	lastByte := r1 + r2      // 0, 1, 27 or 28
+	resp[64] = lastByte
 
 	return resp[:]
 }
