@@ -24,6 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
+  "iteration": 1664010007622,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -62,7 +63,7 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "custom": {
             "align": "auto",
@@ -83,7 +84,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
+        "h": 6,
         "w": 5,
         "x": 0,
         "y": 1
@@ -100,7 +101,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -109,7 +110,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "(\n  sum(app_git_commit{job=\"$node\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{job=\"$node\"}) by (version)\n)\n   + on(job) group_left(lock_hash)\n(\n   0 * sum(app_lock_hash{job=\"$node\"}) by (lock_hash)\n)\n  + on(job) group_left(threshold)\n(\n   0 * sum(app_threshold{job=\"$node\"}) by (threshold)\n)\n   + on(job) group_left(num_operators)\n(\n   0 * sum(app_num_operators{job=\"$node\"}) by (num_operators)\n)\n   + on(job) group_left(peer_name)\n(\n   0 * sum(app_peer_name{job=\"$node\"}) by (peer_name)\n)",
+          "expr": "(\n  sum(app_git_commit{job=\"$node\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{job=\"$node\"}) by (version)\n)\n   + on(job) group_left(lock_hash)\n(\n   0 * sum(cluster_lock_hash{job=\"$node\"}) by (lock_hash)\n)\n   + on(job) group_left(peer_name)\n(\n   0 * sum(app_peer_name{job=\"$node\"}) by (peer_name)\n)\n   + on(job) group_left(network)\n(\n   0 * sum(cluster_network{job=\"$node\"}) by (network)\n)",
           "hide": false,
           "instant": true,
           "interval": "",
@@ -118,7 +119,7 @@
           "refId": "B"
         }
       ],
-      "title": "Version Info",
+      "title": "App Info",
       "transformations": [
         {
           "id": "labelsToFields",
@@ -193,7 +194,7 @@
         ]
       },
       "gridPos": {
-        "h": 7,
+        "h": 5,
         "w": 5,
         "x": 5,
         "y": 1
@@ -217,7 +218,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -484,7 +485,7 @@
           }
         ]
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -676,9 +677,9 @@
       },
       "gridPos": {
         "h": 3,
-        "w": 2,
-        "x": 0,
-        "y": 8
+        "w": 5,
+        "x": 5,
+        "y": 6
       },
       "id": 48,
       "options": {
@@ -695,7 +696,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -721,39 +722,11 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
+      "description": "Information about the charon cluster",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisSoftMin": 0,
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
@@ -769,44 +742,85 @@
               }
             ]
           },
-          "unit": "s"
+          "unit": "none"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 9,
-        "x": 2,
-        "y": 8
+        "h": 4,
+        "w": 5,
+        "x": 0,
+        "y": 7
       },
-      "id": 25,
+      "id": 60,
       "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "right",
-          "showLegend": true
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
+        "text": {
+          "titleSize": 15,
+          "valueSize": 15
+        },
+        "textMode": "auto"
       },
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "exemplar": true,
-          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[$__rate_interval])) by (le,peer))  ",
-          "interval": "",
-          "legendFormat": "{{peer}}",
+          "editorMode": "code",
+          "expr": "cluster_operators{job=\"$node\"}",
+          "legendFormat": "No of Operators",
+          "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "cluster_threshold{job=\"$node\"}",
+          "hide": false,
+          "legendFormat": "Threshold",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "cluster_validators{job=\"$node\"}",
+          "hide": false,
+          "legendFormat": "Total Validators",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "",
+          "hide": false,
+          "refId": "D"
         }
       ],
-      "title": "Peer ping latency (90%)",
-      "type": "timeseries"
+      "title": "Cluster Info",
+      "transformations": [],
+      "type": "stat"
     },
     {
       "datasource": {
@@ -865,9 +879,9 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
+        "h": 8,
         "w": 7,
-        "x": 11,
+        "x": 10,
         "y": 8
       },
       "id": 13,
@@ -956,9 +970,9 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 18,
+        "h": 8,
+        "w": 7,
+        "x": 17,
         "y": 8
       },
       "id": 14,
@@ -1022,9 +1036,9 @@
       },
       "gridPos": {
         "h": 2,
-        "w": 2,
-        "x": 0,
-        "y": 11
+        "w": 5,
+        "x": 5,
+        "y": 9
       },
       "id": 27,
       "options": {
@@ -1041,7 +1055,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -1058,6 +1072,98 @@
       ],
       "title": "Voluntary Exits",
       "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 10,
+        "x": 0,
+        "y": 11
+      },
+      "id": 25,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "exemplar": true,
+          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[$__rate_interval])) by (le,peer))  ",
+          "interval": "",
+          "legendFormat": "{{peer}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Peer ping latency (90%)",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -1118,7 +1224,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 13
+        "y": 16
       },
       "id": 7,
       "options": {
@@ -1224,7 +1330,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 13
+        "y": 16
       },
       "id": 5,
       "options": {
@@ -1290,7 +1396,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 13
+        "y": 16
       },
       "id": 26,
       "options": {
@@ -1307,7 +1413,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -1384,7 +1490,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 20
+        "y": 23
       },
       "id": 17,
       "options": {
@@ -1475,7 +1581,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 20
+        "y": 23
       },
       "id": 18,
       "options": {
@@ -1566,7 +1672,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 27
+        "y": 30
       },
       "id": 15,
       "options": {
@@ -1657,7 +1763,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 27
+        "y": 30
       },
       "id": 24,
       "options": {
@@ -1749,7 +1855,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 34
+        "y": 37
       },
       "id": 50,
       "options": {
@@ -1868,7 +1974,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 34
+        "y": 37
       },
       "id": 49,
       "options": {
@@ -2027,7 +2133,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 41
+        "y": 44
       },
       "id": 56,
       "options": {
@@ -2040,7 +2146,7 @@
         },
         "showHeader": true
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -2152,7 +2258,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 41
+        "y": 44
       },
       "id": 52,
       "links": [],
@@ -2240,7 +2346,7 @@
     ]
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {},
