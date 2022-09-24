@@ -198,13 +198,16 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}, prometheus.DefaultRegisterer)
 	}
 
-	initStartupMetrics(
+	if err := initStartupMetrics(
 		lockHashHex,
 		p2p.PeerName(tcpNode.ID()),
 		lock.Threshold,
 		len(lock.Operators),
 		len(lock.Validators),
-	)
+		lock.ForkVersion,
+	); err != nil {
+		return err
+	}
 
 	eth2Cl, err := newETH2Client(ctx, conf, life, lock.Validators)
 	if err != nil {
