@@ -108,5 +108,5 @@ func setNetworkGauge(forkVersion []byte) {
 		network = "unknown"
 	}
 
-	networkGauge.WithLabelValues(network)
+	networkGauge.WithLabelValues(network).Set(1)
 }
