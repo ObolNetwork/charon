@@ -86,12 +86,9 @@ var (
 	}, []string{"network"})
 )
 
-func initStartupMetrics(lockHash, peerName string, threshold, numOperators, numValidators int, forkVersion []byte) error {
+func initStartupMetrics(lockHash, peerName string, threshold, numOperators, numValidators int, forkVersion []byte) {
 	startGauge.SetToCurrentTime()
-	err := setNetworkGauge(forkVersion)
-	if err != nil {
-		return err
-	}
+	setNetworkGauge(forkVersion)
 
 	hash, _ := version.GitCommit()
 	gitGauge.WithLabelValues(hash).Set(1)
@@ -102,18 +99,14 @@ func initStartupMetrics(lockHash, peerName string, threshold, numOperators, numV
 	thresholdGauge.Set(float64(threshold))
 	operatorsGauge.Set(float64(numOperators))
 	validatorsGauge.Set(float64(numValidators))
-
-	return nil
 }
 
 // setNetworkGauge sets the gauge to the current network/chain (ex: goerli, mainnet etc.).
-func setNetworkGauge(forkVersion []byte) error {
+func setNetworkGauge(forkVersion []byte) {
 	network, err := dkg.ForkVersionToNetwork(forkVersion)
 	if err != nil {
-		return err
+		network = "unknown"
 	}
 
 	networkGauge.WithLabelValues(network)
-
-	return nil
 }
