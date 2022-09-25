@@ -617,7 +617,7 @@ func setupData(t *testing.T, slots []int) ([]testDutyData, []core.PubKey) {
 
 func TestFromSlot(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	done := make(chan struct{})
 
 	analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
 	deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
@@ -627,13 +627,16 @@ func TestFromSlot(t *testing.T) {
 	tr := New(analyser, deleter, nil, fromSlot)
 
 	go func() {
-		require.NoError(t, tr.Run(ctx))
+		require.ErrorIs(t, tr.Run(ctx), context.Canceled)
+		close(done)
 	}()
 
 	require.NoError(t, tr.SigAggEvent(ctx, core.NewAggregatorDuty(thisSlot), "", nil))
 	require.NoError(t, tr.ValidatorAPIEvent(ctx, core.NewProposerDuty(thisSlot), nil))
 	require.NoError(t, tr.SchedulerEvent(ctx, core.NewAggregatorDuty(thisSlot), nil))
 	require.Empty(t, tr.events)
+	cancel()
+	<-done
 }
 
 func TestAnalyseDutyFailedAgg(t *testing.T) {
