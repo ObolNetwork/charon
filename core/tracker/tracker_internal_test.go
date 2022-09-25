@@ -627,3 +627,61 @@ func TestFromSlot(t *testing.T) {
 	require.NoError(t, tr.SchedulerEvent(ctx, core.NewAggregatorDuty(thisSlot), nil))
 	require.Empty(t, tr.events)
 }
+
+func TestAnalyseDutyFailedAgg(t *testing.T) {
+	const slot = 123
+	dutyAgg := core.NewAggregatorDuty(slot)
+	dutyPrepAgg := core.NewPrepareAggregatorDuty(slot)
+	dutyAtt := core.NewAttesterDuty(slot)
+
+	t.Run("v2 endpoint not supported", func(t *testing.T) {
+		allEvents := make(map[core.Duty][]event)
+		allEvents[dutyAgg] = append(allEvents[dutyAgg], event{
+			duty:      dutyAgg,
+			component: scheduler,
+		})
+
+		// No events for DutyPrepareAggregator
+		failed, comp, _ := analyseDutyFailed(dutyAgg, allEvents)
+		require.False(t, failed)
+		require.Equal(t, comp, fetcher)
+	})
+
+	t.Run("DutyPrepareAggregator failed", func(t *testing.T) {
+		allEvents := make(map[core.Duty][]event)
+		allEvents[dutyAgg] = append(allEvents[dutyAgg], event{
+			duty:      dutyAgg,
+			component: scheduler,
+		})
+		allEvents[dutyPrepAgg] = append(allEvents[dutyPrepAgg], event{
+			duty:      dutyPrepAgg,
+			component: validatorAPI,
+		})
+
+		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
+		require.True(t, failed)
+		require.Equal(t, fetcher, comp)
+		require.Equal(t, fetcherPrepAggMsg, msg)
+	})
+
+	t.Run("DutyAttester failed", func(t *testing.T) {
+		allEvents := make(map[core.Duty][]event)
+		allEvents[dutyAgg] = append(allEvents[dutyAgg], event{
+			duty:      dutyAgg,
+			component: scheduler,
+		})
+		allEvents[dutyPrepAgg] = append(allEvents[dutyPrepAgg], event{
+			duty:      dutyPrepAgg,
+			component: sigAgg,
+		})
+		allEvents[dutyAtt] = append(allEvents[dutyAtt], event{
+			duty:      dutyAtt,
+			component: fetcher,
+		})
+
+		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
+		require.True(t, failed)
+		require.Equal(t, fetcher, comp)
+		require.Equal(t, fetcherAggAttMsg, msg)
+	})
+}

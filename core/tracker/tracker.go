@@ -48,6 +48,8 @@ const (
 // These constants are used for improving messages for why a duty failed.
 const (
 	fetcherMsg                  = "couldn't fetch duty data from the beacon node"
+	fetcherAggAttMsg            = "couldn't fetch aggregate attestation duty to attestation data unavailability"
+	fetcherPrepAggMsg           = "couldn't fetch aggregate attestation due to insufficient partial committee subscriptions"
 	fetcherProposerThresholdMsg = "couldn't propose block due to insufficient partial randao signatures"
 	fetcherProposerMsg          = "couldn't propose block since randao duty failed"
 	consensusMsg                = "consensus algorithm didn't complete"
@@ -99,7 +101,7 @@ func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, from
 		analyser:              analyser,
 		deleter:               deleter,
 		fromSlot:              fromSlot,
-		failedDutyReporter:    failedDutyReporter,
+		failedDutyReporter:    newFailedDutyReporter(),
 		participationReporter: newParticipationReporter(peers),
 	}
 
@@ -141,8 +143,9 @@ func (t *Tracker) Run(ctx context.Context) error {
 	}
 }
 
-// dutyFailedComponent returns true if the duty failed. It also returns the component where the duty got stuck.  If the duty didn't get stuck, it
-// returns the sigAgg component. It assumes that all the input events are for a single duty.
+// dutyFailedComponent returns true if the duty failed. It also returns the component where the duty got stuck.
+// If the duty didn't get stuck, it returns the sigAgg component.
+// It assumes that all the input events are for a single duty.
 func dutyFailedComponent(es []event) (bool, component) {
 	events := make([]event, len(es))
 	copy(events, es)
@@ -193,6 +196,30 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 				}
 			}
 		}
+
+		if duty.Type == core.DutyAggregator {
+			prepAggFailed, prepAggComp := dutyFailedComponent(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
+			// case 1: DutyPrepareAggregator fails in validatorapi which means VC doesn't support v2 endpoint
+			// if DutyPrepareAggregator fails in validatorapi then we will not get any event for DutyPrepareAggregator.
+			if !prepAggFailed && prepAggComp == sentinel {
+				// Ignore this case by returning false.
+				return false, fetcher, ""
+			}
+
+			// case 2: DutyPrepareAggregator fails to get threshold number of signatures.
+			if prepAggFailed {
+				return true, comp, fetcherPrepAggMsg
+			}
+
+			// case 3: DutyAttester failed to store Attestation data in DutyDB
+			attFailed, attComp := dutyFailedComponent(allEvents[core.NewAttesterDuty(duty.Slot)])
+			if attFailed && attComp <= consensus {
+				return true, comp, fetcherAggAttMsg
+			}
+
+			// Ignore no aggregators found case, since it is not a failure.
+			return false, sigAgg, ""
+		}
 	case consensus:
 		msg = consensusMsg
 	case validatorAPI:
@@ -210,17 +237,33 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 	return true, comp, msg
 }
 
-// failedDutyReporter instruments failed duties.
-func failedDutyReporter(ctx context.Context, duty core.Duty, failed bool, component component, reason string) {
-	if !failed {
-		return
+// newFailedDutyReporter returns failed duty reporter which instruments failed duties.
+func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bool, component component, reason string) {
+	failedDutyByComponent := make(map[core.DutyType]component)
+
+	return func(ctx context.Context, duty core.Duty, failed bool, component component, reason string) {
+		c, ok := failedDutyByComponent[duty.Type]
+		if !failed {
+			if !ok && duty.Type == core.DutyAggregator && component == fetcher {
+				log.Warn(ctx, "VCs do not seem to support v2 attestation aggregation, ignoring failures for"+
+					" DutyPrepareAggregator and DutyAggregator", nil)
+
+				failedDutyByComponent[duty.Type] = component
+			}
+
+			return
+		}
+
+		if !ok || c != component {
+			log.Warn(ctx, "Duty failed", nil,
+				z.Any("component", component),
+				z.Str("reason", reason))
+
+			failedDutyByComponent[duty.Type] = component
+		}
+
+		failedCounter.WithLabelValues(duty.Type.String(), component.String()).Inc()
 	}
-
-	log.Warn(ctx, "Duty failed", nil,
-		z.Any("component", component),
-		z.Str("reason", reason))
-
-	failedCounter.WithLabelValues(duty.Type.String(), component.String()).Inc()
 }
 
 // analyseParticipation returns a set of share indexes of participated peers.
