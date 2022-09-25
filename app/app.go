@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -189,7 +188,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Str("enr", localEnode.Node().String()))
 
 	promRegistry, err := promauto.NewRegistry(prometheus.Labels{
-		"cluster_hash": fmt.Sprintf(""),
+		"cluster_hash": lockHashHex,
 		"cluster_name": lock.Name,
 		"cluster_peer": p2p.PeerName(tcpNode.ID()),
 	})
