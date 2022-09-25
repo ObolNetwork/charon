@@ -41,6 +41,7 @@ import (
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/retry"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
@@ -104,8 +105,6 @@ type TestConfig struct {
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
-	// DisablePromWrap disables wrapping prometheus metrics with cluster identifiers.
-	DisablePromWrap bool
 	// BuilderRegistration provides a channel for tests to trigger builder registration by the validator mock,
 	BuilderRegistration <-chan *eth2api.VersionedValidatorRegistration
 }
@@ -188,15 +187,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Int("peers", len(lock.Operators)),
 		z.Str("enr", localEnode.Node().String()))
 
-	if !conf.TestConfig.DisablePromWrap {
-		// Instrument prometheus metrics with cluster and node identifiers.
-		prometheus.DefaultRegisterer = prometheus.WrapRegistererWith(prometheus.Labels{
-			"cluster_hash":      lockHashHex,
-			"cluster_name":      lock.Name,
-			"cluster_enr":       lock.Operators[nodeIdx.PeerIdx].ENR,
-			"cluster_peer_name": p2p.PeerName(tcpNode.ID()),
-		}, prometheus.DefaultRegisterer)
-	}
+	// Instrument prometheus metrics with cluster and node identifiers.
+	promauto.WrapAndRegister(prometheus.Labels{
+		"cluster_hash": lockHashHex,
+		"cluster_name": lock.Name,
+		"cluster_peer": p2p.PeerName(tcpNode.ID()),
+	})
 
 	initStartupMetrics(
 		lockHashHex,

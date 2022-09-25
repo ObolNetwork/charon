@@ -274,7 +274,6 @@ func testSimnet(t *testing.T, args simnetArgs, expect simnetExpect) {
 			TestConfig: app.TestConfig{
 				Lock:               &args.Lock,
 				P2PKey:             args.P2PKeys[i],
-				DisablePromWrap:    true,
 				TestPingConfig:     p2p.TestPingConfig{Disable: true},
 				SimnetKeys:         []*bls_sig.SecretKey{args.SimnetKeys[i]},
 				ParSigExFunc:       parSigExFunc,

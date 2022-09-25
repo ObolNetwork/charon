@@ -18,8 +18,8 @@ package scheduler
 import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/core"
 )
 
