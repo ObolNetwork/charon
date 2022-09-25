@@ -21,7 +21,6 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto" //nolint:revive // Only this package may import the original promauto.
 )
 
 // defaultRegisterer wraps the original prometheus.defaultRegisterer.
@@ -80,25 +79,43 @@ func (*wrappingRegisterer) Unregister(prometheus.Collector) bool {
 }
 
 func NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *prometheus.GaugeVec {
-	return promauto.With(defaultRegisterer).NewGaugeVec(opts, labelNames)
+	c := prometheus.NewGaugeVec(opts, labelNames)
+	defaultRegisterer.MustRegister(c)
+
+	return c
 }
 
 func NewGauge(opts prometheus.GaugeOpts) prometheus.Gauge {
-	return promauto.With(defaultRegisterer).NewGauge(opts)
+	c := prometheus.NewGauge(opts)
+	defaultRegisterer.MustRegister(c)
+
+	return c
 }
 
 func NewHistogramVec(opts prometheus.HistogramOpts, labelNames []string) *prometheus.HistogramVec {
-	return promauto.With(defaultRegisterer).NewHistogramVec(opts, labelNames)
+	c := prometheus.NewHistogramVec(opts, labelNames)
+	defaultRegisterer.MustRegister(c)
+
+	return c
 }
 
 func NewHistogram(opts prometheus.HistogramOpts) prometheus.Histogram {
-	return promauto.With(defaultRegisterer).NewHistogram(opts)
+	c := prometheus.NewHistogram(opts)
+	defaultRegisterer.MustRegister(c)
+
+	return c
 }
 
 func NewCounterVec(opts prometheus.CounterOpts, labelNames []string) *prometheus.CounterVec {
-	return promauto.With(defaultRegisterer).NewCounterVec(opts, labelNames)
+	c := prometheus.NewCounterVec(opts, labelNames)
+	defaultRegisterer.MustRegister(c)
+
+	return c
 }
 
 func NewCounter(opts prometheus.CounterOpts) prometheus.Counter {
-	return promauto.With(defaultRegisterer).NewCounter(opts)
+	c := prometheus.NewCounter(opts)
+	defaultRegisterer.MustRegister(c)
+
+	return c
 }
