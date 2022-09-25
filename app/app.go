@@ -190,7 +190,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Instrument prometheus metrics with cluster and node identifiers.
 	promauto.WrapAndRegister(prometheus.Labels{
 		"cluster_hash": lockHashHex,
-		"cluster_name": lock.Name,
 		"cluster_peer": p2p.PeerName(tcpNode.ID()),
 	})
 
