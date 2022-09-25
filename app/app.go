@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -187,9 +188,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Int("peers", len(lock.Operators)),
 		z.Str("enr", localEnode.Node().String()))
 
-	// Instrument prometheus metrics with cluster and node identifiers.
-	promauto.WrapAndRegister(prometheus.Labels{
-		"cluster_hash": lockHashHex,
+	promRegistry := promauto.RegisterAll(prometheus.Labels{
+		"cluster_hash": fmt.Sprintf(""),
 		"cluster_name": lock.Name,
 		"cluster_peer": p2p.PeerName(tcpNode.ID()),
 	})
@@ -213,7 +213,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs)
+	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs, promRegistry)
 
 	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, peerIDs); err != nil {
 		return err

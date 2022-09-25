@@ -14,91 +14,85 @@
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Package promauto is a drop-in replacement of github.com/prometheus/client_golang/prometheus/promauto
-// that adds support for wrapping all promauto created metrics with runtime labels.
+// that adds support for wrapping all metrics with runtime labels.
 package promauto
 
 import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 )
 
 // Using globals since promauto is designed for use at package initialisation time.
 var (
 	mu      sync.Mutex
 	pending []prometheus.Collector
-	wrapped bool
 )
 
-// WrapAndRegister wraps the default registerer with the provided labels and registers all pending metrics.
-func WrapAndRegister(labels prometheus.Labels) {
+// RegisterAll returns a new registry containing all global pending as well as
+// built-in process metrics, it also wraps all the metrics with the provided labels.
+func RegisterAll(labels prometheus.Labels) *prometheus.Registry {
+	registry := prometheus.NewRegistry()
+
+	registerer := prometheus.WrapRegistererWith(labels, registry)
+	registerer.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	registerer.MustRegister(collectors.NewGoCollector())
+
 	mu.Lock()
 	defer mu.Unlock()
+	registerer.MustRegister(pending...)
 
-	// Only register once. This is required for testing.
-	if wrapped {
-		return
-	}
-
-	if len(labels) > 0 {
-		prometheus.DefaultRegisterer = prometheus.WrapRegistererWith(labels, prometheus.DefaultRegisterer)
-	}
-
-	prometheus.DefaultRegisterer.MustRegister(pending...)
-	wrapped = true
+	return registry
 }
 
-// mustAddPending adds the collector to the pending registrations.
-// It panics if WrapAndRegister was already called.
-func mustAddPending(collector ...prometheus.Collector) {
+// addPending adds the collector to the pending registrations.
+// It panics if MustRegisterAll was already called.
+func addPending(collector ...prometheus.Collector) {
 	mu.Lock()
 	defer mu.Unlock()
-
-	if wrapped {
-		panic("WrapAndRegister already called")
-	}
 
 	pending = append(pending, collector...)
 }
 
 func NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *prometheus.GaugeVec {
 	c := prometheus.NewGaugeVec(opts, labelNames)
-	mustAddPending(c)
+	addPending(c)
 
 	return c
 }
 
 func NewGauge(opts prometheus.GaugeOpts) prometheus.Gauge {
 	c := prometheus.NewGauge(opts)
-	mustAddPending(c)
+	addPending(c)
 
 	return c
 }
 
 func NewHistogramVec(opts prometheus.HistogramOpts, labelNames []string) *prometheus.HistogramVec {
 	c := prometheus.NewHistogramVec(opts, labelNames)
-	mustAddPending(c)
+	addPending(c)
 
 	return c
 }
 
 func NewHistogram(opts prometheus.HistogramOpts) prometheus.Histogram {
 	c := prometheus.NewHistogram(opts)
-	mustAddPending(c)
+	addPending(c)
 
 	return c
 }
 
 func NewCounterVec(opts prometheus.CounterOpts, labelNames []string) *prometheus.CounterVec {
 	c := prometheus.NewCounterVec(opts, labelNames)
-	mustAddPending(c)
+	addPending(c)
 
 	return c
 }
 
 func NewCounter(opts prometheus.CounterOpts) prometheus.Counter {
 	c := prometheus.NewCounter(opts)
-	mustAddPending(c)
+	addPending(c)
 
 	return c
 }
