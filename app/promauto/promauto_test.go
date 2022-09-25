@@ -16,7 +16,6 @@
 package promauto_test
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -25,34 +24,48 @@ import (
 	"github.com/obolnetwork/charon/app/promauto"
 )
 
-func TestWrapRegisterer(t *testing.T) {
-	simpleGge := promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "sample_gge",
-		Help: "helpSampleGge",
-	}, []string{"prom"})
-	simpleGge.WithLabelValues("obol-prom").Set(1)
+var testGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	Name: "test",
+	Help: "",
+}, []string{"label"})
 
+func TestWrapRegisterer(t *testing.T) {
 	promauto.WrapAndRegister(prometheus.Labels{
-		"cluster_hash":      "lockHash",
-		"cluster_name":      "test-cluster",
-		"cluster_peer_name": "charon",
+		"wrap_1": "1",
+		"wrap_2": "2",
 	})
 
-	expected := map[string]string{
-		"cluster_hash":      "lockHash",
-		"cluster_name":      "test-cluster",
-		"cluster_peer_name": "charon",
-		"prom":              "obol-prom",
-	}
+	testGauge.WithLabelValues("0").Set(1)
 
-	got, err := prometheus.DefaultGatherer.Gather()
+	metrics, err := prometheus.DefaultGatherer.Gather()
 	require.NoError(t, err)
 
-	actual := make(map[string]string)
-	labels := got[len(got)-1].Metric[0].Label
-	for _, l := range labels {
-		actual[*l.Name] = *l.Value
+	expect := map[string]string{
+		"label":  "0",
+		"wrap_1": "1",
+		"wrap_2": "2",
 	}
 
-	require.True(t, reflect.DeepEqual(expected, actual))
+	for _, metricFam := range metrics {
+		// Non promauto metrics do not contain wrapped labels.
+		if *metricFam.Name != "test" {
+			for _, metric := range metricFam.Metric {
+				for _, label := range metric.Label {
+					require.NotContains(t, *label.Name, "wrap_")
+				}
+			}
+
+			continue
+		}
+
+		// Promauto metrics contain own and wrapped labels.
+		for _, metric := range metricFam.Metric {
+			for _, label := range metric.Label {
+				require.Equal(t, expect[*label.Name], *label.Value)
+				delete(expect, *label.Name)
+			}
+		}
+	}
+
+	require.Empty(t, expect)
 }

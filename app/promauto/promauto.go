@@ -13,8 +13,8 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package promauto aliases github.com/prometheus/client_golang/prometheus/promauto in order
-// to wrap the prometheus.DefaultRegister with runtime labels.
+// Package promauto is a drop-in replacement of github.com/prometheus/client_golang/prometheus/promauto
+// that adds support for wrapping all promauto created metrics with runtime labels.
 package promauto
 
 import (
@@ -23,99 +23,82 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// defaultRegisterer wraps the original prometheus.defaultRegisterer.
-var defaultRegisterer = &wrappingRegisterer{target: prometheus.DefaultRegisterer}
-
-// WrapAndRegister wraps the default register with the provided labels and registers all pending collectors.
-func WrapAndRegister(labels prometheus.Labels) {
-	defaultRegisterer.WrapAndRegister(labels)
-}
-
-type wrappingRegisterer struct {
+// Using globals since promauto is designed for use at package initialisation time.
+var (
 	mu      sync.Mutex
-	target  prometheus.Registerer
 	pending []prometheus.Collector
 	wrapped bool
-}
+)
 
-// WrapAndRegister wraps the default register with the provided labels and registers all pending collectors.
-func (r *wrappingRegisterer) WrapAndRegister(labels prometheus.Labels) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+// WrapAndRegister wraps the default registerer with the provided labels and registers all pending metrics.
+func WrapAndRegister(labels prometheus.Labels) {
+	mu.Lock()
+	defer mu.Unlock()
 
 	// Only register once. This is required for testing.
-	if r.wrapped {
+	if wrapped {
 		return
 	}
 
 	if len(labels) > 0 {
-		r.target = prometheus.WrapRegistererWith(labels, r.target)
+		prometheus.DefaultRegisterer = prometheus.WrapRegistererWith(labels, prometheus.DefaultRegisterer)
 	}
 
-	r.target.MustRegister(r.pending...)
-	r.wrapped = true
+	prometheus.DefaultRegisterer.MustRegister(pending...)
+	wrapped = true
 }
 
-// MustRegister implements prometheus.Registerer.
-func (r *wrappingRegisterer) MustRegister(collector ...prometheus.Collector) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+// mustAddPending adds the collector to the pending registrations.
+// It panics if WrapAndRegister was already called.
+func mustAddPending(collector ...prometheus.Collector) {
+	mu.Lock()
+	defer mu.Unlock()
 
-	if r.wrapped {
-		panic("wrappingRegisterer already wrapped")
+	if wrapped {
+		panic("WrapAndRegister already called")
 	}
 
-	r.pending = append(r.pending, collector...)
-}
-
-// Register implements prometheus.Registerer.
-func (*wrappingRegisterer) Register(prometheus.Collector) error {
-	panic("wrappingRegisterer.Register not supported")
-}
-
-// Unregister implements prometheus.Registerer.
-func (*wrappingRegisterer) Unregister(prometheus.Collector) bool {
-	panic("wrappingRegisterer.Unregister not supported")
+	pending = append(pending, collector...)
 }
 
 func NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *prometheus.GaugeVec {
 	c := prometheus.NewGaugeVec(opts, labelNames)
-	defaultRegisterer.MustRegister(c)
+	mustAddPending(c)
 
 	return c
 }
 
 func NewGauge(opts prometheus.GaugeOpts) prometheus.Gauge {
 	c := prometheus.NewGauge(opts)
-	defaultRegisterer.MustRegister(c)
+	mustAddPending(c)
 
 	return c
 }
 
 func NewHistogramVec(opts prometheus.HistogramOpts, labelNames []string) *prometheus.HistogramVec {
 	c := prometheus.NewHistogramVec(opts, labelNames)
-	defaultRegisterer.MustRegister(c)
+	mustAddPending(c)
 
 	return c
 }
 
 func NewHistogram(opts prometheus.HistogramOpts) prometheus.Histogram {
 	c := prometheus.NewHistogram(opts)
-	defaultRegisterer.MustRegister(c)
+	mustAddPending(c)
 
 	return c
 }
 
 func NewCounterVec(opts prometheus.CounterOpts, labelNames []string) *prometheus.CounterVec {
 	c := prometheus.NewCounterVec(opts, labelNames)
-	defaultRegisterer.MustRegister(c)
+	mustAddPending(c)
 
 	return c
 }
 
 func NewCounter(opts prometheus.CounterOpts) prometheus.Counter {
 	c := prometheus.NewCounter(opts)
-	defaultRegisterer.MustRegister(c)
+	mustAddPending(c)
 
 	return c
 }
