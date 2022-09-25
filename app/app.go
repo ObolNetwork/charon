@@ -105,8 +105,6 @@ type TestConfig struct {
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
-	// DisablePromWrap disables wrapping prometheus metrics with cluster identifiers.
-	DisablePromWrap bool
 	// BuilderRegistration provides a channel for tests to trigger builder registration by the validator mock,
 	BuilderRegistration <-chan *eth2api.VersionedValidatorRegistration
 }
@@ -190,15 +188,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Str("enr", localEnode.Node().String()))
 
 	// Instrument prometheus metrics with cluster and node identifiers.
-	if conf.TestConfig.DisablePromWrap {
-		promauto.WrapAndRegister(nil)
-	} else {
-		promauto.WrapAndRegister(prometheus.Labels{
-			"cluster_hash":      lockHashHex,
-			"cluster_name":      lock.Name,
-			"cluster_peer_name": p2p.PeerName(tcpNode.ID()),
-		})
-	}
+	promauto.WrapAndRegister(prometheus.Labels{
+		"cluster_hash": lockHashHex,
+		"cluster_name": lock.Name,
+		"cluster_peer": p2p.PeerName(tcpNode.ID()),
+	})
 
 	initStartupMetrics(
 		lockHashHex,

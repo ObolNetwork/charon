@@ -179,9 +179,8 @@ func pingCluster(t *testing.T, test pingTest) {
 					Callback:   asserter.Callback(t, i),
 					MaxBackoff: time.Second,
 				},
-				Lock:            &lock,
-				P2PKey:          p2pKeys[i],
-				DisablePromWrap: true,
+				Lock:   &lock,
+				P2PKey: p2pKeys[i],
 				SimnetBMockOpts: []beaconmock.Option{
 					beaconmock.WithNoAttesterDuties(),
 					beaconmock.WithNoProposerDuties(),
