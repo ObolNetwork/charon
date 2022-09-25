@@ -23,19 +23,21 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
-	_ = x[scheduler-0]
-	_ = x[fetcher-1]
-	_ = x[consensus-2]
-	_ = x[validatorAPI-3]
-	_ = x[parSigDBInternal-4]
-	_ = x[parSigEx-5]
-	_ = x[parSigDBThreshold-6]
-	_ = x[sigAgg-7]
+	_ = x[zero-0]
+	_ = x[scheduler-1]
+	_ = x[fetcher-2]
+	_ = x[consensus-3]
+	_ = x[validatorAPI-4]
+	_ = x[parSigDBInternal-5]
+	_ = x[parSigEx-6]
+	_ = x[parSigDBThreshold-7]
+	_ = x[sigAgg-8]
+	_ = x[sentinel-9]
 }
 
-const _component_name = "schedulerfetcherconsensusvalidatorAPIparSigDBInternalparSigExparSigDBThresholdsigAgg"
+const _component_name = "zeroschedulerfetcherconsensusvalidatorAPIparSigDBInternalparSigExparSigDBThresholdsigAggsentinel"
 
-var _component_index = [...]uint8{0, 9, 16, 25, 37, 53, 61, 78, 84}
+var _component_index = [...]uint8{0, 4, 13, 20, 29, 41, 57, 65, 82, 88, 96}
 
 func (i component) String() string {
 	if i < 0 || i >= component(len(_component_index)-1) {

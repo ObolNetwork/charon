@@ -33,7 +33,8 @@ type component int
 
 // Core components arranged in the order data flows through them.
 const (
-	scheduler component = iota
+	zero component = iota
+	scheduler
 	fetcher
 	consensus
 	validatorAPI
@@ -41,22 +42,24 @@ const (
 	parSigEx
 	parSigDBThreshold
 	sigAgg
-
 	sentinel
 )
 
 // These constants are used for improving messages for why a duty failed.
 const (
-	fetcherMsg                  = "couldn't fetch duty data from the beacon node"
-	fetcherAggAttMsg            = "couldn't fetch aggregate attestation duty to attestation data unavailability"
-	fetcherPrepAggMsg           = "couldn't fetch aggregate attestation due to insufficient partial committee subscriptions"
-	fetcherProposerThresholdMsg = "couldn't propose block due to insufficient partial randao signatures"
-	fetcherProposerMsg          = "couldn't propose block since randao duty failed"
-	consensusMsg                = "consensus algorithm didn't complete"
-	validatorAPIMsg             = "signed duty not submitted by local validator client"
-	parSigDBInternalMsg         = "partial signature database didn't trigger partial signature exchange"
-	parSigExMsg                 = "no partial signatures received from peers"
-	parSigDBThresholdMsg        = "insufficient partial signatures received, minimum required threshold not reached"
+	fetcherMsg                        = "couldn't fetch duty data from the beacon node"
+	fetcherAggregatorNoAttDataMsg     = "couldn't aggregate attestation due to failed attester duty"
+	fetcherAggregatorFewPreparesMsg   = "couldn't aggregate attestation due to insufficient partial committee subscriptions"
+	fetcherAggregatorZeroPreparesMsg  = "couldn't aggregate attestation due to zero partial committee subscriptions"
+	fetcherAggregatorFailedPrepareMsg = "couldn't aggregate attestation due to failed prepare aggregator duty "
+	fetcherProposerFewRandaosMsg      = "couldn't propose block due to insufficient partial randao signatures"
+	fetcherProposerZeroRandaosMsg     = "couldn't propose block due to zero partial randao signatures"
+	fetcherProposerFailedRandaoMsg    = "couldn't propose block due to failed randao duty"
+	consensusMsg                      = "consensus algorithm didn't complete"
+	validatorAPIMsg                   = "signed duty not submitted by local validator client"
+	parSigDBInternalMsg               = "partial signature database didn't trigger partial signature exchange"
+	parSigExMsg                       = "no partial signatures received from peers"
+	parSigDBThresholdMsg              = "insufficient partial signatures received, minimum required threshold not reached"
 )
 
 // event represents an event emitted by a core workflow component.
@@ -144,8 +147,9 @@ func (t *Tracker) Run(ctx context.Context) error {
 }
 
 // dutyFailedComponent returns true if the duty failed. It also returns the component where the duty got stuck.
-// If the duty didn't get stuck, it returns the sigAgg component.
+// If the duty didn't fail, it returns false and the zero component.
 // It assumes that all the input events are for a single duty.
+// If the input events slice is empty, it returns true the zero component.
 func dutyFailedComponent(es []event) (bool, component) {
 	events := make([]event, len(es))
 	copy(events, es)
@@ -156,19 +160,24 @@ func dutyFailedComponent(es []event) (bool, component) {
 	})
 
 	if len(events) == 0 {
-		return false, sentinel
+		return true, zero // Duty failed since no events.
 	}
 
 	c := events[0].component
 	if c == sigAgg {
-		return false, sigAgg
+		return false, zero
 	}
 
 	return true, c + 1
 }
 
-// analyseDutyFailed detects if the given duty failed. It returns false if the duty didn't fail, i.e., the duty didn't get stuck and completes the sigAgg component.
-// It returns true if the duty failed. It also returns the component where the duty got stuck and a human friendly error message explaining why.
+// analyseDutyFailed detects if the given duty failed.
+//
+// It returns true if the duty failed as well as the component
+// where the duty got stuck and a human friendly error message explaining why.
+//
+// It returns false if the duty didn't fail, i.e., the duty
+// didn't get stuck and completed the sigAgg component.
 func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, component, string) {
 	var (
 		failed bool
@@ -178,7 +187,7 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 
 	failed, comp = dutyFailedComponent(allEvents[duty])
 	if !failed {
-		return false, sigAgg, ""
+		return false, zero, ""
 	}
 
 	switch comp {
@@ -186,39 +195,47 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 		msg = fetcherMsg
 
 		if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
-			// Proposer duties may fail if core.DutyRandao fails
+			// Proposer duties will fail if core.DutyRandao fails
 			randaoFailed, randaoComp := dutyFailedComponent(allEvents[core.NewRandaoDuty(duty.Slot)])
 			if randaoFailed {
 				if randaoComp == parSigDBThreshold {
-					msg = fetcherProposerThresholdMsg
+					msg = fetcherProposerFewRandaosMsg
+				} else if randaoComp == zero {
+					msg = fetcherProposerZeroRandaosMsg
 				} else {
-					msg = fetcherProposerMsg
+					msg = fetcherProposerFailedRandaoMsg
 				}
 			}
 		}
 
-		if duty.Type == core.DutyAggregator {
+		if duty.Type == core.DutyAggregator { //nolint:nestif // Maybe extract as function.
+			// Aggregator duties will fail if core.DutyPrapareAggregator fails
 			prepAggFailed, prepAggComp := dutyFailedComponent(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
-			// case 1: DutyPrepareAggregator fails in validatorapi which means VC doesn't support v2 endpoint
-			// if DutyPrepareAggregator fails in validatorapi then we will not get any event for DutyPrepareAggregator.
-			if !prepAggFailed && prepAggComp == sentinel {
-				// Ignore this case by returning false.
-				return false, fetcher, ""
-			}
-
-			// case 2: DutyPrepareAggregator fails to get threshold number of signatures.
 			if prepAggFailed {
-				return true, comp, fetcherPrepAggMsg
+				if prepAggComp == parSigDBThreshold {
+					msg = fetcherAggregatorFewPreparesMsg
+				} else if prepAggComp == zero {
+					msg = fetcherAggregatorZeroPreparesMsg
+				} else {
+					msg = fetcherAggregatorFailedPrepareMsg
+				}
+
+				return true, comp, msg
 			}
 
-			// case 3: DutyAttester failed to store Attestation data in DutyDB
+			// Aggregator duties will fail is no attestation data in DutyDB
 			attFailed, attComp := dutyFailedComponent(allEvents[core.NewAttesterDuty(duty.Slot)])
 			if attFailed && attComp <= consensus {
-				return true, comp, fetcherAggAttMsg
+				// Note we do not handle the edge case of the local peer failing to store attestation data
+				// but the attester duty succeeding in any case due to external peer partial signatures.
+				return true, comp, fetcherAggregatorNoAttDataMsg
 			}
 
-			// Ignore no aggregators found case, since it is not a failure.
-			return false, sigAgg, ""
+			// TODO(corver): We cannot distinguish between "no aggregators for slot"
+			//  and "failed fetching aggregated attestation from BN".
+			//
+			// Assume no aggregators for slot as this is very common.
+			return false, zero, ""
 		}
 	case consensus:
 		msg = consensusMsg
@@ -230,6 +247,8 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 		msg = parSigExMsg
 	case parSigDBThreshold:
 		msg = parSigDBThresholdMsg
+	case zero:
+		msg = fmt.Sprintf("no events for %s duty", duty.String()) // This should never happen.
 	default:
 		msg = fmt.Sprintf("%s duty failed at %s", duty.String(), comp.String())
 	}
@@ -239,28 +258,25 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 
 // newFailedDutyReporter returns failed duty reporter which instruments failed duties.
 func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bool, component component, reason string) {
-	failedDutyByComponent := make(map[core.DutyType]component)
+	var loggedNoV2Agg bool
 
 	return func(ctx context.Context, duty core.Duty, failed bool, component component, reason string) {
-		c, ok := failedDutyByComponent[duty.Type]
 		if !failed {
-			if !ok && duty.Type == core.DutyAggregator && component == fetcher {
-				log.Warn(ctx, "VCs do not seem to support v2 attestation aggregation, ignoring failures for"+
-					" DutyPrepareAggregator and DutyAggregator", nil)
+			return
+		}
 
-				failedDutyByComponent[duty.Type] = component
+		if duty.Type == core.DutyAggregator && component == fetcher && reason == fetcherAggregatorZeroPreparesMsg {
+			if !loggedNoV2Agg {
+				log.Warn(ctx, "Ignoring attestation aggregation failures since VCs do not seem to support attestation aggregation v2", nil)
 			}
+			loggedNoV2Agg = true
 
 			return
 		}
 
-		if !ok || c != component {
-			log.Warn(ctx, "Duty failed", nil,
-				z.Any("component", component),
-				z.Str("reason", reason))
-
-			failedDutyByComponent[duty.Type] = component
-		}
+		log.Warn(ctx, "Duty failed", nil,
+			z.Any("component", component),
+			z.Str("reason", reason))
 
 		failedCounter.WithLabelValues(duty.Type.String(), component.String()).Inc()
 	}
