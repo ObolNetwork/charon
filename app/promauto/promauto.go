@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package promauto is a drop-in replacement of github.com/prometheus/client_golang/prometheus/prometheus
+// Package promauto is a drop-in replacement of github.com/prometheus/client_golang/prometheus/promauto
 // and adds support for wrapping all metrics with runtime labels.
 package promauto
 
@@ -26,14 +26,14 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// Using globals since prometheus is designed for use at package initialisation time.
+// Using globals since promauto is designed for use at package initialisation time.
 var (
 	mu      sync.Mutex
 	metrics []prometheus.Collector
 )
 
-// NewRegistry returns a new registry containing all prometheus created metrics and
-// built-in Go process metrics wrapping all the metrics with the provided labels.
+// NewRegistry returns a new registry containing all promauto created metrics and
+// built-in Go process metrics wrapping everything with the provided labels.
 func NewRegistry(labels prometheus.Labels) (*prometheus.Registry, error) {
 	registry := prometheus.NewRegistry()
 
