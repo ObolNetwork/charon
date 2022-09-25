@@ -14,7 +14,7 @@
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Package promauto is a drop-in replacement of github.com/prometheus/client_golang/prometheus/promauto
-// that adds support for wrapping all metrics with runtime labels.
+// and adds support for wrapping all metrics with runtime labels.
 package promauto
 
 import (
@@ -22,17 +22,18 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // Using globals since promauto is designed for use at package initialisation time.
 var (
 	mu      sync.Mutex
-	pending []prometheus.Collector
+	metrics []prometheus.Collector
 )
 
-// RegisterAll returns a new registry containing all global pending as well as
-// built-in process metrics, it also wraps all the metrics with the provided labels.
-func RegisterAll(labels prometheus.Labels) *prometheus.Registry {
+// NewRegistry returns a new registry containing all promauto created metrics and
+// built-in Go process metrics wrapping all the metrics with the provided labels.
+func NewRegistry(labels prometheus.Labels) *prometheus.Registry {
 	registry := prometheus.NewRegistry()
 
 	registerer := prometheus.WrapRegistererWith(labels, registry)
@@ -41,58 +42,57 @@ func RegisterAll(labels prometheus.Labels) *prometheus.Registry {
 
 	mu.Lock()
 	defer mu.Unlock()
-	registerer.MustRegister(pending...)
+	registerer.MustRegister(metrics...)
 
 	return registry
 }
 
-// addPending adds the collector to the pending registrations.
-// It panics if MustRegisterAll was already called.
-func addPending(collector ...prometheus.Collector) {
+// cacheMetric adds the metric to the local global cache.
+func cacheMetric(metric prometheus.Collector) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	pending = append(pending, collector...)
+	metrics = append(metrics, metric)
 }
 
 func NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *prometheus.GaugeVec {
-	c := prometheus.NewGaugeVec(opts, labelNames)
-	addPending(c)
+	c := promauto.NewGaugeVec(opts, labelNames)
+	cacheMetric(c)
 
 	return c
 }
 
 func NewGauge(opts prometheus.GaugeOpts) prometheus.Gauge {
-	c := prometheus.NewGauge(opts)
-	addPending(c)
+	c := promauto.NewGauge(opts)
+	cacheMetric(c)
 
 	return c
 }
 
 func NewHistogramVec(opts prometheus.HistogramOpts, labelNames []string) *prometheus.HistogramVec {
-	c := prometheus.NewHistogramVec(opts, labelNames)
-	addPending(c)
+	c := promauto.NewHistogramVec(opts, labelNames)
+	cacheMetric(c)
 
 	return c
 }
 
 func NewHistogram(opts prometheus.HistogramOpts) prometheus.Histogram {
-	c := prometheus.NewHistogram(opts)
-	addPending(c)
+	c := promauto.NewHistogram(opts)
+	cacheMetric(c)
 
 	return c
 }
 
 func NewCounterVec(opts prometheus.CounterOpts, labelNames []string) *prometheus.CounterVec {
-	c := prometheus.NewCounterVec(opts, labelNames)
-	addPending(c)
+	c := promauto.NewCounterVec(opts, labelNames)
+	cacheMetric(c)
 
 	return c
 }
 
 func NewCounter(opts prometheus.CounterOpts) prometheus.Counter {
-	c := prometheus.NewCounter(opts)
-	addPending(c)
+	c := promauto.NewCounter(opts)
+	cacheMetric(c)
 
 	return c
 }

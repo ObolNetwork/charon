@@ -188,7 +188,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Int("peers", len(lock.Operators)),
 		z.Str("enr", localEnode.Node().String()))
 
-	promRegistry := promauto.RegisterAll(prometheus.Labels{
+	promRegistry := promauto.NewRegistry(prometheus.Labels{
 		"cluster_hash": fmt.Sprintf(""),
 		"cluster_name": lock.Name,
 		"cluster_peer": p2p.PeerName(tcpNode.ID()),
