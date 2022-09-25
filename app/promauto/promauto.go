@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package promauto is a drop-in replacement of github.com/prometheus/client_golang/prometheus/promauto
+// Package promauto is a drop-in replacement of github.com/prometheus/client_golang/prometheus/prometheus
 // and adds support for wrapping all metrics with runtime labels.
 package promauto
 
@@ -22,29 +22,44 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
-// Using globals since promauto is designed for use at package initialisation time.
+// Using globals since prometheus is designed for use at package initialisation time.
 var (
 	mu      sync.Mutex
 	metrics []prometheus.Collector
 )
 
-// NewRegistry returns a new registry containing all promauto created metrics and
+// NewRegistry returns a new registry containing all prometheus created metrics and
 // built-in Go process metrics wrapping all the metrics with the provided labels.
-func NewRegistry(labels prometheus.Labels) *prometheus.Registry {
+func NewRegistry(labels prometheus.Labels) (*prometheus.Registry, error) {
 	registry := prometheus.NewRegistry()
 
 	registerer := prometheus.WrapRegistererWith(labels, registry)
-	registerer.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	registerer.MustRegister(collectors.NewGoCollector())
+
+	err := registerer.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	if err != nil {
+		return nil, errors.Wrap(err, "register process collector")
+	}
+
+	err = registerer.Register(collectors.NewGoCollector())
+	if err != nil {
+		return nil, errors.Wrap(err, "register go collector")
+	}
 
 	mu.Lock()
 	defer mu.Unlock()
-	registerer.MustRegister(metrics...)
 
-	return registry
+	for _, metric := range metrics {
+		err = registerer.Register(metric)
+		if err != nil {
+			return nil, errors.Wrap(err, "register metric")
+		}
+	}
+
+	return registry, nil
 }
 
 // cacheMetric adds the metric to the local global cache.
@@ -56,42 +71,42 @@ func cacheMetric(metric prometheus.Collector) {
 }
 
 func NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *prometheus.GaugeVec {
-	c := promauto.NewGaugeVec(opts, labelNames)
+	c := prometheus.NewGaugeVec(opts, labelNames)
 	cacheMetric(c)
 
 	return c
 }
 
 func NewGauge(opts prometheus.GaugeOpts) prometheus.Gauge {
-	c := promauto.NewGauge(opts)
+	c := prometheus.NewGauge(opts)
 	cacheMetric(c)
 
 	return c
 }
 
 func NewHistogramVec(opts prometheus.HistogramOpts, labelNames []string) *prometheus.HistogramVec {
-	c := promauto.NewHistogramVec(opts, labelNames)
+	c := prometheus.NewHistogramVec(opts, labelNames)
 	cacheMetric(c)
 
 	return c
 }
 
 func NewHistogram(opts prometheus.HistogramOpts) prometheus.Histogram {
-	c := promauto.NewHistogram(opts)
+	c := prometheus.NewHistogram(opts)
 	cacheMetric(c)
 
 	return c
 }
 
 func NewCounterVec(opts prometheus.CounterOpts, labelNames []string) *prometheus.CounterVec {
-	c := promauto.NewCounterVec(opts, labelNames)
+	c := prometheus.NewCounterVec(opts, labelNames)
 	cacheMetric(c)
 
 	return c
 }
 
 func NewCounter(opts prometheus.CounterOpts) prometheus.Counter {
-	c := promauto.NewCounter(opts)
+	c := prometheus.NewCounter(opts)
 	cacheMetric(c)
 
 	return c
