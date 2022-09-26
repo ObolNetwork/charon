@@ -14,91 +14,100 @@
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Package promauto is a drop-in replacement of github.com/prometheus/client_golang/prometheus/promauto
-// that adds support for wrapping all promauto created metrics with runtime labels.
+// and adds support for wrapping all metrics with runtime labels.
 package promauto
 
 import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 // Using globals since promauto is designed for use at package initialisation time.
 var (
 	mu      sync.Mutex
-	pending []prometheus.Collector
-	wrapped bool
+	metrics []prometheus.Collector
 )
 
-// WrapAndRegister wraps the default registerer with the provided labels and registers all pending metrics.
-func WrapAndRegister(labels prometheus.Labels) {
+// NewRegistry returns a new registry containing all promauto created metrics and
+// built-in Go process metrics wrapping everything with the provided labels.
+func NewRegistry(labels prometheus.Labels) (*prometheus.Registry, error) {
+	registry := prometheus.NewRegistry()
+
+	registerer := prometheus.WrapRegistererWith(labels, registry)
+
+	err := registerer.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	if err != nil {
+		return nil, errors.Wrap(err, "register process collector")
+	}
+
+	err = registerer.Register(collectors.NewGoCollector())
+	if err != nil {
+		return nil, errors.Wrap(err, "register go collector")
+	}
+
 	mu.Lock()
 	defer mu.Unlock()
 
-	// Only register once. This is required for testing.
-	if wrapped {
-		return
+	for _, metric := range metrics {
+		err = registerer.Register(metric)
+		if err != nil {
+			return nil, errors.Wrap(err, "register metric")
+		}
 	}
 
-	if len(labels) > 0 {
-		prometheus.DefaultRegisterer = prometheus.WrapRegistererWith(labels, prometheus.DefaultRegisterer)
-	}
-
-	prometheus.DefaultRegisterer.MustRegister(pending...)
-	wrapped = true
+	return registry, nil
 }
 
-// mustAddPending adds the collector to the pending registrations.
-// It panics if WrapAndRegister was already called.
-func mustAddPending(collector ...prometheus.Collector) {
+// cacheMetric adds the metric to the local global cache.
+func cacheMetric(metric prometheus.Collector) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	if wrapped {
-		panic("WrapAndRegister already called")
-	}
-
-	pending = append(pending, collector...)
+	metrics = append(metrics, metric)
 }
 
 func NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *prometheus.GaugeVec {
 	c := prometheus.NewGaugeVec(opts, labelNames)
-	mustAddPending(c)
+	cacheMetric(c)
 
 	return c
 }
 
 func NewGauge(opts prometheus.GaugeOpts) prometheus.Gauge {
 	c := prometheus.NewGauge(opts)
-	mustAddPending(c)
+	cacheMetric(c)
 
 	return c
 }
 
 func NewHistogramVec(opts prometheus.HistogramOpts, labelNames []string) *prometheus.HistogramVec {
 	c := prometheus.NewHistogramVec(opts, labelNames)
-	mustAddPending(c)
+	cacheMetric(c)
 
 	return c
 }
 
 func NewHistogram(opts prometheus.HistogramOpts) prometheus.Histogram {
 	c := prometheus.NewHistogram(opts)
-	mustAddPending(c)
+	cacheMetric(c)
 
 	return c
 }
 
 func NewCounterVec(opts prometheus.CounterOpts, labelNames []string) *prometheus.CounterVec {
 	c := prometheus.NewCounterVec(opts, labelNames)
-	mustAddPending(c)
+	cacheMetric(c)
 
 	return c
 }
 
 func NewCounter(opts prometheus.CounterOpts) prometheus.Counter {
 	c := prometheus.NewCounter(opts)
-	mustAddPending(c)
+	cacheMetric(c)
 
 	return c
 }

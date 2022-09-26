@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+	ioprometheusclient "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/promauto"
@@ -30,42 +31,47 @@ var testGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 }, []string{"label"})
 
 func TestWrapRegisterer(t *testing.T) {
-	promauto.WrapAndRegister(prometheus.Labels{
-		"wrap_1": "1",
-		"wrap_2": "2",
-	})
-
 	testGauge.WithLabelValues("0").Set(1)
 
-	metrics, err := prometheus.DefaultGatherer.Gather()
-	require.NoError(t, err)
-
-	expect := map[string]string{
-		"label":  "0",
+	labels := prometheus.Labels{
 		"wrap_1": "1",
 		"wrap_2": "2",
 	}
 
+	registry, err := promauto.NewRegistry(labels)
+	require.NoError(t, err)
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	require.True(t, len(metrics) > 1)
+
+	var foundTest bool
 	for _, metricFam := range metrics {
-		// Non promauto metrics do not contain wrapped labels.
-		if *metricFam.Name != "test" {
-			for _, metric := range metricFam.Metric {
-				for _, label := range metric.Label {
-					require.NotContains(t, *label.Name, "wrap_")
-				}
-			}
-
-			continue
-		}
-
-		// Promauto metrics contain own and wrapped labels.
-		for _, metric := range metricFam.Metric {
-			for _, label := range metric.Label {
-				require.Equal(t, expect[*label.Name], *label.Value)
-				delete(expect, *label.Name)
-			}
+		// All metrics contain own and registered labels.
+		containsLabels(t, metricFam, labels)
+		if *metricFam.Name == "test" {
+			foundTest = true
 		}
 	}
 
-	require.Empty(t, expect)
+	require.True(t, foundTest)
+}
+
+func containsLabels(t *testing.T, family *ioprometheusclient.MetricFamily, labels prometheus.Labels) {
+	t.Helper()
+
+	for _, metric := range family.Metric {
+		notFound := make(prometheus.Labels)
+		for k, v := range labels {
+			notFound[k] = v
+		}
+		for _, label := range metric.Label {
+			v, ok := notFound[*label.Name]
+			if !ok {
+				continue
+			}
+			require.Equal(t, v, *label.Value)
+			delete(notFound, *label.Name)
+		}
+		require.Empty(t, notFound)
+	}
 }

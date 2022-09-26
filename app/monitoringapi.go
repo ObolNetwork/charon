@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -45,12 +46,15 @@ var (
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
 func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string,
-	localNode *enode.LocalNode, tcpNode host.Host, eth2Cl eth2wrap.Client, peerIDs []peer.ID,
+	localNode *enode.LocalNode, tcpNode host.Host, eth2Cl eth2wrap.Client,
+	peerIDs []peer.ID, registry *prometheus.Registry,
 ) {
 	mux := http.NewServeMux()
 
-	// Serve prometheus metrics
-	mux.Handle("/metrics", promhttp.Handler())
+	// Serve prometheus metrics wrapped with cluster and node identifiers.
+	mux.Handle("/metrics", promhttp.InstrumentMetricHandler(
+		registry, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}),
+	))
 
 	// Serve local ENR to allow simple HTTP Get to this node to resolve it as bootnode ENR.
 	mux.Handle("/enr", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
