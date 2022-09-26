@@ -47,19 +47,75 @@ const (
 
 // These constants are used for improving messages for why a duty failed.
 const (
-	fetcherMsg                        = "couldn't fetch duty data from the beacon node"
-	fetcherAggregatorNoAttDataMsg     = "couldn't aggregate attestation due to failed attester duty"
-	fetcherAggregatorFewPreparesMsg   = "couldn't aggregate attestation due to insufficient partial committee subscriptions"
-	fetcherAggregatorZeroPreparesMsg  = "couldn't aggregate attestation due to zero partial committee subscriptions"
-	fetcherAggregatorFailedPrepareMsg = "couldn't aggregate attestation due to failed prepare aggregator duty "
-	fetcherProposerFewRandaosMsg      = "couldn't propose block due to insufficient partial randao signatures"
-	fetcherProposerZeroRandaosMsg     = "couldn't propose block due to zero partial randao signatures"
-	fetcherProposerFailedRandaoMsg    = "couldn't propose block due to failed randao duty"
-	consensusMsg                      = "consensus algorithm didn't complete"
-	validatorAPIMsg                   = "signed duty not submitted by local validator client"
-	parSigDBInternalMsg               = "partial signature database didn't trigger partial signature exchange"
-	parSigExMsg                       = "no partial signatures received from peers"
-	parSigDBThresholdMsg              = "insufficient partial signatures received, minimum required threshold not reached"
+	// msgFetcher indicates a duty failed in the fetcher component when it failed
+	// to fetch the required data from the beacon node API. This indicates a problem with
+	// the upstream beacon node.
+	msgFetcher = "couldn't fetch duty data from the beacon node"
+
+	// msgFetcherAggregatorNoAttData indicates an attestation aggregation duty failed in
+	// the fetcher component since it couldn't fetch the prerequisite attestation data. This
+	// indicates the associated attestation duty failed to obtain a cluster agreed upon value.
+	msgFetcherAggregatorNoAttData = "couldn't aggregate attestation due to failed attester duty"
+
+	// msgFetcherAggregatorFewPrepares indicates an attestation aggregation duty failed in
+	// the fetcher component since it couldn't fetch the prerequisite aggregated v2 committee subscription.
+	// This indicates the associated prepare aggregation duty failed due to insufficient partial v2 committee subscription
+	// submitted by the cluster validator clients.
+	msgFetcherAggregatorFewPrepares = "couldn't aggregate attestation due to insufficient partial v2 committee subscriptions"
+
+	// msgFetcherAggregatorZeroPrepares indicates an attestation aggregation duty failed in
+	// the fetcher component since it couldn't fetch the prerequisite aggregated v2 committee subscription.
+	// This indicates the associated prepare aggregation duty failed due to no partial v2 committee subscription
+	// submitted by the cluster validator clients.
+	msgFetcherAggregatorZeroPrepares = "couldn't aggregate attestation due to zero partial committee subscriptions"
+
+	// msgFetcherAggregatorFailedPrepare indicates an attestation aggregation duty failed in
+	// the fetcher component since it couldn't fetch the prerequisite aggregated v2 committee subscription.
+	// This indicates the associated prepare aggregation duty failed.
+	msgFetcherAggregatorFailedPrepare = "couldn't aggregate attestation due to failed prepare aggregator duty "
+
+	// msgFetcherProposerFewRandaos indicates a block proposer duty failed in
+	// the fetcher component since it couldn't fetch the prerequisite aggregated RANDAO.
+	// This indicates the associated randao duty failed due to insufficient partial randao signatures
+	// submitted by the cluster validator clients.
+	msgFetcherProposerFewRandaos = "couldn't propose block due to insufficient partial randao signatures"
+
+	// msgFetcherProposerZeroRandaos indicates a block proposer duty failed in
+	// the fetcher component since it couldn't fetch the prerequisite aggregated RANDAO.
+	// This indicates the associated randao duty failed due to no partial randao signatures
+	// submitted by the cluster validator clients.
+	msgFetcherProposerZeroRandaos = "couldn't propose block due to zero partial randao signatures"
+
+	// msgFetcherProposerZeroRandaos indicates a block proposer duty failed in
+	// the fetcher component since it couldn't fetch the prerequisite aggregated RANDAO.
+	// This indicates the associated randao duty failed.
+	msgFetcherProposerFailedRandao = "couldn't propose block due to failed randao duty"
+
+	// msgConsensus indicates a duty failed in consensus component.
+	// This could indicate that insufficient honest peers participated in consensus or p2p network
+	// connection problems.
+	msgConsensus = "consensus algorithm didn't complete"
+
+	// msgValidatorAPI indicates that partial signature we never submitted by the local
+	// validator client. This could indicate that the local validator client is offline,
+	// or has connection problems with charon, or has some other problem. See validator client
+	// logs for more details.
+	msgValidatorAPI = "signed duty not submitted by local validator client"
+
+	// msgParSigDBInternal indicates a bug in the partial signature database as it is unexpected.
+	msgParSigDBInternal = "bug: partial signature database didn't trigger partial signature exchange"
+
+	// msgParSigEx indicates that no partial signature for the duty was received from any peer.
+	// This indicates all peers are offline or p2p network connection problems.
+	msgParSigEx = "no partial signatures received from peers"
+
+	// msgParSigDBThreshold indicates that insufficient partial signatures for the duty was received from peers.
+	// This indicates problems with peers or p2p network connection problems.
+	msgParSigDBThreshold = "insufficient partial signatures received, minimum required threshold not reached"
+
+	// msgSigAgg indicates that BLS threshold aggregation of sufficient partial signatures failed. This
+	// indicates inconsistent signed data. This indicates a bug in charon as it is unexpected.
+	msgSigAgg = "bug: threshold aggregation of partial signatures failed due to inconsistent signed data"
 )
 
 // event represents an event emitted by a core workflow component.
@@ -192,18 +248,18 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 
 	switch comp {
 	case fetcher:
-		msg = fetcherMsg
+		msg = msgFetcher
 
 		if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
 			// Proposer duties will fail if core.DutyRandao fails
 			randaoFailed, randaoComp := dutyFailedComponent(allEvents[core.NewRandaoDuty(duty.Slot)])
 			if randaoFailed {
 				if randaoComp == parSigDBThreshold {
-					msg = fetcherProposerFewRandaosMsg
+					msg = msgFetcherProposerFewRandaos
 				} else if randaoComp == zero {
-					msg = fetcherProposerZeroRandaosMsg
+					msg = msgFetcherProposerZeroRandaos
 				} else {
-					msg = fetcherProposerFailedRandaoMsg
+					msg = msgFetcherProposerFailedRandao
 				}
 			}
 		}
@@ -213,11 +269,11 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 			prepAggFailed, prepAggComp := dutyFailedComponent(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
 			if prepAggFailed {
 				if prepAggComp == parSigDBThreshold {
-					msg = fetcherAggregatorFewPreparesMsg
+					msg = msgFetcherAggregatorFewPrepares
 				} else if prepAggComp == zero {
-					msg = fetcherAggregatorZeroPreparesMsg
+					msg = msgFetcherAggregatorZeroPrepares
 				} else {
-					msg = fetcherAggregatorFailedPrepareMsg
+					msg = msgFetcherAggregatorFailedPrepare
 				}
 
 				return true, comp, msg
@@ -228,7 +284,7 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 			if attFailed && attComp <= consensus {
 				// Note we do not handle the edge case of the local peer failing to store attestation data
 				// but the attester duty succeeding in any case due to external peer partial signatures.
-				return true, comp, fetcherAggregatorNoAttDataMsg
+				return true, comp, msgFetcherAggregatorNoAttData
 			}
 
 			// TODO(corver): We cannot distinguish between "no aggregators for slot"
@@ -238,15 +294,17 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 			return false, zero, ""
 		}
 	case consensus:
-		msg = consensusMsg
+		msg = msgConsensus
 	case validatorAPI:
-		msg = validatorAPIMsg
+		msg = msgValidatorAPI
 	case parSigDBInternal:
-		msg = parSigDBInternalMsg
+		msg = msgParSigDBInternal
 	case parSigEx:
-		msg = parSigExMsg
+		msg = msgParSigEx
 	case parSigDBThreshold:
-		msg = parSigDBThresholdMsg
+		msg = msgParSigDBThreshold
+	case sigAgg:
+		msg = msgSigAgg
 	case zero:
 		msg = fmt.Sprintf("no events for %s duty", duty.String()) // This should never happen.
 	default:
@@ -265,7 +323,7 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 			return
 		}
 
-		if duty.Type == core.DutyAggregator && component == fetcher && reason == fetcherAggregatorZeroPreparesMsg {
+		if duty.Type == core.DutyAggregator && component == fetcher && reason == msgFetcherAggregatorZeroPrepares {
 			if !loggedNoV2Agg {
 				log.Warn(ctx, "Ignoring attestation aggregation failures since VCs do not seem to support attestation aggregation v2", nil)
 			}

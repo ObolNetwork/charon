@@ -43,7 +43,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 			require.Equal(t, testData[0].duty, failedDuty)
 			require.True(t, isFailed)
 			require.Equal(t, consensus, component)
-			require.Equal(t, msg, consensusMsg)
+			require.Equal(t, msg, msgConsensus)
 			count++
 
 			if count == len(testData) {
@@ -137,7 +137,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg := analyseDutyFailed(attDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, fetcher)
-		require.Equal(t, msg, fetcherMsg)
+		require.Equal(t, msg, msgFetcher)
 
 		// Failed at consensus
 		events[attDuty] = append(events[attDuty], event{
@@ -148,7 +148,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(attDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, consensus)
-		require.Equal(t, msg, consensusMsg)
+		require.Equal(t, msg, msgConsensus)
 
 		// Failed at validatorAPI
 		events[attDuty] = append(events[attDuty], event{
@@ -159,7 +159,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(attDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, validatorAPI)
-		require.Equal(t, msg, validatorAPIMsg)
+		require.Equal(t, msg, msgValidatorAPI)
 
 		// Failed at parsigDBInternal
 		events[attDuty] = append(events[attDuty], event{
@@ -170,7 +170,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(attDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, parSigDBInternal)
-		require.Equal(t, msg, parSigDBInternalMsg)
+		require.Equal(t, msg, msgParSigDBInternal)
 
 		// Failed at parsigEx
 		events[attDuty] = append(events[attDuty], event{
@@ -181,7 +181,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(attDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, parSigEx)
-		require.Equal(t, msg, parSigExMsg)
+		require.Equal(t, msg, msgParSigEx)
 
 		// Failed at parsigDBThreshold
 		events[attDuty] = append(events[attDuty], event{
@@ -192,7 +192,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(attDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, parSigDBThreshold)
-		require.Equal(t, msg, parSigDBThresholdMsg)
+		require.Equal(t, msg, msgParSigDBThreshold)
 	})
 
 	t.Run("FailedAtFetcherAsRandaoFailed", func(t *testing.T) {
@@ -219,7 +219,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg := analyseDutyFailed(proposerDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, fetcher)
-		require.Equal(t, msg, fetcherProposerFailedRandaoMsg)
+		require.Equal(t, msg, msgFetcherProposerFailedRandao)
 
 		// Randao failed at parSigDBThreshold
 		events[randaoDuty] = append(events[randaoDuty], event{
@@ -230,7 +230,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(proposerDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, fetcher)
-		require.Equal(t, msg, fetcherProposerFewRandaosMsg)
+		require.Equal(t, msg, msgFetcherProposerFewRandaos)
 
 		// No Randaos
 		events[randaoDuty] = nil
@@ -238,7 +238,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, comp, msg = analyseDutyFailed(proposerDuty, events)
 		require.True(t, failed)
 		require.Equal(t, comp, fetcher)
-		require.Equal(t, msg, fetcherProposerZeroRandaosMsg)
+		require.Equal(t, msg, msgFetcherProposerZeroRandaos)
 	})
 
 	t.Run("DutySuccess", func(t *testing.T) {
@@ -656,7 +656,7 @@ func TestAnalyseDutyFailedAgg(t *testing.T) {
 		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
 		require.True(t, failed)
 		require.Equal(t, fetcher, comp)
-		require.Equal(t, fetcherAggregatorZeroPreparesMsg, msg)
+		require.Equal(t, msgFetcherAggregatorZeroPrepares, msg)
 	})
 
 	t.Run("insufficient DutyPrepareAggregator signature", func(t *testing.T) {
@@ -673,7 +673,7 @@ func TestAnalyseDutyFailedAgg(t *testing.T) {
 		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
 		require.True(t, failed)
 		require.Equal(t, fetcher, comp)
-		require.Equal(t, fetcherAggregatorFewPreparesMsg, msg)
+		require.Equal(t, msgFetcherAggregatorFewPrepares, msg)
 	})
 
 	t.Run("DutyPrepareAggregator failed", func(t *testing.T) {
@@ -690,7 +690,7 @@ func TestAnalyseDutyFailedAgg(t *testing.T) {
 		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
 		require.True(t, failed)
 		require.Equal(t, fetcher, comp)
-		require.Equal(t, fetcherAggregatorFailedPrepareMsg, msg)
+		require.Equal(t, msgFetcherAggregatorFailedPrepare, msg)
 	})
 
 	t.Run("No DutyPrepareAggregator", func(t *testing.T) {
@@ -703,7 +703,7 @@ func TestAnalyseDutyFailedAgg(t *testing.T) {
 		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
 		require.True(t, failed)
 		require.Equal(t, fetcher, comp)
-		require.Equal(t, fetcherAggregatorZeroPreparesMsg, msg)
+		require.Equal(t, msgFetcherAggregatorZeroPrepares, msg)
 	})
 
 	t.Run("DutyAttester failed", func(t *testing.T) {
@@ -724,6 +724,19 @@ func TestAnalyseDutyFailedAgg(t *testing.T) {
 		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
 		require.True(t, failed)
 		require.Equal(t, fetcher, comp)
-		require.Equal(t, fetcherAggregatorNoAttDataMsg, msg)
+		require.Equal(t, msgFetcherAggregatorNoAttData, msg)
+	})
+
+	t.Run("DutyAttester failed", func(t *testing.T) {
+		allEvents := make(map[core.Duty][]event)
+		allEvents[dutyAgg] = append(allEvents[dutyAgg], event{
+			duty:      dutyAgg,
+			component: parSigDBThreshold,
+		})
+
+		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
+		require.True(t, failed)
+		require.Equal(t, sigAgg, comp)
+		require.Equal(t, msgSigAgg, msg)
 	})
 }
