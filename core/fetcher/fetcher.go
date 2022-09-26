@@ -77,6 +77,8 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 		unsignedSet, err = f.fetchAggregatorData(ctx, duty.Slot, defSet)
 		if err != nil {
 			return errors.Wrap(err, "fetch aggregator data")
+		} else if len(unsignedSet) == 0 { // No aggregators found in this slot
+			return nil
 		}
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))

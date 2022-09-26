@@ -24,8 +24,10 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/fetcher"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -96,13 +98,12 @@ func TestFetchAggregator(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		slot     = 1
-		vIdxA    = 2
-		vIdxB    = 3
-		commIdxA = 4
-		commIdxB = 5
-		commLen  = 6
+		slot  = 1
+		vIdxA = 2
+		vIdxB = 3
 	)
+
+	commLen := 0 // commLen of 0, results in eth2exp.CalculateCommitteeSubscriptionResponse to always return IsAggregator=true
 
 	duty := core.NewAggregatorDuty(slot)
 
@@ -116,14 +117,15 @@ func TestFetchAggregator(t *testing.T) {
 		pubkeysByIdx[vIdxB]: core.NewEmptyDefinition(),
 	}
 
-	signedCommSubByPubKey := map[core.PubKey]core.SignedData{
-		pubkeysByIdx[vIdxA]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxA, slot, commIdxA),
-		pubkeysByIdx[vIdxB]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxB, slot, commIdxB),
-	}
-
+	attA := testutil.RandomAttestation()
+	attB := testutil.RandomAttestation()
 	attByCommIdx := map[int64]*eth2p0.Attestation{
-		commIdxA: testutil.RandomAttestation(),
-		commIdxB: testutil.RandomAttestation(),
+		int64(attA.Data.Index): attA,
+		int64(attB.Data.Index): attB,
+	}
+	signedCommSubByPubKey := map[core.PubKey]core.SignedData{
+		pubkeysByIdx[vIdxA]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxA, slot, int(attA.Data.Index)),
+		pubkeysByIdx[vIdxB]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxB, slot, int(attB.Data.Index)),
 	}
 
 	bmock, err := beaconmock.New()
@@ -131,8 +133,8 @@ func TestFetchAggregator(t *testing.T) {
 
 	bmock.BeaconCommitteesAtEpochFunc = func(_ context.Context, _ string, _ eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
 		return []*eth2v1.BeaconCommittee{
-			beaconCommittee(commIdxA, commLen),
-			beaconCommittee(commIdxB, commLen),
+			beaconCommittee(attA.Data.Index, commLen),
+			beaconCommittee(attB.Data.Index, commLen),
 		}, nil
 	}
 
@@ -161,9 +163,7 @@ func TestFetchAggregator(t *testing.T) {
 		return attByCommIdx[commIdx].Data, nil
 	})
 
-	err = fetch.Fetch(ctx, duty, defSet)
-	require.NoError(t, err)
-
+	done := errors.New("done")
 	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
 		require.Equal(t, duty, resDuty)
 		require.Len(t, resDataSet, 2)
@@ -174,12 +174,40 @@ func TestFetchAggregator(t *testing.T) {
 
 			att, ok := attByCommIdx[int64(aggregated.Attestation.Data.Index)]
 			require.True(t, ok)
-
 			require.Equal(t, aggregated.Attestation, *att)
 		}
 
-		return nil
+		return done
 	})
+
+	err = fetch.Fetch(ctx, duty, defSet)
+	require.ErrorIs(t, err, done)
+
+	// Test no aggregators for slot
+	// First find a committee length that results in eth2exp.CalculateCommitteeSubscriptionResponse to return IsAggregator=false
+	var foundNoAggLen bool
+	for commLen = 1000; commLen < 1200; commLen++ {
+		var isAgg bool
+		for _, vIdx := range []int{vIdxA, vIdxB} {
+			sub := signedCommSubByPubKey[pubkeysByIdx[eth2p0.ValidatorIndex(vIdx)]].(core.SignedBeaconCommitteeSubscription)
+			resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &sub.BeaconCommitteeSubscription)
+			require.NoError(t, err)
+
+			if resp.IsAggregator {
+				isAgg = true
+				break
+			}
+		}
+
+		if !isAgg {
+			foundNoAggLen = true
+			break
+		}
+	}
+	require.True(t, foundNoAggLen)
+
+	err = fetch.Fetch(ctx, duty, defSet)
+	require.NoError(t, err)
 }
 
 func TestFetchProposer(t *testing.T) {
@@ -343,7 +371,7 @@ func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block co
 }
 
 // beaconCommittee returns a BeaconCommittee with the given committee index and a list of commLen validator indexes.
-func beaconCommittee(commIdx, commLen int) *eth2v1.BeaconCommittee {
+func beaconCommittee(commIdx eth2p0.CommitteeIndex, commLen int) *eth2v1.BeaconCommittee {
 	var (
 		slot = eth2p0.Slot(1)
 		vals []eth2p0.ValidatorIndex
@@ -354,7 +382,7 @@ func beaconCommittee(commIdx, commLen int) *eth2v1.BeaconCommittee {
 
 	return &eth2v1.BeaconCommittee{
 		Slot:       slot,
-		Index:      eth2p0.CommitteeIndex(commIdx),
+		Index:      commIdx,
 		Validators: vals,
 	}
 }
