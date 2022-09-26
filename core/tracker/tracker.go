@@ -235,64 +235,15 @@ func dutyFailedComponent(es []event) (bool, component) {
 // It returns false if the duty didn't fail, i.e., the duty
 // didn't get stuck and completed the sigAgg component.
 func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, component, string) {
-	var (
-		failed bool
-		comp   component
-		msg    string
-	)
-
-	failed, comp = dutyFailedComponent(allEvents[duty])
+	failed, comp := dutyFailedComponent(allEvents[duty])
 	if !failed {
 		return false, zero, ""
 	}
 
+	var msg string
 	switch comp {
 	case fetcher:
-		msg = msgFetcher
-
-		if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
-			// Proposer duties will fail if core.DutyRandao fails
-			randaoFailed, randaoComp := dutyFailedComponent(allEvents[core.NewRandaoDuty(duty.Slot)])
-			if randaoFailed {
-				if randaoComp == parSigDBThreshold {
-					msg = msgFetcherProposerFewRandaos
-				} else if randaoComp == zero {
-					msg = msgFetcherProposerZeroRandaos
-				} else {
-					msg = msgFetcherProposerFailedRandao
-				}
-			}
-		}
-
-		if duty.Type == core.DutyAggregator { //nolint:nestif // Maybe extract as function.
-			// Aggregator duties will fail if core.DutyPrapareAggregator fails
-			prepAggFailed, prepAggComp := dutyFailedComponent(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
-			if prepAggFailed {
-				if prepAggComp == parSigDBThreshold {
-					msg = msgFetcherAggregatorFewPrepares
-				} else if prepAggComp == zero {
-					msg = msgFetcherAggregatorZeroPrepares
-				} else {
-					msg = msgFetcherAggregatorFailedPrepare
-				}
-
-				return true, comp, msg
-			}
-
-			// Aggregator duties will fail is no attestation data in DutyDB
-			attFailed, attComp := dutyFailedComponent(allEvents[core.NewAttesterDuty(duty.Slot)])
-			if attFailed && attComp <= consensus {
-				// Note we do not handle the edge case of the local peer failing to store attestation data
-				// but the attester duty succeeding in any case due to external peer partial signatures.
-				return true, comp, msgFetcherAggregatorNoAttData
-			}
-
-			// TODO(corver): We cannot distinguish between "no aggregators for slot"
-			//  and "failed fetching aggregated attestation from BN".
-			//
-			// Assume no aggregators for slot as this is very common.
-			return false, zero, ""
-		}
+		return analyseFetcherFailed(duty, allEvents)
 	case consensus:
 		msg = msgConsensus
 	case validatorAPI:
@@ -312,6 +263,62 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 	}
 
 	return true, comp, msg
+}
+
+// analyseFetcherFailed returns whether the duty that got stack in fetcher actually failed
+// and the reason which might actually be due a pre-requisite duty that failed.
+func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, component, string) {
+	msg := msgFetcher
+
+	// Proposer duties depend on randao duty, so check if that was why it failed.
+	if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer { //nolint:nestif
+		// Proposer duties will fail if core.DutyRandao fails
+		randaoFailed, randaoComp := dutyFailedComponent(allEvents[core.NewRandaoDuty(duty.Slot)])
+		if randaoFailed {
+			if randaoComp == parSigDBThreshold {
+				msg = msgFetcherProposerFewRandaos
+			} else if randaoComp == zero {
+				msg = msgFetcherProposerZeroRandaos
+			} else {
+				msg = msgFetcherProposerFailedRandao
+			}
+		}
+
+		return true, fetcher, msg
+	}
+
+	// Duty aggregator depend on prepare aggregator duty, so check if that was why it failed.
+	if duty.Type == core.DutyAggregator { //nolint:nestif
+		// Aggregator duties will fail if core.DutyPrapareAggregator fails
+		prepAggFailed, prepAggComp := dutyFailedComponent(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
+		if prepAggFailed {
+			if prepAggComp == parSigDBThreshold {
+				msg = msgFetcherAggregatorFewPrepares
+			} else if prepAggComp == zero {
+				msg = msgFetcherAggregatorZeroPrepares
+			} else {
+				msg = msgFetcherAggregatorFailedPrepare
+			}
+
+			return true, fetcher, msg
+		}
+
+		// Aggregator duties will fail is no attestation data in DutyDB
+		attFailed, attComp := dutyFailedComponent(allEvents[core.NewAttesterDuty(duty.Slot)])
+		if attFailed && attComp <= consensus {
+			// Note we do not handle the edge case of the local peer failing to store attestation data
+			// but the attester duty succeeding in any case due to external peer partial signatures.
+			return true, fetcher, msgFetcherAggregatorNoAttData
+		}
+
+		// TODO(corver): We cannot distinguish between "no aggregators for slot"
+		//  and "failed fetching aggregated attestation from BN".
+		//
+		// Assume no aggregators for slot as this is very common.
+		return false, zero, ""
+	}
+
+	return true, fetcher, msg
 }
 
 // newFailedDutyReporter returns failed duty reporter which instruments failed duties.

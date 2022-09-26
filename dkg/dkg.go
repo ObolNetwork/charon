@@ -53,7 +53,7 @@ type Config struct {
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
 //
-//nolint:gocognit // Just lots of sequential steps.
+
 func Run(ctx context.Context, conf Config) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -267,12 +267,12 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.Privat
 		return nil, errors.Wrap(err, "convert key")
 	}
 
-	hashSig, err := priv.Sign(defHash[:])
+	hashSig, err := priv.Sign(defHash)
 	if err != nil {
 		return nil, errors.Wrap(err, "sign definition hash")
 	}
 
-	server := sync.NewServer(tcpNode, len(peerIDs)-1, defHash[:])
+	server := sync.NewServer(tcpNode, len(peerIDs)-1, defHash)
 	server.Start(ctx)
 
 	var clients []*sync.Client
