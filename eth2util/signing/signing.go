@@ -46,9 +46,8 @@ const (
 	DomainAggregateAndProof           DomainName = "DOMAIN_AGGREGATE_AND_PROOF"
 	DomainSyncCommittee               DomainName = "DOMAIN_SYNC_COMMITTEE"
 	DomainSyncCommitteeSelectionProof DomainName = "DOMAIN_SYNC_COMMITTEE_SELECTION_PROOF"
-
-	// DomainDeposit        	         DomainName = "DOMAIN_DEPOSIT"
-	// DomainContributionAndProof        DomainName = "DOMAIN_CONTRIBUTION_AND_PROOF".
+	DomainContributionAndProof        DomainName = "DOMAIN_CONTRIBUTION_AND_PROOF"
+	DomainDeposit                     DomainName = "DOMAIN_DEPOSIT"
 )
 
 // GetDomain returns the beacon domain for the provided type.

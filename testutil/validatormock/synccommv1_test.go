@@ -13,9 +13,9 @@ import (
 	"testing"
 )
 
-// PseudoSyncCommContribV1Flow is an example of how the v1 Sync Committee Contribution
-// flow works for the v1 beacon api.
-func PseudoSyncCommContribV1Flow(t *testing.T) {
+// PseudoSyncCommContribV1Flow is an example of how the Sync Committee Contribution
+// flow works for the v1 and DVT v2 beacon api.
+func PseudoSyncCommContribV1Flow(t *testing.T, supportDVT bool) {
 	// See spec: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#sync-committees
 
 	ctx := context.Background()
@@ -65,14 +65,10 @@ func PseudoSyncCommContribV1Flow(t *testing.T) {
 
 	// Create and then submit subscriptions
 	var subs []*eth2v1.SyncCommitteeSubscription
-	for _, valIdx := range valIdxs {
-		var dutyIdx int // Get the index of this validator in the duty list.
-
-		// Skip validator if not in the list.
-
+	for _, duty := range duties {
 		subs = append(subs, &eth2v1.SyncCommitteeSubscription{
-			ValidatorIndex:       valIdx,
-			SyncCommitteeIndices: duties[dutyIdx].ValidatorSyncCommitteeIndices, // Note that
+			ValidatorIndex:       duty.ValidatorIndex,
+			SyncCommitteeIndices: duty.ValidatorSyncCommitteeIndices,
 			UntilEpoch:           endEpoch,
 		})
 	}
@@ -93,18 +89,14 @@ func PseudoSyncCommContribV1Flow(t *testing.T) {
 	require.NoError(t, err)
 
 	var msgs []*altair.SyncCommitteeMessage
-	for _, valIdx := range valIdxs {
-		var dutyIdx int // Get the index of this validator in the duty list.
-
-		// Skip validator if not in the list.
-
-		sig, err := signFunc(duties[dutyIdx].PubKey, signingRoot[:])
+	for _, duty := range duties {
+		sig, err := signFunc(duty.PubKey, signingRoot[:])
 		require.NoError(t, err)
 
 		msgs = append(msgs, &altair.SyncCommitteeMessage{
 			Slot:            slot,
 			BeaconBlockRoot: headBlockRoot,
-			ValidatorIndex:  valIdx,
+			ValidatorIndex:  duty.ValidatorIndex,
 			Signature:       sig,
 		})
 	}
@@ -112,42 +104,121 @@ func PseudoSyncCommContribV1Flow(t *testing.T) {
 	require.NoError(t, err)
 
 	// For each slot, some validators are also aggregators and need to submit contributions.
+	// This can be calculated at any time in the sync committee period after the duties have been fetched.
 
 	syncCommSize, ok := spec["SYNC_COMMITTEE_SIZE"].(uint64)
 	require.True(t, ok)
 	subnetCount, ok := spec["SYNC_COMMITTEE_SUBNET_COUNT"].(uint64)
 	require.True(t, ok)
 
-	for _, valIdx := range valIdxs {
-		var dutyIdx int // Get the index of this validator in the duty list.
-		// Skip validator if not in the list.
-
-		// Check if isAggregator
-		for _, idx := range duties[dutyIdx].ValidatorSyncCommitteeIndices {
+	type aggregator struct {
+		ValidatorIndex eth2p0.ValidatorIndex
+		Pubkey         eth2p0.BLSPubKey
+		SelectionProof eth2p0.BLSSignature
+	}
+	aggsPerSubComm := make(map[uint64][]aggregator)
+	var partialSelections []*PartialSyncCommitteeSelection // Only used if supporting DVT
+	for _, duty := range duties {
+		// Each validator can be part of multiple subcommittees.
+		for _, syncCommitteeIdx := range duty.ValidatorSyncCommitteeIndices {
 			// Create selection data
-			root, err := (&altair.SyncAggregatorSelectionData{
+			subcommittee := uint64(syncCommitteeIdx) / (syncCommSize / subnetCount)
+			data := &altair.SyncAggregatorSelectionData{
 				Slot:              slot,
-				SubcommitteeIndex: uint64(idx) / (syncCommSize / subnetCount),
-			}).HashTreeRoot()
+				SubcommitteeIndex: subcommittee,
+			}
+			root, err := data.HashTreeRoot()
 			require.NoError(t, err)
 
 			// Create selection proof
 			signingRoot, err := signing.GetDataRoot(ctx, nil, signing.DomainSyncCommitteeSelectionProof, epoch, root)
 			require.NoError(t, err)
-			sig, err := signFunc(duties[dutyIdx].PubKey, signingRoot[:])
+			sig, err := signFunc(duty.PubKey, signingRoot[:])
 			require.NoError(t, err)
 
-			isAgg := isSyncCommAggregator(ctx, t, eth2Cl, sig)
-			
-		}
+			// Calculate isAggregator directly in legacy non-DVT.
+			if !supportDVT {
+				if !isSyncCommAggregator(ctx, t, eth2Cl, sig) {
+					continue
+				}
 
-		msgs = append(msgs, &altair.SyncCommitteeMessage{
-			Slot:            slot,
-			BeaconBlockRoot: headBlockRoot,
-			ValidatorIndex:  valIdx,
-			Signature:       sig,
-		})
+				// Add aggregator duties per slot.
+				aggsPerSubComm[subcommittee] = append(aggsPerSubComm[subcommittee], aggregator{
+					ValidatorIndex: duty.ValidatorIndex,
+					Pubkey:         duty.PubKey,
+					SelectionProof: sig,
+				})
+			}
+
+			// For DVT a new endpoint needs to be introduced to calculate and provide aggregated selection proofs.
+			// This is a batch endpoint, so gather all the requests.
+			partialSelections = append(partialSelections, &PartialSyncCommitteeSelection{
+				ValidatorIndex:        duty.ValidatorIndex,
+				Data:                  data,
+				PartialSelectionProof: sig,
+			})
+		}
 	}
+
+	// Instead of calculating aggregator locally, VCs supporting DVT need to request this from the upstream middleware DVT client.
+	if supportDVT {
+		selections, err := SyncCommitteeSelections(ctx, partialSelections) // This is the new proposed endpoint!
+		require.NoError(t, err)
+
+		for _, selection := range selections {
+			if !selection.IsAggregator {
+				continue
+			}
+
+			// Fetch cached pubkey from selection.ValidatorIndex
+			var pubkey eth2p0.BLSPubKey
+
+			// Add aggregator duties per slot.
+			aggsPerSubComm[selection.Data.SubcommitteeIndex] = append(aggsPerSubComm[selection.Data.SubcommitteeIndex], aggregator{
+				ValidatorIndex: selection.ValidatorIndex,
+				Pubkey:         pubkey,
+				SelectionProof: selection.SelectionProof,
+			})
+		}
+	}
+
+	// At 2/3 into the slot, fetch the contribution per subcommittee, sign it with all applicable validators and then submit it.
+	var contribs []*altair.SignedContributionAndProof
+	for subcommittee, aggregators := range aggsPerSubComm {
+		// Fetch the contribution for the subcommittee.
+		contrib, err := eth2Cl.SyncCommitteeContribution(ctx, slot, subcommittee, headBlockRoot)
+		require.NoError(t, err)
+
+		epoch, err := epochFromSlot(ctx, nil, contrib.Slot)
+		require.NoError(t, err)
+
+		// Sign by each aggregator in the subcommittee
+		for _, agg := range aggregators {
+			proof := &altair.ContributionAndProof{
+				AggregatorIndex: agg.ValidatorIndex,
+				Contribution:    contrib,
+				SelectionProof:  agg.SelectionProof,
+			}
+
+			root, err := proof.HashTreeRoot()
+			require.NoError(t, err)
+
+			signingRoot, err := signing.GetDataRoot(ctx, nil, signing.DomainContributionAndProof, epoch, root)
+			require.NoError(t, err)
+
+			sig, err := signFunc(agg.Pubkey, signingRoot[:])
+			require.NoError(t, err)
+
+			contribs = append(contribs, &altair.SignedContributionAndProof{
+				Message:   proof,
+				Signature: sig,
+			})
+		}
+	}
+
+	// Submit contributions
+	err = eth2Cl.SubmitSyncCommitteeContributions(ctx, contribs)
+	require.NoError(t, err)
 }
 
 func isSyncCommAggregator(ctx context.Context, t *testing.T, eth2Cl *mock.Service, sig eth2p0.BLSSignature) bool {
@@ -171,4 +242,79 @@ func isSyncCommAggregator(ctx context.Context, t *testing.T, eth2Cl *mock.Servic
 	hash := sigHash.Sum(nil)
 
 	return binary.LittleEndian.Uint64(hash[:8])%modulo == 0
+}
+
+// PartialSyncCommitteeSelection is the new proposed endpoint request type.
+type PartialSyncCommitteeSelection struct {
+	ValidatorIndex        eth2p0.ValidatorIndex
+	Data                  *altair.SyncAggregatorSelectionData
+	PartialSelectionProof eth2p0.BLSSignature
+}
+
+// AggregatedSyncCommitteeSelection is the new proposed endpoint response type
+type AggregatedSyncCommitteeSelection struct {
+	ValidatorIndex eth2p0.ValidatorIndex
+	Data           *altair.SyncAggregatorSelectionData
+	SelectionProof eth2p0.BLSSignature
+	IsAggregator   bool
+}
+
+// SyncCommitteeSelections is the new proposed endpoint that returns aggregated sync committee selections
+// for the provided partial selections.
+//
+// Note endpoint can be called at any time in the sync committee period so cannot include head beacon block root.
+//
+// Note this is a completely new endpoint, there is no v1 equivalent.
+func SyncCommitteeSelections(ctx context.Context, partials []*PartialSyncCommitteeSelection) ([]*AggregatedSyncCommitteeSelection, error) {
+	// This would call a new v2 BN API endpoint: POST /eth/v2/validator/sync_committee_selections
+
+	// The charon middleware would do the following (error handling omitted):
+
+	var resp []*AggregatedSyncCommitteeSelection
+	for _, selection := range partials {
+		// Verify partial selection proof
+		if err := verifySelectionProof(ctx, selection); err != nil {
+			return nil, err
+		}
+
+		// Create selection proof
+		aggregateSelectionProof := aggregatePartialSelectionProof(selection.PartialSelectionProof)
+
+		// Calculate isAggregator
+		isAggregator := isSyncCommAggregator(ctx, nil, nil, aggregateSelectionProof)
+
+		resp = append(resp, &AggregatedSyncCommitteeSelection{
+			ValidatorIndex: selection.ValidatorIndex,
+			Data:           selection.Data,
+			SelectionProof: aggregateSelectionProof,
+			IsAggregator:   isAggregator,
+		})
+	}
+
+	return resp, nil
+}
+
+func verifySelectionProof(ctx context.Context, partial *PartialSyncCommitteeSelection) error {
+	// Create selection data
+	root, _ := partial.Data.HashTreeRoot()
+
+	epoch, _ := epochFromSlot(ctx, nil, partial.Data.Slot)
+
+	signingRoot, _ := signing.GetDataRoot(ctx, nil, signing.DomainSyncCommitteeSelectionProof, epoch, root)
+
+	// Get public share from partial.ValidatorIndex
+	var pubkey eth2p0.BLSPubKey
+
+	return verifySignature(partial.PartialSelectionProof, pubkey, signingRoot[:])
+}
+
+// aggregatePartialSelectionProof returns a DVT threshold aggregated sync committee selection proof from the partial signature.
+func aggregatePartialSelectionProof(_ eth2p0.BLSSignature) eth2p0.BLSSignature {
+	// DVT Magic!
+	var aggregateSelectionProof eth2p0.BLSSignature
+	return aggregateSelectionProof
+}
+
+func verifySignature(eth2p0.BLSSignature, eth2p0.BLSPubKey, []byte) error {
+	return nil
 }
