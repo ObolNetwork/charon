@@ -37,16 +37,17 @@ import (
 type DomainName string
 
 const (
-	DomainBeaconProposer     DomainName = "DOMAIN_BEACON_PROPOSER"
-	DomainBeaconAttester     DomainName = "DOMAIN_BEACON_ATTESTER"
-	DomainRandao             DomainName = "DOMAIN_RANDAO"
-	DomainExit               DomainName = "DOMAIN_VOLUNTARY_EXIT"
-	DomainApplicationBuilder DomainName = "DOMAIN_APPLICATION_BUILDER"
-	DomainSelectionProof     DomainName = "DOMAIN_SELECTION_PROOF"
-	DomainAggregateAndProof  DomainName = "DOMAIN_AGGREGATE_AND_PROOF"
+	DomainBeaconProposer              DomainName = "DOMAIN_BEACON_PROPOSER"
+	DomainBeaconAttester              DomainName = "DOMAIN_BEACON_ATTESTER"
+	DomainRandao                      DomainName = "DOMAIN_RANDAO"
+	DomainExit                        DomainName = "DOMAIN_VOLUNTARY_EXIT"
+	DomainApplicationBuilder          DomainName = "DOMAIN_APPLICATION_BUILDER"
+	DomainSelectionProof              DomainName = "DOMAIN_SELECTION_PROOF"
+	DomainAggregateAndProof           DomainName = "DOMAIN_AGGREGATE_AND_PROOF"
+	DomainSyncCommittee               DomainName = "DOMAIN_SYNC_COMMITTEE"
+	DomainSyncCommitteeSelectionProof DomainName = "DOMAIN_SYNC_COMMITTEE_SELECTION_PROOF"
+
 	// DomainDeposit        	         DomainName = "DOMAIN_DEPOSIT"
-	// DomainSyncCommittee               DomainName = "DOMAIN_SYNC_COMMITTEE"
-	// DomainSyncCommitteeSelectionProof DomainName = "DOMAIN_SYNC_COMMITTEE_SELECTION_PROOF"
 	// DomainContributionAndProof        DomainName = "DOMAIN_CONTRIBUTION_AND_PROOF".
 )
 
