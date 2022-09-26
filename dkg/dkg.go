@@ -135,7 +135,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Info(ctx, "Waiting to connecting to all peers...")
 
 	// Improve UX of "context cancelled" errors when sync fails.
-	ctx = withCtxErr(ctx, "p2p connection failed, please retry DKG")
+	ctx = errors.WithCtxErr(ctx, "p2p connection failed, please retry DKG")
 
 	stopSync, err := startSyncProtocol(ctx, tcpNode, key, def.DefinitionHash, peerIds, cancel)
 	if err != nil {
@@ -626,24 +626,4 @@ func ForkVersionToNetwork(forkVersion []byte) (string, error) {
 	default:
 		return "", errors.New("invalid fork version")
 	}
-}
-
-// withCtxErr returns a copy of the context that wraps the context.Canceled with
-// the provided error.
-func withCtxErr(ctx context.Context, wrapMsg string) context.Context {
-	return ctxWrap{Context: ctx, wrapMsg: wrapMsg}
-}
-
-type ctxWrap struct {
-	context.Context
-	wrapMsg string
-}
-
-func (c ctxWrap) Err() error {
-	err := c.Context.Err()
-	if err == nil {
-		return nil
-	}
-
-	return errors.Wrap(err, c.wrapMsg)
 }

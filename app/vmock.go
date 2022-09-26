@@ -126,11 +126,11 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey) (func(context.Co
 
 		// Validator mock calls are async
 		go func() {
-			ctx, cancel := context.WithTimeout(ctx, time.Minute)
+			ctx2, cancel := context.WithTimeout(ctx, time.Minute)
 			defer cancel()
 
-			err := fn(ctx, state)
-			if err != nil {
+			err := fn(ctx2, state)
+			if err != nil && ctx.Err() == nil { // Only log if parrent context wasn't closed.
 				log.Error(ctx, "Validator mock error", err)
 				return
 			}
