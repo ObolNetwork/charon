@@ -165,12 +165,12 @@ func digestEIP712(address string, message []byte, nonce, chainID int64) ([32]byt
 		Domain: apitypes.TypedDataDomain{
 			Name:    "Obol",
 			Version: "1",
-			Salt:    "distributed_validator",             // Fixed for now.
-			ChainId: ethmath.NewHexOrDecimal256(chainID), // Fixed for now.
+			Salt:    "distributed_validator", // Fixed for now.
+			ChainId: ethmath.NewHexOrDecimal256(chainID),
 		},
 		Message: apitypes.TypedDataMessage{
 			"address": address,
-			"nonce":   ethmath.NewHexOrDecimal256(int64(nonce)),
+			"nonce":   ethmath.NewHexOrDecimal256(nonce),
 			"message": message,
 		},
 	}
