@@ -25,9 +25,9 @@
   "fee_recipient_address": "0x52fdfc072182654f163f5f0f9a621d729566c74d",
   "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
   "dkg_algorithm": "default",
-  "fork_version": "0x00000002",
-  "config_hash": "SPfGW+v0jczxDLydSSFD8epFYdUkPDxT7ryypIgShzk=",
-  "definition_hash": "NgVnAcVRRmJ8CNi5L3XtB8vGEQvP1ke0L9zDZtKiM50="
+  "fork_version": "0x80000069",
+  "config_hash": "Bu5CvuYXsMLkIXUEKapX2KUG3fD0wYBgWmuk7G88WFE=",
+  "definition_hash": "lE4qjM56p6MrAG9Vti3xMCA90IElFjqQ7Fk/eQ9K/x4="
  },
  "distributed_validators": [
   {
@@ -46,5 +46,5 @@
   }
  ],
  "signature_aggregate": "ahVqjeVjr6Rn1J3sakDpodAH8DPCgjBhvdDqpZ+OTaY=",
- "lock_hash": "JT+6wiLMjkYfqvl2u0HESCriSuHawHSkIxhvoZ9BrYU="
+ "lock_hash": "qUB6s3gbUF2h6NpcSo8EdFTn4oY0yWrb1yr20Y078Kw="
 }

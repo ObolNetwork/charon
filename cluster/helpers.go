@@ -84,14 +84,14 @@ func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
 }
 
 // signOperator returns the operator with signed config hash and enr.
-func signOperator(secret *ecdsa.PrivateKey, operator Operator, configHash [32]byte) (Operator, error) {
+func signOperator(secret *ecdsa.PrivateKey, operator Operator, configHash [32]byte, chainID int64) (Operator, error) {
 	var err error
-	operator.ConfigSignature, err = signEIP712(secret, operator.Address, configHash[:])
+	operator.ConfigSignature, err = signEIP712(secret, operator.Address, configHash[:], chainID)
 	if err != nil {
 		return Operator{}, err
 	}
 
-	operator.ENRSignature, err = signEIP712(secret, operator.Address, []byte(operator.ENR))
+	operator.ENRSignature, err = signEIP712(secret, operator.Address, []byte(operator.ENR), chainID)
 	if err != nil {
 		return Operator{}, err
 	}
@@ -130,10 +130,8 @@ func aggSign(secrets [][]*bls_sig.SecretKeyShare, message []byte) ([]byte, error
 }
 
 // signEIP712 signs the message and returns the signature.
-func signEIP712(secret *ecdsa.PrivateKey, address string, message []byte) ([]byte, error) {
-	const nonce = 0
-
-	digest, err := digestEIP712(address, message, nonce)
+func signEIP712(secret *ecdsa.PrivateKey, address string, message []byte, chainID int64) ([]byte, error) {
+	digest, err := digestEIP712(address, message, zeroNonce, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -146,9 +144,9 @@ func signEIP712(secret *ecdsa.PrivateKey, address string, message []byte) ([]byt
 	return sig, nil
 }
 
-// digestEIP712 returns a EIP712 digest hash.
+// digestEIP712 returns an EIP712 digest hash.
 // See reference https://medium.com/alpineintel/issuing-and-verifying-eip-712-challenges-with-go-32635ca78aaf.
-func digestEIP712(address string, message []byte, nonce int) ([32]byte, error) {
+func digestEIP712(address string, message []byte, nonce, chainID int64) ([32]byte, error) {
 	signerData := apitypes.TypedData{
 		Types: apitypes.Types{
 			"Challenge": []apitypes.Type{
@@ -165,10 +163,10 @@ func digestEIP712(address string, message []byte, nonce int) ([32]byte, error) {
 		},
 		PrimaryType: "Challenge",
 		Domain: apitypes.TypedDataDomain{
-			Name:    "ETHChallenger",
+			Name:    "Obol",
 			Version: "1",
-			Salt:    "charon_salt",                 // Fixed for now.
-			ChainId: ethmath.NewHexOrDecimal256(1), // Fixed for now.
+			Salt:    "distributed_validator",             // Fixed for now.
+			ChainId: ethmath.NewHexOrDecimal256(chainID), // Fixed for now.
 		},
 		Message: apitypes.TypedDataMessage{
 			"address": address,
@@ -262,4 +260,20 @@ func from0xHex(s string, length int) ([]byte, error) {
 	}
 
 	return b, nil
+}
+
+// forkVersionToChainID returns the chainID corresponding to the input fork version.
+func forkVersionToChainID(forkVersion []byte) (int64, error) {
+	switch fmt.Sprintf("%#x", forkVersion) {
+	case "0x00000000": // Mainnet
+		return 1, nil
+	case "0x00001020": // Goerli/Prater
+		return 5, nil
+	case "0x00000064": // Gnosis Chain
+		return 100, nil
+	case "0x80000069": // Ropsten
+		return 3, nil
+	default:
+		return -1, errors.New("invalid fork version")
+	}
 }
