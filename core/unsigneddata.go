@@ -106,7 +106,7 @@ func (a AggregatedAttestation) MarshalJSON() ([]byte, error) {
 	return a.Attestation.MarshalJSON()
 }
 
-func (a *AggregatedAttestation) UnmarshalJSON(input []byte) error { //nolint:revive
+func (a *AggregatedAttestation) UnmarshalJSON(input []byte) error {
 	var att eth2p0.Attestation
 	if err := json.Unmarshal(input, &att); err != nil {
 		return errors.Wrap(err, "unmarshal aggregated attestation")
