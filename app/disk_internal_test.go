@@ -17,15 +17,12 @@ package app
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"encoding/json"
-	"math/rand"
 	"os"
 	"path"
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
@@ -53,18 +50,6 @@ func TestLoadLock(t *testing.T) {
 	b2, err := json.Marshal(actual)
 	require.NoError(t, err)
 	require.JSONEq(t, string(b), string(b2))
-}
-
-func TestVerifyP2PKey(t *testing.T) {
-	lock, keys, _ := cluster.NewForT(t, 1, 3, 4, 0)
-
-	for _, key := range keys {
-		require.NoError(t, verifyP2PKey(lock, key))
-	}
-
-	key, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(time.Now().Unix())))
-	require.NoError(t, err)
-	require.Error(t, verifyP2PKey(lock, key))
 }
 
 func TestCalculateTrackerDelay(t *testing.T) {
