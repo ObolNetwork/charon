@@ -43,7 +43,9 @@ func New[T any](timeoutFunc func(T) (time.Time, bool)) (*Retryer[T], error) {
 			return ctx, func() {}
 		}
 
-		return context.WithDeadline(ctx, timeout)
+		ctx, cancel := context.WithDeadline(ctx, timeout)
+
+		return errors.WithCtxErr(ctx, "duty expired"), cancel
 	}
 
 	// backoffProvider is a naive constant 1s backoff function.
