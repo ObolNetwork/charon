@@ -20,6 +20,7 @@ package retry
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -32,6 +33,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/tracer"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 // New returns a new Retryer instance.
@@ -60,6 +62,7 @@ func New[T any](timeoutFunc func(T) (time.Time, bool)) (*Retryer[T], error) {
 		shutdown:        make(chan struct{}),
 		ctxTimeoutFunc:  ctxTimeoutFunc,
 		backoffProvider: backoffProvider,
+		active:          make(map[string]int),
 	}, nil
 }
 
@@ -73,6 +76,7 @@ func NewForT[T any](
 		shutdown:        make(chan struct{}),
 		ctxTimeoutFunc:  ctxTimeoutFunc,
 		backoffProvider: backoffProvider,
+		active:          make(map[string]int),
 	}, nil
 }
 
@@ -84,6 +88,9 @@ type Retryer[T any] struct {
 	backoffProvider func() func() <-chan time.Time
 
 	wg sync.WaitGroup
+
+	mu     sync.Mutex
+	active map[string]int // Active keeps track of active DoAsyncs.
 }
 
 // DoAsync will execute the function including retries on network or context errors.
@@ -95,8 +102,8 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, name string, fn func(c
 		return
 	}
 
-	r.wg.Add(1)
-	defer r.wg.Done()
+	r.asyncStarted(name)
+	defer r.asyncEnded(name)
 
 	backoffFunc := r.backoffProvider()
 
@@ -149,6 +156,35 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, name string, fn func(c
 	}
 }
 
+// asyncStarted marks an async action of name as active.
+func (r *Retryer[T]) asyncStarted(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.wg.Add(1)
+	r.active[name]++
+}
+
+// asyncEnded marks an async action of name as complete.
+func (r *Retryer[T]) asyncEnded(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.active[name]--
+	if r.active[name] == 0 {
+		delete(r.active, name)
+	}
+	r.wg.Done()
+}
+
+// fmtActive returns a human-readable string of the active async.
+func (r *Retryer[T]) fmtActive() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return fmt.Sprint(r.active)
+}
+
 // isShutdown returns true if Shutdown has been called.
 func (r *Retryer[T]) isShutdown() bool {
 	select {
@@ -166,11 +202,12 @@ func (r *Retryer[T]) Shutdown(ctx context.Context) {
 	done := make(chan struct{})
 	go func() {
 		r.wg.Wait()
-		done <- struct{}{}
+		close(done)
 	}()
 
 	select {
 	case <-ctx.Done():
+		log.Error(ctx, "Retryer shutdown timeout waiting for active asyncs to complete", nil, z.Str("active", r.fmtActive()))
 	case <-done:
 	}
 }
