@@ -406,8 +406,8 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 // newParticipationReporter returns a new participation reporter function which logs and instruments peer participation
 // and unexpectedPeers.
 func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty, map[int]bool, map[int]bool) {
-	// prevAbsent is the set of peers who didn't participate in the last duty.
-	var prevAbsent []string
+	// prevAbsent is the set of peers who didn't participate in the last duty per type.
+	prevAbsent := make(map[core.DutyType][]string)
 
 	return func(ctx context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedShares map[int]bool) {
 		var absentPeers []string
@@ -424,7 +424,7 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 			}
 		}
 
-		if fmt.Sprint(prevAbsent) != fmt.Sprint(absentPeers) {
+		if fmt.Sprint(prevAbsent[duty.Type]) != fmt.Sprint(absentPeers) {
 			if len(absentPeers) == 0 {
 				log.Info(ctx, "All peers participated in duty")
 			} else if len(absentPeers) == len(peers) {
@@ -434,7 +434,7 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 			}
 		}
 
-		prevAbsent = absentPeers
+		prevAbsent[duty.Type] = absentPeers
 	}
 }
 
