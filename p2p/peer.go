@@ -16,6 +16,7 @@
 package p2p
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"sync"
 
@@ -138,4 +139,27 @@ func (p *MutablePeer) Subscribe(sub func(Peer)) {
 	defer p.mu.Unlock()
 
 	p.subs = append(p.subs, sub)
+}
+
+// VerifyP2PKey returns an error if the p2pkey doesn't match any lock operator ENR.
+func VerifyP2PKey(peers []Peer, key *ecdsa.PrivateKey) error {
+	wantBytes := crypto.CompressPubkey(&key.PublicKey)
+
+	for _, p := range peers {
+		pk, err := p.ID.ExtractPublicKey()
+		if err != nil {
+			return errors.Wrap(err, "extract pubkey from peer id")
+		}
+
+		gotBytes, err := pk.Raw()
+		if err != nil {
+			return errors.Wrap(err, "key to bytes")
+		}
+
+		if bytes.Equal(wantBytes, gotBytes) {
+			return nil
+		}
+	}
+
+	return errors.New("private key not matching any operator ENR") // This message seems to know something about the context in which it is used :(
 }

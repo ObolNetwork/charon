@@ -18,7 +18,6 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
@@ -165,7 +164,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}
 
-	if err := verifyP2PKey(lock, p2pKey); err != nil {
+	peers, err := lock.Peers()
+	if err != nil {
+		return err
+	}
+
+	if err := p2p.VerifyP2PKey(peers, p2pKey); err != nil {
 		return err
 	}
 
@@ -674,32 +678,4 @@ func (h httpServeHook) Call(context.Context) error {
 	}
 
 	return nil
-}
-
-// verifyP2PKey returns an error if the p2pkey doesn't match any lock operator ENR.
-func verifyP2PKey(lock cluster.Lock, key *ecdsa.PrivateKey) error {
-	wantBytes := crypto.CompressPubkey(&key.PublicKey)
-
-	peers, err := lock.Peers()
-	if err != nil {
-		return err
-	}
-
-	for _, p := range peers {
-		pk, err := p.ID.ExtractPublicKey()
-		if err != nil {
-			return errors.Wrap(err, "extract pubkey from peer id")
-		}
-
-		gotBytes, err := pk.Raw()
-		if err != nil {
-			return errors.Wrap(err, "key to bytes")
-		}
-
-		if bytes.Equal(wantBytes, gotBytes) {
-			return nil
-		}
-	}
-
-	return errors.New("private key not matching any lock file operator ENR")
 }

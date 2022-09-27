@@ -215,6 +215,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
 func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, peers []p2p.Peer, lockHashHex string) (host.Host, func(), error) {
+	if err := p2p.VerifyP2PKey(peers, key); err != nil {
+		return nil, nil, err
+	}
+
 	localEnode, db, err := p2p.NewLocalEnode(p2pConf, key)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to open enode")

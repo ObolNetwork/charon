@@ -19,12 +19,14 @@ import (
 	"crypto/ecdsa"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -50,4 +52,19 @@ func TestNewHost(t *testing.T) {
 
 	_, err = p2p.NewTCPNode(p2p.Config{}, privKey, p2p.NewOpenGater(), nil, nil, nil)
 	require.NoError(t, err)
+}
+
+func TestVerifyP2PKey(t *testing.T) {
+	lock, keys, _ := cluster.NewForT(t, 1, 3, 4, 0)
+
+	peers, err := lock.Peers()
+	require.NoError(t, err)
+
+	for _, key := range keys {
+		require.NoError(t, p2p.VerifyP2PKey(peers, key))
+	}
+
+	key, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(time.Now().Unix())))
+	require.NoError(t, err)
+	require.Error(t, p2p.VerifyP2PKey(peers, key))
 }
