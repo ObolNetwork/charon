@@ -37,6 +37,9 @@ var (
 	_ SignedData = SignedVoluntaryExit{}
 	_ SignedData = VersionedSignedBlindedBeaconBlock{}
 	_ SignedData = VersionedSignedValidatorRegistration{}
+	_ SignedData = SignedRandao{}
+	_ SignedData = SignedBeaconCommitteeSubscription{}
+	_ SignedData = SignedAggregateAndProof{}
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
