@@ -27,6 +27,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -616,7 +617,7 @@ func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
 		},
 	}
 
-	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service))
+	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service), time.Second)
 	actual, err := eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, subs)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -657,7 +658,7 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service))
+	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service), time.Second)
 	err = eth2Cl.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{agg})
 	require.NoError(t, err)
 }
