@@ -161,5 +161,5 @@ func VerifyP2PKey(peers []Peer, key *ecdsa.PrivateKey) error {
 		}
 	}
 
-	return errors.New("private key not matching any operator ENR") // This message seems to know something about the context in which it is used :(
+	return errors.New("unknown private key provided, it doesn't match any public key encoded inside the operator ENRs") // This message seems to know something about the context in which it is used :(
 }
