@@ -398,7 +398,7 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 		return scheduled(core.DutyAttester)
 	}
 
-	// For all other duties check for the type itself was scheduled.
+	// For all other duties check if the type itself was scheduled.
 	return scheduled(duty.Type)
 }
 
