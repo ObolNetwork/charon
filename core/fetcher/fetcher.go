@@ -23,6 +23,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -168,8 +169,10 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 
 		// This validator isn't an aggregator for this slot.
 		if !res.IsAggregator {
+			log.Debug(ctx, "Not selected for attester aggregation duty", z.Any("pubkey", pubkey))
 			continue
 		}
+		log.Info(ctx, "Resolved attester aggregation duty", z.Any("pubkey", pubkey))
 
 		// Query DutyDB for Attestation data to get attestation data root.
 		attData, err := f.awaitAttDataFunc(ctx, slot, int64(res.CommitteeIndex))
