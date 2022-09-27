@@ -271,15 +271,16 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 	msg := msgFetcher
 
 	// Proposer duties depend on randao duty, so check if that was why it failed.
-	if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer { //nolint:nestif
+	if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
 		// Proposer duties will fail if core.DutyRandao fails
 		randaoFailed, randaoComp := dutyFailedComponent(allEvents[core.NewRandaoDuty(duty.Slot)])
 		if randaoFailed {
-			if randaoComp == parSigDBThreshold {
+			switch randaoComp {
+			case parSigDBThreshold:
 				msg = msgFetcherProposerFewRandaos
-			} else if randaoComp == zero {
+			case zero:
 				msg = msgFetcherProposerZeroRandaos
-			} else {
+			default:
 				msg = msgFetcherProposerFailedRandao
 			}
 		}
@@ -288,15 +289,16 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 	}
 
 	// Duty aggregator depend on prepare aggregator duty, so check if that was why it failed.
-	if duty.Type == core.DutyAggregator { //nolint:nestif
+	if duty.Type == core.DutyAggregator {
 		// Aggregator duties will fail if core.DutyPrapareAggregator fails
 		prepAggFailed, prepAggComp := dutyFailedComponent(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
 		if prepAggFailed {
-			if prepAggComp == parSigDBThreshold {
+			switch prepAggComp {
+			case parSigDBThreshold:
 				msg = msgFetcherAggregatorFewPrepares
-			} else if prepAggComp == zero {
+			case zero:
 				msg = msgFetcherAggregatorZeroPrepares
-			} else {
+			default:
 				msg = msgFetcherAggregatorFailedPrepare
 			}
 
