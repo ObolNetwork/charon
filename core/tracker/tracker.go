@@ -315,7 +315,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 		//  and "failed fetching aggregated attestation from BN".
 		//
 		// Assume no aggregators for slot as this is very common.
-		return false, zero, ""
+		return false, fetcher, ""
 	}
 
 	return true, fetcher, msg
@@ -393,6 +393,15 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 		}
 	}
 
+	if duty.Type == core.DutyPrepareAggregator {
+		// Check that if we got DutyAttester event from scheduler.
+		for _, e := range allEvents[core.NewAttesterDuty(duty.Slot)] {
+			if e.component == scheduler && e.pubkey == pubkey {
+				return true
+			}
+		}
+	}
+
 	// For all other duties check for scheduler event.
 	for _, e := range allEvents[duty] {
 		if e.component == scheduler && e.pubkey == pubkey {
@@ -414,9 +423,9 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 		for _, peer := range peers {
 			if participatedShares[peer.ShareIdx()] {
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(1)
+				participationCounter.WithLabelValues(duty.Type.String(), peer.Name).Inc()
 			} else if unexpectedShares[peer.ShareIdx()] {
-				// TODO(corver): Enable with https://github.com/ObolNetwork/charon/issues/993
-				// log.Warn(ctx, "Unexpected event found", nil, z.Str("peer", peer.Name), z.Str("duty", duty.String()))
+				log.Warn(ctx, "Unexpected event found", nil, z.Str("peer", peer.Name), z.Str("duty", duty.String()))
 				unexpectedEventsCounter.WithLabelValues(peer.Name).Inc()
 			} else {
 				absentPeers = append(absentPeers, peer.Name)

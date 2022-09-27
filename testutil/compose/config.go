@@ -119,6 +119,16 @@ type Config struct {
 	DisableLoki bool `json:"disable_loki"`
 }
 
+// VCStrings returns the VCs field as a slice of strings.
+func (c Config) VCStrings() []string {
+	var resp []string
+	for _, vc := range c.VCs {
+		resp = append(resp, string(vc))
+	}
+
+	return resp
+}
+
 // entrypoint returns the path to the charon binary based on the BuildLocal field.
 func (c Config) entrypoint() string {
 	if c.BuildBinary || c.PrebuiltBinary {
