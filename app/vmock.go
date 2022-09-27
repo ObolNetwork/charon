@@ -145,6 +145,8 @@ func newVMockEth2Provider(conf Config) func() (eth2wrap.Client, error) {
 		mu     sync.Mutex
 	)
 
+	const timeout = time.Second * 10
+
 	return func() (eth2wrap.Client, error) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -160,7 +162,7 @@ func newVMockEth2Provider(conf Config) func() (eth2wrap.Client, error) {
 			eth2Svc, err = eth2http.New(context.Background(),
 				eth2http.WithLogLevel(1),
 				eth2http.WithAddress("http://"+conf.ValidatorAPIAddr),
-				eth2http.WithTimeout(time.Second*10), // Allow sufficient time to block while fetching duties.
+				eth2http.WithTimeout(timeout), // Allow sufficient time to block while fetching duties.
 			)
 			if err != nil {
 				time.Sleep(time.Millisecond * 100) // Test startup backoff
@@ -171,7 +173,7 @@ func newVMockEth2Provider(conf Config) func() (eth2wrap.Client, error) {
 				return nil, errors.New("invalid eth2 http service")
 			}
 
-			cached = eth2wrap.AdaptEth2HTTP(eth2Http)
+			cached = eth2wrap.AdaptEth2HTTP(eth2Http, timeout)
 		}
 
 		return cached, err
@@ -219,11 +221,12 @@ func handleVMockDuty(ctx context.Context, duty core.Duty, eth2Cl eth2wrap.Client
 		}
 		log.Info(ctx, "Mock attestation submitted to validatorapi", z.I64("slot", duty.Slot))
 	case core.DutyAggregator:
-		err := attester.Aggregate(ctx)
+		ok, err := attester.Aggregate(ctx)
 		if err != nil {
 			return errors.Wrap(err, "mock aggregation failed")
+		} else if ok {
+			log.Info(ctx, "Mock aggregation submitted to validatorapi", z.I64("slot", duty.Slot))
 		}
-		log.Info(ctx, "Mock aggregation submitted to validatorapi", z.I64("slot", duty.Slot))
 	case core.DutyProposer:
 		err := validatormock.ProposeBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot), pubshares...)
 		if err != nil {

@@ -228,6 +228,10 @@ func isTemporaryBeaconErr(err error) bool {
 		return true
 	}
 
+	if strings.Contains(err.Error(), "retryable") {
+		return true
+	}
+
 	// TODO(corver): Add more checks here.
 
 	return false

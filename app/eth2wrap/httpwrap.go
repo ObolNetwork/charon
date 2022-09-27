@@ -35,6 +35,7 @@ import (
 // interfaces not present go-eth2-client.
 type httpAdapter struct {
 	*eth2http.Service
+	timeout time.Duration
 }
 
 type submitBeaconCommitteeSubscriptionsV2JSON struct {
@@ -48,7 +49,7 @@ func (h httpAdapter) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, s
 		return nil, errors.Wrap(err, "marshal submit beacon committee subscriptions V2 request")
 	}
 
-	respBody, err := httpPost(ctx, h.Address(), "/eth/v2/validator/beacon_committee_subscriptions", bytes.NewReader(reqBody))
+	respBody, err := httpPost(ctx, h.Address(), "/eth/v2/validator/beacon_committee_subscriptions", bytes.NewReader(reqBody), h.timeout)
 	if err != nil {
 		return nil, errors.Wrap(err, "post submit beacon committee subscriptions v2")
 	}
@@ -61,7 +62,10 @@ func (h httpAdapter) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, s
 	return resp.Data, nil
 }
 
-func httpPost(ctx context.Context, base string, endpoint string, body io.Reader) ([]byte, error) {
+func httpPost(ctx context.Context, base string, endpoint string, body io.Reader, timeout time.Duration) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
 	addr, err := url.JoinPath(base, endpoint)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid address")
@@ -71,9 +75,6 @@ func httpPost(ctx context.Context, base string, endpoint string, body io.Reader)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid endpoint")
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, time.Second*2) // TODO(dhruv): use actual configured timeout.
-	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url.String(), body)
 	if err != nil {

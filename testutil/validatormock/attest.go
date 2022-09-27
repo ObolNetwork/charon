@@ -24,6 +24,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
@@ -117,7 +119,7 @@ func (a *SlotAttester) Attest(ctx context.Context) error {
 }
 
 // Aggregate should be called at latest 2/3 into the slot, it does slot attestation aggregations.
-func (a *SlotAttester) Aggregate(ctx context.Context) error {
+func (a *SlotAttester) Aggregate(ctx context.Context) (bool, error) {
 	// Wait for Prepare and Attest to complete
 	wait(ctx, a.selectionsOK, a.datasOK)
 
@@ -248,6 +250,8 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 		selections = append(selections, selection)
 	}
 
+	log.Info(ctx, "Mock beacon committee subscription submitted", z.Int("aggregators", len(selections)))
+
 	return selections, nil
 }
 
@@ -310,17 +314,18 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 	return datas, nil
 }
 
-// aggregate does attestation aggregation for the provided validators, selections and attestation datas.
+// aggregate does attestation aggregation for the provided validators, selections and attestation datas and returns true.
+// It returns false if the no aggregation is required.
 func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot eth2p0.Slot,
 	vals validators, selections selections, datas datas,
-) error {
+) (bool, error) {
 	if len(selections) == 0 {
-		return nil
+		return false, nil
 	}
 
 	epoch, err := epochFromSlot(ctx, eth2Cl, slot)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	var (
@@ -339,7 +344,7 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 			var err error
 			att, err = getAggregateAttestation(ctx, eth2Cl, datas, commIdx)
 			if err != nil {
-				return err
+				return false, err
 			}
 			attsByComm[commIdx] = att
 		}
@@ -354,22 +359,22 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 
 		proofRoot, err := proof.HashTreeRoot()
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainAggregateAndProof, epoch, proofRoot)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		val, ok := vals[selection.ValidatorIndex]
 		if !ok {
-			return errors.New("missing validator index")
+			return false, errors.New("missing validator index")
 		}
 
 		proofSig, err := signFunc(val.Validator.PublicKey, sigData[:])
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		aggs = append(aggs, &eth2p0.SignedAggregateAndProof{
@@ -378,7 +383,11 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 		})
 	}
 
-	return eth2Cl.SubmitAggregateAttestations(ctx, aggs)
+	if err := eth2Cl.SubmitAggregateAttestations(ctx, aggs); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // getAggregateAttestation returns an aggregated attestation for the provided committee.

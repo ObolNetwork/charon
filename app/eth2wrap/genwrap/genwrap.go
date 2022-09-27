@@ -125,7 +125,8 @@ type Client interface {
 
 	// successFuncs indicates which endpoints have custom success functions.
 	successFuncs = map[string]string{
-		"NodeSyncing": "isSyncStateOk",
+		"NodeSyncing":          "isSyncStateOk",
+		"AggregateAttestation": "isAggregateAttestationOk",
 	}
 
 	skipImport = map[string]bool{

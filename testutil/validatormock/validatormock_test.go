@@ -94,7 +94,9 @@ func TestAttest(t *testing.T) {
 
 			require.NoError(t, attester.Prepare(ctx))
 			require.NoError(t, attester.Attest(ctx))
-			require.NoError(t, attester.Aggregate(ctx))
+			ok, err := attester.Aggregate(ctx)
+			require.NoError(t, err)
+			require.Equal(t, test.ExpectAggregations > 0, ok)
 
 			// Assert length and expected attestations
 			require.Len(t, atts, test.ExpectAttestations)
