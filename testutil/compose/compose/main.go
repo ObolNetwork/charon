@@ -282,6 +282,7 @@ func newNewCmd() *cobra.Command {
 	splitKeys := cmd.Flags().String("split-keys-dir", conf.SplitKeysDir, "Directory containing keys to split for keygen==create, or empty not to split.")
 	featureSet := cmd.Flags().String("feature-set", conf.FeatureSet, "Minimum feature set to enable: alpha, beta, stable")
 	numVals := cmd.Flags().Int("num-validators", conf.NumValidators, "Number of distributed validators.")
+	vcTypes := cmd.Flags().StringSlice("validator-types", conf.VCStrings(), "Validator types to include.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
@@ -291,6 +292,12 @@ func newNewCmd() *cobra.Command {
 		conf.FeatureSet = *featureSet
 		conf.ExternalBootnode = *extBootnode
 		conf.NumValidators = *numVals
+
+		var vcs []compose.VCType
+		for _, vc := range *vcTypes {
+			vcs = append(vcs, compose.VCType(vc))
+		}
+		conf.VCs = vcs
 
 		ctx := log.WithTopic(cmd.Context(), "new")
 		if err := compose.New(ctx, *dir, conf); err != nil {

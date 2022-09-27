@@ -24,7 +24,6 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "iteration": 1664034153283,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -84,8 +83,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 6,
+        "h": 7,
+        "w": 5,
         "x": 0,
         "y": 1
       },
@@ -101,7 +100,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.0.0",
+      "pluginVersion": "9.0.4",
       "targets": [
         {
           "datasource": {
@@ -194,9 +193,9 @@
         ]
       },
       "gridPos": {
-        "h": 4,
-        "w": 7,
-        "x": 6,
+        "h": 7,
+        "w": 4,
+        "x": 5,
         "y": 1
       },
       "id": 28,
@@ -218,7 +217,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.0",
+      "pluginVersion": "9.0.4",
       "targets": [
         {
           "datasource": {
@@ -297,6 +296,7 @@
           "refId": "F"
         }
       ],
+      "title": "Current Status",
       "type": "stat"
     },
     {
@@ -355,9 +355,9 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 5,
-        "x": 13,
+        "h": 3,
+        "w": 4,
+        "x": 9,
         "y": 1
       },
       "id": 48,
@@ -375,7 +375,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.0",
+      "pluginVersion": "9.0.4",
       "targets": [
         {
           "datasource": {
@@ -401,14 +401,41 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
-      "description": "Number of partial signatures collected per voluntary exiting validator.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "fixed"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
-          "noValue": "None",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -422,32 +449,29 @@
               }
             ]
           },
-          "unit": "none"
+          "unit": "s"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 18,
+        "h": 7,
+        "w": 11,
+        "x": 13,
         "y": 1
       },
-      "id": 27,
+      "id": 25,
       "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
         },
-        "textMode": "auto"
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
-      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -455,15 +479,14 @@
             "uid": "PBFA97CFB590B2093"
           },
           "exemplar": true,
-          "expr": "sum(core_parsigdb_exit_totalcore_{job=\"$node\"}) by (pubkey)",
-          "hide": false,
+          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[$__rate_interval])) by (le,peer))  ",
           "interval": "",
-          "legendFormat": "",
+          "legendFormat": "{{peer}}",
           "refId": "A"
         }
       ],
-      "title": "Voluntary Exits",
-      "type": "stat"
+      "title": "Peer ping latency (90%)",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -495,10 +518,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 4,
-        "x": 6,
-        "y": 5
+        "x": 9,
+        "y": 4
       },
       "id": 60,
       "options": {
@@ -519,7 +542,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.0",
+      "pluginVersion": "9.0.4",
       "targets": [
         {
           "datasource": {
@@ -577,7 +600,7 @@
             "displayMode": "auto",
             "inspect": false,
             "minWidth": 0,
-            "width": 100
+            "width": 90
           },
           "mappings": [
             {
@@ -724,10 +747,10 @@
         ]
       },
       "gridPos": {
-        "h": 5,
-        "w": 14,
-        "x": 10,
-        "y": 5
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 8
       },
       "id": 54,
       "options": {
@@ -747,7 +770,7 @@
           }
         ]
       },
-      "pluginVersion": "9.0.0",
+      "pluginVersion": "9.0.4",
       "targets": [
         {
           "datasource": {
@@ -783,7 +806,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(core_tracker_participation{job=\"$node\", duty=\"attester\"}) by (peer)",
+          "expr": "sum(core_tracker_participation_total{job=\"$node\", duty=\"attester\"}) by (peer)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -797,7 +820,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(core_tracker_participation{job=\"$node\", duty=\"proposer\"}) by (peer)",
+          "expr": "sum(core_tracker_participation_total{job=\"$node\", duty=\"proposer\"}) by (peer)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -811,7 +834,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(core_tracker_participation{job=\"$node\", duty=\"randao\"}) by (peer)",
+          "expr": "sum(core_tracker_participation_total{job=\"$node\", duty=\"randao\"}) by (peer)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -832,6 +855,48 @@
           "legendFormat": "",
           "range": false,
           "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(core_tracker_participation_total{job=\"$node\", duty=\"prepare_aggregator\"}) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(core_tracker_participation_total{job=\"$node\", duty=\"aggregator\"}) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "refId": "H"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(core_tracker_participation_total{job=\"$node\", duty=\"exit\"}) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "refId": "I"
         }
       ],
       "transformations": [
@@ -851,6 +916,8 @@
               "Time 4": true,
               "Time 5": true,
               "Time 6": true,
+              "Time 7": true,
+              "Time 8": true,
               "Value #F": false
             },
             "indexByName": {
@@ -858,14 +925,18 @@
               "Time 2": 4,
               "Time 3": 6,
               "Time 4": 8,
-              "Time 5": 11,
-              "Time 6": 12,
+              "Time 5": 9,
+              "Time 6": 10,
+              "Time 7": 11,
+              "Time 8": 13,
               "Value #A": 3,
               "Value #B": 5,
               "Value #C": 7,
-              "Value #D": 10,
-              "Value #E": 9,
+              "Value #D": 16,
+              "Value #E": 15,
               "Value #F": 1,
+              "Value #G": 12,
+              "Value #H": 14,
               "peer": 0
             },
             "renameByName": {
@@ -875,104 +946,14 @@
               "Value #D": "Propose",
               "Value #E": "Randao",
               "Value #F": "You",
+              "Value #G": "PrepareAgg",
+              "Value #H": "Aggregator",
               "peer": "Peer"
             }
           }
         }
       ],
       "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisSoftMin": 0,
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 0,
-        "y": 10
-      },
-      "id": 25,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "exemplar": true,
-          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[$__rate_interval])) by (le,peer))  ",
-          "interval": "",
-          "legendFormat": "{{peer}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Peer ping latency (90%)",
-      "type": "timeseries"
     },
     {
       "datasource": {
@@ -1031,10 +1012,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 10
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 14
       },
       "id": 13,
       "options": {
@@ -1122,10 +1103,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 10
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 14
       },
       "id": 14,
       "options": {
@@ -1213,9 +1194,9 @@
       },
       "gridPos": {
         "h": 7,
-        "w": 8,
+        "w": 12,
         "x": 0,
-        "y": 17
+        "y": 19
       },
       "id": 7,
       "options": {
@@ -1319,9 +1300,9 @@
       },
       "gridPos": {
         "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 17
+        "w": 12,
+        "x": 12,
+        "y": 19
       },
       "id": 5,
       "options": {
@@ -1353,73 +1334,6 @@
       ],
       "title": "Failed duties by type",
       "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 17
-      },
-      "id": 26,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
-      "pluginVersion": "9.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "exemplar": true,
-          "expr": "sum(core_tracker_participation{job=\"$node\"}) by (duty)",
-          "interval": "",
-          "legendFormat": "{{type}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Number of participating peers",
-      "type": "stat"
     },
     {
       "datasource": {
@@ -1464,7 +1378,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1480,7 +1395,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 26
       },
       "id": 17,
       "options": {
@@ -1554,7 +1469,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1570,7 +1486,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 26
       },
       "id": 18,
       "options": {
@@ -1644,7 +1560,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1660,7 +1577,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 31
+        "y": 33
       },
       "id": 15,
       "options": {
@@ -1734,7 +1651,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1750,7 +1668,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 31
+        "y": 33
       },
       "id": 24,
       "options": {
@@ -1825,7 +1743,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1841,7 +1760,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 38
+        "y": 40
       },
       "id": 50,
       "options": {
@@ -1930,7 +1849,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1959,7 +1879,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 38
+        "y": 40
       },
       "id": 49,
       "options": {
@@ -2025,7 +1945,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue"
+                "color": "light-blue",
+                "value": null
               },
               {
                 "color": "red",
@@ -2117,7 +2038,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 45
+        "y": 47
       },
       "id": 56,
       "options": {
@@ -2130,7 +2051,7 @@
         },
         "showHeader": true
       },
-      "pluginVersion": "9.0.0",
+      "pluginVersion": "9.0.4",
       "targets": [
         {
           "datasource": {
@@ -2225,7 +2146,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2241,7 +2163,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 45
+        "y": 47
       },
       "id": 52,
       "links": [],
