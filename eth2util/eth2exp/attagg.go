@@ -38,10 +38,11 @@ type eth2Provider interface {
 }
 
 // BeaconCommitteeSubscriptionsSubmitterV2 is the interface for submitting beacon committee subnet subscription requests.
+// It supports DVT middleware by returning cluster updated subscription values or the same values if no DVT middleware.
 // TODO(dhruv): Should be removed once it is supported by go-eth2-client.
 type BeaconCommitteeSubscriptionsSubmitterV2 interface {
-	// SubmitBeaconCommitteeSubscriptionsV2 subscribes to beacon committees.
-	SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*BeaconCommitteeSubscription) ([]*BeaconCommitteeSubscription, error)
+	// SubmitBeaconCommitteeSubscriptionsV2 subscribes to beacon committees and returns the same or possible DVT updated values.
+	SubmitBeaconCommitteeSubscriptionsV2(context.Context, []*BeaconCommitteeSubscription) ([]*BeaconCommitteeSubscription, error)
 }
 
 // BeaconCommitteeSubscription is the data required for (and returned from) a beacon committee subscription.
@@ -67,6 +68,7 @@ type beaconCommitteeSubscriptionJSON struct {
 	CommitteeIndex   uint64 `json:"committee_index,string"`
 	CommitteesAtSlot uint64 `json:"committees_at_slot,string"`
 	SelectionProof   string `json:"selection_proof"`
+	IsAggregator     bool   `json:"is_aggregator"`
 }
 
 // MarshalJSON implements json.Marshaler.
@@ -77,6 +79,7 @@ func (b *BeaconCommitteeSubscription) MarshalJSON() ([]byte, error) {
 		CommitteeIndex:   uint64(b.CommitteeIndex),
 		CommitteesAtSlot: b.CommitteesAtSlot,
 		SelectionProof:   fmt.Sprintf("%#x", b.SelectionProof),
+		IsAggregator:     b.IsAggregator,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal beacon committee subscriptions v2")
@@ -98,6 +101,7 @@ func (b *BeaconCommitteeSubscription) UnmarshalJSON(input []byte) error {
 	b.ValidatorIndex = eth2p0.ValidatorIndex(subJSON.ValidatorIndex)
 	b.CommitteeIndex = eth2p0.CommitteeIndex(subJSON.CommitteeIndex)
 	b.CommitteesAtSlot = subJSON.CommitteesAtSlot
+	b.IsAggregator = subJSON.IsAggregator
 
 	signature, err := hex.DecodeString(strings.TrimPrefix(subJSON.SelectionProof, "0x"))
 	if err != nil {
@@ -118,6 +122,24 @@ func (b *BeaconCommitteeSubscription) String() (string, error) {
 	}
 
 	return string(data), nil
+}
+
+// CalculateCommitteeSubscription returns a copy of the BeaconCommitteeSubscription with IsAggregator
+// field populated according to the SelectionProof.
+func CalculateCommitteeSubscription(ctx context.Context, eth2Cl eth2Provider, sub *BeaconCommitteeSubscription) (*BeaconCommitteeSubscription, error) {
+	isAgg, err := IsAttestationAggregator(ctx, eth2Cl, sub.Slot, sub.CommitteeIndex, sub.SelectionProof)
+	if err != nil {
+		return nil, err
+	}
+
+	return &BeaconCommitteeSubscription{
+		ValidatorIndex:   sub.ValidatorIndex,
+		Slot:             sub.Slot,
+		CommitteeIndex:   sub.CommitteeIndex,
+		CommitteesAtSlot: sub.CommitteesAtSlot,
+		SelectionProof:   sub.SelectionProof,
+		IsAggregator:     isAgg,
+	}, nil
 }
 
 // IsAttestationAggregator returns true if in the slot signature proves an attestation aggregator.

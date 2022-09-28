@@ -194,10 +194,10 @@ func TestFetchAggregator(t *testing.T) {
 		var isAnyAgg bool
 		for _, vIdx := range []int{vIdxA, vIdxB} {
 			sub := signedCommSubByPubKey[pubkeysByIdx[eth2p0.ValidatorIndex(vIdx)]].(core.SignedBeaconCommitteeSubscription)
-			isAgg, err := eth2exp.IsAttestationAggregator(ctx, bmock, sub.Slot, sub.CommitteeIndex, sub.SelectionProof)
+			subv2, err := eth2exp.CalculateCommitteeSubscription(ctx, bmock, &sub.BeaconCommitteeSubscription)
 			require.NoError(t, err)
 
-			if isAgg {
+			if subv2.IsAggregator {
 				isAnyAgg = true
 				break
 			}

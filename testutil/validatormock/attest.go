@@ -228,18 +228,13 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 			return nil, err
 		}
 
-		isAggregator, err := eth2exp.IsAttestationAggregator(ctx, eth2Cl, duty.Slot, duty.CommitteeIndex, slotSig)
-		if err != nil {
-			return nil, err
-		}
-
 		subs = append(subs, &eth2exp.BeaconCommitteeSubscription{
 			ValidatorIndex:   duty.ValidatorIndex,
 			Slot:             duty.Slot,
 			CommitteeIndex:   duty.CommitteeIndex,
 			CommitteesAtSlot: duty.CommitteesAtSlot,
 			SelectionProof:   slotSig,
-			IsAggregator:     isAggregator,
+			IsAggregator:     false, // Not calculating this as we use the response from the BN
 		})
 	}
 

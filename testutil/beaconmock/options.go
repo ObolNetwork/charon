@@ -383,8 +383,9 @@ func WithAttestationAggregation(aggregators map[eth2p0.Slot]eth2p0.ValidatorInde
 				resp = append(resp, &eth2exp.BeaconCommitteeSubscription{
 					ValidatorIndex:   sub.ValidatorIndex,
 					Slot:             sub.Slot,
-					SelectionProof:   sub.SelectionProof,
+					CommitteeIndex:   sub.CommitteeIndex,
 					CommitteesAtSlot: sub.CommitteesAtSlot,
+					SelectionProof:   sub.SelectionProof,
 					IsAggregator:     aggregators[sub.Slot] == sub.ValidatorIndex,
 				})
 			}

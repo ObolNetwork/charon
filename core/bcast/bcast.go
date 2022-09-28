@@ -145,12 +145,18 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		// Randao is an internal duty, not broadcasted to beacon chain
 		return nil
 	case core.DutyPrepareAggregator:
-		sub, ok := aggData.(core.SignedBeaconCommitteeSubscription)
+		coreSub, ok := aggData.(core.SignedBeaconCommitteeSubscription)
 		if !ok {
 			return errors.New("invalid beacon committee sub")
 		}
 
-		_, err = b.eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, []*eth2exp.BeaconCommitteeSubscription{&sub.BeaconCommitteeSubscription})
+		// The aggregated subscription IsAggregator field is stale, recalculate it.
+		subv2, err := eth2exp.CalculateCommitteeSubscription(ctx, b.eth2Cl, &coreSub.BeaconCommitteeSubscription)
+		if err != nil {
+			return err
+		}
+
+		_, err = b.eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, []*eth2exp.BeaconCommitteeSubscription{subv2})
 		if err == nil {
 			return nil
 		}
@@ -158,22 +164,15 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		log.Debug(ctx, "V2 submit beacon committee subscriptions failed")
 
 		// Beacon node doesn't support v2 SubmitBeaconCommitteeSubscriptions endpoint (yet). Try with v1.
-		isAggregator, err := eth2exp.IsAttestationAggregator(ctx, b.eth2Cl, sub.Slot, sub.CommitteeIndex, sub.SelectionProof)
-		if err != nil {
-			return err
+		subv1 := &eth2v1.BeaconCommitteeSubscription{
+			ValidatorIndex:   subv2.ValidatorIndex,
+			Slot:             subv2.Slot,
+			CommitteeIndex:   subv2.CommitteeIndex,
+			CommitteesAtSlot: subv2.CommitteesAtSlot,
+			IsAggregator:     subv2.IsAggregator,
 		}
 
-		subs := []*eth2v1.BeaconCommitteeSubscription{
-			{
-				ValidatorIndex:   sub.ValidatorIndex,
-				Slot:             sub.Slot,
-				CommitteeIndex:   sub.CommitteeIndex,
-				CommitteesAtSlot: sub.CommitteesAtSlot,
-				IsAggregator:     isAggregator,
-			},
-		}
-
-		err = b.eth2Cl.SubmitBeaconCommitteeSubscriptions(ctx, subs)
+		err = b.eth2Cl.SubmitBeaconCommitteeSubscriptions(ctx, []*eth2v1.BeaconCommitteeSubscription{subv1})
 		if err == nil {
 			log.Info(ctx, "Beacon committee subscription successfully submitted to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)))

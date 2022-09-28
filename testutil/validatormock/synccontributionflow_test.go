@@ -255,7 +255,7 @@ type SyncCommitteeSelection struct {
 	IsAggregator bool
 }
 
-// SyncCommitteeSelections is the new proposed endpoint that returns aggregated sync committee selections
+// SyncCommitteeSelections is the new proposed endpoint that returns DVT cluster updated sync committee selections
 // for the provided partial selections.
 //
 // Note endpoint MUST be called at the start of the slot, since all VCs in the cluster need to do it at the same time.

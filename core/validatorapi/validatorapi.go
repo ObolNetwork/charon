@@ -651,7 +651,7 @@ func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, sub
 		}
 	}
 
-	return c.getCommResponse(ctx, psigsBySlot)
+	return c.getAggregatedSelections(ctx, psigsBySlot)
 }
 
 // AggregateAttestation returns the aggregate attestation for the given attestation root.
@@ -874,8 +874,8 @@ func (c Component) verifyPartialSig(pubkey core.PubKey, verifyFunc func(pubshare
 	return verifyFunc(pubshare)
 }
 
-func (c Component) getCommResponse(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.BeaconCommitteeSubscription, error) {
-	var resp []*eth2exp.BeaconCommitteeSubscription
+func (c Component) getAggregatedSelections(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.BeaconCommitteeSubscription, error) {
+	var resps []*eth2exp.BeaconCommitteeSubscription
 	for slot, data := range psigsBySlot {
 		duty := core.NewPrepareAggregatorDuty(int64(slot))
 		for pk := range data {
@@ -890,14 +890,15 @@ func (c Component) getCommResponse(ctx context.Context, psigsBySlot map[eth2p0.S
 				return nil, errors.New("invalid beacon committee subscription")
 			}
 
-			sub.IsAggregator, err = eth2exp.IsAttestationAggregator(ctx, c.eth2Cl, sub.Slot, sub.CommitteeIndex, sub.SelectionProof)
+			// The aggregated subscription IsAggregator field is stale, recalculate it.
+			resp, err := eth2exp.CalculateCommitteeSubscription(ctx, c.eth2Cl, &sub.BeaconCommitteeSubscription)
 			if err != nil {
 				return nil, err
 			}
 
-			resp = append(resp, &sub.BeaconCommitteeSubscription)
+			resps = append(resps, resp)
 		}
 	}
 
-	return resp, nil
+	return resps, nil
 }

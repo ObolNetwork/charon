@@ -182,32 +182,33 @@ func TestBroadcastExit(t *testing.T) {
 }
 
 func TestBroadcastBeaconCommitteeSubscriptionV2(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := context.Background()
 	mock, err := beaconmock.New()
 	require.NoError(t, err)
 
 	subscription := testutil.RandomBeaconCommitteeSubscription()
+	subscription.IsAggregator = true // We use committee length=0 below, so the result will be IsAggregator=true.
+
 	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *subscription}
 
-	mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscription, error) {
-		require.Equal(t, aggData.BeaconCommitteeSubscription, *subscriptions[0])
-		cancel()
-
-		return []*eth2exp.BeaconCommitteeSubscription{}, ctx.Err()
+	mock.BeaconCommitteesAtEpochFunc = func(context.Context, string, eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
+		return []*eth2v1.BeaconCommittee{{Index: subscription.CommitteeIndex}}, nil
 	}
+	done := make(chan struct{})
+	mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subs []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscription, error) {
+		require.Equal(t, aggData.BeaconCommitteeSubscription, *subs[0])
+		close(done)
 
-	// To avoid further call to v1 SubmitBeaconCommitteeSubscriptions.
-	mock.SlotsPerEpochFunc = func(ctx context.Context) (uint64, error) {
-		return 0, ctx.Err()
+		return subs, nil
 	}
 
 	bcaster, err := bcast.New(ctx, mock)
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyPrepareAggregator}, "", aggData)
-	require.ErrorIs(t, err, context.Canceled)
+	require.NoError(t, err)
 
-	<-ctx.Done()
+	<-done
 }
 
 func TestBroadcastBeaconCommitteeSubscriptionV1(t *testing.T) {
@@ -261,6 +262,7 @@ func TestBroadcastBeaconCommitteeSubscriptionV1(t *testing.T) {
 		Slot:           slot,
 		CommitteeIndex: commIdx,
 		SelectionProof: blssig,
+		IsAggregator:   true,
 	}
 	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: subscription}
 

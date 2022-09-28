@@ -162,6 +162,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 			return core.UnsignedDataSet{}, errors.New("invalid beacon committee subscription")
 		}
 
+		// The aggregated subscription IsAggregator field is stale, recalculate it.
 		isAggregator, err := eth2exp.IsAttestationAggregator(ctx, f.eth2Cl, sub.Slot, sub.CommitteeIndex, sub.SelectionProof)
 		if err != nil {
 			return core.UnsignedDataSet{}, err

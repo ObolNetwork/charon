@@ -568,6 +568,7 @@ func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
 
 	bmock, err := beaconmock.New(beaconmock.WithAttestationAggregation(aggregators))
 	require.NoError(t, err)
+
 	testHandler := testHandler{SubmitBeaconCommitteeSubscriptionsV2Func: bmock.SubmitBeaconCommitteeSubscriptionsV2Func}
 
 	proxy := httptest.NewServer(testHandler.newBeaconHandler(t))
@@ -585,13 +586,6 @@ func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
 		eth2http.WithAddress(server.URL),
 	)
 	require.NoError(t, err)
-
-	// Submit subscriptions to beaconmock through validatorapi.
-	expected := []*eth2exp.BeaconCommitteeSubscription{
-		{ValidatorIndex: vIdxA, IsAggregator: true},
-		{ValidatorIndex: vIdxB, IsAggregator: true},
-		{ValidatorIndex: vIdxC, IsAggregator: false},
-	}
 
 	subs := []*eth2exp.BeaconCommitteeSubscription{
 		{
@@ -619,9 +613,16 @@ func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
 	}
 
 	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service), time.Second)
+	// Submit subscriptions to beaconmock through validatorapi.
 	actual, err := eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, subs)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+
+	// Calculate expected response
+	for _, sub := range subs {
+		sub.IsAggregator = aggregators[sub.Slot] == sub.ValidatorIndex
+	}
+
+	require.Equal(t, subs, actual)
 }
 
 func TestSubmitAggregateAttestations(t *testing.T) {
