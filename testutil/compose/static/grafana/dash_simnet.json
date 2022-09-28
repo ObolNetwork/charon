@@ -24,6 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
+  "iteration": 1664348030745,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -100,7 +101,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -109,7 +110,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "(\n  sum(app_git_commit{job=\"$node\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{job=\"$node\"}) by (version)\n)\n   + on(job) group_left(lock_hash)\n(\n   0 * sum(cluster_lock_hash{job=\"$node\"}) by (lock_hash)\n)\n   + on(job) group_left(peer_name)\n(\n   0 * sum(app_peer_name{job=\"$node\"}) by (peer_name)\n)\n   + on(job) group_left(network)\n(\n   0 * sum(cluster_network{job=\"$node\"}) by (network)\n)",
+          "expr": "(\n  sum(app_git_commit{job=\"$node\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{job=\"$node\"}) by (version)\n)\n   + on(job) group_left(peer_name)\n(\n   0 * sum(app_peer_name{job=\"$node\"}) by (peer_name)\n)\n   + on(job) group_left(network)\n(\n   0 * sum(cluster_network{job=\"$node\"}) by (network)\n)\n   + on(job) group_left(cluster_hash)\n(\n   0 * sum(cluster_operators{job=\"$node\"}) by (cluster_hash)\n)",
           "hide": false,
           "instant": true,
           "interval": "",
@@ -217,7 +218,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -375,7 +376,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -542,7 +543,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -771,7 +772,7 @@
           }
         ]
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
@@ -2053,7 +2054,7 @@
         },
         "showHeader": true
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
           "datasource": {
