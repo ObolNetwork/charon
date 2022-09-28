@@ -315,7 +315,7 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 }
 
 // aggregate does attestation aggregation for the provided validators, selections and attestation datas and returns true.
-// It returns false if the no aggregation is required.
+// It returns false if aggregation is not required.
 func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot eth2p0.Slot,
 	vals validators, selections selections, datas datas,
 ) (bool, error) {

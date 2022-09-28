@@ -25,7 +25,7 @@ func isSyncStateOk(s *apiv1.SyncState) bool {
 	return !s.IsSyncing
 }
 
-// isAggregateAttestationOk returns tue if the aggregate attestation is not nil (which can happen if the subscription wasn't done).
+// isAggregateAttestationOk returns true if the aggregate attestation is not nil (which can happen if the subscription wasn't successful).
 func isAggregateAttestationOk(att *phase0.Attestation) bool {
 	return att != nil
 }
