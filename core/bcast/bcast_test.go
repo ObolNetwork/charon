@@ -38,20 +38,67 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
-func TestBroadcastAttestation(t *testing.T) {
+type test struct {
+	name     string          // Name of the test
+	aggData  core.SignedData // Aggregated signed duty data object that needs to be broadcasted
+	duty     core.Duty       // Duty
+	bcastCnt int             // The no of times Broadcast() needs to be called
+	wantErr  bool            // True if error is expected
+	error    error           // Error type
+	mock     beaconmock.Mock // Beaconmock with specific override function set for the test
+}
+
+func TestBroadcast(t *testing.T) {
+	mock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mock, err := beaconmock.New()
+	tests := genTestData(t, &mock, cancel)
+
+	bcaster, err := bcast.New(ctx, mock)
 	require.NoError(t, err)
 
-	aggData := core.Attestation{Attestation: *testutil.RandomAttestation()}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for i := 0; i < test.bcastCnt; i++ {
+				err := bcaster.Broadcast(ctx, test.duty, testutil.RandomCorePubKey(t), test.aggData)
+				if test.wantErr {
+					require.Error(t, err)
+					continue
+				}
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// genTestData generates test data for individual duties and sets mock eth2wrap.Client methods on the input beaconmock.
+func genTestData(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) []test {
+	t.Helper()
+
+	var tests []test
+	tests = append(tests, attData(t, mock))                                   // Attestation
+	tests = append(tests, beaconBlockData(t, mock, cancel))                   // BeaconBlock
+	tests = append(tests, blindedBeaconBlockData(t, mock, cancel))            // BlindedBeaconBlock
+	tests = append(tests, validatorRegistrationData(t, mock, cancel))         // ValidatorRegistration
+	tests = append(tests, validatorExitData(t, mock, cancel))                 // ValidatorExit
+	tests = append(tests, aggregateAttestationData(t, mock, cancel))          // AggregateAttestation
+	tests = append(tests, beaconCommitteeSubscriptionV2Data(t, mock, cancel)) // BeaconCommitteeSubscriptionV2
+	tests = append(tests, beaconCommitteeSubscriptionV1Data(t, mock, cancel))
+	return tests
+}
+
+func attData(t *testing.T, mock *beaconmock.Mock) test {
+	t.Helper()
+
+	att := core.Attestation{Attestation: *testutil.RandomAttestation()}
 
 	// Assert output and return lighthouse known error on duplicates
 	var submitted int
 	mock.SubmitAttestationsFunc = func(ctx context.Context, attestations []*eth2p0.Attestation) error {
 		require.Len(t, attestations, 1)
-		require.Equal(t, aggData.Attestation, *attestations[0])
+		require.Equal(t, att.Attestation, *attestations[0])
 
 		submitted++
 		if submitted > 1 {
@@ -62,19 +109,17 @@ func TestBroadcastAttestation(t *testing.T) {
 		return nil
 	}
 
-	bcaster, err := bcast.New(ctx, mock)
-	require.NoError(t, err)
-
-	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyAttester}, "", aggData)
-	require.NoError(t, err)
-	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyAttester}, "", aggData)
-	require.NoError(t, err)
+	return test{
+		name:     "Broadcast Attestation",
+		aggData:  att,
+		duty:     core.Duty{Type: core.DutyAttester},
+		bcastCnt: 2,
+		wantErr:  false,
+	}
 }
 
-func TestBroadcastBeaconBlock(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	mock, err := beaconmock.New()
-	require.NoError(t, err)
+func beaconBlockData(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+	t.Helper()
 
 	block1 := spec.VersionedSignedBeaconBlock{
 		Version: spec.DataVersionPhase0,
@@ -93,19 +138,18 @@ func TestBroadcastBeaconBlock(t *testing.T) {
 		return ctx.Err()
 	}
 
-	bcaster, err := bcast.New(ctx, mock)
-	require.NoError(t, err)
-
-	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyProposer}, "", aggData)
-	require.ErrorIs(t, err, context.Canceled)
-
-	<-ctx.Done()
+	return test{
+		name:     "Broadcast Beacon Block",
+		aggData:  aggData,
+		duty:     core.Duty{Type: core.DutyProposer},
+		bcastCnt: 1,
+		wantErr:  true,
+		error:    context.Canceled,
+	}
 }
 
-func TestBroadcastBlindedBeaconBlock(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	mock, err := beaconmock.New()
-	require.NoError(t, err)
+func blindedBeaconBlockData(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+	t.Helper()
 
 	block1 := eth2api.VersionedSignedBlindedBeaconBlock{
 		Version: spec.DataVersionBellatrix,
@@ -124,22 +168,20 @@ func TestBroadcastBlindedBeaconBlock(t *testing.T) {
 		return ctx.Err()
 	}
 
-	bcaster, err := bcast.New(ctx, mock)
-	require.NoError(t, err)
-
-	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyBuilderProposer}, "", aggData)
-	require.ErrorIs(t, err, context.Canceled)
-
-	<-ctx.Done()
+	return test{
+		name:     "Broadcast Blinded Beacon Block",
+		aggData:  aggData,
+		duty:     core.Duty{Type: core.DutyBuilderProposer},
+		bcastCnt: 1,
+		wantErr:  true,
+		error:    context.Canceled,
+	}
 }
 
-func TestValidatorRegistration(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	mock, err := beaconmock.New()
-	require.NoError(t, err)
+func validatorRegistrationData(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+	t.Helper()
 
 	registration := testutil.RandomCoreVersionedSignedValidatorRegistration(t).VersionedSignedValidatorRegistration
-
 	aggData := core.VersionedSignedValidatorRegistration{VersionedSignedValidatorRegistration: registration}
 
 	mock.SubmitValidatorRegistrationsFunc = func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
@@ -149,19 +191,18 @@ func TestValidatorRegistration(t *testing.T) {
 		return ctx.Err()
 	}
 
-	bcaster, err := bcast.New(ctx, mock)
-	require.NoError(t, err)
-
-	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyBuilderRegistration}, "", aggData)
-	require.ErrorIs(t, err, context.Canceled)
-
-	<-ctx.Done()
+	return test{
+		name:     "Broadcast Validator Registration",
+		aggData:  aggData,
+		duty:     core.Duty{Type: core.DutyBuilderRegistration},
+		bcastCnt: 1,
+		wantErr:  true,
+		error:    context.Canceled,
+	}
 }
 
-func TestBroadcastExit(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	mock, err := beaconmock.New()
-	require.NoError(t, err)
+func validatorExitData(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+	t.Helper()
 
 	aggData := core.SignedVoluntaryExit{SignedVoluntaryExit: *testutil.RandomExit()}
 
@@ -172,19 +213,41 @@ func TestBroadcastExit(t *testing.T) {
 		return ctx.Err()
 	}
 
-	bcaster, err := bcast.New(ctx, mock)
-	require.NoError(t, err)
-
-	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyExit}, "", aggData)
-	require.ErrorIs(t, err, context.Canceled)
-
-	<-ctx.Done()
+	return test{
+		name:     "Broadcast Validator Exit",
+		aggData:  aggData,
+		duty:     core.Duty{Type: core.DutyExit},
+		bcastCnt: 1,
+		wantErr:  true,
+		error:    context.Canceled,
+	}
 }
 
-func TestBroadcastBeaconCommitteeSubscriptionV2(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	mock, err := beaconmock.New()
-	require.NoError(t, err)
+func aggregateAttestationData(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+	t.Helper()
+
+	aggAndProof := testutil.RandomSignedAggregateAndProof()
+	aggData := core.SignedAggregateAndProof{SignedAggregateAndProof: *aggAndProof}
+
+	mock.SubmitAggregateAttestationsFunc = func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
+		require.Equal(t, aggAndProof, aggregateAndProofs[0])
+		cancel()
+
+		return ctx.Err()
+	}
+
+	return test{
+		name:     "Broadcast Aggregate Attestation",
+		aggData:  aggData,
+		duty:     core.Duty{Type: core.DutyAggregator},
+		bcastCnt: 1,
+		wantErr:  true,
+		error:    context.Canceled,
+	}
+}
+
+func beaconCommitteeSubscriptionV2Data(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+	t.Helper()
 
 	subscription := testutil.RandomBeaconCommitteeSubscription()
 	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *subscription}
@@ -201,13 +264,93 @@ func TestBroadcastBeaconCommitteeSubscriptionV2(t *testing.T) {
 		return 0, ctx.Err()
 	}
 
-	bcaster, err := bcast.New(ctx, mock)
+	return test{
+		name:     "Broadcast Beacon Committee Subscription V2",
+		aggData:  aggData,
+		duty:     core.Duty{Type: core.DutyPrepareAggregator},
+		bcastCnt: 1,
+		wantErr:  true,
+		error:    context.Canceled,
+	}
+}
+
+func beaconCommitteeSubscriptionV1Data(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+	const (
+		slot    = 1
+		vIdx    = 1
+		commIdx = 1
+		commLen = 43
+	)
+
+	_, secret, err := tbls.KeygenWithSeed(mrand.New(mrand.NewSource(1)))
 	require.NoError(t, err)
 
-	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyPrepareAggregator}, "", aggData)
-	require.ErrorIs(t, err, context.Canceled)
+	sigRoot, err := eth2util.SlotHashRoot(slot)
+	require.NoError(t, err)
 
-	<-ctx.Done()
+	ctx := context.Background()
+
+	slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
+	require.NoError(t, err)
+
+	sigData, err := signing.GetDataRoot(ctx, mock, signing.DomainSelectionProof, eth2p0.Epoch(uint64(1)/slotsPerEpoch), sigRoot)
+	require.NoError(t, err)
+
+	sig, _ := tbls.Sign(secret, sigData[:])
+	blssig := tblsconv.SigToETH2(sig)
+
+	mock.BeaconCommitteesAtEpochFunc = func(_ context.Context, stateID string, epoch eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
+		require.Equal(t, "head", stateID)
+		require.Equal(t, eth2p0.Epoch(uint64(slot)/slotsPerEpoch), epoch)
+
+		var vals []eth2p0.ValidatorIndex
+		for idx := 1; idx <= commLen; idx++ {
+			vals = append(vals, eth2p0.ValidatorIndex(idx))
+		}
+
+		return []*eth2v1.BeaconCommittee{
+			{
+				Slot:       slot,
+				Index:      commIdx,
+				Validators: vals,
+			},
+		}, nil
+	}
+
+	subscription := eth2exp.BeaconCommitteeSubscription{
+		ValidatorIndex: vIdx,
+		Slot:           slot,
+		CommitteeIndex: commIdx,
+		SlotSignature:  blssig,
+	}
+
+	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: subscription}
+
+	mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+		require.Equal(t, aggData.BeaconCommitteeSubscription, *subscriptions[0])
+
+		return nil, errors.New("404 not found")
+	}
+	mock.SubmitBeaconCommitteeSubscriptionsFunc = func(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error {
+		require.Equal(t, eth2v1.BeaconCommitteeSubscription{
+			ValidatorIndex: vIdx,
+			Slot:           slot,
+			CommitteeIndex: commIdx,
+			IsAggregator:   true,
+		}, *subscriptions[0])
+		cancel()
+
+		return ctx.Err()
+	}
+
+	return test{
+		name:     "Broadcast Beacon Committee Subscription V1",
+		aggData:  aggData,
+		duty:     core.Duty{Type: core.DutyPrepareAggregator},
+		bcastCnt: 1,
+		wantErr:  true,
+		error:    context.Canceled,
+	}
 }
 
 func TestBroadcastBeaconCommitteeSubscriptionV1(t *testing.T) {
@@ -285,31 +428,6 @@ func TestBroadcastBeaconCommitteeSubscriptionV1(t *testing.T) {
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyPrepareAggregator}, "", aggData)
-	require.ErrorIs(t, err, context.Canceled)
-
-	<-ctx.Done()
-}
-
-func TestBroadcastAggregateAttestation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	mock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	aggAndProof := testutil.RandomSignedAggregateAndProof()
-	data := core.SignedAggregateAndProof{SignedAggregateAndProof: *aggAndProof}
-
-	mock.SubmitAggregateAttestationsFunc = func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
-		require.Equal(t, aggAndProof, aggregateAndProofs[0])
-		cancel()
-
-		return ctx.Err()
-	}
-
-	bcaster, err := bcast.New(ctx, mock)
-	require.NoError(t, err)
-
-	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyAggregator}, "", data)
-	require.Error(t, err)
 	require.ErrorIs(t, err, context.Canceled)
 
 	<-ctx.Done()
