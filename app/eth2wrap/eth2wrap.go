@@ -106,11 +106,11 @@ func (m multi) Address() string {
 	return m.clients[0].Address()
 }
 
-func (m multi) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+func (m multi) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscription, error) {
 	const label = "submit_beacon_committee_subscriptions_v2"
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+		func(ctx context.Context, cl Client) ([]*eth2exp.BeaconCommitteeSubscription, error) {
 			return cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, subscriptions)
 		},
 		nil,

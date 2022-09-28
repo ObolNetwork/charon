@@ -21,7 +21,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -42,118 +41,11 @@ type eth2Provider interface {
 // TODO(dhruv): Should be removed once it is supported by go-eth2-client.
 type BeaconCommitteeSubscriptionsSubmitterV2 interface {
 	// SubmitBeaconCommitteeSubscriptionsV2 subscribes to beacon committees.
-	SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*BeaconCommitteeSubscription) ([]*BeaconCommitteeSubscriptionResponse, error)
+	SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*BeaconCommitteeSubscription) ([]*BeaconCommitteeSubscription, error)
 }
 
-// BeaconCommitteeSubscription is the data required for a beacon committee subscription.
+// BeaconCommitteeSubscription is the data required for (and returned from) a beacon committee subscription.
 type BeaconCommitteeSubscription struct {
-	// ValidatorIdex is the index of the validator making the subscription request.
-	ValidatorIndex eth2p0.ValidatorIndex
-	// Slot is the slot for which the validator is attesting.
-	Slot eth2p0.Slot
-	// CommitteeIndex is the index of the committee of which the validator is a member at the given slot.
-	CommitteeIndex eth2p0.CommitteeIndex
-	// CommitteesAtSlot is the number of committees at the given slot.
-	CommitteesAtSlot uint64
-	// SlotSignature is the slot signature required to calculate whether the validator is an aggregator.
-	SlotSignature eth2p0.BLSSignature
-}
-
-// beaconCommitteeSubscriptionJSON is the spec representation of the struct.
-type beaconCommitteeSubscriptionJSON struct {
-	ValidatorIndex   string `json:"validator_index"`
-	Slot             string `json:"slot"`
-	CommitteeIndex   string `json:"committee_index"`
-	CommitteesAtSlot string `json:"committees_at_slot"`
-	SlotSignature    string `json:"slot_signature"`
-}
-
-// MarshalJSON implements json.Marshaler.
-func (b *BeaconCommitteeSubscription) MarshalJSON() ([]byte, error) {
-	resp, err := json.Marshal(&beaconCommitteeSubscriptionJSON{
-		ValidatorIndex:   fmt.Sprintf("%d", b.ValidatorIndex),
-		Slot:             fmt.Sprintf("%d", b.Slot),
-		CommitteeIndex:   fmt.Sprintf("%d", b.CommitteeIndex),
-		CommitteesAtSlot: fmt.Sprintf("%d", b.CommitteesAtSlot),
-		SlotSignature:    fmt.Sprintf("%#x", b.SlotSignature),
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal beacon committee subscriptions v2")
-	}
-
-	return resp, nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler.
-func (b *BeaconCommitteeSubscription) UnmarshalJSON(input []byte) error {
-	var err error
-
-	var beaconCommitteeSubscriptionJSON beaconCommitteeSubscriptionJSON
-	if err = json.Unmarshal(input, &beaconCommitteeSubscriptionJSON); err != nil {
-		return errors.Wrap(err, "invalid JSON")
-	}
-	if beaconCommitteeSubscriptionJSON.ValidatorIndex == "" {
-		return errors.New("validator index missing")
-	}
-	validatorIndex, err := strconv.ParseUint(beaconCommitteeSubscriptionJSON.ValidatorIndex, 10, 64)
-	if err != nil {
-		return errors.Wrap(err, "invalid value for validator index")
-	}
-	b.ValidatorIndex = eth2p0.ValidatorIndex(validatorIndex)
-	if beaconCommitteeSubscriptionJSON.Slot == "" {
-		return errors.New("slot missing")
-	}
-	slot, err := strconv.ParseUint(beaconCommitteeSubscriptionJSON.Slot, 10, 64)
-	if err != nil {
-		return errors.Wrap(err, "invalid value for slot")
-	}
-	b.Slot = eth2p0.Slot(slot)
-	if beaconCommitteeSubscriptionJSON.CommitteeIndex == "" {
-		return errors.New("committee index missing")
-	}
-	committeeIndex, err := strconv.ParseUint(beaconCommitteeSubscriptionJSON.CommitteeIndex, 10, 64)
-	if err != nil {
-		return errors.Wrap(err, "invalid value for committee index")
-	}
-	b.CommitteeIndex = eth2p0.CommitteeIndex(committeeIndex)
-	if beaconCommitteeSubscriptionJSON.CommitteesAtSlot == "" {
-		return errors.New("committees at slot missing")
-	}
-	if b.CommitteesAtSlot, err = strconv.ParseUint(beaconCommitteeSubscriptionJSON.CommitteesAtSlot, 10, 64); err != nil {
-		return errors.Wrap(err, "invalid value for committees at slot")
-	}
-	if b.CommitteesAtSlot == 0 {
-		return errors.New("committees at slot cannot be 0")
-	}
-
-	if beaconCommitteeSubscriptionJSON.SlotSignature == "" {
-		return errors.New("slot signature missing")
-	}
-
-	signature, err := hex.DecodeString(strings.TrimPrefix(beaconCommitteeSubscriptionJSON.SlotSignature, "0x"))
-	if err != nil {
-		return errors.Wrap(err, "invalid value for signature")
-	}
-	if len(signature) != eth2p0.SignatureLength {
-		return errors.New("incorrect length for signature")
-	}
-	copy(b.SlotSignature[:], signature)
-
-	return nil
-}
-
-// String returns a string version of the structure.
-func (b *BeaconCommitteeSubscription) String() (string, error) {
-	data, err := json.Marshal(b)
-	if err != nil {
-		return "", errors.Wrap(err, "marshal BeaconCommitteeSubscription")
-	}
-
-	return string(data), nil
-}
-
-// BeaconCommitteeSubscriptionResponse is the response from beacon node after submitting BeaconCommitteeSubscription.
-type BeaconCommitteeSubscriptionResponse struct {
 	// ValidatorIndex is the index of the validator the made the subscription request.
 	ValidatorIndex eth2p0.ValidatorIndex
 	// Slot is the slot for which the validator is attesting.
@@ -168,26 +60,76 @@ type BeaconCommitteeSubscriptionResponse struct {
 	SelectionProof eth2p0.BLSSignature
 }
 
-// CalculateCommitteeSubscriptionResponse returns a BeaconCommitteeSubscriptionResponse with isAggregator field set to true if the validator is an aggregator.
-func CalculateCommitteeSubscriptionResponse(ctx context.Context, eth2Cl eth2Provider, sub *BeaconCommitteeSubscription) (*BeaconCommitteeSubscriptionResponse, error) {
-	committeeLen, err := getCommitteeLength(ctx, eth2Cl, sub.CommitteeIndex, sub.Slot)
+// beaconCommitteeSubscriptionJSON is the spec representation of the struct.
+type beaconCommitteeSubscriptionJSON struct {
+	ValidatorIndex   uint64 `json:"validator_index,string"`
+	Slot             uint64 `json:"slot,string"`
+	CommitteeIndex   uint64 `json:"committee_index,string"`
+	CommitteesAtSlot uint64 `json:"committees_at_slot,string"`
+	SelectionProof   string `json:"selection_proof"`
+}
+
+// MarshalJSON implements json.Marshaler.
+func (b *BeaconCommitteeSubscription) MarshalJSON() ([]byte, error) {
+	resp, err := json.Marshal(&beaconCommitteeSubscriptionJSON{
+		ValidatorIndex:   uint64(b.ValidatorIndex),
+		Slot:             uint64(b.Slot),
+		CommitteeIndex:   uint64(b.CommitteeIndex),
+		CommitteesAtSlot: b.CommitteesAtSlot,
+		SelectionProof:   fmt.Sprintf("%#x", b.SelectionProof),
+	})
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "marshal beacon committee subscriptions v2")
 	}
 
-	isAgg, err := isAggregator(ctx, eth2Cl, uint64(committeeLen), sub.SlotSignature)
-	if err != nil {
-		return nil, err
+	return resp, nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (b *BeaconCommitteeSubscription) UnmarshalJSON(input []byte) error {
+	var err error
+
+	var subJSON beaconCommitteeSubscriptionJSON
+	if err = json.Unmarshal(input, &subJSON); err != nil {
+		return errors.Wrap(err, "unmarshal json")
 	}
 
-	return &BeaconCommitteeSubscriptionResponse{
-		ValidatorIndex:   sub.ValidatorIndex,
-		Slot:             sub.Slot,
-		CommitteeIndex:   sub.CommitteeIndex,
-		CommitteesAtSlot: sub.CommitteesAtSlot,
-		SelectionProof:   sub.SlotSignature,
-		IsAggregator:     isAgg,
-	}, nil
+	b.Slot = eth2p0.Slot(subJSON.Slot)
+	b.ValidatorIndex = eth2p0.ValidatorIndex(subJSON.ValidatorIndex)
+	b.CommitteeIndex = eth2p0.CommitteeIndex(subJSON.CommitteeIndex)
+	b.CommitteesAtSlot = subJSON.CommitteesAtSlot
+
+	signature, err := hex.DecodeString(strings.TrimPrefix(subJSON.SelectionProof, "0x"))
+	if err != nil {
+		return errors.Wrap(err, "invalid value for signature")
+	} else if len(signature) != eth2p0.SignatureLength {
+		return errors.New("incorrect length for signature")
+	}
+	copy(b.SelectionProof[:], signature)
+
+	return nil
+}
+
+// String returns a string version of the structure.
+func (b *BeaconCommitteeSubscription) String() (string, error) {
+	data, err := json.Marshal(b)
+	if err != nil {
+		return "", errors.Wrap(err, "marshal BeaconCommitteeSubscription")
+	}
+
+	return string(data), nil
+}
+
+// IsAttestationAggregator returns true if in the slot signature proves an attestation aggregator.
+func IsAttestationAggregator(ctx context.Context, eth2Cl eth2Provider, slot eth2p0.Slot,
+	committeeIndex eth2p0.CommitteeIndex, slotSig eth2p0.BLSSignature,
+) (bool, error) {
+	committeeLen, err := getCommitteeLength(ctx, eth2Cl, committeeIndex, slot)
+	if err != nil {
+		return false, err
+	}
+
+	return isAggregator(ctx, eth2Cl, uint64(committeeLen), slotSig)
 }
 
 // isAggregator returns true if the validator is the attestation aggregator for the given committee.

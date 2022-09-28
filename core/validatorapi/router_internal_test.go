@@ -587,7 +587,7 @@ func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
 	require.NoError(t, err)
 
 	// Submit subscriptions to beaconmock through validatorapi.
-	expected := []*eth2exp.BeaconCommitteeSubscriptionResponse{
+	expected := []*eth2exp.BeaconCommitteeSubscription{
 		{ValidatorIndex: vIdxA, IsAggregator: true},
 		{ValidatorIndex: vIdxB, IsAggregator: true},
 		{ValidatorIndex: vIdxC, IsAggregator: false},
@@ -599,21 +599,22 @@ func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
 			ValidatorIndex:   vIdxA,
 			CommitteesAtSlot: rand.Uint64(),
 			CommitteeIndex:   eth2p0.CommitteeIndex(rand.Uint64()),
-			SlotSignature:    testutil.RandomEth2Signature(),
+			SelectionProof:   testutil.RandomEth2Signature(),
+			IsAggregator:     testutil.RandomBool(),
 		},
 		{
 			Slot:             slotB,
 			ValidatorIndex:   vIdxB,
 			CommitteesAtSlot: rand.Uint64(),
 			CommitteeIndex:   eth2p0.CommitteeIndex(rand.Uint64()),
-			SlotSignature:    testutil.RandomEth2Signature(),
+			SelectionProof:   testutil.RandomEth2Signature(),
 		},
 		{
 			Slot:             slotA,
 			ValidatorIndex:   vIdxC,
 			CommitteesAtSlot: rand.Uint64(),
 			CommitteeIndex:   eth2p0.CommitteeIndex(rand.Uint64()),
-			SlotSignature:    testutil.RandomEth2Signature(),
+			SelectionProof:   testutil.RandomEth2Signature(),
 		},
 	}
 
@@ -717,7 +718,7 @@ type testHandler struct {
 	ValidatorsByPubKeyFunc                   func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	SubmitVoluntaryExitFunc                  func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
 	SubmitValidatorRegistrationsFunc         func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
-	SubmitBeaconCommitteeSubscriptionsV2Func func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error)
+	SubmitBeaconCommitteeSubscriptionsV2Func func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscription, error)
 	SubmitAggregateAttestationsFunc          func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
 }
 
@@ -765,7 +766,7 @@ func (h testHandler) SubmitValidatorRegistrations(ctx context.Context, registrat
 	return h.SubmitValidatorRegistrationsFunc(ctx, registrations)
 }
 
-func (h testHandler) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+func (h testHandler) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscription, error) {
 	return h.SubmitBeaconCommitteeSubscriptionsV2Func(ctx, subscriptions)
 }
 

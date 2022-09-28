@@ -199,7 +199,7 @@ func VerifyBeaconCommitteeSubscription(ctx context.Context, eth2Cl eth2wrap.Clie
 		return err
 	}
 
-	return verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, sub.SlotSignature, pubkey)
+	return verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, sub.SelectionProof, pubkey)
 }
 
 func VerifyAggregateAndProof(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.SignedAggregateAndProof) error {

@@ -61,11 +61,12 @@ func TestCalculateCommitteeSubscriptionResponse(t *testing.T) {
 	require.NoError(t, err)
 	blssig := tblsconv.SigToETH2(sig)
 
-	subscription := eth2exp.BeaconCommitteeSubscription{
+	sub := eth2exp.BeaconCommitteeSubscription{
 		ValidatorIndex: eth2p0.ValidatorIndex(1),
 		Slot:           slot,
 		CommitteeIndex: commIdx,
-		SlotSignature:  blssig,
+		SelectionProof: blssig,
+		IsAggregator:   false,
 	}
 
 	t.Run("aggregator", func(t *testing.T) {
@@ -74,10 +75,9 @@ func TestCalculateCommitteeSubscriptionResponse(t *testing.T) {
 			return []*eth2v1.BeaconCommittee{beaconCommittee(commLen)}, nil
 		}
 
-		resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &subscription)
+		isAggregator, err := eth2exp.IsAttestationAggregator(ctx, bmock, sub.Slot, sub.CommitteeIndex, sub.SelectionProof)
 		require.NoError(t, err)
-		require.Equal(t, resp.ValidatorIndex, subscription.ValidatorIndex)
-		require.True(t, resp.IsAggregator)
+		require.True(t, isAggregator)
 	})
 
 	t.Run("not an aggregator", func(t *testing.T) {
@@ -86,10 +86,9 @@ func TestCalculateCommitteeSubscriptionResponse(t *testing.T) {
 			return []*eth2v1.BeaconCommittee{beaconCommittee(commLen)}, nil
 		}
 
-		resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &subscription)
+		isAggregator, err := eth2exp.IsAttestationAggregator(ctx, bmock, sub.Slot, sub.CommitteeIndex, sub.SelectionProof)
 		require.NoError(t, err)
-		require.Equal(t, resp.ValidatorIndex, subscription.ValidatorIndex)
-		require.False(t, resp.IsAggregator)
+		require.False(t, isAggregator)
 	})
 }
 

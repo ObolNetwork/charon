@@ -39,11 +39,11 @@ type httpAdapter struct {
 }
 
 type submitBeaconCommitteeSubscriptionsV2JSON struct {
-	Data []*eth2exp.BeaconCommitteeSubscriptionResponse `json:"data"`
+	Data []*eth2exp.BeaconCommitteeSubscription `json:"data"`
 }
 
 // SubmitBeaconCommitteeSubscriptionsV2 implements eth2exp.BeaconCommitteeSubscriptionsSubmitterV2.
-func (h httpAdapter) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+func (h httpAdapter) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscription, error) {
 	reqBody, err := json.Marshal(subscriptions)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal submit beacon committee subscriptions V2 request")

@@ -1248,7 +1248,7 @@ func TestComponent_SubmitBeaconCommitteeSubscriptionsV2(t *testing.T) {
 			ValidatorIndex: vIdx,
 			Slot:           slot,
 			CommitteeIndex: commIdx,
-			SlotSignature:  blssig,
+			SelectionProof: blssig,
 		},
 	}
 
@@ -1258,7 +1258,7 @@ func TestComponent_SubmitBeaconCommitteeSubscriptionsV2(t *testing.T) {
 		return core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *subs[0]}, nil
 	})
 
-	expected := []*eth2exp.BeaconCommitteeSubscriptionResponse{
+	expected := []*eth2exp.BeaconCommitteeSubscription{
 		{
 			Slot:           slot,
 			CommitteeIndex: commIdx,
@@ -1303,7 +1303,7 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, eth2Pubkey, pubkey)
 
-		return core.NewBeaconCommitteeSubscription(&eth2exp.BeaconCommitteeSubscription{SlotSignature: agg.Message.SelectionProof}), nil
+		return core.NewBeaconCommitteeSubscription(&eth2exp.BeaconCommitteeSubscription{SelectionProof: agg.Message.SelectionProof}), nil
 	})
 
 	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {

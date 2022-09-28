@@ -52,6 +52,11 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
+// RandomBool returns a random boolean.
+func RandomBool() bool {
+	return rand.Float64() < 0.5
+}
+
 // RandomCorePubKey returns a random core workflow pubkey.
 func RandomCorePubKey(t *testing.T) core.PubKey {
 	t.Helper()
@@ -343,7 +348,8 @@ func RandomBeaconCommitteeSubscription() *eth2exp.BeaconCommitteeSubscription {
 		Slot:             RandomSlot(),
 		CommitteeIndex:   RandomCommIdx(),
 		CommitteesAtSlot: rand.Uint64(),
-		SlotSignature:    RandomEth2Signature(),
+		SelectionProof:   RandomEth2Signature(),
+		IsAggregator:     RandomBool(),
 	}
 }
 
@@ -355,7 +361,8 @@ func RandomSignedBeaconCommitteeSubscription(vIdx, slot, commIdx int) core.Signe
 			Slot:             eth2p0.Slot(slot),
 			CommitteeIndex:   eth2p0.CommitteeIndex(commIdx),
 			CommitteesAtSlot: rand.Uint64(),
-			SlotSignature:    RandomEth2Signature(),
+			SelectionProof:   RandomEth2Signature(),
+			IsAggregator:     RandomBool(),
 		},
 	}
 }

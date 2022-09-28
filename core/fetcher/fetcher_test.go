@@ -103,7 +103,7 @@ func TestFetchAggregator(t *testing.T) {
 		vIdxB = 3
 	)
 
-	commLen := 0 // commLen of 0, results in eth2exp.CalculateCommitteeSubscriptionResponse to always return IsAggregator=true
+	commLen := 0 // commLen of 0, results in eth2exp.IsAttestationAggregator to always return IsAggregator=true
 	nilAggregate := false
 
 	duty := core.NewAggregatorDuty(slot)
@@ -188,22 +188,22 @@ func TestFetchAggregator(t *testing.T) {
 	require.ErrorIs(t, err, done)
 
 	// Test no aggregators for slot
-	// First find a committee length that results in eth2exp.CalculateCommitteeSubscriptionResponse to return IsAggregator=false
+	// First find a committee length that results in eth2exp.IsAttestationAggregator to return IsAggregator=false
 	var foundNoAggLen bool
 	for commLen = 1000; commLen < 1200; commLen++ {
-		var isAgg bool
+		var isAnyAgg bool
 		for _, vIdx := range []int{vIdxA, vIdxB} {
 			sub := signedCommSubByPubKey[pubkeysByIdx[eth2p0.ValidatorIndex(vIdx)]].(core.SignedBeaconCommitteeSubscription)
-			resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &sub.BeaconCommitteeSubscription)
+			isAgg, err := eth2exp.IsAttestationAggregator(ctx, bmock, sub.Slot, sub.CommitteeIndex, sub.SelectionProof)
 			require.NoError(t, err)
 
-			if resp.IsAggregator {
-				isAgg = true
+			if isAgg {
+				isAnyAgg = true
 				break
 			}
 		}
 
-		if !isAgg {
+		if !isAnyAgg {
 			foundNoAggLen = true
 			break
 		}

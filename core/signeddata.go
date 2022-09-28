@@ -714,7 +714,7 @@ type SignedBeaconCommitteeSubscription struct {
 }
 
 func (s SignedBeaconCommitteeSubscription) Signature() Signature {
-	return SigFromETH2(s.SlotSignature)
+	return SigFromETH2(s.SelectionProof)
 }
 
 func (s SignedBeaconCommitteeSubscription) SetSignature(sig Signature) (SignedData, error) {
@@ -723,7 +723,7 @@ func (s SignedBeaconCommitteeSubscription) SetSignature(sig Signature) (SignedDa
 		return nil, err
 	}
 
-	resp.SlotSignature = sig.ToETH2()
+	resp.SelectionProof = sig.ToETH2()
 
 	return resp, nil
 }

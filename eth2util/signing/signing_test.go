@@ -222,6 +222,8 @@ func TestVerifyBeaconCommitteeSubscription(t *testing.T) {
 		ValidatorIndex:   testutil.RandomVIdx(),
 		CommitteesAtSlot: rand.Uint64(),
 		CommitteeIndex:   eth2p0.CommitteeIndex(rand.Uint64()),
+		IsAggregator:     testutil.RandomBool(),
+		SelectionProof:   testutil.RandomEth2Signature(),
 	}
 
 	sigRoot, err := eth2util.SlotHashRoot(sub.Slot)
@@ -235,7 +237,7 @@ func TestVerifyBeaconCommitteeSubscription(t *testing.T) {
 	require.NoError(t, err)
 
 	sig, pubkey := sign(t, sigData[:])
-	sub.SlotSignature = tblsconv.SigToETH2(sig)
+	sub.SelectionProof = tblsconv.SigToETH2(sig)
 
 	require.NoError(t, signing.VerifyBeaconCommitteeSubscription(context.Background(), bmock, pubkey, sub))
 }

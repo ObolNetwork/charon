@@ -189,11 +189,11 @@ func TestBroadcastBeaconCommitteeSubscriptionV2(t *testing.T) {
 	subscription := testutil.RandomBeaconCommitteeSubscription()
 	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *subscription}
 
-	mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscription, error) {
 		require.Equal(t, aggData.BeaconCommitteeSubscription, *subscriptions[0])
 		cancel()
 
-		return []*eth2exp.BeaconCommitteeSubscriptionResponse{}, ctx.Err()
+		return []*eth2exp.BeaconCommitteeSubscription{}, ctx.Err()
 	}
 
 	// To avoid further call to v1 SubmitBeaconCommitteeSubscriptions.
@@ -260,11 +260,11 @@ func TestBroadcastBeaconCommitteeSubscriptionV1(t *testing.T) {
 		ValidatorIndex: vIdx,
 		Slot:           slot,
 		CommitteeIndex: commIdx,
-		SlotSignature:  blssig,
+		SelectionProof: blssig,
 	}
 	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: subscription}
 
-	mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+	mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscription, error) {
 		require.Equal(t, aggData.BeaconCommitteeSubscription, *subscriptions[0])
 
 		return nil, errors.New("404 not found")

@@ -35,7 +35,7 @@ import (
 type (
 	validators map[eth2p0.ValidatorIndex]*eth2v1.Validator
 	duties     []*eth2v1.AttesterDuty
-	selections []*eth2exp.BeaconCommitteeSubscriptionResponse
+	selections []*eth2exp.BeaconCommitteeSubscription
 	datas      []*eth2p0.AttestationData
 )
 
@@ -228,12 +228,18 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 			return nil, err
 		}
 
+		isAggregator, err := eth2exp.IsAttestationAggregator(ctx, eth2Cl, duty.Slot, duty.CommitteeIndex, slotSig)
+		if err != nil {
+			return nil, err
+		}
+
 		subs = append(subs, &eth2exp.BeaconCommitteeSubscription{
 			ValidatorIndex:   duty.ValidatorIndex,
 			Slot:             duty.Slot,
 			CommitteeIndex:   duty.CommitteeIndex,
 			CommitteesAtSlot: duty.CommitteesAtSlot,
-			SlotSignature:    slotSig,
+			SelectionProof:   slotSig,
+			IsAggregator:     isAggregator,
 		})
 	}
 

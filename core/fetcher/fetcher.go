@@ -162,20 +162,20 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 			return core.UnsignedDataSet{}, errors.New("invalid beacon committee subscription")
 		}
 
-		res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, f.eth2Cl, &sub.BeaconCommitteeSubscription)
+		isAggregator, err := eth2exp.IsAttestationAggregator(ctx, f.eth2Cl, sub.Slot, sub.CommitteeIndex, sub.SelectionProof)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
 
 		// This validator isn't an aggregator for this slot.
-		if !res.IsAggregator {
+		if !isAggregator {
 			log.Debug(ctx, "Not selected for attester aggregation duty", z.Any("pubkey", pubkey))
 			continue
 		}
 		log.Info(ctx, "Resolved attester aggregation duty", z.Any("pubkey", pubkey))
 
 		// Query DutyDB for Attestation data to get attestation data root.
-		attData, err := f.awaitAttDataFunc(ctx, slot, int64(res.CommitteeIndex))
+		attData, err := f.awaitAttDataFunc(ctx, slot, int64(sub.CommitteeIndex))
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}

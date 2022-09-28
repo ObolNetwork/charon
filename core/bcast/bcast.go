@@ -158,18 +158,18 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		log.Debug(ctx, "V2 submit beacon committee subscriptions failed")
 
 		// Beacon node doesn't support v2 SubmitBeaconCommitteeSubscriptions endpoint (yet). Try with v1.
-		res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, b.eth2Cl, &sub.BeaconCommitteeSubscription)
+		isAggregator, err := eth2exp.IsAttestationAggregator(ctx, b.eth2Cl, sub.Slot, sub.CommitteeIndex, sub.SelectionProof)
 		if err != nil {
 			return err
 		}
 
 		subs := []*eth2v1.BeaconCommitteeSubscription{
 			{
-				ValidatorIndex:   res.ValidatorIndex,
-				Slot:             res.Slot,
-				CommitteeIndex:   res.CommitteeIndex,
-				CommitteesAtSlot: res.CommitteesAtSlot,
-				IsAggregator:     res.IsAggregator,
+				ValidatorIndex:   sub.ValidatorIndex,
+				Slot:             sub.Slot,
+				CommitteeIndex:   sub.CommitteeIndex,
+				CommitteesAtSlot: sub.CommitteesAtSlot,
+				IsAggregator:     isAggregator,
 			},
 		}
 
