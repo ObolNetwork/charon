@@ -104,6 +104,7 @@ func TestFetchAggregator(t *testing.T) {
 	)
 
 	commLen := 0 // commLen of 0, results in eth2exp.CalculateCommitteeSubscriptionResponse to always return IsAggregator=true
+	nilAggregate := false
 
 	duty := core.NewAggregatorDuty(slot)
 
@@ -139,6 +140,9 @@ func TestFetchAggregator(t *testing.T) {
 	}
 
 	bmock.AggregateAttestationFunc = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
+		if nilAggregate {
+			return nil, nil //nolint:nilnil // This reproduces what go-eth2-client does
+		}
 		for _, att := range attByCommIdx {
 			dataRoot, err := att.Data.HashTreeRoot()
 			require.NoError(t, err)
@@ -147,7 +151,7 @@ func TestFetchAggregator(t *testing.T) {
 			}
 		}
 
-		return &eth2p0.Attestation{}, nil
+		return nil, errors.New("expected unknown root")
 	}
 
 	fetch, err := fetcher.New(bmock)
@@ -208,6 +212,13 @@ func TestFetchAggregator(t *testing.T) {
 
 	err = fetch.Fetch(ctx, duty, defSet)
 	require.NoError(t, err)
+
+	// Test nil, nil AggregateAttestation response.
+	commLen = 0
+	nilAggregate = true
+
+	err = fetch.Fetch(ctx, duty, defSet)
+	require.ErrorContains(t, err, "aggregate attestation not found by root (retryable)")
 }
 
 func TestFetchProposer(t *testing.T) {

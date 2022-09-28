@@ -193,7 +193,7 @@ func (m multi) AggregateAttestation(ctx context.Context, slot phase0.Slot, attes
 		func(ctx context.Context, cl Client) (*phase0.Attestation, error) {
 			return cl.AggregateAttestation(ctx, slot, attestationDataRoot)
 		},
-		nil,
+		isAggregateAttestationOk,
 	)
 
 	if err != nil {

@@ -189,6 +189,10 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 		aggAtt, err := f.eth2Cl.AggregateAttestation(ctx, eth2p0.Slot(slot), dataRoot)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
+		} else if aggAtt == nil {
+			// Some beacon nodes return nil if the root is not found, return retryable error.
+			// This could happen if the beacon node didn't subscribe to the correct subnet.
+			return core.UnsignedDataSet{}, errors.New("aggregate attestation not found by root (retryable)", z.Hex("root", dataRoot[:]))
 		}
 
 		resp[pubkey] = core.AggregatedAttestation{
