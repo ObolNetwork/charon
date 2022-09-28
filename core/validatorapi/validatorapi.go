@@ -263,8 +263,6 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 		duty := core.NewAttesterDuty(slot)
 		ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
-		log.Debug(ctx, "Attestation(s) submitted by validator client")
-
 		for _, sub := range c.subs {
 			// No need to clone since sub auto clones.
 			err := sub(ctx, duty, set)
@@ -362,6 +360,7 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 	}
 
 	log.Debug(ctx, "Beacon block submitted by validator client")
+
 	signedData, err := core.NewPartialVersionedSignedBeaconBlock(block, c.shareIdx)
 	if err != nil {
 		return err
@@ -515,8 +514,6 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 	if err != nil {
 		return err
 	}
-
-	log.Debug(ctx, "Builder registration submitted by validator client")
 
 	signedData, err := core.NewPartialVersionedSignedValidatorRegistration(registration, c.shareIdx)
 	if err != nil {

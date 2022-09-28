@@ -167,7 +167,7 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 		return nil
 	}
 
-	log.Debug(ctx, "Starting qbft consensus instance", z.Any("duty", duty))
+	log.Debug(ctx, "QBFT consensus instance starting", z.Any("duty", duty))
 
 	// Hash the proposed data, since qbft ony supports simple comparable values.
 	value, err := core.UnsignedDataSetToProto(data)

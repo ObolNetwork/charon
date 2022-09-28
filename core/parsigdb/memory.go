@@ -91,14 +91,14 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 		if err != nil {
 			return err
 		} else if !ok {
-			log.Debug(ctx, "Not storing duplicate partial signed data",
-				z.Any("pubkey", pubkey), z.Int("share_idx", sig.ShareIdx))
+			log.Debug(ctx, "Partial signed data ignored since duplicate")
 
 			continue
 		}
 
-		log.Debug(ctx, "Stored partial signed data",
-			z.Any("pubkey", pubkey), z.Int("count", len(sigs)), z.Int("share_idx", sig.ShareIdx))
+		log.Debug(ctx, "Partial signed data stored",
+			z.Int("count", len(sigs)),
+			z.Any("pubkey", pubkey))
 
 		// Call the threshSubs (which includes SigAgg component) if sufficient signatures have been received.
 		if len(sigs) != db.threshold {
