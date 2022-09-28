@@ -55,12 +55,6 @@ var (
 		Help:      "Set to 1 if monitoring api `/readyz` endpoint returned 200 or else 0",
 	})
 
-	lockHashGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "cluster",
-		Name:      "lock_hash",
-		Help:      "Constant gauge with label set to current cluster lock hash",
-	}, []string{"lock_hash"})
-
 	thresholdGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "cluster",
 		Name:      "threshold",
@@ -86,14 +80,13 @@ var (
 	}, []string{"network"})
 )
 
-func initStartupMetrics(lockHash, peerName string, threshold, numOperators, numValidators int, forkVersion []byte) {
+func initStartupMetrics(peerName string, threshold, numOperators, numValidators int, forkVersion []byte) {
 	startGauge.SetToCurrentTime()
 	setNetworkGauge(forkVersion)
 
 	hash, _ := version.GitCommit()
 	gitGauge.WithLabelValues(hash).Set(1)
 	versionGauge.WithLabelValues(version.Version).Set(1)
-	lockHashGauge.WithLabelValues(lockHash).Set(1)
 	peerNameGauge.WithLabelValues(peerName).Set(1)
 
 	thresholdGauge.Set(float64(threshold))

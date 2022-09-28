@@ -201,7 +201,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	initStartupMetrics(
-		lockHashHex,
 		p2p.PeerName(tcpNode.ID()),
 		lock.Threshold,
 		len(lock.Operators),
