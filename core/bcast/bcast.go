@@ -76,7 +76,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 			err = nil
 		}
 		if err == nil {
-			log.Info(ctx, "Attestation successfully submitted to beacon node",
+			log.Info(ctx, "Successfully submitted attestation to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
@@ -90,7 +90,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 
 		err = b.eth2Cl.SubmitBeaconBlock(ctx, &block.VersionedSignedBeaconBlock)
 		if err == nil {
-			log.Info(ctx, "Block proposal successfully submitted to beacon node",
+			log.Info(ctx, "Successfully submitted block proposal to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
@@ -105,7 +105,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 
 		err = b.eth2Cl.SubmitBlindedBeaconBlock(ctx, &block.VersionedSignedBlindedBeaconBlock)
 		if err == nil {
-			log.Info(ctx, "Blinded block proposal successfully submitted to beacon node",
+			log.Info(ctx, "Successfully submitted blinded block proposal to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
@@ -120,7 +120,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 
 		err = b.eth2Cl.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{&registration.VersionedSignedValidatorRegistration})
 		if err == nil {
-			log.Info(ctx, "Validator registration successfully submitted to beacon node",
+			log.Info(ctx, "Successfully submitted validator registration to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
@@ -135,7 +135,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 
 		err = b.eth2Cl.SubmitVoluntaryExit(ctx, &exit.SignedVoluntaryExit)
 		if err == nil {
-			log.Info(ctx, "Voluntary exit successfully submitted to beacon node",
+			log.Info(ctx, "Successfully submitted voluntary exit to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
@@ -155,27 +155,25 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 			return nil
 		}
 
-		log.Debug(ctx, "V2 submit beacon committee subscriptions failed")
+		// Ignore error as beacon node probably doesn't support v2 SubmitBeaconCommitteeSubscriptions
+		// endpoint (yet). Just try again with v1.
 
-		// Beacon node doesn't support v2 SubmitBeaconCommitteeSubscriptions endpoint (yet). Try with v1.
 		res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, b.eth2Cl, &sub.BeaconCommitteeSubscription)
 		if err != nil {
 			return err
 		}
 
-		subs := []*eth2v1.BeaconCommitteeSubscription{
-			{
-				ValidatorIndex:   res.ValidatorIndex,
-				Slot:             res.Slot,
-				CommitteeIndex:   res.CommitteeIndex,
-				CommitteesAtSlot: res.CommitteesAtSlot,
-				IsAggregator:     res.IsAggregator,
-			},
-		}
+		subs := []*eth2v1.BeaconCommitteeSubscription{{
+			ValidatorIndex:   res.ValidatorIndex,
+			Slot:             res.Slot,
+			CommitteeIndex:   res.CommitteeIndex,
+			CommitteesAtSlot: res.CommitteesAtSlot,
+			IsAggregator:     res.IsAggregator,
+		}}
 
 		err = b.eth2Cl.SubmitBeaconCommitteeSubscriptions(ctx, subs)
 		if err == nil {
-			log.Info(ctx, "Beacon committee subscription successfully submitted to beacon node",
+			log.Info(ctx, "Successfully submitted beacon committee subscription to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)))
 		}
 
@@ -188,7 +186,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 
 		err = b.eth2Cl.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{&aggAndProof.SignedAggregateAndProof})
 		if err == nil {
-			log.Info(ctx, "Attestation aggregation successfully submitted to beacon node",
+			log.Info(ctx, "Successfully submitted attestation aggregation to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)))
 		}
 

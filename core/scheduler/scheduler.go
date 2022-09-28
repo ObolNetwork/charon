@@ -18,6 +18,7 @@ package scheduler
 import (
 	"context"
 	"math"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -280,6 +281,11 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 		remaining[index] = true
 	}
 
+	// Sort so logging below in ascending slot order.
+	sort.Slice(attDuties, func(i, j int) bool {
+		return attDuties[i].Slot < attDuties[j].Slot
+	})
+
 	for _, attDuty := range attDuties {
 		delete(remaining, attDuty.ValidatorIndex)
 
@@ -301,11 +307,11 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 		}
 
 		log.Info(ctx, "Resolved attester duty",
-			z.U64("epoch", uint64(slot.Epoch())),
-			z.U64("vidx", uint64(attDuty.ValidatorIndex)),
 			z.U64("slot", uint64(attDuty.Slot)),
-			z.U64("commidx", uint64(attDuty.CommitteeIndex)),
-			z.Any("pubkey", pubkey))
+			z.U64("vidx", uint64(attDuty.ValidatorIndex)),
+			z.Any("pubkey", pubkey),
+			z.U64("epoch", uint64(slot.Epoch())),
+		)
 
 		// Schedule aggregation duty as well.
 		aggDuty := core.NewAggregatorDuty(int64(attDuty.Slot))

@@ -169,7 +169,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 
 		// This validator isn't an aggregator for this slot.
 		if !res.IsAggregator {
-			log.Debug(ctx, "Not selected for attester aggregation duty", z.Any("pubkey", pubkey))
+			log.Debug(ctx, "Attester not selected for aggregation duty", z.Any("pubkey", pubkey))
 			continue
 		}
 		log.Info(ctx, "Resolved attester aggregation duty", z.Any("pubkey", pubkey))
