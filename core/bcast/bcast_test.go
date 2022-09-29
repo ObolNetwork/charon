@@ -45,56 +45,51 @@ type test struct {
 	bcastCnt int             // The no of times Broadcast() needs to be called
 	wantErr  bool            // True if error is expected
 	error    error           // Error type
-	mock     beaconmock.Mock // Beaconmock with specific override function set for the test
+	mock     beaconmock.Mock // Beaconmock
 }
 
 func TestBroadcast(t *testing.T) {
-	mock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
-	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tests := genTestData(t, &mock, cancel)
-
-	bcaster, err := bcast.New(ctx, mock)
-	require.NoError(t, err)
+	tests := []test{
+		attData(t),                                   // Attestation
+		beaconBlockData(t, cancel),                   // BeaconBlock
+		blindedBeaconBlockData(t, cancel),            // BlindedBeaconBlock
+		validatorRegistrationData(t, cancel),         // ValidatorRegistration
+		validatorExitData(t, cancel),                 // ValidatorExit
+		aggregateAttestationData(t, cancel),          // AggregateAttestation
+		beaconCommitteeSubscriptionV1Data(t, cancel), // BeaconCommitteeSubscriptionV1
+		beaconCommitteeSubscriptionV2Data(t, cancel), // BeaconCommitteeSubscriptionV2
+	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			bcaster, err := bcast.New(ctx, test.mock)
+			require.NoError(t, err)
+
 			for i := 0; i < test.bcastCnt; i++ {
 				err := bcaster.Broadcast(ctx, test.duty, testutil.RandomCorePubKey(t), test.aggData)
 				if test.wantErr {
 					require.Error(t, err)
 					continue
 				}
+
 				require.NoError(t, err)
 			}
 		})
 	}
 }
 
-// genTestData generates test data for individual duties and sets mock eth2wrap.Client methods on the input beaconmock.
-func genTestData(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) []test {
-	t.Helper()
-
-	var tests []test
-	tests = append(tests, attData(t, mock))                                   // Attestation
-	tests = append(tests, beaconBlockData(t, mock, cancel))                   // BeaconBlock
-	tests = append(tests, blindedBeaconBlockData(t, mock, cancel))            // BlindedBeaconBlock
-	tests = append(tests, validatorRegistrationData(t, mock, cancel))         // ValidatorRegistration
-	tests = append(tests, validatorExitData(t, mock, cancel))                 // ValidatorExit
-	tests = append(tests, aggregateAttestationData(t, mock, cancel))          // AggregateAttestation
-	tests = append(tests, beaconCommitteeSubscriptionV2Data(t, mock, cancel)) // BeaconCommitteeSubscriptionV2
-	tests = append(tests, beaconCommitteeSubscriptionV1Data(t, mock, cancel))
-	return tests
-}
-
-func attData(t *testing.T, mock *beaconmock.Mock) test {
+func attData(t *testing.T) test {
 	t.Helper()
 
 	att := core.Attestation{Attestation: *testutil.RandomAttestation()}
 
 	// Assert output and return lighthouse known error on duplicates
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
+
 	var submitted int
 	mock.SubmitAttestationsFunc = func(ctx context.Context, attestations []*eth2p0.Attestation) error {
 		require.Len(t, attestations, 1)
@@ -115,11 +110,15 @@ func attData(t *testing.T, mock *beaconmock.Mock) test {
 		duty:     core.Duty{Type: core.DutyAttester},
 		bcastCnt: 2,
 		wantErr:  false,
+		mock:     mock,
 	}
 }
 
-func beaconBlockData(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+func beaconBlockData(t *testing.T, cancel context.CancelFunc) test {
 	t.Helper()
+
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
 
 	block1 := spec.VersionedSignedBeaconBlock{
 		Version: spec.DataVersionPhase0,
@@ -145,11 +144,15 @@ func beaconBlockData(t *testing.T, mock *beaconmock.Mock, cancel context.CancelF
 		bcastCnt: 1,
 		wantErr:  true,
 		error:    context.Canceled,
+		mock:     mock,
 	}
 }
 
-func blindedBeaconBlockData(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+func blindedBeaconBlockData(t *testing.T, cancel context.CancelFunc) test {
 	t.Helper()
+
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
 
 	block1 := eth2api.VersionedSignedBlindedBeaconBlock{
 		Version: spec.DataVersionBellatrix,
@@ -175,11 +178,15 @@ func blindedBeaconBlockData(t *testing.T, mock *beaconmock.Mock, cancel context.
 		bcastCnt: 1,
 		wantErr:  true,
 		error:    context.Canceled,
+		mock:     mock,
 	}
 }
 
-func validatorRegistrationData(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+func validatorRegistrationData(t *testing.T, cancel context.CancelFunc) test {
 	t.Helper()
+
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
 
 	registration := testutil.RandomCoreVersionedSignedValidatorRegistration(t).VersionedSignedValidatorRegistration
 	aggData := core.VersionedSignedValidatorRegistration{VersionedSignedValidatorRegistration: registration}
@@ -198,11 +205,15 @@ func validatorRegistrationData(t *testing.T, mock *beaconmock.Mock, cancel conte
 		bcastCnt: 1,
 		wantErr:  true,
 		error:    context.Canceled,
+		mock:     mock,
 	}
 }
 
-func validatorExitData(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+func validatorExitData(t *testing.T, cancel context.CancelFunc) test {
 	t.Helper()
+
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
 
 	aggData := core.SignedVoluntaryExit{SignedVoluntaryExit: *testutil.RandomExit()}
 
@@ -220,11 +231,15 @@ func validatorExitData(t *testing.T, mock *beaconmock.Mock, cancel context.Cance
 		bcastCnt: 1,
 		wantErr:  true,
 		error:    context.Canceled,
+		mock:     mock,
 	}
 }
 
-func aggregateAttestationData(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+func aggregateAttestationData(t *testing.T, cancel context.CancelFunc) test {
 	t.Helper()
+
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
 
 	aggAndProof := testutil.RandomSignedAggregateAndProof()
 	aggData := core.SignedAggregateAndProof{SignedAggregateAndProof: *aggAndProof}
@@ -243,11 +258,15 @@ func aggregateAttestationData(t *testing.T, mock *beaconmock.Mock, cancel contex
 		bcastCnt: 1,
 		wantErr:  true,
 		error:    context.Canceled,
+		mock:     mock,
 	}
 }
 
-func beaconCommitteeSubscriptionV2Data(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+func beaconCommitteeSubscriptionV2Data(t *testing.T, cancel context.CancelFunc) test {
 	t.Helper()
+
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
 
 	subscription := testutil.RandomBeaconCommitteeSubscription()
 	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *subscription}
@@ -271,10 +290,13 @@ func beaconCommitteeSubscriptionV2Data(t *testing.T, mock *beaconmock.Mock, canc
 		bcastCnt: 1,
 		wantErr:  true,
 		error:    context.Canceled,
+		mock:     mock,
 	}
 }
 
-func beaconCommitteeSubscriptionV1Data(t *testing.T, mock *beaconmock.Mock, cancel context.CancelFunc) test {
+func beaconCommitteeSubscriptionV1Data(t *testing.T, cancel context.CancelFunc) test {
+	t.Helper()
+
 	const (
 		slot    = 1
 		vIdx    = 1
@@ -288,8 +310,10 @@ func beaconCommitteeSubscriptionV1Data(t *testing.T, mock *beaconmock.Mock, canc
 	sigRoot, err := eth2util.SlotHashRoot(slot)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	mock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
 
+	ctx := context.Background()
 	slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
 	require.NoError(t, err)
 
@@ -350,85 +374,6 @@ func beaconCommitteeSubscriptionV1Data(t *testing.T, mock *beaconmock.Mock, canc
 		bcastCnt: 1,
 		wantErr:  true,
 		error:    context.Canceled,
+		mock:     mock,
 	}
-}
-
-func TestBroadcastBeaconCommitteeSubscriptionV1(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	const (
-		slot    = 1
-		vIdx    = 1
-		commIdx = 1
-		commLen = 43
-	)
-
-	mock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
-	require.NoError(t, err)
-
-	_, secret, err := tbls.KeygenWithSeed(mrand.New(mrand.NewSource(1)))
-	require.NoError(t, err)
-
-	sigRoot, err := eth2util.SlotHashRoot(slot)
-	require.NoError(t, err)
-
-	slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
-	require.NoError(t, err)
-
-	sigData, err := signing.GetDataRoot(ctx, mock, signing.DomainSelectionProof, eth2p0.Epoch(uint64(1)/slotsPerEpoch), sigRoot)
-	require.NoError(t, err)
-
-	sig, _ := tbls.Sign(secret, sigData[:])
-	blssig := tblsconv.SigToETH2(sig)
-
-	mock.BeaconCommitteesAtEpochFunc = func(_ context.Context, stateID string, epoch eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
-		require.Equal(t, "head", stateID)
-		require.Equal(t, eth2p0.Epoch(uint64(slot)/slotsPerEpoch), epoch)
-
-		var vals []eth2p0.ValidatorIndex
-		for idx := 1; idx <= commLen; idx++ {
-			vals = append(vals, eth2p0.ValidatorIndex(idx))
-		}
-
-		return []*eth2v1.BeaconCommittee{
-			{
-				Slot:       slot,
-				Index:      commIdx,
-				Validators: vals,
-			},
-		}, nil
-	}
-
-	subscription := eth2exp.BeaconCommitteeSubscription{
-		ValidatorIndex: vIdx,
-		Slot:           slot,
-		CommitteeIndex: commIdx,
-		SlotSignature:  blssig,
-	}
-	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: subscription}
-
-	mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-		require.Equal(t, aggData.BeaconCommitteeSubscription, *subscriptions[0])
-
-		return nil, errors.New("404 not found")
-	}
-	mock.SubmitBeaconCommitteeSubscriptionsFunc = func(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error {
-		require.Equal(t, eth2v1.BeaconCommitteeSubscription{
-			ValidatorIndex: vIdx,
-			Slot:           slot,
-			CommitteeIndex: commIdx,
-			IsAggregator:   true,
-		}, *subscriptions[0])
-		cancel()
-
-		return ctx.Err()
-	}
-
-	bcaster, err := bcast.New(ctx, mock)
-	require.NoError(t, err)
-
-	err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyPrepareAggregator}, "", aggData)
-	require.ErrorIs(t, err, context.Canceled)
-
-	<-ctx.Done()
 }
