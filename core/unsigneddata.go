@@ -295,6 +295,28 @@ func (b *VersionedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
+type SyncContribution struct {
+	altair.SyncCommitteeContribution
+}
+
+func (s SyncContribution) Clone() (UnsignedData, error) {
+	var resp SyncContribution
+	err := cloneJSONMarshaler(s, &resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "clone sync contribution")
+	}
+
+	return resp, err
+}
+
+func (s SyncContribution) MarshalJSON() ([]byte, error) {
+	return s.SyncCommitteeContribution.MarshalJSON()
+}
+
+func (s *SyncContribution) UnmarshalJSON(input []byte) error {
+	return s.SyncCommitteeContribution.UnmarshalJSON(input)
+}
+
 // UnmarshalUnsignedData returns an instantiated unsigned data based on the duty type.
 // TODO(corver): Unexport once leadercast is removed or uses protobufs.
 func UnmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
