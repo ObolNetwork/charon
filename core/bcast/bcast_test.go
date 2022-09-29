@@ -84,7 +84,7 @@ func TestBroadcast(t *testing.T) {
 func attData(t *testing.T) test {
 	t.Helper()
 
-	att := core.Attestation{Attestation: *testutil.RandomAttestation()}
+	aggData := core.Attestation{Attestation: *testutil.RandomAttestation()}
 
 	// Assert output and return lighthouse known error on duplicates
 	mock, err := beaconmock.New()
@@ -93,7 +93,7 @@ func attData(t *testing.T) test {
 	var submitted int
 	mock.SubmitAttestationsFunc = func(ctx context.Context, attestations []*eth2p0.Attestation) error {
 		require.Len(t, attestations, 1)
-		require.Equal(t, att.Attestation, *attestations[0])
+		require.Equal(t, aggData.Attestation, *attestations[0])
 
 		submitted++
 		if submitted > 1 {
@@ -106,7 +106,7 @@ func attData(t *testing.T) test {
 
 	return test{
 		name:     "Broadcast Attestation",
-		aggData:  att,
+		aggData:  aggData,
 		duty:     core.Duty{Type: core.DutyAttester},
 		bcastCnt: 2,
 		wantErr:  false,
