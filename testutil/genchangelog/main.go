@@ -435,14 +435,14 @@ func getFirstMatch(r *regexp.Regexp, s string) (string, bool) {
 
 // getLatestTags returns the latest N git tags.
 func getLatestTags(n int) ([]string, error) {
-	err := exec.Command("git", "fetch", "--tags").Run()
+	out, err := exec.Command("git", "fetch", "--tags").CombinedOutput()
 	if err != nil {
-		return nil, errors.Wrap(err, "git fetch")
+		return nil, errors.Wrap(err, "git fetch", z.Str("out", string(out)))
 	}
 
-	out, err := exec.Command("git", "rev-list", "--tags", "--max-count="+fmt.Sprint(n)).CombinedOutput()
+	out, err = exec.Command("git", "rev-list", "--tags", "--max-count="+fmt.Sprint(n)).CombinedOutput()
 	if err != nil {
-		return nil, errors.Wrap(err, "git rev-list")
+		return nil, errors.Wrap(err, "git rev-list", z.Str("out", string(out)))
 	}
 
 	args := []string{"describe", "--tags", "--abbrev=0"}
