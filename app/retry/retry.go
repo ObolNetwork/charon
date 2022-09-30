@@ -45,9 +45,7 @@ func New[T any](timeoutFunc func(T) (time.Time, bool)) (*Retryer[T], error) {
 			return ctx, func() {}
 		}
 
-		ctx, cancel := context.WithDeadline(ctx, timeout)
-
-		return errors.WithCtxErr(ctx, "duty expired"), cancel
+		return context.WithDeadline(ctx, timeout)
 	}
 
 	// backoffProvider is a naive constant 1s backoff function.
@@ -150,7 +148,8 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, name string, fn func(c
 		}
 
 		if ctx.Err() != nil {
-			log.Error(ctx, "Timeout retrying "+name, ctx.Err())
+			// No need to log this at error level since tracker will analyse and report on failed duties.
+			log.Debug(ctx, "Retry timeout calling "+name+", duty expired")
 			return
 		}
 	}
