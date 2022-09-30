@@ -28,12 +28,11 @@ import (
 )
 
 func TestDefinitionVerify(t *testing.T) {
-	forkVersion := "0x80000069"
 	secret0, op0 := randomOperator(t)
 	secret1, op1 := randomOperator(t)
 
 	definition, err := NewDefinition("test definition", 1, 2,
-		"", "", forkVersion, []Operator{op0, op1},
+		"", "", sepoliaForkVersion, []Operator{op0, op1},
 		rand.New(rand.NewSource(1)))
 	require.NoError(t, err)
 

@@ -42,6 +42,8 @@ const (
 	k1SigLen = 65
 	// k1RecIdx is the secp256k1 signature recovery id index.
 	k1RecIdx = 64
+	// Fork version of sepolia testnet.
+	sepoliaForkVersion = "0x90000069"
 )
 
 // uuid returns a random uuid.
@@ -318,6 +320,8 @@ func forkVersionToChainID(forkVersion []byte) (int64, error) {
 		return 100, nil
 	case "0x80000069": // Ropsten
 		return 3, nil
+	case "0x90000069": // Sepolia
+		return 11155111, nil
 	default:
 		return -1, errors.New("invalid fork version")
 	}
