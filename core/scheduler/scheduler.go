@@ -299,6 +299,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 		if !ok {
 			log.Warn(ctx, "Ignoring unexpected attester duty", nil,
 				z.U64("vidx", uint64(attDuty.ValidatorIndex)), z.I64("slot", slot.Slot))
+
 			continue
 		}
 
@@ -354,8 +355,7 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 
 		pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
 		if !ok {
-			log.Warn(ctx, "Ignoring unexpected proposer duty", nil,
-				z.U64("vidx", uint64(proDuty.ValidatorIndex)), z.I64("slot", slot.Slot))
+			log.Warn(ctx, "Ignoring unexpected proposer duty", nil, z.U64("vidx", uint64(proDuty.ValidatorIndex)), z.I64("slot", slot.Slot))
 			continue
 		}
 
