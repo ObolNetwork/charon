@@ -45,6 +45,10 @@ func TestUnsignedDataClone(t *testing.T) {
 			name: "aggregated attestation",
 			data: core.NewAggregatedAttestation(testutil.RandomAttestation()),
 		},
+		{
+			name: "sync contribution",
+			data: testutil.RandomCoreSyncContribution(),
+		},
 	}
 
 	for _, test := range tests {

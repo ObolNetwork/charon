@@ -375,6 +375,35 @@ func RandomAggregateAndProof() *eth2p0.AggregateAndProof {
 	}
 }
 
+func RandomSignedSyncContributionAndProof() altair.SignedContributionAndProof {
+	return altair.SignedContributionAndProof{
+		Message:   RandomSyncContributionAndProof(),
+		Signature: eth2p0.BLSSignature{},
+	}
+}
+
+func RandomCoreSyncContribution() core.SyncContribution {
+	return core.SyncContribution{SyncCommitteeContribution: *RandomSyncCommitteeContribution()}
+}
+
+func RandomSyncContributionAndProof() *altair.ContributionAndProof {
+	return &altair.ContributionAndProof{
+		AggregatorIndex: RandomVIdx(),
+		Contribution:    RandomSyncCommitteeContribution(),
+		SelectionProof:  RandomEth2Signature(),
+	}
+}
+
+func RandomSyncCommitteeContribution() *altair.SyncCommitteeContribution {
+	return &altair.SyncCommitteeContribution{
+		Slot:              RandomSlot(),
+		BeaconBlockRoot:   RandomRoot(),
+		SubcommitteeIndex: rand.Uint64(),
+		AggregationBits:   RandomBitVec(),
+		Signature:         RandomEth2Signature(),
+	}
+}
+
 func RandomSyncAggregate(t *testing.T) *altair.SyncAggregate {
 	t.Helper()
 
@@ -517,6 +546,15 @@ func RandomBitList() bitfield.Bitlist {
 	size := 256
 	index := rand.Intn(size)
 	resp := bitfield.NewBitlist(uint64(size))
+	resp.SetBitAt(uint64(index), true)
+
+	return resp
+}
+
+func RandomBitVec() bitfield.Bitvector128 {
+	size := 128
+	index := rand.Intn(size)
+	resp := bitfield.NewBitvector128()
 	resp.SetBitAt(uint64(index), true)
 
 	return resp

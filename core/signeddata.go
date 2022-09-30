@@ -805,6 +805,90 @@ func (s *SignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 	return s.SignedAggregateAndProof.UnmarshalJSON(input)
 }
 
+// SignedSyncMessage wraps altair.SyncCommitteeMessage and implements SignedData.
+type SignedSyncMessage struct {
+	altair.SyncCommitteeMessage
+}
+
+func (s SignedSyncMessage) Signature() Signature {
+	return SigFromETH2(s.SyncCommitteeMessage.Signature)
+}
+
+func (s SignedSyncMessage) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.SyncCommitteeMessage.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (s SignedSyncMessage) Clone() (SignedData, error) {
+	return s.clone()
+}
+
+func (s SignedSyncMessage) clone() (SignedSyncMessage, error) {
+	var resp SignedSyncMessage
+	err := cloneJSONMarshaler(s, &resp)
+	if err != nil {
+		return SignedSyncMessage{}, errors.Wrap(err, "clone signed sync message")
+	}
+
+	return resp, nil
+}
+
+func (s SignedSyncMessage) MarshalJSON() ([]byte, error) {
+	return s.SyncCommitteeMessage.MarshalJSON()
+}
+
+func (s *SignedSyncMessage) UnmarshalJSON(input []byte) error {
+	return s.SyncCommitteeMessage.UnmarshalJSON(input)
+}
+
+// SignedSyncContribution wraps altair.SignedContributionAndProof and implements SignedData.
+type SignedSyncContribution struct {
+	altair.SignedContributionAndProof
+}
+
+func (s SignedSyncContribution) Signature() Signature {
+	return SigFromETH2(s.SignedContributionAndProof.Signature)
+}
+
+func (s SignedSyncContribution) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.SignedContributionAndProof.Signature = sig.ToETH2()
+
+	return resp, err
+}
+
+func (s SignedSyncContribution) Clone() (SignedData, error) {
+	return s.clone()
+}
+
+func (s SignedSyncContribution) clone() (SignedSyncContribution, error) {
+	var resp SignedSyncContribution
+	err := cloneJSONMarshaler(s, &resp)
+	if err != nil {
+		return SignedSyncContribution{}, errors.Wrap(err, "clone signed sync contribution")
+	}
+
+	return resp, nil
+}
+
+func (s SignedSyncContribution) MarshalJSON() ([]byte, error) {
+	return s.SignedContributionAndProof.MarshalJSON()
+}
+
+func (s *SignedSyncContribution) UnmarshalJSON(input []byte) error {
+	return s.SignedContributionAndProof.UnmarshalJSON(input)
+}
+
 // cloneJSONMarshaler clones the marshaler by serialising to-from json
 // since eth2 types contain pointers. The result is stored in the value pointed to by v.
 func cloneJSONMarshaler(data json.Marshaler, v any) error {

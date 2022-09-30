@@ -21,6 +21,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
@@ -84,6 +85,23 @@ func TestSignedDataSetSignature(t *testing.T) {
 					},
 					Signature: testutil.RandomEth2Signature(),
 				},
+			},
+		},
+		{
+			name: "signed sync committee message",
+			data: core.SignedSyncMessage{
+				SyncCommitteeMessage: altair.SyncCommitteeMessage{
+					Slot:            testutil.RandomSlot(),
+					BeaconBlockRoot: testutil.RandomRoot(),
+					ValidatorIndex:  testutil.RandomVIdx(),
+					Signature:       testutil.RandomEth2Signature(),
+				},
+			},
+		},
+		{
+			name: "signed sync contribution",
+			data: core.SignedSyncContribution{
+				SignedContributionAndProof: testutil.RandomSignedSyncContributionAndProof(),
 			},
 		},
 	}

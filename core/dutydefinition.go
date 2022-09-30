@@ -91,3 +91,25 @@ func (EmptyDefinition) Clone() (DutyDefinition, error) {
 func (EmptyDefinition) MarshalJSON() ([]byte, error) {
 	return nil, nil
 }
+
+func NewSyncCommitteDefinition(duty *eth2v1.SyncCommitteeDuty) DutyDefinition {
+	return SyncCommitteeDefinition{SyncCommitteeDuty: *duty}
+}
+
+type SyncCommitteeDefinition struct {
+	eth2v1.SyncCommitteeDuty
+}
+
+func (s SyncCommitteeDefinition) Clone() (DutyDefinition, error) {
+	duty := new(eth2v1.SyncCommitteeDuty)
+	err := cloneJSONMarshaler(&s.SyncCommitteeDuty, duty)
+	if err != nil {
+		return nil, errors.Wrap(err, "clone sync committee definition")
+	}
+
+	return NewSyncCommitteDefinition(duty), nil
+}
+
+func (s SyncCommitteeDefinition) MarshalJSON() ([]byte, error) {
+	return s.SyncCommitteeDuty.MarshalJSON()
+}
