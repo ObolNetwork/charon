@@ -388,7 +388,7 @@ func RandomCoreSyncContribution() core.SyncContribution {
 
 func RandomSyncContributionAndProof() *altair.ContributionAndProof {
 	return &altair.ContributionAndProof{
-		AggregatorIndex: 0,
+		AggregatorIndex: RandomVIdx(),
 		Contribution:    RandomSyncCommitteeContribution(),
 		SelectionProof:  RandomEth2Signature(),
 	}
@@ -398,7 +398,7 @@ func RandomSyncCommitteeContribution() *altair.SyncCommitteeContribution {
 	return &altair.SyncCommitteeContribution{
 		Slot:              RandomSlot(),
 		BeaconBlockRoot:   RandomRoot(),
-		SubcommitteeIndex: 0,
+		SubcommitteeIndex: rand.Uint64(),
 		AggregationBits:   RandomBitVec(),
 		Signature:         RandomEth2Signature(),
 	}
