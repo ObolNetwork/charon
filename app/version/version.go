@@ -19,7 +19,7 @@ import "runtime/debug"
 
 // Version is the release version of the codebase.
 // Usually overridden by tag names when building binaries.
-const Version = "v0.10.0"
+const Version = "v0.10.1"
 
 // GitCommit returns the git commit hash and timestamp from build info.
 func GitCommit() (hash string, timestamp string) {
