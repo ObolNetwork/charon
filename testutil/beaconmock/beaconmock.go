@@ -46,6 +46,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 
@@ -143,6 +144,11 @@ type Mock struct {
 	SubmitBeaconCommitteeSubscriptionsFunc   func(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error
 	AggregateAttestationFunc                 func(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)
 	SubmitAggregateAttestationsFunc          func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
+	SyncCommitteeDutiesFunc                  func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error)
+	SubmitSyncCommitteeMessagesFunc          func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
+	SubmitSyncCommitteeContributionsFunc     func(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) error
+	SyncCommitteeContributionFunc            func(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
+	SubmitSyncCommitteeSubscriptionsFunc     func(ctx context.Context, subscriptions []*eth2v1.SyncCommitteeSubscription) error
 }
 
 func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
@@ -227,6 +233,26 @@ func (m Mock) AggregateAttestation(ctx context.Context, slot eth2p0.Slot, attest
 
 func (m Mock) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
 	return m.SubmitAggregateAttestationsFunc(ctx, aggregateAndProofs)
+}
+
+func (m Mock) SyncCommitteeDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+	return m.SyncCommitteeDutiesFunc(ctx, epoch, validatorIndices)
+}
+
+func (m Mock) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
+	return m.SubmitSyncCommitteeMessagesFunc(ctx, messages)
+}
+
+func (m Mock) SubmitSyncCommitteeContributions(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) error {
+	return m.SubmitSyncCommitteeContributionsFunc(ctx, contributionAndProofs)
+}
+
+func (m Mock) SyncCommitteeContribution(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+	return m.SyncCommitteeContributionFunc(ctx, slot, subcommitteeIndex, beaconBlockRoot)
+}
+
+func (m Mock) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptions []*eth2v1.SyncCommitteeSubscription) error {
+	return m.SubmitSyncCommitteeSubscriptionsFunc(ctx, subscriptions)
 }
 
 func (m Mock) SlotsPerEpoch(ctx context.Context) (uint64, error) {

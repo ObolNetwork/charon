@@ -25,6 +25,7 @@ import (
 	api "github.com/attestantio/go-eth2-client/api"
 	apiv1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
@@ -59,6 +60,11 @@ type Client interface {
 	eth2client.SlotDurationProvider
 	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
+	eth2client.SyncCommitteeContributionProvider
+	eth2client.SyncCommitteeContributionsSubmitter
+	eth2client.SyncCommitteeDutiesProvider
+	eth2client.SyncCommitteeMessagesSubmitter
+	eth2client.SyncCommitteeSubscriptionsSubmitter
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.ValidatorsProvider
 	eth2client.VoluntaryExitSubmitter
@@ -281,6 +287,104 @@ func (m multi) AttesterDuties(ctx context.Context, epoch phase0.Epoch, validator
 	}
 
 	return res0, err
+}
+
+// SyncCommitteeDuties obtains sync committee duties.
+// If validatorIndicess is nil it will return all duties for the given epoch.
+func (m multi) SyncCommitteeDuties(ctx context.Context, epoch phase0.Epoch, validatorIndices []phase0.ValidatorIndex) ([]*apiv1.SyncCommitteeDuty, error) {
+	const label = "sync_committee_duties"
+	defer latency(label)()
+
+	res0, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) ([]*apiv1.SyncCommitteeDuty, error) {
+			return cl.SyncCommitteeDuties(ctx, epoch, validatorIndices)
+		},
+		nil,
+	)
+
+	if err != nil {
+		incError(label)
+		err = errors.Wrap(err, "eth2wrap")
+	}
+
+	return res0, err
+}
+
+// SubmitSyncCommitteeMessages submits sync committee messages.
+func (m multi) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
+	const label = "submit_sync_committee_messages"
+	defer latency(label)()
+
+	err := submit(ctx, m.clients,
+		func(ctx context.Context, cl Client) error {
+			return cl.SubmitSyncCommitteeMessages(ctx, messages)
+		},
+	)
+
+	if err != nil {
+		incError(label)
+		err = errors.Wrap(err, "eth2wrap")
+	}
+
+	return err
+}
+
+// SubmitSyncCommitteeSubscriptions subscribes to sync committees.
+func (m multi) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptions []*apiv1.SyncCommitteeSubscription) error {
+	const label = "submit_sync_committee_subscriptions"
+	defer latency(label)()
+
+	err := submit(ctx, m.clients,
+		func(ctx context.Context, cl Client) error {
+			return cl.SubmitSyncCommitteeSubscriptions(ctx, subscriptions)
+		},
+	)
+
+	if err != nil {
+		incError(label)
+		err = errors.Wrap(err, "eth2wrap")
+	}
+
+	return err
+}
+
+// SyncCommitteeContribution provides a sync committee contribution.
+func (m multi) SyncCommitteeContribution(ctx context.Context, slot phase0.Slot, subcommitteeIndex uint64, beaconBlockRoot phase0.Root) (*altair.SyncCommitteeContribution, error) {
+	const label = "sync_committee_contribution"
+	defer latency(label)()
+
+	res0, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) (*altair.SyncCommitteeContribution, error) {
+			return cl.SyncCommitteeContribution(ctx, slot, subcommitteeIndex, beaconBlockRoot)
+		},
+		nil,
+	)
+
+	if err != nil {
+		incError(label)
+		err = errors.Wrap(err, "eth2wrap")
+	}
+
+	return res0, err
+}
+
+// SubmitSyncCommitteeContributions submits sync committee contributions.
+func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) error {
+	const label = "submit_sync_committee_contributions"
+	defer latency(label)()
+
+	err := submit(ctx, m.clients,
+		func(ctx context.Context, cl Client) error {
+			return cl.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
+		},
+	)
+
+	if err != nil {
+		incError(label)
+		err = errors.Wrap(err, "eth2wrap")
+	}
+
+	return err
 }
 
 // BeaconBlockProposal fetches a proposed beacon block for signing.
