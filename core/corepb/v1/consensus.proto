@@ -5,16 +5,20 @@ package core.corepb.v1;
 option go_package = "github.com/obolnetwork/charon/core/corepb/v1";
 
 import "core/corepb/v1/core.proto";
+import "google/protobuf/any.proto";
 
 message QBFTMsg {
-  int64                          type           = 1;
-  core.corepb.v1.Duty            duty           = 2;
-  int64                          peer_idx       = 3;
-  int64                          round          = 4;
-  core.corepb.v1.UnsignedDataSet value          = 5;
-  int64                          prepared_round = 6;
-  core.corepb.v1.UnsignedDataSet prepared_value = 7;
-  bytes                          signature      = 8;
+  int64                          type                  = 1;
+  core.corepb.v1.Duty            duty                  = 2;
+  int64                          peer_idx              = 3;
+  int64                          round                 = 4;
+  core.corepb.v1.UnsignedDataSet value_legacy          = 5 [deprecated = true]; // Prefer value.
+  int64                          prepared_round        = 6;
+  core.corepb.v1.UnsignedDataSet prepared_value_legacy = 7 [deprecated = true]; // Prefer prepared_value.
+  bytes                          signature_legacy      = 8 [deprecated = true]; // Signature containing legacy values.
+  google.protobuf.Any            value                 = 9;
+  google.protobuf.Any            prepared_value        = 10;
+  bytes                          signature             = 11; // Signature containing new values.
 }
 
 message ConsensusMsg {

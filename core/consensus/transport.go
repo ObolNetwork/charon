@@ -20,6 +20,9 @@ import (
 	"crypto/ecdsa"
 	"sync"
 
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
@@ -35,33 +38,42 @@ type transport struct {
 
 	// Mutable state
 	valueMu sync.Mutex
-	values  map[[32]byte]*pbv1.UnsignedDataSet // maps proposed values to their hashes
+	values  map[[32]byte]proto.Message // maps proposed values to their hashes
 }
 
 // setValues caches the values and their hashes.
-func (t *transport) setValues(msg msg) {
+func (t *transport) setValues(msg msg) error {
 	t.valueMu.Lock()
 	defer t.valueMu.Unlock()
 
-	if msg.msg.Value != nil {
-		t.values[msg.Value()] = msg.msg.Value
+	value, ok, err := msgValue(msg.msg)
+	if err != nil {
+		return err
+	} else if ok {
+		t.values[msg.Value()] = value
 	}
-	if msg.msg.PreparedValue != nil {
-		t.values[msg.PreparedValue()] = msg.msg.PreparedValue
+
+	pv, ok, err := msgPreparedValue(msg.msg)
+	if err != nil {
+		return err
+	} else if ok {
+		t.values[msg.PreparedValue()] = pv
 	}
+
+	return nil
 }
 
 // getValue returns the value by its hash.
-func (t *transport) getValue(hash [32]byte) (*pbv1.UnsignedDataSet, error) {
+func (t *transport) getValue(hash [32]byte) (proto.Message, error) {
 	t.valueMu.Lock()
 	defer t.valueMu.Unlock()
 
-	data, ok := t.values[hash]
+	pb, ok := t.values[hash]
 	if !ok {
 		return nil, errors.New("unknown value")
 	}
 
-	return data, nil
+	return pb, nil
 }
 
 // Broadcast creates a msg and sends it to all peers (including self).
@@ -71,8 +83,8 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 ) error {
 	// Get the values by their hashes if not zero.
 	var (
-		value *pbv1.UnsignedDataSet
-		pv    *pbv1.UnsignedDataSet
+		value proto.Message
+		pv    proto.Message
 		err   error
 	)
 
@@ -130,7 +142,10 @@ func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
 				log.Warn(ctx, "Dropping invalid message", err)
 				continue
 			}
-			t.setValues(msg)
+			if err := t.setValues(msg); err != nil {
+				log.Warn(ctx, "Error caching message values", err)
+				continue
+			}
 
 			select {
 			case <-ctx.Done():
@@ -144,21 +159,44 @@ func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
 // createMsg returns a new message by converting the inputs into a protobuf
 // and wrapping that in a msg type.
 func createMsg(typ qbft.MsgType, duty core.Duty,
-	peerIdx int64, round int64, value *pbv1.UnsignedDataSet,
-	pr int64, pv *pbv1.UnsignedDataSet,
+	peerIdx int64, round int64, value proto.Message,
+	pr int64, pv proto.Message,
 	justification []qbft.Msg[core.Duty, [32]byte], privkey *ecdsa.PrivateKey,
 ) (msg, error) {
-	pbMsg := &pbv1.QBFTMsg{
-		Type:          int64(typ),
-		Duty:          core.DutyToProto(duty),
-		PeerIdx:       peerIdx,
-		Round:         round,
-		Value:         value,
-		PreparedRound: pr,
-		PreparedValue: pv,
+	// Convert opaque protos to anys
+	var (
+		vAny, pvAny       *anypb.Any
+		vlegacy, pvLegacy *pbv1.UnsignedDataSet
+		err               error
+	)
+	if value != nil {
+		vAny, err = anypb.New(value)
+		if err != nil {
+			return msg{}, errors.Wrap(err, "new any value")
+		}
+		vlegacy, _ = value.(*pbv1.UnsignedDataSet)
+	}
+	if pv != nil {
+		pvAny, err = anypb.New(pv)
+		if err != nil {
+			return msg{}, errors.Wrap(err, "new any value")
+		}
+		pvLegacy, _ = pv.(*pbv1.UnsignedDataSet)
 	}
 
-	pbMsg, err := signMsg(pbMsg, privkey)
+	pbMsg := &pbv1.QBFTMsg{
+		Type:                int64(typ),
+		Duty:                core.DutyToProto(duty),
+		PeerIdx:             peerIdx,
+		Round:               round,
+		Value:               vAny,
+		ValueLegacy:         vlegacy,
+		PreparedRound:       pr,
+		PreparedValue:       pvAny,
+		PreparedValueLegacy: pvLegacy,
+	}
+
+	pbMsg, err = signMsg(pbMsg, privkey)
 	if err != nil {
 		return msg{}, err
 	}
