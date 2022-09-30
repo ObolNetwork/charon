@@ -86,12 +86,13 @@ func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
 // signOperator returns the operator with signed config hash and enr.
 func signOperator(secret *ecdsa.PrivateKey, operator Operator, configHash [32]byte, chainID int64) (Operator, error) {
 	var err error
-	operator.ConfigSignature, err = signEIP712(secret, operator.Address, configHash[:], chainID)
+
+	operator.ConfigSignature, err = configHashSig(secret, to0xHex(configHash[:]), chainID)
 	if err != nil {
 		return Operator{}, err
 	}
 
-	operator.ENRSignature, err = signEIP712(secret, operator.Address, []byte(operator.ENR), chainID)
+	operator.ENRSignature, err = enrSig(secret, operator.ENR, chainID)
 	if err != nil {
 		return Operator{}, err
 	}
@@ -129,52 +130,34 @@ func aggSign(secrets [][]*bls_sig.SecretKeyShare, message []byte) ([]byte, error
 	return b, nil
 }
 
-// signEIP712 signs the message and returns the signature.
-func signEIP712(secret *ecdsa.PrivateKey, address string, message []byte, chainID int64) ([]byte, error) {
-	digest, err := digestEIP712(address, message, zeroNonce, chainID)
-	if err != nil {
-		return nil, err
-	}
-
-	sig, err := crypto.Sign(digest[:], secret)
-	if err != nil {
-		return nil, errors.Wrap(err, "sign EIP712")
-	}
-
-	return sig, nil
-}
-
-// digestEIP712 returns an EIP712 digest hash.
-// See reference https://medium.com/alpineintel/issuing-and-verifying-eip-712-challenges-with-go-32635ca78aaf.
-func digestEIP712(address string, message []byte, nonce, chainID int64) ([32]byte, error) {
+// eip712SignerData returns an EIP712 structured data containing the signing domain and the required types.
+func eip712SignerData(chainID int64) apitypes.TypedData {
 	signerData := apitypes.TypedData{
 		Types: apitypes.Types{
-			"Challenge": []apitypes.Type{
-				{Name: "address", Type: "address"},
-				{Name: "nonce", Type: "uint256"},
-				{Name: "message", Type: "bytes"},
-			},
 			"EIP712Domain": []apitypes.Type{
 				{Name: "name", Type: "string"},
-				{Name: "chainId", Type: "uint256"},
 				{Name: "version", Type: "string"},
-				{Name: "salt", Type: "string"},
+				{Name: "chainId", Type: "uint256"},
+			},
+			"ENR": []apitypes.Type{
+				{Name: "enr", Type: "string"},
+			},
+			"ConfigHash": []apitypes.Type{
+				{Name: "config_hash", Type: "string"},
 			},
 		},
-		PrimaryType: "Challenge",
 		Domain: apitypes.TypedDataDomain{
 			Name:    "Obol",
 			Version: "1",
-			Salt:    "distributed_validator", // Fixed for now.
 			ChainId: ethmath.NewHexOrDecimal256(chainID),
-		},
-		Message: apitypes.TypedDataMessage{
-			"address": address,
-			"nonce":   ethmath.NewHexOrDecimal256(nonce),
-			"message": message,
 		},
 	}
 
+	return signerData
+}
+
+// eip712Digest returns the EIP712 digest of the input data.
+func eip712Digest(signerData apitypes.TypedData) ([32]byte, error) {
 	typedDataHash, err := signerData.HashStruct(signerData.PrimaryType, signerData.Message)
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "hash message")
@@ -187,6 +170,68 @@ func digestEIP712(address string, message []byte, nonce, chainID int64) ([32]byt
 	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
 
 	return crypto.Keccak256Hash(rawData), nil
+}
+
+// configHashSig returns the EIP712 (https://eips.ethereum.org/EIPS/eip-712) signature of the config hash.
+func configHashSig(secret *ecdsa.PrivateKey, configHash string, chainID int64) ([]byte, error) {
+	digest, err := configHashDigest(configHash, chainID)
+	if err != nil {
+		return nil, err
+	}
+
+	sig, err := crypto.Sign(digest[:], secret)
+	if err != nil {
+		return nil, errors.Wrap(err, "sign EIP712")
+	}
+
+	return sig, nil
+}
+
+// configHashDigest returns the EIP712 digest of the config hash.
+func configHashDigest(configHash string, chainID int64) ([32]byte, error) {
+	signer := eip712SignerData(chainID)
+	signer.PrimaryType = "ConfigHash"
+	signer.Message = apitypes.TypedDataMessage{
+		"config_hash": configHash,
+	}
+
+	digest, err := eip712Digest(signer)
+	if err != nil {
+		return [32]byte{}, err
+	}
+
+	return digest, nil
+}
+
+// enrSig returns the EIP712 (https://eips.ethereum.org/EIPS/eip-712) signature of the enr.
+func enrSig(secret *ecdsa.PrivateKey, enr string, chainID int64) ([]byte, error) {
+	digest, err := enrDigest(enr, chainID)
+	if err != nil {
+		return nil, err
+	}
+
+	sig, err := crypto.Sign(digest[:], secret)
+	if err != nil {
+		return nil, errors.Wrap(err, "sign EIP712")
+	}
+
+	return sig, nil
+}
+
+// enrDigest returns the EIP712 digest of the enr.
+func enrDigest(enr string, chainID int64) ([32]byte, error) {
+	signer := eip712SignerData(chainID)
+	signer.PrimaryType = "ENR"
+	signer.Message = apitypes.TypedDataMessage{
+		"enr": enr,
+	}
+
+	digest, err := eip712Digest(signer)
+	if err != nil {
+		return [32]byte{}, err
+	}
+
+	return digest, nil
 }
 
 // ethHex represents a byte slices that is json formatted as 0x prefixed hex.

@@ -166,7 +166,7 @@ func (d Definition) VerifySignatures() error {
 		}
 
 		// Check that we have a valid config signature for each operator.
-		digest, err := digestEIP712(o.Address, configHash[:], zeroNonce, chainID)
+		digest, err := configHashDigest(to0xHex(configHash[:]), chainID)
 		if err != nil {
 			return err
 		}
@@ -178,7 +178,7 @@ func (d Definition) VerifySignatures() error {
 		}
 
 		// Check that we have a valid enr signature for each operator.
-		digest, err = digestEIP712(o.Address, []byte(o.ENR), zeroNonce, chainID)
+		digest, err = enrDigest(o.ENR, chainID)
 		if err != nil {
 			return err
 		}
