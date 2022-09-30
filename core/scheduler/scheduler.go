@@ -117,14 +117,13 @@ func (s *Scheduler) Run() error {
 		case <-s.quit:
 			return nil
 		case slot := <-slotTicker:
-			slotCtx := log.WithCtx(ctx, z.I64("slot", slot.Slot))
-			log.Debug(slotCtx, "Slot ticked")
+			log.Debug(ctx, "Slot ticked", z.I64("slot", slot.Slot)) // Not adding slot to context since duty will be added that also contains slot.
 
 			instrumentSlot(slot)
 
-			go s.emitCoreSlot(slotCtx, slot)
+			go s.emitCoreSlot(ctx, slot)
 
-			s.scheduleSlot(slotCtx, slot)
+			s.scheduleSlot(ctx, slot)
 		}
 	}
 }
@@ -134,7 +133,7 @@ func (s *Scheduler) emitCoreSlot(ctx context.Context, slot core.Slot) {
 	for _, sub := range s.slotSubs {
 		err := sub(ctx, slot)
 		if err != nil {
-			log.Error(ctx, "Emit scheduled slot event", err)
+			log.Error(ctx, "Emit scheduled slot event", err, z.I64("slot", slot.Slot))
 		}
 	}
 }
@@ -171,7 +170,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	if s.getResolvedEpoch() != uint64(slot.Epoch()) {
 		err := s.resolveDuties(ctx, slot)
 		if err != nil {
-			log.Warn(ctx, "Resolving duties error (retrying next slot)", err)
+			log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.I64("slot", slot.Slot))
 		}
 	}
 
@@ -206,7 +205,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 				}
 
 				if err := sub(ctx, duty, clone); err != nil {
-					log.Error(ctx, "Trigger duty subscriber error", err)
+					log.Error(ctx, "Trigger duty subscriber error", err, z.I64("slot", slot.Slot))
 				}
 			}
 		}()
@@ -215,7 +214,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	if slot.LastInEpoch() {
 		err := s.resolveDuties(ctx, slot.Next())
 		if err != nil {
-			log.Warn(ctx, "Resolving duties error (retrying next slot)", err)
+			log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.I64("slot", slot.Slot))
 		}
 	}
 }
@@ -298,7 +297,8 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 
 		pubkey, ok := vals.PubKeyFromIndex(attDuty.ValidatorIndex)
 		if !ok {
-			log.Warn(ctx, "Ignoring unexpected attester duty", nil, z.U64("vidx", uint64(attDuty.ValidatorIndex)))
+			log.Warn(ctx, "Ignoring unexpected attester duty", nil,
+				z.U64("vidx", uint64(attDuty.ValidatorIndex)), z.I64("slot", slot.Slot))
 			continue
 		}
 
@@ -322,8 +322,10 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 
 	if len(remaining) > 0 {
 		log.Warn(ctx, "Missing attester duties", nil,
+			z.I64("slot", slot.Slot),
 			z.U64("epoch", uint64(slot.Epoch())),
-			z.Any("validator_indexes", remaining))
+			z.Any("validator_indexes", remaining),
+		)
 	}
 
 	return nil
@@ -352,7 +354,8 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 
 		pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
 		if !ok {
-			log.Warn(ctx, "Ignoring unexpected proposer duty", nil, z.U64("vidx", uint64(proDuty.ValidatorIndex)))
+			log.Warn(ctx, "Ignoring unexpected proposer duty", nil,
+				z.U64("vidx", uint64(proDuty.ValidatorIndex)), z.I64("slot", slot.Slot))
 			continue
 		}
 
@@ -361,10 +364,11 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 		}
 
 		log.Info(ctx, "Resolved proposer duty",
-			z.U64("epoch", uint64(slot.Epoch())),
-			z.U64("vidx", uint64(proDuty.ValidatorIndex)),
 			z.U64("slot", uint64(proDuty.Slot)),
-			z.Any("pubkey", pubkey))
+			z.U64("vidx", uint64(proDuty.ValidatorIndex)),
+			z.Any("pubkey", pubkey),
+			z.U64("epoch", uint64(slot.Epoch())),
+		)
 	}
 
 	return nil
