@@ -35,7 +35,6 @@ import (
 func TestEncode(t *testing.T) {
 	for _, version := range cluster.SupportedVersionsForT(t) {
 		t.Run(version, func(t *testing.T) {
-			forkVersion := "0x90000069" // Sepolia testnet.
 			vStr := strings.ReplaceAll(version, ".", "_")
 			rand.Seed(1)
 
@@ -45,7 +44,7 @@ func TestEncode(t *testing.T) {
 				3,
 				testutil.RandomETHAddress(),
 				testutil.RandomETHAddress(),
-				forkVersion,
+				"0x90000069", // Sepolia testnet.
 				[]cluster.Operator{
 					{
 						Address:         testutil.RandomETHAddress(),
