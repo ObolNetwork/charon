@@ -188,7 +188,7 @@ func (c *Component) Start(ctx context.Context) {
 // Propose participants in a consensus instance proposing the provided unsigned data set.
 // It returns on error or nil when the context is cancelled.
 func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
-	// Hash the proposed data, since qbft ony supports simple comparable values.
+	// Hash the proposed data, since qbft only supports simple comparable values.
 	value, err := core.UnsignedDataSetToProto(data)
 	if err != nil {
 		return err

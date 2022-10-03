@@ -97,8 +97,8 @@ func TestSmoke(t *testing.T) {
 				pegImageTag(data.Nodes, 0, "v0.10.0")
 			},
 			RunTmplFunc: func(data *compose.TmplData) {
-				// Node 0 is latest
-				pegImageTag(data.Nodes, 1, "v0.10.1") // TODO(corver): Update to newer release
+				// Node 0 is local build
+				pegImageTag(data.Nodes, 1, "latest") // TODO(corver): Update to newer release
 				pegImageTag(data.Nodes, 2, "v0.10.1")
 				pegImageTag(data.Nodes, 3, "v0.10.0")
 			},
