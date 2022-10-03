@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/rogpeppe/go-internal/semver"
+	"golang.org/x/mod/semver"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"

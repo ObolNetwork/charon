@@ -24,8 +24,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rogpeppe/go-internal/semver"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/mod/semver"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/testutil"
