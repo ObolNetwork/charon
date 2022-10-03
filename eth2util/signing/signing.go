@@ -20,6 +20,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
@@ -214,6 +215,15 @@ func VerifyAggregateAndProof(ctx context.Context, eth2Cl eth2wrap.Client, pubkey
 	}
 
 	return verify(ctx, eth2Cl, DomainAggregateAndProof, epoch, sigRoot, agg.Signature, pubkey)
+}
+
+func VerifySyncCommitteeMessage(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, msg *altair.SyncCommitteeMessage) error {
+	epoch, err := epochFromSlot(ctx, eth2Cl, msg.Slot)
+	if err != nil {
+		return err
+	}
+
+	return verify(ctx, eth2Cl, DomainSyncCommittee, epoch, msg.BeaconBlockRoot, msg.Signature, pubkey)
 }
 
 // verify returns an error if the signature doesn't match the eth2 domain signed root.

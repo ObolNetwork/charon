@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
@@ -51,7 +52,7 @@ func TestVerifyAttestation(t *testing.T) {
 	require.NoError(t, err)
 
 	sig, pubkey := sign(t, sigData[:])
-	att.Signature = tblsconv.SigToETH2(sig)
+	att.Signature = sig
 
 	require.NoError(t, signing.VerifyAttestation(context.Background(), bmock, pubkey, att))
 }
@@ -76,7 +77,7 @@ func TestVerifyBeaconBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	sig, pubkey := sign(t, sigData[:])
-	data, err := block.SetSignature(tblsconv.SigToCore(sig))
+	data, err := block.SetSignature(core.SigFromETH2(sig))
 	require.NoError(t, err)
 
 	versionedBlock := data.(core.VersionedSignedBeaconBlock).VersionedSignedBeaconBlock
@@ -101,7 +102,7 @@ func TestVerifyDutyRandao(t *testing.T) {
 	require.NoError(t, err)
 
 	sig, pubkey := sign(t, sigData[:])
-	randao.Signature = tblsconv.SigToETH2(sig)
+	randao.Signature = sig
 
 	require.NoError(t, signing.VerifyRandao(context.Background(), bmock, pubkey, randao))
 }
@@ -119,7 +120,7 @@ func TestVerifyVoluntaryExit(t *testing.T) {
 	require.NoError(t, err)
 
 	sig, pubkey := sign(t, sigData[:])
-	exit.Signature = tblsconv.SigToETH2(sig)
+	exit.Signature = sig
 
 	require.NoError(t, signing.VerifyVoluntaryExit(context.Background(), bmock, pubkey, exit))
 }
@@ -144,7 +145,7 @@ func TestVerifyBlindedBeaconBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	sig, pubkey := sign(t, sigData[:])
-	data, err := block.SetSignature(tblsconv.SigToCore(sig))
+	data, err := block.SetSignature(core.SigFromETH2(sig))
 	require.NoError(t, err)
 
 	versionedBlock := data.(core.VersionedSignedBlindedBeaconBlock).VersionedSignedBlindedBeaconBlock
@@ -208,7 +209,7 @@ func TestVerifyBuilderRegistration(t *testing.T) {
 	require.NoError(t, err)
 
 	sig, pubkey := sign(t, sigData[:])
-	registration.V1.Signature = tblsconv.SigToETH2(sig)
+	registration.V1.Signature = sig
 
 	require.NoError(t, signing.VerifyValidatorRegistration(context.Background(), bmock, pubkey, &registration))
 }
@@ -235,7 +236,7 @@ func TestVerifyBeaconCommitteeSubscription(t *testing.T) {
 	require.NoError(t, err)
 
 	sig, pubkey := sign(t, sigData[:])
-	sub.SlotSignature = tblsconv.SigToETH2(sig)
+	sub.SlotSignature = sig
 
 	require.NoError(t, signing.VerifyBeaconCommitteeSubscription(context.Background(), bmock, pubkey, sub))
 }
@@ -263,12 +264,35 @@ func TestVerifyAggregateAndProof(t *testing.T) {
 	require.NoError(t, err)
 
 	sig, pubkey := sign(t, sigData[:])
-	agg.Signature = tblsconv.SigToETH2(sig)
+	agg.Signature = sig
 
 	require.NoError(t, signing.VerifyAggregateAndProof(context.Background(), bmock, pubkey, agg))
 }
 
-func sign(t *testing.T, data []byte) (*bls_sig.Signature, *bls_sig.PublicKey) {
+func TestVerifySyncCommitteeMessage(t *testing.T) {
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	msg := &altair.SyncCommitteeMessage{
+		Slot:            testutil.RandomSlot(),
+		BeaconBlockRoot: testutil.RandomRoot(),
+		ValidatorIndex:  testutil.RandomVIdx(),
+	}
+
+	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())
+	require.NoError(t, err)
+	epoch := eth2p0.Epoch(uint64(msg.Slot) / slotsPerEpoch)
+
+	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainSyncCommittee, epoch, msg.BeaconBlockRoot)
+	require.NoError(t, err)
+
+	sig, pubkey := sign(t, sigData[:])
+	msg.Signature = sig
+
+	require.NoError(t, signing.VerifySyncCommitteeMessage(context.Background(), bmock, pubkey, msg))
+}
+
+func sign(t *testing.T, data []byte) (eth2p0.BLSSignature, *bls_sig.PublicKey) {
 	t.Helper()
 
 	pk, secret, err := tbls.Keygen()
@@ -277,5 +301,5 @@ func sign(t *testing.T, data []byte) (*bls_sig.Signature, *bls_sig.PublicKey) {
 	sig, err := tbls.Sign(secret, data)
 	require.NoError(t, err)
 
-	return sig, pk
+	return tblsconv.SigToETH2(sig), pk
 }
