@@ -144,6 +144,11 @@ func (d Definition) VerifySignatures() error {
 		return errors.Wrap(err, "config hash")
 	}
 
+	chainID, err := forkVersionToChainID(d.ForkVersion)
+	if err != nil {
+		return errors.Wrap(err, "fork version to chain id")
+	}
+
 	var noSigs int
 	for _, o := range d.Operators {
 		// Completely unsigned operators are also fine, assuming a single cluster-wide operator.
@@ -161,7 +166,7 @@ func (d Definition) VerifySignatures() error {
 		}
 
 		// Check that we have a valid config signature for each operator.
-		digest, err := digestEIP712(o.Address, configHash[:], zeroNonce)
+		digest, err := digestEIP712(eip712TypeConfigHash, to0xHex(configHash[:]), chainID)
 		if err != nil {
 			return err
 		}
@@ -173,7 +178,7 @@ func (d Definition) VerifySignatures() error {
 		}
 
 		// Check that we have a valid enr signature for each operator.
-		digest, err = digestEIP712(o.Address, []byte(o.ENR), zeroNonce)
+		digest, err = digestEIP712(eip712TypeENR, o.ENR, chainID)
 		if err != nil {
 			return err
 		}

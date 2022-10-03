@@ -32,17 +32,17 @@ func TestDefinitionVerify(t *testing.T) {
 	secret1, op1 := randomOperator(t)
 
 	definition, err := NewDefinition("test definition", 1, 2,
-		"", "", "", []Operator{op0, op1},
+		"", "", forkVersionSepolia, []Operator{op0, op1},
 		rand.New(rand.NewSource(1)))
 	require.NoError(t, err)
 
 	configHash, err := hashDefinition(definition, true)
 	require.NoError(t, err)
 
-	definition.Operators[0], err = signOperator(secret0, op0, configHash)
+	definition.Operators[0], err = signOperator(secret0, op0, configHash, chainIDSepolia)
 	require.NoError(t, err)
 
-	definition.Operators[1], err = signOperator(secret1, op1, configHash)
+	definition.Operators[1], err = signOperator(secret1, op1, configHash, chainIDSepolia)
 	require.NoError(t, err)
 
 	err = definition.VerifySignatures()

@@ -22,7 +22,7 @@
  "fee_recipient_address": "0x52fdfc072182654f163f5f0f9a621d729566c74d",
  "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
  "dkg_algorithm": "default",
- "fork_version": "0x00000002",
- "config_hash": "0xc7c1c3ed57c51a116b90c3255097559da8fa4b6d24c873ab6b4aa7069aab6d1f",
- "definition_hash": "0x3c9a559a7140557f81697ac94d0c7aff52dab44643b0b99df0c09cac35494bf6"
+ "fork_version": "0x90000069",
+ "config_hash": "0xf0577c776b42d97418eec0988de901acda5d270e4b44441e73e65c146058832a",
+ "definition_hash": "0x86f04bb5aa4f04f342e165535e293e51a4d1f455b2fabd3c953269288e283227"
 }

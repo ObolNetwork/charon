@@ -23,9 +23,9 @@
   "fee_recipient_address": "0x52fdfc072182654f163f5f0f9a621d729566c74d",
   "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
   "dkg_algorithm": "default",
-  "fork_version": "0x00000002",
-  "config_hash": "0xd7b83a8f204e66eb254f1c1bef1a1d79d7e36ef22e27c68af24eb9ab80b69e71",
-  "definition_hash": "0xa5e2496fc1b205b91faf4d593fad534d8041807d3c704edb48b0948a5c04accc"
+  "fork_version": "0x90000069",
+  "config_hash": "0xa3bdacf0139039bd4da641c02e257872e945c8f86b186cd488399123f3e81dfa",
+  "definition_hash": "0xa3269c76fca5c3ab25e6e90ee24b972e6aab5bb00f682e66a73223d86c34888b"
  },
  "distributed_validators": [
   {
@@ -44,5 +44,5 @@
   }
  ],
  "signature_aggregate": "0x6a156a8de563afa467d49dec6a40e9a1d007f033c2823061bdd0eaa59f8e4da6",
- "lock_hash": "0x464913c40bb2019bf12ec2020fc976158579c4091c0324126a34e499bb4380ca"
+ "lock_hash": "0xa082b8d0a9007eae142b2380845250a07e32349d3d17d2c2e37f4e0965e438f8"
 }

@@ -42,6 +42,31 @@ const (
 	k1SigLen = 65
 	// k1RecIdx is the secp256k1 signature recovery id index.
 	k1RecIdx = 64
+
+	// Fork versions.
+	forkVersionMainnet = "0x00000000"
+	forkVersionGoerli  = "0x00001020"
+	forkVersionGnosis  = "0x00000064"
+	forkVersionRopsten = "0x80000069"
+	forkVersionSepolia = "0x90000069"
+
+	// Chain IDs.
+	chainIDMainnet = 1
+	chainIDGoerli  = 5
+	chainIDGnosis  = 100
+	chainIDRopsten = 3
+	chainIDSepolia = 11155111
+)
+
+// eip712Type ties the EIP712 Primary type to its Message field.
+type eip712Type struct {
+	PrimaryType string
+	Field       string
+}
+
+var (
+	eip712TypeConfigHash = eip712Type{"ConfigHash", "config_hash"}
+	eip712TypeENR        = eip712Type{"ENR", "enr"}
 )
 
 // uuid returns a random uuid.
@@ -84,19 +109,67 @@ func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
 }
 
 // signOperator returns the operator with signed config hash and enr.
-func signOperator(secret *ecdsa.PrivateKey, operator Operator, configHash [32]byte) (Operator, error) {
+func signOperator(secret *ecdsa.PrivateKey, operator Operator, configHash [32]byte, chainID int64) (Operator, error) {
 	var err error
-	operator.ConfigSignature, err = signEIP712(secret, operator.Address, configHash[:])
+
+	operator.ConfigSignature, err = signEIP712(secret, eip712TypeConfigHash, to0xHex(configHash[:]), chainID)
 	if err != nil {
 		return Operator{}, err
 	}
 
-	operator.ENRSignature, err = signEIP712(secret, operator.Address, []byte(operator.ENR))
+	operator.ENRSignature, err = signEIP712(secret, eip712TypeENR, operator.ENR, chainID)
 	if err != nil {
 		return Operator{}, err
 	}
 
 	return operator, nil
+}
+
+// signEIP712 returns the EIP712 signature for the primary type.
+func signEIP712(secret *ecdsa.PrivateKey, typ eip712Type, fieldValue string, chainID int64) ([]byte, error) {
+	digest, err := digestEIP712(typ, fieldValue, chainID)
+	if err != nil {
+		return nil, err
+	}
+
+	sig, err := crypto.Sign(digest, secret)
+	if err != nil {
+		return nil, errors.Wrap(err, "sign EIP712")
+	}
+
+	return sig, nil
+}
+
+// digestEIP712 returns the EIP712 (https://eips.ethereum.org/EIPS/eip-712) digest for the primary type.
+func digestEIP712(typ eip712Type, fieldValue string, chainID int64) ([]byte, error) {
+	data := apitypes.TypedData{
+		Types: apitypes.Types{
+			"EIP712Domain": []apitypes.Type{
+				{Name: "name", Type: "string"},
+				{Name: "version", Type: "string"},
+				{Name: "chainId", Type: "uint256"},
+			},
+			typ.PrimaryType: []apitypes.Type{
+				{Name: typ.Field, Type: "string"},
+			},
+		},
+		PrimaryType: typ.PrimaryType,
+		Message: apitypes.TypedDataMessage{
+			typ.Field: fieldValue,
+		},
+		Domain: apitypes.TypedDataDomain{
+			Name:    "Obol",
+			Version: "1",
+			ChainId: ethmath.NewHexOrDecimal256(chainID),
+		},
+	}
+
+	digest, _, err := apitypes.TypedDataAndHash(data)
+	if err != nil {
+		return nil, errors.Wrap(err, "hash EIP712")
+	}
+
+	return digest, nil
 }
 
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.
@@ -127,68 +200,6 @@ func aggSign(secrets [][]*bls_sig.SecretKeyShare, message []byte) ([]byte, error
 	}
 
 	return b, nil
-}
-
-// signEIP712 signs the message and returns the signature.
-func signEIP712(secret *ecdsa.PrivateKey, address string, message []byte) ([]byte, error) {
-	const nonce = 0
-
-	digest, err := digestEIP712(address, message, nonce)
-	if err != nil {
-		return nil, err
-	}
-
-	sig, err := crypto.Sign(digest[:], secret)
-	if err != nil {
-		return nil, errors.Wrap(err, "sign EIP712")
-	}
-
-	return sig, nil
-}
-
-// digestEIP712 returns a EIP712 digest hash.
-// See reference https://medium.com/alpineintel/issuing-and-verifying-eip-712-challenges-with-go-32635ca78aaf.
-func digestEIP712(address string, message []byte, nonce int) ([32]byte, error) {
-	signerData := apitypes.TypedData{
-		Types: apitypes.Types{
-			"Challenge": []apitypes.Type{
-				{Name: "address", Type: "address"},
-				{Name: "nonce", Type: "uint256"},
-				{Name: "message", Type: "bytes"},
-			},
-			"EIP712Domain": []apitypes.Type{
-				{Name: "name", Type: "string"},
-				{Name: "chainId", Type: "uint256"},
-				{Name: "version", Type: "string"},
-				{Name: "salt", Type: "string"},
-			},
-		},
-		PrimaryType: "Challenge",
-		Domain: apitypes.TypedDataDomain{
-			Name:    "ETHChallenger",
-			Version: "1",
-			Salt:    "charon_salt",                 // Fixed for now.
-			ChainId: ethmath.NewHexOrDecimal256(1), // Fixed for now.
-		},
-		Message: apitypes.TypedDataMessage{
-			"address": address,
-			"nonce":   ethmath.NewHexOrDecimal256(int64(nonce)),
-			"message": message,
-		},
-	}
-
-	typedDataHash, err := signerData.HashStruct(signerData.PrimaryType, signerData.Message)
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash message")
-	}
-	domainSeparator, err := signerData.HashStruct("EIP712Domain", signerData.Domain.Map())
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash domain")
-	}
-
-	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
-
-	return crypto.Keccak256Hash(rawData), nil
 }
 
 // ethHex represents a byte slices that is json formatted as 0x prefixed hex.
@@ -262,4 +273,22 @@ func from0xHex(s string, length int) ([]byte, error) {
 	}
 
 	return b, nil
+}
+
+// forkVersionToChainID returns the chainID corresponding to the input fork version.
+func forkVersionToChainID(forkVersion []byte) (int64, error) {
+	switch fmt.Sprintf("%#x", forkVersion) {
+	case forkVersionMainnet:
+		return chainIDMainnet, nil
+	case forkVersionGoerli:
+		return chainIDGoerli, nil
+	case forkVersionGnosis:
+		return chainIDGnosis, nil
+	case forkVersionRopsten:
+		return chainIDRopsten, nil
+	case forkVersionSepolia:
+		return chainIDSepolia, nil
+	default:
+		return -1, errors.New("invalid fork version")
+	}
 }

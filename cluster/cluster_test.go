@@ -44,7 +44,7 @@ func TestEncode(t *testing.T) {
 				3,
 				testutil.RandomETHAddress(),
 				testutil.RandomETHAddress(),
-				"0x00000002",
+				"0x90000069", // Sepolia testnet.
 				[]cluster.Operator{
 					{
 						Address:         testutil.RandomETHAddress(),

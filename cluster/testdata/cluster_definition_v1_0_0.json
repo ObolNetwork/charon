@@ -24,7 +24,7 @@
  "fee_recipient_address": "0x52fdfc072182654f163f5f0f9a621d729566c74d",
  "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
  "dkg_algorithm": "default",
- "fork_version": "0x00000002",
- "config_hash": "Q/hyB/eK48gDIMOB39w5dPO6YXPyBXdYUBdUMogRQk4=",
- "definition_hash": "JFLpyGqWz2I+nvf/DGjFCdmVfxDhhD5cgM/GfghyLOA="
+ "fork_version": "0x90000069",
+ "config_hash": "oQzZWiCuJFXV9CWz2PPiZYzwJLTbjC1ok803pY+JLqk=",
+ "definition_hash": "ZCmdSsnrFsERpjqawE868PtWzzI4sdQS/oN2PxRi62o="
 }

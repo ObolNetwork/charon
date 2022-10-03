@@ -122,8 +122,11 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 	confHash, err := hashDefinition(def, true)
 	require.NoError(t, err)
 
+	chainID, err := forkVersionToChainID(def.ForkVersion)
+	require.NoError(t, err)
+
 	for i := 0; i < n; i++ {
-		def.Operators[i], err = signOperator(p2pKeys[i], def.Operators[i], confHash)
+		def.Operators[i], err = signOperator(p2pKeys[i], def.Operators[i], confHash, chainID)
 		require.NoError(t, err)
 	}
 
