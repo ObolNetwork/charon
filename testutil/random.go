@@ -404,6 +404,15 @@ func RandomSyncCommitteeContribution() *altair.SyncCommitteeContribution {
 	}
 }
 
+func RandomSyncCommitteeMessage() *altair.SyncCommitteeMessage {
+	return &altair.SyncCommitteeMessage{
+		Slot:            RandomSlot(),
+		BeaconBlockRoot: RandomRoot(),
+		ValidatorIndex:  RandomVIdx(),
+		Signature:       RandomEth2Signature(),
+	}
+}
+
 func RandomSyncAggregate(t *testing.T) *altair.SyncAggregate {
 	t.Helper()
 

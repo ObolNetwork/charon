@@ -211,6 +211,19 @@ func NewAggregatorDuty(slot int64) Duty {
 	}
 }
 
+// NewSyncMessageDuty returns a new sync message duty. It is a convenience function that is
+// slightly more readable and concise than the struct literal equivalent:
+//
+//	core.Duty{Slot: slot, Type: core.DutySyncMessage}
+//	vs
+//	core.NewSyncMessageDuty(slot)
+func NewSyncMessageDuty(slot int64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutySyncMessage,
+	}
+}
+
 const (
 	pkLen  = 98 // "0x" + hex.Encode([48]byte) = 2+2*48
 	sigLen = 96

@@ -18,6 +18,7 @@ package parsigdb
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"sync"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -101,15 +102,19 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 			z.Any("pubkey", pubkey))
 
 		// Call the threshSubs (which includes SigAgg component) if sufficient signatures have been received.
-		if len(sigs) != db.threshold {
+		ok, out, err := shouldOutput(duty, sigs, db.threshold)
+		if err != nil {
+			return err
+		}
+		if !ok {
 			continue
 		}
 
 		for _, sub := range db.threshSubs {
 			// Clone before calling each subscriber.
 			var clones []core.ParSignedData
-			for _, sig := range sigs {
-				clone, err := sig.Clone()
+			for _, psig := range out {
+				clone, err := psig.Clone()
 				if err != nil {
 					return err
 				}
@@ -123,6 +128,31 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 	}
 
 	return nil
+}
+
+func shouldOutput(duty core.Duty, sigs []core.ParSignedData, threshold int) (bool, []core.ParSignedData, error) {
+	if duty.Type != core.DutySyncMessage {
+		return len(sigs) >= threshold, sigs, nil
+	}
+
+	data := make(map[string][]core.ParSignedData)
+	for _, sig := range sigs {
+		msg, ok := sig.SignedData.(core.SignedSyncMessage)
+		if !ok {
+			return false, nil, errors.New("invalid sync message")
+		}
+
+		root := hex.EncodeToString(msg.BeaconBlockRoot[:])
+		data[root] = append(data[root], sig)
+	}
+
+	for _, psigs := range data {
+		if len(psigs) >= threshold {
+			return true, psigs, nil
+		}
+	}
+
+	return false, nil, nil
 }
 
 // store returns true if the value was added to the list of signatures at the provided key
