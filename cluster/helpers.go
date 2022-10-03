@@ -42,13 +42,31 @@ const (
 	k1SigLen = 65
 	// k1RecIdx is the secp256k1 signature recovery id index.
 	k1RecIdx = 64
-	// Fork version of sepolia testnet.
-	sepoliaForkVersion = "0x90000069"
-	// EIP712 values.
-	configHashPrimaryType = "ConfigHash"
-	configHashFieldName   = "config_hash"
-	enrPrimaryType        = "ENR"
-	enrFieldName          = "enr"
+
+	// Fork versions.
+	forkVersionMainnet = "0x00000000"
+	forkVersionGoerli  = "0x00001020"
+	forkVersionGnosis  = "0x00000064"
+	forkVersionRopsten = "0x80000069"
+	forkVersionSepolia = "0x90000069"
+
+	// Chain IDs.
+	chainIDMainnet = 1
+	chainIDGoerli  = 5
+	chainIDGnosis  = 100
+	chainIDRopsten = 3
+	chainIDSepolia = 11155111
+)
+
+// eip712Type ties the EIP712 Primary type to its Message field.
+type eip712Type struct {
+	PrimaryType string
+	Field       string
+}
+
+var (
+	eip712TypeConfigHash = eip712Type{"ConfigHash", "config_hash"}
+	eip712TypeENR        = eip712Type{"ENR", "enr"}
 )
 
 // uuid returns a random uuid.
@@ -94,12 +112,12 @@ func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
 func signOperator(secret *ecdsa.PrivateKey, operator Operator, configHash [32]byte, chainID int64) (Operator, error) {
 	var err error
 
-	operator.ConfigSignature, err = signEIP712(secret, configHashPrimaryType, configHashFieldName, to0xHex(configHash[:]), chainID)
+	operator.ConfigSignature, err = signEIP712(secret, eip712TypeConfigHash, to0xHex(configHash[:]), chainID)
 	if err != nil {
 		return Operator{}, err
 	}
 
-	operator.ENRSignature, err = signEIP712(secret, enrPrimaryType, enrFieldName, operator.ENR, chainID)
+	operator.ENRSignature, err = signEIP712(secret, eip712TypeENR, operator.ENR, chainID)
 	if err != nil {
 		return Operator{}, err
 	}
@@ -108,8 +126,8 @@ func signOperator(secret *ecdsa.PrivateKey, operator Operator, configHash [32]by
 }
 
 // signEIP712 returns the EIP712 signature for the primary type.
-func signEIP712(secret *ecdsa.PrivateKey, primaryType, fieldName, fieldValue string, chainID int64) ([]byte, error) {
-	digest, err := digestEIP712(primaryType, fieldName, fieldValue, chainID)
+func signEIP712(secret *ecdsa.PrivateKey, typ eip712Type, fieldValue string, chainID int64) ([]byte, error) {
+	digest, err := digestEIP712(typ, fieldValue, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +141,7 @@ func signEIP712(secret *ecdsa.PrivateKey, primaryType, fieldName, fieldValue str
 }
 
 // digestEIP712 returns the EIP712 (https://eips.ethereum.org/EIPS/eip-712) digest for the primary type.
-func digestEIP712(primaryType, fieldName, fieldValue string, chainID int64) ([]byte, error) {
+func digestEIP712(typ eip712Type, fieldValue string, chainID int64) ([]byte, error) {
 	data := apitypes.TypedData{
 		Types: apitypes.Types{
 			"EIP712Domain": []apitypes.Type{
@@ -131,13 +149,13 @@ func digestEIP712(primaryType, fieldName, fieldValue string, chainID int64) ([]b
 				{Name: "version", Type: "string"},
 				{Name: "chainId", Type: "uint256"},
 			},
-			primaryType: []apitypes.Type{
-				{Name: fieldName, Type: "string"},
+			typ.PrimaryType: []apitypes.Type{
+				{Name: typ.Field, Type: "string"},
 			},
 		},
-		PrimaryType: primaryType,
+		PrimaryType: typ.PrimaryType,
 		Message: apitypes.TypedDataMessage{
-			fieldName: fieldValue,
+			typ.Field: fieldValue,
 		},
 		Domain: apitypes.TypedDataDomain{
 			Name:    "Obol",
@@ -260,16 +278,16 @@ func from0xHex(s string, length int) ([]byte, error) {
 // forkVersionToChainID returns the chainID corresponding to the input fork version.
 func forkVersionToChainID(forkVersion []byte) (int64, error) {
 	switch fmt.Sprintf("%#x", forkVersion) {
-	case "0x00000000": // Mainnet
-		return 1, nil
-	case "0x00001020": // Goerli/Prater
-		return 5, nil
-	case "0x00000064": // Gnosis Chain
-		return 100, nil
-	case "0x80000069": // Ropsten
-		return 3, nil
-	case "0x90000069": // Sepolia
-		return 11155111, nil
+	case forkVersionMainnet:
+		return chainIDMainnet, nil
+	case forkVersionGoerli:
+		return chainIDGoerli, nil
+	case forkVersionGnosis:
+		return chainIDGnosis, nil
+	case forkVersionRopsten:
+		return chainIDRopsten, nil
+	case forkVersionSepolia:
+		return chainIDSepolia, nil
 	default:
 		return -1, errors.New("invalid fork version")
 	}

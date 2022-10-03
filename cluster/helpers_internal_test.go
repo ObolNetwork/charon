@@ -16,6 +16,8 @@
 package cluster
 
 import (
+	"encoding/hex"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -70,7 +72,9 @@ func TestVerifySig(t *testing.T) {
 }
 
 func TestForkVersionToChainID(t *testing.T) {
-	gnosisForkVersion := []byte{0, 0, 0, 100}
+	gnosisForkVersion, err := hex.DecodeString(strings.TrimPrefix(forkVersionGnosis, "0x"))
+	require.NoError(t, err)
+
 	chainID, err := forkVersionToChainID(gnosisForkVersion)
 	require.NoError(t, err)
 	require.Equal(t, chainID, int64(100))

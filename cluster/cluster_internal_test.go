@@ -28,6 +28,7 @@ import (
 )
 
 func TestDefinitionVerify(t *testing.T) {
+	sepoliaForkVersion := "0x90000069"
 	secret0, op0 := randomOperator(t)
 	secret1, op1 := randomOperator(t)
 
