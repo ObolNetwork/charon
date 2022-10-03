@@ -17,6 +17,7 @@ package p2p
 
 import (
 	"context"
+	"io"
 	"sync"
 
 	"github.com/libp2p/go-libp2p/core/host"
@@ -108,6 +109,54 @@ func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID pr
 		err := Send(ctx, tcpNode, protoID, peerID, msg)
 		s.addResult(ctx, peerID, err)
 	}()
+
+	return nil
+}
+
+// SendReceive sends and receives a libp2p request and response message pair synchronously and then closes the stream.
+// It returns false on any error and applies log filtering.
+func (s *Sender) SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID, req, resp proto.Message, protocols ...protocol.ID) bool {
+	err := SendReceive(ctx, tcpNode, peerID, req, resp, protocols...)
+	s.addResult(ctx, peerID, err)
+
+	return err == nil
+}
+
+// SendReceive sends and receives a libp2p request and response message pair synchronously and then closes the stream.
+func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID, req, resp proto.Message, protocols ...protocol.ID) error {
+	b, err := proto.Marshal(req)
+	if err != nil {
+		return errors.Wrap(err, "marshal proto")
+	}
+
+	// Circuit relay connections are transient
+	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, protocols...)
+	if err != nil {
+		return errors.Wrap(err, "new stream", z.Any("protocols", protocols))
+	}
+
+	if _, err = s.Write(b); err != nil {
+		return errors.Wrap(err, "write request")
+	}
+
+	if err := s.CloseWrite(); err != nil {
+		return errors.Wrap(err, "close write")
+	}
+
+	b, err = io.ReadAll(s)
+	if err != nil {
+		return errors.Wrap(err, "read response")
+	} else if len(b) == 0 {
+		return errors.New("peer errored, no response")
+	}
+
+	if err = proto.Unmarshal(b, resp); err != nil {
+		return errors.Wrap(err, "unmarshal response")
+	}
+
+	if err = s.Close(); err != nil {
+		return errors.Wrap(err, "unmarshal response")
+	}
 
 	return nil
 }
