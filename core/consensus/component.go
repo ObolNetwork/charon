@@ -78,13 +78,17 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 		// Decide sends consensus output to subscribers.
 		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
 			defer endCtxSpan(ctx) // End the parent tracing span when decided
-			set, err := core.UnsignedDataSetFromProto(duty.Type, qcommit[0].(msg).msg.Value)
+			value, ok, err := msgValue(qcommit[0].(msg).msg)
 			if err != nil {
-				log.Error(ctx, "Unmarshal decided value", err)
+				log.Error(ctx, "Get decided value", err)
+				return
+			} else if !ok {
+				log.Error(ctx, "Missing decided value", nil)
 				return
 			}
+
 			for _, sub := range c.subs {
-				if err := sub(ctx, duty, set); err != nil {
+				if err := sub(ctx, duty, value); err != nil {
 					log.Warn(ctx, "Subscriber error", err)
 				}
 			}
@@ -125,7 +129,7 @@ type Component struct {
 	pubkeys   map[int64]*ecdsa.PublicKey
 	privkey   *ecdsa.PrivateKey
 	def       qbft.Definition[core.Duty, [32]byte]
-	subs      []func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error
+	subs      []func(ctx context.Context, duty core.Duty, value proto.Message) error
 	deadliner core.Deadliner
 
 	// Mutable state
@@ -137,7 +141,32 @@ type Component struct {
 // Subscribe registers a callback for unsigned duty data proposals from leaders.
 // Note this function is not thread safe, it should be called *before* Start and Propose.
 func (c *Component) Subscribe(fn func(ctx context.Context, duty core.Duty, set core.UnsignedDataSet) error) {
-	c.subs = append(c.subs, fn)
+	c.subs = append(c.subs, func(ctx context.Context, duty core.Duty, value proto.Message) error {
+		unsignedPB, ok := value.(*pbv1.UnsignedDataSet)
+		if !ok {
+			return nil
+		}
+
+		unsigned, err := core.UnsignedDataSetFromProto(duty.Type, unsignedPB)
+		if err != nil {
+			return err
+		}
+
+		return fn(ctx, duty, unsigned)
+	})
+}
+
+// SubscribePriority registers a callback for priority protocol message proposals from leaders.
+// Note this function is not thread safe, it should be called *before* Start and Propose.
+func (c *Component) SubscribePriority(fn func(ctx context.Context, duty core.Duty, msg *pbv1.PriorityMsg) error) {
+	c.subs = append(c.subs, func(ctx context.Context, duty core.Duty, value proto.Message) error {
+		msg, ok := value.(*pbv1.PriorityMsg)
+		if !ok {
+			return nil
+		}
+
+		return fn(ctx, duty, msg)
+	})
 }
 
 // Start registers the libp2p receive handler and starts a goroutine that cleans state. This should only be called once.
@@ -156,9 +185,27 @@ func (c *Component) Start(ctx context.Context) {
 	}()
 }
 
-// Propose participants in a consensus instance proposing the provided data.
+// Propose participants in a consensus instance proposing the provided unsigned data set.
 // It returns on error or nil when the context is cancelled.
 func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
+	// Hash the proposed data, since qbft only supports simple comparable values.
+	value, err := core.UnsignedDataSetToProto(data)
+	if err != nil {
+		return err
+	}
+
+	return c.propose(ctx, duty, value)
+}
+
+// ProposePriority participants in a consensus instance proposing the provided priority message.
+// It returns on error or nil when the context is cancelled.
+func (c *Component) ProposePriority(ctx context.Context, duty core.Duty, msg *pbv1.PriorityMsg) error {
+	return c.propose(ctx, duty, msg)
+}
+
+// propose participants in a consensus instance proposing the provided value.
+// It returns on error or nil when the context is cancelled.
+func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Message) error {
 	ctx = log.WithTopic(ctx, "qbft")
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -169,12 +216,6 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 
 	log.Debug(ctx, "QBFT consensus instance starting", z.Any("duty", duty))
 
-	// Hash the proposed data, since qbft ony supports simple comparable values.
-	value, err := core.UnsignedDataSetToProto(data)
-	if err != nil {
-		return err
-	}
-
 	hash, err := hashProto(value)
 	if err != nil {
 		return err
@@ -183,7 +224,7 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 	// Create a transport handles sending and receiving for this instance.
 	t := transport{
 		component:  c,
-		values:     map[[32]byte]*pbv1.UnsignedDataSet{hash: value},
+		values:     map[[32]byte]proto.Message{hash: value},
 		recvBuffer: make(chan qbft.Msg[core.Duty, [32]byte]),
 	}
 

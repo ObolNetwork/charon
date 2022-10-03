@@ -140,6 +140,7 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 
 	// Define run config
 	return append(kvs,
+		kv{"data-dir", fmt.Sprintf("/compose/node%d", index)}, // Required for backwards compatibility with v0.10.0
 		kv{"jaeger-service", fmt.Sprintf("node%d", index)},
 		kv{"jaeger-address", "jaeger:6831"},
 		kv{"lock-file", lockFile},

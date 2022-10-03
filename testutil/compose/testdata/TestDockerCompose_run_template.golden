@@ -45,6 +45,10 @@
      "Value": "alpha"
     },
     {
+     "Key": "data-dir",
+     "Value": "/compose/node0"
+    },
+    {
      "Key": "jaeger-service",
      "Value": "node0"
     },
@@ -135,6 +139,10 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
+    },
+    {
+     "Key": "data-dir",
+     "Value": "/compose/node1"
     },
     {
      "Key": "jaeger-service",
@@ -229,6 +237,10 @@
      "Value": "alpha"
     },
     {
+     "Key": "data-dir",
+     "Value": "/compose/node2"
+    },
+    {
      "Key": "jaeger-service",
      "Value": "node2"
     },
@@ -319,6 +331,10 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
+    },
+    {
+     "Key": "data-dir",
+     "Value": "/compose/node3"
     },
     {
      "Key": "jaeger-service",
