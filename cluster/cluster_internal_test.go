@@ -28,25 +28,21 @@ import (
 )
 
 func TestDefinitionVerify(t *testing.T) {
-	sepoliaForkVersion := "0x90000069"
 	secret0, op0 := randomOperator(t)
 	secret1, op1 := randomOperator(t)
 
 	definition, err := NewDefinition("test definition", 1, 2,
-		"", "", sepoliaForkVersion, []Operator{op0, op1},
+		"", "", forkVersionSepolia, []Operator{op0, op1},
 		rand.New(rand.NewSource(1)))
 	require.NoError(t, err)
 
 	configHash, err := hashDefinition(definition, true)
 	require.NoError(t, err)
 
-	chainID, err := forkVersionToChainID(definition.ForkVersion)
+	definition.Operators[0], err = signOperator(secret0, op0, configHash, chainIDSepolia)
 	require.NoError(t, err)
 
-	definition.Operators[0], err = signOperator(secret0, op0, configHash, chainID)
-	require.NoError(t, err)
-
-	definition.Operators[1], err = signOperator(secret1, op1, configHash, chainID)
+	definition.Operators[1], err = signOperator(secret1, op1, configHash, chainIDSepolia)
 	require.NoError(t, err)
 
 	err = definition.VerifySignatures()
