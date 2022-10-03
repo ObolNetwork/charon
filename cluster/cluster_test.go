@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -44,7 +45,7 @@ func TestEncode(t *testing.T) {
 				3,
 				testutil.RandomETHAddress(),
 				testutil.RandomETHAddress(),
-				"0x90000069", // Sepolia testnet.
+				eth2util.Sepolia.ForkVersion,
 				[]cluster.Operator{
 					{
 						Address:         testutil.RandomETHAddress(),

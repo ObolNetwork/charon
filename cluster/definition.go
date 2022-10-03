@@ -25,6 +25,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -144,7 +145,7 @@ func (d Definition) VerifySignatures() error {
 		return errors.Wrap(err, "config hash")
 	}
 
-	chainID, err := forkVersionToChainID(d.ForkVersion)
+	chainID, err := eth2util.ForkVersionToChainID(d.ForkVersion)
 	if err != nil {
 		return errors.Wrap(err, "fork version to chain id")
 	}
