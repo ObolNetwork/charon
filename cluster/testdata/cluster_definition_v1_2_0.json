@@ -4,14 +4,14 @@
   {
    "address": "0xeb9d18a44784045d87f3c67cf22746e995af5a25",
    "enr": "enr://5fb90badb37c5821b6d95526a41a9504680b4e7c8b763a1b1d49d4955c848621",
-   "config_signature": "0x6325253fec738dd7a9e28bf921119c160f0702448615bbda08313f6a8eb668d20bf5059875921e668a5bdf2c7fc4844592d2572bcd0668d2d6c52f5054e2d0831c",
-   "enr_signature": "0xf84c7174cb7476364cc3dbd968b0f7172ed85794bb358b0c3b525da1786f9fff094279db1944ebd7a19d0f7bbacbe0255aa5b7d44bec40f84c892b9bffd4362900"
+   "config_signature": "",
+   "enr_signature": ""
   },
   {
-   "address": "0x223beea5f4f74391f445d15afd4294040374f692",
-   "enr": "enr://9192c24224e2cafccae3a61fb586b14323a6bc8f9e7df1d929333ff993933bea",
-   "config_signature": "0x6f5b3af6de0374366c4719e43a1b067d89bc7f01f1f573981659a44ff17a4c7215a3b539eb1e5849c6077dbb5722f5717a289a266f97647981998ebea89c0b4b1c",
-   "enr_signature": "0x3970115e82ed6f4125c8fa7311e4d7defa922daae7786667f7e936cd4f24abf7df866baa56038367ad6145de1ee8f4a8b0993ebdf8883a0ad8be9c3978b0488301"
+   "address": "0x6325253fec738dd7a9e28bf921119c160f070244",
+   "enr": "enr://0bf5059875921e668a5bdf2c7fc4844592d2572bcd0668d2d6c52f5054e2d083",
+   "config_signature": "",
+   "enr_signature": ""
   }
  ],
  "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
@@ -23,6 +23,6 @@
  "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
  "dkg_algorithm": "default",
  "fork_version": "0x90000069",
- "config_hash": "0xf0577c776b42d97418eec0988de901acda5d270e4b44441e73e65c146058832a",
- "definition_hash": "0x86f04bb5aa4f04f342e165535e293e51a4d1f455b2fabd3c953269288e283227"
+ "config_hash": "0x3f694bb2ab95dab39b60d8ed61e6a16aaeed81bac650104e31df24c8f5661244",
+ "definition_hash": "0x13e53cf5a468a5c1fd1795d0aa044e21e21a3790063a43a38e8904d454dbd26f"
 }

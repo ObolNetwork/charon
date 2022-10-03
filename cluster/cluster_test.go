@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rogpeppe/go-internal/semver"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
@@ -49,20 +50,29 @@ func TestEncode(t *testing.T) {
 					{
 						Address:         testutil.RandomETHAddress(),
 						ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
-						ConfigSignature: testutil.RandomSecp256k1Signature(),
-						ENRSignature:    testutil.RandomSecp256k1Signature(),
+						ConfigSignature: []byte{},
+						ENRSignature:    []byte{},
 					},
 					{
 						Address:         testutil.RandomETHAddress(),
 						ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
-						ConfigSignature: testutil.RandomSecp256k1Signature(),
-						ENRSignature:    testutil.RandomSecp256k1Signature(),
+						ConfigSignature: []byte{},
+						ENRSignature:    []byte{},
 					},
 				},
 				rand.New(rand.NewSource(0)),
 			)
+
 			require.NoError(t, err)
 			definition.Version = version
+
+			// Generate signatures for definition versions >= v1.3.0.
+			if semver.Compare(version, "v1.3.0") >= 0 {
+				for i := range definition.Operators {
+					definition.Operators[i].ConfigSignature = testutil.RandomSecp256k1Signature()
+					definition.Operators[i].ENRSignature = testutil.RandomSecp256k1Signature()
+				}
+			}
 			definition.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
 
 			t.Run("definition_json_"+vStr, func(t *testing.T) {

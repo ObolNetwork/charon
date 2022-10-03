@@ -6,15 +6,15 @@
     "address": "0xeb9d18a44784045d87f3c67cf22746e995af5a25",
     "enr": "enr://5fb90badb37c5821b6d95526a41a9504680b4e7c8b763a1b1d49d4955c848621",
     "nonce": 0,
-    "config_signature": "YyUlP+xzjdep4ov5IRGcFg8HAkSGFbvaCDE/ao62aNIL9QWYdZIeZopb3yx/xIRFktJXK80GaNLWxS9QVOLQgxw=",
-    "enr_signature": "+ExxdMt0djZMw9vZaLD3Fy7YV5S7NYsMO1JdoXhvn/8JQnnbGUTr16GdD3u6y+AlWqW31EvsQPhMiSub/9Q2KQA="
+    "config_signature": "",
+    "enr_signature": ""
    },
    {
-    "address": "0x223beea5f4f74391f445d15afd4294040374f692",
-    "enr": "enr://9192c24224e2cafccae3a61fb586b14323a6bc8f9e7df1d929333ff993933bea",
+    "address": "0x6325253fec738dd7a9e28bf921119c160f070244",
+    "enr": "enr://0bf5059875921e668a5bdf2c7fc4844592d2572bcd0668d2d6c52f5054e2d083",
     "nonce": 0,
-    "config_signature": "b1s69t4DdDZsRxnkOhsGfYm8fwHx9XOYFlmkT/F6THIVo7U56x5YScYHfbtXIvVxeiiaJm+XZHmBmY6+qJwLSxw=",
-    "enr_signature": "OXARXoLtb0ElyPpzEeTX3vqSLarneGZn9+k2zU8kq/ffhmuqVgODZ61hRd4e6PSosJk+vfiIOgrYvpw5eLBIgwE="
+    "config_signature": "",
+    "enr_signature": ""
    }
   ],
   "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
@@ -26,25 +26,25 @@
   "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
   "dkg_algorithm": "default",
   "fork_version": "0x90000069",
-  "config_hash": "CmxY06oRxEw1UMCOLGRb5jSNeG9890x1BuRnTUKEloc=",
-  "definition_hash": "8hQPjFhtWeQfJCVPs65DIzn2/19I+cdDfFPylGcWLe4="
+  "config_hash": "2vu88BduhOZZGMQnkl5G41u1MNciPpnlJl9MpA7ZqG8=",
+  "definition_hash": "ev4LslYVwvadKvTUlB95fCaxcgC8Kout+KBdHMUPPH8="
  },
  "distributed_validators": [
   {
-   "distributed_public_key": "0x430105220d0b29688b734b8ea0f3ca9936e8461f",
+   "distributed_public_key": "0xff094279db1944ebd7a19d0f7bbacbe0255aa5b7",
    "public_shares": [
-    "pjt/Pf0lZ8GJeeTWDyZobZvy+ybJAf81TN4WB+4pSzk=",
-    "8yt8eCK6ZPhKtDygxua5HB/TvomQQ0F5069EkaNpAS0="
+    "KbAiO+6l9PdDkfRF0Vr9QpQEA3T2kkuYy/hxP42WLXw=",
+    "jQGRksJCJOLK/Mrjph+1hrFDI6a8j5598dkpMz/5k5M="
    ]
   },
   {
-   "distributed_public_key": "0xb92d184fc39d1734ff5716428953bb6865fcf92b",
+   "distributed_public_key": "0x3bea6f5b3af6de0374366c4719e43a1b067d89bc",
    "public_shares": [
-    "bJNHgAl50YMDVvKlTD3qsqS0R11jr76PtWmHx39YGFI=",
-    "bxgUvoIzUOqxOTXzHYRIRRfpJK73iuFRwAdVklg2twc="
+    "THIVo7U56x5YScYHfbtXIvVxeiiaJm+XZHmBmY6+qJw=",
+    "C0s3OXARXoLtb0ElyPpzEeTX3vqSLarneGZn9+k2zU8="
    ]
   }
  ],
- "signature_aggregate": "ahVqjeVjr6Rn1J3sakDpodAH8DPCgjBhvdDqpZ+OTaY=",
- "lock_hash": "G2MTFzak85gjQWpnEgL4BPvrvrPKKNIAdApWBLyxXCI="
+ "signature_aggregate": "a/hMcXTLdHY2TMPb2Wiw9xcu2FeUuzWLDDtSXaF4b58=",
+ "lock_hash": "zyAg61j4XieJ/p6ehVWqTHsoTnT0gTssDg3G06zHyJA="
 }

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/rogpeppe/go-internal/semver"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -78,7 +79,7 @@ type Definition struct {
 	// UUID is a human-readable random unique identifier. Max 64 chars.
 	UUID string `json:"uuid" ssz:"ByteList[64]" config_hash:"0" definition_hash:"0"`
 
-	// Name is an human-readable cosmetic identifier. Max 256 chars.
+	// Name is a human-readable cosmetic identifier. Max 256 chars.
 	Name string `json:"name" ssz:"ByteList[256]" config_hash:"1" definition_hash:"1"`
 
 	// Version is the schema version of this definition. Max 16 chars.
@@ -139,6 +140,12 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 
 // VerifySignatures returns true if all config signatures are fully populated and valid. A verified definition is ready for use in DKG.
 func (d Definition) VerifySignatures() error {
+	// Skip signature verification for definition versions earlier than v1.3. This is because v1.3 introduced a breaking change to how EIP712
+	// signatures are calculated. https://github.com/ObolNetwork/charon/issues/1203
+	if semver.Compare(d.Version, v1_3) == -1 {
+		return nil
+	}
+
 	configHash, err := hashDefinition(d, true)
 	if err != nil {
 		return errors.Wrap(err, "config hash")
@@ -191,7 +198,7 @@ func (d Definition) VerifySignatures() error {
 	}
 
 	if noSigs > 0 && noSigs != len(d.Operators) {
-		return errors.New("some operators signed others not")
+		return errors.New("some operators signed while others didn't")
 	}
 
 	return nil
@@ -300,6 +307,16 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		}
 	default:
 		return errors.New("unsupported version")
+	}
+
+	// For definition versions earlier than v1.3, error if either config signature or enr signature for any operator is present. This is because v1.3 introduced a breaking change to how EIP712
+	// signatures are calculated. https://github.com/ObolNetwork/charon/issues/1203
+	if semver.Compare(version.Version, v1_3) == -1 {
+		for _, o := range def.Operators {
+			if len(o.ENRSignature) > 0 || len(o.ConfigSignature) > 0 {
+				return errors.New("older version signatures not supported")
+			}
+		}
 	}
 
 	*d = def
