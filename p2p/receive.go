@@ -34,13 +34,19 @@ import (
 // and returns a response or false or an error.
 type HandlerFunc func(ctx context.Context, peerID peer.ID, req proto.Message) (proto.Message, bool, error)
 
+// RegisterHandlerFunc abstracts a function that registers a libp2p stream handler
+// that reads a single protobuf request and returns an optional response.
+type RegisterHandlerFunc func(logTopic string, tcpNode host.Host, protocol protocol.ID,
+	zeroReq func() proto.Message, handlerFunc HandlerFunc,
+)
+
 // RegisterHandler registers a canonical proto request and response handler for the provided protocol.
 // - The zeroReq function returns a zero request to unmarshal.
 // - The handlerFunc is called with the unmarshalled request and returns either a response or false or an error.
 // - The marshalled response is sent back if present.
 // - The stream is always closed before returning.
-func RegisterHandler(tcpNode host.Host, protocol protocol.ID, zeroReq func() proto.Message,
-	logTopic string, handlerFunc HandlerFunc,
+func RegisterHandler(logTopic string, tcpNode host.Host, protocol protocol.ID,
+	zeroReq func() proto.Message, handlerFunc HandlerFunc,
 ) {
 	tcpNode.SetStreamHandler(protocol, func(s network.Stream) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)

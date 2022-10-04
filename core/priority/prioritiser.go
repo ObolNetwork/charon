@@ -18,11 +18,10 @@ package priority
 
 import (
 	"context"
-	"testing"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -34,26 +33,9 @@ import (
 
 const protocolID = "charon/priority/1.0.0"
 
-// Transport abstracts sending and receiving libp2p protobuf messages.
-type Transport interface {
-	// SendReceive sends the request to the peer and returns a single response.
-	SendReceive(
-		ctx context.Context,
-		peer peer.ID,
-		req, resp proto.Message,
-		protocols ...protocol.ID) bool
-
-	// ReceiveSend registers a callback function that will be invoked when peers
-	// send requests, replying with this peer's response.
-	ReceiveSend(
-		zeroReq func() proto.Message,
-		callback func(ctx context.Context, peer peer.ID, request proto.Message) (proto.Message, error),
-		protocols ...protocol.ID)
-}
-
 type Consensus interface {
-	Propose(ctx context.Context, slot int64, result *pbv1.PriorityResult) error
-	Subscribe(func(ctx context.Context, slot int64, result *pbv1.PriorityResult) error)
+	ProposePriority(ctx context.Context, slot int64, result *pbv1.PriorityResult) error
+	SubscribePriority(func(ctx context.Context, slot int64, result *pbv1.PriorityResult) error)
 }
 
 // msgProvider abstracts creation of a new signed priority messages.
@@ -68,13 +50,15 @@ type tickerProvider func() (<-chan time.Time, func())
 // subscriber abstracts the output subscriber callbacks of Prioritiser.
 type subscriber func(ctx context.Context, slot int64, topic string, priorities []*pbv1.PriorityScoredResult) error
 
-// NewForT returns a new prioritiser for testing.
-func NewForT(_ *testing.T, transport Transport,
+func NewForT(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
 	consensus Consensus, msgProvider msgProvider, msgValidator msgValidator,
 	consensusTimeout time.Duration, tickerProvider tickerProvider,
 ) *Prioritiser {
 	n := &Prioritiser{
-		transport:        transport,
+		tcpNode:          tcpNode,
+		sendFunc:         sendFunc,
+		minRequired:      minRequired,
+		peers:            peers,
 		consensus:        consensus,
 		msgProvider:      msgProvider,
 		msgValidator:     msgValidator,
@@ -83,10 +67,11 @@ func NewForT(_ *testing.T, transport Transport,
 		subs:             make(map[string][]subscriber),
 		trigger:          make(chan int64, 1), // Buffer a single trigger
 		received:         make(chan *pbv1.PriorityMsg),
+		quit:             make(chan struct{}),
 	}
 
 	// Wire consensus output to Prioritiser subscribers.
-	consensus.Subscribe(func(ctx context.Context, slot int64, result *pbv1.PriorityResult) error {
+	consensus.SubscribePriority(func(ctx context.Context, slot int64, result *pbv1.PriorityResult) error {
 		for _, topic := range result.Topics {
 			for _, sub := range n.subs[topic.Topic] {
 				if err := sub(ctx, slot, topic.Topic, topic.Priorities); err != nil {
@@ -99,17 +84,18 @@ func NewForT(_ *testing.T, transport Transport,
 	})
 
 	// Register prioritiser protocol handler.
-	transport.ReceiveSend(
+	registerHandlerFunc("priority", tcpNode, protocolID,
 		func() proto.Message { return new(pbv1.PriorityMsg) },
-		func(ctx context.Context, pID peer.ID, msg proto.Message) (proto.Message, error) {
+		func(ctx context.Context, pID peer.ID, msg proto.Message) (proto.Message, bool, error) {
 			prioMsg, ok := msg.(*pbv1.PriorityMsg)
 			if !ok {
-				return nil, errors.New("invalid priority message")
+				return nil, false, errors.New("invalid priority message")
 			}
 
-			return n.handleRequest(ctx, pID, prioMsg)
-		},
-		protocolID)
+			resp, err := n.handleRequest(ctx, pID, prioMsg)
+
+			return resp, true, err
+		})
 
 	return n
 }
@@ -121,7 +107,8 @@ type Prioritiser struct {
 	received         chan *pbv1.PriorityMsg
 	minRequired      int
 	consensusTimeout time.Duration
-	transport        Transport
+	tcpNode          host.Host
+	sendFunc         p2p.SendReceiveFunc
 	peers            []peer.ID
 	consensus        Consensus
 	msgProvider      msgProvider
@@ -150,6 +137,7 @@ func (p *Prioritiser) Prioritise(slot int64) {
 //nolint:gocognit // Not that bad I feel.
 func (p *Prioritiser) Run(ctx context.Context) error {
 	defer close(p.quit)
+	ctx = log.WithTopic(ctx, "priority")
 
 	ticker, stopTicker := p.tickerProvider()
 	defer stopTicker()
@@ -167,11 +155,11 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 		}
 		result, err := calculateResult(slotMsgs, p.minRequired)
 		if err != nil {
-			log.Error(ctx, "Validate priority consensus", err) // Unexpected
+			log.Error(ctx, "Calculate priority consensus", err) // Unexpected
 			return
 		}
 
-		err = p.consensus.Propose(ctx, slot, result)
+		err = p.consensus.ProposePriority(ctx, slot, result)
 		if err != nil {
 			log.Warn(ctx, "Propose priority consensus", err) // Unexpected
 			return
@@ -227,7 +215,7 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 
 // handleRequest handles a priority message exchange initiated by a peer.
 func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.PriorityMsg) (*pbv1.PriorityMsg, error) {
-	if string(pID) != msg.PeerId {
+	if pID.String() != msg.PeerId {
 		return nil, errors.New("invalid priority message peer id")
 	} else if err := p.msgValidator(msg); err != nil {
 		return nil, errors.Wrap(err, "invalid priority message")
@@ -241,7 +229,12 @@ func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.
 		return nil, errors.New("prioritiser shutdown")
 	}
 
-	return p.msgProvider(msg.Slot)
+	resp, err := p.msgProvider(msg.Slot)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 // prioritiseOnce initiates a priority message exchange with all peers.
@@ -252,28 +245,34 @@ func (p *Prioritiser) prioritiseOnce(ctx context.Context, slot int64) error {
 	}
 
 	// Send our own message first to start consensus timeout.
-	p.received <- msg // FIXME(corver): This is going to block.
+	go func() { // Async since unbuffered
+		p.received <- msg
+	}()
 
 	for _, pID := range p.peers {
+		if pID == p.tcpNode.ID() {
+			continue // Do not send to self
+		}
+
 		go func(pID peer.ID) {
 			response := new(pbv1.PriorityMsg)
-			ok := p.transport.SendReceive(ctx, pID, msg, response, protocolID)
-			if !ok {
+			err := p.sendFunc(ctx, p.tcpNode, pID, msg, response, protocolID)
+			if err != nil {
 				// No need to log, since transport will do it.
 				return
 			}
 
-			if string(pID) != msg.PeerId {
+			if pID.String() != response.PeerId {
 				log.Warn(ctx, "Invalid priority message peer id", nil)
 				return
 			}
 
-			if err := p.msgValidator(msg); err != nil {
+			if err := p.msgValidator(response); err != nil {
 				log.Warn(ctx, "Invalid priority message from peer", err, z.Str("peer", p2p.PeerName(peer.ID(msg.PeerId))))
 				return
 			}
 
-			p.received <- msg
+			p.received <- response
 		}(pID)
 	}
 

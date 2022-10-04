@@ -39,6 +39,11 @@ const (
 // SendFunc is an abstract function responsible for sending libp2p messages.
 type SendFunc func(context.Context, host.Host, protocol.ID, peer.ID, proto.Message) error
 
+// SendReceiveFunc is an abstract function responsible for sending a libp2p request and returning
+// (populating) a libp2p response.
+type SendReceiveFunc func(ctx context.Context, tcpNode host.Host, peerID peer.ID,
+	req, resp proto.Message, protocols ...protocol.ID) error
+
 var (
 	_ SendFunc = Send
 	_ SendFunc = new(Sender).SendAsync
@@ -115,15 +120,19 @@ func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID pr
 
 // SendReceive sends and receives a libp2p request and response message pair synchronously and then closes the stream.
 // It returns false on any error and applies log filtering.
-func (s *Sender) SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID, req, resp proto.Message, protocols ...protocol.ID) bool {
+// It implements SendReceiveFunc.
+func (s *Sender) SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID, req, resp proto.Message, protocols ...protocol.ID) error {
 	err := SendReceive(ctx, tcpNode, peerID, req, resp, protocols...)
 	s.addResult(ctx, peerID, err)
 
-	return err == nil
+	return nil
 }
 
-// SendReceive sends and receives a libp2p request and response message pair synchronously and then closes the stream.
-func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID, req, resp proto.Message, protocols ...protocol.ID) error {
+// SendReceive sends and receives a libp2p request and response message
+// pair synchronously and then closes the stream. It implements SendReceiveFunc.
+func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
+	req, resp proto.Message, protocols ...protocol.ID,
+) error {
 	b, err := proto.Marshal(req)
 	if err != nil {
 		return errors.Wrap(err, "marshal proto")
