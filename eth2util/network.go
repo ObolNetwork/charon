@@ -23,6 +23,8 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
+const Prater = "prater"
+
 // Network contains information about an Ethereum network.
 type Network struct {
 	// ChainID represents chainID of the network.

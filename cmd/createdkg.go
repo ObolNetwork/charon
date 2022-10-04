@@ -119,6 +119,12 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		log.Warn(ctx, "Non standard `--threshold` flag provided, this will affect cluster safety", nil, z.Int("threshold", conf.Threshold), z.Int("safe_threshold", safeThreshold))
 	}
 
+	// Map prater to goerli to ensure backwards compatibility with older cluster definitions.
+	// TODO(xenowits): Remove the mapping later.
+	if conf.Network == eth2util.Prater {
+		conf.Network = eth2util.Goerli.Name
+	}
+
 	if !eth2util.ValidNetwork(conf.Network) {
 		return errors.New("unsupported network", z.Str("network", conf.Network))
 	}
