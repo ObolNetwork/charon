@@ -33,7 +33,7 @@ func TestDefinitionVerify(t *testing.T) {
 	secret1, op1 := randomOperator(t)
 
 	definition, err := NewDefinition("test definition", 1, 2,
-		"", "", eth2util.Sepolia.ForkVersion, []Operator{op0, op1},
+		"", "", eth2util.Sepolia.ForkVersionHex, []Operator{op0, op1},
 		rand.New(rand.NewSource(1)))
 	require.NoError(t, err)
 

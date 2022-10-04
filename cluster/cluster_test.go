@@ -45,7 +45,7 @@ func TestEncode(t *testing.T) {
 				3,
 				testutil.RandomETHAddress(),
 				testutil.RandomETHAddress(),
-				eth2util.Sepolia.ForkVersion,
+				eth2util.Sepolia.ForkVersionHex,
 				[]cluster.Operator{
 					{
 						Address:         testutil.RandomETHAddress(),

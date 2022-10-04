@@ -31,61 +31,57 @@ type Network struct {
 	ChainID int64
 	// Name represents name of the network.
 	Name string
-	// ForkVersion represents fork version of the network in hex.
-	ForkVersion string
+	// ForkVersionHex represents fork version of the network in hex.
+	ForkVersionHex string
 }
 
 var (
 	Mainnet = Network{
-		ChainID:     1,
-		Name:        "mainnet",
-		ForkVersion: "0x00000000",
+		ChainID:        1,
+		Name:           "mainnet",
+		ForkVersionHex: "0x00000000",
 	}
 	Goerli = Network{
-		ChainID:     5,
-		Name:        "goerli",
-		ForkVersion: "0x00001020",
+		ChainID:        5,
+		Name:           "goerli",
+		ForkVersionHex: "0x00001020",
 	}
 	Gnosis = Network{
-		ChainID:     100,
-		Name:        "gnosis",
-		ForkVersion: "0x00000064",
+		ChainID:        100,
+		Name:           "gnosis",
+		ForkVersionHex: "0x00000064",
 	}
 	Sepolia = Network{
-		ChainID:     11155111,
-		Name:        "sepolia",
-		ForkVersion: "0x90000069",
+		ChainID:        11155111,
+		Name:           "sepolia",
+		ForkVersionHex: "0x90000069",
 	}
 	Ropsten = Network{
-		ChainID:     3,
-		Name:        "ropsten",
-		ForkVersion: "0x80000069",
+		ChainID:        3,
+		Name:           "ropsten",
+		ForkVersionHex: "0x80000069",
 	}
 )
 
-var supportedNetworks = map[Network]bool{
-	Mainnet: true,
-	Goerli:  true,
-	Gnosis:  true,
-	Sepolia: true,
-	Ropsten: true,
+var supportedNetworks = []Network{
+	Mainnet, Goerli, Gnosis, Sepolia, Ropsten,
 }
 
 // ForkVersionToChainID returns the chainID corresponding to the provided fork version.
 func ForkVersionToChainID(forkVersion []byte) (int64, error) {
-	for network := range supportedNetworks {
-		if fmt.Sprintf("%#x", forkVersion) == network.ForkVersion {
+	for _, network := range supportedNetworks {
+		if fmt.Sprintf("%#x", forkVersion) == network.ForkVersionHex {
 			return network.ChainID, nil
 		}
 	}
 
-	return -1, errors.New("invalid fork version")
+	return 0, errors.New("invalid fork version")
 }
 
 // ForkVersionToNetwork returns the network name corresponding to the provided fork version.
 func ForkVersionToNetwork(forkVersion []byte) (string, error) {
-	for network := range supportedNetworks {
-		if fmt.Sprintf("%#x", forkVersion) == network.ForkVersion {
+	for _, network := range supportedNetworks {
+		if fmt.Sprintf("%#x", forkVersion) == network.ForkVersionHex {
 			return network.Name, nil
 		}
 	}
@@ -95,9 +91,9 @@ func ForkVersionToNetwork(forkVersion []byte) (string, error) {
 
 // NetworkToForkVersion returns the fork version in hex (0x prefixed) corresponding to the network name.
 func NetworkToForkVersion(name string) (string, error) {
-	for network := range supportedNetworks {
+	for _, network := range supportedNetworks {
 		if name == network.Name {
-			return network.ForkVersion, nil
+			return network.ForkVersionHex, nil
 		}
 	}
 
@@ -121,7 +117,7 @@ func NetworkToForkVersionBytes(name string) ([]byte, error) {
 
 // ValidNetwork returns true if the provided network name is a valid one.
 func ValidNetwork(name string) bool {
-	for network := range supportedNetworks {
+	for _, network := range supportedNetworks {
 		if name == network.Name {
 			return true
 		}
