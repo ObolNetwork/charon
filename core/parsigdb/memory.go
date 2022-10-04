@@ -18,8 +18,9 @@ package parsigdb
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"sync"
+
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -102,11 +103,10 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 			z.Any("pubkey", pubkey))
 
 		// Call the threshSubs (which includes SigAgg component) if sufficient signatures have been received.
-		ok, out, err := shouldOutput(duty, sigs, db.threshold)
+		out, ok, err := calculateOutput(duty, sigs, db.threshold)
 		if err != nil {
 			return err
-		}
-		if !ok {
+		} else if !ok {
 			continue
 		}
 
@@ -130,29 +130,29 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 	return nil
 }
 
-func shouldOutput(duty core.Duty, sigs []core.ParSignedData, threshold int) (bool, []core.ParSignedData, error) {
+// calculateOutput returns partial signatures and whether threshold no. of partial signatures is obtained or not.
+func calculateOutput(duty core.Duty, sigs []core.ParSignedData, threshold int) ([]core.ParSignedData, bool, error) {
 	if duty.Type != core.DutySyncMessage {
-		return len(sigs) >= threshold, sigs, nil
+		return sigs, len(sigs) == threshold, nil
 	}
 
-	data := make(map[string][]core.ParSignedData)
+	sigsByRoot := make(map[eth2p0.Root][]core.ParSignedData)
 	for _, sig := range sigs {
 		msg, ok := sig.SignedData.(core.SignedSyncMessage)
 		if !ok {
-			return false, nil, errors.New("invalid sync message")
+			return nil, false, errors.New("invalid sync message")
 		}
 
-		root := hex.EncodeToString(msg.BeaconBlockRoot[:])
-		data[root] = append(data[root], sig)
+		sigsByRoot[msg.BeaconBlockRoot] = append(sigsByRoot[msg.BeaconBlockRoot], sig)
 	}
 
-	for _, psigs := range data {
+	for _, psigs := range sigsByRoot {
 		if len(psigs) >= threshold {
-			return true, psigs, nil
+			return psigs, true, nil
 		}
 	}
 
-	return false, nil, nil
+	return nil, false, nil
 }
 
 // store returns true if the value was added to the list of signatures at the provided key

@@ -48,7 +48,7 @@ func TestShouldOutput(t *testing.T) {
 		data = append(data, core.NewPartialSignedSyncMessage(msg, i))
 	}
 
-	ok, out, err := shouldOutput(duty, data, th)
+	out, ok, err := calculateOutput(duty, data, th)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.True(t, reflect.DeepEqual(out, data[:n-1]))
@@ -58,7 +58,7 @@ func TestShouldOutput(t *testing.T) {
 		data[i] = core.NewPartialSignedSyncMessage(msgs[i], i)
 	}
 
-	ok, _, err = shouldOutput(duty, data, th)
+	_, ok, err = calculateOutput(duty, data, th)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
