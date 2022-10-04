@@ -16,7 +16,9 @@
 package eth2util
 
 import (
+	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -87,4 +89,41 @@ func ForkVersionToNetwork(forkVersion []byte) (string, error) {
 	}
 
 	return "", errors.New("invalid fork version")
+}
+
+// NetworkToForkVersion returns the fork version in hex (0x prefixed) corresponding to the network name.
+func NetworkToForkVersion(name string) (string, error) {
+	for network := range supportedNetworks {
+		if name == network.Name {
+			return network.ForkVersion, nil
+		}
+	}
+
+	return "", errors.New("invalid network name")
+}
+
+// NetworkToForkVersionBytes returns the fork version bytes corresponding to the network name.
+func NetworkToForkVersionBytes(name string) ([]byte, error) {
+	forkVersion, err := NetworkToForkVersion(name)
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := hex.DecodeString(strings.TrimPrefix(forkVersion, "0x"))
+	if err != nil {
+		return nil, errors.Wrap(err, "decode fork version hex")
+	}
+
+	return b, nil
+}
+
+// ValidNetwork returns true if the provided network name is a valid one.
+func ValidNetwork(name string) bool {
+	for network := range supportedNetworks {
+		if name == network.Name {
+			return true
+		}
+	}
+
+	return false
 }

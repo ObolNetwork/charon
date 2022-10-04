@@ -77,12 +77,12 @@ func TestCreateCluster(t *testing.T) {
 				return config
 			},
 		}, {
-			Name: "prater",
+			Name: "goerli",
 			Config: clusterConfig{
 				NumNodes:  minNodes,
 				Threshold: 3,
 				NumDVs:    2,
-				Network:   "prater",
+				Network:   "goerli",
 			},
 		},
 	}
@@ -172,7 +172,7 @@ func TestValidNetwork(t *testing.T) {
 	err = validateClusterConfig(conf)
 	require.NoError(t, err)
 
-	conf.Network = "prater"
+	conf.Network = "goerli"
 	err = validateClusterConfig(conf)
 	require.NoError(t, err)
 }

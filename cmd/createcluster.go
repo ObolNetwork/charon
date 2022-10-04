@@ -37,6 +37,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
@@ -111,12 +112,6 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	// Create cluster directory at given location
 	if err := os.MkdirAll(conf.ClusterDir, 0o755); err != nil {
 		return errors.Wrap(err, "mkdir")
-	}
-
-	// TODO(xenowits): Remove mapping from prater from goerli after the merge concludes.
-	// Map prater to goerli to ensure backwards compatibility with older cluster definitions and cluster locks.
-	if conf.Network == "prater" {
-		conf.Network = "goerli"
 	}
 
 	if err := validateClusterConfig(conf); err != nil {
@@ -376,8 +371,13 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 		})
 	}
 
+	forkVersion, err := eth2util.NetworkToForkVersion(conf.Network)
+	if err != nil {
+		return cluster.Lock{}, err
+	}
+
 	def, err := cluster.NewDefinition(conf.Name, len(dvs), conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddr,
-		networkToForkVersion[conf.Network], ops, rand.Reader)
+		forkVersion, ops, rand.Reader)
 	if err != nil {
 		return cluster.Lock{}, err
 	}
@@ -444,24 +444,13 @@ func checksumAddr(a string) (string, error) {
 	return common.HexToAddress(a).Hex(), nil
 }
 
-// validNetworks defines the set of valid networks.
-var validNetworks = map[string]bool{
-	"goerli":  true,
-	"prater":  true, // TODO(xenowits): Remove prater after the goerli/prater merge.
-	"kiln":    true,
-	"ropsten": true,
-	"gnosis":  true,
-	"sepolia": true,
-	"mainnet": true,
-}
-
 // validateClusterConfig returns an error if the cluster config is invalid.
 func validateClusterConfig(conf clusterConfig) error {
 	if conf.NumNodes < minNodes {
 		return errors.New("insufficient number of nodes (min = 4)")
 	}
 
-	if !validNetworks[conf.Network] {
+	if !eth2util.ValidNetwork(conf.Network) {
 		return errors.New("unsupported network", z.Str("network", conf.Network))
 	}
 

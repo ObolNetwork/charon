@@ -29,6 +29,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -42,17 +43,6 @@ type createDKGConfig struct {
 	Network           string
 	DKGAlgo           string
 	OperatorENRs      []string
-}
-
-// networkToForkVersion maps an ethereum network name (ex: "goerli") to the corresponding fork version (ex: "0x00001020").
-// Note that the fork versions are added in increasing order.
-var networkToForkVersion = map[string]string{
-	"mainnet": "0x00000000",
-	"gnosis":  "0x00000064",
-	"goerli":  "0x00001020",
-	"kiln":    "0x70000069",
-	"ropsten": "0x80000069",
-	"sepolia": "0x90000069",
 }
 
 func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobra.Command {
@@ -129,7 +119,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		log.Warn(ctx, "Non standard `--threshold` flag provided, this will affect cluster safety", nil, z.Int("threshold", conf.Threshold), z.Int("safe_threshold", safeThreshold))
 	}
 
-	if !validNetworks[conf.Network] {
+	if !eth2util.ValidNetwork(conf.Network) {
 		return errors.New("unsupported network", z.Str("network", conf.Network))
 	}
 
@@ -137,7 +127,10 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		return err
 	}
 
-	forkVersion := networkToForkVersion[conf.Network]
+	forkVersion, err := eth2util.NetworkToForkVersion(conf.Network)
+	if err != nil {
+		return err
+	}
 
 	def, err := cluster.NewDefinition(conf.Name, conf.NumValidators, conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddress,
 		forkVersion, operators, crand.Reader)

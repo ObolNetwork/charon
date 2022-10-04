@@ -19,8 +19,6 @@ import (
 	"encoding/hex"
 	"testing"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,9 +30,4 @@ func TestWithdrawalCredentials(t *testing.T) {
 	credsHex := hex.EncodeToString(creds[:])
 
 	require.Equal(t, expectedWithdrawalCreds, credsHex)
-}
-
-func TestNetworkToForkVersion(t *testing.T) {
-	actual := networkToForkVersion("goerli")
-	assert.EqualValues(t, eth2p0.Version([4]byte{0x00, 0x00, 0x10, 0x20}), actual)
 }
