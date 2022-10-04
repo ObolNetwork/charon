@@ -143,7 +143,7 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 	defer stopTicker()
 
 	var (
-		msgs          = make(map[int64]map[peer.ID]*pbv1.PriorityMsg)
+		msgs          = make(map[int64]map[string]*pbv1.PriorityMsg) // map[slot]map[peerID]msg
 		timeouts      = make(map[int64]time.Time)
 		completedSlot int64
 	)
@@ -191,10 +191,10 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 
 			slotMsgs, ok := msgs[msg.Slot]
 			if !ok {
-				slotMsgs = make(map[peer.ID]*pbv1.PriorityMsg)
+				slotMsgs = make(map[string]*pbv1.PriorityMsg)
 				timeouts[msg.Slot] = time.Now().Add(p.consensusTimeout)
 			}
-			slotMsgs[peer.ID(msg.PeerId)] = msg
+			slotMsgs[msg.PeerId] = msg
 			msgs[msg.Slot] = slotMsgs
 
 			if len(slotMsgs) == len(p.peers) {
