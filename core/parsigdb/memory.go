@@ -147,7 +147,7 @@ func calculateOutput(duty core.Duty, sigs []core.ParSignedData, threshold int) (
 	}
 
 	for _, psigs := range sigsByRoot {
-		if len(psigs) >= threshold {
+		if len(psigs) == threshold {
 			return psigs, true, nil
 		}
 	}
