@@ -20,6 +20,8 @@ import (
 	"context"
 	"sync"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
@@ -101,15 +103,18 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 			z.Any("pubkey", pubkey))
 
 		// Call the threshSubs (which includes SigAgg component) if sufficient signatures have been received.
-		if len(sigs) != db.threshold {
+		out, ok, err := calculateOutput(duty, sigs, db.threshold)
+		if err != nil {
+			return err
+		} else if !ok {
 			continue
 		}
 
 		for _, sub := range db.threshSubs {
 			// Clone before calling each subscriber.
 			var clones []core.ParSignedData
-			for _, sig := range sigs {
-				clone, err := sig.Clone()
+			for _, psig := range out {
+				clone, err := psig.Clone()
 				if err != nil {
 					return err
 				}
@@ -123,6 +128,31 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 	}
 
 	return nil
+}
+
+// calculateOutput returns partial signatures and whether threshold no. of partial signatures is obtained or not.
+func calculateOutput(duty core.Duty, sigs []core.ParSignedData, threshold int) ([]core.ParSignedData, bool, error) {
+	if duty.Type != core.DutySyncMessage {
+		return sigs, len(sigs) == threshold, nil
+	}
+
+	sigsByRoot := make(map[eth2p0.Root][]core.ParSignedData)
+	for _, sig := range sigs {
+		msg, ok := sig.SignedData.(core.SignedSyncMessage)
+		if !ok {
+			return nil, false, errors.New("invalid sync message")
+		}
+
+		sigsByRoot[msg.BeaconBlockRoot] = append(sigsByRoot[msg.BeaconBlockRoot], sig)
+	}
+
+	for _, psigs := range sigsByRoot {
+		if len(psigs) == threshold {
+			return psigs, true, nil
+		}
+	}
+
+	return nil, false, nil
 }
 
 // store returns true if the value was added to the list of signatures at the provided key

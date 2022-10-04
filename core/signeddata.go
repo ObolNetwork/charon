@@ -805,6 +805,19 @@ func (s *SignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 	return s.SignedAggregateAndProof.UnmarshalJSON(input)
 }
 
+// NewSignedSyncMessage is a convenience function which returns new signed SignedSyncMessage.
+func NewSignedSyncMessage(data *altair.SyncCommitteeMessage) SignedSyncMessage {
+	return SignedSyncMessage{SyncCommitteeMessage: *data}
+}
+
+// NewPartialSignedSyncMessage is a convenience function which returns a new partially signed SignedSyncMessage.
+func NewPartialSignedSyncMessage(data *altair.SyncCommitteeMessage, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSignedSyncMessage(data),
+		ShareIdx:   shareIdx,
+	}
+}
+
 // SignedSyncMessage wraps altair.SyncCommitteeMessage and implements SignedData.
 type SignedSyncMessage struct {
 	altair.SyncCommitteeMessage
