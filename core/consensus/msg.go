@@ -147,112 +147,45 @@ func hashProto(msg proto.Message) ([32]byte, error) {
 
 // verifyMsgSig returns true if the message was signed by pubkey.
 func verifyMsgSig(msg *pbv1.QBFTMsg, pubkey *ecdsa.PublicKey) (bool, error) {
-	if msg.Signature == nil && msg.SignatureLegacy == nil {
-		return false, errors.New("empty signature(s)")
+	if msg.Signature == nil {
+		return false, errors.New("empty signature")
 	}
 
-	// Verify latest signature if present.
-	if msg.Signature != nil {
-		hash, err := msgHashLatest(msg)
-		if err != nil {
-			return false, err
-		}
-
-		actual, err := crypto.SigToPub(hash[:], msg.Signature)
-		if err != nil {
-			return false, errors.Wrap(err, "sig to pub")
-		}
-
-		if !pubkey.Equal(actual) {
-			return false, nil
-		}
+	clone := proto.Clone(msg).(*pbv1.QBFTMsg)
+	clone.Signature = nil
+	hash, err := hashProto(clone)
+	if err != nil {
+		return false, err
 	}
 
-	// Verify legacy signature if present.
-	if msg.SignatureLegacy != nil {
-		hash, err := msgHashLegacy(msg)
-		if err != nil {
-			return false, err
-		}
+	actual, err := crypto.SigToPub(hash[:], msg.Signature)
+	if err != nil {
+		return false, errors.Wrap(err, "sig to pub")
+	}
 
-		actual, err := crypto.SigToPub(hash[:], msg.SignatureLegacy)
-		if err != nil {
-			return false, errors.Wrap(err, "sig to pub")
-		}
-
-		if !pubkey.Equal(actual) {
-			return false, nil
-		}
+	if !pubkey.Equal(actual) {
+		return false, nil
 	}
 
 	return true, nil
 }
 
-// signMsg signs the proto message with both the new and the legacy signatures using the provided private key.
+// signMsg returns a copy of the proto message with a populated signature signed by the provided private key.
 func signMsg(msg *pbv1.QBFTMsg, privkey *ecdsa.PrivateKey) (*pbv1.QBFTMsg, error) {
-	// Create legacy signature
-	{
-		hashLegacy, err := msgHashLegacy(msg)
-		if err != nil {
-			return nil, err
-		}
+	clone := proto.Clone(msg).(*pbv1.QBFTMsg)
+	clone.Signature = nil
 
-		sigLegacy, err := crypto.Sign(hashLegacy[:], privkey)
-		if err != nil {
-			return nil, errors.Wrap(err, "sign")
-		}
-
-		msg.SignatureLegacy = sigLegacy
+	hash, err := hashProto(clone)
+	if err != nil {
+		return nil, err
 	}
 
-	// Create latest signature
-	{
-		hashLatest, err := msgHashLatest(msg)
-		if err != nil {
-			return nil, err
-		}
-
-		sigLatest, err := crypto.Sign(hashLatest[:], privkey)
-		if err != nil {
-			return nil, errors.Wrap(err, "sign")
-		}
-
-		msg.Signature = sigLatest
+	clone.Signature, err = crypto.Sign(hash[:], privkey)
+	if err != nil {
+		return nil, errors.Wrap(err, "sign")
 	}
 
-	return msg, nil
-}
-
-// msgHashLatest returns the hash of the message excluding deprecated legacy fields.
-func msgHashLatest(msg *pbv1.QBFTMsg) ([32]byte, error) {
-	latestPB := proto.Clone(msg)
-
-	latest, ok := latestPB.(*pbv1.QBFTMsg)
-	if !ok {
-		return [32]byte{}, errors.New("invalid cloned proto")
-	}
-	latest.ValueLegacy = nil
-	latest.PreparedValueLegacy = nil
-	latest.SignatureLegacy = nil
-	latest.Signature = nil
-
-	return hashProto(latest)
-}
-
-// msgHashLegacy returns the hash of the message using deprecated legacy fields.
-func msgHashLegacy(msg *pbv1.QBFTMsg) ([32]byte, error) {
-	legacyPB := proto.Clone(msg)
-
-	legacy, ok := legacyPB.(*pbv1.QBFTMsg)
-	if !ok {
-		return [32]byte{}, errors.New("invalid cloned proto")
-	}
-	legacy.Value = nil
-	legacy.PreparedValue = nil
-	legacy.Signature = nil
-	legacy.SignatureLegacy = nil
-
-	return hashProto(legacy)
+	return clone, nil
 }
 
 // msgValue returns either the unwrapped new value or the legacy UnsignedDataSet value and true if either is not nil.

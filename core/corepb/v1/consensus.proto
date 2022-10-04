@@ -15,10 +15,23 @@ message QBFTMsg {
   core.corepb.v1.UnsignedDataSet value_legacy          = 5 [deprecated = true]; // Prefer value.
   int64                          prepared_round        = 6;
   core.corepb.v1.UnsignedDataSet prepared_value_legacy = 7 [deprecated = true]; // Prefer prepared_value.
-  bytes                          signature_legacy      = 8 [deprecated = true]; // Signature containing legacy values.
+  bytes                          signature             = 8;
   google.protobuf.Any            value                 = 9;
   google.protobuf.Any            prepared_value        = 10;
-  bytes                          signature             = 11; // Signature containing new values.
+}
+
+// QBFTMsgLegacy is only used for backwards compatibility tests.
+message QBFTMsgLegacy {
+  option deprecated = true;
+
+  int64                          type           = 1;
+  core.corepb.v1.Duty            duty           = 2;
+  int64                          peer_idx       = 3;
+  int64                          round          = 4;
+  core.corepb.v1.UnsignedDataSet value          = 5;
+  int64                          prepared_round = 6;
+  core.corepb.v1.UnsignedDataSet prepared_value = 7;
+  bytes                          signature      = 8;
 }
 
 message ConsensusMsg {
