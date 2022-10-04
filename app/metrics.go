@@ -20,7 +20,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/version"
-	"github.com/obolnetwork/charon/dkg"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 var (
@@ -96,7 +96,7 @@ func initStartupMetrics(peerName string, threshold, numOperators, numValidators 
 
 // setNetworkGauge sets the gauge to the current network/chain (ex: goerli, mainnet etc.).
 func setNetworkGauge(forkVersion []byte) {
-	network, err := dkg.ForkVersionToNetwork(forkVersion)
+	network, err := eth2util.ForkVersionToNetwork(forkVersion)
 	if err != nil {
 		network = "unknown"
 	}

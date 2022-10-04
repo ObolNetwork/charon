@@ -42,20 +42,6 @@ const (
 	k1SigLen = 65
 	// k1RecIdx is the secp256k1 signature recovery id index.
 	k1RecIdx = 64
-
-	// Fork versions.
-	forkVersionMainnet = "0x00000000"
-	forkVersionGoerli  = "0x00001020"
-	forkVersionGnosis  = "0x00000064"
-	forkVersionRopsten = "0x80000069"
-	forkVersionSepolia = "0x90000069"
-
-	// Chain IDs.
-	chainIDMainnet = 1
-	chainIDGoerli  = 5
-	chainIDGnosis  = 100
-	chainIDRopsten = 3
-	chainIDSepolia = 11155111
 )
 
 // eip712Type ties the EIP712 Primary type to its Message field.
@@ -273,22 +259,4 @@ func from0xHex(s string, length int) ([]byte, error) {
 	}
 
 	return b, nil
-}
-
-// forkVersionToChainID returns the chainID corresponding to the input fork version.
-func forkVersionToChainID(forkVersion []byte) (int64, error) {
-	switch fmt.Sprintf("%#x", forkVersion) {
-	case forkVersionMainnet:
-		return chainIDMainnet, nil
-	case forkVersionGoerli:
-		return chainIDGoerli, nil
-	case forkVersionGnosis:
-		return chainIDGnosis, nil
-	case forkVersionRopsten:
-		return chainIDRopsten, nil
-	case forkVersionSepolia:
-		return chainIDSepolia, nil
-	default:
-		return -1, errors.New("invalid fork version")
-	}
 }

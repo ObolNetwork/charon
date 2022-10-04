@@ -28,6 +28,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -72,7 +73,10 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 		return nil, err
 	}
 
-	forkVersion := networkToForkVersion(network)
+	forkVersion, err := eth2util.NetworkToForkVersion(network)
+	if err != nil {
+		return nil, err
+	}
 
 	var ddList []depositDataJSON
 	for pubkey, sig := range msgSigs {
@@ -122,7 +126,7 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 			Signature:             fmt.Sprintf("%x", sig),
 			DepositMessageRoot:    fmt.Sprintf("%x", msgRoot),
 			DepositDataRoot:       fmt.Sprintf("%x", dataRoot),
-			ForkVersion:           fmt.Sprintf("%x", forkVersion),
+			ForkVersion:           strings.TrimPrefix(forkVersion, "0x"),
 			NetworkName:           network,
 			DepositCliVersion:     depositCliVersion,
 		})
@@ -165,7 +169,15 @@ func GetMessageSigningRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string, netwo
 		return [32]byte{}, err
 	}
 
-	domain, err := getDepositDomain(networkToForkVersion(network))
+	fv, err := eth2util.NetworkToForkVersionBytes(network)
+	if err != nil {
+		return [32]byte{}, err
+	}
+
+	var forkVersion eth2p0.Version
+	copy(forkVersion[:], fv)
+
+	domain, err := getDepositDomain(forkVersion)
 	if err != nil {
 		return [32]byte{}, err
 	}
@@ -195,27 +207,6 @@ func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 	copy(creds[12:], addrBytes)                  // Add 20 bytes of ethereum address suffix.
 
 	return creds, nil
-}
-
-// networkToForkVersion returns the fork version corresponding to a given network. If no known network found,
-// simply returns the mainnet fork version.
-func networkToForkVersion(network string) eth2p0.Version {
-	switch network {
-	case "goerli":
-		return [4]byte{0x00, 0x00, 0x10, 0x20}
-	case "kiln":
-		return [4]byte{0x70, 0x00, 0x00, 0x69}
-	case "ropsten":
-		return [4]byte{0x80, 0x00, 0x00, 0x69}
-	case "gnosis":
-		return [4]byte{0x00, 0x00, 0x00, 0x64}
-	case "sepolia":
-		return [4]byte{0x90, 0x00, 0x00, 0x69}
-	case "mainnet": // Default to mainnet
-		fallthrough
-	default:
-		return [4]byte{0x00, 0x00, 0x00, 0x00}
-	}
 }
 
 // depositDataJSON is the json representation of Deposit Data.

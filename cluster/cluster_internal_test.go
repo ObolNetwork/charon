@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -32,17 +33,17 @@ func TestDefinitionVerify(t *testing.T) {
 	secret1, op1 := randomOperator(t)
 
 	definition, err := NewDefinition("test definition", 1, 2,
-		"", "", forkVersionSepolia, []Operator{op0, op1},
+		"", "", eth2util.Sepolia.ForkVersionHex, []Operator{op0, op1},
 		rand.New(rand.NewSource(1)))
 	require.NoError(t, err)
 
 	configHash, err := hashDefinition(definition, true)
 	require.NoError(t, err)
 
-	definition.Operators[0], err = signOperator(secret0, op0, configHash, chainIDSepolia)
+	definition.Operators[0], err = signOperator(secret0, op0, configHash, eth2util.Sepolia.ChainID)
 	require.NoError(t, err)
 
-	definition.Operators[1], err = signOperator(secret1, op1, configHash, chainIDSepolia)
+	definition.Operators[1], err = signOperator(secret1, op1, configHash, eth2util.Sepolia.ChainID)
 	require.NoError(t, err)
 
 	err = definition.VerifySignatures()

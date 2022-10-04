@@ -23,6 +23,7 @@ import (
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -32,7 +33,6 @@ import (
 const (
 	// Test output file and it's input values.
 	withdrawalAddr = "0xc0404ed740a69d11201f5ed297c5732f562c6e4e"
-	network        = "goerli"
 )
 
 //go:generate go test . -run=TestMarshalDepositData -update -clean
@@ -50,7 +50,7 @@ func TestMarshalDepositData(t *testing.T) {
 	for i := 0; i < len(privKeys); i++ {
 		sk, pk := GetKeys(t, privKeys[i])
 
-		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddr, network)
+		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddr, eth2util.Goerli.Name)
 		require.NoError(t, err)
 
 		sig, err := tbls.Sign(sk, msgRoot[:])
@@ -59,7 +59,7 @@ func TestMarshalDepositData(t *testing.T) {
 		sigsByKeys[pk] = tblsconv.SigToETH2(sig)
 	}
 
-	actual, err := deposit.MarshalDepositData(sigsByKeys, withdrawalAddr, network)
+	actual, err := deposit.MarshalDepositData(sigsByKeys, withdrawalAddr, eth2util.Goerli.Name)
 	require.NoError(t, err)
 
 	testutil.RequireGoldenBytes(t, actual)

@@ -34,6 +34,7 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/dkg/sync"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
@@ -78,7 +79,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	network, err := ForkVersionToNetwork(def.ForkVersion)
+	network, err := eth2util.ForkVersionToNetwork(def.ForkVersion)
 	if err != nil {
 		return err
 	}
@@ -611,23 +612,4 @@ func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 	}
 
 	return dvs, nil
-}
-
-func ForkVersionToNetwork(forkVersion []byte) (string, error) {
-	switch fmt.Sprintf("%#x", forkVersion) {
-	case "0x00001020":
-		return "goerli", nil
-	case "0x70000069":
-		return "kiln", nil
-	case "0x80000069":
-		return "ropsten", nil
-	case "0x00000064":
-		return "gnosis", nil
-	case "0x90000069":
-		return "sepolia", nil
-	case "0x00000000":
-		return "mainnet", nil
-	default:
-		return "", errors.New("invalid fork version")
-	}
 }
