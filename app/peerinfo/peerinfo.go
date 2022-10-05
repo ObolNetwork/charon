@@ -141,8 +141,12 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 		if peerID == p.tcpNode.ID() {
 			continue // Do not send to self.
 		}
-		if !supportsPeerInfo(p.tcpNode, peerID) {
-			// PeerInfo is not a critical feature, do not attempt if peer doesn't support it.
+
+		// Check if peer supports this protocol.
+		if protocols, err := p.tcpNode.Peerstore().GetProtocols(peerID); err != nil || len(protocols) == 0 {
+			// Ignore peer until some protocols detected
+			continue
+		} else if !supported(protocols) {
 			log.Warn(ctx, "Non-critical peerinfo protocol not supported by peer", nil,
 				z.Str("peer", p2p.PeerName(peerID)),
 				p.noSupportFilters[peerID],
@@ -173,8 +177,6 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			if !bytes.Equal(resp.LockHash, p.lockHash) {
 				// TODO(corver): Think about escalating this error when we are clear
 				//  on how to handle lock file migrations.
-
-				// Only log once when we see a new lock hash
 				log.Warn(ctx, "Mismatching peer lock hash", nil,
 					z.Str("peer", p2p.PeerName(peerID)),
 					z.Str("lock_hash", fmt.Sprintf("%#x", resp.LockHash)),
@@ -185,20 +187,14 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 	}
 }
 
-// supportsPeerInfo returns true if the peer supports this peerinfo protocol.
-// TODO(corver): Remove once we have released v0.12 since we support this from v0.11.
-func supportsPeerInfo(tcpNode host.Host, peerID peer.ID) bool {
-	protocols, err := tcpNode.Peerstore().GetProtocols(peerID)
-	if err != nil {
-		// Assume error means peer protocols are unknown.
-		return false
-	}
-
+func supported(protocols []string) bool {
+	var supported bool
 	for _, p := range protocols {
 		if p == string(protocolID) {
-			return true
+			supported = true
+			break
 		}
 	}
 
-	return false
+	return supported
 }
