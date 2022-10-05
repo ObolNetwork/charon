@@ -139,15 +139,17 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 }
 
 // VerifySignatures returns true if all config signatures are fully populated and valid. A verified definition is ready for use in DKG.
+//
+//nolint:gocognit
 func (d Definition) VerifySignatures() error {
 	// Skip signature verification for definition versions earlier than v1.3 since there are no EIP712 signatures before v1.3.0.
-	if !supportEIP712Sigs(d.Version) {
-		// For definition versions earlier than v1.3.0, error if either config signature or enr signature for any operator is present.
-		if eip712SigsPresent(d.Operators) {
-			return errors.New("older version signatures not supported")
-		}
-
+	if !supportEIP712Sigs(d.Version) && !eip712SigsPresent(d.Operators) {
 		return nil
+	}
+
+	// For definition versions earlier than v1.3.0, error if either config signature or enr signature for any operator is present.
+	if !supportEIP712Sigs(d.Version) && eip712SigsPresent(d.Operators) {
+		return errors.New("older version signatures not supported")
 	}
 
 	configHash, err := hashDefinition(d, true)
@@ -182,7 +184,7 @@ func (d Definition) VerifySignatures() error {
 			return err
 		}
 
-		if ok, err := verifySig(o.Address, digest[:], o.ConfigSignature); err != nil {
+		if ok, err := verifySig(o.Address, digest, o.ConfigSignature); err != nil {
 			return err
 		} else if !ok {
 			return errors.New("invalid operator config signature", z.Any("operator_address", o.Address))
@@ -194,7 +196,7 @@ func (d Definition) VerifySignatures() error {
 			return err
 		}
 
-		if ok, err := verifySig(o.Address, digest[:], o.ENRSignature); err != nil {
+		if ok, err := verifySig(o.Address, digest, o.ENRSignature); err != nil {
 			return err
 		} else if !ok {
 			return errors.New("invalid operator enr signature", z.Any("operator_address", o.Address))
