@@ -16,6 +16,7 @@
 package log
 
 import (
+	"math"
 	"time"
 
 	"go.uber.org/zap"
@@ -70,4 +71,4 @@ func Filter(opts ...FilterOption) z.Field {
 }
 
 // filterFieldType is a custom zap field type that indicates the whole log should be filtered (dropped).
-var filterFieldType = zapcore.FieldType(255)
+var filterFieldType = zapcore.FieldType(math.MaxUint8)

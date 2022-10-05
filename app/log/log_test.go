@@ -96,20 +96,6 @@ func TestCopyFields(t *testing.T) {
 	testutil.RequireGoldenBytes(t, buf.Bytes())
 }
 
-func TestFilterAll(t *testing.T) {
-	buf := setup(t)
-
-	ctx := context.Background()
-
-	filter := log.Filter(log.WithFilterRateLimit(0)) // Limit of 0 results in no logs.
-	log.Info(ctx, "should", filter)
-	log.Info(ctx, "all", filter)
-	log.Info(ctx, "be", filter)
-	log.Info(ctx, "dropped", filter)
-
-	testutil.RequireGoldenBytes(t, buf.Bytes())
-}
-
 func TestFilterDefault(t *testing.T) {
 	buf := setup(t)
 
