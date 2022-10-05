@@ -1,0 +1,40 @@
+{
+  "operators": [
+    {
+      "address": "0x86b8145c98e5bd25ba722645b15ed65f024a87ec",
+      "enr": "enr:-Iu4QCdreXm-iHrd2Y-QgLAHeGAkQSrZNvfPL-l6IuGEuKoMHnZsg93EgIWWOtcBzKs_-skexEKvY3CmcJ8SOzMIGMiAgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL4r6dX8heIruf3OW_hfcctLtsaX8roj8E-8s0-IpH9rYN0Y3CCDhqDdWRwgg4u",
+      "enr_signature": "0x1dc963f01eb794170e35a972ec8b487bdea2e3c1acbbe2fc2ab7936e7fe99e407583489a7dff3fbb08f4902e77867d795a7196a83d91b0a0eb8e50b8d96d35ba1c",
+      "config_signature": "0x820444195d83bbba4aebd53d2c08dd4b85b67176fa0a16b8f004b873b0a4639f72974d4194f2236c3cfc72e0c024dd86783af13a2562d81ef3f7fd0cb281b0d21b"
+    },
+    {
+      "address": "0xC35CfCd67b9C27345a54EDEcC1033F2284148c81",
+      "enr": "enr:-Iu4QNbiUUUwT18LynBbVPJhNxvzQsaSpUr40mQTWscnZaqKb6vAlvV8j-eDDR3E0wjMQumGRbGm2IAb5_k4bVWJiVGAgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQPOiodUji0ohgJb5sNK1hgv8g6xO5_znZz3NkkBkyYyKIN0Y3CCDhqDdWRwgg4u",
+      "enr_signature": "0xb580f1380a62d299587357181561c8db8d67f4cc92d094b2ca3c84eddde3759567cfe60669b30ef55308a749c3c6a32f52148ac6b667cc6554f63a04c55350451b",
+      "config_signature": "0x5139b149a683cbb1835c5901a857f352026f9441e31ed080b7fb91a411cb578122c7b0fb72baae8e2bfa89beb183df4b9908d818f58c98a7b7802a8f18a329d91b"
+    },
+    {
+      "address": "0x33807D6F1DCe44b9C599fFE03640762A6F08C496",
+      "enr": "enr:-Iu4QJyserRukhG0Vgi2csu7GjpHYUGufNEbZ8Q7ZBrcZUb0KqpL5QzHonkh1xxHlxatTxrIcX_IS5J3SEWR_sa0ptGAgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMAUgEqczOjevyculnUIofhCj0DkgJudErM7qCYIvIkzIN0Y3CCDhqDdWRwgg4u",
+      "enr_signature": "0xf63195e4238eac6d9deae5ec56626ac16a7a861294587c3ee144853ace76f8a2089980a2cbf17c72a8c5ac0651c6935d023db34fc0be58a91f0c70c26017597a1b",
+      "config_signature": "0xbf27687e0d93596ad7aee66af144b40e412f7671ba18edf0dea672512e6f065023ab9f5c488f31da3a437c5cdf92a657b12936e26a58706aad5e70cdb0a50c591c"
+    },
+    {
+      "address": "0xc6e76F72Ea672FAe05C357157CfC37720F0aF26f",
+      "enr": "enr:-Iu4QK1xQ5PNWq_QlD-aBPhgODTif4lSfd3mrpJjjcgNfF-xSNxrwtUK4w4osN2XoDc9n3lQqll10vw5EZOZe1u2MbiAgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQONrHZQk-QJP6tN9nrCG2BlBkKhjLiMNBrUQZTUnJ53EIN0Y3CCDhqDdWRwgg4u",
+      "enr_signature": "0x1d4bbc2dad0a657ae9735bd49d53e4d0e7c160b1087572d6638b02eb6f11ced0567998c2f0397b8d23435545b5716cbba84e10542fe7b1e57c27aaa2c252cc371c",
+      "config_signature": "0xd61155654fc3a0d53f58cbfd7278927d570c6203a22573ae54cc249456d2f59f3121de190e95c697c4c568b722b875eaa108f08704e143330f2544a1061b8c951b"
+    }
+  ],
+  "name": "lastTestHopefully",
+  "uuid": "b2803c31-d864-45e2-bd08-4f73dc9088d1",
+  "version": "v1.3.0",
+  "num_validators": 1,
+  "threshold": 3,
+  "fee_recipient_address": "0x86b8145c98e5bd25ba722645b15ed65f024a87ec",
+  "withdrawal_address": "0x86b8145c98e5bd25ba722645b15ed65f024a87ec",
+  "dkg_algorithm": "default",
+  "fork_version": "0x00001020",
+  "timestamp": "2022-10-05T15:20:12.433Z",
+  "config_hash": "0xe31db9988226c522f76cd2bc283e56da28dfb5c8bb79a77a84387470813cb59a",
+  "definition_hash": "0x273c99b148eae41f2936c9c4564876a4f809b5924d70059c1bd052f36de32c4e"
+}
