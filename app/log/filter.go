@@ -34,23 +34,13 @@ func WithFilterRateLimit(limit rate.Limit) FilterOption {
 	}
 }
 
-// WithFilterPeriod returns a filter option that rate limits logging by allowing one log per period.
-func WithFilterPeriod(period time.Duration) FilterOption {
-	return func(f *filter) {
-		f.limit = rate.Limit(float64(time.Second) / float64(period))
-	}
-}
-
 type filter struct {
 	limit rate.Limit
 }
 
 // defaultFilter returns the default filter with a period of 1 hour.
 func defaultFilter() filter {
-	var f filter
-	WithFilterPeriod(time.Hour)(&f)
-
-	return f
+	return filter{limit: rate.Every(time.Hour)}
 }
 
 // Filter returns a stateful structure logging field that results in

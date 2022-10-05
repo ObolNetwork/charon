@@ -19,13 +19,13 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"math"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
+	"golang.org/x/time/rate"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -128,13 +128,10 @@ func TestFilterNone(t *testing.T) {
 
 	ctx := context.Background()
 
-	filter := log.Filter(log.WithFilterRateLimit(math.MaxInt64)) // Default limit allows 1 per hour
+	filter := log.Filter(log.WithFilterRateLimit(rate.Inf)) // Infinite rate limit allows all.
 	log.Info(ctx, "expect1", filter)
-	time.Sleep(time.Millisecond) // Sleep a little since we do not configure bursts.
 	log.Info(ctx, "expect2", filter)
-	time.Sleep(time.Millisecond)
 	log.Info(ctx, "expect3", filter)
-	time.Sleep(time.Millisecond)
 
 	testutil.RequireGoldenBytes(t, buf.Bytes())
 }
