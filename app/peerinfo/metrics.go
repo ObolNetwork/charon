@@ -25,7 +25,7 @@ var (
 	peerClockOffset = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace:   "app",
 		Subsystem:   "peerinfo",
-		Name:        "clock_offset_ms",
+		Name:        "clock_offset_seconds",
 		Help:        "Peer clock offset in seconds",
 		ConstLabels: nil,
 	}, []string{"peer"})
@@ -33,7 +33,7 @@ var (
 	peerVersion = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace:   "app",
 		Subsystem:   "peerinfo",
-		Name:        "clock_offset_ms",
+		Name:        "version",
 		Help:        "Constant gauge with version label set to peer's charon version.",
 		ConstLabels: nil,
 	}, []string{"peer", "version"})

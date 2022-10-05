@@ -39,11 +39,14 @@ const period = time.Minute
 
 var protocolID protocol.ID = "/charon/peerinfo/1.0.0"
 
-type tickerProvider func() (<-chan time.Time, func())
-type nowFunc func() time.Time
+type (
+	tickerProvider func() (<-chan time.Time, func())
+	nowFunc        func() time.Time
+)
 
 func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
-	sendFunc p2p.SendReceiveFunc) *PeerInfo {
+	sendFunc p2p.SendReceiveFunc,
+) *PeerInfo {
 	tickerProvider := func() (<-chan time.Time, func()) {
 		ticker := time.NewTicker(period)
 		return ticker.C, ticker.Stop
@@ -53,9 +56,10 @@ func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
 		tickerProvider, time.Now)
 }
 
-func NewForT(_ testing.T, tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
+func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
-	tickerProvider tickerProvider, nowFunc nowFunc) *PeerInfo {
+	tickerProvider tickerProvider, nowFunc nowFunc,
+) *PeerInfo {
 	return newInternal(tcpNode, peers, version, lockHash, sendFunc, registerHandler,
 		tickerProvider, nowFunc)
 }
@@ -127,7 +131,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 
 		go func(peerID peer.ID) {
 			resp := new(pbv1.PeerInfo)
-			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocol.ID(protocolID))
+			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocolID)
 			if err != nil {
 				return // Logging handled by send func.
 			}
@@ -142,6 +146,9 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 
 			// Log unexpected lock hash
 			if !bytes.Equal(resp.LockHash, p.lockHash) {
+				// TODO(corver): Think about escalating this error when we are clear
+				//  on how to handle lock file migrations.
+
 				prevHash, ok := p.loggedLocks.Load(peerID)
 				if !ok || !bytes.Equal(prevHash.([]byte), resp.LockHash) {
 					// Only log once when we see a new lock hash
@@ -149,10 +156,8 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 						z.Str("peer", peerName),
 						z.Str("lock_hash", fmt.Sprintf("%#x", resp.LockHash)),
 					)
-					p.loggedLocks.Store(peerID, resp.LockHash)
 
-					// TODO(corver): Think about escalating this error when we are clear
-					//  on how to handle lock file migrations.
+					p.loggedLocks.Store(peerID, resp.LockHash)
 				}
 			}
 		}(peerID)
