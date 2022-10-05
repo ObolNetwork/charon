@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"math"
 	"testing"
 	"time"
 
@@ -91,6 +92,49 @@ func TestCopyFields(t *testing.T) {
 
 	log.Info(ctx1, "see source")
 	log.Info(ctx2, "also source")
+
+	testutil.RequireGoldenBytes(t, buf.Bytes())
+}
+
+func TestFilterAll(t *testing.T) {
+	buf := setup(t)
+
+	ctx := context.Background()
+
+	filter := log.Filter(log.WithFilterRateLimit(0)) // Limit of 0 results in no logs.
+	log.Info(ctx, "should", filter)
+	log.Info(ctx, "all", filter)
+	log.Info(ctx, "be", filter)
+	log.Info(ctx, "dropped", filter)
+
+	testutil.RequireGoldenBytes(t, buf.Bytes())
+}
+
+func TestFilterDefault(t *testing.T) {
+	buf := setup(t)
+
+	ctx := context.Background()
+
+	filter := log.Filter() // Default limit allows 1 per hour
+	log.Info(ctx, "expect", filter)
+	log.Info(ctx, "dropped", filter)
+	log.Info(ctx, "dropped", filter)
+
+	testutil.RequireGoldenBytes(t, buf.Bytes())
+}
+
+func TestFilterNone(t *testing.T) {
+	buf := setup(t)
+
+	ctx := context.Background()
+
+	filter := log.Filter(log.WithFilterRateLimit(math.MaxInt64)) // Default limit allows 1 per hour
+	log.Info(ctx, "expect1", filter)
+	time.Sleep(time.Millisecond) // Sleep a little since we do not configure bursts.
+	log.Info(ctx, "expect2", filter)
+	time.Sleep(time.Millisecond)
+	log.Info(ctx, "expect3", filter)
+	time.Sleep(time.Millisecond)
 
 	testutil.RequireGoldenBytes(t, buf.Bytes())
 }

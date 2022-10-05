@@ -74,7 +74,10 @@ func metricsTopicFromCtx(ctx context.Context) string {
 // Debug logs the message and fields (incl fields in the context) at Debug level.
 // Debug should be used for most logging.
 func Debug(ctx context.Context, msg string, fields ...z.Field) {
-	zfl := unwrapDedup(ctx, fields...)
+	zfl, ok := unwrapDedup(ctx, fields...)
+	if !ok {
+		return
+	}
 	trace.SpanFromContext(ctx).AddEvent("log.Debug: "+msg, toAttributes(zfl))
 	logger.Debug(msg, zfl...)
 }
@@ -82,7 +85,10 @@ func Debug(ctx context.Context, msg string, fields ...z.Field) {
 // Info logs the message and fields (incl fields in the context) at Info level.
 // Info should only be used for high level important events.
 func Info(ctx context.Context, msg string, fields ...z.Field) {
-	zfl := unwrapDedup(ctx, fields...)
+	zfl, ok := unwrapDedup(ctx, fields...)
+	if !ok {
+		return
+	}
 	trace.SpanFromContext(ctx).AddEvent("log.Info: "+msg, toAttributes(zfl))
 	logger.Info(msg, zfl...)
 }
@@ -94,7 +100,10 @@ func Warn(ctx context.Context, msg string, err error, fields ...z.Field) {
 	incWarnCounter(ctx)
 
 	if err == nil {
-		zfl := unwrapDedup(ctx, fields...)
+		zfl, ok := unwrapDedup(ctx, fields...)
+		if !ok {
+			return
+		}
 		trace.SpanFromContext(ctx).AddEvent("log.Warn: "+msg, toAttributes(zfl))
 		logger.Warn(msg, zfl...)
 
@@ -102,7 +111,10 @@ func Warn(ctx context.Context, msg string, err error, fields ...z.Field) {
 	}
 
 	err = errors.SkipWrap(err, msg, 2, fields...)
-	zfl := unwrapDedup(ctx, errFields(err))
+	zfl, ok := unwrapDedup(ctx, errFields(err))
+	if !ok {
+		return
+	}
 	trace.SpanFromContext(ctx).RecordError(err, trace.WithStackTrace(true), toAttributes(zfl))
 	logger.Warn(err.Error(), zfl...)
 }
@@ -114,7 +126,10 @@ func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
 	incErrorCounter(ctx)
 
 	if err == nil {
-		zfl := unwrapDedup(ctx, fields...)
+		zfl, ok := unwrapDedup(ctx, fields...)
+		if !ok {
+			return
+		}
 		trace.SpanFromContext(ctx).AddEvent("log.Error: "+msg, toAttributes(zfl))
 		logger.Error(msg, zfl...)
 
@@ -122,16 +137,28 @@ func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
 	}
 
 	err = errors.SkipWrap(err, msg, 2, fields...)
-	zfl := unwrapDedup(ctx, errFields(err))
+	zfl, ok := unwrapDedup(ctx, errFields(err))
+	if !ok {
+		return
+	}
 	trace.SpanFromContext(ctx).RecordError(err, trace.WithStackTrace(true), toAttributes(zfl))
 	logger.Error(err.Error(), zfl...)
 }
 
-// unwrapDedup returns the wrapped zap fields from the slice and from the context. Duplicate fields are dropped.
-func unwrapDedup(ctx context.Context, fields ...z.Field) []zap.Field {
-	var resp []zap.Field
-	dups := make(map[string]bool)
+// unwrapDedup returns true and the wrapped zap fields from the slice and from the context. Duplicate fields are dropped.
+// It returns false if the whole log should be filtered out (dropped).
+func unwrapDedup(ctx context.Context, fields ...z.Field) ([]zap.Field, bool) {
+	var (
+		resp     []zap.Field
+		filtered bool
+		dups     = make(map[string]bool)
+	)
+
 	adder := func(f zap.Field) {
+		if f.Type == filterFieldType {
+			filtered = true
+			return
+		}
 		if dups[f.Key] {
 			return
 		}
@@ -147,7 +174,7 @@ func unwrapDedup(ctx context.Context, fields ...z.Field) []zap.Field {
 		field(adder)
 	}
 
-	return resp
+	return resp, !filtered
 }
 
 // errFields is similar to z.Err and returns the structured error fields and

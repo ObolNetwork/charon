@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -40,8 +39,9 @@ const period = time.Minute
 var protocolID protocol.ID = "/charon/peerinfo/1.0.0"
 
 type (
-	tickerProvider func() (<-chan time.Time, func())
-	nowFunc        func() time.Time
+	tickerProvider  func() (<-chan time.Time, func())
+	nowFunc         func() time.Time
+	metricSubmitter func(peerID peer.ID, clockOffset time.Duration, version string)
 )
 
 func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
@@ -51,22 +51,27 @@ func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
 		ticker := time.NewTicker(period)
 		return ticker.C, ticker.Stop
 	}
+	metricSubmitter := func(peerID peer.ID, clockOffset time.Duration, version string) {
+		peerName := p2p.PeerName(peerID)
+		peerClockOffset.WithLabelValues(peerName).Set(clockOffset.Seconds())
+		peerVersion.WithLabelValues(peerName, version).Set(1)
+	}
 
 	return newInternal(tcpNode, peers, version, lockHash, sendFunc, p2p.RegisterHandler,
-		tickerProvider, time.Now)
+		tickerProvider, time.Now, metricSubmitter)
 }
 
 func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
-	tickerProvider tickerProvider, nowFunc nowFunc,
+	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
 ) *PeerInfo {
 	return newInternal(tcpNode, peers, version, lockHash, sendFunc, registerHandler,
-		tickerProvider, nowFunc)
+		tickerProvider, nowFunc, metricSubmitter)
 }
 
 func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
-	tickerProvider tickerProvider, nowFunc nowFunc,
+	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
 ) *PeerInfo {
 	// Register a simple handler that returns our info and ignores the request.
 	registerHandler("peerinfo", tcpNode, protocolID,
@@ -80,25 +85,41 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 		},
 	)
 
+	// Create log filters
+	noSupportFilters := make(map[peer.ID]z.Field)
+	lockHashFilters := make(map[peer.ID]z.Field)
+	for _, peerID := range peers {
+		noSupportFilters[peerID] = log.Filter()
+		lockHashFilters[peerID] = log.Filter()
+	}
+
 	return &PeerInfo{
-		sendFunc:       sendFunc,
-		tcpNode:        tcpNode,
-		peers:          peers,
-		version:        version,
-		lockHash:       lockHash,
-		tickerProvider: tickerProvider,
-		loggedLocks:    new(sync.Map),
+		sendFunc:         sendFunc,
+		tcpNode:          tcpNode,
+		peers:            peers,
+		version:          version,
+		lockHash:         lockHash,
+		metricSubmitter:  metricSubmitter,
+		tickerProvider:   tickerProvider,
+		nowFunc:          nowFunc,
+		noSupportFilters: noSupportFilters,
+		lockHashFilters:  lockHashFilters,
 	}
 }
 
 type PeerInfo struct {
-	sendFunc       p2p.SendReceiveFunc
-	tcpNode        host.Host
-	peers          []peer.ID
-	version        string
-	lockHash       []byte
-	tickerProvider tickerProvider
-	loggedLocks    *sync.Map // map[peer.ID]lockHash
+	// Immutable fields
+
+	sendFunc         p2p.SendReceiveFunc
+	tcpNode          host.Host
+	peers            []peer.ID
+	version          string
+	lockHash         []byte
+	tickerProvider   tickerProvider
+	metricSubmitter  metricSubmitter
+	nowFunc          func() time.Time
+	noSupportFilters map[peer.ID]z.Field
+	lockHashFilters  map[peer.ID]z.Field
 }
 
 func (p *PeerInfo) Run(ctx context.Context) {
@@ -122,6 +143,14 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 		if peerID == p.tcpNode.ID() {
 			continue // Do not send to self.
 		}
+		if !supportsPeerInfo(p.tcpNode, peerID) {
+			// PeerInfo is not a critical feature, do not attempt if peer doesn't support it.
+			log.Warn(ctx, "Non-critical peerinfo protocol not supported by peer", nil,
+				z.Str("peer", p2p.PeerName(peerID)),
+				p.noSupportFilters[peerID],
+			)
+			continue
+		}
 
 		req := &pbv1.PeerInfo{
 			CharonVersion: p.version,
@@ -136,30 +165,41 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 				return // Logging handled by send func.
 			}
 
-			rtt := time.Since(now)
+			rtt := p.nowFunc().Sub(now)
 			expectSentAt := now.Add(rtt / 2)
 			clockOffset := resp.SentAt.AsTime().Sub(expectSentAt)
-
-			peerName := p2p.PeerName(peerID)
-			peerClockOffset.WithLabelValues(peerName).Set(clockOffset.Seconds())
-			peerVersion.WithLabelValues(peerName, resp.CharonVersion).Set(1)
+			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion)
 
 			// Log unexpected lock hash
 			if !bytes.Equal(resp.LockHash, p.lockHash) {
 				// TODO(corver): Think about escalating this error when we are clear
 				//  on how to handle lock file migrations.
 
-				prevHash, ok := p.loggedLocks.Load(peerID)
-				if !ok || !bytes.Equal(prevHash.([]byte), resp.LockHash) {
-					// Only log once when we see a new lock hash
-					log.Warn(ctx, "Mismatching peer lock hash", nil,
-						z.Str("peer", peerName),
-						z.Str("lock_hash", fmt.Sprintf("%#x", resp.LockHash)),
-					)
-
-					p.loggedLocks.Store(peerID, resp.LockHash)
-				}
+				// Only log once when we see a new lock hash
+				log.Warn(ctx, "Mismatching peer lock hash", nil,
+					z.Str("peer", p2p.PeerName(peerID)),
+					z.Str("lock_hash", fmt.Sprintf("%#x", resp.LockHash)),
+					p.lockHashFilters[peerID],
+				)
 			}
 		}(peerID)
 	}
+}
+
+// supportsPeerInfo returns true if the peer supports this peerinfo protocol.
+// TODO(corver): Remove once we have released v0.12 since we support this from v0.11
+func supportsPeerInfo(tcpNode host.Host, peerID peer.ID) bool {
+	protocols, err := tcpNode.Peerstore().GetProtocols(peerID)
+	if err != nil {
+		// Assume error means peer protocols are unknown.
+		return false
+	}
+
+	for _, p := range protocols {
+		if p == string(protocolID) {
+			return true
+		}
+	}
+
+	return false
 }
