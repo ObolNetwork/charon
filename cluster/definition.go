@@ -141,8 +141,8 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 // VerifySignatures returns true if all config signatures are fully populated and valid. A verified definition is ready for use in DKG.
 func (d Definition) VerifySignatures() error {
 	// Skip signature verification for definition versions earlier than v1.3 since there are no EIP712 signatures before v1.3.0.
-
 	if !supportEIP712Sigs(d.Version) {
+		// TODO(dhruv): maybe error if signatures present
 		return nil
 	}
 
