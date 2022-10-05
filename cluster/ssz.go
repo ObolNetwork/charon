@@ -216,10 +216,10 @@ func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error 
 					return err
 				}
 
-				// Field (2) 'ConfigSignature' Bytes32
+				// Field (2) 'ConfigSignature' Bytes65
 				hh.PutBytes(o.ConfigSignature)
 
-				// Field (3) 'ENRSignature' Bytes32
+				// Field (3) 'ENRSignature' Bytes65
 				hh.PutBytes(o.ENRSignature)
 			}
 
