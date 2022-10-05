@@ -230,7 +230,7 @@ func putByteList(h ssz.HashWalker, b []byte, limit int, field string) error {
 	if byteLen > limit {
 		return errors.Wrap(ssz.ErrIncorrectListSize, "put byte list", z.Str("field", field))
 	}
-	h.PutBytes(b)
+	h.AppendBytes32(b)
 	h.MerkleizeWithMixin(elemIndx, uint64(byteLen), uint64(limit+31)/32)
 
 	return nil
