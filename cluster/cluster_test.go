@@ -34,7 +34,7 @@ import (
 //go:generate go test . -v -update -clean
 
 func TestEncode(t *testing.T) {
-	for _, version := range cluster.SupportedVersionsForT() {
+	for _, version := range cluster.SupportedVersionsForT(t) {
 		t.Run(version, func(t *testing.T) {
 			vStr := strings.ReplaceAll(version, ".", "_")
 			rand.Seed(1)
@@ -65,6 +65,7 @@ func TestEncode(t *testing.T) {
 			require.NoError(t, err)
 			definition.Version = version
 
+			// Definition version prior to v1.3.0 don't support EIP712 signatures.
 			if version == "v1.0.0" || version == "v1.1.0" || version == "v1.2.0" {
 				for i := range definition.Operators {
 					definition.Operators[i].ConfigSignature = []byte{}

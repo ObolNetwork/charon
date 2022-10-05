@@ -15,6 +15,8 @@
 
 package cluster
 
+import "testing"
+
 const (
 	currentVersion = v1_2
 	dkgAlgo        = "default"
@@ -51,7 +53,7 @@ func isJSONv1x3(version string) bool {
 }
 
 // SupportedVersionsForT returns the supported definition versions for testing purposes only.
-func SupportedVersionsForT() []string {
+func SupportedVersionsForT(*testing.T) []string {
 	var resp []string
 	for version := range supportedVersions {
 		resp = append(resp, version)

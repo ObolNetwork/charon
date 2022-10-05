@@ -141,6 +141,7 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 // VerifySignatures returns true if all config signatures are fully populated and valid. A verified definition is ready for use in DKG.
 func (d Definition) VerifySignatures() error {
 	// Skip signature verification for definition versions earlier than v1.3 since there are no EIP712 signatures before v1.3.0.
+
 	if !supportEIP712Sigs(d.Version) {
 		return nil
 	}
@@ -451,6 +452,8 @@ func unmarshalDefinitionV1x2or3(data []byte) (def Definition, err error) {
 	return def, nil
 }
 
+// supportEIP712Sigs returns true if version is earlier than v1.3.0.
+// Note: Definition version prior to v1.3.0 don't support EIP712 signatures.
 func supportEIP712Sigs(version string) bool {
 	return !isJSONv1x0(version) && !isJSONv1x1(version) && !isJSONv1x2(version)
 }
