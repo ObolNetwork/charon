@@ -246,7 +246,10 @@ func (p *Prioritiser) prioritiseOnce(ctx context.Context, slot int64) error {
 
 	// Send our own message first to start consensus timeout.
 	go func() { // Async since unbuffered
-		p.received <- msg
+		select {
+		case <-ctx.Done():
+		case p.received <- msg:
+		}
 	}()
 
 	for _, pID := range p.peers {
@@ -272,7 +275,10 @@ func (p *Prioritiser) prioritiseOnce(ctx context.Context, slot int64) error {
 				return
 			}
 
-			p.received <- response
+			select {
+			case <-ctx.Done():
+			case p.received <- response:
+			}
 		}(pID)
 	}
 
