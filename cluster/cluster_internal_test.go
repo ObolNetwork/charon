@@ -106,12 +106,7 @@ func TestDefinitionVerify(t *testing.T) {
 		definition.Version = v1_2
 		definition.Operators[0].ENRSignature = testutil.RandomSecp256k1Signature()
 
-		b1, err := json.Marshal(definition)
-		testutil.RequireNoError(t, err)
-
-		var definition2 Definition
-		err = json.Unmarshal(b1, &definition2)
-		require.Error(t, err)
+		_, err := json.Marshal(definition)
 		require.ErrorContains(t, err, "older version signatures not supported")
 	})
 }

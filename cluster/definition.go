@@ -142,7 +142,11 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 func (d Definition) VerifySignatures() error {
 	// Skip signature verification for definition versions earlier than v1.3 since there are no EIP712 signatures before v1.3.0.
 	if !supportEIP712Sigs(d.Version) {
-		// TODO(dhruv): maybe error if signatures present
+		// For definition versions earlier than v1.3.0, error if either config signature or enr signature for any operator is present.
+		if eip712SigsPresent(d.Operators) {
+			return errors.New("older version signatures not supported")
+		}
+
 		return nil
 	}
 
@@ -260,6 +264,11 @@ func (d Definition) SetDefinitionHashes() (Definition, error) {
 }
 
 func (d Definition) MarshalJSON() ([]byte, error) {
+	// For definition versions earlier than v1.3.0, error if either config signature or enr signature for any operator is present.
+	if !supportEIP712Sigs(d.Version) && eip712SigsPresent(d.Operators) {
+		return nil, errors.New("older version signatures not supported")
+	}
+
 	d, err := d.SetDefinitionHashes()
 	if err != nil {
 		return nil, err
@@ -312,12 +321,8 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 	*d = def
 
 	// For definition versions earlier than v1.3.0, error if either config signature or enr signature for any operator is present.
-	if !supportEIP712Sigs(def.Version) {
-		for _, o := range def.Operators {
-			if len(o.ENRSignature) > 0 || len(o.ConfigSignature) > 0 {
-				return errors.New("older version signatures not supported")
-			}
-		}
+	if !supportEIP712Sigs(def.Version) && eip712SigsPresent(def.Operators) {
+		return errors.New("older version signatures not supported")
 	}
 
 	return nil
@@ -456,6 +461,16 @@ func unmarshalDefinitionV1x2or3(data []byte) (def Definition, err error) {
 // Note: Definition version prior to v1.3.0 don't support EIP712 signatures.
 func supportEIP712Sigs(version string) bool {
 	return !isJSONv1x0(version) && !isJSONv1x1(version) && !isJSONv1x2(version)
+}
+
+func eip712SigsPresent(operators []Operator) bool {
+	for _, o := range operators {
+		if len(o.ENRSignature) > 0 || len(o.ConfigSignature) > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 // definitionJSONv1x0or1 is the json formatter of Definition for versions v1.0.0 and v1.1.1.
