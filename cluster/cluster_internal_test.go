@@ -17,6 +17,7 @@ package cluster
 
 import (
 	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -32,22 +33,87 @@ func TestDefinitionVerify(t *testing.T) {
 	secret0, op0 := randomOperator(t)
 	secret1, op1 := randomOperator(t)
 
-	definition, err := NewDefinition("test definition", 1, 2,
-		"", "", eth2util.Sepolia.ForkVersionHex, []Operator{op0, op1},
-		rand.New(rand.NewSource(1)))
-	require.NoError(t, err)
+	t.Run("verify definition v1.3", func(t *testing.T) {
+		definition := randomDefinition(t, op0, op1)
 
-	configHash, err := hashDefinition(definition, true)
-	require.NoError(t, err)
+		configHash, err := hashDefinition(definition, true)
+		require.NoError(t, err)
 
-	definition.Operators[0], err = signOperator(secret0, op0, configHash, eth2util.Sepolia.ChainID)
-	require.NoError(t, err)
+		chainID, err := eth2util.ForkVersionToChainID(definition.ForkVersion)
+		require.NoError(t, err)
 
-	definition.Operators[1], err = signOperator(secret1, op1, configHash, eth2util.Sepolia.ChainID)
-	require.NoError(t, err)
+		definition.Operators[0], err = signOperator(secret0, op0, configHash, chainID)
+		require.NoError(t, err)
 
-	err = definition.VerifySignatures()
-	require.NoError(t, err)
+		definition.Operators[1], err = signOperator(secret1, op1, configHash, chainID)
+		require.NoError(t, err)
+
+		err = definition.VerifySignatures()
+		require.NoError(t, err)
+	})
+
+	t.Run("verify definition v1.2 or lower", func(t *testing.T) {
+		def := randomDefinition(t, op0, op1)
+		def.Version = v1_2
+		require.NoError(t, def.VerifySignatures())
+		def.Version = v1_0
+		require.NoError(t, def.VerifySignatures())
+	})
+
+	t.Run("unsigned operators", func(t *testing.T) {
+		def := randomDefinition(t, op0, op1)
+		def.Operators = []Operator{{}, {}}
+
+		require.NoError(t, def.VerifySignatures())
+	})
+
+	t.Run("empty operator signatures", func(t *testing.T) {
+		def := randomDefinition(t, op0, op1)
+
+		// Empty ENR sig
+		err := def.VerifySignatures()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "empty operator enr signature")
+
+		// Empty Config sig
+		def.Operators[0].ENRSignature = []byte{1, 2, 3}
+		err = def.VerifySignatures()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "empty operator config signature")
+	})
+
+	t.Run("some operators didn't sign", func(t *testing.T) {
+		definition := randomDefinition(t, op0, op1)
+		definition.Operators[0] = Operator{} // Operator with no address, enr sig or config sig
+
+		configHash, err := hashDefinition(definition, true)
+		require.NoError(t, err)
+
+		chainID, err := eth2util.ForkVersionToChainID(definition.ForkVersion)
+		require.NoError(t, err)
+
+		// Only operator 1 signed.
+		definition.Operators[1], err = signOperator(secret1, op1, configHash, chainID)
+		require.NoError(t, err)
+
+		err = definition.VerifySignatures()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "some operators signed while others didn't")
+	})
+
+	t.Run("older version signatures not supported", func(t *testing.T) {
+		definition := randomDefinition(t, op0, op1)
+		definition.Version = v1_2
+		definition.Operators[0].ENRSignature = testutil.RandomSecp256k1Signature()
+
+		b1, err := json.Marshal(definition)
+		testutil.RequireNoError(t, err)
+
+		var definition2 Definition
+		err = json.Unmarshal(b1, &definition2)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "older version signatures not supported")
+	})
 }
 
 // randomOperator returns a random ETH1 private key and populated operator struct (excluding config signature).
@@ -63,4 +129,19 @@ func randomOperator(t *testing.T) (*ecdsa.PrivateKey, Operator) {
 		Address: addr.Hex(),
 		ENR:     fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
 	}
+}
+
+// randomDefinition returns a test cluster definition with version set to v1.3.0.
+func randomDefinition(t *testing.T, op0, op1 Operator) Definition {
+	t.Helper()
+
+	definition, err := NewDefinition("test definition", 1, 2,
+		"", "", eth2util.Sepolia.ForkVersionHex, []Operator{op0, op1},
+		rand.New(rand.NewSource(1)))
+	require.NoError(t, err)
+
+	// TODO(xenowits): Remove the line below when v1.3 is the current version.
+	definition.Version = v1_3
+
+	return definition
 }

@@ -34,7 +34,7 @@ import (
 //go:generate go test . -v -update -clean
 
 func TestEncode(t *testing.T) {
-	for _, version := range cluster.SupportedVersionsForT(t) {
+	for _, version := range cluster.SupportedVersionsForT() {
 		t.Run(version, func(t *testing.T) {
 			vStr := strings.ReplaceAll(version, ".", "_")
 			rand.Seed(1)
@@ -64,6 +64,14 @@ func TestEncode(t *testing.T) {
 			)
 			require.NoError(t, err)
 			definition.Version = version
+
+			if version == "v1.0.0" || version == "v1.1.0" || version == "v1.2.0" {
+				for i := range definition.Operators {
+					definition.Operators[i].ConfigSignature = []byte{}
+					definition.Operators[i].ENRSignature = []byte{}
+				}
+			}
+
 			definition.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
 
 			t.Run("definition_json_"+vStr, func(t *testing.T) {

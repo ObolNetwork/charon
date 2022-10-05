@@ -79,7 +79,7 @@ type Definition struct {
 	// UUID is a human-readable random unique identifier. Max 64 chars.
 	UUID string `json:"uuid" ssz:"ByteList[64]" config_hash:"0" definition_hash:"0"`
 
-	// Name is an human-readable cosmetic identifier. Max 256 chars.
+	// Name is a human-readable cosmetic identifier. Max 256 chars.
 	Name string `json:"name" ssz:"ByteList[256]" config_hash:"1" definition_hash:"1"`
 
 	// Version is the schema version of this definition. Max 16 chars.
@@ -140,6 +140,11 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 
 // VerifySignatures returns true if all config signatures are fully populated and valid. A verified definition is ready for use in DKG.
 func (d Definition) VerifySignatures() error {
+	// Skip signature verification for definition versions earlier than v1.3 since there are no EIP712 signatures before v1.3.0.
+	if !supportEIP712Sigs(d.Version) {
+		return nil
+	}
+
 	configHash, err := hashDefinition(d, true)
 	if err != nil {
 		return errors.Wrap(err, "config hash")
@@ -192,7 +197,7 @@ func (d Definition) VerifySignatures() error {
 	}
 
 	if noSigs > 0 && noSigs != len(d.Operators) {
-		return errors.New("some operators signed others not")
+		return errors.New("some operators signed while others didn't")
 	}
 
 	return nil
@@ -304,6 +309,15 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 	}
 
 	*d = def
+
+	// For definition versions earlier than v1.3.0, error if either config signature or enr signature for any operator is present.
+	if !supportEIP712Sigs(def.Version) {
+		for _, o := range def.Operators {
+			if len(o.ENRSignature) > 0 || len(o.ConfigSignature) > 0 {
+				return errors.New("older version signatures not supported")
+			}
+		}
+	}
 
 	return nil
 }
@@ -435,6 +449,10 @@ func unmarshalDefinitionV1x2or3(data []byte) (def Definition, err error) {
 	}
 
 	return def, nil
+}
+
+func supportEIP712Sigs(version string) bool {
+	return !isJSONv1x0(version) && !isJSONv1x1(version) && !isJSONv1x2(version)
 }
 
 // definitionJSONv1x0or1 is the json formatter of Definition for versions v1.0.0 and v1.1.1.
