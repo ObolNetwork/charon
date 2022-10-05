@@ -16,10 +16,12 @@
 package consensus
 
 import (
+	"crypto/ecdsa"
 	"encoding/hex"
 	"math/rand"
 	"testing"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -27,6 +29,7 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	"github.com/obolnetwork/charon/core/qbft"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -54,28 +57,7 @@ func TestSigning(t *testing.T) {
 	privkey, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
-	vLegacy, err := core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t))
-	require.NoError(t, err)
-	pvLegacy, err := core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t))
-	require.NoError(t, err)
-
-	v, err := anypb.New(vLegacy)
-	require.NoError(t, err)
-	pv, err := anypb.New(pvLegacy)
-	require.NoError(t, err)
-
-	msg := &pbv1.QBFTMsg{
-		Type:                rand.Int63(),
-		Duty:                core.DutyToProto(core.Duty{Type: core.DutyType(rand.Int()), Slot: rand.Int63()}),
-		PeerIdx:             rand.Int63(),
-		Round:               rand.Int63(),
-		Value:               v,
-		ValueLegacy:         vLegacy,
-		PreparedRound:       rand.Int63(),
-		PreparedValue:       pv,
-		PreparedValueLegacy: pvLegacy,
-		Signature:           nil,
-	}
+	msg := randomMsg(t)
 
 	signed, err := signMsg(msg, privkey)
 	require.NoError(t, err)
@@ -99,29 +81,147 @@ func TestBackwardsCompatibility(t *testing.T) {
 		prevHash  = "9d050b2bec1435314ec7588a5b4cb903332fae4c9ecc930d8acc13a7e65a59d9"
 	)
 
-	b, err := hex.DecodeString(prevKey)
+	prevKeyBytes, err := hex.DecodeString(prevKey)
 	require.NoError(t, err)
-	key, err := crypto.ToECDSA(b)
-	require.NoError(t, err)
-
-	msg := new(pbv1.QBFTMsg)
-	b, err = hex.DecodeString(prevProto)
-	require.NoError(t, err)
-	err = proto.Unmarshal(b, msg)
+	key, err := crypto.ToECDSA(prevKeyBytes)
 	require.NoError(t, err)
 
-	expectHash, err := hex.DecodeString(prevHash)
-	require.NoError(t, err)
-	legacyHash, err := msgHashLegacy(msg)
-	require.NoError(t, err)
-	require.Equal(t, expectHash, legacyHash[:])
+	t.Run("previous wire, latest logic", func(t *testing.T) {
+		msg := new(pbv1.QBFTMsg)
+		prevProtoBytes, err := hex.DecodeString(prevProto)
+		require.NoError(t, err)
+		err = proto.Unmarshal(prevProtoBytes, msg)
+		require.NoError(t, err)
 
-	ok, err := verifyMsgSig(msg, &key.PublicKey)
-	testutil.RequireNoError(t, err)
-	require.True(t, ok)
+		ok, err := verifyMsgSig(msg, &key.PublicKey)
+		testutil.RequireNoError(t, err)
+		require.True(t, ok)
 
-	msg2, err := signMsg(proto.Clone(msg).(*pbv1.QBFTMsg), key)
+		msg2, err := signMsg(msg, key)
+		require.NoError(t, err)
+		require.Equal(t, msg.Signature, msg2.Signature)
+
+		expectHash, err := hex.DecodeString(prevHash)
+		require.NoError(t, err)
+
+		msg.Signature = nil
+		hash, err := hashProto(msg)
+		require.NoError(t, err)
+		require.Equal(t, expectHash, hash[:])
+	})
+
+	t.Run("latest wire, previous logic", func(t *testing.T) {
+		msg, err := signMsg(randomMsg(t), key)
+		require.NoError(t, err)
+
+		wireBytes, err := proto.Marshal(msg)
+		require.NoError(t, err)
+
+		msg.Signature = nil
+		hashLatest, err := hashProto(msg)
+		require.NoError(t, err)
+
+		msgLegacy := new(pbv1.QBFTMsgLegacy)
+		err = proto.Unmarshal(wireBytes, msgLegacy)
+		require.NoError(t, err)
+
+		sigLegacy := msgLegacy.Signature
+		msgLegacy.Signature = nil
+		hashLegacy, err := hashProto(msgLegacy)
+		require.NoError(t, err)
+		require.Equal(t, hashLegacy, hashLatest)
+
+		actual, err := crypto.SigToPub(hashLegacy[:], sigLegacy)
+		require.NoError(t, err)
+
+		require.True(t, key.PublicKey.Equal(actual))
+	})
+}
+
+// randomMsg returns a random qbft message.
+func randomMsg(t *testing.T) *pbv1.QBFTMsg {
+	t.Helper()
+
+	vLegacy, err := core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t))
+	require.NoError(t, err)
+	pvLegacy, err := core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t))
 	require.NoError(t, err)
 
-	proto.Equal(msg, msg2)
+	v, err := anypb.New(vLegacy)
+	require.NoError(t, err)
+	pv, err := anypb.New(pvLegacy)
+	require.NoError(t, err)
+
+	return &pbv1.QBFTMsg{
+		Type:                rand.Int63(),
+		Duty:                core.DutyToProto(core.Duty{Type: core.DutyType(rand.Int()), Slot: rand.Int63()}),
+		PeerIdx:             rand.Int63(),
+		Round:               rand.Int63(),
+		Value:               v,
+		ValueLegacy:         vLegacy,
+		PreparedRound:       rand.Int63(),
+		PreparedValue:       pv,
+		PreparedValueLegacy: pvLegacy,
+		Signature:           nil,
+	}
+}
+
+// TestLegacyMsgHashAndSig ensures that the QBFTMsgLegacy produces the same hash and signature as
+// previously. The test data was generated in v0.10.1.
+func TestLegacyMsgHashAndSig(t *testing.T) {
+	v, err := core.UnsignedDataSetToProto(core.UnsignedDataSet{
+		"0x1234": core.AttestationData{Data: eth2p0.AttestationData{
+			Slot:  99,
+			Index: 98,
+		}},
+	})
+	require.NoError(t, err)
+
+	pv, err := core.UnsignedDataSetToProto(core.UnsignedDataSet{
+		"0x4567": core.AttestationData{Data: eth2p0.AttestationData{
+			Slot:  98,
+			Index: 97,
+		}},
+	})
+	require.NoError(t, err)
+
+	msg := &pbv1.QBFTMsgLegacy{
+		Type:          int64(qbft.MsgCommit),
+		Duty:          core.DutyToProto(core.NewAttesterDuty(99)),
+		PeerIdx:       98,
+		Round:         97,
+		Value:         v,
+		PreparedRound: 96,
+		PreparedValue: pv,
+	}
+
+	hash, err := hashProto(msg)
+	require.NoError(t, err)
+
+	privkey, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(0)))
+	require.NoError(t, err)
+
+	sig, err := crypto.Sign(hash[:], privkey)
+	require.NoError(t, err)
+
+	require.Equal(t,
+		"ae61d6f1352ba4a88a1a40642218b0841b9725bd1a0c5148b3895adcd5151bc7",
+		hex.EncodeToString(hash[:]),
+	)
+	require.Equal(t,
+		"b8fe6df5596d4163324365231e0d465324a802bd8867cb0d0c56b21a2aa518c51f657102d979fb04ac319089921972aae124b7b232b83849beae7eb60ca76e6900",
+		hex.EncodeToString(sig),
+	)
+
+	legacyWire, err := proto.Marshal(msg)
+	require.NoError(t, err)
+
+	latestMsg := new(pbv1.QBFTMsg)
+	err = proto.Unmarshal(legacyWire, latestMsg)
+	require.NoError(t, err)
+
+	latestMsg.Signature = nil
+	hash2, err := hashProto(latestMsg)
+	require.NoError(t, err)
+	require.Equal(t, hash, hash2)
 }
