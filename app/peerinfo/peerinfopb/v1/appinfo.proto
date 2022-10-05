@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package app.peerinfo.peerinfopb.v1;
+
+option go_package = "github.com/obolnetwork/charon/app/peerinfo/peerinfopb/v1";
+
+import "google/protobuf/timestamp.proto";
+
+message PeerInfo {
+  string                    charon_version   = 1;
+  bytes                     lock_hash        = 2;
+  google.protobuf.Timestamp sent_at          = 3;
+}
