@@ -101,6 +101,7 @@ func TestPeerInfo(t *testing.T) {
 			tickProvider = func() (<-chan time.Time, func()) {
 				ch := make(chan time.Time, 1)
 				ch <- now
+
 				return ch, func() {}
 			}
 

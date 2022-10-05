@@ -71,6 +71,7 @@ func Filter(opts ...FilterOption) z.Field {
 	}
 
 	limiter := rate.NewLimiter(f.limit, 1)
+
 	return func(add func(zap.Field)) {
 		if !limiter.Allow() {
 			add(zap.Field{Type: filterFieldType})

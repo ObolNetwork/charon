@@ -108,8 +108,6 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 }
 
 type PeerInfo struct {
-	// Immutable fields
-
 	sendFunc         p2p.SendReceiveFunc
 	tcpNode          host.Host
 	peers            []peer.ID
@@ -149,6 +147,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 				z.Str("peer", p2p.PeerName(peerID)),
 				p.noSupportFilters[peerID],
 			)
+
 			continue
 		}
 
@@ -187,7 +186,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 }
 
 // supportsPeerInfo returns true if the peer supports this peerinfo protocol.
-// TODO(corver): Remove once we have released v0.12 since we support this from v0.11
+// TODO(corver): Remove once we have released v0.12 since we support this from v0.11.
 func supportsPeerInfo(tcpNode host.Host, peerID peer.ID) bool {
 	protocols, err := tcpNode.Peerstore().GetProtocols(peerID)
 	if err != nil {
