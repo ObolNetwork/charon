@@ -6,15 +6,15 @@
     "address": "0xeb9d18a44784045d87f3c67cf22746e995af5a25",
     "enr": "enr://5fb90badb37c5821b6d95526a41a9504680b4e7c8b763a1b1d49d4955c848621",
     "nonce": 0,
-    "config_signature": "YyUlP+xzjdep4ov5IRGcFg8HAkSGFbvaCDE/ao62aNIL9QWYdZIeZopb3yx/xIRFktJXK80GaNLWxS9QVOLQgxw=",
-    "enr_signature": "+ExxdMt0djZMw9vZaLD3Fy7YV5S7NYsMO1JdoXhvn/8JQnnbGUTr16GdD3u6y+AlWqW31EvsQPhMiSub/9Q2KQA="
+    "config_signature": "",
+    "enr_signature": ""
    },
    {
     "address": "0x223beea5f4f74391f445d15afd4294040374f692",
     "enr": "enr://9192c24224e2cafccae3a61fb586b14323a6bc8f9e7df1d929333ff993933bea",
     "nonce": 0,
-    "config_signature": "b1s69t4DdDZsRxnkOhsGfYm8fwHx9XOYFlmkT/F6THIVo7U56x5YScYHfbtXIvVxeiiaJm+XZHmBmY6+qJwLSxw=",
-    "enr_signature": "OXARXoLtb0ElyPpzEeTX3vqSLarneGZn9+k2zU8kq/ffhmuqVgODZ61hRd4e6PSosJk+vfiIOgrYvpw5eLBIgwE="
+    "config_signature": "",
+    "enr_signature": ""
    }
   ],
   "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
@@ -27,7 +27,7 @@
   "dkg_algorithm": "default",
   "fork_version": "0x90000069",
   "config_hash": "CmxY06oRxEw1UMCOLGRb5jSNeG9890x1BuRnTUKEloc=",
-  "definition_hash": "8hQPjFhtWeQfJCVPs65DIzn2/19I+cdDfFPylGcWLe4="
+  "definition_hash": "SIqlUaZH0Q2hcpUDG8GUT9Ld8FdJiXX9XJgQkiMbWMk="
  },
  "distributed_validators": [
   {
@@ -46,5 +46,5 @@
   }
  ],
  "signature_aggregate": "ahVqjeVjr6Rn1J3sakDpodAH8DPCgjBhvdDqpZ+OTaY=",
- "lock_hash": "G2MTFzak85gjQWpnEgL4BPvrvrPKKNIAdApWBLyxXCI="
+ "lock_hash": "i24Ml+Cd/lwMp5nhmrnciV5/PQHQ8Jv6W4BI8YlPGE4="
 }

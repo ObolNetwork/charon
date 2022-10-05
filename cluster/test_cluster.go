@@ -120,15 +120,24 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 	for _, opt := range opts {
 		opt(&def)
 	}
-	confHash, err := hashDefinition(def, true)
-	require.NoError(t, err)
 
-	chainID, err := eth2util.ForkVersionToChainID(def.ForkVersion)
-	require.NoError(t, err)
-
-	for i := 0; i < n; i++ {
-		def.Operators[i], err = signOperator(p2pKeys[i], def.Operators[i], confHash, chainID)
+	// Definition version prior to v1.3.0 don't support EIP712 signatures.
+	if def.Version == "v1.0.0" || def.Version == "v1.1.0" || def.Version == "v1.2.0" {
+		for i := range def.Operators {
+			def.Operators[i].ConfigSignature = []byte{}
+			def.Operators[i].ENRSignature = []byte{}
+		}
+	} else {
+		confHash, err := hashDefinition(def, true)
 		require.NoError(t, err)
+
+		chainID, err := eth2util.ForkVersionToChainID(def.ForkVersion)
+		require.NoError(t, err)
+
+		for i := 0; i < n; i++ {
+			def.Operators[i], err = signOperator(p2pKeys[i], def.Operators[i], confHash, chainID)
+			require.NoError(t, err)
+		}
 	}
 
 	def, err = def.SetDefinitionHashes()
