@@ -40,6 +40,7 @@ import (
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/peerinfo"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/retry"
 	"github.com/obolnetwork/charon/app/tracer"
@@ -218,14 +219,24 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	sender := new(p2p.Sender)
+
+	wirePeerInfo(life, tcpNode, peerIDs, lock.LockHash, sender)
+
 	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs, promRegistry)
 
-	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, peerIDs); err != nil {
+	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, peerIDs, sender); err != nil {
 		return err
 	}
 
 	// Run life cycle manager
 	return life.Run(ctx)
+}
+
+// wirePeerInfo wires the peerinfo protocol.
+func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender) {
+	peerInfo := peerinfo.New(tcpNode, peers, version.Version, lockHash, sender.SendReceive)
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(peerInfo.Run))
 }
 
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
@@ -287,7 +298,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 // wireCoreWorkflow wires the core workflow components.
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
-	eth2Cl eth2wrap.Client, peerIDs []peer.ID,
+	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -338,8 +349,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if err != nil {
 		return err
 	}
-
-	sender := new(p2p.Sender)
 
 	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl)
 	if err != nil {

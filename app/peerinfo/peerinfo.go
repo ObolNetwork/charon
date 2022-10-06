@@ -44,6 +44,7 @@ type (
 	metricSubmitter func(peerID peer.ID, clockOffset time.Duration, version string)
 )
 
+// New returns a new peer info protocol instance.
 func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
 	sendFunc p2p.SendReceiveFunc,
 ) *PeerInfo {
@@ -61,6 +62,7 @@ func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
 		tickerProvider, time.Now, metricSubmitter)
 }
 
+// NewForT returns a new peer info protocol instance for testing only.
 func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
@@ -69,6 +71,7 @@ func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version string, l
 		tickerProvider, nowFunc, metricSubmitter)
 }
 
+// newInternal returns a new instance for New or NewForT.
 func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
@@ -120,6 +123,7 @@ type PeerInfo struct {
 	lockHashFilters  map[peer.ID]z.Field
 }
 
+// Run runs the peer info protocol until the context is cancelled.
 func (p *PeerInfo) Run(ctx context.Context) {
 	ctx = log.WithTopic(ctx, "peerinfo")
 
@@ -136,6 +140,7 @@ func (p *PeerInfo) Run(ctx context.Context) {
 	}
 }
 
+// sendOnce sends one peerinfo request/response pair to each peer.
 func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 	for _, peerID := range p.peers {
 		if peerID == p.tcpNode.ID() {
@@ -187,6 +192,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 	}
 }
 
+// supported returns true if the peerinfo protocolID is included in the list of protocols.
 func supported(protocols []string) bool {
 	var supported bool
 	for _, p := range protocols {
