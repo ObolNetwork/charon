@@ -24,7 +24,6 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "iteration": 1664348030745,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -101,7 +100,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.0.0",
+      "pluginVersion": "9.0.4",
       "targets": [
         {
           "datasource": {
@@ -218,7 +217,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.0",
+      "pluginVersion": "9.0.4",
       "targets": [
         {
           "datasource": {
@@ -376,7 +375,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.0",
+      "pluginVersion": "9.0.4",
       "targets": [
         {
           "datasource": {
@@ -543,7 +542,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.0",
+      "pluginVersion": "9.0.4",
       "targets": [
         {
           "datasource": {
@@ -745,6 +744,18 @@
                 ]
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ClockDiff"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
           }
         ]
       },
@@ -772,7 +783,7 @@
           }
         ]
       },
-      "pluginVersion": "9.0.0",
+      "pluginVersion": "9.0.4",
       "targets": [
         {
           "datasource": {
@@ -899,6 +910,20 @@
           "instant": true,
           "range": false,
           "refId": "I"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max(app_peerinfo_clock_offset_seconds{job=\"$node\"}) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "refId": "J"
         }
       ],
       "title": "Peer Participation",
@@ -926,20 +951,20 @@
             "indexByName": {
               "Time 1": 2,
               "Time 2": 4,
-              "Time 3": 6,
-              "Time 4": 8,
-              "Time 5": 9,
-              "Time 6": 10,
-              "Time 7": 11,
-              "Time 8": 13,
+              "Time 3": 7,
+              "Time 4": 9,
+              "Time 5": 10,
+              "Time 6": 11,
+              "Time 7": 12,
+              "Time 8": 14,
               "Value #A": 3,
               "Value #B": 5,
-              "Value #C": 7,
+              "Value #C": 8,
               "Value #D": 16,
               "Value #E": 15,
               "Value #F": 1,
-              "Value #G": 12,
-              "Value #H": 14,
+              "Value #G": 13,
+              "Value #J": 6,
               "peer": 0
             },
             "renameByName": {
@@ -951,6 +976,7 @@
               "Value #F": "You",
               "Value #G": "PrepareAgg",
               "Value #H": "Aggregate",
+              "Value #J": "ClockDiff",
               "peer": "Peer"
             }
           }
@@ -1381,8 +1407,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1472,8 +1497,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1563,8 +1587,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1654,8 +1677,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1746,8 +1768,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1852,8 +1873,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1948,8 +1968,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue",
-                "value": null
+                "color": "light-blue"
               },
               {
                 "color": "red",
@@ -2149,8 +2168,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
