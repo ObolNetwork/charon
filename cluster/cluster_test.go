@@ -68,6 +68,7 @@ func TestEncode(t *testing.T) {
 			// Definition version prior to v1.3.0 don't support EIP712 signatures.
 			if version == "v1.0.0" || version == "v1.1.0" || version == "v1.2.0" {
 				for i := range definition.Operators {
+					// Set to empty values instead of nil to align with unmarshalled json.
 					definition.Operators[i].ConfigSignature = []byte{}
 					definition.Operators[i].ENRSignature = []byte{}
 				}

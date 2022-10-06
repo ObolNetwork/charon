@@ -105,6 +105,9 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		op := Operator{
 			Address: addr.Hex(),
 			ENR:     enrStr,
+			// Set to empty signatures instead of nil so aligned with unmarshalled json
+			ENRSignature:    ethHex{},
+			ConfigSignature: ethHex{},
 		}
 
 		ops = append(ops, op)
