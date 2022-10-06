@@ -25,7 +25,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -152,16 +151,6 @@ func (d Definition) VerifySignatures() error {
 		return errors.New("older version signatures not supported")
 	}
 
-	configHash, err := hashDefinition(d, true)
-	if err != nil {
-		return errors.Wrap(err, "config hash")
-	}
-
-	chainID, err := eth2util.ForkVersionToChainID(d.ForkVersion)
-	if err != nil {
-		return errors.Wrap(err, "fork version to chain id")
-	}
-
 	var noSigs int
 	for _, o := range d.Operators {
 		// Completely unsigned operators are also fine, assuming a single cluster-wide operator.
@@ -179,7 +168,7 @@ func (d Definition) VerifySignatures() error {
 		}
 
 		// Check that we have a valid config signature for each operator.
-		digest, err := digestEIP712(eip712TypeConfigHash, to0xHex(configHash[:]), chainID)
+		digest, err := digestEIP712(eip712ConfigHash, d, o)
 		if err != nil {
 			return err
 		}
@@ -191,7 +180,7 @@ func (d Definition) VerifySignatures() error {
 		}
 
 		// Check that we have a valid enr signature for each operator.
-		digest, err = digestEIP712(eip712TypeENR, o.ENR, chainID)
+		digest, err = digestEIP712(eip712ENR, d, o)
 		if err != nil {
 			return err
 		}

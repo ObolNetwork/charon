@@ -30,22 +30,18 @@ import (
 )
 
 func TestDefinitionVerify(t *testing.T) {
+	var err error
+
 	secret0, op0 := randomOperator(t)
 	secret1, op1 := randomOperator(t)
 
 	t.Run("verify definition v1.3", func(t *testing.T) {
 		definition := randomDefinition(t, op0, op1)
 
-		configHash, err := hashDefinition(definition, true)
+		definition.Operators[0], err = signOperator(secret0, definition, op0)
 		require.NoError(t, err)
 
-		chainID, err := eth2util.ForkVersionToChainID(definition.ForkVersion)
-		require.NoError(t, err)
-
-		definition.Operators[0], err = signOperator(secret0, op0, configHash, chainID)
-		require.NoError(t, err)
-
-		definition.Operators[1], err = signOperator(secret1, op1, configHash, chainID)
+		definition.Operators[1], err = signOperator(secret1, definition, op1)
 		require.NoError(t, err)
 
 		err = definition.VerifySignatures()
@@ -86,14 +82,8 @@ func TestDefinitionVerify(t *testing.T) {
 		definition := randomDefinition(t, op0, op1)
 		definition.Operators[0] = Operator{} // Operator with no address, enr sig or config sig
 
-		configHash, err := hashDefinition(definition, true)
-		require.NoError(t, err)
-
-		chainID, err := eth2util.ForkVersionToChainID(definition.ForkVersion)
-		require.NoError(t, err)
-
 		// Only operator 1 signed.
-		definition.Operators[1], err = signOperator(secret1, op1, configHash, chainID)
+		definition.Operators[1], err = signOperator(secret1, definition, op1)
 		require.NoError(t, err)
 
 		err = definition.VerifySignatures()
@@ -138,5 +128,8 @@ func randomDefinition(t *testing.T, op0, op1 Operator) Definition {
 	// TODO(xenowits): Remove the line below when v1.3 is the current version.
 	definition.Version = v1_3
 
-	return definition
+	resp, err := definition.SetDefinitionHashes()
+	require.NoError(t, err)
+
+	return resp
 }
