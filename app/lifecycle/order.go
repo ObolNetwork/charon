@@ -37,6 +37,7 @@ const (
 	StartSimulator
 	StartScheduler
 	StartP2PEventCollector
+	StartPeerInfo
 )
 
 // Global ordering of stop hooks; follows dependency tree from root to leaves.
