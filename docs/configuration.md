@@ -5,18 +5,14 @@ This document describes the configuration options for running a charon node and 
 ## Cluster Config Files
 
 A charon cluster is configured in two steps:
-
 - `cluster-definition.json` which defines the intended cluster configuration without validator keys.
-- `cluster-lock.json` which includes and extends `cluster-definition.json` with distributed validator bls public key
-  shares.
+- `cluster-lock.json` which includes and extends `cluster-definition.json` with distributed validator bls public key shares.
 
 The `charon create dkg` command is used to create `cluster-definition.json` file which is used as input to `charon dkg`.
 
-The `charon create cluster` command combines both steps into one and just outputs the final `cluster-lock.json` without
-a DKG step.
+The `charon create cluster` command combines both steps into one and just outputs the final `cluster-lock.json` without a DKG step.
 
 The schema of the `cluster-definition.json` is defined as:
-
 ```json
 {
   "name": "best cluster",                       // Optional cosmetic identifier
@@ -43,15 +39,12 @@ The schema of the `cluster-definition.json` is defined as:
 ```
 
 See the [cluster.Definition](../cluster/definition.go) and [cluster.Operator](../cluster/operator.go) Go structs for
-details on how this `cluster-definition.json` object is (de)serialised and how
-the [SSZ](https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md)
+details on how this `cluster-definition.json` object is (de)serialised and how the [SSZ](https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md)
 config hash and definition hash are calculated.
 
-The above `cluster-definition.json` is provided as input to the DKG which generates keys and the `cluster-lock.json`
-file.
+The above `cluster-definition.json` is provided as input to the DKG which generates keys and the `cluster-lock.json` file.
 
 The `cluster-lock.json` has the following schema:
-
 ```json
 {
   "cluster_definition": {...},                              // Cluster definiition json, identical schema to above,
@@ -72,54 +65,43 @@ The `cluster-lock.json` has the following schema:
 ### Cluster Config Change Log
 
 The following is the historical change log of the cluster config:
-
 - `v1.3.0` **draft**:
     - Refactored hash calculations by aligning with SSZ common types:
         - `ByteList[MaxN]`: Variable length with max limit for strings.
         - `BytesN`: Fixed length byte.
         - `Uint64`: numbers.
-    - Refactored definition operator signatures: `config_signature` and `enr_signature` to use updated EIP712 digest.
-    - See example [definition.json](../cluster/testdata/cluster_definition_v1_3_0.json)
-      and [lock.json](../cluster/testdata/cluster_lock_v1_3_0.json)
+        - Refactored definition operator signatures: `config_signature` and `enr_signature` to use updated EIP712 digest.
+        - See example [definition.json](../cluster/testdata/cluster_definition_v1_3_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_3_0.json)
 - `v1.2.0` **default**:
     - Refactored all base64 fields to Ethereum's standard 0x prefixed hex.
         - Refactored definition operator signatures: `config_signature` and `enr_signature`.
         - Refactored definition fields: `config_hash` and `definition_hash`.
         - Refactored lock fields: `lock_hash`, `signature_aggregate` and `distributed_validators.public_shares`.
-    - Remove definition operator `nonce` field since it isn't used for anything. Only support `nonce=0` for older
-      versions.
-    - See example [definition.json](../cluster/testdata/cluster_definition_v1_2_0.json)
-      and [lock.json](../cluster/testdata/cluster_lock_v1_2_0.json)
+    - Remove definition operator `nonce` field since it isn't used for anything. Only support `nonce=0` for older versions.
+    - See example [definition.json](../cluster/testdata/cluster_definition_v1_2_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_2_0.json)
 - `v1.1.0`:
     - Added cosmetic `Timestamp` field to cluster definition to help identification by humans.
-    - See example [definition.json](../cluster/testdata/cluster_definition_v1_1_0.json)
-      and [lock.json](../cluster/testdata/cluster_lock_v1_1_0.json)
+    - See example [definition.json](../cluster/testdata/cluster_definition_v1_1_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_1_0.json)
 - `v1.0.0`:
     - Initial definition and lock versions.
-    - See example [definition.json](../cluster/testdata/cluster_definition_v1_0_0.json)
-      and [lock.json](../cluster/testdata/cluster_lock_v1_0_0.json)
+    - See example [definition.json](../cluster/testdata/cluster_definition_v1_0_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_0_0.json)
 
 This version of Charon (logic) supports the following cluster config versions (files): `v1.0.0`, `v1.1.0`, `v1.2.0`.
 
 ## Flag Precedence
 
-Charon uses [viper](https://github.com/spf13/viper) for configuration combined
-with [cobra](https://github.com/spf13/cobra)
+Charon uses [viper](https://github.com/spf13/viper) for configuration combined with [cobra](https://github.com/spf13/cobra)
 for cli commands.
 
 In descending order, the Charon node checks the following places for configuration:
-
-- From environment vars beginning with `CHARON_`, with hyphens substituted for underscores.
-  e.g. `CHARON_BEACON_NODE=http://....`
+- From environment vars beginning with `CHARON_`, with hyphens substituted for underscores. e.g. `CHARON_BEACON_NODE=http://....`
 - From the config file specified with the `-config-file` flag as YAML, e.g. `beacon-node: http://...`
 - From CLI params, e.g. `--beacon-node http://...`
 
 ## Configuration Options
-
 The following is the output of `charon run --help` and provides the available configuration options.
 
 <!-- Code below generated by cmd/cmd_internal_test.go#TestConfigReference. DO NOT EDIT -->
-
 ````
 Starts the long-running Charon middleware process to perform distributed validator duties.
 
@@ -158,7 +140,6 @@ Flags:
       --validator-api-address string       Listening address (ip and port) for validator-facing traffic proxying the beacon-node API. (default "127.0.0.1:3600")
 
 ````
-
 <!-- Code above generated by cmd/cmd_internal_test.go#TestConfigReference. DO NOT EDIT -->
 
 ## EIP712 Signature Spec
