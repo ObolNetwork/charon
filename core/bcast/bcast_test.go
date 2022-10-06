@@ -23,6 +23,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -61,6 +62,7 @@ func TestBroadcast(t *testing.T) {
 		aggregateAttestationData(t, cancel),          // AggregateAttestation
 		beaconCommitteeSubscriptionV1Data(t, cancel), // BeaconCommitteeSubscriptionV1
 		beaconCommitteeSubscriptionV2Data(t, cancel), // BeaconCommitteeSubscriptionV2
+		syncCommitteeMessage(t, cancel),              // SyncCommitteeMessage
 	}
 
 	for _, test := range tests {
@@ -371,6 +373,31 @@ func beaconCommitteeSubscriptionV1Data(t *testing.T, cancel context.CancelFunc) 
 		name:     "Broadcast Beacon Committee Subscription V1",
 		aggData:  aggData,
 		duty:     core.Duty{Type: core.DutyPrepareAggregator},
+		bcastCnt: 1,
+		wantErr:  true,
+		error:    context.Canceled,
+		mock:     mock,
+	}
+}
+
+func syncCommitteeMessage(t *testing.T, cancel context.CancelFunc) test {
+	t.Helper()
+
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	msg := core.NewSignedSyncMessage(testutil.RandomSyncCommitteeMessage())
+	mock.SubmitSyncCommitteeMessagesFunc = func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
+		require.Equal(t, msg.SyncCommitteeMessage, *messages[0])
+		cancel()
+
+		return ctx.Err()
+	}
+
+	return test{
+		name:     "Broadcast Sync Committee Message",
+		aggData:  msg,
+		duty:     core.Duty{Type: core.DutySyncMessage},
 		bcastCnt: 1,
 		wantErr:  true,
 		error:    context.Canceled,

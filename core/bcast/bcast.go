@@ -24,6 +24,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -187,6 +188,19 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		err = b.eth2Cl.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{&aggAndProof.SignedAggregateAndProof})
 		if err == nil {
 			log.Info(ctx, "Successfully submitted attestation aggregation to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot)))
+		}
+
+		return err
+	case core.DutySyncMessage:
+		msg, ok := aggData.(core.SignedSyncMessage)
+		if !ok {
+			return errors.New("invalid sync committee message")
+		}
+
+		err := b.eth2Cl.SubmitSyncCommitteeMessages(ctx, []*altair.SyncCommitteeMessage{&msg.SyncCommitteeMessage})
+		if err == nil {
+			log.Info(ctx, "Successfully submitted sync committee message to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)))
 		}
 
