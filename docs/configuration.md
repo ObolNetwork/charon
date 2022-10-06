@@ -70,8 +70,8 @@ The following is the historical change log of the cluster config:
         - `ByteList[MaxN]`: Variable length with max limit for strings.
         - `BytesN`: Fixed length byte.
         - `Uint64`: numbers.
-        - Refactored definition operator signatures: `config_signature` and `enr_signature` to use updated EIP712 digest.
-        - See example [definition.json](../cluster/testdata/cluster_definition_v1_3_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_3_0.json)
+    - Refactored definition operator signatures: `config_signature` and `enr_signature` to use updated EIP712 digest.
+    - See example [definition.json](../cluster/testdata/cluster_definition_v1_3_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_3_0.json)
 - `v1.2.0` **default**:
     - Refactored all base64 fields to Ethereum's standard 0x prefixed hex.
         - Refactored definition operator signatures: `config_signature` and `enr_signature`.
