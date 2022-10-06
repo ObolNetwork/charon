@@ -118,6 +118,7 @@ func TestFilterNone(t *testing.T) {
 	log.Info(ctx, "expect1", filter)
 	log.Info(ctx, "expect2", filter)
 	log.Info(ctx, "expect3", filter)
+	log.Info(ctx, "expect4", filter)
 
 	testutil.RequireGoldenBytes(t, buf.Bytes())
 }
