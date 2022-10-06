@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
+	"golang.org/x/time/rate"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -91,6 +92,33 @@ func TestCopyFields(t *testing.T) {
 
 	log.Info(ctx1, "see source")
 	log.Info(ctx2, "also source")
+
+	testutil.RequireGoldenBytes(t, buf.Bytes())
+}
+
+func TestFilterDefault(t *testing.T) {
+	buf := setup(t)
+
+	ctx := context.Background()
+
+	filter := log.Filter() // Default limit allows 1 per hour
+	log.Info(ctx, "expect", filter)
+	log.Info(ctx, "dropped", filter)
+	log.Info(ctx, "dropped", filter)
+
+	testutil.RequireGoldenBytes(t, buf.Bytes())
+}
+
+func TestFilterNone(t *testing.T) {
+	buf := setup(t)
+
+	ctx := context.Background()
+
+	filter := log.Filter(log.WithFilterRateLimit(rate.Inf)) // Infinite rate limit allows all.
+	log.Info(ctx, "expect1", filter)
+	log.Info(ctx, "expect2", filter)
+	log.Info(ctx, "expect3", filter)
+	log.Info(ctx, "expect4", filter)
 
 	testutil.RequireGoldenBytes(t, buf.Bytes())
 }
