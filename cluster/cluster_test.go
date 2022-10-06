@@ -165,6 +165,23 @@ func TestExamples(t *testing.T) {
 			require.NoError(t, err)
 
 			require.NoError(t, lock.VerifyHashes())
+			require.NoError(t, lock.VerifySignatures())
+		})
+	}
+
+	defFiles, err := filepath.Glob("examples/*definition*")
+	require.NoError(t, err)
+
+	for _, file := range defFiles {
+		t.Run(filepath.Base(file), func(t *testing.T) {
+			b, err := os.ReadFile(file)
+			require.NoError(t, err)
+
+			var def cluster.Definition
+			err = json.Unmarshal(b, &def)
+			require.NoError(t, err)
+			require.NoError(t, def.VerifyHashes())
+			require.NoError(t, def.VerifySignatures())
 		})
 	}
 }
