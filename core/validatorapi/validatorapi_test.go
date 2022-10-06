@@ -578,7 +578,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 		},
 		{
 			name:   "none",
-			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersion(3)},
+			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersion(-1)},
 			errMsg: "unknown version",
 		},
 		{
