@@ -26,9 +26,7 @@ import (
 	"strings"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	ethmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -42,17 +40,6 @@ const (
 	k1SigLen = 65
 	// k1RecIdx is the secp256k1 signature recovery id index.
 	k1RecIdx = 64
-)
-
-// eip712Type ties the EIP712 Primary type to its Message field.
-type eip712Type struct {
-	PrimaryType string
-	Field       string
-}
-
-var (
-	eip712TypeConfigHash = eip712Type{"ConfigHash", "config_hash"}
-	eip712TypeENR        = eip712Type{"ENR", "enr"}
 )
 
 // uuid returns a random uuid.
@@ -95,67 +82,20 @@ func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
 }
 
 // signOperator returns the operator with signed config hash and enr.
-func signOperator(secret *ecdsa.PrivateKey, operator Operator, configHash [32]byte, chainID int64) (Operator, error) {
+func signOperator(secret *ecdsa.PrivateKey, def Definition, operator Operator) (Operator, error) {
 	var err error
 
-	operator.ConfigSignature, err = signEIP712(secret, eip712TypeConfigHash, to0xHex(configHash[:]), chainID)
+	operator.ConfigSignature, err = signEIP712(secret, eip712ConfigHash, def, operator)
 	if err != nil {
 		return Operator{}, err
 	}
 
-	operator.ENRSignature, err = signEIP712(secret, eip712TypeENR, operator.ENR, chainID)
+	operator.ENRSignature, err = signEIP712(secret, eip712ENR, def, operator)
 	if err != nil {
 		return Operator{}, err
 	}
 
 	return operator, nil
-}
-
-// signEIP712 returns the EIP712 signature for the primary type.
-func signEIP712(secret *ecdsa.PrivateKey, typ eip712Type, fieldValue string, chainID int64) ([]byte, error) {
-	digest, err := digestEIP712(typ, fieldValue, chainID)
-	if err != nil {
-		return nil, err
-	}
-
-	sig, err := crypto.Sign(digest, secret)
-	if err != nil {
-		return nil, errors.Wrap(err, "sign EIP712")
-	}
-
-	return sig, nil
-}
-
-// digestEIP712 returns the EIP712 (https://eips.ethereum.org/EIPS/eip-712) digest for the primary type.
-func digestEIP712(typ eip712Type, fieldValue string, chainID int64) ([]byte, error) {
-	data := apitypes.TypedData{
-		Types: apitypes.Types{
-			"EIP712Domain": []apitypes.Type{
-				{Name: "name", Type: "string"},
-				{Name: "version", Type: "string"},
-				{Name: "chainId", Type: "uint256"},
-			},
-			typ.PrimaryType: []apitypes.Type{
-				{Name: typ.Field, Type: "string"},
-			},
-		},
-		PrimaryType: typ.PrimaryType,
-		Message: apitypes.TypedDataMessage{
-			typ.Field: fieldValue,
-		},
-		Domain: apitypes.TypedDataDomain{
-			Name:    "Obol",
-			Version: "1",
-			ChainId: ethmath.NewHexOrDecimal256(chainID),
-		},
-	}
-
-	digest, _, err := apitypes.TypedDataAndHash(data)
-	if err != nil {
-		return nil, errors.Wrap(err, "hash EIP712")
-	}
-
-	return digest, nil
 }
 
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.

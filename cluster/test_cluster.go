@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
@@ -106,6 +105,9 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		op := Operator{
 			Address: addr.Hex(),
 			ENR:     enrStr,
+			// Set to empty signatures instead of nil so aligned with unmarshalled json
+			ENRSignature:    ethHex{},
+			ConfigSignature: ethHex{},
 		}
 
 		ops = append(ops, op)
@@ -121,27 +123,16 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		opt(&def)
 	}
 
+	def, err = def.SetDefinitionHashes()
+	require.NoError(t, err)
+
 	// Definition version prior to v1.3.0 don't support EIP712 signatures.
-	if def.Version == "v1.0.0" || def.Version == "v1.1.0" || def.Version == "v1.2.0" {
-		for i := range def.Operators {
-			def.Operators[i].ConfigSignature = []byte{}
-			def.Operators[i].ENRSignature = []byte{}
-		}
-	} else {
-		confHash, err := hashDefinition(def, true)
-		require.NoError(t, err)
-
-		chainID, err := eth2util.ForkVersionToChainID(def.ForkVersion)
-		require.NoError(t, err)
-
+	if supportEIP712Sigs(def.Version) {
 		for i := 0; i < n; i++ {
-			def.Operators[i], err = signOperator(p2pKeys[i], def.Operators[i], confHash, chainID)
+			def.Operators[i], err = signOperator(p2pKeys[i], def, def.Operators[i])
 			require.NoError(t, err)
 		}
 	}
-
-	def, err = def.SetDefinitionHashes()
-	require.NoError(t, err)
 
 	lock := Lock{
 		Definition:         def,

@@ -42,6 +42,9 @@ See the [cluster.Definition](../cluster/definition.go) and [cluster.Operator](..
 details on how this `cluster-definition.json` object is (de)serialised and how the [SSZ](https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md)
 config hash and definition hash are calculated.
 
+The operator `config_signature` and `enr_signature` are [EIP712](https://eips.ethereum.org/EIPS/eip-712) signatures of **typed structured data** as opposed to just raw bytes. EIP712 enables users to see the object that they are signing in their wallet (ex: Metamask).
+See [eip712sigs.go](../cluster/eip712sigs.go) for details on the EIP712 structure used to create these signatures.
+
 The above `cluster-definition.json` is provided as input to the DKG which generates keys and the `cluster-lock.json` file.
 
 The `cluster-lock.json` has the following schema:
@@ -66,23 +69,25 @@ The `cluster-lock.json` has the following schema:
 
 The following is the historical change log of the cluster config:
 - `v1.3.0` **draft**:
-  - Refactored hash calculations by aligning with SSZ common types:
-    - `ByteList[MaxN]`: Variable length with max limit for strings.
-    - `BytesN`: Fixed length byte.
-    - `Uint64`: numbers.
+    - Refactored hash calculations by aligning with SSZ common types:
+        - `ByteList[MaxN]`: Variable length with max limit for strings.
+        - `BytesN`: Fixed length byte.
+        - `Uint64`: numbers.
+    - Refactored definition operator signatures: `config_signature` and `enr_signature` to use updated EIP712 digest.
+    - See example [definition.json](../cluster/testdata/cluster_definition_v1_3_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_3_0.json)
 - `v1.2.0` **default**:
-  - Refactored all base64 fields to Ethereum's standard 0x prefixed hex.
-    - Refactored definition operator signatures: `config_signature` and `enr_signature`.
-    - Refactored definition fields: `config_hash` and `definition_hash`.
-    - Refactored lock fields: `lock_hash`, `signature_aggregate` and `distributed_validators.public_shares`.
-  - Remove definition operator `nonce` field since it isn't used for anything. Only support `nonce=0` for older versions.
-  - See example [definition.json](../cluster/testdata/cluster_definition_v1_2_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_2_0.json)
+    - Refactored all base64 fields to Ethereum's standard 0x prefixed hex.
+        - Refactored definition operator signatures: `config_signature` and `enr_signature`.
+        - Refactored definition fields: `config_hash` and `definition_hash`.
+        - Refactored lock fields: `lock_hash`, `signature_aggregate` and `distributed_validators.public_shares`.
+    - Remove definition operator `nonce` field since it isn't used for anything. Only support `nonce=0` for older versions.
+    - See example [definition.json](../cluster/testdata/cluster_definition_v1_2_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_2_0.json)
 - `v1.1.0`:
-  - Added cosmetic `Timestamp` field to cluster definition to help identification by humans.
-  - See example [definition.json](../cluster/testdata/cluster_definition_v1_1_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_1_0.json)
+    - Added cosmetic `Timestamp` field to cluster definition to help identification by humans.
+    - See example [definition.json](../cluster/testdata/cluster_definition_v1_1_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_1_0.json)
 - `v1.0.0`:
-  - Initial definition and lock versions.
-  - See example [definition.json](../cluster/testdata/cluster_definition_v1_0_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_0_0.json)
+    - Initial definition and lock versions.
+    - See example [definition.json](../cluster/testdata/cluster_definition_v1_0_0.json) and [lock.json](../cluster/testdata/cluster_lock_v1_0_0.json)
 
 This version of Charon (logic) supports the following cluster config versions (files): `v1.0.0`, `v1.1.0`, `v1.2.0`.
 
