@@ -12,9 +12,7 @@ x-node-base: &node-base
 x-logging: &logging
   logging:
   
-    driver: loki
-    options:
-      loki-url: http://localhost:3100/loki/api/v1/push
+    driver: json-file
   
 
 services:
@@ -31,6 +29,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_FORMAT: console
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node0
       CHARON_JAEGER_SERVICE: node0
@@ -64,6 +63,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_FORMAT: console
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node1
       CHARON_JAEGER_SERVICE: node1
@@ -97,6 +97,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_FORMAT: console
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node2
       CHARON_JAEGER_SERVICE: node2
@@ -130,6 +131,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_FORMAT: console
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node3
       CHARON_JAEGER_SERVICE: node3
@@ -242,15 +244,6 @@ services:
       - "16686:16686"
     
 
-  
-  loki:
-    image: grafana/loki:latest
-    ports:
-      - "3100:3100"
-    networks: [compose]
-    command: -config.file=/etc/loki/loki.yml
-    volumes:
-      - ./loki/loki.yml:/etc/loki/loki.yml
   
 
 
