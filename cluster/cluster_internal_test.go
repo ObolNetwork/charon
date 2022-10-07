@@ -123,3 +123,12 @@ func randomDefinition(t *testing.T, op0, op1 Operator) Definition {
 
 	return resp
 }
+
+func TestSupportEIP712Sigs(t *testing.T) {
+	var (
+		unsupported = v1_2
+		supported   = v1_3
+	)
+	require.False(t, supportEIP712Sigs(unsupported))
+	require.True(t, supportEIP712Sigs(supported))
+}
