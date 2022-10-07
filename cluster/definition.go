@@ -438,10 +438,10 @@ func unmarshalDefinitionV1x2or3(data []byte) (def Definition, err error) {
 	return def, nil
 }
 
-// supportEIP712Sigs returns true if version is earlier than v1.3.0.
-// Note: Definition version prior to v1.3.0 don't support EIP712 signatures.
+// supportEIP712Sigs returns true if the provided definition version supports EIP712 signatures.
+// Note that Definition versions prior to v1.3.0 don't support EIP712 signatures.
 func supportEIP712Sigs(version string) bool {
-	return !isJSONv1x0(version) && !isJSONv1x1(version) && !isJSONv1x2(version)
+	return !(isJSONv1x0(version) || isJSONv1x1(version) || isJSONv1x2(version))
 }
 
 func eip712SigsPresent(operators []Operator) bool {
