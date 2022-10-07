@@ -148,7 +148,7 @@ type Tracker struct {
 	failedDutyReporter func(ctx context.Context, duty core.Duty, failed bool, component component, reason string)
 
 	// participationReporter instruments duty peer participation.
-	participationReporter func(ctx context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedPeers map[int]bool)
+	participationReporter func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]bool, unexpectedPeers map[int]bool)
 }
 
 // New returns a new Tracker. The deleter deadliner must return well after analyser deadliner since duties of the same slot are often analysed together.
@@ -195,7 +195,7 @@ func (t *Tracker) Run(ctx context.Context) error {
 
 			// Analyse peer participation
 			participatedShares, unexpectedShares := analyseParticipation(duty, t.events)
-			t.participationReporter(ctx, duty, participatedShares, unexpectedShares)
+			t.participationReporter(ctx, duty, failed, participatedShares, unexpectedShares)
 		case duty := <-t.deleter.C():
 			delete(t.events, duty)
 		}
@@ -406,11 +406,16 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 
 // newParticipationReporter returns a new participation reporter function which logs and instruments peer participation
 // and unexpectedPeers.
-func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty, map[int]bool, map[int]bool) {
+func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty, bool, map[int]bool, map[int]bool) {
 	// prevAbsent is the set of peers who didn't participate in the last duty per type.
 	prevAbsent := make(map[core.DutyType][]string)
 
-	return func(ctx context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedShares map[int]bool) {
+	return func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]bool, unexpectedShares map[int]bool) {
+		if len(participatedShares) == 0 && !failed {
+			// Ignore participation metrics and log for noop duties (like DutyAggregator)
+			return
+		}
+
 		var absentPeers []string
 		for _, peer := range peers {
 			if participatedShares[peer.ShareIdx()] {
@@ -421,13 +426,16 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 				unexpectedEventsCounter.WithLabelValues(peer.Name).Inc()
 			} else {
 				absentPeers = append(absentPeers, peer.Name)
+				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(0)
 			}
 		}
 
 		if fmt.Sprint(prevAbsent[duty.Type]) != fmt.Sprint(absentPeers) {
 			if len(absentPeers) == 0 {
 				log.Info(ctx, "All peers participated in duty")
-			} else if len(absentPeers) != len(peers) {
+			} else if len(absentPeers) == len(peers) {
+				log.Info(ctx, "No peers participated in duty")
+			} else {
 				log.Info(ctx, "Not all peers participated in duty", z.Any("absent", absentPeers))
 			}
 		}

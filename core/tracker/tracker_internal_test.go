@@ -53,7 +53,9 @@ func TestTrackerFailedDuty(t *testing.T) {
 
 		tr := New(analyser, deleter, []p2p.Peer{}, 0)
 		tr.failedDutyReporter = failedDutyReporter
-		tr.participationReporter = func(_ context.Context, _ core.Duty, _ map[int]bool, _ map[int]bool) {}
+		tr.participationReporter = func(_ context.Context, _ core.Duty, failed bool, _ map[int]bool, _ map[int]bool) {
+			require.True(t, failed)
+		}
 
 		go func() {
 			for _, td := range testData {
@@ -91,6 +93,9 @@ func TestTrackerFailedDuty(t *testing.T) {
 
 		tr := New(analyser, deleter, []p2p.Peer{}, 0)
 		tr.failedDutyReporter = failedDutyReporter
+		tr.participationReporter = func(_ context.Context, _ core.Duty, failed bool, _ map[int]bool, _ map[int]bool) {
+			require.False(t, failed)
+		}
 
 		go func() {
 			for _, td := range testData {
@@ -353,9 +358,10 @@ func TestTrackerParticipation(t *testing.T) {
 		count             int
 		lastParticipation map[int]bool
 	)
-	tr.participationReporter = func(_ context.Context, actualDuty core.Duty, actualParticipation map[int]bool, _ map[int]bool) {
+	tr.participationReporter = func(_ context.Context, actualDuty core.Duty, failed bool, actualParticipation map[int]bool, _ map[int]bool) {
 		require.Equal(t, testData[count].duty, actualDuty)
 		require.True(t, reflect.DeepEqual(actualParticipation, expectedParticipationPerDuty[testData[count].duty]))
+		require.False(t, failed)
 
 		if count == 2 {
 			// For third duty, last Participation should be equal to that of second duty.
@@ -424,10 +430,11 @@ func TestUnexpectedParticipation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			tr := New(analyser, deleter, peers, 0)
 
-			tr.participationReporter = func(_ context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedPeers map[int]bool) {
+			tr.participationReporter = func(_ context.Context, duty core.Duty, failed bool, participatedShares map[int]bool, unexpectedPeers map[int]bool) {
 				require.Equal(t, d, duty)
 				require.True(t, reflect.DeepEqual(unexpectedPeers, map[int]bool{unexpectedPeer: true}))
 				require.True(t, reflect.DeepEqual(participatedShares, participation))
+				require.True(t, failed)
 				cancel()
 			}
 
@@ -463,7 +470,7 @@ func TestDutyRandaoUnexpected(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	tr := New(analyser, deleter, peers, 0)
 
-	tr.participationReporter = func(_ context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedPeers map[int]bool) {
+	tr.participationReporter = func(_ context.Context, duty core.Duty, failed bool, participatedShares map[int]bool, unexpectedPeers map[int]bool) {
 		if duty.Type == core.DutyProposer {
 			return
 		}
@@ -471,6 +478,7 @@ func TestDutyRandaoUnexpected(t *testing.T) {
 		require.Equal(t, dutyRandao, duty)
 		require.True(t, reflect.DeepEqual(unexpectedPeers, unexpected))
 		require.True(t, reflect.DeepEqual(participatedShares, participation))
+		require.True(t, failed)
 
 		cancel()
 	}
@@ -509,12 +517,13 @@ func TestDutyRandaoExpected(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	tr := New(analyser, deleter, peers, 0)
 
-	tr.participationReporter = func(_ context.Context, duty core.Duty, participatedShares map[int]bool, unexpectedPeers map[int]bool) {
+	tr.participationReporter = func(_ context.Context, duty core.Duty, failed bool, participatedShares map[int]bool, unexpectedPeers map[int]bool) {
 		if duty.Type == core.DutyProposer {
 			return
 		}
 
 		require.Equal(t, dutyRandao, duty)
+		require.True(t, failed)
 		require.True(t, reflect.DeepEqual(unexpectedPeers, unexpected))
 		require.True(t, reflect.DeepEqual(participatedShares, participation))
 
@@ -738,5 +747,26 @@ func TestAnalyseDutyFailedAgg(t *testing.T) {
 		require.True(t, failed)
 		require.Equal(t, sigAgg, comp)
 		require.Equal(t, msgSigAgg, msg)
+	})
+
+	t.Run("no aggregator found", func(t *testing.T) {
+		allEvents := make(map[core.Duty][]event)
+		allEvents[dutyAgg] = append(allEvents[dutyAgg], event{
+			duty:      dutyAgg,
+			component: scheduler,
+		})
+		allEvents[dutyPrepAgg] = append(allEvents[dutyPrepAgg], event{
+			duty:      dutyPrepAgg,
+			component: sigAgg,
+		})
+		allEvents[dutyAtt] = append(allEvents[dutyAtt], event{
+			duty:      dutyAtt,
+			component: sigAgg,
+		})
+
+		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
+		require.False(t, failed)
+		require.Equal(t, fetcher, comp)
+		require.Equal(t, "", msg)
 	})
 }
