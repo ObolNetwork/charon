@@ -17,7 +17,6 @@ package cluster
 
 import (
 	"crypto/ecdsa"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -89,15 +88,6 @@ func TestDefinitionVerify(t *testing.T) {
 		err = definition.VerifySignatures()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "some operators signed while others didn't")
-	})
-
-	t.Run("older version signatures not supported", func(t *testing.T) {
-		definition := randomDefinition(t, op0, op1)
-		definition.Version = v1_2
-		definition.Operators[0].ENRSignature = testutil.RandomSecp256k1Signature()
-
-		_, err := json.Marshal(definition)
-		require.ErrorContains(t, err, "older version signatures not supported")
 	})
 }
 
