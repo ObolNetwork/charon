@@ -421,16 +421,13 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 				unexpectedEventsCounter.WithLabelValues(peer.Name).Inc()
 			} else {
 				absentPeers = append(absentPeers, peer.Name)
-				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(0)
 			}
 		}
 
 		if fmt.Sprint(prevAbsent[duty.Type]) != fmt.Sprint(absentPeers) {
 			if len(absentPeers) == 0 {
 				log.Info(ctx, "All peers participated in duty")
-			} else if len(absentPeers) == len(peers) {
-				log.Info(ctx, "No peers participated in duty")
-			} else {
+			} else if len(absentPeers) != len(peers) {
 				log.Info(ctx, "Not all peers participated in duty", z.Any("absent", absentPeers))
 			}
 		}
