@@ -213,6 +213,13 @@ func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[
 			}
 
 			return signing.VerifyAggregateAndProof(ctx, eth2Cl, pubshare, &aggAndProof.SignedAggregateAndProof)
+		case core.DutySyncMessage:
+			msg, ok := data.SignedData.(core.SignedSyncMessage)
+			if !ok {
+				return errors.New("invalid sync committee message")
+			}
+
+			return signing.VerifySyncCommitteeMessage(ctx, eth2Cl, pubshare, &msg.SyncCommitteeMessage)
 		default:
 			return errors.New("unknown duty type")
 		}

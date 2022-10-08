@@ -40,6 +40,8 @@ var (
 	_ SignedData = SignedRandao{}
 	_ SignedData = SignedBeaconCommitteeSubscription{}
 	_ SignedData = SignedAggregateAndProof{}
+	_ SignedData = SignedSyncMessage{}
+	_ SignedData = SignedSyncContribution{}
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
