@@ -66,6 +66,7 @@ type Handler interface {
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.ProposerDutiesProvider
+	eth2client.SyncCommitteeMessagesSubmitter
 	eth2client.ValidatorsProvider
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.VoluntaryExitSubmitter
@@ -74,10 +75,10 @@ type Handler interface {
 }
 
 // NewRouter returns a new validator http server router. The http router
-// translates http requests related to the distributed validator to the validatorapi.Handler.
-// All other requests are reserve-proxied to the beacon-node address.
+// translates http requests related to the distributed validator to the Handler.
+// All other requests are reverse-proxied to the beacon-node address.
 func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
-	// Register subset of distributed validator related endpoints
+	// Register subset of distributed validator related endpoints.
 	endpoints := []struct {
 		Name    string
 		Path    string
@@ -162,6 +163,11 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 			Name:    "submit_aggregate_and_proofs",
 			Path:    "/eth/v1/validator/aggregate_and_proofs",
 			Handler: submitAggregateAttestations(h),
+		},
+		{
+			Name:    "submit_sync_committee_messages",
+			Path:    "/eth/v1/beacon/pool/sync_committees",
+			Handler: submitSyncCommitteeMessages(h),
 		},
 	}
 
@@ -619,6 +625,23 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 		}
 
 		err = s.SubmitAggregateAttestations(ctx, aggs)
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, nil
+	}
+}
+
+func submitSyncCommitteeMessages(s eth2client.SyncCommitteeMessagesSubmitter) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		var msgs []*altair.SyncCommitteeMessage
+		err := json.Unmarshal(body, &msgs)
+		if err != nil {
+			return nil, errors.Wrap(err, "unmarshal sync committee messages")
+		}
+
+		err = s.SubmitSyncCommitteeMessages(ctx, msgs)
 		if err != nil {
 			return nil, err
 		}
