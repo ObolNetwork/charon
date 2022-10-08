@@ -261,4 +261,16 @@ func TestParSigExVerifier(t *testing.T) {
 
 		require.NoError(t, verifyFunc(ctx, core.NewAggregatorDuty(slot), pubkey, data))
 	})
+
+	t.Run("verify sync committee message", func(t *testing.T) {
+		msg := testutil.RandomSyncCommitteeMessage()
+		msg.Slot = slot
+
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainSyncCommittee, epoch, msg.BeaconBlockRoot)
+		require.NoError(t, err)
+		msg.Signature = sign(sigData[:])
+
+		data := core.NewPartialSignedSyncMessage(msg, shareIdx)
+		require.NoError(t, verifyFunc(ctx, core.NewSyncMessageDuty(slot), pubkey, data))
+	})
 }
