@@ -272,5 +272,11 @@ func TestParSigExVerifier(t *testing.T) {
 
 		data := core.NewPartialSignedSyncMessage(msg, shareIdx)
 		require.NoError(t, verifyFunc(ctx, core.NewSyncMessageDuty(slot), pubkey, data))
+
+		// Invalid sync committee message.
+		data = core.NewPartialSignedRandao(epoch, testutil.RandomEth2Signature(), shareIdx)
+		err = verifyFunc(ctx, core.NewSyncMessageDuty(slot), pubkey, data)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "invalid sync committee message")
 	})
 }
