@@ -63,7 +63,7 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		Bootnode:         true,
 		Monitoring:       true,
 		MonitoringPorts:  !conf.DisableMonitoringPorts,
-		Loki:             !conf.DisableLoki,
+		Loki:             conf.EnableLoki,
 		VCs:              vcs,
 	}
 

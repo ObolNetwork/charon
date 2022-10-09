@@ -100,7 +100,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.6",
       "targets": [
         {
           "datasource": {
@@ -217,7 +217,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.6",
       "targets": [
         {
           "datasource": {
@@ -375,7 +375,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.6",
       "targets": [
         {
           "datasource": {
@@ -407,6 +407,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
@@ -542,7 +544,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.6",
       "targets": [
         {
           "datasource": {
@@ -783,7 +785,7 @@
           }
         ]
       },
-      "pluginVersion": "9.0.4",
+      "pluginVersion": "9.1.6",
       "targets": [
         {
           "datasource": {
@@ -995,188 +997,8 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "noValue": "No errors",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 12,
-        "x": 0,
-        "y": 14
-      },
-      "id": 13,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "exemplar": true,
-          "expr": "increase(app_log_error_total{job=\"$node\"}[$__rate_interval])",
-          "interval": "",
-          "legendFormat": "{{topic}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Errors by topic",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "noValue": "No warnings",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 12,
-        "x": 12,
-        "y": 14
-      },
-      "id": 14,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "exemplar": true,
-          "expr": "increase(app_log_warn_total{job=\"$node\"}[$__rate_interval]) ",
-          "interval": "",
-          "legendFormat": "{{topic}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Warnings by topic",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1225,7 +1047,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 19
+        "y": 14
       },
       "id": 7,
       "options": {
@@ -1281,6 +1103,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1331,7 +1155,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 19
+        "y": 14
       },
       "id": 5,
       "options": {
@@ -1366,6 +1190,142 @@
     },
     {
       "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "description": "Top 10 count of errors and warning per minute grouped by message. ",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "noValue": "No warnings",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "id": 62,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "P8E80F9AEF21F6940"
+          },
+          "editorMode": "code",
+          "expr": "topk(10,sum(count_over_time({compose_service=\"$node\"} | logfmt | level=~`(warn|error)` | label_format level=\"{{trunc 1 .level | upper}}\"[1m])) by (level,msg,topic))",
+          "legendFormat": "{{level}} [{{topic}}] {{msg}}",
+          "queryType": "range",
+          "refId": "A",
+          "resolution": 10
+        }
+      ],
+      "title": "Top Warnings and Errors",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "description": "Reasons why duties failed prefixed by slot and duty type",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "id": 66,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": false,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "P8E80F9AEF21F6940"
+          },
+          "editorMode": "code",
+          "expr": "{compose_service=\"$node\"} | logfmt | msg=`Duty failed` | line_format `{{.duty}}\t{{.reason}}`",
+          "legendFormat": "{{level}} [{{topic}}] {{msg}}",
+          "queryType": "range",
+          "refId": "A",
+          "resolution": 10
+        }
+      ],
+      "title": "Duty Failed Reasons",
+      "type": "logs"
+    },
+    {
+      "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
@@ -1375,6 +1335,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1407,7 +1369,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1423,7 +1386,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 26
+        "y": 27
       },
       "id": 17,
       "options": {
@@ -1465,6 +1428,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1497,7 +1462,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1513,7 +1479,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 26
+        "y": 27
       },
       "id": 18,
       "options": {
@@ -1555,6 +1521,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1587,7 +1555,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1603,7 +1572,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 33
+        "y": 34
       },
       "id": 15,
       "options": {
@@ -1645,6 +1614,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1677,7 +1648,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1693,7 +1665,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 33
+        "y": 34
       },
       "id": 24,
       "options": {
@@ -1735,6 +1707,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1768,7 +1742,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1784,7 +1759,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 41
       },
       "id": 50,
       "options": {
@@ -1840,6 +1815,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1873,7 +1850,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1902,7 +1880,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 40
+        "y": 41
       },
       "id": 49,
       "options": {
@@ -1968,7 +1946,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue"
+                "color": "light-blue",
+                "value": null
               },
               {
                 "color": "red",
@@ -2060,7 +2039,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 47
+        "y": 48
       },
       "id": 56,
       "options": {
@@ -2073,7 +2052,7 @@
         },
         "showHeader": true
       },
-      "pluginVersion": "9.0.0",
+      "pluginVersion": "9.1.6",
       "targets": [
         {
           "datasource": {
@@ -2136,6 +2115,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -2168,7 +2149,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2184,7 +2166,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 47
+        "y": 48
       },
       "id": 52,
       "links": [],
@@ -2219,10 +2201,48 @@
       ],
       "title": "CPU",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 55
+      },
+      "id": 65,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "P8E80F9AEF21F6940"
+          },
+          "editorMode": "code",
+          "expr": "{compose_service=\"$node\"} | logfmt | line_format \"{{upper .level | trunc 4 }} {{.topic}}\t{{.msg}}\t\t{{if .slot}}slot={{.slot}}{{end}}{{if .duty}}duty={{.duty}}{{end}}\"",
+          "queryType": "range",
+          "refId": "A",
+          "resolution": 1
+        }
+      ],
+      "title": "Logs",
+      "type": "logs"
     }
   ],
   "refresh": "30s",
-  "schemaVersion": 36,
+  "schemaVersion": 37,
   "style": "dark",
   "tags": [],
   "templating": {

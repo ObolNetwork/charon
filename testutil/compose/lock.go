@@ -117,6 +117,11 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 		p2pRelay = "true"
 	}
 
+	logFmt := "console"
+	if conf.EnableLoki {
+		logFmt = "logfmt"
+	}
+
 	// Common config
 	kvs := []kv{
 		{"private-key-file", fmt.Sprintf("/compose/node%d/charon-enr-private-key", index)},
@@ -127,6 +132,7 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 		{"p2p-bootnodes", p2pBootnodes},
 		{"p2p-bootnode-relay", fmt.Sprintf(`"%v"`, p2pRelay)},
 		{"log-level", "debug"},
+		{"log-format", logFmt},
 		{"feature-set", conf.FeatureSet},
 	}
 

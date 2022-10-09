@@ -18,5 +18,5 @@
  ],
  "feature_set": "alpha",
  "disable_monitoring_ports": false,
- "disable_loki": false
+ "enable_loki": false
 }

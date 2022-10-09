@@ -29,6 +29,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_FORMAT: console
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node0
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
@@ -46,6 +47,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_FORMAT: console
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node1
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
@@ -63,6 +65,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_FORMAT: console
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node2
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
@@ -80,6 +83,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_FORMAT: console
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node3
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
