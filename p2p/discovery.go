@@ -256,7 +256,7 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 }
 
 // NewDiscoveryRouter returns a life cycle hook that links discv5 to libp2p by
-// continuously polling discv5 for latest peer ENRs and adding them to libp2p peer store.
+// continuously polling discv5 for latest peer ENRs and adding them to the libp2p peer store.
 func NewDiscoveryRouter(tcpNode host.Host, udpNode *MutableUDPNode, peers []Peer) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
 		ctx = log.WithTopic(ctx, "p2p")
