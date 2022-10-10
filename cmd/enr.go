@@ -90,7 +90,7 @@ func writeExpandedEnr(w io.Writer, sig []byte, seq uint64, pubkey string) {
 	var sb strings.Builder
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString("***************** Decoded ENR (see https://enr-viewer.com/ for additional fields) **********************\n")
-	_, _ = sb.WriteString(fmt.Sprintf("secp256k1 pubkey: %#x\n", pubkey))
+	_, _ = sb.WriteString(fmt.Sprintf("secp256k1 pubkey: %s\n", pubkey))
 	_, _ = sb.WriteString(fmt.Sprintf("signature: %#x\n", sig))
 	_, _ = sb.WriteString(fmt.Sprintf("seq: %d\n", seq))
 	_, _ = sb.WriteString("********************************************************************************************************\n")
@@ -99,7 +99,7 @@ func writeExpandedEnr(w io.Writer, sig []byte, seq uint64, pubkey string) {
 	_, _ = w.Write([]byte(sb.String()))
 }
 
-// pubkeyHex returns compressed public key bytes.
+// pubkeyHex compresses the provided public key and returns the 0x hex encoded string.
 func pubkeyHex(pubkey ecdsa.PublicKey) string {
 	b := crypto.CompressPubkey(&pubkey)
 
