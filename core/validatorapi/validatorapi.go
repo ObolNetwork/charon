@@ -732,6 +732,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 	return nil
 }
 
+// SubmitSyncCommitteeMessages receives the partially signed altair.SyncCommitteeMessage.
 func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
 	var valIdxs []eth2p0.ValidatorIndex
 	for _, msg := range messages {
