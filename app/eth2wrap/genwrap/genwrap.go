@@ -110,6 +110,7 @@ type Client interface {
 		"NodeSyncingProvider":                   true,
 		"NodeVersionProvider":                   false,
 		"ProposerDutiesProvider":                true,
+		"ProposalPreparationsSubmitter":         false,
 		"SlotDurationProvider":                  false,
 		"SlotsPerEpochProvider":                 false,
 		"SpecProvider":                          false,

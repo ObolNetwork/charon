@@ -56,6 +56,7 @@ type Client interface {
 	eth2client.GenesisTimeProvider
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
+	eth2client.ProposalPreparationsSubmitter
 	eth2client.ProposerDutiesProvider
 	eth2client.SlotDurationProvider
 	eth2client.SlotsPerEpochProvider
@@ -600,6 +601,26 @@ func (m multi) NodeSyncing(ctx context.Context) (*apiv1.SyncState, error) {
 	}
 
 	return res0, err
+}
+
+// SubmitProposalPreparations provides the beacon node with information required if a proposal for the given validators
+// shows up in the next epoch.
+// Note this endpoint is cached in go-eth2-client.
+func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*apiv1.ProposalPreparation) error {
+	const label = "submit_proposal_preparations"
+
+	err := submit(ctx, m.clients,
+		func(ctx context.Context, cl Client) error {
+			return cl.SubmitProposalPreparations(ctx, preparations)
+		},
+	)
+
+	if err != nil {
+		incError(label)
+		err = errors.Wrap(err, "eth2wrap")
+	}
+
+	return err
 }
 
 // ProposerDuties obtains proposer duties for the given epoch.

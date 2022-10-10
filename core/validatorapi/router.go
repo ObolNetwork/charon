@@ -169,6 +169,11 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 			Path:    "/eth/v1/beacon/pool/sync_committees",
 			Handler: submitSyncCommitteeMessages(h),
 		},
+		{
+			Name:    "submit_proposal_preparations",
+			Path:    "/eth/v1/validator/prepare_beacon_proposer",
+			Handler: submitProposalPreparations(),
+		},
 	}
 
 	r := mux.NewRouter()
@@ -646,6 +651,14 @@ func submitSyncCommitteeMessages(s eth2client.SyncCommitteeMessagesSubmitter) ha
 			return nil, err
 		}
 
+		return nil, nil
+	}
+}
+
+// submitProposalPreparations swallows fee-recipient-address from validator client as it should be
+// configured by charon from cluster-lock.json and VC need not be configured with correct fee-recipient-address.
+func submitProposalPreparations() handlerFunc {
+	return func(context.Context, map[string]string, url.Values, []byte) (interface{}, error) {
 		return nil, nil
 	}
 }

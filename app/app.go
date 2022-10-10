@@ -22,10 +22,12 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"net/http"
+	"strings"
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -296,6 +298,8 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 }
 
 // wireCoreWorkflow wires the core workflow components.
+//
+//nolint:gocognit
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
 	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
@@ -303,6 +307,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	// Convert and prep public keys and public shares
 	var (
 		corePubkeys       []core.PubKey
+		eth2Pubkeys       []eth2p0.BLSPubKey
 		pubshares         []eth2p0.BLSPubKey
 		pubSharesByKey    = make(map[*bls_sig.PublicKey]*bls_sig.PublicKey)
 		allPubSharesByKey = make(map[core.PubKey]map[int]*bls_sig.PublicKey) // map[pubkey]map[shareIdx]pubshare
@@ -339,6 +344,12 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			return err
 		}
 
+		eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
+		if err != nil {
+			return err
+		}
+
+		eth2Pubkeys = append(eth2Pubkeys, eth2Pubkey)
 		corePubkeys = append(corePubkeys, corePubkey)
 		pubSharesByKey[pubkey] = pubShare
 		pubshares = append(pubshares, eth2Share)
@@ -364,7 +375,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	fetch, err := fetcher.New(eth2Cl)
+	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, lock.FeeRecipientAddress))
+
+	fetch, err := fetcher.New(eth2Cl, lock.FeeRecipientAddress)
 	if err != nil {
 		return err
 	}
@@ -672,6 +685,42 @@ func wireTracing(life *lifecycle.Manager, conf Config) error {
 	life.RegisterStop(lifecycle.StopTracing, lifecycle.HookFunc(stopjaeger))
 
 	return nil
+}
+
+// setFeeRecipient returns a slot subscriber for scheduler which calls prepare_beacon_proposer endpoint at start of each epoch.
+// TODO(dhruv): move this somewhere else once more use-cases like this becomes clear.
+func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeRecipient string) func(ctx context.Context, slot core.Slot) error {
+	onStartup := true
+
+	return func(ctx context.Context, slot core.Slot) error {
+		// Either call if it is first slot in epoch or on charon startup.
+		if !onStartup && !slot.FirstInEpoch() {
+			return nil
+		}
+		onStartup = false
+
+		vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", pubkeys)
+		if err != nil {
+			return err
+		}
+
+		var addr bellatrix.ExecutionAddress
+		b, err := hex.DecodeString(strings.TrimPrefix(feeRecipient, "0x"))
+		if err != nil {
+			return errors.Wrap(err, "hex decode fee recipient address")
+		}
+		copy(addr[:], b)
+
+		var preps []*eth2v1.ProposalPreparation
+		for vIdx := range vals {
+			preps = append(preps, &eth2v1.ProposalPreparation{
+				ValidatorIndex: vIdx,
+				FeeRecipient:   addr,
+			})
+		}
+
+		return eth2Cl.SubmitProposalPreparations(ctx, preps)
+	}
 }
 
 // httpServeHook wraps a http.Server.ListenAndServe function, swallowing http.ErrServerClosed.

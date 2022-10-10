@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -31,18 +32,20 @@ import (
 )
 
 // New returns a new fetcher instance.
-func New(eth2Cl eth2wrap.Client) (*Fetcher, error) {
+func New(eth2Cl eth2wrap.Client, feeRecipientAddress string) (*Fetcher, error) {
 	return &Fetcher{
-		eth2Cl: eth2Cl,
+		eth2Cl:              eth2Cl,
+		feeRecipientAddress: feeRecipientAddress,
 	}, nil
 }
 
 // Fetcher fetches proposed duty data.
 type Fetcher struct {
-	eth2Cl           eth2wrap.Client
-	subs             []func(context.Context, core.Duty, core.UnsignedDataSet) error
-	aggSigDBFunc     func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
-	awaitAttDataFunc func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error)
+	eth2Cl              eth2wrap.Client
+	feeRecipientAddress string
+	subs                []func(context.Context, core.Duty, core.UnsignedDataSet) error
+	aggSigDBFunc        func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
+	awaitAttDataFunc    func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error)
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -224,6 +227,15 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 			return nil, err
 		}
 
+		// Ensure fee recipient is correctly populated in block.
+		if block.Version == spec.DataVersionBellatrix {
+			actual := fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
+			if actual != f.feeRecipientAddress {
+				log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
+					z.Str("expected", f.feeRecipientAddress), z.Str("actual", actual))
+			}
+		}
+
 		coreBlock, err := core.NewVersionedBeaconBlock(block)
 		if err != nil {
 			return nil, errors.Wrap(err, "new block")
@@ -257,6 +269,15 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defS
 		block, err := f.eth2Cl.BlindedBeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randao, graffiti[:])
 		if err != nil {
 			return nil, err
+		}
+
+		// Ensure fee recipient is correctly populated in block.
+		if block.Version == spec.DataVersionBellatrix {
+			actual := fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
+			if actual != f.feeRecipientAddress {
+				log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
+					z.Str("expected", f.feeRecipientAddress), z.Str("actual", actual))
+			}
 		}
 
 		coreBlock, err := core.NewVersionedBlindedBeaconBlock(block)
