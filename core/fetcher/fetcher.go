@@ -231,7 +231,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 		if block.Version == spec.DataVersionBellatrix {
 			actual := fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
 			if actual != f.feeRecipientAddress {
-				log.Warn(ctx, "Fee recipient address different than expected", nil,
+				log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
 					z.Str("expected", f.feeRecipientAddress), z.Str("actual", actual))
 			}
 		}
@@ -275,7 +275,7 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defS
 		if block.Version == spec.DataVersionBellatrix {
 			actual := fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
 			if actual != f.feeRecipientAddress {
-				log.Warn(ctx, "Fee recipient address different than expected", nil,
+				log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
 					z.Str("expected", f.feeRecipientAddress), z.Str("actual", actual))
 			}
 		}

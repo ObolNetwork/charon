@@ -687,8 +687,11 @@ func wireTracing(life *lifecycle.Manager, conf Config) error {
 
 // setFeeRecipient returns a slot subscriber for scheduler which calls prepare_beacon_proposer endpoint at start of each epoch.
 func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeRecipient string) func(ctx context.Context, slot core.Slot) error {
+	onStartup := false
+
 	return func(ctx context.Context, slot core.Slot) error {
-		if !slot.FirstInEpoch() {
+		// Either call if it is first slot in epoch or on charon startup.
+		if onStartup && !slot.FirstInEpoch() {
 			return nil
 		}
 
@@ -711,6 +714,8 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeReci
 				FeeRecipient:   addr,
 			})
 		}
+
+		onStartup = true
 
 		return eth2Cl.SubmitProposalPreparations(ctx, preps)
 	}
