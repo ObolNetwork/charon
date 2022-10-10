@@ -24,6 +24,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"go.opentelemetry.io/otel/trace"
@@ -134,9 +135,9 @@ type Component struct {
 	getVerifyShareFunc func(core.PubKey) (*bls_sig.PublicKey, error)
 	// getPubShareFunc return the public shares for a root public key.
 	getPubShareFunc func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, bool)
-	// getPubKeyFunc return the root public key for a public shares.
+	// getPubKeyFunc return the root public key for a public share.
 	getPubKeyFunc func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error)
-	// sharesByKey contains this nodes public shares (value) by root public (key)
+	// sharesByKey contains this node's public shares (value) by root public (key)
 	sharesByKey map[core.PubKey]core.PubKey
 
 	// Registered input functions
@@ -319,7 +320,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	//  - Threshold number of VCs need to submit their partial randao reveals.
 	//  - These signatures will be exchanged and aggregated.
 	//  - The aggregated signature will be stored in AggSigDB.
-	//  - Scheduler (in the mean time) will schedule a DutyProposer (to create a unsigned block).
+	//  - Scheduler (in the meantime) will schedule a DutyProposer (to create a unsigned block).
 	//  - Fetcher will then block waiting for an aggregated randao reveal.
 	//  - Once it is found, Fetcher will fetch an unsigned block from the beacon
 	//    node including the aggregated randao in the request.
@@ -424,7 +425,7 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 	//  - Threshold number of VCs need to submit their partial randao reveals.
 	//  - These signatures will be exchanged and aggregated.
 	//  - The aggregated signature will be stored in AggSigDB.
-	//  - Scheduler (in the mean time) will schedule a DutyBuilderProposer (to create a unsigned blinded block).
+	//  - Scheduler (in the meantime) will schedule a DutyBuilderProposer (to create a unsigned blinded block).
 	//  - Fetcher will then block waiting for an aggregated randao reveal.
 	//  - Once it is found, Fetcher will fetch an unsigned blinded block from the beacon
 	//    node including the aggregated randao in the request.
@@ -720,6 +721,59 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 
 	for slot, data := range psigsBySlot {
 		duty := core.NewAggregatorDuty(int64(slot))
+		for _, sub := range c.subs {
+			err = sub(ctx, duty, data)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// SubmitSyncCommitteeMessages receives the partially signed altair.SyncCommitteeMessage.
+func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
+	var valIdxs []eth2p0.ValidatorIndex
+	for _, msg := range messages {
+		valIdxs = append(valIdxs, msg.ValidatorIndex)
+	}
+
+	vals, err := c.eth2Cl.Validators(ctx, "head", valIdxs)
+	if err != nil {
+		return err
+	}
+
+	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+	for _, msg := range messages {
+		eth2Pubkey, err := vals[msg.ValidatorIndex].PubKey(ctx)
+		if err != nil {
+			return err
+		}
+
+		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
+		if err != nil {
+			return err
+		}
+
+		err = c.verifyPartialSig(pk, func(pubshare *bls_sig.PublicKey) error {
+			return signing.VerifySyncCommitteeMessage(ctx, c.eth2Cl, pubshare, msg)
+		})
+		if err != nil {
+			return err
+		}
+
+		slot := msg.Slot
+		_, ok := psigsBySlot[slot]
+		if !ok {
+			psigsBySlot[slot] = make(core.ParSignedDataSet)
+		}
+
+		psigsBySlot[slot][pk] = core.NewPartialSignedSyncMessage(msg, c.shareIdx)
+	}
+
+	for slot, data := range psigsBySlot {
+		duty := core.NewSyncMessageDuty(int64(slot))
 		for _, sub := range c.subs {
 			err = sub(ctx, duty, data)
 			if err != nil {

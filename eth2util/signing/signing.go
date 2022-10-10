@@ -87,10 +87,8 @@ func GetDataRoot(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, e
 	return msg, nil
 }
 
-// TODO(corevr): Create a function that calculates signing roots for all unsigned eth2 types.
-// func UnsignedRoot(ctx context.Context, eth2Cl eth2wrap.Client, unsigned interface{}) ([32]byte, error) {
-//
-//}
+// TODO(corver): Create a function that calculates signing roots for all unsigned eth2 types.
+// func UnsignedRoot(ctx context.Context, eth2Cl eth2wrap.Client, unsigned interface{}) ([32]byte, error) {}
 
 func VerifyAttestation(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, att *eth2p0.Attestation) error {
 	sigRoot, err := att.Data.HashTreeRoot()

@@ -1321,3 +1321,42 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 
 	require.NoError(t, vapi.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{agg}))
 }
+
+func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
+	const vIdx = 1
+
+	var (
+		ctx = context.Background()
+		msg = &altair.SyncCommitteeMessage{
+			Slot:            testutil.RandomSlot(),
+			BeaconBlockRoot: testutil.RandomRoot(),
+			ValidatorIndex:  vIdx,
+			Signature:       testutil.RandomEth2Signature(),
+		}
+		pubkey = beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
+	)
+
+	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	cnt := 0 // No of times the subscription function is called.
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.NewSyncMessageDuty(int64(msg.Slot)), duty)
+
+		pk, err := core.PubKeyFromBytes(pubkey[:])
+		require.NoError(t, err)
+
+		data, ok := set[pk]
+		require.True(t, ok)
+		require.Equal(t, core.NewPartialSignedSyncMessage(msg, 0), data)
+		cnt++
+
+		return nil
+	})
+
+	require.NoError(t, vapi.SubmitSyncCommitteeMessages(ctx, []*altair.SyncCommitteeMessage{msg}))
+	require.Equal(t, cnt, 1)
+}

@@ -207,7 +207,7 @@ func TestRawRouter(t *testing.T) {
 	})
 }
 
-//nolint:maintidx // This function a test of tests, so analyses as "complex".
+//nolint:maintidx // This function is a test of tests, so analysed as "complex".
 func TestRouter(t *testing.T) {
 	t.Run("attesterduty", func(t *testing.T) {
 		handler := testHandler{
@@ -548,6 +548,26 @@ func TestRouter(t *testing.T) {
 
 		testRouter(t, handler, callback)
 	})
+
+	t.Run("submit_sync_committee_messages", func(t *testing.T) {
+		msgs := []*altair.SyncCommitteeMessage{testutil.RandomSyncCommitteeMessage(), testutil.RandomSyncCommitteeMessage()}
+
+		handler := testHandler{
+			SubmitSyncCommitteeMessagesFunc: func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
+				for i := range msgs {
+					require.Equal(t, msgs[i], messages[i])
+				}
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			require.NoError(t, cl.SubmitSyncCommitteeMessages(ctx, msgs))
+		}
+
+		testRouter(t, handler, callback)
+	})
 }
 
 func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
@@ -719,6 +739,7 @@ type testHandler struct {
 	SubmitValidatorRegistrationsFunc         func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
 	SubmitBeaconCommitteeSubscriptionsV2Func func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error)
 	SubmitAggregateAttestationsFunc          func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
+	SubmitSyncCommitteeMessagesFunc          func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
 }
 
 func (h testHandler) AttestationData(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
@@ -771,6 +792,10 @@ func (h testHandler) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, s
 
 func (h testHandler) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
 	return h.SubmitAggregateAttestationsFunc(ctx, aggregateAndProofs)
+}
+
+func (h testHandler) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
+	return h.SubmitSyncCommitteeMessagesFunc(ctx, messages)
 }
 
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the
