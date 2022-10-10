@@ -51,7 +51,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 	bindPrivKeyFlag(cmd, &conf.PrivKeyFile)
 	bindRunFlags(cmd, &conf)
 	bindNoVerifyFlag(cmd.Flags(), &conf.NoVerify)
-	bindP2PFlags(cmd.Flags(), &conf.P2P)
+	bindP2PFlags(cmd, &conf.P2P)
 	bindLogFlags(cmd.Flags(), &conf.Log)
 	bindFeatureFlags(cmd.Flags(), &conf.Feature)
 
@@ -132,16 +132,29 @@ func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
 }
 
-func bindP2PFlags(flags *pflag.FlagSet, config *p2p.Config) {
-	flags.StringSliceVar(&config.UDPBootnodes, "p2p-bootnodes", []string{"http://bootnode.lb.gcp.obol.tech:3640/enr"}, "Comma-separated list of discv5 bootnode URLs or ENRs.")
-	flags.BoolVar(&config.BootnodeRelay, "p2p-bootnode-relay", false, "Enables using bootnodes as libp2p circuit relays. Useful if some charon nodes are not have publicly accessible.")
-	flags.BoolVar(&config.UDPBootLock, "p2p-bootnodes-from-lockfile", false, "Enables using cluster lock ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs.")
-	flags.StringVar(&config.UDPAddr, "p2p-udp-address", "", "Listening UDP address (ip and port) for discv5 discovery.")
-	flags.StringVar(&config.ExternalIP, "p2p-external-ip", "", "The IP address advertised by libp2p. This may be used to advertise an external IP.")
-	flags.StringVar(&config.ExternalHost, "p2p-external-hostname", "", "The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.")
-	flags.StringSliceVar(&config.TCPAddrs, "p2p-tcp-address", nil, "Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic.")
-	flags.StringVar(&config.Allowlist, "p2p-allowlist", "", "Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.")
-	flags.StringVar(&config.Denylist, "p2p-denylist", "", "Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.")
+func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
+	cmd.Flags().StringSliceVar(&config.UDPBootnodes, "p2p-bootnodes", []string{"http://bootnode.lb.gcp.obol.tech:3640/enr"}, "Comma-separated list of discv5 bootnode URLs or ENRs.")
+	cmd.Flags().BoolVar(&config.BootnodeRelay, "p2p-bootnode-relay", true, "Enables using bootnodes as libp2p circuit relays. Useful if some charon nodes are not publicly accessible.")
+	cmd.Flags().BoolVar(&config.UDPBootLock, "p2p-bootnodes-from-lockfile", false, "Enables using cluster lock ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs.")
+	cmd.Flags().StringVar(&config.UDPAddr, "p2p-udp-address", "", "Listening UDP address (ip and port) for discv5 discovery.")
+	cmd.Flags().StringVar(&config.ExternalIP, "p2p-external-ip", "", "The IP address advertised by libp2p. This may be used to advertise an external IP.")
+	cmd.Flags().StringVar(&config.ExternalHost, "p2p-external-hostname", "", "The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.")
+	cmd.Flags().StringSliceVar(&config.TCPAddrs, "p2p-tcp-address", nil, "Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic.")
+	cmd.Flags().StringVar(&config.Allowlist, "p2p-allowlist", "", "Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.")
+	cmd.Flags().StringVar(&config.Denylist, "p2p-denylist", "", "Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.")
+
+	preRunE := cmd.PreRunE // Allow multiple wraps of PreRunE.
+	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		if config.UDPAddr == "" && !config.BootnodeRelay && !config.UDPBootLock {
+			return errors.New("node undiscoverable with the provided settings, please enable any one of `p2p-udp-address`, `p2p-bootnode-relay` or `p2p-bootnodes-from-lockfile`")
+		}
+
+		if preRunE != nil {
+			return preRunE(cmd, args)
+		}
+
+		return nil
+	}
 }
 
 func bindFeatureFlags(flags *pflag.FlagSet, config *featureset.Config) {
