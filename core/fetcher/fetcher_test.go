@@ -17,6 +17,7 @@ package fetcher_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -70,7 +71,7 @@ func TestFetchAttester(t *testing.T) {
 	duty := core.NewAttesterDuty(slot)
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
-	fetch, err := fetcher.New(bmock)
+	fetch, err := fetcher.New(bmock, "")
 	require.NoError(t, err)
 
 	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
@@ -154,7 +155,7 @@ func TestFetchAggregator(t *testing.T) {
 		return nil, errors.New("expected unknown root")
 	}
 
-	fetch, err := fetcher.New(bmock)
+	fetch, err := fetcher.New(bmock, "")
 	require.NoError(t, err)
 
 	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
@@ -225,9 +226,10 @@ func TestFetchProposer(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		slot  = 1
-		vIdxA = 2
-		vIdxB = 3
+		slot             = 1
+		vIdxA            = 2
+		vIdxB            = 3
+		feeRecipientAddr = "0x0000000000000000000000000000000000000000"
 	)
 
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
@@ -258,7 +260,7 @@ func TestFetchProposer(t *testing.T) {
 
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
-	fetch, err := fetcher.New(bmock)
+	fetch, err := fetcher.New(bmock, feeRecipientAddr)
 	require.NoError(t, err)
 
 	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
@@ -273,6 +275,7 @@ func TestFetchProposer(t *testing.T) {
 		slotA, err := dutyDataA.Slot()
 		require.NoError(t, err)
 		require.EqualValues(t, slot, slotA)
+		require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Bellatrix.Body.ExecutionPayload.FeeRecipient))
 		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 
 		dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedBeaconBlock)
@@ -292,9 +295,10 @@ func TestFetchBuilderProposer(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		slot  = 1
-		vIdxA = 2
-		vIdxB = 3
+		slot             = 1
+		vIdxA            = 2
+		vIdxB            = 3
+		feeRecipientAddr = "0x0000000000000000000000000000000000000000"
 	)
 
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
@@ -325,7 +329,7 @@ func TestFetchBuilderProposer(t *testing.T) {
 
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
-	fetch, err := fetcher.New(bmock)
+	fetch, err := fetcher.New(bmock, feeRecipientAddr)
 	require.NoError(t, err)
 
 	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
@@ -340,6 +344,7 @@ func TestFetchBuilderProposer(t *testing.T) {
 		slotA, err := dutyDataA.Slot()
 		require.NoError(t, err)
 		require.EqualValues(t, slot, slotA)
+		require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient))
 		assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 
 		dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedBlindedBeaconBlock)

@@ -530,6 +530,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SlotsPerEpochFunc: func(ctx context.Context) (uint64, error) {
 			return httpMock.SlotsPerEpoch(ctx)
 		},
+		SubmitProposalPreparationsFunc: func(_ context.Context, _ []*eth2v1.ProposalPreparation) error {
+			return nil
+		},
 	}
 }
 

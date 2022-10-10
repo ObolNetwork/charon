@@ -149,6 +149,7 @@ type Mock struct {
 	SubmitSyncCommitteeContributionsFunc     func(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) error
 	SyncCommitteeContributionFunc            func(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	SubmitSyncCommitteeSubscriptionsFunc     func(ctx context.Context, subscriptions []*eth2v1.SyncCommitteeSubscription) error
+	SubmitProposalPreparationsFunc           func(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error
 }
 
 func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
@@ -253,6 +254,10 @@ func (m Mock) SyncCommitteeContribution(ctx context.Context, slot eth2p0.Slot, s
 
 func (m Mock) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptions []*eth2v1.SyncCommitteeSubscription) error {
 	return m.SubmitSyncCommitteeSubscriptionsFunc(ctx, subscriptions)
+}
+
+func (m Mock) SubmitProposalPreparations(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error {
+	return m.SubmitProposalPreparationsFunc(ctx, preparations)
 }
 
 func (m Mock) SlotsPerEpoch(ctx context.Context) (uint64, error) {
