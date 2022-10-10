@@ -131,20 +131,26 @@ func (n *MutableUDPNode) AllNodes() []*enode.Node {
 	return n.udpNode.AllNodes()
 }
 
-// NewUDPNode starts and returns a discv5 UDP provider.
+// NewUDPNode starts and returns a discv5 UDP provider. It returns false if the udp node is not started.
 func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode,
 	key *ecdsa.PrivateKey, bootnodes []*MutablePeer,
-) (*MutableUDPNode, error) {
+) (*MutableUDPNode, bool, error) {
+	if config.UDPAddr == "" { // Do not start a discv5 UDPNode if p2p-udp-address is not defined.
+		log.Debug(ctx, "Not starting discv5 UDP node since p2p-udp-address not defined, only relying on libp2p relays for discovery")
+
+		return nil, false, nil
+	}
+
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
-		return nil, errors.Wrap(err, "resolve udp address")
+		return nil, false, errors.Wrap(err, "resolve udp address")
 	}
 
 	var allowList *netutil.Netlist
 	if config.Allowlist != "" {
 		allowList, err = netutil.ParseNetlist(config.Allowlist) // Note empty string would result in "none allowed".
 		if err != nil {
-			return nil, errors.Wrap(err, "parse allow list")
+			return nil, false, errors.Wrap(err, "parse allow list")
 		}
 	}
 
@@ -181,7 +187,7 @@ func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode,
 	}
 
 	// Return a refreshed mutable udp node
-	return mutable, mutable.maybeRefresh(bootnodes)
+	return mutable, true, mutable.maybeRefresh(bootnodes)
 }
 
 // NewLocalEnode returns a local enode and a peer DB or an error.
@@ -250,7 +256,7 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 }
 
 // NewDiscoveryRouter returns a life cycle hook that links discv5 to libp2p by
-// continuously polling discv5 for latest peer ENRs and adding then to libp2p peer store.
+// continuously polling discv5 for latest peer ENRs and adding them to libp2p peer store.
 func NewDiscoveryRouter(tcpNode host.Host, udpNode *MutableUDPNode, peers []Peer) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
 		ctx = log.WithTopic(ctx, "p2p")
@@ -287,8 +293,8 @@ func NewDiscoveryRouter(tcpNode host.Host, udpNode *MutableUDPNode, peers []Peer
 	}
 }
 
-// getDiscoveredAddress returns the peer's address as discovered by discv5,
-// it returns false if the peer isn't discovered.
+// getDiscoveredAddress returns the peer's address as discovered by discv5.
+// It returns false if the peer isn't discovered.
 func getDiscoveredAddress(udpNode *MutableUDPNode, p Peer) (ma.Multiaddr, bool, error) {
 	resolved := udpNode.Resolve(&p.Enode)
 	if resolved.Seq() == p.Enode.Seq() || resolved.TCP() == 0 {

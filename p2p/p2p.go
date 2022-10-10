@@ -54,8 +54,6 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater, opts ...
 	defaultOpts := []libp2p.Option{
 		// Set P2P identity key.
 		libp2p.Identity(priv),
-		// Set listen addresses.
-		libp2p.ListenAddrs(addrs...),
 		// Set up user-agent.
 		libp2p.UserAgent("obolnetwork-charon/" + version.Version),
 		// Limit connections to DV peers.
@@ -65,6 +63,11 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater, opts ...
 		// Define p2pcfg.AddrsFactory that does not advertise
 		// addresses via libp2p, since we use discv5 for peer discovery.
 		libp2p.AddrsFactory(func([]ma.Multiaddr) []ma.Multiaddr { return nil }),
+	}
+
+	// Set TCP listen addresses.
+	if len(addrs) > 0 {
+		defaultOpts = append(defaultOpts, libp2p.ListenAddrs(addrs...))
 	}
 
 	defaultOpts = append(defaultOpts, opts...)

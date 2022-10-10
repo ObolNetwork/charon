@@ -228,9 +228,11 @@ func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, pe
 		return nil, nil, errors.Wrap(err, "new bootnodes")
 	}
 
-	udpNode, err := p2p.NewUDPNode(ctx, p2pConf, localEnode, key, bootnodes)
+	udpNode, ok, err := p2p.NewUDPNode(ctx, p2pConf, localEnode, key, bootnodes)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "")
+	} else if !ok {
+		udpNode = new(p2p.MutableUDPNode)
 	}
 
 	relays := p2p.NewRelays(p2pConf, bootnodes)
