@@ -655,8 +655,8 @@ func submitSyncCommitteeMessages(s eth2client.SyncCommitteeMessagesSubmitter) ha
 	}
 }
 
-// submitProposalPreparations swallows this endpoint from validator client as fee recipient address
-// is configured by charon from cluster-lock.json.
+// submitProposalPreparations swallows fee-recipient-address from validator client as it should be
+// configured by charon from cluster-lock.json and VC need not be configured with correct fee-recipient-address.
 func submitProposalPreparations() handlerFunc {
 	return func(context.Context, map[string]string, url.Values, []byte) (interface{}, error) {
 		return nil, nil
