@@ -550,11 +550,14 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit_sync_committee_messages", func(t *testing.T) {
-		msgs := []*altair.SyncCommitteeMessage{testutil.RandomSyncCommitteeMessage()}
+		msgs := []*altair.SyncCommitteeMessage{testutil.RandomSyncCommitteeMessage(), testutil.RandomSyncCommitteeMessage()}
 
 		handler := testHandler{
 			SubmitSyncCommitteeMessagesFunc: func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
-				require.Equal(t, msgs[0], messages[0])
+				for i := range msgs {
+					require.Equal(t, msgs[i], messages[i])
+				}
+
 				return nil
 			},
 		}

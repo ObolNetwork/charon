@@ -1342,6 +1342,7 @@ func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
 	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
 	require.NoError(t, err)
 
+	cnt := 0 // No of times the subscription function is called.
 	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		require.Equal(t, core.NewSyncMessageDuty(int64(msg.Slot)), duty)
 
@@ -1351,9 +1352,11 @@ func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
 		data, ok := set[pk]
 		require.True(t, ok)
 		require.Equal(t, core.NewPartialSignedSyncMessage(msg, 0), data)
+		cnt++
 
 		return nil
 	})
 
 	require.NoError(t, vapi.SubmitSyncCommitteeMessages(ctx, []*altair.SyncCommitteeMessage{msg}))
+	require.Equal(t, cnt, 1)
 }
