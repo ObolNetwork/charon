@@ -108,18 +108,19 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		return err
 	}
 
-	// Setup p2p udp discovery
+	// Setup p2p udp discovery.
 	localEnode, db, err := p2p.NewLocalEnode(config.P2PConfig, key)
 	if err != nil {
 		return errors.Wrap(err, "failed to open enode")
 	}
 	defer db.Close()
 
-	udpNode, err := p2p.NewUDPNode(ctx, config.P2PConfig, localEnode, key, nil)
+	udpNode, discv5Enabled, err := p2p.NewUDPNode(ctx, config.P2PConfig, localEnode, key, nil)
 	if err != nil {
-		return errors.Wrap(err, "")
+		return err
+	} else if discv5Enabled {
+		defer udpNode.Close()
 	}
-	defer udpNode.Close()
 
 	// Setup p2p tcp relay (async for snappy startup)
 	var (
@@ -218,7 +219,10 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		case err := <-p2pErr:
 			return err
 		case <-ticker.C:
-			log.Info(ctx, "Discv5 UDP discovered peers", z.Int("peers", len(udpNode.AllNodes())))
+			if discv5Enabled {
+				log.Info(ctx, "Discv5 UDP discovered peers", z.Int("peers", len(udpNode.AllNodes())))
+			}
+
 			logP2P()
 		case <-ctx.Done():
 			log.Info(ctx, "Shutting down")
