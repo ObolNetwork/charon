@@ -74,9 +74,9 @@ func TestCmdFlags(t *testing.T) {
 				P2P: p2p.Config{
 					UDPBootnodes: []string{"http://bootnode.lb.gcp.obol.tech:3640/enr"},
 					UDPAddr:      "",
-					// TCPAddrs:     []string{"127.0.0.1:3610"},
-					Allowlist: "",
-					Denylist:  "",
+					TCPAddrs:     nil,
+					Allowlist:    "",
+					Denylist:     "",
 				},
 				Feature: featureset.Config{
 					MinStatus: "stable",
@@ -100,9 +100,9 @@ func TestCmdFlags(t *testing.T) {
 			P2PConfig: &p2p.Config{
 				UDPBootnodes: []string{"http://bootnode.lb.gcp.obol.tech:3640/enr"},
 				UDPAddr:      "",
-				// TCPAddrs:     []string{"127.0.0.1:3610"},
-				Allowlist: "",
-				Denylist:  "",
+				TCPAddrs:     nil,
+				Allowlist:    "",
+				Denylist:     "",
 			},
 		},
 		{
