@@ -89,7 +89,7 @@ func TestIntegration(t *testing.T) {
 
 //go:generate go test . -run=TestSchedulerWait -count=20
 
-// TestSchedulerWait tests the waitChainStart and waitBeaconSync functions.
+// TestSchedulerWait tests the WaitChainStart and WaitBeaconSync functions.
 func TestSchedulerWait(t *testing.T) {
 	tests := []struct {
 		Name         string

@@ -104,8 +104,8 @@ func (s *Scheduler) Run() error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	waitChainStart(ctx, s.eth2Cl, s.clock)
-	waitBeaconSync(ctx, s.eth2Cl, s.clock)
+	WaitChainStart(ctx, s.eth2Cl, s.clock)
+	WaitBeaconSync(ctx, s.eth2Cl, s.clock)
 
 	slotTicker, err := newSlotTicker(ctx, s.eth2Cl, s.clock)
 	if err != nil {
@@ -527,8 +527,8 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 	return resp, nil
 }
 
-// waitChainStart blocks until the beacon chain has started.
-func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
+// WaitChainStart blocks until the beacon chain has started.
+func WaitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
 	for {
 		genesis, err := eth2Cl.GenesisTime(ctx)
 		if err != nil {
@@ -552,8 +552,8 @@ func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork
 	}
 }
 
-// waitBeaconSync blocks until the beacon node is synced.
-func waitBeaconSync(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
+// WaitBeaconSync blocks until the beacon node is synced.
+func WaitBeaconSync(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
 	for {
 		state, err := eth2Cl.NodeSyncing(ctx)
 		if err != nil {
