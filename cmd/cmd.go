@@ -145,11 +145,11 @@ func titledHelp(cmd *cobra.Command) {
 	}
 }
 
-func printFlags(ctx context.Context, flags *pflag.FlagSet, msg string) {
+func printFlags(ctx context.Context, flags *pflag.FlagSet) {
 	var zStrs []z.Field
 	flags.VisitAll(func(flag *pflag.Flag) {
 		zStrs = append(zStrs, z.Str(flag.Name, flag.Value.String()))
 	})
 
-	log.Info(ctx, msg, zStrs...)
+	log.Info(ctx, "Parsed Config", zStrs...)
 }
