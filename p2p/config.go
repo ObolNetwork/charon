@@ -16,15 +16,12 @@
 package p2p
 
 import (
-	"context"
 	"fmt"
 	"net"
 
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 )
 
 type Config struct {
@@ -117,17 +114,4 @@ func multiAddrFromIPPort(ip net.IP, port int) (ma.Multiaddr, error) {
 	}
 
 	return maddr, nil
-}
-
-func LogP2PConfig(ctx context.Context, config Config) {
-	log.Info(ctx, "P2P Config",
-		z.Any("p2p-bootnodes", config.UDPBootnodes),
-		z.Bool("p2p-bootnode-relay", config.BootnodeRelay),
-		z.Bool("p2p-bootnodes-from-lockfile", config.UDPBootLock),
-		z.Str("p2p-udp-address", config.UDPAddr),
-		z.Str("p2p-external-ip", config.ExternalIP),
-		z.Str("p2p-external-hostname", config.ExternalHost),
-		z.Any("p2p-tcp-address", config.TCPAddrs),
-		z.Str("p2p-allowlist", config.Allowlist),
-		z.Str("p2p-denylist", config.Denylist))
 }
