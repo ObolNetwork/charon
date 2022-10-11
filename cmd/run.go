@@ -42,7 +42,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 			ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
 			defer cancel()
 
-			printFlags(ctx, cmd.Flags(), "Charon config")
+			printFlags(ctx, cmd.Flags(), "Charon run config")
 
 			return runFunc(ctx, conf)
 		},
