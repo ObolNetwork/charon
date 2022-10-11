@@ -152,5 +152,5 @@ func printFlags(ctx context.Context, flags *pflag.FlagSet) {
 		zStrs = append(zStrs, z.Str(flag.Name, flag.Value.String()))
 	})
 
-	log.Info(ctx, "Parsed Config", zStrs...)
+	log.Info(ctx, "Parsed config", zStrs...)
 }
