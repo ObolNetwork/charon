@@ -63,6 +63,7 @@ type BeaconNodeValidatorServer struct {
 	aggSigDB core.AggSigDB
 }
 
+// GetDuties 🎉 can proxy to valiatgorAPI (multiple calls)
 func (s *BeaconNodeValidatorServer) GetDuties(ctx context.Context, req *prysmpb.DutiesRequest) (*prysmpb.DutiesResponse, error) {
 	pubkeys := toGroupPubkeys(req.PublicKeys)
 
@@ -75,6 +76,7 @@ func (s *BeaconNodeValidatorServer) GetDuties(ctx context.Context, req *prysmpb.
 	}, nil
 }
 
+// StreamDuties 🕰 requires scheduler epoch events, 🎉 but can then just query validatorAPI.
 func (s *BeaconNodeValidatorServer) StreamDuties(req *prysmpb.DutiesRequest, server prysmpb.BeaconNodeValidator_StreamDutiesServer) error {
 	ctx := server.Context()
 	first, _ := s.GetDuties(ctx, req)
@@ -89,6 +91,7 @@ func (s *BeaconNodeValidatorServer) StreamDuties(req *prysmpb.DutiesRequest, ser
 	return nil
 }
 
+// DomainData 🎉 can proxy to valiatgorAPI
 func (s *BeaconNodeValidatorServer) DomainData(ctx context.Context, req *prysmpb.DomainRequest) (*prysmpb.DomainResponse, error) {
 	var domainType eth2p0.DomainType
 	copy(domainType[:], req.Domain)
@@ -98,11 +101,13 @@ func (s *BeaconNodeValidatorServer) DomainData(ctx context.Context, req *prysmpb
 	return &prysmpb.DomainResponse{SignatureDomain: resp[:]}, nil
 }
 
+// DomainData 🎉 can proxy to valiatgorAPI (copy simple scheduler logic)
 func (s *BeaconNodeValidatorServer) WaitForChainStart(e *empty.Empty, server prysmpb.BeaconNodeValidator_WaitForChainStartServer) error {
 	scheduler.WaitChainStart(server.Context(), s.eth2Cl, clockwork.NewRealClock())
 	return nil
 }
 
+// WaitForActivation 🕰 requires scheduler epoch events, 🎉 but can then just query validatorAPI.
 func (s *BeaconNodeValidatorServer) WaitForActivation(req *prysmpb.ValidatorActivationRequest, server prysmpb.BeaconNodeValidator_WaitForActivationServer) error {
 	done := make(chan struct{})
 	s.subscribeEpoch(func(epoch eth2p0.Epoch) {
@@ -122,12 +127,14 @@ func (s *BeaconNodeValidatorServer) WaitForActivation(req *prysmpb.ValidatorActi
 	}
 }
 
+// ValidatorIndex 🎉 can proxy to valiatgorAPI
 func (s *BeaconNodeValidatorServer) ValidatorIndex(ctx context.Context, req *prysmpb.ValidatorIndexRequest) (*prysmpb.ValidatorIndexResponse, error) {
 	resp, _ := s.valsProvider.ValidatorsByPubKey(ctx, "head", toGroupPubkeys([][]byte{req.PublicKey}))
 
 	return &prysmpb.ValidatorIndexResponse{Index: pb.ValidatorIndex(resp[0].Index)}, nil
 }
 
+// ValidatorStatus 🎉 can proxy to valiatgorAPI, 🙈 but will not return some data either not used in prysm or just used for logging.
 func (s *BeaconNodeValidatorServer) ValidatorStatus(ctx context.Context, req *prysmpb.ValidatorStatusRequest) (*prysmpb.ValidatorStatusResponse, error) {
 	resp, _ := s.valsProvider.ValidatorsByPubKey(ctx, "head", toGroupPubkeys([][]byte{req.PublicKey}))
 	return &prysmpb.ValidatorStatusResponse{
@@ -139,11 +146,13 @@ func (s *BeaconNodeValidatorServer) ValidatorStatus(ctx context.Context, req *pr
 	}, nil
 }
 
+// MultipleValidatorStatus 🎉 can proxy to valiatgorAPI, 🙈 but will not return some data either not used in prysm or just used for logging.
 func (s *BeaconNodeValidatorServer) MultipleValidatorStatus(ctx context.Context, req *prysmpb.MultipleValidatorStatusRequest) (*prysmpb.MultipleValidatorStatusResponse, error) {
 	// TODO(corver): This is same as ValidatorStatus above
 	return nil, nil
 }
 
+// GetBeaconBlock 🎉 can proxy to valiatgorAPI, 🔧 but requires access to config flag BuilderAPI.
 func (s *BeaconNodeValidatorServer) GetBeaconBlock(ctx context.Context, req *prysmpb.BlockRequest) (*prysmpb.GenericBeaconBlock, error) {
 	var randao eth2p0.BLSSignature
 	copy(randao[:], req.RandaoReveal)
@@ -158,6 +167,7 @@ func (s *BeaconNodeValidatorServer) GetBeaconBlock(ctx context.Context, req *pry
 	return convertBlock(block), nil
 }
 
+// ProposeBeaconBlock 🎉 can proxy to valiatgorAPI, 🔧 but requires access to config flag BuilderAPI.
 func (s *BeaconNodeValidatorServer) ProposeBeaconBlock(ctx context.Context, block *prysmpb.GenericSignedBeaconBlock) (*prysmpb.ProposeResponse, error) {
 	var blockRoot [32]byte
 	if s.builderAPI {
@@ -179,6 +189,7 @@ func (s *BeaconNodeValidatorServer) ProposeBeaconBlock(ctx context.Context, bloc
 	}, nil
 }
 
+// PrepareBeaconProposer 🎉 can proxy to valiatgorAPI
 func (s *BeaconNodeValidatorServer) PrepareBeaconProposer(ctx context.Context, req *prysmpb.PrepareBeaconProposerRequest) (*empty.Empty, error) {
 	var preps []*eth2v1.ProposalPreparation
 	for _, recipient := range req.Recipients {
@@ -194,6 +205,7 @@ func (s *BeaconNodeValidatorServer) PrepareBeaconProposer(ctx context.Context, r
 	return &empty.Empty{}, s.prepareSubmitter.SubmitProposalPreparations(ctx, preps)
 }
 
+// GetAttestationData 🎉 can proxy to valiatgorAPI
 func (s *BeaconNodeValidatorServer) GetAttestationData(ctx context.Context, req *prysmpb.AttestationDataRequest) (*prysmpb.AttestationData, error) {
 	data, _ := s.eth2Cl.AttestationData(ctx, eth2p0.Slot(req.Slot), eth2p0.CommitteeIndex(req.CommitteeIndex))
 
@@ -206,6 +218,7 @@ func (s *BeaconNodeValidatorServer) GetAttestationData(ctx context.Context, req 
 	}, nil
 }
 
+// ProposeAttestation 🎉 can proxy to valiatgorAPI
 func (s *BeaconNodeValidatorServer) ProposeAttestation(ctx context.Context, attestation *prysmpb.Attestation) (*prysmpb.AttestResponse, error) {
 	att := convert(attestation).(*eth2p0.Attestation)
 	root, _ := att.Data.HashTreeRoot()
@@ -215,6 +228,7 @@ func (s *BeaconNodeValidatorServer) ProposeAttestation(ctx context.Context, atte
 	return &prysmpb.AttestResponse{AttestationDataRoot: root[:]}, nil
 }
 
+// SubmitAggregateSelectionProof can use integrated but probably 🆙 requires upgrade along with SubscribeCommitteeSubnets.
 func (s *BeaconNodeValidatorServer) SubmitAggregateSelectionProof(ctx context.Context, req *prysmpb.AggregateSelectionRequest) (*prysmpb.AggregateSelectionResponse, error) {
 	// TODO(corver): This is an interesting alternative to our v2 API change.
 	//  The VC provides the partial selection proof and the BN returns the complete aggregation and proof
@@ -233,6 +247,7 @@ func (s *BeaconNodeValidatorServer) SubmitAggregateSelectionProof(ctx context.Co
 	}}, nil
 }
 
+// SubmitSignedAggregateSelectionProof 🎉 can proxy to valiatgorAPI
 func (s *BeaconNodeValidatorServer) SubmitSignedAggregateSelectionProof(ctx context.Context, req *prysmpb.SignedAggregateSubmitRequest) (*prysmpb.SignedAggregateSubmitResponse, error) {
 	proof := convert(req).(*eth2p0.SignedAggregateAndProof)
 	_ = s.eth2Cl.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{proof})
@@ -242,6 +257,7 @@ func (s *BeaconNodeValidatorServer) SubmitSignedAggregateSelectionProof(ctx cont
 	return &prysmpb.SignedAggregateSubmitResponse{AttestationDataRoot: dataRoot[:]}, nil
 }
 
+// ProposeExit 🎉 can proxy to valiatgorAPI
 func (s *BeaconNodeValidatorServer) ProposeExit(ctx context.Context, exit *prysmpb.SignedVoluntaryExit) (*prysmpb.ProposeExitResponse, error) {
 	var sig eth2p0.BLSSignature
 	copy(sig[:], exit.Signature)
@@ -257,6 +273,7 @@ func (s *BeaconNodeValidatorServer) ProposeExit(ctx context.Context, exit *prysm
 	return &prysmpb.ProposeExitResponse{ExitRoot: root[:]}, nil
 }
 
+// SubscribeCommitteeSubnets 🆙 requires upgrade along with SubscribeCommitteeSubnets.
 func (s *BeaconNodeValidatorServer) SubscribeCommitteeSubnets(ctx context.Context, req *prysmpb.CommitteeSubnetsSubscribeRequest) (*empty.Empty, error) {
 	// TODO(corver): We need to same upgrade to the API as beaconAPI to support sync
 	//  committee contributions. The VC needs to provide the partial selection proofs and we need return the aggregated proof.
@@ -266,6 +283,7 @@ func (s *BeaconNodeValidatorServer) SubscribeCommitteeSubnets(ctx context.Contex
 	return nil, nil
 }
 
+// CheckDoppelGanger 🙈 is assumed not required so already returns false.
 func (s *BeaconNodeValidatorServer) CheckDoppelGanger(ctx context.Context, req *prysmpb.DoppelGangerRequest) (*prysmpb.DoppelGangerResponse, error) {
 	// TODO(corver): We are assuming no doppelgangers are possible so always return false for all validators.
 	var resps []*prysmpb.DoppelGangerResponse_ValidatorResponse
@@ -281,6 +299,7 @@ func (s *BeaconNodeValidatorServer) CheckDoppelGanger(ctx context.Context, req *
 	}, nil
 }
 
+// GetSyncMessageBlockRoot 😔 has implicit BeaconBlockRoot similar to BeaconAPI, 🎉 but otherwise can proxied to valiatgorAPI
 func (s *BeaconNodeValidatorServer) GetSyncMessageBlockRoot(ctx context.Context, _ *empty.Empty) (*prysmpb.SyncMessageBlockRootResponse, error) {
 	// TODO(corver): it would be great if the request included the slot and validator
 	//  pubkey so we could add proper cluster wide consensus of blockroot, but alas we
@@ -295,6 +314,7 @@ func (s *BeaconNodeValidatorServer) GetSyncMessageBlockRoot(ctx context.Context,
 	}, nil
 }
 
+// SubmitSyncMessage 🎉 can proxy to valiatgorAPI
 func (s *BeaconNodeValidatorServer) SubmitSyncMessage(ctx context.Context, message *prysmpb.SyncCommitteeMessage) (*empty.Empty, error) {
 	var root eth2p0.Root
 	copy(root[:], message.BlockRoot)
@@ -311,6 +331,7 @@ func (s *BeaconNodeValidatorServer) SubmitSyncMessage(ctx context.Context, messa
 	})
 }
 
+// GetSyncSubcommitteeIndex 🎉 can proxy to valiatgorAPI
 func (s *BeaconNodeValidatorServer) GetSyncSubcommitteeIndex(ctx context.Context, req *prysmpb.SyncSubcommitteeIndexRequest) (*prysmpb.SyncSubcommitteeIndexResponse, error) {
 	duties, _ := s.eth2Cl.SyncCommitteeDuties(ctx, epochFromSlot(req.Slot), []eth2p0.ValidatorIndex{pubkeyToValIdx(req.PublicKey)})
 
@@ -319,6 +340,7 @@ func (s *BeaconNodeValidatorServer) GetSyncSubcommitteeIndex(ctx context.Context
 	}, nil
 }
 
+// GetSyncCommitteeContribution 🎉 can proxy to valiatgorAPI
 func (s *BeaconNodeValidatorServer) GetSyncCommitteeContribution(ctx context.Context, req *prysmpb.SyncCommitteeContributionRequest) (*prysmpb.SyncCommitteeContribution, error) {
 	// We have two options here:
 
@@ -333,6 +355,7 @@ func (s *BeaconNodeValidatorServer) GetSyncCommitteeContribution(ctx context.Con
 	return convert(contrib).(*prysmpb.SyncCommitteeContribution), nil
 }
 
+// SubmitSignedContributionAndProof 🆙 needs to be accompanied by similar upgrades to our proposed `BeaconAPI` changes.
 func (s *BeaconNodeValidatorServer) SubmitSignedContributionAndProof(ctx context.Context, proof *prysmpb.SignedContributionAndProof) (*empty.Empty, error) {
 	var sig eth2p0.BLSSignature
 	copy(sig[:], proof.Signature)
@@ -351,6 +374,7 @@ func (s *BeaconNodeValidatorServer) SubmitSignedContributionAndProof(ctx context
 	})
 }
 
+// StreamBlocksAltair 🎉 can proxy to valiatgorAPI
 func (s *BeaconNodeValidatorServer) StreamBlocksAltair(req *prysmpb.StreamBlocksRequest, server prysmpb.BeaconNodeValidator_StreamBlocksAltairServer) error {
 	// Only used in "attest timely"
 	_ = s.eventsProvider.Events(server.Context(), []string{"block"}, func(event *eth2v1.Event) {
@@ -369,6 +393,7 @@ func (s *BeaconNodeValidatorServer) StreamBlocksAltair(req *prysmpb.StreamBlocks
 	return nil
 }
 
+// SubmitValidatorRegistrations 🎉 can proxy to valiatgorAPI
 func (s *BeaconNodeValidatorServer) SubmitValidatorRegistrations(ctx context.Context, v1 *prysmpb.SignedValidatorRegistrationsV1) (*empty.Empty, error) {
 	// Convert and call
 	_ = s.eth2Cl.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{})
