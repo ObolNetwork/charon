@@ -53,8 +53,6 @@ type Config struct {
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
-//
-
 func Run(ctx context.Context, conf Config) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -69,6 +67,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err := log.InitLogger(conf.Log); err != nil {
 		return err
 	}
+
+	log.Info(ctx, "DKG config",
+		z.Str("definition-file", conf.DefFile),
+		z.Bool("no-verify", conf.NoVerify),
+		z.Str("data-dir", conf.DataDir))
+	p2p.LogP2PConfig(ctx, conf.P2P)
 
 	def, err := loadDefinition(ctx, conf)
 	if err != nil {

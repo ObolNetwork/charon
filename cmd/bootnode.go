@@ -83,6 +83,16 @@ func bindBootnodeFlag(flags *pflag.FlagSet, config *BootnodeConfig) {
 
 // RunBootnode starts a p2p-udp discv5 bootnode.
 func RunBootnode(ctx context.Context, config BootnodeConfig) error {
+	log.Info(ctx, "Bootnode Config",
+		z.Str("data-dir", config.DataDir),
+		z.Str("bootnode-http-address", config.HTTPAddr),
+		z.Bool("auto-p2pkey", config.AutoP2PKey),
+		z.Bool("p2p-relay", config.P2PRelay),
+		z.Str("p2p-relay-loglevel", config.RelayLogLevel),
+		z.Int("max-reservations", config.MaxResPerPeer),
+		z.Int("p2p-max-connections", config.MaxConns))
+	p2p.LogP2PConfig(ctx, config.P2PConfig)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

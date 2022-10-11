@@ -127,6 +127,23 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	log.Info(ctx, "Charon run config",
+		z.Str("lock-file", conf.LockFile),
+		z.Any("beacon-node-endpoints", conf.BeaconNodeAddrs),
+		z.Str("validator-api-address", conf.ValidatorAPIAddr),
+		z.Str("monitoring-address", conf.MonitoringAddr),
+		z.Str("jaeger-address", conf.JaegerAddr),
+		z.Str("jaeger-service", conf.JaegerService),
+		z.Bool("simnet-beacon-mock", conf.SimnetBMock),
+		z.Bool("simnet-validator-mock", conf.SimnetVMock),
+		z.Str("simnet-validator-keys-dir", conf.SimnetValidatorKeysDir),
+		z.Bool("builder-api", conf.BuilderAPI))
+	log.Info(ctx, "Featureset config",
+		z.Str("feature-set", conf.Feature.MinStatus),
+		z.Any("feature-set-enable", conf.Feature.Enabled),
+		z.Any("feature-set-disable", conf.Feature.Disabled))
+	p2p.LogP2PConfig(ctx, conf.P2P)
+
 	if err := featureset.Init(ctx, conf.Feature); err != nil {
 		return err
 	}
