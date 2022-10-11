@@ -758,6 +758,30 @@
                 "value": "s"
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Direct"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 55
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Relay"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 55
+              }
+            ]
           }
         ]
       },
@@ -926,6 +950,36 @@
           "instant": true,
           "range": false,
           "refId": "J"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max(p2p_peer_connection_types{job=\"$node\",type=\"direct\"}) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "K"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max(p2p_peer_connection_types{job=\"$node\",type=\"relay\"}) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "L"
         }
       ],
       "title": "Peer Participation",
@@ -941,6 +995,7 @@
           "options": {
             "excludeByName": {
               "Time 1": true,
+              "Time 10": true,
               "Time 2": true,
               "Time 3": true,
               "Time 4": true,
@@ -948,25 +1003,30 @@
               "Time 6": true,
               "Time 7": true,
               "Time 8": true,
+              "Time 9": true,
               "Value #F": false
             },
             "indexByName": {
               "Time 1": 2,
-              "Time 2": 4,
-              "Time 3": 7,
-              "Time 4": 9,
-              "Time 5": 10,
-              "Time 6": 11,
-              "Time 7": 12,
-              "Time 8": 14,
+              "Time 10": 20,
+              "Time 2": 6,
+              "Time 3": 9,
+              "Time 4": 11,
+              "Time 5": 12,
+              "Time 6": 13,
+              "Time 7": 14,
+              "Time 8": 16,
+              "Time 9": 19,
               "Value #A": 3,
-              "Value #B": 5,
-              "Value #C": 8,
-              "Value #D": 16,
-              "Value #E": 15,
+              "Value #B": 7,
+              "Value #C": 10,
+              "Value #D": 18,
+              "Value #E": 17,
               "Value #F": 1,
-              "Value #G": 13,
-              "Value #J": 6,
+              "Value #G": 15,
+              "Value #J": 8,
+              "Value #K": 4,
+              "Value #L": 5,
               "peer": 0
             },
             "renameByName": {
@@ -979,6 +1039,8 @@
               "Value #G": "PrepareAgg",
               "Value #H": "Aggregate",
               "Value #J": "ClockDiff",
+              "Value #K": "Direct",
+              "Value #L": "Relay",
               "peer": "Peer"
             }
           }
@@ -1236,8 +1298,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1369,8 +1430,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1462,8 +1522,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1555,8 +1614,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1648,8 +1706,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1742,8 +1799,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1850,8 +1906,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1946,8 +2001,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue",
-                "value": null
+                "color": "light-blue"
               },
               {
                 "color": "red",
@@ -2149,8 +2203,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",

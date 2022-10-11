@@ -54,6 +54,12 @@ var (
 		Name:      "relay_connections",
 		Help:      "Connected relays by name",
 	}, []string{"peer"})
+
+	peerConnGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "p2p",
+		Name:      "peer_connection_types",
+		Help:      "Current number of libp2p connections by peer and type ('direct' or 'relay'). Note that peers may have multiple connections.",
+	}, []string{"peer", "type"})
 )
 
 func observePing(p peer.ID, d time.Duration) {
