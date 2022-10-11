@@ -145,6 +145,7 @@ func titledHelp(cmd *cobra.Command) {
 	}
 }
 
+// printFlags INFO logs all the given flags in alphabetical order.
 func printFlags(ctx context.Context, flags *pflag.FlagSet) {
 	var zStrs []z.Field
 	flags.VisitAll(func(flag *pflag.Flag) {
