@@ -43,7 +43,6 @@ func TestRunNewEnr(t *testing.T) {
 
 func TestEnrNetworkingKeys(t *testing.T) {
 	var (
-		r        enr.Record
 		ip       = enr.IPv4(net.ParseIP("192.168.3.45"))
 		ip6      = enr.IPv6(net.ParseIP("192.123.87.12"))
 		tcp      = enr.TCP(4987)
@@ -53,8 +52,7 @@ func TestEnrNetworkingKeys(t *testing.T) {
 		expected = "ip: 192.168.3.45\nip6: 192.123.87.12\ntcp: 4987\ntcp6: 9844\nudp: 1344\nudp6: 5198\n"
 	)
 
-	_, r = testutil.RandomENR(t, rand.New(rand.NewSource(time.Now().Unix())))
-
+	_, r := testutil.RandomENR(t, rand.New(rand.NewSource(time.Now().Unix())))
 	r.Set(ip)
 	r.Set(ip6)
 	r.Set(tcp)
