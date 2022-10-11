@@ -20,9 +20,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -80,19 +82,21 @@ func runNewENR(w io.Writer, config p2p.Config, dataDir string, verbose bool) err
 		return nil
 	}
 
-	writeExpandedEnr(w, r.Signature(), r.Seq(), pubkeyHex(key.PublicKey))
+	writeExpandedEnr(w, r, key)
 
 	return nil
 }
 
 // writeExpandedEnr writes the expanded form of ENR to the terminal.
-func writeExpandedEnr(w io.Writer, sig []byte, seq uint64, pubkey string) {
+func writeExpandedEnr(w io.Writer, r enr.Record, privKey *ecdsa.PrivateKey) {
 	var sb strings.Builder
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString("***************** Decoded ENR (see https://enr-viewer.com/ for additional fields) **********************\n")
-	_, _ = sb.WriteString(fmt.Sprintf("secp256k1 pubkey: %#x\n", pubkey))
-	_, _ = sb.WriteString(fmt.Sprintf("signature: %#x\n", sig))
-	_, _ = sb.WriteString(fmt.Sprintf("seq: %d\n", seq))
+	_, _ = sb.WriteString(fmt.Sprintf("secp256k1 pubkey: %#x\n", pubkeyHex(privKey.PublicKey)))
+	_, _ = sb.WriteString(fmt.Sprintf("signature: %#x\n", r.Signature()))
+	_, _ = sb.WriteString(fmt.Sprintf("seq: %d\n", r.Seq()))
+	_, _ = sb.WriteString(fmt.Sprintf("id: %s\n", r.IdentityScheme()))
+	_, _ = sb.WriteString(enrNetworkingKeys(r))
 	_, _ = sb.WriteString("********************************************************************************************************\n")
 	_, _ = sb.WriteString("\n")
 
@@ -108,4 +112,43 @@ func pubkeyHex(pubkey ecdsa.PublicKey) string {
 
 func bindEnrFlags(flags *pflag.FlagSet, verbose *bool) {
 	flags.BoolVar(verbose, "verbose", false, "Prints the expanded form of ENR.")
+}
+
+// enrNetworkingKeys returns a string containing the non-empty networking keys (ips and ports) present in the ENR record.
+func enrNetworkingKeys(r enr.Record) string {
+	var (
+		sb   strings.Builder
+		ip   enr.IPv4
+		ip6  enr.IPv6
+		tcp  enr.TCP
+		tcp6 enr.TCP6
+		udp  enr.UDP
+		udp6 enr.UDP6
+	)
+
+	if err := r.Load(&ip); err == nil {
+		_, _ = sb.WriteString(fmt.Sprintf("%s: %s\n", ip.ENRKey(), net.IP(ip).String()))
+	}
+
+	if err := r.Load(&ip6); err == nil {
+		_, _ = sb.WriteString(fmt.Sprintf("%s: %s\n", ip6.ENRKey(), net.IP(ip6).String()))
+	}
+
+	if err := r.Load(&tcp); err == nil {
+		_, _ = sb.WriteString(fmt.Sprintf("%s: %d\n", tcp.ENRKey(), tcp))
+	}
+
+	if err := r.Load(&tcp6); err == nil {
+		_, _ = sb.WriteString(fmt.Sprintf("%s: %d\n", tcp6.ENRKey(), tcp6))
+	}
+
+	if err := r.Load(&udp); err == nil {
+		_, _ = sb.WriteString(fmt.Sprintf("%s: %d\n", udp.ENRKey(), udp))
+	}
+
+	if err := r.Load(&udp6); err == nil {
+		_, _ = sb.WriteString(fmt.Sprintf("%s: %d\n", udp6.ENRKey(), udp6))
+	}
+
+	return sb.String()
 }
