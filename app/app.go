@@ -249,12 +249,12 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if err != nil {
 		return nil, nil, err
 	}
+
 	peerIDs, err := lock.PeerIDs()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Start libp2p TCP node.
 	localEnode, peerDB, err := p2p.NewLocalEnode(conf.P2P, p2pKey)
 	if err != nil {
 		return nil, nil, err
@@ -272,22 +272,21 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return nil, nil, err
 	}
 
+	// Start libp2p TCP node.
 	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Start discv5 UDP node.
-	udpNode, ok, err := p2p.NewUDPNode(ctx, conf.P2P, localEnode, p2pKey, bootnodes)
+	udpNode, err := p2p.NewUDPNode(ctx, conf.P2P, localEnode, p2pKey, bootnodes)
 	if err != nil {
 		return nil, nil, err
-	} else if ok {
-		life.RegisterStop(lifecycle.StopP2PUDPNode, lifecycle.HookFuncMin(udpNode.Close))
-		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewDiscoveryRouter(tcpNode, udpNode, peers))
 	}
 
 	life.RegisterStop(lifecycle.StopP2PPeerDB, lifecycle.HookFuncMin(peerDB.Close))
 	life.RegisterStop(lifecycle.StopP2PTCPNode, lifecycle.HookFuncErr(tcpNode.Close))
+	life.RegisterStop(lifecycle.StopP2PUDPNode, lifecycle.HookFuncMin(udpNode.Close))
 
 	for _, relay := range relays {
 		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(tcpNode, relay))
@@ -295,6 +294,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, p2p.NewPingService(tcpNode, peerIDs, conf.TestConfig.TestPingConfig))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PEventCollector, p2p.NewEventCollector(tcpNode))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewDiscoveryRouter(tcpNode, udpNode, peers))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewRelayRouter(tcpNode, peers, relays))
 
 	return tcpNode, localEnode, nil

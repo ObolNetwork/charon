@@ -46,9 +46,9 @@ func TestExternalHost(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	udpNode, ok, err := p2p.NewUDPNode(context.Background(), config, localNode, p2pKey, nil)
+	udpNode, err := p2p.NewUDPNode(context.Background(), config, localNode, p2pKey, nil)
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
-	require.True(t, ok)
+
 	defer udpNode.Close()
 }

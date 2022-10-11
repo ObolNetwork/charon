@@ -131,26 +131,26 @@ func (n *MutableUDPNode) AllNodes() []*enode.Node {
 	return n.udpNode.AllNodes()
 }
 
-// NewUDPNode starts and returns a discv5 UDP provider. It returns false if the udp node is not started.
+// NewUDPNode starts and returns a discv5 UDP provider.
 func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode,
 	key *ecdsa.PrivateKey, bootnodes []*MutablePeer,
-) (*MutableUDPNode, bool, error) {
-	if config.UDPAddr == "" { // Do not start a discv5 UDPNode if p2p-udp-address is not defined.
-		log.Debug(ctx, "Not starting discv5 UDP node since p2p-udp-address not defined, only relying on libp2p relays for discovery")
+) (*MutableUDPNode, error) {
+	if config.UDPAddr == "" {
+		log.Info(ctx, "Discv5 UDP peer discovery disabled since --p2p-udp-address empty.")
 
-		return nil, false, nil
+		return new(MutableUDPNode), nil
 	}
 
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
-		return nil, false, errors.Wrap(err, "resolve udp address")
+		return nil, errors.Wrap(err, "resolve udp address")
 	}
 
 	var allowList *netutil.Netlist
 	if config.Allowlist != "" {
 		allowList, err = netutil.ParseNetlist(config.Allowlist) // Note empty string would result in "none allowed".
 		if err != nil {
-			return nil, false, errors.Wrap(err, "parse allow list")
+			return nil, errors.Wrap(err, "parse allow list")
 		}
 	}
 
@@ -187,7 +187,7 @@ func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode,
 	}
 
 	// Return a refreshed mutable udp node
-	return mutable, true, mutable.maybeRefresh(bootnodes)
+	return mutable, mutable.maybeRefresh(bootnodes)
 }
 
 // NewLocalEnode returns a local enode and a peer DB or an error.
