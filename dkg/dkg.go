@@ -68,12 +68,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	log.Info(ctx, "DKG config",
-		z.Str("definition-file", conf.DefFile),
-		z.Bool("no-verify", conf.NoVerify),
-		z.Str("data-dir", conf.DataDir))
-	p2p.LogP2PConfig(ctx, conf.P2P)
-
 	def, err := loadDefinition(ctx, conf)
 	if err != nil {
 		return err

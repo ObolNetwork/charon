@@ -17,6 +17,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -26,6 +27,8 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/dkg"
 )
 
@@ -140,4 +143,13 @@ func titledHelp(cmd *cobra.Command) {
 	for _, child := range cmd.Commands() {
 		titledHelp(child)
 	}
+}
+
+func printFlags(ctx context.Context, flags *pflag.FlagSet, msg string) {
+	var zStrs []z.Field
+	flags.VisitAll(func(flag *pflag.Flag) {
+		zStrs = append(zStrs, z.Str(flag.Name, flag.Value.String()))
+	})
+
+	log.Info(ctx, msg, zStrs...)
 }
