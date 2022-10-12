@@ -69,7 +69,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	version.LogCharonVersion(ctx, "Charon DKG starting")
+	version.LogCharonInfo(ctx, "Charon DKG starting")
 
 	def, err := loadDefinition(ctx, conf)
 	if err != nil {
