@@ -32,6 +32,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -93,6 +94,8 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	if err := log.InitLogger(config.LogConfig); err != nil {
 		return err
 	}
+
+	version.LogInfo(ctx, "Charon bootnode starting")
 
 	key, err := p2p.LoadPrivKey(config.DataDir)
 	if errors.Is(err, os.ErrNotExist) {

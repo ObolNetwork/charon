@@ -27,6 +27,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
@@ -91,6 +92,8 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 			log.Error(ctx, "Fatal run error", err)
 		}
 	}()
+
+	version.LogInfo(ctx, "Charon create DKG starting")
 
 	if _, err := os.Stat(path.Join(conf.OutputDir, "cluster-definition.json")); err == nil {
 		return errors.New("existing cluster-definition.json found. Try again after deleting it")

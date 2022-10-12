@@ -30,6 +30,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
@@ -67,6 +68,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err := log.InitLogger(conf.Log); err != nil {
 		return err
 	}
+
+	version.LogInfo(ctx, "Charon DKG starting")
 
 	def, err := loadDefinition(ctx, conf)
 	if err != nil {
