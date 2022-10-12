@@ -249,6 +249,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if err != nil {
 		return nil, nil, err
 	}
+
 	peerIDs, err := lock.PeerIDs()
 	if err != nil {
 		return nil, nil, err
@@ -264,6 +265,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return nil, nil, err
 	}
 
+	// Start discv5 UDP node.
 	udpNode, err := p2p.NewUDPNode(ctx, conf.P2P, localEnode, p2pKey, bootnodes)
 	if err != nil {
 		return nil, nil, err
@@ -276,7 +278,8 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return nil, nil, err
 	}
 
-	tcpNode, err := p2p.NewTCPNode(conf.P2P, p2pKey, connGater)
+	// Start libp2p TCP node.
+	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater)
 	if err != nil {
 		return nil, nil, err
 	}

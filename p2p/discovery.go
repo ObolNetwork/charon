@@ -135,6 +135,12 @@ func (n *MutableUDPNode) AllNodes() []*enode.Node {
 func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode,
 	key *ecdsa.PrivateKey, bootnodes []*MutablePeer,
 ) (*MutableUDPNode, error) {
+	if config.UDPAddr == "" {
+		log.Info(ctx, "Discv5 UDP peer discovery disabled since --p2p-udp-address empty.")
+
+		return new(MutableUDPNode), nil
+	}
+
 	udpAddr, err := net.ResolveUDPAddr("udp", config.UDPAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "resolve udp address")
@@ -250,7 +256,7 @@ func NewLocalEnode(config Config, key *ecdsa.PrivateKey) (*enode.LocalNode, *eno
 }
 
 // NewDiscoveryRouter returns a life cycle hook that links discv5 to libp2p by
-// continuously polling discv5 for latest peer ENRs and adding then to libp2p peer store.
+// continuously polling discv5 for latest peer ENRs and adding them to the libp2p peer store.
 func NewDiscoveryRouter(tcpNode host.Host, udpNode *MutableUDPNode, peers []Peer) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
 		ctx = log.WithTopic(ctx, "p2p")
@@ -287,8 +293,8 @@ func NewDiscoveryRouter(tcpNode host.Host, udpNode *MutableUDPNode, peers []Peer
 	}
 }
 
-// getDiscoveredAddress returns the peer's address as discovered by discv5,
-// it returns false if the peer isn't discovered.
+// getDiscoveredAddress returns the peer's address as discovered by discv5.
+// It returns false if the peer isn't discovered.
 func getDiscoveredAddress(udpNode *MutableUDPNode, p Peer) (ma.Multiaddr, bool, error) {
 	resolved := udpNode.Resolve(&p.Enode)
 	if resolved.Seq() == p.Enode.Seq() || resolved.TCP() == 0 {

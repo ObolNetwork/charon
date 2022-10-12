@@ -44,7 +44,7 @@ this command at the same time.`,
 	bindDataDirFlag(cmd.Flags(), &config.DataDir)
 	bindDefDirFlag(cmd.Flags(), &config.DefFile)
 	bindNoVerifyFlag(cmd.Flags(), &config.NoVerify)
-	bindP2PFlags(cmd.Flags(), &config.P2P)
+	bindP2PFlags(cmd, &config.P2P)
 	bindLogFlags(cmd.Flags(), &config.Log)
 
 	return cmd

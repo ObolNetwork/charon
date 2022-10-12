@@ -66,7 +66,7 @@ func newBootnodeCmd(runFunc func(context.Context, BootnodeConfig) error) *cobra.
 
 	bindDataDirFlag(cmd.Flags(), &config.DataDir)
 	bindBootnodeFlag(cmd.Flags(), &config)
-	bindP2PFlags(cmd.Flags(), &config.P2PConfig)
+	bindP2PFlags(cmd, &config.P2PConfig)
 	bindLogFlags(cmd.Flags(), &config.LogConfig)
 
 	return cmd
@@ -110,7 +110,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		return err
 	}
 
-	// Setup p2p udp discovery
+	// Setup p2p udp discovery.
 	localEnode, db, err := p2p.NewLocalEnode(config.P2PConfig, key)
 	if err != nil {
 		return errors.Wrap(err, "failed to open enode")
@@ -119,7 +119,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 
 	udpNode, err := p2p.NewUDPNode(ctx, config.P2PConfig, localEnode, key, nil)
 	if err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 	defer udpNode.Close()
 
@@ -152,7 +152,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 			p2pErr <- errors.Wrap(err, "new resource manager")
 		}
 
-		tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), libp2p.ResourceManager(mgr))
+		tcpNode, err := p2p.NewTCPNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(), libp2p.ResourceManager(mgr))
 		if err != nil {
 			p2pErr <- errors.Wrap(err, "new tcp node")
 			return

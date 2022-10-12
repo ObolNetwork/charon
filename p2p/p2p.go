@@ -38,11 +38,15 @@ import (
 )
 
 // NewTCPNode returns a started tcp-based libp2p host.
-func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater, opts ...libp2p.Option,
+func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGater ConnGater, opts ...libp2p.Option,
 ) (host.Host, error) {
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
 		return nil, err
+	}
+
+	if len(addrs) == 0 {
+		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses empty.")
 	}
 
 	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))
@@ -54,7 +58,7 @@ func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater, opts ...
 	defaultOpts := []libp2p.Option{
 		// Set P2P identity key.
 		libp2p.Identity(priv),
-		// Set listen addresses.
+		// Set TCP listen addresses.
 		libp2p.ListenAddrs(addrs...),
 		// Set up user-agent.
 		libp2p.UserAgent("obolnetwork-charon/" + version.Version),
