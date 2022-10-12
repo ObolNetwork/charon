@@ -76,8 +76,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.SimnetValidatorKeysDir, "simnet-validator-keys-dir", ".charon/validator_keys", "The directory containing the simnet validator key shares.")
 	cmd.Flags().BoolVar(&config.BuilderAPI, "builder-api", false, "Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.")
 
-	preRunE := cmd.PreRunE // Allow multiple wraps of PreRunE.
-	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
 		ctx := log.WithTopic(cmd.Context(), "cmd")
 		if beaconNodeAddr != "" {
 			log.Warn(ctx, "Deprecated flag 'beacon-node-endpoint' used, please use new flag 'beacon-node-endpoints'", nil)
@@ -90,12 +89,8 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 			// TODO(corver): Use MarkFlagsRequiredTogether once beacon-node-endpoint is removed.
 		}
 
-		if preRunE != nil {
-			return preRunE(cmd, args)
-		}
-
 		return nil
-	}
+	})
 }
 
 func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string) {
@@ -104,8 +99,7 @@ func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string) {
 	cmd.Flags().StringVar(&dataDir, "data-dir", "", "Deprecated, please use 'private-key-file'.")
 	cmd.Flags().StringVar(privKeyFile, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file.")
 
-	preRunE := cmd.PreRunE // Allow multiple wraps of PreRunE.
-	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
 		ctx := log.WithTopic(cmd.Context(), "cmd")
 		if dataDir != "" {
 			log.Warn(ctx, "Deprecated flag 'data-dir' used, please use new flag 'private-key-file'.", nil)
@@ -119,12 +113,8 @@ func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string) {
 			return errors.New("charon enr private key file not found in either `data-dir` or `private-key-file`")
 		}
 
-		if preRunE != nil {
-			return preRunE(cmd, args)
-		}
-
 		return nil
-	}
+	})
 }
 
 func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
@@ -143,10 +133,28 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 	cmd.Flags().StringVar(&config.Allowlist, "p2p-allowlist", "", "Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.")
 	cmd.Flags().StringVar(&config.Denylist, "p2p-denylist", "", "Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.")
 
-	preRunE := cmd.PreRunE // Allow multiple wraps of PreRunE.
-	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
 		if config.UDPAddr == "" && !config.BootnodeRelay && !config.UDPBootLock {
 			return errors.New("node undiscoverable with the provided settings, please configure any one of `p2p-udp-address`, `p2p-bootnode-relay` or `p2p-bootnodes-from-lockfile`")
+		}
+
+		return nil
+	})
+}
+
+func bindFeatureFlags(flags *pflag.FlagSet, config *featureset.Config) {
+	flags.StringSliceVar(&config.Enabled, "feature-set-enable", nil, "Comma-separated list of features to enable, overriding the default minimum feature set.")
+	flags.StringSliceVar(&config.Disabled, "feature-set-disable", nil, "Comma-separated list of features to disable, overriding the default minimum feature set.")
+	flags.StringVar(&config.MinStatus, "feature-set", "stable", "Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk.")
+}
+
+// wrapPreRunE wraps the provided preRunE function.
+func wrapPreRunE(cmd *cobra.Command, fn func(cmd *cobra.Command, args []string) error) {
+	preRunE := cmd.PreRunE // Allow multiple wraps of PreRunE.
+	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		err := fn(cmd, args)
+		if err != nil {
+			return err
 		}
 
 		if preRunE != nil {
@@ -155,10 +163,4 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 
 		return nil
 	}
-}
-
-func bindFeatureFlags(flags *pflag.FlagSet, config *featureset.Config) {
-	flags.StringSliceVar(&config.Enabled, "feature-set-enable", nil, "Comma-separated list of features to enable, overriding the default minimum feature set.")
-	flags.StringSliceVar(&config.Disabled, "feature-set-disable", nil, "Comma-separated list of features to disable, overriding the default minimum feature set.")
-	flags.StringVar(&config.MinStatus, "feature-set", "stable", "Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk.")
 }
