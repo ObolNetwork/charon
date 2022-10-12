@@ -121,6 +121,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	if err != nil {
 		return err
 	}
+	defer udpNode.Close()
 
 	// Setup p2p tcp relay (async for snappy startup)
 	var (
@@ -151,7 +152,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 			p2pErr <- errors.Wrap(err, "new resource manager")
 		}
 
-		tcpNode, err := p2p.NewTCPNode(config.P2PConfig, key, p2p.NewOpenGater(), libp2p.ResourceManager(mgr))
+		tcpNode, err := p2p.NewTCPNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(), libp2p.ResourceManager(mgr))
 		if err != nil {
 			p2pErr <- errors.Wrap(err, "new tcp node")
 			return

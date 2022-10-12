@@ -16,6 +16,7 @@
 package p2p_test
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"math/rand"
 	"testing"
@@ -50,7 +51,7 @@ func TestNewHost(t *testing.T) {
 	privKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
-	_, err = p2p.NewTCPNode(p2p.Config{}, privKey, p2p.NewOpenGater(), nil, nil, nil)
+	_, err = p2p.NewTCPNode(context.Background(), p2p.Config{}, privKey, p2p.NewOpenGater(), nil, nil, nil)
 	require.NoError(t, err)
 }
 

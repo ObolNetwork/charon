@@ -119,7 +119,7 @@ func TestCmdFlags(t *testing.T) {
 				"CHARON_BEACON_NODE_ENDPOINTS": "http://beacon.node",
 				"CHARON_P2P_BOOTNODE_RELAY":    "false",
 			},
-			ErrorMsg: "node undiscoverable with the provided settings, please enable any one of `p2p-udp-address`, `p2p-bootnode-relay` or `p2p-bootnodes-from-lockfile`",
+			ErrorMsg: "node undiscoverable with the provided settings, please configure any one of `p2p-udp-address`, `p2p-bootnode-relay` or `p2p-bootnodes-from-lockfile`",
 		},
 	}
 

@@ -38,11 +38,15 @@ import (
 )
 
 // NewTCPNode returns a started tcp-based libp2p host.
-func NewTCPNode(cfg Config, key *ecdsa.PrivateKey, connGater ConnGater, opts ...libp2p.Option,
+func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGater ConnGater, opts ...libp2p.Option,
 ) (host.Host, error) {
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
 		return nil, err
+	}
+
+	if len(addrs) == 0 {
+		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses empty.")
 	}
 
 	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))

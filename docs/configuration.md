@@ -134,8 +134,8 @@ Flags:
       --p2p-denylist string                Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.
       --p2p-external-hostname string       The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.
       --p2p-external-ip string             The IP address advertised by libp2p. This may be used to advertise an external IP.
-      --p2p-tcp-address strings            Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic.
-      --p2p-udp-address string             Listening UDP address (ip and port) for discv5 discovery.
+      --p2p-tcp-address strings            Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.
+      --p2p-udp-address string             Listening UDP address (ip and port) for discv5 discovery. Empty default disables discv5 discovery.
       --private-key-file string            The path to the charon enr private key file. (default ".charon/charon-enr-private-key")
       --simnet-beacon-mock                 Enables an internal mock beacon node for running a simnet.
       --simnet-validator-keys-dir string   The directory containing the simnet validator key shares. (default ".charon/validator_keys")

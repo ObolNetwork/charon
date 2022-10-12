@@ -235,7 +235,7 @@ func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, pe
 
 	relays := p2p.NewRelays(p2pConf, bootnodes)
 
-	tcpNode, err := p2p.NewTCPNode(p2pConf, key, p2p.NewOpenGater())
+	tcpNode, err := p2p.NewTCPNode(ctx, p2pConf, key, p2p.NewOpenGater())
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "")
 	}
