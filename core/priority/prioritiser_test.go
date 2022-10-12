@@ -17,7 +17,6 @@ package priority_test
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -27,6 +26,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
@@ -39,14 +40,14 @@ func TestPrioritiser(t *testing.T) {
 	var (
 		ctx, cancel  = context.WithCancel(context.Background())
 		n            = 3
-		slot         = int64(99)
+		instance     = &pbv1.Duty{Slot: 99}
 		tcpNodes     []host.Host
 		peers        []peer.ID
 		consensus    = new(testConsensus)
 		msgValidator = func(*pbv1.PriorityMsg) error { return nil }
 		noTicks      = func() (<-chan time.Time, func()) { return nil, func() {} }
 		results      = make(chan []*pbv1.PriorityScoredResult, n)
-		topic        = "test"
+		topic        = &pbv1.ParSignedData{Data: []byte("test topic")}
 	)
 
 	// Create libp2p tcp nodes.
@@ -65,45 +66,46 @@ func TestPrioritiser(t *testing.T) {
 		tcpNode := tcpNodes[i]
 
 		// Propose 0:[0], 1:[0,1], 2:[0,1,2] - expect [0]
-		var labels []string
+		var priorities []*anypb.Any
 		for j := 0; j <= i; j++ {
-			labels = append(labels, fmt.Sprint(j))
-		}
-		msgProvider := func(slot int64) (*pbv1.PriorityMsg, error) {
-			return &pbv1.PriorityMsg{
-				Topics: []*pbv1.PriorityTopicProposal{{Topic: topic, Priorities: labels}},
-				Slot:   slot,
-				PeerId: tcpNode.ID().String(),
-			}, nil
+			priorities = append(priorities, prioToAny(j))
 		}
 
-		prio := priority.NewForT(tcpNode, peers, n, p2p.SendReceive, p2p.RegisterHandler, consensus,
-			msgProvider, msgValidator, time.Hour, noTicks)
+		prio := priority.NewForT(tcpNode, peers, n, p2p.SendReceive, p2p.RegisterHandler, consensus, msgValidator, time.Hour, noTicks)
 
-		prio.Subscribe(topic, func(_ context.Context, slotRes int64, topicRes string, priorities []*pbv1.PriorityScoredResult) error {
-			require.Equal(t, slot, slotRes)
-			require.Equal(t, topic, topicRes)
-			results <- priorities
+		prio.Subscribe(func(_ context.Context, resInstance priority.Instance, result *pbv1.PriorityResult) error {
+			require.Len(t, result.Topics, 1)
+
+			resTopic, err := result.Topics[0].Topic.UnmarshalNew()
+			require.NoError(t, err)
+
+			requireProtoEqual(t, instance, resInstance)
+			requireProtoEqual(t, topic, resTopic)
+			results <- result.Topics[0].Priorities
 
 			return nil
 		})
+
+		msg := &pbv1.PriorityMsg{
+			Topics:   []*pbv1.PriorityTopicProposal{{Topic: mustAny(topic), Priorities: priorities}},
+			Instance: mustAny(instance),
+			PeerId:   tcpNode.ID().String(),
+		}
 
 		go func() {
 			require.ErrorIs(t, prio.Run(ctx), context.Canceled)
 		}()
 
 		go func() {
-			prio.Prioritise(slot)
+			require.NoError(t, prio.Prioritise(ctx, msg))
 		}()
 	}
 
-	expect := []*pbv1.PriorityScoredResult{{
-		Priority: "0",
-		Score:    int64(n * 1000),
-	}}
 	for i := 0; i < n; i++ {
 		res := <-results
-		require.Equal(t, expect, res)
+		require.Len(t, res, 1)
+		require.EqualValues(t, n*1000, res[0].Score)
+		requireProtoEqual(t, prioToAny(0), res[0].Priority)
 	}
 
 	cancel()
@@ -114,10 +116,10 @@ func TestPrioritiser(t *testing.T) {
 type testConsensus struct {
 	mu       sync.Mutex
 	proposed *pbv1.PriorityResult
-	subs     []func(ctx context.Context, slot int64, result *pbv1.PriorityResult) error
+	subs     []func(ctx context.Context, instance priority.Instance, result *pbv1.PriorityResult) error
 }
 
-func (t *testConsensus) ProposePriority(ctx context.Context, slot int64, result *pbv1.PriorityResult) error {
+func (t *testConsensus) ProposePriority(ctx context.Context, instance priority.Instance, result *pbv1.PriorityResult) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -130,7 +132,7 @@ func (t *testConsensus) ProposePriority(ctx context.Context, slot int64, result 
 	}
 
 	for _, sub := range t.subs {
-		err := sub(ctx, slot, result)
+		err := sub(ctx, instance, result)
 		if err != nil {
 			return err
 		}
@@ -140,6 +142,24 @@ func (t *testConsensus) ProposePriority(ctx context.Context, slot int64, result 
 	return nil
 }
 
-func (t *testConsensus) SubscribePriority(sub func(ctx context.Context, slot int64, result *pbv1.PriorityResult) error) {
+func (t *testConsensus) SubscribePriority(sub func(ctx context.Context, instance priority.Instance, result *pbv1.PriorityResult) error) {
 	t.subs = append(t.subs, sub)
+}
+
+func mustAny(pb proto.Message) *anypb.Any {
+	resp, err := anypb.New(pb)
+	if err != nil {
+		panic(err)
+	}
+
+	return resp
+}
+
+func prioToAny(prio int) *anypb.Any {
+	return mustAny(&pbv1.Duty{Slot: int64(prio)})
+}
+
+func requireProtoEqual(t *testing.T, expect, actual proto.Message) {
+	t.Helper()
+	require.True(t, proto.Equal(expect, actual), "expected: %#v\nactual: %#v\n", expect, actual)
 }

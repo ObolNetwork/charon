@@ -16,7 +16,11 @@
 package priority
 
 import (
+	"bytes"
 	"sort"
+
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
@@ -37,28 +41,40 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 	}
 
 	// Group all priority sets by topic
-	prioritySetsByTopic := make(map[string][][]string)
+	proposalsByTopic := make(map[[32]byte][]*pbv1.PriorityTopicProposal)
 	for _, msg := range sortInput(msgs) {
 		for _, topic := range msg.Topics {
-			prioritySetsByTopic[topic.Topic] = append(prioritySetsByTopic[topic.Topic], topic.Priorities)
+			topic := topic // Copy iteration value since it is a pointer
+			topicHash, err := hashProto(topic.Topic)
+			if err != nil {
+				return nil, err
+			}
+			proposalsByTopic[topicHash] = append(proposalsByTopic[topicHash], topic)
 		}
 	}
 
 	// Calculate cluster wide resulting priorities by topic.
 	var topicResults []*pbv1.PriorityTopicResult
-	for topic, prioritySet := range prioritySetsByTopic {
+	for _, proposals := range proposalsByTopic {
 		// Calculate overall score for all priorities in the topic
 		// which effectively orders by count then by overall priority.
 		var (
-			scores        = make(map[string]int)
-			allPriorities []string
+			scores        = make(map[[32]byte]int)
+			priorities    = make(map[[32]byte]*anypb.Any)
+			allPriorities [][32]byte
 		)
-		for _, priorities := range prioritySet {
-			for order, label := range priorities {
-				if _, ok := scores[label]; !ok {
-					allPriorities = append(allPriorities, label)
+		for _, proposal := range proposals {
+			for order, prio := range proposal.Priorities {
+				prio := prio // Copy iteration value since it is a pointer
+				priority, err := hashProto(prio)
+				if err != nil {
+					return nil, err
 				}
-				scores[label] += countWeight - order // Equivalent to ordering by count then by priority
+				if _, ok := scores[priority]; !ok {
+					allPriorities = append(allPriorities, priority)
+				}
+				scores[priority] += countWeight - order // Equivalent to ordering by count then by priority
+				priorities[priority] = prio
 			}
 		}
 
@@ -69,14 +85,14 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 
 		// Extract scores with min required count.
 		minScore := (minRequired - 1) * countWeight
-		result := &pbv1.PriorityTopicResult{Topic: topic}
+		result := &pbv1.PriorityTopicResult{Topic: proposals[0].Topic}
 		for _, priority := range allPriorities {
 			score := scores[priority]
 			if score <= minScore {
 				continue
 			}
 			result.Priorities = append(result.Priorities, &pbv1.PriorityScoredResult{
-				Priority: priority,
+				Priority: priorities[priority],
 				Score:    int64(score),
 			})
 		}
@@ -84,21 +100,53 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 		topicResults = append(topicResults, result)
 	}
 
-	// Order results by topic for deterministic output.
-	sort.Slice(topicResults, func(i, j int) bool {
-		return topicResults[i].Topic < topicResults[j].Topic
-	})
+	ordered, err := orderTopicResults(topicResults)
+	if err != nil {
+		return nil, err
+	}
 
 	return &pbv1.PriorityResult{
 		Msgs:   msgs,
-		Topics: topicResults,
+		Topics: ordered,
 	}, nil
+}
+
+// orderTopicResults returns ordered results by topic for deterministic output.
+func orderTopicResults(values []*pbv1.PriorityTopicResult) ([]*pbv1.PriorityTopicResult, error) {
+	type tuple struct {
+		Hash  []byte
+		Value *pbv1.PriorityTopicResult
+	}
+
+	var tuples []tuple
+	for _, value := range values {
+		value := value // Copy iteration value since it is a pointer
+		hash, err := hashProto(value.Topic)
+		if err != nil {
+			return nil, err
+		}
+		tuples = append(tuples, tuple{
+			Hash:  hash[:],
+			Value: value,
+		})
+	}
+
+	sort.Slice(tuples, func(i, j int) bool {
+		return bytes.Compare(tuples[i].Hash, tuples[j].Hash) < 0
+	})
+
+	var resp []*pbv1.PriorityTopicResult
+	for _, tuple := range tuples {
+		resp = append(resp, tuple.Value)
+	}
+
+	return resp, nil
 }
 
 // sortInput returns a copy of the messages ordered
 // by peer.
 func sortInput(msgs []*pbv1.PriorityMsg) []*pbv1.PriorityMsg {
-	resp := append([]*pbv1.PriorityMsg(nil), msgs...) // Copy to not mutate input param.
+	resp := append([]*pbv1.PriorityMsg(nil), msgs...) // Copy to not mutate proposals param.
 	sort.Slice(resp, func(i, j int) bool {
 		return resp[i].PeerId < resp[j].PeerId
 	})
@@ -118,29 +166,41 @@ func validateMsgs(msgs []*pbv1.PriorityMsg) error {
 	}
 
 	var (
-		slot       int64
+		instance   proto.Message
 		dedupPeers = newDeduper[string]() // Peers may not be duplicated
 	)
 	for _, msg := range msgs {
-		if slot == 0 {
-			slot = msg.Slot
-		} else if msg.Slot != slot {
-			return errors.New("mismatching slots")
+		inst, err := msg.Instance.UnmarshalNew()
+		if err != nil {
+			return errors.Wrap(err, "unmarshal any")
+		}
+		if instance == nil {
+			instance = inst
+		} else if !proto.Equal(inst, instance) {
+			return errors.New("mismatching instances")
 		}
 		if dedupPeers(msg.PeerId) {
 			return errors.New("duplicate peer")
 		}
-		dedupTopics := newDeduper[string]() // Peers may not provide duplicate topics.
+		dedupTopics := newDeduper[[32]byte]() // Peers may not provide duplicate topics.
 		for _, topic := range msg.Topics {
-			if dedupTopics(msg.PeerId) {
+			topicHash, err := hashProto(topic.Topic)
+			if err != nil {
+				return err
+			}
+			if dedupTopics(topicHash) {
 				return errors.New("duplicate topic")
 			} else if len(topic.Priorities) >= maxPriorities {
 				return errors.New("max priority reached")
 			}
 
-			dedupPriority := newDeduper[string]() // Topics may not include duplicates priority.
+			dedupPriority := newDeduper[[32]byte]() // Topics may not include duplicates priority.
 			for _, priority := range topic.Priorities {
-				if dedupPriority(priority) {
+				prioHash, err := hashProto(priority)
+				if err != nil {
+					return err
+				}
+				if dedupPriority(prioHash) {
 					return errors.New("duplicate priority")
 				}
 			}
