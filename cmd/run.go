@@ -27,7 +27,6 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -63,9 +62,7 @@ func bindNoVerifyFlag(flags *pflag.FlagSet, config *bool) {
 }
 
 func bindRunFlags(cmd *cobra.Command, config *app.Config) {
-	var beaconNodeAddr string
 	cmd.Flags().StringVar(&config.LockFile, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining distributed validator cluster.")
-	cmd.Flags().StringVar(&beaconNodeAddr, "beacon-node-endpoint", "", "Beacon node endpoint URL. Deprecated, please use beacon-node-endpoints.")
 	cmd.Flags().StringSliceVar(&config.BeaconNodeAddrs, "beacon-node-endpoints", nil, "Comma separated list of one or more beacon node endpoint URLs.")
 	cmd.Flags().StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
 	cmd.Flags().StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:3620", "Listening address (ip and port) for the monitoring API (prometheus, pprof).")
@@ -77,16 +74,8 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().BoolVar(&config.BuilderAPI, "builder-api", false, "Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
-		ctx := log.WithTopic(cmd.Context(), "cmd")
-		if beaconNodeAddr != "" {
-			log.Warn(ctx, "Deprecated flag 'beacon-node-endpoint' used, please use new flag 'beacon-node-endpoints'", nil)
-			config.BeaconNodeAddrs = []string{beaconNodeAddr}
-		} else if beaconNodeAddr != "" && len(config.BeaconNodeAddrs) > 0 {
-			log.Warn(ctx, "Deprecated flag 'beacon-node-endpoint' ignored since new flag 'beacon-node-endpoints' takes precedence",
-				nil, z.Str("beacon-node-endpoint", beaconNodeAddr), z.Any("beacon-node-endpoints", config.BeaconNodeAddrs))
-		} else if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
+		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
 			return errors.New("either flag 'beacon-node-endpoints' or flag 'simnet-beacon-mock=true' must be specified")
-			// TODO(corver): Use MarkFlagsRequiredTogether once beacon-node-endpoint is removed.
 		}
 
 		return nil
