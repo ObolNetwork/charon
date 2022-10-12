@@ -100,7 +100,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 		},
 		{
 			name: "signed sync contribution",
-			data: core.SignedSyncContribution{
+			data: core.SignedSyncContributionAndProof{
 				SignedContributionAndProof: testutil.RandomSignedSyncContributionAndProof(),
 			},
 		},
