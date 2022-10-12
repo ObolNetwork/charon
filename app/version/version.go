@@ -15,7 +15,13 @@
 
 package version
 
-import "runtime/debug"
+import (
+	"context"
+	"runtime/debug"
+
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
+)
 
 // Version is the release version of the codebase.
 // Usually overridden by tag names when building binaries.
@@ -39,4 +45,14 @@ func GitCommit() (hash string, timestamp string) {
 	}
 
 	return hash, timestamp
+}
+
+// LogCharonVersion logs charon version information along-with the provided message.
+func LogCharonVersion(ctx context.Context, msg string) {
+	gitHash, gitTimestamp := GitCommit()
+	log.Info(ctx, msg,
+		z.Str("version", Version),
+		z.Str("git_commit_hash", gitHash),
+		z.Str("git_commit_time", gitTimestamp),
+	)
 }
