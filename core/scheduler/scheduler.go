@@ -128,13 +128,15 @@ func (s *Scheduler) Run() error {
 	}
 }
 
-// emitCoreSlot calls all slot subscriptions with the provided slot.
+// emitCoreSlot calls all slot subscriptions asynchronously with the provided slot.
 func (s *Scheduler) emitCoreSlot(ctx context.Context, slot core.Slot) {
 	for _, sub := range s.slotSubs {
-		err := sub(ctx, slot)
-		if err != nil {
-			log.Error(ctx, "Emit scheduled slot event", err, z.I64("slot", slot.Slot))
-		}
+		go func(sub func(context.Context, core.Slot) error) {
+			err := sub(ctx, slot)
+			if err != nil {
+				log.Error(ctx, "Emit scheduled slot event", err, z.I64("slot", slot.Slot))
+			}
+		}(sub)
 	}
 }
 
