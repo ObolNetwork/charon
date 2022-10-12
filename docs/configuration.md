@@ -112,7 +112,6 @@ Usage:
   charon run [flags]
 
 Flags:
-      --beacon-node-endpoint string        Beacon node endpoint URL. Deprecated, please use beacon-node-endpoints.
       --beacon-node-endpoints strings      Comma separated list of one or more beacon node endpoint URLs.
       --builder-api                        Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.
       --data-dir string                    Deprecated, please use 'private-key-file'.
