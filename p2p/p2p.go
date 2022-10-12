@@ -145,16 +145,42 @@ func (n debugLogger) Listen(_ network.Network, addr ma.Multiaddr) {
 func (debugLogger) ListenClose(network.Network, ma.Multiaddr) {}
 
 func (n debugLogger) Connected(_ network.Network, conn network.Conn) {
+	name := PeerName(conn.RemotePeer())
+	addr := conn.RemoteMultiaddr()
+	typ := addrType(addr)
+	peerConnGauge.WithLabelValues(name, typ).Inc()
+
 	log.Debug(n.ctx, "Libp2p new connection",
-		z.Str("peer", PeerName(conn.RemotePeer())),
-		z.Any("peer_address", NamedAddr(conn.RemoteMultiaddr())),
+		z.Str("peer", name),
+		z.Any("peer_address", NamedAddr(addr)),
 		z.Any("direction", conn.Stat().Direction),
+		z.Str("type", typ),
 	)
 }
 
-func (debugLogger) Disconnected(network.Network, network.Conn) {}
+func (debugLogger) Disconnected(_ network.Network, conn network.Conn) {
+	name := PeerName(conn.RemotePeer())
+	typ := addrType(conn.RemoteMultiaddr())
+	peerConnGauge.WithLabelValues(name, typ).Dec()
+}
 
 var (
 	_ routing.PeerRouting = peerRoutingFunc(nil) // interface assertion
 	_ network.Notifiee    = debugLogger{}
 )
+
+// addrType returns 'direct' or 'relay' based on whether the address contains a relay.
+func addrType(a ma.Multiaddr) string {
+	if isRelayAddr(a) {
+		return "relay"
+	}
+
+	return "direct"
+}
+
+// isRelayAddr returns true if the address is a relayed address.
+// Copied from github.com/libp2p/go-libp2p@v0.22.0/p2p/protocol/circuitv2/relay/relay.go:593.
+func isRelayAddr(a ma.Multiaddr) bool {
+	_, err := a.ValueForProtocol(ma.P_CIRCUIT)
+	return err == nil
+}
