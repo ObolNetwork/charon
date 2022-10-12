@@ -146,7 +146,7 @@ func orderTopicResults(values []*pbv1.PriorityTopicResult) ([]*pbv1.PriorityTopi
 // sortInput returns a copy of the messages ordered
 // by peer.
 func sortInput(msgs []*pbv1.PriorityMsg) []*pbv1.PriorityMsg {
-	resp := append([]*pbv1.PriorityMsg(nil), msgs...) // Copy to not mutate proposals param.
+	resp := append([]*pbv1.PriorityMsg(nil), msgs...) // Copy to not mutate input param.
 	sort.Slice(resp, func(i, j int) bool {
 		return resp[i].PeerId < resp[j].PeerId
 	})

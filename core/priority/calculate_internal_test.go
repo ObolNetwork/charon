@@ -156,7 +156,7 @@ func TestCalculateResults(t *testing.T) {
 			Name:       "deterministic ordering instance 9",
 			Priorities: pl(xy, xy, yx, yx),
 			Instance:   9,
-			Result:     xy, // Same proposals (except for slot), same result.
+			Result:     xy, // Same input (except for slot), same result.
 			Scores:     []int64{3998, 3998},
 		},
 	}
