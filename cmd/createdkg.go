@@ -93,7 +93,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		}
 	}()
 
-	version.LogCharonInfo(ctx, "Charon create DKG starting")
+	version.LogInfo(ctx, "Charon create DKG starting")
 
 	if _, err := os.Stat(path.Join(conf.OutputDir, "cluster-definition.json")); err == nil {
 		return errors.New("existing cluster-definition.json found. Try again after deleting it")

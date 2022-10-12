@@ -47,8 +47,8 @@ func GitCommit() (hash string, timestamp string) {
 	return hash, timestamp
 }
 
-// LogCharonInfo logs charon version information along-with the provided message.
-func LogCharonInfo(ctx context.Context, msg string) {
+// LogInfo logs charon version information along-with the provided message.
+func LogInfo(ctx context.Context, msg string) {
 	gitHash, gitTimestamp := GitCommit()
 	log.Info(ctx, msg,
 		z.Str("version", Version),

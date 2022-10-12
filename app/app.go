@@ -131,7 +131,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	version.LogCharonInfo(ctx, "Charon starting")
+	version.LogInfo(ctx, "Charon starting")
 
 	// Wire processes and their dependencies
 	life := new(lifecycle.Manager)

@@ -95,7 +95,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 		return err
 	}
 
-	version.LogCharonInfo(ctx, "Charon bootnode starting")
+	version.LogInfo(ctx, "Charon bootnode starting")
 
 	key, err := p2p.LoadPrivKey(config.DataDir)
 	if errors.Is(err, os.ErrNotExist) {
