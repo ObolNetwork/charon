@@ -41,7 +41,7 @@ var (
 	_ SignedData = SignedBeaconCommitteeSubscription{}
 	_ SignedData = SignedAggregateAndProof{}
 	_ SignedData = SignedSyncMessage{}
-	_ SignedData = SignedSyncContribution{}
+	_ SignedData = SignedSyncContributionAndProof{}
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
@@ -862,16 +862,16 @@ func (s *SignedSyncMessage) UnmarshalJSON(input []byte) error {
 	return s.SyncCommitteeMessage.UnmarshalJSON(input)
 }
 
-// SignedSyncContribution wraps altair.SignedContributionAndProof and implements SignedData.
-type SignedSyncContribution struct {
+// SignedSyncContributionAndProof wraps altair.SignedContributionAndProof and implements SignedData.
+type SignedSyncContributionAndProof struct {
 	altair.SignedContributionAndProof
 }
 
-func (s SignedSyncContribution) Signature() Signature {
+func (s SignedSyncContributionAndProof) Signature() Signature {
 	return SigFromETH2(s.SignedContributionAndProof.Signature)
 }
 
-func (s SignedSyncContribution) SetSignature(sig Signature) (SignedData, error) {
+func (s SignedSyncContributionAndProof) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := s.clone()
 	if err != nil {
 		return nil, err
@@ -882,25 +882,25 @@ func (s SignedSyncContribution) SetSignature(sig Signature) (SignedData, error) 
 	return resp, err
 }
 
-func (s SignedSyncContribution) Clone() (SignedData, error) {
+func (s SignedSyncContributionAndProof) Clone() (SignedData, error) {
 	return s.clone()
 }
 
-func (s SignedSyncContribution) clone() (SignedSyncContribution, error) {
-	var resp SignedSyncContribution
+func (s SignedSyncContributionAndProof) clone() (SignedSyncContributionAndProof, error) {
+	var resp SignedSyncContributionAndProof
 	err := cloneJSONMarshaler(s, &resp)
 	if err != nil {
-		return SignedSyncContribution{}, errors.Wrap(err, "clone signed sync contribution")
+		return SignedSyncContributionAndProof{}, errors.Wrap(err, "clone signed sync contribution")
 	}
 
 	return resp, nil
 }
 
-func (s SignedSyncContribution) MarshalJSON() ([]byte, error) {
+func (s SignedSyncContributionAndProof) MarshalJSON() ([]byte, error) {
 	return s.SignedContributionAndProof.MarshalJSON()
 }
 
-func (s *SignedSyncContribution) UnmarshalJSON(input []byte) error {
+func (s *SignedSyncContributionAndProof) UnmarshalJSON(input []byte) error {
 	return s.SignedContributionAndProof.UnmarshalJSON(input)
 }
 
