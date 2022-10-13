@@ -533,6 +533,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitProposalPreparationsFunc: func(_ context.Context, _ []*eth2v1.ProposalPreparation) error {
 			return nil
 		},
+		SyncCommitteeDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+			return []*eth2v1.SyncCommitteeDuty{}, nil
+		},
 	}
 }
 

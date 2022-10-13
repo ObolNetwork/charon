@@ -279,6 +279,38 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
+	t.Run("synccommduty", func(t *testing.T) {
+		handler := testHandler{
+			SyncCommitteeDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, vIdxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+				// Returns ordered total number of duties for the epoch
+				var res []*eth2v1.SyncCommitteeDuty
+				for _, vIdx := range vIdxs {
+					res = append(res, &eth2v1.SyncCommitteeDuty{
+						ValidatorIndex:                vIdx,
+						ValidatorSyncCommitteeIndices: []eth2p0.CommitteeIndex{eth2p0.CommitteeIndex(vIdx)},
+					})
+				}
+
+				return res, nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			const epoch = 4
+			const validator = 1
+			res, err := cl.SyncCommitteeDuties(ctx, eth2p0.Epoch(epoch), []eth2p0.ValidatorIndex{
+				eth2p0.ValidatorIndex(validator), // Only request 1 of total 2 validators
+			})
+			require.NoError(t, err)
+
+			require.Len(t, res, 1)
+			require.Equal(t, res[0].ValidatorSyncCommitteeIndices, []eth2p0.CommitteeIndex{eth2p0.CommitteeIndex(validator)})
+			require.Equal(t, int(res[0].ValidatorIndex), validator)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
 	t.Run("get_validator_index", func(t *testing.T) {
 		handler := testHandler{
 			ValidatorsFunc: func(_ context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
@@ -740,6 +772,7 @@ type testHandler struct {
 	SubmitBeaconCommitteeSubscriptionsV2Func func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error)
 	SubmitAggregateAttestationsFunc          func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
 	SubmitSyncCommitteeMessagesFunc          func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
+	SyncCommitteeDutiesFunc                  func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error)
 }
 
 func (h testHandler) AttestationData(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
@@ -796,6 +829,10 @@ func (h testHandler) SubmitAggregateAttestations(ctx context.Context, aggregateA
 
 func (h testHandler) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
 	return h.SubmitSyncCommitteeMessagesFunc(ctx, messages)
+}
+
+func (h testHandler) SyncCommitteeDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+	return h.SyncCommitteeDutiesFunc(ctx, epoch, validatorIndices)
 }
 
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the

@@ -17,7 +17,6 @@ package validatorapi_test
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 	mrand "math/rand"
 	"sync"
@@ -992,43 +991,90 @@ func TestComponent_SubmitVoluntaryExitInvalidSignature(t *testing.T) {
 	require.ErrorContains(t, err, "invalid signature")
 }
 
-func TestComponent_ProposerDuties(t *testing.T) {
+func TestComponent_Duties(t *testing.T) {
 	ctx := context.Background()
 
 	// Configure validator
-	const vIdx = 1
+	const (
+		vIdx = 123
+		epch = 456
+	)
 
-	tss, _, err := tbls.GenerateTSS(3, 4, rand.Reader)
+	// Create pubkey and pubshare
+	eth2Pubkey := testutil.RandomEth2PubKey(t)
+	eth2Share := testutil.RandomEth2PubKey(t)
+
+	pubshare, err := tblsconv.KeyFromETH2(eth2Share)
 	require.NoError(t, err)
 
-	// Create keys (just use normal keys, not split tbls)
-	pubkey := tss.PublicKey()
-	pubshare := tss.PublicShare(vIdx)
-
-	eth2Share, err := tblsconv.KeyToETH2(pubshare)
-	require.NoError(t, err)
-
-	validator := beaconmock.ValidatorSetA[vIdx]
-	validator.Validator.PublicKey, err = tblsconv.KeyToETH2(pubkey)
+	pubkey, err := tblsconv.KeyFromETH2(eth2Pubkey)
 	require.NoError(t, err)
 
 	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubshare} // Maps self to self since not tbls
 
 	// Configure beacon mock
-	bmock, err := beaconmock.New(
-		beaconmock.WithValidatorSet(beaconmock.ValidatorSet{vIdx: validator}),
-		beaconmock.WithDeterministicProposerDuties(0), // All duties in first slot of epoch.
-	)
+	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
-	require.NoError(t, err)
+	t.Run("proposer_duties", func(t *testing.T) {
+		bmock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			require.Equal(t, epoch, eth2p0.Epoch(epch))
+			require.Equal(t, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)}, indices)
 
-	duties, err := vapi.ProposerDuties(ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
-	require.NoError(t, err)
-	require.Len(t, duties, 1)
-	require.Equal(t, duties[0].PubKey, eth2Share)
+			return []*eth2v1.ProposerDuty{{
+				PubKey:         eth2Pubkey,
+				ValidatorIndex: vIdx,
+			}}, nil
+		}
+
+		// Construct the validator api component
+		vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+		require.NoError(t, err)
+		duties, err := vapi.ProposerDuties(ctx, eth2p0.Epoch(epch), []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
+		require.NoError(t, err)
+		require.Len(t, duties, 1)
+		require.Equal(t, duties[0].PubKey, eth2Share)
+	})
+
+	t.Run("attester_duties", func(t *testing.T) {
+		bmock.AttesterDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+			require.Equal(t, epoch, eth2p0.Epoch(epch))
+			require.Equal(t, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)}, indices)
+
+			return []*eth2v1.AttesterDuty{{
+				PubKey:         eth2Pubkey,
+				ValidatorIndex: vIdx,
+			}}, nil
+		}
+
+		// Construct the validator api component
+		vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+		require.NoError(t, err)
+		duties, err := vapi.AttesterDuties(ctx, eth2p0.Epoch(epch), []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
+		require.NoError(t, err)
+		require.Len(t, duties, 1)
+		require.Equal(t, duties[0].PubKey, eth2Share)
+	})
+
+	t.Run("sync_committee_duties", func(t *testing.T) {
+		bmock.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+			require.Equal(t, epoch, eth2p0.Epoch(epch))
+			require.Equal(t, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)}, indices)
+
+			return []*eth2v1.SyncCommitteeDuty{{
+				PubKey:         eth2Pubkey,
+				ValidatorIndex: vIdx,
+			}}, nil
+		}
+
+		// Construct the validator api component
+		vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+		require.NoError(t, err)
+		duties, err := vapi.SyncCommitteeDuties(ctx, eth2p0.Epoch(epch), []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
+		require.NoError(t, err)
+		require.Len(t, duties, 1)
+		require.Equal(t, duties[0].PubKey, eth2Share)
+	})
 }
 
 func TestComponent_SubmitValidatorRegistration(t *testing.T) {

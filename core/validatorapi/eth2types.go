@@ -38,11 +38,12 @@ type errorResponse struct {
 	// TODO(corver): Maybe add stacktraces field for debugging.
 }
 
-// attesterDutiesRequest defines the request to the getAttesterDuties and getProposerDuties endpoint.
-// See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getAttesterDuties.
-type attesterDutiesRequest []eth2p0.ValidatorIndex
+// valIndexesJSON defines the request to the getAttesterDuties and getSyncCommitteeDuties endpoint.
+// See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getAttesterDuties and
+// https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getSyncCommitteeDuties.
+type valIndexesJSON []eth2p0.ValidatorIndex
 
-func (r *attesterDutiesRequest) UnmarshalJSON(bytes []byte) error {
+func (r *valIndexesJSON) UnmarshalJSON(bytes []byte) error {
 	// First try normal json number array
 	var ints []uint64
 	if err := json.Unmarshal(bytes, &ints); err == nil {
@@ -134,4 +135,10 @@ func (v v1Validator) MarshalJSON() ([]byte, error) {
 	}
 
 	return bytes.ToLower(b), nil // ValidatorState must be lower case.
+}
+
+// syncCommitteeDutiesResponse defines the response to the getSyncCommitteeDuties endpoint.
+// See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getSyncCommitteeDuties.
+type syncCommitteeDutiesResponse struct {
+	Data []*eth2v1.SyncCommitteeDuty `json:"data"`
 }

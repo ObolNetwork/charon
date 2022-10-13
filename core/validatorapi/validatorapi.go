@@ -822,6 +822,24 @@ func (c Component) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, valid
 	return duties, nil
 }
 
+func (c Component) SyncCommitteeDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+	duties, err := c.eth2Cl.SyncCommitteeDuties(ctx, epoch, validatorIndices)
+	if err != nil {
+		return nil, err
+	}
+
+	// Replace root public keys with public shares.
+	for i := 0; i < len(duties); i++ {
+		pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
+		if !ok {
+			return nil, errors.New("pubshare not found")
+		}
+		duties[i].PubKey = pubshare
+	}
+
+	return duties, nil
+}
+
 func (c Component) Validators(ctx context.Context, stateID string, validatorIndices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 	vals, err := c.eth2Cl.Validators(ctx, stateID, validatorIndices)
 	if err != nil {
