@@ -174,8 +174,6 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 		return errors.Wrap(err, "extract pubkey")
 	}
 
-	defer s.clearConnected(pID)
-
 	for {
 		// Read next sync message
 		msg := new(pb.MsgSync)

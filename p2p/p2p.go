@@ -46,7 +46,7 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 	}
 
 	if len(addrs) == 0 {
-		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses empty.")
+		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses empty")
 	}
 
 	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))
