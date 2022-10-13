@@ -59,6 +59,10 @@ func newBootnodeCmd(runFunc func(context.Context, BootnodeConfig) error) *cobra.
 		Long:  `Starts a discv5 bootnode that charon nodes can use to bootstrap their p2p cluster`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := initLogger(cmd.Flags()); err != nil {
+				return err
+			}
+
 			printFlags(cmd.Context(), cmd.Flags())
 
 			return runFunc(cmd.Context(), config)
@@ -90,10 +94,6 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	defer cancel()
 
 	ctx = log.WithTopic(ctx, "bootnode")
-
-	if err := log.InitLogger(config.LogConfig); err != nil {
-		return err
-	}
 
 	version.LogInfo(ctx, "Charon bootnode starting")
 

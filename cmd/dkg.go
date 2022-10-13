@@ -35,6 +35,10 @@ distributed validator key shares and a final cluster lock configuration. Note th
 this command at the same time.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := initLogger(cmd.Flags()); err != nil {
+				return err
+			}
+
 			printFlags(cmd.Context(), cmd.Flags())
 
 			return runFunc(cmd.Context(), config)

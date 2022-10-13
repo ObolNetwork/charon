@@ -65,10 +65,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}()
 
-	if err := log.InitLogger(conf.Log); err != nil {
-		return err
-	}
-
 	version.LogInfo(ctx, "Charon DKG starting")
 
 	def, err := loadDefinition(ctx, conf)
