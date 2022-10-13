@@ -43,9 +43,6 @@ type Topic proto.Message
 // Priority is one of many grouped by a Topic being prioritised in an Instance.
 type Priority proto.Message
 
-// instanceKey is the hash of an Instance proto.Message and is used to index instanceData. See hashProto.
-type instanceKey [32]byte
-
 // instanceData contains an Instance and its data.
 type instanceData struct {
 	Instance Instance
@@ -165,9 +162,9 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 	ticker, stopTicker := p.tickerProvider()
 	defer stopTicker()
 
-	instances := make(map[instanceKey]instanceData)
+	instances := make(map[[32]byte]instanceData)
 
-	startConsensus := func(key instanceKey) {
+	startConsensus := func(key [32]byte) {
 		data := instances[key]
 
 		var msgs []*pbv1.PriorityMsg
