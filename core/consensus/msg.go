@@ -122,6 +122,7 @@ func (m msg) ToConsensusMsg() *pbv1.ConsensusMsg {
 }
 
 // hashProto returns a deterministic ssz hash root of the proto message.
+// It is the same logic as that used by the priority package.
 func hashProto(msg proto.Message) ([32]byte, error) {
 	hh := ssz.DefaultHasherPool.Get()
 	defer ssz.DefaultHasherPool.Put(hh)

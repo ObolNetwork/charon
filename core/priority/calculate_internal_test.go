@@ -21,6 +21,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
@@ -47,7 +49,7 @@ func TestCalculateResults(t *testing.T) {
 		Priorities [][]string
 		Result     []string
 		Scores     []int64
-		Slot       int64 // Defaults to test index if not provided.
+		Instance   int64 // Defaults to test index if not provided.
 	}{
 		{
 			Name:       "1*v1",
@@ -144,16 +146,16 @@ func TestCalculateResults(t *testing.T) {
 			Scores:     []int64{3000, 2997},
 		},
 		{
-			Name:       "deterministic ordering slot 1",
+			Name:       "deterministic ordering instance 1",
 			Priorities: pl(xy, xy, yx, yx),
-			Slot:       1,
+			Instance:   1,
 			Result:     xy,                  // X as always before Y, since we use lower peer IDs for tie breaking.
 			Scores:     []int64{3998, 3998}, // Tied scores: Users of priority protocol can decide how to handle, either something fancy, or just using the provided order.
 		},
 		{
-			Name:       "deterministic ordering slot 9",
+			Name:       "deterministic ordering instance 9",
 			Priorities: pl(xy, xy, yx, yx),
-			Slot:       9,
+			Instance:   9,
 			Result:     xy, // Same input (except for slot), same result.
 			Scores:     []int64{3998, 3998},
 		},
@@ -161,20 +163,25 @@ func TestCalculateResults(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
+			topic := toAny("versions")
+
 			var msgs []*pbv1.PriorityMsg
 			for j, prioritySet := range test.Priorities {
-				if test.Slot == 0 {
-					test.Slot = int64(i)
+				if test.Instance == 0 {
+					test.Instance = int64(i)
 				}
 				msgs = append(msgs, &pbv1.PriorityMsg{
 					Topics: []*pbv1.PriorityTopicProposal{
 						{
-							Topic:      "versions",
-							Priorities: prioritySet,
+							Topic:      topic,
+							Priorities: toAnys(prioritySet),
+						},
+						{
+							Topic: toAny("ignored"),
 						},
 					},
-					PeerId: fmt.Sprint(j),
-					Slot:   test.Slot,
+					PeerId:   fmt.Sprint(j),
+					Instance: toAny(fmt.Sprint(test.Instance)),
 				})
 			}
 
@@ -185,12 +192,19 @@ func TestCalculateResults(t *testing.T) {
 
 			result, err := calculateResult(msgs, Q)
 			require.NoError(t, err)
-			require.Len(t, result.Topics, 1)
+			require.Len(t, result.Topics, 2)
+
+			var topicResult *pbv1.PriorityTopicResult
+			for _, result := range result.Topics {
+				if proto.Equal(result.Topic, topic) {
+					topicResult = result
+				}
+			}
 			if len(test.Result) > 0 {
 				var actualResult []string
 				var actualScores []int64
-				for _, prio := range result.Topics[0].Priorities {
-					actualResult = append(actualResult, prio.Priority)
+				for _, prio := range topicResult.Priorities {
+					actualResult = append(actualResult, fromAny(prio.Priority))
 					actualScores = append(actualScores, prio.Score)
 				}
 				require.Equal(t, test.Result, actualResult)
@@ -207,4 +221,34 @@ func TestCalculateResults(t *testing.T) {
 // pl returns a slice of priority sets. It is an abridged convenience function.
 func pl(pl ...[]string) [][]string {
 	return pl
+}
+
+// toAny returns an any-protobuf representation of the string.
+func toAny(s string) *anypb.Any {
+	resp, err := anypb.New(&pbv1.ParSignedData{Data: []byte(s)})
+	if err != nil {
+		panic(err)
+	}
+
+	return resp
+}
+
+// toAnys returns a slice of any-protobuf representations of the strings.
+func toAnys(ss []string) []*anypb.Any {
+	var resp []*anypb.Any
+	for _, s := range ss {
+		resp = append(resp, toAny(s))
+	}
+
+	return resp
+}
+
+// fromAny returns the string represented in the any-protobuf.
+func fromAny(a *anypb.Any) string {
+	pb, err := a.UnmarshalNew()
+	if err != nil {
+		panic(err)
+	}
+
+	return string(pb.(*pbv1.ParSignedData).Data)
 }

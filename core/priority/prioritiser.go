@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	ssz "github.com/ferranbt/fastssz"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
@@ -33,13 +34,26 @@ import (
 
 const protocolID = "charon/priority/1.0.0"
 
-type Consensus interface {
-	ProposePriority(ctx context.Context, slot int64, result *pbv1.PriorityResult) error
-	SubscribePriority(func(ctx context.Context, slot int64, result *pbv1.PriorityResult) error)
+// Instance identifies an instance of the priority protocol.
+type Instance proto.Message
+
+// Topic groups priorities in an instance.
+type Topic proto.Message
+
+// Priority is one of many grouped by a Topic being prioritised in an Instance.
+type Priority proto.Message
+
+// instanceData contains an Instance and its data.
+type instanceData struct {
+	Instance Instance
+	Msgs     map[string]received // map[peerID]msg
+	Timeout  time.Time
 }
 
-// msgProvider abstracts creation of a new signed priority messages.
-type msgProvider func(slot int64) (*pbv1.PriorityMsg, error)
+type Consensus interface {
+	ProposePriority(context.Context, Instance, *pbv1.PriorityResult) error
+	SubscribePriority(func(context.Context, Instance, *pbv1.PriorityResult) error)
+}
 
 // msgValidator abstracts validation of a received priority messages.
 type msgValidator func(*pbv1.PriorityMsg) error
@@ -48,10 +62,17 @@ type msgValidator func(*pbv1.PriorityMsg) error
 type tickerProvider func() (<-chan time.Time, func())
 
 // subscriber abstracts the output subscriber callbacks of Prioritiser.
-type subscriber func(ctx context.Context, slot int64, topic string, priorities []*pbv1.PriorityScoredResult) error
+type subscriber func(context.Context, Instance, *pbv1.PriorityResult) error
+
+// received contains a received peer message and a channel to provide response.
+type received struct {
+	Own      bool
+	Msg      *pbv1.PriorityMsg
+	Response chan<- *pbv1.PriorityMsg
+}
 
 func NewForT(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
-	consensus Consensus, msgProvider msgProvider, msgValidator msgValidator,
+	consensus Consensus, msgValidator msgValidator,
 	consensusTimeout time.Duration, tickerProvider tickerProvider,
 ) *Prioritiser {
 	n := &Prioritiser{
@@ -60,23 +81,19 @@ func NewForT(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.S
 		minRequired:      minRequired,
 		peers:            peers,
 		consensus:        consensus,
-		msgProvider:      msgProvider,
 		msgValidator:     msgValidator,
 		consensusTimeout: consensusTimeout,
 		tickerProvider:   tickerProvider,
-		subs:             make(map[string][]subscriber),
-		trigger:          make(chan int64, 1), // Buffer a single trigger
-		received:         make(chan *pbv1.PriorityMsg),
+		proposals:        make(chan *pbv1.PriorityMsg),
+		receives:         make(chan received),
 		quit:             make(chan struct{}),
 	}
 
 	// Wire consensus output to Prioritiser subscribers.
-	consensus.SubscribePriority(func(ctx context.Context, slot int64, result *pbv1.PriorityResult) error {
-		for _, topic := range result.Topics {
-			for _, sub := range n.subs[topic.Topic] {
-				if err := sub(ctx, slot, topic.Topic, topic.Priorities); err != nil {
-					return err
-				}
+	consensus.SubscribePriority(func(ctx context.Context, instance Instance, result *pbv1.PriorityResult) error {
+		for _, sub := range n.subs {
+			if err := sub(ctx, instance, result); err != nil {
+				return err
 			}
 		}
 
@@ -103,31 +120,34 @@ func NewForT(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.S
 // Prioritiser resolves cluster wide priorities.
 type Prioritiser struct {
 	quit             chan struct{}
-	trigger          chan int64
-	received         chan *pbv1.PriorityMsg
+	proposals        chan *pbv1.PriorityMsg
+	receives         chan received
 	minRequired      int
 	consensusTimeout time.Duration
 	tcpNode          host.Host
 	sendFunc         p2p.SendReceiveFunc
 	peers            []peer.ID
 	consensus        Consensus
-	msgProvider      msgProvider
 	msgValidator     msgValidator
 	tickerProvider   tickerProvider
-	subs             map[string][]subscriber
+	subs             []subscriber
 }
 
 // Subscribe registers a prioritiser output subscriber function.
 // This is not thread safe and MUST NOT be called after Run.
-func (p *Prioritiser) Subscribe(topic string, fn subscriber) {
-	p.subs[topic] = append(p.subs[topic], fn)
+func (p *Prioritiser) Subscribe(fn subscriber) {
+	p.subs = append(p.subs, fn)
 }
 
-// Prioritise starts a new prioritisation round for the provided slot.
-func (p *Prioritiser) Prioritise(slot int64) {
+// Prioritise starts a new prioritisation instance for the provided message or returns an error.
+func (p *Prioritiser) Prioritise(ctx context.Context, msg *pbv1.PriorityMsg) error {
 	select {
-	case p.trigger <- slot:
+	case p.proposals <- msg:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-p.quit:
+		return errors.New("prioritiser shutdown")
 	}
 }
 
@@ -142,72 +162,72 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 	ticker, stopTicker := p.tickerProvider()
 	defer stopTicker()
 
-	var (
-		msgs          = make(map[int64]map[string]*pbv1.PriorityMsg) // map[slot]map[peerID]msg
-		timeouts      = make(map[int64]time.Time)
-		completedSlot int64
-	)
+	instances := make(map[[32]byte]instanceData)
 
-	startConsensus := func(slot int64) {
-		var slotMsgs []*pbv1.PriorityMsg
-		for _, msg := range msgs[slot] {
-			slotMsgs = append(slotMsgs, msg)
+	startConsensus := func(key [32]byte) {
+		data := instances[key]
+
+		var msgs []*pbv1.PriorityMsg
+		for _, msg := range data.Msgs {
+			msgs = append(msgs, msg.Msg)
 		}
-		result, err := calculateResult(slotMsgs, p.minRequired)
+		result, err := calculateResult(msgs, p.minRequired)
 		if err != nil {
 			log.Error(ctx, "Calculate priority consensus", err) // Unexpected
 			return
 		}
 
-		err = p.consensus.ProposePriority(ctx, slot, result)
+		err = p.consensus.ProposePriority(ctx, data.Instance, result)
 		if err != nil {
 			log.Warn(ctx, "Propose priority consensus", err) // Unexpected
 			return
 		}
 
-		completedSlot = slot
-		delete(msgs, slot)
-		delete(timeouts, slot)
+		delete(instances, key)
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case slot := <-p.trigger:
-			if slot <= completedSlot {
-				continue // Ignore triggers for completed slots.
-			}
+		case msg := <-p.proposals:
+			p.prioritiseOnce(ctx, msg)
 
-			err := p.prioritiseOnce(ctx, slot)
+		case recv := <-p.receives:
+			instance, err := recv.Msg.Instance.UnmarshalNew()
 			if err != nil {
-				log.Warn(ctx, "Priority error", err)
+				log.Error(ctx, "Priority instance from any proto", err)
+				continue
+			}
+			key, err := hashProto(instance)
+			if err != nil {
+				log.Error(ctx, "Priority instance key", err)
+				continue
 			}
 
-		case msg := <-p.received:
-			if msg.Slot <= completedSlot {
-				continue // Ignore messages for completed slots.
-			}
-
-			slotMsgs, ok := msgs[msg.Slot]
+			data, ok := instances[key]
 			if !ok {
-				slotMsgs = make(map[string]*pbv1.PriorityMsg)
-				timeouts[msg.Slot] = time.Now().Add(p.consensusTimeout)
+				data = instanceData{
+					Instance: instance,
+					Msgs:     make(map[string]received),
+					Timeout:  time.Now().Add(p.consensusTimeout),
+				}
 			}
-			slotMsgs[msg.PeerId] = msg
-			msgs[msg.Slot] = slotMsgs
+			sendResponse(data.Msgs, recv)
+			data.Msgs[recv.Msg.PeerId] = recv
+			instances[key] = data
 
-			if len(slotMsgs) == len(p.peers) {
+			if len(data.Msgs) == len(p.peers) {
 				// All messages received before timeout
-				startConsensus(msg.Slot)
+				startConsensus(key)
 			}
 		case now := <-ticker:
-			for slot, timeout := range timeouts {
-				if now.Before(timeout) {
+			for key, data := range instances {
+				if now.Before(data.Timeout) {
 					continue
 				}
 
-				startConsensus(slot) // Note that iterating and deleting from a map from a single goroutine is fine.
+				startConsensus(key) // Note that iterating and deleting from a map from a single goroutine is fine.
 			}
 		}
 	}
@@ -221,34 +241,40 @@ func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.
 		return nil, errors.Wrap(err, "invalid priority message")
 	}
 
+	response := make(chan *pbv1.PriorityMsg, 1) // Ensure responding goroutine never blocks.
+	recv := received{
+		Msg:      msg,
+		Response: response,
+	}
+
 	select {
-	case p.received <- msg:
+	case p.receives <- recv:
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-p.quit:
 		return nil, errors.New("prioritiser shutdown")
 	}
 
-	resp, err := p.msgProvider(msg.Slot)
-	if err != nil {
-		return nil, err
+	select {
+	case resp := <-response:
+		return resp, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-p.quit:
+		return nil, errors.New("prioritiser shutdown")
 	}
-
-	return resp, nil
 }
 
 // prioritiseOnce initiates a priority message exchange with all peers.
-func (p *Prioritiser) prioritiseOnce(ctx context.Context, slot int64) error {
-	msg, err := p.msgProvider(slot)
-	if err != nil {
-		return err
-	}
-
+func (p *Prioritiser) prioritiseOnce(ctx context.Context, msg *pbv1.PriorityMsg) {
 	// Send our own message first to start consensus timeout.
 	go func() { // Async since unbuffered
 		select {
 		case <-ctx.Done():
-		case p.received <- msg:
+		case p.receives <- received{
+			Own: true,
+			Msg: msg,
+		}:
 		}
 	}()
 
@@ -277,10 +303,60 @@ func (p *Prioritiser) prioritiseOnce(ctx context.Context, slot int64) error {
 
 			select {
 			case <-ctx.Done():
-			case p.received <- response:
+			case p.receives <- received{Msg: response}:
 			}
 		}(pID)
 	}
+}
 
-	return nil
+// hashProto returns a deterministic ssz hash root of the proto message.
+// It is the same logic as that used by the consensus package.
+func hashProto(msg proto.Message) ([32]byte, error) {
+	hh := ssz.DefaultHasherPool.Get()
+	defer ssz.DefaultHasherPool.Put(hh)
+
+	index := hh.Index()
+
+	// Do deterministic marshalling.
+	b, err := proto.MarshalOptions{Deterministic: true}.Marshal(msg)
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "marshal proto")
+	}
+	hh.PutBytes(b)
+
+	hh.Merkleize(index)
+
+	hash, err := hh.HashRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash proto")
+	}
+
+	return hash, nil
+}
+
+// sendResponse sends own response to any awaiting peers.
+func sendResponse(msgs map[string]received, recv received) {
+	if recv.Own { // Send our message to all waiting peers.
+		for _, other := range msgs {
+			if other.Response == nil {
+				continue
+			}
+			other.Response <- recv.Msg
+		}
+
+		return
+	}
+
+	if recv.Response == nil {
+		// This peer doesn't need a response
+		return
+	}
+
+	// Send own response to this peer.
+	for _, other := range msgs {
+		if !other.Own {
+			continue
+		}
+		recv.Response <- other.Msg
+	}
 }
