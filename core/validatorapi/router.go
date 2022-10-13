@@ -66,6 +66,7 @@ type Handler interface {
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.ProposerDutiesProvider
+	eth2client.SyncCommitteeDutiesProvider
 	eth2client.SyncCommitteeMessagesSubmitter
 	eth2client.ValidatorsProvider
 	eth2client.ValidatorRegistrationsSubmitter
@@ -93,6 +94,11 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 			Name:    "proposer_duties",
 			Path:    "/eth/v1/validator/duties/proposer/{epoch}",
 			Handler: proposerDuties(h),
+		},
+		{
+			Name:    "sync_committee_duties",
+			Path:    "/eth/v1/validator/duties/sync/{epoch}",
+			Handler: syncCommitteeDuties(h),
 		},
 		{
 			Name:    "attestation_data",
@@ -381,6 +387,32 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 			DependentRoot: stubRoot(epoch), // TODO(corver): Fill this properly
 			Data:          data,
 		}, nil
+	}
+}
+
+// syncCommitteeDuties returns a handler function for the sync committee duty endpoint.
+func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		epoch, err := uintParam(params, "epoch")
+		if err != nil {
+			return nil, err
+		}
+
+		var req syncCommitteeDutiesRequest
+		if err := unmarshal(body, &req); err != nil {
+			return nil, err
+		}
+
+		data, err := p.SyncCommitteeDuties(ctx, eth2p0.Epoch(epoch), req)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(data) == 0 {
+			data = []*eth2v1.SyncCommitteeDuty{}
+		}
+
+		return syncCommitteeDutiesResponse{Data: data}, nil
 	}
 }
 

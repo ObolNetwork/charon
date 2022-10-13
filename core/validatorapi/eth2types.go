@@ -135,3 +135,41 @@ func (v v1Validator) MarshalJSON() ([]byte, error) {
 
 	return bytes.ToLower(b), nil // ValidatorState must be lower case.
 }
+
+// syncCommitteeDutiesRequest defines the request to the getSyncCommitteeDuties endpoint.
+// See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getSyncCommitteeDuties.
+type syncCommitteeDutiesRequest []eth2p0.ValidatorIndex
+
+func (r *syncCommitteeDutiesRequest) UnmarshalJSON(bytes []byte) error {
+	// First try normal json number array
+	var ints []uint64
+	if err := json.Unmarshal(bytes, &ints); err == nil {
+		for _, i := range ints {
+			*r = append(*r, eth2p0.ValidatorIndex(i))
+		}
+
+		return nil
+	}
+
+	// Then try string json number array
+	var strints []string
+	if err := json.Unmarshal(bytes, &strints); err != nil {
+		return errors.Wrap(err, "unmarshal slice")
+	}
+
+	for _, strint := range strints {
+		i, err := strconv.ParseUint(strint, 10, 64)
+		if err != nil {
+			return errors.Wrap(err, "parse index")
+		}
+		*r = append(*r, eth2p0.ValidatorIndex(i))
+	}
+
+	return nil
+}
+
+// syncCommitteeDutiesResponse defines the response to the getSyncCommitteeDuties endpoint.
+// See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getSyncCommitteeDuties.
+type syncCommitteeDutiesResponse struct {
+	Data []*eth2v1.SyncCommitteeDuty `json:"data"`
+}
