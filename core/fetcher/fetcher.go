@@ -165,7 +165,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 			return core.UnsignedDataSet{}, errors.New("invalid beacon committee subscription")
 		}
 
-		res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, f.eth2Cl, &sub.BeaconCommitteeSubscription)
+		res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, f.eth2Cl, &sub.BeaconCommitteeSubscription, sub.CommitteeLength)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}

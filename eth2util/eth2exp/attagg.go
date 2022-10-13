@@ -29,13 +29,13 @@ import (
 	"github.com/minio/sha256-simd"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/z"
 )
 
 type eth2Provider interface {
 	eth2client.BeaconCommitteesProvider
 	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
+	eth2client.AttesterDutiesProvider
 }
 
 // BeaconCommitteeSubscriptionsSubmitterV2 is the interface for submitting beacon committee subnet subscription requests.
@@ -169,13 +169,10 @@ type BeaconCommitteeSubscriptionResponse struct {
 }
 
 // CalculateCommitteeSubscriptionResponse returns a BeaconCommitteeSubscriptionResponse with isAggregator field set to true if the validator is an aggregator.
-func CalculateCommitteeSubscriptionResponse(ctx context.Context, eth2Cl eth2Provider, sub *BeaconCommitteeSubscription) (*BeaconCommitteeSubscriptionResponse, error) {
-	committeeLen, err := getCommitteeLength(ctx, eth2Cl, sub.CommitteeIndex, sub.Slot)
-	if err != nil {
-		return nil, err
-	}
-
-	isAgg, err := isAggregator(ctx, eth2Cl, uint64(committeeLen), sub.SlotSignature)
+func CalculateCommitteeSubscriptionResponse(ctx context.Context, eth2Cl eth2Provider, sub *BeaconCommitteeSubscription,
+	committeeLength uint64,
+) (*BeaconCommitteeSubscriptionResponse, error) {
+	isAgg, err := isAggregator(ctx, eth2Cl, committeeLength, sub.SlotSignature)
 	if err != nil {
 		return nil, err
 	}
@@ -219,35 +216,4 @@ func isAggregator(ctx context.Context, eth2Cl eth2Provider, commLen uint64, slot
 	asUint64 := binary.LittleEndian.Uint64(lowest8bytes)
 
 	return asUint64%modulo == 0, nil
-}
-
-// getCommitteeLength returns the number of validators in the input committee at the given slot.
-func getCommitteeLength(ctx context.Context, eth2Cl eth2Provider, commIdx eth2p0.CommitteeIndex, slot eth2p0.Slot) (int, error) {
-	epoch, err := epochFromSlot(ctx, eth2Cl, slot)
-	if err != nil {
-		return 0, err
-	}
-
-	comms, err := eth2Cl.BeaconCommitteesAtEpoch(ctx, "head", epoch)
-	if err != nil {
-		return 0, errors.Wrap(err, "get beacon committees at epoch")
-	}
-
-	for _, d := range comms {
-		if d.Index == commIdx {
-			return len(d.Validators), nil
-		}
-	}
-
-	return 0, errors.New("committee not found", z.I64("slot", int64(slot)), z.I64("committee_index", int64(commIdx)))
-}
-
-// epochFromSlot returns the epoch corresponding to the input slot.
-func epochFromSlot(ctx context.Context, eth2Cl eth2Provider, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, errors.Wrap(err, "get slots per epoch")
-	}
-
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }

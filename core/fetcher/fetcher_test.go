@@ -126,19 +126,12 @@ func TestFetchAggregator(t *testing.T) {
 		int64(attB.Data.Index): attB,
 	}
 	signedCommSubByPubKey := map[core.PubKey]core.SignedData{
-		pubkeysByIdx[vIdxA]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxA, slot, int(attA.Data.Index)),
-		pubkeysByIdx[vIdxB]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxB, slot, int(attB.Data.Index)),
+		pubkeysByIdx[vIdxA]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxA, slot, int(attA.Data.Index), commLen),
+		pubkeysByIdx[vIdxB]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxB, slot, int(attB.Data.Index), commLen),
 	}
 
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
-
-	bmock.BeaconCommitteesAtEpochFunc = func(_ context.Context, _ string, _ eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
-		return []*eth2v1.BeaconCommittee{
-			beaconCommittee(attA.Data.Index, commLen),
-			beaconCommittee(attB.Data.Index, commLen),
-		}, nil
-	}
 
 	bmock.AggregateAttestationFunc = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
 		if nilAggregate {
@@ -195,7 +188,7 @@ func TestFetchAggregator(t *testing.T) {
 		var isAgg bool
 		for _, vIdx := range []int{vIdxA, vIdxB} {
 			sub := signedCommSubByPubKey[pubkeysByIdx[eth2p0.ValidatorIndex(vIdx)]].(core.SignedBeaconCommitteeSubscription)
-			resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &sub.BeaconCommitteeSubscription)
+			resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &sub.BeaconCommitteeSubscription, sub.CommitteeLength)
 			require.NoError(t, err)
 
 			if resp.IsAggregator {

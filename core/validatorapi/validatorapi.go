@@ -636,7 +636,17 @@ func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, sub
 			psigsBySlot[sub.Slot] = make(core.ParSignedDataSet)
 		}
 
-		psigsBySlot[sub.Slot][pubkey] = core.NewPartialSignedBeaconCommitteeSubscription(sub, c.shareIdx)
+		// Fetch attester duty which contains committee length for cheap calculation of is_aggregator.
+		def, err := c.dutyDefFunc(ctx, core.NewAttesterDuty(int64(sub.Slot)))
+		if err != nil {
+			return nil, err
+		}
+		duty, ok := def[pubkey].(core.AttesterDefinition)
+		if !ok {
+			return nil, errors.New("invalid attester definition")
+		}
+
+		psigsBySlot[sub.Slot][pubkey] = core.NewPartialSignedBeaconCommitteeSubscription(sub, duty.CommitteeLength, c.shareIdx)
 	}
 
 	for slot, data := range psigsBySlot {
@@ -959,7 +969,7 @@ func (c Component) getCommResponse(ctx context.Context, psigsBySlot map[eth2p0.S
 				return nil, errors.New("invalid beacon committee subscription")
 			}
 
-			res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, c.eth2Cl, &sub.BeaconCommitteeSubscription)
+			res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, c.eth2Cl, &sub.BeaconCommitteeSubscription, sub.CommitteeLength)
 			if err != nil {
 				return nil, err
 			}

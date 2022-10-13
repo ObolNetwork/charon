@@ -159,7 +159,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		// Ignore error as beacon node probably doesn't support v2 SubmitBeaconCommitteeSubscriptions
 		// endpoint (yet). Just try again with v1.
 
-		res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, b.eth2Cl, &sub.BeaconCommitteeSubscription)
+		res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, b.eth2Cl, &sub.BeaconCommitteeSubscription, sub.CommitteeLength)
 		if err != nil {
 			return err
 		}

@@ -698,14 +698,17 @@ func (s SignedRandao) clone() (SignedRandao, error) {
 }
 
 // NewBeaconCommitteeSubscription is a convenience function which returns new signed BeaconCommitteeSubscription.
-func NewBeaconCommitteeSubscription(sub *eth2exp.BeaconCommitteeSubscription) SignedBeaconCommitteeSubscription {
-	return SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *sub}
+func NewBeaconCommitteeSubscription(sub *eth2exp.BeaconCommitteeSubscription, committeeLength uint64) SignedBeaconCommitteeSubscription {
+	return SignedBeaconCommitteeSubscription{
+		BeaconCommitteeSubscription: *sub,
+		CommitteeLength:             committeeLength,
+	}
 }
 
 // NewPartialSignedBeaconCommitteeSubscription is a convenience function which returns new partially signed BeaconCommitteeSubscription.
-func NewPartialSignedBeaconCommitteeSubscription(sub *eth2exp.BeaconCommitteeSubscription, shareIdx int) ParSignedData {
+func NewPartialSignedBeaconCommitteeSubscription(sub *eth2exp.BeaconCommitteeSubscription, committeeLength uint64, shareIdx int) ParSignedData {
 	return ParSignedData{
-		SignedData: NewBeaconCommitteeSubscription(sub),
+		SignedData: NewBeaconCommitteeSubscription(sub, committeeLength),
 		ShareIdx:   shareIdx,
 	}
 }
@@ -713,6 +716,7 @@ func NewPartialSignedBeaconCommitteeSubscription(sub *eth2exp.BeaconCommitteeSub
 // SignedBeaconCommitteeSubscription is a Signed BeaconCommitteeSubscription which implements SignedData.
 type SignedBeaconCommitteeSubscription struct {
 	eth2exp.BeaconCommitteeSubscription
+	CommitteeLength uint64
 }
 
 func (s SignedBeaconCommitteeSubscription) Signature() Signature {

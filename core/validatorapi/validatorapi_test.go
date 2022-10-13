@@ -1349,7 +1349,9 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, eth2Pubkey, pubkey)
 
-		return core.NewBeaconCommitteeSubscription(&eth2exp.BeaconCommitteeSubscription{SlotSignature: agg.Message.SelectionProof}), nil
+		return core.NewBeaconCommitteeSubscription(
+			&eth2exp.BeaconCommitteeSubscription{SlotSignature: agg.Message.SelectionProof},
+			0), nil
 	})
 
 	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
