@@ -41,7 +41,9 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 			ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
 			defer cancel()
 
-			printFlags(ctx, cmd.Flags())
+			if err := printFlags(ctx, cmd.Flags()); err != nil {
+				return err
+			}
 
 			return runFunc(ctx, conf)
 		},

@@ -32,7 +32,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -59,7 +58,9 @@ func newBootnodeCmd(runFunc func(context.Context, BootnodeConfig) error) *cobra.
 		Long:  `Starts a discv5 bootnode that charon nodes can use to bootstrap their p2p cluster`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			printFlags(cmd.Context(), cmd.Flags())
+			if err := printFlags(cmd.Context(), cmd.Flags()); err != nil {
+				return err
+			}
 
 			return runFunc(cmd.Context(), config)
 		},
@@ -90,12 +91,6 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 	defer cancel()
 
 	ctx = log.WithTopic(ctx, "bootnode")
-
-	if err := log.InitLogger(config.LogConfig); err != nil {
-		return err
-	}
-
-	version.LogInfo(ctx, "Charon bootnode starting")
 
 	key, err := p2p.LoadPrivKey(config.DataDir)
 	if errors.Is(err, os.ErrNotExist) {

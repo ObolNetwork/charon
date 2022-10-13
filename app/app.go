@@ -123,9 +123,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}()
 
 	_, _ = maxprocs.Set()
-	if err := log.InitLogger(conf.Log); err != nil {
-		return err
-	}
 
 	if err := featureset.Init(ctx, conf.Feature); err != nil {
 		return err
