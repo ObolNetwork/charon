@@ -146,9 +146,19 @@ func titledHelp(cmd *cobra.Command) {
 }
 
 // printFlags INFO logs all the given flags in alphabetical order.
-func printFlags(ctx context.Context, flags *pflag.FlagSet) error {
+func printFlags(ctx context.Context, flags *pflag.FlagSet) {
 	ctx = log.WithTopic(ctx, "cmd")
 
+	var zStrs []z.Field
+	flags.VisitAll(func(flag *pflag.Flag) {
+		zStrs = append(zStrs, z.Str(flag.Name, flag.Value.String()))
+	})
+
+	log.Info(ctx, "Parsed config", zStrs...)
+}
+
+// initLogger initialises logger based on provided log config flags.
+func initLogger(flags *pflag.FlagSet) error {
 	logLevel := flags.Lookup("log-level")
 	logFmt := flags.Lookup("log-format")
 
@@ -161,13 +171,6 @@ func printFlags(ctx context.Context, flags *pflag.FlagSet) error {
 			return err
 		}
 	}
-
-	var zStrs []z.Field
-	flags.VisitAll(func(flag *pflag.Flag) {
-		zStrs = append(zStrs, z.Str(flag.Name, flag.Value.String()))
-	})
-
-	log.Info(ctx, "Parsed config", zStrs...)
 
 	return nil
 }
