@@ -16,7 +16,6 @@
 package log_test
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"testing"
@@ -35,105 +34,110 @@ import (
 
 //go:generate go test . -update -clean
 
+func TestWithTopic(t *testing.T) {
+	testLoggers(t, func(*testing.T) {
+		ctx := log.WithTopic(context.Background(), "topic")
+		log.Debug(ctx, "msg1", z.Int("ctx1", 1))
+		log.Info(ctx, "msg2", z.Int("ctx2", 2))
+	})
+}
+
 func TestWithContext(t *testing.T) {
-	buf := setup(t)
+	testLoggers(t, func(*testing.T) {
+		ctx1 := context.Background()
+		ctx2 := log.WithCtx(ctx1, z.Int("wrap2", 2))
+		ctx3a := log.WithCtx(ctx2, z.Str("wrap3", "a"))
+		ctx3b := log.WithCtx(ctx2, z.Str("wrap3", "b")) // Should override ctx3a field of same name.
 
-	ctx1 := context.Background()
-	ctx2 := log.WithCtx(ctx1, z.Int("wrap2", 2))
-	ctx3a := log.WithCtx(ctx2, z.Str("wrap3", "a"))
-	ctx3b := log.WithCtx(ctx2, z.Str("wrap3", "b")) // Should override ctx3a field of same name.
-
-	log.Debug(ctx1, "msg1", z.Int("ctx1", 1))
-	log.Info(ctx2, "msg2", z.Int("ctx2", 2))
-	log.Warn(ctx3a, "msg3a", nil)
-	log.Warn(ctx3b, "msg3b", nil)
-
-	testutil.RequireGoldenBytes(t, buf.Bytes())
+		log.Debug(ctx1, "msg1", z.Int("ctx1", 1))
+		log.Info(ctx2, "msg2", z.Int("ctx2", 2))
+		log.Warn(ctx3a, "msg3a", nil)
+		log.Warn(ctx3b, "msg3b", nil)
+	})
 }
 
 func TestErrorWrap(t *testing.T) {
-	buf := setup(t)
+	testLoggers(t, func(*testing.T) {
+		err1 := errors.New("first", z.Int("1", 1))
+		err2 := errors.Wrap(err1, "second", z.Uint("2", 2))
+		err3 := errors.Wrap(err2, "third", z.F64("3", 3))
 
-	err1 := errors.New("first", z.Int("1", 1))
-	err2 := errors.Wrap(err1, "second", z.Uint("2", 2))
-	err3 := errors.Wrap(err2, "third", z.F64("3", 3))
-
-	ctx := context.Background()
-	log.Warn(ctx, "err1", err1)
-	log.Error(ctx, "err2", err2)
-	log.Error(ctx, "err3", err3)
-
-	testutil.RequireGoldenBytes(t, buf.Bytes())
+		ctx := context.Background()
+		log.Warn(ctx, "err1", err1)
+		log.Error(ctx, "err2", err2)
+		log.Error(ctx, "err3", err3)
+	})
 }
 
 func TestErrorWrapOther(t *testing.T) {
-	buf := setup(t)
+	testLoggers(t, func(*testing.T) {
+		err1 := io.EOF
+		err2 := errors.Wrap(err1, "wrap")
 
-	err1 := io.EOF
-	err2 := errors.Wrap(err1, "wrap")
-
-	ctx := context.Background()
-	log.Error(ctx, "err1", err1)
-	log.Error(ctx, "err2", err2)
-
-	testutil.RequireGoldenBytes(t, buf.Bytes())
+		ctx := context.Background()
+		log.Error(ctx, "err1", err1)
+		log.Error(ctx, "err2", err2)
+	})
 }
 
 func TestCopyFields(t *testing.T) {
-	buf := setup(t)
+	testLoggers(t, func(t *testing.T) {
+		t.Helper()
+		ctx1, cancel := context.WithCancel(context.Background())
+		ctx1 = log.WithCtx(ctx1, z.Str("source", "source"))
+		ctx2 := log.CopyFields(context.Background(), ctx1)
 
-	ctx1, cancel := context.WithCancel(context.Background())
-	ctx1 = log.WithCtx(ctx1, z.Str("source", "source"))
-	ctx2 := log.CopyFields(context.Background(), ctx1)
+		cancel()
+		require.Error(t, ctx1.Err())
+		require.NoError(t, ctx2.Err())
 
-	cancel()
-	require.Error(t, ctx1.Err())
-	require.NoError(t, ctx2.Err())
-
-	log.Info(ctx1, "see source")
-	log.Info(ctx2, "also source")
-
-	testutil.RequireGoldenBytes(t, buf.Bytes())
+		log.Info(ctx1, "see source")
+		log.Info(ctx2, "also source")
+	})
 }
 
 func TestFilterDefault(t *testing.T) {
-	buf := setup(t)
+	testLoggers(t, func(*testing.T) {
+		ctx := context.Background()
 
-	ctx := context.Background()
-
-	filter := log.Filter() // Default limit allows 1 per hour
-	log.Info(ctx, "expect", filter)
-	log.Info(ctx, "dropped", filter)
-	log.Info(ctx, "dropped", filter)
-
-	testutil.RequireGoldenBytes(t, buf.Bytes())
+		filter := log.Filter() // Default limit allows 1 per hour
+		log.Info(ctx, "expect", filter)
+		log.Info(ctx, "dropped", filter)
+		log.Info(ctx, "dropped", filter)
+	})
 }
 
 func TestFilterNone(t *testing.T) {
-	buf := setup(t)
+	testLoggers(t, func(*testing.T) {
+		ctx := context.Background()
 
-	ctx := context.Background()
-
-	filter := log.Filter(log.WithFilterRateLimit(rate.Inf)) // Infinite rate limit allows all.
-	log.Info(ctx, "expect1", filter)
-	log.Info(ctx, "expect2", filter)
-	log.Info(ctx, "expect3", filter)
-	log.Info(ctx, "expect4", filter)
-
-	testutil.RequireGoldenBytes(t, buf.Bytes())
+		filter := log.Filter(log.WithFilterRateLimit(rate.Inf)) // Infinite rate limit allows all.
+		log.Info(ctx, "expect1", filter)
+		log.Info(ctx, "expect2", filter)
+		log.Info(ctx, "expect3", filter)
+		log.Info(ctx, "expect4", filter)
+	})
 }
 
-// setup returns a buffer that logs are written to and stubs non-deterministic logging fields.
-func setup(t *testing.T) *bytes.Buffer {
+func testLoggers(t *testing.T, testFunc func(t *testing.T)) {
 	t.Helper()
 
-	var buf zaptest.Buffer
+	loggers := map[string]func(_ *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)){
+		"console": log.InitConsoleForT,
+		"logfmt":  log.InitLogfmtForT,
+		"json":    log.InitJSONForT,
+	}
 
-	log.InitLoggerForT(t, &buf, func(config *zapcore.EncoderConfig) {
-		config.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-			enc.AppendString("00:00")
-		}
-	})
-
-	return &buf.Buffer
+	for name, initFunc := range loggers {
+		t.Run(name, func(t *testing.T) {
+			var buf zaptest.Buffer
+			initFunc(t, &buf, func(config *zapcore.EncoderConfig) {
+				config.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+					enc.AppendString("00:00")
+				}
+			})
+			testFunc(t)
+			testutil.RequireGoldenBytes(t, buf.Bytes())
+		})
+	}
 }
