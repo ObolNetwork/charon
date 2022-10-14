@@ -33,9 +33,9 @@ import (
 )
 
 const (
-	padLength  = 40
-	stackField = "stacktrace"
-	topicField = "topic"
+	padLength = 40
+	keyStack  = "stacktrace"
+	keyTopic  = "topic"
 )
 
 // logger is the global logger.
@@ -80,7 +80,10 @@ func InitLogger(config Config) error {
 		return err
 	}
 
-	writer, _, _ := zap.Open("stderr")
+	writer, _, err := zap.Open("stderr")
+	if err != nil {
+		return errors.Wrap(err, "open writer")
+	}
 
 	if config.Format == "console" {
 		logger = newConsoleLogger(level, writer)
@@ -209,7 +212,7 @@ func (e structuredEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*
 	fields = append(fields, zap.String("pretty", pretty.String()))
 
 	for i, f := range fields {
-		if f.Key == stackField {
+		if f.Key == keyStack {
 			fields[i].String = formatZapStack(f.String)
 			ent.Stack = ""
 
@@ -234,7 +237,7 @@ func (e consoleEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*buf
 	filtered := make([]zap.Field, 0, len(fields))
 
 	for _, f := range fields {
-		if f.Key == stackField {
+		if f.Key == keyStack {
 			if e.stacktrace {
 				ent.Stack = formatZapStack(f.String)
 			}
@@ -242,7 +245,7 @@ func (e consoleEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*buf
 			continue
 		}
 
-		if f.Key == topicField {
+		if f.Key == keyTopic {
 			const green = uint8(32)
 
 			topic := (f.String + "          ")[:10] // Align topic spacing.

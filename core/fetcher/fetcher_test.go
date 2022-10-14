@@ -386,20 +386,3 @@ func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block co
 		require.Fail(t, "invalid block")
 	}
 }
-
-// beaconCommittee returns a BeaconCommittee with the given committee index and a list of commLen validator indexes.
-func beaconCommittee(commIdx eth2p0.CommitteeIndex, commLen int) *eth2v1.BeaconCommittee {
-	var (
-		slot = eth2p0.Slot(1)
-		vals []eth2p0.ValidatorIndex
-	)
-	for idx := 1; idx <= commLen; idx++ {
-		vals = append(vals, eth2p0.ValidatorIndex(idx))
-	}
-
-	return &eth2v1.BeaconCommittee{
-		Slot:       slot,
-		Index:      commIdx,
-		Validators: vals,
-	}
-}
