@@ -61,9 +61,12 @@ func TestEncode(t *testing.T) {
 					},
 				},
 				rand.New(rand.NewSource(0)),
+				func(d *cluster.Definition) {
+					d.Version = version
+					d.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
+				},
 			)
 			require.NoError(t, err)
-			definition.Version = version
 
 			// Definition version prior to v1.3.0 don't support EIP712 signatures.
 			if version == "v1.0.0" || version == "v1.1.0" || version == "v1.2.0" {
@@ -73,8 +76,6 @@ func TestEncode(t *testing.T) {
 					definition.Operators[i].ENRSignature = []byte{}
 				}
 			}
-
-			definition.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
 
 			t.Run("definition_json_"+vStr, func(t *testing.T) {
 				testutil.RequireGoldenJSON(t, definition,

@@ -142,7 +142,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 
 		var lock cluster.Lock
 		require.NoError(t, json.Unmarshal(b, &lock))
-
+		require.NoError(t, lock.VerifyHashes())
 		require.NoError(t, lock.VerifySignatures())
 	})
 }

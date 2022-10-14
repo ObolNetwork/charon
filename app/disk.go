@@ -16,15 +16,17 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 )
 
 // loadLock reads the cluster lock from the given file path.
-func loadLock(conf Config) (cluster.Lock, error) {
+func loadLock(ctx context.Context, conf Config) (cluster.Lock, error) {
 	if conf.TestConfig.Lock != nil {
 		return *conf.TestConfig.Lock, nil
 	}
@@ -34,11 +36,23 @@ func loadLock(conf Config) (cluster.Lock, error) {
 		return cluster.Lock{}, errors.Wrap(err, "read lock")
 	}
 
-	var res cluster.Lock
-	err = json.Unmarshal(buf, &res)
+	var lock cluster.Lock
+	err = json.Unmarshal(buf, &lock)
 	if err != nil {
 		return cluster.Lock{}, errors.Wrap(err, "unmarshal lock")
 	}
 
-	return res, nil
+	if err := lock.VerifyHashes(); err != nil && !conf.NoVerify {
+		return cluster.Lock{}, errors.Wrap(err, "cluster lock hash verification failed. Run with --no-verify to bypass verification at own risk")
+	} else if err != nil && conf.NoVerify {
+		log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
+	}
+
+	if err := lock.VerifySignatures(); err != nil && !conf.NoVerify {
+		return cluster.Lock{}, errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
+	} else if err != nil && conf.NoVerify {
+		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
+	}
+
+	return lock, nil
 }

@@ -116,14 +116,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 
 	def, err := NewDefinition("test cluster", dv, k,
 		testutil.RandomETHAddress(), testutil.RandomETHAddress(),
-		"0x00000000", ops, random)
-	require.NoError(t, err)
-
-	for _, opt := range opts {
-		opt(&def)
-	}
-
-	def, err = def.SetDefinitionHashes()
+		"0x00000000", ops, random, opts...)
 	require.NoError(t, err)
 
 	// Definition version prior to v1.3.0 don't support EIP712 signatures.
@@ -132,6 +125,10 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 			def.Operators[i], err = signOperator(p2pKeys[i], def, def.Operators[i])
 			require.NoError(t, err)
 		}
+
+		// Recalculate definition hash after adding signatures.
+		def, err = def.SetDefinitionHashes()
+		require.NoError(t, err)
 	}
 
 	lock := Lock{

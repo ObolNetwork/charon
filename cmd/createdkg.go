@@ -141,14 +141,20 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		return err
 	}
 
-	def, err := cluster.NewDefinition(conf.Name, conf.NumValidators, conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddress,
-		forkVersion, operators, crand.Reader)
+	def, err := cluster.NewDefinition(
+		conf.Name, conf.NumValidators, conf.Threshold,
+		conf.FeeRecipient, conf.WithdrawalAddress,
+		forkVersion, operators, crand.Reader,
+		func(d *cluster.Definition) {
+			d.DKGAlgorithm = conf.DKGAlgo
+		})
 	if err != nil {
 		return err
 	}
 
-	def.DKGAlgorithm = conf.DKGAlgo
-
+	if err := def.VerifyHashes(); err != nil {
+		return err
+	}
 	if err := def.VerifySignatures(); err != nil {
 		return err
 	}

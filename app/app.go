@@ -137,15 +137,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	lock, err := loadLock(conf)
+	lock, err := loadLock(ctx, conf)
 	if err != nil {
 		return err
-	}
-
-	if err := lock.VerifySignatures(); err != nil && !conf.NoVerify {
-		return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
-	} else if err != nil && conf.NoVerify {
-		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
 	}
 
 	lockHashHex := hex.EncodeToString(lock.LockHash)[:7]

@@ -97,15 +97,6 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		return errors.New("unsupported version")
 	}
 
-	hash, err := hashLock(lock)
-	if err != nil {
-		return errors.Wrap(err, "hash lock")
-	}
-
-	if !bytes.Equal(lock.LockHash, hash[:]) {
-		return errors.New("invalid lock hash")
-	}
-
 	*l = lock
 
 	return nil
@@ -121,6 +112,24 @@ func (l Lock) SetLockHash() (Lock, error) {
 	l.LockHash = lockHash[:]
 
 	return l, nil
+}
+
+// VerifyHashes returns an error if hashes populated from json object doesn't matches actual hashes.
+func (l Lock) VerifyHashes() error {
+	if err := l.Definition.VerifyHashes(); err != nil {
+		return errors.Wrap(err, "invalid definition")
+	}
+
+	lockHash, err := hashLock(l)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(l.LockHash, lockHash[:]) {
+		return errors.New("invalid lock hash")
+	}
+
+	return nil
 }
 
 // VerifySignatures returns true if all config signatures are fully populated and valid.
