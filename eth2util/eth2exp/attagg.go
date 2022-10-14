@@ -32,10 +32,7 @@ import (
 )
 
 type eth2Provider interface {
-	eth2client.BeaconCommitteesProvider
-	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
-	eth2client.AttesterDutiesProvider
 }
 
 // BeaconCommitteeSubscriptionsSubmitterV2 is the interface for submitting beacon committee subnet subscription requests.

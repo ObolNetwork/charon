@@ -96,7 +96,6 @@ type Client interface {
 		"AttesterDutiesProvider":                true,
 		"BeaconBlockProposalProvider":           true,
 		"BeaconBlockSubmitter":                  true,
-		"BeaconCommitteesProvider":              true,
 		"BeaconCommitteeSubscriptionsSubmitter": true,
 		"BlindedBeaconBlockProposalProvider":    true,
 		"BlindedBeaconBlockSubmitter":           true,

@@ -44,7 +44,6 @@ type Client interface {
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
-	eth2client.BeaconCommitteesProvider
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.DepositContractProvider
@@ -139,46 +138,6 @@ func (m multi) DepositContract(ctx context.Context) (*apiv1.DepositContract, err
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*apiv1.DepositContract, error) {
 			return cl.DepositContract(ctx)
-		},
-		nil,
-	)
-
-	if err != nil {
-		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
-	}
-
-	return res0, err
-}
-
-// BeaconCommittees fetches all beacon committees for the epoch at the given state.
-func (m multi) BeaconCommittees(ctx context.Context, stateID string) ([]*apiv1.BeaconCommittee, error) {
-	const label = "beacon_committees"
-	defer latency(label)()
-
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*apiv1.BeaconCommittee, error) {
-			return cl.BeaconCommittees(ctx, stateID)
-		},
-		nil,
-	)
-
-	if err != nil {
-		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
-	}
-
-	return res0, err
-}
-
-// BeaconCommitteesAtEpoch fetches all beacon committees for the given epoch at the given state.
-func (m multi) BeaconCommitteesAtEpoch(ctx context.Context, stateID string, epoch phase0.Epoch) ([]*apiv1.BeaconCommittee, error) {
-	const label = "beacon_committees_at_epoch"
-	defer latency(label)()
-
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*apiv1.BeaconCommittee, error) {
-			return cl.BeaconCommitteesAtEpoch(ctx, stateID, epoch)
 		},
 		nil,
 	)

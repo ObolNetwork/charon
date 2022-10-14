@@ -125,10 +125,16 @@ func TestFetchAggregator(t *testing.T) {
 		int64(attA.Data.Index): attA,
 		int64(attB.Data.Index): attB,
 	}
-	signedCommSubByPubKey := map[core.PubKey]core.SignedData{
-		pubkeysByIdx[vIdxA]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxA, slot, int(attA.Data.Index), commLen),
-		pubkeysByIdx[vIdxB]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxB, slot, int(attB.Data.Index), commLen),
+
+	var signedCommSubByPubKey map[core.PubKey]core.SignedData
+
+	setSelections := func(commLen int) {
+		signedCommSubByPubKey = map[core.PubKey]core.SignedData{
+			pubkeysByIdx[vIdxA]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxA, slot, int(attA.Data.Index), commLen),
+			pubkeysByIdx[vIdxB]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxB, slot, int(attB.Data.Index), commLen),
+		}
 	}
+	setSelections(commLen)
 
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
@@ -185,6 +191,8 @@ func TestFetchAggregator(t *testing.T) {
 	// First find a committee length that results in eth2exp.CalculateCommitteeSubscriptionResponse to return IsAggregator=false
 	var foundNoAggLen bool
 	for commLen = 1000; commLen < 1200; commLen++ {
+		setSelections(commLen)
+
 		var isAgg bool
 		for _, vIdx := range []int{vIdxA, vIdxB} {
 			sub := signedCommSubByPubKey[pubkeysByIdx[eth2p0.ValidatorIndex(vIdx)]].(core.SignedBeaconCommitteeSubscription)
@@ -208,7 +216,7 @@ func TestFetchAggregator(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test nil, nil AggregateAttestation response.
-	commLen = 0
+	setSelections(0)
 	nilAggregate = true
 
 	err = fetch.Fetch(ctx, duty, defSet)
