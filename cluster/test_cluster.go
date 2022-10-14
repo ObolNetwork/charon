@@ -132,6 +132,9 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 			def.Operators[i], err = signOperator(p2pKeys[i], def, def.Operators[i])
 			require.NoError(t, err)
 		}
+
+		def, err = def.SetDefinitionHashes()
+		require.NoError(t, err)
 	}
 
 	lock := Lock{

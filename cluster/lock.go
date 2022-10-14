@@ -123,6 +123,24 @@ func (l Lock) SetLockHash() (Lock, error) {
 	return l, nil
 }
 
+// VerifyHashes returns an error if hashes populated from json object doesn't matches actual hashes.
+func (l Lock) VerifyHashes() error {
+	if err := l.Definition.VerifyHashes(); err != nil {
+		return errors.Wrap(err, "invalid definition")
+	}
+
+	lockHash, err := hashLock(l)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(l.LockHash, lockHash[:]) {
+		return errors.New("invalid lock hash")
+	}
+
+	return nil
+}
+
 // VerifySignatures returns true if all config signatures are fully populated and valid.
 // A verified lock is ready for use in charon run.
 func (l Lock) VerifySignatures() error {
