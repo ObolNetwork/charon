@@ -591,7 +591,7 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
-      "description": "Shows the number of times each peer participated in a duty by type.\n\nAlso shows P2P connectedness and latency.",
+      "description": "- **Peer**: The peer's name (inferred from their *charon-enr-private-key*)\n- **You**: ⭐️ is this local charon node\n- **Connected**: Whether you are currently connected to this peer.\n- **Direct**: Whether the connection is *direct* (👍) or *relay* (👎) \n- **Latency**: The time messages take to travel to/from the peer.\n- **ClockDiff**: Difference between local and peer's clock time. More than 2s is bad.\n- **Attest**: Number of attestation duties performed in the time window.\n- **PrepareAgg**: Number of aggregation preparation duties performed in the time window.\n- **Aggregate**: Number of aggregations  duties performed in the time window.\n- **Propose**: Number of block proposal duties performed in the time window.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -718,6 +718,10 @@
                     "type": "value"
                   }
                 ]
+              },
+              {
+                "id": "custom.width",
+                "value": 60
               }
             ]
           },
@@ -768,18 +772,54 @@
               {
                 "id": "custom.width",
                 "value": 55
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 0,
+                        "text": "--"
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "from": 1,
+                      "result": {
+                        "index": 1,
+                        "text": "👎"
+                      },
+                      "to": 9
+                    },
+                    "type": "range"
+                  },
+                  {
+                    "options": {
+                      "from": 10,
+                      "result": {
+                        "index": 2,
+                        "text": "👍"
+                      },
+                      "to": 1000
+                    },
+                    "type": "range"
+                  }
+                ]
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Relay"
+              "options": "Peer"
             },
             "properties": [
               {
                 "id": "custom.width",
-                "value": 55
+                "value": 150
               }
             ]
           }
@@ -958,31 +998,16 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max(p2p_peer_connection_types{job=\"$node\",type=\"direct\"}) by (peer)",
+          "expr": "(max(p2p_peer_connection_types{job=\"$node\",type=\"direct\"}) by (peer)*10 + \nmax(p2p_peer_connection_types{job=\"$node\",type=\"relay\"}) by (peer))",
           "format": "table",
           "hide": false,
           "instant": true,
           "legendFormat": "",
           "range": false,
           "refId": "K"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "max(p2p_peer_connection_types{job=\"$node\",type=\"relay\"}) by (peer)",
-          "format": "table",
-          "hide": false,
-          "instant": true,
-          "legendFormat": "",
-          "range": false,
-          "refId": "L"
         }
       ],
-      "title": "Peer Participation",
+      "title": "Peer Connectivity and Duty Participation",
       "transformations": [
         {
           "id": "seriesToColumns",
@@ -1298,7 +1323,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1430,7 +1456,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1522,7 +1549,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
