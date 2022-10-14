@@ -78,9 +78,6 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 		return nil, errors.Wrap(err, "new libp2p node")
 	}
 
-	// Register debug logger.
-	tcpNode.Network().Notify(debugLogger{ctx: log.WithTopic(context.Background(), "p2p")})
-
 	return tcpNode, nil
 }
 
@@ -137,44 +134,104 @@ func (f peerRoutingFunc) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo
 	return f(ctx, p)
 }
 
-// debugLogger implements network.Notifee and does debug logging.
-type debugLogger struct {
-	ctx context.Context
-}
-
-func (n debugLogger) Listen(_ network.Network, addr ma.Multiaddr) {
-	log.Debug(n.ctx, "Libp2p listening on address", z.Str("address", NamedAddr(addr)))
-}
-
-func (debugLogger) ListenClose(network.Network, ma.Multiaddr) {}
-
-func (n debugLogger) Connected(_ network.Network, conn network.Conn) {
-	name := PeerName(conn.RemotePeer())
-	addr := conn.RemoteMultiaddr()
-	typ := addrType(addr)
-	peerConnGauge.WithLabelValues(name, typ).Inc()
-
-	// Ensure both connection type metrics are initiated
-	peerConnGauge.WithLabelValues(name, addrTypeDirect).Add(0)
-	peerConnGauge.WithLabelValues(name, addrTypeRelay).Add(0)
-
-	log.Debug(n.ctx, "Libp2p new connection",
-		z.Str("peer", name),
-		z.Any("peer_address", NamedAddr(addr)),
-		z.Any("direction", conn.Stat().Direction),
-		z.Str("type", typ),
+// RegisterConnectionLogger registers a connection logger with the host.
+// This is pretty weird and hacky, but that is because libp2p uses the network.Notifiee interface as a map key,
+// so the implementation can only contain fields that are hashable. So we use a channel and do the logic externally. :(.
+func RegisterConnectionLogger(tcpNode host.Host, peerIDs []peer.ID) {
+	var (
+		peers  = make(map[peer.ID]bool)
+		events = make(chan logEvent)
 	)
+
+	for _, p := range peerIDs {
+		peers[p] = true
+	}
+
+	tcpNode.Network().Notify(connLogger{
+		events: events,
+	})
+
+	go func() {
+		ctx := log.WithTopic(context.Background(), "p2p")
+		for e := range events {
+			addr := NamedAddr(e.Addr)
+			name := PeerName(e.Peer)
+			typ := addrType(e.Addr)
+
+			if e.Listen {
+				log.Debug(ctx, "Libp2p listening on address", z.Str("address", addr))
+				continue
+			} else if e.Connected {
+				log.Debug(ctx, "Libp2p new connection",
+					z.Str("peer", name),
+					z.Any("peer_address", addr),
+					z.Any("direction", e.Direction),
+					z.Str("type", typ),
+				)
+			}
+
+			if !peers[e.Peer] {
+				// Do not instrument relays.
+				continue
+			}
+
+			if e.Connected {
+				peerConnGauge.WithLabelValues(name, addrType(e.Addr)).Inc()
+			} else if e.Disconnect {
+				peerConnGauge.WithLabelValues(name, addrType(e.Addr)).Dec()
+			}
+
+			// Ensure both connection type metrics are initiated
+			peerConnGauge.WithLabelValues(name, addrTypeDirect).Add(0)
+			peerConnGauge.WithLabelValues(name, addrTypeRelay).Add(0)
+		}
+	}()
 }
 
-func (debugLogger) Disconnected(_ network.Network, conn network.Conn) {
-	name := PeerName(conn.RemotePeer())
-	typ := addrType(conn.RemoteMultiaddr())
-	peerConnGauge.WithLabelValues(name, typ).Dec()
+type logEvent struct {
+	Peer       peer.ID
+	Addr       ma.Multiaddr
+	Direction  network.Direction
+	Connected  bool
+	Disconnect bool
+	Listen     bool
+}
+
+// connLogger implements network.Notifee and only sends logEvents on a channel since
+// it is used as a map key internally in libp2p, it cannot contain complex types.
+type connLogger struct {
+	events chan logEvent
+}
+
+func (l connLogger) Listen(_ network.Network, addr ma.Multiaddr) {
+	l.events <- logEvent{
+		Addr:   addr,
+		Listen: true,
+	}
+}
+
+func (connLogger) ListenClose(network.Network, ma.Multiaddr) {}
+
+func (l connLogger) Connected(_ network.Network, conn network.Conn) {
+	l.events <- logEvent{
+		Peer:      conn.RemotePeer(),
+		Addr:      conn.RemoteMultiaddr(),
+		Direction: conn.Stat().Direction,
+		Connected: true,
+	}
+}
+
+func (l connLogger) Disconnected(_ network.Network, conn network.Conn) {
+	l.events <- logEvent{
+		Peer:       conn.RemotePeer(),
+		Addr:       conn.RemoteMultiaddr(),
+		Disconnect: true,
+	}
 }
 
 var (
 	_ routing.PeerRouting = peerRoutingFunc(nil) // interface assertion
-	_ network.Notifiee    = debugLogger{}
+	_ network.Notifiee    = connLogger{}
 )
 
 // addrType returns 'direct' or 'relay' based on whether the address contains a relay.

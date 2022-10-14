@@ -161,6 +161,8 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 			return
 		}
 
+		p2p.RegisterConnectionLogger(tcpNode, nil)
+
 		// Reservations are valid for 30min (github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay/constraints.go:14)
 		relayResources := relay.DefaultResources()
 		relayResources.MaxReservationsPerPeer = config.MaxResPerPeer
