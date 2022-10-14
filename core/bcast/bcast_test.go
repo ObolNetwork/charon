@@ -303,24 +303,6 @@ func beaconCommitteeSubscriptionV1Data(t *testing.T, mock *beaconmock.Mock) test
 	sig, _ := tbls.Sign(secret, sigData[:])
 	blssig := tblsconv.SigToETH2(sig)
 
-	mock.BeaconCommitteesAtEpochFunc = func(_ context.Context, stateID string, epoch eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
-		require.Equal(t, "head", stateID)
-		require.Equal(t, eth2p0.Epoch(uint64(slot)/slotsPerEpoch), epoch)
-
-		var vals []eth2p0.ValidatorIndex
-		for idx := 1; idx <= commLen; idx++ {
-			vals = append(vals, eth2p0.ValidatorIndex(idx))
-		}
-
-		return []*eth2v1.BeaconCommittee{
-			{
-				Slot:       slot,
-				Index:      commIdx,
-				Validators: vals,
-			},
-		}, nil
-	}
-
 	subscription := eth2exp.BeaconCommitteeSubscription{
 		ValidatorIndex: vIdx,
 		Slot:           slot,
@@ -328,7 +310,10 @@ func beaconCommitteeSubscriptionV1Data(t *testing.T, mock *beaconmock.Mock) test
 		SlotSignature:  blssig,
 	}
 
-	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: subscription}
+	aggData := core.SignedBeaconCommitteeSubscription{
+		BeaconCommitteeSubscription: subscription,
+		CommitteeLength:             commLen,
+	}
 
 	mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
 		require.Equal(t, aggData.BeaconCommitteeSubscription, *subscriptions[0])

@@ -276,25 +276,6 @@ func WithDeterministicAttesterDuties(factor int) Option {
 
 			return resp, nil
 		}
-
-		mock.BeaconCommitteesAtEpochFunc = func(ctx context.Context, stateID string, epoch eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
-			// Duties above uses this number of committees
-			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			var resp []*eth2v1.BeaconCommittee
-			for i := 0; i < int(slotsPerEpoch); i++ {
-				resp = append(resp, &eth2v1.BeaconCommittee{
-					Slot:       0, // TODO(corver): Beacon mock might need to be stateful at some point.
-					Index:      eth2p0.CommitteeIndex(i),
-					Validators: []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(i)},
-				})
-			}
-
-			return resp, nil
-		}
 	}
 }
 
@@ -457,9 +438,6 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return []*eth2v1.ProposerDuty{}, nil
 		},
 		BeaconCommitteesFunc: func(context.Context, string) ([]*eth2v1.BeaconCommittee, error) {
-			return []*eth2v1.BeaconCommittee{}, nil
-		},
-		BeaconCommitteesAtEpochFunc: func(context.Context, string, eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
 			return []*eth2v1.BeaconCommittee{}, nil
 		},
 		AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {

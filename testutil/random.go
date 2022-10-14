@@ -348,7 +348,7 @@ func RandomBeaconCommitteeSubscription() *eth2exp.BeaconCommitteeSubscription {
 }
 
 // RandomSignedBeaconCommitteeSubscription returns a SignedBeaconCommitteeSubscription with the inputs and a random slot signature.
-func RandomSignedBeaconCommitteeSubscription(vIdx, slot, commIdx int) core.SignedBeaconCommitteeSubscription {
+func RandomSignedBeaconCommitteeSubscription(vIdx, slot, commIdx, commLen int) core.SignedBeaconCommitteeSubscription {
 	return core.SignedBeaconCommitteeSubscription{
 		BeaconCommitteeSubscription: eth2exp.BeaconCommitteeSubscription{
 			ValidatorIndex:   eth2p0.ValidatorIndex(vIdx),
@@ -357,6 +357,7 @@ func RandomSignedBeaconCommitteeSubscription(vIdx, slot, commIdx int) core.Signe
 			CommitteesAtSlot: rand.Uint64(),
 			SlotSignature:    RandomEth2Signature(),
 		},
+		CommitteeLength: uint64(commLen),
 	}
 }
 

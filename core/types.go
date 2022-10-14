@@ -229,6 +229,11 @@ const (
 	sigLen = 96
 )
 
+// PubKeyFrom48Bytes returns a new public key from raw bytes.
+func PubKeyFrom48Bytes(bytes [48]byte) PubKey {
+	return PubKey(fmt.Sprintf("%#x", bytes))
+}
+
 // PubKeyFromBytes returns a new public key from raw bytes.
 func PubKeyFromBytes(bytes []byte) (PubKey, error) {
 	pk := PubKey(fmt.Sprintf("%#x", bytes))

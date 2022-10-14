@@ -238,7 +238,7 @@ func TestParSigExVerifier(t *testing.T) {
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainSelectionProof, epoch, sigRoot)
 		require.NoError(t, err)
 		sub.SlotSignature = sign(sigData[:])
-		data := core.NewPartialSignedBeaconCommitteeSubscription(sub, shareIdx)
+		data := core.NewPartialSignedBeaconCommitteeSubscription(sub, 0, shareIdx)
 
 		require.NoError(t, verifyFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey, data))
 	})

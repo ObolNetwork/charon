@@ -1250,7 +1250,8 @@ func TestComponent_SubmitBeaconCommitteeSubscriptionsV2(t *testing.T) {
 		commLen = 43
 	)
 
-	eth2Cl, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	valSet := beaconmock.ValidatorSetA
+	eth2Cl, err := beaconmock.New(beaconmock.WithValidatorSet(valSet))
 	require.NoError(t, err)
 
 	_, secret, err := tbls.KeygenWithSeed(mrand.New(mrand.NewSource(1)))
@@ -1268,24 +1269,6 @@ func TestComponent_SubmitBeaconCommitteeSubscriptionsV2(t *testing.T) {
 	sig, _ := tbls.Sign(secret, sigData[:])
 	blssig := tblsconv.SigToETH2(sig)
 
-	eth2Cl.BeaconCommitteesAtEpochFunc = func(_ context.Context, stateID string, epoch eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
-		require.Equal(t, "head", stateID)
-		require.Equal(t, eth2p0.Epoch(uint64(slot)/slotsPerEpoch), epoch)
-
-		var vals []eth2p0.ValidatorIndex
-		for idx := 1; idx <= commLen; idx++ {
-			vals = append(vals, eth2p0.ValidatorIndex(idx))
-		}
-
-		return []*eth2v1.BeaconCommittee{
-			{
-				Slot:       slot,
-				Index:      commIdx,
-				Validators: vals,
-			},
-		}, nil
-	}
-
 	vapi, err := validatorapi.NewComponentInsecure(t, eth2Cl, 0)
 	require.NoError(t, err)
 
@@ -1298,10 +1281,27 @@ func TestComponent_SubmitBeaconCommitteeSubscriptionsV2(t *testing.T) {
 		},
 	}
 
+	vapi.RegisterGetDutyDefinition(func(_ context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		require.Equal(t, core.NewAttesterDuty(slot), duty)
+		resp := make(core.DutyDefinitionSet)
+		for _, val := range valSet {
+			resp[core.PubKeyFrom48Bytes(val.Validator.PublicKey)] = core.AttesterDefinition{
+				AttesterDuty: eth2v1.AttesterDuty{
+					CommitteeLength: commLen,
+				},
+			}
+		}
+
+		return resp, nil
+	})
+
 	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, _ core.PubKey) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareAggregatorDuty(slot), duty)
 
-		return core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *subs[0]}, nil
+		return core.SignedBeaconCommitteeSubscription{
+			BeaconCommitteeSubscription: *subs[0],
+			CommitteeLength:             commLen,
+		}, nil
 	})
 
 	expected := []*eth2exp.BeaconCommitteeSubscriptionResponse{
@@ -1349,7 +1349,9 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, eth2Pubkey, pubkey)
 
-		return core.NewBeaconCommitteeSubscription(&eth2exp.BeaconCommitteeSubscription{SlotSignature: agg.Message.SelectionProof}), nil
+		return core.NewBeaconCommitteeSubscription(
+			&eth2exp.BeaconCommitteeSubscription{SlotSignature: agg.Message.SelectionProof},
+			0), nil
 	})
 
 	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {

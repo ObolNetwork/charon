@@ -69,24 +69,17 @@ func TestCalculateCommitteeSubscriptionResponse(t *testing.T) {
 	}
 
 	t.Run("aggregator", func(t *testing.T) {
-		commLen := 43
-		bmock.BeaconCommitteesAtEpochFunc = func(_ context.Context, _ string, _ eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
-			return []*eth2v1.BeaconCommittee{beaconCommittee(commLen)}, nil
-		}
-
-		resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &subscription)
+		const commLen uint64 = 43
+		resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &subscription, commLen)
 		require.NoError(t, err)
 		require.Equal(t, resp.ValidatorIndex, subscription.ValidatorIndex)
 		require.True(t, resp.IsAggregator)
 	})
 
 	t.Run("not an aggregator", func(t *testing.T) {
-		commLen := 61
-		bmock.BeaconCommitteesAtEpochFunc = func(_ context.Context, _ string, _ eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error) {
-			return []*eth2v1.BeaconCommittee{beaconCommittee(commLen)}, nil
-		}
+		const commLen uint64 = 61
 
-		resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &subscription)
+		resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &subscription, commLen)
 		require.NoError(t, err)
 		require.Equal(t, resp.ValidatorIndex, subscription.ValidatorIndex)
 		require.False(t, resp.IsAggregator)
