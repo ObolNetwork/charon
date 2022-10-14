@@ -17,13 +17,13 @@ package log
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
@@ -32,10 +32,18 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+const (
+	padLength  = 40
+	stackField = "stacktrace"
+	topicField = "topic"
+)
+
 // logger is the global logger.
 var (
-	logger = newConsoleLogger(zapcore.DebugLevel)
+	logger = newDefaultLogger()
 	initMu sync.Mutex
+
+	padding = strings.Repeat(" ", padLength)
 )
 
 // Config defines the logging configuration.
@@ -72,101 +80,175 @@ func InitLogger(config Config) error {
 		return err
 	}
 
+	writer, _, _ := zap.Open("stderr")
+
 	if config.Format == "console" {
-		logger = newConsoleLogger(level)
+		logger = newConsoleLogger(level, writer)
 		return nil
 	}
 
-	encConfig := zap.NewProductionEncoderConfig()
-	encoder := zapcore.NewJSONEncoder(encConfig)
-	if config.Format == "logfmt" {
-		encConfig.EncodeTime = zapcore.RFC3339NanoTimeEncoder
-		encoder = zaplogfmt.NewEncoder(encConfig)
-	} else if config.Format != "json" {
-		return errors.New("logger format not console, logfmt or json", z.Str("format", config.Format))
+	logger, err = newStructuredLogger(config.Format, level, writer)
+	if err != nil {
+		return err
 	}
-
-	logger = zap.New(
-		zapcore.NewCore(
-			encoder,
-			os.Stderr,
-			zap.NewAtomicLevelAt(level),
-		),
-		zap.WithCaller(true),
-		zap.AddCallerSkip(1),
-	)
 
 	return nil
 }
 
-// InitLoggerForT initialises a console logger for testing purposes.
-func InitLoggerForT(_ *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
-	logger = buildConsoleLogger(zapcore.DebugLevel, ws, opts...)
+// InitConsoleForT initialises a console logger for testing purposes.
+func InitConsoleForT(_ *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
+	initMu.Lock()
+	defer initMu.Unlock()
+	logger = newConsoleLogger(zapcore.DebugLevel, ws, opts...)
 }
 
-func newConsoleLogger(level zapcore.Level) *zap.Logger {
-	writer, _, _ := zap.Open("stderr")
-	return buildConsoleLogger(level, writer)
+// InitJSONForT initialises a json logger for testing purposes.
+func InitJSONForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
+	t.Helper()
+	initMu.Lock()
+	defer initMu.Unlock()
+
+	var err error
+	logger, err = newStructuredLogger("json", zapcore.DebugLevel, ws, opts...)
+	require.NoError(t, err)
 }
 
-// buildConsoleLogger returns an opinionated console logger.
-func buildConsoleLogger(level zapcore.Level, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) *zap.Logger {
-	encConfig := zap.NewDevelopmentEncoderConfig()
-	encConfig.ConsoleSeparator = " "
-	encConfig.EncodeLevel = level4CharEncoder
-	encConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05.000")
+// InitLogfmtForT initialises a logfmt logger for testing purposes.
+func InitLogfmtForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
+	t.Helper()
+	initMu.Lock()
+	defer initMu.Unlock()
+
+	var err error
+	logger, err = newStructuredLogger("logfmt", zapcore.DebugLevel, ws, opts...)
+	require.NoError(t, err)
+}
+
+// newStructuredLogger returns an opinionated logfmt or json logger.
+func newStructuredLogger(format string, level zapcore.Level, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) (*zap.Logger, error) {
+	encConfig := zap.NewProductionEncoderConfig()
+	encConfig.EncodeTime = zapcore.RFC3339NanoTimeEncoder
 
 	for _, opt := range opts {
 		opt(&encConfig)
 	}
 
-	encoder := customEncoder{Encoder: zapcore.NewConsoleEncoder(encConfig)}
+	var encoder zapcore.Encoder
+	switch format {
+	case "logfmt":
+		encoder = zaplogfmt.NewEncoder(encConfig)
+	case "json":
+		encoder = zapcore.NewJSONEncoder(encConfig)
+	default:
+		return nil, errors.New("invalid logger format; not console, logfmt or json", z.Str("format", format))
+	}
+
+	structured := structuredEncoder{
+		Encoder:        encoder,
+		consoleEncoder: newConsoleEncoder(false, true, false),
+	}
 
 	return zap.New(
+		zapcore.NewCore(structured, ws, zap.NewAtomicLevelAt(level)),
+		zap.WithCaller(true),
+		zap.AddCallerSkip(1),
+	), nil
+}
+
+// newDefaultLogger returns an opinionated console logger writing to stderr.
+func newDefaultLogger() *zap.Logger {
+	writer, _, _ := zap.Open("stderr")
+	return newConsoleLogger(zapcore.DebugLevel, writer)
+}
+
+// newConsoleEncoder returns a zap encoder that generates console logs.
+func newConsoleEncoder(timestamp, color, stacktrace bool, opts ...func(*zapcore.EncoderConfig)) zapcore.Encoder {
+	encConfig := zap.NewDevelopmentEncoderConfig()
+	encConfig.ConsoleSeparator = " "
+	encConfig.EncodeLevel = newLevel4CharEncoder(color)
+	if !timestamp {
+		encConfig.EncodeTime = func(time.Time, zapcore.PrimitiveArrayEncoder) {}
+	} else {
+		encConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05.000")
+	}
+	for _, opt := range opts {
+		opt(&encConfig)
+	}
+
+	return consoleEncoder{
+		Encoder:    zapcore.NewConsoleEncoder(encConfig),
+		color:      color,
+		stacktrace: stacktrace,
+	}
+}
+
+// newConsoleLogger returns an opinionated console logger.
+func newConsoleLogger(level zapcore.Level, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) *zap.Logger {
+	return zap.New(
 		zapcore.NewCore(
-			encoder, ws,
+			newConsoleEncoder(true, true, true, opts...),
+			ws,
 			zap.NewAtomicLevelAt(level),
 		),
 	)
 }
 
-// customEncoder wraps an encoder and transforms stacktrace fields to concise entry stack traces and
-// prepends a green "topic".
-type customEncoder struct {
+// structuredEncoder wraps a structured encoder and transforms fields:
+// - Adds a "pretty" field which is the console formatted version of the log.
+// - Formats concise "stacktrace" fields.
+type structuredEncoder struct {
 	zapcore.Encoder
+	consoleEncoder zapcore.Encoder
 }
 
-func (e customEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*buffer.Buffer, error) {
+func (e structuredEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*buffer.Buffer, error) {
+	pretty, err := e.consoleEncoder.EncodeEntry(ent, append([]zap.Field(nil), fields...))
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, zap.String("pretty", pretty.String()))
+
+	for i, f := range fields {
+		if f.Key == stackField {
+			fields[i].String = formatZapStack(f.String)
+			ent.Stack = ""
+
+			break
+		}
+	}
+
+	return e.Encoder.EncodeEntry(ent, fields)
+}
+
+// consoleEncoder wraps an encoder and transforms fields:
+//   - "stacktrace" fields to concise entry stack traces if enabled, otherwise stack traces are removed.
+//   - prepends "topic" fields as "logger name", coloring it green if color enabled.
+//   - pads the "message" so fields are aligned.
+type consoleEncoder struct {
+	zapcore.Encoder
+	color      bool
+	stacktrace bool
+}
+
+func (e consoleEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*buffer.Buffer, error) {
 	filtered := make([]zap.Field, 0, len(fields))
 
 	for _, f := range fields {
-		const stackKey = "stacktrace"
-		if f.Key == stackKey {
-			m := zapcore.NewMapObjectEncoder()
-			f.AddTo(m)
-			stack, ok := m.Fields[stackKey].(string)
-			if !ok {
-				continue
+		if f.Key == stackField {
+			if e.stacktrace {
+				ent.Stack = formatZapStack(f.String)
 			}
-			ent.Stack = formatZapStack(stack)
 
 			continue
 		}
 
-		const topicKey = "topic"
-		if f.Key == topicKey {
-			m := zapcore.NewMapObjectEncoder()
-			f.AddTo(m)
-			topic, ok := m.Fields[topicKey].(string)
-			if !ok {
-				continue
-			}
-
+		if f.Key == topicField {
 			const green = uint8(32)
 
-			topic = (topic + "          ")[:10] // Align topic spacing.
-			topic = fmt.Sprintf("\x1b[%dm%s\x1b[0m", green, topic)
-
+			topic := (f.String + "          ")[:10] // Align topic spacing.
+			if e.color {
+				topic = fmt.Sprintf("\x1b[%dm%s\x1b[0m", green, topic)
+			}
 			ent.LoggerName = topic
 
 			continue
@@ -175,16 +257,16 @@ func (e customEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*buff
 		filtered = append(filtered, f)
 	}
 
-	// Use only file and line for caller and move to fields.
-	if ent.Caller.Defined {
-		filtered = append(filtered, zap.String("caller", filepath.Base(ent.Caller.TrimmedPath())))
-		ent.Caller.Defined = false
+	ent.Caller.Defined = false // Do not log caller in console
+
+	if len(ent.Message) < padLength {
+		ent.Message = (ent.Message + padding)[:padLength] // Align message spacing.
 	}
 
 	return e.Encoder.EncodeEntry(ent, filtered)
 }
 
-// formatZapStack formats the zap generated stack for concise console printing.
+// formatZapStack formats the zap generated stack for concise printing.
 func formatZapStack(zapStack string) string {
 	var (
 		resp     []string
@@ -225,16 +307,24 @@ var level4Map = map[zapcore.Level]string{
 }
 
 // level4CharEncoder adapts zapcore CapitalColorLevelEncoder but trims level strings to 4 characters.
-func level4CharEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
-	replace, ok := level4Map[l]
-	trimLevel := func(level string) string {
-		if !ok {
-			return level
-		}
+func newLevel4CharEncoder(color bool) zapcore.LevelEncoder {
+	return func(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
+		replace, ok := level4Map[l]
+		trimLevel := func(level string) string {
+			if !ok {
+				return level
+			}
 
-		return strings.Replace(level, l.CapitalString(), replace, 1)
+			return strings.Replace(level, l.CapitalString(), replace, 1)
+		}
+		wrappedEnc := appendWrapper{enc, trimLevel}
+
+		if !color {
+			zapcore.CapitalLevelEncoder(l, wrappedEnc)
+			return
+		}
+		zapcore.CapitalColorLevelEncoder(l, wrappedEnc)
 	}
-	zapcore.CapitalColorLevelEncoder(l, appendWrapper{enc, trimLevel})
 }
 
 // appendWrapper wraps zapcore.PrimitiveArrayEncoder's AppendString function with custom transformation function.

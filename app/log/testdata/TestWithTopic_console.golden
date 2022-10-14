@@ -1,0 +1,2 @@
+00:00 [35mDEBG[0m [32mtopic     [0m msg1                                     {"ctx1": 1}
+00:00 [34mINFO[0m [32mtopic     [0m msg2                                     {"ctx2": 2}

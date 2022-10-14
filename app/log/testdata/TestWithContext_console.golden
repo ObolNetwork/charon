@@ -1,0 +1,4 @@
+00:00 [35mDEBG[0m msg1                                     {"ctx1": 1}
+00:00 [34mINFO[0m msg2                                     {"ctx2": 2, "wrap2": 2}
+00:00 [33mWARN[0m msg3a                                    {"wrap3": "a", "wrap2": 2}
+00:00 [33mWARN[0m msg3b                                    {"wrap3": "b", "wrap2": 2}
