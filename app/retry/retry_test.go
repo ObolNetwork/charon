@@ -133,11 +133,12 @@ func TestShutdown(t *testing.T) {
 
 	// Start 3 long-running functions
 	for i := 0; i < 3; i++ {
-		go retryer.DoAsync(ctx, core.NewProposerDuty(999999), "test", func(_ context.Context) error {
+		go retryer.DoAsync(ctx, core.NewProposerDuty(999999), "test", func(ctx context.Context) error {
 			waiting <- struct{}{}
 			<-stop
+			<-ctx.Done()
 
-			return context.Canceled
+			return ctx.Err()
 		})
 	}
 

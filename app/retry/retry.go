@@ -56,12 +56,7 @@ func New[T any](timeoutFunc func(T) (time.Time, bool)) (*Retryer[T], error) {
 		}
 	}
 
-	return &Retryer[T]{
-		shutdown:        make(chan struct{}),
-		ctxTimeoutFunc:  ctxTimeoutFunc,
-		backoffProvider: backoffProvider,
-		active:          make(map[string]int),
-	}, nil
+	return newInternal(ctxTimeoutFunc, backoffProvider)
 }
 
 // NewForT returns a new Retryer instance for testing supporting a custom clock.
@@ -70,7 +65,19 @@ func NewForT[T any](
 	ctxTimeoutFunc func(context.Context, T) (context.Context, context.CancelFunc),
 	backoffProvider func() func() <-chan time.Time,
 ) (*Retryer[T], error) {
+	return newInternal(ctxTimeoutFunc, backoffProvider)
+}
+
+func newInternal[T any](
+	ctxTimeoutFunc func(context.Context, T) (context.Context, context.CancelFunc),
+	backoffProvider func() func() <-chan time.Time,
+) (*Retryer[T], error) {
+	// Create a fresh context used as parent of all async contexts
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &Retryer[T]{
+		asyncCtx:        ctx,
+		asyncCancel:     cancel,
 		shutdown:        make(chan struct{}),
 		ctxTimeoutFunc:  ctxTimeoutFunc,
 		backoffProvider: backoffProvider,
@@ -82,6 +89,8 @@ func NewForT[T any](
 // The generic type T abstracts the deadline argument.
 type Retryer[T any] struct {
 	shutdown        chan struct{}
+	asyncCtx        context.Context
+	asyncCancel     context.CancelFunc
 	ctxTimeoutFunc  func(context.Context, T) (context.Context, context.CancelFunc)
 	backoffProvider func() func() <-chan time.Time
 
@@ -105,10 +114,10 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, name string, fn func(c
 
 	backoffFunc := r.backoffProvider()
 
-	// Switch to a new context since this is async and parent context may be closed.
-	ctx := log.CopyFields(context.Background(), parent)
+	// Switch to the async context since parent context may be closed soon.
+	ctx := log.CopyFields(r.asyncCtx, parent)                       // Copy log fields to new context
+	ctx = trace.ContextWithSpan(ctx, trace.SpanFromContext(parent)) // Copy tracing span to new context
 	ctx = log.WithTopic(ctx, "retry")
-	ctx = trace.ContextWithSpan(ctx, trace.SpanFromContext(parent))
 	ctx, cancel := r.ctxTimeoutFunc(ctx, t)
 	defer cancel()
 
@@ -197,6 +206,7 @@ func (r *Retryer[T]) isShutdown() bool {
 // Shutdown triggers graceful shutdown and waits for all active function to complete or timeout.
 func (r *Retryer[T]) Shutdown(ctx context.Context) {
 	close(r.shutdown)
+	r.asyncCancel()
 
 	done := make(chan struct{})
 	go func() {
