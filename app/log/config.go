@@ -212,6 +212,7 @@ func (e structuredEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*
 		if f.Key == stackField {
 			fields[i].String = formatZapStack(f.String)
 			ent.Stack = ""
+
 			break
 		}
 	}
