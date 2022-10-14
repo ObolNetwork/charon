@@ -21,7 +21,6 @@ import (
 	"math/rand"
 	"testing"
 
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -113,22 +112,4 @@ func TestIsAggregator(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, isAgg)
 	})
-}
-
-// beaconCommittee returns a BeaconCommittee with the list of commLen validator indexes.
-func beaconCommittee(commLen int) *eth2v1.BeaconCommittee {
-	var (
-		slot    = eth2p0.Slot(1)
-		commIdx = eth2p0.CommitteeIndex(1)
-		vals    []eth2p0.ValidatorIndex
-	)
-	for idx := 1; idx <= commLen; idx++ {
-		vals = append(vals, eth2p0.ValidatorIndex(idx))
-	}
-
-	return &eth2v1.BeaconCommittee{
-		Slot:       slot,
-		Index:      commIdx,
-		Validators: vals,
-	}
 }
