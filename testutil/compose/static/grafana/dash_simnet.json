@@ -24,7 +24,20 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Explore Charon Logs",
+      "tooltip": "Navigate to Charon Logs Exporer",
+      "type": "link",
+      "url": "/explore?orgId=1&left=%7B%22datasource%22:%22P8E80F9AEF21F6940%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22node0%5C%22%7D%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+    }
+  ],
   "liveNow": false,
   "panels": [
     {
@@ -805,7 +818,7 @@
         "sortBy": [
           {
             "desc": false,
-            "displayName": "You"
+            "displayName": "Connected"
           }
         ]
       },
@@ -1298,7 +1311,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1430,7 +1444,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1522,7 +1537,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1614,7 +1630,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1706,7 +1723,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1799,7 +1817,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1906,7 +1925,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2001,7 +2021,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue"
+                "color": "light-blue",
+                "value": null
               },
               {
                 "color": "red",
@@ -2136,6 +2157,8 @@
               "__name__": true,
               "__name__ 1": true,
               "__name__ 2": true,
+              "cluster_hash": true,
+              "cluster_peer": true,
               "instance": true,
               "instance 1": true,
               "instance 2": true,
@@ -2203,7 +2226,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2284,7 +2308,7 @@
             "uid": "P8E80F9AEF21F6940"
           },
           "editorMode": "code",
-          "expr": "{compose_service=\"$node\"} | logfmt | line_format \"{{upper .level | trunc 4 }} {{.topic}}\t{{.msg}}\t\t{{if .slot}}slot={{.slot}}{{end}}{{if .duty}}duty={{.duty}}{{end}}\"",
+          "expr": "{compose_service=\"$node\"} | logfmt | line_format \"{{.pretty}}\"",
           "queryType": "range",
           "refId": "A",
           "resolution": 1
