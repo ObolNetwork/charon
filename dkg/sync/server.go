@@ -132,14 +132,6 @@ func (s *Server) setConnected(pID peer.ID) int {
 	return len(s.connected)
 }
 
-// clearConnected clears the shared connected state for the peer.
-func (s *Server) clearConnected(pID peer.ID) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	delete(s.connected, pID)
-}
-
 // setShutdown sets the shared shutdown state for the peer.
 func (s *Server) setShutdown(pID peer.ID) {
 	s.mu.Lock()
