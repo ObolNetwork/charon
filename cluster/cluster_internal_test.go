@@ -115,13 +115,7 @@ func randomDefinition(t *testing.T, op0, op1 Operator) Definition {
 		rand.New(rand.NewSource(1)))
 	require.NoError(t, err)
 
-	// TODO(xenowits): Remove the line below when v1.3 is the current version.
-	definition.Version = v1_3
-
-	resp, err := definition.SetDefinitionHashes()
-	require.NoError(t, err)
-
-	return resp
+	return definition
 }
 
 func TestSupportEIP712Sigs(t *testing.T) {

@@ -42,8 +42,9 @@ type NodeIdx struct {
 }
 
 // NewDefinition returns a new definition populated with the latest version, timestamp and UUID.
+// The hashes are also populated accordingly. Note that the hashes need to be recalculated when any field is modified.
 func NewDefinition(name string, numVals int, threshold int, feeRecipientAddress string, withdrawalAddress string,
-	forkVersionHex string, operators []Operator, random io.Reader,
+	forkVersionHex string, operators []Operator, random io.Reader, opts ...func(*Definition),
 ) (Definition, error) {
 	def := Definition{
 		Version:             currentVersion,
@@ -64,7 +65,11 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddress 
 		return Definition{}, err
 	}
 
-	return def, nil
+	for _, opt := range opts {
+		opt(&def)
+	}
+
+	return def.SetDefinitionHashes()
 }
 
 // Definition defines an intended charon cluster configuration excluding validators.

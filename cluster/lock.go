@@ -97,15 +97,6 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		return errors.New("unsupported version")
 	}
 
-	hash, err := hashLock(lock)
-	if err != nil {
-		return errors.Wrap(err, "hash lock")
-	}
-
-	if !bytes.Equal(lock.LockHash, hash[:]) {
-		return errors.New("invalid lock hash")
-	}
-
 	*l = lock
 
 	return nil
