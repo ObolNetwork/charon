@@ -20,7 +20,7 @@ The schema of the `cluster-definition.json` is defined as:
     {
       "address": "0x123..abfc",                 // ETH1 address of the operator
       "enr": "enr://abcdef...12345",            // Charon node ENR
-      "config_signature": "0x123456...abcdef",  // EIP712 Signature of config_hash by ETH1 address. Proves the operator accepts the config.
+      "config_signature": "0x123456...abcdef",  // EIP712 Signature of config_hash by ETH1 address. Proves that the operator accepts the config.
       "enr_signature": "0x123654...abcedf"      // EIP712 Signature of ENR by ETH1 address. Allows this ENR to act on behalf of the operator.
     }
   ],
@@ -34,7 +34,7 @@ The schema of the `cluster-definition.json` is defined as:
   "dkg_algorithm": "foo_dkg_v1" ,               // DKG algorithm for key generation
   "fork_version": "0x00112233",                 // Chain/network identifier
   "config_hash": "0xabcfde...acbfed",           // Hash of the initial configuration fields excluding operator ENRs and signatures
-  "definition_hash": "0xabcdef...abcedef"       // Final hash of all fields (after all operators added ENRs and signatures)
+  "definition_hash": "0xabcdef...abcedef"       // Final hash of all fields (after all operators have added ENRs and signatures)
 }
 ```
 
@@ -59,7 +59,7 @@ The `cluster-lock.json` has the following schema:
     }
   ],
   "lock_hash": "0xabcdef...abcedef",                        // Hash of the cluster definition and distributed validators. Uniquely identifies a cluster lock.
-  "signature_aggregate": "0xabcdef...abcedef"               // BLS aggregate signature of the lock hash signed by all the key shares of all the distributed validators. Proves the key shares exist and attested to being part of this cluster.
+  "signature_aggregate": "0xabcdef...abcedef"               // BLS aggregate signature of the lock hash signed by all the key shares of all the distributed validators. Proves that the key shares exist and attested to being part of this cluster.
 }
 ```
 
