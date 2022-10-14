@@ -24,6 +24,11 @@ import (
 	"github.com/obolnetwork/charon/app/promauto"
 )
 
+const (
+	addrTypeRelay  = "relay"
+	addrTypeDirect = "direct"
+)
+
 var (
 	pingLatencies = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "p2p",

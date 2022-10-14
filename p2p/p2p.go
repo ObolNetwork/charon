@@ -154,6 +154,10 @@ func (n debugLogger) Connected(_ network.Network, conn network.Conn) {
 	typ := addrType(addr)
 	peerConnGauge.WithLabelValues(name, typ).Inc()
 
+	// Ensure both connection type metrics are initiated
+	peerConnGauge.WithLabelValues(name, addrTypeDirect).Add(0)
+	peerConnGauge.WithLabelValues(name, addrTypeRelay).Add(0)
+
 	log.Debug(n.ctx, "Libp2p new connection",
 		z.Str("peer", name),
 		z.Any("peer_address", NamedAddr(addr)),
@@ -176,10 +180,10 @@ var (
 // addrType returns 'direct' or 'relay' based on whether the address contains a relay.
 func addrType(a ma.Multiaddr) string {
 	if isRelayAddr(a) {
-		return "relay"
+		return addrTypeRelay
 	}
 
-	return "direct"
+	return addrTypeDirect
 }
 
 // isRelayAddr returns true if the address is a relayed address.
