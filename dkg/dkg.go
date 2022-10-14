@@ -212,31 +212,43 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
 func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, peers []p2p.Peer, lockHashHex string) (host.Host, func(), error) {
+	var peerIDs []peer.ID
+	for _, p := range peers {
+		peerIDs = append(peerIDs, p.ID)
+	}
+
 	if err := p2p.VerifyP2PKey(peers, key); err != nil {
 		return nil, nil, err
 	}
 
 	localEnode, db, err := p2p.NewLocalEnode(p2pConf, key)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to open enode")
+		return nil, nil, err
 	}
 
 	bootnodes, err := p2p.NewUDPBootnodes(ctx, p2pConf, peers, localEnode.ID(), lockHashHex)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "new bootnodes")
+		return nil, nil, err
 	}
 
 	udpNode, err := p2p.NewUDPNode(ctx, p2pConf, localEnode, key, bootnodes)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "")
+		return nil, nil, err
 	}
 
 	relays := p2p.NewRelays(p2pConf, bootnodes)
 
-	tcpNode, err := p2p.NewTCPNode(ctx, p2pConf, key, p2p.NewOpenGater())
+	connGater, err := p2p.NewConnGater(peerIDs, relays)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "")
+		return nil, nil, err
 	}
+
+	tcpNode, err := p2p.NewTCPNode(ctx, p2pConf, key, connGater)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	p2p.RegisterConnectionLogger(tcpNode, peerIDs)
 
 	for _, relay := range relays {
 		go func(relay *p2p.MutablePeer) {
