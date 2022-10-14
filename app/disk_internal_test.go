@@ -44,7 +44,7 @@ func TestLoadLock(t *testing.T) {
 	require.NoError(t, err)
 
 	conf := Config{LockFile: filename}
-	actual, err := loadLock(conf)
+	actual, err := loadLock(context.Background(), conf)
 	require.NoError(t, err)
 
 	b2, err := json.Marshal(actual)
