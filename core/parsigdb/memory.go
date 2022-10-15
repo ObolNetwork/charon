@@ -18,9 +18,9 @@ package parsigdb
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"sync"
-
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -102,18 +102,19 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 			z.Int("count", len(sigs)),
 			z.Any("pubkey", pubkey))
 
-		// Call the threshSubs (which includes SigAgg component) if sufficient signatures have been received.
-		out, ok, err := calculateOutput(duty, sigs, db.threshold)
+		// Check if sufficient matching partial signed data has been received.
+		psigs, ok, err := getThresholdMatching(sigs, db.threshold)
 		if err != nil {
 			return err
 		} else if !ok {
 			continue
 		}
 
+		// Call the threshSubs (which includes SigAgg component)
 		for _, sub := range db.threshSubs {
 			// Clone before calling each subscriber.
 			var clones []core.ParSignedData
-			for _, psig := range out {
+			for _, psig := range psigs {
 				clone, err := psig.Clone()
 				if err != nil {
 					return err
@@ -130,31 +131,6 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 	return nil
 }
 
-// calculateOutput returns partial signatures and whether threshold no. of partial signatures is obtained or not.
-func calculateOutput(duty core.Duty, sigs []core.ParSignedData, threshold int) ([]core.ParSignedData, bool, error) {
-	if duty.Type != core.DutySyncMessage {
-		return sigs, len(sigs) == threshold, nil
-	}
-
-	sigsByRoot := make(map[eth2p0.Root][]core.ParSignedData)
-	for _, sig := range sigs {
-		msg, ok := sig.SignedData.(core.SignedSyncMessage)
-		if !ok {
-			return nil, false, errors.New("invalid sync message")
-		}
-
-		sigsByRoot[msg.BeaconBlockRoot] = append(sigsByRoot[msg.BeaconBlockRoot], sig)
-	}
-
-	for _, psigs := range sigsByRoot {
-		if len(psigs) == threshold {
-			return psigs, true, nil
-		}
-	}
-
-	return nil, false, nil
-}
-
 // store returns true if the value was added to the list of signatures at the provided key
 // and returns a copy of the resulting list.
 func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, bool, error) {
@@ -163,7 +139,7 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 
 	for _, s := range db.entries[k] {
 		if s.ShareIdx == value.ShareIdx {
-			equal, err := dataEqual(s, value)
+			equal, err := parSignedDataEqual(s, value)
 			if err != nil {
 				return nil, false, err
 			} else if !equal {
@@ -190,12 +166,52 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 	return append([]core.ParSignedData(nil), db.entries[k]...), true, nil
 }
 
-func dataEqual(x, y core.ParSignedData) (bool, error) {
-	xjson, err := x.MarshalJSON()
+// getThresholdMatching returns true and threshold number of partial signed data with identical data or false.
+func getThresholdMatching(sigs []core.ParSignedData, threshold int) ([]core.ParSignedData, bool, error) {
+	if len(sigs) < threshold {
+		return nil, false, nil
+	}
+
+	sigsByDataHash := make(map[[32]byte][]core.ParSignedData)
+	for _, sig := range sigs {
+		// Clear the signature to get the raw signed data.
+		noSig, err := sig.SetSignature(nil)
+		if err != nil {
+			return nil, false, err
+		}
+
+		// Convert it to json
+		b, err := json.Marshal(noSig)
+		if err != nil {
+			return nil, false, errors.Wrap(err, "marshal parsig")
+		}
+
+		// Hash it
+		h := sha256.New()
+		h.Write(b)
+		var hash [32]byte
+		copy(hash[:], h.Sum(nil))
+
+		// Find the first identical set of length threshold
+		set := sigsByDataHash[hash]
+		set = append(set, sig)
+
+		if len(set) == threshold {
+			return set, true, nil
+		}
+
+		sigsByDataHash[hash] = set
+	}
+
+	return nil, false, nil
+}
+
+func parSignedDataEqual(x, y core.ParSignedData) (bool, error) {
+	xjson, err := json.Marshal(x)
 	if err != nil {
 		return false, errors.Wrap(err, "marshal data")
 	}
-	yjson, err := y.MarshalJSON()
+	yjson, err := json.Marshal(y)
 	if err != nil {
 		return false, errors.Wrap(err, "marshal data")
 	}
