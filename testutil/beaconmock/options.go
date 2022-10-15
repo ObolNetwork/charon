@@ -367,6 +367,8 @@ func WithNoAttesterDuties() Option {
 	}
 }
 
+// WithSyncCommitteeDuties configures the mock to override SyncCommitteeDutiesFunc to return sync committee
+// duties for epochs not divisible by 3.
 func WithSyncCommitteeDuties() Option {
 	return func(mock *Mock) {
 		mock.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {

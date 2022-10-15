@@ -102,7 +102,7 @@ func (s *SyncCommMember) getSelectionsOK(slot eth2p0.Slot) chan struct{} {
 	return ch
 }
 
-// PrepareEpoch does store sync committee attDuties and submits sync committee subscriptions at the start of an epoch.
+// PrepareEpoch stores sync committee attDuties and submits sync committee subscriptions at the start of an epoch.
 func (s *SyncCommMember) PrepareEpoch(ctx context.Context) error {
 	var err error
 	s.vals, err = activeValidators(ctx, s.eth2Cl, s.pubkeys)
@@ -124,7 +124,7 @@ func (s *SyncCommMember) PrepareEpoch(ctx context.Context) error {
 	return nil
 }
 
-// PrepareSlot .
+// PrepareSlot prepares selection proofs at the start of a slot.
 func (s *SyncCommMember) PrepareSlot(ctx context.Context, slot eth2p0.Slot) error {
 	wait(ctx, s.dutiesOK)
 	selections, err := prepareSyncContributions(ctx, s.eth2Cl, s.signFunc, s.vals, s.duties, slot)
@@ -142,7 +142,7 @@ func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 	return submitSyncMessage(ctx, s.eth2Cl, slot, s.signFunc, s.duties)
 }
 
-// Aggregate submits Sync committee messages at desired i.e., 1/3rd into the slot.
+// Aggregate submits Sync committee messages at desired i.e., 2/3rd into the slot.
 func (s *SyncCommMember) Aggregate(ctx context.Context, slot eth2p0.Slot) error {
 	wait(ctx, s.getSelectionsOK(slot))
 	return nil
@@ -154,6 +154,7 @@ func prepareSyncContributions(context.Context, eth2wrap.Client, SignFunc,
 	return nil, nil
 }
 
+// subscribeSyncCommSubnets submits sync committee subscriptions at the start of an epoch until next epoch.
 func subscribeSyncCommSubnets(ctx context.Context, eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, duties syncDuties) error {
 	var subs []*eth2v1.SyncCommitteeSubscription
 	for _, duty := range duties {
@@ -174,6 +175,7 @@ func subscribeSyncCommSubnets(ctx context.Context, eth2Cl eth2wrap.Client, epoch
 	return nil
 }
 
+// prepareSyncCommDuties returns sync committee duties for the epoch.
 func prepareSyncCommDuties(ctx context.Context, eth2Cl eth2wrap.Client, vals validators, epoch eth2p0.Epoch) (syncDuties, error) {
 	if len(vals) == 0 {
 		return nil, nil
