@@ -128,6 +128,7 @@ type Mock struct {
 	BeaconCommitteesFunc                     func(ctx context.Context, stateID string) ([]*eth2v1.BeaconCommittee, error)
 	BeaconCommitteesAtEpochFunc              func(ctx context.Context, stateID string, epoch eth2p0.Epoch) ([]*eth2v1.BeaconCommittee, error)
 	BeaconBlockProposalFunc                  func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
+	BeaconBlockRootFunc                      func(ctx context.Context, blockID string) (*eth2p0.Root, error)
 	ProposerDutiesFunc                       func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	SubmitAttestationsFunc                   func(context.Context, []*eth2p0.Attestation) error
 	SubmitBeaconBlockFunc                    func(context.Context, *spec.VersionedSignedBeaconBlock) error
@@ -178,6 +179,10 @@ func (m Mock) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, 
 
 func (m Mock) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
 	return m.BeaconBlockProposalFunc(ctx, slot, randaoReveal, graffiti)
+}
+
+func (m Mock) BeaconBlockRoot(ctx context.Context, blockID string) (*eth2p0.Root, error) {
+	return m.BeaconBlockRootFunc(ctx, blockID)
 }
 
 func (m Mock) BeaconCommittees(ctx context.Context, stateID string) ([]*eth2v1.BeaconCommittee, error) {

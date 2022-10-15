@@ -42,6 +42,7 @@ type Client interface {
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockProposalProvider
+	eth2client.BeaconBlockRootProvider
 	eth2client.BeaconBlockSubmitter
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
 	eth2client.BeaconCommitteesProvider
@@ -396,6 +397,26 @@ func (m multi) BeaconBlockProposal(ctx context.Context, slot phase0.Slot, randao
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*spec.VersionedBeaconBlock, error) {
 			return cl.BeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
+		},
+		nil,
+	)
+
+	if err != nil {
+		incError(label)
+		err = errors.Wrap(err, "eth2wrap")
+	}
+
+	return res0, err
+}
+
+// BeaconBlockRoot fetches a block's root given a block ID.
+// Note this endpoint is cached in go-eth2-client.
+func (m multi) BeaconBlockRoot(ctx context.Context, blockID string) (*phase0.Root, error) {
+	const label = "beacon_block_root"
+
+	res0, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) (*phase0.Root, error) {
+			return cl.BeaconBlockRoot(ctx, blockID)
 		},
 		nil,
 	)
