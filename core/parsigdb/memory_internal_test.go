@@ -16,49 +16,75 @@
 package parsigdb
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestShouldOutput(t *testing.T) {
-	const (
-		n  = 4
-		th = 3
-	)
-
-	duty := core.NewSyncMessageDuty(123)
-	root1 := testutil.RandomRoot()
-	root2 := testutil.RandomRoot()
-
-	var (
-		data []core.ParSignedData
-		msgs []*altair.SyncCommitteeMessage
-	)
-
-	for i := 0; i < n-1; i++ {
-		msg := testutil.RandomSyncCommitteeMessage()
-		msg.BeaconBlockRoot = root1
-		msgs = append(msgs, msg)
-		data = append(data, core.NewPartialSignedSyncMessage(msg, i))
+func TestCalculateOutput(t *testing.T) {
+	tests := []struct {
+		name   string
+		roots  []int
+		output []int
+	}{
+		{
+			name:   "empty",
+			output: nil,
+		},
+		{
+			name:   "all identical",
+			roots:  []int{0, 0, 0, 0},
+			output: []int{0, 1, 2},
+		},
+		{
+			name:   "one odd",
+			roots:  []int{0, 0, 1, 0},
+			output: []int{0, 1, 3},
+		},
+		{
+			name:   "two odd",
+			roots:  []int{0, 0, 1, 1},
+			output: nil,
+		},
 	}
 
-	out, ok, err := calculateOutput(duty, data, th)
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.True(t, reflect.DeepEqual(out, data[:n-1]))
-
-	for i := 0; i < n/2; i++ {
-		msgs[i].BeaconBlockRoot = root2
-		data[i] = core.NewPartialSignedSyncMessage(msgs[i], i)
+	slot := testutil.RandomSlot()
+	valIdx := testutil.RandomVIdx()
+	roots := []eth2p0.Root{
+		testutil.RandomRoot(),
+		testutil.RandomRoot(),
 	}
 
-	_, ok, err = calculateOutput(duty, data, th)
-	require.NoError(t, err)
-	require.False(t, ok)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var datas []core.ParSignedData
+			for i, root := range test.roots {
+				msg := &altair.SyncCommitteeMessage{
+					Slot:            slot,
+					BeaconBlockRoot: roots[root],
+					ValidatorIndex:  valIdx,
+					Signature:       testutil.RandomEth2Signature(),
+				}
+
+				datas = append(datas, core.NewPartialSignedSyncMessage(msg, i+1)) // ShareIdx is 1-indexed.
+			}
+
+			out, ok, err := getThresholdMatching(datas, cluster.Threshold(len(datas)))
+			require.NoError(t, err)
+			require.Equal(t, len(test.output) > 0, ok)
+
+			var expect []core.ParSignedData
+			for _, i := range test.output {
+				expect = append(expect, datas[i])
+			}
+
+			require.Equal(t, expect, out)
+		})
+	}
 }
