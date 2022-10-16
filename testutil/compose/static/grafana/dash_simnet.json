@@ -1018,6 +1018,36 @@
           "legendFormat": "",
           "range": false,
           "refId": "K"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(app_peerinfo_version{job=\"$node\"}) by (peer,version) ",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "L"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(app_peerinfo_git_commit{job=\"$node\"}) by (peer,git_hash) ",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "M"
         }
       ],
       "title": "Peer Connectivity and Duty Participation",
@@ -1034,6 +1064,7 @@
             "excludeByName": {
               "Time 1": true,
               "Time 10": true,
+              "Time 11": true,
               "Time 2": true,
               "Time 3": true,
               "Time 4": true,
@@ -1042,30 +1073,36 @@
               "Time 7": true,
               "Time 8": true,
               "Time 9": true,
-              "Value #F": false
+              "Value #F": false,
+              "Value #L": true,
+              "Value #M": true
             },
             "indexByName": {
               "Time 1": 2,
-              "Time 10": 20,
+              "Time 10": 22,
+              "Time 11": 23,
               "Time 2": 6,
-              "Time 3": 9,
-              "Time 4": 11,
-              "Time 5": 12,
-              "Time 6": 13,
-              "Time 7": 14,
-              "Time 8": 16,
-              "Time 9": 19,
+              "Time 3": 11,
+              "Time 4": 13,
+              "Time 5": 14,
+              "Time 6": 15,
+              "Time 7": 16,
+              "Time 8": 18,
+              "Time 9": 21,
               "Value #A": 3,
               "Value #B": 7,
-              "Value #C": 10,
-              "Value #D": 18,
-              "Value #E": 17,
+              "Value #C": 12,
+              "Value #D": 20,
+              "Value #E": 19,
               "Value #F": 1,
-              "Value #G": 15,
-              "Value #J": 8,
+              "Value #G": 17,
+              "Value #J": 10,
               "Value #K": 4,
               "Value #L": 5,
-              "peer": 0
+              "Value #M": 24,
+              "git_hash": 9,
+              "peer": 0,
+              "version": 8
             },
             "renameByName": {
               "Value #A": "Connected",
@@ -1078,8 +1115,10 @@
               "Value #H": "Aggregate",
               "Value #J": "ClockDiff",
               "Value #K": "Direct",
-              "Value #L": "Relay",
-              "peer": "Peer"
+              "Value #L": "",
+              "git_hash": "GitCommit",
+              "peer": "Peer",
+              "version": "Version"
             }
           }
         }
@@ -1336,8 +1375,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1469,8 +1507,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1562,8 +1599,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1655,8 +1691,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1748,8 +1783,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1842,8 +1876,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1950,8 +1983,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2046,8 +2078,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue",
-                "value": null
+                "color": "light-blue"
               },
               {
                 "color": "red",
@@ -2251,8 +2282,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",

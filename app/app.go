@@ -223,7 +223,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 // wirePeerInfo wires the peerinfo protocol.
 func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender) {
-	peerInfo := peerinfo.New(tcpNode, peers, version.Version, lockHash, sender.SendReceive)
+	gitHash, _ := version.GitCommit()
+	peerInfo := peerinfo.New(tcpNode, peers, version.Version, lockHash, gitHash, sender.SendReceive)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(peerInfo.Run))
 }
 
