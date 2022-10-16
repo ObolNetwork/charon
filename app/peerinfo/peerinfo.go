@@ -56,8 +56,11 @@ func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gi
 		peerName := p2p.PeerName(peerID)
 		peerClockOffset.WithLabelValues(peerName).Set(clockOffset.Seconds())
 		peerVersion.WithLabelValues(peerName, version).Set(1)
-		peerGitHash.WithLabelValues(peerName, version, gitHash).Set(1)
+		peerGitHash.WithLabelValues(peerName, gitHash).Set(1)
 	}
+	// Set own version and githash metrics.
+	peerVersion.WithLabelValues(p2p.PeerName(tcpNode.ID()), version).Set(1)
+	peerGitHash.WithLabelValues(p2p.PeerName(tcpNode.ID()), gitHash).Set(1)
 
 	return newInternal(tcpNode, peers, version, lockHash, gitHash, sendFunc, p2p.RegisterHandler,
 		tickerProvider, time.Now, metricSubmitter)
