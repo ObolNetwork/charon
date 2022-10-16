@@ -24,14 +24,16 @@ import (
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestCalculateOutput(t *testing.T) {
 	tests := []struct {
-		name   string
-		roots  []int
-		output []int
+		name     string
+		input    []int
+		output   []int
+		provider int
 	}{
 		{
 			name:   "empty",
@@ -39,21 +41,22 @@ func TestCalculateOutput(t *testing.T) {
 		},
 		{
 			name:   "all identical",
-			roots:  []int{0, 0, 0, 0},
+			input:  []int{0, 0, 0, 0},
 			output: []int{0, 1, 2},
 		},
 		{
 			name:   "one odd",
-			roots:  []int{0, 0, 1, 0},
+			input:  []int{0, 0, 1, 0},
 			output: []int{0, 1, 3},
 		},
 		{
 			name:   "two odd",
-			roots:  []int{0, 0, 1, 1},
+			input:  []int{0, 0, 1, 1},
 			output: nil,
 		},
 	}
 
+	commIdx := testutil.RandomCommIdx()
 	slot := testutil.RandomSlot()
 	valIdx := testutil.RandomVIdx()
 	roots := []eth2p0.Root{
@@ -63,28 +66,53 @@ func TestCalculateOutput(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var datas []core.ParSignedData
-			for i, root := range test.roots {
-				msg := &altair.SyncCommitteeMessage{
-					Slot:            slot,
-					BeaconBlockRoot: roots[root],
-					ValidatorIndex:  valIdx,
-					Signature:       testutil.RandomEth2Signature(),
-				}
+			// Test different msg type using providers.
+			providers := map[string]func(int) core.ParSignedData{
+				"SyncCommitteeMessage": func(i int) core.ParSignedData {
+					msg := &altair.SyncCommitteeMessage{
+						Slot:            slot,
+						BeaconBlockRoot: roots[test.input[i]], // Vary root based on input.
+						ValidatorIndex:  valIdx,
+						Signature:       testutil.RandomEth2Signature(),
+					}
 
-				datas = append(datas, core.NewPartialSignedSyncMessage(msg, i+1)) // ShareIdx is 1-indexed.
+					return core.NewPartialSignedSyncMessage(msg, i+1)
+				},
+				"Subscription": func(i int) core.ParSignedData {
+					// Message is constant
+					msg := &eth2exp.BeaconCommitteeSubscription{
+						ValidatorIndex:   valIdx,
+						Slot:             slot,
+						CommitteeIndex:   commIdx,
+						CommitteesAtSlot: 99,
+						SlotSignature:    testutil.RandomEth2Signature(),
+					}
+					// Vary length based on input
+					commLength := uint64(test.input[i])
+
+					return core.NewPartialSignedBeaconCommitteeSubscription(msg, commLength, i+1)
+				},
 			}
 
-			out, ok, err := getThresholdMatching(datas, cluster.Threshold(len(datas)))
-			require.NoError(t, err)
-			require.Equal(t, len(test.output) > 0, ok)
+			for name, provider := range providers {
+				t.Run(name, func(t *testing.T) {
+					var datas []core.ParSignedData
+					for i := 0; i < len(test.input); i++ {
+						datas = append(datas, provider(i))
+					}
 
-			var expect []core.ParSignedData
-			for _, i := range test.output {
-				expect = append(expect, datas[i])
+					out, ok, err := getThresholdMatching(datas, cluster.Threshold(len(datas)))
+					require.NoError(t, err)
+					require.Equal(t, len(test.output) > 0, ok)
+
+					var expect []core.ParSignedData
+					for _, i := range test.output {
+						expect = append(expect, datas[i])
+					}
+
+					require.Equal(t, expect, out)
+				})
 			}
-
-			require.Equal(t, expect, out)
 		})
 	}
 }

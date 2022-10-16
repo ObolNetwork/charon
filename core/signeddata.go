@@ -749,11 +749,33 @@ func (s SignedBeaconCommitteeSubscription) clone() (SignedBeaconCommitteeSubscri
 }
 
 func (s SignedBeaconCommitteeSubscription) MarshalJSON() ([]byte, error) {
-	return s.BeaconCommitteeSubscription.MarshalJSON()
+	resp, err := json.Marshal(subscriptionJSON{
+		Subscription:    &s.BeaconCommitteeSubscription,
+		CommitteeLength: s.CommitteeLength,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal subscription")
+	}
+
+	return resp, nil
 }
 
 func (s *SignedBeaconCommitteeSubscription) UnmarshalJSON(input []byte) error {
-	return s.BeaconCommitteeSubscription.UnmarshalJSON(input)
+	var subJSON subscriptionJSON
+	err := json.Unmarshal(input, &subJSON)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal subscription")
+	}
+
+	s.BeaconCommitteeSubscription = *subJSON.Subscription
+	s.CommitteeLength = subJSON.CommitteeLength
+
+	return nil
+}
+
+type subscriptionJSON struct {
+	Subscription    *eth2exp.BeaconCommitteeSubscription `json:"subscription"`
+	CommitteeLength uint64                               `json:"committee_length"`
 }
 
 // NewSignedAggregateAndProof is a convenience function which returns a new signed SignedAggregateAndProof.
