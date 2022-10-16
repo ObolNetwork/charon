@@ -37,4 +37,12 @@ var (
 		Help:        "Constant gauge with version label set to peer's charon version.",
 		ConstLabels: nil,
 	}, []string{"peer", "version"})
+
+	peerGitHash = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace:   "app",
+		Subsystem:   "peerinfo",
+		Name:        "git_commit",
+		Help:        "Constant gauge with git_hash label set to peer's git commit hash.",
+		ConstLabels: nil,
+	}, []string{"peer", "git_hash"})
 )

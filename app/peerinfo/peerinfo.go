@@ -41,38 +41,39 @@ var protocolID protocol.ID = "/charon/peerinfo/1.0.0"
 type (
 	tickerProvider  func() (<-chan time.Time, func())
 	nowFunc         func() time.Time
-	metricSubmitter func(peerID peer.ID, clockOffset time.Duration, version string)
+	metricSubmitter func(peerID peer.ID, clockOffset time.Duration, version, gitHash string)
 )
 
 // New returns a new peer info protocol instance.
-func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
+func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc,
 ) *PeerInfo {
 	tickerProvider := func() (<-chan time.Time, func()) {
 		ticker := time.NewTicker(period)
 		return ticker.C, ticker.Stop
 	}
-	metricSubmitter := func(peerID peer.ID, clockOffset time.Duration, version string) {
+	metricSubmitter := func(peerID peer.ID, clockOffset time.Duration, version string, gitHash string) {
 		peerName := p2p.PeerName(peerID)
 		peerClockOffset.WithLabelValues(peerName).Set(clockOffset.Seconds())
 		peerVersion.WithLabelValues(peerName, version).Set(1)
+		peerGitHash.WithLabelValues(peerName, version, gitHash).Set(1)
 	}
 
-	return newInternal(tcpNode, peers, version, lockHash, sendFunc, p2p.RegisterHandler,
+	return newInternal(tcpNode, peers, version, lockHash, gitHash, sendFunc, p2p.RegisterHandler,
 		tickerProvider, time.Now, metricSubmitter)
 }
 
 // NewForT returns a new peer info protocol instance for testing only.
-func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
+func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
 ) *PeerInfo {
-	return newInternal(tcpNode, peers, version, lockHash, sendFunc, registerHandler,
+	return newInternal(tcpNode, peers, version, lockHash, gitHash, sendFunc, registerHandler,
 		tickerProvider, nowFunc, metricSubmitter)
 }
 
 // newInternal returns a new instance for New or NewForT.
-func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte,
+func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
 ) *PeerInfo {
@@ -83,6 +84,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 			return &pbv1.PeerInfo{
 				CharonVersion: version,
 				LockHash:      lockHash,
+				GitHash:       gitHash,
 				SentAt:        timestamppb.New(nowFunc()),
 			}, true, nil
 		},
@@ -116,6 +118,7 @@ type PeerInfo struct {
 	peers            []peer.ID
 	version          string
 	lockHash         []byte
+	gitHash          string
 	tickerProvider   tickerProvider
 	metricSubmitter  metricSubmitter
 	nowFunc          func() time.Time
@@ -163,6 +166,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 		req := &pbv1.PeerInfo{
 			CharonVersion: p.version,
 			LockHash:      p.lockHash,
+			GitHash:       p.gitHash,
 			SentAt:        timestamppb.New(now),
 		}
 
@@ -176,7 +180,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			rtt := p.nowFunc().Sub(now)
 			expectSentAt := now.Add(rtt / 2)
 			clockOffset := resp.SentAt.AsTime().Sub(expectSentAt)
-			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion)
+			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash)
 
 			// Log unexpected lock hash
 			if !bytes.Equal(resp.LockHash, p.lockHash) {
