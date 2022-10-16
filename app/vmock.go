@@ -60,6 +60,8 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 			})
 		}
 
+		onStartup = false
+
 		// Prepare sync committee selections when slots tick.
 		vMockWrap(ctx, slot.Slot, slot.Epoch(), func(ctx context.Context, state vMockState) error {
 			// Either call if it is first slot in epoch or on charon startup.
@@ -111,7 +113,7 @@ type vMockState struct {
 	SyncCommMember *validatormock.SyncCommMember
 }
 
-// vMockCallback is a validator mock callback function that has access to latest state.
+// vMockCallback is a validator mock callback function that has access to the latest state.
 type vMockCallback func(context.Context, vMockState) error
 
 // newVMockWrapper returns a stateful validator mock wrapper function.
@@ -164,7 +166,7 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey) (func(ctx contex
 			defer cancel()
 
 			err := fn(ctx2, state)
-			if err != nil && ctx.Err() == nil { // Only log if parrent context wasn't closed.
+			if err != nil && ctx.Err() == nil { // Only log if parent context wasn't closed.
 				log.Error(ctx, "Validator mock error", err)
 				return
 			}
