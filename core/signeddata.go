@@ -17,6 +17,7 @@ package core
 
 import (
 	"encoding/json"
+	"fmt"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -716,7 +717,7 @@ func NewPartialSignedBeaconCommitteeSubscription(sub *eth2exp.BeaconCommitteeSub
 // SignedBeaconCommitteeSubscription is a Signed BeaconCommitteeSubscription which implements SignedData.
 type SignedBeaconCommitteeSubscription struct {
 	eth2exp.BeaconCommitteeSubscription
-	CommitteeLength uint64
+	CommitteeLength uint64 // FIXME(corver): Including "helper" data as part of wire API is brittle design.
 }
 
 func (s SignedBeaconCommitteeSubscription) Signature() Signature {
@@ -749,11 +750,39 @@ func (s SignedBeaconCommitteeSubscription) clone() (SignedBeaconCommitteeSubscri
 }
 
 func (s SignedBeaconCommitteeSubscription) MarshalJSON() ([]byte, error) {
-	return s.BeaconCommitteeSubscription.MarshalJSON()
+	// Marshal subscription with additional committee_length for limited backwards compatibility.
+	resp, err := json.Marshal(map[string]string{
+		"validator_index":    fmt.Sprintf("%d", s.ValidatorIndex),
+		"slot":               fmt.Sprintf("%d", s.Slot),
+		"committee_index":    fmt.Sprintf("%d", s.CommitteeIndex),
+		"committees_at_slot": fmt.Sprintf("%d", s.CommitteesAtSlot),
+		"slot_signature":     fmt.Sprintf("%#x", s.SlotSignature),
+		"committee_length":   fmt.Sprintf("%d", s.CommitteeLength),
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal subscription")
+	}
+
+	return resp, nil
 }
 
 func (s *SignedBeaconCommitteeSubscription) UnmarshalJSON(input []byte) error {
-	return s.BeaconCommitteeSubscription.UnmarshalJSON(input)
+	var sub eth2exp.BeaconCommitteeSubscription
+	if err := json.Unmarshal(input, &sub); err != nil {
+		return errors.Wrap(err, "unmarshal subscription")
+	}
+
+	lengthJSON := struct {
+		CommitteeLength uint64 `json:"committee_length,string"`
+	}{}
+	if err := json.Unmarshal(input, &lengthJSON); err != nil {
+		return errors.Wrap(err, "unmarshal length")
+	}
+
+	s.BeaconCommitteeSubscription = sub
+	s.CommitteeLength = lengthJSON.CommitteeLength
+
+	return nil
 }
 
 // NewSignedAggregateAndProof is a convenience function which returns a new signed SignedAggregateAndProof.

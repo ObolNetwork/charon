@@ -16,6 +16,7 @@
 package core_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -114,4 +115,15 @@ func TestSignedDataSetSignature(t *testing.T) {
 			require.NotEmpty(t, clone.Signature())
 		})
 	}
+}
+
+func TestMarshalSubscription(t *testing.T) {
+	sub := testutil.RandomSignedBeaconCommitteeSubscription(1, 2, 3, 4)
+	b, err := json.Marshal(sub)
+	require.NoError(t, err)
+
+	var sub2 core.SignedBeaconCommitteeSubscription
+	err = json.Unmarshal(b, &sub2)
+	require.NoError(t, err)
+	require.Equal(t, sub2, sub)
 }
