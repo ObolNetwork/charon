@@ -30,10 +30,9 @@ import (
 
 func TestCalculateOutput(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    []int
-		output   []int
-		provider int
+		name   string
+		input  []int
+		output []int
 	}{
 		{
 			name:   "empty",
