@@ -40,6 +40,10 @@ func DutyFromProto(duty *pbv1.Duty) Duty {
 
 // ParSignedDataFromProto returns the data from a protobuf.
 func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedData, error) {
+	// TODO(corver): This can panic due to json unmarshalling unexpected data.
+	//  For now, it is a good way to catch compatibility issues. But we should
+	//  recover panics and return an error before launching mainnet.
+
 	var signedData SignedData
 	switch typ {
 	case DutyAttester:
