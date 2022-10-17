@@ -327,14 +327,29 @@
             {
               "options": {
                 "0": {
-                  "color": "orange",
+                  "color": "text",
                   "index": 1,
-                  "text": "NOK"
+                  "text": "Unknown"
                 },
                 "1": {
                   "color": "green",
                   "index": 0,
                   "text": "OK"
+                },
+                "2": {
+                  "color": "red",
+                  "index": 3,
+                  "text": "BeaconNode Down"
+                },
+                "3": {
+                  "color": "orange",
+                  "index": 4,
+                  "text": "BeaconNode Syncing"
+                },
+                "4": {
+                  "color": "orange",
+                  "index": 5,
+                  "text": "Insufficient Peers"
                 }
               },
               "type": "value"
@@ -343,6 +358,7 @@
               "options": {
                 "match": "null",
                 "result": {
+                  "color": "text",
                   "index": 2,
                   "text": "Dead"
                 }
@@ -397,7 +413,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "app_monitoring_readyz{job=\"$node\"} ",
+          "expr": "app_monitoring_readyz{job=\"$node\"}",
           "hide": false,
           "instant": true,
           "interval": "",
@@ -772,7 +788,21 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "s"
+                "value": "ms"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 0,
+                        "text": "🆗"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
               }
             ]
           },
@@ -997,7 +1027,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max(app_peerinfo_clock_offset_seconds{job=\"$node\"}) by (peer)",
+          "expr": "max(round(app_peerinfo_clock_offset_seconds{job=\"$node\"},0.1)*1000) by (peer) ",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1041,7 +1071,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(app_peerinfo_git_commit{job=\"$node\"}) by (peer,git_hash) ",
+          "expr": "max(app_peerinfo_git_commit{job=\"$node\"}) by (peer,git_hash) > 0",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1065,6 +1095,7 @@
               "Time 1": true,
               "Time 10": true,
               "Time 11": true,
+              "Time 12": true,
               "Time 2": true,
               "Time 3": true,
               "Time 4": true,
@@ -1113,6 +1144,7 @@
               "Value #F": "You",
               "Value #G": "PrepareAgg",
               "Value #H": "Aggregate",
+              "Value #I": "Exit",
               "Value #J": "ClockDiff",
               "Value #K": "Direct",
               "Value #L": "",
@@ -1375,7 +1407,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1507,7 +1540,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1599,7 +1633,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1691,7 +1726,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1783,7 +1819,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1876,7 +1913,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1983,7 +2021,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2078,7 +2117,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue"
+                "color": "light-blue",
+                "value": null
               },
               {
                 "color": "red",
@@ -2282,7 +2322,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",

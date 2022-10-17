@@ -50,14 +50,14 @@ func TestStartChecker(t *testing.T) {
 			isSyncing:   true,
 			numPeers:    5,
 			absentPeers: 0,
-			err:         errReadySyncing,
+			err:         errReadyBeaconNodeSyncing,
 		},
 		{
 			name:        "too few peers",
 			isSyncing:   false,
 			numPeers:    5,
 			absentPeers: 3,
-			err:         errReadyTooFewPeers,
+			err:         errReadyInsufficientPeers,
 		},
 		{
 			name:        "success",

@@ -23,6 +23,18 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 )
 
+const (
+	// readyzReady indicates that readyz returns 200s and the node is operational.
+	readyzReady = 1
+	// readyzBeaconNodeDown indicates the readyz is returning 500s since the Beacon Node API is down.
+	readyzBeaconNodeDown = 2
+	// readyzBeaconNodeSyncing indicates the readyz is returning 500s since the Beacon Node is syncing.
+	readyzBeaconNodeSyncing = 3
+	// readyzInsufficientPeers indicates the readyz is returning 500s since this node isn't connected
+	// to quorum peers via the P2P network.
+	readyzInsufficientPeers = 4
+)
+
 var (
 	versionGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
@@ -52,7 +64,11 @@ var (
 		Namespace: "app",
 		Subsystem: "monitoring",
 		Name:      "readyz",
-		Help:      "Set to 1 if monitoring api `/readyz` endpoint returned 200 or else 0",
+		Help: "Set to 1 if the node is operational and monitoring api `/readyz` endpoint is returning 200s. " +
+			"Else `/readyz` is returning 500s and this metric is either set to " +
+			"2 if the beacon node is down, or" +
+			"3 if the beacon node is syncing, or" +
+			"4 if quorum peers are not connected.",
 	})
 
 	thresholdGauge = promauto.NewGauge(prometheus.GaugeOpts{

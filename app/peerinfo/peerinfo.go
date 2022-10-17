@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -210,6 +211,7 @@ func supported(protocols []string) bool {
 // newMetricsSubmitter returns a prometheus metric submitter.
 func newMetricsSubmitter() metricSubmitter {
 	var (
+		mu            sync.Mutex
 		prevVersions  = make(map[string]string)
 		prevGitHashes = make(map[string]string)
 	)
@@ -238,6 +240,9 @@ func newMetricsSubmitter() metricSubmitter {
 		peerGitHash.WithLabelValues(peerName, gitHash).Set(1)
 
 		// Clear previous metrics if changed
+		mu.Lock()
+		defer mu.Unlock()
+
 		if prev, ok := prevVersions[peerName]; ok && version != prev {
 			peerVersion.WithLabelValues(peerName, prev).Set(0)
 		}

@@ -37,10 +37,10 @@ import (
 )
 
 var (
-	errReadyUninitialised    = errors.New("ready check uninitialised")
-	errReadyTooFewPeers      = errors.New("quorum peers not connected")
-	errReadySyncing          = errors.New("beacon node not synced")
-	errReadyBeaconNodeFailed = errors.New("failed to get beacon sync state")
+	errReadyUninitialised     = errors.New("ready check uninitialised")
+	errReadyInsufficientPeers = errors.New("quorum peers not connected")
+	errReadyBeaconNodeSyncing = errors.New("beacon node not synced")
+	errReadyBeaconNodeDown    = errors.New("beacon node down")
 )
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
@@ -118,16 +118,16 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 
 				syncing, err := beaconNodeSyncing(ctx, eth2Cl)
 				if err != nil {
-					err = errReadyBeaconNodeFailed
-					readyzGauge.Set(0)
+					err = errReadyBeaconNodeDown
+					readyzGauge.Set(readyzBeaconNodeDown)
 				} else if syncing {
-					err = errReadySyncing
-					readyzGauge.Set(0)
+					err = errReadyBeaconNodeSyncing
+					readyzGauge.Set(readyzBeaconNodeSyncing)
 				} else if notConnectedRounds >= minNotConnected {
-					err = errReadyTooFewPeers
-					readyzGauge.Set(0)
+					err = errReadyInsufficientPeers
+					readyzGauge.Set(readyzInsufficientPeers)
 				} else {
-					readyzGauge.Set(1)
+					readyzGauge.Set(readyzReady)
 				}
 
 				mu.Lock()
