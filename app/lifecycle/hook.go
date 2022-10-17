@@ -16,7 +16,9 @@
 package lifecycle
 
 import (
+	"bytes"
 	"context"
+	"runtime/pprof"
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -182,7 +184,7 @@ func startAllHooks(
 func stopHook(stopCtx context.Context, hook hook, cancel context.CancelFunc, cacheErr func(err error)) {
 	err := hook.Func.Call(stopCtx)
 	if errors.Is(stopCtx.Err(), context.DeadlineExceeded) {
-		cacheErr(errors.New("shutdown timeout", z.Str("hook", hook.Label)))
+		cacheErr(errors.New("shutdown timeout", z.Str("hook", hook.Label), z.Str("stack_dump", getStackDump())))
 	} else if err != nil && !errors.Is(err, context.Canceled) {
 		cacheErr(errors.Wrap(err, "stop hook", z.Str("hook", hook.Label)))
 		cancel() // Cancel the graceful stop context.
@@ -198,4 +200,14 @@ func stopAllHooks(stopCtx context.Context, stopHooks []hook, cancel context.Canc
 
 		stopHook(stopCtx, hook, cancel, cacheErr)
 	}
+}
+
+// getStackDump returns a stack dump of all goroutines.
+// This is handy to debug shutdown timeout issues.
+// See https://stackoverflow.com/questions/19094099/how-to-dump-goroutine-stacktraces.
+func getStackDump() string {
+	var buf bytes.Buffer
+	_ = pprof.Lookup("goroutine").WriteTo(&buf, 2)
+
+	return buf.String()
 }
