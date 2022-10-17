@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	// readyzReady indicates the readyz is returning 200s and the node is operational.
+	// readyzReady indicates that readyz returns 200s and the node is operational.
 	readyzReady = 1
 	// readyzBeaconNodeDown indicates the readyz is returning 500s since the Beacon Node API is down.
 	readyzBeaconNodeDown = 2
