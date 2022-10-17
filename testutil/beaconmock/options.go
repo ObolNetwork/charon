@@ -348,6 +348,35 @@ func WithNoAttesterDuties() Option {
 	}
 }
 
+// WithSyncCommitteeDuties configures the mock to override SyncCommitteeDutiesFunc to return sync committee
+// duties for epochs not divisible by 3.
+func WithSyncCommitteeDuties() Option {
+	return func(mock *Mock) {
+		mock.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+			vals, err := mock.Validators(ctx, "", indices)
+			if err != nil {
+				return nil, err
+			}
+
+			var resp []*eth2v1.SyncCommitteeDuty
+			for i, index := range indices {
+				val, ok := vals[index]
+				if !ok {
+					continue
+				}
+
+				resp = append(resp, &eth2v1.SyncCommitteeDuty{
+					PubKey:                        val.Validator.PublicKey,
+					ValidatorIndex:                index,
+					ValidatorSyncCommitteeIndices: []eth2p0.CommitteeIndex{eth2p0.CommitteeIndex(i)},
+				})
+			}
+
+			return resp, nil
+		}
+	}
+}
+
 // WithClock configures the mock with the provided clock.
 func WithClock(clock clockwork.Clock) Option {
 	return func(mock *Mock) {
@@ -457,22 +486,22 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 				Data:            attData,
 			}, nil
 		},
-		ValidatorsFunc: func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+		ValidatorsFunc: func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			return nil, nil
 		},
-		ValidatorsByPubKeyFunc: func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+		ValidatorsByPubKeyFunc: func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			return nil, nil
 		},
-		SubmitAttestationsFunc: func(ctx context.Context, atts []*eth2p0.Attestation) error {
+		SubmitAttestationsFunc: func(context.Context, []*eth2p0.Attestation) error {
 			return nil
 		},
-		SubmitBeaconBlockFunc: func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+		SubmitBeaconBlockFunc: func(context.Context, *spec.VersionedSignedBeaconBlock) error {
 			return nil
 		},
-		SubmitBlindedBeaconBlockFunc: func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
+		SubmitBlindedBeaconBlockFunc: func(context.Context, *eth2api.VersionedSignedBlindedBeaconBlock) error {
 			return nil
 		},
-		SubmitVoluntaryExitFunc: func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
+		SubmitVoluntaryExitFunc: func(context.Context, *eth2p0.SignedVoluntaryExit) error {
 			return nil
 		},
 		GenesisTimeFunc: func(ctx context.Context) (time.Time, error) {
@@ -508,11 +537,14 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SlotsPerEpochFunc: func(ctx context.Context) (uint64, error) {
 			return httpMock.SlotsPerEpoch(ctx)
 		},
-		SubmitProposalPreparationsFunc: func(_ context.Context, _ []*eth2v1.ProposalPreparation) error {
+		SubmitProposalPreparationsFunc: func(context.Context, []*eth2v1.ProposalPreparation) error {
 			return nil
 		},
-		SyncCommitteeDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+		SyncCommitteeDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 			return []*eth2v1.SyncCommitteeDuty{}, nil
+		},
+		SubmitSyncCommitteeMessagesFunc: func(context.Context, []*altair.SyncCommitteeMessage) error {
+			return nil
 		},
 	}
 }

@@ -54,9 +54,9 @@ func PseudoSyncCommContributionFlow(t *testing.T, supportDVT bool) {
 	startEpoch := (epoch / period) * period
 	endEpoch := startEpoch + period
 
-	// Get the sync committee duties for this epoch.
+	// Get the sync committee attDuties for this epoch.
 
-	// One option is to fetch the sync committee duties for a subset of validators
+	// One option is to fetch the sync committee attDuties for a subset of validators
 	duties, _ := eth2Cl.SyncCommitteeDuties(ctx, epoch, valIdxs)
 	for _, duty := range duties {
 		// Note SyncCommitteeDuty contains a public key which charon needs to intercept/swap.
@@ -114,7 +114,7 @@ func PseudoSyncCommContributionFlow(t *testing.T, supportDVT bool) {
 	_ = eth2Cl.SubmitSyncCommitteeMessages(ctx, msgs)
 
 	// For each slot, some validators are also aggregators and need to submit contributions.
-	// This can be calculated at any time in the sync committee period after the duties have been fetched.
+	// This can be calculated at any time in the sync committee period after the attDuties have been fetched.
 
 	syncCommSize, _ := spec["SYNC_COMMITTEE_SIZE"].(uint64)
 	subnetCount, _ := spec["SYNC_COMMITTEE_SUBNET_COUNT"].(uint64)
@@ -148,7 +148,7 @@ func PseudoSyncCommContributionFlow(t *testing.T, supportDVT bool) {
 					continue
 				}
 
-				// Add aggregator duties per slot.
+				// Add aggregator attDuties per slot.
 				aggsPerSubComm[subcommittee] = append(aggsPerSubComm[subcommittee], aggregator{
 					ValidatorIndex: duty.ValidatorIndex,
 					Pubkey:         duty.PubKey,
@@ -180,7 +180,7 @@ func PseudoSyncCommContributionFlow(t *testing.T, supportDVT bool) {
 			// Fetch cached pubkey from selection.ValidatorIndex
 			var pubkey eth2p0.BLSPubKey
 
-			// Add aggregator duties per slot.
+			// Add aggregator attDuties per slot.
 			aggsPerSubComm[selection.Data.SubcommitteeIndex] = append(aggsPerSubComm[selection.Data.SubcommitteeIndex], aggregator{
 				ValidatorIndex: selection.ValidatorIndex,
 				Pubkey:         pubkey,
@@ -257,8 +257,8 @@ type SyncCommitteeSelection struct {
 	IsAggregator   bool
 }
 
-// SyncCommitteeSelections is the new proposed endpoint that returns aggregated sync committee selections
-// for the provided partial selections.
+// SyncCommitteeSelections is the new proposed endpoint that returns aggregated sync committee attSelections
+// for the provided partial attSelections.
 //
 // Note endpoint MUST be called at the start of the slot, since all VCs in the cluster need to do it at the same time.
 // This is by convention, to ensure timely successful aggregation.

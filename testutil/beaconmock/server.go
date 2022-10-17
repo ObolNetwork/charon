@@ -40,6 +40,7 @@ var staticJSON []byte
 // It serves all proxied endpoints not handled by charon's validatorapi.
 // Endpoints include static endpoints defined in static.json and a few stubbed paths.
 type HTTPMock interface {
+	eth2client.BeaconBlockRootProvider
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
 	eth2client.ForkProvider
@@ -51,7 +52,7 @@ type HTTPMock interface {
 	eth2client.SlotDurationProvider
 	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
-	eth2client.SyncCommitteeDutiesProvider
+	eth2client.SyncCommitteeSubscriptionsSubmitter
 }
 
 // staticOverride defines a http server static override for a endpoint response value.
@@ -75,9 +76,15 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 			Handler: func(w http.ResponseWriter, r *http.Request) {},
 		},
 		{
-			Path: "/eth/v1/validator/duties/sync/{epoch}",
+			Path: "/eth/v1/validator/sync_committee_subscriptions",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				_, _ = w.Write([]byte(`{"data":[]}`))
+				w.WriteHeader(http.StatusOK)
+			},
+		},
+		{
+			Path: "/eth/v1/beacon/blocks/head/root",
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(`{"data": {"root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"}}`))
 			},
 		},
 		{

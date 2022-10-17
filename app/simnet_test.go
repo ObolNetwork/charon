@@ -155,6 +155,15 @@ func TestSimnetNoNetwork_WithBuilderRegistrationMockVCs(t *testing.T) {
 	testSimnet(t, args, expect)
 }
 
+func TestSimnetNoNetwork_WithSyncCommitteeMockVCs(t *testing.T) {
+	args := newSimnetArgs(t)
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithSyncCommitteeDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	expect := newSimnetExpect(args.N, core.DutySyncMessage)
+	testSimnet(t, args, expect)
+}
+
 type simnetArgs struct {
 	N                   int
 	VMocks              []bool
