@@ -1071,7 +1071,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(app_peerinfo_git_commit{job=\"$node\"}) by (peer,git_hash) ",
+          "expr": "max(app_peerinfo_git_commit{job=\"$node\"}) by (peer,git_hash) > 0",
           "format": "table",
           "hide": false,
           "instant": true,
