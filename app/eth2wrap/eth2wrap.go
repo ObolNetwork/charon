@@ -18,6 +18,8 @@ package eth2wrap
 
 import (
 	"context"
+	"net"
+	"net/url"
 	"time"
 
 	eth2http "github.com/attestantio/go-eth2-client/http"
@@ -26,6 +28,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/forkjoin"
 	"github.com/obolnetwork/charon/app/promauto"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -77,7 +80,7 @@ func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses ...strin
 			eth2http.WithTimeout(timeout),
 		)
 		if err != nil {
-			return nil, errors.Wrap(err, "new eth2 client")
+			return nil, wrapError(ctx, err, "new eth2 client")
 		}
 		eth2Http, ok := eth2Svc.(*eth2http.Service)
 		if !ok {
@@ -186,4 +189,32 @@ func latency(endpoint string) func() {
 // incError increments the error counter.
 func incError(endpoint string) {
 	errorCount.WithLabelValues(endpoint).Inc()
+}
+
+// wrapError returns the error as a wrapped structured error.
+func wrapError(ctx context.Context, err error, label string) error {
+	if uerr := new(url.Error); errors.As(err, &uerr) { // Decompose url errors
+		msg := "http request aborted" // The request didn't complete, no http response
+		if ctx.Err() != nil {
+			msg = "caller cancelled http request"
+		} else if errors.Is(uerr.Err, context.DeadlineExceeded) || errors.Is(uerr.Err, context.Canceled) {
+			msg = "http request timeout"
+		}
+		err = errors.Wrap(uerr.Err, msg,
+			z.Str("url", uerr.URL),
+			z.Str("method", uerr.Op),
+		)
+	}
+	if nerr := new(net.OpError); errors.As(err, &nerr) { // Decompose net errors
+		msg := "network operation error: " + nerr.Op
+		if ctx.Err() != nil {
+			msg = "caller cancelled network operation: " + nerr.Op
+		} else if errors.Is(nerr.Err, context.DeadlineExceeded) || errors.Is(nerr.Err, context.Canceled) {
+			msg = "network operation timeout: " + nerr.Op
+		}
+		err = errors.Wrap(nerr.Err, msg, z.Str("address", nerr.Addr.String()))
+	}
+	// TODO(corver): Decompose go-eth2-client errors once structured errors supported.
+
+	return errors.Wrap(err, "beacon api "+label, z.Str("label", label))
 }

@@ -17,6 +17,8 @@ package eth2wrap_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -162,4 +165,35 @@ func TestSyncState(t *testing.T) {
 	resp, err := eth2Cl.NodeSyncing(context.Background())
 	require.NoError(t, err)
 	require.False(t, resp.IsSyncing)
+}
+
+func TestErrors(t *testing.T) {
+	ctx := context.Background()
+	t.Run("network dial error", func(t *testing.T) {
+		_, err := eth2wrap.NewMultiHTTP(ctx, time.Hour, "localhost:22222")
+		log.Error(ctx, "See this error log for fields", err)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "beacon api new eth2 client: network operation error: dial: connect: connection refused")
+	})
+
+	// Test http server that just hangs until request cancelled
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+
+	t.Run("http timeout", func(t *testing.T) {
+		_, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond, srv.URL)
+		log.Error(ctx, "See this error log for fields", err)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "beacon api new eth2 client: http request timeout: context deadline exceeded")
+	})
+
+	t.Run("caller cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		cancel()
+		_, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond, srv.URL)
+		log.Error(ctx, "See this error log for fields", err)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "beacon api new eth2 client: caller cancelled http request: context canceled")
+	})
 }
