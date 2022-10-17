@@ -237,7 +237,7 @@ func newMetricsSubmitter() metricSubmitter {
 		peerVersion.WithLabelValues(peerName, version).Set(1)
 		peerGitHash.WithLabelValues(peerName, gitHash).Set(1)
 
-		// Clear previous metrics of changed
+		// Clear previous metrics if changed
 		if prev, ok := prevVersions[peerName]; ok && version != prev {
 			peerVersion.WithLabelValues(peerName, prev).Set(0)
 		}
