@@ -27,7 +27,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -85,7 +84,7 @@ func (m multi) NodeVersion(ctx context.Context) (string, error) {
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -105,7 +104,7 @@ func (m multi) SlotDuration(ctx context.Context) (time.Duration, error) {
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -125,7 +124,7 @@ func (m multi) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -145,7 +144,7 @@ func (m multi) DepositContract(ctx context.Context) (*apiv1.DepositContract, err
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -165,7 +164,7 @@ func (m multi) AggregateAttestation(ctx context.Context, slot phase0.Slot, attes
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -184,7 +183,7 @@ func (m multi) SubmitAggregateAttestations(ctx context.Context, aggregateAndProo
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return err
@@ -204,7 +203,7 @@ func (m multi) AttestationData(ctx context.Context, slot phase0.Slot, committeeI
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -223,7 +222,7 @@ func (m multi) SubmitAttestations(ctx context.Context, attestations []*phase0.At
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return err
@@ -244,7 +243,7 @@ func (m multi) AttesterDuties(ctx context.Context, epoch phase0.Epoch, validator
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -265,7 +264,7 @@ func (m multi) SyncCommitteeDuties(ctx context.Context, epoch phase0.Epoch, vali
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -284,7 +283,7 @@ func (m multi) SubmitSyncCommitteeMessages(ctx context.Context, messages []*alta
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return err
@@ -303,7 +302,7 @@ func (m multi) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptio
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return err
@@ -323,7 +322,7 @@ func (m multi) SyncCommitteeContribution(ctx context.Context, slot phase0.Slot, 
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -342,7 +341,7 @@ func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return err
@@ -362,7 +361,7 @@ func (m multi) BeaconBlockProposal(ctx context.Context, slot phase0.Slot, randao
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -382,7 +381,7 @@ func (m multi) BeaconBlockRoot(ctx context.Context, blockID string) (*phase0.Roo
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -401,7 +400,7 @@ func (m multi) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSigne
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return err
@@ -420,7 +419,7 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return err
@@ -440,7 +439,7 @@ func (m multi) BlindedBeaconBlockProposal(ctx context.Context, slot phase0.Slot,
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -459,7 +458,7 @@ func (m multi) SubmitBlindedBeaconBlock(ctx context.Context, block *api.Versione
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return err
@@ -478,7 +477,7 @@ func (m multi) SubmitValidatorRegistrations(ctx context.Context, registrations [
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return err
@@ -497,7 +496,7 @@ func (m multi) Events(ctx context.Context, topics []string, handler eth2client.E
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return err
@@ -517,7 +516,7 @@ func (m multi) Fork(ctx context.Context, stateID string) (*phase0.Fork, error) {
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -537,7 +536,7 @@ func (m multi) ForkSchedule(ctx context.Context) ([]*phase0.Fork, error) {
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -557,7 +556,7 @@ func (m multi) Genesis(ctx context.Context) (*apiv1.Genesis, error) {
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -577,7 +576,7 @@ func (m multi) NodeSyncing(ctx context.Context) (*apiv1.SyncState, error) {
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -597,7 +596,7 @@ func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*a
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return err
@@ -618,7 +617,7 @@ func (m multi) ProposerDuties(ctx context.Context, epoch phase0.Epoch, validator
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -638,7 +637,7 @@ func (m multi) Spec(ctx context.Context) (map[string]interface{}, error) {
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -661,7 +660,7 @@ func (m multi) Validators(ctx context.Context, stateID string, validatorIndices 
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -684,7 +683,7 @@ func (m multi) ValidatorsByPubKey(ctx context.Context, stateID string, validator
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -703,7 +702,7 @@ func (m multi) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0.Si
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return err
@@ -723,7 +722,7 @@ func (m multi) Domain(ctx context.Context, domainType phase0.DomainType, epoch p
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err
@@ -743,7 +742,7 @@ func (m multi) GenesisTime(ctx context.Context) (time.Time, error) {
 
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err

@@ -79,7 +79,7 @@ type Client interface {
 
 		if err != nil {
 			incError(label)
-			err = errors.Wrap(err, "eth2wrap")
+			err = wrapError(ctx, err, label)
 		}
 
 		return {{.ResultNames}}
