@@ -48,22 +48,17 @@ type (
 func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc,
 ) *PeerInfo {
-	tickerProvider := func() (<-chan time.Time, func()) {
-		ticker := time.NewTicker(period)
-		return ticker.C, ticker.Stop
-	}
-	metricSubmitter := func(peerID peer.ID, clockOffset time.Duration, version string, gitHash string) {
-		peerName := p2p.PeerName(peerID)
-		peerClockOffset.WithLabelValues(peerName).Set(clockOffset.Seconds())
-		peerVersion.WithLabelValues(peerName, version).Set(1)
-		peerGitHash.WithLabelValues(peerName, gitHash).Set(1)
-	}
 	// Set own version and githash metrics.
 	peerVersion.WithLabelValues(p2p.PeerName(tcpNode.ID()), version).Set(1)
 	peerGitHash.WithLabelValues(p2p.PeerName(tcpNode.ID()), gitHash).Set(1)
 
+	tickerProvider := func() (<-chan time.Time, func()) {
+		ticker := time.NewTicker(period)
+		return ticker.C, ticker.Stop
+	}
+
 	return newInternal(tcpNode, peers, version, lockHash, gitHash, sendFunc, p2p.RegisterHandler,
-		tickerProvider, time.Now, metricSubmitter)
+		tickerProvider, time.Now, newMetricsSubmitter())
 }
 
 // NewForT returns a new peer info protocol instance for testing only.
@@ -210,4 +205,46 @@ func supported(protocols []string) bool {
 	}
 
 	return supported
+}
+
+// newMetricsSubmitter returns a prometheus metric submitter.
+func newMetricsSubmitter() metricSubmitter {
+	var (
+		prevVersions  = make(map[string]string)
+		prevGitHashes = make(map[string]string)
+	)
+
+	return func(peerID peer.ID, clockOffset time.Duration, version string, gitHash string) {
+		peerName := p2p.PeerName(peerID)
+
+		// Limit range of possible values
+		if clockOffset < -time.Hour {
+			clockOffset = -time.Hour
+		} else if clockOffset > time.Hour {
+			clockOffset = time.Hour
+		}
+		peerClockOffset.WithLabelValues(peerName).Set(clockOffset.Seconds())
+
+		// Limit range of possible values
+		if version == "" {
+			version = "unknown"
+		}
+		if gitHash == "" {
+			gitHash = "unknown"
+		}
+		// TODO(corver): Validate version and githash with regex
+
+		peerVersion.WithLabelValues(peerName, version).Set(1)
+		peerGitHash.WithLabelValues(peerName, gitHash).Set(1)
+
+		// Clear previous metrics of changed
+		if prev, ok := prevVersions[peerName]; ok && version != prev {
+			peerVersion.WithLabelValues(peerName, prev).Set(0)
+		}
+		if prev, ok := prevGitHashes[peerName]; ok && gitHash != prev {
+			peerGitHash.WithLabelValues(peerName, prev).Set(0)
+		}
+		prevVersions[peerName] = version
+		prevGitHashes[peerName] = gitHash
+	}
 }
