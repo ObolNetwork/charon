@@ -288,8 +288,12 @@ func testSimnet(t *testing.T, args simnetArgs, expect simnetExpect) {
 				ParSigExFunc:       parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
 				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
-					results <- simResult{Duty: duty, Pubkey: key, Data: data}
-					return nil
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case results <- simResult{Duty: duty, Pubkey: key, Data: data}:
+						return nil
+					}
 				},
 				SimnetBMockOpts: append([]beaconmock.Option{
 					beaconmock.WithSlotsPerEpoch(1),
