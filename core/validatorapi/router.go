@@ -350,6 +350,11 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 			return nil, err
 		}
 
+		// response.data cannot be nil, it leads to NullPointerException in teku.
+		if len(data) == 0 {
+			data = []*eth2v1.ProposerDuty{}
+		}
+
 		return proposerDutiesResponse{
 			DependentRoot: stubRoot(epoch), // TODO(corver): Fill this properly
 			Data:          data,
@@ -375,6 +380,11 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 			return nil, err
 		}
 
+		// response.data cannot be nil, it leads to NullPointerException in teku.
+		if len(data) == 0 {
+			data = []*eth2v1.AttesterDuty{}
+		}
+
 		return attesterDutiesResponse{
 			DependentRoot: stubRoot(epoch), // TODO(corver): Fill this properly
 			Data:          data,
@@ -398,6 +408,11 @@ func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
 		data, err := p.SyncCommitteeDuties(ctx, eth2p0.Epoch(epoch), req)
 		if err != nil {
 			return nil, err
+		}
+
+		// response.data cannot be nil, it leads to NullPointerException in teku.
+		if len(data) == 0 {
+			data = []*eth2v1.SyncCommitteeDuty{}
 		}
 
 		return syncCommitteeDutiesResponse{Data: data}, nil
