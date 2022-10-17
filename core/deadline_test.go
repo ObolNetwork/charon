@@ -28,6 +28,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+//go:generate go test .
 func TestDeadliner(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"path"
 	"strings"
 	"sync"
 	"testing"
@@ -104,25 +105,28 @@ type Retryer[T any] struct {
 // It is intended to be used asynchronously:
 //
 //	go retryer.DoAsync(ctx, duty, "foo", fn)
-func (r *Retryer[T]) DoAsync(parent context.Context, t T, name string, fn func(context.Context) error) {
+func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn func(context.Context) error) {
 	if r.isShutdown() {
 		return
 	}
 
-	r.asyncStarted(name)
-	defer r.asyncEnded(name)
+	label := path.Join(topic, name)
+
+	r.asyncStarted(label)
+	defer r.asyncEnded(label)
 
 	backoffFunc := r.backoffProvider()
 
 	// Switch to the async context since parent context may be closed soon.
 	ctx := log.CopyFields(r.asyncCtx, parent)                       // Copy log fields to new context
 	ctx = trace.ContextWithSpan(ctx, trace.SpanFromContext(parent)) // Copy tracing span to new context
-	ctx = log.WithTopic(ctx, "retry")
+	ctx = log.WithTopic(ctx, topic)
 	ctx, cancel := r.ctxTimeoutFunc(ctx, t)
 	defer cancel()
 
 	ctx, span := tracer.Start(ctx, "app/retry.DoAsync")
 	defer span.End()
+	span.SetAttributes(attribute.String("topic", topic))
 	span.SetAttributes(attribute.String("name", name))
 
 	for i := 0; ; i++ {
@@ -140,12 +144,12 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, name string, fn func(c
 		// Note that the local context is not checked, since we care about downstream timeouts.
 
 		if !isCtxErr && !isNetErr && !isTempErr {
-			log.Error(ctx, "Permanent failure calling "+name, err)
+			log.Error(ctx, "Permanent failure calling "+label, err)
 			return
 		}
 
 		if ctx.Err() == nil {
-			log.Warn(ctx, "Temporary failure (will retry) calling "+name, err)
+			log.Warn(ctx, "Temporary failure (will retry) calling "+label, err)
 			span.AddEvent("retry.backoff.start")
 			select {
 			case <-backoffFunc():
@@ -156,9 +160,11 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, name string, fn func(c
 			span.AddEvent("retry.backoff.done")
 		}
 
-		if ctx.Err() != nil {
+		if r.asyncCtx.Err() != nil {
+			return // Shutdown, return without logging
+		} else if ctx.Err() != nil {
 			// No need to log this at error level since tracker will analyse and report on failed duties.
-			log.Debug(ctx, "Retry timeout calling "+name+", duty expired")
+			log.Debug(ctx, "Retry timeout calling "+label+", duty expired")
 			return
 		}
 	}

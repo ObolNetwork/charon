@@ -103,7 +103,7 @@ func TestRetryer(t *testing.T) {
 			require.NoError(t, err)
 
 			var attempt int
-			retryer.DoAsync(ctx, core.NewAttesterDuty(999), "test", func(ctx context.Context) error {
+			retryer.DoAsync(ctx, core.NewAttesterDuty(999), "test", "test", func(ctx context.Context) error {
 				defer func() { attempt++ }()
 				return test.Func(ctx, attempt)
 			})
@@ -133,7 +133,7 @@ func TestShutdown(t *testing.T) {
 
 	// Start 3 long-running functions
 	for i := 0; i < 3; i++ {
-		go retryer.DoAsync(ctx, core.NewProposerDuty(999999), "test", func(ctx context.Context) error {
+		go retryer.DoAsync(ctx, core.NewProposerDuty(999999), "test", "test", func(ctx context.Context) error {
 			waiting <- struct{}{}
 			<-stop
 			<-ctx.Done()
