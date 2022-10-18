@@ -37,7 +37,9 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-const insecurePower = 4
+// insecureCost decreases the cipher key cost from the default 18 to 4 which speeds up
+// encryption and decryption at the cost of security.
+const insecureCost = 4
 
 type confirmInsecure struct{}
 
@@ -51,7 +53,7 @@ var ConfirmInsecureKeys confirmInsecure
 // as it speeds up encryption and decryption at the cost of security.
 func StoreKeysInsecure(secrets []*bls_sig.SecretKey, dir string, _ confirmInsecure) error {
 	return storeKeysInternal(secrets, dir, "keystore-insecure-%d.json",
-		keystorev4.WithCost(new(testing.T), insecurePower))
+		keystorev4.WithCost(new(testing.T), insecureCost))
 }
 
 // StoreKeys stores the secrets in dir/keystore-%d.json EIP 2335 keystore files
