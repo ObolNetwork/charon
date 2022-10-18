@@ -51,6 +51,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			{"split-existing-keys", fmt.Sprintf(`"%v"`, conf.SplitKeysDir != "")},
 			{"split-keys-dir", splitKeysDir},
 			{"num-validators", fmt.Sprint(conf.NumValidators)},
+			{"insecure-keys", fmt.Sprintf(`"%v"`, conf.InsecureKeys)},
 		}}
 
 		data = TmplData{
@@ -141,6 +142,7 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 		return append(kvs,
 			kv{"data-dir", fmt.Sprintf("/compose/node%d", index)},
 			kv{"definition-file", "/compose/cluster-definition.json"},
+			kv{"insecure-keys", fmt.Sprintf(`"%v"`, conf.InsecureKeys)},
 		)
 	}
 

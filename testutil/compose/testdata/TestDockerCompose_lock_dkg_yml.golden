@@ -33,6 +33,7 @@ services:
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node0
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
+      CHARON_INSECURE_KEYS: "false"
     
   node1:
     <<: *node-base
@@ -51,6 +52,7 @@ services:
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node1
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
+      CHARON_INSECURE_KEYS: "false"
     
   node2:
     <<: *node-base
@@ -69,6 +71,7 @@ services:
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node2
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
+      CHARON_INSECURE_KEYS: "false"
     
   node3:
     <<: *node-base
@@ -87,6 +90,7 @@ services:
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node3
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
+      CHARON_INSECURE_KEYS: "false"
     
   bootnode:
     <<: *node-base

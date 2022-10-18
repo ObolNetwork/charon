@@ -65,6 +65,8 @@ type clusterConfig struct {
 
 	SplitKeys    bool
 	SplitKeysDir string
+
+	InsecureKeys bool
 }
 
 func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig) error) *cobra.Command {
@@ -81,6 +83,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 	}
 
 	bindClusterFlags(cmd.Flags(), &conf)
+	bindInsecureFlags(cmd.Flags(), &conf.InsecureKeys)
 
 	return cmd
 }
@@ -97,6 +100,10 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVar(&config.NumDVs, "num-validators", 1, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
+}
+
+func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
+	flags.BoolVar(insecureKeys, "insecure-keys", false, "Generates insecure keystore files. This should never be used. It is not supported on mainnet.")
 }
 
 func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) error {
@@ -120,7 +127,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		conf.Network = eth2util.Goerli.Name
 	}
 
-	if err := validateClusterConfig(conf); err != nil {
+	if err := validateClusterConfig(ctx, conf); err != nil {
 		return err
 	}
 
@@ -220,12 +227,20 @@ func createPeers(conf clusterConfig, shareSets [][]*bls_sig.SecretKeyShare) ([]p
 			secrets = append(secrets, secret)
 		}
 
-		if err := os.MkdirAll(path.Join(nodeDir(conf.ClusterDir, i), "/validator_keys"), 0o755); err != nil {
+		keysDir := path.Join(nodeDir(conf.ClusterDir, i), "/validator_keys")
+
+		if err := os.MkdirAll(keysDir, 0o755); err != nil {
 			return nil, errors.Wrap(err, "mkdir validator_keys")
 		}
 
-		if err := keystore.StoreKeys(secrets, path.Join(nodeDir(conf.ClusterDir, i), "/validator_keys")); err != nil {
-			return nil, err
+		if conf.InsecureKeys {
+			if err := keystore.StoreKeysInsecure(secrets, keysDir, keystore.ConfirmInsecureKeys); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := keystore.StoreKeys(secrets, keysDir); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -451,13 +466,19 @@ func checksumAddr(a string) (string, error) {
 }
 
 // validateClusterConfig returns an error if the cluster config is invalid.
-func validateClusterConfig(conf clusterConfig) error {
+func validateClusterConfig(ctx context.Context, conf clusterConfig) error {
 	if conf.NumNodes < minNodes {
 		return errors.New("insufficient number of nodes (min = 4)")
 	}
 
 	if !eth2util.ValidNetwork(conf.Network) {
 		return errors.New("unsupported network", z.Str("network", conf.Network))
+	}
+
+	if conf.InsecureKeys && isMainNetwork(conf.Network) {
+		return errors.New("insecure keys not supported on mainnet")
+	} else if conf.InsecureKeys {
+		log.Warn(ctx, "Insecure keystores configured. ONLY DO THIS DURING TESTING", nil)
 	}
 
 	return validateWithdrawalAddr(conf.WithdrawalAddr, conf.Network)

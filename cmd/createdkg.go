@@ -180,10 +180,14 @@ func validateWithdrawalAddr(addr string, network string) error {
 	}
 
 	// We cannot allow a zero withdrawal address on mainnet or gnosis.
-	if (network == "mainnet" || network == "gnosis") &&
-		addr == defaultWithdrawalAddr {
+	if isMainNetwork(network) && addr == defaultWithdrawalAddr {
 		return errors.New("zero address forbidden on this network", z.Str("network", network))
 	}
 
 	return nil
+}
+
+// isMainNetwork returns true if the network is either mainnet or gnosis.
+func isMainNetwork(network string) bool {
+	return network == eth2util.Mainnet.Name || network == eth2util.Gnosis.Name
 }

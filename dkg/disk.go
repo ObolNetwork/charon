@@ -128,7 +128,7 @@ func fetchDefinition(ctx context.Context, url string) (cluster.Definition, error
 }
 
 // writeKeystores writes the private share keystores to disk.
-func writeKeystores(datadir string, shares []share) error {
+func writeKeystores(datadir string, shares []share, insecureKeys bool) error {
 	var secrets []*bls_sig.SecretKey
 	for _, s := range shares {
 		secret, err := tblsconv.ShareToSecret(s.SecretShare)
@@ -138,12 +138,20 @@ func writeKeystores(datadir string, shares []share) error {
 		secrets = append(secrets, secret)
 	}
 
-	if err := os.Mkdir(path.Join(datadir, "/validator_keys"), os.ModePerm); err != nil {
+	keysDir := path.Join(datadir, "/validator_keys")
+
+	if err := os.Mkdir(keysDir, os.ModePerm); err != nil {
 		return errors.Wrap(err, "mkdir /validator_keys")
 	}
 
-	if err := keystore.StoreKeys(secrets, path.Join(datadir, "/validator_keys")); err != nil {
-		return errors.Wrap(err, "store keystores")
+	if insecureKeys {
+		if err := keystore.StoreKeysInsecure(secrets, keysDir, keystore.ConfirmInsecureKeys); err != nil {
+			return err
+		}
+	} else {
+		if err := keystore.StoreKeys(secrets, keysDir); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -55,6 +55,10 @@
     {
      "Key": "definition-file",
      "Value": "/compose/cluster-definition.json"
+    },
+    {
+     "Key": "insecure-keys",
+     "Value": "\"false\""
     }
    ],
    "Ports": null
@@ -110,6 +114,10 @@
     {
      "Key": "definition-file",
      "Value": "/compose/cluster-definition.json"
+    },
+    {
+     "Key": "insecure-keys",
+     "Value": "\"false\""
     }
    ],
    "Ports": null
@@ -165,6 +173,10 @@
     {
      "Key": "definition-file",
      "Value": "/compose/cluster-definition.json"
+    },
+    {
+     "Key": "insecure-keys",
+     "Value": "\"false\""
     }
    ],
    "Ports": null
@@ -220,6 +232,10 @@
     {
      "Key": "definition-file",
      "Value": "/compose/cluster-definition.json"
+    },
+    {
+     "Key": "insecure-keys",
+     "Value": "\"false\""
     }
    ],
    "Ports": null

@@ -27,6 +27,7 @@ services:
       CHARON_SPLIT_EXISTING_KEYS: "false"
       CHARON_SPLIT_KEYS_DIR: 
       CHARON_NUM_VALIDATORS: 1
+      CHARON_INSECURE_KEYS: "false"
     
 
   
