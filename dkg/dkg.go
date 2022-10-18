@@ -81,7 +81,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err != nil {
 		return err
 	}
-	if conf.InsecureKeys && network == eth2util.Mainnet.Name {
+	if conf.InsecureKeys && (network == eth2util.Mainnet.Name || network == eth2util.Gnosis.Name) {
 		return errors.New("insecure keys not supported on mainnet")
 	} else if conf.InsecureKeys {
 		log.Warn(ctx, "Insecure keystores configured. ONLY DO THIS DURING TESTING", nil)
