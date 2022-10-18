@@ -105,7 +105,8 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 	s.states.Store(peerID, state) // Note there is a race if two results for the same peer is added at the same time, but this isn't critical.
 }
 
-// SendAsync returns nil sends a libp2p message asynchronously. It logs results on state change (success to/from failure).
+// SendAsync returns nil sends a libp2p message asynchronously.
+// It logs results on state change (success to/from failure).
 // It implements SendFunc.
 func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
 	go func() {
@@ -119,13 +120,14 @@ func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID pr
 }
 
 // SendReceive sends and receives a libp2p request and response message pair synchronously and then closes the stream.
-// It returns false on any error and applies log filtering.
+// The provided response proto will contain the response if err is nil.
+// It logs results on state change (success to/from failure).
 // It implements SendReceiveFunc.
 func (s *Sender) SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID, req, resp proto.Message, protocols ...protocol.ID) error {
 	err := SendReceive(ctx, tcpNode, peerID, req, resp, protocols...)
 	s.addResult(ctx, peerID, err)
 
-	return nil
+	return err
 }
 
 // SendReceive sends and receives a libp2p request and response message
