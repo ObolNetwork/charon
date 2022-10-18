@@ -130,7 +130,7 @@ func (p *headProducer) handleGetBlockRoot(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	_, _ = w.Write([]byte(fmt.Sprintf(`{"data":{"root":"%#x"}}`, head.Block)))
+	_, _ = w.Write([]byte(fmt.Sprintf(`{"execution_optimistic": false,"data":{"root":"%#x"}}`, head.Block)))
 }
 
 // handleEvents is a http handler to handle "/eth/v1/events".

@@ -17,6 +17,7 @@ package validatormock
 
 import (
 	"context"
+	"encoding/hex"
 	"sync"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -25,6 +26,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
@@ -170,7 +172,7 @@ func subscribeSyncCommSubnets(ctx context.Context, eth2Cl eth2wrap.Client, epoch
 		return err
 	}
 
-	log.Info(ctx, "Mock sync committee subscription submitted")
+	log.Info(ctx, "Mock sync committee subscription submitted", z.Int("epoch", int(epoch)))
 
 	return nil
 }
@@ -225,5 +227,12 @@ func submitSyncMessage(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.
 		})
 	}
 
-	return eth2Cl.SubmitSyncCommitteeMessages(ctx, msgs)
+	err = eth2Cl.SubmitSyncCommitteeMessages(ctx, msgs)
+	if err != nil {
+		return err
+	}
+
+	log.Info(ctx, "Mock sync committee msg submitted", z.Int("slot", int(slot)), z.Str("root", hex.EncodeToString(blockRoot[:])))
+
+	return nil
 }
