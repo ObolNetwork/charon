@@ -64,7 +64,7 @@ type staticOverride struct {
 }
 
 // newHTTPServer returns a beacon API mock http server.
-func newHTTPServer(addr string, bp *BlockProducer, overrides ...staticOverride) (*http.Server, error) {
+func newHTTPServer(addr string, producer *BlockProducer, overrides ...staticOverride) (*http.Server, error) {
 	debug := os.Getenv("BEACONMOCK_DEBUG") == "true" // NOTE: These logs are verbose, so disabled by default.
 	shutdown := make(chan struct{})
 
@@ -84,7 +84,7 @@ func newHTTPServer(addr string, bp *BlockProducer, overrides ...staticOverride) 
 		},
 		{
 			Path:    "/eth/v1/beacon/blocks/{block_id}/root",
-			Handler: bp.handleGetBlockRoot,
+			Handler: producer.handleGetBlockRoot,
 		},
 		{
 			Path: "/eth/v1/validator/aggregate_attestation",
@@ -121,7 +121,7 @@ func newHTTPServer(addr string, bp *BlockProducer, overrides ...staticOverride) 
 		},
 		{
 			Path:    "/eth/v1/events",
-			Handler: bp.serveEvents,
+			Handler: producer.serveEvents,
 		},
 	}
 
@@ -182,13 +182,13 @@ func newHTTPServer(addr string, bp *BlockProducer, overrides ...staticOverride) 
 }
 
 // newHTTPMock starts and returns a static beacon mock http server and client.
-func newHTTPMock(bp *BlockProducer, overrides ...staticOverride) (HTTPMock, *http.Server, error) {
+func newHTTPMock(producer *BlockProducer, overrides ...staticOverride) (HTTPMock, *http.Server, error) {
 	l, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "listen")
 	}
 
-	srv, err := newHTTPServer(l.Addr().String(), bp, overrides...)
+	srv, err := newHTTPServer(l.Addr().String(), producer, overrides...)
 	if err != nil {
 		return nil, nil, err
 	}

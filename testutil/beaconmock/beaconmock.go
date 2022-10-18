@@ -69,14 +69,14 @@ func New(opts ...Option) (Mock, error) {
 		opt(&temp)
 	}
 
-	bp := NewBlockProducer()
-	httpMock, httpServer, err := newHTTPMock(bp, temp.overrides...)
+	producer := NewBlockProducer()
+	httpMock, httpServer, err := newHTTPMock(producer, temp.overrides...)
 	if err != nil {
 		return Mock{}, err
 	}
 
 	// Then configure the mock
-	mock := defaultMock(httpMock, httpServer, temp.clock, bp)
+	mock := defaultMock(httpMock, httpServer, temp.clock, producer)
 	for _, opt := range opts {
 		opt(&mock)
 	}

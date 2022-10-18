@@ -374,14 +374,14 @@ func WithClock(clock clockwork.Clock) Option {
 }
 
 // defaultMock returns a minimum viable mock that doesn't panic and returns mostly empty responses.
-func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clock, bp *BlockProducer) Mock {
+func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clock, producer *BlockProducer) Mock {
 	attStore := newAttestationStore(httpMock)
 
 	return Mock{
 		clock:         clock,
 		HTTPMock:      httpMock,
 		httpServer:    httpServer,
-		BlockProducer: bp,
+		BlockProducer: producer,
 		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
 			return &spec.VersionedBeaconBlock{
 				Version: spec.DataVersionBellatrix,

@@ -39,7 +39,7 @@ func NewBlockProducer() *BlockProducer {
 	return &BlockProducer{server: server}
 }
 
-// BlockProducer is stateful structure for providing deterministic block roots based on slot events.
+// BlockProducer is a stateful struct for providing deterministic block roots based on slot events.
 type BlockProducer struct {
 	// Immutable state
 	server *sse.Server
