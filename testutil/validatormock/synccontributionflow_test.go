@@ -125,7 +125,7 @@ func PseudoSyncCommContributionFlow(t *testing.T, supportDVT bool) {
 		SelectionProof eth2p0.BLSSignature
 	}
 	aggsPerSubComm := make(map[uint64][]aggregator)
-	var selectionReqs []*SyncCommitteeSelectionRequest // Only used if supporting DVT
+	var partialSelections []*SyncCommitteeSelection // Only used if supporting DVT
 	for _, duty := range duties {
 		// Each validator can be part of multiple subcommittees.
 		for _, syncCommitteeIdx := range duty.ValidatorSyncCommitteeIndices {
@@ -159,10 +159,11 @@ func PseudoSyncCommContributionFlow(t *testing.T, supportDVT bool) {
 			// For DVT a new endpoint needs to be introduced to calculate and provide aggregated selection proofs.
 			// This is a batch endpoint that much be called at roughly the same time by all VCs in the cluster,
 			// so cache all the requests until the start of the slot.
-			selectionReqs = append(selectionReqs, &SyncCommitteeSelectionRequest{
-				ValidatorIndex: duty.ValidatorIndex,
-				Data:           data,
-				SelectionProof: sig,
+			partialSelections = append(partialSelections, &SyncCommitteeSelection{
+				ValidatorIndex:    duty.ValidatorIndex,
+				Slot:              data.Slot,
+				SubcommitteeIndex: data.SubcommitteeIndex,
+				SelectionProof:    sig,
 			})
 		}
 	}
@@ -170,10 +171,10 @@ func PseudoSyncCommContributionFlow(t *testing.T, supportDVT bool) {
 	// Instead of calculating aggregator locally, VCs supporting DVT need to request this from the upstream middleware DVT client.
 	// By convention, this MUST happen at the start of the slot, since all VCs need to do this at the same.
 	if supportDVT {
-		selections, _ := SyncCommitteeSelections(ctx, selectionReqs) // This is the new proposed endpoint!
+		aggregateSelections, _ := AggregateSyncCommitteeSelections(ctx, partialSelections) // This is the new proposed endpoint!
 
-		for _, selection := range selections {
-			if !selection.IsAggregator {
+		for _, selection := range aggregateSelections {
+			if !isSyncCommAggregator(ctx, t, eth2Cl, selection.SelectionProof) {
 				continue
 			}
 
@@ -181,7 +182,7 @@ func PseudoSyncCommContributionFlow(t *testing.T, supportDVT bool) {
 			var pubkey eth2p0.BLSPubKey
 
 			// Add aggregator attDuties per slot.
-			aggsPerSubComm[selection.Data.SubcommitteeIndex] = append(aggsPerSubComm[selection.Data.SubcommitteeIndex], aggregator{
+			aggsPerSubComm[selection.SubcommitteeIndex] = append(aggsPerSubComm[selection.SubcommitteeIndex], aggregator{
 				ValidatorIndex: selection.ValidatorIndex,
 				Pubkey:         pubkey,
 				SelectionProof: selection.SelectionProof,
@@ -242,30 +243,30 @@ func isSyncCommAggregator(ctx context.Context, t *testing.T, eth2Cl *mock.Servic
 	return binary.LittleEndian.Uint64(hash[:8])%modulo == 0
 }
 
-// SyncCommitteeSelectionRequest is the new proposed endpoint request type.
-type SyncCommitteeSelectionRequest struct {
-	ValidatorIndex eth2p0.ValidatorIndex               // ValidatorIndex required to aggregate the signature.
-	Data           *altair.SyncAggregatorSelectionData // Data required to verify the signature.
-	SelectionProof eth2p0.BLSSignature                 // SelectionProof is a partial signature
+// SyncCommitteeSelectionAggregator is the interface for aggregating sync committee selection proofs in a DVT cluster.
+type SyncCommitteeSelectionAggregator interface {
+	// AggregateSyncCommitteeSelections returns DVT aggregated sync committee selection proofs.
+	// This would call a new BN API endpoint: POST /eth/v1/aggregate/sync_committee_selections
+	AggregateSyncCommitteeSelections(ctx context.Context, partialSelections []*SyncCommitteeSelection) ([]*SyncCommitteeSelection, error)
 }
 
-// SyncCommitteeSelection is the new proposed endpoint response type.
+// SyncCommitteeSelectionRequest is the new proposed endpoint request and response types.
 type SyncCommitteeSelection struct {
-	ValidatorIndex eth2p0.ValidatorIndex
-	Data           *altair.SyncAggregatorSelectionData
-	SelectionProof eth2p0.BLSSignature
-	IsAggregator   bool
+	ValidatorIndex    eth2p0.ValidatorIndex // ValidatorIndex required to aggregate the signature.
+	Slot              eth2p0.Slot           // Slot required to verify the signature
+	SubcommitteeIndex uint64                // SubcommitteeIndex required to verify the signature
+	SelectionProof    eth2p0.BLSSignature   // SelectionProof is a partial signature
 }
 
-// SyncCommitteeSelections is the new proposed endpoint that returns aggregated sync committee attSelections
+// AggregateSyncCommitteeSelections is the new proposed endpoint that returns aggregated sync committee attSelections
 // for the provided partial attSelections.
 //
 // Note endpoint MUST be called at the start of the slot, since all VCs in the cluster need to do it at the same time.
 // This is by convention, to ensure timely successful aggregation.
 //
 // Note this is a completely new endpoint, there is no v1 equivalent.
-func SyncCommitteeSelections(ctx context.Context, partials []*SyncCommitteeSelectionRequest) ([]*SyncCommitteeSelection, error) {
-	// This would call a new v2 BN API endpoint: POST /eth/v2/validator/sync_committee_selections
+func AggregateSyncCommitteeSelections(ctx context.Context, partials []*SyncCommitteeSelection) ([]*SyncCommitteeSelection, error) {
+	// This would call a new BN API endpoint: POST /eth/v1/aggregate/sync_committee_selections
 
 	// The charon middleware would do the following (error handling omitted):
 
@@ -279,26 +280,26 @@ func SyncCommitteeSelections(ctx context.Context, partials []*SyncCommitteeSelec
 		// Store partial selection
 		storePrepareDutySyncContributionPartialSig(selection)
 
-		aggregatedReq := awaitAggregatedDutySyncContribution(selection.Data.Slot)
-
-		// Calculate isAggregator
-		isAggregator := isSyncCommAggregator(ctx, nil, nil, aggregatedReq.SelectionProof)
+		aggregatedReq := awaitAggregatedDutySyncContribution(selection.Slot)
 
 		resp = append(resp, &SyncCommitteeSelection{
-			ValidatorIndex: selection.ValidatorIndex,
-			Data:           selection.Data,
-			SelectionProof: aggregatedReq.SelectionProof,
-			IsAggregator:   isAggregator,
+			ValidatorIndex:    selection.ValidatorIndex,
+			Slot:              selection.Slot,
+			SubcommitteeIndex: selection.SubcommitteeIndex,
+			SelectionProof:    aggregatedReq.SelectionProof,
 		})
 	}
 
 	return resp, nil
 }
 
-func verifySelectionProof(ctx context.Context, partial *SyncCommitteeSelectionRequest) error {
-	root, _ := partial.Data.HashTreeRoot()
+func verifySelectionProof(ctx context.Context, partial *SyncCommitteeSelection) error {
+	root, _ := (&altair.SyncAggregatorSelectionData{
+		Slot:              partial.Slot,
+		SubcommitteeIndex: partial.SubcommitteeIndex,
+	}).HashTreeRoot()
 
-	epoch, _ := epochFromSlot(ctx, nil, partial.Data.Slot)
+	epoch, _ := epochFromSlot(ctx, nil, partial.Slot)
 
 	signingRoot, _ := signing.GetDataRoot(ctx, nil, signing.DomainSyncCommitteeSelectionProof, epoch, root)
 
@@ -309,11 +310,11 @@ func verifySelectionProof(ctx context.Context, partial *SyncCommitteeSelectionRe
 }
 
 // storePrepareDutySyncContributionPartialSig stores the partial sync committee selection proof for aggregation when possible.
-func storePrepareDutySyncContributionPartialSig(*SyncCommitteeSelectionRequest) {}
+func storePrepareDutySyncContributionPartialSig(*SyncCommitteeSelection) {}
 
 // awaitAggregatedDutySyncContribution blocks and returns a cluster aggregated SyncCommitteeSelection.
-func awaitAggregatedDutySyncContribution(eth2p0.Slot) *SyncCommitteeSelectionRequest {
-	return &SyncCommitteeSelectionRequest{}
+func awaitAggregatedDutySyncContribution(eth2p0.Slot) *SyncCommitteeSelection {
+	return &SyncCommitteeSelection{}
 }
 
 func verifySignature(eth2p0.BLSSignature, eth2p0.BLSPubKey, []byte) error {
