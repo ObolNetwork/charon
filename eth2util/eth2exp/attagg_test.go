@@ -18,72 +18,14 @@ package eth2exp_test
 import (
 	"context"
 	"encoding/hex"
-	"math/rand"
 	"testing"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/eth2util/signing"
-	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
-
-func TestCalculateCommitteeSubscriptionResponse(t *testing.T) {
-	ctx := context.Background()
-
-	const (
-		commIdx = 1
-		slot    = 1
-	)
-
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	_, secret, err := tbls.KeygenWithSeed(rand.New(rand.NewSource(1)))
-	require.NoError(t, err)
-
-	sigRoot, err := eth2util.SlotHashRoot(slot)
-	require.NoError(t, err)
-
-	slotsPerEpoch, err := bmock.SlotsPerEpoch(ctx)
-	require.NoError(t, err)
-
-	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
-	sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainSelectionProof, epoch, sigRoot)
-	require.NoError(t, err)
-
-	sig, err := tbls.Sign(secret, sigData[:])
-	require.NoError(t, err)
-	blssig := tblsconv.SigToETH2(sig)
-
-	subscription := eth2exp.BeaconCommitteeSubscription{
-		ValidatorIndex: eth2p0.ValidatorIndex(1),
-		Slot:           slot,
-		CommitteeIndex: commIdx,
-		SlotSignature:  blssig,
-	}
-
-	t.Run("aggregator", func(t *testing.T) {
-		const commLen uint64 = 43
-		resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &subscription, commLen)
-		require.NoError(t, err)
-		require.Equal(t, resp.ValidatorIndex, subscription.ValidatorIndex)
-		require.True(t, resp.IsAggregator)
-	})
-
-	t.Run("not an aggregator", func(t *testing.T) {
-		const commLen uint64 = 61
-
-		resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &subscription, commLen)
-		require.NoError(t, err)
-		require.Equal(t, resp.ValidatorIndex, subscription.ValidatorIndex)
-		require.False(t, resp.IsAggregator)
-	})
-}
 
 func TestIsAggregator(t *testing.T) {
 	ctx := context.Background()

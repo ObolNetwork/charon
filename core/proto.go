@@ -89,7 +89,7 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedDa
 		}
 		signedData = s
 	case DutyPrepareAggregator:
-		var s SignedBeaconCommitteeSubscription
+		var s BeaconCommitteeSelection
 		if err := json.Unmarshal(data.Data, &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal beacon committee subscription")
 		}

@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"net/http"
 	"sort"
 	"strings"
@@ -242,6 +243,21 @@ func WithDeterministicAttesterDuties(factor int) Option {
 					continue
 				}
 
+				// Assign aggregation duties: even validator indexes in even epochs, odd validator indexes in odd epochs.
+				const notAgg = uint64(math.MaxInt16) // No attesters in such a large committee will ever be aggregator.
+				const isAgg = uint64(1)              // All attesters in such a small committee is aggregator.
+
+				commLength := notAgg
+				if epoch%2 == 0 && index%2 == 0 {
+					commLength = isAgg
+				} else if epoch%2 == 1 && index%2 == 1 {
+					commLength = isAgg
+				}
+				valCommIndex := uint64(index)
+				if valCommIndex >= commLength {
+					valCommIndex = commLength - 1
+				}
+
 				offset := (i * factor) % int(slotsPerEpoch)
 
 				resp = append(resp, &eth2v1.AttesterDuty{
@@ -249,28 +265,9 @@ func WithDeterministicAttesterDuties(factor int) Option {
 					Slot:                    eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(offset)),
 					ValidatorIndex:          index,
 					CommitteeIndex:          eth2p0.CommitteeIndex(offset),
-					CommitteeLength:         slotsPerEpoch,
+					CommitteeLength:         commLength,
 					CommitteesAtSlot:        slotsPerEpoch,
-					ValidatorCommitteeIndex: uint64(index),
-				})
-			}
-
-			return resp, nil
-		}
-
-		mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subs []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-			var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
-			for _, sub := range subs {
-				// Is aggregator if ValidatorIndex is even
-				isAggregator := sub.ValidatorIndex%2 == 0
-
-				resp = append(resp, &eth2exp.BeaconCommitteeSubscriptionResponse{
-					ValidatorIndex:   sub.ValidatorIndex,
-					Slot:             sub.Slot,
-					CommitteeIndex:   sub.CommitteeIndex,
-					CommitteesAtSlot: sub.CommitteesAtSlot,
-					IsAggregator:     isAggregator,
-					SelectionProof:   sub.SlotSignature,
+					ValidatorCommitteeIndex: valCommIndex,
 				})
 			}
 
@@ -381,23 +378,6 @@ func WithSyncCommitteeDuties() Option {
 func WithClock(clock clockwork.Clock) Option {
 	return func(mock *Mock) {
 		mock.clock = clock
-	}
-}
-
-// WithAttestationAggregation configures the mock to override SubmitBeaconCommitteeSubscriptionsV2Func.
-func WithAttestationAggregation(aggregators map[eth2p0.Slot]eth2p0.ValidatorIndex) Option {
-	return func(mock *Mock) {
-		mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-			var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
-			for _, sub := range subscriptions {
-				resp = append(resp, &eth2exp.BeaconCommitteeSubscriptionResponse{
-					ValidatorIndex: sub.ValidatorIndex,
-					IsAggregator:   aggregators[sub.Slot] == sub.ValidatorIndex,
-				})
-			}
-
-			return resp, nil
-		}
 	}
 }
 
@@ -516,20 +496,8 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitValidatorRegistrationsFunc: func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error {
 			return nil
 		},
-		SubmitBeaconCommitteeSubscriptionsV2Func: func(_ context.Context, subs []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-			var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
-			for _, sub := range subs {
-				resp = append(resp, &eth2exp.BeaconCommitteeSubscriptionResponse{
-					ValidatorIndex:   sub.ValidatorIndex,
-					Slot:             sub.Slot,
-					CommitteeIndex:   sub.CommitteeIndex,
-					CommitteesAtSlot: sub.CommitteesAtSlot,
-					IsAggregator:     false,
-					SelectionProof:   sub.SlotSignature,
-				})
-			}
-
-			return resp, nil
+		AggregateBeaconCommitteeSubscriptionsFunc: func(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
+			return selections, nil
 		},
 		SubmitAggregateAttestationsFunc: func(context.Context, []*eth2p0.SignedAggregateAndProof) error {
 			return nil

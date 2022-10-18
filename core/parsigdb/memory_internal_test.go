@@ -55,7 +55,6 @@ func TestCalculateOutput(t *testing.T) {
 		},
 	}
 
-	commIdx := testutil.RandomCommIdx()
 	slot := testutil.RandomSlot()
 	valIdx := testutil.RandomVIdx()
 	roots := []eth2p0.Root{
@@ -77,19 +76,15 @@ func TestCalculateOutput(t *testing.T) {
 
 					return core.NewPartialSignedSyncMessage(msg, i+1)
 				},
-				"Subscription": func(i int) core.ParSignedData {
+				"Selection": func(i int) core.ParSignedData {
 					// Message is constant
-					msg := &eth2exp.BeaconCommitteeSubscription{
-						ValidatorIndex:   valIdx,
-						Slot:             slot,
-						CommitteeIndex:   commIdx,
-						CommitteesAtSlot: 99,
-						SlotSignature:    testutil.RandomEth2Signature(),
+					msg := &eth2exp.BeaconCommitteeSelection{
+						ValidatorIndex: valIdx,
+						Slot:           eth2p0.Slot(test.input[i]), // Vary slot based on input
+						SelectionProof: testutil.RandomEth2Signature(),
 					}
-					// Vary length based on input
-					commLength := uint64(test.input[i])
 
-					return core.NewPartialSignedBeaconCommitteeSubscription(msg, commLength, i+1)
+					return core.NewPartialSignedBeaconCommitteeSelection(msg, i+1)
 				},
 			}
 

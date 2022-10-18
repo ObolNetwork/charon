@@ -35,7 +35,7 @@ import (
 type (
 	validators    map[eth2p0.ValidatorIndex]*eth2v1.Validator
 	attDuties     []*eth2v1.AttesterDuty
-	attSelections []*eth2exp.BeaconCommitteeSubscriptionResponse
+	attSelections []*eth2exp.BeaconCommitteeSelection
 	attDatas      []*eth2p0.AttestationData
 )
 
@@ -121,9 +121,9 @@ func (a *SlotAttester) Attest(ctx context.Context) error {
 // Aggregate should be called at latest 2/3 into the slot, it does slot attestation aggregations.
 func (a *SlotAttester) Aggregate(ctx context.Context) (bool, error) {
 	// Wait for Prepare and Attest to complete
-	wait(ctx, a.selectionsOK, a.datasOK)
+	wait(ctx, a.dutiesOK, a.selectionsOK, a.datasOK)
 
-	return aggregate(ctx, a.eth2Cl, a.signFunc, a.slot, a.vals, a.selections, a.datas)
+	return aggregate(ctx, a.eth2Cl, a.signFunc, a.slot, a.vals, a.duties, a.selections, a.datas)
 }
 
 // wait returns when either all the channels or the context is closed.
@@ -216,7 +216,10 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 		return nil, err
 	}
 
-	var subs []*eth2exp.BeaconCommitteeSubscription
+	var (
+		partials    []*eth2exp.BeaconCommitteeSelection
+		commLengths = make(map[eth2p0.ValidatorIndex]uint64)
+	)
 	for _, duty := range duties {
 		val, ok := vals[duty.ValidatorIndex]
 		if !ok {
@@ -228,25 +231,29 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 			return nil, err
 		}
 
-		subs = append(subs, &eth2exp.BeaconCommitteeSubscription{
-			ValidatorIndex:   duty.ValidatorIndex,
-			Slot:             duty.Slot,
-			CommitteeIndex:   duty.CommitteeIndex,
-			CommitteesAtSlot: duty.CommitteesAtSlot,
-			SlotSignature:    slotSig,
+		commLengths[val.Index] = duty.CommitteeLength
+
+		partials = append(partials, &eth2exp.BeaconCommitteeSelection{
+			ValidatorIndex: duty.ValidatorIndex,
+			Slot:           duty.Slot,
+			SelectionProof: slotSig,
 		})
 	}
 
-	allSelections, err := eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, subs)
+	aggregateSelections, err := eth2Cl.AggregateBeaconCommitteeSelections(ctx, partials)
 	if err != nil {
 		return nil, err
 	}
 
 	var selections attSelections
-	for _, selection := range allSelections {
-		if !selection.IsAggregator {
+	for _, selection := range aggregateSelections {
+		ok, err := eth2exp.IsAggregator(ctx, eth2Cl, commLengths[selection.ValidatorIndex], selection.SelectionProof)
+		if err != nil {
+			return nil, err
+		} else if !ok {
 			continue
 		}
+
 		selections = append(selections, selection)
 	}
 
@@ -294,7 +301,6 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 			if err != nil {
 				return nil, err
 			}
-
 			aggBits := bitfield.NewBitlist(duty.CommitteeLength)
 			aggBits.SetBitAt(duty.ValidatorCommitteeIndex, true)
 
@@ -317,7 +323,7 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 // aggregate does attestation aggregation for the provided validators, attSelections and attestation attDatas and returns true.
 // It returns false if aggregation is not required.
 func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot eth2p0.Slot,
-	vals validators, selections attSelections, datas attDatas,
+	vals validators, duties attDuties, selections attSelections, datas attDatas,
 ) (bool, error) {
 	if len(selections) == 0 {
 		return false, nil
@@ -328,16 +334,20 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 		return false, err
 	}
 
+	committees := make(map[eth2p0.ValidatorIndex]eth2p0.CommitteeIndex)
+	for _, duty := range duties {
+		committees[duty.ValidatorIndex] = duty.CommitteeIndex
+	}
+
 	var (
 		aggs       []*eth2p0.SignedAggregateAndProof
 		attsByComm = make(map[eth2p0.CommitteeIndex]*eth2p0.Attestation)
 	)
 	for _, selection := range selections {
-		if !selection.IsAggregator {
-			continue
+		commIdx, ok := committees[selection.ValidatorIndex]
+		if !ok {
+			return false, errors.New("missing duty for selection")
 		}
-
-		commIdx := selection.CommitteeIndex
 
 		att, ok := attsByComm[commIdx]
 		if !ok {
@@ -348,8 +358,6 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 			}
 			attsByComm[commIdx] = att
 		}
-
-		// TODO(corver): Should we ensure our own attestation is included?
 
 		proof := eth2p0.AggregateAndProof{
 			AggregatorIndex: selection.ValidatorIndex,

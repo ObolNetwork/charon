@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -64,16 +63,8 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
-			name: "signed beacon committee subscription",
-			data: core.SignedBeaconCommitteeSubscription{
-				BeaconCommitteeSubscription: eth2exp.BeaconCommitteeSubscription{
-					ValidatorIndex:   testutil.RandomVIdx(),
-					Slot:             testutil.RandomSlot(),
-					CommitteeIndex:   testutil.RandomCommIdx(),
-					CommitteesAtSlot: nonZero,
-					SlotSignature:    testutil.RandomEth2Signature(),
-				},
-			},
+			name: "signed beacon committee selection",
+			data: testutil.RandomCoreBeaconCommitteeSelection(),
 		},
 		{
 			name: "signed aggregate and proof",
@@ -118,12 +109,12 @@ func TestSignedDataSetSignature(t *testing.T) {
 }
 
 func TestMarshalSubscription(t *testing.T) {
-	sub := testutil.RandomSignedBeaconCommitteeSubscription(1, 2, 3, 4)
-	b, err := json.Marshal(sub)
+	selection := testutil.RandomCoreBeaconCommitteeSelection()
+	b, err := json.Marshal(selection)
 	require.NoError(t, err)
 
-	var sub2 core.SignedBeaconCommitteeSubscription
-	err = json.Unmarshal(b, &sub2)
+	var selection2 core.BeaconCommitteeSelection
+	err = json.Unmarshal(b, &selection2)
 	require.NoError(t, err)
-	require.Equal(t, sub2, sub)
+	require.Equal(t, selection2, selection)
 }

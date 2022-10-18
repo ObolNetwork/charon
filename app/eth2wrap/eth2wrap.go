@@ -109,18 +109,18 @@ func (m multi) Address() string {
 	return m.clients[0].Address()
 }
 
-func (m multi) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-	const label = "submit_beacon_committee_subscriptions_v2"
+func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
+	const label = "aggregate_beacon_committee_selections"
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-			return cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, subscriptions)
+		func(ctx context.Context, cl Client) ([]*eth2exp.BeaconCommitteeSelection, error) {
+			return cl.AggregateBeaconCommitteeSelections(ctx, selections)
 		},
 		nil,
 	)
 	if err != nil {
 		incError(label)
-		err = errors.Wrap(err, "eth2wrap")
+		err = wrapError(ctx, err, label)
 	}
 
 	return res0, err

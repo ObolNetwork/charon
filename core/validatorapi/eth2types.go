@@ -113,8 +113,8 @@ type validatorResponse struct {
 	Data v1Validator `json:"data"`
 }
 
-type submitBeaconCommitteeSubscriptionsV2JSON struct {
-	Data []*eth2exp.BeaconCommitteeSubscriptionResponse `json:"data"`
+type aggregateBeaconCommitteeSelectionsJSON struct {
+	Data []*eth2exp.BeaconCommitteeSelection `json:"data"`
 }
 
 // root wraps eth2p0 root adding proper json marshalling.
