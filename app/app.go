@@ -197,7 +197,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		lock.ForkVersion,
 	)
 
-	eth2Cl, bp, err := newETH2Client(ctx, conf, life, lock.Validators)
+	eth2Cl, producer, err := newETH2Client(ctx, conf, life, lock.Validators)
 	if err != nil {
 		return err
 	}
@@ -213,7 +213,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs, promRegistry)
 
-	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, peerIDs, sender, bp); err != nil {
+	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, peerIDs, sender, producer); err != nil {
 		return err
 	}
 
@@ -294,7 +294,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 //nolint:gocognit
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
-	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender, bp *beaconmock.BlockProducer,
+	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender, producer *beaconmock.BlockProducer,
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -369,7 +369,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	if conf.SimnetBMock {
 		sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
-			bp.UpdateHead(eth2p0.Slot(slot.Slot))
+			producer.UpdateHead(eth2p0.Slot(slot.Slot))
 
 			return nil
 		})
