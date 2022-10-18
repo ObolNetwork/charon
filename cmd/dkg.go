@@ -50,7 +50,6 @@ this command at the same time.`,
 	bindNoVerifyFlag(cmd.Flags(), &config.NoVerify)
 	bindP2PFlags(cmd, &config.P2P)
 	bindLogFlags(cmd.Flags(), &config.Log)
-	bindInsecureFlags(cmd.Flags(), &config.InsecureKeys)
 
 	return cmd
 }

@@ -43,12 +43,11 @@ import (
 )
 
 type Config struct {
-	DefFile      string
-	NoVerify     bool
-	DataDir      string
-	P2P          p2p.Config
-	Log          log.Config
-	InsecureKeys bool
+	DefFile  string
+	NoVerify bool
+	DataDir  string
+	P2P      p2p.Config
+	Log      log.Config
 
 	TestDef     *cluster.Definition
 	TestSigning bool
@@ -80,11 +79,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	network, err := eth2util.ForkVersionToNetwork(def.ForkVersion)
 	if err != nil {
 		return err
-	}
-	if conf.InsecureKeys && (network == eth2util.Mainnet.Name || network == eth2util.Gnosis.Name) {
-		return errors.New("insecure keys not supported on mainnet")
-	} else if conf.InsecureKeys {
-		log.Warn(ctx, "Insecure keystores configured. ONLY DO THIS DURING TESTING", nil)
 	}
 
 	peers, err := def.Peers()
@@ -196,7 +190,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Write keystores, deposit data and cluster lock files after exchange of partial signatures in order
 	// to prevent partial data writes in case of peer connection lost
 
-	if err := writeKeystores(conf.DataDir, shares, conf.InsecureKeys); err != nil {
+	if err := writeKeystores(conf.DataDir, shares); err != nil {
 		return err
 	}
 	log.Debug(ctx, "Saved keyshares to disk")
