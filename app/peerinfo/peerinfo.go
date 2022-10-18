@@ -79,7 +79,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 	// Register a simple handler that returns our info and ignores the request.
 	registerHandler("peerinfo", tcpNode, protocolID,
 		func() proto.Message { return new(pbv1.PeerInfo) },
-		func(ctx context.Context, peerID peer.ID, req proto.Message) (proto.Message, bool, error) {
+		func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
 			return &pbv1.PeerInfo{
 				CharonVersion: version,
 				LockHash:      lockHash,
