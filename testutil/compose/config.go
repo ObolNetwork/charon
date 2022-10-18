@@ -112,11 +112,15 @@ type Config struct {
 	// FeatureSet defines the minimum feature set to enable.
 	FeatureSet string `json:"feature_set"`
 
-	// DisableMonitoringPorts defines whether to disable prometheus and jaeger monitoring  port binding.
+	// DisableMonitoringPorts defines whether to disable prometheus and jaeger monitoring port binding.
 	DisableMonitoringPorts bool `json:"disable_monitoring_ports"`
 
 	// EnableLoki defines whether to loki logging driver should be configured.
 	EnableLoki bool `json:"enable_loki"`
+
+	// InsecureKeys generates insecure keys. Useful when testing large validator sets
+	// as it speeds up keystore encryption and decryption.
+	InsecureKeys bool `json:"insecure_keys"`
 }
 
 // VCStrings returns the VCs field as a slice of strings.

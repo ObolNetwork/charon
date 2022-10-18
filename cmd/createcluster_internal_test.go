@@ -159,20 +159,27 @@ func TestChecksumAddr(t *testing.T) {
 }
 
 func TestValidNetwork(t *testing.T) {
+	ctx := context.Background()
+
 	conf := clusterConfig{
 		NumNodes:       4,
 		Threshold:      3,
 		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
 		Network:        "gnosis",
 	}
-	err := validateClusterConfig(conf)
+	err := validateClusterConfig(ctx, conf)
 	require.Error(t, err, "zero address")
 
 	conf.Network = "goerli"
-	err = validateClusterConfig(conf)
+	err = validateClusterConfig(ctx, conf)
 	require.NoError(t, err)
 
-	conf.Network = "goerli"
-	err = validateClusterConfig(conf)
+	conf.InsecureKeys = true
+
+	err = validateClusterConfig(ctx, conf)
 	require.NoError(t, err)
+
+	conf.Network = "mainnet"
+	err = validateClusterConfig(ctx, conf)
+	require.Error(t, err, "zero address")
 }

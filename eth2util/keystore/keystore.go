@@ -28,6 +28,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"testing"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
@@ -36,16 +37,39 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
+// insecureCost decreases the cipher key cost from the default 18 to 4 which speeds up
+// encryption and decryption at the cost of security.
+const insecureCost = 4
+
+type confirmInsecure struct{}
+
+// ConfirmInsecureKeys is syntactic sugar to highlight the security implications of insecure keys.
+var ConfirmInsecureKeys confirmInsecure
+
+// StoreKeysInsecure stores the secrets in dir/keystore-insecure-%d.json EIP 2335 keystore files
+// with new random passwords stored in dir/keystore-insecure-%d.txt.
+//
+// 🚨 The keystores are insecure and should only be used for testing large validator sets
+// as it speeds up encryption and decryption at the cost of security.
+func StoreKeysInsecure(secrets []*bls_sig.SecretKey, dir string, _ confirmInsecure) error {
+	return storeKeysInternal(secrets, dir, "keystore-insecure-%d.json",
+		keystorev4.WithCost(new(testing.T), insecureCost))
+}
+
 // StoreKeys stores the secrets in dir/keystore-%d.json EIP 2335 keystore files
 // with new random passwords stored in dir/keystore-%d.txt.
 func StoreKeys(secrets []*bls_sig.SecretKey, dir string) error {
+	return storeKeysInternal(secrets, dir, "keystore-%d.json")
+}
+
+func storeKeysInternal(secrets []*bls_sig.SecretKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
 	for i, secret := range secrets {
 		password, err := randomHex32()
 		if err != nil {
 			return err
 		}
 
-		store, err := encrypt(secret, password, rand.Reader)
+		store, err := encrypt(secret, password, rand.Reader, opts...)
 		if err != nil {
 			return err
 		}
@@ -55,7 +79,7 @@ func StoreKeys(secrets []*bls_sig.SecretKey, dir string) error {
 			return errors.Wrap(err, "marshal keystore")
 		}
 
-		filename := path.Join(dir, fmt.Sprintf("keystore-%d.json", i))
+		filename := path.Join(dir, fmt.Sprintf(filenameFmt, i))
 		if err := os.WriteFile(filename, b, 0o444); err != nil {
 			return errors.Wrap(err, "write keystore")
 		}
@@ -119,7 +143,9 @@ type keystore struct {
 }
 
 // encrypt returns the secret as an encrypted keystore using pbkdf2 cipher.
-func encrypt(secret *bls_sig.SecretKey, password string, random io.Reader) (keystore, error) {
+func encrypt(secret *bls_sig.SecretKey, password string, random io.Reader,
+	opts ...keystorev4.Option,
+) (keystore, error) {
 	secretBytes, err := tblsconv.SecretToBytes(secret)
 	if err != nil {
 		return keystore{}, err
@@ -134,7 +160,7 @@ func encrypt(secret *bls_sig.SecretKey, password string, random io.Reader) (keys
 		return keystore{}, errors.Wrap(err, "marshal pubkey")
 	}
 
-	encryptor := keystorev4.New()
+	encryptor := keystorev4.New(opts...)
 	fields, err := encryptor.Encrypt(secretBytes, password)
 	if err != nil {
 		return keystore{}, errors.Wrap(err, "encrypt keystore")

@@ -138,15 +138,13 @@ func writeKeystores(datadir string, shares []share) error {
 		secrets = append(secrets, secret)
 	}
 
-	if err := os.Mkdir(path.Join(datadir, "/validator_keys"), os.ModePerm); err != nil {
+	keysDir := path.Join(datadir, "/validator_keys")
+
+	if err := os.Mkdir(keysDir, os.ModePerm); err != nil {
 		return errors.Wrap(err, "mkdir /validator_keys")
 	}
 
-	if err := keystore.StoreKeys(secrets, path.Join(datadir, "/validator_keys")); err != nil {
-		return errors.Wrap(err, "store keystores")
-	}
-
-	return nil
+	return keystore.StoreKeys(secrets, keysDir)
 }
 
 // writeLock writes the lock file to disk.

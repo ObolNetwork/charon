@@ -31,6 +31,10 @@
     {
      "Key": "num-validators",
      "Value": "1"
+    },
+    {
+     "Key": "insecure-keys",
+     "Value": "\"false\""
     }
    ],
    "Ports": null
