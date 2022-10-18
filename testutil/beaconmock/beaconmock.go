@@ -68,13 +68,15 @@ func New(opts ...Option) (Mock, error) {
 	for _, opt := range opts {
 		opt(&temp)
 	}
-	httpMock, httpServer, err := newHTTPMock(temp.overrides...)
+
+	bp := NewBlockProducer()
+	httpMock, httpServer, err := newHTTPMock(bp, temp.overrides...)
 	if err != nil {
 		return Mock{}, err
 	}
 
 	// Then configure the mock
-	mock := defaultMock(httpMock, httpServer, temp.clock)
+	mock := defaultMock(httpMock, httpServer, temp.clock, bp)
 	for _, opt := range opts {
 		opt(&mock)
 	}
@@ -118,9 +120,10 @@ func defaultHTTPMock() Mock {
 type Mock struct {
 	HTTPMock
 
-	httpServer *http.Server
-	overrides  []staticOverride
-	clock      clockwork.Clock
+	httpServer    *http.Server
+	overrides     []staticOverride
+	clock         clockwork.Clock
+	BlockProducer *BlockProducer
 
 	AttestationDataFunc                       func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                        func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)

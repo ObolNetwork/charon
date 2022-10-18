@@ -78,6 +78,20 @@ func TestSimnetNoNetwork_WithProposerTekuVC(t *testing.T) {
 	testSimnet(t, args, expect)
 }
 
+func TestSimnetNoNetwork_WithSyncCommTekuVC(t *testing.T) {
+	if !*integration {
+		t.Skip("Skipping Teku integration test")
+	}
+
+	args := newSimnetArgs(t)
+	args = startTeku(t, args, 0, tekuVC)
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithSyncCommitteeDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	expect := newSimnetExpect(args.N, core.DutySyncMessage)
+	testSimnet(t, args, expect)
+}
+
 func TestSimnetNoNetwork_WithExitTekuVC(t *testing.T) {
 	if !*integration {
 		t.Skip("Skipping Teku integration test")

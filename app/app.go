@@ -197,7 +197,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		lock.ForkVersion,
 	)
 
-	eth2Cl, err := newETH2Client(ctx, conf, life, lock.Validators)
+	eth2Cl, bp, err := newETH2Client(ctx, conf, life, lock.Validators)
 	if err != nil {
 		return err
 	}
@@ -213,7 +213,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs, promRegistry)
 
-	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, peerIDs, sender); err != nil {
+	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, peerIDs, sender, bp); err != nil {
 		return err
 	}
 
@@ -294,7 +294,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 //nolint:gocognit
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
-	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
+	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender, bp *beaconmock.BlockProducer,
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -365,6 +365,14 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	sched, err := scheduler.New(corePubkeys, eth2Cl, conf.BuilderAPI)
 	if err != nil {
 		return err
+	}
+
+	if conf.SimnetBMock {
+		sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
+			bp.UpdateHead(eth2p0.Slot(slot.Slot))
+
+			return nil
+		})
 	}
 
 	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, lock.FeeRecipientAddress))
@@ -548,10 +556,10 @@ func eth2PubKeys(validators []cluster.DistValidator) ([]eth2p0.BLSPubKey, error)
 // simnet or a multi http client to a real beacon node.
 func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 	validators []cluster.DistValidator,
-) (eth2wrap.Client, error) {
+) (eth2wrap.Client, *beaconmock.BlockProducer, error) {
 	pubkeys, err := eth2PubKeys(validators)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if conf.SimnetBMock { // Configure the beacon mock.
@@ -565,29 +573,29 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 		opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
 		bmock, err := beaconmock.New(opts...)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		wrap, err := eth2wrap.Instrument(bmock)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
 
-		return wrap, nil
+		return wrap, bmock.BlockProducer, nil
 	}
 
 	if len(conf.BeaconNodeAddrs) == 0 {
-		return nil, errors.New("beacon node endpoints empty")
+		return nil, nil, errors.New("beacon node endpoints empty")
 	}
 
 	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, eth2ClientTimeout, conf.BeaconNodeAddrs...)
 	if err != nil {
-		return nil, errors.Wrap(err, "new eth2 http client")
+		return nil, nil, errors.Wrap(err, "new eth2 http client")
 	}
 
-	return eth2Cl, nil
+	return eth2Cl, nil, nil
 }
 
 // newConsensus returns a new consensus component and its start lifecycle hook.

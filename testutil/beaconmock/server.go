@@ -43,6 +43,7 @@ type HTTPMock interface {
 	eth2client.BeaconBlockRootProvider
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
+	eth2client.EventsProvider
 	eth2client.ForkProvider
 	eth2client.ForkScheduleProvider
 	eth2client.GenesisProvider
@@ -63,7 +64,7 @@ type staticOverride struct {
 }
 
 // newHTTPServer returns a beacon API mock http server.
-func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, error) {
+func newHTTPServer(addr string, bp *BlockProducer, overrides ...staticOverride) (*http.Server, error) {
 	debug := os.Getenv("BEACONMOCK_DEBUG") == "true" // NOTE: These logs are verbose, so disabled by default.
 	shutdown := make(chan struct{})
 
@@ -82,10 +83,8 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 			},
 		},
 		{
-			Path: "/eth/v1/beacon/blocks/head/root",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				_, _ = w.Write([]byte(`{"data": {"root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"}}`))
-			},
+			Path:    "/eth/v1/beacon/blocks/{block_id}/root",
+			Handler: bp.handleGetBlockRoot,
 		},
 		{
 			Path: "/eth/v1/validator/aggregate_attestation",
@@ -121,14 +120,8 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 			Handler: func(w http.ResponseWriter, r *http.Request) {},
 		},
 		{
-			Path: "/eth/v1/events",
-			Handler: func(w http.ResponseWriter, r *http.Request) {
-				// TODO(corver): Send keep alives
-				select {
-				case <-shutdown:
-				case <-r.Context().Done():
-				}
-			},
+			Path:    "/eth/v1/events",
+			Handler: bp.serveEvents,
 		},
 	}
 
@@ -189,13 +182,13 @@ func newHTTPServer(addr string, overrides ...staticOverride) (*http.Server, erro
 }
 
 // newHTTPMock starts and returns a static beacon mock http server and client.
-func newHTTPMock(overrides ...staticOverride) (HTTPMock, *http.Server, error) {
+func newHTTPMock(bp *BlockProducer, overrides ...staticOverride) (HTTPMock, *http.Server, error) {
 	l, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "listen")
 	}
 
-	srv, err := newHTTPServer(l.Addr().String(), overrides...)
+	srv, err := newHTTPServer(l.Addr().String(), bp, overrides...)
 	if err != nil {
 		return nil, nil, err
 	}

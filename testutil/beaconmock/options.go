@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
@@ -375,13 +374,14 @@ func WithClock(clock clockwork.Clock) Option {
 }
 
 // defaultMock returns a minimum viable mock that doesn't panic and returns mostly empty responses.
-func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clock) Mock {
+func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clock, bp *BlockProducer) Mock {
 	attStore := newAttestationStore(httpMock)
 
 	return Mock{
-		clock:      clock,
-		HTTPMock:   httpMock,
-		httpServer: httpServer,
+		clock:         clock,
+		HTTPMock:      httpMock,
+		httpServer:    httpServer,
+		BlockProducer: bp,
 		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
 			return &spec.VersionedBeaconBlock{
 				Version: spec.DataVersionBellatrix,
@@ -482,9 +482,6 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		},
 		NodeSyncingFunc: func(ctx context.Context) (*eth2v1.SyncState, error) {
 			return httpMock.NodeSyncing(ctx)
-		},
-		EventsFunc: func(context.Context, []string, eth2client.EventHandlerFunc) error {
-			return nil
 		},
 		SubmitValidatorRegistrationsFunc: func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error {
 			return nil
