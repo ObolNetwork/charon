@@ -246,6 +246,7 @@ func isSyncCommAggregator(ctx context.Context, t *testing.T, eth2Cl *mock.Servic
 // SyncCommitteeSelectionAggregator is the interface for aggregating sync committee selection proofs in a DVT cluster.
 type SyncCommitteeSelectionAggregator interface {
 	// AggregateSyncCommitteeSelections returns DVT aggregated sync committee selection proofs.
+	// This would call a new BN API endpoint: POST /eth/v1/aggregate/sync_committee_selections
 	AggregateSyncCommitteeSelections(ctx context.Context, partialSelections []*SyncCommitteeSelection) ([]*SyncCommitteeSelection, error)
 }
 

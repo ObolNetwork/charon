@@ -32,6 +32,7 @@ import (
 // TODO(dhruv): Should be removed once it is supported by go-eth2-client.
 type BeaconCommitteeSelectionAggregator interface {
 	// AggregateBeaconCommitteeSelections returns DVT aggregated beacon committee selection proofs.
+	// This would call a new BN API endpoint: POST /eth/v1/aggregate/beacon_committee_selections
 	AggregateBeaconCommitteeSelections(ctx context.Context, partialSelections []*BeaconCommitteeSelection) ([]*BeaconCommitteeSelection, error)
 }
 
