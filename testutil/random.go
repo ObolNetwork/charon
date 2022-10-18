@@ -468,22 +468,6 @@ func RandomRoot() eth2p0.Root {
 	return resp
 }
 
-func RandomHeadEvent(slot eth2p0.Slot) eth2v1.HeadEvent {
-	r := rand.New(rand.NewSource(int64(slot)))
-
-	var root eth2p0.Root
-	_, _ = r.Read(root[:])
-
-	return eth2v1.HeadEvent{
-		Slot:                      slot,
-		Block:                     root,
-		State:                     root,
-		EpochTransition:           false,
-		CurrentDutyDependentRoot:  root,
-		PreviousDutyDependentRoot: root,
-	}
-}
-
 func RandomBLSSignature() (*bls_sig.Signature, error) {
 	g2, err := new(bls12381.G2).Random(crand.Reader)
 	if err != nil {

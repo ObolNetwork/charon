@@ -337,11 +337,24 @@ func WithNoAttesterDuties() Option {
 	}
 }
 
+// WithNoSyncCommitteeDuties configures the mock to override SyncCommitteeDutiesFunc to return nothing.
+func WithNoSyncCommitteeDuties() Option {
+	return func(mock *Mock) {
+		mock.SyncCommitteeDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+			return nil, nil
+		}
+	}
+}
+
 // WithSyncCommitteeDuties configures the mock to override SyncCommitteeDutiesFunc to return sync committee
-// duties for epochs not divisible by 3.
+// duties for all validators for even epochs.
 func WithSyncCommitteeDuties() Option {
 	return func(mock *Mock) {
 		mock.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+			if epoch%2 != 0 {
+				return nil, nil
+			}
+
 			vals, err := mock.Validators(ctx, "", indices)
 			if err != nil {
 				return nil, err
@@ -374,14 +387,14 @@ func WithClock(clock clockwork.Clock) Option {
 }
 
 // defaultMock returns a minimum viable mock that doesn't panic and returns mostly empty responses.
-func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clock, producer *BlockProducer) Mock {
+func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clock, headProducer *headProducer) Mock {
 	attStore := newAttestationStore(httpMock)
 
 	return Mock{
-		clock:         clock,
-		HTTPMock:      httpMock,
-		httpServer:    httpServer,
-		BlockProducer: producer,
+		clock:        clock,
+		HTTPMock:     httpMock,
+		httpServer:   httpServer,
+		headProducer: headProducer,
 		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
 			return &spec.VersionedBeaconBlock{
 				Version: spec.DataVersionBellatrix,

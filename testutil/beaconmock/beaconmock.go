@@ -69,16 +69,21 @@ func New(opts ...Option) (Mock, error) {
 		opt(&temp)
 	}
 
-	producer := NewBlockProducer()
-	httpMock, httpServer, err := newHTTPMock(producer, temp.overrides...)
+	headProducer := newHeadProducer()
+
+	httpMock, httpServer, err := newHTTPMock(headProducer.Handlers(), temp.overrides...)
 	if err != nil {
 		return Mock{}, err
 	}
 
 	// Then configure the mock
-	mock := defaultMock(httpMock, httpServer, temp.clock, producer)
+	mock := defaultMock(httpMock, httpServer, temp.clock, headProducer)
 	for _, opt := range opts {
 		opt(&mock)
+	}
+
+	if err := headProducer.Start(httpMock); err != nil {
+		return Mock{}, err
 	}
 
 	return mock, nil
@@ -120,10 +125,10 @@ func defaultHTTPMock() Mock {
 type Mock struct {
 	HTTPMock
 
-	httpServer    *http.Server
-	overrides     []staticOverride
-	clock         clockwork.Clock
-	BlockProducer *BlockProducer
+	httpServer   *http.Server
+	overrides    []staticOverride
+	clock        clockwork.Clock
+	headProducer *headProducer
 
 	AttestationDataFunc                       func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                        func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
@@ -276,6 +281,8 @@ func (m Mock) Address() string {
 }
 
 func (m Mock) Close() error {
+	m.headProducer.Close()
+
 	err := m.httpServer.Close()
 	if err != nil {
 		return errors.Wrap(err, "close server")
