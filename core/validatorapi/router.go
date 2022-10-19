@@ -356,8 +356,9 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 		}
 
 		return proposerDutiesResponse{
-			DependentRoot: stubRoot(epoch), // TODO(corver): Fill this properly
-			Data:          data,
+			ExecutionOptimistic: false,           // TODO(dhruv): Fill this properly
+			DependentRoot:       stubRoot(epoch), // TODO(corver): Fill this properly
+			Data:                data,
 		}, nil
 	}
 }
@@ -386,8 +387,9 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 		}
 
 		return attesterDutiesResponse{
-			DependentRoot: stubRoot(epoch), // TODO(corver): Fill this properly
-			Data:          data,
+			ExecutionOptimistic: false,           // TODO(dhruv): Fill this properly
+			DependentRoot:       stubRoot(epoch), // TODO(corver): Fill this properly
+			Data:                data,
 		}, nil
 	}
 }

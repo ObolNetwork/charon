@@ -74,15 +74,17 @@ func (r *valIndexesJSON) UnmarshalJSON(bytes []byte) error {
 // attesterDutiesResponse defines the response to the getAttesterDuties endpoint.
 // See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getAttesterDuties.
 type attesterDutiesResponse struct {
-	DependentRoot root                   `json:"dependent_root"`
-	Data          []*eth2v1.AttesterDuty `json:"data"`
+	DependentRoot       root                   `json:"dependent_root"`
+	Data                []*eth2v1.AttesterDuty `json:"data"`
+	ExecutionOptimistic bool                   `json:"execution_optimistic"`
 }
 
 // proposerDutiesResponse defines the response to the getAttesterDuties endpoint.
 // See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getProposerDuties.
 type proposerDutiesResponse struct {
-	DependentRoot root                   `json:"dependent_root"`
-	Data          []*eth2v1.ProposerDuty `json:"data"`
+	DependentRoot       root                   `json:"dependent_root"`
+	Data                []*eth2v1.ProposerDuty `json:"data"`
+	ExecutionOptimistic bool                   `json:"execution_optimistic"`
 }
 
 type proposeBlockResponsePhase0 struct {
