@@ -108,13 +108,11 @@ type proposeBlindedBlockResponseBellatrix struct {
 }
 
 type validatorsResponse struct {
-	Data                []v1Validator `json:"data"`
-	ExecutionOptimistic bool          `json:"execution_optimistic"`
+	Data []v1Validator `json:"data"`
 }
 
 type validatorResponse struct {
-	Data                v1Validator `json:"data"`
-	ExecutionOptimistic bool        `json:"execution_optimistic"`
+	Data v1Validator `json:"data"`
 }
 
 type aggregateBeaconCommitteeSelectionsJSON struct {
@@ -144,6 +142,5 @@ func (v v1Validator) MarshalJSON() ([]byte, error) {
 // syncCommitteeDutiesResponse defines the response to the getSyncCommitteeDuties endpoint.
 // See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getSyncCommitteeDuties.
 type syncCommitteeDutiesResponse struct {
-	Data                []*eth2v1.SyncCommitteeDuty `json:"data"`
-	ExecutionOptimistic bool                        `json:"execution_optimistic"`
+	Data []*eth2v1.SyncCommitteeDuty `json:"data"`
 }

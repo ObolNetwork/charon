@@ -267,10 +267,7 @@ func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
 			}
 		}
 
-		return validatorsResponse{
-			ExecutionOptimistic: false, // TODO(dhruv): Fill this properly
-			Data:                resp,
-		}, nil
+		return validatorsResponse{Data: resp}, nil
 	}
 }
 
@@ -290,10 +287,7 @@ func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
 			}
 		}
 
-		return validatorResponse{
-			ExecutionOptimistic: false, // TODO(dhruv): Fill this properly
-			Data:                v1Validator(*val),
-		}, nil
+		return validatorResponse{Data: v1Validator(*val)}, nil
 	}
 }
 
@@ -423,10 +417,7 @@ func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
 			data = []*eth2v1.SyncCommitteeDuty{}
 		}
 
-		return syncCommitteeDutiesResponse{
-			Data:                data, // TODO(dhruv): Fill this properly
-			ExecutionOptimistic: false,
-		}, nil
+		return syncCommitteeDutiesResponse{Data: data}, nil
 	}
 }
 
