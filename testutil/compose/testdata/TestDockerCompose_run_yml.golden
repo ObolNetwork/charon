@@ -236,7 +236,7 @@ services:
       - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/datasource.yml
       - ./grafana/notifiers.yml:/etc/grafana/provisioning/notifiers/notifiers.yml
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
-      - ./grafana/dash_simnet.json:/etc/dashboards/dash_simnet.json
+      - ./grafana/dash_charon_overview.json:/etc/dashboards/dash_charon_overview.json
       - ./grafana/dash_alerts.json:/etc/dashboards/dash_alerts.json
 
   jaeger:
