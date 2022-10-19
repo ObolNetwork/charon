@@ -32,8 +32,6 @@ import (
 )
 
 func TestSignedDataSetSignature(t *testing.T) {
-	const nonZero = 123
-
 	tests := []struct {
 		name string
 		data core.SignedData
