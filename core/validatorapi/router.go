@@ -267,7 +267,10 @@ func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
 			}
 		}
 
-		return validatorsResponse{Data: resp}, nil
+		return validatorsResponse{
+			ExecutionOptimistic: false, // TODO(dhruv): Fill this properly
+			Data:                resp,
+		}, nil
 	}
 }
 
@@ -287,7 +290,10 @@ func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
 			}
 		}
 
-		return validatorResponse{Data: v1Validator(*val)}, nil
+		return validatorResponse{
+			ExecutionOptimistic: false, // TODO(dhruv): Fill this properly
+			Data:                v1Validator(*val),
+		}, nil
 	}
 }
 
@@ -356,8 +362,9 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 		}
 
 		return proposerDutiesResponse{
-			DependentRoot: stubRoot(epoch), // TODO(corver): Fill this properly
-			Data:          data,
+			ExecutionOptimistic: false,           // TODO(dhruv): Fill this properly
+			DependentRoot:       stubRoot(epoch), // TODO(corver): Fill this properly
+			Data:                data,
 		}, nil
 	}
 }
@@ -386,8 +393,9 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 		}
 
 		return attesterDutiesResponse{
-			DependentRoot: stubRoot(epoch), // TODO(corver): Fill this properly
-			Data:          data,
+			ExecutionOptimistic: false,           // TODO(dhruv): Fill this properly
+			DependentRoot:       stubRoot(epoch), // TODO(corver): Fill this properly
+			Data:                data,
 		}, nil
 	}
 }
@@ -415,7 +423,10 @@ func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
 			data = []*eth2v1.SyncCommitteeDuty{}
 		}
 
-		return syncCommitteeDutiesResponse{Data: data}, nil
+		return syncCommitteeDutiesResponse{
+			Data:                data, // TODO(dhruv): Fill this properly
+			ExecutionOptimistic: false,
+		}, nil
 	}
 }
 
