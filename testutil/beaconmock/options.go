@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"math"
 	"net/http"
 	"sort"
 	"strings"
@@ -220,6 +219,15 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 // duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
 func WithDeterministicAttesterDuties(factor int) Option {
+	// Aggregation duties assigned using committee_length=factor and TARGET_AGGREGATORS_PER_COMMITTEE (=16).
+	// So validators are aggregators 1 out of every committee_length/TARGET_AGGREGATORS_PER_COMMITTEE or factor/16.
+	// So if all validators are aggregators if factor<=16.
+	commLength := uint64(factor)
+	if commLength < 1 {
+		commLength = 1
+	}
+	valCommIndex := commLength - 1 // Validator always last index in committee.
+
 	return func(mock *Mock) {
 		mock.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			vals, err := mock.Validators(ctx, "", indices)
@@ -243,28 +251,13 @@ func WithDeterministicAttesterDuties(factor int) Option {
 					continue
 				}
 
-				// Assign aggregation duties: even validator indexes in even epochs, odd validator indexes in odd epochs.
-				const notAgg = uint64(math.MaxInt16) // No attesters in such a large committee will ever be aggregator.
-				const isAgg = uint64(1)              // All attesters in such a small committee is aggregator.
-
-				commLength := notAgg
-				if epoch%2 == 0 && index%2 == 0 {
-					commLength = isAgg
-				} else if epoch%2 == 1 && index%2 == 1 {
-					commLength = isAgg
-				}
-				valCommIndex := uint64(index)
-				if valCommIndex >= commLength {
-					valCommIndex = commLength - 1
-				}
-
-				offset := (i * factor) % int(slotsPerEpoch)
+				slotOffset := (i * factor) % int(slotsPerEpoch)
 
 				resp = append(resp, &eth2v1.AttesterDuty{
 					PubKey:                  val.Validator.PublicKey,
-					Slot:                    eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(offset)),
+					Slot:                    eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(slotOffset)),
 					ValidatorIndex:          index,
-					CommitteeIndex:          eth2p0.CommitteeIndex(offset),
+					CommitteeIndex:          eth2p0.CommitteeIndex(slotOffset),
 					CommitteeLength:         commLength,
 					CommitteesAtSlot:        slotsPerEpoch,
 					ValidatorCommitteeIndex: valCommIndex,

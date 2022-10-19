@@ -18,6 +18,7 @@ package validatorapi_test
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"testing"
 
@@ -1283,6 +1284,11 @@ func TestComponent_SubmitBeaconCommitteeSubscriptionsV2(t *testing.T) {
 
 	actual, err := vapi.AggregateBeaconCommitteeSelections(ctx, selections)
 	require.NoError(t, err)
+
+	// Sort by VIdx before comparing
+	sort.Slice(actual, func(i, j int) bool {
+		return actual[i].ValidatorIndex < actual[j].ValidatorIndex
+	})
 	require.Equal(t, selections, actual)
 }
 
