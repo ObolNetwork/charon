@@ -102,7 +102,12 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 		require.NoError(t, err)
 
 		eg.Go(func() error {
-			return dkg.Run(ctx, conf)
+			err := dkg.Run(ctx, conf)
+			if err != nil {
+				cancel()
+			}
+
+			return err
 		})
 		if i == 0 {
 			// Allow node0 some time to startup, this just mitigates startup races and backoffs but isn't required.
