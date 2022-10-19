@@ -100,6 +100,12 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedDa
 			return ParSignedData{}, errors.Wrap(err, "unmarshal signed aggregate and proof")
 		}
 		signedData = s
+	case DutySyncMessage:
+		var s SignedSyncMessage
+		if err := json.Unmarshal(data.Data, &s); err != nil {
+			return ParSignedData{}, errors.Wrap(err, "unmarshal signed sync message")
+		}
+		signedData = s
 	default:
 		return ParSignedData{}, errors.New("unsupported duty type")
 	}

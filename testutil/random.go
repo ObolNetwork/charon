@@ -344,6 +344,7 @@ func RandomBeaconCommitteeSelection() *eth2exp.BeaconCommitteeSelection {
 		SelectionProof: RandomEth2Signature(),
 	}
 }
+
 func RandomCoreBeaconCommitteeSelection() core.BeaconCommitteeSelection {
 	return core.NewBeaconCommitteeSelection(RandomBeaconCommitteeSelection())
 }

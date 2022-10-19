@@ -62,6 +62,7 @@ func TestSimnetNoNetwork_WithAttesterTekuVC(t *testing.T) {
 	args := newSimnetArgs(t)
 	args = startTeku(t, args, 0, tekuVC)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
 	expect := newSimnetExpect(args.N, core.DutyAttester /*core.DutyPrepareAggregator, core.DutyAggregator*/) // Teku doesn't support v2 attestation aggregation.
 	testSimnet(t, args, expect)
 }
@@ -74,7 +75,21 @@ func TestSimnetNoNetwork_WithProposerTekuVC(t *testing.T) {
 	args := newSimnetArgs(t)
 	args = startTeku(t, args, 0, tekuVC)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
 	expect := newSimnetExpect(args.N, core.DutyProposer, core.DutyRandao)
+	testSimnet(t, args, expect)
+}
+
+func TestSimnetNoNetwork_WithSyncCommTekuVC(t *testing.T) {
+	if !*integration {
+		t.Skip("Skipping Teku integration test")
+	}
+
+	args := newSimnetArgs(t)
+	args = startTeku(t, args, 0, tekuVC)
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	expect := newSimnetExpect(args.N, core.DutySyncMessage)
 	testSimnet(t, args, expect)
 }
 
@@ -89,6 +104,7 @@ func TestSimnetNoNetwork_WithExitTekuVC(t *testing.T) {
 	}
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
 	expect := newSimnetExpect(args.N, core.DutyExit)
 	testSimnet(t, args, expect)
 }
@@ -105,6 +121,7 @@ func TestSimnetNoNetwork_WithBuilderRegistrationTekuVC(t *testing.T) {
 	}
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
 	expect := newSimnetExpect(args.N, core.DutyBuilderRegistration)
 	testSimnet(t, args, expect)
 }
@@ -120,6 +137,7 @@ func TestSimnetNoNetwork_WithBuilderProposerTekuVC(t *testing.T) {
 		args = startTeku(t, args, i, tekuVC)
 	}
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
 	expect := newSimnetExpect(args.N, core.DutyBuilderProposer, core.DutyRandao)
 	testSimnet(t, args, expect)
 }
@@ -127,6 +145,7 @@ func TestSimnetNoNetwork_WithBuilderProposerTekuVC(t *testing.T) {
 func TestSimnetNoNetwork_WithAttesterMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
 	expect := newSimnetExpect(args.N, core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator)
 	testSimnet(t, args, expect)
 }
@@ -134,6 +153,7 @@ func TestSimnetNoNetwork_WithAttesterMockVCs(t *testing.T) {
 func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
 	expect := newSimnetExpect(args.N, core.DutyProposer, core.DutyRandao)
 	testSimnet(t, args, expect)
 }
@@ -141,6 +161,7 @@ func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
 func TestSimnetNoNetwork_WithBuilderProposerMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
 	args.BuilderAPI = true
 	expect := newSimnetExpect(args.N, core.DutyBuilderProposer, core.DutyRandao)
 	testSimnet(t, args, expect)
@@ -150,6 +171,7 @@ func TestSimnetNoNetwork_WithBuilderRegistrationMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
 	args.BuilderRegistration = true
 	expect := newSimnetExpect(args.N, core.DutyBuilderRegistration)
 	testSimnet(t, args, expect)
@@ -157,7 +179,6 @@ func TestSimnetNoNetwork_WithBuilderRegistrationMockVCs(t *testing.T) {
 
 func TestSimnetNoNetwork_WithSyncCommitteeMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithSyncCommitteeDuties())
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
 	expect := newSimnetExpect(args.N, core.DutySyncMessage)

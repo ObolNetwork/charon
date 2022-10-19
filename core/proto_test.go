@@ -77,6 +77,10 @@ func TestParSignedDataSetProto(t *testing.T) {
 				Signature: testutil.RandomEth2Signature(),
 			}},
 		},
+		{
+			Type: core.DutySyncMessage,
+			Data: core.NewSignedSyncMessage(testutil.RandomSyncCommitteeMessage()),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.Type.String(), func(t *testing.T) {

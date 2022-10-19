@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
@@ -338,11 +337,24 @@ func WithNoAttesterDuties() Option {
 	}
 }
 
+// WithNoSyncCommitteeDuties configures the mock to override SyncCommitteeDutiesFunc to return nothing.
+func WithNoSyncCommitteeDuties() Option {
+	return func(mock *Mock) {
+		mock.SyncCommitteeDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+			return nil, nil
+		}
+	}
+}
+
 // WithSyncCommitteeDuties configures the mock to override SyncCommitteeDutiesFunc to return sync committee
-// duties for epochs not divisible by 3.
+// duties for all validators with epoch number not divisible by 3.
 func WithSyncCommitteeDuties() Option {
 	return func(mock *Mock) {
 		mock.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+			if epoch%3 == 0 {
+				return nil, nil
+			}
+
 			vals, err := mock.Validators(ctx, "", indices)
 			if err != nil {
 				return nil, err
@@ -364,6 +376,12 @@ func WithSyncCommitteeDuties() Option {
 
 			return resp, nil
 		}
+
+		mock.overrides = append(mock.overrides, staticOverride{
+			Endpoint: "/eth/v1/config/spec",
+			Key:      "EPOCHS_PER_SYNC_COMMITTEE_PERIOD",
+			Value:    "1",
+		})
 	}
 }
 
@@ -375,13 +393,14 @@ func WithClock(clock clockwork.Clock) Option {
 }
 
 // defaultMock returns a minimum viable mock that doesn't panic and returns mostly empty responses.
-func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clock) Mock {
+func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clock, headProducer *headProducer) Mock {
 	attStore := newAttestationStore(httpMock)
 
 	return Mock{
-		clock:      clock,
-		HTTPMock:   httpMock,
-		httpServer: httpServer,
+		clock:        clock,
+		HTTPMock:     httpMock,
+		httpServer:   httpServer,
+		headProducer: headProducer,
 		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
 			return &spec.VersionedBeaconBlock{
 				Version: spec.DataVersionBellatrix,
@@ -482,9 +501,6 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		},
 		NodeSyncingFunc: func(ctx context.Context) (*eth2v1.SyncState, error) {
 			return httpMock.NodeSyncing(ctx)
-		},
-		EventsFunc: func(context.Context, []string, eth2client.EventHandlerFunc) error {
-			return nil
 		},
 		SubmitValidatorRegistrationsFunc: func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error {
 			return nil
