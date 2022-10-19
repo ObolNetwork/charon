@@ -18,7 +18,6 @@ package cmd
 import (
 	"context"
 	"os"
-	"os/signal"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -38,16 +37,13 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 		Short: "Run the charon middleware client",
 		Long:  "Starts the long-running Charon middleware process to perform distributed validator duties.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
-			defer cancel()
-
 			if err := initLogger(cmd.Flags()); err != nil {
 				return err
 			}
 
-			printFlags(ctx, cmd.Flags())
+			printFlags(cmd.Context(), cmd.Flags())
 
-			return runFunc(ctx, conf)
+			return runFunc(cmd.Context(), conf)
 		},
 	}
 

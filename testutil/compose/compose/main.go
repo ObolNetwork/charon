@@ -28,6 +28,8 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -39,7 +41,10 @@ import (
 )
 
 func main() {
-	cobra.CheckErr(newRootCmd().Execute())
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	cobra.CheckErr(newRootCmd().ExecuteContext(ctx))
 }
 
 func newRootCmd() *cobra.Command {
@@ -141,9 +146,11 @@ func newAutoCmd(tmplCallbacks map[string]func(data *compose.TmplData)) *cobra.Co
 	printYML := cmd.Flags().Bool("print-yml", false, "Print generated docker-compose.yml files.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) (err error) {
+		ctx := log.WithTopic(cmd.Context(), "auto")
+
 		defer func() {
 			if err != nil {
-				log.Error(cmd.Context(), "Fatal error", err)
+				log.Error(ctx, "Fatal error", err)
 			}
 		}()
 		runFuncs := map[string]func(context.Context) (compose.TmplData, error){
@@ -152,17 +159,15 @@ func newAutoCmd(tmplCallbacks map[string]func(data *compose.TmplData)) *cobra.Co
 			"run":    newRunnerFunc("run", *dir, false, compose.Run),
 		}
 
-		rootCtx := log.WithTopic(cmd.Context(), "auto")
-
 		var lastTmpl compose.TmplData
 		for i, step := range []string{"define", "lock", "run"} {
-			lastTmpl, err = runFuncs[step](rootCtx)
+			lastTmpl, err = runFuncs[step](ctx)
 			if err != nil {
 				return err
 			}
 
 			if *sudoPerms {
-				if err := fixPerms(rootCtx, *dir); err != nil {
+				if err := fixPerms(ctx, *dir); err != nil {
 					return err
 				}
 			}
@@ -176,32 +181,31 @@ func newAutoCmd(tmplCallbacks map[string]func(data *compose.TmplData)) *cobra.Co
 			}
 
 			if *printYML {
-				if err := printDockerCompose(rootCtx, *dir); err != nil {
+				if err := printDockerCompose(ctx, *dir); err != nil {
 					return err
 				}
 			}
 
 			if i < len(runFuncs)-1 {
-				if err := execUp(rootCtx, *dir); err != nil {
+				if err := execUp(ctx, *dir); err != nil {
 					return err
 				}
 			}
 		}
 
-		ctx := rootCtx
 		if *alertTimeout != 0 {
 			// Ensure everything is clean before we start with alert test.
-			_ = execDown(rootCtx, *dir)
+			_ = execDown(ctx, *dir)
 
 			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(rootCtx, *alertTimeout)
+			ctx, cancel = context.WithTimeout(ctx, *alertTimeout)
 			defer cancel()
 		}
 
 		alerts := startAlertCollector(ctx, *dir)
 
 		defer func() {
-			_ = execDown(rootCtx, *dir)
+			_ = execDown(context.Background(), *dir)
 		}()
 
 		if err := execUp(ctx, *dir); err != nil && !errors.Is(err, context.DeadlineExceeded) {
