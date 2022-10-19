@@ -111,6 +111,15 @@ func (p *headProducer) updateHead(slot eth2p0.Slot) {
 	})
 }
 
+type getBlockRootResponseJSON struct {
+	ExecutionOptimistic bool                    `json:"execution_optimistic"`
+	Data                beaconBlockRootDataJSON `json:"data"`
+}
+
+type beaconBlockRootDataJSON struct {
+	Root string `json:"root"`
+}
+
 // handleGetBlockRoot is an http handler to handle "/eth/v1/beacon/blocks/{block_id}/root" endpoint.
 func (p *headProducer) handleGetBlockRoot(w http.ResponseWriter, r *http.Request) {
 	head := p.getCurrentHead()
@@ -130,7 +139,17 @@ func (p *headProducer) handleGetBlockRoot(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	_, _ = w.Write([]byte(fmt.Sprintf(`{"execution_optimistic": false,"data":{"root":"%#x"}}`, head.Block)))
+	resp, err := json.Marshal(getBlockRootResponseJSON{
+		ExecutionOptimistic: false,
+		Data: beaconBlockRootDataJSON{
+			Root: fmt.Sprintf("%#x", head.Block),
+		},
+	})
+	if err != nil {
+		panic(err) // This should never happen and this is test code sorry ;)
+	}
+
+	_, _ = w.Write(resp)
 }
 
 // handleEvents is a http handler to handle "/eth/v1/events".

@@ -380,7 +380,7 @@ func WithSyncCommitteeDuties() Option {
 		mock.overrides = append(mock.overrides, staticOverride{
 			Endpoint: "/eth/v1/config/spec",
 			Key:      "EPOCHS_PER_SYNC_COMMITTEE_PERIOD",
-			Value:    "2",
+			Value:    "1",
 		})
 	}
 }

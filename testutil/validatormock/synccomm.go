@@ -17,7 +17,6 @@ package validatormock
 
 import (
 	"context"
-	"encoding/hex"
 	"sync"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -232,7 +231,7 @@ func submitSyncMessage(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.
 		return err
 	}
 
-	log.Info(ctx, "Mock sync committee msg submitted", z.Int("slot", int(slot)), z.Str("root", hex.EncodeToString(blockRoot[:])))
+	log.Info(ctx, "Mock sync committee msg submitted", z.Int("slot", int(slot)))
 
 	return nil
 }
