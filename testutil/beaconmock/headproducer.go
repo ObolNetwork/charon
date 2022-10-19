@@ -120,13 +120,25 @@ type beaconBlockRootDataJSON struct {
 	Root string `json:"root"`
 }
 
+type errorMsgJSON struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
 // handleGetBlockRoot is an http handler to handle "/eth/v1/beacon/blocks/{block_id}/root" endpoint.
 func (p *headProducer) handleGetBlockRoot(w http.ResponseWriter, r *http.Request) {
 	head := p.getCurrentHead()
 
 	if head == nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"code": 500, "message": "Head producer not ready"}`))
+		resp, err := json.Marshal(errorMsgJSON{
+			Code:    500,
+			Message: "Head producer not ready",
+		})
+		if err != nil {
+			panic(err) // This should never happen and this is test code sorry ;)
+		}
+		_, _ = w.Write(resp)
 
 		return
 	}
@@ -134,7 +146,14 @@ func (p *headProducer) handleGetBlockRoot(w http.ResponseWriter, r *http.Request
 	blockID := mux.Vars(r)["block_id"]
 	if blockID != "head" && blockID != fmt.Sprint(head.Slot) {
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(fmt.Sprintf(`{"code": 400, "message": "Invalid block ID: %s"}`, blockID)))
+		resp, err := json.Marshal(errorMsgJSON{
+			Code:    500,
+			Message: fmt.Sprintf("Invalid block ID: %s", blockID),
+		})
+		if err != nil {
+			panic(err) // This should never happen and this is test code sorry ;)
+		}
+		_, _ = w.Write(resp)
 
 		return
 	}
