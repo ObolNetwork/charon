@@ -599,11 +599,11 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 	return nil
 }
 
-// SubmitBeaconCommitteeSubscriptionsV2 submits slot signatures to determine aggregators for attestation aggregation.
-func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
+// AggregateBeaconCommitteeSelections returns aggregate beacon committee selection proofs.
+func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
 	var valIdxs []eth2p0.ValidatorIndex
-	for _, sub := range subscriptions {
-		valIdxs = append(valIdxs, sub.ValidatorIndex)
+	for _, selection := range selections {
+		valIdxs = append(valIdxs, selection.ValidatorIndex)
 	}
 
 	vals, err := c.eth2Cl.Validators(ctx, "head", valIdxs)
@@ -612,8 +612,8 @@ func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, sub
 	}
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
-	for _, sub := range subscriptions {
-		eth2Pubkey, err := vals[sub.ValidatorIndex].PubKey(ctx)
+	for _, selection := range selections {
+		eth2Pubkey, err := vals[selection.ValidatorIndex].PubKey(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -625,28 +625,18 @@ func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, sub
 
 		// Verify slot signature.
 		err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-			return signing.VerifyBeaconCommitteeSubscription(ctx, c.eth2Cl, pubshare, sub)
+			return signing.VerifyBeaconCommitteeSelection(ctx, c.eth2Cl, pubshare, selection)
 		})
 		if err != nil {
 			return nil, err
 		}
 
-		_, ok := psigsBySlot[sub.Slot]
+		_, ok := psigsBySlot[selection.Slot]
 		if !ok {
-			psigsBySlot[sub.Slot] = make(core.ParSignedDataSet)
+			psigsBySlot[selection.Slot] = make(core.ParSignedDataSet)
 		}
 
-		// Fetch attester duty which contains committee length for cheap calculation of is_aggregator.
-		def, err := c.dutyDefFunc(ctx, core.NewAttesterDuty(int64(sub.Slot)))
-		if err != nil {
-			return nil, err
-		}
-		duty, ok := def[pubkey].(core.AttesterDefinition)
-		if !ok {
-			return nil, errors.New("invalid attester definition")
-		}
-
-		psigsBySlot[sub.Slot][pubkey] = core.NewPartialSignedBeaconCommitteeSubscription(sub, duty.CommitteeLength, c.shareIdx)
+		psigsBySlot[selection.Slot][pubkey] = core.NewPartialSignedBeaconCommitteeSelection(selection, c.shareIdx)
 	}
 
 	for slot, data := range psigsBySlot {
@@ -659,7 +649,7 @@ func (c Component) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, sub
 		}
 	}
 
-	return c.getCommResponse(ctx, psigsBySlot)
+	return c.getAggregateSelection(ctx, psigsBySlot)
 }
 
 // AggregateAttestation returns the aggregate attestation for the given attestation root.
@@ -669,8 +659,6 @@ func (c Component) AggregateAttestation(ctx context.Context, slot eth2p0.Slot, a
 }
 
 // SubmitAggregateAttestations receives partially signed aggregateAndProofs.
-// - It queries aggsigdb to get selection proof (slot signature).
-// - It overrides selection proof with the above obtained from aggsigdb.
 // - It verifies partial signature on AggregateAndProof.
 // - It then calls all the subscribers for further steps on partially signed aggregate and proof.
 func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
@@ -687,7 +675,6 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 	for _, agg := range aggregateAndProofs {
 		slot := agg.Message.Aggregate.Data.Slot
-		duty := core.NewPrepareAggregatorDuty(int64(slot))
 		eth2Pubkey, err := vals[agg.Message.AggregatorIndex].PubKey(ctx)
 		if err != nil {
 			return err
@@ -698,21 +685,6 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 			return err
 		}
 
-		// Get selection proof (slot signature).
-		// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
-		s, err := c.awaitAggSigDBFunc(ctx, duty, pk)
-		if err != nil {
-			return err
-		}
-
-		sub, ok := s.(core.SignedBeaconCommitteeSubscription)
-		if !ok {
-			return errors.New("slot signature not found")
-		}
-
-		// Override selection proof with slot signature from subscription.
-		agg.Message.SelectionProof = sub.SlotSignature
-
 		// Verify Signature.
 		err = c.verifyPartialSig(pk, func(pubshare *bls_sig.PublicKey) error {
 			return signing.VerifyAggregateAndProof(ctx, c.eth2Cl, pubshare, agg)
@@ -721,7 +693,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 			return err
 		}
 
-		_, ok = psigsBySlot[slot]
+		_, ok := psigsBySlot[slot]
 		if !ok {
 			psigsBySlot[slot] = make(core.ParSignedDataSet)
 		}
@@ -953,8 +925,8 @@ func (c Component) verifyPartialSig(pubkey core.PubKey, verifyFunc func(pubshare
 	return verifyFunc(pubshare)
 }
 
-func (c Component) getCommResponse(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-	var resp []*eth2exp.BeaconCommitteeSubscriptionResponse
+func (c Component) getAggregateSelection(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.BeaconCommitteeSelection, error) {
+	var resp []*eth2exp.BeaconCommitteeSelection
 	for slot, data := range psigsBySlot {
 		duty := core.NewPrepareAggregatorDuty(int64(slot))
 		for pk := range data {
@@ -964,17 +936,12 @@ func (c Component) getCommResponse(ctx context.Context, psigsBySlot map[eth2p0.S
 				return nil, err
 			}
 
-			sub, ok := s.(core.SignedBeaconCommitteeSubscription)
+			sub, ok := s.(core.BeaconCommitteeSelection)
 			if !ok {
-				return nil, errors.New("invalid beacon committee subscription")
+				return nil, errors.New("invalid beacon committee selection")
 			}
 
-			res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, c.eth2Cl, &sub.BeaconCommitteeSubscription, sub.CommitteeLength)
-			if err != nil {
-				return nil, err
-			}
-
-			resp = append(resp, res)
+			resp = append(resp, &sub.BeaconCommitteeSelection)
 		}
 	}
 

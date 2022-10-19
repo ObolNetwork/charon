@@ -17,7 +17,6 @@ package bcast_test
 
 import (
 	"context"
-	mrand "math/rand"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -30,11 +29,6 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/bcast"
-	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/eth2util/signing"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -49,15 +43,14 @@ type test struct {
 
 func TestBroadcast(t *testing.T) {
 	testFuncs := []func(*testing.T, *beaconmock.Mock) test{
-		attData,                           // Attestation
-		beaconBlockData,                   // BeaconBlock
-		blindedBeaconBlockData,            // BlindedBeaconBlock
-		validatorRegistrationData,         // ValidatorRegistration
-		validatorExitData,                 // ValidatorExit
-		aggregateAttestationData,          // AggregateAttestation
-		beaconCommitteeSubscriptionV1Data, // BeaconCommitteeSubscriptionV1
-		beaconCommitteeSubscriptionV2Data, // BeaconCommitteeSubscriptionV2
-		syncCommitteeMessage,              // SyncCommitteeMessage
+		attData,                   // Attestation
+		beaconBlockData,           // BeaconBlock
+		blindedBeaconBlockData,    // BlindedBeaconBlock
+		validatorRegistrationData, // ValidatorRegistration
+		validatorExitData,         // ValidatorExit
+		aggregateAttestationData,  // AggregateAttestation
+		beaconCommitteeSelections, // BeaconCommitteeSelections
+		syncCommitteeMessage,      // SyncCommitteeMessage
 	}
 
 	for _, testFunc := range testFuncs {
@@ -252,91 +245,17 @@ func aggregateAttestationData(t *testing.T, mock *beaconmock.Mock) test {
 	}
 }
 
-func beaconCommitteeSubscriptionV2Data(t *testing.T, mock *beaconmock.Mock) test {
+func beaconCommitteeSelections(t *testing.T, _ *beaconmock.Mock) test {
 	t.Helper()
 
 	asserted := make(chan struct{})
-	subscription := testutil.RandomBeaconCommitteeSubscription()
-	aggData := core.SignedBeaconCommitteeSubscription{BeaconCommitteeSubscription: *subscription}
-
-	mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-		require.Equal(t, aggData.BeaconCommitteeSubscription, *subscriptions[0])
-		close(asserted)
-
-		return nil, nil
-	}
+	close(asserted)
 
 	return test{
-		name:     "Broadcast Beacon Committee Subscription V2",
-		aggData:  aggData,
+		name:     "Broadcast Beacon Committee Selections",
+		aggData:  testutil.RandomCoreBeaconCommitteeSelection(),
 		duty:     core.DutyPrepareAggregator,
-		bcastCnt: 1,
-		asserted: asserted,
-	}
-}
-
-func beaconCommitteeSubscriptionV1Data(t *testing.T, mock *beaconmock.Mock) test {
-	t.Helper()
-
-	const (
-		slot    = 1
-		vIdx    = 1
-		commIdx = 1
-		commLen = 43
-	)
-
-	asserted := make(chan struct{})
-
-	_, secret, err := tbls.KeygenWithSeed(mrand.New(mrand.NewSource(1)))
-	require.NoError(t, err)
-
-	sigRoot, err := eth2util.SlotHashRoot(slot)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
-	require.NoError(t, err)
-
-	sigData, err := signing.GetDataRoot(ctx, mock, signing.DomainSelectionProof, eth2p0.Epoch(uint64(1)/slotsPerEpoch), sigRoot)
-	require.NoError(t, err)
-
-	sig, _ := tbls.Sign(secret, sigData[:])
-	blssig := tblsconv.SigToETH2(sig)
-
-	subscription := eth2exp.BeaconCommitteeSubscription{
-		ValidatorIndex: vIdx,
-		Slot:           slot,
-		CommitteeIndex: commIdx,
-		SlotSignature:  blssig,
-	}
-
-	aggData := core.SignedBeaconCommitteeSubscription{
-		BeaconCommitteeSubscription: subscription,
-		CommitteeLength:             commLen,
-	}
-
-	mock.SubmitBeaconCommitteeSubscriptionsV2Func = func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-		require.Equal(t, aggData.BeaconCommitteeSubscription, *subscriptions[0])
-
-		return nil, errors.New("404 not found")
-	}
-	mock.SubmitBeaconCommitteeSubscriptionsFunc = func(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error {
-		require.Equal(t, eth2v1.BeaconCommitteeSubscription{
-			ValidatorIndex: vIdx,
-			Slot:           slot,
-			CommitteeIndex: commIdx,
-			IsAggregator:   true,
-		}, *subscriptions[0])
-		close(asserted)
-
-		return nil
-	}
-
-	return test{
-		name:     "Broadcast Beacon Committee Subscription V1",
-		aggData:  aggData,
-		duty:     core.DutyPrepareAggregator,
-		bcastCnt: 1,
+		bcastCnt: 0,
 		asserted: asserted,
 	}
 }

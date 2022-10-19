@@ -337,28 +337,15 @@ func RandomVersionedSignedValidatorRegistration(t *testing.T) *eth2api.Versioned
 	}
 }
 
-func RandomBeaconCommitteeSubscription() *eth2exp.BeaconCommitteeSubscription {
-	return &eth2exp.BeaconCommitteeSubscription{
-		ValidatorIndex:   RandomVIdx(),
-		Slot:             RandomSlot(),
-		CommitteeIndex:   RandomCommIdx(),
-		CommitteesAtSlot: rand.Uint64(),
-		SlotSignature:    RandomEth2Signature(),
+func RandomBeaconCommitteeSelection() *eth2exp.BeaconCommitteeSelection {
+	return &eth2exp.BeaconCommitteeSelection{
+		ValidatorIndex: RandomVIdx(),
+		Slot:           RandomSlot(),
+		SelectionProof: RandomEth2Signature(),
 	}
 }
-
-// RandomSignedBeaconCommitteeSubscription returns a SignedBeaconCommitteeSubscription with the inputs and a random slot signature.
-func RandomSignedBeaconCommitteeSubscription(vIdx, slot, commIdx, commLen int) core.SignedBeaconCommitteeSubscription {
-	return core.SignedBeaconCommitteeSubscription{
-		BeaconCommitteeSubscription: eth2exp.BeaconCommitteeSubscription{
-			ValidatorIndex:   eth2p0.ValidatorIndex(vIdx),
-			Slot:             eth2p0.Slot(slot),
-			CommitteeIndex:   eth2p0.CommitteeIndex(commIdx),
-			CommitteesAtSlot: rand.Uint64(),
-			SlotSignature:    RandomEth2Signature(),
-		},
-		CommitteeLength: uint64(commLen),
-	}
+func RandomCoreBeaconCommitteeSelection() core.BeaconCommitteeSelection {
+	return core.NewBeaconCommitteeSelection(RandomBeaconCommitteeSelection())
 }
 
 func RandomSignedAggregateAndProof() *eth2p0.SignedAggregateAndProof {

@@ -4,8 +4,8 @@
   "slot": "16",
   "validator_index": "2",
   "committee_index": "0",
-  "committee_length": "16",
+  "committee_length": "1",
   "committees_at_slot": "16",
-  "validator_committee_index": "2"
+  "validator_committee_index": "0"
  }
 ]

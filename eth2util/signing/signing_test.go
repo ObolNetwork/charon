@@ -20,7 +20,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -31,7 +30,6 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -214,31 +212,26 @@ func TestVerifyBuilderRegistration(t *testing.T) {
 	require.NoError(t, signing.VerifyValidatorRegistration(context.Background(), bmock, pubkey, &registration))
 }
 
-func TestVerifyBeaconCommitteeSubscription(t *testing.T) {
+func TestVerifyBeaconCommitteeSelection(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	sub := &eth2exp.BeaconCommitteeSubscription{
-		Slot:             testutil.RandomSlot(),
-		ValidatorIndex:   testutil.RandomVIdx(),
-		CommitteesAtSlot: rand.Uint64(),
-		CommitteeIndex:   eth2p0.CommitteeIndex(rand.Uint64()),
-	}
+	selection := testutil.RandomBeaconCommitteeSelection()
 
-	sigRoot, err := eth2util.SlotHashRoot(sub.Slot)
+	sigRoot, err := eth2util.SlotHashRoot(selection.Slot)
 	require.NoError(t, err)
 
 	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())
 	require.NoError(t, err)
-	epoch := eth2p0.Epoch(uint64(sub.Slot) / slotsPerEpoch)
+	epoch := eth2p0.Epoch(uint64(selection.Slot) / slotsPerEpoch)
 
 	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainSelectionProof, epoch, sigRoot)
 	require.NoError(t, err)
 
 	sig, pubkey := sign(t, sigData[:])
-	sub.SlotSignature = sig
+	selection.SelectionProof = sig
 
-	require.NoError(t, signing.VerifyBeaconCommitteeSubscription(context.Background(), bmock, pubkey, sub))
+	require.NoError(t, signing.VerifyBeaconCommitteeSelection(context.Background(), bmock, pubkey, selection))
 }
 
 func TestVerifyAggregateAndProof(t *testing.T) {

@@ -153,32 +153,34 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 
 func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
-	for pubkey := range defSet {
-		// Query AggSigDB for DutyPrepareAggregator to get beacon committee subscription.
+	for pubkey, dutyDef := range defSet {
+		attDef, ok := dutyDef.(core.AttesterDefinition)
+		if !ok {
+			return core.UnsignedDataSet{}, errors.New("invalid attester definition")
+		}
+
+		// Query AggSigDB for DutyPrepareAggregator to get beacon committee selections.
 		prepAggData, err := f.aggSigDBFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
 
-		sub, ok := prepAggData.(core.SignedBeaconCommitteeSubscription)
+		selection, ok := prepAggData.(core.BeaconCommitteeSelection)
 		if !ok {
 			return core.UnsignedDataSet{}, errors.New("invalid beacon committee subscription")
 		}
 
-		res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, f.eth2Cl, &sub.BeaconCommitteeSubscription, sub.CommitteeLength)
+		ok, err = eth2exp.IsAggregator(ctx, f.eth2Cl, attDef.CommitteeLength, selection.SelectionProof)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
-		}
-
-		// This validator isn't an aggregator for this slot.
-		if !res.IsAggregator {
+		} else if !ok {
 			log.Debug(ctx, "Attester not selected for aggregation duty", z.Any("pubkey", pubkey))
 			continue
 		}
 		log.Info(ctx, "Resolved attester aggregation duty", z.Any("pubkey", pubkey))
 
 		// Query DutyDB for Attestation data to get attestation data root.
-		attData, err := f.awaitAttDataFunc(ctx, slot, int64(res.CommitteeIndex))
+		attData, err := f.awaitAttDataFunc(ctx, slot, int64(attDef.CommitteeIndex))
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}

@@ -17,7 +17,6 @@ package core
 
 import (
 	"encoding/json"
-	"fmt"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -39,7 +38,7 @@ var (
 	_ SignedData = VersionedSignedBlindedBeaconBlock{}
 	_ SignedData = VersionedSignedValidatorRegistration{}
 	_ SignedData = SignedRandao{}
-	_ SignedData = SignedBeaconCommitteeSubscription{}
+	_ SignedData = BeaconCommitteeSelection{}
 	_ SignedData = SignedAggregateAndProof{}
 	_ SignedData = SignedSyncMessage{}
 	_ SignedData = SignedSyncContributionAndProof{}
@@ -698,91 +697,61 @@ func (s SignedRandao) clone() (SignedRandao, error) {
 	return resp, nil
 }
 
-// NewBeaconCommitteeSubscription is a convenience function which returns new signed BeaconCommitteeSubscription.
-func NewBeaconCommitteeSubscription(sub *eth2exp.BeaconCommitteeSubscription, committeeLength uint64) SignedBeaconCommitteeSubscription {
-	return SignedBeaconCommitteeSubscription{
-		BeaconCommitteeSubscription: *sub,
-		CommitteeLength:             committeeLength,
+// NewBeaconCommitteeSelection is a convenience function which returns new signed BeaconCommitteeSelection.
+func NewBeaconCommitteeSelection(selection *eth2exp.BeaconCommitteeSelection) BeaconCommitteeSelection {
+	return BeaconCommitteeSelection{
+		BeaconCommitteeSelection: *selection,
 	}
 }
 
-// NewPartialSignedBeaconCommitteeSubscription is a convenience function which returns new partially signed BeaconCommitteeSubscription.
-func NewPartialSignedBeaconCommitteeSubscription(sub *eth2exp.BeaconCommitteeSubscription, committeeLength uint64, shareIdx int) ParSignedData {
+// NewPartialSignedBeaconCommitteeSelection is a convenience function which returns new partially signed BeaconCommitteeSelection.
+func NewPartialSignedBeaconCommitteeSelection(selection *eth2exp.BeaconCommitteeSelection, shareIdx int) ParSignedData {
 	return ParSignedData{
-		SignedData: NewBeaconCommitteeSubscription(sub, committeeLength),
+		SignedData: NewBeaconCommitteeSelection(selection),
 		ShareIdx:   shareIdx,
 	}
 }
 
-// SignedBeaconCommitteeSubscription is a Signed BeaconCommitteeSubscription which implements SignedData.
-type SignedBeaconCommitteeSubscription struct {
-	eth2exp.BeaconCommitteeSubscription
-	CommitteeLength uint64 // FIXME(corver): Including "helper" data as part of wire API is brittle design.
+// BeaconCommitteeSelection wraps a BeaconCommitteeSelection which implements SignedData.
+type BeaconCommitteeSelection struct {
+	eth2exp.BeaconCommitteeSelection
 }
 
-func (s SignedBeaconCommitteeSubscription) Signature() Signature {
-	return SigFromETH2(s.SlotSignature)
+func (s BeaconCommitteeSelection) Signature() Signature {
+	return SigFromETH2(s.SelectionProof)
 }
 
-func (s SignedBeaconCommitteeSubscription) SetSignature(sig Signature) (SignedData, error) {
+func (s BeaconCommitteeSelection) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := s.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	resp.SlotSignature = sig.ToETH2()
+	resp.SelectionProof = sig.ToETH2()
 
 	return resp, nil
 }
 
-func (s SignedBeaconCommitteeSubscription) Clone() (SignedData, error) {
+func (s BeaconCommitteeSelection) Clone() (SignedData, error) {
 	return s.clone()
 }
 
-func (s SignedBeaconCommitteeSubscription) clone() (SignedBeaconCommitteeSubscription, error) {
-	var resp SignedBeaconCommitteeSubscription
+func (s BeaconCommitteeSelection) clone() (BeaconCommitteeSelection, error) {
+	var resp BeaconCommitteeSelection
 	err := cloneJSONMarshaler(s, &resp)
 	if err != nil {
-		return SignedBeaconCommitteeSubscription{}, errors.Wrap(err, "clone BeaconCommitteeSubscription")
+		return BeaconCommitteeSelection{}, errors.Wrap(err, "clone BeaconCommitteeSubscription")
 	}
 
 	return resp, nil
 }
 
-func (s SignedBeaconCommitteeSubscription) MarshalJSON() ([]byte, error) {
-	// Marshal subscription with additional committee_length for limited backwards compatibility.
-	resp, err := json.Marshal(map[string]string{
-		"validator_index":    fmt.Sprintf("%d", s.ValidatorIndex),
-		"slot":               fmt.Sprintf("%d", s.Slot),
-		"committee_index":    fmt.Sprintf("%d", s.CommitteeIndex),
-		"committees_at_slot": fmt.Sprintf("%d", s.CommitteesAtSlot),
-		"slot_signature":     fmt.Sprintf("%#x", s.SlotSignature),
-		"committee_length":   fmt.Sprintf("%d", s.CommitteeLength),
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal subscription")
-	}
-
-	return resp, nil
+func (s BeaconCommitteeSelection) MarshalJSON() ([]byte, error) {
+	return s.BeaconCommitteeSelection.MarshalJSON()
 }
 
-func (s *SignedBeaconCommitteeSubscription) UnmarshalJSON(input []byte) error {
-	var sub eth2exp.BeaconCommitteeSubscription
-	if err := json.Unmarshal(input, &sub); err != nil {
-		return errors.Wrap(err, "unmarshal subscription")
-	}
-
-	lengthJSON := struct {
-		CommitteeLength uint64 `json:"committee_length,string"`
-	}{}
-	if err := json.Unmarshal(input, &lengthJSON); err != nil {
-		return errors.Wrap(err, "unmarshal length")
-	}
-
-	s.BeaconCommitteeSubscription = sub
-	s.CommitteeLength = lengthJSON.CommitteeLength
-
-	return nil
+func (s *BeaconCommitteeSelection) UnmarshalJSON(input []byte) error {
+	return s.BeaconCommitteeSelection.UnmarshalJSON(input)
 }
 
 // NewSignedAggregateAndProof is a convenience function which returns a new signed SignedAggregateAndProof.

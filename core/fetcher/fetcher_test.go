@@ -23,12 +23,12 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/fetcher"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -99,12 +99,13 @@ func TestFetchAggregator(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		slot  = 1
-		vIdxA = 2
-		vIdxB = 3
+		slot                = 1
+		vIdxA               = 2
+		vIdxB               = 3
+		commLenAggregator   = 0
+		commLenNoAggregator = math.MaxUint64
 	)
 
-	commLen := 0 // commLen of 0, results in eth2exp.CalculateCommitteeSubscriptionResponse to always return IsAggregator=true
 	nilAggregate := false
 
 	duty := core.NewAggregatorDuty(slot)
@@ -114,11 +115,6 @@ func TestFetchAggregator(t *testing.T) {
 		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
-	defSet := core.DutyDefinitionSet{
-		pubkeysByIdx[vIdxA]: core.NewEmptyDefinition(),
-		pubkeysByIdx[vIdxB]: core.NewEmptyDefinition(),
-	}
-
 	attA := testutil.RandomAttestation()
 	attB := testutil.RandomAttestation()
 	attByCommIdx := map[int64]*eth2p0.Attestation{
@@ -126,15 +122,24 @@ func TestFetchAggregator(t *testing.T) {
 		int64(attB.Data.Index): attB,
 	}
 
-	var signedCommSubByPubKey map[core.PubKey]core.SignedData
+	newDefSet := func(commLength uint64) core.DutyDefinitionSet {
+		dutyA := testutil.RandomAttestationDuty(t)
+		dutyA.CommitteeLength = commLength
+		dutyA.CommitteeIndex = attA.Data.Index
+		dutyB := testutil.RandomAttestationDuty(t)
+		dutyB.CommitteeLength = commLength
+		dutyB.CommitteeIndex = attA.Data.Index
 
-	setSelections := func(commLen int) {
-		signedCommSubByPubKey = map[core.PubKey]core.SignedData{
-			pubkeysByIdx[vIdxA]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxA, slot, int(attA.Data.Index), commLen),
-			pubkeysByIdx[vIdxB]: testutil.RandomSignedBeaconCommitteeSubscription(vIdxB, slot, int(attB.Data.Index), commLen),
+		return map[core.PubKey]core.DutyDefinition{
+			pubkeysByIdx[vIdxA]: core.NewAttesterDefinition(dutyA),
+			pubkeysByIdx[vIdxB]: core.NewAttesterDefinition(dutyB),
 		}
 	}
-	setSelections(commLen)
+
+	signedCommSubByPubKey := map[core.PubKey]core.SignedData{
+		pubkeysByIdx[vIdxA]: testutil.RandomCoreBeaconCommitteeSelection(),
+		pubkeysByIdx[vIdxB]: testutil.RandomCoreBeaconCommitteeSelection(),
+	}
 
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
@@ -184,42 +189,15 @@ func TestFetchAggregator(t *testing.T) {
 		return done
 	})
 
-	err = fetch.Fetch(ctx, duty, defSet)
+	err = fetch.Fetch(ctx, duty, newDefSet(commLenAggregator))
 	require.ErrorIs(t, err, done)
 
-	// Test no aggregators for slot
-	// First find a committee length that results in eth2exp.CalculateCommitteeSubscriptionResponse to return IsAggregator=false
-	var foundNoAggLen bool
-	for commLen = 1000; commLen < 1200; commLen++ {
-		setSelections(commLen)
-
-		var isAgg bool
-		for _, vIdx := range []int{vIdxA, vIdxB} {
-			sub := signedCommSubByPubKey[pubkeysByIdx[eth2p0.ValidatorIndex(vIdx)]].(core.SignedBeaconCommitteeSubscription)
-			resp, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, bmock, &sub.BeaconCommitteeSubscription, sub.CommitteeLength)
-			require.NoError(t, err)
-
-			if resp.IsAggregator {
-				isAgg = true
-				break
-			}
-		}
-
-		if !isAgg {
-			foundNoAggLen = true
-			break
-		}
-	}
-	require.True(t, foundNoAggLen)
-
-	err = fetch.Fetch(ctx, duty, defSet)
+	err = fetch.Fetch(ctx, duty, newDefSet(commLenNoAggregator))
 	require.NoError(t, err)
 
 	// Test nil, nil AggregateAttestation response.
-	setSelections(0)
 	nilAggregate = true
-
-	err = fetch.Fetch(ctx, duty, defSet)
+	err = fetch.Fetch(ctx, duty, newDefSet(commLenAggregator))
 	require.ErrorContains(t, err, "aggregate attestation not found by root (retryable)")
 }
 

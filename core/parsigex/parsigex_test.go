@@ -230,15 +230,15 @@ func TestParSigExVerifier(t *testing.T) {
 		require.NoError(t, verifyFunc(ctx, core.NewBuilderRegistrationDuty(slot), pubkey, data))
 	})
 
-	t.Run("Verify beacon committee subscription", func(t *testing.T) {
-		sub := testutil.RandomBeaconCommitteeSubscription()
-		sub.Slot = slot
-		sigRoot, err := eth2util.SlotHashRoot(sub.Slot)
+	t.Run("Verify beacon committee selection", func(t *testing.T) {
+		selection := testutil.RandomBeaconCommitteeSelection()
+		selection.Slot = slot
+		sigRoot, err := eth2util.SlotHashRoot(selection.Slot)
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainSelectionProof, epoch, sigRoot)
 		require.NoError(t, err)
-		sub.SlotSignature = sign(sigData[:])
-		data := core.NewPartialSignedBeaconCommitteeSubscription(sub, 0, shareIdx)
+		selection.SelectionProof = sign(sigData[:])
+		data := core.NewPartialSignedBeaconCommitteeSelection(selection, shareIdx)
 
 		require.NoError(t, verifyFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey, data))
 	})

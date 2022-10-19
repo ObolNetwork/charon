@@ -187,18 +187,18 @@ func VerifyValidatorRegistration(ctx context.Context, eth2Cl eth2wrap.Client, pu
 	return verify(ctx, eth2Cl, DomainApplicationBuilder, 0, sigRoot, reg.V1.Signature, pubkey)
 }
 
-func VerifyBeaconCommitteeSubscription(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, sub *eth2exp.BeaconCommitteeSubscription) error {
-	epoch, err := epochFromSlot(ctx, eth2Cl, sub.Slot)
+func VerifyBeaconCommitteeSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, selection *eth2exp.BeaconCommitteeSelection) error {
+	epoch, err := epochFromSlot(ctx, eth2Cl, selection.Slot)
 	if err != nil {
 		return err
 	}
 
-	sigRoot, err := eth2util.SlotHashRoot(sub.Slot)
+	sigRoot, err := eth2util.SlotHashRoot(selection.Slot)
 	if err != nil {
 		return err
 	}
 
-	return verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, sub.SlotSignature, pubkey)
+	return verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, selection.SelectionProof, pubkey)
 }
 
 func VerifyAggregateAndProof(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.SignedAggregateAndProof) error {

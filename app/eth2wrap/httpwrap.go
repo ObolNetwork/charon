@@ -38,25 +38,25 @@ type httpAdapter struct {
 	timeout time.Duration
 }
 
-type submitBeaconCommitteeSubscriptionsV2JSON struct {
-	Data []*eth2exp.BeaconCommitteeSubscriptionResponse `json:"data"`
+type submitBeaconCommitteeSelectionsJSON struct {
+	Data []*eth2exp.BeaconCommitteeSelection `json:"data"`
 }
 
-// SubmitBeaconCommitteeSubscriptionsV2 implements eth2exp.BeaconCommitteeSubscriptionsSubmitterV2.
-func (h httpAdapter) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-	reqBody, err := json.Marshal(subscriptions)
+// AggregateBeaconCommitteeSelections implements eth2exp.BeaconCommitteeSelectionsAggregator.
+func (h httpAdapter) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
+	reqBody, err := json.Marshal(selections)
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal submit beacon committee subscriptions V2 request")
+		return nil, errors.Wrap(err, "marshal submit beacon committee selections")
 	}
 
-	respBody, err := httpPost(ctx, h.Address(), "/eth/v2/validator/beacon_committee_subscriptions", bytes.NewReader(reqBody), h.timeout)
+	respBody, err := httpPost(ctx, h.Address(), "/eth/v1/aggregate/beacon_committee_selections", bytes.NewReader(reqBody), h.timeout)
 	if err != nil {
-		return nil, errors.Wrap(err, "post submit beacon committee subscriptions v2")
+		return nil, errors.Wrap(err, "post submit beacon committee selections")
 	}
 
-	var resp submitBeaconCommitteeSubscriptionsV2JSON
+	var resp submitBeaconCommitteeSelectionsJSON
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrap(err, "failed to parse submit beacon committee subscriptions V2 response")
+		return nil, errors.Wrap(err, "failed to parse submit beacon committee selections")
 	}
 
 	return resp.Data, nil

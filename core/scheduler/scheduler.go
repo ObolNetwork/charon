@@ -316,7 +316,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 
 		// Schedule aggregation duty as well.
 		aggDuty := core.NewAggregatorDuty(int64(attDuty.Slot))
-		if !s.setDutyDefinition(aggDuty, pubkey, core.NewEmptyDefinition()) {
+		if !s.setDutyDefinition(aggDuty, pubkey, core.NewAttesterDefinition(attDuty)) {
 			continue
 		}
 	}

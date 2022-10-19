@@ -58,19 +58,19 @@ const (
 	msgFetcherAggregatorNoAttData = "couldn't aggregate attestation due to failed attester duty"
 
 	// msgFetcherAggregatorFewPrepares indicates an attestation aggregation duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite aggregated v2 committee subscription.
-	// This indicates the associated prepare aggregation duty failed due to insufficient partial v2 committee subscription
+	// the fetcher component since it couldn't fetch the prerequisite aggregated beacon committee selections.
+	// This indicates the associated prepare aggregation duty failed due to insufficient partial beacon committee selections
 	// submitted by the cluster validator clients.
-	msgFetcherAggregatorFewPrepares = "couldn't aggregate attestation due to insufficient partial v2 committee subscriptions"
+	msgFetcherAggregatorFewPrepares = "couldn't aggregate attestation due to insufficient partial beacon committee selections"
 
 	// msgFetcherAggregatorZeroPrepares indicates an attestation aggregation duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite aggregated v2 committee subscription.
-	// This indicates the associated prepare aggregation duty failed due to no partial v2 committee subscription
+	// the fetcher component since it couldn't fetch the prerequisite aggregated beacon committee selections.
+	// This indicates the associated prepare aggregation duty failed due to no partial beacon committee selections
 	// submitted by the cluster validator clients.
-	msgFetcherAggregatorZeroPrepares = "couldn't aggregate attestation due to zero partial committee subscriptions"
+	msgFetcherAggregatorZeroPrepares = "couldn't aggregate attestation due to zero partial beacon committee selections"
 
 	// msgFetcherAggregatorFailedPrepare indicates an attestation aggregation duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite aggregated v2 committee subscription.
+	// the fetcher component since it couldn't fetch the prerequisite aggregated beacon committee selections.
 	// This indicates the associated prepare aggregation duty failed.
 	msgFetcherAggregatorFailedPrepare = "couldn't aggregate attestation due to failed prepare aggregator duty "
 
@@ -325,7 +325,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 
 // newFailedDutyReporter returns failed duty reporter which instruments failed duties.
 func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bool, component component, reason string) {
-	var loggedNoV2Agg bool
+	var loggedNoSelections bool
 
 	return func(ctx context.Context, duty core.Duty, failed bool, component component, reason string) {
 		if !failed {
@@ -333,10 +333,10 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 		}
 
 		if duty.Type == core.DutyAggregator && component == fetcher && reason == msgFetcherAggregatorZeroPrepares {
-			if !loggedNoV2Agg {
-				log.Warn(ctx, "Ignoring attestation aggregation failures since VCs do not seem to support attestation aggregation v2", nil)
+			if !loggedNoSelections {
+				log.Warn(ctx, "Ignoring attestation aggregation failures since VCs do not seem to support beacon committee selection aggregation", nil)
 			}
-			loggedNoV2Agg = true
+			loggedNoSelections = true
 
 			return
 		}

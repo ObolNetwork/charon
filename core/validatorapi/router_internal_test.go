@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -44,7 +43,6 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
-	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 const (
@@ -602,7 +600,7 @@ func TestRouter(t *testing.T) {
 	})
 }
 
-func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
+func TestBeaconCommitteeSelections(t *testing.T) {
 	ctx := context.Background()
 
 	const (
@@ -613,14 +611,9 @@ func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
 		vIdxC = 3
 	)
 
-	aggregators := map[eth2p0.Slot]eth2p0.ValidatorIndex{
-		slotA: vIdxA,
-		slotB: vIdxB,
-	}
-
-	bmock, err := beaconmock.New(beaconmock.WithAttestationAggregation(aggregators))
-	require.NoError(t, err)
-	testHandler := testHandler{SubmitBeaconCommitteeSubscriptionsV2Func: bmock.SubmitBeaconCommitteeSubscriptionsV2Func}
+	testHandler := testHandler{AggregateBeaconCommitteeSelectionsFunc: func(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
+		return selections, nil
+	}}
 
 	proxy := httptest.NewServer(testHandler.newBeaconHandler(t))
 	defer proxy.Close()
@@ -638,41 +631,28 @@ func TestBeaconCommitteeSubscriptionsV2(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Submit subscriptions to beaconmock through validatorapi.
-	expected := []*eth2exp.BeaconCommitteeSubscriptionResponse{
-		{ValidatorIndex: vIdxA, IsAggregator: true},
-		{ValidatorIndex: vIdxB, IsAggregator: true},
-		{ValidatorIndex: vIdxC, IsAggregator: false},
-	}
-
-	subs := []*eth2exp.BeaconCommitteeSubscription{
+	selections := []*eth2exp.BeaconCommitteeSelection{
 		{
-			Slot:             slotA,
-			ValidatorIndex:   vIdxA,
-			CommitteesAtSlot: rand.Uint64(),
-			CommitteeIndex:   eth2p0.CommitteeIndex(rand.Uint64()),
-			SlotSignature:    testutil.RandomEth2Signature(),
+			Slot:           slotA,
+			ValidatorIndex: vIdxA,
+			SelectionProof: testutil.RandomEth2Signature(),
 		},
 		{
-			Slot:             slotB,
-			ValidatorIndex:   vIdxB,
-			CommitteesAtSlot: rand.Uint64(),
-			CommitteeIndex:   eth2p0.CommitteeIndex(rand.Uint64()),
-			SlotSignature:    testutil.RandomEth2Signature(),
+			Slot:           slotB,
+			ValidatorIndex: vIdxB,
+			SelectionProof: testutil.RandomEth2Signature(),
 		},
 		{
-			Slot:             slotA,
-			ValidatorIndex:   vIdxC,
-			CommitteesAtSlot: rand.Uint64(),
-			CommitteeIndex:   eth2p0.CommitteeIndex(rand.Uint64()),
-			SlotSignature:    testutil.RandomEth2Signature(),
+			Slot:           slotA,
+			ValidatorIndex: vIdxC,
+			SelectionProof: testutil.RandomEth2Signature(),
 		},
 	}
 
 	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service), time.Second)
-	actual, err := eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, subs)
+	actual, err := eth2Cl.AggregateBeaconCommitteeSelections(ctx, selections)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Equal(t, selections, actual)
 }
 
 func TestSubmitAggregateAttestations(t *testing.T) {
@@ -757,22 +737,22 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 // mocked beacon-node endpoints required by the eth2http client during startup.
 type testHandler struct {
 	Handler
-	ProxyHandler                             http.HandlerFunc
-	AttestationDataFunc                      func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
-	AttesterDutiesFunc                       func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
-	BeaconBlockProposalFunc                  func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
-	SubmitBeaconBlockFunc                    func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error
-	BlindedBeaconBlockProposalFunc           func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
-	SubmitBlindedBeaconBlockFunc             func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
-	ProposerDutiesFunc                       func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
-	ValidatorsFunc                           func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	ValidatorsByPubKeyFunc                   func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	SubmitVoluntaryExitFunc                  func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
-	SubmitValidatorRegistrationsFunc         func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
-	SubmitBeaconCommitteeSubscriptionsV2Func func(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error)
-	SubmitAggregateAttestationsFunc          func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
-	SubmitSyncCommitteeMessagesFunc          func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
-	SyncCommitteeDutiesFunc                  func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error)
+	ProxyHandler                           http.HandlerFunc
+	AttestationDataFunc                    func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
+	AttesterDutiesFunc                     func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	BeaconBlockProposalFunc                func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
+	SubmitBeaconBlockFunc                  func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error
+	BlindedBeaconBlockProposalFunc         func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
+	SubmitBlindedBeaconBlockFunc           func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
+	ProposerDutiesFunc                     func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	ValidatorsFunc                         func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	ValidatorsByPubKeyFunc                 func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	SubmitVoluntaryExitFunc                func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
+	SubmitValidatorRegistrationsFunc       func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
+	AggregateBeaconCommitteeSelectionsFunc func(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error)
+	SubmitAggregateAttestationsFunc        func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
+	SubmitSyncCommitteeMessagesFunc        func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
+	SyncCommitteeDutiesFunc                func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error)
 }
 
 func (h testHandler) AttestationData(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
@@ -819,8 +799,8 @@ func (h testHandler) SubmitValidatorRegistrations(ctx context.Context, registrat
 	return h.SubmitValidatorRegistrationsFunc(ctx, registrations)
 }
 
-func (h testHandler) SubmitBeaconCommitteeSubscriptionsV2(ctx context.Context, subscriptions []*eth2exp.BeaconCommitteeSubscription) ([]*eth2exp.BeaconCommitteeSubscriptionResponse, error) {
-	return h.SubmitBeaconCommitteeSubscriptionsV2Func(ctx, subscriptions)
+func (h testHandler) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
+	return h.AggregateBeaconCommitteeSelectionsFunc(ctx, selections)
 }
 
 func (h testHandler) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {

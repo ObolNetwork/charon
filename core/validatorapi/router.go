@@ -62,7 +62,7 @@ type Handler interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockSubmitter
-	eth2exp.BeaconCommitteeSubscriptionsSubmitterV2
+	eth2exp.BeaconCommitteeSelectionAggregator
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.ProposerDutiesProvider
@@ -156,9 +156,9 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 			Handler: tekuProposerConfig(h),
 		},
 		{
-			Name:    "submit_beacon_committee_subscriptions_v2",
-			Path:    "/eth/v2/validator/beacon_committee_subscriptions",
-			Handler: submitBeaconCommitteeSubscriptionsV2(h),
+			Name:    "aggregate_beacon_committee_selections",
+			Path:    "/eth/v1/aggregate/beacon_committee_selections",
+			Handler: aggregateBeaconCommitteeSelections(h),
 		},
 		{
 			Name:    "aggregate_attestation",
@@ -591,20 +591,20 @@ func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) 
 	}
 }
 
-// submitBeaconCommitteeSubscriptionsV2 receives beacon committee slot signatures and returns attestation aggregators.
-func submitBeaconCommitteeSubscriptionsV2(r eth2exp.BeaconCommitteeSubscriptionsSubmitterV2) handlerFunc {
+// aggregateBeaconCommitteeSelections receives partial beacon committee selections and returns aggregated selections.
+func aggregateBeaconCommitteeSelections(a eth2exp.BeaconCommitteeSelectionAggregator) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, body []byte) (res interface{}, err error) {
-		var subs []*eth2exp.BeaconCommitteeSubscription
-		if err := json.Unmarshal(body, &subs); err != nil {
-			return nil, errors.Wrap(err, "unmarshal beacon committee subscription v2")
+		var selections []*eth2exp.BeaconCommitteeSelection
+		if err := json.Unmarshal(body, &selections); err != nil {
+			return nil, errors.Wrap(err, "unmarshal beacon committee selections")
 		}
 
-		resp, err := r.SubmitBeaconCommitteeSubscriptionsV2(ctx, subs)
+		resp, err := a.AggregateBeaconCommitteeSelections(ctx, selections)
 		if err != nil {
 			return nil, err
 		}
 
-		return submitBeaconCommitteeSubscriptionsV2JSON{Data: resp}, nil
+		return aggregateBeaconCommitteeSelectionsJSON{Data: resp}, nil
 	}
 }
 

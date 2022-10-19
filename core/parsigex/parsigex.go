@@ -202,12 +202,12 @@ func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[
 
 			return signing.VerifyVoluntaryExit(ctx, eth2Cl, pubshare, &exit.SignedVoluntaryExit)
 		case core.DutyPrepareAggregator:
-			subscription, ok := data.SignedData.(core.SignedBeaconCommitteeSubscription)
+			selection, ok := data.SignedData.(core.BeaconCommitteeSelection)
 			if !ok {
-				return errors.New("invalid beacon committee subscription")
+				return errors.New("invalid beacon committee selection")
 			}
 
-			return signing.VerifyBeaconCommitteeSubscription(ctx, eth2Cl, pubshare, &subscription.BeaconCommitteeSubscription)
+			return signing.VerifyBeaconCommitteeSelection(ctx, eth2Cl, pubshare, &selection.BeaconCommitteeSelection)
 		case core.DutyAggregator:
 			aggAndProof, ok := data.SignedData.(core.SignedAggregateAndProof)
 			if !ok {

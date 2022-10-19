@@ -23,7 +23,6 @@ import (
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -32,7 +31,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // New returns a new broadcaster instance.
@@ -146,39 +144,8 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		// Randao is an internal duty, not broadcasted to beacon chain
 		return nil
 	case core.DutyPrepareAggregator:
-		sub, ok := aggData.(core.SignedBeaconCommitteeSubscription)
-		if !ok {
-			return errors.New("invalid beacon committee sub")
-		}
-
-		_, err = b.eth2Cl.SubmitBeaconCommitteeSubscriptionsV2(ctx, []*eth2exp.BeaconCommitteeSubscription{&sub.BeaconCommitteeSubscription})
-		if err == nil {
-			return nil
-		}
-
-		// Ignore error as beacon node probably doesn't support v2 SubmitBeaconCommitteeSubscriptions
-		// endpoint (yet). Just try again with v1.
-
-		res, err := eth2exp.CalculateCommitteeSubscriptionResponse(ctx, b.eth2Cl, &sub.BeaconCommitteeSubscription, sub.CommitteeLength)
-		if err != nil {
-			return err
-		}
-
-		subs := []*eth2v1.BeaconCommitteeSubscription{{
-			ValidatorIndex:   res.ValidatorIndex,
-			Slot:             res.Slot,
-			CommitteeIndex:   res.CommitteeIndex,
-			CommitteesAtSlot: res.CommitteesAtSlot,
-			IsAggregator:     res.IsAggregator,
-		}}
-
-		err = b.eth2Cl.SubmitBeaconCommitteeSubscriptions(ctx, subs)
-		if err == nil {
-			log.Info(ctx, "Successfully submitted beacon committee subscription to beacon node",
-				z.Any("delay", b.delayFunc(duty.Slot)))
-		}
-
-		return err
+		// Beacon committee selections are only applicable to DVT, not broadcasted to beacon chain
+		return nil
 	case core.DutyAggregator:
 		aggAndProof, ok := aggData.(core.SignedAggregateAndProof)
 		if !ok {
