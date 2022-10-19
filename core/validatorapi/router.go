@@ -157,7 +157,7 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 		},
 		{
 			Name:    "aggregate_beacon_committee_selections",
-			Path:    "/eth/v1/aggregate/beacon_committee_selections",
+			Path:    "/eth/v1/validator/beacon_committee_selections",
 			Handler: aggregateBeaconCommitteeSelections(h),
 		},
 		{

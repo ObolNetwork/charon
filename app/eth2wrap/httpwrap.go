@@ -49,7 +49,7 @@ func (h httpAdapter) AggregateBeaconCommitteeSelections(ctx context.Context, sel
 		return nil, errors.Wrap(err, "marshal submit beacon committee selections")
 	}
 
-	respBody, err := httpPost(ctx, h.Address(), "/eth/v1/aggregate/beacon_committee_selections", bytes.NewReader(reqBody), h.timeout)
+	respBody, err := httpPost(ctx, h.Address(), "/eth/v1/validator/beacon_committee_selections", bytes.NewReader(reqBody), h.timeout)
 	if err != nil {
 		return nil, errors.Wrap(err, "post submit beacon committee selections")
 	}
