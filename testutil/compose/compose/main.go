@@ -287,7 +287,7 @@ func newNewCmd() *cobra.Command {
 	featureSet := cmd.Flags().String("feature-set", conf.FeatureSet, "Minimum feature set to enable: alpha, beta, stable")
 	numVals := cmd.Flags().Int("num-validators", conf.NumValidators, "Number of distributed validators.")
 	vcTypes := cmd.Flags().StringSlice("validator-types", conf.VCStrings(), "Validator types to include.")
-	loki := cmd.Flags().Bool("loki", false, "Enables loki logging driver with json logs.")
+	loki := cmd.Flags().Bool("loki", conf.EnableLoki, "Enables loki logging driver with json logs.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)

@@ -42,7 +42,7 @@
     },
     {
      "Key": "log-format",
-     "Value": "console"
+     "Value": "logfmt"
     },
     {
      "Key": "feature-set",
@@ -101,7 +101,7 @@
     },
     {
      "Key": "log-format",
-     "Value": "console"
+     "Value": "logfmt"
     },
     {
      "Key": "feature-set",
@@ -160,7 +160,7 @@
     },
     {
      "Key": "log-format",
-     "Value": "console"
+     "Value": "logfmt"
     },
     {
      "Key": "feature-set",
@@ -219,7 +219,7 @@
     },
     {
      "Key": "log-format",
-     "Value": "console"
+     "Value": "logfmt"
     },
     {
      "Key": "feature-set",

@@ -42,7 +42,7 @@
     },
     {
      "Key": "log-format",
-     "Value": "console"
+     "Value": "logfmt"
     },
     {
      "Key": "feature-set",
@@ -142,7 +142,7 @@
     },
     {
      "Key": "log-format",
-     "Value": "console"
+     "Value": "logfmt"
     },
     {
      "Key": "feature-set",
@@ -242,7 +242,7 @@
     },
     {
      "Key": "log-format",
-     "Value": "console"
+     "Value": "logfmt"
     },
     {
      "Key": "feature-set",
@@ -342,7 +342,7 @@
     },
     {
      "Key": "log-format",
-     "Value": "console"
+     "Value": "logfmt"
     },
     {
      "Key": "feature-set",
@@ -438,5 +438,5 @@
  "Bootnode": true,
  "Monitoring": true,
  "MonitoringPorts": true,
- "Loki": false
+ "Loki": true
 }
