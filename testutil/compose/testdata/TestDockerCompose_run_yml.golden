@@ -12,7 +12,9 @@ x-node-base: &node-base
 x-logging: &logging
   logging:
   
-    driver: json-file
+    driver: loki
+    options:
+      loki-url: http://localhost:3100/loki/api/v1/push
   
 
 services:
@@ -29,7 +31,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
-      CHARON_LOG_FORMAT: console
+      CHARON_LOG_FORMAT: logfmt
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node0
       CHARON_JAEGER_SERVICE: node0
@@ -63,7 +65,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
-      CHARON_LOG_FORMAT: console
+      CHARON_LOG_FORMAT: logfmt
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node1
       CHARON_JAEGER_SERVICE: node1
@@ -97,7 +99,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
-      CHARON_LOG_FORMAT: console
+      CHARON_LOG_FORMAT: logfmt
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node2
       CHARON_JAEGER_SERVICE: node2
@@ -131,7 +133,7 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
-      CHARON_LOG_FORMAT: console
+      CHARON_LOG_FORMAT: logfmt
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node3
       CHARON_JAEGER_SERVICE: node3
@@ -234,7 +236,7 @@ services:
       - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/datasource.yml
       - ./grafana/notifiers.yml:/etc/grafana/provisioning/notifiers/notifiers.yml
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
-      - ./grafana/dash_simnet.json:/etc/dashboards/dash_simnet.json
+      - ./grafana/dash_charon_overview.json:/etc/dashboards/dash_charon_overview.json
       - ./grafana/dash_alerts.json:/etc/dashboards/dash_alerts.json
 
   jaeger:
@@ -244,6 +246,15 @@ services:
       - "16686:16686"
     
 
+  
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    networks: [compose]
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./loki/loki.yml:/etc/loki/loki.yml
   
 
 

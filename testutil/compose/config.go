@@ -25,6 +25,7 @@ const (
 	defaultNumNodes   = 4
 	defaultThreshold  = 3
 	defaultFeatureSet = "alpha"
+	defaultLoki       = true
 
 	charonImage      = "ghcr.io/obolnetwork/charon"
 	localBinary      = "/compose/charon"
@@ -155,5 +156,6 @@ func NewDefaultConfig() Config {
 		BeaconNode:    defaultBeaconNode,
 		Step:          stepNew,
 		FeatureSet:    defaultFeatureSet,
+		EnableLoki:    defaultLoki,
 	}
 }

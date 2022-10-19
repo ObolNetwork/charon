@@ -18,6 +18,6 @@
  ],
  "feature_set": "alpha",
  "disable_monitoring_ports": false,
- "enable_loki": false,
+ "enable_loki": true,
  "insecure_keys": false
 }
