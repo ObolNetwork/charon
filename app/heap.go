@@ -31,9 +31,18 @@ import (
 
 // wireMemoryMonitor wires a memory monitor that write heap dumps to disk when memory increases.
 func wireMemoryMonitor(life *lifecycle.Manager, conf Config) {
+	// TODO(corver): Remove this when issue resolved or before the next release (after v0.11.0).
+	if conf.Log.Level != "debug" {
+		return
+	}
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRest,
 		lifecycle.HookFuncCtx(func(ctx context.Context) {
-			dir := path.Join(path.Dir(conf.LockFile), "heapdumps")
+			dir := path.Join(path.Dir(conf.PrivKeyFile), "heapdumps")
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				log.Warn(ctx, "Failed creating heap dump dir", err)
+				return
+			}
+
 			monitorMemory(ctx, dir)
 		}),
 	)
@@ -43,7 +52,7 @@ func wireMemoryMonitor(life *lifecycle.Manager, conf Config) {
 //   - It reads the inuse memory every second,
 //   - if it crosses the threshold,
 //   - it writes a pprof heap dump to the dir,
-//   - and doubles the threshold.
+//   - and increases the threshold.
 func monitorMemory(ctx context.Context, dir string) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -56,18 +65,18 @@ func monitorMemory(ctx context.Context, dir string) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			var stats runtime.MemStats
-			runtime.ReadMemStats(&stats)
+			stats := new(runtime.MemStats)
+			runtime.ReadMemStats(stats)
 			if stats.HeapInuse < threshold {
 				continue
 			}
 
-			filename := fmt.Sprintf("heap_dump_%s", time.Now().Format("20060102150405"))
+			filename := fmt.Sprintf("heap_dump_%d.pb.gz", time.Now().Unix())
 			filename = path.Join(dir, filename)
 
-			file, err := os.Open(filename)
+			file, err := os.Create(filename)
 			if err != nil {
-				log.Warn(ctx, "Failed opening heap dump file", err)
+				log.Warn(ctx, "Failed creating heap dump file", err)
 				return
 			}
 
@@ -78,9 +87,12 @@ func monitorMemory(ctx context.Context, dir string) {
 			}
 
 			log.Info(ctx, "Inuse memory crossed threshold, dumped heap to file",
-				z.U64("threhsold", threshold), z.Str("file", filename))
+				z.U64("memory_mb", stats.HeapInuse>>20),
+				z.U64("threshold_mb", threshold>>20),
+				z.Str("file", filename),
+			)
 
-			threshold *= 2
+			threshold += 100 * mb
 		}
 	}
 }
