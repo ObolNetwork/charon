@@ -113,7 +113,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.0.7",
       "targets": [
         {
           "datasource": {
@@ -230,7 +230,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.0.7",
       "targets": [
         {
           "datasource": {
@@ -404,7 +404,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.0.7",
       "targets": [
         {
           "datasource": {
@@ -436,8 +436,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
@@ -573,7 +571,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.0.7",
       "targets": [
         {
           "datasource": {
@@ -892,7 +890,7 @@
           }
         ]
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.0.7",
       "targets": [
         {
           "datasource": {
@@ -1168,34 +1166,8 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "bars",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "fillOpacity": 100,
+            "lineWidth": 0
           },
           "mappings": [],
           "thresholds": {
@@ -1222,12 +1194,13 @@
       },
       "id": 7,
       "options": {
+        "colWidth": 0.5,
         "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
+          "displayMode": "hidden",
+          "placement": "bottom"
         },
+        "rowHeight": 0.43,
+        "showValue": "auto",
         "tooltip": {
           "mode": "single",
           "sort": "none"
@@ -1240,9 +1213,10 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "exemplar": true,
-          "expr": "increase(core_bcast_broadcast_total{job=\"$node\"}[$__rate_interval]) ",
-          "interval": "",
+          "exemplar": false,
+          "expr": "increase(core_bcast_broadcast_total{job=\"$node\"}[$__rate_interval]) > 0",
+          "instant": false,
+          "interval": "1m",
           "legendFormat": "{{duty}}",
           "range": true,
           "refId": "A"
@@ -1252,16 +1226,18 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
+          "editorMode": "code",
           "exemplar": true,
-          "expr": "increase(core_scheduler_current_epoch{job=\"$node\"}[$__rate_interval]) * 0.2",
+          "expr": "clamp_max(increase(core_scheduler_current_epoch{job=\"$node\"}[$__rate_interval]), 0.2) > 0",
           "hide": false,
-          "interval": "",
+          "interval": "1m",
           "legendFormat": "epoch boundry",
+          "range": true,
           "refId": "B"
         }
       ],
       "title": "Completed duties by type ",
-      "type": "timeseries"
+      "type": "status-history"
     },
     {
       "datasource": {
@@ -1274,37 +1250,10 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "fillOpacity": 100,
+            "lineWidth": 0
           },
           "mappings": [],
-          "noValue": "No failed duties",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1317,8 +1266,7 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "none"
+          }
         },
         "overrides": []
       },
@@ -1328,14 +1276,15 @@
         "x": 12,
         "y": 14
       },
-      "id": 5,
+      "id": 67,
       "options": {
+        "colWidth": 0.5,
         "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
+          "displayMode": "hidden",
+          "placement": "bottom"
         },
+        "rowHeight": 0.43,
+        "showValue": "auto",
         "tooltip": {
           "mode": "single",
           "sort": "none"
@@ -1348,16 +1297,17 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "exemplar": true,
-          "expr": "sum(increase(core_tracker_failed_duties_total{job=\"$node\"}[$__rate_interval])) by (duty)",
-          "interval": "",
+          "exemplar": false,
+          "expr": "increase(core_tracker_failed_duties_total{job=\"$node\"}[$__rate_interval]) > 0",
+          "instant": false,
+          "interval": "1m",
           "legendFormat": "{{duty}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Failed duties by type",
-      "type": "timeseries"
+      "title": "Failed duties by type ",
+      "type": "status-history"
     },
     {
       "datasource": {
@@ -1371,8 +1321,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1460,7 +1408,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Reasons why duties failed prefixed by slot and duty type",
+      "description": "Reasons why duties failed prefixed by slot and duty type. This is extracted from logs not metrics.",
       "gridPos": {
         "h": 6,
         "w": 12,
@@ -1492,7 +1440,7 @@
           "resolution": 10
         }
       ],
-      "title": "Duty Failed Reasons",
+      "title": "Failed duty reasons",
       "type": "logs"
     },
     {
@@ -1506,8 +1454,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1599,8 +1545,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1692,8 +1636,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1785,8 +1727,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1878,8 +1818,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1986,8 +1924,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -2223,7 +2159,7 @@
         },
         "showHeader": true
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.0.7",
       "targets": [
         {
           "datasource": {
@@ -2254,6 +2190,7 @@
               "__name__ 1": true,
               "__name__ 2": true,
               "cluster_hash": true,
+              "cluster_name": true,
               "cluster_peer": true,
               "instance": true,
               "instance 1": true,
@@ -2288,8 +2225,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -2415,16 +2350,16 @@
     }
   ],
   "refresh": "30s",
-  "schemaVersion": 37,
+  "schemaVersion": 36,
   "style": "dark",
   "tags": [],
   "templating": {
     "list": [
       {
         "current": {
-          "selected": false,
-          "text": "node1",
-          "value": "node1"
+          "selected": true,
+          "text": "charon",
+          "value": "charon"
         },
         "datasource": {
           "type": "prometheus",
