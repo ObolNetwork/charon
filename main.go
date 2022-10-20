@@ -17,7 +17,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -28,15 +27,7 @@ import (
 )
 
 func main() {
-	killCtx, killCancel := signal.NotifyContext(context.Background(), syscall.SIGKILL)
-	defer killCancel()
-	go func() {
-		<-killCtx.Done()
-		_, _ = fmt.Fprintln(os.Stderr, "Kill signal received")
-		os.Exit(1)
-	}()
-
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	cobra.CheckErr(cmd.New().ExecuteContext(ctx))
