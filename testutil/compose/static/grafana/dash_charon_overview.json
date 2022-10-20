@@ -41,33 +41,6 @@
   "liveNow": false,
   "panels": [
     {
-      "collapsed": false,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 0
-      },
-      "id": 12,
-      "panels": [],
-      "repeat": "node",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        }
-      ],
-      "title": "$node",
-      "type": "row"
-    },
-    {
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -99,7 +72,7 @@
         "h": 7,
         "w": 5,
         "x": 0,
-        "y": 1
+        "y": 0
       },
       "id": 19,
       "options": {
@@ -113,7 +86,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.0.7",
+      "pluginVersion": "9.1.6",
       "targets": [
         {
           "datasource": {
@@ -209,7 +182,7 @@
         "h": 7,
         "w": 4,
         "x": 5,
-        "y": 1
+        "y": 0
       },
       "id": 28,
       "options": {
@@ -230,7 +203,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.7",
+      "pluginVersion": "9.1.6",
       "targets": [
         {
           "datasource": {
@@ -387,7 +360,7 @@
         "h": 3,
         "w": 4,
         "x": 9,
-        "y": 1
+        "y": 0
       },
       "id": 48,
       "options": {
@@ -404,7 +377,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.7",
+      "pluginVersion": "9.1.6",
       "targets": [
         {
           "datasource": {
@@ -436,6 +409,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
@@ -486,7 +461,7 @@
         "h": 7,
         "w": 11,
         "x": 13,
-        "y": 1
+        "y": 0
       },
       "id": 25,
       "options": {
@@ -550,7 +525,7 @@
         "h": 4,
         "w": 4,
         "x": 9,
-        "y": 4
+        "y": 3
       },
       "id": 60,
       "options": {
@@ -571,7 +546,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.0.7",
+      "pluginVersion": "9.1.6",
       "targets": [
         {
           "datasource": {
@@ -870,7 +845,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 8
+        "y": 7
       },
       "id": 54,
       "options": {
@@ -890,7 +865,7 @@
           }
         ]
       },
-      "pluginVersion": "9.0.7",
+      "pluginVersion": "9.1.6",
       "targets": [
         {
           "datasource": {
@@ -1076,6 +1051,20 @@
           "legendFormat": "__auto",
           "range": false,
           "refId": "M"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(increase(core_tracker_participation_total{job=\"$node\", duty=\"sync_message\"}[$__range])) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "refId": "N"
         }
       ],
       "title": "Peer Connectivity and Duty Participation",
@@ -1146,6 +1135,7 @@
               "Value #J": "ClockDiff",
               "Value #K": "Direct",
               "Value #L": "",
+              "Value #N": "SyncMsg",
               "git_hash": "GitCommit",
               "peer": "Peer",
               "version": "Version"
@@ -1190,14 +1180,15 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 14
+        "y": 13
       },
       "id": 7,
       "options": {
         "colWidth": 0.5,
         "legend": {
-          "displayMode": "hidden",
-          "placement": "bottom"
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
         },
         "rowHeight": 0.43,
         "showValue": "auto",
@@ -1244,6 +1235,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Failed duties by type over time. Use data link to show logs.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1253,6 +1245,13 @@
             "fillOpacity": 100,
             "lineWidth": 0
           },
+          "links": [
+            {
+              "targetBlank": true,
+              "title": "Show in log explorer",
+              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22node0%5C%22%7D%20%7C%3D%20%60Duty%20failed%60%20%7C%3D%20%60${__field.labels.duty}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+            }
+          ],
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -1274,14 +1273,15 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 14
+        "y": 13
       },
       "id": 67,
       "options": {
         "colWidth": 0.5,
         "legend": {
-          "displayMode": "hidden",
-          "placement": "bottom"
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
         },
         "rowHeight": 0.43,
         "showValue": "auto",
@@ -1298,7 +1298,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "increase(core_tracker_failed_duties_total{job=\"$node\"}[$__rate_interval]) > 0",
+          "expr": "sum(increase(core_tracker_failed_duties_total{job=\"$node\"}[$__rate_interval])) by (duty) > 0",
           "instant": false,
           "interval": "1m",
           "legendFormat": "{{duty}}",
@@ -1314,13 +1314,15 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Top 10 count of errors and warning per minute grouped by message. ",
+      "description": "Most frequent errors and warnings grouped by message. Use data link to show logs.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1348,6 +1350,13 @@
               "mode": "off"
             }
           },
+          "links": [
+            {
+              "targetBlank": true,
+              "title": "Show in log explorer",
+              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22$node%5C%22%7D%20%7C%3D%20%60${__field.labels.msg}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+            }
+          ],
           "mappings": [],
           "min": 0,
           "noValue": "No warnings",
@@ -1371,7 +1380,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 21
+        "y": 20
       },
       "id": 62,
       "options": {
@@ -1393,7 +1402,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "topk(10,sum(count_over_time({compose_service=\"$node\"} | logfmt | level=~`(warn|error)` | label_format level=\"{{trunc 1 .level | upper}}\"[1m])) by (level,msg,topic))",
+          "expr": "topk(5,sum(count_over_time({compose_service=\"$node\"} | logfmt | level=~`(warn|error)` | label_format level=\"{{trunc 1 .level | upper}}\"[1m])) by (level,msg,topic))",
           "legendFormat": "{{level}} [{{topic}}] {{msg}}",
           "queryType": "range",
           "refId": "A",
@@ -1413,7 +1422,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 21
+        "y": 20
       },
       "id": 66,
       "options": {
@@ -1454,6 +1463,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1503,7 +1514,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 27
+        "y": 26
       },
       "id": 17,
       "options": {
@@ -1545,6 +1556,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1594,7 +1607,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 27
+        "y": 26
       },
       "id": 18,
       "options": {
@@ -1636,6 +1649,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1685,7 +1700,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 34
+        "y": 33
       },
       "id": 15,
       "options": {
@@ -1727,6 +1742,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1776,7 +1793,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 34
+        "y": 33
       },
       "id": 24,
       "options": {
@@ -1818,6 +1835,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1868,7 +1887,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 41
+        "y": 40
       },
       "id": 50,
       "options": {
@@ -1924,6 +1943,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1987,7 +2008,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 41
+        "y": 40
       },
       "id": 49,
       "options": {
@@ -2146,7 +2167,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 48
+        "y": 47
       },
       "id": 56,
       "options": {
@@ -2159,7 +2180,7 @@
         },
         "showHeader": true
       },
-      "pluginVersion": "9.0.7",
+      "pluginVersion": "9.1.6",
       "targets": [
         {
           "datasource": {
@@ -2225,6 +2246,8 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -2274,7 +2297,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 48
+        "y": 47
       },
       "id": 52,
       "links": [],
@@ -2319,7 +2342,7 @@
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 55
+        "y": 54
       },
       "id": 65,
       "options": {
@@ -2350,25 +2373,26 @@
     }
   ],
   "refresh": "30s",
-  "schemaVersion": 36,
+  "schemaVersion": 37,
   "style": "dark",
   "tags": [],
   "templating": {
     "list": [
       {
         "current": {
-          "selected": true,
-          "text": "charon",
-          "value": "charon"
+          "selected": false,
+          "text": "node0",
+          "value": "node0"
         },
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
         },
         "definition": "label_values(app_peer_name, job)",
+        "description": "",
         "hide": 0,
         "includeAll": false,
-        "label": "Charon Node",
+        "label": "docker-compose service",
         "multi": false,
         "name": "node",
         "options": [],
@@ -2376,7 +2400,7 @@
           "query": "label_values(app_peer_name, job)",
           "refId": "StandardVariableQuery"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
