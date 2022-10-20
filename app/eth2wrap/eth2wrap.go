@@ -66,6 +66,7 @@ func Instrument(clients ...Client) (Client, error) {
 }
 
 // AdaptEth2HTTP returns a Client wrapping an eth2http service by adding experimental endpoints.
+// Note that the returned client doesn't wrap errors, so they are unstructured without stacktraces.
 func AdaptEth2HTTP(eth2Svc *eth2http.Service, timeout time.Duration) Client {
 	return httpAdapter{Service: eth2Svc, timeout: timeout}
 }

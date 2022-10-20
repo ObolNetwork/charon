@@ -157,6 +157,10 @@ func prepareSyncContributions(context.Context, eth2wrap.Client, SignFunc,
 
 // subscribeSyncCommSubnets submits sync committee subscriptions at the start of an epoch until next epoch.
 func subscribeSyncCommSubnets(ctx context.Context, eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, duties syncDuties) error {
+	if len(duties) == 0 {
+		return nil
+	}
+
 	var subs []*eth2v1.SyncCommitteeSubscription
 	for _, duty := range duties {
 		subs = append(subs, &eth2v1.SyncCommitteeSubscription{
