@@ -464,7 +464,7 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 	}
 
 	// For DutyPrepareSyncContribution and DutySyncMessage, check that if DutySyncContribution was scheduled.
-	if duty.Type == core.DutyPrepareSyncContribution {
+	if duty.Type == core.DutyPrepareSyncContribution { // TODO(corver): Add sync message here once we schedule sync contribution.
 		return scheduled(core.DutySyncContribution)
 	}
 
