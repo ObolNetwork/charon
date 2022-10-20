@@ -86,7 +86,7 @@ func monitorMemory(ctx context.Context, dir string) {
 				return
 			}
 
-			log.Info(ctx, "Inuse memory crossed threshold, dumped heap to file",
+			log.Warn(ctx, "Inuse memory crossed threshold, dumped heap to file", nil,
 				z.U64("memory_mb", stats.HeapInuse>>20),
 				z.U64("threshold_mb", threshold>>20),
 				z.Str("file", filename),
