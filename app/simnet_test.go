@@ -308,7 +308,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect simnetExpect) {
 				SimnetKeys:         []*bls_sig.SecretKey{args.SimnetKeys[i]},
 				ParSigExFunc:       parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
-				BroadcastCallback: func(ctx context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
+				BroadcastCallback: func(_ context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
 					select {
 					case <-ctx.Done():
 						return ctx.Err()
