@@ -864,11 +864,6 @@ func TestIsParSigEventExpected(t *testing.T) {
 			out:  true,
 		},
 		{
-			name: "DutySyncMessage",
-			duty: core.NewSyncMessageDuty(slot),
-			out:  true,
-		},
-		{
 			name: "DutyRandao expected",
 			duty: core.NewRandaoDuty(slot),
 			events: map[core.Duty][]event{
@@ -906,6 +901,19 @@ func TestIsParSigEventExpected(t *testing.T) {
 			name: "DutyPrepareSyncContribution unexpected",
 			duty: core.NewPrepareSyncContributionDuty(slot),
 			out:  false,
+		},
+		{
+			name: "DutySyncMessage unexpected",
+			duty: core.NewSyncMessageDuty(slot),
+			out:  false,
+		},
+		{
+			name: "DutySyncMessage expected",
+			duty: core.NewSyncMessageDuty(slot),
+			events: map[core.Duty][]event{
+				core.NewSyncContributionDuty(slot): {event{component: scheduler, pubkey: pubkey}},
+			},
+			out: true,
 		},
 	}
 
