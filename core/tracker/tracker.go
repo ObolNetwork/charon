@@ -438,7 +438,7 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (map[
 // It basically checks if the duty (or an associated duty) was scheduled.
 func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[core.Duty][]event) bool {
 	// Cannot validate validatorAPI triggered duties that are not linked to locally scheduled duties.
-	if duty.Type == core.DutyExit || duty.Type == core.DutyBuilderRegistration {
+	if duty.Type == core.DutyExit || duty.Type == core.DutyBuilderRegistration || duty.Type == core.DutySyncMessage {
 		return true
 	}
 
@@ -464,7 +464,7 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 	}
 
 	// For DutyPrepareSyncContribution and DutySyncMessage, check that if DutySyncContribution was scheduled.
-	if duty.Type == core.DutyPrepareSyncContribution || duty.Type == core.DutySyncMessage {
+	if duty.Type == core.DutyPrepareSyncContribution { // TODO(corver): Add sync message here once we schedule sync contribution.
 		return scheduled(core.DutySyncContribution)
 	}
 
