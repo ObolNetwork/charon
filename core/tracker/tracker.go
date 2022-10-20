@@ -72,7 +72,7 @@ const (
 	// msgFetcherAggregatorFailedPrepare indicates an attestation aggregation duty failed in
 	// the fetcher component since it couldn't fetch the prerequisite aggregated beacon committee selections.
 	// This indicates the associated prepare aggregation duty failed.
-	msgFetcherAggregatorFailedPrepare = "couldn't aggregate attestation due to failed prepare aggregator duty "
+	msgFetcherAggregatorFailedPrepare = "couldn't aggregate attestation due to failed prepare aggregator duty"
 
 	// msgFetcherProposerFewRandaos indicates a block proposer duty failed in
 	// the fetcher component since it couldn't fetch the prerequisite aggregated RANDAO.
@@ -90,6 +90,28 @@ const (
 	// the fetcher component since it couldn't fetch the prerequisite aggregated RANDAO.
 	// This indicates the associated randao duty failed.
 	msgFetcherProposerFailedRandao = "couldn't propose block due to failed randao duty"
+
+	// msgFetcherSyncContributionNoSyncMsg indicates a sync contribution duty failed in
+	// the fetcher component since it couldn't fetch the prerequisite sync message. This
+	// indicates the associated sync message duty failed to obtain a cluster agreed upon value.
+	msgFetcherSyncContributionNoSyncMsg = "couldn't fetch sync contribution due to failed sync message duty"
+
+	// msgFetcherSyncContributionFewPrepares indicates a sync contribution duty failed in
+	// the fetcher component since it couldn't fetch the prerequisite aggregated sync contribution selections.
+	// This indicates the associated prepare sync contribution duty failed due to insufficient partial sync contribution selections
+	// submitted by the cluster validator clients.
+	msgFetcherSyncContributionFewPrepares = "couldn't fetch sync contribution due to insufficient partial sync contribution selections"
+
+	// msgFetcherSyncContributionZeroPrepares indicates a sync contribution duty failed in
+	// the fetcher component since it couldn't fetch the prerequisite aggregated sync contribution selections.
+	// This indicates the associated prepare sync contribution duty failed due to no partial sync contribution selections
+	// submitted by the cluster validator clients.
+	msgFetcherSyncContributionZeroPrepares = "couldn't fetch sync contribution due to zero partial sync contribution selections"
+
+	// msgFetcherSyncContributionFailedPrepare indicates a sync contribution duty failed in
+	// the fetcher component since it couldn't fetch the prerequisite aggregated sync contribution selections.
+	// This indicates the associated prepare sync contribution duty failed.
+	msgFetcherSyncContributionFailedPrepare = "couldn't fetch sync contribution due to failed prepare sync contribution duty"
 
 	// msgConsensus indicates a duty failed in consensus component.
 	// This could indicate that insufficient honest peers participated in consensus or p2p network
@@ -305,7 +327,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 			return true, fetcher, msg
 		}
 
-		// Aggregator duties will fail is no attestation data in DutyDB
+		// Aggregator duties will fail if no attestation data in DutyDB
 		attFailed, attComp := dutyFailedComponent(allEvents[core.NewAttesterDuty(duty.Slot)])
 		if attFailed && attComp <= consensus {
 			// Note we do not handle the edge case of the local peer failing to store attestation data
@@ -315,6 +337,38 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 
 		// TODO(corver): We cannot distinguish between "no aggregators for slot"
 		//  and "failed fetching aggregated attestation from BN".
+		//
+		// Assume no aggregators for slot as this is very common.
+		return false, fetcher, ""
+	}
+
+	// Duty sync contribution depends on prepare sync contribution duty, so check if that was why it failed.
+	if duty.Type == core.DutySyncContribution {
+		// Sync contribution duties will fail if core.DutyPrepareSyncContribution fails.
+		prepSyncConFailed, prepSyncConComp := dutyFailedComponent(allEvents[core.NewPrepareSyncContributionDuty(duty.Slot)])
+		if prepSyncConFailed {
+			switch prepSyncConComp {
+			case parSigDBThreshold:
+				msg = msgFetcherSyncContributionFewPrepares
+			case zero:
+				msg = msgFetcherSyncContributionZeroPrepares
+			default:
+				msg = msgFetcherSyncContributionFailedPrepare
+			}
+
+			return true, fetcher, msg
+		}
+
+		// Sync contribution duties will fail if no sync message in DutyDB.
+		syncMsgFailed, syncMsgComp := dutyFailedComponent(allEvents[core.NewSyncMessageDuty(duty.Slot)])
+		if syncMsgFailed && syncMsgComp <= consensus {
+			// Note we do not handle the edge case of the local peer failing to store sync message
+			// but the sync message duty succeeding in any case due to external peer partial signatures.
+			return true, fetcher, msgFetcherSyncContributionNoSyncMsg
+		}
+
+		// TODO(dhruv): We cannot distinguish between "no sync committee aggregators for slot"
+		//  and "failed fetching sync committee contribution from BN".
 		//
 		// Assume no aggregators for slot as this is very common.
 		return false, fetcher, ""
@@ -335,6 +389,15 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 		if duty.Type == core.DutyAggregator && component == fetcher && reason == msgFetcherAggregatorZeroPrepares {
 			if !loggedNoSelections {
 				log.Warn(ctx, "Ignoring attestation aggregation failures since VCs do not seem to support beacon committee selection aggregation", nil)
+			}
+			loggedNoSelections = true
+
+			return
+		}
+
+		if duty.Type == core.DutySyncContribution && component == fetcher && reason == msgFetcherSyncContributionZeroPrepares {
+			if !loggedNoSelections {
+				log.Warn(ctx, "Ignoring sync contribution failures since VCs do not seem to support sync committee selection aggregation", nil)
 			}
 			loggedNoSelections = true
 
@@ -375,7 +438,7 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (map[
 // It basically checks if the duty (or an associated duty) was scheduled.
 func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[core.Duty][]event) bool {
 	// Cannot validate validatorAPI triggered duties that are not linked to locally scheduled duties.
-	if duty.Type == core.DutyExit || duty.Type == core.DutyBuilderRegistration {
+	if !canSchedule(duty.Type) {
 		return true
 	}
 
@@ -400,8 +463,18 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 		return scheduled(core.DutyAttester)
 	}
 
+	// For DutyPrepareSyncContribution, check that if DutySyncContribution was scheduled.
+	if duty.Type == core.DutyPrepareSyncContribution {
+		return scheduled(core.DutySyncContribution)
+	}
+
 	// For all other duties check if the type itself was scheduled.
 	return scheduled(duty.Type)
+}
+
+// canSchedule returns true if the given duty type can be scheduled by scheduler.
+func canSchedule(duty core.DutyType) bool {
+	return duty != core.DutyExit && duty != core.DutyBuilderRegistration && duty != core.DutySyncMessage
 }
 
 // newParticipationReporter returns a new participation reporter function which logs and instruments peer participation
