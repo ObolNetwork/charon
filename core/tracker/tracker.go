@@ -438,7 +438,7 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (map[
 // It basically checks if the duty (or an associated duty) was scheduled.
 func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[core.Duty][]event) bool {
 	// Cannot validate validatorAPI triggered duties that are not linked to locally scheduled duties.
-	if !canSchedule(duty.Type) {
+	if duty.Type == core.DutyExit || duty.Type == core.DutyBuilderRegistration || duty.Type == core.DutySyncMessage {
 		return true
 	}
 
@@ -470,11 +470,6 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 
 	// For all other duties check if the type itself was scheduled.
 	return scheduled(duty.Type)
-}
-
-// canSchedule returns true if the given duty type can be scheduled by scheduler.
-func canSchedule(duty core.DutyType) bool {
-	return duty != core.DutyExit && duty != core.DutyBuilderRegistration && duty != core.DutySyncMessage
 }
 
 // newParticipationReporter returns a new participation reporter function which logs and instruments peer participation

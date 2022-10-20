@@ -843,3 +843,75 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 		})
 	}
 }
+
+func TestIsParSigEventExpected(t *testing.T) {
+	const slot = 123
+	pubkey := testutil.RandomCorePubKey(t)
+	tests := []struct {
+		name   string
+		duty   core.Duty
+		events map[core.Duty][]event
+		out    bool
+	}{
+		{
+			name: "DutyExit",
+			duty: core.NewVoluntaryExit(slot),
+			out:  true,
+		},
+		{
+			name: "DutyBuilderRegistration",
+			duty: core.NewBuilderRegistrationDuty(slot),
+			out:  true,
+		},
+		{
+			name: "DutySyncMessage",
+			duty: core.NewSyncMessageDuty(slot),
+			out:  true,
+		},
+		{
+			name: "DutyRandao expected",
+			duty: core.NewRandaoDuty(slot),
+			events: map[core.Duty][]event{
+				core.NewProposerDuty(slot): {event{component: scheduler, pubkey: pubkey}},
+			},
+			out: true,
+		},
+		{
+			name: "DutyRandao unexpected",
+			duty: core.NewRandaoDuty(slot),
+			out:  false,
+		},
+		{
+			name: "DutyPrepareAggregator expected",
+			duty: core.NewPrepareAggregatorDuty(slot),
+			events: map[core.Duty][]event{
+				core.NewAttesterDuty(slot): {event{component: scheduler, pubkey: pubkey}},
+			},
+			out: true,
+		},
+		{
+			name: "DutyPrepareAggregator unexpected",
+			duty: core.NewPrepareAggregatorDuty(slot),
+			out:  false,
+		},
+		{
+			name: "DutyPrepareSyncContribution expected",
+			duty: core.NewPrepareSyncContributionDuty(slot),
+			events: map[core.Duty][]event{
+				core.NewSyncContributionDuty(slot): {event{component: scheduler, pubkey: pubkey}},
+			},
+			out: true,
+		},
+		{
+			name: "DutyPrepareSyncContribution unexpected",
+			duty: core.NewPrepareSyncContributionDuty(slot),
+			out:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.out, isParSigEventExpected(test.duty, pubkey, test.events))
+		})
+	}
+}
