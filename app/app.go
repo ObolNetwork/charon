@@ -217,6 +217,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	wireMemoryMonitor(life, conf)
+
 	// Run life cycle manager
 	return life.Run(ctx)
 }
