@@ -648,125 +648,198 @@ func TestFromSlot(t *testing.T) {
 	<-done
 }
 
-func TestAnalyseDutyFailedAgg(t *testing.T) {
+func TestAnalyseFetcherFailed(t *testing.T) {
 	const slot = 123
 	dutyAgg := core.NewAggregatorDuty(slot)
 	dutyPrepAgg := core.NewPrepareAggregatorDuty(slot)
 	dutyAtt := core.NewAttesterDuty(slot)
+	dutySyncCon := core.NewSyncContributionDuty(slot)
+	dutySyncMsg := core.NewSyncMessageDuty(slot)
+	dutyPrepSyncCon := core.NewPrepareSyncContributionDuty(slot)
 
-	t.Run("v2 endpoint not supported", func(t *testing.T) {
-		allEvents := make(map[core.Duty][]event)
-		allEvents[dutyAgg] = append(allEvents[dutyAgg], event{
-			duty:      dutyAgg,
-			component: scheduler,
+	tests := []struct {
+		name   string
+		duty   core.Duty
+		events map[core.Duty][]event
+		msg    string
+		failed bool
+	}{
+		{
+			name: "beacon committee selections endpoint not supported",
+			duty: dutyAgg,
+			events: map[core.Duty][]event{
+				dutyAgg: {event{
+					duty:      dutyAgg,
+					component: scheduler,
+				}},
+			},
+			msg:    msgFetcherAggregatorZeroPrepares,
+			failed: true,
+		},
+		{
+			name: "insufficient DutyPrepareAggregator signature",
+			duty: dutyAgg,
+			events: map[core.Duty][]event{
+				dutyAgg: {event{
+					duty:      dutyAgg,
+					component: scheduler,
+				}},
+				dutyPrepAgg: {event{
+					duty:      dutyPrepAgg,
+					component: parSigEx,
+				}},
+			},
+			msg:    msgFetcherAggregatorFewPrepares,
+			failed: true,
+		},
+		{
+			name: "DutyPrepareAggregator failed",
+			duty: dutyAgg,
+			events: map[core.Duty][]event{
+				dutyAgg: {event{
+					duty:      dutyAgg,
+					component: scheduler,
+				}},
+				dutyPrepAgg: {event{
+					duty:      dutyPrepAgg,
+					component: parSigDBThreshold,
+				}},
+			},
+			msg:    msgFetcherAggregatorFailedPrepare,
+			failed: true,
+		},
+		{
+			name: "DutyAttester failed",
+			duty: dutyAgg,
+			events: map[core.Duty][]event{
+				dutyAgg: {event{
+					duty:      dutyAgg,
+					component: scheduler,
+				}},
+				dutyPrepAgg: {event{
+					duty:      dutyPrepAgg,
+					component: sigAgg,
+				}},
+				dutyAtt: {event{
+					duty:      dutyAtt,
+					component: fetcher,
+				}},
+			},
+			msg:    msgFetcherAggregatorNoAttData,
+			failed: true,
+		},
+		{
+			name: "no aggregator found",
+			duty: dutyAgg,
+			events: map[core.Duty][]event{
+				dutyAgg: {event{
+					duty:      dutyAgg,
+					component: scheduler,
+				}},
+				dutyPrepAgg: {event{
+					duty:      dutyPrepAgg,
+					component: sigAgg,
+				}},
+				dutyAtt: {event{
+					duty:      dutyAtt,
+					component: sigAgg,
+				}},
+			},
+			msg:    "",
+			failed: false,
+		},
+		{
+			name: "sync committee selections endpoint not supported",
+			duty: dutySyncCon,
+			events: map[core.Duty][]event{
+				dutySyncCon: {event{
+					duty:      dutySyncCon,
+					component: scheduler,
+				}},
+			},
+			msg:    msgFetcherSyncContributionZeroPrepares,
+			failed: true,
+		},
+		{
+			name: "insufficient DutyPrepareSyncContribution signatures",
+			duty: dutySyncCon,
+			events: map[core.Duty][]event{
+				dutySyncCon: {event{
+					duty:      dutySyncCon,
+					component: scheduler,
+				}},
+				dutyPrepSyncCon: {event{
+					duty:      dutyPrepSyncCon,
+					component: parSigEx,
+				}},
+			},
+			msg:    msgFetcherSyncContributionFewPrepares,
+			failed: true,
+		},
+		{
+			name: "DutyPrepareSyncContribution failed",
+			duty: dutySyncCon,
+			events: map[core.Duty][]event{
+				dutySyncCon: {event{
+					duty:      dutySyncCon,
+					component: scheduler,
+				}},
+				dutyPrepSyncCon: {event{
+					duty:      dutyPrepSyncCon,
+					component: parSigDBThreshold,
+				}},
+			},
+			msg:    msgFetcherSyncContributionFailedPrepare,
+			failed: true,
+		},
+		{
+			name: "DutySyncMessage failed",
+			duty: dutySyncCon,
+			events: map[core.Duty][]event{
+				dutySyncCon: {event{
+					duty:      dutySyncCon,
+					component: scheduler,
+				}},
+				dutyPrepSyncCon: {event{
+					duty:      dutyPrepSyncCon,
+					component: sigAgg,
+				}},
+				dutySyncMsg: {event{
+					duty:      dutySyncMsg,
+					component: fetcher,
+				}},
+			},
+			msg:    msgFetcherSyncContributionNoSyncMsg,
+			failed: true,
+		},
+		{
+			name: "no sync committee aggregators found",
+			duty: dutySyncCon,
+			events: map[core.Duty][]event{
+				dutySyncCon: {event{
+					duty:      dutySyncCon,
+					component: scheduler,
+				}},
+				dutyPrepSyncCon: {event{
+					duty:      dutyPrepSyncCon,
+					component: sigAgg,
+				}},
+				dutySyncMsg: {event{
+					duty:      dutySyncMsg,
+					component: sigAgg,
+				}},
+			},
+			msg:    "",
+			failed: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			failed, comp, msg := analyseDutyFailed(test.duty, test.events)
+			require.Equal(t, failed, test.failed)
+			require.Equal(t, test.msg, msg)
+			require.Equal(t, fetcher, comp)
 		})
-
-		// No events for DutyPrepareAggregator
-		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
-		require.True(t, failed)
-		require.Equal(t, fetcher, comp)
-		require.Equal(t, msgFetcherAggregatorZeroPrepares, msg)
-	})
-
-	t.Run("insufficient DutyPrepareAggregator signature", func(t *testing.T) {
-		allEvents := make(map[core.Duty][]event)
-		allEvents[dutyAgg] = append(allEvents[dutyAgg], event{
-			duty:      dutyAgg,
-			component: scheduler,
-		})
-		allEvents[dutyPrepAgg] = append(allEvents[dutyPrepAgg], event{
-			duty:      dutyPrepAgg,
-			component: parSigEx,
-		})
-
-		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
-		require.True(t, failed)
-		require.Equal(t, fetcher, comp)
-		require.Equal(t, msgFetcherAggregatorFewPrepares, msg)
-	})
-
-	t.Run("DutyPrepareAggregator failed", func(t *testing.T) {
-		allEvents := make(map[core.Duty][]event)
-		allEvents[dutyAgg] = append(allEvents[dutyAgg], event{
-			duty:      dutyAgg,
-			component: scheduler,
-		})
-		allEvents[dutyPrepAgg] = append(allEvents[dutyPrepAgg], event{
-			duty:      dutyPrepAgg,
-			component: parSigDBThreshold,
-		})
-
-		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
-		require.True(t, failed)
-		require.Equal(t, fetcher, comp)
-		require.Equal(t, msgFetcherAggregatorFailedPrepare, msg)
-	})
-
-	t.Run("No DutyPrepareAggregator", func(t *testing.T) {
-		allEvents := make(map[core.Duty][]event)
-		allEvents[dutyAgg] = append(allEvents[dutyAgg], event{
-			duty:      dutyAgg,
-			component: scheduler,
-		})
-
-		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
-		require.True(t, failed)
-		require.Equal(t, fetcher, comp)
-		require.Equal(t, msgFetcherAggregatorZeroPrepares, msg)
-	})
-
-	t.Run("DutyAttester failed", func(t *testing.T) {
-		allEvents := make(map[core.Duty][]event)
-		allEvents[dutyAgg] = append(allEvents[dutyAgg], event{
-			duty:      dutyAgg,
-			component: scheduler,
-		})
-		allEvents[dutyPrepAgg] = append(allEvents[dutyPrepAgg], event{
-			duty:      dutyPrepAgg,
-			component: sigAgg,
-		})
-		allEvents[dutyAtt] = append(allEvents[dutyAtt], event{
-			duty:      dutyAtt,
-			component: fetcher,
-		})
-
-		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
-		require.True(t, failed)
-		require.Equal(t, fetcher, comp)
-		require.Equal(t, msgFetcherAggregatorNoAttData, msg)
-	})
-
-	t.Run("DutyAttester failed", func(t *testing.T) {
-		allEvents := make(map[core.Duty][]event)
-		allEvents[dutyAgg] = append(allEvents[dutyAgg], event{
-			duty:      dutyAgg,
-			component: parSigDBThreshold,
-		})
-
-		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
-		require.True(t, failed)
-		require.Equal(t, sigAgg, comp)
-		require.Equal(t, msgSigAgg, msg)
-	})
-
-	t.Run("no aggregator found", func(t *testing.T) {
-		allEvents := make(map[core.Duty][]event)
-		allEvents[dutyAgg] = append(allEvents[dutyAgg], event{
-			duty:      dutyAgg,
-			component: scheduler,
-		})
-		allEvents[dutyPrepAgg] = append(allEvents[dutyPrepAgg], event{
-			duty:      dutyPrepAgg,
-			component: sigAgg,
-		})
-		allEvents[dutyAtt] = append(allEvents[dutyAtt], event{
-			duty:      dutyAtt,
-			component: sigAgg,
-		})
-
-		failed, comp, msg := analyseDutyFailed(dutyAgg, allEvents)
-		require.False(t, failed)
-		require.Equal(t, fetcher, comp)
-		require.Equal(t, "", msg)
-	})
+	}
 }

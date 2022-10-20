@@ -224,6 +224,32 @@ func NewSyncMessageDuty(slot int64) Duty {
 	}
 }
 
+// NewPrepareSyncContributionDuty returns a new prepare sync contribution duty. It is a convenience function that is
+// slightly more readable and concise than the struct literal equivalent:
+//
+//	core.Duty{Slot: slot, Type: core.DutyPrepareSyncContribution}
+//	vs
+//	core.NewPrepareSyncContributionDuty(slot)
+func NewPrepareSyncContributionDuty(slot int64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutyPrepareSyncContribution,
+	}
+}
+
+// NewSyncContributionDuty returns a new sync contribution duty. It is a convenience function that is
+// slightly more readable and concise than the struct literal equivalent:
+//
+//	core.Duty{Slot: slot, Type: core.DutySyncContribution}
+//	vs
+//	core.NewSyncContributionDuty(slot)
+func NewSyncContributionDuty(slot int64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutySyncContribution,
+	}
+}
+
 const (
 	pkLen  = 98 // "0x" + hex.Encode([48]byte) = 2+2*48
 	sigLen = 96
