@@ -474,7 +474,7 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 
 // canSchedule returns true if the given duty type can be scheduled by scheduler.
 func canSchedule(duty core.DutyType) bool {
-	return !(duty == core.DutyExit || duty == core.DutyBuilderRegistration || duty == core.DutySyncMessage)
+	return duty != core.DutyExit && duty != core.DutyBuilderRegistration && duty != core.DutySyncMessage
 }
 
 // newParticipationReporter returns a new participation reporter function which logs and instruments peer participation
