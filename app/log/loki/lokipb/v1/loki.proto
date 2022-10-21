@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package app.log.loki.lokipb.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/obolnetwork/charon/app/log/loki/lokipb/v1";
+
+message PushRequest {
+  repeated Stream streams = 1;
+}
+
+message Stream {
+  string labels = 1;
+  repeated Entry entries = 2;
+  uint64 hash = 3;
+}
+
+message Entry {
+  google.protobuf.Timestamp timestamp = 1;
+  string line = 2;
+}
