@@ -149,6 +149,7 @@ type Mock struct {
 	SubmitValidatorRegistrationsFunc          func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error
 	SlotsPerEpochFunc                         func(context.Context) (uint64, error)
 	AggregateBeaconCommitteeSubscriptionsFunc func(context.Context, []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error)
+	AggregateSyncCommitteeSelectionsFunc      func(context.Context, []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error)
 	SubmitBeaconCommitteeSubscriptionsFunc    func(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error
 	AggregateAttestationFunc                  func(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)
 	SubmitAggregateAttestationsFunc           func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
@@ -230,6 +231,10 @@ func (m Mock) SubmitValidatorRegistrations(ctx context.Context, registrations []
 
 func (m Mock) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
 	return m.AggregateBeaconCommitteeSubscriptionsFunc(ctx, selections)
+}
+
+func (m Mock) AggregateSyncCommitteeSelections(ctx context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
+	return m.AggregateSyncCommitteeSelectionsFunc(ctx, selections)
 }
 
 func (m Mock) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error {

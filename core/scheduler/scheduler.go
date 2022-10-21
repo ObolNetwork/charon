@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -265,6 +266,11 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 		return err
 	}
 
+	err = s.resolveSyncCommDuties(ctx, slot, vals)
+	if err != nil {
+		return err
+	}
+
 	s.setResolvedEpoch(uint64(slot.Epoch()))
 
 	return nil
@@ -369,6 +375,66 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 			z.Any("pubkey", pubkey),
 			z.U64("epoch", uint64(slot.Epoch())),
 		)
+	}
+
+	return nil
+}
+
+// resolveSyncCommDuties resolves sync committee duties for the validators in the given slot's epoch, caching the results.
+func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, vals validators) error {
+	syncCommDuties, err := s.eth2Cl.SyncCommitteeDuties(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+	if err != nil {
+		return err
+	}
+
+	var syncCommSubscriptions []*v1.SyncCommitteeSubscription
+
+	for _, syncCommDuty := range syncCommDuties {
+		var (
+			startSlot = slot
+			endSlot   = slot.LastSlotInEpoch()
+			vIdx      = syncCommDuty.ValidatorIndex
+		)
+
+		pubkey, ok := vals.PubKeyFromIndex(vIdx)
+		if !ok {
+			log.Warn(ctx, "Ignoring unexpected sync committee duty", nil, z.U64("vidx", uint64(syncCommDuty.ValidatorIndex)), z.I64("slot", slot.Slot))
+			continue
+		}
+
+		// When assigned to an epoch sync committee, signatures must be produced and broadcast for slots on
+		// range [compute_start_slot_at_epoch(epoch) - 1, compute_start_slot_at_epoch(epoch) + SLOTS_PER_EPOCH - 1) rather than for the
+		// range [compute_start_slot_at_epoch(epoch), compute_start_slot_at_epoch(epoch) + SLOTS_PER_EPOCH).
+		// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#sync-committee
+		if slot.FirstInEpoch() {
+			startSlot = slot.Previous()
+		}
+
+		for sl := startSlot; sl.Slot <= endSlot.Slot; sl = sl.Next() {
+			// Schedule sync committee contribution aggregation.
+			duty := core.NewSyncContributionDuty(sl.Slot)
+			s.setDutyDefinition(duty, pubkey, core.NewSyncCommitteeDefinition(syncCommDuty))
+		}
+
+		log.Info(ctx, "Resolved sync committee duty",
+			z.U64("vidx", uint64(syncCommDuty.ValidatorIndex)),
+			z.Any("pubkey", pubkey),
+			z.U64("epoch", uint64(slot.Epoch())),
+		)
+
+		syncCommSubscriptions = append(syncCommSubscriptions, &v1.SyncCommitteeSubscription{
+			ValidatorIndex:       vIdx,
+			SyncCommitteeIndices: syncCommDuty.ValidatorSyncCommitteeIndices,
+			UntilEpoch:           eth2p0.Epoch(slot.NextEpoch()), // Renew subscription again next epoch.
+		})
+	}
+
+	if len(syncCommSubscriptions) > 0 {
+		// Subscribe to sync committee subnets.
+		err = s.eth2Cl.SubmitSyncCommitteeSubscriptions(ctx, syncCommSubscriptions)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

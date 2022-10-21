@@ -56,6 +56,7 @@ import (
 type Client interface {
     eth2client.Service
     eth2exp.BeaconCommitteeSelectionAggregator
+	eth2exp.SyncCommitteeSelectionAggregator
 
     {{range .Providers}} eth2client.{{.}}
     {{end -}}
@@ -118,6 +119,7 @@ type Client interface {
 		"SyncCommitteeContributionProvider":     true,
 		"SyncCommitteeContributionsSubmitter":   true,
 		"SyncCommitteeMessagesSubmitter":        true,
+		"SyncCommitteeSelectionAggregator":      true,
 		"SyncCommitteeSubscriptionsSubmitter":   true,
 		"ValidatorsProvider":                    true,
 		"ValidatorRegistrationsSubmitter":       true,

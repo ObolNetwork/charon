@@ -34,6 +34,7 @@ import (
 type Client interface {
 	eth2client.Service
 	eth2exp.BeaconCommitteeSelectionAggregator
+	eth2exp.SyncCommitteeSelectionAggregator
 
 	eth2client.AggregateAttestationProvider
 	eth2client.AggregateAttestationsSubmitter

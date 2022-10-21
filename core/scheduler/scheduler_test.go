@@ -296,38 +296,46 @@ func TestSchedulerDuties(t *testing.T) {
 }
 
 func TestScheduler_GetDuty(t *testing.T) {
-	// Configure beacon mock
-	var t0 time.Time
-	valSet := beaconmock.ValidatorSetA
+	var (
+		t0     time.Time
+		slot   = int64(0)
+		valSet = beaconmock.ValidatorSetA
+	)
+
+	// Configure beacon mock.
 	eth2Cl, err := beaconmock.New(
 		beaconmock.WithValidatorSet(valSet),
 		beaconmock.WithGenesisTime(t0),
 		beaconmock.WithDeterministicAttesterDuties(0),
+		beaconmock.WithDeterministicSyncCommDuties(),
 	)
 	require.NoError(t, err)
 
-	// get pubkeys for validators to schedule
+	// Get pubkeys for validators to schedule.
 	pubkeys, err := valSet.CorePubKeys()
 	require.NoError(t, err)
 
-	// Construct scheduler
+	// Construct scheduler.
 	clock := newTestClock(t0)
 	sched := scheduler.NewForT(t, clock, new(delayer).delay, pubkeys, eth2Cl, false)
 
-	_, err = sched.GetDutyDefinition(context.Background(), core.NewAttesterDuty(0))
+	_, err = sched.GetDutyDefinition(context.Background(), core.NewAttesterDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
 
-	_, err = sched.GetDutyDefinition(context.Background(), core.NewAggregatorDuty(0))
+	_, err = sched.GetDutyDefinition(context.Background(), core.NewAggregatorDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
 
-	_, err = sched.GetDutyDefinition(context.Background(), core.NewBuilderProposerDuty(0))
+	_, err = sched.GetDutyDefinition(context.Background(), core.NewSyncContributionDuty(slot))
+	require.ErrorContains(t, err, "epoch not resolved yet")
+
+	_, err = sched.GetDutyDefinition(context.Background(), core.NewBuilderProposerDuty(slot))
 	require.ErrorContains(t, err, "builder-api not enabled")
 
 	slotDuration, err := eth2Cl.SlotDuration(context.Background())
 	require.NoError(t, err)
 
 	clock.CallbackAfter(t0.Add(slotDuration).Add(time.Second), func() {
-		res, err := sched.GetDutyDefinition(context.Background(), core.NewAttesterDuty(0))
+		res, err := sched.GetDutyDefinition(context.Background(), core.NewAttesterDuty(slot))
 		require.NoError(t, err)
 
 		pubKeys, err := valSet.CorePubKeys()
@@ -337,7 +345,13 @@ func TestScheduler_GetDuty(t *testing.T) {
 			require.NotNil(t, res[pubKey])
 		}
 
-		res, err = sched.GetDutyDefinition(context.Background(), core.NewAggregatorDuty(0))
+		res, err = sched.GetDutyDefinition(context.Background(), core.NewAggregatorDuty(slot))
+		require.NoError(t, err)
+		for _, pubKey := range pubKeys {
+			require.NotNil(t, res[pubKey])
+		}
+
+		res, err = sched.GetDutyDefinition(context.Background(), core.NewSyncContributionDuty(slot))
 		require.NoError(t, err)
 		for _, pubKey := range pubKeys {
 			require.NotNil(t, res[pubKey])

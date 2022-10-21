@@ -436,9 +436,37 @@ func (s Slot) Next() Slot {
 	}
 }
 
+// Previous returns the previous slot.
+func (s Slot) Previous() Slot {
+	return Slot{
+		Slot:          s.Slot - 1,
+		Time:          s.Time.Add(-1 * s.SlotDuration),
+		SlotsPerEpoch: s.SlotsPerEpoch,
+		SlotDuration:  s.SlotDuration,
+	}
+}
+
 // Epoch returns the epoch of the slot.
 func (s Slot) Epoch() int64 {
 	return s.Slot / s.SlotsPerEpoch
+}
+
+// NextEpoch returns the next epoch of the slot.
+func (s Slot) NextEpoch() int64 {
+	return s.Epoch() + 1
+}
+
+// LastSlotInEpoch returns the last slot in the epoch.
+func (s Slot) LastSlotInEpoch() Slot {
+	lastSlot := s.SlotsPerEpoch*s.NextEpoch() - 1
+	slotDistance := lastSlot - s.Slot
+
+	return Slot{
+		Slot:          lastSlot,
+		Time:          s.Time.Add(time.Duration(slotDistance) * s.SlotDuration),
+		SlotsPerEpoch: s.SlotsPerEpoch,
+		SlotDuration:  s.SlotDuration,
+	}
 }
 
 // LastInEpoch returns true if this is the last slot in the epoch.

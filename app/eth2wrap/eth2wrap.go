@@ -127,6 +127,23 @@ func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selection
 	return res0, err
 }
 
+func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
+	const label = "aggregate_sync_committee_selections"
+
+	res, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) ([]*eth2exp.SyncCommitteeSelection, error) {
+			return cl.AggregateSyncCommitteeSelections(ctx, selections)
+		},
+		nil,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res, err
+}
+
 // provide calls the work function with each client in parallel, returning the
 // first successful result or first error.
 func provide[O any](ctx context.Context, clients []Client,
