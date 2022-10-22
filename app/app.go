@@ -358,8 +358,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	deadlinerFunc := func() core.Deadliner {
-		return core.NewDeadliner(ctx, deadlineFunc)
+	deadlinerFunc := func(label string) core.Deadliner {
+		return core.NewDeadliner(ctx, label, deadlineFunc)
 	}
 
 	sched, err := scheduler.New(corePubkeys, eth2Cl, conf.BuilderAPI)
@@ -374,7 +374,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	dutyDB := dutydb.NewMemDB(deadlinerFunc())
+	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
 	vapi, err := validatorapi.NewComponent(eth2Cl, pubSharesByKey, nodeIdx.ShareIdx, lock.FeeRecipientAddress)
 	if err != nil {
@@ -413,7 +413,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	cons, startCons, err := newConsensus(conf, lock, tcpNode, p2pKey, sender, nodeIdx, deadlinerFunc())
+	cons, startCons, err := newConsensus(conf, lock, tcpNode, p2pKey, sender, nodeIdx, deadlinerFunc("consensus"))
 	if err != nil {
 		return err
 	}
@@ -464,8 +464,8 @@ func wireTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func
 	sched core.Scheduler, fetcher core.Fetcher, cons core.Consensus, vapi core.ValidatorAPI,
 	parSigDB core.ParSigDB, parSigEx core.ParSigEx, sigAgg core.SigAgg,
 ) error {
-	analyser := core.NewDeadliner(ctx, deadlineFunc)
-	deleter := core.NewDeadliner(ctx, func(duty core.Duty) (time.Time, bool) {
+	analyser := core.NewDeadliner(ctx, "tracker_analyser", deadlineFunc)
+	deleter := core.NewDeadliner(ctx, "tracker_deleter", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
 		if !ok {
 			return d, false
