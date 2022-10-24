@@ -194,7 +194,18 @@ func incError(endpoint string) {
 
 // wrapError returns the error as a wrapped structured error.
 func wrapError(ctx context.Context, err error, label string) error {
-	if uerr := new(url.Error); errors.As(err, &uerr) { // Decompose url errors
+	// Decompose go-eth2-client http errors
+	if e2err := new(eth2http.Error); errors.As(err, e2err) {
+		err = errors.New("nok http response",
+			z.Int("status_code", e2err.StatusCode),
+			z.Str("endpoint", e2err.Endpoint),
+			z.Str("method", e2err.Method),
+			z.Str("data", string(e2err.Data)),
+		)
+	}
+
+	// Decompose url errors
+	if uerr := new(url.Error); errors.As(err, &uerr) {
 		msg := "http request aborted" // The request didn't complete, no http response
 		if ctx.Err() != nil {
 			msg = "caller cancelled http request"
@@ -206,7 +217,9 @@ func wrapError(ctx context.Context, err error, label string) error {
 			z.Str("method", uerr.Op),
 		)
 	}
-	if nerr := new(net.OpError); errors.As(err, &nerr) { // Decompose net errors
+
+	// Decompose net errors
+	if nerr := new(net.OpError); errors.As(err, &nerr) {
 		msg := "network operation error: " + nerr.Op
 		if ctx.Err() != nil {
 			msg = "caller cancelled network operation: " + nerr.Op
@@ -215,7 +228,6 @@ func wrapError(ctx context.Context, err error, label string) error {
 		}
 		err = errors.Wrap(nerr.Err, msg, z.Str("address", nerr.Addr.String()))
 	}
-	// TODO(corver): Decompose go-eth2-client errors once structured errors supported.
 
 	return errors.Wrap(err, "beacon api "+label, z.Str("label", label))
 }

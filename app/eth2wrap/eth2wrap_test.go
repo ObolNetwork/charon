@@ -23,6 +23,7 @@ import (
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -195,5 +196,17 @@ func TestErrors(t *testing.T) {
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "beacon api new eth2 client: caller cancelled http request: context canceled")
+	})
+
+	t.Run("go-eth2-client http error", func(t *testing.T) {
+		bmock, err := beaconmock.New()
+		require.NoError(t, err)
+		eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, bmock.Address())
+		require.NoError(t, err)
+
+		_, err = eth2Cl.AggregateAttestation(ctx, 0, eth2p0.Root{})
+		log.Error(ctx, "See this error log for fields", err)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "beacon api aggregate_attestation: nok http response")
 	})
 }
