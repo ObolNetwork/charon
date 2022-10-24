@@ -17,6 +17,7 @@ package tracker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -26,94 +27,108 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-//go:generate stringer -type=component
-
-// component refers to a core workflow component.
-type component int
-
-// Core components arranged in the order data flows through them.
+// Steps arranged in the order they are triggered in the core workflow.
 const (
-	zero component = iota
-	scheduler
-	fetcher
-	consensus
-	validatorAPI
-	parSigDBInternal
-	parSigEx
-	parSigDBThreshold
-	sigAgg
+	zero              step = iota
+	scheduler              // Duty scheduled with definition
+	fetcher                // Duty data fetched
+	consensus              // Duty data consensus reached
+	validatorAPI           // Partial signed data from local VC submitted to vapi
+	parSigDBInternal       // Partial signed data from local VC stored in parsigdb
+	parSigEx               // Partial signed data from other VC received via parsigex
+	parSigDBThreshold      // Partial signed data threshold reached; emitted from parsigdb
+	sigAgg                 // Partial signed data aggregated; emitted from sigagg
 	sentinel
 )
 
+var stepLabels = map[step]string{
+	zero:              "unknown",
+	scheduler:         "scheduler",
+	fetcher:           "fetcher",
+	consensus:         "consensus",
+	validatorAPI:      "validator_api",
+	parSigDBInternal:  "parsig_db_local",
+	parSigEx:          "parsig_exchange",
+	parSigDBThreshold: "parsig_db_threshold",
+	sigAgg:            "sig_aggregation",
+}
+
+// step in the core workflow.
+type step int
+
+func (s step) String() string {
+	return stepLabels[s]
+}
+
 // These constants are used for improving messages for why a duty failed.
 const (
-	// msgFetcher indicates a duty failed in the fetcher component when it failed
+	// msgFetcher indicates a duty failed in the fetcher step when it failed
 	// to fetch the required data from the beacon node API. This indicates a problem with
 	// the upstream beacon node.
 	msgFetcher = "couldn't fetch duty data from the beacon node"
 
 	// msgFetcherAggregatorNoAttData indicates an attestation aggregation duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite attestation data. This
+	// the fetcher step since it couldn't fetch the prerequisite attestation data. This
 	// indicates the associated attestation duty failed to obtain a cluster agreed upon value.
 	msgFetcherAggregatorNoAttData = "couldn't aggregate attestation due to failed attester duty"
 
 	// msgFetcherAggregatorFewPrepares indicates an attestation aggregation duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite aggregated beacon committee selections.
+	// the fetcher step since it couldn't fetch the prerequisite aggregated beacon committee selections.
 	// This indicates the associated prepare aggregation duty failed due to insufficient partial beacon committee selections
 	// submitted by the cluster validator clients.
 	msgFetcherAggregatorFewPrepares = "couldn't aggregate attestation due to insufficient partial beacon committee selections"
 
 	// msgFetcherAggregatorZeroPrepares indicates an attestation aggregation duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite aggregated beacon committee selections.
+	// the fetcher step since it couldn't fetch the prerequisite aggregated beacon committee selections.
 	// This indicates the associated prepare aggregation duty failed due to no partial beacon committee selections
 	// submitted by the cluster validator clients.
 	msgFetcherAggregatorZeroPrepares = "couldn't aggregate attestation due to zero partial beacon committee selections"
 
 	// msgFetcherAggregatorFailedPrepare indicates an attestation aggregation duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite aggregated beacon committee selections.
+	// the fetcher step since it couldn't fetch the prerequisite aggregated beacon committee selections.
 	// This indicates the associated prepare aggregation duty failed.
 	msgFetcherAggregatorFailedPrepare = "couldn't aggregate attestation due to failed prepare aggregator duty"
 
 	// msgFetcherProposerFewRandaos indicates a block proposer duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite aggregated RANDAO.
+	// the fetcher step since it couldn't fetch the prerequisite aggregated RANDAO.
 	// This indicates the associated randao duty failed due to insufficient partial randao signatures
 	// submitted by the cluster validator clients.
 	msgFetcherProposerFewRandaos = "couldn't propose block due to insufficient partial randao signatures"
 
 	// msgFetcherProposerZeroRandaos indicates a block proposer duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite aggregated RANDAO.
+	// the fetcher step since it couldn't fetch the prerequisite aggregated RANDAO.
 	// This indicates the associated randao duty failed due to no partial randao signatures
 	// submitted by the cluster validator clients.
 	msgFetcherProposerZeroRandaos = "couldn't propose block due to zero partial randao signatures"
 
 	// msgFetcherProposerZeroRandaos indicates a block proposer duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite aggregated RANDAO.
+	// the fetcher step since it couldn't fetch the prerequisite aggregated RANDAO.
 	// This indicates the associated randao duty failed.
 	msgFetcherProposerFailedRandao = "couldn't propose block due to failed randao duty"
 
 	// msgFetcherSyncContributionNoSyncMsg indicates a sync contribution duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite sync message. This
+	// the fetcher step since it couldn't fetch the prerequisite sync message. This
 	// indicates the associated sync message duty failed to obtain a cluster agreed upon value.
 	msgFetcherSyncContributionNoSyncMsg = "couldn't fetch sync contribution due to failed sync message duty"
 
 	// msgFetcherSyncContributionFewPrepares indicates a sync contribution duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite aggregated sync contribution selections.
+	// the fetcher step since it couldn't fetch the prerequisite aggregated sync contribution selections.
 	// This indicates the associated prepare sync contribution duty failed due to insufficient partial sync contribution selections
 	// submitted by the cluster validator clients.
 	msgFetcherSyncContributionFewPrepares = "couldn't fetch sync contribution due to insufficient partial sync contribution selections"
 
 	// msgFetcherSyncContributionZeroPrepares indicates a sync contribution duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite aggregated sync contribution selections.
+	// the fetcher step since it couldn't fetch the prerequisite aggregated sync contribution selections.
 	// This indicates the associated prepare sync contribution duty failed due to no partial sync contribution selections
 	// submitted by the cluster validator clients.
 	msgFetcherSyncContributionZeroPrepares = "couldn't fetch sync contribution due to zero partial sync contribution selections"
 
 	// msgFetcherSyncContributionFailedPrepare indicates a sync contribution duty failed in
-	// the fetcher component since it couldn't fetch the prerequisite aggregated sync contribution selections.
+	// the fetcher step since it couldn't fetch the prerequisite aggregated sync contribution selections.
 	// This indicates the associated prepare sync contribution duty failed.
 	msgFetcherSyncContributionFailedPrepare = "couldn't fetch sync contribution due to failed prepare sync contribution duty"
 
-	// msgConsensus indicates a duty failed in consensus component.
+	// msgConsensus indicates a duty failed in consensus step.
 	// This could indicate that insufficient honest peers participated in consensus or p2p network
 	// connection problems.
 	msgConsensus = "consensus algorithm didn't complete"
@@ -125,33 +140,44 @@ const (
 	msgValidatorAPI = "signed duty not submitted by local validator client"
 
 	// msgParSigDBInternal indicates a bug in the partial signature database as it is unexpected.
-	msgParSigDBInternal = "bug: partial signature database didn't trigger partial signature exchange"
+	// Note this may happen due to expiry race.
+	msgParSigDBInternal = "partial signature database didn't trigger partial signature exchange"
 
 	// msgParSigEx indicates that no partial signature for the duty was received from any peer.
 	// This indicates all peers are offline or p2p network connection problems.
 	msgParSigEx = "no partial signatures received from peers"
 
-	// msgParSigDBThreshold indicates that insufficient partial signatures for the duty was received from peers.
+	// msgParSigDBInsufficient indicates that insufficient partial signatures for the duty was received from peers.
 	// This indicates problems with peers or p2p network connection problems.
-	msgParSigDBThreshold = "insufficient partial signatures received, minimum required threshold not reached"
+	msgParSigDBInsufficient = "insufficient partial signatures received, minimum required threshold not reached"
+
+	// msgParSigDBInconsistentSync indicates that partial signed data for the sync committee duty were inconsistent.
+	// This is known limitation in this version of charon.
+	msgParSigDBInconsistentSync = "known limitation: inconsistent sync committee signatures received"
+
+	// msgParSigDBInconsistent indicates that partial signed data for the duty were inconsistent.
+	// This indicates a bug in charon as it is unexpected (for non-sync-committee-duties).
+	msgParSigDBInconsistent = "bug: inconsistent partial signatures received"
 
 	// msgSigAgg indicates that BLS threshold aggregation of sufficient partial signatures failed. This
 	// indicates inconsistent signed data. This indicates a bug in charon as it is unexpected.
 	msgSigAgg = "bug: threshold aggregation of partial signatures failed due to inconsistent signed data"
 )
 
-// event represents an event emitted by a core workflow component.
-type event struct {
-	duty      core.Duty
-	component component
-	pubkey    core.PubKey
+// parsigsByMsg.
+type parsigsByMsg map[string][]int
 
-	// This is an optional field only set by validatorAPI, parSigDBInternal and parSigEx events.
-	// shareidx is 1-indexed so 0 indicates unset.
-	shareIdx int
+// event represents an event emitted by a core workflow step.
+type event struct {
+	duty   core.Duty
+	step   step
+	pubkey core.PubKey
+
+	// parSig is an optional field only set by validatorAPI, parSigDBInternal and parSigEx events.
+	parSig *core.ParSignedData
 }
 
-// Tracker represents the component that listens to events from core workflow components.
+// Tracker represents the step that listens to events from core workflow steps.
 // It identifies where a duty gets stuck in the course of its execution.
 type Tracker struct {
 	input chan event
@@ -166,8 +192,11 @@ type Tracker struct {
 	fromSlot int64
 	quit     chan struct{}
 
+	// parSigReporter instruments partial signature data inconsistencies.
+	parSigReporter func(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg)
+
 	// failedDutyReporter instruments duty failures.
-	failedDutyReporter func(ctx context.Context, duty core.Duty, failed bool, component component, reason string)
+	failedDutyReporter func(ctx context.Context, duty core.Duty, failed bool, step step, reason string)
 
 	// participationReporter instruments duty peer participation.
 	participationReporter func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]bool, unexpectedPeers map[int]bool)
@@ -182,6 +211,7 @@ func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, from
 		analyser:              analyser,
 		deleter:               deleter,
 		fromSlot:              fromSlot,
+		parSigReporter:        parSigReporter,
 		failedDutyReporter:    newFailedDutyReporter(),
 		participationReporter: newParticipationReporter(peers),
 	}
@@ -189,7 +219,7 @@ func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, from
 	return t
 }
 
-// Run blocks and registers events from each component in tracker's input channel.
+// Run blocks and registers events from each step in tracker's input channel.
 // It also analyses and reports the duties whose deadline gets crossed.
 func (t *Tracker) Run(ctx context.Context) error {
 	ctx = log.WithTopic(ctx, "tracker")
@@ -211,9 +241,12 @@ func (t *Tracker) Run(ctx context.Context) error {
 		case duty := <-t.analyser.C():
 			ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
+			parsigs := analyseParSigs(duty, t.events)
+			t.parSigReporter(ctx, duty, parsigs)
+
 			// Analyse failed duties
-			failed, failedComponent, failedMsg := analyseDutyFailed(duty, t.events)
-			t.failedDutyReporter(ctx, duty, failed, failedComponent, failedMsg)
+			failed, failedstep, failedMsg := analyseDutyFailed(duty, t.events, parsigs)
+			t.failedDutyReporter(ctx, duty, failed, failedstep, failedMsg)
 
 			// Analyse peer participation
 			participatedShares, unexpectedShares := analyseParticipation(duty, t.events)
@@ -224,24 +257,22 @@ func (t *Tracker) Run(ctx context.Context) error {
 	}
 }
 
-// dutyFailedComponent returns true if the duty failed. It also returns the component where the duty got stuck.
-// If the duty didn't fail, it returns false and the zero component.
+// dutyFailedStep returns true if the duty failed. It also returns the step where the duty got stuck.
+// If the duty didn't fail, it returns false and the zero step.
 // It assumes that all the input events are for a single duty.
-// If the input events slice is empty, it returns true the zero component.
-func dutyFailedComponent(es []event) (bool, component) {
-	events := make([]event, len(es))
-	copy(events, es)
-
-	// Sort in reverse order (see order above).
-	sort.Slice(events, func(i, j int) bool {
-		return events[i].component > events[j].component
-	})
-
-	if len(events) == 0 {
+// If the input events slice is empty, it returns true and the zero step.
+func dutyFailedStep(es []event) (bool, step) {
+	if len(es) == 0 {
 		return true, zero // Duty failed since no events.
 	}
 
-	c := events[0].component
+	// Copy and sort in reverse order (see step order above).
+	clone := append([]event(nil), es...)
+	sort.Slice(clone, func(i, j int) bool {
+		return clone[i].step > clone[j].step
+	})
+
+	c := clone[0].step
 	if c == sigAgg {
 		return false, zero
 	}
@@ -251,13 +282,13 @@ func dutyFailedComponent(es []event) (bool, component) {
 
 // analyseDutyFailed detects if the given duty failed.
 //
-// It returns true if the duty failed as well as the component
+// It returns true if the duty failed as well as the step
 // where the duty got stuck and a human friendly error message explaining why.
 //
 // It returns false if the duty didn't fail, i.e., the duty
-// didn't get stuck and completed the sigAgg component.
-func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, component, string) {
-	failed, comp := dutyFailedComponent(allEvents[duty])
+// didn't get stuck and completed the sigAgg step.
+func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, parsigMsgs parsigsByMsg) (bool, step, string) {
+	failed, comp := dutyFailedStep(allEvents[duty])
 	if !failed {
 		return false, zero, ""
 	}
@@ -275,7 +306,16 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 	case parSigEx:
 		msg = msgParSigEx
 	case parSigDBThreshold:
-		msg = msgParSigDBThreshold
+		if len(parsigMsgs) <= 1 {
+			msg = msgParSigDBInsufficient
+		} else {
+			msg = msgParSigDBInconsistent
+			if expectInconsistentParSigs(duty.Type) {
+				msg = msgParSigDBInconsistentSync
+			}
+		}
+
+		return true, parSigDBThreshold, msg
 	case sigAgg:
 		msg = msgSigAgg
 	case zero:
@@ -287,15 +327,49 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, c
 	return true, comp, msg
 }
 
+// analyseParSigs returns a mapping partial signed data messages by peers (share index).
+func analyseParSigs(duty core.Duty, allEvents map[core.Duty][]event) parsigsByMsg {
+	var (
+		dedup = make(map[int]bool)
+		datas = make(map[string][]int)
+	)
+
+	for _, e := range allEvents[duty] {
+		if e.parSig == nil {
+			continue
+		}
+		if dedup[e.parSig.ShareIdx] {
+			continue
+		}
+		dedup[e.parSig.ShareIdx] = true
+
+		// Clear signature to get unsigned data
+		noSig, err := e.parSig.SetSignature(nil)
+		if err != nil {
+			log.Warn(context.Background(), "Clear partial signature", err)
+			continue // Just log and ignore as this is highly unlikely and non-critical code.
+		}
+		data, err := json.Marshal(noSig)
+		if err != nil {
+			log.Warn(context.Background(), "Marshal parsig", err)
+			continue // Just log and ignore as this is highly unlikely and non-critical code.
+		}
+
+		datas[string(data)] = append(datas[string(data)], e.parSig.ShareIdx)
+	}
+
+	return datas
+}
+
 // analyseFetcherFailed returns whether the duty that got stack in fetcher actually failed
 // and the reason which might actually be due a pre-requisite duty that failed.
-func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, component, string) {
+func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, step, string) {
 	msg := msgFetcher
 
 	// Proposer duties depend on randao duty, so check if that was why it failed.
 	if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
 		// Proposer duties will fail if core.DutyRandao fails
-		randaoFailed, randaoComp := dutyFailedComponent(allEvents[core.NewRandaoDuty(duty.Slot)])
+		randaoFailed, randaoComp := dutyFailedStep(allEvents[core.NewRandaoDuty(duty.Slot)])
 		if randaoFailed {
 			switch randaoComp {
 			case parSigDBThreshold:
@@ -313,7 +387,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 	// Duty aggregator depend on prepare aggregator duty, so check if that was why it failed.
 	if duty.Type == core.DutyAggregator {
 		// Aggregator duties will fail if core.DutyPrapareAggregator fails
-		prepAggFailed, prepAggComp := dutyFailedComponent(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
+		prepAggFailed, prepAggComp := dutyFailedStep(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
 		if prepAggFailed {
 			switch prepAggComp {
 			case parSigDBThreshold:
@@ -328,7 +402,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 		}
 
 		// Aggregator duties will fail if no attestation data in DutyDB
-		attFailed, attComp := dutyFailedComponent(allEvents[core.NewAttesterDuty(duty.Slot)])
+		attFailed, attComp := dutyFailedStep(allEvents[core.NewAttesterDuty(duty.Slot)])
 		if attFailed && attComp <= consensus {
 			// Note we do not handle the edge case of the local peer failing to store attestation data
 			// but the attester duty succeeding in any case due to external peer partial signatures.
@@ -345,7 +419,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 	// Duty sync contribution depends on prepare sync contribution duty, so check if that was why it failed.
 	if duty.Type == core.DutySyncContribution {
 		// Sync contribution duties will fail if core.DutyPrepareSyncContribution fails.
-		prepSyncConFailed, prepSyncConComp := dutyFailedComponent(allEvents[core.NewPrepareSyncContributionDuty(duty.Slot)])
+		prepSyncConFailed, prepSyncConComp := dutyFailedStep(allEvents[core.NewPrepareSyncContributionDuty(duty.Slot)])
 		if prepSyncConFailed {
 			switch prepSyncConComp {
 			case parSigDBThreshold:
@@ -360,7 +434,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 		}
 
 		// Sync contribution duties will fail if no sync message in DutyDB.
-		syncMsgFailed, syncMsgComp := dutyFailedComponent(allEvents[core.NewSyncMessageDuty(duty.Slot)])
+		syncMsgFailed, syncMsgComp := dutyFailedStep(allEvents[core.NewSyncMessageDuty(duty.Slot)])
 		if syncMsgFailed && syncMsgComp <= consensus {
 			// Note we do not handle the edge case of the local peer failing to store sync message
 			// but the sync message duty succeeding in any case due to external peer partial signatures.
@@ -378,15 +452,18 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 }
 
 // newFailedDutyReporter returns failed duty reporter which instruments failed duties.
-func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bool, component component, reason string) {
+func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bool, step step, reason string) {
 	var loggedNoSelections bool
 
-	return func(ctx context.Context, duty core.Duty, failed bool, component component, reason string) {
+	return func(ctx context.Context, duty core.Duty, failed bool, step step, reason string) {
+		counter := failedCounter.WithLabelValues(duty.Type.String())
+		counter.Add(0) // Zero the metric so first failure shows in grafana.
+
 		if !failed {
 			return
 		}
 
-		if duty.Type == core.DutyAggregator && component == fetcher && reason == msgFetcherAggregatorZeroPrepares {
+		if duty.Type == core.DutyAggregator && step == fetcher && reason == msgFetcherAggregatorZeroPrepares {
 			if !loggedNoSelections {
 				log.Warn(ctx, "Ignoring attestation aggregation failures since VCs do not seem to support beacon committee selection aggregation", nil)
 			}
@@ -395,7 +472,7 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 			return
 		}
 
-		if duty.Type == core.DutySyncContribution && component == fetcher && reason == msgFetcherSyncContributionZeroPrepares {
+		if duty.Type == core.DutySyncContribution && step == fetcher && reason == msgFetcherSyncContributionZeroPrepares {
 			if !loggedNoSelections {
 				log.Warn(ctx, "Ignoring sync contribution failures since VCs do not seem to support sync committee selection aggregation", nil)
 			}
@@ -405,10 +482,10 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 		}
 
 		log.Warn(ctx, "Duty failed", nil,
-			z.Any("component", component),
+			z.Any("step", step),
 			z.Str("reason", reason))
 
-		failedCounter.WithLabelValues(duty.Type.String(), component.String()).Inc()
+		counter.Inc()
 	}
 }
 
@@ -421,13 +498,13 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (map[
 	for _, e := range allEvents[duty] {
 		// If we get a parSigDBInternal event, then the current node participated successfully.
 		// If we get a parSigEx event, then the corresponding peer with e.shareIdx participated successfully.
-		if e.component == parSigEx || e.component == parSigDBInternal {
+		if e.step == parSigEx || e.step == parSigDBInternal {
 			if !isParSigEventExpected(duty, e.pubkey, allEvents) {
-				unexpectedShares[e.shareIdx] = true
+				unexpectedShares[e.parSig.ShareIdx] = true
 				continue
 			}
 
-			resp[e.shareIdx] = true
+			resp[e.parSig.ShareIdx] = true
 		}
 	}
 
@@ -445,7 +522,7 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 	// scheduled returns true if the provided duty type was scheduled for the above slot and pubkey.
 	scheduled := func(typ core.DutyType) bool {
 		for _, e := range allEvents[core.Duty{Slot: duty.Slot, Type: typ}] {
-			if e.component == scheduler && e.pubkey == pubkey {
+			if e.step == scheduler && e.pubkey == pubkey {
 				return true
 			}
 		}
@@ -512,7 +589,7 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 	}
 }
 
-// SchedulerEvent inputs event from core.Scheduler component.
+// SchedulerEvent inputs event from core.Scheduler step.
 func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) error {
 	for pubkey := range defSet {
 		select {
@@ -521,9 +598,9 @@ func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet cor
 		case <-t.quit:
 			return nil
 		case t.input <- event{
-			duty:      duty,
-			component: scheduler,
-			pubkey:    pubkey,
+			duty:   duty,
+			step:   scheduler,
+			pubkey: pubkey,
 		}:
 		}
 	}
@@ -531,7 +608,7 @@ func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet cor
 	return nil
 }
 
-// FetcherEvent inputs event from core.Fetcher component.
+// FetcherEvent inputs event from core.Fetcher step.
 func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	for pubkey := range data {
 		select {
@@ -540,9 +617,9 @@ func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.Un
 		case <-t.quit:
 			return nil
 		case t.input <- event{
-			duty:      duty,
-			component: fetcher,
-			pubkey:    pubkey,
+			duty:   duty,
+			step:   fetcher,
+			pubkey: pubkey,
 		}:
 		}
 	}
@@ -550,7 +627,7 @@ func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.Un
 	return nil
 }
 
-// ConsensusEvent inputs event from core.Consensus component.
+// ConsensusEvent inputs event from core.Consensus step.
 func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	for pubkey := range data {
 		select {
@@ -559,9 +636,9 @@ func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.
 		case <-t.quit:
 			return nil
 		case t.input <- event{
-			duty:      duty,
-			component: consensus,
-			pubkey:    pubkey,
+			duty:   duty,
+			step:   consensus,
+			pubkey: pubkey,
 		}:
 		}
 	}
@@ -569,18 +646,20 @@ func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.
 	return nil
 }
 
-// ValidatorAPIEvent inputs events from core.ValidatorAPI component.
+// ValidatorAPIEvent inputs events from core.ValidatorAPI step.
 func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
-	for pubkey := range data {
+	for pubkey, parSig := range data {
+		parSig := parSig // Copy loop iteration values
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-t.quit:
 			return nil
 		case t.input <- event{
-			duty:      duty,
-			component: validatorAPI,
-			pubkey:    pubkey,
+			duty:   duty,
+			step:   validatorAPI,
+			pubkey: pubkey,
+			parSig: &parSig,
 		}:
 		}
 	}
@@ -588,19 +667,20 @@ func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data co
 	return nil
 }
 
-// ParSigExEvent inputs event from core.ParSigEx component.
+// ParSigExEvent inputs event from core.ParSigEx step event for other VC submitted parsigs.
 func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
-	for pubkey, pSig := range data {
+	for pubkey, parSig := range data {
+		parSig := parSig // Copy loop iteration values
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-t.quit:
 			return nil
 		case t.input <- event{
-			duty:      duty,
-			component: parSigEx,
-			pubkey:    pubkey,
-			shareIdx:  pSig.ShareIdx,
+			duty:   duty,
+			step:   parSigEx,
+			pubkey: pubkey,
+			parSig: &parSig,
 		}:
 		}
 	}
@@ -608,19 +688,20 @@ func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.P
 	return nil
 }
 
-// ParSigDBInternalEvent inputs events from core.ParSigDB component for internal store event.
+// ParSigDBInternalEvent inputs events from core.ParSigDB step event for local VC submitted parsigs.
 func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
-	for pubkey, pSig := range data {
+	for pubkey, parSig := range data {
+		parSig := parSig // Copy loop iteration values
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-t.quit:
 			return nil
 		case t.input <- event{
-			duty:      duty,
-			component: parSigDBInternal,
-			pubkey:    pubkey,
-			shareIdx:  pSig.ShareIdx,
+			duty:   duty,
+			step:   parSigDBInternal,
+			pubkey: pubkey,
+			parSig: &parSig,
 		}:
 		}
 	}
@@ -628,7 +709,7 @@ func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, dat
 	return nil
 }
 
-// ParSigDBThresholdEvent inputs event from core.ParSigDB component for threshold event.
+// ParSigDBThresholdEvent inputs event from core.ParSigDB step for threshold emitted parsigs.
 func (t *Tracker) ParSigDBThresholdEvent(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData) error {
 	select {
 	case <-ctx.Done():
@@ -636,16 +717,16 @@ func (t *Tracker) ParSigDBThresholdEvent(ctx context.Context, duty core.Duty, pu
 	case <-t.quit:
 		return nil
 	case t.input <- event{
-		duty:      duty,
-		component: parSigDBThreshold,
-		pubkey:    pubkey,
+		duty:   duty,
+		step:   parSigDBThreshold,
+		pubkey: pubkey,
 	}:
 	}
 
 	return nil
 }
 
-// SigAggEvent inputs event from core.SigAgg component.
+// SigAggEvent inputs event from core.SigAgg step.
 func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ core.SignedData) error {
 	select {
 	case <-ctx.Done():
@@ -653,11 +734,33 @@ func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.P
 	case <-t.quit:
 		return nil
 	case t.input <- event{
-		duty:      duty,
-		component: sigAgg,
-		pubkey:    pubkey,
+		duty:   duty,
+		step:   sigAgg,
+		pubkey: pubkey,
 	}:
 	}
 
 	return nil
+}
+
+func parSigReporter(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg) {
+	if len(parsigMsgs) <= 1 {
+		return // Nothing to report.
+	}
+
+	inconsistentCounter.WithLabelValues(duty.Type.String()).Inc()
+
+	if expectInconsistentParSigs(duty.Type) {
+		log.Debug(ctx, "Inconsistent sync committee partial signed data",
+			z.Any("data", parsigMsgs))
+	} else {
+		log.Warn(ctx, "Inconsistent partial signed data", nil,
+			z.Any("data", parsigMsgs))
+	}
+}
+
+// expectInconsistentParSigs returns true if the duty type is expected to sometimes
+// produce inconsistent partial signed data.
+func expectInconsistentParSigs(duty core.DutyType) bool {
+	return duty == core.DutySyncMessage || duty == core.DutySyncContribution
 }
