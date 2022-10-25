@@ -175,6 +175,29 @@
                 ]
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uptime"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "text",
+                  "mode": "fixed"
+                }
+              }
+            ]
           }
         ]
       },
@@ -212,13 +235,27 @@
           },
           "editorMode": "code",
           "exemplar": false,
+          "expr": "time() - max(app_start_time_secs{job=\"$node\"})",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "Uptime",
+          "range": false,
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
           "expr": "core_scheduler_current_slot{job=\"$node\"}",
           "format": "time_series",
           "hide": false,
-          "instant": false,
+          "instant": true,
           "interval": "",
           "legendFormat": "Slot",
-          "range": true,
+          "range": false,
           "refId": "A"
         },
         {
@@ -227,10 +264,12 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
+          "exemplar": false,
           "expr": "core_scheduler_current_epoch{job=\"$node\"}",
           "hide": false,
+          "instant": true,
           "legendFormat": "Epoch",
-          "range": true,
+          "range": false,
           "refId": "B"
         },
         {
@@ -239,10 +278,12 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
+          "exemplar": false,
           "expr": "core_scheduler_validators_active{job=\"$node\"}",
           "hide": false,
+          "instant": true,
           "legendFormat": "Validators Active",
-          "range": true,
+          "range": false,
           "refId": "C"
         },
         {
@@ -251,10 +292,12 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
+          "exemplar": false,
           "expr": "sum(p2p_ping_success{job=\"$node\"})",
           "hide": false,
+          "instant": true,
           "legendFormat": "Peers Connected",
-          "range": true,
+          "range": false,
           "refId": "D"
         },
         {
@@ -263,10 +306,12 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
+          "exemplar": false,
           "expr": "sum(p2p_relay_connections{job=\"$node\"}) ",
           "hide": false,
+          "instant": true,
           "legendFormat": "Relays Connected",
-          "range": true,
+          "range": false,
           "refId": "E"
         },
         {
@@ -275,10 +320,12 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
+          "exemplar": false,
           "expr": "p2p_reachability_status{job=\"$node\"}",
           "hide": false,
+          "instant": true,
           "legendFormat": "P2P Reachability",
-          "range": true,
+          "range": false,
           "refId": "F"
         }
       ],
@@ -1683,8 +1730,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1776,8 +1822,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1870,8 +1915,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1978,8 +2022,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2074,8 +2117,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue",
-                "value": null
+                "color": "light-blue"
               },
               {
                 "color": "red",
@@ -2280,8 +2322,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
