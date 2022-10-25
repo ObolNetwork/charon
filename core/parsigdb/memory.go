@@ -18,7 +18,6 @@ package parsigdb
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"sync"
 
@@ -172,35 +171,22 @@ func getThresholdMatching(sigs []core.ParSignedData, threshold int) ([]core.ParS
 		return nil, false, nil
 	}
 
-	sigsByDataHash := make(map[[32]byte][]core.ParSignedData)
+	sigsByMsgRoot := make(map[[32]byte][]core.ParSignedData)
 	for _, sig := range sigs {
-		// Clear the signature to get the raw signed data.
-		noSig, err := sig.SetSignature(nil)
+		root, err := sig.MessageRoot()
 		if err != nil {
-			return nil, false, err
+			return nil, false, errors.Wrap(err, "message root")
 		}
 
-		// Convert it to json
-		b, err := json.Marshal(noSig)
-		if err != nil {
-			return nil, false, errors.Wrap(err, "marshal parsig")
-		}
-
-		// Hash it
-		h := sha256.New()
-		h.Write(b)
-		var hash [32]byte
-		copy(hash[:], h.Sum(nil))
-
-		// Find the first identical set of length threshold
-		set := sigsByDataHash[hash]
+		// Find the first set of length threshold
+		set := sigsByMsgRoot[root]
 		set = append(set, sig)
 
 		if len(set) == threshold {
 			return set, true, nil
 		}
 
-		sigsByDataHash[hash] = set
+		sigsByMsgRoot[root] = set
 	}
 
 	return nil, false, nil

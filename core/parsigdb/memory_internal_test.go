@@ -28,7 +28,7 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestCalculateOutput(t *testing.T) {
+func TestGetThresholdMatching(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  []int

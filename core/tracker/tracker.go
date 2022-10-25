@@ -164,8 +164,8 @@ const (
 	msgSigAgg = "bug: threshold aggregation of partial signatures failed due to inconsistent signed data"
 )
 
-// parsigsByMsg.
-type parsigsByMsg map[string][]int
+// parsigsByMsg contains partial signatures grouped by message root.
+type parsigsByMsg map[[32]byte][]core.ParSignedData
 
 // event represents an event emitted by a core workflow step.
 type event struct {
@@ -211,7 +211,7 @@ func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, from
 		analyser:              analyser,
 		deleter:               deleter,
 		fromSlot:              fromSlot,
-		parSigReporter:        parSigReporter,
+		parSigReporter:        reportParSigs,
 		failedDutyReporter:    newFailedDutyReporter(),
 		participationReporter: newParticipationReporter(peers),
 	}
@@ -331,7 +331,7 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, parsigMs
 func analyseParSigs(events []event) parsigsByMsg {
 	var (
 		dedup = make(map[int]bool)
-		datas = make(map[string][]int)
+		datas = make(map[[32]byte][]core.ParSignedData)
 	)
 
 	for _, e := range events {
@@ -343,19 +343,13 @@ func analyseParSigs(events []event) parsigsByMsg {
 		}
 		dedup[e.parSig.ShareIdx] = true
 
-		// Clear signature to get unsigned data
-		noSig, err := e.parSig.SetSignature(nil)
+		root, err := e.parSig.MessageRoot()
 		if err != nil {
-			log.Warn(context.Background(), "Clear partial signature", err)
-			continue // Just log and ignore as this is highly unlikely and non-critical code.
-		}
-		data, err := json.Marshal(noSig)
-		if err != nil {
-			log.Warn(context.Background(), "Marshal parsig", err)
+			log.Warn(context.Background(), "Parsig message root", err)
 			continue // Just log and ignore as this is highly unlikely and non-critical code.
 		}
 
-		datas[string(data)] = append(datas[string(data)], e.parSig.ShareIdx)
+		datas[root] = append(datas[root], *e.parSig)
 	}
 
 	return datas
@@ -743,19 +737,37 @@ func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.P
 	return nil
 }
 
-func parSigReporter(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg) {
+func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg) {
 	if len(parsigMsgs) <= 1 {
 		return // Nothing to report.
 	}
 
 	inconsistentCounter.WithLabelValues(duty.Type.String()).Inc()
 
+	// Group indexes by json for logging.
+	indexesByJSON := make(map[string][]int)
+	for _, parsigs := range parsigMsgs {
+		var key string
+		for _, parsig := range parsigs {
+			if key == "" {
+				bytes, err := json.Marshal(parsig)
+				if err != nil {
+					continue // Ignore error, just skip it.
+				}
+				key = string(bytes)
+			}
+			indexesByJSON[key] = append(indexesByJSON[key], parsig.ShareIdx)
+		}
+	}
+
 	if expectInconsistentParSigs(duty.Type) {
 		log.Debug(ctx, "Inconsistent sync committee partial signed data",
-			z.Any("data", parsigMsgs))
+			z.Any("duty", duty),
+			z.Any("data", indexesByJSON))
 	} else {
 		log.Warn(ctx, "Inconsistent partial signed data", nil,
-			z.Any("data", parsigMsgs))
+			z.Any("duty", duty),
+			z.Any("data", indexesByJSON))
 	}
 }
 
