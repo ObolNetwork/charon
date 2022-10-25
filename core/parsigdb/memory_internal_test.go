@@ -95,7 +95,7 @@ func TestGetThresholdMatching(t *testing.T) {
 						datas = append(datas, provider(i))
 					}
 
-					out, ok, err := getThresholdMatching(datas, cluster.Threshold(len(datas)))
+					out, ok, err := getThresholdMatching(1, datas, cluster.Threshold(len(datas)))
 					require.NoError(t, err)
 					require.Equal(t, len(test.output) > 0, ok)
 

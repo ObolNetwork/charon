@@ -102,7 +102,7 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 			z.Any("pubkey", pubkey))
 
 		// Check if sufficient matching partial signed data has been received.
-		psigs, ok, err := getThresholdMatching(sigs, db.threshold)
+		psigs, ok, err := getThresholdMatching(duty.Type, sigs, db.threshold)
 		if err != nil {
 			return err
 		} else if !ok {
@@ -166,9 +166,13 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 }
 
 // getThresholdMatching returns true and threshold number of partial signed data with identical data or false.
-func getThresholdMatching(sigs []core.ParSignedData, threshold int) ([]core.ParSignedData, bool, error) {
+func getThresholdMatching(typ core.DutyType, sigs []core.ParSignedData, threshold int) ([]core.ParSignedData, bool, error) {
 	if len(sigs) < threshold {
 		return nil, false, nil
+	}
+	if typ == core.DutySignature {
+		// Signatures do not support message roots.
+		return sigs, len(sigs) == threshold, nil
 	}
 
 	sigsByMsgRoot := make(map[[32]byte][]core.ParSignedData)
