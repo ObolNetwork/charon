@@ -327,7 +327,7 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, parsigMs
 	return true, comp, msg
 }
 
-// analyseParSigs returns a mapping partial signed data messages by peers (share index).
+// analyseParSigs returns a mapping of partial signed data messages by peers (share index).
 func analyseParSigs(duty core.Duty, allEvents map[core.Duty][]event) parsigsByMsg {
 	var (
 		dedup = make(map[int]bool)
