@@ -371,6 +371,8 @@ type SignedData interface {
 	Signature() Signature
 	// SetSignature returns a copy of signed duty data with the signature replaced.
 	SetSignature(Signature) (SignedData, error)
+	// MessageRoot returns the unsigned data message root.
+	MessageRoot() ([32]byte, error)
 	// Clone returns a cloned copy of the SignedData. For an immutable core workflow architecture,
 	// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
 	Clone() (SignedData, error)
