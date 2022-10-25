@@ -29,6 +29,12 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
+func TestStepString(t *testing.T) {
+	for step := zero; step < sentinel; step++ {
+		require.NotEmpty(t, step.String())
+	}
+}
+
 func TestTrackerFailedDuty(t *testing.T) {
 	const slot = 1
 	testData, pubkeys := setupData(t, []int{slot})
@@ -39,7 +45,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 		deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
 
 		count := 0
-		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, component component, msg string) {
+		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, component step, msg string) {
 			require.Equal(t, testData[0].duty, failedDuty)
 			require.True(t, isFailed)
 			require.Equal(t, consensus, component)
@@ -79,7 +85,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 		deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
 
 		count := 0
-		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, component component, msg string) {
+		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, component step, msg string) {
 			require.Equal(t, testData[0].duty, failedDuty)
 			require.False(t, isFailed)
 			require.Equal(t, zero, component)
@@ -127,77 +133,89 @@ func TestAnalyseDutyFailed(t *testing.T) {
 	attDuty := core.NewAttesterDuty(int64(slot))
 	proposerDuty := core.NewProposerDuty(int64(slot))
 	randaoDuty := core.NewRandaoDuty(int64(slot))
+	syncMsgDuty := core.NewSyncMessageDuty(int64(slot))
 
 	t.Run("Failed", func(t *testing.T) {
 		// Failed at fetcher
 		events := map[core.Duty][]event{
 			attDuty: {
 				{
-					duty:      attDuty,
-					component: scheduler,
+					duty: attDuty,
+					step: scheduler,
 				},
 			},
 		}
 
-		failed, comp, msg := analyseDutyFailed(attDuty, events)
+		failed, step, msg := analyseDutyFailed(attDuty, events, nil)
 		require.True(t, failed)
-		require.Equal(t, comp, fetcher)
+		require.Equal(t, step, fetcher)
 		require.Equal(t, msg, msgFetcher)
 
 		// Failed at consensus
 		events[attDuty] = append(events[attDuty], event{
-			duty:      attDuty,
-			component: fetcher,
+			duty: attDuty,
+			step: fetcher,
 		})
 
-		failed, comp, msg = analyseDutyFailed(attDuty, events)
+		failed, step, msg = analyseDutyFailed(attDuty, events, nil)
 		require.True(t, failed)
-		require.Equal(t, comp, consensus)
+		require.Equal(t, step, consensus)
 		require.Equal(t, msg, msgConsensus)
 
 		// Failed at validatorAPI
 		events[attDuty] = append(events[attDuty], event{
-			duty:      attDuty,
-			component: consensus,
+			duty: attDuty,
+			step: consensus,
 		})
 
-		failed, comp, msg = analyseDutyFailed(attDuty, events)
+		failed, step, msg = analyseDutyFailed(attDuty, events, nil)
 		require.True(t, failed)
-		require.Equal(t, comp, validatorAPI)
+		require.Equal(t, step, validatorAPI)
 		require.Equal(t, msg, msgValidatorAPI)
 
 		// Failed at parsigDBInternal
 		events[attDuty] = append(events[attDuty], event{
-			duty:      attDuty,
-			component: validatorAPI,
+			duty: attDuty,
+			step: validatorAPI,
 		})
 
-		failed, comp, msg = analyseDutyFailed(attDuty, events)
+		failed, step, msg = analyseDutyFailed(attDuty, events, nil)
 		require.True(t, failed)
-		require.Equal(t, comp, parSigDBInternal)
+		require.Equal(t, step, parSigDBInternal)
 		require.Equal(t, msg, msgParSigDBInternal)
 
 		// Failed at parsigEx
 		events[attDuty] = append(events[attDuty], event{
-			duty:      attDuty,
-			component: parSigDBInternal,
+			duty: attDuty,
+			step: parSigDBInternal,
 		})
 
-		failed, comp, msg = analyseDutyFailed(attDuty, events)
+		failed, step, msg = analyseDutyFailed(attDuty, events, nil)
 		require.True(t, failed)
-		require.Equal(t, comp, parSigEx)
+		require.Equal(t, step, parSigEx)
 		require.Equal(t, msg, msgParSigEx)
 
 		// Failed at parsigDBThreshold
 		events[attDuty] = append(events[attDuty], event{
-			duty:      attDuty,
-			component: parSigEx,
+			duty: attDuty,
+			step: parSigEx,
 		})
 
-		failed, comp, msg = analyseDutyFailed(attDuty, events)
+		failed, step, msg = analyseDutyFailed(attDuty, events, nil)
 		require.True(t, failed)
-		require.Equal(t, comp, parSigDBThreshold)
-		require.Equal(t, msg, msgParSigDBThreshold)
+		require.Equal(t, step, parSigDBThreshold)
+		require.Equal(t, msg, msgParSigDBInsufficient)
+
+		failed, step, msg = analyseDutyFailed(attDuty, events, parsigsByMsg{"a": nil, "b": nil})
+		require.True(t, failed)
+		require.Equal(t, step, parSigDBThreshold)
+		require.Equal(t, msg, msgParSigDBInconsistent)
+
+		events[syncMsgDuty] = events[attDuty]
+		failed, step, msg = analyseDutyFailed(syncMsgDuty, events, parsigsByMsg{"a": nil, "b": nil})
+		require.True(t, failed)
+		require.Equal(t, step, parSigDBThreshold)
+		require.Equal(t, msg, msgParSigDBInconsistentSync)
 	})
 
 	t.Run("FailedAtFetcherAsRandaoFailed", func(t *testing.T) {
@@ -205,44 +223,44 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		events := map[core.Duty][]event{
 			proposerDuty: {
 				{
-					duty:      proposerDuty,
-					component: scheduler,
+					duty: proposerDuty,
+					step: scheduler,
 				},
 			},
 			randaoDuty: {
 				{
-					duty:      proposerDuty,
-					component: validatorAPI,
+					duty: proposerDuty,
+					step: validatorAPI,
 				},
 				{
-					duty:      proposerDuty,
-					component: parSigDBInternal,
+					duty: proposerDuty,
+					step: parSigDBInternal,
 				},
 			},
 		}
 
-		failed, comp, msg := analyseDutyFailed(proposerDuty, events)
+		failed, step, msg := analyseDutyFailed(proposerDuty, events, nil)
 		require.True(t, failed)
-		require.Equal(t, comp, fetcher)
+		require.Equal(t, step, fetcher)
 		require.Equal(t, msg, msgFetcherProposerFailedRandao)
 
 		// Randao failed at parSigDBThreshold
 		events[randaoDuty] = append(events[randaoDuty], event{
-			duty:      proposerDuty,
-			component: parSigEx,
+			duty: proposerDuty,
+			step: parSigEx,
 		})
 
-		failed, comp, msg = analyseDutyFailed(proposerDuty, events)
+		failed, step, msg = analyseDutyFailed(proposerDuty, events, nil)
 		require.True(t, failed)
-		require.Equal(t, comp, fetcher)
+		require.Equal(t, step, fetcher)
 		require.Equal(t, msg, msgFetcherProposerFewRandaos)
 
 		// No Randaos
 		events[randaoDuty] = nil
 
-		failed, comp, msg = analyseDutyFailed(proposerDuty, events)
+		failed, step, msg = analyseDutyFailed(proposerDuty, events, nil)
 		require.True(t, failed)
-		require.Equal(t, comp, fetcher)
+		require.Equal(t, step, fetcher)
 		require.Equal(t, msg, msgFetcherProposerZeroRandaos)
 	})
 
@@ -252,47 +270,47 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			attDuty = core.NewAttesterDuty(int64(1))
 		)
 
-		for comp := scheduler; comp < sentinel; comp++ {
-			events[attDuty] = append(events[attDuty], event{component: comp})
+		for step := scheduler; step < sentinel; step++ {
+			events[attDuty] = append(events[attDuty], event{step: step})
 		}
 
-		failed, comp, msg := analyseDutyFailed(attDuty, events)
+		failed, step, msg := analyseDutyFailed(attDuty, events, nil)
 		require.False(t, failed)
-		require.Equal(t, zero, comp)
+		require.Equal(t, zero, step)
 		require.Empty(t, msg)
 	})
 }
 
-func TestDutyFailedComponent(t *testing.T) {
+func TestDutyFailedStep(t *testing.T) {
 	var events []event
-	for comp := scheduler; comp < sentinel; comp++ {
-		events = append(events, event{component: comp})
+	for step := scheduler; step < sentinel; step++ {
+		events = append(events, event{step: step})
 	}
 
 	t.Run("DutySuccess", func(t *testing.T) {
-		failed, comp := dutyFailedComponent(events)
+		failed, step := dutyFailedStep(events)
 		require.False(t, failed)
-		require.Equal(t, zero, comp)
+		require.Equal(t, zero, step)
 	})
 
 	t.Run("EmptyEvents", func(t *testing.T) {
-		f, comp := dutyFailedComponent([]event{})
+		f, step := dutyFailedStep([]event{})
 		require.True(t, f)
-		require.Equal(t, zero, comp)
+		require.Equal(t, zero, step)
 	})
 
 	t.Run("DutyFailed", func(t *testing.T) {
-		// Remove the last component (sigAgg) from the events array.
+		// Remove the last step (sigAgg) from the events array.
 		events = events[:len(events)-1]
-		f, comp := dutyFailedComponent(events)
+		f, step := dutyFailedStep(events)
 		require.True(t, f)
-		require.Equal(t, comp, sigAgg)
+		require.Equal(t, step, sigAgg)
 
-		// Remove the second-last component (parsigDBThreshold) from the events array.
+		// Remove the second-last step (parsigDBThreshold) from the events array.
 		events = events[:len(events)-1]
-		f, comp = dutyFailedComponent(events)
+		f, step = dutyFailedStep(events)
 		require.True(t, f)
-		require.Equal(t, comp, parSigDBThreshold)
+		require.Equal(t, step, parSigDBThreshold)
 	})
 }
 
@@ -341,7 +359,7 @@ func TestTrackerParticipation(t *testing.T) {
 					continue
 				}
 
-				set[pk] = core.ParSignedData{ShareIdx: p.ShareIdx()}
+				set[pk] = core.NewPartialAttestation(testutil.RandomAttestation(), p.ShareIdx())
 			}
 
 			data = append(data, set)
@@ -380,7 +398,7 @@ func TestTrackerParticipation(t *testing.T) {
 	}
 
 	// Ignore failedDutyReporter part to isolate participation only.
-	tr.failedDutyReporter = func(context.Context, core.Duty, bool, component, string) {}
+	tr.failedDutyReporter = func(context.Context, core.Duty, bool, step, string) {}
 
 	go func() {
 		for _, td := range testData {
@@ -610,8 +628,8 @@ func setupData(t *testing.T, slots []int) ([]testDutyData, []core.PubKey) {
 		unsignedset[pubkeysByIdx[vIdxB]] = testutil.RandomCoreAttestationData(t)
 
 		parsignedset := make(core.ParSignedDataSet)
-		parsignedset[pubkeysByIdx[vIdxA]] = core.ParSignedData{ShareIdx: 1}
-		parsignedset[pubkeysByIdx[vIdxB]] = core.ParSignedData{ShareIdx: 1}
+		parsignedset[pubkeysByIdx[vIdxA]] = core.NewPartialAttestation(testutil.RandomAttestation(), 1)
+		parsignedset[pubkeysByIdx[vIdxB]] = core.NewPartialAttestation(testutil.RandomAttestation(), 1)
 
 		data = append(data, testDutyData{
 			duty:             duty,
@@ -669,8 +687,8 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			duty: dutyAgg,
 			events: map[core.Duty][]event{
 				dutyAgg: {event{
-					duty:      dutyAgg,
-					component: scheduler,
+					duty: dutyAgg,
+					step: scheduler,
 				}},
 			},
 			msg:    msgFetcherAggregatorZeroPrepares,
@@ -681,12 +699,12 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			duty: dutyAgg,
 			events: map[core.Duty][]event{
 				dutyAgg: {event{
-					duty:      dutyAgg,
-					component: scheduler,
+					duty: dutyAgg,
+					step: scheduler,
 				}},
 				dutyPrepAgg: {event{
-					duty:      dutyPrepAgg,
-					component: parSigEx,
+					duty: dutyPrepAgg,
+					step: parSigEx,
 				}},
 			},
 			msg:    msgFetcherAggregatorFewPrepares,
@@ -697,12 +715,12 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			duty: dutyAgg,
 			events: map[core.Duty][]event{
 				dutyAgg: {event{
-					duty:      dutyAgg,
-					component: scheduler,
+					duty: dutyAgg,
+					step: scheduler,
 				}},
 				dutyPrepAgg: {event{
-					duty:      dutyPrepAgg,
-					component: parSigDBThreshold,
+					duty: dutyPrepAgg,
+					step: parSigDBThreshold,
 				}},
 			},
 			msg:    msgFetcherAggregatorFailedPrepare,
@@ -713,16 +731,16 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			duty: dutyAgg,
 			events: map[core.Duty][]event{
 				dutyAgg: {event{
-					duty:      dutyAgg,
-					component: scheduler,
+					duty: dutyAgg,
+					step: scheduler,
 				}},
 				dutyPrepAgg: {event{
-					duty:      dutyPrepAgg,
-					component: sigAgg,
+					duty: dutyPrepAgg,
+					step: sigAgg,
 				}},
 				dutyAtt: {event{
-					duty:      dutyAtt,
-					component: fetcher,
+					duty: dutyAtt,
+					step: fetcher,
 				}},
 			},
 			msg:    msgFetcherAggregatorNoAttData,
@@ -733,16 +751,16 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			duty: dutyAgg,
 			events: map[core.Duty][]event{
 				dutyAgg: {event{
-					duty:      dutyAgg,
-					component: scheduler,
+					duty: dutyAgg,
+					step: scheduler,
 				}},
 				dutyPrepAgg: {event{
-					duty:      dutyPrepAgg,
-					component: sigAgg,
+					duty: dutyPrepAgg,
+					step: sigAgg,
 				}},
 				dutyAtt: {event{
-					duty:      dutyAtt,
-					component: sigAgg,
+					duty: dutyAtt,
+					step: sigAgg,
 				}},
 			},
 			msg:    "",
@@ -753,8 +771,8 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			duty: dutySyncCon,
 			events: map[core.Duty][]event{
 				dutySyncCon: {event{
-					duty:      dutySyncCon,
-					component: scheduler,
+					duty: dutySyncCon,
+					step: scheduler,
 				}},
 			},
 			msg:    msgFetcherSyncContributionZeroPrepares,
@@ -765,12 +783,12 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			duty: dutySyncCon,
 			events: map[core.Duty][]event{
 				dutySyncCon: {event{
-					duty:      dutySyncCon,
-					component: scheduler,
+					duty: dutySyncCon,
+					step: scheduler,
 				}},
 				dutyPrepSyncCon: {event{
-					duty:      dutyPrepSyncCon,
-					component: parSigEx,
+					duty: dutyPrepSyncCon,
+					step: parSigEx,
 				}},
 			},
 			msg:    msgFetcherSyncContributionFewPrepares,
@@ -781,12 +799,12 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			duty: dutySyncCon,
 			events: map[core.Duty][]event{
 				dutySyncCon: {event{
-					duty:      dutySyncCon,
-					component: scheduler,
+					duty: dutySyncCon,
+					step: scheduler,
 				}},
 				dutyPrepSyncCon: {event{
-					duty:      dutyPrepSyncCon,
-					component: parSigDBThreshold,
+					duty: dutyPrepSyncCon,
+					step: parSigDBThreshold,
 				}},
 			},
 			msg:    msgFetcherSyncContributionFailedPrepare,
@@ -797,16 +815,16 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			duty: dutySyncCon,
 			events: map[core.Duty][]event{
 				dutySyncCon: {event{
-					duty:      dutySyncCon,
-					component: scheduler,
+					duty: dutySyncCon,
+					step: scheduler,
 				}},
 				dutyPrepSyncCon: {event{
-					duty:      dutyPrepSyncCon,
-					component: sigAgg,
+					duty: dutyPrepSyncCon,
+					step: sigAgg,
 				}},
 				dutySyncMsg: {event{
-					duty:      dutySyncMsg,
-					component: fetcher,
+					duty: dutySyncMsg,
+					step: fetcher,
 				}},
 			},
 			msg:    msgFetcherSyncContributionNoSyncMsg,
@@ -817,16 +835,16 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			duty: dutySyncCon,
 			events: map[core.Duty][]event{
 				dutySyncCon: {event{
-					duty:      dutySyncCon,
-					component: scheduler,
+					duty: dutySyncCon,
+					step: scheduler,
 				}},
 				dutyPrepSyncCon: {event{
-					duty:      dutyPrepSyncCon,
-					component: sigAgg,
+					duty: dutyPrepSyncCon,
+					step: sigAgg,
 				}},
 				dutySyncMsg: {event{
-					duty:      dutySyncMsg,
-					component: sigAgg,
+					duty: dutySyncMsg,
+					step: sigAgg,
 				}},
 			},
 			msg:    "",
@@ -836,10 +854,10 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			failed, comp, msg := analyseDutyFailed(test.duty, test.events)
+			failed, step, msg := analyseDutyFailed(test.duty, test.events, nil)
 			require.Equal(t, failed, test.failed)
 			require.Equal(t, test.msg, msg)
-			require.Equal(t, fetcher, comp)
+			require.Equal(t, fetcher, step)
 		})
 	}
 }
@@ -867,7 +885,7 @@ func TestIsParSigEventExpected(t *testing.T) {
 			name: "DutyRandao expected",
 			duty: core.NewRandaoDuty(slot),
 			events: map[core.Duty][]event{
-				core.NewProposerDuty(slot): {event{component: scheduler, pubkey: pubkey}},
+				core.NewProposerDuty(slot): {event{step: scheduler, pubkey: pubkey}},
 			},
 			out: true,
 		},
@@ -880,7 +898,7 @@ func TestIsParSigEventExpected(t *testing.T) {
 			name: "DutyPrepareAggregator expected",
 			duty: core.NewPrepareAggregatorDuty(slot),
 			events: map[core.Duty][]event{
-				core.NewAttesterDuty(slot): {event{component: scheduler, pubkey: pubkey}},
+				core.NewAttesterDuty(slot): {event{step: scheduler, pubkey: pubkey}},
 			},
 			out: true,
 		},
@@ -893,7 +911,7 @@ func TestIsParSigEventExpected(t *testing.T) {
 			name: "DutyPrepareSyncContribution expected",
 			duty: core.NewPrepareSyncContributionDuty(slot),
 			events: map[core.Duty][]event{
-				core.NewSyncContributionDuty(slot): {event{component: scheduler, pubkey: pubkey}},
+				core.NewSyncContributionDuty(slot): {event{step: scheduler, pubkey: pubkey}},
 			},
 			out: true,
 		},
@@ -911,7 +929,7 @@ func TestIsParSigEventExpected(t *testing.T) {
 			name: "DutySyncMessage expected",
 			duty: core.NewSyncMessageDuty(slot),
 			events: map[core.Duty][]event{
-				core.NewSyncContributionDuty(slot): {event{component: scheduler, pubkey: pubkey}},
+				core.NewSyncContributionDuty(slot): {event{step: scheduler, pubkey: pubkey}},
 			},
 			out: true,
 		},
@@ -922,4 +940,42 @@ func TestIsParSigEventExpected(t *testing.T) {
 			require.Equal(t, test.out, isParSigEventExpected(test.duty, pubkey, test.events))
 		})
 	}
+}
+
+func TestAnalyseParSigs(t *testing.T) {
+	require.Empty(t, analyseParSigs(nil))
+
+	var events []event
+
+	makeEvents := func(n int) {
+		data := testutil.RandomCoreVersionSignedBeaconBlock(t)
+		offset := len(events)
+		for i := 0; i < n; i++ {
+			data, err := data.SetSignature(testutil.RandomCoreSignature())
+			require.NoError(t, err)
+			events = append(events, event{
+				parSig: &core.ParSignedData{
+					ShareIdx:   offset + i,
+					SignedData: data,
+				},
+			})
+		}
+	}
+
+	expect := map[int]bool{
+		4: true,
+		2: true,
+	}
+	for n := range expect {
+		makeEvents(n)
+	}
+
+	parSigMsgs := analyseParSigs(events)
+	require.Len(t, parSigMsgs, len(expect))
+
+	lengths := make(map[int]bool)
+	for _, indexes := range parSigMsgs {
+		lengths[len(indexes)] = true
+	}
+	require.Equal(t, expect, lengths)
 }

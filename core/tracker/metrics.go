@@ -40,8 +40,8 @@ var (
 		Namespace: "core",
 		Subsystem: "tracker",
 		Name:      "failed_duties_total",
-		Help:      "Total number of failed duties by type and component",
-	}, []string{"duty", "component"})
+		Help:      "Total number of failed duties by type",
+	}, []string{"duty"})
 
 	unexpectedEventsCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "core",
@@ -49,4 +49,11 @@ var (
 		Name:      "unexpected_events_total",
 		Help:      "Total number of unexpected events by peer",
 	}, []string{"peer"})
+
+	inconsistentCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "inconsistent_parsigs_total",
+		Help:      "Total number of duties that contained inconsistent partial signed data by duty type",
+	}, []string{"duty"})
 )
