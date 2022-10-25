@@ -382,14 +382,14 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 
 // resolveSyncCommDuties resolves sync committee duties for the validators in the given slot's epoch, caching the results.
 func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, vals validators) error {
-	syncCommDuties, err := s.eth2Cl.SyncCommitteeDuties(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+	duties, err := s.eth2Cl.SyncCommitteeDuties(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
 	if err != nil {
 		return err
 	}
 
-	var syncCommSubscriptions []*v1.SyncCommitteeSubscription
+	var subscriptions []*v1.SyncCommitteeSubscription
 
-	for _, syncCommDuty := range syncCommDuties {
+	for _, syncCommDuty := range duties {
 		var (
 			startSlot = slot
 			endSlot   = slot.LastSlotInEpoch()
@@ -422,16 +422,16 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 			z.U64("epoch", uint64(slot.Epoch())),
 		)
 
-		syncCommSubscriptions = append(syncCommSubscriptions, &v1.SyncCommitteeSubscription{
+		subscriptions = append(subscriptions, &v1.SyncCommitteeSubscription{
 			ValidatorIndex:       vIdx,
 			SyncCommitteeIndices: syncCommDuty.ValidatorSyncCommitteeIndices,
 			UntilEpoch:           eth2p0.Epoch(slot.NextEpoch()), // Renew subscription again next epoch.
 		})
 	}
 
-	if len(syncCommSubscriptions) > 0 {
+	if len(subscriptions) > 0 {
 		// Subscribe to sync committee subnets.
-		err = s.eth2Cl.SubmitSyncCommitteeSubscriptions(ctx, syncCommSubscriptions)
+		err = s.eth2Cl.SubmitSyncCommitteeSubscriptions(ctx, subscriptions)
 		if err != nil {
 			return err
 		}
