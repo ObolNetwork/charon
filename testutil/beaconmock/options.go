@@ -346,9 +346,9 @@ func WithNoSyncCommitteeDuties() Option {
 	}
 }
 
-// WithSyncCommitteeDuties configures the mock to override SyncCommitteeDutiesFunc to return sync committee
+// WithDeterministicSyncCommDuties configures the mock to override SyncCommitteeDutiesFunc to return sync committee
 // duties for all validators with epoch number not divisible by 3.
-func WithSyncCommitteeDuties() Option {
+func WithDeterministicSyncCommDuties() Option {
 	return func(mock *Mock) {
 		mock.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 			if epoch%3 == 0 {
@@ -521,6 +521,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return []*eth2v1.SyncCommitteeDuty{}, nil
 		},
 		SubmitSyncCommitteeMessagesFunc: func(context.Context, []*altair.SyncCommitteeMessage) error {
+			return nil
+		},
+		SubmitSyncCommitteeSubscriptionsFunc: func(context.Context, []*eth2v1.SyncCommitteeSubscription) error {
 			return nil
 		},
 	}

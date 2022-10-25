@@ -76,10 +76,13 @@ func (d ProposerDefinition) MarshalJSON() ([]byte, error) {
 	return d.ProposerDuty.MarshalJSON()
 }
 
-func NewSyncCommitteDefinition(duty *eth2v1.SyncCommitteeDuty) DutyDefinition {
+// NewSyncCommitteeDefinition is a convenience function that returns a new SyncCommitteeDefinition.
+func NewSyncCommitteeDefinition(duty *eth2v1.SyncCommitteeDuty) DutyDefinition {
 	return SyncCommitteeDefinition{SyncCommitteeDuty: *duty}
 }
 
+// SyncCommitteeDefinition defines a sync committee duty. It implements DutyDefinition.
+// Note the slight rename from Duty to Definition to avoid overloading the term Duty.
 type SyncCommitteeDefinition struct {
 	eth2v1.SyncCommitteeDuty
 }
@@ -91,7 +94,7 @@ func (s SyncCommitteeDefinition) Clone() (DutyDefinition, error) {
 		return nil, errors.Wrap(err, "clone sync committee definition")
 	}
 
-	return NewSyncCommitteDefinition(duty), nil
+	return NewSyncCommitteeDefinition(duty), nil
 }
 
 func (s SyncCommitteeDefinition) MarshalJSON() ([]byte, error) {

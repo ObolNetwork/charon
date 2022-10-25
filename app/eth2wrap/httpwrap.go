@@ -31,8 +31,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
-// httpAdapter implements Client by wrapping eth2http.Service adding the experimental
-// interfaces not present go-eth2-client.
+// httpAdapter implements Client by wrapping eth2http.Service adding the experimental interfaces not present in go-eth2-client.
 type httpAdapter struct {
 	*eth2http.Service
 	timeout time.Duration
@@ -42,7 +41,11 @@ type submitBeaconCommitteeSelectionsJSON struct {
 	Data []*eth2exp.BeaconCommitteeSelection `json:"data"`
 }
 
-// AggregateBeaconCommitteeSelections implements eth2exp.BeaconCommitteeSelectionsAggregator.
+type submitSyncCommitteeSelectionsJSON struct {
+	Data []*eth2exp.SyncCommitteeSelection `json:"data"`
+}
+
+// AggregateBeaconCommitteeSelections implements eth2exp.BeaconCommitteeSelectionAggregator.
 func (h httpAdapter) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
 	reqBody, err := json.Marshal(selections)
 	if err != nil {
@@ -57,6 +60,26 @@ func (h httpAdapter) AggregateBeaconCommitteeSelections(ctx context.Context, sel
 	var resp submitBeaconCommitteeSelectionsJSON
 	if err := json.Unmarshal(respBody, &resp); err != nil {
 		return nil, errors.Wrap(err, "failed to parse submit beacon committee selections")
+	}
+
+	return resp.Data, nil
+}
+
+// AggregateSyncCommitteeSelections implements eth2exp.SyncCommitteeSelectionAggregator.
+func (h httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
+	reqBody, err := json.Marshal(selections)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal sync committee selections")
+	}
+
+	respBody, err := httpPost(ctx, h.Address(), "/eth/v1/validator/sync_committee_selections", bytes.NewReader(reqBody), h.timeout)
+	if err != nil {
+		return nil, errors.Wrap(err, "submit sync committee selections")
+	}
+
+	var resp submitSyncCommitteeSelectionsJSON
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return nil, errors.Wrap(err, "failed to parse beacon committee selections response")
 	}
 
 	return resp.Data, nil

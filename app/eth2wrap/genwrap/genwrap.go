@@ -56,6 +56,7 @@ import (
 type Client interface {
     eth2client.Service
     eth2exp.BeaconCommitteeSelectionAggregator
+    eth2exp.SyncCommitteeSelectionAggregator
 
     {{range .Providers}} eth2client.{{.}}
     {{end -}}
