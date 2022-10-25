@@ -63,6 +63,10 @@ func NewPartialSignature(sig Signature, shareIdx int) ParSignedData {
 // Signature is a BLS12-381 Signature. It implements SignedData.
 type Signature []byte
 
+func (Signature) MessageRoot() ([32]byte, error) {
+	return [32]byte{}, errors.New("unsigned data root not supported by signature type")
+}
+
 func (s Signature) Clone() (SignedData, error) {
 	return s.clone(), nil
 }
@@ -151,6 +155,20 @@ func NewPartialVersionedSignedBeaconBlock(block *spec.VersionedSignedBeaconBlock
 // VersionedSignedBeaconBlock is a signed versioned beacon block and implements SignedData.
 type VersionedSignedBeaconBlock struct {
 	spec.VersionedSignedBeaconBlock // Could subtype instead of embed, but aligning with Attestation that cannot subtype.
+}
+
+func (b VersionedSignedBeaconBlock) MessageRoot() ([32]byte, error) {
+	switch b.Version {
+	// No block nil checks since `NewVersionedSignedBeaconBlock` assumed.
+	case spec.DataVersionPhase0:
+		return b.Phase0.Message.HashTreeRoot()
+	case spec.DataVersionAltair:
+		return b.Altair.Message.HashTreeRoot()
+	case spec.DataVersionBellatrix:
+		return b.Bellatrix.Message.HashTreeRoot()
+	default:
+		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBeaconBlock`.
+	}
 }
 
 func (b VersionedSignedBeaconBlock) Clone() (SignedData, error) {
@@ -270,11 +288,6 @@ func (b *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-// VersionedSignedBlindedBeaconBlock is a signed versioned blinded beacon block and implements SignedData.
-type VersionedSignedBlindedBeaconBlock struct {
-	eth2api.VersionedSignedBlindedBeaconBlock // Could subtype instead of embed, but aligning with Attestation that cannot subtype.
-}
-
 // NewVersionedSignedBlindedBeaconBlock validates and returns a new wrapped VersionedSignedBlindedBeaconBlock.
 func NewVersionedSignedBlindedBeaconBlock(block *eth2api.VersionedSignedBlindedBeaconBlock) (VersionedSignedBlindedBeaconBlock, error) {
 	switch block.Version {
@@ -300,6 +313,21 @@ func NewPartialVersionedSignedBlindedBeaconBlock(block *eth2api.VersionedSignedB
 		SignedData: wrap,
 		ShareIdx:   shareIdx,
 	}, nil
+}
+
+// VersionedSignedBlindedBeaconBlock is a signed versioned blinded beacon block and implements SignedData.
+type VersionedSignedBlindedBeaconBlock struct {
+	eth2api.VersionedSignedBlindedBeaconBlock // Could subtype instead of embed, but aligning with Attestation that cannot subtype.
+}
+
+func (b VersionedSignedBlindedBeaconBlock) MessageRoot() ([32]byte, error) {
+	switch b.Version {
+	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
+	case spec.DataVersionBellatrix:
+		return b.Bellatrix.Message.HashTreeRoot()
+	default:
+		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBlindedBeaconBlock`.
+	}
 }
 
 func (b VersionedSignedBlindedBeaconBlock) Clone() (SignedData, error) {
@@ -419,6 +447,10 @@ type Attestation struct {
 	eth2p0.Attestation
 }
 
+func (a Attestation) MessageRoot() ([32]byte, error) {
+	return a.Data.HashTreeRoot()
+}
+
 func (a Attestation) Clone() (SignedData, error) {
 	return a.clone()
 }
@@ -476,6 +508,10 @@ type SignedVoluntaryExit struct {
 	eth2p0.SignedVoluntaryExit
 }
 
+func (e SignedVoluntaryExit) MessageRoot() ([32]byte, error) {
+	return e.Message.HashTreeRoot()
+}
+
 func (e SignedVoluntaryExit) Clone() (SignedData, error) {
 	return e.clone()
 }
@@ -516,11 +552,6 @@ func (e *SignedVoluntaryExit) UnmarshalJSON(b []byte) error {
 	return e.SignedVoluntaryExit.UnmarshalJSON(b)
 }
 
-// VersionedSignedValidatorRegistration is a signed versioned validator (builder) registration and implements SignedData.
-type VersionedSignedValidatorRegistration struct {
-	eth2api.VersionedSignedValidatorRegistration
-}
-
 // versionedRawValidatorRegistrationJSON is a custom VersionedSignedValidator serialiser.
 type versionedRawValidatorRegistrationJSON struct {
 	Version      int             `json:"version"`
@@ -552,6 +583,20 @@ func NewPartialVersionedSignedValidatorRegistration(registration *eth2api.Versio
 		SignedData: wrap,
 		ShareIdx:   shareIdx,
 	}, nil
+}
+
+// VersionedSignedValidatorRegistration is a signed versioned validator (builder) registration and implements SignedData.
+type VersionedSignedValidatorRegistration struct {
+	eth2api.VersionedSignedValidatorRegistration
+}
+
+func (r VersionedSignedValidatorRegistration) MessageRoot() ([32]byte, error) {
+	switch r.Version {
+	case spec.BuilderVersionV1:
+		return r.V1.Message.HashTreeRoot()
+	default:
+		panic("unknown version")
+	}
 }
 
 func (r VersionedSignedValidatorRegistration) Clone() (SignedData, error) {
@@ -660,6 +705,10 @@ type SignedRandao struct {
 	eth2util.SignedEpoch
 }
 
+func (s SignedRandao) MessageRoot() ([32]byte, error) {
+	return s.SignedEpoch.HashTreeRoot()
+}
+
 func (s SignedRandao) Signature() Signature {
 	return SigFromETH2(s.SignedEpoch.Signature)
 }
@@ -717,6 +766,10 @@ type BeaconCommitteeSelection struct {
 	eth2exp.BeaconCommitteeSelection
 }
 
+func (s BeaconCommitteeSelection) MessageRoot() ([32]byte, error) {
+	return eth2util.SlotHashRoot(s.Slot)
+}
+
 func (s BeaconCommitteeSelection) Signature() Signature {
 	return SigFromETH2(s.SelectionProof)
 }
@@ -770,6 +823,10 @@ func NewPartialSignedAggregateAndProof(data *eth2p0.SignedAggregateAndProof, sha
 // SignedAggregateAndProof wraps eth2p0.SignedAggregateAndProof and implements SignedData.
 type SignedAggregateAndProof struct {
 	eth2p0.SignedAggregateAndProof
+}
+
+func (s SignedAggregateAndProof) MessageRoot() ([32]byte, error) {
+	return s.Message.HashTreeRoot()
 }
 
 func (s SignedAggregateAndProof) Signature() Signature {
@@ -827,6 +884,10 @@ type SignedSyncMessage struct {
 	altair.SyncCommitteeMessage
 }
 
+func (s SignedSyncMessage) MessageRoot() ([32]byte, error) {
+	return s.BeaconBlockRoot, nil
+}
+
 func (s SignedSyncMessage) Signature() Signature {
 	return SigFromETH2(s.SyncCommitteeMessage.Signature)
 }
@@ -867,6 +928,10 @@ func (s *SignedSyncMessage) UnmarshalJSON(input []byte) error {
 // SignedSyncContributionAndProof wraps altair.SignedContributionAndProof and implements SignedData.
 type SignedSyncContributionAndProof struct {
 	altair.SignedContributionAndProof
+}
+
+func (s SignedSyncContributionAndProof) MessageRoot() ([32]byte, error) {
+	return s.Message.HashTreeRoot()
 }
 
 func (s SignedSyncContributionAndProof) Signature() Signature {

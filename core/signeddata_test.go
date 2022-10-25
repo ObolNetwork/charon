@@ -102,6 +102,12 @@ func TestSignedDataSetSignature(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEqual(t, clone.Signature(), test.data.Signature())
 			require.NotEmpty(t, clone.Signature())
+
+			msgRoot, err := test.data.MessageRoot()
+			require.NoError(t, err)
+			cloneRoot, err := test.data.MessageRoot()
+			require.NoError(t, err)
+			require.Equal(t, msgRoot, cloneRoot)
 		})
 	}
 }
