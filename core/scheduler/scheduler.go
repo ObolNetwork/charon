@@ -387,20 +387,19 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 	}
 
 	for _, syncCommDuty := range duties {
-		var (
-			startSlot = slot
-			currEpoch = slot.Epoch()
-			vIdx      = syncCommDuty.ValidatorIndex
-		)
-
+		vIdx := syncCommDuty.ValidatorIndex
 		pubkey, ok := vals.PubKeyFromIndex(vIdx)
 		if !ok {
-			log.Warn(ctx, "Ignoring unexpected sync committee duty", nil, z.U64("vidx", uint64(syncCommDuty.ValidatorIndex)), z.I64("slot", slot.Slot))
+			log.Warn(ctx, "Ignoring unexpected sync committee duty", nil, z.U64("vidx", uint64(vIdx)), z.I64("slot", slot.Slot))
 			continue
 		}
 
 		// TODO(xenowits): sync committee duties start in the slot before the sync committee period.
 		// Refer: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#sync-committee
+		var (
+			startSlot = slot
+			currEpoch = slot.Epoch()
+		)
 
 		for sl := startSlot; sl.Epoch() == currEpoch; sl = sl.Next() {
 			// Schedule sync committee contribution aggregation.
@@ -409,7 +408,7 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 		}
 
 		log.Info(ctx, "Resolved sync committee duty",
-			z.U64("vidx", uint64(syncCommDuty.ValidatorIndex)),
+			z.U64("vidx", uint64(vIdx)),
 			z.Any("pubkey", pubkey),
 			z.U64("epoch", uint64(slot.Epoch())),
 		)
