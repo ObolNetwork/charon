@@ -268,39 +268,6 @@ func WithDeterministicAttesterDuties(factor int) Option {
 	}
 }
 
-// WithDeterministicSyncCommDuties configures the mock to provide deterministic sync committee duties based on provided arguments and config.
-// Note that it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
-func WithDeterministicSyncCommDuties() Option {
-	return func(mock *Mock) {
-		mock.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
-			vals, err := mock.Validators(ctx, "", indices)
-			if err != nil {
-				return nil, err
-			}
-
-			sort.Slice(indices, func(i, j int) bool {
-				return indices[i] < indices[j]
-			})
-
-			var resp []*eth2v1.SyncCommitteeDuty
-			for _, index := range indices {
-				val, ok := vals[index]
-				if !ok {
-					continue
-				}
-
-				resp = append(resp, &eth2v1.SyncCommitteeDuty{
-					PubKey:                        val.Validator.PublicKey,
-					ValidatorIndex:                index,
-					ValidatorSyncCommitteeIndices: []eth2p0.CommitteeIndex{1, 2, 3},
-				})
-			}
-
-			return resp, nil
-		}
-	}
-}
-
 // WithDeterministicProposerDuties configures the mock to provide deterministic duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
 func WithDeterministicProposerDuties(factor int) Option {
@@ -379,9 +346,9 @@ func WithNoSyncCommitteeDuties() Option {
 	}
 }
 
-// WithSyncCommitteeDuties configures the mock to override SyncCommitteeDutiesFunc to return sync committee
+// WithDeterministicSyncCommDuties configures the mock to override SyncCommitteeDutiesFunc to return sync committee
 // duties for all validators with epoch number not divisible by 3.
-func WithSyncCommitteeDuties() Option {
+func WithDeterministicSyncCommDuties() Option {
 	return func(mock *Mock) {
 		mock.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 			if epoch%3 == 0 {

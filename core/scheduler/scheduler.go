@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -387,12 +386,10 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 		return err
 	}
 
-	var subscriptions []*v1.SyncCommitteeSubscription
-
 	for _, syncCommDuty := range duties {
 		var (
 			startSlot = slot
-			endSlot   = slot.LastSlotInEpoch()
+			currEpoch = slot.Epoch()
 			vIdx      = syncCommDuty.ValidatorIndex
 		)
 
@@ -402,15 +399,10 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 			continue
 		}
 
-		// When assigned to an epoch sync committee, signatures must be produced and broadcast for slots on
-		// range [compute_start_slot_at_epoch(epoch) - 1, compute_start_slot_at_epoch(epoch) + SLOTS_PER_EPOCH - 1) rather than for the
-		// range [compute_start_slot_at_epoch(epoch), compute_start_slot_at_epoch(epoch) + SLOTS_PER_EPOCH).
-		// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#sync-committee
-		if slot.FirstInEpoch() {
-			startSlot = slot.Previous()
-		}
+		// TODO(xenowits): sync committee duties start in the slot before the sync committee period.
+		// Refer: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#sync-committee
 
-		for sl := startSlot; sl.Slot <= endSlot.Slot; sl = sl.Next() {
+		for sl := startSlot; sl.Epoch() == currEpoch; sl = sl.Next() {
 			// Schedule sync committee contribution aggregation.
 			duty := core.NewSyncContributionDuty(sl.Slot)
 			s.setDutyDefinition(duty, pubkey, core.NewSyncCommitteeDefinition(syncCommDuty))
@@ -421,20 +413,6 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 			z.Any("pubkey", pubkey),
 			z.U64("epoch", uint64(slot.Epoch())),
 		)
-
-		subscriptions = append(subscriptions, &v1.SyncCommitteeSubscription{
-			ValidatorIndex:       vIdx,
-			SyncCommitteeIndices: syncCommDuty.ValidatorSyncCommitteeIndices,
-			UntilEpoch:           eth2p0.Epoch(slot.NextEpoch()), // Renew subscription again next epoch.
-		})
-	}
-
-	if len(subscriptions) > 0 {
-		// Subscribe to sync committee subnets.
-		err = s.eth2Cl.SubmitSyncCommitteeSubscriptions(ctx, subscriptions)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil

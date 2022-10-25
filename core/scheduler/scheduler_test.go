@@ -298,7 +298,7 @@ func TestSchedulerDuties(t *testing.T) {
 func TestScheduler_GetDuty(t *testing.T) {
 	var (
 		t0     time.Time
-		slot   = int64(0)
+		slot   = int64(1)
 		valSet = beaconmock.ValidatorSetA
 	)
 
@@ -308,6 +308,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 		beaconmock.WithGenesisTime(t0),
 		beaconmock.WithDeterministicAttesterDuties(0),
 		beaconmock.WithDeterministicSyncCommDuties(),
+		beaconmock.WithSlotsPerEpoch(1),
 	)
 	require.NoError(t, err)
 
