@@ -436,16 +436,6 @@ func (s Slot) Next() Slot {
 	}
 }
 
-// Previous returns the previous slot.
-func (s Slot) Previous() Slot {
-	return Slot{
-		Slot:          s.Slot - 1,
-		Time:          s.Time.Add(-1 * s.SlotDuration),
-		SlotsPerEpoch: s.SlotsPerEpoch,
-		SlotDuration:  s.SlotDuration,
-	}
-}
-
 // Epoch returns the epoch of the slot.
 func (s Slot) Epoch() int64 {
 	return s.Slot / s.SlotsPerEpoch
