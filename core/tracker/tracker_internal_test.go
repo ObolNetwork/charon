@@ -943,19 +943,17 @@ func TestIsParSigEventExpected(t *testing.T) {
 }
 
 func TestAnalyseParSigs(t *testing.T) {
-	duty := core.NewAttesterDuty(99)
-	require.Empty(t, analyseParSigs(duty, nil))
+	require.Empty(t, analyseParSigs(nil))
 
-	events := make(map[core.Duty][]event)
+	var events []event
 
 	makeEvents := func(n int) {
 		data := testutil.RandomCoreVersionSignedBeaconBlock(t)
-		offset := len(events[duty])
+		offset := len(events)
 		for i := 0; i < n; i++ {
 			data, err := data.SetSignature(testutil.RandomCoreSignature())
 			require.NoError(t, err)
-			events[duty] = append(events[duty], event{
-				duty: duty,
+			events = append(events, event{
 				parSig: &core.ParSignedData{
 					ShareIdx:   offset + i,
 					SignedData: data,
@@ -972,7 +970,7 @@ func TestAnalyseParSigs(t *testing.T) {
 		makeEvents(n)
 	}
 
-	parSigMsgs := analyseParSigs(duty, events)
+	parSigMsgs := analyseParSigs(events)
 	require.Len(t, parSigMsgs, len(expect))
 
 	lengths := make(map[int]bool)

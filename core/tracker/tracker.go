@@ -241,7 +241,7 @@ func (t *Tracker) Run(ctx context.Context) error {
 		case duty := <-t.analyser.C():
 			ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
-			parsigs := analyseParSigs(duty, t.events)
+			parsigs := analyseParSigs(t.events[duty])
 			t.parSigReporter(ctx, duty, parsigs)
 
 			// Analyse failed duties
@@ -328,13 +328,13 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, parsigMs
 }
 
 // analyseParSigs returns a mapping of partial signed data messages by peers (share index).
-func analyseParSigs(duty core.Duty, allEvents map[core.Duty][]event) parsigsByMsg {
+func analyseParSigs(events []event) parsigsByMsg {
 	var (
 		dedup = make(map[int]bool)
 		datas = make(map[string][]int)
 	)
 
-	for _, e := range allEvents[duty] {
+	for _, e := range events {
 		if e.parSig == nil {
 			continue
 		}
