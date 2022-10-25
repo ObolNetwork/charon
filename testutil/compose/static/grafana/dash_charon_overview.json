@@ -1130,6 +1130,7 @@
               "Time 10": true,
               "Time 11": true,
               "Time 12": true,
+              "Time 13": true,
               "Time 2": true,
               "Time 3": true,
               "Time 4": true,
@@ -1143,31 +1144,35 @@
               "Value #M": true
             },
             "indexByName": {
-              "Time 1": 2,
-              "Time 10": 22,
-              "Time 11": 23,
-              "Time 2": 6,
-              "Time 3": 11,
-              "Time 4": 13,
-              "Time 5": 14,
-              "Time 6": 15,
-              "Time 7": 16,
-              "Time 8": 18,
-              "Time 9": 21,
-              "Value #A": 3,
-              "Value #B": 7,
-              "Value #C": 12,
-              "Value #D": 20,
-              "Value #E": 19,
+              "Time 1": 14,
+              "Time 10": 24,
+              "Time 11": 25,
+              "Time 12": 27,
+              "Time 13": 28,
+              "Time 2": 16,
+              "Time 3": 17,
+              "Time 4": 18,
+              "Time 5": 19,
+              "Time 6": 20,
+              "Time 7": 21,
+              "Time 8": 22,
+              "Time 9": 23,
+              "Value #A": 2,
+              "Value #B": 4,
+              "Value #C": 8,
+              "Value #D": 12,
+              "Value #E": 11,
               "Value #F": 1,
-              "Value #G": 17,
-              "Value #J": 10,
-              "Value #K": 4,
-              "Value #L": 5,
-              "Value #M": 24,
-              "git_hash": 9,
+              "Value #G": 9,
+              "Value #H": 10,
+              "Value #J": 7,
+              "Value #K": 3,
+              "Value #L": 15,
+              "Value #M": 26,
+              "Value #N": 13,
+              "git_hash": 6,
               "peer": 0,
-              "version": 8
+              "version": 5
             },
             "renameByName": {
               "Value #A": "Connected",
@@ -1296,7 +1301,7 @@
             {
               "targetBlank": true,
               "title": "Show in log explorer",
-              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22node0%5C%22%7D%20%7C%3D%20%60Duty%20failed%60%20%7C%3D%20%60${__field.labels.duty}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22$node%5C%22%7D%20%7C%3D%20%60Duty%20failed%60%20%7C%3D%20%60${__field.labels.duty}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
             }
           ],
           "mappings": [],
@@ -1449,7 +1454,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "topk(5,sum(count_over_time({compose_service=\"$node\"} | logfmt | level=~`(warn|error)` [1m])) by (msg))",
+          "expr": "sum(count_over_time({compose_service=\"$node\"} | logfmt | level=~`(warn|error)` [5m])) by (msg)",
           "legendFormat": "{{msg}}",
           "queryType": "range",
           "refId": "A",
@@ -1730,7 +1735,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1822,7 +1828,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1915,7 +1922,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2022,7 +2030,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2117,7 +2126,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue"
+                "color": "light-blue",
+                "value": null
               },
               {
                 "color": "red",
@@ -2322,7 +2332,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",

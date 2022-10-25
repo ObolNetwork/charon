@@ -245,8 +245,8 @@ func (t *Tracker) Run(ctx context.Context) error {
 			t.parSigReporter(ctx, duty, parsigs)
 
 			// Analyse failed duties
-			failed, failedstep, failedMsg := analyseDutyFailed(duty, t.events, parsigs)
-			t.failedDutyReporter(ctx, duty, failed, failedstep, failedMsg)
+			failed, failedStep, failedMsg := analyseDutyFailed(duty, t.events, parsigs)
+			t.failedDutyReporter(ctx, duty, failed, failedStep, failedMsg)
 
 			// Analyse peer participation
 			participatedShares, unexpectedShares := analyseParticipation(duty, t.events)
@@ -272,12 +272,12 @@ func dutyFailedStep(es []event) (bool, step) {
 		return clone[i].step > clone[j].step
 	})
 
-	c := clone[0].step
-	if c == sigAgg {
+	step := clone[0].step
+	if step == sigAgg {
 		return false, zero
 	}
 
-	return true, c + 1
+	return true, step + 1
 }
 
 // analyseDutyFailed detects if the given duty failed.
@@ -288,13 +288,13 @@ func dutyFailedStep(es []event) (bool, step) {
 // It returns false if the duty didn't fail, i.e., the duty
 // didn't get stuck and completed the sigAgg step.
 func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, parsigMsgs parsigsByMsg) (bool, step, string) {
-	failed, comp := dutyFailedStep(allEvents[duty])
+	failed, step := dutyFailedStep(allEvents[duty])
 	if !failed {
 		return false, zero, ""
 	}
 
 	var msg string
-	switch comp {
+	switch step {
 	case fetcher:
 		return analyseFetcherFailed(duty, allEvents)
 	case consensus:
@@ -321,10 +321,10 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, parsigMs
 	case zero:
 		msg = fmt.Sprintf("no events for %s duty", duty.String()) // This should never happen.
 	default:
-		msg = fmt.Sprintf("%s duty failed at %s", duty.String(), comp.String())
+		msg = fmt.Sprintf("%s duty failed at %s", duty.String(), step.String())
 	}
 
-	return true, comp, msg
+	return true, step, msg
 }
 
 // analyseParSigs returns a mapping of partial signed data messages by peers (share index).
@@ -369,9 +369,9 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 	// Proposer duties depend on randao duty, so check if that was why it failed.
 	if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
 		// Proposer duties will fail if core.DutyRandao fails
-		randaoFailed, randaoComp := dutyFailedStep(allEvents[core.NewRandaoDuty(duty.Slot)])
+		randaoFailed, randaoStep := dutyFailedStep(allEvents[core.NewRandaoDuty(duty.Slot)])
 		if randaoFailed {
-			switch randaoComp {
+			switch randaoStep {
 			case parSigDBThreshold:
 				msg = msgFetcherProposerFewRandaos
 			case zero:
@@ -387,9 +387,9 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 	// Duty aggregator depend on prepare aggregator duty, so check if that was why it failed.
 	if duty.Type == core.DutyAggregator {
 		// Aggregator duties will fail if core.DutyPrapareAggregator fails
-		prepAggFailed, prepAggComp := dutyFailedStep(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
+		prepAggFailed, prepAggStep := dutyFailedStep(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
 		if prepAggFailed {
-			switch prepAggComp {
+			switch prepAggStep {
 			case parSigDBThreshold:
 				msg = msgFetcherAggregatorFewPrepares
 			case zero:
@@ -402,8 +402,8 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 		}
 
 		// Aggregator duties will fail if no attestation data in DutyDB
-		attFailed, attComp := dutyFailedStep(allEvents[core.NewAttesterDuty(duty.Slot)])
-		if attFailed && attComp <= consensus {
+		attFailed, attStep := dutyFailedStep(allEvents[core.NewAttesterDuty(duty.Slot)])
+		if attFailed && attStep <= consensus {
 			// Note we do not handle the edge case of the local peer failing to store attestation data
 			// but the attester duty succeeding in any case due to external peer partial signatures.
 			return true, fetcher, msgFetcherAggregatorNoAttData
@@ -419,9 +419,9 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 	// Duty sync contribution depends on prepare sync contribution duty, so check if that was why it failed.
 	if duty.Type == core.DutySyncContribution {
 		// Sync contribution duties will fail if core.DutyPrepareSyncContribution fails.
-		prepSyncConFailed, prepSyncConComp := dutyFailedStep(allEvents[core.NewPrepareSyncContributionDuty(duty.Slot)])
+		prepSyncConFailed, prepSyncConStep := dutyFailedStep(allEvents[core.NewPrepareSyncContributionDuty(duty.Slot)])
 		if prepSyncConFailed {
-			switch prepSyncConComp {
+			switch prepSyncConStep {
 			case parSigDBThreshold:
 				msg = msgFetcherSyncContributionFewPrepares
 			case zero:
@@ -434,8 +434,8 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 		}
 
 		// Sync contribution duties will fail if no sync message in DutyDB.
-		syncMsgFailed, syncMsgComp := dutyFailedStep(allEvents[core.NewSyncMessageDuty(duty.Slot)])
-		if syncMsgFailed && syncMsgComp <= consensus {
+		syncMsgFailed, syncMsgStep := dutyFailedStep(allEvents[core.NewSyncMessageDuty(duty.Slot)])
+		if syncMsgFailed && syncMsgStep <= consensus {
 			// Note we do not handle the edge case of the local peer failing to store sync message
 			// but the sync message duty succeeding in any case due to external peer partial signatures.
 			return true, fetcher, msgFetcherSyncContributionNoSyncMsg

@@ -467,12 +467,7 @@ func wireTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func
 	analyser := core.NewDeadliner(ctx, "tracker_analyser", deadlineFunc)
 	deleter := core.NewDeadliner(ctx, "tracker_deleter", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
-		if !ok {
-			return d, false
-		}
-
-		// To delete duties after 2 * deadline.
-		return d.Add(time.Until(d)), true
+		return d.Add(time.Minute), ok // Delete duties after deadline+1min.
 	})
 
 	trackFrom, err := calculateTrackerDelay(ctx, ethCl, time.Now())

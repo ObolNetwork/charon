@@ -31,6 +31,9 @@ import (
 // See https://pintail.xyz/posts/modelling-the-impact-of-altair/#proposer-and-delay-rewards.
 const lateFactor = 5
 
+// lateMin defines the minimum absolute value of the lateFactor.
+const lateMin = time.Second * 30
+
 // Deadliner provides duty Deadline functionality. The C method isn’t thread safe and
 // may only be used by a single goroutine. So, multiple instances are required
 // for different components and use cases.
@@ -219,7 +222,11 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(Duty
 		}
 
 		start := genesis.Add(duration * time.Duration(duty.Slot))
-		end := start.Add(duration * time.Duration(lateFactor))
+		delta := duration * time.Duration(lateFactor)
+		if delta < lateMin {
+			delta = lateMin
+		}
+		end := start.Add(delta)
 
 		return end, true
 	}, nil
