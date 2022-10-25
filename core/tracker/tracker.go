@@ -591,6 +591,9 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 
 // SchedulerEvent inputs event from core.Scheduler step.
 func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) error {
+	if ctx.Err() != nil {
+		return nil //nolint:nilerr // Ignore event if expired.
+	}
 	for pubkey := range defSet {
 		select {
 		case <-ctx.Done():
@@ -610,6 +613,9 @@ func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet cor
 
 // FetcherEvent inputs event from core.Fetcher step.
 func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
+	if ctx.Err() != nil {
+		return nil //nolint:nilerr // Ignore event if expired.
+	}
 	for pubkey := range data {
 		select {
 		case <-ctx.Done():
@@ -629,6 +635,9 @@ func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.Un
 
 // ConsensusEvent inputs event from core.Consensus step.
 func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
+	if ctx.Err() != nil {
+		return nil //nolint:nilerr // Ignore event if expired.
+	}
 	for pubkey := range data {
 		select {
 		case <-ctx.Done():
@@ -648,6 +657,9 @@ func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.
 
 // ValidatorAPIEvent inputs events from core.ValidatorAPI step.
 func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
+	if ctx.Err() != nil {
+		return nil //nolint:nilerr // Ignore event if expired.
+	}
 	for pubkey, parSig := range data {
 		parSig := parSig // Copy loop iteration values
 		select {
@@ -669,6 +681,9 @@ func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data co
 
 // ParSigExEvent inputs event from core.ParSigEx step event for other VC submitted parsigs.
 func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
+	if ctx.Err() != nil {
+		return nil //nolint:nilerr // Ignore event if expired.
+	}
 	for pubkey, parSig := range data {
 		parSig := parSig // Copy loop iteration values
 		select {
@@ -690,6 +705,9 @@ func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.P
 
 // ParSigDBInternalEvent inputs events from core.ParSigDB step event for local VC submitted parsigs.
 func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
+	if ctx.Err() != nil {
+		return nil //nolint:nilerr // Ignore event if expired.
+	}
 	for pubkey, parSig := range data {
 		parSig := parSig // Copy loop iteration values
 		select {
@@ -711,6 +729,9 @@ func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, dat
 
 // ParSigDBThresholdEvent inputs event from core.ParSigDB step for threshold emitted parsigs.
 func (t *Tracker) ParSigDBThresholdEvent(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData) error {
+	if ctx.Err() != nil {
+		return nil //nolint:nilerr // Ignore event if expired.
+	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -728,6 +749,9 @@ func (t *Tracker) ParSigDBThresholdEvent(ctx context.Context, duty core.Duty, pu
 
 // SigAggEvent inputs event from core.SigAgg step.
 func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ core.SignedData) error {
+	if ctx.Err() != nil {
+		return nil //nolint:nilerr // Ignore event if expired.
+	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
