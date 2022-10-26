@@ -120,6 +120,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 	// We may have multiple validators in the same committee, use the same attestation data in that case.
 	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
 
+	attDataRoots := make(map[eth2p0.Root]bool)
 	resp := make(core.UnsignedDataSet)
 	for pubkey, def := range defSet {
 		attDuty, ok := def.(core.AttesterDefinition)
@@ -146,6 +147,19 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 		}
 
 		resp[pubkey] = attData
+
+		// Store Attestation data root excluding committee index.
+		eth2AttData.Index = 0
+		root, err := eth2AttData.HashTreeRoot()
+		if err != nil {
+			return nil, err
+		}
+		attDataRoots[root] = true
+	}
+
+	if len(attDataRoots) > 1 {
+		// Increase inconsistent data counter when different attestation data are found for the same slot.
+		inconsistentAttDataCounter.Inc()
 	}
 
 	return resp, nil
