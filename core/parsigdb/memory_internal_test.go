@@ -28,7 +28,7 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestCalculateOutput(t *testing.T) {
+func TestGetThresholdMatching(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  []int
@@ -95,7 +95,7 @@ func TestCalculateOutput(t *testing.T) {
 						datas = append(datas, provider(i))
 					}
 
-					out, ok, err := getThresholdMatching(datas, cluster.Threshold(len(datas)))
+					out, ok, err := getThresholdMatching(1, datas, cluster.Threshold(len(datas)))
 					require.NoError(t, err)
 					require.Equal(t, len(test.output) > 0, ok)
 

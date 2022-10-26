@@ -206,13 +206,18 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		require.Equal(t, step, parSigDBThreshold)
 		require.Equal(t, msg, msgParSigDBInsufficient)
 
-		failed, step, msg = analyseDutyFailed(attDuty, events, parsigsByMsg{"a": nil, "b": nil})
+		inconsistentParsigs := parsigsByMsg{
+			testutil.RandomRoot(): nil,
+			testutil.RandomRoot(): nil,
+		}
+
+		failed, step, msg = analyseDutyFailed(attDuty, events, inconsistentParsigs)
 		require.True(t, failed)
 		require.Equal(t, step, parSigDBThreshold)
 		require.Equal(t, msg, msgParSigDBInconsistent)
 
 		events[syncMsgDuty] = events[attDuty]
-		failed, step, msg = analyseDutyFailed(syncMsgDuty, events, parsigsByMsg{"a": nil, "b": nil})
+		failed, step, msg = analyseDutyFailed(syncMsgDuty, events, inconsistentParsigs)
 		require.True(t, failed)
 		require.Equal(t, step, parSigDBThreshold)
 		require.Equal(t, msg, msgParSigDBInconsistentSync)

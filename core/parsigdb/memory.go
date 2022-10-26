@@ -18,7 +18,6 @@ package parsigdb
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"sync"
 
@@ -103,7 +102,7 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 			z.Any("pubkey", pubkey))
 
 		// Check if sufficient matching partial signed data has been received.
-		psigs, ok, err := getThresholdMatching(sigs, db.threshold)
+		psigs, ok, err := getThresholdMatching(duty.Type, sigs, db.threshold)
 		if err != nil {
 			return err
 		} else if !ok {
@@ -167,40 +166,31 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 }
 
 // getThresholdMatching returns true and threshold number of partial signed data with identical data or false.
-func getThresholdMatching(sigs []core.ParSignedData, threshold int) ([]core.ParSignedData, bool, error) {
+func getThresholdMatching(typ core.DutyType, sigs []core.ParSignedData, threshold int) ([]core.ParSignedData, bool, error) {
 	if len(sigs) < threshold {
 		return nil, false, nil
 	}
+	if typ == core.DutySignature {
+		// Signatures do not support message roots.
+		return sigs, len(sigs) == threshold, nil
+	}
 
-	sigsByDataHash := make(map[[32]byte][]core.ParSignedData)
+	sigsByMsgRoot := make(map[[32]byte][]core.ParSignedData)
 	for _, sig := range sigs {
-		// Clear the signature to get the raw signed data.
-		noSig, err := sig.SetSignature(nil)
+		root, err := sig.MessageRoot()
 		if err != nil {
-			return nil, false, err
+			return nil, false, errors.Wrap(err, "message root")
 		}
 
-		// Convert it to json
-		b, err := json.Marshal(noSig)
-		if err != nil {
-			return nil, false, errors.Wrap(err, "marshal parsig")
-		}
-
-		// Hash it
-		h := sha256.New()
-		h.Write(b)
-		var hash [32]byte
-		copy(hash[:], h.Sum(nil))
-
-		// Find the first identical set of length threshold
-		set := sigsByDataHash[hash]
+		// Find the first set of length threshold
+		set := sigsByMsgRoot[root]
 		set = append(set, sig)
 
 		if len(set) == threshold {
 			return set, true, nil
 		}
 
-		sigsByDataHash[hash] = set
+		sigsByMsgRoot[root] = set
 	}
 
 	return nil, false, nil
