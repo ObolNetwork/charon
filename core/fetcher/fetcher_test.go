@@ -530,6 +530,25 @@ func TestFetchSyncContribution(t *testing.T) {
 		err = fetch.Fetch(ctx, duty, defSet)
 		require.NoError(t, err)
 	})
+
+	t.Run("fetch contribution data error", func(t *testing.T) {
+		// Construct beaconmock.
+		bmock, err := beaconmock.New()
+		require.NoError(t, err)
+
+		// Construct fetcher component.
+		fetch, err := fetcher.New(bmock, "")
+		require.NoError(t, err)
+
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+			return nil, errors.New("error")
+		})
+
+		err = fetch.Fetch(ctx, duty, defSet)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "fetch contribution data")
+		require.ErrorContains(t, err, "error")
+	})
 }
 
 func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.VersionedBeaconBlock) {
