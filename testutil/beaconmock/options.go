@@ -214,17 +214,6 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 	}
 }
 
-// WithSyncCommitteeSize configures the http mock with the provided sync committee size.
-func WithSyncCommitteeSize(size int) Option {
-	return func(mock *Mock) {
-		mock.overrides = append(mock.overrides, staticOverride{
-			Endpoint: "/eth/v1/config/spec",
-			Key:      "SYNC_COMMITTEE_SIZE",
-			Value:    fmt.Sprint(size),
-		})
-	}
-}
-
 // WithDeterministicAttesterDuties configures the mock to provide deterministic
 // duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
