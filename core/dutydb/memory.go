@@ -316,6 +316,22 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 		db.attDuties[aKey] = &attData.Data
 	}
 
+	// Store key and value for AwaitAttestation with CommIdx = 0.
+	// This is done in order to support clients like lodestar who call GET attestation data endpoint with 0 committee_index,
+	// to optimize network calls, since attestation data object does not depends on committee_index.
+	aKeyZeroComm := attKey{
+		Slot:    int64(attData.Data.Slot),
+		CommIdx: 0,
+	}
+
+	if value, ok := db.attDuties[aKeyZeroComm]; ok {
+		if value.String() != attData.Data.String() {
+			return errors.New("clashing attestation data", z.Any("key", aKeyZeroComm))
+		}
+	} else {
+		db.attDuties[aKeyZeroComm] = &attData.Data
+	}
+
 	return nil
 }
 
