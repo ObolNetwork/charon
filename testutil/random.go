@@ -412,15 +412,6 @@ func RandomSyncCommitteeDuty(t *testing.T) *eth2v1.SyncCommitteeDuty {
 	}
 }
 
-func RandomSyncCommitteeSelection() *eth2exp.SyncCommitteeSelection {
-	return &eth2exp.SyncCommitteeSelection{
-		ValidatorIndex:    RandomVIdx(),
-		Slot:              RandomSlot(),
-		SubcommitteeIndex: RandomCommIdx(),
-		SelectionProof:    RandomEth2Signature(),
-	}
-}
-
 func RandomSyncAggregate(t *testing.T) *altair.SyncAggregate {
 	t.Helper()
 
