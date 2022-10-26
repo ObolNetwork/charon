@@ -44,7 +44,7 @@ func IsAttAggregator(ctx context.Context, specProvider eth2client.SpecProvider, 
 		modulo = 1
 	}
 
-	return hash(slotSig, modulo)
+	return hashModulo(slotSig, modulo)
 }
 
 // IsSyncCommAggregator returns true if the validator is the aggregator for the provided sync subcommittee.
@@ -75,11 +75,11 @@ func IsSyncCommAggregator(ctx context.Context, specProvider eth2client.SpecProvi
 		modulo = 1
 	}
 
-	return hash(sig, modulo)
+	return hashModulo(sig, modulo)
 }
 
-// hash returns true if the first 8 bytes of the sha256 hash of the input signature is divisible by the provided modulo.
-func hash(sig eth2p0.BLSSignature, modulo uint64) (bool, error) {
+// hashModulo returns true if the first 8 bytes of the sha256 hashModulo of the input signature is divisible by the provided modulo.
+func hashModulo(sig eth2p0.BLSSignature, modulo uint64) (bool, error) {
 	h := sha256.New()
 	_, err := h.Write(sig[:])
 	if err != nil {

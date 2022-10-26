@@ -343,7 +343,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot int64, defSet 
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		} else if !ok {
-			log.Debug(ctx, "Validator not selected for sync committee contribution duty", z.Any("pubkey", pubkey))
+			log.Debug(ctx, "Sync committee member not selected for contribution aggregation duty", z.Any("pubkey", pubkey))
 			continue
 		}
 
@@ -367,7 +367,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot int64, defSet 
 		} else if contribution == nil {
 			// Some beacon nodes return nil if the beacon block root is not found for the subcommittee, return retryable error.
 			// This could happen if the beacon node didn't subscribe to the correct subnet.
-			return core.UnsignedDataSet{}, errors.New("sync committee contribution not found", z.U64("subcommIdx", subcommIdx), z.Hex("root", blockRoot[:]))
+			return core.UnsignedDataSet{}, errors.New("sync committee contribution not found by root (retryable)", z.U64("subcommidx", subcommIdx), z.Hex("root", blockRoot[:]))
 		}
 		log.Info(ctx, "Resolved sync committee contribution duty", z.Any("pubkey", pubkey))
 

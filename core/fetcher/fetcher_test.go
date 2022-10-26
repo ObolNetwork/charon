@@ -17,6 +17,7 @@ package fetcher_test
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"testing"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/fetcher"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -341,16 +343,16 @@ func TestFetchBuilderProposer(t *testing.T) {
 	require.NoError(t, err)
 }
 
+//nolint:gocognit
 func TestFetchSyncContribution(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		slot         = 1
-		vIdxA        = 2
-		vIdxB        = 3
-		subCommIdxA  = 4
-		subCommIdxB  = 5
-		syncCommSize = 16
+		slot        = 1
+		vIdxA       = 2
+		vIdxB       = 3
+		subCommIdxA = 4
+		subCommIdxB = 5
 	)
 
 	var (
@@ -370,11 +372,24 @@ func TestFetchSyncContribution(t *testing.T) {
 		pubkeysByIdx[vIdxB]: core.NewSyncCommitteeDefinition(testutil.RandomSyncCommitteeDuty(t)),
 	}
 
+	// Selection proofs corresponding to aggregators. Refer https://github.com/prysmaticlabs/prysm/blob/39a7988e9edbed5b517229b4d66c2a8aab7c7b4d/beacon-chain/sync/validate_sync_contribution_proof_test.go#L460.
+	sigA := "a9dbd88a49a7269e91b8ef1296f1e07f87fed919d51a446b67122bfdfd61d23f3f929fc1cd5209bd6862fd60f739b27213fb0a8d339f7f081fc84281f554b190bb49cc97a6b3364e622af9e7ca96a97fe2b766f9e746dead0b33b58473d91562"
+	sigB := "99e60f20dde4d4872b048d703f1943071c20213d504012e7e520c229da87661803b9f139b9a0c5be31de3cef6821c080125aed38ebaf51ba9a2e9d21d7fbf2903577983109d097a8599610a92c0305408d97c1fd4b0b2d1743fb4eedf5443f99"
+
 	// Construct sync committee selections.
-	selectionA := testutil.RandomSyncCommitteeSelection()
-	selectionA.SubcommitteeIndex = subCommIdxA
-	selectionB := testutil.RandomSyncCommitteeSelection()
-	selectionB.SubcommitteeIndex = subCommIdxB
+	selectionA := &eth2exp.SyncCommitteeSelection{
+		ValidatorIndex:    vIdxA,
+		Slot:              slot,
+		SubcommitteeIndex: subCommIdxA,
+		SelectionProof:    blsSigFromHex(t, sigA),
+	}
+
+	selectionB := &eth2exp.SyncCommitteeSelection{
+		ValidatorIndex:    vIdxB,
+		Slot:              slot,
+		SubcommitteeIndex: subCommIdxB,
+		SelectionProof:    blsSigFromHex(t, sigB),
+	}
 	commSelectionsByPubkey := map[core.PubKey]core.SignedData{
 		pubkeysByIdx[vIdxA]: core.NewSyncCommitteeSelection(selectionA),
 		pubkeysByIdx[vIdxB]: core.NewSyncCommitteeSelection(selectionB),
@@ -390,89 +405,135 @@ func TestFetchSyncContribution(t *testing.T) {
 		pubkeysByIdx[vIdxB]: core.NewSignedSyncMessage(msgB),
 	}
 
-	// Construct beaconmock.
-	bmock, err := beaconmock.New(
-		beaconmock.WithSyncCommitteeSize(syncCommSize),
-		beaconmock.WithSyncCommitteeSubnetCount(syncCommSize),
-		beaconmock.WithTargetAggregatorsPerSyncSubcommittee(syncCommSize),
-	)
-	require.NoError(t, err)
+	t.Run("contribution aggregator", func(t *testing.T) {
+		// Construct beaconmock.
+		bmock, err := beaconmock.New()
+		require.NoError(t, err)
 
-	bmock.SyncCommitteeContributionFunc = func(ctx context.Context, resSlot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
-		require.Equal(t, eth2p0.Slot(slot), resSlot)
+		bmock.SyncCommitteeContributionFunc = func(ctx context.Context, resSlot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+			require.Equal(t, eth2p0.Slot(slot), resSlot)
 
-		var (
-			signedMsg       core.SignedSyncMessage
-			signedSelection core.SyncCommitteeSelection
-		)
-		for _, msg := range syncMsgsByPubkey {
-			m, ok := msg.(core.SignedSyncMessage)
-			require.True(t, ok)
-			if m.BeaconBlockRoot == beaconBlockRoot {
-				signedMsg = m
+			var (
+				signedMsg       core.SignedSyncMessage
+				signedSelection core.SyncCommitteeSelection
+			)
+			for _, msg := range syncMsgsByPubkey {
+				m, ok := msg.(core.SignedSyncMessage)
+				require.True(t, ok)
+				if m.BeaconBlockRoot == beaconBlockRoot {
+					signedMsg = m
+				}
 			}
-		}
-		require.NotNil(t, signedMsg)
+			require.NotNil(t, signedMsg)
 
-		for _, selection := range commSelectionsByPubkey {
-			s, ok := selection.(core.SyncCommitteeSelection)
-			require.True(t, ok)
-			if s.SubcommitteeIndex == eth2p0.CommitteeIndex(subcommitteeIndex) {
-				signedSelection = s
+			for _, selection := range commSelectionsByPubkey {
+				s, ok := selection.(core.SyncCommitteeSelection)
+				require.True(t, ok)
+				if s.SubcommitteeIndex == eth2p0.CommitteeIndex(subcommitteeIndex) {
+					signedSelection = s
+				}
 			}
-		}
-		require.NotNil(t, signedSelection)
+			require.NotNil(t, signedSelection)
 
-		return &altair.SyncCommitteeContribution{
-			Slot:              slot,
-			BeaconBlockRoot:   beaconBlockRoot,
-			SubcommitteeIndex: subcommitteeIndex,
-			AggregationBits:   bitfield.Bitvector128(testutil.RandomBitList()),
-			Signature:         testutil.RandomEth2Signature(),
-		}, nil
-	}
-
-	// Construct fetcher component.
-	fetch, err := fetcher.New(bmock, "")
-	require.NoError(t, err)
-
-	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
-		if duty.Type == core.DutyPrepareSyncContribution {
-			require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
-			return commSelectionsByPubkey[key], nil
+			return &altair.SyncCommitteeContribution{
+				Slot:              slot,
+				BeaconBlockRoot:   beaconBlockRoot,
+				SubcommitteeIndex: subcommitteeIndex,
+				AggregationBits:   bitfield.Bitvector128(testutil.RandomBitList()),
+				Signature:         testutil.RandomEth2Signature(),
+			}, nil
 		}
 
-		if duty.Type == core.DutySyncMessage {
-			require.Equal(t, core.NewSyncMessageDuty(slot), duty)
-			return syncMsgsByPubkey[key], nil
-		}
+		// Construct fetcher component.
+		fetch, err := fetcher.New(bmock, "")
+		require.NoError(t, err)
 
-		return nil, errors.New("unsupported duty")
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+			if duty.Type == core.DutyPrepareSyncContribution {
+				require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
+				return commSelectionsByPubkey[key], nil
+			}
+
+			if duty.Type == core.DutySyncMessage {
+				require.Equal(t, core.NewSyncMessageDuty(slot), duty)
+				return syncMsgsByPubkey[key], nil
+			}
+
+			return nil, errors.New("unsupported duty")
+		})
+
+		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+			require.Equal(t, duty, resDuty)
+			require.Len(t, resDataSet, 2)
+
+			for pubkey, data := range resDataSet {
+				contribution, ok := data.(core.SyncContribution)
+				require.True(t, ok)
+				require.Equal(t, eth2p0.Slot(slot), contribution.Slot)
+
+				selection, ok := commSelectionsByPubkey[pubkey].(core.SyncCommitteeSelection)
+				require.True(t, ok)
+
+				for vIdx, pk := range pubkeysByIdx {
+					if pubkey == pk {
+						require.Equal(t, selection.ValidatorIndex, vIdx)
+					}
+				}
+				require.Equal(t, eth2p0.Slot(slot), selection.Slot)
+				require.Equal(t, eth2p0.CommitteeIndex(contribution.SubcommitteeIndex), selection.SubcommitteeIndex)
+
+				if selection.ValidatorIndex == eth2p0.ValidatorIndex(vIdxA) {
+					require.Equal(t, eth2p0.CommitteeIndex(subCommIdxA), selection.SubcommitteeIndex)
+				} else if selection.ValidatorIndex == eth2p0.ValidatorIndex(vIdxB) {
+					require.Equal(t, eth2p0.CommitteeIndex(subCommIdxB), selection.SubcommitteeIndex)
+				}
+
+				message, ok := syncMsgsByPubkey[pubkey].(core.SignedSyncMessage)
+				require.True(t, ok)
+				require.Equal(t, message.BeaconBlockRoot, contribution.BeaconBlockRoot)
+			}
+
+			return nil
+		})
+
+		err = fetch.Fetch(ctx, duty, defSet)
+		require.NoError(t, err)
 	})
 
-	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
-		require.Equal(t, duty, resDuty)
-		require.Len(t, resDataSet, 2)
+	t.Run("not contribution aggregator", func(t *testing.T) {
+		// Construct beaconmock.
+		bmock, err := beaconmock.New()
+		require.NoError(t, err)
 
-		for pubkey, data := range resDataSet {
-			contribution, ok := data.(core.SyncContribution)
-			require.True(t, ok)
-			require.Equal(t, eth2p0.Slot(slot), contribution.Slot)
+		// Construct fetcher component.
+		fetch, err := fetcher.New(bmock, "")
+		require.NoError(t, err)
 
-			selection, ok := commSelectionsByPubkey[pubkey].(core.SyncCommitteeSelection)
-			require.True(t, ok)
-			require.Equal(t, selection.SubcommitteeIndex, eth2p0.CommitteeIndex(contribution.SubcommitteeIndex))
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+			if duty.Type == core.DutyPrepareSyncContribution {
+				require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
 
-			message, ok := syncMsgsByPubkey[pubkey].(core.SignedSyncMessage)
-			require.True(t, ok)
-			require.Equal(t, message.BeaconBlockRoot, contribution.BeaconBlockRoot)
-		}
+				// The following signature corresponds to a non-aggregator. Refer https://github.com/prysmaticlabs/prysm/blob/39a7988e9edbed5b517229b4d66c2a8aab7c7b4d/beacon-chain/sync/validate_sync_contribution_proof_test.go#L336
+				sigHex := "b9251a82040d4620b8c5665f328ee6c2eaa02d31d71d153f4abba31a7922a981e541e85283f0ced387d26e86aef9386d18c6982b9b5f8759882fe7f25a328180d86e146994ef19d28bc1432baf29751dec12b5f3d65dbbe224d72cf900c6831a"
+				sig, err := hex.DecodeString(sigHex)
+				require.NoError(t, err)
 
-		return nil
+				var resp eth2p0.BLSSignature
+				copy(resp[:], sig)
+
+				selection := &eth2exp.SyncCommitteeSelection{
+					SelectionProof: resp,
+				}
+
+				return core.NewSyncCommitteeSelection(selection), nil
+			}
+
+			return nil, errors.New("unsupported duty")
+		})
+
+		err = fetch.Fetch(ctx, duty, defSet)
+		require.NoError(t, err)
 	})
-
-	err = fetch.Fetch(ctx, duty, defSet)
-	require.NoError(t, err)
 }
 
 func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.VersionedBeaconBlock) {
@@ -499,4 +560,17 @@ func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block co
 	default:
 		require.Fail(t, "invalid block")
 	}
+}
+
+// blsSigFromHex returns the BLS signature from the input hex signature.
+func blsSigFromHex(t *testing.T, sig string) eth2p0.BLSSignature {
+	t.Helper()
+
+	s, err := hex.DecodeString(sig)
+	require.NoError(t, err)
+
+	var resp eth2p0.BLSSignature
+	copy(resp[:], s)
+
+	return resp
 }

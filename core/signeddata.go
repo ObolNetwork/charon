@@ -813,7 +813,12 @@ type SyncCommitteeSelection struct {
 }
 
 func (s SyncCommitteeSelection) MessageRoot() ([32]byte, error) {
-	return eth2util.SlotHashRoot(s.Slot)
+	data := altair.SyncAggregatorSelectionData{
+		Slot:              s.Slot,
+		SubcommitteeIndex: uint64(s.SubcommitteeIndex),
+	}
+
+	return data.HashTreeRoot()
 }
 
 func (s SyncCommitteeSelection) Signature() Signature {
