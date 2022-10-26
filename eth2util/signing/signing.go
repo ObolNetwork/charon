@@ -201,6 +201,20 @@ func VerifyBeaconCommitteeSelection(ctx context.Context, eth2Cl eth2wrap.Client,
 	return verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, selection.SelectionProof, pubkey)
 }
 
+func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.AggregateAndProof) error {
+	epoch, err := epochFromSlot(ctx, eth2Cl, agg.Aggregate.Data.Slot)
+	if err != nil {
+		return err
+	}
+
+	sigRoot, err := eth2util.SlotHashRoot(agg.Aggregate.Data.Slot)
+	if err != nil {
+		return err
+	}
+
+	return verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, pubkey)
+}
+
 func VerifyAggregateAndProof(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.SignedAggregateAndProof) error {
 	epoch, err := epochFromSlot(ctx, eth2Cl, agg.Message.Aggregate.Data.Slot)
 	if err != nil {

@@ -685,7 +685,19 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 			return err
 		}
 
-		// Verify Signature.
+		// Verify inner selection proof (outcome of DutyPrepareAggregator).
+		if !c.insecureTest {
+			blsPubkey, err := tblsconv.KeyFromETH2(eth2Pubkey) // Use group pubkey, not pubshare.
+			if err != nil {
+				return err
+			}
+			err = signing.VerifyAggregateAndProofSelection(ctx, c.eth2Cl, blsPubkey, agg.Message)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Verify outer partial signature.
 		err = c.verifyPartialSig(pk, func(pubshare *bls_sig.PublicKey) error {
 			return signing.VerifyAggregateAndProof(ctx, c.eth2Cl, pubshare, agg)
 		})
