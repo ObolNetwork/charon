@@ -372,10 +372,11 @@ func TestFetchSyncContribution(t *testing.T) {
 		pubkeysByIdx[vIdxB]: core.NewSyncCommitteeDefinition(testutil.RandomSyncCommitteeDuty(t)),
 	}
 
-	// Selection proofs corresponding to aggregators. Refer https://github.com/prysmaticlabs/prysm/blob/39a7988e9edbed5b517229b4d66c2a8aab7c7b4d/beacon-chain/sync/validate_sync_contribution_proof_test.go#L460.
-	sigA := "a9dbd88a49a7269e91b8ef1296f1e07f87fed919d51a446b67122bfdfd61d23f3f929fc1cd5209bd6862fd60f739b27213fb0a8d339f7f081fc84281f554b190bb49cc97a6b3364e622af9e7ca96a97fe2b766f9e746dead0b33b58473d91562"
-	sigB := "99e60f20dde4d4872b048d703f1943071c20213d504012e7e520c229da87661803b9f139b9a0c5be31de3cef6821c080125aed38ebaf51ba9a2e9d21d7fbf2903577983109d097a8599610a92c0305408d97c1fd4b0b2d1743fb4eedf5443f99"
-
+	var (
+		// Signatures corresponding to aggregators. Refer https://github.com/prysmaticlabs/prysm/blob/39a7988e9edbed5b517229b4d66c2a8aab7c7b4d/beacon-chain/sync/validate_sync_contribution_proof_test.go#L460.
+		sigA = "a9dbd88a49a7269e91b8ef1296f1e07f87fed919d51a446b67122bfdfd61d23f3f929fc1cd5209bd6862fd60f739b27213fb0a8d339f7f081fc84281f554b190bb49cc97a6b3364e622af9e7ca96a97fe2b766f9e746dead0b33b58473d91562"
+		sigB = "99e60f20dde4d4872b048d703f1943071c20213d504012e7e520c229da87661803b9f139b9a0c5be31de3cef6821c080125aed38ebaf51ba9a2e9d21d7fbf2903577983109d097a8599610a92c0305408d97c1fd4b0b2d1743fb4eedf5443f99"
+	)
 	// Construct sync committee selections.
 	selectionA := &eth2exp.SyncCommitteeSelection{
 		ValidatorIndex:    vIdxA,
@@ -513,14 +514,9 @@ func TestFetchSyncContribution(t *testing.T) {
 			if duty.Type == core.DutyPrepareSyncContribution {
 				require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
 
-				// The following signature corresponds to a non-aggregator. Refer https://github.com/prysmaticlabs/prysm/blob/39a7988e9edbed5b517229b4d66c2a8aab7c7b4d/beacon-chain/sync/validate_sync_contribution_proof_test.go#L336
-				sigHex := "b9251a82040d4620b8c5665f328ee6c2eaa02d31d71d153f4abba31a7922a981e541e85283f0ced387d26e86aef9386d18c6982b9b5f8759882fe7f25a328180d86e146994ef19d28bc1432baf29751dec12b5f3d65dbbe224d72cf900c6831a"
-				sig, err := hex.DecodeString(sigHex)
-				require.NoError(t, err)
-
-				var resp eth2p0.BLSSignature
-				copy(resp[:], sig)
-
+				// Signature corresponding to a non-aggregator. Refer https://github.com/prysmaticlabs/prysm/blob/39a7988e9edbed5b517229b4d66c2a8aab7c7b4d/beacon-chain/sync/validate_sync_contribution_proof_test.go#L336
+				sig := "b9251a82040d4620b8c5665f328ee6c2eaa02d31d71d153f4abba31a7922a981e541e85283f0ced387d26e86aef9386d18c6982b9b5f8759882fe7f25a328180d86e146994ef19d28bc1432baf29751dec12b5f3d65dbbe224d72cf900c6831a"
+				resp := blsSigFromHex(t, sig)
 				selection := &eth2exp.SyncCommitteeSelection{
 					SelectionProof: resp,
 				}
