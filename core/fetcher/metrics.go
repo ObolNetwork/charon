@@ -25,5 +25,5 @@ var inconsistentAttDataCounter = promauto.NewCounter(prometheus.CounterOpts{
 	Namespace: "core",
 	Subsystem: "fetcher",
 	Name:      "inconsistent_att_data_total",
-	Help:      "Total number of times attestation data found different for the same slot excluding committee_index.",
+	Help:      "Total number of inconsistent attestation data detected. Note this is expected.",
 })
