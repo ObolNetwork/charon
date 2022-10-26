@@ -146,7 +146,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			},
 		}
 
-		failed, step, msg := analyseDutyFailed(attDuty, events, nil)
+		failed, step, msg := analyseDutyFailed(attDuty, events, true)
 		require.True(t, failed)
 		require.Equal(t, step, fetcher)
 		require.Equal(t, msg, msgFetcher)
@@ -157,7 +157,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			step: fetcher,
 		})
 
-		failed, step, msg = analyseDutyFailed(attDuty, events, nil)
+		failed, step, msg = analyseDutyFailed(attDuty, events, true)
 		require.True(t, failed)
 		require.Equal(t, step, consensus)
 		require.Equal(t, msg, msgConsensus)
@@ -168,7 +168,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			step: consensus,
 		})
 
-		failed, step, msg = analyseDutyFailed(attDuty, events, nil)
+		failed, step, msg = analyseDutyFailed(attDuty, events, true)
 		require.True(t, failed)
 		require.Equal(t, step, validatorAPI)
 		require.Equal(t, msg, msgValidatorAPI)
@@ -179,7 +179,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			step: validatorAPI,
 		})
 
-		failed, step, msg = analyseDutyFailed(attDuty, events, nil)
+		failed, step, msg = analyseDutyFailed(attDuty, events, true)
 		require.True(t, failed)
 		require.Equal(t, step, parSigDBInternal)
 		require.Equal(t, msg, msgParSigDBInternal)
@@ -190,7 +190,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			step: parSigDBInternal,
 		})
 
-		failed, step, msg = analyseDutyFailed(attDuty, events, nil)
+		failed, step, msg = analyseDutyFailed(attDuty, events, true)
 		require.True(t, failed)
 		require.Equal(t, step, parSigEx)
 		require.Equal(t, msg, msgParSigEx)
@@ -201,23 +201,18 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			step: parSigEx,
 		})
 
-		failed, step, msg = analyseDutyFailed(attDuty, events, nil)
+		failed, step, msg = analyseDutyFailed(attDuty, events, true)
 		require.True(t, failed)
 		require.Equal(t, step, parSigDBThreshold)
 		require.Equal(t, msg, msgParSigDBInsufficient)
 
-		inconsistentParsigs := parsigsByMsg{
-			testutil.RandomRoot(): nil,
-			testutil.RandomRoot(): nil,
-		}
-
-		failed, step, msg = analyseDutyFailed(attDuty, events, inconsistentParsigs)
+		failed, step, msg = analyseDutyFailed(attDuty, events, false)
 		require.True(t, failed)
 		require.Equal(t, step, parSigDBThreshold)
 		require.Equal(t, msg, msgParSigDBInconsistent)
 
 		events[syncMsgDuty] = events[attDuty]
-		failed, step, msg = analyseDutyFailed(syncMsgDuty, events, inconsistentParsigs)
+		failed, step, msg = analyseDutyFailed(syncMsgDuty, events, false)
 		require.True(t, failed)
 		require.Equal(t, step, parSigDBThreshold)
 		require.Equal(t, msg, msgParSigDBInconsistentSync)
@@ -244,7 +239,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			},
 		}
 
-		failed, step, msg := analyseDutyFailed(proposerDuty, events, nil)
+		failed, step, msg := analyseDutyFailed(proposerDuty, events, true)
 		require.True(t, failed)
 		require.Equal(t, step, fetcher)
 		require.Equal(t, msg, msgFetcherProposerFailedRandao)
@@ -255,7 +250,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			step: parSigEx,
 		})
 
-		failed, step, msg = analyseDutyFailed(proposerDuty, events, nil)
+		failed, step, msg = analyseDutyFailed(proposerDuty, events, true)
 		require.True(t, failed)
 		require.Equal(t, step, fetcher)
 		require.Equal(t, msg, msgFetcherProposerFewRandaos)
@@ -263,7 +258,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		// No Randaos
 		events[randaoDuty] = nil
 
-		failed, step, msg = analyseDutyFailed(proposerDuty, events, nil)
+		failed, step, msg = analyseDutyFailed(proposerDuty, events, true)
 		require.True(t, failed)
 		require.Equal(t, step, fetcher)
 		require.Equal(t, msg, msgFetcherProposerZeroRandaos)
@@ -279,7 +274,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			events[attDuty] = append(events[attDuty], event{step: step})
 		}
 
-		failed, step, msg := analyseDutyFailed(attDuty, events, nil)
+		failed, step, msg := analyseDutyFailed(attDuty, events, true)
 		require.False(t, failed)
 		require.Equal(t, zero, step)
 		require.Empty(t, msg)
@@ -859,7 +854,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			failed, step, msg := analyseDutyFailed(test.duty, test.events, nil)
+			failed, step, msg := analyseDutyFailed(test.duty, test.events, true)
 			require.Equal(t, failed, test.failed)
 			require.Equal(t, test.msg, msg)
 			require.Equal(t, fetcher, step)
@@ -952,13 +947,14 @@ func TestAnalyseParSigs(t *testing.T) {
 
 	var events []event
 
-	makeEvents := func(n int) {
+	makeEvents := func(n int, pubkey string) {
 		data := testutil.RandomCoreVersionSignedBeaconBlock(t)
 		offset := len(events)
 		for i := 0; i < n; i++ {
 			data, err := data.SetSignature(testutil.RandomCoreSignature())
 			require.NoError(t, err)
 			events = append(events, event{
+				pubkey: core.PubKey(pubkey),
 				parSig: &core.ParSignedData{
 					ShareIdx:   offset + i,
 					SignedData: data,
@@ -967,20 +963,23 @@ func TestAnalyseParSigs(t *testing.T) {
 		}
 	}
 
-	expect := map[int]bool{
-		4: true,
-		2: true,
+	expect := map[int]string{
+		4: "a",
+		2: "a",
+		6: "b",
 	}
-	for n := range expect {
-		makeEvents(n)
+	for n, pubkey := range expect {
+		makeEvents(n, pubkey)
 	}
 
-	parSigMsgs := analyseParSigs(events)
-	require.Len(t, parSigMsgs, len(expect))
+	allParSigMsgs := analyseParSigs(events)
 
-	lengths := make(map[int]bool)
-	for _, indexes := range parSigMsgs {
-		lengths[len(indexes)] = true
+	lengths := make(map[int]string)
+	for pubkey, parSigMsgs := range allParSigMsgs {
+		for _, indexes := range parSigMsgs {
+			lengths[len(indexes)] = string(pubkey)
+		}
 	}
+
 	require.Equal(t, expect, lengths)
 }
