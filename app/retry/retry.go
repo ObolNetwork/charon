@@ -164,7 +164,7 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 			return // Shutdown, return without logging
 		} else if ctx.Err() != nil {
 			// No need to log this at error level since tracker will analyse and report on failed duties.
-			log.Debug(ctx, "Retry timeout calling "+label+", duty expired")
+			log.Debug(ctx, "Timeout calling "+label+", duty expired")
 			return
 		}
 	}

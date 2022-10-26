@@ -45,10 +45,10 @@ func TestTrackerFailedDuty(t *testing.T) {
 		deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
 
 		count := 0
-		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, component step, msg string) {
+		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, step step, msg string) {
 			require.Equal(t, testData[0].duty, failedDuty)
 			require.True(t, isFailed)
-			require.Equal(t, consensus, component)
+			require.Equal(t, consensus, step)
 			require.Equal(t, msg, msgConsensus)
 			count++
 
@@ -85,10 +85,10 @@ func TestTrackerFailedDuty(t *testing.T) {
 		deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
 
 		count := 0
-		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, component step, msg string) {
+		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, step step, msg string) {
 			require.Equal(t, testData[0].duty, failedDuty)
 			require.False(t, isFailed)
-			require.Equal(t, zero, component)
+			require.Equal(t, zero, step)
 			require.Empty(t, msg)
 			count++
 
