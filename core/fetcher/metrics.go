@@ -21,6 +21,7 @@ import (
 	"github.com/obolnetwork/charon/app/promauto"
 )
 
+// TODO(dhruv): Remove the inconsistent counter code after the data has been collected.
 var inconsistentAttDataCounter = promauto.NewCounter(prometheus.CounterOpts{
 	Namespace: "core",
 	Subsystem: "fetcher",
