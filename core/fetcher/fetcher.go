@@ -84,6 +84,13 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 		} else if len(unsignedSet) == 0 { // No aggregators found in this slot
 			return nil
 		}
+	case core.DutySyncContribution:
+		unsignedSet, err = f.fetchContributionData(ctx, duty.Slot, defSet)
+		if err != nil {
+			return errors.Wrap(err, "fetch contribution data")
+		} else if len(unsignedSet) == 0 { // No sync committee contributors found in this slot
+			return nil
+		}
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
 	}
@@ -171,6 +178,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 	return resp, nil
 }
 
+// fetchAggregatorData fetches the attestation aggregation data.
 func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
 	for pubkey, dutyDef := range defSet {
@@ -187,10 +195,10 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 
 		selection, ok := prepAggData.(core.BeaconCommitteeSelection)
 		if !ok {
-			return core.UnsignedDataSet{}, errors.New("invalid beacon committee subscription")
+			return core.UnsignedDataSet{}, errors.New("invalid beacon committee selection")
 		}
 
-		ok, err = eth2exp.IsAggregator(ctx, f.eth2Cl, attDef.CommitteeLength, selection.SelectionProof)
+		ok, err = eth2exp.IsAttAggregator(ctx, f.eth2Cl, attDef.CommitteeLength, selection.SelectionProof)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		} else if !ok {
@@ -308,6 +316,64 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defS
 		}
 
 		resp[pubkey] = coreBlock
+	}
+
+	return resp, nil
+}
+
+// fetchContributionData fetches the sync committee contribution data.
+func (f *Fetcher) fetchContributionData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	resp := make(core.UnsignedDataSet)
+	for pubkey := range defSet {
+		// Query AggSigDB for DutyPrepareSyncContribution to get sync committee selection.
+		selectionData, err := f.aggSigDBFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey)
+		if err != nil {
+			return core.UnsignedDataSet{}, err
+		}
+
+		selection, ok := selectionData.(core.SyncCommitteeSelection)
+		if !ok {
+			return core.UnsignedDataSet{}, errors.New("invalid sync committee selection")
+		}
+
+		subcommIdx := uint64(selection.SubcommitteeIndex)
+
+		// Check if the validator is an aggregator for the sync committee.
+		ok, err = eth2exp.IsSyncCommAggregator(ctx, f.eth2Cl, selection.SelectionProof)
+		if err != nil {
+			return core.UnsignedDataSet{}, err
+		} else if !ok {
+			log.Debug(ctx, "Validator not selected for sync committee contribution duty", z.Any("pubkey", pubkey))
+			continue
+		}
+
+		// Query AggSigDB for DutySyncMessage to get beacon block root.
+		syncMsgData, err := f.aggSigDBFunc(ctx, core.NewSyncMessageDuty(slot), pubkey)
+		if err != nil {
+			return core.UnsignedDataSet{}, err
+		}
+
+		msg, ok := syncMsgData.(core.SignedSyncMessage)
+		if !ok {
+			return core.UnsignedDataSet{}, errors.New("invalid sync committee message")
+		}
+
+		blockRoot := msg.BeaconBlockRoot
+
+		// Query BN for sync committee contribution.
+		contribution, err := f.eth2Cl.SyncCommitteeContribution(ctx, eth2p0.Slot(slot), subcommIdx, blockRoot)
+		if err != nil {
+			return core.UnsignedDataSet{}, err
+		} else if contribution == nil {
+			// Some beacon nodes return nil if the beacon block root is not found for the subcommittee, return retryable error.
+			// This could happen if the beacon node didn't subscribe to the correct subnet.
+			return core.UnsignedDataSet{}, errors.New("sync committee contribution not found", z.U64("subcommIdx", subcommIdx), z.Hex("root", blockRoot[:]))
+		}
+		log.Info(ctx, "Resolved sync committee contribution duty", z.Any("pubkey", pubkey))
+
+		resp[pubkey] = core.SyncContribution{
+			SyncCommitteeContribution: *contribution,
+		}
 	}
 
 	return resp, nil

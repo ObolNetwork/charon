@@ -247,7 +247,7 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 
 	var selections attSelections
 	for _, selection := range aggregateSelections {
-		ok, err := eth2exp.IsAggregator(ctx, eth2Cl, commLengths[selection.ValidatorIndex], selection.SelectionProof)
+		ok, err := eth2exp.IsAttAggregator(ctx, eth2Cl, commLengths[selection.ValidatorIndex], selection.SelectionProof)
 		if err != nil {
 			return nil, err
 		} else if !ok {

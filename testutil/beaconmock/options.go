@@ -214,6 +214,39 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 	}
 }
 
+// WithSyncCommitteeSize configures the http mock with the provided sync committee size.
+func WithSyncCommitteeSize(size int) Option {
+	return func(mock *Mock) {
+		mock.overrides = append(mock.overrides, staticOverride{
+			Endpoint: "/eth/v1/config/spec",
+			Key:      "SYNC_COMMITTEE_SIZE",
+			Value:    fmt.Sprint(size),
+		})
+	}
+}
+
+// WithSyncCommitteeSubnetCount configures the http mock with the provided sync committee subnet count.
+func WithSyncCommitteeSubnetCount(count int) Option {
+	return func(mock *Mock) {
+		mock.overrides = append(mock.overrides, staticOverride{
+			Endpoint: "/eth/v1/config/spec",
+			Key:      "SYNC_COMMITTEE_SUBNET_COUNT",
+			Value:    fmt.Sprint(count),
+		})
+	}
+}
+
+// WithTargetAggregatorsPerSyncSubcommittee configures the http mock with the provided target aggregators per sync subcommittee.
+func WithTargetAggregatorsPerSyncSubcommittee(aggregators int) Option {
+	return func(mock *Mock) {
+		mock.overrides = append(mock.overrides, staticOverride{
+			Endpoint: "/eth/v1/config/spec",
+			Key:      "TARGET_AGGREGATORS_PER_SYNC_SUBCOMMITTEE",
+			Value:    fmt.Sprint(aggregators),
+		})
+	}
+}
+
 // WithDeterministicAttesterDuties configures the mock to provide deterministic
 // duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.

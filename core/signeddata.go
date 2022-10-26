@@ -807,6 +807,67 @@ func (s *BeaconCommitteeSelection) UnmarshalJSON(input []byte) error {
 	return s.BeaconCommitteeSelection.UnmarshalJSON(input)
 }
 
+// SyncCommitteeSelection wraps an eth2exp.SyncCommitteeSelection and implements SignedData.
+type SyncCommitteeSelection struct {
+	eth2exp.SyncCommitteeSelection
+}
+
+func (s SyncCommitteeSelection) MessageRoot() ([32]byte, error) {
+	return eth2util.SlotHashRoot(s.Slot)
+}
+
+func (s SyncCommitteeSelection) Signature() Signature {
+	return SigFromETH2(s.SelectionProof)
+}
+
+func (s SyncCommitteeSelection) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.SelectionProof = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (s SyncCommitteeSelection) Clone() (SignedData, error) {
+	return s.clone()
+}
+
+func (s SyncCommitteeSelection) clone() (SyncCommitteeSelection, error) {
+	var resp SyncCommitteeSelection
+	err := cloneJSONMarshaler(s, &resp)
+	if err != nil {
+		return SyncCommitteeSelection{}, errors.Wrap(err, "clone SyncCommitteeSubscription")
+	}
+
+	return resp, nil
+}
+
+func (s SyncCommitteeSelection) MarshalJSON() ([]byte, error) {
+	return s.SyncCommitteeSelection.MarshalJSON()
+}
+
+func (s *SyncCommitteeSelection) UnmarshalJSON(input []byte) error {
+	return s.SyncCommitteeSelection.UnmarshalJSON(input)
+}
+
+// NewSyncCommitteeSelection is a convenience function which returns new signed SyncCommitteeSelection.
+func NewSyncCommitteeSelection(selection *eth2exp.SyncCommitteeSelection) SyncCommitteeSelection {
+	return SyncCommitteeSelection{
+		SyncCommitteeSelection: *selection,
+	}
+}
+
+// NewPartialSignedSyncCommitteeSelection is a convenience function which returns new partially signed SyncCommitteeSelection.
+func NewPartialSignedSyncCommitteeSelection(selection *eth2exp.SyncCommitteeSelection, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSyncCommitteeSelection(selection),
+		ShareIdx:   shareIdx,
+	}
+}
+
 // NewSignedAggregateAndProof is a convenience function which returns a new signed SignedAggregateAndProof.
 func NewSignedAggregateAndProof(data *eth2p0.SignedAggregateAndProof) SignedAggregateAndProof {
 	return SignedAggregateAndProof{SignedAggregateAndProof: *data}

@@ -22,8 +22,10 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -128,7 +130,7 @@ func TestFetchAggregator(t *testing.T) {
 		dutyA.CommitteeIndex = attA.Data.Index
 		dutyB := testutil.RandomAttestationDuty(t)
 		dutyB.CommitteeLength = commLength
-		dutyB.CommitteeIndex = attA.Data.Index
+		dutyB.CommitteeIndex = attB.Data.Index
 
 		return map[core.PubKey]core.DutyDefinition{
 			pubkeysByIdx[vIdxA]: core.NewAttesterDefinition(dutyA),
@@ -331,6 +333,140 @@ func TestFetchBuilderProposer(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, slot, slotB)
 		assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
+
+		return nil
+	})
+
+	err = fetch.Fetch(ctx, duty, defSet)
+	require.NoError(t, err)
+}
+
+func TestFetchSyncContribution(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		slot         = 1
+		vIdxA        = 2
+		vIdxB        = 3
+		subCommIdxA  = 4
+		subCommIdxB  = 5
+		syncCommSize = 16
+	)
+
+	var (
+		duty             = core.NewSyncContributionDuty(slot)
+		beaconBlockRootA = testutil.RandomRoot()
+		beaconBlockRootB = testutil.RandomRoot()
+	)
+
+	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
+		vIdxA: testutil.RandomCorePubKey(t),
+		vIdxB: testutil.RandomCorePubKey(t),
+	}
+
+	// Construct duty definition set.
+	defSet := map[core.PubKey]core.DutyDefinition{
+		pubkeysByIdx[vIdxA]: core.NewSyncCommitteeDefinition(testutil.RandomSyncCommitteeDuty(t)),
+		pubkeysByIdx[vIdxB]: core.NewSyncCommitteeDefinition(testutil.RandomSyncCommitteeDuty(t)),
+	}
+
+	// Construct sync committee selections.
+	selectionA := testutil.RandomSyncCommitteeSelection()
+	selectionA.SubcommitteeIndex = subCommIdxA
+	selectionB := testutil.RandomSyncCommitteeSelection()
+	selectionB.SubcommitteeIndex = subCommIdxB
+	commSelectionsByPubkey := map[core.PubKey]core.SignedData{
+		pubkeysByIdx[vIdxA]: core.NewSyncCommitteeSelection(selectionA),
+		pubkeysByIdx[vIdxB]: core.NewSyncCommitteeSelection(selectionB),
+	}
+
+	// Construct sync committee messages.
+	msgA := testutil.RandomSyncCommitteeMessage()
+	msgA.BeaconBlockRoot = beaconBlockRootA
+	msgB := testutil.RandomSyncCommitteeMessage()
+	msgB.BeaconBlockRoot = beaconBlockRootB
+	syncMsgsByPubkey := map[core.PubKey]core.SignedData{
+		pubkeysByIdx[vIdxA]: core.NewSignedSyncMessage(msgA),
+		pubkeysByIdx[vIdxB]: core.NewSignedSyncMessage(msgB),
+	}
+
+	// Construct beaconmock.
+	bmock, err := beaconmock.New(
+		beaconmock.WithSyncCommitteeSize(syncCommSize),
+		beaconmock.WithSyncCommitteeSubnetCount(syncCommSize),
+		beaconmock.WithTargetAggregatorsPerSyncSubcommittee(syncCommSize),
+	)
+	require.NoError(t, err)
+
+	bmock.SyncCommitteeContributionFunc = func(ctx context.Context, resSlot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+		require.Equal(t, eth2p0.Slot(slot), resSlot)
+
+		var (
+			signedMsg       core.SignedSyncMessage
+			signedSelection core.SyncCommitteeSelection
+		)
+		for _, msg := range syncMsgsByPubkey {
+			m, ok := msg.(core.SignedSyncMessage)
+			require.True(t, ok)
+			if m.BeaconBlockRoot == beaconBlockRoot {
+				signedMsg = m
+			}
+		}
+		require.NotNil(t, signedMsg)
+
+		for _, selection := range commSelectionsByPubkey {
+			s, ok := selection.(core.SyncCommitteeSelection)
+			require.True(t, ok)
+			if s.SubcommitteeIndex == eth2p0.CommitteeIndex(subcommitteeIndex) {
+				signedSelection = s
+			}
+		}
+		require.NotNil(t, signedSelection)
+
+		return &altair.SyncCommitteeContribution{
+			Slot:              slot,
+			BeaconBlockRoot:   beaconBlockRoot,
+			SubcommitteeIndex: subcommitteeIndex,
+			AggregationBits:   bitfield.Bitvector128(testutil.RandomBitList()),
+			Signature:         testutil.RandomEth2Signature(),
+		}, nil
+	}
+
+	// Construct fetcher component.
+	fetch, err := fetcher.New(bmock, "")
+	require.NoError(t, err)
+
+	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+		if duty.Type == core.DutyPrepareSyncContribution {
+			require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
+			return commSelectionsByPubkey[key], nil
+		}
+
+		if duty.Type == core.DutySyncMessage {
+			require.Equal(t, core.NewSyncMessageDuty(slot), duty)
+			return syncMsgsByPubkey[key], nil
+		}
+
+		return nil, errors.New("unsupported duty")
+	})
+
+	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+		require.Equal(t, duty, resDuty)
+		require.Len(t, resDataSet, 2)
+
+		for pubkey, data := range resDataSet {
+			contribution, ok := data.(core.SyncContribution)
+			require.True(t, ok)
+			require.Equal(t, eth2p0.Slot(slot), contribution.Slot)
+
+			selection, ok := commSelectionsByPubkey[pubkey].(core.SyncCommitteeSelection)
+			require.True(t, ok)
+			require.Equal(t, selection.SubcommitteeIndex, eth2p0.CommitteeIndex(contribution.SubcommitteeIndex))
+
+			message, ok := syncMsgsByPubkey[pubkey].(core.SignedSyncMessage)
+			require.True(t, ok)
+			require.Equal(t, message.BeaconBlockRoot, contribution.BeaconBlockRoot)
+		}
 
 		return nil
 	})
