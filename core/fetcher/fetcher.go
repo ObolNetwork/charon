@@ -120,6 +120,13 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 	// We may have multiple validators in the same committee, use the same attestation data in that case.
 	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
 
+	// Get attestation with the given slot and 0 committeeIndex, since return data is NOT dependent on committeeIndex.
+	// With many validators, this allows to do a single call for all committees.
+	eth2AttDataZeroCommIdx, err := f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), 0)
+	if err != nil {
+		return nil, err
+	}
+
 	resp := make(core.UnsignedDataSet)
 	for pubkey, def := range defSet {
 		attDuty, ok := def.(core.AttesterDefinition)
@@ -129,23 +136,17 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 
 		commIdx := attDuty.CommitteeIndex
 
-		eth2AttData, ok := dataByCommIdx[commIdx]
+		eth2AttDataWithCommIdx, ok := dataByCommIdx[commIdx]
 		if !ok {
-			var err error
-			eth2AttData, err = f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), commIdx)
-			if err != nil {
-				return nil, err
-			}
-
-			dataByCommIdx[commIdx] = eth2AttData
+			eth2AttDataWithCommIdx = eth2AttDataZeroCommIdx
+			eth2AttDataWithCommIdx.Index = commIdx // Add committee index for given validator.
+			dataByCommIdx[commIdx] = eth2AttDataWithCommIdx
 		}
 
-		attData := core.AttestationData{
-			Data: *eth2AttData,
+		resp[pubkey] = core.AttestationData{
+			Data: *eth2AttDataWithCommIdx,
 			Duty: attDuty.AttesterDuty,
 		}
-
-		resp[pubkey] = attData
 	}
 
 	return resp, nil
