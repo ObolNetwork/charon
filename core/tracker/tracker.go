@@ -164,8 +164,19 @@ const (
 	msgSigAgg = "bug: threshold aggregation of partial signatures failed due to inconsistent signed data"
 )
 
-// parsigsByMsg contains partial signatures grouped by message root.
-type parsigsByMsg map[[32]byte][]core.ParSignedData
+// parsigsByMsg contains partial signatures grouped by message root grouped by pubkey.
+type parsigsByMsg map[core.PubKey]map[[32]byte][]core.ParSignedData
+
+// MsgRootsConsistent returns true if the all partial signatures have consistent message roots.
+func (m parsigsByMsg) MsgRootsConsistent() bool {
+	for _, inner := range m {
+		if len(inner) > 1 {
+			return false
+		}
+	}
+
+	return true
+}
 
 // event represents an event emitted by a core workflow step.
 type event struct {
@@ -245,7 +256,7 @@ func (t *Tracker) Run(ctx context.Context) error {
 			t.parSigReporter(ctx, duty, parsigs)
 
 			// Analyse failed duties
-			failed, failedStep, failedMsg := analyseDutyFailed(duty, t.events, parsigs)
+			failed, failedStep, failedMsg := analyseDutyFailed(duty, t.events, parsigs.MsgRootsConsistent())
 			t.failedDutyReporter(ctx, duty, failed, failedStep, failedMsg)
 
 			// Analyse peer participation
@@ -287,7 +298,7 @@ func dutyFailedStep(es []event) (bool, step) {
 //
 // It returns false if the duty didn't fail, i.e., the duty
 // didn't get stuck and completed the sigAgg step.
-func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, parsigMsgs parsigsByMsg) (bool, step, string) {
+func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootConsistent bool) (bool, step, string) {
 	failed, step := dutyFailedStep(allEvents[duty])
 	if !failed {
 		return false, zero, ""
@@ -306,7 +317,7 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, parsigMs
 	case parSigEx:
 		msg = msgParSigEx
 	case parSigDBThreshold:
-		if len(parsigMsgs) <= 1 {
+		if msgRootConsistent {
 			msg = msgParSigDBInsufficient
 		} else {
 			msg = msgParSigDBInconsistent
@@ -327,21 +338,26 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, parsigMs
 	return true, step, msg
 }
 
-// analyseParSigs returns a mapping of partial signed data messages by peers (share index).
+// analyseParSigs returns a mapping of partial signed data messages by peers (share index) by validator (pubkey).
 func analyseParSigs(events []event) parsigsByMsg {
+	type dedupKey struct {
+		Pubkey   core.PubKey
+		ShareIdx int
+	}
 	var (
-		dedup = make(map[int]bool)
-		datas = make(map[[32]byte][]core.ParSignedData)
+		dedup = make(map[dedupKey]bool)
+		datas = make(map[core.PubKey]map[[32]byte][]core.ParSignedData)
 	)
 
 	for _, e := range events {
 		if e.parSig == nil {
 			continue
 		}
-		if dedup[e.parSig.ShareIdx] {
+		key := dedupKey{Pubkey: e.pubkey, ShareIdx: e.parSig.ShareIdx}
+		if dedup[key] {
 			continue
 		}
-		dedup[e.parSig.ShareIdx] = true
+		dedup[key] = true
 
 		root, err := e.parSig.MessageRoot()
 		if err != nil {
@@ -349,7 +365,12 @@ func analyseParSigs(events []event) parsigsByMsg {
 			continue // Just log and ignore as this is highly unlikely and non-critical code.
 		}
 
-		datas[root] = append(datas[root], *e.parSig)
+		inner, ok := datas[e.pubkey]
+		if !ok {
+			inner = make(map[[32]byte][]core.ParSignedData)
+		}
+		inner[root] = append(inner[root], *e.parSig)
+		datas[e.pubkey] = inner
 	}
 
 	return datas
@@ -762,36 +783,45 @@ func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.P
 }
 
 func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg) {
-	if len(parsigMsgs) <= 1 {
+	if parsigMsgs.MsgRootsConsistent() {
 		return // Nothing to report.
 	}
 
 	inconsistentCounter.WithLabelValues(duty.Type.String()).Inc()
 
-	// Group indexes by json for logging.
-	indexesByJSON := make(map[string][]int)
-	for _, parsigs := range parsigMsgs {
-		var key string
-		for _, parsig := range parsigs {
-			if key == "" {
-				bytes, err := json.Marshal(parsig)
-				if err != nil {
-					continue // Ignore error, just skip it.
-				}
-				key = string(bytes)
-			}
-			indexesByJSON[key] = append(indexesByJSON[key], parsig.ShareIdx)
+	for pubkey, parsigsByMsg := range parsigMsgs {
+		if len(parsigMsgs) <= 1 {
+			continue // Nothing to report for this pubkey.
 		}
-	}
 
-	if expectInconsistentParSigs(duty.Type) {
-		log.Debug(ctx, "Inconsistent sync committee partial signed data",
-			z.Any("duty", duty),
-			z.Any("data", indexesByJSON))
-	} else {
-		log.Warn(ctx, "Inconsistent partial signed data", nil,
-			z.Any("duty", duty),
-			z.Any("data", indexesByJSON))
+		// Group indexes by json for logging.
+		indexesByJSON := make(map[string][]int)
+
+		for _, parsigs := range parsigsByMsg {
+			var key string
+			for _, parsig := range parsigs {
+				if key == "" {
+					bytes, err := json.Marshal(parsig)
+					if err != nil {
+						continue // Ignore error, just skip it.
+					}
+					key = string(bytes)
+				}
+				indexesByJSON[key] = append(indexesByJSON[key], parsig.ShareIdx)
+			}
+		}
+
+		if expectInconsistentParSigs(duty.Type) {
+			log.Debug(ctx, "Inconsistent sync committee partial signed data",
+				z.Any("pubkey", pubkey),
+				z.Any("duty", duty),
+				z.Any("data", indexesByJSON))
+		} else {
+			log.Warn(ctx, "Inconsistent partial signed data", nil,
+				z.Any("pubkey", pubkey),
+				z.Any("duty", duty),
+				z.Any("data", indexesByJSON))
+		}
 	}
 }
 
