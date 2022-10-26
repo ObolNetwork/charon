@@ -149,8 +149,9 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 		resp[pubkey] = attData
 
 		// Store Attestation data root excluding committee index.
-		eth2AttData.Index = 0
-		root, err := eth2AttData.HashTreeRoot()
+		data := *eth2AttData
+		data.Index = 0
+		root, err := data.HashTreeRoot()
 		if err != nil {
 			return nil, err
 		}
