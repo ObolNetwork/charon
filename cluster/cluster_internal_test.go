@@ -33,6 +33,23 @@ func TestDefinitionVerify(t *testing.T) {
 
 	secret0, op0 := randomOperator(t)
 	secret1, op1 := randomOperator(t)
+	secret3, creator := randomCreator(t)
+
+	t.Run("verify definition v1.4", func(t *testing.T) {
+		definition := randomDefinition(t, op0, op1, WithV1x4(creator))
+
+		definition, err = signCreator(secret3, definition)
+		require.NoError(t, err)
+
+		definition.Operators[0], err = signOperator(secret0, definition, op0)
+		require.NoError(t, err)
+
+		definition.Operators[1], err = signOperator(secret1, definition, op1)
+		require.NoError(t, err)
+
+		err = definition.VerifySignatures()
+		require.NoError(t, err)
+	})
 
 	t.Run("verify definition v1.3", func(t *testing.T) {
 		definition := randomDefinition(t, op0, op1)
@@ -52,6 +69,14 @@ func TestDefinitionVerify(t *testing.T) {
 		def.Version = v1_2
 		require.NoError(t, def.VerifySignatures())
 		def.Version = v1_0
+		require.NoError(t, def.VerifySignatures())
+	})
+
+	t.Run("unsigned creator and operators", func(t *testing.T) {
+		def := randomDefinition(t, op0, op1, WithV1x4(creator))
+		def.Creator = Creator{}
+		def.Operators = []Operator{{}, {}}
+
 		require.NoError(t, def.VerifySignatures())
 	})
 
@@ -89,6 +114,33 @@ func TestDefinitionVerify(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "some operators signed while others didn't")
 	})
+
+	t.Run("creator didn't sign", func(t *testing.T) {
+		definition := randomDefinition(t, op0, op1, WithV1x4(creator))
+		definition.Operators[0], err = signOperator(secret0, definition, op0)
+		require.NoError(t, err)
+
+		definition.Operators[1], err = signOperator(secret1, definition, op1)
+		require.NoError(t, err)
+
+		err = definition.VerifySignatures()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "empty creator config signature")
+	})
+}
+
+// randomOperator returns a random ETH1 private key and populated creator struct (excluding config signature).
+func randomCreator(t *testing.T) (*ecdsa.PrivateKey, Creator) {
+	t.Helper()
+
+	secret, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	addr := crypto.PubkeyToAddress(secret.PublicKey)
+
+	return secret, Creator{
+		Address: addr.Hex(),
+	}
 }
 
 // randomOperator returns a random ETH1 private key and populated operator struct (excluding config signature).
@@ -107,12 +159,12 @@ func randomOperator(t *testing.T) (*ecdsa.PrivateKey, Operator) {
 }
 
 // randomDefinition returns a test cluster definition with version set to v1.3.0.
-func randomDefinition(t *testing.T, op0, op1 Operator) Definition {
+func randomDefinition(t *testing.T, op0, op1 Operator, opts ...func(*Definition)) Definition {
 	t.Helper()
 
 	definition, err := NewDefinition("test definition", 1, 2,
 		"", "", eth2util.Sepolia.ForkVersionHex, []Operator{op0, op1},
-		rand.New(rand.NewSource(1)))
+		rand.New(rand.NewSource(1)), opts...)
 	require.NoError(t, err)
 
 	return definition

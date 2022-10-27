@@ -81,6 +81,18 @@ func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
 	return bytes.Equal(addrBytes, actualAddr[:]), nil
 }
 
+// signOperator returns the definition with signed creator config hash.
+func signCreator(secret *ecdsa.PrivateKey, def Definition) (Definition, error) {
+	var err error
+
+	def.Creator.ConfigSignature, err = signEIP712(secret, eip712ConfigHash, def, Operator{})
+	if err != nil {
+		return Definition{}, err
+	}
+
+	return def, nil
+}
+
 // signOperator returns the operator with signed config hash and enr.
 func signOperator(secret *ecdsa.PrivateKey, def Definition, operator Operator) (Operator, error) {
 	var err error
