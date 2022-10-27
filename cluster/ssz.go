@@ -36,9 +36,9 @@ const (
 // while the definition hash includes all fields.
 func hashDefinition(d Definition, configOnly bool) ([32]byte, error) {
 	var hashFunc func(Definition, ssz.HashWalker, bool) error
-	if isAnyVersion(d, v1_0, v1_1, v1_2) {
+	if isAnyVersion(d.Version, v1_0, v1_1, v1_2) {
 		hashFunc = hashDefinitionLegacy
-	} else if isAnyVersion(d, v1_3, v1_4) { //nolint:revive // Early return not applicable to else if
+	} else if isAnyVersion(d.Version, v1_3, v1_4) { //nolint:revive // Early return not applicable to else if
 		hashFunc = hashDefinitionV1x3or4
 	} else {
 		return [32]byte{}, errors.New("unknown version")
@@ -233,7 +233,7 @@ func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) err
 		hh.PutBytes(d.ConfigHash)
 	}
 
-	if !isAnyVersion(d, v1_3) {
+	if !isV1x3(d.Version) {
 		// Field (11 or 12) 'Creator' Composite for v1.4 and later
 		creatorIdx := hh.Index()
 

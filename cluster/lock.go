@@ -83,13 +83,13 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		err  error
 	)
 	switch {
-	case isV1x0(version.Definition.Version) || isV1x1(version.Definition.Version):
+	case isAnyVersion(version.Definition.Version, v1_0, v1_1):
 		lock, err = unmarshalLockV1x0or1(data)
 		if err != nil {
 			return err
 		}
-	case isV1x2(version.Definition.Version) || isV1x3(version.Definition.Version) || isV1x4(version.Definition.Version):
-		lock, err = unmarshalLockV1x2or3(data)
+	case isAnyVersion(version.Definition.Version, v1_2, v1_3, v1_4):
+		lock, err = unmarshalLockV1x2orLater(data)
 		if err != nil {
 			return err
 		}
@@ -193,7 +193,7 @@ func marshalLockV1x0or1(lock Lock, lockHash [32]byte) ([]byte, error) {
 }
 
 func marshalLockV1x2or3(lock Lock, lockHash [32]byte) ([]byte, error) {
-	resp, err := json.Marshal(lockJSONv1x2Later{
+	resp, err := json.Marshal(lockJSONv1x2orLater{
 		Definition:         lock.Definition,
 		Validators:         distValidatorsToV1x2or3(lock.Validators),
 		SignatureAggregate: lock.SignatureAggregate,
@@ -222,8 +222,8 @@ func unmarshalLockV1x0or1(data []byte) (lock Lock, err error) {
 	return lock, nil
 }
 
-func unmarshalLockV1x2or3(data []byte) (lock Lock, err error) {
-	var lockJSON lockJSONv1x2Later
+func unmarshalLockV1x2orLater(data []byte) (lock Lock, err error) {
+	var lockJSON lockJSONv1x2orLater
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
 		return Lock{}, errors.Wrap(err, "unmarshal definition")
 	}
@@ -246,8 +246,8 @@ type lockJSONv1x0or1 struct {
 	LockHash           []byte                  `json:"lock_hash"`
 }
 
-// lockJSONv1x2Later is the json formatter of Lock for versions v1.2.0 and later.
-type lockJSONv1x2Later struct {
+// lockJSONv1x2orLater is the json formatter of Lock for versions v1.2.0 and later.
+type lockJSONv1x2orLater struct {
 	Definition         Definition              `json:"cluster_definition"`
 	Validators         []distValidatorJSONv1x2 `json:"distributed_validators"`
 	SignatureAggregate ethHex                  `json:"signature_aggregate"`

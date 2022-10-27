@@ -214,7 +214,7 @@ func (d Definition) VerifySignatures() error {
 	}
 
 	// Verify creator signature
-	if isAnyVersion(d, v1_0, v1_1, v1_2, v1_3) {
+	if isAnyVersion(d.Version, v1_0, v1_1, v1_2, v1_3) {
 		if len(d.Creator.ConfigSignature) > 0 {
 			return errors.New("unexpected creator config signature in old version")
 		}

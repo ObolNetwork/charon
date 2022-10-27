@@ -38,9 +38,9 @@ var supportedVersions = map[string]bool{
 	v1_0: true,
 }
 
-func isAnyVersion(d Definition, versions ...string) bool {
+func isAnyVersion(version string, versions ...string) bool {
 	for _, v := range versions {
-		if d.Version == v {
+		if version == v {
 			return true
 		}
 	}
