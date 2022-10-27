@@ -295,6 +295,11 @@ func (b *VersionedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
+// NewSyncContribution returns a new SyncContribution.
+func NewSyncContribution(c *altair.SyncCommitteeContribution) SyncContribution {
+	return SyncContribution{SyncCommitteeContribution: *c}
+}
+
 type SyncContribution struct {
 	altair.SyncCommitteeContribution
 }

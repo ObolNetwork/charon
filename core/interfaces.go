@@ -76,6 +76,10 @@ type DutyDB interface {
 	// AwaitAggAttestation blocks and returns the aggregated attestation for the slot
 	// and attestation when available.
 	AwaitAggAttestation(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
+
+	// AwaitSyncContribution blocks and returns the sync committee contribution data for the slot and
+	// the subcommittee and the beacon block root when available.
+	AwaitSyncContribution(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root)
 }
 
 // Consensus comes to consensus on proposed duty data.

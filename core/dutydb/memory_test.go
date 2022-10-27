@@ -214,6 +214,35 @@ func TestMemDBAggregator(t *testing.T) {
 	}
 }
 
+func TestMemDBSyncContribution(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const queries = 3
+
+	for i := 0; i < queries; i++ {
+		contrib := testutil.RandomSyncCommitteeContribution()
+		set := core.UnsignedDataSet{
+			testutil.RandomCorePubKey(t): core.NewSyncContribution(contrib),
+		}
+
+		var (
+			slot            = int64(contrib.Slot)
+			beaconBlockRoot = contrib.BeaconBlockRoot
+			subcommIdx      = contrib.SubcommitteeIndex
+		)
+
+		go func() {
+			err := db.Store(ctx, core.NewSyncContributionDuty(slot), set)
+			require.NoError(t, err)
+		}()
+
+		resp, err := db.AwaitSyncContribution(ctx, slot, int64(subcommIdx), beaconBlockRoot)
+		require.NoError(t, err)
+		require.Equal(t, contrib, resp)
+	}
+}
+
 func TestMemDBClashingBlocks(t *testing.T) {
 	ctx := context.Background()
 	db := dutydb.NewMemDB(new(testDeadliner))

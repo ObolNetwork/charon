@@ -21,6 +21,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -31,19 +32,21 @@ import (
 // NewMemDB returns a new in-memory dutyDB instance.
 func NewMemDB(deadliner core.Deadliner) *MemDB {
 	return &MemDB{
-		attDuties:        make(map[attKey]*eth2p0.AttestationData),
-		attPubKeys:       make(map[pkKey]core.PubKey),
-		attKeysBySlot:    make(map[int64][]pkKey),
-		builderProDuties: make(map[int64]*eth2api.VersionedBlindedBeaconBlock),
-		proDuties:        make(map[int64]*spec.VersionedBeaconBlock),
-		aggDuties:        make(map[aggKey]core.AggregatedAttestation),
-		aggKeysBySlot:    make(map[int64][]aggKey),
-		shutdown:         make(chan struct{}),
-		deadliner:        deadliner,
+		attDuties:         make(map[attKey]*eth2p0.AttestationData),
+		attPubKeys:        make(map[pkKey]core.PubKey),
+		attKeysBySlot:     make(map[int64][]pkKey),
+		builderProDuties:  make(map[int64]*eth2api.VersionedBlindedBeaconBlock),
+		proDuties:         make(map[int64]*spec.VersionedBeaconBlock),
+		aggDuties:         make(map[aggKey]core.AggregatedAttestation),
+		aggKeysBySlot:     make(map[int64][]aggKey),
+		contribDuties:     make(map[contribKey]*altair.SyncCommitteeContribution),
+		contribKeysBySlot: make(map[int64][]contribKey),
+		shutdown:          make(chan struct{}),
+		deadliner:         deadliner,
 	}
 }
 
-// MemDB is a in-memory dutyDB implementation.
+// MemDB is an in-memory dutyDB implementation.
 // It is a placeholder for the badgerDB implementation.
 type MemDB struct {
 	mu sync.Mutex
@@ -67,12 +70,17 @@ type MemDB struct {
 	aggKeysBySlot map[int64][]aggKey
 	aggQueries    []aggQuery
 
+	// DutySyncContribution
+	contribDuties     map[contribKey]*altair.SyncCommitteeContribution
+	contribKeysBySlot map[int64][]contribKey
+	contribQueries    []contribQuery
+
 	shutdown  chan struct{}
 	deadliner core.Deadliner
 }
 
 // Shutdown results in all blocking queries to return shutdown errors.
-// Note this may once be called *once*.
+// Note this may only be called *once*.
 func (db *MemDB) Shutdown() {
 	close(db.shutdown)
 }
@@ -129,6 +137,14 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 			}
 		}
 		db.resolveAggQueriesUnsafe()
+	case core.DutySyncContribution:
+		for _, unsignedData := range unsignedSet {
+			err := db.storeSyncContributionUnsafe(unsignedData)
+			if err != nil {
+				return err
+			}
+			db.resolveContribQueriesUnsafe()
+		}
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
 	}
@@ -256,6 +272,32 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot int64, attestatio
 	}
 }
 
+// AwaitSyncContribution blocks and returns the sync committee contribution data for the slot and
+// the subcommittee and the beacon block root when available.
+func (db *MemDB) AwaitSyncContribution(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+	db.mu.Lock()
+	response := make(chan *altair.SyncCommitteeContribution, 1) // Buffer of one so resolving never blocks
+	db.contribQueries = append(db.contribQueries, contribQuery{
+		Key: contribKey{
+			Slot:       slot,
+			SubcommIdx: subcommIdx,
+			Root:       beaconBlockRoot,
+		},
+		Response: response,
+	})
+	db.resolveContribQueriesUnsafe()
+	db.mu.Unlock()
+
+	select {
+	case <-db.shutdown:
+		return nil, errors.New("dutydb shutdown")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case value := <-response:
+		return value, nil
+	}
+}
+
 // PubKeyByAttestation implements core.DutyDB, see its godoc.
 func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error) {
 	db.mu.Lock()
@@ -360,6 +402,46 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 	} else {
 		db.aggDuties[key] = aggAtt
 		db.aggKeysBySlot[slot] = append(db.aggKeysBySlot[slot], key)
+	}
+
+	return nil
+}
+
+// storeAggAttestationUnsafe stores the unsigned aggregated attestation. It is unsafe since it assumes the lock is held.
+func (db *MemDB) storeSyncContributionUnsafe(unsignedData core.UnsignedData) error {
+	cloned, err := unsignedData.Clone() // Clone before storing.
+	if err != nil {
+		return err
+	}
+
+	contrib, ok := cloned.(core.SyncContribution)
+	if !ok {
+		return errors.New("invalid unsigned sync committee contribution")
+	}
+
+	contribRoot, err := contrib.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "hash sync committee contribution")
+	}
+
+	key := contribKey{
+		Slot:       int64(contrib.Slot),
+		SubcommIdx: int64(contrib.SubcommitteeIndex),
+		Root:       contrib.BeaconBlockRoot,
+	}
+
+	if existing, ok := db.contribDuties[key]; ok {
+		existingRoot, err := existing.HashTreeRoot()
+		if err != nil {
+			return errors.Wrap(err, "sync committee contribution root")
+		}
+
+		if existingRoot != contribRoot {
+			return errors.New("clashing sync committee contribution")
+		}
+	} else {
+		db.contribDuties[key] = &contrib.SyncCommitteeContribution
+		db.contribKeysBySlot[int64(contrib.Slot)] = append(db.contribKeysBySlot[int64(contrib.Slot)], key)
 	}
 
 	return nil
@@ -509,6 +591,23 @@ func (db *MemDB) resolveBuilderProQueriesUnsafe() {
 	db.builderProQueries = unresolved
 }
 
+// resolveContribQueriesUnsafe resolves any contribQuery to a result if found.
+// It is unsafe since it assume that the lock is held.
+func (db *MemDB) resolveContribQueriesUnsafe() {
+	var unresolved []contribQuery
+	for _, query := range db.contribQueries {
+		value, ok := db.contribDuties[query.Key]
+		if !ok {
+			unresolved = append(unresolved, query)
+			continue
+		}
+
+		query.Response <- value
+	}
+
+	db.contribQueries = unresolved
+}
+
 // deleteDutyUnsafe deletes the duty from the database. It is unsafe since it assumes the lock is held.
 func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 	switch duty.Type {
@@ -527,6 +626,11 @@ func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 			delete(db.aggDuties, key)
 		}
 		delete(db.aggKeysBySlot, duty.Slot)
+	case core.DutySyncContribution:
+		for _, key := range db.contribKeysBySlot[duty.Slot] {
+			delete(db.contribDuties, key)
+		}
+		delete(db.contribKeysBySlot, duty.Slot)
 	default:
 		return errors.New("unknown duty type")
 	}
@@ -553,6 +657,13 @@ type aggKey struct {
 	Root eth2p0.Root
 }
 
+// contribKey is the key to look up sync contribution by root and subcommittee index in the DB.
+type contribKey struct {
+	Slot       int64
+	SubcommIdx int64
+	Root       eth2p0.Root
+}
+
 // attQuery is a waiting attQuery with a response channel.
 type attQuery struct {
 	Key      attKey
@@ -575,4 +686,10 @@ type aggQuery struct {
 type builderProQuery struct {
 	Key      int64
 	Response chan<- *eth2api.VersionedBlindedBeaconBlock
+}
+
+// contribQuery is a waiting contribQuery with a response channel.
+type contribQuery struct {
+	Key      contribKey
+	Response chan<- *altair.SyncCommitteeContribution
 }
