@@ -23,13 +23,11 @@ import (
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -37,118 +35,82 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
-func TestVerifyAttestation(t *testing.T) {
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
+func TestVerifySignedData(t *testing.T) {
+	tests := []struct {
+		name string
+		data interface {
+			MessageRoot() ([32]byte, error)
+		}
+		domain signing.DomainName
+	}{
+		{
+			name:   "verify attestation",
+			data:   core.NewAttestation(testutil.RandomAttestation()),
+			domain: signing.DomainBeaconAttester,
+		},
+		{
+			name:   "verify beacon block",
+			data:   testutil.RandomCoreVersionSignedBeaconBlock(t),
+			domain: signing.DomainBeaconProposer,
+		},
+		{
+			name:   "verify blinded beacon block",
+			data:   testutil.RandomCoreVersionSignedBlindedBeaconBlock(t),
+			domain: signing.DomainBeaconProposer,
+		},
+		{
+			name:   "verify randao",
+			data:   testutil.RandomCoreSignedRandao(),
+			domain: signing.DomainRandao,
+		},
+		{
+			name:   "verify voluntary exit",
+			data:   core.NewSignedVoluntaryExit(testutil.RandomExit()),
+			domain: signing.DomainExit,
+		},
+		{
+			name:   "verify registration",
+			data:   testutil.RandomCoreVersionedSignedValidatorRegistration(t),
+			domain: signing.DomainApplicationBuilder,
+		},
+		{
+			name:   "verify beacon committee selection",
+			data:   testutil.RandomCoreBeaconCommitteeSelection(),
+			domain: signing.DomainSelectionProof,
+		},
+		{
+			name: "verify attestation aggregate and proof",
+			data: core.SignedAggregateAndProof{
+				SignedAggregateAndProof: eth2p0.SignedAggregateAndProof{
+					Message: testutil.RandomAggregateAndProof(),
+				},
+			},
+			domain: signing.DomainAggregateAndProof,
+		},
+		{
+			name:   "verify sync committee message",
+			data:   core.NewSignedSyncMessage(testutil.RandomSyncCommitteeMessage()),
+			domain: signing.DomainSyncCommittee,
+		},
+	}
 
-	att := testutil.RandomAttestation()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			bmock, err := beaconmock.New()
+			require.NoError(t, err)
+			epoch := testutil.RandomEpoch()
 
-	root, err := att.Data.HashTreeRoot()
-	require.NoError(t, err)
+			root, err := test.data.MessageRoot()
+			require.NoError(t, err)
 
-	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainBeaconAttester, att.Data.Target.Epoch, root)
-	require.NoError(t, err)
+			sigData, err := signing.GetDataRoot(context.Background(), bmock, test.domain, epoch, root)
+			require.NoError(t, err)
 
-	sig, pubkey := sign(t, sigData[:])
-	att.Signature = sig
+			sig, pubkey := sign(t, sigData[:])
 
-	require.NoError(t, signing.VerifyAttestation(context.Background(), bmock, pubkey, att))
-}
-
-func TestVerifyBeaconBlock(t *testing.T) {
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	block := testutil.RandomCoreVersionSignedBeaconBlock(t)
-
-	slot, err := block.Slot()
-	require.NoError(t, err)
-
-	root, err := block.Root()
-	require.NoError(t, err)
-
-	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())
-	require.NoError(t, err)
-	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
-
-	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainBeaconProposer, epoch, root)
-	require.NoError(t, err)
-
-	sig, pubkey := sign(t, sigData[:])
-	data, err := block.SetSignature(core.SigFromETH2(sig))
-	require.NoError(t, err)
-
-	versionedBlock := data.(core.VersionedSignedBeaconBlock).VersionedSignedBeaconBlock
-
-	require.NoError(t, signing.VerifyBlock(context.Background(), bmock, pubkey, &versionedBlock))
-}
-
-func TestVerifyDutyRandao(t *testing.T) {
-	duty := core.NewRandaoDuty(123)
-
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())
-	require.NoError(t, err)
-
-	randao := eth2util.SignedEpoch{Epoch: eth2p0.Epoch(uint64(duty.Slot) / slotsPerEpoch)}
-	sigRoot, err := randao.HashTreeRoot()
-	require.NoError(t, err)
-
-	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainRandao, randao.Epoch, sigRoot)
-	require.NoError(t, err)
-
-	sig, pubkey := sign(t, sigData[:])
-	randao.Signature = sig
-
-	require.NoError(t, signing.VerifyRandao(context.Background(), bmock, pubkey, randao))
-}
-
-func TestVerifyVoluntaryExit(t *testing.T) {
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	exit := testutil.RandomExit()
-
-	sigRoot, err := exit.Message.HashTreeRoot()
-	require.NoError(t, err)
-
-	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainExit, exit.Message.Epoch, sigRoot)
-	require.NoError(t, err)
-
-	sig, pubkey := sign(t, sigData[:])
-	exit.Signature = sig
-
-	require.NoError(t, signing.VerifyVoluntaryExit(context.Background(), bmock, pubkey, exit))
-}
-
-func TestVerifyBlindedBeaconBlock(t *testing.T) {
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	block := testutil.RandomCoreVersionSignedBlindedBeaconBlock(t)
-
-	slot, err := block.Slot()
-	require.NoError(t, err)
-
-	root, err := block.Root()
-	require.NoError(t, err)
-
-	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())
-	require.NoError(t, err)
-	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
-
-	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainBeaconProposer, epoch, root)
-	require.NoError(t, err)
-
-	sig, pubkey := sign(t, sigData[:])
-	data, err := block.SetSignature(core.SigFromETH2(sig))
-	require.NoError(t, err)
-
-	versionedBlock := data.(core.VersionedSignedBlindedBeaconBlock).VersionedSignedBlindedBeaconBlock
-
-	require.NoError(t, signing.VerifyBlindedBlock(context.Background(), bmock, pubkey, &versionedBlock))
+			require.NoError(t, signing.VerifySignedData(context.Background(), bmock, test.domain, epoch, root, sig, pubkey))
+		})
+	}
 }
 
 func TestVerifyRegistrationReference(t *testing.T) {
@@ -192,97 +154,6 @@ func TestVerifyRegistrationReference(t *testing.T) {
 		fmt.Sprintf("%x", registration.Signature),
 		fmt.Sprintf("%x", sigEth2),
 	)
-}
-
-func TestVerifyBuilderRegistration(t *testing.T) {
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	registration := testutil.RandomCoreVersionedSignedValidatorRegistration(t).VersionedSignedValidatorRegistration
-
-	sigRoot, err := registration.Root()
-	require.NoError(t, err)
-
-	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainApplicationBuilder, 0, sigRoot)
-	require.NoError(t, err)
-
-	sig, pubkey := sign(t, sigData[:])
-	registration.V1.Signature = sig
-
-	require.NoError(t, signing.VerifyValidatorRegistration(context.Background(), bmock, pubkey, &registration))
-}
-
-func TestVerifyBeaconCommitteeSelection(t *testing.T) {
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	selection := testutil.RandomBeaconCommitteeSelection()
-
-	sigRoot, err := eth2util.SlotHashRoot(selection.Slot)
-	require.NoError(t, err)
-
-	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())
-	require.NoError(t, err)
-	epoch := eth2p0.Epoch(uint64(selection.Slot) / slotsPerEpoch)
-
-	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainSelectionProof, epoch, sigRoot)
-	require.NoError(t, err)
-
-	sig, pubkey := sign(t, sigData[:])
-	selection.SelectionProof = sig
-
-	require.NoError(t, signing.VerifyBeaconCommitteeSelection(context.Background(), bmock, pubkey, selection))
-}
-
-func TestVerifyAggregateAndProof(t *testing.T) {
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	agg := &eth2p0.SignedAggregateAndProof{
-		Message: &eth2p0.AggregateAndProof{
-			AggregatorIndex: testutil.RandomVIdx(),
-			Aggregate:       testutil.RandomAttestation(),
-			SelectionProof:  testutil.RandomEth2Signature(),
-		},
-	}
-
-	sigRoot, err := agg.Message.HashTreeRoot()
-	require.NoError(t, err)
-
-	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())
-	require.NoError(t, err)
-	epoch := eth2p0.Epoch(uint64(agg.Message.Aggregate.Data.Slot) / slotsPerEpoch)
-
-	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainAggregateAndProof, epoch, sigRoot)
-	require.NoError(t, err)
-
-	sig, pubkey := sign(t, sigData[:])
-	agg.Signature = sig
-
-	require.NoError(t, signing.VerifyAggregateAndProof(context.Background(), bmock, pubkey, agg))
-}
-
-func TestVerifySyncCommitteeMessage(t *testing.T) {
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	msg := &altair.SyncCommitteeMessage{
-		Slot:            testutil.RandomSlot(),
-		BeaconBlockRoot: testutil.RandomRoot(),
-		ValidatorIndex:  testutil.RandomVIdx(),
-	}
-
-	slotsPerEpoch, err := bmock.SlotsPerEpoch(context.Background())
-	require.NoError(t, err)
-	epoch := eth2p0.Epoch(uint64(msg.Slot) / slotsPerEpoch)
-
-	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainSyncCommittee, epoch, msg.BeaconBlockRoot)
-	require.NoError(t, err)
-
-	sig, pubkey := sign(t, sigData[:])
-	msg.Signature = sig
-
-	require.NoError(t, signing.VerifySyncCommitteeMessage(context.Background(), bmock, pubkey, msg))
 }
 
 func sign(t *testing.T, data []byte) (eth2p0.BLSSignature, *bls_sig.PublicKey) {
