@@ -33,8 +33,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/validatorapi"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
@@ -1331,6 +1333,55 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 	require.NoError(t, vapi.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{agg}))
 }
 
+func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
+	ctx := context.Background()
+
+	val := testutil.RandomValidator(t)
+
+	// Create keys (just use normal keys, not split tbls)
+	pubkey, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	val.Validator.PublicKey, err = tblsconv.KeyToETH2(pubkey)
+	require.NoError(t, err)
+
+	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSet{val.Index: val}))
+	require.NoError(t, err)
+
+	slot := eth2p0.Slot(99)
+	aggProof := &eth2p0.AggregateAndProof{
+		AggregatorIndex: val.Index,
+		Aggregate:       testutil.RandomAttestation(),
+	}
+	aggProof.Aggregate.Data.Slot = slot
+	aggProof.SelectionProof = signBeaconSelection(t, bmock, secret, slot)
+	signedAggProof := &eth2p0.SignedAggregateAndProof{
+		Message:   aggProof,
+		Signature: signAggregationAndProof(t, bmock, secret, aggProof),
+	}
+
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	// Collect submitted partial signature.
+	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Len(t, set, 1)
+		_, ok := set[core.PubKeyFrom48Bytes(val.Validator.PublicKey)]
+		require.True(t, ok)
+		close(done)
+
+		return nil
+	})
+
+	err = vapi.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{signedAggProof})
+	require.NoError(t, err)
+	<-done
+}
+
 func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
 	const vIdx = 1
 
@@ -1368,4 +1419,50 @@ func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
 
 	require.NoError(t, vapi.SubmitSyncCommitteeMessages(ctx, []*altair.SyncCommitteeMessage{msg}))
 	require.Equal(t, cnt, 1)
+}
+
+func epochFromSlot(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot) (eth2p0.Epoch, error) {
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "getting slots per epoch")
+	}
+
+	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
+}
+
+func signAggregationAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret *bls_sig.SecretKey, aggProof *eth2p0.AggregateAndProof) eth2p0.BLSSignature {
+	t.Helper()
+
+	epoch, err := epochFromSlot(context.Background(), eth2Cl, aggProof.Aggregate.Data.Slot)
+	require.NoError(t, err)
+
+	dataRoot, err := aggProof.HashTreeRoot()
+	require.NoError(t, err)
+
+	return sign(t, eth2Cl, secret, signing.DomainAggregateAndProof, epoch, dataRoot)
+}
+
+func signBeaconSelection(t *testing.T, eth2Cl eth2wrap.Client, secret *bls_sig.SecretKey, slot eth2p0.Slot) eth2p0.BLSSignature {
+	t.Helper()
+
+	epoch, err := epochFromSlot(context.Background(), eth2Cl, slot)
+	require.NoError(t, err)
+
+	dataRoot, err := eth2util.SlotHashRoot(slot)
+	require.NoError(t, err)
+
+	return sign(t, eth2Cl, secret, signing.DomainSelectionProof, epoch, dataRoot)
+}
+
+func sign(t *testing.T, eth2Cl eth2wrap.Client, secret *bls_sig.SecretKey, domain signing.DomainName, epoch eth2p0.Epoch, dataRoot eth2p0.Root) eth2p0.BLSSignature {
+	t.Helper()
+	ctx := context.Background()
+
+	signingRoot, err := signing.GetDataRoot(ctx, eth2Cl, domain, epoch, dataRoot)
+	require.NoError(t, err)
+
+	sig, err := tbls.Sign(secret, signingRoot[:])
+	require.NoError(t, err)
+
+	return tblsconv.SigToETH2(sig)
 }
