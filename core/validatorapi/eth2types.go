@@ -140,7 +140,13 @@ func (v v1Validator) MarshalJSON() ([]byte, error) {
 }
 
 // syncCommitteeDutiesResponse defines the response to the getSyncCommitteeDuties endpoint.
-// See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getSyncCommitteeDuties.
+// See: https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getSyncCommitteeDuties.
 type syncCommitteeDutiesResponse struct {
 	Data []*eth2v1.SyncCommitteeDuty `json:"data"`
+}
+
+// syncCommitteeContributionResponse defines the response to the syncCommitteeContribution endpoint.
+// See: https://ethereum.github.io/beacon-APIs/#/Validator/produceSyncCommitteeContribution
+type syncCommitteeContributionResponse struct {
+	Data *altair.SyncCommitteeContribution `json:"data"`
 }

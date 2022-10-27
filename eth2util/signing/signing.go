@@ -17,6 +17,7 @@ package signing
 
 import (
 	"context"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
@@ -83,6 +84,8 @@ func GetDataRoot(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, e
 	return msg, nil
 }
 
+// VerifyAggregateAndProofSelection verifies the eth2p0.AggregateAndProof with the provided pubkey.
+// Refer get_slot_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#aggregation-selection.
 func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.AggregateAndProof) error {
 	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, agg.Aggregate.Data.Slot)
 	if err != nil {
@@ -95,6 +98,22 @@ func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Clien
 	}
 
 	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, pubkey)
+}
+
+// VerifySyncContributionAndProof verifies the altair.SignedContributionAndProof with the provided pubkey.
+// Refer get_contribution_and_proof_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#broadcast-sync-committee-contribution.
+func VerifySyncContributionAndProof(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, contrib *altair.SignedContributionAndProof) error {
+	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, contrib.Message.Contribution.Slot)
+	if err != nil {
+		return err
+	}
+
+	sigRoot, err := contrib.Message.HashTreeRoot()
+	if err != nil {
+		return err
+	}
+
+	return Verify(ctx, eth2Cl, DomainContributionAndProof, epoch, sigRoot, contrib.Signature, pubkey)
 }
 
 // Verify returns an error if the signature doesn't match the eth2 domain signed root.

@@ -66,6 +66,8 @@ type Handler interface {
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.ProposerDutiesProvider
+	eth2client.SyncCommitteeContributionProvider
+	eth2client.SyncCommitteeContributionsSubmitter
 	eth2client.SyncCommitteeDutiesProvider
 	eth2client.SyncCommitteeMessagesSubmitter
 	eth2client.ValidatorsProvider
@@ -174,6 +176,16 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 			Name:    "submit_sync_committee_messages",
 			Path:    "/eth/v1/beacon/pool/sync_committees",
 			Handler: submitSyncCommitteeMessages(h),
+		},
+		{
+			Name:    "sync_committee_contribution",
+			Path:    "/eth/v1/validator/sync_committee_contribution",
+			Handler: syncCommitteeContribution(h),
+		},
+		{
+			Name:    "submit_contribution_and_proofs",
+			Path:    "/eth/v1/validator/contribution_and_proofs",
+			Handler: submitContributionAndProofs(h),
 		},
 		{
 			Name:    "submit_proposal_preparations",
@@ -326,12 +338,7 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 			return nil, errors.Wrap(err, "unmarshal attestations")
 		}
 
-		err = p.SubmitAttestations(ctx, atts)
-		if err != nil {
-			return nil, err
-		}
-
-		return nil, nil
+		return nil, p.SubmitAttestations(ctx, atts)
 	}
 }
 
@@ -418,6 +425,51 @@ func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
 		}
 
 		return syncCommitteeDutiesResponse{Data: data}, nil
+	}
+}
+
+// syncCommitteeContribution returns a handler function for get sync committee contribution endpoint.
+func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		slot, err := uintQuery(query, "slot")
+		if err != nil {
+			return nil, err
+		}
+
+		subcommIdx, err := uintQuery(query, "subcommittee_index")
+		if err != nil {
+			return nil, err
+		}
+
+		var beaconBlockRoot eth2p0.Root
+		b, err := hexQuery(query, "beacon_block_root")
+		if err != nil {
+			return nil, err
+		}
+		if len(b) != len(beaconBlockRoot) {
+			return nil, errors.New("input beacon_block_root has wrong length")
+		}
+		copy(beaconBlockRoot[:], b)
+
+		contribution, err := s.SyncCommitteeContribution(ctx, eth2p0.Slot(slot), subcommIdx, beaconBlockRoot)
+		if err != nil {
+			return nil, err
+		}
+
+		return syncCommitteeContributionResponse{Data: contribution}, nil
+	}
+}
+
+// submitContributionAndProofs returns a handler function for sync committee contributions submitter endpoint.
+func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitter) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+		var contributionAndProofs []*altair.SignedContributionAndProof
+		err := json.Unmarshal(body, &contributionAndProofs)
+		if err != nil {
+			return nil, errors.Wrap(err, "unmarshal signed contribution and proofs")
+		}
+
+		return nil, s.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
 	}
 }
 

@@ -16,7 +16,10 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
+	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/eth2util/signing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -807,11 +810,28 @@ func (s *BeaconCommitteeSelection) UnmarshalJSON(input []byte) error {
 	return s.BeaconCommitteeSelection.UnmarshalJSON(input)
 }
 
+// NewSyncCommitteeSelection is a convenience function which returns new signed SyncCommitteeSelection.
+func NewSyncCommitteeSelection(selection *eth2exp.SyncCommitteeSelection) SyncCommitteeSelection {
+	return SyncCommitteeSelection{
+		SyncCommitteeSelection: *selection,
+	}
+}
+
+// NewPartialSignedSyncCommitteeSelection is a convenience function which returns new partially signed SyncCommitteeSelection.
+func NewPartialSignedSyncCommitteeSelection(selection *eth2exp.SyncCommitteeSelection, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSyncCommitteeSelection(selection),
+		ShareIdx:   shareIdx,
+	}
+}
+
 // SyncCommitteeSelection wraps an eth2exp.SyncCommitteeSelection and implements SignedData.
 type SyncCommitteeSelection struct {
 	eth2exp.SyncCommitteeSelection
 }
 
+// MessageRoot returns the signing root for the provided SyncCommitteeSelection.
+// Refer https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#syncaggregatorselectiondata
 func (s SyncCommitteeSelection) MessageRoot() ([32]byte, error) {
 	data := altair.SyncAggregatorSelectionData{
 		Slot:              s.Slot,
@@ -856,21 +876,6 @@ func (s SyncCommitteeSelection) MarshalJSON() ([]byte, error) {
 
 func (s *SyncCommitteeSelection) UnmarshalJSON(input []byte) error {
 	return s.SyncCommitteeSelection.UnmarshalJSON(input)
-}
-
-// NewSyncCommitteeSelection is a convenience function which returns new signed SyncCommitteeSelection.
-func NewSyncCommitteeSelection(selection *eth2exp.SyncCommitteeSelection) SyncCommitteeSelection {
-	return SyncCommitteeSelection{
-		SyncCommitteeSelection: *selection,
-	}
-}
-
-// NewPartialSignedSyncCommitteeSelection is a convenience function which returns new partially signed SyncCommitteeSelection.
-func NewPartialSignedSyncCommitteeSelection(selection *eth2exp.SyncCommitteeSelection, shareIdx int) ParSignedData {
-	return ParSignedData{
-		SignedData: NewSyncCommitteeSelection(selection),
-		ShareIdx:   shareIdx,
-	}
 }
 
 // NewSignedAggregateAndProof is a convenience function which returns a new signed SignedAggregateAndProof.
@@ -932,6 +937,8 @@ func (s *SignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 	return s.SignedAggregateAndProof.UnmarshalJSON(input)
 }
 
+// SyncCommitteeMessage: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#synccommitteemessage.
+
 // NewSignedSyncMessage is a convenience function which returns new signed SignedSyncMessage.
 func NewSignedSyncMessage(data *altair.SyncCommitteeMessage) SignedSyncMessage {
 	return SignedSyncMessage{SyncCommitteeMessage: *data}
@@ -991,10 +998,90 @@ func (s *SignedSyncMessage) UnmarshalJSON(input []byte) error {
 	return s.SyncCommitteeMessage.UnmarshalJSON(input)
 }
 
+// ContributionAndProof: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#contributionandproof.
+
+// NewSyncContributionAndProof is a convenience function that returns a new signed altair.ContributionAndProof.
+func NewSyncContributionAndProof(proof *altair.ContributionAndProof) SyncContributionAndProof {
+	return SyncContributionAndProof{ContributionAndProof: *proof}
+}
+
+// NewPartialSyncContributionAndProof is a convenience function that returns a new partially signed altair.ContributionAndProof.
+func NewPartialSyncContributionAndProof(proof *altair.ContributionAndProof, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSyncContributionAndProof(proof),
+		ShareIdx:   shareIdx,
+	}
+}
+
+// SyncContributionAndProof wraps altair.ContributionAndProof and implements SignedData.
+type SyncContributionAndProof struct {
+	altair.ContributionAndProof
+}
+
+// MessageRoot returns the signing root for the provided SyncContributionAndProof.
+// Refer: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#aggregation-selection.
+func (s SyncContributionAndProof) MessageRoot() ([32]byte, error) {
+	data := altair.SyncAggregatorSelectionData{
+		Slot:              s.ContributionAndProof.Contribution.Slot,
+		SubcommitteeIndex: s.ContributionAndProof.Contribution.SubcommitteeIndex,
+	}
+
+	return data.HashTreeRoot()
+}
+
+func (s SyncContributionAndProof) Signature() Signature {
+	return SigFromETH2(s.ContributionAndProof.SelectionProof)
+}
+
+func (s SyncContributionAndProof) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.SelectionProof = sig.ToETH2()
+
+	return resp, err
+}
+
+func (s SyncContributionAndProof) Clone() (SignedData, error) {
+	return s.clone()
+}
+
+func (s SyncContributionAndProof) clone() (SyncContributionAndProof, error) {
+	var resp SyncContributionAndProof
+	err := cloneJSONMarshaler(s, &resp)
+	if err != nil {
+		return SyncContributionAndProof{}, errors.Wrap(err, "clone sync contribution and proof")
+	}
+
+	return resp, nil
+}
+
+func (s SyncContributionAndProof) MarshalJSON() ([]byte, error) {
+	return s.ContributionAndProof.MarshalJSON()
+}
+
+func (s *SyncContributionAndProof) UnmarshalJSON(input []byte) error {
+	return s.ContributionAndProof.UnmarshalJSON(input)
+}
+
+func (SyncContributionAndProof) DomainName() signing.DomainName {
+	return signing.DomainSyncCommitteeSelectionProof
+}
+
+func (s SyncContributionAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Contribution.Slot)
+}
+
+// SignedContributionAndProof: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#signedcontributionandproof.
+
+// NewSignedSyncContributionAndProof is a convenience function that returns a new signed altair.SignedContributionAndProof.
 func NewSignedSyncContributionAndProof(proof *altair.SignedContributionAndProof) SignedSyncContributionAndProof {
 	return SignedSyncContributionAndProof{SignedContributionAndProof: *proof}
 }
 
+// NewPartialSignedSyncContributionAndProof is a convenience function that returns a new partially signed altair.SignedContributionAndProof.
 func NewPartialSignedSyncContributionAndProof(proof *altair.SignedContributionAndProof, shareIdx int) ParSignedData {
 	return ParSignedData{
 		SignedData: NewSignedSyncContributionAndProof(proof),
@@ -1007,6 +1094,8 @@ type SignedSyncContributionAndProof struct {
 	altair.SignedContributionAndProof
 }
 
+// MessageRoot returns the signing root for the provided SignedSyncContributionAndProof.
+// Refer get_contribution_and_proof_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#broadcast-sync-committee-contribution.
 func (s SignedSyncContributionAndProof) MessageRoot() ([32]byte, error) {
 	return s.Message.HashTreeRoot()
 }

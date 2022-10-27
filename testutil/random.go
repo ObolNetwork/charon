@@ -370,6 +370,10 @@ func RandomCoreBeaconCommitteeSelection() core.BeaconCommitteeSelection {
 	return core.NewBeaconCommitteeSelection(RandomBeaconCommitteeSelection())
 }
 
+func RandomCoreSyncCommitteeSelection() core.SyncCommitteeSelection {
+	return core.NewSyncCommitteeSelection(RandomSyncCommitteeSelection())
+}
+
 func RandomSignedAggregateAndProof() *eth2p0.SignedAggregateAndProof {
 	return &eth2p0.SignedAggregateAndProof{
 		Message:   RandomAggregateAndProof(),
@@ -388,8 +392,12 @@ func RandomAggregateAndProof() *eth2p0.AggregateAndProof {
 func RandomSignedSyncContributionAndProof() *altair.SignedContributionAndProof {
 	return &altair.SignedContributionAndProof{
 		Message:   RandomSyncContributionAndProof(),
-		Signature: eth2p0.BLSSignature{},
+		Signature: RandomEth2Signature(),
 	}
+}
+
+func RandomCoreSignedSyncContributionAndProof() core.SignedSyncContributionAndProof {
+	return core.SignedSyncContributionAndProof{SignedContributionAndProof: *RandomSignedSyncContributionAndProof()}
 }
 
 func RandomCoreSyncContribution() core.SyncContribution {

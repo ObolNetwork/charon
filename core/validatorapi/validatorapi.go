@@ -142,14 +142,15 @@ type Component struct {
 
 	// Registered input functions
 
-	pubKeyByAttFunc       func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
-	awaitAttFunc          func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
-	awaitBlockFunc        func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
-	awaitBlindedBlockFunc func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
-	awaitAggAttFunc       func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
-	awaitAggSigDBFunc     func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
-	dutyDefFunc           func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
-	subs                  []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
+	awaitAttFunc              func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
+	awaitBlockFunc            func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
+	awaitBlindedBlockFunc     func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
+	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
+	awaitAggAttFunc           func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
+	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
+	dutyDefFunc               func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
+	subs                      []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
 // RegisterAwaitBeaconBlock registers a function to query unsigned beacon block.
@@ -168,6 +169,12 @@ func (c *Component) RegisterAwaitBlindedBeaconBlock(fn func(ctx context.Context,
 // It only supports a single function, since it is an input of the component.
 func (c *Component) RegisterAwaitAttestation(fn func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)) {
 	c.awaitAttFunc = fn
+}
+
+// RegisterAwaitSyncContribution registers a function to query sync contribution data.
+// It only supports a single function, since it is an input of the component.
+func (c *Component) RegisterAwaitSyncContribution(fn func(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)) {
+	c.awaitSyncContributionFunc = fn
 }
 
 // RegisterPubKeyByAttestation registers a function to query pubkeys by attestation.
@@ -717,6 +724,11 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 	return nil
 }
 
+// SyncCommitteeContribution returns sync committee contribution data for the given subcommittee and beacon block root.
+func (c Component) SyncCommitteeContribution(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+	return c.awaitSyncContributionFunc(ctx, int64(slot), int64(subcommitteeIndex), beaconBlockRoot)
+}
+
 // SubmitSyncCommitteeMessages receives the partially signed altair.SyncCommitteeMessage.
 func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
 	var valIdxs []eth2p0.ValidatorIndex
@@ -758,6 +770,78 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 
 	for slot, data := range psigsBySlot {
 		duty := core.NewSyncMessageDuty(int64(slot))
+		for _, sub := range c.subs {
+			err = sub(ctx, duty, data)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// SubmitSyncCommitteeContributions receives partially signed altair.SignedContributionAndProof.
+// - It verifies partial signature on ContributionAndProof.
+// - It then calls all the subscribers for further steps on partially signed contribution and proof.
+func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) error {
+	var valIdxs []eth2p0.ValidatorIndex
+	for _, c := range contributionAndProofs {
+		valIdxs = append(valIdxs, c.Message.AggregatorIndex)
+	}
+
+	vals, err := c.eth2Cl.Validators(ctx, "head", valIdxs)
+	if err != nil {
+		return err
+	}
+
+	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+	for _, contrib := range contributionAndProofs {
+		var (
+			slot = contrib.Message.Contribution.Slot
+			vIdx = contrib.Message.AggregatorIndex
+		)
+		eth2Pubkey, err := vals[vIdx].PubKey(ctx)
+		if err != nil {
+			return err
+		}
+
+		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
+		if err != nil {
+			return err
+		}
+
+		// Verify inner selection proof.
+		if !c.insecureTest {
+			blsPubkey, err := tblsconv.KeyFromETH2(eth2Pubkey) // Use group pubkey, not pubshare.
+			if err != nil {
+				return err
+			}
+
+			msg := core.NewSyncContributionAndProof(contrib.Message)
+			err = core.VerifyEth2SignedData(ctx, c.eth2Cl, msg, blsPubkey)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Verify outer partial signature.
+		parSigData := core.NewPartialSignedSyncContributionAndProof(contrib, c.shareIdx)
+		err = c.verifyPartialSig(ctx, parSigData, pk)
+		if err != nil {
+			return err
+		}
+
+		_, ok := psigsBySlot[slot]
+		if !ok {
+			psigsBySlot[slot] = make(core.ParSignedDataSet)
+		}
+
+		psigsBySlot[slot][pk] = core.NewPartialSignedSyncContributionAndProof(contrib, c.shareIdx)
+	}
+
+	for slot, data := range psigsBySlot {
+		duty := core.NewSyncContributionDuty(int64(slot))
 		for _, sub := range c.subs {
 			err = sub(ctx, duty, data)
 			if err != nil {
