@@ -24,6 +24,7 @@ import (
 var (
 	_ DutyDefinition = AttesterDefinition{}
 	_ DutyDefinition = ProposerDefinition{}
+	_ DutyDefinition = SyncCommitteeDefinition{}
 )
 
 // NewAttesterDefinition is a convenience function that returns a new attester definition.

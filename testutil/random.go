@@ -402,6 +402,16 @@ func RandomSyncCommitteeMessage() *altair.SyncCommitteeMessage {
 	}
 }
 
+func RandomSyncCommitteeDuty(t *testing.T) *eth2v1.SyncCommitteeDuty {
+	t.Helper()
+
+	return &eth2v1.SyncCommitteeDuty{
+		PubKey:                        RandomEth2PubKey(t),
+		ValidatorIndex:                RandomVIdx(),
+		ValidatorSyncCommitteeIndices: []eth2p0.CommitteeIndex{RandomCommIdx()},
+	}
+}
+
 func RandomSyncAggregate(t *testing.T) *altair.SyncAggregate {
 	t.Helper()
 
