@@ -76,6 +76,26 @@ func RandomEth2PubKey(t *testing.T) eth2p0.BLSPubKey {
 	return resp
 }
 
+func RandomValidator(t *testing.T) *eth2v1.Validator {
+	t.Helper()
+
+	return &eth2v1.Validator{
+		Index:   eth2p0.ValidatorIndex(rand.Uint64()),
+		Balance: eth2p0.Gwei(rand.Uint64()),
+		Status:  eth2v1.ValidatorStateActiveOngoing,
+		Validator: &eth2p0.Validator{
+			PublicKey:                  RandomEth2PubKey(t),
+			WithdrawalCredentials:      RandomBytes32(),
+			EffectiveBalance:           eth2p0.Gwei(rand.Uint64()),
+			Slashed:                    false,
+			ActivationEligibilityEpoch: 1,
+			ActivationEpoch:            2,
+			ExitEpoch:                  0,
+			WithdrawableEpoch:          3,
+		},
+	}
+}
+
 func RandomAttestation() *eth2p0.Attestation {
 	return &eth2p0.Attestation{
 		AggregationBits: RandomBitList(),
