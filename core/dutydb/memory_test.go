@@ -228,8 +228,8 @@ func TestMemDBSyncContribution(t *testing.T) {
 
 		var (
 			slot            = int64(contrib.Slot)
-			beaconBlockRoot = contrib.BeaconBlockRoot
 			subcommIdx      = contrib.SubcommitteeIndex
+			beaconBlockRoot = contrib.BeaconBlockRoot
 		)
 
 		go func() {
