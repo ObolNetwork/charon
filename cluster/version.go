@@ -21,6 +21,7 @@ const (
 	currentVersion = v1_3
 	dkgAlgo        = "default"
 
+	v1_4 = "v1.4.0" // Draft
 	v1_3 = "v1.3.0" // Default
 	v1_2 = "v1.2.0"
 	v1_1 = "v1.1.0"
@@ -30,26 +31,41 @@ const (
 )
 
 var supportedVersions = map[string]bool{
+	v1_4: true,
 	v1_3: true,
 	v1_2: true,
 	v1_1: true,
 	v1_0: true,
 }
 
-func isJSONv1x0(version string) bool {
+func isAnyVersion(version string, versions ...string) bool {
+	for _, v := range versions {
+		if version == v {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isV1x0(version string) bool {
 	return version == v1_0
 }
 
-func isJSONv1x1(version string) bool {
+func isV1x1(version string) bool {
 	return version == v1_1
 }
 
-func isJSONv1x2(version string) bool {
+func isV1x2(version string) bool {
 	return version == v1_2
 }
 
-func isJSONv1x3(version string) bool {
+func isV1x3(version string) bool {
 	return version == v1_3
+}
+
+func isV1x4(version string) bool {
+	return version == v1_4
 }
 
 // SupportedVersionsForT returns the supported definition versions for testing purposes only.

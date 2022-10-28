@@ -16,6 +16,10 @@ The schema of the `cluster-definition.json` is defined as:
 ```json
 {
   "name": "best cluster",                       // Cosmetic cluster name
+  "creator": {                                  // Creator of this cluster definition
+    "address": "0x123..abfc",                   // ETH1 address of the creator
+    "config_signature": "0x123456...abcdef"     // EIP712 Signature of config_hash by ETH1 address. Proves that the creator created the config.
+  },
   "operators": [                                // Operators of all Charon nodes in the cluster
     {
       "address": "0x123..abfc",                 // ETH1 address of the operator
@@ -68,6 +72,8 @@ The `cluster-lock.json` has the following schema:
 ### Cluster Config Change Log
 
 The following is the historical change log of the cluster config:
+- `v1.4.0` **draft**:
+    - Added the `creator` nested structure to the cluster definition proving who created the cluster definition (including non-operators).
 - `v1.3.0` **default**:
     - Refactored `config_hash`, `definition_hash` and `lock_hash` calculations by aligning with SSZ common types:
         - `ByteList[MaxN]`: Variable length with max limit for strings.

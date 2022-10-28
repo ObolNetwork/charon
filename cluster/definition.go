@@ -41,6 +41,15 @@ type NodeIdx struct {
 	ShareIdx int
 }
 
+// WithV1x4 provides an option to create a new definition with v1.4 including a creator.
+// TODO(corver): Remove this and add creator to NewDefinition when releasing v1.4.
+func WithV1x4(creator Creator) func(*Definition) {
+	return func(d *Definition) {
+		d.Creator = creator
+		d.Version = v1_4
+	}
+}
+
 // NewDefinition returns a new definition populated with the latest version, timestamp and UUID.
 // The hashes are also populated accordingly. Note that the hashes need to be recalculated when any field is modified.
 func NewDefinition(name string, numVals int, threshold int, feeRecipientAddress string, withdrawalAddress string,
@@ -114,6 +123,9 @@ type Definition struct {
 	// Operators define the charon nodes in the cluster and their operators. Max 256 operators.
 	Operators []Operator `json:"operators" ssz:"CompositeList[256]" config_hash:"10" definition_hash:"10"`
 
+	// Creator identifies the creator of a cluster definition. They may also be an operator.
+	Creator Creator `json:"creator" ssz:"Composite" config_hash:"11" definition_hash:"12"`
+
 	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.
 	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"11"`
 
@@ -144,7 +156,7 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 
 // VerifySignatures returns true if all config signatures are fully populated and valid. A verified definition is ready for use in DKG.
 //
-
+//nolint:nestif,gocognit // We should try and break this into functions.
 func (d Definition) VerifySignatures() error {
 	// Skip signature verification for definition versions earlier than v1.3 since there are no EIP712 signatures before v1.3.0.
 	if !supportEIP712Sigs(d.Version) && !eip712SigsPresent(d.Operators) {
@@ -156,11 +168,17 @@ func (d Definition) VerifySignatures() error {
 		return errors.New("older version signatures not supported")
 	}
 
-	var noSigs int
+	// Check that we have a valid config signature for each operator.
+	configHashDigest, err := digestEIP712(eip712ConfigHash, d, Operator{})
+	if err != nil {
+		return err
+	}
+
+	var noOpSigs int
 	for _, o := range d.Operators {
 		// Completely unsigned operators are also fine, assuming a single cluster-wide operator.
 		if o.Address == "" && len(o.ENRSignature) == 0 && len(o.ConfigSignature) == 0 {
-			noSigs++
+			noOpSigs++
 			continue
 		}
 
@@ -172,33 +190,53 @@ func (d Definition) VerifySignatures() error {
 			return errors.New("empty operator config signature", z.Any("operator_address", o.Address))
 		}
 
-		// Check that we have a valid config signature for each operator.
-		digest, err := digestEIP712(eip712ConfigHash, d, o)
-		if err != nil {
-			return err
-		}
-
-		if ok, err := verifySig(o.Address, digest, o.ConfigSignature); err != nil {
+		if ok, err := verifySig(o.Address, configHashDigest, o.ConfigSignature); err != nil {
 			return err
 		} else if !ok {
 			return errors.New("invalid operator config signature", z.Any("operator_address", o.Address))
 		}
 
 		// Check that we have a valid enr signature for each operator.
-		digest, err = digestEIP712(eip712ENR, d, o)
+		enrDigest, err := digestEIP712(eip712ENR, d, o)
 		if err != nil {
 			return err
 		}
 
-		if ok, err := verifySig(o.Address, digest, o.ENRSignature); err != nil {
+		if ok, err := verifySig(o.Address, enrDigest, o.ENRSignature); err != nil {
 			return err
 		} else if !ok {
 			return errors.New("invalid operator enr signature", z.Any("operator_address", o.Address))
 		}
 	}
 
-	if noSigs > 0 && noSigs != len(d.Operators) {
+	if noOpSigs > 0 && noOpSigs != len(d.Operators) {
 		return errors.New("some operators signed while others didn't")
+	}
+
+	// Verify creator signature
+	if isAnyVersion(d.Version, v1_0, v1_1, v1_2, v1_3) {
+		if len(d.Creator.ConfigSignature) > 0 {
+			return errors.New("unexpected creator config signature in old version")
+		}
+	} else if d.Creator.Address == "" && len(d.Creator.ConfigSignature) == 0 {
+		// Empty creator is fine if also not operator signatures either.
+		if noOpSigs == 0 {
+			return errors.New("some operators signed while creator didn't")
+		}
+	} else {
+		if len(d.Creator.ConfigSignature) == 0 {
+			return errors.New("empty creator config signature")
+		}
+
+		if ok, err := verifySig(d.Creator.Address, configHashDigest, d.Creator.ConfigSignature); err != nil {
+			return err
+		} else if !ok {
+			return errors.New("invalid creator config signature")
+		}
+
+		if noOpSigs > 0 {
+			return errors.New("creator signed while operators didn't")
+		}
 	}
 
 	return nil
@@ -266,11 +304,13 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 	}
 
 	switch {
-	case isJSONv1x0(d.Version) || isJSONv1x1(d.Version):
+	case isV1x0(d.Version) || isV1x1(d.Version):
 		return marshalDefinitionV1x0or1(d)
-	case isJSONv1x2(d.Version) || isJSONv1x3(d.Version):
+	case isV1x2(d.Version) || isV1x3(d.Version):
 		// v1.2 and v1.3 has the same json format.
 		return marshalDefinitionV1x2or3(d)
+	case isV1x4(d.Version):
+		return marshalDefinitionV1x4(d)
 	default:
 		return nil, errors.New("unsupported version")
 	}
@@ -295,13 +335,18 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		err error
 	)
 	switch {
-	case isJSONv1x0(version.Version) || isJSONv1x1(version.Version):
+	case isV1x0(version.Version) || isV1x1(version.Version):
 		def, err = unmarshalDefinitionV1x0or1(data)
 		if err != nil {
 			return err
 		}
-	case isJSONv1x2(version.Version) || isJSONv1x3(version.Version):
+	case isV1x2(version.Version) || isV1x3(version.Version):
 		def, err = unmarshalDefinitionV1x2or3(data)
+		if err != nil {
+			return err
+		}
+	case isV1x4(version.Version):
+		def, err = unmarshalDefinitionV1x4(data)
 		if err != nil {
 			return err
 		}
@@ -373,9 +418,36 @@ func marshalDefinitionV1x2or3(def Definition) ([]byte, error) {
 		WithdrawalAddress:   def.WithdrawalAddress,
 		DKGAlgorithm:        def.DKGAlgorithm,
 		ForkVersion:         def.ForkVersion,
-		Operators:           operatorsToV1x2(def.Operators),
+		Operators:           operatorsToV1x2orLater(def.Operators),
 		ConfigHash:          def.ConfigHash,
 		DefinitionHash:      def.DefinitionHash,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal definition")
+	}
+
+	return resp, nil
+}
+
+func marshalDefinitionV1x4(def Definition) ([]byte, error) {
+	resp, err := json.Marshal(definitionJSONv1x4{
+		Name:                def.Name,
+		UUID:                def.UUID,
+		Version:             def.Version,
+		Timestamp:           def.Timestamp,
+		NumValidators:       def.NumValidators,
+		Threshold:           def.Threshold,
+		FeeRecipientAddress: def.FeeRecipientAddress,
+		WithdrawalAddress:   def.WithdrawalAddress,
+		DKGAlgorithm:        def.DKGAlgorithm,
+		ForkVersion:         def.ForkVersion,
+		ConfigHash:          def.ConfigHash,
+		DefinitionHash:      def.DefinitionHash,
+		Operators:           operatorsToV1x2orLater(def.Operators),
+		Creator: creatorJSON{
+			Address:         def.Creator.Address,
+			ConfigSignature: def.Creator.ConfigSignature,
+		},
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal definition")
@@ -437,16 +509,43 @@ func unmarshalDefinitionV1x2or3(data []byte) (def Definition, err error) {
 		ForkVersion:         defJSON.ForkVersion,
 		ConfigHash:          defJSON.ConfigHash,
 		DefinitionHash:      defJSON.DefinitionHash,
-		Operators:           operatorsFromV1x2or3(defJSON.Operators),
+		Operators:           operatorsFromV1x2orLater(defJSON.Operators),
 	}
 
 	return def, nil
 }
 
+func unmarshalDefinitionV1x4(data []byte) (def Definition, err error) {
+	var defJSON definitionJSONv1x4
+	if err := json.Unmarshal(data, &defJSON); err != nil {
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1v2")
+	}
+
+	return Definition{
+		Name:                defJSON.Name,
+		UUID:                defJSON.UUID,
+		Version:             defJSON.Version,
+		Timestamp:           defJSON.Timestamp,
+		NumValidators:       defJSON.NumValidators,
+		Threshold:           defJSON.Threshold,
+		FeeRecipientAddress: defJSON.FeeRecipientAddress,
+		WithdrawalAddress:   defJSON.WithdrawalAddress,
+		DKGAlgorithm:        defJSON.DKGAlgorithm,
+		ForkVersion:         defJSON.ForkVersion,
+		ConfigHash:          defJSON.ConfigHash,
+		DefinitionHash:      defJSON.DefinitionHash,
+		Operators:           operatorsFromV1x2orLater(defJSON.Operators),
+		Creator: Creator{
+			Address:         defJSON.Creator.Address,
+			ConfigSignature: defJSON.Creator.ConfigSignature,
+		},
+	}, nil
+}
+
 // supportEIP712Sigs returns true if the provided definition version supports EIP712 signatures.
 // Note that Definition versions prior to v1.3.0 don't support EIP712 signatures.
 func supportEIP712Sigs(version string) bool {
-	return !(isJSONv1x0(version) || isJSONv1x1(version) || isJSONv1x2(version))
+	return !(isV1x0(version) || isV1x1(version) || isV1x2(version))
 }
 
 func eip712SigsPresent(operators []Operator) bool {
@@ -478,17 +577,56 @@ type definitionJSONv1x0or1 struct {
 
 // definitionJSONv1x2or3 is the json formatter of Definition for versions v1.2.0 and later.
 type definitionJSONv1x2or3 struct {
-	Name                string             `json:"name,omitempty"`
-	Operators           []operatorJSONv1x2 `json:"operators"`
-	UUID                string             `json:"uuid"`
-	Version             string             `json:"version"`
-	Timestamp           string             `json:"timestamp,omitempty"`
-	NumValidators       int                `json:"num_validators"`
-	Threshold           int                `json:"threshold"`
-	FeeRecipientAddress string             `json:"fee_recipient_address,omitempty"`
-	WithdrawalAddress   string             `json:"withdrawal_address,omitempty"`
-	DKGAlgorithm        string             `json:"dkg_algorithm"`
-	ForkVersion         ethHex             `json:"fork_version"`
-	ConfigHash          ethHex             `json:"config_hash"`
-	DefinitionHash      ethHex             `json:"definition_hash"`
+	Name                string                    `json:"name,omitempty"`
+	Operators           []operatorJSONv1x2orLater `json:"operators"`
+	UUID                string                    `json:"uuid"`
+	Version             string                    `json:"version"`
+	Timestamp           string                    `json:"timestamp,omitempty"`
+	NumValidators       int                       `json:"num_validators"`
+	Threshold           int                       `json:"threshold"`
+	FeeRecipientAddress string                    `json:"fee_recipient_address,omitempty"`
+	WithdrawalAddress   string                    `json:"withdrawal_address,omitempty"`
+	DKGAlgorithm        string                    `json:"dkg_algorithm"`
+	ForkVersion         ethHex                    `json:"fork_version"`
+	ConfigHash          ethHex                    `json:"config_hash"`
+	DefinitionHash      ethHex                    `json:"definition_hash"`
+}
+
+// definitionJSONv1x4 is the json formatter of Definition for versions v1.4.
+type definitionJSONv1x4 struct {
+	Name                string                    `json:"name,omitempty"`
+	Creator             creatorJSON               `json:"creator"`
+	Operators           []operatorJSONv1x2orLater `json:"operators"`
+	UUID                string                    `json:"uuid"`
+	Version             string                    `json:"version"`
+	Timestamp           string                    `json:"timestamp,omitempty"`
+	NumValidators       int                       `json:"num_validators"`
+	Threshold           int                       `json:"threshold"`
+	FeeRecipientAddress string                    `json:"fee_recipient_address,omitempty"`
+	WithdrawalAddress   string                    `json:"withdrawal_address,omitempty"`
+	DKGAlgorithm        string                    `json:"dkg_algorithm"`
+	ForkVersion         ethHex                    `json:"fork_version"`
+	ConfigHash          ethHex                    `json:"config_hash"`
+	DefinitionHash      ethHex                    `json:"definition_hash"`
+}
+
+// Creator identifies the creator of a cluster definition.
+// Note the following struct tag meanings:
+//   - json: json field name. Suffix 0xhex indicates bytes are formatted as 0x prefixed hex strings.
+//   - ssz: ssz equivalent. Either uint64 for numbers, BytesN for fixed length bytes, ByteList[MaxN]
+//     for variable length strings, or CompositeList[MaxN] for nested object arrays.
+//   - config_hash: field ordering when calculating config hash. Some fields are excluded indicated by `-`.
+//   - definition_hash: field ordering when calculating definition hash. Some fields are excluded indicated by `-`.
+type Creator struct {
+	// The 20 byte Ethereum address of the creator
+	Address string `json:"address,0xhex" ssz:"Bytes20" config_hash:"0" definition_hash:"0"`
+
+	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to creator Ethereum Address.
+	ConfigSignature []byte `json:"config_signature,0xhex" ssz:"Bytes65" config_hash:"-" definition_hash:"1"`
+}
+
+// creatorJSON is the json formatter of Creator.
+type creatorJSON struct {
+	Address         string `json:"address"`
+	ConfigSignature ethHex `json:"config_signature"`
 }

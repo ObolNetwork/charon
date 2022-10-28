@@ -36,10 +36,10 @@ const (
 // while the definition hash includes all fields.
 func hashDefinition(d Definition, configOnly bool) ([32]byte, error) {
 	var hashFunc func(Definition, ssz.HashWalker, bool) error
-	if isJSONv1x0(d.Version) || isJSONv1x1(d.Version) || isJSONv1x2(d.Version) {
+	if isAnyVersion(d.Version, v1_0, v1_1, v1_2) {
 		hashFunc = hashDefinitionLegacy
-	} else if isJSONv1x3(d.Version) { //nolint:revive // Early return not applicable to else if
-		hashFunc = hashDefinitionV1x3
+	} else if isAnyVersion(d.Version, v1_3, v1_4) { //nolint:revive // Early return not applicable to else if
+		hashFunc = hashDefinitionV1x3or4
 	} else {
 		return [32]byte{}, errors.New("unknown version")
 	}
@@ -109,7 +109,7 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 			// Field (1) 'ENR'
 			hh.PutBytes([]byte(o.ENR))
 
-			if isJSONv1x0(d.Version) || isJSONv1x1(d.Version) {
+			if isV1x0(d.Version) || isV1x1(d.Version) {
 				// Field (2) 'Nonce'
 				hh.PutUint64(zeroNonce) // Older versions had a zero nonce
 			}
@@ -142,8 +142,8 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 	return nil
 }
 
-// hashDefinitionV1x3 hashes the latest definition.
-func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error {
+// hashDefinitionV1x3or4 hashes the latest definition.
+func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) error {
 	feeRecipientAddress, err := from0xHex(d.FeeRecipientAddress, addressLen)
 	if err != nil {
 		return err
@@ -198,10 +198,10 @@ func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error 
 
 	// Field (10) 'Operators' CompositeList[256]
 	{
-		subIndx := hh.Index()
+		operatorsIdx := hh.Index()
 		num := uint64(len(d.Operators))
 		for _, o := range d.Operators {
-			indx := hh.Index()
+			operatorIdx := hh.Index()
 
 			// Field (0) 'Address' Bytes20
 			addrBytes, err := from0xHex(o.Address, addressLen)
@@ -223,14 +223,33 @@ func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error 
 				hh.PutBytes(o.ENRSignature)
 			}
 
-			hh.Merkleize(indx)
+			hh.Merkleize(operatorIdx)
 		}
-		hh.MerkleizeWithMixin(subIndx, num, sszMaxOperators)
+		hh.MerkleizeWithMixin(operatorsIdx, num, sszMaxOperators)
 	}
 
 	if !configOnly {
-		// Field 11) 'ConfigHash' Bytes32
+		// Field (11) 'ConfigHash' Bytes32
 		hh.PutBytes(d.ConfigHash)
+	}
+
+	if !isV1x3(d.Version) {
+		// Field (11 or 12) 'Creator' Composite for v1.4 and later
+		creatorIdx := hh.Index()
+
+		// Field (0) 'Address' Bytes20
+		addrBytes, err := from0xHex(d.Creator.Address, addressLen)
+		if err != nil {
+			return err
+		}
+		hh.PutBytes(addrBytes)
+
+		if !configOnly {
+			// Field (1) 'ConfigSignature' Bytes65
+			hh.PutBytes(d.Creator.ConfigSignature)
+		}
+
+		hh.Merkleize(creatorIdx)
 	}
 
 	hh.Merkleize(indx)
@@ -241,10 +260,10 @@ func hashDefinitionV1x3(d Definition, hh ssz.HashWalker, configOnly bool) error 
 // hashLock returns a lock hash.
 func hashLock(l Lock) ([32]byte, error) {
 	var hashFunc func(Lock, ssz.HashWalker) error
-	if isJSONv1x0(l.Version) || isJSONv1x1(l.Version) || isJSONv1x2(l.Version) {
+	if isV1x0(l.Version) || isV1x1(l.Version) || isV1x2(l.Version) {
 		hashFunc = hashLockLegacy
-	} else if isJSONv1x3(l.Version) { //nolint:revive // Early return not applicable to else if
-		hashFunc = hashLockV1x3
+	} else if isV1x3(l.Version) || isV1x4(l.Version) { //nolint:revive // Early return not applicable to else if
+		hashFunc = hashLockV1x3or4
 	} else {
 		return [32]byte{}, errors.New("unknown version")
 	}
@@ -264,12 +283,12 @@ func hashLock(l Lock) ([32]byte, error) {
 	return resp, nil
 }
 
-// hashLockV1x3 hashes the latest lock hash.
-func hashLockV1x3(l Lock, hh ssz.HashWalker) error {
+// hashLockV1x3or4 hashes the latest lock hash.
+func hashLockV1x3or4(l Lock, hh ssz.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'Definition' Composite
-	if err := hashDefinitionV1x3(l.Definition, hh, false); err != nil {
+	if err := hashDefinitionV1x3or4(l.Definition, hh, false); err != nil {
 		return err
 	}
 

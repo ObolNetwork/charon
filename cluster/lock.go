@@ -53,10 +53,10 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 	}
 
 	switch {
-	case isJSONv1x0(l.Version) || isJSONv1x1(l.Version):
+	case isV1x0(l.Version) || isV1x1(l.Version):
 		return marshalLockV1x0or1(l, lockHash)
-	case isJSONv1x2(l.Version) || isJSONv1x3(l.Version):
-		return marshalLockV1x2or3(l, lockHash)
+	case isV1x2(l.Version) || isV1x3(l.Version) || isV1x4(l.Version):
+		return marshalLockV1x2orLater(l, lockHash)
 	default:
 		return nil, errors.New("unsupported version")
 	}
@@ -83,13 +83,13 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		err  error
 	)
 	switch {
-	case isJSONv1x0(version.Definition.Version) || isJSONv1x1(version.Definition.Version):
+	case isAnyVersion(version.Definition.Version, v1_0, v1_1):
 		lock, err = unmarshalLockV1x0or1(data)
 		if err != nil {
 			return err
 		}
-	case isJSONv1x2(version.Definition.Version) || isJSONv1x3(version.Definition.Version):
-		lock, err = unmarshalLockV1x2or3(data)
+	case isAnyVersion(version.Definition.Version, v1_2, v1_3, v1_4):
+		lock, err = unmarshalLockV1x2orLater(data)
 		if err != nil {
 			return err
 		}
@@ -140,7 +140,7 @@ func (l Lock) VerifySignatures() error {
 	}
 
 	if len(l.SignatureAggregate) == 0 {
-		if isJSONv1x0(l.Version) || isJSONv1x1(l.Version) {
+		if isV1x0(l.Version) || isV1x1(l.Version) {
 			return nil // Earlier versions of `charon create cluster` didn't populate SignatureAggregate.
 		}
 
@@ -192,10 +192,10 @@ func marshalLockV1x0or1(lock Lock, lockHash [32]byte) ([]byte, error) {
 	return resp, nil
 }
 
-func marshalLockV1x2or3(lock Lock, lockHash [32]byte) ([]byte, error) {
-	resp, err := json.Marshal(lockJSONv1x2or3{
+func marshalLockV1x2orLater(lock Lock, lockHash [32]byte) ([]byte, error) {
+	resp, err := json.Marshal(lockJSONv1x2orLater{
 		Definition:         lock.Definition,
-		Validators:         distValidatorsToV1x2or3(lock.Validators),
+		Validators:         distValidatorsToV1x2orLater(lock.Validators),
 		SignatureAggregate: lock.SignatureAggregate,
 		LockHash:           lockHash[:],
 	})
@@ -222,15 +222,15 @@ func unmarshalLockV1x0or1(data []byte) (lock Lock, err error) {
 	return lock, nil
 }
 
-func unmarshalLockV1x2or3(data []byte) (lock Lock, err error) {
-	var lockJSON lockJSONv1x2or3
+func unmarshalLockV1x2orLater(data []byte) (lock Lock, err error) {
+	var lockJSON lockJSONv1x2orLater
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
 		return Lock{}, errors.Wrap(err, "unmarshal definition")
 	}
 
 	lock = Lock{
 		Definition:         lockJSON.Definition,
-		Validators:         distValidatorsFromV1x2or3(lockJSON.Validators),
+		Validators:         distValidatorsFromV1x2orLater(lockJSON.Validators),
 		SignatureAggregate: lockJSON.SignatureAggregate,
 		LockHash:           lockJSON.LockHash,
 	}
@@ -246,8 +246,8 @@ type lockJSONv1x0or1 struct {
 	LockHash           []byte                  `json:"lock_hash"`
 }
 
-// lockJSONv1x2or3 is the json formatter of Lock for versions v1.2.0 and later.
-type lockJSONv1x2or3 struct {
+// lockJSONv1x2orLater is the json formatter of Lock for versions v1.2.0 and later.
+type lockJSONv1x2orLater struct {
 	Definition         Definition              `json:"cluster_definition"`
 	Validators         []distValidatorJSONv1x2 `json:"distributed_validators"`
 	SignatureAggregate ethHex                  `json:"signature_aggregate"`

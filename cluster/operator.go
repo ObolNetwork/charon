@@ -66,8 +66,8 @@ type operatorJSONv1x1 struct {
 	ENRSignature    []byte `json:"enr_signature"`
 }
 
-// operatorJSONv1x2 is the json formatter of Operator for versions v1.2.
-type operatorJSONv1x2 struct {
+// operatorJSONv1x2orLater is the json formatter of Operator for versions v1.2.
+type operatorJSONv1x2orLater struct {
 	Address         string `json:"address"`
 	ENR             string `json:"enr"`
 	ConfigSignature ethHex `json:"config_signature"`
@@ -107,7 +107,7 @@ func operatorsToV1x1(operators []Operator) []operatorJSONv1x1 {
 	return resp
 }
 
-func operatorsFromV1x2or3(operators []operatorJSONv1x2) []Operator {
+func operatorsFromV1x2orLater(operators []operatorJSONv1x2orLater) []Operator {
 	var resp []Operator
 	for _, o := range operators {
 		resp = append(resp, Operator{
@@ -121,10 +121,10 @@ func operatorsFromV1x2or3(operators []operatorJSONv1x2) []Operator {
 	return resp
 }
 
-func operatorsToV1x2(operators []Operator) []operatorJSONv1x2 {
-	var resp []operatorJSONv1x2
+func operatorsToV1x2orLater(operators []Operator) []operatorJSONv1x2orLater {
+	var resp []operatorJSONv1x2orLater
 	for _, o := range operators {
-		resp = append(resp, operatorJSONv1x2{
+		resp = append(resp, operatorJSONv1x2orLater{
 			Address:         o.Address,
 			ENR:             o.ENR,
 			ConfigSignature: o.ConfigSignature,

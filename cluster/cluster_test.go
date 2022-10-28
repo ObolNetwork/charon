@@ -64,6 +64,11 @@ func TestEncode(t *testing.T) {
 				func(d *cluster.Definition) {
 					d.Version = version
 					d.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
+
+					if d.Version == "v1.4.0" { // Add this by default once v1.4 released.
+						d.Creator.Address = testutil.RandomETHAddress()
+						d.Creator.ConfigSignature = testutil.RandomSecp256k1Signature()
+					}
 				},
 			)
 			require.NoError(t, err)
