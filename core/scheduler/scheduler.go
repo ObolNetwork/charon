@@ -520,7 +520,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 			case <-clock.After(slot.Time.Sub(clock.Now())):
 			}
 
-			// Recalculate slot to avoid thundering-heard by skipping slots if missed due
+			// Recalculate slot to avoid "thundering herd" problem by skipping slots if missed due
 			// to pause-the-world events (i.e. resources are already constrained).
 			actual := currentSlot()
 			if actual.Slot != slot.Slot {
