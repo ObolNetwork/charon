@@ -89,7 +89,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 }
 
 func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
-	flags.StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
+	flags.StringVar(&config.Name, "name", "", "The cluster name")
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", minNodes, "The number of charon nodes in the cluster. Minimum is 4.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")

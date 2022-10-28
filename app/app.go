@@ -147,7 +147,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	network, err := eth2util.ForkVersionToNetwork(lock.ForkVersion)
 	if err != nil {
-		return err
+		network = "unknown"
 	}
 
 	p2pKey := conf.TestConfig.P2PKey
