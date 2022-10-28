@@ -525,6 +525,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 			actual := currentSlot()
 			if actual.Slot != slot.Slot {
 				log.Warn(ctx, "Slot(s) skipped", nil, z.I64("actual_slot", actual.Slot), z.I64("expect_slot", slot.Slot))
+				skipCounter.Inc()
 			}
 
 			select {

@@ -58,6 +58,13 @@ var (
 		Name:      "validator_balance_gwei",
 		Help:      "Total balance of a validator by public key",
 	}, []string{"pubkey_full", "pubkey"})
+
+	skipCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "scheduler",
+		Name:      "skipped_slots_total",
+		Help:      "The total number times that slots were skipped",
+	})
 )
 
 // instrumentSlot sets the current slot and epoch metrics.
