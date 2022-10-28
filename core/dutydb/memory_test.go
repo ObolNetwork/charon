@@ -215,32 +215,98 @@ func TestMemDBAggregator(t *testing.T) {
 }
 
 func TestMemDBSyncContribution(t *testing.T) {
-	ctx := context.Background()
-	db := dutydb.NewMemDB(new(testDeadliner))
+	t.Run("await sync contribution", func(t *testing.T) {
+		ctx := context.Background()
+		db := dutydb.NewMemDB(new(testDeadliner))
 
-	const queries = 3
+		const queries = 3
 
-	for i := 0; i < queries; i++ {
-		contrib := testutil.RandomSyncCommitteeContribution()
-		set := core.UnsignedDataSet{
-			testutil.RandomCorePubKey(t): core.NewSyncContribution(contrib),
+		for i := 0; i < queries; i++ {
+			contrib := testutil.RandomSyncCommitteeContribution()
+			set := core.UnsignedDataSet{
+				testutil.RandomCorePubKey(t): core.NewSyncContribution(contrib),
+			}
+
+			var (
+				slot            = int64(contrib.Slot)
+				subcommIdx      = contrib.SubcommitteeIndex
+				beaconBlockRoot = contrib.BeaconBlockRoot
+			)
+
+			go func() {
+				err := db.Store(ctx, core.NewSyncContributionDuty(slot), set)
+				require.NoError(t, err)
+			}()
+
+			resp, err := db.AwaitSyncContribution(ctx, slot, int64(subcommIdx), beaconBlockRoot)
+			require.NoError(t, err)
+			require.Equal(t, contrib, resp)
 		}
+	})
 
-		var (
-			slot            = int64(contrib.Slot)
-			subcommIdx      = contrib.SubcommitteeIndex
-			beaconBlockRoot = contrib.BeaconBlockRoot
+	t.Run("dutydb shutdown", func(t *testing.T) {
+		db := dutydb.NewMemDB(new(testDeadliner))
+		db.Shutdown()
+
+		resp, err := db.AwaitSyncContribution(context.Background(), 0, 0, testutil.RandomRoot())
+		require.Error(t, err)
+		require.ErrorContains(t, err, "dutydb shutdown")
+		require.Nil(t, resp)
+	})
+
+	t.Run("clashing sync contributions", func(t *testing.T) {
+		const (
+			slot       = 123
+			subcommIdx = 1
 		)
 
-		go func() {
-			err := db.Store(ctx, core.NewSyncContributionDuty(slot), set)
-			require.NoError(t, err)
-		}()
+		var (
+			ctx             = context.Background()
+			db              = dutydb.NewMemDB(new(testDeadliner))
+			duty            = core.NewSyncContributionDuty(slot)
+			pubkey          = testutil.RandomCorePubKey(t)
+			beaconBlockRoot = testutil.RandomRoot()
+		)
 
-		resp, err := db.AwaitSyncContribution(ctx, slot, int64(subcommIdx), beaconBlockRoot)
+		// Construct sync contributions.
+		contrib1 := testutil.RandomSyncCommitteeContribution()
+		contrib1.Slot = slot
+		contrib1.SubcommitteeIndex = subcommIdx
+		contrib1.BeaconBlockRoot = beaconBlockRoot
+		unsigned1 := core.NewSyncContribution(contrib1)
+
+		contrib2 := testutil.RandomSyncCommitteeContribution()
+		contrib2.Slot = slot
+		contrib2.SubcommitteeIndex = subcommIdx
+		contrib2.BeaconBlockRoot = beaconBlockRoot
+		unsigned2 := core.NewSyncContribution(contrib2)
+
+		// Store them.
+		err := db.Store(ctx, duty, core.UnsignedDataSet{
+			pubkey: unsigned1,
+		})
 		require.NoError(t, err)
-		require.Equal(t, contrib, resp)
-	}
+
+		err = db.Store(ctx, duty, core.UnsignedDataSet{
+			pubkey: unsigned2,
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "clashing sync contributions")
+	})
+
+	t.Run("invalid unsigned sync contribution", func(t *testing.T) {
+		var (
+			db   = dutydb.NewMemDB(new(testDeadliner))
+			ctx  = context.Background()
+			duty = core.NewSyncContributionDuty(0)
+		)
+
+		err := db.Store(ctx, duty, core.UnsignedDataSet{
+			testutil.RandomCorePubKey(t): core.NewAggregatedAttestation(testutil.RandomAttestation()),
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "invalid unsigned sync committee contribution")
+	})
 }
 
 func TestMemDBClashingBlocks(t *testing.T) {

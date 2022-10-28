@@ -33,6 +33,7 @@ var (
 	_ UnsignedData = AggregatedAttestation{}
 	_ UnsignedData = VersionedBeaconBlock{}
 	_ UnsignedData = VersionedBlindedBeaconBlock{}
+	_ UnsignedData = SyncContribution{}
 )
 
 // AttestationData wraps the eth2 attestation data and adds the original duty.

@@ -407,7 +407,7 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 	return nil
 }
 
-// storeAggAttestationUnsafe stores the unsigned aggregated attestation. It is unsafe since it assumes the lock is held.
+// storeSyncContributionUnsafe stores the unsigned aggregated attestation. It is unsafe since it assumes the lock is held.
 func (db *MemDB) storeSyncContributionUnsafe(unsignedData core.UnsignedData) error {
 	cloned, err := unsignedData.Clone() // Clone before storing.
 	if err != nil {
@@ -419,7 +419,7 @@ func (db *MemDB) storeSyncContributionUnsafe(unsignedData core.UnsignedData) err
 		return errors.New("invalid unsigned sync committee contribution")
 	}
 
-	contribRoot, err := contrib.HashTreeRoot()
+	contribRoot, err := contrib.SyncCommitteeContribution.HashTreeRoot()
 	if err != nil {
 		return errors.Wrap(err, "hash sync committee contribution")
 	}
@@ -437,7 +437,7 @@ func (db *MemDB) storeSyncContributionUnsafe(unsignedData core.UnsignedData) err
 		}
 
 		if existingRoot != contribRoot {
-			return errors.New("clashing sync committee contribution")
+			return errors.New("clashing sync contributions")
 		}
 	} else {
 		db.contribDuties[key] = &contrib.SyncCommitteeContribution
@@ -592,17 +592,17 @@ func (db *MemDB) resolveBuilderProQueriesUnsafe() {
 }
 
 // resolveContribQueriesUnsafe resolves any contribQuery to a result if found.
-// It is unsafe since it assume that the lock is held.
+// It is unsafe since it assumes that the lock is held.
 func (db *MemDB) resolveContribQueriesUnsafe() {
 	var unresolved []contribQuery
 	for _, query := range db.contribQueries {
-		value, ok := db.contribDuties[query.Key]
+		contribution, ok := db.contribDuties[query.Key]
 		if !ok {
 			unresolved = append(unresolved, query)
 			continue
 		}
 
-		query.Response <- value
+		query.Response <- contribution
 	}
 
 	db.contribQueries = unresolved
