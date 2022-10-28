@@ -1,6 +1,10 @@
 {
  "cluster_definition": {
   "name": "test definition",
+  "creator": {
+   "address": "0x6a156a8de563afa467d49dec6a40e9a1d007f033",
+   "config_signature": "0x430105220d0b29688b734b8ea0f3ca9936e8461f10d77c96ea80a7a665f606f6a63b7f3dfd2567c18979e4d60f26686d9bf2fb26c901ff354cde1607ee294b391c"
+  },
   "operators": [
    {
     "address": "0xeb9d18a44784045d87f3c67cf22746e995af5a25",
@@ -25,11 +29,7 @@
   "dkg_algorithm": "default",
   "fork_version": "0x90000069",
   "config_hash": "0x3e587373050bcd3e4556c8a18657cf1a104b56630845e2105678eea48871000a",
-  "definition_hash": "0x57da73c7178e3e9727939fdb8f8907f24c7b9db07ebab55ef5f16c6ad1a5145d",
-  "creator": {
-   "address": "0x6a156a8de563afa467d49dec6a40e9a1d007f033",
-   "config_signature": "0x430105220d0b29688b734b8ea0f3ca9936e8461f10d77c96ea80a7a665f606f6a63b7f3dfd2567c18979e4d60f26686d9bf2fb26c901ff354cde1607ee294b391c"
-  }
+  "definition_hash": "0x57da73c7178e3e9727939fdb8f8907f24c7b9db07ebab55ef5f16c6ad1a5145d"
  },
  "distributed_validators": [
   {

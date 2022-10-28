@@ -431,21 +431,19 @@ func marshalDefinitionV1x2or3(def Definition) ([]byte, error) {
 
 func marshalDefinitionV1x4(def Definition) ([]byte, error) {
 	resp, err := json.Marshal(definitionJSONv1x4{
-		definitionJSONv1x2or3: definitionJSONv1x2or3{
-			Name:                def.Name,
-			UUID:                def.UUID,
-			Version:             def.Version,
-			Timestamp:           def.Timestamp,
-			NumValidators:       def.NumValidators,
-			Threshold:           def.Threshold,
-			FeeRecipientAddress: def.FeeRecipientAddress,
-			WithdrawalAddress:   def.WithdrawalAddress,
-			DKGAlgorithm:        def.DKGAlgorithm,
-			ForkVersion:         def.ForkVersion,
-			Operators:           operatorsToV1x2(def.Operators),
-			ConfigHash:          def.ConfigHash,
-			DefinitionHash:      def.DefinitionHash,
-		},
+		Name:                def.Name,
+		UUID:                def.UUID,
+		Version:             def.Version,
+		Timestamp:           def.Timestamp,
+		NumValidators:       def.NumValidators,
+		Threshold:           def.Threshold,
+		FeeRecipientAddress: def.FeeRecipientAddress,
+		WithdrawalAddress:   def.WithdrawalAddress,
+		DKGAlgorithm:        def.DKGAlgorithm,
+		ForkVersion:         def.ForkVersion,
+		ConfigHash:          def.ConfigHash,
+		DefinitionHash:      def.DefinitionHash,
+		Operators:           operatorsToV1x2(def.Operators),
 		Creator: creatorJSON{
 			Address:         def.Creator.Address,
 			ConfigSignature: def.Creator.ConfigSignature,
@@ -596,8 +594,20 @@ type definitionJSONv1x2or3 struct {
 
 // definitionJSONv1x4 is the json formatter of Definition for versions v1.4.
 type definitionJSONv1x4 struct {
-	definitionJSONv1x2or3
-	Creator creatorJSON `json:"creator"`
+	Name                string             `json:"name,omitempty"`
+	Creator             creatorJSON        `json:"creator"`
+	Operators           []operatorJSONv1x2 `json:"operators"`
+	UUID                string             `json:"uuid"`
+	Version             string             `json:"version"`
+	Timestamp           string             `json:"timestamp,omitempty"`
+	NumValidators       int                `json:"num_validators"`
+	Threshold           int                `json:"threshold"`
+	FeeRecipientAddress string             `json:"fee_recipient_address,omitempty"`
+	WithdrawalAddress   string             `json:"withdrawal_address,omitempty"`
+	DKGAlgorithm        string             `json:"dkg_algorithm"`
+	ForkVersion         ethHex             `json:"fork_version"`
+	ConfigHash          ethHex             `json:"config_hash"`
+	DefinitionHash      ethHex             `json:"definition_hash"`
 }
 
 // Creator identifies the creator of a cluster definition.
