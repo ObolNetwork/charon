@@ -495,30 +495,46 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 		return nil, err
 	}
 
-	chainAge := clock.Since(genesis)
-	height := int64(chainAge / slotDuration)
-	startTime := genesis.Add(time.Duration(height) * slotDuration)
+	currentSlot := func() core.Slot {
+		chainAge := clock.Since(genesis)
+		slot := int64(chainAge / slotDuration)
+		startTime := genesis.Add(time.Duration(slot) * slotDuration)
 
-	resp := make(chan core.Slot)
+		return core.Slot{
+			Slot:          slot,
+			Time:          startTime,
+			SlotsPerEpoch: int64(slotsPerEpoch),
+			SlotDuration:  slotDuration,
+		}
+	}
 
+	var (
+		resp = make(chan core.Slot)
+		slot = currentSlot()
+	)
 	go func() {
 		for {
-			resp <- core.Slot{
-				Slot:          height,
-				Time:          startTime,
-				SlotsPerEpoch: int64(slotsPerEpoch),
-				SlotDuration:  slotDuration,
+			select {
+			case <-ctx.Done():
+				return
+			case <-clock.After(slot.Time.Sub(clock.Now())):
 			}
 
-			height++
-			startTime = startTime.Add(slotDuration)
-			delay := startTime.Sub(clock.Now())
+			// Recalculate slot to avoid "thundering herd" problem by skipping slots if missed due
+			// to pause-the-world events (i.e. resources are already constrained).
+			actual := currentSlot()
+			if actual.Slot != slot.Slot {
+				log.Warn(ctx, "Slot(s) skipped", nil, z.I64("actual_slot", actual.Slot), z.I64("expect_slot", slot.Slot))
+				skipCounter.Inc()
+			}
 
 			select {
 			case <-ctx.Done():
 				return
-			case <-clock.After(delay):
+			case resp <- actual:
 			}
+
+			slot = actual.Next()
 		}
 	}()
 
