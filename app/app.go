@@ -62,6 +62,7 @@ import (
 	"github.com/obolnetwork/charon/core/sigagg"
 	"github.com/obolnetwork/charon/core/tracker"
 	"github.com/obolnetwork/charon/core/validatorapi"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -144,6 +145,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	lockHashHex := hex.EncodeToString(lock.LockHash)[:7]
 
+	network, err := eth2util.ForkVersionToNetwork(lock.ForkVersion)
+	if err != nil {
+		return err
+	}
+
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
 		var err error
@@ -181,21 +187,16 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Str("enr", localEnode.Node().String()))
 
 	promRegistry, err := promauto.NewRegistry(prometheus.Labels{
-		"cluster_hash": lockHashHex,
-		"cluster_name": lock.Name,
-		"cluster_peer": p2p.PeerName(tcpNode.ID()),
+		"cluster_hash":    lockHashHex,
+		"cluster_name":    lock.Name,
+		"cluster_peer":    p2p.PeerName(tcpNode.ID()),
+		"cluster_network": network,
 	})
 	if err != nil {
 		return err
 	}
 
-	initStartupMetrics(
-		p2p.PeerName(tcpNode.ID()),
-		lock.Threshold,
-		len(lock.Operators),
-		len(lock.Validators),
-		lock.ForkVersion,
-	)
+	initStartupMetrics(p2p.PeerName(tcpNode.ID()), lock.Threshold, len(lock.Operators), len(lock.Validators), network)
 
 	eth2Cl, err := newETH2Client(ctx, conf, life, lock.Validators)
 	if err != nil {
