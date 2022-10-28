@@ -33,6 +33,7 @@ var (
 	_ UnsignedData = AggregatedAttestation{}
 	_ UnsignedData = VersionedBeaconBlock{}
 	_ UnsignedData = VersionedBlindedBeaconBlock{}
+	_ UnsignedData = SyncContribution{}
 )
 
 // AttestationData wraps the eth2 attestation data and adds the original duty.
@@ -293,6 +294,11 @@ func (b *VersionedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
 	*b = VersionedBlindedBeaconBlock{VersionedBlindedBeaconBlock: resp}
 
 	return nil
+}
+
+// NewSyncContribution returns a new SyncContribution.
+func NewSyncContribution(c *altair.SyncCommitteeContribution) SyncContribution {
+	return SyncContribution{SyncCommitteeContribution: *c}
 }
 
 type SyncContribution struct {
