@@ -35,7 +35,7 @@
       "title": "Explore Charon Logs",
       "tooltip": "Navigate to Charon Logs Exporer",
       "type": "link",
-      "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22$node%5C%22%7D%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+      "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22$job%5C%22%7D%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
     }
   ],
   "liveNow": false,
@@ -95,7 +95,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "(\n  sum(app_git_commit{job=\"$node\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{job=\"$node\"}) by (version)\n)\n   + on(job) group_left(peer_name)\n(\n   0 * sum(app_peer_name{job=\"$node\"}) by (peer_name)\n)\n   + on(job) group_left(network)\n(\n   0 * sum(cluster_network{job=\"$node\"}) by (network)\n)\n   + on(job) group_left(cluster_hash)\n(\n   0 * sum(cluster_operators{job=\"$node\"}) by (cluster_hash)\n)",
+          "expr": "(\n  sum(app_git_commit{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (version)\n)\n   + on(job) group_left(peer_name)\n(\n   0 * sum(app_peer_name{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (peer_name)\n)\n   + on(job) group_left(network)\n(\n   0 * sum(cluster_network{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (network)\n)\n   + on(job) group_left(cluster_hash)\n(\n   0 * sum(cluster_operators{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (cluster_hash)\n)",
           "hide": false,
           "instant": true,
           "interval": "",
@@ -235,7 +235,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "time() - max(app_start_time_secs{job=\"$node\"})",
+          "expr": "time() - max(app_start_time_secs{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"})",
           "hide": false,
           "instant": true,
           "legendFormat": "Uptime",
@@ -249,7 +249,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "core_scheduler_current_slot{job=\"$node\"}",
+          "expr": "core_scheduler_current_slot{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "format": "time_series",
           "hide": false,
           "instant": true,
@@ -265,7 +265,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "core_scheduler_current_epoch{job=\"$node\"}",
+          "expr": "core_scheduler_current_epoch{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "hide": false,
           "instant": true,
           "legendFormat": "Epoch",
@@ -279,7 +279,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "core_scheduler_validators_active{job=\"$node\"}",
+          "expr": "core_scheduler_validators_active{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "hide": false,
           "instant": true,
           "legendFormat": "Validators Active",
@@ -293,7 +293,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(p2p_ping_success{job=\"$node\"})",
+          "expr": "sum(p2p_ping_success{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"})",
           "hide": false,
           "instant": true,
           "legendFormat": "Peers Connected",
@@ -307,7 +307,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(p2p_relay_connections{job=\"$node\"}) ",
+          "expr": "sum(p2p_relay_connections{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) ",
           "hide": false,
           "instant": true,
           "legendFormat": "Relays Connected",
@@ -321,7 +321,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "p2p_reachability_status{job=\"$node\"}",
+          "expr": "p2p_reachability_status{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "hide": false,
           "instant": true,
           "legendFormat": "P2P Reachability",
@@ -433,7 +433,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "app_monitoring_readyz{job=\"$node\"}",
+          "expr": "app_monitoring_readyz{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "hide": false,
           "instant": true,
           "interval": "",
@@ -530,7 +530,7 @@
             "uid": "prometheus"
           },
           "exemplar": true,
-          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[$__rate_interval])) by (le,peer))  ",
+          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])) by (le,peer))  ",
           "interval": "",
           "legendFormat": "{{peer}}",
           "refId": "A"
@@ -601,7 +601,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "cluster_operators{job=\"$node\"}",
+          "expr": "cluster_operators{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "legendFormat": "Operators",
           "range": true,
           "refId": "A"
@@ -612,7 +612,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "cluster_threshold{job=\"$node\"}",
+          "expr": "cluster_threshold{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "hide": false,
           "legendFormat": "Threshold",
           "range": true,
@@ -624,7 +624,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "cluster_validators{job=\"$node\"}",
+          "expr": "cluster_validators{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "hide": false,
           "legendFormat": "Validators",
           "range": true,
@@ -921,7 +921,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(p2p_ping_success{job=\"$node\"}) by (peer)",
+          "expr": "sum(p2p_ping_success{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (peer)",
           "format": "table",
           "instant": true,
           "range": false,
@@ -934,7 +934,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{job=\"$node\"}[$__rate_interval])) by (le,peer))  * 1000",
+          "expr": "histogram_quantile(0.90, sum(rate(p2p_ping_latency_secs_bucket{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])) by (le,peer))  * 1000",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -948,7 +948,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "\nsum(increase(core_tracker_participation_total{job=\"$node\", duty=\"attester\"}[$__range])) by (peer)",
+          "expr": "\nsum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"attester\"}[$__range])) by (peer)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -962,7 +962,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{job=\"$node\", duty=\"proposer\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"proposer\"}[$__range])) by (peer)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -976,7 +976,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{job=\"$node\", duty=\"randao\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"randao\"}[$__range])) by (peer)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -990,7 +990,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(p2p_ping_success{job=\"$node\"}) by (peer)",
+          "expr": "sum(p2p_ping_success{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (peer)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1005,7 +1005,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{job=\"$node\", duty=\"prepare_aggregator\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"prepare_aggregator\"}[$__range])) by (peer)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1019,7 +1019,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{job=\"$node\", duty=\"aggregator\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"aggregator\"}[$__range])) by (peer)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1033,7 +1033,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{job=\"$node\", duty=\"exit\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"exit\"}[$__range])) by (peer)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1047,7 +1047,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max(round(app_peerinfo_clock_offset_seconds{job=\"$node\"},0.1)*1000) by (peer) ",
+          "expr": "max(round(app_peerinfo_clock_offset_seconds{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"},0.1)*1000) by (peer) ",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1061,7 +1061,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "(max(p2p_peer_connection_types{job=\"$node\",type=\"direct\"}) by (peer)*10 + \nmax(p2p_peer_connection_types{job=\"$node\",type=\"relay\"}) by (peer))",
+          "expr": "(max(p2p_peer_connection_types{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\",type=\"direct\"}) by (peer)*10 + \nmax(p2p_peer_connection_types{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\",type=\"relay\"}) by (peer))",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1076,7 +1076,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(app_peerinfo_version{job=\"$node\"}) by (peer,version) ",
+          "expr": "sum(app_peerinfo_version{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (peer,version) ",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1091,7 +1091,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max(app_peerinfo_git_commit{job=\"$node\"}) by (peer,git_hash) > 0",
+          "expr": "max(app_peerinfo_git_commit{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (peer,git_hash) > 0",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1106,7 +1106,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{job=\"$node\", duty=\"sync_message\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"sync_message\"}[$__range])) by (peer)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1257,7 +1257,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "increase(core_bcast_broadcast_total{job=\"$node\"}[$__rate_interval]) > 0",
+          "expr": "increase(core_bcast_broadcast_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval]) > 0",
           "instant": false,
           "interval": "1m",
           "legendFormat": "{{duty}}",
@@ -1271,7 +1271,7 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "clamp_max(increase(core_scheduler_current_epoch{job=\"$node\"}[$__rate_interval]), 0.2) > 0",
+          "expr": "clamp_max(increase(core_scheduler_current_epoch{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval]), 0.2) > 0",
           "hide": false,
           "interval": "1m",
           "legendFormat": "epoch boundry",
@@ -1301,7 +1301,7 @@
             {
               "targetBlank": true,
               "title": "Show in log explorer",
-              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22$node%5C%22%7D%20%7C%3D%20%60Duty%20failed%60%20%7C%3D%20%60${__field.labels.duty}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22$job%5C%22%7D%20%7C%3D%20%60Duty%20failed%60%20%7C%3D%20%60${__field.labels.duty}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
             }
           ],
           "mappings": [],
@@ -1350,7 +1350,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_failed_duties_total{job=\"$node\"}[$__rate_interval])) by (duty) > 0",
+          "expr": "sum(increase(core_tracker_failed_duties_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])) by (duty) > 0",
           "instant": false,
           "interval": "1m",
           "legendFormat": "{{duty}}",
@@ -1406,7 +1406,7 @@
             {
               "targetBlank": true,
               "title": "Show in log explorer",
-              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22$node%5C%22%7D%20%7C%3D%20%60${__field.labels.msg}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22$job%5C%22%7D%20%7C%3D%20%60${__field.labels.msg}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
             }
           ],
           "mappings": [],
@@ -1454,7 +1454,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({compose_service=\"$node\"} | logfmt | level=~`(warn|error)` [5m])) by (msg)",
+          "expr": "sum(count_over_time({compose_service=\"$job\"} | logfmt | level=~`(warn|error)` [5m])) by (msg)",
           "legendFormat": "{{msg}}",
           "queryType": "range",
           "refId": "A",
@@ -1494,7 +1494,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{compose_service=\"$node\"} | logfmt | msg=`Duty failed` | line_format `{{.duty}}\t{{.reason}}`",
+          "expr": "{compose_service=\"$job\"} | logfmt | msg=`Duty failed` | line_format `{{.duty}}\t{{.reason}}`",
           "legendFormat": "{{level}} [{{topic}}] {{msg}}",
           "queryType": "range",
           "refId": "A",
@@ -1588,7 +1588,7 @@
             "uid": "prometheus"
           },
           "exemplar": true,
-          "expr": "rate(app_eth2_latency_seconds_count{job=\"$node\"}[$__rate_interval]) ",
+          "expr": "rate(app_eth2_latency_seconds_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval]) ",
           "interval": "",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
@@ -1774,7 +1774,7 @@
             "uid": "prometheus"
           },
           "exemplar": true,
-          "expr": "rate(core_validatorapi_request_latency_seconds_count{job=\"$node\"}[$__rate_interval])",
+          "expr": "rate(core_validatorapi_request_latency_seconds_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])",
           "interval": "",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
@@ -1962,7 +1962,7 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "go_memstats_alloc_bytes{job=\"$node\"}",
+          "expr": "go_memstats_alloc_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "interval": "",
           "legendFormat": "Allocated Memory",
           "range": true,
@@ -1974,7 +1974,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_memstats_heap_inuse_bytes{job=\"$node\"}",
+          "expr": "go_memstats_heap_inuse_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "hide": true,
           "legendFormat": "Inuse Heap",
           "range": true,
@@ -2083,7 +2083,7 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "go_goroutines{job=\"$node\"}",
+          "expr": "go_goroutines{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "interval": "",
           "legendFormat": "Go Routines",
           "range": true,
@@ -2095,7 +2095,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "process_open_fds{job=\"$node\"}",
+          "expr": "process_open_fds{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "hide": false,
           "legendFormat": "File Descriptors",
           "range": true,
@@ -2241,7 +2241,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "core_scheduler_validator_balance_gwei{job=\"$node\"} / 1000000000",
+          "expr": "core_scheduler_validator_balance_gwei{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} / 1000000000",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -2373,7 +2373,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "irate(process_cpu_seconds_total{job=\"$node\"}[$__rate_interval])",
+          "expr": "irate(process_cpu_seconds_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])",
           "intervalFactor": 2,
           "legendFormat": "CPU",
           "metric": "go_gc_duration_seconds",
@@ -2414,7 +2414,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{compose_service=\"$node\"} | logfmt | line_format \"{{.pretty}}\"",
+          "expr": "{compose_service=\"$job\"} | logfmt | line_format \"{{.pretty}}\"",
           "queryType": "range",
           "refId": "A",
           "resolution": 1
@@ -2432,24 +2432,109 @@
     "list": [
       {
         "current": {
+          "isNone": true,
           "selected": false,
-          "text": "node0",
-          "value": "node0"
+          "text": "None",
+          "value": ""
         },
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "definition": "label_values(app_peer_name, job)",
+        "definition": "label_values(app_peer_name, cluster_name)",
         "description": "",
         "hide": 0,
         "includeAll": false,
-        "label": "docker-compose service",
+        "label": "Cluster Name",
         "multi": false,
-        "name": "node",
+        "name": "cluster_name",
         "options": [],
         "query": {
-          "query": "label_values(app_peer_name, job)",
+          "query": "label_values(app_peer_name, cluster_name)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "1c882f1",
+          "value": "1c882f1"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(app_peer_name{cluster_name=\"$cluster_name\"}, cluster_hash)",
+        "description": "",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Cluster Hash",
+        "multi": false,
+        "name": "cluster_hash",
+        "options": [],
+        "query": {
+          "query": "label_values(app_peer_name{cluster_name=\"$cluster_name\"}, cluster_hash)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "brainy-farmer",
+          "value": "brainy-farmer"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(app_peer_name{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\"}, cluster_peer)",
+        "description": "",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Cluster Peer",
+        "multi": false,
+        "name": "cluster_peer",
+        "options": [],
+        "query": {
+          "query": "label_values(app_peer_name{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\"}, cluster_peer)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "node1",
+          "value": "node1"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(app_peer_name{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"},job)",
+        "description": "Prometheus job (can be ignored)",
+        "hide": 2,
+        "includeAll": false,
+        "label": "--",
+        "multi": false,
+        "name": "job",
+        "options": [],
+        "query": {
+          "query": "label_values(app_peer_name{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"},job)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,

@@ -20,7 +20,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/version"
-	"github.com/obolnetwork/charon/eth2util"
 )
 
 const (
@@ -96,9 +95,9 @@ var (
 	}, []string{"network"})
 )
 
-func initStartupMetrics(peerName string, threshold, numOperators, numValidators int, forkVersion []byte) {
+func initStartupMetrics(peerName string, threshold, numOperators, numValidators int, network string) {
 	startGauge.SetToCurrentTime()
-	setNetworkGauge(forkVersion)
+	networkGauge.WithLabelValues(network).Set(1)
 
 	hash, _ := version.GitCommit()
 	gitGauge.WithLabelValues(hash).Set(1)
@@ -108,14 +107,4 @@ func initStartupMetrics(peerName string, threshold, numOperators, numValidators 
 	thresholdGauge.Set(float64(threshold))
 	operatorsGauge.Set(float64(numOperators))
 	validatorsGauge.Set(float64(numValidators))
-}
-
-// setNetworkGauge sets the gauge to the current network/chain (ex: goerli, mainnet etc.).
-func setNetworkGauge(forkVersion []byte) {
-	network, err := eth2util.ForkVersionToNetwork(forkVersion)
-	if err != nil {
-		network = "unknown"
-	}
-
-	networkGauge.WithLabelValues(network).Set(1)
 }
