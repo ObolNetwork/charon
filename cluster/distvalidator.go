@@ -89,7 +89,7 @@ func distValidatorsToV1x1(distValidators []DistValidator) []distValidatorJSONv1x
 	return resp
 }
 
-func distValidatorsFromV1x2or3(distValidators []distValidatorJSONv1x2) []DistValidator {
+func distValidatorsFromV1x2orLater(distValidators []distValidatorJSONv1x2) []DistValidator {
 	var resp []DistValidator
 	for _, dv := range distValidators {
 		var shares [][]byte
@@ -106,7 +106,7 @@ func distValidatorsFromV1x2or3(distValidators []distValidatorJSONv1x2) []DistVal
 	return resp
 }
 
-func distValidatorsToV1x2or3(distValidators []DistValidator) []distValidatorJSONv1x2 {
+func distValidatorsToV1x2orLater(distValidators []DistValidator) []distValidatorJSONv1x2 {
 	var resp []distValidatorJSONv1x2
 	for _, dv := range distValidators {
 		var shares []ethHex
