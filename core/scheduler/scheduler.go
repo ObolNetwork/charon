@@ -495,36 +495,45 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 		return nil, err
 	}
 
+	currentSlot := func() core.Slot {
+		chainAge := clock.Since(genesis)
+		slot := int64(chainAge / slotDuration)
+		startTime := genesis.Add(time.Duration(slot) * slotDuration)
+
+		return core.Slot{
+			Slot:          slot,
+			Time:          startTime,
+			SlotsPerEpoch: int64(slotsPerEpoch),
+			SlotDuration:  slotDuration,
+		}
+	}
+
 	var (
-		resp           = make(chan core.Slot)
-		prevSlot int64 = -1 // Support starting at slot 0.
+		resp = make(chan core.Slot)
+		slot = currentSlot()
 	)
 	go func() {
 		for {
-			// Recalculate slot every time so missed slots are skipped (due to pause-the-world events)
-			chainAge := clock.Since(genesis)
-			slot := int64(chainAge / slotDuration)
-			if slot <= prevSlot { // This should never happen, but better safe than triggering the same slot twice.
-				slot = prevSlot + 1
-			}
-			startTime := genesis.Add(time.Duration(slot) * slotDuration)
-
-			resp <- core.Slot{
-				Slot:          slot,
-				Time:          startTime,
-				SlotsPerEpoch: int64(slotsPerEpoch),
-				SlotDuration:  slotDuration,
+			select {
+			case <-ctx.Done():
+				return
+			case <-clock.After(slot.Time.Sub(clock.Now())):
 			}
 
-			prevSlot = slot
-			nextStartTime := startTime.Add(slotDuration)
-			delay := nextStartTime.Sub(clock.Now())
+			// Recalculate slot to avoid thundering-heard by skipping slots if missed due
+			// to pause-the-world events (i.e. resources are already constrained).
+			actual := currentSlot()
+			if actual.Slot != slot.Slot {
+				log.Warn(ctx, "Slot(s) skipped", nil, z.I64("actual_slot", actual.Slot), z.I64("expect_slot", slot.Slot))
+			}
 
 			select {
 			case <-ctx.Done():
 				return
-			case <-clock.After(delay):
+			case resp <- actual:
 			}
+
+			slot = actual.Next()
 		}
 	}()
 
