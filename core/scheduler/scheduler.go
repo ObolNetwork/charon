@@ -495,24 +495,30 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 		return nil, err
 	}
 
-	chainAge := clock.Since(genesis)
-	height := int64(chainAge / slotDuration)
-	startTime := genesis.Add(time.Duration(height) * slotDuration)
-
-	resp := make(chan core.Slot)
-
+	var (
+		resp           = make(chan core.Slot)
+		prevSlot int64 = -1 // Support starting at slot 0.
+	)
 	go func() {
 		for {
+			// Recalculate slot every time so missed slots are skipped (due to pause-the-world events)
+			chainAge := clock.Since(genesis)
+			slot := int64(chainAge / slotDuration)
+			if slot <= prevSlot { // This should never happen, but better safe than triggering the same slot twice.
+				slot = prevSlot + 1
+			}
+			startTime := genesis.Add(time.Duration(slot) * slotDuration)
+
 			resp <- core.Slot{
-				Slot:          height,
+				Slot:          slot,
 				Time:          startTime,
 				SlotsPerEpoch: int64(slotsPerEpoch),
 				SlotDuration:  slotDuration,
 			}
 
-			height++
-			startTime = startTime.Add(slotDuration)
-			delay := startTime.Sub(clock.Now())
+			prevSlot = slot
+			nextStartTime := startTime.Add(slotDuration)
+			delay := nextStartTime.Sub(clock.Now())
 
 			select {
 			case <-ctx.Done():
