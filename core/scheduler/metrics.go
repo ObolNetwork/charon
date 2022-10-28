@@ -63,7 +63,7 @@ var (
 		Namespace: "core",
 		Subsystem: "scheduler",
 		Name:      "skipped_slots_total",
-		Help:      "The total number times that slots were skipped",
+		Help:      "Total number times slots were skipped",
 	})
 )
 
