@@ -36,7 +36,6 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
@@ -928,7 +927,7 @@ func (c Component) verifyPartialSig(ctx context.Context, parSig core.ParSignedDa
 		return errors.New("invalid eth2 signed data")
 	}
 
-	return signing.Verify(ctx, c.eth2Cl, eth2Signed, pubshare)
+	return core.VerifyEth2SignedData(ctx, c.eth2Cl, eth2Signed, pubshare)
 }
 
 func (c Component) getAggregateSelection(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.BeaconCommitteeSelection, error) {

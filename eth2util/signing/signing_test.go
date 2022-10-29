@@ -108,13 +108,7 @@ func TestVerifySignedData(t *testing.T) {
 
 			sig, pubkey := sign(t, sigData[:])
 
-			signedData, err := test.data.SetSignature(core.SigFromETH2(sig))
-			require.NoError(t, err)
-
-			eth2Signed, ok := signedData.(core.Eth2SignedData)
-			require.True(t, ok)
-
-			require.NoError(t, signing.Verify(context.Background(), bmock, eth2Signed, pubkey))
+			require.NoError(t, signing.Verify(context.Background(), bmock, test.domain, epoch, root, sig, pubkey))
 		})
 	}
 }

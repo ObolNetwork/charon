@@ -26,13 +26,14 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
 // DutyType enumerates the different types of duties.
 type DutyType int
 
 const (
-	// DutyType enums MUST not change, it will break backwards compatibility.
+	// DomainName enums MUST not change, it will break backwards compatibility.
 
 	DutyUnknown                 DutyType = 0
 	DutyProposer                DutyType = 1
@@ -385,7 +386,7 @@ type SignedData interface {
 type Eth2SignedData interface {
 	SignedData
 	// DutyType returns Duty type associated with underlying signed data.
-	DutyType() DutyType
+	DomainName() signing.DomainName
 	// Epoch returns eth2p0.Epoch associated with underlying type.
 	Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error)
 }

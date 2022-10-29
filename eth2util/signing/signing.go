@@ -18,15 +18,13 @@ package signing
 import (
 	"context"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/tracer"
-	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // DomainName as defined in eth2 spec.
@@ -46,20 +44,6 @@ const (
 	DomainContributionAndProof        DomainName = "DOMAIN_CONTRIBUTION_AND_PROOF"
 	DomainDeposit                     DomainName = "DOMAIN_DEPOSIT"
 )
-
-var DutyToDomain = map[core.DutyType]DomainName{
-	core.DutyProposer:                DomainBeaconProposer,
-	core.DutyAttester:                DomainBeaconAttester,
-	core.DutyExit:                    DomainExit,
-	core.DutyBuilderProposer:         DomainBeaconProposer,
-	core.DutyBuilderRegistration:     DomainApplicationBuilder,
-	core.DutyRandao:                  DomainRandao,
-	core.DutyPrepareAggregator:       DomainSelectionProof,
-	core.DutyAggregator:              DomainAggregateAndProof,
-	core.DutySyncMessage:             DomainSyncCommittee,
-	core.DutyPrepareSyncContribution: DomainSyncCommitteeSelectionProof,
-	core.DutySyncContribution:        DomainContributionAndProof,
-}
 
 // GetDomain returns the beacon domain for the provided type.
 func GetDomain(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
@@ -112,45 +96,30 @@ func GetDataRoot(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, e
 //}
 
 // Verify returns an error if the signature doesn't match the eth2 domain signed root.
-func Verify(ctx context.Context, eth2Cl eth2wrap.Client, data core.Eth2SignedData, pubshare *bls_sig.PublicKey) error {
+func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoch eth2p0.Epoch, sigRoot eth2p0.Root,
+	signature eth2p0.BLSSignature, pubshare *bls_sig.PublicKey,
+) error {
 	ctx, span := tracer.Start(ctx, "eth2util.Verify")
 	defer span.End()
-
-	epoch, err := data.Epoch(ctx, eth2Cl)
-	if err != nil {
-		return err
-	}
-
-	sigRoot, err := data.MessageRoot()
-	if err != nil {
-		return err
-	}
-
-	domain, ok := DutyToDomain[data.DutyType()]
-	if !ok {
-		return errors.New("invalid duty", z.Str("duty", data.DutyType().String()))
-	}
 
 	sigData, err := GetDataRoot(ctx, eth2Cl, domain, epoch, sigRoot)
 	if err != nil {
 		return err
 	}
 
-	sig := data.Signature().ToETH2()
-
 	var zeroSig eth2p0.BLSSignature
-	if sig == zeroSig {
+	if signature == zeroSig {
 		return errors.New("no signature found")
 	}
 
 	// Convert the signature
-	s, err := tblsconv.SigFromETH2(sig)
+	s, err := sigFromETH2(signature)
 	if err != nil {
 		return errors.Wrap(err, "convert signature")
 	}
 
 	span.AddEvent("tbls.Verify")
-	ok, err = tbls.Verify(pubshare, sigData[:], s)
+	ok, err := tbls.Verify(pubshare, sigData[:], s)
 	if err != nil {
 		return err
 	} else if !ok {
@@ -160,11 +129,12 @@ func Verify(ctx context.Context, eth2Cl eth2wrap.Client, data core.Eth2SignedDat
 	return nil
 }
 
-func epochFromSlot(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+// sigFromETH2 converts an eth2 phase0 bls signature into a kryptology bls signature.
+func sigFromETH2(sig eth2p0.BLSSignature) (*bls_sig.Signature, error) {
+	point, err := new(bls12381.G2).FromCompressed((*[96]byte)(sig[:]))
 	if err != nil {
-		return 0, errors.Wrap(err, "getting slots per epoch")
+		return nil, errors.Wrap(err, "uncompress sig")
 	}
 
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
+	return &bls_sig.Signature{Value: *point}, nil
 }

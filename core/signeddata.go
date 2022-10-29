@@ -25,11 +25,13 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
+	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
 var (
@@ -290,8 +292,8 @@ func (b *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-func (VersionedSignedBeaconBlock) DutyType() DutyType {
-	return DutyProposer
+func (VersionedSignedBeaconBlock) DomainName() signing.DomainName {
+	return signing.DomainBeaconProposer
 }
 
 func (b VersionedSignedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -443,8 +445,8 @@ func (b *VersionedSignedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-func (VersionedSignedBlindedBeaconBlock) DutyType() DutyType {
-	return DutyBuilderProposer
+func (VersionedSignedBlindedBeaconBlock) DomainName() signing.DomainName {
+	return signing.DomainBeaconProposer
 }
 
 func (b VersionedSignedBlindedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -529,8 +531,8 @@ func (a *Attestation) UnmarshalJSON(b []byte) error {
 	return a.Attestation.UnmarshalJSON(b)
 }
 
-func (Attestation) DutyType() DutyType {
-	return DutyAttester
+func (Attestation) DomainName() signing.DomainName {
+	return signing.DomainBeaconAttester
 }
 
 func (a Attestation) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -598,8 +600,8 @@ func (e *SignedVoluntaryExit) UnmarshalJSON(b []byte) error {
 	return e.SignedVoluntaryExit.UnmarshalJSON(b)
 }
 
-func (SignedVoluntaryExit) DutyType() DutyType {
-	return DutyExit
+func (SignedVoluntaryExit) DomainName() signing.DomainName {
+	return signing.DomainExit
 }
 
 func (e SignedVoluntaryExit) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -743,8 +745,8 @@ func (r *VersionedSignedValidatorRegistration) UnmarshalJSON(input []byte) error
 	return nil
 }
 
-func (VersionedSignedValidatorRegistration) DutyType() DutyType {
-	return DutyBuilderRegistration
+func (VersionedSignedValidatorRegistration) DomainName() signing.DomainName {
+	return signing.DomainApplicationBuilder
 }
 
 func (r VersionedSignedValidatorRegistration) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -832,8 +834,8 @@ func (s SignedRandao) clone() (SignedRandao, error) {
 	return resp, nil
 }
 
-func (SignedRandao) DutyType() DutyType {
-	return DutyRandao
+func (SignedRandao) DomainName() signing.DomainName {
+	return signing.DomainRandao
 }
 
 func (s SignedRandao) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -901,8 +903,8 @@ func (s *BeaconCommitteeSelection) UnmarshalJSON(input []byte) error {
 	return s.BeaconCommitteeSelection.UnmarshalJSON(input)
 }
 
-func (BeaconCommitteeSelection) DutyType() DutyType {
-	return DutyPrepareAggregator
+func (BeaconCommitteeSelection) DomainName() signing.DomainName {
+	return signing.DomainSelectionProof
 }
 
 func (s BeaconCommitteeSelection) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -1039,8 +1041,8 @@ func (s *SignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 	return s.SignedAggregateAndProof.UnmarshalJSON(input)
 }
 
-func (SignedAggregateAndProof) DutyType() DutyType {
-	return DutyAggregator
+func (SignedAggregateAndProof) DomainName() signing.DomainName {
+	return signing.DomainAggregateAndProof
 }
 
 func (s SignedAggregateAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -1111,8 +1113,8 @@ func (s *SignedSyncMessage) UnmarshalJSON(input []byte) error {
 	return s.SyncCommitteeMessage.UnmarshalJSON(input)
 }
 
-func (SignedSyncMessage) DutyType() DutyType {
-	return DutySyncMessage
+func (SignedSyncMessage) DomainName() signing.DomainName {
+	return signing.DomainSyncCommittee
 }
 
 func (s SignedSyncMessage) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -1170,8 +1172,8 @@ func (s *SignedSyncContributionAndProof) UnmarshalJSON(input []byte) error {
 	return s.SignedContributionAndProof.UnmarshalJSON(input)
 }
 
-func (SignedSyncContributionAndProof) DutyType() DutyType {
-	return DutySyncContribution
+func (SignedSyncContributionAndProof) DomainName() signing.DomainName {
+	return signing.DomainContributionAndProof
 }
 
 func (s SignedSyncContributionAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -1196,4 +1198,19 @@ func cloneJSONMarshaler(data json.Marshaler, v any) error {
 	}
 
 	return nil
+}
+
+// VerifyEth2SignedData verifies signature associated with given Eth2SignedData.
+func VerifyEth2SignedData(ctx context.Context, eth2Cl eth2wrap.Client, data Eth2SignedData, pubkey *bls_sig.PublicKey) error {
+	epoch, err := data.Epoch(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	sigRoot, err := data.MessageRoot()
+	if err != nil {
+		return err
+	}
+
+	return signing.Verify(ctx, eth2Cl, data.DomainName(), epoch, sigRoot, data.Signature().ToETH2(), pubkey)
 }

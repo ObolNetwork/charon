@@ -32,7 +32,6 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
-	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -161,7 +160,7 @@ func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[
 			return errors.New("invalid eth2 signed data")
 		}
 
-		err := signing.Verify(ctx, eth2Cl, eth2Signed, pubshare)
+		err := core.VerifyEth2SignedData(ctx, eth2Cl, eth2Signed, pubshare)
 		if err != nil {
 			return errors.Wrap(err, "invalid signature", z.Str("duty", duty.String()))
 		}
