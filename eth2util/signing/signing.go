@@ -17,14 +17,14 @@ package signing
 
 import (
 	"context"
-	"github.com/obolnetwork/charon/eth2util"
-
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/tracer"
+	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -46,6 +46,20 @@ const (
 	DomainContributionAndProof        DomainName = "DOMAIN_CONTRIBUTION_AND_PROOF"
 	DomainDeposit                     DomainName = "DOMAIN_DEPOSIT"
 )
+
+var DutyToDomain = map[core.DutyType]DomainName{
+	core.DutyProposer:                DomainBeaconProposer,
+	core.DutyAttester:                DomainBeaconAttester,
+	core.DutyExit:                    DomainExit,
+	core.DutyBuilderProposer:         DomainBeaconProposer,
+	core.DutyBuilderRegistration:     DomainApplicationBuilder,
+	core.DutyRandao:                  DomainRandao,
+	core.DutyPrepareAggregator:       DomainSelectionProof,
+	core.DutyAggregator:              DomainAggregateAndProof,
+	core.DutySyncMessage:             DomainSyncCommittee,
+	core.DutyPrepareSyncContribution: DomainSyncCommitteeSelectionProof,
+	core.DutySyncContribution:        DomainContributionAndProof,
+}
 
 // GetDomain returns the beacon domain for the provided type.
 func GetDomain(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
@@ -83,31 +97,46 @@ func GetDataRoot(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, e
 	return msg, nil
 }
 
-func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.AggregateAndProof) error {
-	epoch, err := epochFromSlot(ctx, eth2Cl, agg.Aggregate.Data.Slot)
-	if err != nil {
-		return err
-	}
+//func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.AggregateAndProof) error {
+//	epoch, err := epochFromSlot(ctx, eth2Cl, agg.Aggregate.Data.Slot)
+//	if err != nil {
+//		return err
+//	}
+//
+//	sigRoot, err := eth2util.SlotHashRoot(agg.Aggregate.Data.Slot)
+//	if err != nil {
+//		return err
+//	}
+//
+//	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, pubkey)
+//}
 
-	sigRoot, err := eth2util.SlotHashRoot(agg.Aggregate.Data.Slot)
-	if err != nil {
-		return err
-	}
-
-	return VerifySignedData(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, pubkey)
-}
-
-// VerifySignedData returns an error if the signature doesn't match the eth2 domain signed root.
-func VerifySignedData(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoch eth2p0.Epoch,
-	sigRoot [32]byte, sig eth2p0.BLSSignature, pubshare *bls_sig.PublicKey,
-) error {
-	ctx, span := tracer.Start(ctx, "eth2util.VerifySignedData")
+// Verify returns an error if the signature doesn't match the eth2 domain signed root.
+func Verify(ctx context.Context, eth2Cl eth2wrap.Client, data core.Eth2SignedData, pubshare *bls_sig.PublicKey) error {
+	ctx, span := tracer.Start(ctx, "eth2util.Verify")
 	defer span.End()
+
+	epoch, err := data.Epoch(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	sigRoot, err := data.MessageRoot()
+	if err != nil {
+		return err
+	}
+
+	domain, ok := DutyToDomain[data.DutyType()]
+	if !ok {
+		return errors.New("invalid duty", z.Str("duty", data.DutyType().String()))
+	}
 
 	sigData, err := GetDataRoot(ctx, eth2Cl, domain, epoch, sigRoot)
 	if err != nil {
 		return err
 	}
+
+	sig := data.Signature().ToETH2()
 
 	var zeroSig eth2p0.BLSSignature
 	if sig == zeroSig {
@@ -120,8 +149,8 @@ func VerifySignedData(ctx context.Context, eth2Cl eth2wrap.Client, domain Domain
 		return errors.Wrap(err, "convert signature")
 	}
 
-	span.AddEvent("tbls.VerifySignedData")
-	ok, err := tbls.Verify(pubshare, sigData[:], s)
+	span.AddEvent("tbls.Verify")
+	ok, err = tbls.Verify(pubshare, sigData[:], s)
 	if err != nil {
 		return err
 	} else if !ok {

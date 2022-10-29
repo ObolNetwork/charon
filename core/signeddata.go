@@ -16,6 +16,7 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -26,6 +27,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
@@ -288,6 +290,24 @@ func (b *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
+func (VersionedSignedBeaconBlock) DutyType() DutyType {
+	return DutyProposer
+}
+
+func (b VersionedSignedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	slot, err := b.VersionedSignedBeaconBlock.Slot()
+	if err != nil {
+		return 0, err
+	}
+
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
+}
+
 // NewVersionedSignedBlindedBeaconBlock validates and returns a new wrapped VersionedSignedBlindedBeaconBlock.
 func NewVersionedSignedBlindedBeaconBlock(block *eth2api.VersionedSignedBlindedBeaconBlock) (VersionedSignedBlindedBeaconBlock, error) {
 	switch block.Version {
@@ -423,6 +443,24 @@ func (b *VersionedSignedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
+func (VersionedSignedBlindedBeaconBlock) DutyType() DutyType {
+	return DutyBuilderProposer
+}
+
+func (b VersionedSignedBlindedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	slot, err := b.VersionedSignedBlindedBeaconBlock.Slot()
+	if err != nil {
+		return 0, err
+	}
+
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
+}
+
 // versionedRawBlockJSON is a custom VersionedSignedBeaconBlock or VersionedSignedBlindedBeaconBlock serialiser.
 type versionedRawBlockJSON struct {
 	Version int             `json:"version"`
@@ -491,6 +529,14 @@ func (a *Attestation) UnmarshalJSON(b []byte) error {
 	return a.Attestation.UnmarshalJSON(b)
 }
 
+func (Attestation) DutyType() DutyType {
+	return DutyAttester
+}
+
+func (a Attestation) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
+	return a.Attestation.Data.Target.Epoch, nil
+}
+
 // NewSignedVoluntaryExit is a convenience function that returns a new signed voluntary exit.
 func NewSignedVoluntaryExit(exit *eth2p0.SignedVoluntaryExit) SignedVoluntaryExit {
 	return SignedVoluntaryExit{SignedVoluntaryExit: *exit}
@@ -550,6 +596,14 @@ func (e SignedVoluntaryExit) MarshalJSON() ([]byte, error) {
 
 func (e *SignedVoluntaryExit) UnmarshalJSON(b []byte) error {
 	return e.SignedVoluntaryExit.UnmarshalJSON(b)
+}
+
+func (SignedVoluntaryExit) DutyType() DutyType {
+	return DutyExit
+}
+
+func (e SignedVoluntaryExit) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
+	return e.Message.Epoch, nil
 }
 
 // versionedRawValidatorRegistrationJSON is a custom VersionedSignedValidator serialiser.
@@ -689,6 +743,38 @@ func (r *VersionedSignedValidatorRegistration) UnmarshalJSON(input []byte) error
 	return nil
 }
 
+func (VersionedSignedValidatorRegistration) DutyType() DutyType {
+	return DutyBuilderRegistration
+}
+
+func (r VersionedSignedValidatorRegistration) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	timestamp, err := r.Timestamp()
+	if err != nil {
+		return 0, err
+	}
+
+	genesis, err := eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return 0, err
+	} else if timestamp.Before(genesis) {
+		return 0, errors.New("registration timestamp before genesis")
+	}
+
+	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	slot := timestamp.Sub(genesis) / slotDuration
+
+	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
+}
+
 // NewPartialSignedRandao is a convenience function that returns a new partially signed Randao Reveal.
 func NewPartialSignedRandao(epoch eth2p0.Epoch, randao eth2p0.BLSSignature, shareIdx int) ParSignedData {
 	return ParSignedData{
@@ -744,6 +830,14 @@ func (s SignedRandao) clone() (SignedRandao, error) {
 	}
 
 	return resp, nil
+}
+
+func (SignedRandao) DutyType() DutyType {
+	return DutyRandao
+}
+
+func (s SignedRandao) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
+	return s.SignedEpoch.Epoch, nil
 }
 
 // NewBeaconCommitteeSelection is a convenience function which returns new signed BeaconCommitteeSelection.
@@ -805,6 +899,19 @@ func (s BeaconCommitteeSelection) MarshalJSON() ([]byte, error) {
 
 func (s *BeaconCommitteeSelection) UnmarshalJSON(input []byte) error {
 	return s.BeaconCommitteeSelection.UnmarshalJSON(input)
+}
+
+func (BeaconCommitteeSelection) DutyType() DutyType {
+	return DutyPrepareAggregator
+}
+
+func (s BeaconCommitteeSelection) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return eth2p0.Epoch(uint64(s.Slot) / slotsPerEpoch), nil
 }
 
 // SyncCommitteeSelection wraps an eth2exp.SyncCommitteeSelection and implements SignedData.
@@ -932,6 +1039,19 @@ func (s *SignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 	return s.SignedAggregateAndProof.UnmarshalJSON(input)
 }
 
+func (SignedAggregateAndProof) DutyType() DutyType {
+	return DutyAggregator
+}
+
+func (s SignedAggregateAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return eth2p0.Epoch(uint64(s.Message.Aggregate.Data.Slot) / slotsPerEpoch), nil
+}
+
 // NewSignedSyncMessage is a convenience function which returns new signed SignedSyncMessage.
 func NewSignedSyncMessage(data *altair.SyncCommitteeMessage) SignedSyncMessage {
 	return SignedSyncMessage{SyncCommitteeMessage: *data}
@@ -991,6 +1111,19 @@ func (s *SignedSyncMessage) UnmarshalJSON(input []byte) error {
 	return s.SyncCommitteeMessage.UnmarshalJSON(input)
 }
 
+func (SignedSyncMessage) DutyType() DutyType {
+	return DutySyncMessage
+}
+
+func (s SignedSyncMessage) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return eth2p0.Epoch(uint64(s.Slot) / slotsPerEpoch), nil
+}
+
 // SignedSyncContributionAndProof wraps altair.SignedContributionAndProof and implements SignedData.
 type SignedSyncContributionAndProof struct {
 	altair.SignedContributionAndProof
@@ -1035,6 +1168,19 @@ func (s SignedSyncContributionAndProof) MarshalJSON() ([]byte, error) {
 
 func (s *SignedSyncContributionAndProof) UnmarshalJSON(input []byte) error {
 	return s.SignedContributionAndProof.UnmarshalJSON(input)
+}
+
+func (SignedSyncContributionAndProof) DutyType() DutyType {
+	return DutySyncContribution
+}
+
+func (s SignedSyncContributionAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return eth2p0.Epoch(uint64(s.Message.Contribution.Slot) / slotsPerEpoch), nil
 }
 
 // cloneJSONMarshaler clones the marshaler by serialising to-from json

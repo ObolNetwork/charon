@@ -20,7 +20,6 @@ import (
 	"io"
 	"time"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -145,8 +144,6 @@ func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedD
 }
 
 // NewEth2Verifier returns a partial signature verification function for core workflow eth2 signatures.
-//
-//nolint:gocognit
 func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[int]*bls_sig.PublicKey) (func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error, error) {
 	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
 		pubshares, ok := pubSharesByKey[pubkey]
@@ -159,100 +156,16 @@ func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[
 			return errors.New("invalid shareIdx")
 		}
 
-		epoch, err := epochFromSlot(ctx, eth2Cl, eth2p0.Slot(duty.Slot))
+		eth2Signed, ok := data.SignedData.(core.Eth2SignedData)
+		if !ok {
+			return errors.New("invalid eth2 signed data")
+		}
+
+		err := signing.Verify(ctx, eth2Cl, eth2Signed, pubshare)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "invalid signature", z.Str("duty", duty.String()))
 		}
 
-		sigRoot, err := data.SignedData.MessageRoot()
-		if err != nil {
-			return err
-		}
-
-		switch duty.Type {
-		case core.DutyAttester:
-			err = signing.VerifySignedData(ctx, eth2Cl, signing.DomainBeaconAttester, epoch, sigRoot,
-				data.Signature().ToETH2(), pubshare)
-			if err != nil {
-				return errors.Wrap(err, "invalid attestation", z.Str("duty", duty.String()))
-			}
-
-			return nil
-		case core.DutyProposer:
-			err = signing.VerifySignedData(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, sigRoot,
-				data.Signature().ToETH2(), pubshare)
-			if err != nil {
-				return errors.Wrap(err, "invalid beacon block", z.Str("duty", duty.String()))
-			}
-
-			return nil
-		case core.DutyRandao:
-			err = signing.VerifySignedData(ctx, eth2Cl, signing.DomainRandao, epoch, sigRoot,
-				data.Signature().ToETH2(), pubshare)
-			if err != nil {
-				return errors.Wrap(err, "invalid randao", z.Str("duty", duty.String()))
-			}
-
-			return nil
-		case core.DutyBuilderProposer:
-			err = signing.VerifySignedData(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, sigRoot,
-				data.Signature().ToETH2(), pubshare)
-			if err != nil {
-				return errors.Wrap(err, "invalid blinded beacon block", z.Str("duty", duty.String()))
-			}
-
-			return nil
-		case core.DutyBuilderRegistration:
-			err = signing.VerifySignedData(ctx, eth2Cl, signing.DomainApplicationBuilder, epoch, sigRoot,
-				data.Signature().ToETH2(), pubshare)
-			if err != nil {
-				return errors.Wrap(err, "invalid builder registration", z.Str("duty", duty.String()))
-			}
-
-			return nil
-		case core.DutyExit:
-			err = signing.VerifySignedData(ctx, eth2Cl, signing.DomainExit, epoch, sigRoot,
-				data.Signature().ToETH2(), pubshare)
-			if err != nil {
-				return errors.Wrap(err, "invalid voluntary exit", z.Str("duty", duty.String()))
-			}
-
-			return nil
-		case core.DutyPrepareAggregator:
-			err = signing.VerifySignedData(ctx, eth2Cl, signing.DomainSelectionProof, epoch, sigRoot,
-				data.Signature().ToETH2(), pubshare)
-			if err != nil {
-				return errors.Wrap(err, "invalid beacon committee selection", z.Str("duty", duty.String()))
-			}
-
-			return nil
-		case core.DutyAggregator:
-			err = signing.VerifySignedData(ctx, eth2Cl, signing.DomainAggregateAndProof, epoch, sigRoot,
-				data.Signature().ToETH2(), pubshare)
-			if err != nil {
-				return errors.Wrap(err, "invalid aggregate attestation", z.Str("duty", duty.String()))
-			}
-
-			return nil
-		case core.DutySyncMessage:
-			err = signing.VerifySignedData(ctx, eth2Cl, signing.DomainSyncCommittee, epoch, sigRoot,
-				data.Signature().ToETH2(), pubshare)
-			if err != nil {
-				return errors.Wrap(err, "invalid sync committee message", z.Str("duty", duty.String()))
-			}
-
-			return nil
-		default:
-			return errors.New("unknown duty type")
-		}
+		return nil
 	}, nil
-}
-
-func epochFromSlot(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, errors.Wrap(err, "getting slots per epoch")
-	}
-
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }

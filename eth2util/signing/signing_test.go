@@ -37,10 +37,8 @@ import (
 
 func TestVerifySignedData(t *testing.T) {
 	tests := []struct {
-		name string
-		data interface {
-			MessageRoot() ([32]byte, error)
-		}
+		name   string
+		data   core.Eth2SignedData
 		domain signing.DomainName
 	}{
 		{
@@ -98,7 +96,9 @@ func TestVerifySignedData(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			bmock, err := beaconmock.New()
 			require.NoError(t, err)
-			epoch := testutil.RandomEpoch()
+
+			epoch, err := test.data.Epoch(context.Background(), bmock)
+			require.NoError(t, err)
 
 			root, err := test.data.MessageRoot()
 			require.NoError(t, err)
@@ -108,7 +108,13 @@ func TestVerifySignedData(t *testing.T) {
 
 			sig, pubkey := sign(t, sigData[:])
 
-			require.NoError(t, signing.VerifySignedData(context.Background(), bmock, test.domain, epoch, root, sig, pubkey))
+			signedData, err := test.data.SetSignature(core.SigFromETH2(sig))
+			require.NoError(t, err)
+
+			eth2Signed, ok := signedData.(core.Eth2SignedData)
+			require.True(t, ok)
+
+			require.NoError(t, signing.Verify(context.Background(), bmock, eth2Signed, pubkey))
 		})
 	}
 }

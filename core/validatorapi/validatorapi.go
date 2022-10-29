@@ -244,7 +244,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 		parSigData := core.NewPartialAttestation(att, c.shareIdx)
 
 		// Verify attestation signature
-		err = c.verifyPartialSig(ctx, parSigData, pubkey, duty, signing.DomainBeaconAttester)
+		err = c.verifyPartialSig(ctx, parSigData, pubkey)
 		if err != nil {
 			return err
 		}
@@ -298,7 +298,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	parSig := core.NewPartialSignedRandao(sigEpoch.Epoch, sigEpoch.Signature, c.shareIdx)
 
 	// Verify randao signature
-	err = c.verifyPartialSig(ctx, parSig, pubkey, duty, signing.DomainRandao)
+	err = c.verifyPartialSig(ctx, parSig, pubkey)
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +357,7 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 	}
 
 	// Verify block signature
-	err = c.verifyPartialSig(ctx, signedData, pubkey, duty, signing.DomainBeaconProposer)
+	err = c.verifyPartialSig(ctx, signedData, pubkey)
 	if err != nil {
 		return err
 	}
@@ -398,7 +398,7 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 	parSig := core.NewPartialSignedRandao(sigEpoch.Epoch, sigEpoch.Signature, c.shareIdx)
 
 	// Verify randao signature
-	err = c.verifyPartialSig(ctx, parSig, pubkey, duty, signing.DomainRandao)
+	err = c.verifyPartialSig(ctx, parSig, pubkey)
 	if err != nil {
 		return nil, err
 	}
@@ -457,7 +457,7 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	}
 
 	// Verify Blinded block signature
-	err = c.verifyPartialSig(ctx, signedData, pubkey, duty, signing.DomainBeaconProposer)
+	err = c.verifyPartialSig(ctx, signedData, pubkey)
 	if err != nil {
 		return err
 	}
@@ -507,7 +507,7 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 	}
 
 	// Verify registration signature.
-	err = c.verifyPartialSig(ctx, signedData, pubkey, duty, signing.DomainApplicationBuilder)
+	err = c.verifyPartialSig(ctx, signedData, pubkey)
 	if err != nil {
 		return err
 	}
@@ -571,7 +571,7 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 	parSigData := core.NewPartialSignedVoluntaryExit(exit, c.shareIdx)
 
 	// Verify voluntary exit signature
-	err = c.verifyPartialSig(ctx, parSigData, pubkey, duty, signing.DomainExit)
+	err = c.verifyPartialSig(ctx, parSigData, pubkey)
 	if err != nil {
 		return err
 	}
@@ -616,7 +616,7 @@ func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selec
 		parSigData := core.NewPartialSignedBeaconCommitteeSelection(selection, c.shareIdx)
 
 		// Verify slot signature.
-		err = c.verifyPartialSig(ctx, parSigData, pubkey, core.NewPrepareAggregatorDuty(int64(selection.Slot)), signing.DomainSelectionProof)
+		err = c.verifyPartialSig(ctx, parSigData, pubkey)
 		if err != nil {
 			return nil, err
 		}
@@ -676,21 +676,21 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 		}
 
 		// Verify inner selection proof (outcome of DutyPrepareAggregator).
-		if !c.insecureTest {
-			blsPubkey, err := tblsconv.KeyFromETH2(eth2Pubkey) // Use group pubkey, not pubshare.
-			if err != nil {
-				return err
-			}
-			err = signing.VerifyAggregateAndProofSelection(ctx, c.eth2Cl, blsPubkey, agg.Message)
-			if err != nil {
-				return err
-			}
-		}
+		//if !c.insecureTest {
+		//	blsPubkey, err := tblsconv.KeyFromETH2(eth2Pubkey) // Use group pubkey, not pubshare.
+		//	if err != nil {
+		//		return err
+		//	}
+		//	err = signing.VerifyAggregateAndProofSelection(ctx, c.eth2Cl, blsPubkey, agg.Message)
+		//	if err != nil {
+		//		return err
+		//	}
+		//}
 
 		// Verify outer partial signature.
 		parSigData := core.NewPartialSignedAggregateAndProof(agg, c.shareIdx)
 
-		err = c.verifyPartialSig(ctx, parSigData, pk, core.NewAggregatorDuty(int64(slot)), signing.DomainAggregateAndProof)
+		err = c.verifyPartialSig(ctx, parSigData, pk)
 		if err != nil {
 			return err
 		}
@@ -742,7 +742,7 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 		}
 
 		parSigData := core.NewPartialSignedSyncMessage(msg, c.shareIdx)
-		err = c.verifyPartialSig(ctx, parSigData, pk, core.NewSyncMessageDuty(int64(slot)), signing.DomainSyncCommittee)
+		err = c.verifyPartialSig(ctx, parSigData, pk)
 		if err != nil {
 			return err
 		}
@@ -913,7 +913,7 @@ func (c Component) getProposerPubkey(ctx context.Context, duty core.Duty) (core.
 	return pubkey, nil
 }
 
-func (c Component) verifyPartialSig(ctx context.Context, parSig core.ParSignedData, pubkey core.PubKey, duty core.Duty, domain signing.DomainName) error {
+func (c Component) verifyPartialSig(ctx context.Context, parSig core.ParSignedData, pubkey core.PubKey) error {
 	if c.insecureTest {
 		return nil
 	}
@@ -923,22 +923,12 @@ func (c Component) verifyPartialSig(ctx context.Context, parSig core.ParSignedDa
 		return err
 	}
 
-	sigRoot, err := parSig.MessageRoot()
-	if err != nil {
-		return err
+	eth2Signed, ok := parSig.SignedData.(core.Eth2SignedData)
+	if !ok {
+		return errors.New("invalid eth2 signed data")
 	}
 
-	epoch, err := c.epochFromSlot(ctx, eth2p0.Slot(duty.Slot))
-	if err != nil {
-		return err
-	}
-
-	err = signing.VerifySignedData(ctx, c.eth2Cl, domain, epoch, sigRoot, parSig.Signature().ToETH2(), pubshare)
-	if err != nil {
-		return errors.Wrap(err, "invalid signature", z.Str("duty", duty.String()))
-	}
-
-	return nil
+	return signing.Verify(ctx, c.eth2Cl, eth2Signed, pubshare)
 }
 
 func (c Component) getAggregateSelection(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.BeaconCommitteeSelection, error) {
