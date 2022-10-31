@@ -995,6 +995,13 @@ func NewSignedSyncContributionAndProof(proof *altair.SignedContributionAndProof)
 	return SignedSyncContributionAndProof{SignedContributionAndProof: *proof}
 }
 
+func NewPartialSignedSyncContributionAndProof(proof *altair.SignedContributionAndProof, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSignedSyncContributionAndProof(proof),
+		ShareIdx:   shareIdx,
+	}
+}
+
 // SignedSyncContributionAndProof wraps altair.SignedContributionAndProof and implements SignedData.
 type SignedSyncContributionAndProof struct {
 	altair.SignedContributionAndProof

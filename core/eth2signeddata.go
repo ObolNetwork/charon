@@ -151,3 +151,13 @@ func (SignedSyncContributionAndProof) DomainName() signing.DomainName {
 func (s SignedSyncContributionAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
 	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Message.Contribution.Slot)
 }
+
+// Implement Eth2SignedData for SyncCommitteeSelection.
+
+func (SyncCommitteeSelection) DomainName() signing.DomainName {
+	return signing.DomainSyncCommitteeSelectionProof
+}
+
+func (s SyncCommitteeSelection) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Slot)
+}
