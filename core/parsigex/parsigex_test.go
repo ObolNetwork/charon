@@ -20,6 +20,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -280,5 +281,41 @@ func TestParSigExVerifier(t *testing.T) {
 		err = verifyFunc(ctx, core.NewSyncMessageDuty(slot), pubkey, data)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "invalid signature")
+	})
+
+	t.Run("verify sync committee selection", func(t *testing.T) {
+		selection := testutil.RandomSyncCommitteeSelection()
+		selection.Slot = slot
+
+		data := &altair.SyncAggregatorSelectionData{
+			Slot:              selection.Slot,
+			SubcommitteeIndex: uint64(selection.SubcommitteeIndex),
+		}
+		sigRoot, err := data.HashTreeRoot()
+		require.NoError(t, err)
+
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainSyncCommitteeSelectionProof, epoch, sigRoot)
+		require.NoError(t, err)
+		selection.SelectionProof = sign(sigData[:])
+
+		parSigData := core.NewPartialSignedSyncCommitteeSelection(selection, shareIdx)
+
+		require.NoError(t, verifyFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey, parSigData))
+	})
+
+	t.Run("verify sync committee contribution and proof", func(t *testing.T) {
+		proof := testutil.RandomSignedSyncContributionAndProof()
+		proof.Message.Contribution.Slot = slot
+
+		sigRoot, err := proof.Message.HashTreeRoot()
+		require.NoError(t, err)
+
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainContributionAndProof, epoch, sigRoot)
+		require.NoError(t, err)
+		proof.Signature = sign(sigData[:])
+
+		parSigData := core.NewPartialSignedSyncContributionAndProof(proof, shareIdx)
+
+		require.NoError(t, verifyFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey, parSigData))
 	})
 }
