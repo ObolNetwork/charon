@@ -84,6 +84,14 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			name: "verify sync committee selection",
 			data: core.NewSyncCommitteeSelection(testutil.RandomSyncCommitteeSelection()),
 		},
+		{
+			name: "verify sync committee selection",
+			data: testutil.RandomCoreSyncCommitteeSelection(),
+		},
+		{
+			name: "verify sync contribution and proof",
+			data: testutil.RandomCoreSignedSyncContributionAndProof(),
+		},
 	}
 
 	for _, test := range tests {

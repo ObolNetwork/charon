@@ -1386,15 +1386,13 @@ func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
 	const vIdx = 1
 
 	var (
-		ctx = context.Background()
-		msg = &altair.SyncCommitteeMessage{
-			Slot:            testutil.RandomSlot(),
-			BeaconBlockRoot: testutil.RandomRoot(),
-			ValidatorIndex:  vIdx,
-			Signature:       testutil.RandomEth2Signature(),
-		}
+		ctx    = context.Background()
+		msg    = testutil.RandomSyncCommitteeMessage()
 		pubkey = beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
+		count  = 0 // No of times the subscription function is called.
 	)
+
+	msg.ValidatorIndex = vIdx
 
 	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
 	require.NoError(t, err)
@@ -1402,7 +1400,6 @@ func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
 	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
 	require.NoError(t, err)
 
-	cnt := 0 // No of times the subscription function is called.
 	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		require.Equal(t, core.NewSyncMessageDuty(int64(msg.Slot)), duty)
 
@@ -1412,13 +1409,104 @@ func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
 		data, ok := set[pk]
 		require.True(t, ok)
 		require.Equal(t, core.NewPartialSignedSyncMessage(msg, 0), data)
-		cnt++
+		count++
 
 		return nil
 	})
 
 	require.NoError(t, vapi.SubmitSyncCommitteeMessages(ctx, []*altair.SyncCommitteeMessage{msg}))
-	require.Equal(t, cnt, 1)
+	require.Equal(t, count, 1)
+}
+
+func TestComponent_SubmitSyncCommitteeContributions(t *testing.T) {
+	const vIdx = 1
+
+	var (
+		count        = 0 // No of times the subscription function is called.
+		ctx          = context.Background()
+		contrib      = testutil.RandomSignedSyncContributionAndProof()
+		pubkey       = beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
+		expectedDuty = core.NewSyncContributionDuty(int64(contrib.Message.Contribution.Slot))
+	)
+
+	contrib.Message.AggregatorIndex = vIdx
+
+	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, expectedDuty, duty)
+
+		pk, err := core.PubKeyFromBytes(pubkey[:])
+		require.NoError(t, err)
+
+		data, ok := set[pk]
+		require.True(t, ok)
+		require.Equal(t, core.NewPartialSignedSyncContributionAndProof(contrib, 0), data)
+		count++
+
+		return nil
+	})
+
+	require.NoError(t, vapi.SubmitSyncCommitteeContributions(ctx, []*altair.SignedContributionAndProof{contrib}))
+	require.Equal(t, count, 1)
+}
+
+func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
+	var (
+		ctx        = context.Background()
+		val        = testutil.RandomValidator(t)
+		slot       = eth2p0.Slot(50)
+		subcommIdx = eth2p0.CommitteeIndex(1)
+	)
+
+	// Create keys (just use normal keys, not split tbls).
+	pubkey, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	val.Validator.PublicKey, err = tblsconv.KeyToETH2(pubkey)
+	require.NoError(t, err)
+
+	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSet{val.Index: val}))
+	require.NoError(t, err)
+
+	// Create contribution and proof.
+	contribAndProof := &altair.ContributionAndProof{
+		AggregatorIndex: val.Index,
+		Contribution:    testutil.RandomSyncCommitteeContribution(),
+	}
+	contribAndProof.Contribution.Slot = slot
+	contribAndProof.Contribution.SubcommitteeIndex = uint64(subcommIdx)
+	contribAndProof.SelectionProof = syncCommSelectionProof(t, bmock, secret, slot, subcommIdx)
+
+	signedContribAndProof := &altair.SignedContributionAndProof{
+		Message:   contribAndProof,
+		Signature: signContributionAndProof(t, bmock, secret, contribAndProof),
+	}
+
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
+
+	// Construct validatorapi component.
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	// Collect submitted partial signature.
+	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Len(t, set, 1)
+		_, ok := set[core.PubKeyFrom48Bytes(val.Validator.PublicKey)]
+		require.True(t, ok)
+		close(done)
+
+		return nil
+	})
+
+	err = vapi.SubmitSyncCommitteeContributions(ctx, []*altair.SignedContributionAndProof{signedContribAndProof})
+	require.NoError(t, err)
+	<-done
 }
 
 func signAggregationAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret *bls_sig.SecretKey, aggProof *eth2p0.AggregateAndProof) eth2p0.BLSSignature {
@@ -1431,6 +1519,39 @@ func signAggregationAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret *bls_s
 	require.NoError(t, err)
 
 	return sign(t, eth2Cl, secret, signing.DomainAggregateAndProof, epoch, dataRoot)
+}
+
+// syncCommSelectionProof returns the selection_proof corresponding to the provided altair.ContributionAndProof.
+// Refer get_sync_committee_selection_proof from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#aggregation-selection.
+func syncCommSelectionProof(t *testing.T, eth2Cl eth2wrap.Client, secret *bls_sig.SecretKey, slot eth2p0.Slot, subcommIdx eth2p0.CommitteeIndex) eth2p0.BLSSignature {
+	t.Helper()
+
+	epoch, err := eth2util.EpochFromSlot(context.Background(), eth2Cl, slot)
+	require.NoError(t, err)
+
+	data := altair.SyncAggregatorSelectionData{
+		Slot:              slot,
+		SubcommitteeIndex: uint64(subcommIdx),
+	}
+
+	sigRoot, err := data.HashTreeRoot()
+	require.NoError(t, err)
+
+	return sign(t, eth2Cl, secret, signing.DomainSyncCommitteeSelectionProof, epoch, sigRoot)
+}
+
+// signContributionAndProof signs the provided altair.SignedContributionAndProof and returns the signature.
+// Refer get_contribution_and_proof_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#broadcast-sync-committee-contribution
+func signContributionAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret *bls_sig.SecretKey, contrib *altair.ContributionAndProof) eth2p0.BLSSignature {
+	t.Helper()
+
+	epoch, err := eth2util.EpochFromSlot(context.Background(), eth2Cl, contrib.Contribution.Slot)
+	require.NoError(t, err)
+
+	sigRoot, err := contrib.HashTreeRoot()
+	require.NoError(t, err)
+
+	return sign(t, eth2Cl, secret, signing.DomainContributionAndProof, epoch, sigRoot)
 }
 
 func signBeaconSelection(t *testing.T, eth2Cl eth2wrap.Client, secret *bls_sig.SecretKey, slot eth2p0.Slot) eth2p0.BLSSignature {

@@ -579,6 +579,36 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
+	t.Run("sync_committee_contribution", func(t *testing.T) {
+		handler := testHandler{
+			SyncCommitteeContributionFunc: func(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+				contrib := testutil.RandomSyncCommitteeContribution()
+				contrib.Slot = slot
+				contrib.SubcommitteeIndex = subcommitteeIndex
+				contrib.BeaconBlockRoot = beaconBlockRoot
+
+				return contrib, nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			var (
+				slot            = testutil.RandomSlot()
+				subcommIdx      = testutil.RandomCommIdx()
+				beaconBlockRoot = testutil.RandomRoot()
+			)
+
+			resp, err := cl.SyncCommitteeContribution(ctx, slot, uint64(subcommIdx), beaconBlockRoot)
+			require.NoError(t, err)
+
+			require.Equal(t, resp.Slot, slot)
+			require.EqualValues(t, resp.SubcommitteeIndex, subcommIdx)
+			require.EqualValues(t, resp.BeaconBlockRoot, beaconBlockRoot)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
 	t.Run("submit_sync_committee_messages", func(t *testing.T) {
 		msgs := []*altair.SyncCommitteeMessage{testutil.RandomSyncCommitteeMessage(), testutil.RandomSyncCommitteeMessage()}
 
@@ -753,6 +783,7 @@ type testHandler struct {
 	SubmitAggregateAttestationsFunc        func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
 	SubmitSyncCommitteeMessagesFunc        func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
 	SyncCommitteeDutiesFunc                func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error)
+	SyncCommitteeContributionFunc          func(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 }
 
 func (h testHandler) AttestationData(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
@@ -813,6 +844,10 @@ func (h testHandler) SubmitSyncCommitteeMessages(ctx context.Context, messages [
 
 func (h testHandler) SyncCommitteeDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 	return h.SyncCommitteeDutiesFunc(ctx, epoch, validatorIndices)
+}
+
+func (h testHandler) SyncCommitteeContribution(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+	return h.SyncCommitteeContributionFunc(ctx, slot, subcommitteeIndex, beaconBlockRoot)
 }
 
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the
