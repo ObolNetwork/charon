@@ -18,19 +18,15 @@ package signing
 import (
 	"context"
 
-	eth2api "github.com/attestantio/go-eth2-client/api"
-	"github.com/attestantio/go-eth2-client/spec"
-	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // DomainName as defined in eth2 spec.
@@ -87,122 +83,8 @@ func GetDataRoot(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, e
 	return msg, nil
 }
 
-// TODO(corver): Create a function that calculates signing roots for all unsigned eth2 types.
-// func UnsignedRoot(ctx context.Context, eth2Cl eth2wrap.Client, unsigned interface{}) ([32]byte, error) {}
-
-func VerifyAttestation(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, att *eth2p0.Attestation) error {
-	sigRoot, err := att.Data.HashTreeRoot()
-	if err != nil {
-		return errors.Wrap(err, "hash attestation data")
-	}
-
-	return verify(ctx, eth2Cl, DomainBeaconAttester, att.Data.Target.Epoch, sigRoot, att.Signature, pubkey)
-}
-
-func VerifyBlock(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, block *spec.VersionedSignedBeaconBlock) error {
-	slot, err := block.Slot()
-	if err != nil {
-		return err
-	}
-
-	// Calculate slot epoch
-	epoch, err := epochFromSlot(ctx, eth2Cl, slot)
-	if err != nil {
-		return err
-	}
-
-	sigRoot, err := block.Root()
-	if err != nil {
-		return err
-	}
-
-	var sig eth2p0.BLSSignature
-	switch block.Version {
-	case spec.DataVersionPhase0:
-		sig = block.Phase0.Signature
-	case spec.DataVersionAltair:
-		sig = block.Altair.Signature
-	case spec.DataVersionBellatrix:
-		sig = block.Bellatrix.Signature
-	default:
-		return errors.New("unknown version")
-	}
-
-	return verify(ctx, eth2Cl, DomainBeaconProposer, epoch, sigRoot, sig, pubkey)
-}
-
-func VerifyBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
-	slot, err := block.Slot()
-	if err != nil {
-		return err
-	}
-
-	// Calculate slot epoch
-	epoch, err := epochFromSlot(ctx, eth2Cl, slot)
-	if err != nil {
-		return err
-	}
-
-	sigRoot, err := block.Root()
-	if err != nil {
-		return err
-	}
-
-	var sig eth2p0.BLSSignature
-	switch block.Version {
-	case spec.DataVersionBellatrix:
-		sig = block.Bellatrix.Signature
-	default:
-		return errors.New("unknown version")
-	}
-
-	return verify(ctx, eth2Cl, DomainBeaconProposer, epoch, sigRoot, sig, pubkey)
-}
-
-func VerifyRandao(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, randao eth2util.SignedEpoch) error {
-	sigRoot, err := randao.HashTreeRoot()
-	if err != nil {
-		return err
-	}
-
-	return verify(ctx, eth2Cl, DomainRandao, randao.Epoch, sigRoot, randao.Signature, pubkey)
-}
-
-func VerifyVoluntaryExit(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, exit *eth2p0.SignedVoluntaryExit) error {
-	sigRoot, err := exit.Message.HashTreeRoot()
-	if err != nil {
-		return err
-	}
-
-	return verify(ctx, eth2Cl, DomainExit, exit.Message.Epoch, sigRoot, exit.Signature, pubkey)
-}
-
-func VerifyValidatorRegistration(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, reg *eth2api.VersionedSignedValidatorRegistration) error {
-	sigRoot, err := reg.Root()
-	if err != nil {
-		return err
-	}
-
-	// Always use epoch 0 for DomainApplicationBuilder.
-	return verify(ctx, eth2Cl, DomainApplicationBuilder, 0, sigRoot, reg.V1.Signature, pubkey)
-}
-
-func VerifyBeaconCommitteeSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, selection *eth2exp.BeaconCommitteeSelection) error {
-	epoch, err := epochFromSlot(ctx, eth2Cl, selection.Slot)
-	if err != nil {
-		return err
-	}
-
-	sigRoot, err := eth2util.SlotHashRoot(selection.Slot)
-	if err != nil {
-		return err
-	}
-
-	return verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, selection.SelectionProof, pubkey)
-}
-
 func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.AggregateAndProof) error {
-	epoch, err := epochFromSlot(ctx, eth2Cl, agg.Aggregate.Data.Slot)
+	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, agg.Aggregate.Data.Slot)
 	if err != nil {
 		return err
 	}
@@ -212,37 +94,14 @@ func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Clien
 		return err
 	}
 
-	return verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, pubkey)
+	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, pubkey)
 }
 
-func VerifyAggregateAndProof(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.SignedAggregateAndProof) error {
-	epoch, err := epochFromSlot(ctx, eth2Cl, agg.Message.Aggregate.Data.Slot)
-	if err != nil {
-		return err
-	}
-
-	sigRoot, err := agg.Message.HashTreeRoot()
-	if err != nil {
-		return err
-	}
-
-	return verify(ctx, eth2Cl, DomainAggregateAndProof, epoch, sigRoot, agg.Signature, pubkey)
-}
-
-func VerifySyncCommitteeMessage(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, msg *altair.SyncCommitteeMessage) error {
-	epoch, err := epochFromSlot(ctx, eth2Cl, msg.Slot)
-	if err != nil {
-		return err
-	}
-
-	return verify(ctx, eth2Cl, DomainSyncCommittee, epoch, msg.BeaconBlockRoot, msg.Signature, pubkey)
-}
-
-// verify returns an error if the signature doesn't match the eth2 domain signed root.
-func verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoch eth2p0.Epoch,
-	sigRoot [32]byte, sig eth2p0.BLSSignature, pubshare *bls_sig.PublicKey,
+// Verify returns an error if the signature doesn't match the eth2 domain signed root.
+func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoch eth2p0.Epoch, sigRoot eth2p0.Root,
+	signature eth2p0.BLSSignature, pubshare *bls_sig.PublicKey,
 ) error {
-	ctx, span := tracer.Start(ctx, "eth2util.verify")
+	ctx, span := tracer.Start(ctx, "eth2util.Verify")
 	defer span.End()
 
 	sigData, err := GetDataRoot(ctx, eth2Cl, domain, epoch, sigRoot)
@@ -251,12 +110,12 @@ func verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoc
 	}
 
 	var zeroSig eth2p0.BLSSignature
-	if sig == zeroSig {
+	if signature == zeroSig {
 		return errors.New("no signature found")
 	}
 
 	// Convert the signature
-	s, err := tblsconv.SigFromETH2(sig)
+	s, err := sigFromETH2(signature)
 	if err != nil {
 		return errors.Wrap(err, "convert signature")
 	}
@@ -272,11 +131,12 @@ func verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoc
 	return nil
 }
 
-func epochFromSlot(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+// sigFromETH2 converts an eth2 phase0 bls signature into a kryptology bls signature.
+func sigFromETH2(sig eth2p0.BLSSignature) (*bls_sig.Signature, error) {
+	point, err := new(bls12381.G2).FromCompressed((*[96]byte)(sig[:]))
 	if err != nil {
-		return 0, errors.Wrap(err, "getting slots per epoch")
+		return nil, errors.Wrap(err, "uncompress sig")
 	}
 
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
+	return &bls_sig.Signature{Value: *point}, nil
 }

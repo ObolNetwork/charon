@@ -47,6 +47,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -716,4 +717,11 @@ func RandomExit() *eth2p0.SignedVoluntaryExit {
 		},
 		Signature: RandomEth2Signature(),
 	}
+}
+
+func RandomCoreSignedRandao() core.SignedRandao {
+	return core.SignedRandao{SignedEpoch: eth2util.SignedEpoch{
+		Epoch:     RandomEpoch(),
+		Signature: RandomEth2Signature(),
+	}}
 }

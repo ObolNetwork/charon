@@ -16,6 +16,7 @@
 package core
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -24,6 +25,8 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
 // DutyType enumerates the different types of duties.
@@ -378,6 +381,15 @@ type SignedData interface {
 	Clone() (SignedData, error)
 	// Marshaler returns the json serialised signed duty data (including the signature).
 	json.Marshaler
+}
+
+// Eth2SignedData wraps SignedData and adds eth2 BLS signature specific methods.
+type Eth2SignedData interface {
+	SignedData
+	// DomainName returns domain associated with underlying signed data.
+	DomainName() signing.DomainName
+	// Epoch returns eth2p0.Epoch associated with underlying type.
+	Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error)
 }
 
 // ParSignedData is a partially signed duty data only signed by a single threshold BLS share.

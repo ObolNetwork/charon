@@ -32,7 +32,6 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
-	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -144,8 +143,6 @@ func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedD
 }
 
 // NewEth2Verifier returns a partial signature verification function for core workflow eth2 signatures.
-//
-//nolint:gocognit
 func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[int]*bls_sig.PublicKey) (func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error, error) {
 	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
 		pubshares, ok := pubSharesByKey[pubkey]
@@ -158,72 +155,16 @@ func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[
 			return errors.New("invalid shareIdx")
 		}
 
-		switch duty.Type {
-		case core.DutyAttester:
-			att, ok := data.SignedData.(core.Attestation)
-			if !ok {
-				return errors.New("invalid attestation")
-			}
-
-			return signing.VerifyAttestation(ctx, eth2Cl, pubshare, &att.Attestation)
-		case core.DutyProposer:
-			block, ok := data.SignedData.(core.VersionedSignedBeaconBlock)
-			if !ok {
-				return errors.New("invalid block")
-			}
-
-			return signing.VerifyBlock(ctx, eth2Cl, pubshare, &block.VersionedSignedBeaconBlock)
-		case core.DutyRandao:
-			randao, ok := data.SignedData.(core.SignedRandao)
-			if !ok {
-				return errors.New("invalid randao")
-			}
-
-			return signing.VerifyRandao(ctx, eth2Cl, pubshare, randao.SignedEpoch)
-		case core.DutyBuilderProposer:
-			blindedBlock, ok := data.SignedData.(core.VersionedSignedBlindedBeaconBlock)
-			if !ok {
-				return errors.New("invalid blinded block")
-			}
-
-			return signing.VerifyBlindedBlock(ctx, eth2Cl, pubshare, &blindedBlock.VersionedSignedBlindedBeaconBlock)
-		case core.DutyBuilderRegistration:
-			registration, ok := data.SignedData.(core.VersionedSignedValidatorRegistration)
-			if !ok {
-				return errors.New("invalid builder registration")
-			}
-
-			return signing.VerifyValidatorRegistration(ctx, eth2Cl, pubshare, &registration.VersionedSignedValidatorRegistration)
-		case core.DutyExit:
-			exit, ok := data.SignedData.(core.SignedVoluntaryExit)
-			if !ok {
-				return errors.New("invalid voluntary exit")
-			}
-
-			return signing.VerifyVoluntaryExit(ctx, eth2Cl, pubshare, &exit.SignedVoluntaryExit)
-		case core.DutyPrepareAggregator:
-			selection, ok := data.SignedData.(core.BeaconCommitteeSelection)
-			if !ok {
-				return errors.New("invalid beacon committee selection")
-			}
-
-			return signing.VerifyBeaconCommitteeSelection(ctx, eth2Cl, pubshare, &selection.BeaconCommitteeSelection)
-		case core.DutyAggregator:
-			aggAndProof, ok := data.SignedData.(core.SignedAggregateAndProof)
-			if !ok {
-				return errors.New("invalid aggregate and proof")
-			}
-
-			return signing.VerifyAggregateAndProof(ctx, eth2Cl, pubshare, &aggAndProof.SignedAggregateAndProof)
-		case core.DutySyncMessage:
-			msg, ok := data.SignedData.(core.SignedSyncMessage)
-			if !ok {
-				return errors.New("invalid sync committee message")
-			}
-
-			return signing.VerifySyncCommitteeMessage(ctx, eth2Cl, pubshare, &msg.SyncCommitteeMessage)
-		default:
-			return errors.New("unknown duty type")
+		eth2Signed, ok := data.SignedData.(core.Eth2SignedData)
+		if !ok {
+			return errors.New("invalid eth2 signed data")
 		}
+
+		err := core.VerifyEth2SignedData(ctx, eth2Cl, eth2Signed, pubshare)
+		if err != nil {
+			return errors.Wrap(err, "invalid signature", z.Str("duty", duty.String()))
+		}
+
+		return nil
 	}, nil
 }

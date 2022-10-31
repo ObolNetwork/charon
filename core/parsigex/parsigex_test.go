@@ -159,7 +159,6 @@ func TestParSigExVerifier(t *testing.T) {
 		require.NoError(t, err)
 		att.Signature = sign(sigData[:])
 		data := core.NewPartialAttestation(att, shareIdx)
-
 		require.NoError(t, verifyFunc(ctx, core.NewAttesterDuty(slot), pubkey, data))
 	})
 
@@ -218,13 +217,16 @@ func TestParSigExVerifier(t *testing.T) {
 	})
 
 	t.Run("Verify validator registration", func(t *testing.T) {
-		reg := testutil.RandomVersionedSignedValidatorRegistration(t)
+		reg, err := core.NewVersionedSignedValidatorRegistration(testutil.RandomVersionedSignedValidatorRegistration(t))
+		require.NoError(t, err)
 		sigRoot, err := reg.V1.Message.HashTreeRoot()
 		require.NoError(t, err)
-		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainApplicationBuilder, 0, sigRoot)
+		epoch, err := reg.Epoch(ctx, bmock)
+		require.NoError(t, err)
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainApplicationBuilder, epoch, sigRoot)
 		require.NoError(t, err)
 		reg.V1.Signature = sign(sigData[:])
-		data, err := core.NewPartialVersionedSignedValidatorRegistration(reg, shareIdx)
+		data, err := core.NewPartialVersionedSignedValidatorRegistration(&reg.VersionedSignedValidatorRegistration, shareIdx)
 		require.NoError(t, err)
 
 		require.NoError(t, verifyFunc(ctx, core.NewBuilderRegistrationDuty(slot), pubkey, data))
@@ -277,6 +279,6 @@ func TestParSigExVerifier(t *testing.T) {
 		data = core.NewPartialSignedRandao(epoch, testutil.RandomEth2Signature(), shareIdx)
 		err = verifyFunc(ctx, core.NewSyncMessageDuty(slot), pubkey, data)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "invalid sync committee message")
+		require.ErrorContains(t, err, "invalid signature")
 	})
 }

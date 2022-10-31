@@ -165,7 +165,7 @@ func prepareAttesters(ctx context.Context, eth2Cl eth2wrap.Client, vals validato
 		return nil, nil
 	}
 
-	epoch, err := epochFromSlot(ctx, eth2Cl, slot)
+	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +201,7 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 		return nil, nil
 	}
 
-	epoch, err := epochFromSlot(ctx, eth2Cl, slot)
+	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +329,7 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 		return false, nil
 	}
 
-	epoch, err := epochFromSlot(ctx, eth2Cl, slot)
+	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
 	if err != nil {
 		return false, err
 	}
@@ -416,14 +416,4 @@ func getAggregateAttestation(ctx context.Context, eth2Cl eth2wrap.Client, datas 
 	}
 
 	return nil, errors.New("missing attestation data for committee index")
-}
-
-// epochFromSlot returns the epoch of the provided slot.
-func epochFromSlot(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }

@@ -241,10 +241,10 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 			return err
 		}
 
+		parSigData := core.NewPartialAttestation(att, c.shareIdx)
+
 		// Verify attestation signature
-		err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-			return signing.VerifyAttestation(ctx, c.eth2Cl, pubshare, att)
-		})
+		err = c.verifyPartialSig(ctx, parSigData, pubkey)
 		if err != nil {
 			return err
 		}
@@ -256,7 +256,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 			setsBySlot[slot] = set
 		}
 
-		set[pubkey] = core.NewPartialAttestation(att, c.shareIdx)
+		set[pubkey] = parSigData
 	}
 
 	// Send sets to subscriptions.
@@ -284,7 +284,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 		return nil, err
 	}
 
-	epoch, err := c.epochFromSlot(ctx, slot)
+	epoch, err := eth2util.EpochFromSlot(ctx, c.eth2Cl, slot)
 	if err != nil {
 		return nil, err
 	}
@@ -294,12 +294,11 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 		Signature: randao,
 	}
 
+	duty := core.NewRandaoDuty(int64(slot))
 	parSig := core.NewPartialSignedRandao(sigEpoch.Epoch, sigEpoch.Signature, c.shareIdx)
 
 	// Verify randao signature
-	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, sigEpoch)
-	})
+	err = c.verifyPartialSig(ctx, parSig, pubkey)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +308,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 		parsigSet := core.ParSignedDataSet{
 			pubkey: parSig,
 		}
-		err := sub(ctx, core.NewRandaoDuty(int64(slot)), parsigSet)
+		err := sub(ctx, duty, parsigSet)
 		if err != nil {
 			return nil, err
 		}
@@ -352,20 +351,18 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 	duty := core.NewProposerDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
+	signedData, err := core.NewPartialVersionedSignedBeaconBlock(block, c.shareIdx)
+	if err != nil {
+		return err
+	}
+
 	// Verify block signature
-	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyBlock(ctx, c.eth2Cl, pubshare, block)
-	})
+	err = c.verifyPartialSig(ctx, signedData, pubkey)
 	if err != nil {
 		return err
 	}
 
 	log.Debug(ctx, "Beacon block submitted by validator client")
-
-	signedData, err := core.NewPartialVersionedSignedBeaconBlock(block, c.shareIdx)
-	if err != nil {
-		return err
-	}
 
 	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, sub := range c.subs {
@@ -387,7 +384,7 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 		return nil, err
 	}
 
-	epoch, err := c.epochFromSlot(ctx, slot)
+	epoch, err := eth2util.EpochFromSlot(ctx, c.eth2Cl, slot)
 	if err != nil {
 		return nil, err
 	}
@@ -397,17 +394,14 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 		Signature: randao,
 	}
 
+	duty := core.NewRandaoDuty(int64(slot))
 	parSig := core.NewPartialSignedRandao(sigEpoch.Epoch, sigEpoch.Signature, c.shareIdx)
 
 	// Verify randao signature
-	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyRandao(ctx, c.eth2Cl, pubshare, sigEpoch)
-	})
+	err = c.verifyPartialSig(ctx, parSig, pubkey)
 	if err != nil {
 		return nil, err
 	}
-
-	duty := core.NewRandaoDuty(int64(slot))
 
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.
@@ -457,20 +451,18 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	duty := core.NewBuilderProposerDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
+	signedData, err := core.NewPartialVersionedSignedBlindedBeaconBlock(block, c.shareIdx)
+	if err != nil {
+		return err
+	}
+
 	// Verify Blinded block signature
-	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyBlindedBlock(ctx, c.eth2Cl, pubshare, block)
-	})
+	err = c.verifyPartialSig(ctx, signedData, pubkey)
 	if err != nil {
 		return err
 	}
 
 	log.Debug(ctx, "Blinded beacon block submitted by validator client")
-
-	signedData, err := core.NewPartialVersionedSignedBlindedBeaconBlock(block, c.shareIdx)
-	if err != nil {
-		return err
-	}
 
 	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, sub := range c.subs {
@@ -509,14 +501,13 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 	duty := core.NewBuilderRegistrationDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyValidatorRegistration(ctx, c.eth2Cl, pubshare, registration)
-	})
+	signedData, err := core.NewPartialVersionedSignedValidatorRegistration(registration, c.shareIdx)
 	if err != nil {
 		return err
 	}
 
-	signedData, err := core.NewPartialVersionedSignedValidatorRegistration(registration, c.shareIdx)
+	// Verify registration signature.
+	err = c.verifyPartialSig(ctx, signedData, pubkey)
 	if err != nil {
 		return err
 	}
@@ -577,17 +568,16 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 	duty := core.NewVoluntaryExit(int64(slotsPerEpoch) * int64(exit.Message.Epoch))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
+	parSigData := core.NewPartialSignedVoluntaryExit(exit, c.shareIdx)
+
 	// Verify voluntary exit signature
-	err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-		return signing.VerifyVoluntaryExit(ctx, c.eth2Cl, pubshare, exit)
-	})
+	err = c.verifyPartialSig(ctx, parSigData, pubkey)
 	if err != nil {
 		return err
 	}
 
 	log.Info(ctx, "Voluntary exit submitted by validator client")
 
-	parSigData := core.NewPartialSignedVoluntaryExit(exit, c.shareIdx)
 	for _, sub := range c.subs {
 		// No need to clone since sub auto clones.
 		err := sub(ctx, duty, core.ParSignedDataSet{pubkey: parSigData})
@@ -623,10 +613,10 @@ func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selec
 			return nil, err
 		}
 
+		parSigData := core.NewPartialSignedBeaconCommitteeSelection(selection, c.shareIdx)
+
 		// Verify slot signature.
-		err = c.verifyPartialSig(pubkey, func(pubshare *bls_sig.PublicKey) error {
-			return signing.VerifyBeaconCommitteeSelection(ctx, c.eth2Cl, pubshare, selection)
-		})
+		err = c.verifyPartialSig(ctx, parSigData, pubkey)
 		if err != nil {
 			return nil, err
 		}
@@ -636,7 +626,7 @@ func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selec
 			psigsBySlot[selection.Slot] = make(core.ParSignedDataSet)
 		}
 
-		psigsBySlot[selection.Slot][pubkey] = core.NewPartialSignedBeaconCommitteeSelection(selection, c.shareIdx)
+		psigsBySlot[selection.Slot][pubkey] = parSigData
 	}
 
 	for slot, data := range psigsBySlot {
@@ -691,16 +681,17 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 			if err != nil {
 				return err
 			}
+
 			err = signing.VerifyAggregateAndProofSelection(ctx, c.eth2Cl, blsPubkey, agg.Message)
 			if err != nil {
 				return err
 			}
 		}
 
+		parSigData := core.NewPartialSignedAggregateAndProof(agg, c.shareIdx)
+
 		// Verify outer partial signature.
-		err = c.verifyPartialSig(pk, func(pubshare *bls_sig.PublicKey) error {
-			return signing.VerifyAggregateAndProof(ctx, c.eth2Cl, pubshare, agg)
-		})
+		err = c.verifyPartialSig(ctx, parSigData, pk)
 		if err != nil {
 			return err
 		}
@@ -710,7 +701,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 			psigsBySlot[slot] = make(core.ParSignedDataSet)
 		}
 
-		psigsBySlot[slot][pk] = core.NewPartialSignedAggregateAndProof(agg, c.shareIdx)
+		psigsBySlot[slot][pk] = parSigData
 	}
 
 	for slot, data := range psigsBySlot {
@@ -740,6 +731,7 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 	for _, msg := range messages {
+		slot := msg.Slot
 		eth2Pubkey, err := vals[msg.ValidatorIndex].PubKey(ctx)
 		if err != nil {
 			return err
@@ -750,14 +742,12 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 			return err
 		}
 
-		err = c.verifyPartialSig(pk, func(pubshare *bls_sig.PublicKey) error {
-			return signing.VerifySyncCommitteeMessage(ctx, c.eth2Cl, pubshare, msg)
-		})
+		parSigData := core.NewPartialSignedSyncMessage(msg, c.shareIdx)
+		err = c.verifyPartialSig(ctx, parSigData, pk)
 		if err != nil {
 			return err
 		}
 
-		slot := msg.Slot
 		_, ok := psigsBySlot[slot]
 		if !ok {
 			psigsBySlot[slot] = make(core.ParSignedDataSet)
@@ -897,15 +887,6 @@ func (c Component) slotFromTimestamp(ctx context.Context, timestamp time.Time) (
 	return eth2p0.Slot(delta / slotDuration), nil
 }
 
-func (c Component) epochFromSlot(ctx context.Context, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, errors.Wrap(err, "getting slots per epoch")
-	}
-
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
-}
-
 func (c Component) getProposerPubkey(ctx context.Context, duty core.Duty) (core.PubKey, error) {
 	// Get proposer pubkey (this is a blocking query).
 	defSet, err := c.dutyDefFunc(ctx, duty)
@@ -924,7 +905,7 @@ func (c Component) getProposerPubkey(ctx context.Context, duty core.Duty) (core.
 	return pubkey, nil
 }
 
-func (c Component) verifyPartialSig(pubkey core.PubKey, verifyFunc func(pubshare *bls_sig.PublicKey) error) error {
+func (c Component) verifyPartialSig(ctx context.Context, parSig core.ParSignedData, pubkey core.PubKey) error {
 	if c.insecureTest {
 		return nil
 	}
@@ -934,7 +915,12 @@ func (c Component) verifyPartialSig(pubkey core.PubKey, verifyFunc func(pubshare
 		return err
 	}
 
-	return verifyFunc(pubshare)
+	eth2Signed, ok := parSig.SignedData.(core.Eth2SignedData)
+	if !ok {
+		return errors.New("invalid eth2 signed data")
+	}
+
+	return core.VerifyEth2SignedData(ctx, c.eth2Cl, eth2Signed, pubshare)
 }
 
 func (c Component) getAggregateSelection(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.BeaconCommitteeSelection, error) {
