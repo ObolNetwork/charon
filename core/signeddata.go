@@ -749,32 +749,9 @@ func (VersionedSignedValidatorRegistration) DomainName() signing.DomainName {
 	return signing.DomainApplicationBuilder
 }
 
-func (r VersionedSignedValidatorRegistration) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	timestamp, err := r.Timestamp()
-	if err != nil {
-		return 0, err
-	}
-
-	genesis, err := eth2Cl.GenesisTime(ctx)
-	if err != nil {
-		return 0, err
-	} else if timestamp.Before(genesis) {
-		return 0, errors.New("registration timestamp before genesis")
-	}
-
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	slot := timestamp.Sub(genesis) / slotDuration
-
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
+func (VersionedSignedValidatorRegistration) Epoch(context.Context, eth2wrap.Client) (eth2p0.Epoch, error) {
+	// Always use epoch 0 for DomainApplicationBuilder.
+	return 0, nil
 }
 
 // NewPartialSignedRandao is a convenience function that returns a new partially signed Randao Reveal.

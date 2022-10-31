@@ -17,6 +17,7 @@ package signing
 
 import (
 	"context"
+
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -24,6 +25,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/tracer"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/tbls"
 )
 
@@ -81,19 +83,19 @@ func GetDataRoot(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, e
 	return msg, nil
 }
 
-//func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.AggregateAndProof) error {
-//	epoch, err := epochFromSlot(ctx, eth2Cl, agg.Aggregate.Data.Slot)
-//	if err != nil {
-//		return err
-//	}
-//
-//	sigRoot, err := eth2util.SlotHashRoot(agg.Aggregate.Data.Slot)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, pubkey)
-//}
+func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.AggregateAndProof) error {
+	epoch, err := epochFromSlot(ctx, eth2Cl, agg.Aggregate.Data.Slot)
+	if err != nil {
+		return err
+	}
+
+	sigRoot, err := eth2util.SlotHashRoot(agg.Aggregate.Data.Slot)
+	if err != nil {
+		return err
+	}
+
+	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, pubkey)
+}
 
 // Verify returns an error if the signature doesn't match the eth2 domain signed root.
 func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoch eth2p0.Epoch, sigRoot eth2p0.Root,
@@ -127,6 +129,15 @@ func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoc
 	}
 
 	return nil
+}
+
+func epochFromSlot(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot) (eth2p0.Epoch, error) {
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "getting slots per epoch")
+	}
+
+	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }
 
 // sigFromETH2 converts an eth2 phase0 bls signature into a kryptology bls signature.

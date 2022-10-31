@@ -36,6 +36,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
+	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
@@ -675,20 +676,21 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 		}
 
 		// Verify inner selection proof (outcome of DutyPrepareAggregator).
-		//if !c.insecureTest {
-		//	blsPubkey, err := tblsconv.KeyFromETH2(eth2Pubkey) // Use group pubkey, not pubshare.
-		//	if err != nil {
-		//		return err
-		//	}
-		//	err = signing.VerifyAggregateAndProofSelection(ctx, c.eth2Cl, blsPubkey, agg.Message)
-		//	if err != nil {
-		//		return err
-		//	}
-		//}
+		if !c.insecureTest {
+			blsPubkey, err := tblsconv.KeyFromETH2(eth2Pubkey) // Use group pubkey, not pubshare.
+			if err != nil {
+				return err
+			}
 
-		// Verify outer partial signature.
+			err = signing.VerifyAggregateAndProofSelection(ctx, c.eth2Cl, blsPubkey, agg.Message)
+			if err != nil {
+				return err
+			}
+		}
+
 		parSigData := core.NewPartialSignedAggregateAndProof(agg, c.shareIdx)
 
+		// Verify outer partial signature.
 		err = c.verifyPartialSig(ctx, parSigData, pk)
 		if err != nil {
 			return err
