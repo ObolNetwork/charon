@@ -141,10 +141,10 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 
 		return err
 	case core.DutyRandao:
-		// Randao is an internal duty, not broadcasted to beacon chain
+		// Randao is an internal duty, not broadcasted to beacon chain.
 		return nil
 	case core.DutyPrepareAggregator:
-		// Beacon committee selections are only applicable to DVT, not broadcasted to beacon chain
+		// Beacon committee selections are only applicable to DVT, not broadcasted to beacon chain.
 		return nil
 	case core.DutyAggregator:
 		aggAndProof, ok := aggData.(core.SignedAggregateAndProof)
@@ -168,6 +168,22 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		err := b.eth2Cl.SubmitSyncCommitteeMessages(ctx, []*altair.SyncCommitteeMessage{&msg.SyncCommitteeMessage})
 		if err == nil {
 			log.Info(ctx, "Successfully submitted sync committee message to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot)))
+		}
+
+		return err
+	case core.DutyPrepareSyncContribution:
+		// Sync committee selections are only applicable to DVT, not broadcasted to beacon chain.
+		return nil
+	case core.DutySyncContribution:
+		contribution, ok := aggData.(core.SignedSyncContributionAndProof)
+		if !ok {
+			return errors.New("invalid sync contribution and proof")
+		}
+
+		err := b.eth2Cl.SubmitSyncCommitteeContributions(ctx, []*altair.SignedContributionAndProof{&contribution.SignedContributionAndProof})
+		if err == nil {
+			log.Info(ctx, "Successfully submitted sync committee contribution to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)))
 		}
 

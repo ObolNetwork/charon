@@ -385,8 +385,8 @@ func RandomAggregateAndProof() *eth2p0.AggregateAndProof {
 	}
 }
 
-func RandomSignedSyncContributionAndProof() altair.SignedContributionAndProof {
-	return altair.SignedContributionAndProof{
+func RandomSignedSyncContributionAndProof() *altair.SignedContributionAndProof {
+	return &altair.SignedContributionAndProof{
 		Message:   RandomSyncContributionAndProof(),
 		Signature: eth2p0.BLSSignature{},
 	}
