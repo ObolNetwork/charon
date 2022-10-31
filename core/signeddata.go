@@ -1078,6 +1078,10 @@ func (s SignedSyncMessage) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (e
 	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Slot)
 }
 
+func NewSignedSyncContributionAndProof(proof *altair.SignedContributionAndProof) SignedSyncContributionAndProof {
+	return SignedSyncContributionAndProof{SignedContributionAndProof: *proof}
+}
+
 // SignedSyncContributionAndProof wraps altair.SignedContributionAndProof and implements SignedData.
 type SignedSyncContributionAndProof struct {
 	altair.SignedContributionAndProof

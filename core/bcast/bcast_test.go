@@ -51,6 +51,7 @@ func TestBroadcast(t *testing.T) {
 		aggregateAttestationData,  // AggregateAttestation
 		beaconCommitteeSelections, // BeaconCommitteeSelections
 		syncCommitteeMessage,      // SyncCommitteeMessage
+		syncCommitteeContribution, // SyncCommitteeContribution
 	}
 
 	for _, testFunc := range testFuncs {
@@ -276,6 +277,27 @@ func syncCommitteeMessage(t *testing.T, mock *beaconmock.Mock) test {
 		name:     "Broadcast Sync Committee Message",
 		aggData:  msg,
 		duty:     core.DutySyncMessage,
+		bcastCnt: 1,
+		asserted: asserted,
+	}
+}
+
+func syncCommitteeContribution(t *testing.T, mock *beaconmock.Mock) test {
+	t.Helper()
+
+	asserted := make(chan struct{})
+	contribution := core.NewSignedSyncContributionAndProof(testutil.RandomSignedSyncContributionAndProof())
+	mock.SubmitSyncCommitteeContributionsFunc = func(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) error {
+		require.Equal(t, contribution.SignedContributionAndProof, *contributionAndProofs[0])
+		close(asserted)
+
+		return nil
+	}
+
+	return test{
+		name:     "Broadcast Sync Committee Contribution",
+		aggData:  contribution,
+		duty:     core.DutySyncContribution,
 		bcastCnt: 1,
 		asserted: asserted,
 	}

@@ -172,6 +172,22 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		}
 
 		return err
+	case core.DutyPrepareSyncContribution:
+		// Sync committee selections are only applicable to DVT, not broadcasted to beacon chain
+		return nil
+	case core.DutySyncContribution:
+		contribution, ok := aggData.(core.SignedSyncContributionAndProof)
+		if !ok {
+			return errors.New("invalid sync committee contribution")
+		}
+
+		err := b.eth2Cl.SubmitSyncCommitteeContributions(ctx, []*altair.SignedContributionAndProof{&contribution.SignedContributionAndProof})
+		if err == nil {
+			log.Info(ctx, "Successfully submitted sync committee contribution to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot)))
+		}
+
+		return err
 	default:
 		return errors.New("unsupported duty type")
 	}
