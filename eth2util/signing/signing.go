@@ -84,7 +84,7 @@ func GetDataRoot(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, e
 }
 
 func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.AggregateAndProof) error {
-	epoch, err := epochFromSlot(ctx, eth2Cl, agg.Aggregate.Data.Slot)
+	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, agg.Aggregate.Data.Slot)
 	if err != nil {
 		return err
 	}
@@ -129,15 +129,6 @@ func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoc
 	}
 
 	return nil
-}
-
-func epochFromSlot(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, errors.Wrap(err, "getting slots per epoch")
-	}
-
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }
 
 // sigFromETH2 converts an eth2 phase0 bls signature into a kryptology bls signature.

@@ -284,7 +284,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 		return nil, err
 	}
 
-	epoch, err := c.epochFromSlot(ctx, slot)
+	epoch, err := eth2util.EpochFromSlot(ctx, c.eth2Cl, slot)
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +384,7 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 		return nil, err
 	}
 
-	epoch, err := c.epochFromSlot(ctx, slot)
+	epoch, err := eth2util.EpochFromSlot(ctx, c.eth2Cl, slot)
 	if err != nil {
 		return nil, err
 	}
@@ -885,15 +885,6 @@ func (c Component) slotFromTimestamp(ctx context.Context, timestamp time.Time) (
 	delta := timestamp.Sub(genesis)
 
 	return eth2p0.Slot(delta / slotDuration), nil
-}
-
-func (c Component) epochFromSlot(ctx context.Context, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, errors.Wrap(err, "getting slots per epoch")
-	}
-
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }
 
 func (c Component) getProposerPubkey(ctx context.Context, duty core.Duty) (core.PubKey, error) {

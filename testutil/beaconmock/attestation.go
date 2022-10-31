@@ -19,7 +19,6 @@ import (
 	"context"
 	"sync"
 
-	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -79,7 +78,7 @@ func (s *attestationStore) AttestationDataByRoot(dataRoot eth2p0.Root) (*eth2p0.
 
 // NewAttestationData generates and and returns an attestation data.
 func (s *attestationStore) NewAttestationData(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
-	epoch, err := epochFromSlot(ctx, s.httpMock, slot)
+	epoch, err := eth2util.EpochFromSlot(ctx, s.httpMock, slot)
 	if err != nil {
 		return nil, err
 	}
@@ -112,16 +111,6 @@ func newAttestationData(epoch eth2p0.Epoch, slot eth2p0.Slot, index eth2p0.Commi
 			Root:  mustRoot(uint64(epoch)),
 		},
 	}
-}
-
-// epochFromSlot returns the slot epoch.
-func epochFromSlot(ctx context.Context, provider eth2client.SlotsPerEpochProvider, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := provider.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
 }
 
 // mustRoot return the uint64 hash root.

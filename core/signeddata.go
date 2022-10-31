@@ -302,12 +302,7 @@ func (b VersionedSignedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.C
 		return 0, err
 	}
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
+	return eth2util.EpochFromSlot(ctx, eth2Cl, slot)
 }
 
 // NewVersionedSignedBlindedBeaconBlock validates and returns a new wrapped VersionedSignedBlindedBeaconBlock.
@@ -455,12 +450,7 @@ func (b VersionedSignedBlindedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth
 		return 0, err
 	}
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
+	return eth2util.EpochFromSlot(ctx, eth2Cl, slot)
 }
 
 // versionedRawBlockJSON is a custom VersionedSignedBeaconBlock or VersionedSignedBlindedBeaconBlock serialiser.
@@ -885,12 +875,7 @@ func (BeaconCommitteeSelection) DomainName() signing.DomainName {
 }
 
 func (s BeaconCommitteeSelection) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return eth2p0.Epoch(uint64(s.Slot) / slotsPerEpoch), nil
+	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Slot)
 }
 
 // SyncCommitteeSelection wraps an eth2exp.SyncCommitteeSelection and implements SignedData.
@@ -1023,12 +1008,7 @@ func (SignedAggregateAndProof) DomainName() signing.DomainName {
 }
 
 func (s SignedAggregateAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return eth2p0.Epoch(uint64(s.Message.Aggregate.Data.Slot) / slotsPerEpoch), nil
+	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Message.Aggregate.Data.Slot)
 }
 
 // NewSignedSyncMessage is a convenience function which returns new signed SignedSyncMessage.
@@ -1095,12 +1075,7 @@ func (SignedSyncMessage) DomainName() signing.DomainName {
 }
 
 func (s SignedSyncMessage) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return eth2p0.Epoch(uint64(s.Slot) / slotsPerEpoch), nil
+	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Slot)
 }
 
 // SignedSyncContributionAndProof wraps altair.SignedContributionAndProof and implements SignedData.
@@ -1154,12 +1129,7 @@ func (SignedSyncContributionAndProof) DomainName() signing.DomainName {
 }
 
 func (s SignedSyncContributionAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return eth2p0.Epoch(uint64(s.Message.Contribution.Slot) / slotsPerEpoch), nil
+	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Message.Contribution.Slot)
 }
 
 // cloneJSONMarshaler clones the marshaler by serialising to-from json

@@ -1421,19 +1421,10 @@ func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
 	require.Equal(t, cnt, 1)
 }
 
-func epochFromSlot(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, errors.Wrap(err, "getting slots per epoch")
-	}
-
-	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
-}
-
 func signAggregationAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret *bls_sig.SecretKey, aggProof *eth2p0.AggregateAndProof) eth2p0.BLSSignature {
 	t.Helper()
 
-	epoch, err := epochFromSlot(context.Background(), eth2Cl, aggProof.Aggregate.Data.Slot)
+	epoch, err := eth2util.EpochFromSlot(context.Background(), eth2Cl, aggProof.Aggregate.Data.Slot)
 	require.NoError(t, err)
 
 	dataRoot, err := aggProof.HashTreeRoot()
@@ -1445,7 +1436,7 @@ func signAggregationAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret *bls_s
 func signBeaconSelection(t *testing.T, eth2Cl eth2wrap.Client, secret *bls_sig.SecretKey, slot eth2p0.Slot) eth2p0.BLSSignature {
 	t.Helper()
 
-	epoch, err := epochFromSlot(context.Background(), eth2Cl, slot)
+	epoch, err := eth2util.EpochFromSlot(context.Background(), eth2Cl, slot)
 	require.NoError(t, err)
 
 	dataRoot, err := eth2util.SlotHashRoot(slot)

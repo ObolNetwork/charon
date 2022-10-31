@@ -26,6 +26,7 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
@@ -205,7 +206,7 @@ func submitSyncMessage(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.
 		return err
 	}
 
-	epoch, err := epochFromSlot(ctx, eth2Cl, slot)
+	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
 	if err != nil {
 		return err
 	}

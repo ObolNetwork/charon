@@ -27,6 +27,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
@@ -196,7 +197,7 @@ func PseudoSyncCommContributionFlow(t *testing.T, supportDVT bool) {
 		// Fetch the contribution for the subcommittee.
 		contrib, _ := eth2Cl.SyncCommitteeContribution(ctx, slot, subcommittee, headBlockRoot)
 
-		epoch, _ := epochFromSlot(ctx, nil, contrib.Slot)
+		epoch, _ := eth2util.EpochFromSlot(ctx, nil, contrib.Slot)
 
 		// Sign by each aggregator in the subcommittee
 		for _, agg := range aggregators {
@@ -299,7 +300,7 @@ func verifySelectionProof(ctx context.Context, partial *SyncCommitteeSelection) 
 		SubcommitteeIndex: partial.SubcommitteeIndex,
 	}).HashTreeRoot()
 
-	epoch, _ := epochFromSlot(ctx, nil, partial.Slot)
+	epoch, _ := eth2util.EpochFromSlot(ctx, nil, partial.Slot)
 
 	signingRoot, _ := signing.GetDataRoot(ctx, nil, signing.DomainSyncCommitteeSelectionProof, epoch, root)
 

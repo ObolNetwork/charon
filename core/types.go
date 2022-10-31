@@ -383,6 +383,7 @@ type SignedData interface {
 	json.Marshaler
 }
 
+// Eth2SignedData wraps SignedData and adds eth2 BLS signature specific methods.
 type Eth2SignedData interface {
 	SignedData
 	// DomainName returns domain associated with underlying signed data.
