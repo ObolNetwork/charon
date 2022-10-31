@@ -16,7 +16,6 @@
 package core
 
 import (
-	"context"
 	"encoding/json"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -25,13 +24,10 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
 var (
@@ -292,19 +288,6 @@ func (b *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-func (VersionedSignedBeaconBlock) DomainName() signing.DomainName {
-	return signing.DomainBeaconProposer
-}
-
-func (b VersionedSignedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	slot, err := b.VersionedSignedBeaconBlock.Slot()
-	if err != nil {
-		return 0, err
-	}
-
-	return eth2util.EpochFromSlot(ctx, eth2Cl, slot)
-}
-
 // NewVersionedSignedBlindedBeaconBlock validates and returns a new wrapped VersionedSignedBlindedBeaconBlock.
 func NewVersionedSignedBlindedBeaconBlock(block *eth2api.VersionedSignedBlindedBeaconBlock) (VersionedSignedBlindedBeaconBlock, error) {
 	switch block.Version {
@@ -440,19 +423,6 @@ func (b *VersionedSignedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-func (VersionedSignedBlindedBeaconBlock) DomainName() signing.DomainName {
-	return signing.DomainBeaconProposer
-}
-
-func (b VersionedSignedBlindedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	slot, err := b.VersionedSignedBlindedBeaconBlock.Slot()
-	if err != nil {
-		return 0, err
-	}
-
-	return eth2util.EpochFromSlot(ctx, eth2Cl, slot)
-}
-
 // versionedRawBlockJSON is a custom VersionedSignedBeaconBlock or VersionedSignedBlindedBeaconBlock serialiser.
 type versionedRawBlockJSON struct {
 	Version int             `json:"version"`
@@ -521,14 +491,6 @@ func (a *Attestation) UnmarshalJSON(b []byte) error {
 	return a.Attestation.UnmarshalJSON(b)
 }
 
-func (Attestation) DomainName() signing.DomainName {
-	return signing.DomainBeaconAttester
-}
-
-func (a Attestation) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
-	return a.Attestation.Data.Target.Epoch, nil
-}
-
 // NewSignedVoluntaryExit is a convenience function that returns a new signed voluntary exit.
 func NewSignedVoluntaryExit(exit *eth2p0.SignedVoluntaryExit) SignedVoluntaryExit {
 	return SignedVoluntaryExit{SignedVoluntaryExit: *exit}
@@ -588,14 +550,6 @@ func (e SignedVoluntaryExit) MarshalJSON() ([]byte, error) {
 
 func (e *SignedVoluntaryExit) UnmarshalJSON(b []byte) error {
 	return e.SignedVoluntaryExit.UnmarshalJSON(b)
-}
-
-func (SignedVoluntaryExit) DomainName() signing.DomainName {
-	return signing.DomainExit
-}
-
-func (e SignedVoluntaryExit) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
-	return e.Message.Epoch, nil
 }
 
 // versionedRawValidatorRegistrationJSON is a custom VersionedSignedValidator serialiser.
@@ -735,15 +689,6 @@ func (r *VersionedSignedValidatorRegistration) UnmarshalJSON(input []byte) error
 	return nil
 }
 
-func (VersionedSignedValidatorRegistration) DomainName() signing.DomainName {
-	return signing.DomainApplicationBuilder
-}
-
-func (VersionedSignedValidatorRegistration) Epoch(context.Context, eth2wrap.Client) (eth2p0.Epoch, error) {
-	// Always use epoch 0 for DomainApplicationBuilder.
-	return 0, nil
-}
-
 // NewPartialSignedRandao is a convenience function that returns a new partially signed Randao Reveal.
 func NewPartialSignedRandao(epoch eth2p0.Epoch, randao eth2p0.BLSSignature, shareIdx int) ParSignedData {
 	return ParSignedData{
@@ -799,14 +744,6 @@ func (s SignedRandao) clone() (SignedRandao, error) {
 	}
 
 	return resp, nil
-}
-
-func (SignedRandao) DomainName() signing.DomainName {
-	return signing.DomainRandao
-}
-
-func (s SignedRandao) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
-	return s.SignedEpoch.Epoch, nil
 }
 
 // NewBeaconCommitteeSelection is a convenience function which returns new signed BeaconCommitteeSelection.
@@ -868,14 +805,6 @@ func (s BeaconCommitteeSelection) MarshalJSON() ([]byte, error) {
 
 func (s *BeaconCommitteeSelection) UnmarshalJSON(input []byte) error {
 	return s.BeaconCommitteeSelection.UnmarshalJSON(input)
-}
-
-func (BeaconCommitteeSelection) DomainName() signing.DomainName {
-	return signing.DomainSelectionProof
-}
-
-func (s BeaconCommitteeSelection) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Slot)
 }
 
 // SyncCommitteeSelection wraps an eth2exp.SyncCommitteeSelection and implements SignedData.
@@ -1003,14 +932,6 @@ func (s *SignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 	return s.SignedAggregateAndProof.UnmarshalJSON(input)
 }
 
-func (SignedAggregateAndProof) DomainName() signing.DomainName {
-	return signing.DomainAggregateAndProof
-}
-
-func (s SignedAggregateAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Message.Aggregate.Data.Slot)
-}
-
 // NewSignedSyncMessage is a convenience function which returns new signed SignedSyncMessage.
 func NewSignedSyncMessage(data *altair.SyncCommitteeMessage) SignedSyncMessage {
 	return SignedSyncMessage{SyncCommitteeMessage: *data}
@@ -1070,14 +991,6 @@ func (s *SignedSyncMessage) UnmarshalJSON(input []byte) error {
 	return s.SyncCommitteeMessage.UnmarshalJSON(input)
 }
 
-func (SignedSyncMessage) DomainName() signing.DomainName {
-	return signing.DomainSyncCommittee
-}
-
-func (s SignedSyncMessage) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Slot)
-}
-
 func NewSignedSyncContributionAndProof(proof *altair.SignedContributionAndProof) SignedSyncContributionAndProof {
 	return SignedSyncContributionAndProof{SignedContributionAndProof: *proof}
 }
@@ -1128,14 +1041,6 @@ func (s *SignedSyncContributionAndProof) UnmarshalJSON(input []byte) error {
 	return s.SignedContributionAndProof.UnmarshalJSON(input)
 }
 
-func (SignedSyncContributionAndProof) DomainName() signing.DomainName {
-	return signing.DomainContributionAndProof
-}
-
-func (s SignedSyncContributionAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Message.Contribution.Slot)
-}
-
 // cloneJSONMarshaler clones the marshaler by serialising to-from json
 // since eth2 types contain pointers. The result is stored in the value pointed to by v.
 func cloneJSONMarshaler(data json.Marshaler, v any) error {
@@ -1149,19 +1054,4 @@ func cloneJSONMarshaler(data json.Marshaler, v any) error {
 	}
 
 	return nil
-}
-
-// VerifyEth2SignedData verifies signature associated with given Eth2SignedData.
-func VerifyEth2SignedData(ctx context.Context, eth2Cl eth2wrap.Client, data Eth2SignedData, pubkey *bls_sig.PublicKey) error {
-	epoch, err := data.Epoch(ctx, eth2Cl)
-	if err != nil {
-		return err
-	}
-
-	sigRoot, err := data.MessageRoot()
-	if err != nil {
-		return err
-	}
-
-	return signing.Verify(ctx, eth2Cl, data.DomainName(), epoch, sigRoot, data.Signature().ToETH2(), pubkey)
 }

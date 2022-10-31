@@ -99,7 +99,7 @@ func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Clien
 
 // Verify returns an error if the signature doesn't match the eth2 domain signed root.
 func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoch eth2p0.Epoch, sigRoot eth2p0.Root,
-	signature eth2p0.BLSSignature, pubshare *bls_sig.PublicKey,
+	signature eth2p0.BLSSignature, pubkey *bls_sig.PublicKey,
 ) error {
 	ctx, span := tracer.Start(ctx, "eth2util.Verify")
 	defer span.End()
@@ -121,7 +121,7 @@ func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoc
 	}
 
 	span.AddEvent("tbls.Verify")
-	ok, err := tbls.Verify(pubshare, sigData[:], s)
+	ok, err := tbls.Verify(pubkey, sigData[:], s)
 	if err != nil {
 		return err
 	} else if !ok {
