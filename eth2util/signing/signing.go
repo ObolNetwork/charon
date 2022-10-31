@@ -17,8 +17,8 @@ package signing
 
 import (
 	"context"
-	"github.com/attestantio/go-eth2-client/spec/altair"
 
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"

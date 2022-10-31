@@ -18,8 +18,6 @@ package core
 import (
 	"context"
 	"encoding/json"
-	"github.com/obolnetwork/charon/app/eth2wrap"
-	"github.com/obolnetwork/charon/eth2util/signing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -29,8 +27,10 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
+	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
 var (
