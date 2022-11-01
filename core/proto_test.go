@@ -20,8 +20,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/attestantio/go-eth2-client/spec"
-	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -81,6 +79,14 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Type: core.DutySyncMessage,
 			Data: core.NewSignedSyncMessage(testutil.RandomSyncCommitteeMessage()),
 		},
+		{
+			Type: core.DutyPrepareSyncContribution,
+			Data: core.NewSyncCommitteeSelection(testutil.RandomSyncCommitteeSelection()),
+		},
+		{
+			Type: core.DutySyncContribution,
+			Data: core.NewSignedSyncContributionAndProof(testutil.RandomSignedSyncContributionAndProof()),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.Type.String(), func(t *testing.T) {
@@ -131,6 +137,10 @@ func TestUnsignedDataToProto(t *testing.T) {
 		{
 			Type: core.DutyAggregator,
 			Data: core.NewAggregatedAttestation(testutil.RandomAttestation()),
+		},
+		{
+			Type: core.DutySyncContribution,
+			Data: core.NewSyncContribution(testutil.RandomSyncCommitteeContribution()),
 		},
 	}
 
@@ -221,22 +231,13 @@ func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
 	t.Helper()
 
 	return map[core.DutyType]core.SignedData{
-		core.DutyAttester: core.Attestation{Attestation: *testutil.RandomAttestation()},
-		core.DutyExit:     core.SignedVoluntaryExit{SignedVoluntaryExit: *testutil.RandomExit()},
-		core.DutyRandao:   core.SignedRandao{eth2util.SignedEpoch{Epoch: testutil.RandomEpoch(), Signature: testutil.RandomEth2Signature()}},
-		core.DutyProposer: core.VersionedSignedBeaconBlock{
-			VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
-				Version: spec.DataVersionBellatrix,
-				Bellatrix: &bellatrix.SignedBeaconBlock{
-					Message:   testutil.RandomBellatrixBeaconBlock(t),
-					Signature: testutil.RandomEth2Signature(),
-				},
-			},
-		},
-		core.DutyPrepareAggregator: testutil.RandomCoreBeaconCommitteeSelection(),
-		core.DutyAggregator: core.SignedAggregateAndProof{SignedAggregateAndProof: eth2p0.SignedAggregateAndProof{
-			Message:   testutil.RandomAggregateAndProof(),
-			Signature: testutil.RandomEth2Signature(),
-		}},
+		core.DutyAttester:                core.NewAttestation(testutil.RandomAttestation()),
+		core.DutyExit:                    core.NewSignedVoluntaryExit(testutil.RandomExit()),
+		core.DutyRandao:                  core.SignedRandao{eth2util.SignedEpoch{Epoch: testutil.RandomEpoch(), Signature: testutil.RandomEth2Signature()}},
+		core.DutyProposer:                testutil.RandomCoreVersionSignedBeaconBlock(t),
+		core.DutyPrepareAggregator:       testutil.RandomCoreBeaconCommitteeSelection(),
+		core.DutyAggregator:              core.NewSignedAggregateAndProof(testutil.RandomSignedAggregateAndProof()),
+		core.DutyPrepareSyncContribution: core.NewSyncCommitteeSelection(testutil.RandomSyncCommitteeSelection()),
+		core.DutySyncContribution:        core.NewSignedSyncContributionAndProof(testutil.RandomSignedSyncContributionAndProof()),
 	}
 }

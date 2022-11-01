@@ -26,6 +26,20 @@ import (
 	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
+var (
+	_ Eth2SignedData = VersionedSignedBeaconBlock{}
+	_ Eth2SignedData = Attestation{}
+	_ Eth2SignedData = SignedVoluntaryExit{}
+	_ Eth2SignedData = VersionedSignedBlindedBeaconBlock{}
+	_ Eth2SignedData = VersionedSignedValidatorRegistration{}
+	_ Eth2SignedData = SignedRandao{}
+	_ Eth2SignedData = BeaconCommitteeSelection{}
+	_ Eth2SignedData = SignedAggregateAndProof{}
+	_ Eth2SignedData = SignedSyncMessage{}
+	_ Eth2SignedData = SignedSyncContributionAndProof{}
+	_ Eth2SignedData = SyncCommitteeSelection{}
+)
+
 // VerifyEth2SignedData verifies signature associated with given Eth2SignedData.
 func VerifyEth2SignedData(ctx context.Context, eth2Cl eth2wrap.Client, data Eth2SignedData, pubkey *bls_sig.PublicKey) error {
 	epoch, err := data.Epoch(ctx, eth2Cl)
