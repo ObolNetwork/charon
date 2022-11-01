@@ -1509,6 +1509,56 @@ func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
 	<-done
 }
 
+func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
+	ctx := context.Background()
+
+	val := testutil.RandomValidator(t)
+
+	// Create keys (just use normal keys, not split tbls)
+	pubkey, secret, err := tbls.Keygen()
+	require.NoError(t, err)
+
+	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey}
+	pk, err := tblsconv.KeyToCore(pubkey)
+	require.NoError(t, err)
+
+	val.Validator.PublicKey, err = tblsconv.KeyToETH2(pubkey)
+	require.NoError(t, err)
+
+	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSet{val.Index: val}))
+	require.NoError(t, err)
+
+	selection := testutil.RandomSyncCommitteeSelection()
+	selection.ValidatorIndex = val.Index
+	selection.SelectionProof = syncCommSelectionProof(t, bmock, secret, selection.Slot, selection.SubcommitteeIndex)
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	require.NoError(t, err)
+
+	vapi.RegisterAwaitAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+		require.Equal(t, duty, core.NewPrepareSyncContributionDuty(int64(selection.Slot)))
+		require.Equal(t, key, pk)
+
+		return core.NewSyncCommitteeSelection(selection), nil
+	})
+
+	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		expect := core.ParSignedDataSet{
+			pk: core.NewPartialSignedSyncCommitteeSelection(selection, 0),
+		}
+
+		require.Equal(t, duty, core.NewPrepareSyncContributionDuty(int64(selection.Slot)))
+		require.Equal(t, expect, set)
+
+		return nil
+	})
+
+	selections, err := vapi.AggregateSyncCommitteeSelections(ctx, []*eth2exp.SyncCommitteeSelection{selection})
+	require.NoError(t, err)
+	require.Equal(t, selection, selections[0])
+}
+
 func signAggregationAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret *bls_sig.SecretKey, aggProof *eth2p0.AggregateAndProof) eth2p0.BLSSignature {
 	t.Helper()
 

@@ -70,6 +70,7 @@ type Handler interface {
 	eth2client.SyncCommitteeContributionsSubmitter
 	eth2client.SyncCommitteeDutiesProvider
 	eth2client.SyncCommitteeMessagesSubmitter
+	eth2exp.SyncCommitteeSelectionAggregator
 	eth2client.ValidatorsProvider
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.VoluntaryExitSubmitter
@@ -191,6 +192,11 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 			Name:    "submit_proposal_preparations",
 			Path:    "/eth/v1/validator/prepare_beacon_proposer",
 			Handler: submitProposalPreparations(),
+		},
+		{
+			Name:    "aggregate_sync_committee_selections",
+			Path:    "/eth/v1/validator/sync_committee_selections",
+			Handler: aggregateSyncCommitteeSelections(h),
 		},
 	}
 
@@ -659,6 +665,23 @@ func aggregateBeaconCommitteeSelections(a eth2exp.BeaconCommitteeSelectionAggreg
 		}
 
 		return aggregateBeaconCommitteeSelectionsJSON{Data: resp}, nil
+	}
+}
+
+// aggregateSyncCommitteeSelections receives partial sync committee selections and returns aggregated selections.
+func aggregateSyncCommitteeSelections(a eth2exp.SyncCommitteeSelectionAggregator) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, body []byte) (res interface{}, err error) {
+		var selections []*eth2exp.SyncCommitteeSelection
+		if err := json.Unmarshal(body, &selections); err != nil {
+			return nil, errors.Wrap(err, "unmarshal sync committee selections")
+		}
+
+		resp, err := a.AggregateSyncCommitteeSelections(ctx, selections)
+		if err != nil {
+			return nil, err
+		}
+
+		return aggregateSyncCommitteeSelectionsJSON{Data: resp}, nil
 	}
 }
 
