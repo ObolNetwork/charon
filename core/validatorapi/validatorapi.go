@@ -646,7 +646,7 @@ func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selec
 		}
 	}
 
-	return c.getAggregateSelection(ctx, psigsBySlot)
+	return c.getAggregateBeaconCommSelection(ctx, psigsBySlot)
 }
 
 // AggregateAttestation returns the aggregate attestation for the given attestation root.
@@ -853,6 +853,59 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 	return nil
 }
 
+// AggregateSyncCommitteeSelections returns aggregate sync committee selection proofs.
+func (c Component) AggregateSyncCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
+	var valIdxs []eth2p0.ValidatorIndex
+	for _, selection := range partialSelections {
+		valIdxs = append(valIdxs, selection.ValidatorIndex)
+	}
+
+	vals, err := c.eth2Cl.Validators(ctx, "head", valIdxs)
+	if err != nil {
+		return nil, err
+	}
+
+	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+	for _, selection := range partialSelections {
+		eth2Pubkey, err := vals[selection.ValidatorIndex].PubKey(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
+		if err != nil {
+			return nil, err
+		}
+
+		parSigData := core.NewPartialSignedSyncCommitteeSelection(selection, c.shareIdx)
+
+		// Verify selection proof.
+		err = c.verifyPartialSig(ctx, parSigData, pubkey)
+		if err != nil {
+			return nil, err
+		}
+
+		_, ok := psigsBySlot[selection.Slot]
+		if !ok {
+			psigsBySlot[selection.Slot] = make(core.ParSignedDataSet)
+		}
+
+		psigsBySlot[selection.Slot][pubkey] = parSigData
+	}
+
+	for slot, data := range psigsBySlot {
+		duty := core.NewPrepareSyncContributionDuty(int64(slot))
+		for _, sub := range c.subs {
+			err = sub(ctx, duty, data)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return c.getAggregateSyncCommSelection(ctx, psigsBySlot)
+}
+
 func (c Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 	duties, err := c.eth2Cl.ProposerDuties(ctx, epoch, validatorIndices)
 	if err != nil {
@@ -1007,7 +1060,7 @@ func (c Component) verifyPartialSig(ctx context.Context, parSig core.ParSignedDa
 	return core.VerifyEth2SignedData(ctx, c.eth2Cl, eth2Signed, pubshare)
 }
 
-func (c Component) getAggregateSelection(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.BeaconCommitteeSelection, error) {
+func (c Component) getAggregateBeaconCommSelection(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.BeaconCommitteeSelection, error) {
 	var resp []*eth2exp.BeaconCommitteeSelection
 	for slot, data := range psigsBySlot {
 		duty := core.NewPrepareAggregatorDuty(int64(slot))
@@ -1024,6 +1077,29 @@ func (c Component) getAggregateSelection(ctx context.Context, psigsBySlot map[et
 			}
 
 			resp = append(resp, &sub.BeaconCommitteeSelection)
+		}
+	}
+
+	return resp, nil
+}
+
+func (c Component) getAggregateSyncCommSelection(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.SyncCommitteeSelection, error) {
+	var resp []*eth2exp.SyncCommitteeSelection
+	for slot, data := range psigsBySlot {
+		duty := core.NewPrepareSyncContributionDuty(int64(slot))
+		for pk := range data {
+			// Query aggregated sync committee selection from aggsigdb for each duty and public key (this is blocking).
+			s, err := c.awaitAggSigDBFunc(ctx, duty, pk)
+			if err != nil {
+				return nil, err
+			}
+
+			sub, ok := s.(core.SyncCommitteeSelection)
+			if !ok {
+				return nil, errors.New("invalid sync committee selection")
+			}
+
+			resp = append(resp, &sub.SyncCommitteeSelection)
 		}
 	}
 

@@ -628,6 +628,29 @@ func TestRouter(t *testing.T) {
 
 		testRouter(t, handler, callback)
 	})
+
+	t.Run("aggregate_sync_committee_selections", func(t *testing.T) {
+		selections := []*eth2exp.SyncCommitteeSelection{testutil.RandomSyncCommitteeSelection(), testutil.RandomSyncCommitteeSelection()}
+
+		handler := testHandler{
+			AggregateSyncCommitteeSelectionsFunc: func(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
+				for i := range selections {
+					require.Equal(t, selections[i], partialSelections[i])
+				}
+
+				return partialSelections, nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			eth2Cl := eth2wrap.AdaptEth2HTTP(cl, time.Second)
+			actual, err := eth2Cl.AggregateSyncCommitteeSelections(ctx, selections)
+			require.NoError(t, err)
+			require.Equal(t, selections, actual)
+		}
+
+		testRouter(t, handler, callback)
+	})
 }
 
 func TestBeaconCommitteeSelections(t *testing.T) {
@@ -768,6 +791,7 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 type testHandler struct {
 	Handler
 	ProxyHandler                           http.HandlerFunc
+	AggregateSyncCommitteeSelectionsFunc   func(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error)
 	AttestationDataFunc                    func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                     func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	BeaconBlockProposalFunc                func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
@@ -848,6 +872,10 @@ func (h testHandler) SyncCommitteeDuties(ctx context.Context, epoch eth2p0.Epoch
 
 func (h testHandler) SyncCommitteeContribution(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
 	return h.SyncCommitteeContributionFunc(ctx, slot, subcommitteeIndex, beaconBlockRoot)
+}
+
+func (h testHandler) AggregateSyncCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
+	return h.AggregateSyncCommitteeSelectionsFunc(ctx, partialSelections)
 }
 
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the

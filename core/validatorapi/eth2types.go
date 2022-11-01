@@ -119,6 +119,10 @@ type aggregateBeaconCommitteeSelectionsJSON struct {
 	Data []*eth2exp.BeaconCommitteeSelection `json:"data"`
 }
 
+type aggregateSyncCommitteeSelectionsJSON struct {
+	Data []*eth2exp.SyncCommitteeSelection `json:"data"`
+}
+
 // root wraps eth2p0 root adding proper json marshalling.
 type root eth2p0.Root
 
