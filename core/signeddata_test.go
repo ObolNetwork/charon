@@ -92,6 +92,10 @@ func TestSignedDataSetSignature(t *testing.T) {
 			name: "signed sync contribution",
 			data: core.NewSignedSyncContributionAndProof(testutil.RandomSignedSyncContributionAndProof()),
 		},
+		{
+			name: "signed sync committee selection",
+			data: core.NewSyncCommitteeSelection(testutil.RandomSyncCommitteeSelection()),
+		},
 	}
 
 	for _, test := range tests {

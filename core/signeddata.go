@@ -45,6 +45,7 @@ var (
 	_ SignedData = SignedAggregateAndProof{}
 	_ SignedData = SignedSyncMessage{}
 	_ SignedData = SignedSyncContributionAndProof{}
+	_ SignedData = SyncCommitteeSelection{}
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
