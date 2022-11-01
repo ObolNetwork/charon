@@ -81,7 +81,7 @@ func (s ValidatorSet) PublicKeys() []eth2p0.BLSPubKey {
 	return resp
 }
 
-// ValidatorSetA defines a set 3 validators.
+// ValidatorSetA defines a set of 3 validators.
 var ValidatorSetA = ValidatorSet{
 	1: {
 		Index:   1,

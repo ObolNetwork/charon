@@ -1242,7 +1242,7 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 	}, resp)
 }
 
-func TestComponent_SubmitBeaconCommitteeSubscriptionsV2(t *testing.T) {
+func TestComponent_AggregateBeaconCommitteeSelections(t *testing.T) {
 	ctx := context.Background()
 
 	const slot = 99
@@ -1510,53 +1510,103 @@ func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
 }
 
 func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
-	ctx := context.Background()
+	const (
+		slot  = 0
+		vIdxA = 1
+		vIdxB = 2
+	)
 
-	val := testutil.RandomValidator(t)
+	var (
+		ctx           = context.Background()
+		valSet        = beaconmock.ValidatorSetA
+		pubShareByKey = make(map[*bls_sig.PublicKey]*bls_sig.PublicKey)
+	)
 
-	// Create keys (just use normal keys, not split tbls)
-	pubkey, secret, err := tbls.Keygen()
+	// Construct beaconmock.
+	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(valSet))
 	require.NoError(t, err)
 
-	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey}
-	pk, err := tblsconv.KeyToCore(pubkey)
+	// Sync committee selection 1.
+	pubkey1, secret1, err := tbls.Keygen()
+	require.NoError(t, err)
+	pk1, err := tblsconv.KeyToCore(pubkey1)
 	require.NoError(t, err)
 
-	val.Validator.PublicKey, err = tblsconv.KeyToETH2(pubkey)
+	valSet[vIdxA].Validator.PublicKey, err = tblsconv.KeyToETH2(pubkey1)
 	require.NoError(t, err)
 
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSet{val.Index: val}))
+	selection1 := testutil.RandomSyncCommitteeSelection()
+	selection1.ValidatorIndex = valSet[1].Index
+	selection1.Slot = slot
+	selection1.SelectionProof = syncCommSelectionProof(t, bmock, secret1, slot, selection1.SubcommitteeIndex)
+
+	// Sync committee selection 2.
+	pubkey2, secret2, err := tbls.Keygen()
+	require.NoError(t, err)
+	pk2, err := tblsconv.KeyToCore(pubkey2)
 	require.NoError(t, err)
 
-	selection := testutil.RandomSyncCommitteeSelection()
-	selection.ValidatorIndex = val.Index
-	selection.SelectionProof = syncCommSelectionProof(t, bmock, secret, selection.Slot, selection.SubcommitteeIndex)
+	valSet[vIdxB].Validator.PublicKey, err = tblsconv.KeyToETH2(pubkey2)
+	require.NoError(t, err)
 
-	// Construct the validator api component
+	selection2 := testutil.RandomSyncCommitteeSelection()
+	selection2.ValidatorIndex = valSet[2].Index
+	selection2.Slot = slot
+	selection2.SelectionProof = syncCommSelectionProof(t, bmock, secret2, slot, selection2.SubcommitteeIndex)
+
+	// Populate pubshares map.
+	pubShareByKey[pubkey1] = pubkey1
+	pubShareByKey[pubkey2] = pubkey2
+
+	selections := []*eth2exp.SyncCommitteeSelection{selection1, selection2}
+
+	// Construct the validator api component.
 	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
 	require.NoError(t, err)
 
-	vapi.RegisterAwaitAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
-		require.Equal(t, duty, core.NewPrepareSyncContributionDuty(int64(selection.Slot)))
-		require.Equal(t, key, pk)
+	vapi.RegisterAwaitAggSigDB(func(ctx context.Context, duty core.Duty, pubkey core.PubKey) (core.SignedData, error) {
+		require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
+		for _, val := range valSet {
+			pkEth2, err := pubkey.ToETH2()
+			require.NoError(t, err)
+			if pkEth2 != val.Validator.PublicKey {
+				continue
+			}
 
-		return core.NewSyncCommitteeSelection(selection), nil
+			for _, selection := range selections {
+				if selection.ValidatorIndex == val.Index {
+					require.Equal(t, eth2p0.Slot(slot), selection.Slot)
+
+					return core.NewSyncCommitteeSelection(selection), nil
+				}
+			}
+		}
+
+		return nil, errors.New("unknown public key")
 	})
 
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, duty, core.NewPrepareSyncContributionDuty(slot))
+
 		expect := core.ParSignedDataSet{
-			pk: core.NewPartialSignedSyncCommitteeSelection(selection, 0),
+			pk1: core.NewPartialSignedSyncCommitteeSelection(selection1, 0),
+			pk2: core.NewPartialSignedSyncCommitteeSelection(selection2, 0),
 		}
 
-		require.Equal(t, duty, core.NewPrepareSyncContributionDuty(int64(selection.Slot)))
 		require.Equal(t, expect, set)
 
 		return nil
 	})
 
-	selections, err := vapi.AggregateSyncCommitteeSelections(ctx, []*eth2exp.SyncCommitteeSelection{selection})
+	got, err := vapi.AggregateSyncCommitteeSelections(ctx, selections)
 	require.NoError(t, err)
-	require.Equal(t, selection, selections[0])
+
+	// Sort by VIdx before comparing.
+	sort.Slice(got, func(i, j int) bool {
+		return got[i].ValidatorIndex < got[j].ValidatorIndex
+	})
+
+	require.Equal(t, selections, got)
 }
 
 func signAggregationAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret *bls_sig.SecretKey, aggProof *eth2p0.AggregateAndProof) eth2p0.BLSSignature {
