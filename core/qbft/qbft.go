@@ -51,6 +51,8 @@ type Definition[I any, V comparable] struct {
 	Decide func(ctx context.Context, instance I, value V, qcommit []Msg[I, V])
 	// LogUponRule allows debug logging of triggered upon rules on message receipt.
 	LogUponRule func(ctx context.Context, instance I, process, round int64, msg Msg[I, V], uponRule string)
+	// LogRoundTimeout allows debug logging of round timeouts. It includes all received round messages.
+	LogRoundTimeout func(ctx context.Context, instance I, process, round int64, msgs []Msg[I, V])
 	// Nodes is the total number of nodes/processes participating in consensus.
 	Nodes int
 	// FIFOLimit limits the amount of message buffered for each peer.
@@ -303,12 +305,14 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			}
 
 		case <-timerChan: // Algorithm 3:1
+			msgs := extractRoundMsgs(buffer, round)
+
 			changeRound(round + 1)
 
 			stopTimer()
 			timerChan, stopTimer = d.NewTimer(round)
 
-			d.LogUponRule(ctx, instance, process, round, nil, "RoundTimeout")
+			d.LogRoundTimeout(ctx, instance, process, round, msgs)
 
 			err = broadcastRoundChange()
 
@@ -320,6 +324,20 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			return err
 		}
 	}
+}
+
+// extractRoundMsgs returns all messages from the provided round.
+func extractRoundMsgs[I any, V comparable](buffer map[int64][]Msg[I, V], round int64) []Msg[I, V] {
+	var resp []Msg[I, V]
+	for _, msgs := range buffer {
+		for _, msg := range msgs {
+			if msg.Round() == round {
+				resp = append(resp, msg)
+			}
+		}
+	}
+
+	return resp
 }
 
 // classify returns the rule triggered upon receipt of the last message and its justifications.

@@ -237,11 +237,10 @@ func testQBFT(t *testing.T, test test) {
 		Decide: func(_ context.Context, instance int64, value int64, qcommit []Msg[int64, int64]) {
 			resultChan <- qcommit
 		},
+		LogRoundTimeout: func(ctx context.Context, instance int64, process, round int64, msgs []Msg[int64, int64]) {
+			t.Logf("%s %v@%d ~= %v", clock.NowStr(), process, round, "RoundTimeout")
+		},
 		LogUponRule: func(_ context.Context, instance int64, process, round int64, msg Msg[int64, int64], rule string) {
-			if msg == nil {
-				t.Logf("%s %v@%d ~= %v", clock.NowStr(), process, round, rule)
-				return
-			}
 			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
 			if round > maxRound {
 				cancel()

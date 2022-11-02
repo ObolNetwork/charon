@@ -18,6 +18,7 @@ package consensus
 import (
 	"context"
 	"crypto/ecdsa"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -67,12 +68,13 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 		recvBuffers: make(map[core.Duty]chan msg),
 	}
 
+	quorom := qbft.Definition[int, int]{Nodes: len(peers)}.Quorum()
+
 	// Create qbft definition (this is constant across all consensus instances)
 	c.def = qbft.Definition[core.Duty, [32]byte]{
 		// IsLeader is a deterministic leader election function.
 		IsLeader: func(duty core.Duty, round, process int64) bool {
-			mod := ((duty.Slot) + int64(duty.Type) + round) % int64(len(peers))
-			return mod == process
+			return leader(duty, round, peers) == process
 		},
 
 		// Decide sends consensus output to subscribers.
@@ -108,6 +110,18 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 			_ qbft.Msg[core.Duty, [32]byte], uponRule string,
 		) {
 			log.Debug(ctx, "QBFT upon rule triggered", z.Str("rule", uponRule), z.I64("round", round))
+		},
+
+		// LogRoundTimeout logs round timeouts at debug level.
+		LogRoundTimeout: func(ctx context.Context, duty core.Duty, process,
+			round int64, msgs []qbft.Msg[core.Duty, [32]byte],
+		) {
+			leader := leader(duty, round, peers)
+			reason := timeoutReason(msgs, peers, quorom, int(leader))
+			log.Debug(ctx, "QBFT round timeout",
+				z.I64("round", round),
+				z.Str("timeout_reason", reason),
+			)
 		},
 
 		// Nodes is the number of nodes.
@@ -372,4 +386,47 @@ func isContextErr(err error) bool {
 // endCtxSpan ends the parent span if included in the context.
 func endCtxSpan(ctx context.Context) {
 	trace.SpanFromContext(ctx).End()
+}
+
+// timeoutReason returns a human-readable reason why the round timed out round timeout.
+func timeoutReason(msgs []qbft.Msg[core.Duty, [32]byte], peers []p2p.Peer, threshold, leader int) string {
+	// includedPeers returns two slices of peer names, one with peers
+	// including the message type and one with excluded peers.
+	includedPeers := func(typ qbft.MsgType) (incl []string, excl []string) {
+		for _, peer := range peers {
+			var included bool
+			for _, msg := range msgs {
+				if msg.Type() == typ && msg.Source() == int64(peer.Index) {
+					included = true
+					break
+				}
+			}
+			if included {
+				incl = append(incl, p2p.PeerName(peer.ID))
+			} else {
+				excl = append(excl, p2p.PeerName(peer.ID))
+			}
+		}
+
+		return incl, excl
+	}
+
+	if incl, _ := includedPeers(qbft.MsgPrePrepare); len(incl) == 0 {
+		return "missing pre-prepare, missing leader=" + p2p.PeerName(peers[leader].ID)
+	}
+
+	if incl, excl := includedPeers(qbft.MsgPrepare); len(incl) < threshold {
+		return "insufficient prepares, missing peers=" + fmt.Sprint(excl)
+	}
+
+	if incl, excl := includedPeers(qbft.MsgCommit); len(incl) < threshold {
+		return "insufficient commits, missing peers=" + fmt.Sprint(excl)
+	}
+
+	return "unknown reason"
+}
+
+// leader return the deterministic leader index.
+func leader(duty core.Duty, round int64, peers []p2p.Peer) int64 {
+	return ((duty.Slot) + int64(duty.Type) + round) % int64(len(peers))
 }
