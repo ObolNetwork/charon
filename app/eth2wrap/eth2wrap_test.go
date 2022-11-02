@@ -17,6 +17,7 @@ package eth2wrap_test
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -208,5 +209,20 @@ func TestErrors(t *testing.T) {
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "beacon api aggregate_attestation: nok http response")
+	})
+
+	t.Run("zero net op error", func(t *testing.T) {
+		bmock, err := beaconmock.New()
+		require.NoError(t, err)
+		bmock.GenesisTimeFunc = func(context.Context) (time.Time, error) {
+			return time.Time{}, new(net.OpError)
+		}
+		eth2Cl, err := eth2wrap.Instrument(bmock)
+		require.NoError(t, err)
+
+		_, err = eth2Cl.GenesisTime(ctx)
+		log.Error(ctx, "See this error log for fields", err)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "beacon api genesis_time: network operation error: :")
 	})
 }

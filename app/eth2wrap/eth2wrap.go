@@ -243,7 +243,7 @@ func wrapError(ctx context.Context, err error, label string) error {
 		} else if errors.Is(nerr.Err, context.DeadlineExceeded) || errors.Is(nerr.Err, context.Canceled) {
 			msg = "network operation timeout: " + nerr.Op
 		}
-		err = errors.Wrap(nerr.Err, msg, z.Str("address", nerr.Addr.String()))
+		err = errors.Wrap(nerr.Err, msg, z.Any("address", nerr.Addr))
 	}
 
 	return errors.Wrap(err, "beacon api "+label, z.Str("label", label))
