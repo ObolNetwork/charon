@@ -226,3 +226,19 @@ func TestErrors(t *testing.T) {
 		require.ErrorContains(t, err, "beacon api genesis_time: network operation error: :")
 	})
 }
+
+func TestCtxCancel(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		bmock, err := beaconmock.New()
+		require.NoError(t, err)
+		eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, bmock.Address())
+		require.NoError(t, err)
+
+		cancel() // Cancel context before calling method.
+
+		_, err = eth2Cl.SlotDuration(ctx)
+		require.ErrorIs(t, err, context.Canceled)
+	}
+}
