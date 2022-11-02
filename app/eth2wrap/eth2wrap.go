@@ -163,8 +163,9 @@ func provide[O any](ctx context.Context, clients []Client,
 	defer cancel()
 
 	var (
-		nokResp forkjoin.Result[Client, O]
-		zero    O
+		nokResp    forkjoin.Result[Client, O]
+		hasNokResp bool
+		zero       O
 	)
 	for res := range join() {
 		if ctx.Err() != nil {
@@ -173,7 +174,14 @@ func provide[O any](ctx context.Context, clients []Client,
 			return res.Output, nil
 		} else {
 			nokResp = res
+			hasNokResp = true
 		}
+	}
+
+	if ctx.Err() != nil {
+		return zero, ctx.Err()
+	} else if !hasNokResp {
+		return zero, errors.New("bug: no forkjoin results")
 	}
 
 	return nokResp.Output, nokResp.Err
