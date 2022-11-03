@@ -25,7 +25,7 @@ import (
 	"github.com/obolnetwork/charon/core/priority"
 )
 
-// New return a new infosync component.
+// New returns a new infosync component.
 func New(prioritiser *priority.Component, versions []string) *Component {
 	prioritiser.Subscribe(func(ctx context.Context, duty core.Duty, results []priority.TopicResult) error {
 		for _, result := range results {
