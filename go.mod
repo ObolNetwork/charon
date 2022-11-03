@@ -6,7 +6,7 @@ require (
 	github.com/attestantio/go-eth2-client v0.14.1
 	github.com/bufbuild/buf v1.9.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
-	github.com/ethereum/go-ethereum v1.10.25
+	github.com/ethereum/go-ethereum v1.10.26
 	github.com/ferranbt/fastssz v0.1.2
 	github.com/gorilla/mux v1.8.0
 	github.com/ipfs/go-log/v2 v2.5.1
