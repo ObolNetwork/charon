@@ -78,7 +78,7 @@ func (s *SyncCommMember) setSelections(slot eth2p0.Slot, selections syncSelectio
 
 	s.selections[slot] = selections
 
-	// Mark selections as done.
+	// Mark selections as done
 	ch, ok := s.selectionsOK[slot]
 	if !ok {
 		ch = make(chan struct{})
@@ -172,10 +172,8 @@ func prepareSubcommittees(ctx context.Context, eth2Cl eth2wrap.Client, duties sy
 		return nil, err
 	}
 
-	var (
-		subnetCount = spec["SYNC_COMMITTEE_SUBNET_COUNT"].(uint64)
-		subcomms    = make(subCommittees)
-	)
+	subnetCount := spec["SYNC_COMMITTEE_SUBNET_COUNT"].(uint64)
+	subcomms := make(subCommittees)
 	for _, duty := range duties {
 		for i := uint64(0); i < subnetCount; i++ {
 			subcomms[duty.ValidatorIndex] = append(subcomms[duty.ValidatorIndex], eth2p0.CommitteeIndex(i))
