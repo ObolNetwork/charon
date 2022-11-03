@@ -245,7 +245,7 @@ func newVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.Si
 	return signer, nil
 }
 
-// handleVMockDuty calls appropriate validator mock function to attestation and block proposal.
+// handleVMockDuty calls appropriate validator mock function for attestations, block proposals and sync committee contributions.
 func handleVMockDuty(ctx context.Context, duty core.Duty, eth2Cl eth2wrap.Client,
 	signer validatormock.SignFunc, pubshares []eth2p0.BLSPubKey, attester *validatormock.SlotAttester,
 	syncCommMember *validatormock.SyncCommMember,

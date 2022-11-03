@@ -136,7 +136,7 @@ func wait(ctx context.Context, chs ...chan struct{}) {
 	}
 }
 
-// activeValidators returns the head active validators for the public keys.
+// activeValidators returns the head active validators from the provided public keys.
 func activeValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 	pubkeys []eth2p0.BLSPubKey,
 ) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
