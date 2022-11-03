@@ -71,7 +71,7 @@ func TestPrioritiser(t *testing.T) {
 			priorities = append(priorities, prioToAny(j))
 		}
 
-		prio := priority.NewForT(tcpNode, peers, n, p2p.SendReceive, p2p.RegisterHandler, consensus, msgValidator, time.Hour, noTicks)
+		prio := priority.NewForT(t, tcpNode, peers, n, p2p.SendReceive, p2p.RegisterHandler, consensus, msgValidator, time.Hour, noTicks)
 
 		prio.Subscribe(func(_ context.Context, resInstance priority.Instance, result *pbv1.PriorityResult) error {
 			require.Len(t, result.Topics, 1)

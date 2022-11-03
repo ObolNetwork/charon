@@ -53,6 +53,11 @@ func (p Peer) ShareIdx() int {
 	return p.Index + 1
 }
 
+// PublicKey returns peer public key.
+func (p Peer) PublicKey() (*ecdsa.PublicKey, error) {
+	return PeerIDToKey(p.ID)
+}
+
 // NewPeer returns a new charon peer.
 func NewPeer(record enr.Record, index int) (Peer, error) {
 	var enodePubkey enode.Secp256k1
@@ -81,7 +86,27 @@ func NewPeer(record enr.Record, index int) (Peer, error) {
 	}, nil
 }
 
-// PeerIDFromKey returns the peer ID of the private key.
+// PeerIDToKey returns the public key of the peer ID.
+func PeerIDToKey(p peer.ID) (*ecdsa.PublicKey, error) {
+	pk, err := p.ExtractPublicKey()
+	if err != nil {
+		return nil, errors.Wrap(err, "extract pubkey")
+	}
+
+	raw, err := pk.Raw()
+	if err != nil {
+		return nil, errors.Wrap(err, "raw pubkey")
+	}
+
+	resp, err := crypto.DecompressPubkey(raw)
+	if err != nil {
+		return nil, errors.Wrap(err, "decompress pubkey")
+	}
+
+	return resp, nil
+}
+
+// PeerIDFromKey returns the peer ID of the public key.
 func PeerIDFromKey(pubkey *ecdsa.PublicKey) (peer.ID, error) {
 	p2pPubkey, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(crypto.CompressPubkey(pubkey))
 	if err != nil {

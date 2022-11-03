@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"go.opentelemetry.io/otel/trace"
@@ -50,12 +49,12 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 	// Extract peer pubkeys.
 	keys := make(map[int64]*ecdsa.PublicKey)
 	for i, p := range peers {
-		var pk enode.Secp256k1
-		if err := p.ENR.Load(&pk); err != nil {
-			return nil, errors.Wrap(err, "load pubkey")
+		pk, err := p.PublicKey()
+		if err != nil {
+			return nil, err
 		}
-		epk := ecdsa.PublicKey(pk)
-		keys[int64(i)] = &epk
+
+		keys[int64(i)] = pk
 	}
 
 	c := &Component{
@@ -172,9 +171,9 @@ func (c *Component) Subscribe(fn func(ctx context.Context, duty core.Duty, set c
 
 // SubscribePriority registers a callback for priority protocol message proposals from leaders.
 // Note this function is not thread safe, it should be called *before* Start and Propose.
-func (c *Component) SubscribePriority(fn func(ctx context.Context, duty core.Duty, msg *pbv1.PriorityMsg) error) {
+func (c *Component) SubscribePriority(fn func(ctx context.Context, duty core.Duty, msg *pbv1.PriorityResult) error) {
 	c.subs = append(c.subs, func(ctx context.Context, duty core.Duty, value proto.Message) error {
-		msg, ok := value.(*pbv1.PriorityMsg)
+		msg, ok := value.(*pbv1.PriorityResult)
 		if !ok {
 			return nil
 		}
@@ -213,7 +212,7 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 
 // ProposePriority participants in a consensus instance proposing the provided priority message.
 // It returns on error or nil when the context is cancelled.
-func (c *Component) ProposePriority(ctx context.Context, duty core.Duty, msg *pbv1.PriorityMsg) error {
+func (c *Component) ProposePriority(ctx context.Context, duty core.Duty, msg *pbv1.PriorityResult) error {
 	return c.propose(ctx, duty, msg)
 }
 

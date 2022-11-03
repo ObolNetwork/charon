@@ -23,9 +23,22 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// Version is the release version of the codebase.
-// Usually overridden by tag names when building binaries.
-const Version = "v0.11.0"
+const (
+	// Version is the release version of the codebase.
+	// Usually overridden by tag names when building binaries.
+	Version = v11
+
+	v11 = "v0.11.0"
+	v10 = "v0.10.0"
+)
+
+// Supported returns the supported versions in order of precedence.
+func Supported() []string {
+	return []string{
+		v11,
+		v10,
+	}
+}
 
 // GitCommit returns the git commit hash and timestamp from build info.
 func GitCommit() (hash string, timestamp string) {
