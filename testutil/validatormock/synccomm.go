@@ -159,32 +159,6 @@ func (s *SyncCommMember) Aggregate(ctx context.Context, slot eth2p0.Slot) error 
 	return nil
 }
 
-// getSubcommittees returns the subcommittee indexes for the provided sync committee duty.
-func getSubcommittees(ctx context.Context, eth2Cl eth2client.SpecProvider, duty eth2v1.SyncCommitteeDuty) ([]eth2p0.CommitteeIndex, error) {
-	spec, err := eth2Cl.Spec(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	commSize, ok := spec["SYNC_COMMITTEE_SIZE"].(uint64)
-	if !ok {
-		return nil, errors.New("invalid SYNC_COMMITTEE_SIZE")
-	}
-
-	subnetCount, ok := spec["SYNC_COMMITTEE_SUBNET_COUNT"].(uint64)
-	if !ok {
-		return nil, errors.New("invalid SYNC_COMMITTEE_SUBNET_COUNT")
-	}
-
-	var subcommittees []eth2p0.CommitteeIndex
-	for _, idx := range duty.ValidatorSyncCommitteeIndices {
-		subcommIdx := uint64(idx) / commSize / subnetCount
-		subcommittees = append(subcommittees, eth2p0.CommitteeIndex(subcommIdx))
-	}
-
-	return subcommittees, nil
-}
-
 // prepareSyncCommDuties returns sync committee duties for the epoch.
 func prepareSyncCommDuties(ctx context.Context, eth2Cl eth2wrap.Client, vals validators, epoch eth2p0.Epoch) (syncDuties, error) {
 	if len(vals) == 0 {
@@ -233,7 +207,7 @@ func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc
 
 	var selections []*eth2exp.SyncCommitteeSelection
 	for _, duty := range duties {
-		subcommIdxs, err := getSubcommittees(ctx, eth2Cl, *duty)
+		subcommIdxs, err := getSubcommittees(ctx, eth2Cl, duty)
 		if err != nil {
 			return nil, err
 		}
@@ -269,6 +243,32 @@ func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc
 	}
 
 	return eth2Cl.AggregateSyncCommitteeSelections(ctx, selections)
+}
+
+// getSubcommittees returns the subcommittee indexes for the provided sync committee duty.
+func getSubcommittees(ctx context.Context, eth2Cl eth2client.SpecProvider, duty *eth2v1.SyncCommitteeDuty) ([]eth2p0.CommitteeIndex, error) {
+	spec, err := eth2Cl.Spec(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	commSize, ok := spec["SYNC_COMMITTEE_SIZE"].(uint64)
+	if !ok {
+		return nil, errors.New("invalid SYNC_COMMITTEE_SIZE")
+	}
+
+	subnetCount, ok := spec["SYNC_COMMITTEE_SUBNET_COUNT"].(uint64)
+	if !ok {
+		return nil, errors.New("invalid SYNC_COMMITTEE_SUBNET_COUNT")
+	}
+
+	var subcommittees []eth2p0.CommitteeIndex
+	for _, idx := range duty.ValidatorSyncCommitteeIndices {
+		subcommIdx := uint64(idx) / commSize / subnetCount
+		subcommittees = append(subcommittees, eth2p0.CommitteeIndex(subcommIdx))
+	}
+
+	return subcommittees, nil
 }
 
 // submitSyncMessage submits signed sync committee messages for desired slot.
