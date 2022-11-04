@@ -163,8 +163,6 @@ func (p *Prioritiser) Prioritise(ctx context.Context, msg *pbv1.PriorityMsg) err
 
 // Run runs the prioritiser until the context is cancelled.
 // Note this will panic if called multiple times.
-//
-
 func (p *Prioritiser) Run(ctx context.Context) error {
 	defer close(p.quit)
 	ctx = log.WithTopic(ctx, "priority")
@@ -246,7 +244,7 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 // handleRequest handles a priority message exchange initiated by a peer.
 func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.PriorityMsg) (*pbv1.PriorityMsg, error) {
 	if pID.String() != msg.PeerId {
-		return nil, errors.New("invalid priority message peer id")
+		return nil, errors.New("invalid priority message peer id", z.Str("expect", pID.String()), z.Str("actual", msg.PeerId))
 	} else if err := p.msgValidator(msg); err != nil {
 		return nil, errors.Wrap(err, "invalid priority message")
 	}
