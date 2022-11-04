@@ -48,9 +48,10 @@ const (
 	DutySyncMessage             DutyType = 10
 	DutyPrepareSyncContribution DutyType = 11
 	DutySyncContribution        DutyType = 12
+	DutyInfoSync                DutyType = 13
 	// Only ever append new types here...
 
-	dutySentinel DutyType = 13 // Must always be last
+	dutySentinel DutyType = 14 // Must always be last
 )
 
 func (d DutyType) Valid() bool {
@@ -72,13 +73,14 @@ func (d DutyType) String() string {
 		DutySyncMessage:             "sync_message",
 		DutyPrepareSyncContribution: "prepare_sync_contribution",
 		DutySyncContribution:        "sync_contribution",
+		DutyInfoSync:                "info_sync",
 	}[d]
 }
 
 // AllDutyTypes returns a list of all valid duty types.
 func AllDutyTypes() []DutyType {
 	var resp []DutyType
-	for i := DutyUnknown + 1; i.Valid(); i++ {
+	for i := DutyUnknown + 1; i < dutySentinel; i++ {
 		resp = append(resp, i)
 	}
 
@@ -250,6 +252,15 @@ func NewSyncContributionDuty(slot int64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutySyncContribution,
+	}
+}
+
+// NewInfoSyncDuty returns a new info sync duty. It is a convenience function that is
+// slightly more readable and concise than the struct literal equivalent.
+func NewInfoSyncDuty(slot int64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutyInfoSync,
 	}
 }
 

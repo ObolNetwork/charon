@@ -69,3 +69,20 @@ func TestVerifyP2PKey(t *testing.T) {
 	require.NoError(t, err)
 	require.Error(t, p2p.VerifyP2PKey(peers, key))
 }
+
+func TestPeerIDKey(t *testing.T) {
+	lock, keys, _ := cluster.NewForT(t, 1, 3, 4, 0)
+
+	peers, err := lock.Peers()
+	require.NoError(t, err)
+
+	for i, p := range peers {
+		pk, err := p2p.PeerIDToKey(p.ID)
+		require.NoError(t, err)
+		require.Equal(t, keys[i].PublicKey, *pk)
+
+		pID, err := p2p.PeerIDFromKey(pk)
+		require.NoError(t, err)
+		require.Equal(t, p.ID, pID)
+	}
+}

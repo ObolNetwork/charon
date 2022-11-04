@@ -18,6 +18,7 @@ package priority
 
 import (
 	"context"
+	"testing"
 	"time"
 
 	ssz "github.com/ferranbt/fastssz"
@@ -71,7 +72,16 @@ type received struct {
 	Response chan<- *pbv1.PriorityMsg
 }
 
-func NewForT(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
+// NewForT exports newInternal for testing and returns a new prioritiser.
+func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
+	consensus Consensus, msgValidator msgValidator,
+	consensusTimeout time.Duration, tickerProvider tickerProvider,
+) *Prioritiser {
+	return newInternal(tcpNode, peers, minRequired, sendFunc, registerHandlerFunc, consensus, msgValidator, consensusTimeout, tickerProvider)
+}
+
+// newInternal returns a new prioritiser, it is the constructor.
+func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
 	consensus Consensus, msgValidator msgValidator,
 	consensusTimeout time.Duration, tickerProvider tickerProvider,
 ) *Prioritiser {
