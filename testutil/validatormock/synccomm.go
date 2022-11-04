@@ -19,10 +19,12 @@ import (
 	"context"
 	"sync"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
@@ -34,7 +36,6 @@ import (
 type (
 	syncDuties     []*eth2v1.SyncCommitteeDuty
 	syncSelections []*eth2exp.SyncCommitteeSelection
-	subCommittees  map[eth2p0.ValidatorIndex][]eth2p0.CommitteeIndex // Sync subcommittees to which the validators are assigned.
 )
 
 func NewSyncCommMember(eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, signFunc SignFunc, pubkeys []eth2p0.BLSPubKey) *SyncCommMember {
@@ -44,7 +45,6 @@ func NewSyncCommMember(eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, signFunc Sign
 		pubkeys:      pubkeys,
 		signFunc:     signFunc,
 		dutiesOK:     make(chan struct{}),
-		subcomms:     make(map[eth2p0.ValidatorIndex][]eth2p0.CommitteeIndex),
 		selections:   make(map[eth2p0.Slot]syncSelections),
 		selectionsOK: make(map[eth2p0.Slot]chan struct{}),
 	}
@@ -61,7 +61,6 @@ type SyncCommMember struct {
 	// Mutable state
 	mu           sync.Mutex
 	vals         validators
-	subcomms     subCommittees
 	duties       syncDuties
 	dutiesOK     chan struct{}
 	selections   map[eth2p0.Slot]syncSelections
@@ -122,11 +121,6 @@ func (s *SyncCommMember) PrepareEpoch(ctx context.Context) error {
 		return err
 	}
 
-	s.subcomms, err = prepareSubcommittees(ctx, s.eth2Cl, s.duties)
-	if err != nil {
-		return err
-	}
-
 	err = subscribeSyncCommSubnets(ctx, s.eth2Cl, s.epoch, s.duties)
 	if err != nil {
 		return err
@@ -140,7 +134,7 @@ func (s *SyncCommMember) PrepareEpoch(ctx context.Context) error {
 func (s *SyncCommMember) PrepareSlot(ctx context.Context, slot eth2p0.Slot) error {
 	wait(ctx, s.dutiesOK)
 
-	selections, err := prepareSyncSelections(ctx, s.eth2Cl, s.signFunc, s.vals, s.subcomms, slot)
+	selections, err := prepareSyncSelections(ctx, s.eth2Cl, s.signFunc, s.duties, slot)
 	if err != nil {
 		return err
 	}
@@ -165,32 +159,30 @@ func (s *SyncCommMember) Aggregate(ctx context.Context, slot eth2p0.Slot) error 
 	return nil
 }
 
-// prepareSubcommittees returns the assignment of validators to sync subcommittees. It assumes that all validators are included in all sync subnets (subcommittees).
-func prepareSubcommittees(ctx context.Context, eth2Cl eth2wrap.Client, duties syncDuties) (subCommittees, error) {
+// getSubcommittees returns the subcommittee indexes for the provided sync committee duty.
+func getSubcommittees(ctx context.Context, eth2Cl eth2client.SpecProvider, duty eth2v1.SyncCommitteeDuty) ([]eth2p0.CommitteeIndex, error) {
 	spec, err := eth2Cl.Spec(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	subnetCount := spec["SYNC_COMMITTEE_SUBNET_COUNT"].(uint64)
-	subcomms := make(subCommittees)
-	for _, duty := range duties {
-		// ValidatorSyncCommitteeIndices represents the indexes of the validator in the list of validators in the sync committee.
-		// For example: assuming committee size as 512 and subnet count as 4, and a validator has ValidatorSyncCommitteeIndices = {40, 450}. Then, We would have
-		// SYNC_COMMITTEE_SIZE // SYNC_COMMITTEE_SUBNET_COUNT = 512 / 4 = 128. Using the formula from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#broadcast-sync-committee-message:
-		// set([
-		//        uint64(index // (SYNC_COMMITTEE_SIZE // SYNC_COMMITTEE_SUBNET_COUNT))
-		//        for index in sync_committee_indices
-		//    ])
-		// . We can infer that the validator is assigned to two subnets (subcommittees), zero and three since: subnets = [40 / 128, 450 / 128 ] = [0, 3].
-
-		for _, commIdx := range duty.ValidatorSyncCommitteeIndices {
-			subcommIdx := uint64(commIdx) / subnetCount
-			subcomms[duty.ValidatorIndex] = append(subcomms[duty.ValidatorIndex], eth2p0.CommitteeIndex(subcommIdx))
-		}
+	commSize, ok := spec["SYNC_COMMITTEE_SIZE"].(uint64)
+	if !ok {
+		return nil, errors.New("invalid SYNC_COMMITTEE_SIZE")
 	}
 
-	return subcomms, nil
+	subnetCount, ok := spec["SYNC_COMMITTEE_SUBNET_COUNT"].(uint64)
+	if !ok {
+		return nil, errors.New("invalid SYNC_COMMITTEE_SUBNET_COUNT")
+	}
+
+	var subcommittees []eth2p0.CommitteeIndex
+	for _, commIdx := range duty.ValidatorSyncCommitteeIndices {
+		subcommIdx := uint64(commIdx) / commSize / subnetCount
+		subcommittees = append(subcommittees, eth2p0.CommitteeIndex(subcommIdx))
+	}
+
+	return subcommittees, nil
 }
 
 // prepareSyncCommDuties returns sync committee duties for the epoch.
@@ -233,15 +225,20 @@ func subscribeSyncCommSubnets(ctx context.Context, eth2Cl eth2wrap.Client, epoch
 }
 
 // prepareSyncSelections returns the sync committee selections for the slot corresponding to the provided validators.
-func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, vals validators, subcomms subCommittees, slot eth2p0.Slot) (syncSelections, error) {
+func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, duties syncDuties, slot eth2p0.Slot) (syncSelections, error) {
 	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
 	if err != nil {
 		return nil, err
 	}
 
 	var selections []*eth2exp.SyncCommitteeSelection
-	for vIdx, val := range vals {
-		for _, subcommIdx := range subcomms[vIdx] {
+	for _, duty := range duties {
+		subcommIdxs, err := getSubcommittees(ctx, eth2Cl, *duty)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, subcommIdx := range subcommIdxs {
 			data := altair.SyncAggregatorSelectionData{
 				Slot:              slot,
 				SubcommitteeIndex: uint64(subcommIdx),
@@ -257,13 +254,13 @@ func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc
 				return nil, err
 			}
 
-			sig, err := signFunc(val.Validator.PublicKey, sigData[:])
+			sig, err := signFunc(duty.PubKey, sigData[:])
 			if err != nil {
 				return nil, err
 			}
 
 			selections = append(selections, &eth2exp.SyncCommitteeSelection{
-				ValidatorIndex:    vIdx,
+				ValidatorIndex:    duty.ValidatorIndex,
 				Slot:              slot,
 				SubcommitteeIndex: subcommIdx,
 				SelectionProof:    sig,
