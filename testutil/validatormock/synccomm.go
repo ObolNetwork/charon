@@ -175,8 +175,18 @@ func prepareSubcommittees(ctx context.Context, eth2Cl eth2wrap.Client, duties sy
 	subnetCount := spec["SYNC_COMMITTEE_SUBNET_COUNT"].(uint64)
 	subcomms := make(subCommittees)
 	for _, duty := range duties {
-		for i := uint64(0); i < subnetCount; i++ {
-			subcomms[duty.ValidatorIndex] = append(subcomms[duty.ValidatorIndex], eth2p0.CommitteeIndex(i))
+		// ValidatorSyncCommitteeIndices represents the indexes of the validator in the list of validators in the sync committee.
+		// For example: assuming committee size as 512 and subnet count as 4, and a validator has ValidatorSyncCommitteeIndices = {40, 450}. Then, We would have
+		// SYNC_COMMITTEE_SIZE // SYNC_COMMITTEE_SUBNET_COUNT = 512 / 4 = 128. Using the formula from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#broadcast-sync-committee-message:
+		// set([
+		//        uint64(index // (SYNC_COMMITTEE_SIZE // SYNC_COMMITTEE_SUBNET_COUNT))
+		//        for index in sync_committee_indices
+		//    ])
+		// . We can infer that the validator is assigned to two subnets (subcommittees), zero and three since: subnets = [40 / 128, 450 / 128 ] = [0, 3].
+
+		for _, commIdx := range duty.ValidatorSyncCommitteeIndices {
+			subcommIdx := uint64(commIdx) / subnetCount
+			subcomms[duty.ValidatorIndex] = append(subcomms[duty.ValidatorIndex], eth2p0.CommitteeIndex(subcommIdx))
 		}
 	}
 
