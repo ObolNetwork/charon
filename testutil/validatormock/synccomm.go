@@ -19,20 +19,23 @@ import (
 	"context"
 	"sync"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
 type (
 	syncDuties     []*eth2v1.SyncCommitteeDuty
-	syncSelections []any
+	syncSelections []*eth2exp.SyncCommitteeSelection
 )
 
 func NewSyncCommMember(eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, signFunc SignFunc, pubkeys []eth2p0.BLSPubKey) *SyncCommMember {
@@ -91,6 +94,7 @@ func (s *SyncCommMember) getSelections(slot eth2p0.Slot) syncSelections {
 	return s.selections[slot]
 }
 
+// getSelectionsOK returns a channel for sync committee selections. When this channel is closed, it means that selections are ready for this slot.
 func (s *SyncCommMember) getSelectionsOK(slot eth2p0.Slot) chan struct{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -104,7 +108,7 @@ func (s *SyncCommMember) getSelectionsOK(slot eth2p0.Slot) chan struct{} {
 	return ch
 }
 
-// PrepareEpoch stores sync committee attDuties and submits sync committee subscriptions at the start of an epoch.
+// PrepareEpoch stores sync committee duties and submits sync committee subscriptions at the start of an epoch.
 func (s *SyncCommMember) PrepareEpoch(ctx context.Context) error {
 	var err error
 	s.vals, err = activeValidators(ctx, s.eth2Cl, s.pubkeys)
@@ -129,31 +133,44 @@ func (s *SyncCommMember) PrepareEpoch(ctx context.Context) error {
 // PrepareSlot prepares selection proofs at the start of a slot.
 func (s *SyncCommMember) PrepareSlot(ctx context.Context, slot eth2p0.Slot) error {
 	wait(ctx, s.dutiesOK)
-	selections, err := prepareSyncContributions(ctx, s.eth2Cl, s.signFunc, s.vals, s.duties, slot)
+
+	selections, err := prepareSyncSelections(ctx, s.eth2Cl, s.signFunc, s.duties, slot)
 	if err != nil {
 		return err
 	}
+
 	s.setSelections(slot, selections)
 
 	return nil
 }
 
-// Message submits Sync committee messages at desired i.e., 1/3rd into the slot.
+// Message submits sync committee messages at 1/3rd into the slot.
 func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 	wait(ctx, s.dutiesOK)
 	return submitSyncMessage(ctx, s.eth2Cl, slot, s.signFunc, s.duties)
 }
 
-// Aggregate submits Sync committee messages at desired i.e., 2/3rd into the slot.
+// Aggregate submits SignedContributionAndProof at 2/3rd into the slot. It does sync committee aggregations.
+// It blocks until sync committee selections are ready for this slot.
 func (s *SyncCommMember) Aggregate(ctx context.Context, slot eth2p0.Slot) error {
-	wait(ctx, s.getSelectionsOK(slot))
+	wait(ctx, s.dutiesOK, s.getSelectionsOK(slot))
+	// TODO(xenowits): Add aggregate function.
+
 	return nil
 }
 
-func prepareSyncContributions(context.Context, eth2wrap.Client, SignFunc,
-	validators, syncDuties, eth2p0.Slot,
-) (syncSelections, error) {
-	return nil, nil
+// prepareSyncCommDuties returns sync committee duties for the epoch.
+func prepareSyncCommDuties(ctx context.Context, eth2Cl eth2wrap.Client, vals validators, epoch eth2p0.Epoch) (syncDuties, error) {
+	if len(vals) == 0 {
+		return nil, nil
+	}
+
+	var vIdxs []eth2p0.ValidatorIndex
+	for idx := range vals {
+		vIdxs = append(vIdxs, idx)
+	}
+
+	return eth2Cl.SyncCommitteeDuties(ctx, epoch, vIdxs)
 }
 
 // subscribeSyncCommSubnets submits sync committee subscriptions at the start of an epoch until next epoch.
@@ -181,18 +198,77 @@ func subscribeSyncCommSubnets(ctx context.Context, eth2Cl eth2wrap.Client, epoch
 	return nil
 }
 
-// prepareSyncCommDuties returns sync committee duties for the epoch.
-func prepareSyncCommDuties(ctx context.Context, eth2Cl eth2wrap.Client, vals validators, epoch eth2p0.Epoch) (syncDuties, error) {
-	if len(vals) == 0 {
-		return nil, nil
+// prepareSyncSelections returns the sync committee selections for the slot corresponding to the provided validators.
+func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, duties syncDuties, slot eth2p0.Slot) (syncSelections, error) {
+	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
+	if err != nil {
+		return nil, err
 	}
 
-	var vIdxs []eth2p0.ValidatorIndex
-	for idx := range vals {
-		vIdxs = append(vIdxs, idx)
+	var selections []*eth2exp.SyncCommitteeSelection
+	for _, duty := range duties {
+		subcommIdxs, err := getSubcommittees(ctx, eth2Cl, duty)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, subcommIdx := range subcommIdxs {
+			data := altair.SyncAggregatorSelectionData{
+				Slot:              slot,
+				SubcommitteeIndex: uint64(subcommIdx),
+			}
+
+			sigRoot, err := data.HashTreeRoot()
+			if err != nil {
+				return nil, err
+			}
+
+			sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainSyncCommitteeSelectionProof, epoch, sigRoot)
+			if err != nil {
+				return nil, err
+			}
+
+			sig, err := signFunc(duty.PubKey, sigData[:])
+			if err != nil {
+				return nil, err
+			}
+
+			selections = append(selections, &eth2exp.SyncCommitteeSelection{
+				ValidatorIndex:    duty.ValidatorIndex,
+				Slot:              slot,
+				SubcommitteeIndex: subcommIdx,
+				SelectionProof:    sig,
+			})
+		}
 	}
 
-	return eth2Cl.SyncCommitteeDuties(ctx, epoch, vIdxs)
+	return eth2Cl.AggregateSyncCommitteeSelections(ctx, selections)
+}
+
+// getSubcommittees returns the subcommittee indexes for the provided sync committee duty.
+func getSubcommittees(ctx context.Context, eth2Cl eth2client.SpecProvider, duty *eth2v1.SyncCommitteeDuty) ([]eth2p0.CommitteeIndex, error) {
+	spec, err := eth2Cl.Spec(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	commSize, ok := spec["SYNC_COMMITTEE_SIZE"].(uint64)
+	if !ok {
+		return nil, errors.New("invalid SYNC_COMMITTEE_SIZE")
+	}
+
+	subnetCount, ok := spec["SYNC_COMMITTEE_SUBNET_COUNT"].(uint64)
+	if !ok {
+		return nil, errors.New("invalid SYNC_COMMITTEE_SUBNET_COUNT")
+	}
+
+	var subcommittees []eth2p0.CommitteeIndex
+	for _, idx := range duty.ValidatorSyncCommitteeIndices {
+		subcommIdx := uint64(idx) / commSize / subnetCount
+		subcommittees = append(subcommittees, eth2p0.CommitteeIndex(subcommIdx))
+	}
+
+	return subcommittees, nil
 }
 
 // submitSyncMessage submits signed sync committee messages for desired slot.

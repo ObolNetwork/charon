@@ -290,7 +290,7 @@ func Register(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	return eth2Cl.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signedRegistration})
 }
 
-// NewSigner returns a singing function supporting the provided private keys.
+// NewSigner returns a signing function supporting the provided private keys.
 func NewSigner(secrets ...*bls_sig.SecretKey) SignFunc {
 	return func(pubkey eth2p0.BLSPubKey, msg []byte) (eth2p0.BLSSignature, error) {
 		secret, err := getSecret(secrets, pubkey)

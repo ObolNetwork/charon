@@ -181,7 +181,7 @@ func TestSimnetNoNetwork_WithSyncCommitteeMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	expect := newSimnetExpect(args.N, core.DutySyncMessage)
+	expect := newSimnetExpect(args.N, core.DutyPrepareSyncContribution, core.DutySyncMessage)
 	testSimnet(t, args, expect)
 }
 
@@ -202,11 +202,14 @@ type simnetArgs struct {
 func newSimnetArgs(t *testing.T) simnetArgs {
 	t.Helper()
 
-	const n = 3
-	lock, p2pKeys, secretShares := cluster.NewForT(t, 1, n, n, 99)
+	const (
+		n      = 3
+		numDVs = 1
+	)
+	lock, p2pKeys, secretShares := cluster.NewForT(t, numDVs, n, n, 99)
 
 	var secrets []*bls_sig.SecretKey
-	for _, share := range secretShares[0] {
+	for _, share := range secretShares[0] { // Using only index 0 since we only have 1 DV.
 		secret, err := tblsconv.ShareToSecret(share)
 		require.NoError(t, err)
 		secrets = append(secrets, secret)
@@ -271,7 +274,7 @@ func newSimnetExpect(count int, duties ...core.DutyType) simnetExpect {
 	}
 }
 
-// testSimnet spins of a simnet cluster or N charon nodes connected via in-memory transports.
+// testSimnet spins up a simnet cluster of N charon nodes connected via in-memory transports.
 // It asserts successful end-2-end attestation broadcast from all nodes for 2 slots.
 func testSimnet(t *testing.T, args simnetArgs, expect simnetExpect) {
 	t.Helper()
@@ -430,6 +433,7 @@ var (
 )
 
 // startTeku starts a teku validator client for the provided node and returns updated args.
+// See https://docs.teku.consensys.net/en/latest/Reference/CLI/CLI-Syntax/.
 func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs {
 	t.Helper()
 
