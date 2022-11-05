@@ -47,6 +47,7 @@ func NewSyncCommMember(eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, signFunc Sign
 		dutiesOK:     make(chan struct{}),
 		selections:   make(map[eth2p0.Slot]syncSelections),
 		selectionsOK: make(map[eth2p0.Slot]chan struct{}),
+		blockRoots:   make(map[eth2p0.Slot]*eth2p0.Root),
 	}
 }
 
@@ -60,11 +61,12 @@ type SyncCommMember struct {
 
 	// Mutable state
 	mu           sync.Mutex
-	vals         validators
-	duties       syncDuties
+	vals         validators // Current set of active validators
+	duties       syncDuties // Sync committee duties
 	dutiesOK     chan struct{}
-	selections   map[eth2p0.Slot]syncSelections
+	selections   map[eth2p0.Slot]syncSelections // Sync committee selections per slot
 	selectionsOK map[eth2p0.Slot]chan struct{}
+	blockRoots   map[eth2p0.Slot]*eth2p0.Root // Beacon block roots per slot
 }
 
 func (s *SyncCommMember) Epoch() eth2p0.Epoch {
@@ -144,19 +146,31 @@ func (s *SyncCommMember) PrepareSlot(ctx context.Context, slot eth2p0.Slot) erro
 	return nil
 }
 
-// Message submits sync committee messages at 1/3rd into the slot.
+// Message submits sync committee messages at 1/3rd into the slot. It also sets the beacon block root for the slot.
 func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 	wait(ctx, s.dutiesOK)
-	return submitSyncMessage(ctx, s.eth2Cl, slot, s.signFunc, s.duties)
+
+	blockRoot, err := s.eth2Cl.BeaconBlockRoot(ctx, "head")
+	if err != nil {
+		return err
+	}
+
+	err = submitSyncMessages(ctx, s.eth2Cl, slot, blockRoot, s.signFunc, s.duties)
+	if err != nil {
+		return err
+	}
+
+	s.blockRoots[slot] = blockRoot
+
+	return nil
 }
 
 // Aggregate submits SignedContributionAndProof at 2/3rd into the slot. It does sync committee aggregations.
 // It blocks until sync committee selections are ready for this slot.
-func (s *SyncCommMember) Aggregate(ctx context.Context, slot eth2p0.Slot) error {
+func (s *SyncCommMember) Aggregate(ctx context.Context, slot eth2p0.Slot) (bool, error) {
 	wait(ctx, s.dutiesOK, s.getSelectionsOK(slot))
-	// TODO(xenowits): Add aggregate function.
 
-	return nil
+	return aggContributions(ctx, s.eth2Cl, s.signFunc, slot, s.vals, s.getSelections(slot), s.blockRoots[slot])
 }
 
 // prepareSyncCommDuties returns sync committee duties for the epoch.
@@ -198,7 +212,7 @@ func subscribeSyncCommSubnets(ctx context.Context, eth2Cl eth2wrap.Client, epoch
 	return nil
 }
 
-// prepareSyncSelections returns the sync committee selections for the slot corresponding to the provided validators.
+// prepareSyncSelections returns the aggregate sync committee selections for the slot corresponding to the provided validators.
 func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, duties syncDuties, slot eth2p0.Slot) (syncSelections, error) {
 	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
 	if err != nil {
@@ -271,15 +285,10 @@ func getSubcommittees(ctx context.Context, eth2Cl eth2client.SpecProvider, duty 
 	return subcommittees, nil
 }
 
-// submitSyncMessage submits signed sync committee messages for desired slot.
-func submitSyncMessage(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot, signFunc SignFunc, duties syncDuties) error {
+// submitSyncMessages submits signed sync committee messages for desired slot.
+func submitSyncMessages(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot, blockRoot *eth2p0.Root, signFunc SignFunc, duties syncDuties) error {
 	if len(duties) == 0 {
 		return nil
-	}
-
-	blockRoot, err := eth2Cl.BeaconBlockRoot(ctx, "head")
-	if err != nil {
-		return err
 	}
 
 	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
@@ -315,4 +324,73 @@ func submitSyncMessage(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.
 	log.Info(ctx, "Mock sync committee msg submitted", z.Int("slot", int(slot)))
 
 	return nil
+}
+
+// aggContributions submits aggregate altair.SignedContributionAndProof. It returns false if contribution aggregation is not required.
+func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot eth2p0.Slot, vals validators, selections syncSelections, blockRoot *eth2p0.Root) (bool, error) {
+	if len(selections) == 0 {
+		return false, nil
+	}
+
+	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
+	if err != nil {
+		return false, err
+	}
+
+	var signedContribAndProofs []*altair.SignedContributionAndProof
+	for _, selection := range selections {
+		// Check if the validator is an aggregator.
+		ok, err := eth2exp.IsSyncCommAggregator(ctx, eth2Cl, selection.SelectionProof)
+		if err != nil {
+			return false, err
+		} else if !ok {
+			continue
+		}
+
+		// Query BN to get sync committee contribution.
+		contrib, err := eth2Cl.SyncCommitteeContribution(ctx, selection.Slot, uint64(selection.SubcommitteeIndex), *blockRoot)
+		if err != nil {
+			return false, err
+		}
+
+		vIdx := selection.ValidatorIndex
+		contribAndProof := &altair.ContributionAndProof{
+			AggregatorIndex: vIdx,
+			Contribution:    contrib,
+			SelectionProof:  selection.SelectionProof,
+		}
+
+		val, ok := vals[vIdx]
+		if !ok {
+			return false, errors.New("missing validator index", z.U64("vidx", uint64(vIdx)))
+		}
+
+		proofRoot, err := contribAndProof.HashTreeRoot()
+		if err != nil {
+			return false, err
+		}
+
+		sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainContributionAndProof, epoch, proofRoot)
+		if err != nil {
+			return false, err
+		}
+
+		sig, err := signFunc(val.Validator.PublicKey, sigData[:])
+		if err != nil {
+			return false, err
+		}
+
+		signedContribAndProof := &altair.SignedContributionAndProof{
+			Message:   contribAndProof,
+			Signature: sig,
+		}
+
+		signedContribAndProofs = append(signedContribAndProofs, signedContribAndProof)
+	}
+
+	if err := eth2Cl.SubmitSyncCommitteeContributions(ctx, signedContribAndProofs); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }

@@ -44,6 +44,7 @@ var (
 	_ SignedData = BeaconCommitteeSelection{}
 	_ SignedData = SignedAggregateAndProof{}
 	_ SignedData = SignedSyncMessage{}
+	_ SignedData = SyncContributionAndProof{}
 	_ SignedData = SignedSyncContributionAndProof{}
 	_ SignedData = SyncCommitteeSelection{}
 )

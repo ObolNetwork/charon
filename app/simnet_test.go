@@ -181,7 +181,7 @@ func TestSimnetNoNetwork_WithSyncCommitteeMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	expect := newSimnetExpect(args.N, core.DutyPrepareSyncContribution, core.DutySyncMessage)
+	expect := newSimnetExpect(args.N, core.DutyPrepareSyncContribution, core.DutySyncMessage, core.DutySyncContribution)
 	testSimnet(t, args, expect)
 }
 

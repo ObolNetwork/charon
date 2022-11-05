@@ -377,7 +377,7 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 
 		val, ok := vals[selection.ValidatorIndex]
 		if !ok {
-			return false, errors.New("missing validator index")
+			return false, errors.New("missing validator index", z.U64("vidx", uint64(selection.ValidatorIndex)))
 		}
 
 		proofSig, err := signFunc(val.Validator.PublicKey, sigData[:])
