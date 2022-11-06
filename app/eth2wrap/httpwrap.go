@@ -54,12 +54,12 @@ func (h httpAdapter) AggregateBeaconCommitteeSelections(ctx context.Context, sel
 
 	respBody, err := httpPost(ctx, h.Address(), "/eth/v1/validator/beacon_committee_selections", bytes.NewReader(reqBody), h.timeout)
 	if err != nil {
-		return nil, errors.Wrap(err, "post submit beacon committee selections")
+		return nil, errors.Wrap(err, "submit beacon committee selections")
 	}
 
 	var resp submitBeaconCommitteeSelectionsJSON
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrap(err, "failed to parse submit beacon committee selections")
+		return nil, errors.Wrap(err, "failed to parse beacon committee selections response")
 	}
 
 	return resp.Data, nil
@@ -79,7 +79,7 @@ func (h httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, selec
 
 	var resp submitSyncCommitteeSelectionsJSON
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrap(err, "failed to parse beacon committee selections response")
+		return nil, errors.Wrap(err, "failed to parse sync committee selections response")
 	}
 
 	return resp.Data, nil

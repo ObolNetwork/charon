@@ -80,6 +80,7 @@ func (a *SlotAttester) Slot() eth2p0.Slot {
 // - Fetches attester attDuties for the slot (this could be cached at start of epoch).
 // - Prepares aggregation attDuties for slot attesters.
 // It panics if called more than once.
+// TODO(xenowits): Fix off-chance race condition bug when Prepare panics if called for the same slot multiple times.
 func (a *SlotAttester) Prepare(ctx context.Context) error {
 	var err error
 
