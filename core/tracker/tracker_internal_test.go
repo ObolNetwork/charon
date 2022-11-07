@@ -923,7 +923,7 @@ func TestIsParSigEventExpected(t *testing.T) {
 		{
 			name: "DutySyncMessage unexpected",
 			duty: core.NewSyncMessageDuty(slot),
-			out:  true,
+			out:  false,
 		},
 		{
 			name: "DutySyncMessage expected",
