@@ -142,47 +142,69 @@ func TestSimnetNoNetwork_WithBuilderProposerTekuVC(t *testing.T) {
 	testSimnet(t, args, expect)
 }
 
-func TestSimnetNoNetwork_WithAttesterMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
-	expect := newSimnetExpect(args.N, core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator)
-	testSimnet(t, args, expect)
-}
+func TestSimnetDuties(t *testing.T) {
+	tests := []struct {
+		name                string
+		bmockOpts           []beaconmock.Option
+		duties              []core.DutyType
+		builderAPI          bool
+		builderRegistration bool
+	}{
+		{
+			name: "attester",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoProposerDuties(),
+				beaconmock.WithNoSyncCommitteeDuties(),
+			},
+			duties: []core.DutyType{core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator},
+		},
+		{
+			name: "proposer",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoAttesterDuties(),
+				beaconmock.WithNoSyncCommitteeDuties(),
+			},
+			duties: []core.DutyType{core.DutyProposer, core.DutyRandao},
+		},
+		{
+			name: "builder proposer",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoAttesterDuties(),
+				beaconmock.WithNoSyncCommitteeDuties(),
+			},
+			duties:     []core.DutyType{core.DutyBuilderProposer, core.DutyRandao},
+			builderAPI: true,
+		},
+		{
+			name: "builder registration",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoAttesterDuties(),
+				beaconmock.WithNoProposerDuties(),
+				beaconmock.WithNoSyncCommitteeDuties(),
+			},
+			duties:              []core.DutyType{core.DutyBuilderRegistration},
+			builderRegistration: true,
+		},
+		{
+			name: "sync committee",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoAttesterDuties(),
+				beaconmock.WithNoProposerDuties(),
+			},
+			duties: []core.DutyType{core.DutyPrepareSyncContribution, core.DutySyncMessage, core.DutySyncContribution},
+		},
+	}
 
-func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
-	expect := newSimnetExpect(args.N, core.DutyProposer, core.DutyRandao)
-	testSimnet(t, args, expect)
-}
-
-func TestSimnetNoNetwork_WithBuilderProposerMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
-	args.BuilderAPI = true
-	expect := newSimnetExpect(args.N, core.DutyBuilderProposer, core.DutyRandao)
-	testSimnet(t, args, expect)
-}
-
-func TestSimnetNoNetwork_WithBuilderRegistrationMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
-	args.BuilderRegistration = true
-	expect := newSimnetExpect(args.N, core.DutyBuilderRegistration)
-	testSimnet(t, args, expect)
-}
-
-func TestSimnetNoNetwork_WithSyncCommitteeMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	expect := newSimnetExpect(args.N, core.DutyPrepareSyncContribution, core.DutySyncMessage, core.DutySyncContribution)
-	testSimnet(t, args, expect)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			args := newSimnetArgs(t)
+			args.BuilderRegistration = test.builderRegistration
+			args.BuilderAPI = test.builderAPI
+			args.BMockOpts = test.bmockOpts
+			expect := newSimnetExpect(args.N, test.duties...)
+			testSimnet(t, args, expect)
+		})
+	}
 }
 
 type simnetArgs struct {
