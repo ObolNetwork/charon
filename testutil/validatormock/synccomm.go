@@ -47,7 +47,8 @@ func NewSyncCommMember(eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, signFunc Sign
 		dutiesOK:     make(chan struct{}),
 		selections:   make(map[eth2p0.Slot]syncSelections),
 		selectionsOK: make(map[eth2p0.Slot]chan struct{}),
-		blockRoots:   make(map[eth2p0.Slot]*eth2p0.Root),
+		blockRoot:    make(map[eth2p0.Slot]*eth2p0.Root),
+		blockRootOK:  make(map[eth2p0.Slot]chan struct{}),
 	}
 }
 
@@ -66,7 +67,8 @@ type SyncCommMember struct {
 	dutiesOK     chan struct{}
 	selections   map[eth2p0.Slot]syncSelections // Sync committee selections per slot
 	selectionsOK map[eth2p0.Slot]chan struct{}
-	blockRoots   map[eth2p0.Slot]*eth2p0.Root // Beacon block roots per slot
+	blockRoot    map[eth2p0.Slot]*eth2p0.Root // Beacon block root per slot
+	blockRootOK  map[eth2p0.Slot]chan struct{}
 }
 
 func (s *SyncCommMember) Epoch() eth2p0.Epoch {
@@ -85,10 +87,11 @@ func (s *SyncCommMember) setSelections(slot eth2p0.Slot, selections syncSelectio
 		ch = make(chan struct{})
 		s.selectionsOK[slot] = ch
 	}
+
 	close(ch)
 }
 
-//nolint:unused
+// getSelections returns the sync committee selections for the provided slot.
 func (s *SyncCommMember) getSelections(slot eth2p0.Slot) syncSelections {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -105,6 +108,45 @@ func (s *SyncCommMember) getSelectionsOK(slot eth2p0.Slot) chan struct{} {
 	if !ok {
 		ch = make(chan struct{})
 		s.selectionsOK[slot] = ch
+	}
+
+	return ch
+}
+
+// setBlockRoot sets block root for the slot.
+func (s *SyncCommMember) setBlockRoot(slot eth2p0.Slot, blockRoot *eth2p0.Root) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.blockRoot[slot] = blockRoot
+
+	// Mark block root assigned for the slot
+	ch, ok := s.blockRootOK[slot]
+	if !ok {
+		ch = make(chan struct{})
+		s.blockRootOK[slot] = ch
+	}
+
+	close(ch)
+}
+
+// getBlockRoot returns the beacon block root for the provided slot.
+func (s *SyncCommMember) getBlockRoot(slot eth2p0.Slot) *eth2p0.Root {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.blockRoot[slot]
+}
+
+// getBlockRootOK returns a channel for beacon block root. When this channel is closed, it means that block root is ready for this slot.
+func (s *SyncCommMember) getBlockRootOK(slot eth2p0.Slot) chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ch, ok := s.blockRootOK[slot]
+	if !ok {
+		ch = make(chan struct{})
+		s.blockRootOK[slot] = ch
 	}
 
 	return ch
@@ -160,7 +202,7 @@ func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 		return err
 	}
 
-	s.blockRoots[slot] = blockRoot
+	s.setBlockRoot(slot, blockRoot)
 
 	return nil
 }
@@ -168,9 +210,9 @@ func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 // Aggregate submits SignedContributionAndProof at 2/3rd into the slot. It does sync committee aggregations.
 // It blocks until sync committee selections are ready for this slot.
 func (s *SyncCommMember) Aggregate(ctx context.Context, slot eth2p0.Slot) (bool, error) {
-	wait(ctx, s.dutiesOK, s.getSelectionsOK(slot))
+	wait(ctx, s.dutiesOK, s.getSelectionsOK(slot), s.getBlockRootOK(slot))
 
-	return aggContributions(ctx, s.eth2Cl, s.signFunc, slot, s.vals, s.getSelections(slot), s.blockRoots[slot])
+	return aggContributions(ctx, s.eth2Cl, s.signFunc, slot, s.vals, s.getSelections(slot), s.getBlockRoot(slot))
 }
 
 // prepareSyncCommDuties returns sync committee duties for the epoch.
@@ -219,7 +261,7 @@ func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc
 		return nil, err
 	}
 
-	var selections []*eth2exp.SyncCommitteeSelection
+	var partials []*eth2exp.SyncCommitteeSelection
 	for _, duty := range duties {
 		subcommIdxs, err := getSubcommittees(ctx, eth2Cl, duty)
 		if err != nil {
@@ -247,7 +289,7 @@ func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc
 				return nil, err
 			}
 
-			selections = append(selections, &eth2exp.SyncCommitteeSelection{
+			partials = append(partials, &eth2exp.SyncCommitteeSelection{
 				ValidatorIndex:    duty.ValidatorIndex,
 				Slot:              slot,
 				SubcommitteeIndex: subcommIdx,
@@ -256,7 +298,27 @@ func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc
 		}
 	}
 
-	return eth2Cl.AggregateSyncCommitteeSelections(ctx, selections)
+	aggregateSelections, err := eth2Cl.AggregateSyncCommitteeSelections(ctx, partials)
+	if err != nil {
+		return nil, err
+	}
+
+	var selections syncSelections
+	for _, selection := range aggregateSelections {
+		// Check if the validator is an aggregator.
+		ok, err := eth2exp.IsSyncCommAggregator(ctx, eth2Cl, selection.SelectionProof)
+		if err != nil {
+			return nil, err
+		} else if !ok {
+			continue
+		}
+
+		selections = append(selections, selection)
+	}
+
+	log.Info(ctx, "Resolved sync committee aggregators", z.Int("aggregators", len(selections)))
+
+	return selections, nil
 }
 
 // getSubcommittees returns the subcommittee indexes for the provided sync committee duty.
@@ -339,14 +401,6 @@ func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Sign
 
 	var signedContribAndProofs []*altair.SignedContributionAndProof
 	for _, selection := range selections {
-		// Check if the validator is an aggregator.
-		ok, err := eth2exp.IsSyncCommAggregator(ctx, eth2Cl, selection.SelectionProof)
-		if err != nil {
-			return false, err
-		} else if !ok {
-			continue
-		}
-
 		// Query BN to get sync committee contribution.
 		contrib, err := eth2Cl.SyncCommitteeContribution(ctx, selection.Slot, uint64(selection.SubcommitteeIndex), *blockRoot)
 		if err != nil {
