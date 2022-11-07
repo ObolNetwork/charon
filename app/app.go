@@ -468,7 +468,7 @@ func wirePrioritise(conf Config, life *lifecycle.Manager, tcpNode host.Host, pee
 		return nil
 	}
 
-	// consensusDelay of 6 seconds is a good start. It is long enough for all peers to share proposals both in prod and in testing.
+	// consensusDelay of 6 seconds (half a slot) is a good thumb suck. It is long enough for all peers to share proposals both in prod and in testing.
 	const consensusDelay = time.Second * 6
 
 	prio, err := priority.NewComponent(tcpNode, peers, thresholhd,
