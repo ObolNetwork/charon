@@ -277,11 +277,12 @@ func handleVMockDuty(ctx context.Context, duty core.Duty, eth2Cl eth2wrap.Client
 		}
 		log.Info(ctx, "Mock blinded block proposal submitted to validatorapi", z.I64("slot", duty.Slot))
 	case core.DutySyncContribution:
-		err := syncCommMember.Aggregate(ctx, eth2p0.Slot(duty.Slot))
+		ok, err := syncCommMember.Aggregate(ctx, eth2p0.Slot(duty.Slot))
 		if err != nil {
 			return errors.Wrap(err, "mock sync contribution failed")
+		} else if ok {
+			log.Info(ctx, "Mock sync contribution submitted to validatorapi", z.I64("slot", duty.Slot))
 		}
-		log.Info(ctx, "Mock sync contribution submitted to validatorapi", z.I64("slot", duty.Slot))
 	default:
 		return errors.New("invalid duty type")
 	}

@@ -837,7 +837,7 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 			psigsBySlot[slot] = make(core.ParSignedDataSet)
 		}
 
-		psigsBySlot[slot][pk] = core.NewPartialSignedSyncContributionAndProof(contrib, c.shareIdx)
+		psigsBySlot[slot][pk] = parSigData
 	}
 
 	for slot, data := range psigsBySlot {

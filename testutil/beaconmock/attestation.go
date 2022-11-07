@@ -76,7 +76,7 @@ func (s *attestationStore) AttestationDataByRoot(dataRoot eth2p0.Root) (*eth2p0.
 	return data, nil
 }
 
-// NewAttestationData generates and and returns an attestation data.
+// NewAttestationData generates and returns an attestation data.
 func (s *attestationStore) NewAttestationData(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 	epoch, err := eth2util.EpochFromSlot(ctx, s.httpMock, slot)
 	if err != nil {

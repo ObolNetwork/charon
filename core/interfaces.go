@@ -103,6 +103,9 @@ type ValidatorAPI interface {
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
 
+	// RegisterAwaitSyncContribution registers a function to query sync contribution data.
+	RegisterAwaitSyncContribution(func(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
+
 	// RegisterPubKeyByAttestation registers a function to query validator by attestation.
 	RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
 
@@ -188,7 +191,9 @@ type wireFuncs struct {
 	DutyDBAwaitAttestation              func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
 	DutyDBPubKeyByAttestation           func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
 	DutyDBAwaitAggAttestation           func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
+	DutyDBAwaitSyncContribution         func(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	VAPIRegisterAwaitAttestation        func(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
+	VAPIRegisterAwaitSyncContribution   func(func(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
 	VAPIRegisterAwaitBeaconBlock        func(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error))
 	VAPIRegisterAwaitBlindedBeaconBlock func(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error))
 	VAPIRegisterGetDutyDefinition       func(func(context.Context, Duty) (DutyDefinitionSet, error))
@@ -241,9 +246,11 @@ func Wire(sched Scheduler,
 		DutyDBAwaitBlindedBeaconBlock:       dutyDB.AwaitBlindedBeaconBlock,
 		DutyDBPubKeyByAttestation:           dutyDB.PubKeyByAttestation,
 		DutyDBAwaitAggAttestation:           dutyDB.AwaitAggAttestation,
+		DutyDBAwaitSyncContribution:         dutyDB.AwaitSyncContribution,
 		VAPIRegisterAwaitBeaconBlock:        vapi.RegisterAwaitBeaconBlock,
 		VAPIRegisterAwaitBlindedBeaconBlock: vapi.RegisterAwaitBlindedBeaconBlock,
 		VAPIRegisterAwaitAttestation:        vapi.RegisterAwaitAttestation,
+		VAPIRegisterAwaitSyncContribution:   vapi.RegisterAwaitSyncContribution,
 		VAPIRegisterGetDutyDefinition:       vapi.RegisterGetDutyDefinition,
 		VAPIRegisterPubKeyByAttestation:     vapi.RegisterPubKeyByAttestation,
 		VAPIRegisterAwaitAggAttestation:     vapi.RegisterAwaitAggAttestation,
@@ -274,6 +281,7 @@ func Wire(sched Scheduler,
 	w.VAPIRegisterAwaitBeaconBlock(w.DutyDBAwaitBeaconBlock)
 	w.VAPIRegisterAwaitBlindedBeaconBlock(w.DutyDBAwaitBlindedBeaconBlock)
 	w.VAPIRegisterAwaitAttestation(w.DutyDBAwaitAttestation)
+	w.VAPIRegisterAwaitSyncContribution(w.DutyDBAwaitSyncContribution)
 	w.VAPIRegisterGetDutyDefinition(w.SchedulerGetDutyDefinition)
 	w.VAPIRegisterPubKeyByAttestation(w.DutyDBPubKeyByAttestation)
 	w.VAPIRegisterAwaitAggAttestation(w.DutyDBAwaitAggAttestation)

@@ -80,6 +80,7 @@ func (a *SlotAttester) Slot() eth2p0.Slot {
 // - Fetches attester attDuties for the slot (this could be cached at start of epoch).
 // - Prepares aggregation attDuties for slot attesters.
 // It panics if called more than once.
+// TODO(xenowits): Figure out why is this called twice sometimes (https://github.com/ObolNetwork/charon/issues/1389)).
 func (a *SlotAttester) Prepare(ctx context.Context) error {
 	var err error
 
@@ -377,7 +378,7 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 
 		val, ok := vals[selection.ValidatorIndex]
 		if !ok {
-			return false, errors.New("missing validator index")
+			return false, errors.New("missing validator index", z.U64("vidx", uint64(selection.ValidatorIndex)))
 		}
 
 		proofSig, err := signFunc(val.Validator.PublicKey, sigData[:])
