@@ -427,7 +427,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err := wirePrioritise(conf, life, tcpNode, peerIDs, sender.SendReceive, cons, sched, p2pKey); err != nil {
+	if err := wirePrioritise(conf, life, tcpNode, peerIDs, lock.Threshold, sender.SendReceive, cons, sched, p2pKey); err != nil {
 		return err
 	}
 
@@ -459,7 +459,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 }
 
 // wirePrioritise wires the priority protocol which determines cluster wide priorities for the next epoch.
-func wirePrioritise(conf Config, life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID,
+func wirePrioritise(conf Config, life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, thresholhd int,
 	sendFunc p2p.SendReceiveFunc, coreCons core.Consensus, sched core.Scheduler, p2pKey *ecdsa.PrivateKey,
 ) error {
 	cons, ok := coreCons.(*consensus.Component)
@@ -471,7 +471,7 @@ func wirePrioritise(conf Config, life *lifecycle.Manager, tcpNode host.Host, pee
 	// consensusDelay of 6 seconds is a good start. It is long enough for all peer to share proposals both in prod and in testing.
 	const consensusDelay = time.Second * 6
 
-	prio, err := priority.NewComponent(tcpNode, peers, cluster.Threshold(len(peers)),
+	prio, err := priority.NewComponent(tcpNode, peers, thresholhd,
 		sendFunc, p2p.RegisterHandler, cons, consensusDelay, p2pKey)
 	if err != nil {
 		return err

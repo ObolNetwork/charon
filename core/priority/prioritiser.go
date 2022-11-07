@@ -33,7 +33,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const protocolID = "charon/priority/1.0.0"
+const ProtocolID = "charon/priority/1.0.0"
 
 // Instance identifies an instance of the priority protocol.
 type Instance proto.Message
@@ -85,6 +85,12 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p
 	consensus Consensus, msgValidator msgValidator,
 	consensusTimeout time.Duration, tickerProvider tickerProvider,
 ) *Prioritiser {
+	// Create log filters
+	noSupportFilters := make(map[peer.ID]z.Field)
+	for _, peerID := range peers {
+		noSupportFilters[peerID] = log.Filter()
+	}
+
 	n := &Prioritiser{
 		tcpNode:          tcpNode,
 		sendFunc:         sendFunc,
@@ -97,6 +103,8 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p
 		proposals:        make(chan *pbv1.PriorityMsg),
 		receives:         make(chan received),
 		quit:             make(chan struct{}),
+		noSupportFilters: noSupportFilters,
+		skipAllFilter:    log.Filter(),
 	}
 
 	// Wire consensus output to Prioritiser subscribers.
@@ -111,7 +119,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p
 	})
 
 	// Register prioritiser protocol handler.
-	registerHandlerFunc("priority", tcpNode, protocolID,
+	registerHandlerFunc("priority", tcpNode, ProtocolID,
 		func() proto.Message { return new(pbv1.PriorityMsg) },
 		func(ctx context.Context, pID peer.ID, msg proto.Message) (proto.Message, bool, error) {
 			prioMsg, ok := msg.(*pbv1.PriorityMsg)
@@ -141,6 +149,8 @@ type Prioritiser struct {
 	msgValidator     msgValidator
 	tickerProvider   tickerProvider
 	subs             []subscriber
+	noSupportFilters map[peer.ID]z.Field
+	skipAllFilter    z.Field
 }
 
 // Subscribe registers a prioritiser output subscriber function.
@@ -275,6 +285,12 @@ func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.
 
 // prioritiseOnce initiates a priority message exchange with all peers.
 func (p *Prioritiser) prioritiseOnce(ctx context.Context, msg *pbv1.PriorityMsg) {
+	if !p.quorumSupported(ctx) {
+		log.Warn(ctx, "Skipping non-critical priority protocol not supported by quorum peers", nil, p.skipAllFilter)
+		return
+	}
+	log.Debug(ctx, "Priority protocol triggered")
+
 	// Send our own message first to start consensus timeout.
 	go func() { // Async since unbuffered
 		select {
@@ -293,7 +309,7 @@ func (p *Prioritiser) prioritiseOnce(ctx context.Context, msg *pbv1.PriorityMsg)
 
 		go func(pID peer.ID) {
 			response := new(pbv1.PriorityMsg)
-			err := p.sendFunc(ctx, p.tcpNode, pID, msg, response, protocolID)
+			err := p.sendFunc(ctx, p.tcpNode, pID, msg, response, ProtocolID)
 			if err != nil {
 				// No need to log, since transport will do it.
 				return
@@ -315,6 +331,39 @@ func (p *Prioritiser) prioritiseOnce(ctx context.Context, msg *pbv1.PriorityMsg)
 			}
 		}(pID)
 	}
+}
+
+// quorumSupported returns true if at least quorum peers support the priority protocol.
+func (p *Prioritiser) quorumSupported(ctx context.Context) bool {
+	var count int
+	for _, peerID := range p.peers {
+		// Check if peer supports this protocol.
+		if protocols, err := p.tcpNode.Peerstore().GetProtocols(peerID); err != nil || len(protocols) == 0 {
+			// Ignore peer until some protocols detected
+			continue
+		} else if !supported(protocols) {
+			log.Warn(ctx, "Non-critical priority protocol not supported by peer", nil,
+				z.Str("peer", p2p.PeerName(peerID)),
+				p.noSupportFilters[peerID],
+			)
+
+			continue
+		}
+		count++
+	}
+
+	return (count + 1) >= p.minRequired // Include ourselves in count
+}
+
+// supported returns true if the priority ProtocolID is included in the list of protocols.
+func supported(protocols []string) bool {
+	for _, p := range protocols {
+		if p == ProtocolID {
+			return true
+		}
+	}
+
+	return false
 }
 
 // hashProto returns a deterministic ssz hash root of the proto message.

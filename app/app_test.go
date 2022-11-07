@@ -401,11 +401,14 @@ func TestInfoSync(t *testing.T) {
 	const n = 3
 	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, 0)
 
-	var (
-		eg     errgroup.Group
-		result = make(chan error)
-	)
+	asserter := &priorityAsserter{
+		asserter: asserter{Timeout: time.Second * 10},
+		N:        n,
+	}
+
+	var eg errgroup.Group
 	for i := 0; i < n; i++ {
+		i := i // Copy iteration variable
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
 			Feature:          featureset.DefaultConfig(),
@@ -413,30 +416,9 @@ func TestInfoSync(t *testing.T) {
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: testutil.AvailableAddr(t).String(), // Random validatorapi address
 			TestConfig: app.TestConfig{
-				PrioritiseCallback: func(ctx context.Context, duty core.Duty, results []priority.TopicResult) error {
-					var err error
-					if len(results) != 1 {
-						err = errors.New("unexpected number of results")
-					} else if results[0].Topic != "version" {
-						err = errors.New("unexpected topic")
-					} else {
-						var actual []string
-						for _, prio := range results[0].Priorities {
-							actual = append(actual, prio.Priority)
-						}
-						if !assert.Equal(t, version.Supported(), actual) {
-							err = errors.New("unexpected priorities")
-						}
-					}
-					select {
-					case <-ctx.Done():
-					case result <- err:
-					}
-
-					return nil
-				},
-				Lock:   &lock,
-				P2PKey: p2pKeys[i],
+				PrioritiseCallback: asserter.Callback(t, i),
+				Lock:               &lock,
+				P2PKey:             p2pKeys[i],
 				SimnetBMockOpts: []beaconmock.Option{
 					beaconmock.WithNoAttesterDuties(),
 					beaconmock.WithNoProposerDuties(),
@@ -459,16 +441,47 @@ func TestInfoSync(t *testing.T) {
 
 	eg.Go(func() error {
 		defer cancel()
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case err := <-result:
-			return err
-		}
+		return asserter.Await(ctx, t)
 	})
 
 	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
-
 	require.NoError(t, err)
+}
+
+// priorityAsserter asserts that all nodes resolved the same priorities.
+type priorityAsserter struct {
+	asserter
+	N int
+}
+
+// Await waits for all nodes to ping each other or time out.
+func (a *priorityAsserter) Await(ctx context.Context, t *testing.T) error {
+	t.Helper()
+	return a.await(ctx, t, a.N)
+}
+
+// Callback returns the PingCallback function for the ith node.
+func (a *priorityAsserter) Callback(t *testing.T, i int) func(ctx context.Context, duty core.Duty, results []priority.TopicResult) error {
+	t.Helper()
+
+	return func(ctx context.Context, duty core.Duty, results []priority.TopicResult) error {
+		if !assert.Len(t, results, 1) {
+			return errors.New("unexpected number of results")
+		} else if !assert.Equal(t, "version", results[0].Topic) {
+			return errors.New("unexpected topic")
+		}
+
+		var actual []string
+		for _, prio := range results[0].Priorities {
+			actual = append(actual, prio.Priority)
+		}
+		if !assert.Equal(t, version.Supported(), actual) {
+			return errors.New("unexpected priorities")
+		}
+
+		a.callbacks.Store(fmt.Sprint(i), true)
+
+		return nil
+	}
 }

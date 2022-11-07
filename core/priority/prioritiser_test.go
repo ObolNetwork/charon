@@ -56,6 +56,8 @@ func TestPrioritiser(t *testing.T) {
 		for _, other := range tcpNodes {
 			tcpNode.Peerstore().AddAddrs(other.ID(), other.Addrs(), peerstore.PermanentAddrTTL)
 			other.Peerstore().AddAddrs(tcpNode.ID(), tcpNode.Addrs(), peerstore.PermanentAddrTTL)
+			require.NoError(t, tcpNode.Peerstore().AddProtocols(other.ID(), priority.ProtocolID))
+			require.NoError(t, other.Peerstore().AddProtocols(tcpNode.ID(), priority.ProtocolID))
 		}
 		tcpNodes = append(tcpNodes, tcpNode)
 		peers = append(peers, tcpNode.ID())
