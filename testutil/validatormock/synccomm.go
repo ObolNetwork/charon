@@ -47,7 +47,7 @@ func NewSyncCommMember(eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, signFunc Sign
 		dutiesOK:     make(chan struct{}),
 		selections:   make(map[eth2p0.Slot]syncSelections),
 		selectionsOK: make(map[eth2p0.Slot]chan struct{}),
-		blockRoot:    make(map[eth2p0.Slot]*eth2p0.Root),
+		blockRoot:    make(map[eth2p0.Slot]eth2p0.Root),
 		blockRootOK:  make(map[eth2p0.Slot]chan struct{}),
 	}
 }
@@ -67,7 +67,7 @@ type SyncCommMember struct {
 	dutiesOK     chan struct{}
 	selections   map[eth2p0.Slot]syncSelections // Sync committee selections per slot
 	selectionsOK map[eth2p0.Slot]chan struct{}
-	blockRoot    map[eth2p0.Slot]*eth2p0.Root // Beacon block root per slot
+	blockRoot    map[eth2p0.Slot]eth2p0.Root // Beacon block root per slot
 	blockRootOK  map[eth2p0.Slot]chan struct{}
 }
 
@@ -114,7 +114,7 @@ func (s *SyncCommMember) getSelectionsOK(slot eth2p0.Slot) chan struct{} {
 }
 
 // setBlockRoot sets block root for the slot.
-func (s *SyncCommMember) setBlockRoot(slot eth2p0.Slot, blockRoot *eth2p0.Root) {
+func (s *SyncCommMember) setBlockRoot(slot eth2p0.Slot, blockRoot eth2p0.Root) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -131,7 +131,7 @@ func (s *SyncCommMember) setBlockRoot(slot eth2p0.Slot, blockRoot *eth2p0.Root) 
 }
 
 // getBlockRoot returns the beacon block root for the provided slot.
-func (s *SyncCommMember) getBlockRoot(slot eth2p0.Slot) *eth2p0.Root {
+func (s *SyncCommMember) getBlockRoot(slot eth2p0.Slot) eth2p0.Root {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -197,12 +197,12 @@ func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 		return err
 	}
 
-	err = submitSyncMessages(ctx, s.eth2Cl, slot, blockRoot, s.signFunc, s.duties)
+	err = submitSyncMessages(ctx, s.eth2Cl, slot, *blockRoot, s.signFunc, s.duties)
 	if err != nil {
 		return err
 	}
 
-	s.setBlockRoot(slot, blockRoot)
+	s.setBlockRoot(slot, *blockRoot)
 
 	return nil
 }
@@ -348,7 +348,7 @@ func getSubcommittees(ctx context.Context, eth2Cl eth2client.SpecProvider, duty 
 }
 
 // submitSyncMessages submits signed sync committee messages for desired slot.
-func submitSyncMessages(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot, blockRoot *eth2p0.Root, signFunc SignFunc, duties syncDuties) error {
+func submitSyncMessages(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot, blockRoot eth2p0.Root, signFunc SignFunc, duties syncDuties) error {
 	if len(duties) == 0 {
 		return nil
 	}
@@ -358,7 +358,7 @@ func submitSyncMessages(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0
 		return err
 	}
 
-	sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainSyncCommittee, epoch, *blockRoot)
+	sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainSyncCommittee, epoch, blockRoot)
 	if err != nil {
 		return err
 	}
@@ -372,7 +372,7 @@ func submitSyncMessages(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0
 
 		msgs = append(msgs, &altair.SyncCommitteeMessage{
 			Slot:            slot,
-			BeaconBlockRoot: *blockRoot,
+			BeaconBlockRoot: blockRoot,
 			ValidatorIndex:  duty.ValidatorIndex,
 			Signature:       sig,
 		})
@@ -389,7 +389,9 @@ func submitSyncMessages(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0
 }
 
 // aggContributions submits aggregate altair.SignedContributionAndProof. It returns false if contribution aggregation is not required.
-func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot eth2p0.Slot, vals validators, selections syncSelections, blockRoot *eth2p0.Root) (bool, error) {
+func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot eth2p0.Slot, vals validators,
+	selections syncSelections, blockRoot eth2p0.Root,
+) (bool, error) {
 	if len(selections) == 0 {
 		return false, nil
 	}
@@ -402,7 +404,7 @@ func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Sign
 	var signedContribAndProofs []*altair.SignedContributionAndProof
 	for _, selection := range selections {
 		// Query BN to get sync committee contribution.
-		contrib, err := eth2Cl.SyncCommitteeContribution(ctx, selection.Slot, uint64(selection.SubcommitteeIndex), *blockRoot)
+		contrib, err := eth2Cl.SyncCommitteeContribution(ctx, selection.Slot, uint64(selection.SubcommitteeIndex), blockRoot)
 		if err != nil {
 			return false, err
 		}
