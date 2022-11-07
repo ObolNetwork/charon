@@ -55,9 +55,11 @@ import (
 	"github.com/obolnetwork/charon/core/consensus"
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/core/fetcher"
+	"github.com/obolnetwork/charon/core/infosync"
 	"github.com/obolnetwork/charon/core/leadercast"
 	"github.com/obolnetwork/charon/core/parsigdb"
 	"github.com/obolnetwork/charon/core/parsigex"
+	"github.com/obolnetwork/charon/core/priority"
 	"github.com/obolnetwork/charon/core/scheduler"
 	"github.com/obolnetwork/charon/core/sigagg"
 	"github.com/obolnetwork/charon/core/tracker"
@@ -110,6 +112,8 @@ type TestConfig struct {
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
 	// BuilderRegistration provides a channel for tests to trigger builder registration by the validator mock,
 	BuilderRegistration <-chan *eth2api.VersionedValidatorRegistration
+	// PrioritiseCallback is called with priority protocol results.
+	PrioritiseCallback func(context.Context, core.Duty, []priority.TopicResult) error
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -423,6 +427,10 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
+	if err := wirePrioritise(conf, life, tcpNode, peerIDs, lock.Threshold, sender.SendReceive, cons, sched, p2pKey); err != nil {
+		return err
+	}
+
 	wireRecaster(sched, sigAgg, broadcaster)
 
 	core.Wire(sched, fetch, cons, dutyDB, vapi,
@@ -446,6 +454,45 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	life.RegisterStop(lifecycle.StopScheduler, lifecycle.HookFuncMin(sched.Stop))
 	life.RegisterStop(lifecycle.StopDutyDB, lifecycle.HookFuncMin(dutyDB.Shutdown))
 	life.RegisterStop(lifecycle.StopRetryer, lifecycle.HookFuncCtx(retryer.Shutdown))
+
+	return nil
+}
+
+// wirePrioritise wires the priority protocol which determines cluster wide priorities for the next epoch.
+func wirePrioritise(conf Config, life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, thresholhd int,
+	sendFunc p2p.SendReceiveFunc, coreCons core.Consensus, sched core.Scheduler, p2pKey *ecdsa.PrivateKey,
+) error {
+	cons, ok := coreCons.(*consensus.Component)
+	if !ok {
+		// Priority protocol not supported for leader cast.
+		return nil
+	}
+
+	// consensusDelay of 6 seconds (half a slot) is a good thumb suck. It is long enough for all peers to share proposals both in prod and in testing.
+	const consensusDelay = time.Second * 6
+
+	prio, err := priority.NewComponent(tcpNode, peers, thresholhd,
+		sendFunc, p2p.RegisterHandler, cons, consensusDelay, p2pKey)
+	if err != nil {
+		return err
+	}
+
+	sync := infosync.New(prio, version.Supported())
+
+	// Trigger info syncs in last slot of the epoch (for the next epoch).
+	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
+		if !slot.LastInEpoch() {
+			return nil
+		}
+
+		return sync.Trigger(ctx, slot.Slot)
+	})
+
+	if conf.TestConfig.PrioritiseCallback != nil {
+		prio.Subscribe(conf.TestConfig.PrioritiseCallback)
+	}
+
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFunc(prio.Run))
 
 	return nil
 }

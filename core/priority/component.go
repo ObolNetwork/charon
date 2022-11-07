@@ -60,7 +60,7 @@ type coreConsensus interface {
 // NewComponent returns a new priority component.
 func NewComponent(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc,
 	registerHandlerFunc p2p.RegisterHandlerFunc, consensus coreConsensus,
-	slotDuration time.Duration, privkey *ecdsa.PrivateKey,
+	consensusTimeout time.Duration, privkey *ecdsa.PrivateKey,
 ) (*Component, error) {
 	verifier, err := newMsgVerifier(peers)
 	if err != nil {
@@ -68,14 +68,15 @@ func NewComponent(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc 
 	}
 
 	tickerProvider := func() (<-chan time.Time, func()) {
-		ticker := time.NewTicker(slotDuration / 10)
+		ticker := time.NewTicker(consensusTimeout / 10)
 		return ticker.C, ticker.Stop
 	}
 
 	prioritiser := newInternal(tcpNode, peers, minRequired, sendFunc, registerHandlerFunc,
-		consensusWrapper{consensus}, verifier, slotDuration, tickerProvider)
+		consensusWrapper{consensus}, verifier, consensusTimeout, tickerProvider)
 
 	return &Component{
+		peerID:      tcpNode.ID(),
 		prioritiser: prioritiser,
 		privkey:     privkey,
 	}, nil
@@ -86,6 +87,12 @@ type Component struct {
 	peerID      peer.ID
 	privkey     *ecdsa.PrivateKey
 	prioritiser *Prioritiser
+}
+
+// Run runs the prioritiser until the context is cancelled.
+// Note this will panic if called multiple times.
+func (c *Component) Run(ctx context.Context) error {
+	return c.prioritiser.Run(ctx)
 }
 
 // Subscribe registers a prioritiser output subscriber function.
@@ -165,7 +172,7 @@ func verifyMsgSig(msg *pbv1.PriorityMsg, pubkey *ecdsa.PublicKey) (bool, error) 
 		return false, errors.New("empty signature")
 	}
 
-	clone := proto.Clone(msg).(*pbv1.QBFTMsg)
+	clone := proto.Clone(msg).(*pbv1.PriorityMsg)
 	clone.Signature = nil
 	hash, err := hashProto(clone)
 	if err != nil {
@@ -257,7 +264,7 @@ func topicProposalToProto(p TopicProposal) (*pbv1.PriorityTopicProposal, error) 
 
 // topicProposalToProto returns a topic proposal from the proto version.
 func topicResultFromProto(p *pbv1.PriorityTopicResult) (TopicResult, error) {
-	var topicVal *structpb.Value
+	topicVal := new(structpb.Value)
 	if err := p.Topic.UnmarshalTo(topicVal); err != nil {
 		return TopicResult{}, errors.Wrap(err, "anypb topic")
 	}
@@ -269,7 +276,7 @@ func topicResultFromProto(p *pbv1.PriorityTopicResult) (TopicResult, error) {
 
 	var priorities []ScoredPriority
 	for _, scored := range p.Priorities {
-		var prioVal *structpb.Value
+		prioVal := new(structpb.Value)
 		if err := scored.Priority.UnmarshalTo(prioVal); err != nil {
 			return TopicResult{}, errors.Wrap(err, "anypb priority")
 		}
