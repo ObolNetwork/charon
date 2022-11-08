@@ -24,9 +24,7 @@ import (
 	"net/url"
 	"time"
 
-	apiv1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
-	"github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -36,8 +34,7 @@ import (
 // httpAdapter implements Client by wrapping eth2http.Service adding the experimental interfaces not present in go-eth2-client.
 type httpAdapter struct {
 	*eth2http.Service
-	timeout  time.Duration
-	valCache valCache
+	timeout time.Duration
 }
 
 type submitBeaconCommitteeSelectionsJSON struct {
@@ -88,29 +85,30 @@ func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, sele
 	return resp.Data, nil
 }
 
-// ValidatorsByPubKey provides the validators. If the stateID is "head", it uses a read-through cached.
-func (h *httpAdapter) ValidatorsByPubKey(ctx context.Context, stateID string, pubkeys []phase0.BLSPubKey) (map[phase0.ValidatorIndex]*apiv1.Validator, error) {
-	if stateID != "head" { // Do not cache non-head states.
-		return h.Service.ValidatorsByPubKey(ctx, stateID, pubkeys)
-	}
-
-	hits, misses := h.valCache.Get(pubkeys)
-	if len(misses) == 0 {
-		return hits, nil
-	}
-
-	resp, err := h.Service.ValidatorsByPubKey(ctx, stateID, misses)
-	if err != nil {
-		return nil, err
-	}
-
-	h.valCache.Set(resp)
-
-	return resp, nil
-}
+//
+//// ValidatorsByPubKey provides the validators. If the stateID is "head", it uses a read-through cached.
+// func (h *httpAdapter) ValidatorsByPubKey(ctx context.Context, stateID string, pubkeys []phase0.BLSPubKey) (map[phase0.ValidatorIndex]*apiv1.Validator, error) {
+//	if stateID != "head" { // Do not cache non-head states.
+//		return h.Service.ValidatorsByPubKey(ctx, stateID, pubkeys)
+//	}
+//
+//	hits, misses := h.valCache.Get(pubkeys)
+//	if len(misses) == 0 {
+//		return hits, nil
+//	}
+//
+//	resp, err := h.Service.ValidatorsByPubKey(ctx, stateID, misses)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	h.valCache.Set(resp)
+//
+//	return resp, nil
+//}
 
 func (h *httpAdapter) ClearCache() {
-	h.valCache.Clear()
+	// h.valCache.Clear()
 }
 
 func httpPost(ctx context.Context, base string, endpoint string, body io.Reader, timeout time.Duration) ([]byte, error) {
