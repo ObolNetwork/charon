@@ -192,6 +192,11 @@ func (s *SyncCommMember) PrepareSlot(ctx context.Context, slot eth2p0.Slot) erro
 func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 	wait(ctx, s.dutiesOK)
 
+	if len(s.duties) == 0 {
+		s.setBlockRoot(slot, eth2p0.Root{})
+		return nil
+	}
+
 	blockRoot, err := s.eth2Cl.BeaconBlockRoot(ctx, "head")
 	if err != nil {
 		return err
@@ -256,6 +261,10 @@ func subscribeSyncCommSubnets(ctx context.Context, eth2Cl eth2wrap.Client, epoch
 
 // prepareSyncSelections returns the aggregate sync committee selections for the slot corresponding to the provided validators.
 func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, duties syncDuties, slot eth2p0.Slot) (syncSelections, error) {
+	if len(duties) == 0 {
+		return nil, nil
+	}
+
 	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
 	if err != nil {
 		return nil, err
