@@ -1,0 +1,30 @@
+{
+  "name": "test definition",
+  "creator": {
+    "address": "0x87a848CA9d21c2Ae440f448a0Ae96f1f7fAc884D",
+    "config_signature": "0xfd9311be3790b07e6eb793235665e0628164da84941b1ba6ee3cf72680977c940cec9478337feb0e513f5cae474563625e231eecef03982eaccdc1e54637d67201"
+  },
+  "operators": [
+    {
+      "address": "0x5549D983e508C79fa16A0CEa01D30CDb10d2f82c",
+      "enr": "enr://b5267a6c0733600c88654f5d0f68fa0666de2e0add550f1a4176d9be0a83f46d",
+      "config_signature": "0x5ed099c5c40e880bfeaa488613b712be32bdfc10490b6531ca57f515ec6797b861c52f29be7926fff4226636b73542302aea5a7bf41d4792383ccaa9b452958901",
+      "enr_signature": "0xa51ef2614f69623fa0c2b6f0d666ac670394d244cc7534b75c170745c252af52460311f7f4e7f2b819afcc46853a922cf2147da5450965ff1facb07ccafd5e5a00"
+    },
+    {
+      "address": "0xBC2980bB858D21aC7c84E2A839534dA568473Ef5",
+      "enr": "enr://f033c6026f46316ac2322ec7a2e685288b67dc5b753b8c8807627c4904ff6002",
+      "config_signature": "0xc9180884fa005d63a973120ebf864ebdc5fb8b080367ec6984f63695f8c45fd07486e2c696ed6d5a0e128a6ca380177c5f62c7e8bd23cfa183b473863eb5dc4501",
+      "enr_signature": "0x1a2abceb0a54d459f4dc437750cdffd3006987351150f07141268f61af5a6e10171fd1379b29acbea834c9944b1a93d7fdc30abf6dd4dbd99e6de1ef5cf689ba00"
+    }
+  ],
+  "uuid": "52FDFC07-2182-654F-163F-5F0F9A621D72",
+  "version": "v1.4.0",
+  "timestamp": "2022-11-08T09:52:28+02:00",
+  "num_validators": 1,
+  "threshold": 2,
+  "dkg_algorithm": "default",
+  "fork_version": "0x90000069",
+  "config_hash": "0xcd56c1965c3aee1415f4bf00fc3fb8d93ced838e185a1a7d4078e5af09890905",
+  "definition_hash": "0xb44b118e7137487c3c023b944cc207aaa9709f852fe257a07e9ceafa30ff616a"
+}

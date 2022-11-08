@@ -34,8 +34,26 @@ type eip712Type struct {
 }
 
 var (
-	// eip712ConfigHash defines the EIP712 structure of the config signature.
-	eip712ConfigHash = eip712Type{
+	// eip712CreatorConfigHash defines the EIP712 structure of the legacy config signature for v1.4 and later.
+	eip712CreatorConfigHash = eip712Type{
+		PrimaryType: "CreatorConfigHash",
+		Field:       "creator_config_hash",
+		ValueFunc: func(definition Definition, _ Operator) string {
+			return to0xHex(definition.ConfigHash)
+		},
+	}
+
+	// eip712OperatorConfigHash defines the EIP712 structure of the operator config signature for v1.4 and later.
+	eip712OperatorConfigHash = eip712Type{
+		PrimaryType: "OperatorConfigHash",
+		Field:       "operator_config_hash",
+		ValueFunc: func(definition Definition, _ Operator) string {
+			return to0xHex(definition.ConfigHash)
+		},
+	}
+
+	// eip712V1x3ConfigHash defines the EIP712 structure of the legacy config signature for v1.3 and before.
+	eip712V1x3ConfigHash = eip712Type{
 		PrimaryType: "ConfigHash",
 		Field:       "config_hash",
 		ValueFunc: func(definition Definition, _ Operator) string {
@@ -52,6 +70,19 @@ var (
 		},
 	}
 )
+
+// getOperatorEIP712Type returns the latest or legacy operator eip712 type.
+func getOperatorEIP712Type(version string) eip712Type {
+	if !supportEIP712Sigs(version) {
+		panic("invalid eip712 signature version") // This should never happen
+	}
+
+	if isAnyVersion(version, v1_3) {
+		return eip712V1x3ConfigHash
+	}
+
+	return eip712OperatorConfigHash
+}
 
 // digestEIP712 returns the digest for the EIP712 structured type for the provided definition and operator.
 func digestEIP712(typ eip712Type, def Definition, operator Operator) ([]byte, error) {
