@@ -24,7 +24,9 @@ import (
 	"net/url"
 	"time"
 
+	apiv1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
+	"github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -34,7 +36,8 @@ import (
 // httpAdapter implements Client by wrapping eth2http.Service adding the experimental interfaces not present in go-eth2-client.
 type httpAdapter struct {
 	*eth2http.Service
-	timeout time.Duration
+	timeout  time.Duration
+	valCache valCache
 }
 
 type submitBeaconCommitteeSelectionsJSON struct {
@@ -46,7 +49,7 @@ type submitSyncCommitteeSelectionsJSON struct {
 }
 
 // AggregateBeaconCommitteeSelections implements eth2exp.BeaconCommitteeSelectionAggregator.
-func (h httpAdapter) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
+func (h *httpAdapter) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
 	reqBody, err := json.Marshal(selections)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal submit beacon committee selections")
@@ -66,7 +69,7 @@ func (h httpAdapter) AggregateBeaconCommitteeSelections(ctx context.Context, sel
 }
 
 // AggregateSyncCommitteeSelections implements eth2exp.SyncCommitteeSelectionAggregator.
-func (h httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
+func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
 	reqBody, err := json.Marshal(selections)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal sync committee selections")
@@ -83,6 +86,31 @@ func (h httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, selec
 	}
 
 	return resp.Data, nil
+}
+
+// ValidatorsByPubKey provides the validators. If the stateID is "head", it uses a read-through cached.
+func (h *httpAdapter) ValidatorsByPubKey(ctx context.Context, stateID string, pubkeys []phase0.BLSPubKey) (map[phase0.ValidatorIndex]*apiv1.Validator, error) {
+	if stateID != "head" { // Do not cache non-head states.
+		return h.Service.ValidatorsByPubKey(ctx, stateID, pubkeys)
+	}
+
+	hits, misses := h.valCache.Get(pubkeys)
+	if len(misses) == 0 {
+		return hits, nil
+	}
+
+	resp, err := h.Service.ValidatorsByPubKey(ctx, stateID, misses)
+	if err != nil {
+		return nil, err
+	}
+
+	h.valCache.Set(resp)
+
+	return resp, nil
+}
+
+func (h *httpAdapter) ClearCache() {
+	h.valCache.Clear()
 }
 
 func httpPost(ctx context.Context, base string, endpoint string, body io.Reader, timeout time.Duration) ([]byte, error) {

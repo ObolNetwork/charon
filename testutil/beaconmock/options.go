@@ -45,6 +45,16 @@ type Option func(*Mock)
 
 type ValidatorSet map[eth2p0.ValidatorIndex]*eth2v1.Validator
 
+// Validators is a convenience function to return the validators as a slice.
+func (s ValidatorSet) Validators() []*eth2v1.Validator {
+	var resp []*eth2v1.Validator
+	for _, validator := range s {
+		resp = append(resp, validator)
+	}
+
+	return resp
+}
+
 // ByPublicKey is a convenience function to return a validator by its public key.
 func (s ValidatorSet) ByPublicKey(pubkey eth2p0.BLSPubKey) (*eth2v1.Validator, bool) {
 	for _, validator := range s {
@@ -92,6 +102,7 @@ var ValidatorSetA = ValidatorSet{
 			EffectiveBalance:           1,
 			ActivationEligibilityEpoch: 1,
 			ActivationEpoch:            2,
+			WithdrawalCredentials:      []byte("12345678901234567890123456789012"),
 		},
 	},
 	2: {
@@ -103,6 +114,7 @@ var ValidatorSetA = ValidatorSet{
 			EffectiveBalance:           2,
 			ActivationEligibilityEpoch: 2,
 			ActivationEpoch:            3,
+			WithdrawalCredentials:      []byte("12345678901234567890123456789012"),
 		},
 	},
 	3: {
@@ -114,6 +126,7 @@ var ValidatorSetA = ValidatorSet{
 			EffectiveBalance:           3,
 			ActivationEligibilityEpoch: 3,
 			ActivationEpoch:            4,
+			WithdrawalCredentials:      []byte("12345678901234567890123456789012"),
 		},
 	},
 }

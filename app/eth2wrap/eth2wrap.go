@@ -65,10 +65,11 @@ func Instrument(clients ...Client) (Client, error) {
 	return multi{clients: clients}, nil
 }
 
-// AdaptEth2HTTP returns a Client wrapping an eth2http service by adding experimental endpoints.
+// AdaptEth2HTTP returns a Client wrapping an eth2http service by adding experimental endpoints
+// and caching.
 // Note that the returned client doesn't wrap errors, so they are unstructured without stacktraces.
 func AdaptEth2HTTP(eth2Svc *eth2http.Service, timeout time.Duration) Client {
-	return httpAdapter{Service: eth2Svc, timeout: timeout}
+	return &httpAdapter{Service: eth2Svc, timeout: timeout}
 }
 
 // NewMultiHTTP returns a new instrumented multi eth2 http client.
@@ -108,6 +109,12 @@ func (multi) Name() string {
 func (m multi) Address() string {
 	// TODO(corver): return "best" address.
 	return m.clients[0].Address()
+}
+
+func (m multi) ClearCache() {
+	for _, client := range m.clients {
+		client.ClearCache()
+	}
 }
 
 func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
