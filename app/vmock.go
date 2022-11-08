@@ -20,8 +20,6 @@ import (
 	"sync"
 	"time"
 
-	eth2client "github.com/attestantio/go-eth2-client"
-	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -149,8 +147,10 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey) (func(ctx contex
 		if slot != 0 && attester.Slot() != eth2p0.Slot(slot) {
 			attester = validatormock.NewSlotAttester(eth2Cl, eth2p0.Slot(slot), signFunc, pubshares)
 		}
+		// Create new sync committee membership on new epochs (and clear eth2client cache)
 		if epoch != 0 && syncCommMem.Epoch() != eth2p0.Epoch(epoch) {
 			syncCommMem = validatormock.NewSyncCommMember(eth2Cl, eth2p0.Epoch(epoch), signFunc, pubshares)
+			eth2Cl.ClearCache()
 		}
 
 		state := vMockState{
@@ -181,7 +181,7 @@ func newVMockEth2Provider(conf Config) func() (eth2wrap.Client, error) {
 		mu     sync.Mutex
 	)
 
-	const timeout = time.Second * 10
+	const timeout = time.Second * 10 // Allow sufficient time to block while fetching duties.
 
 	return func() (eth2wrap.Client, error) {
 		mu.Lock()
@@ -194,22 +194,11 @@ func newVMockEth2Provider(conf Config) func() (eth2wrap.Client, error) {
 		// Try three times to reduce test startup issues.
 		var err error
 		for i := 0; i < 3; i++ {
-			var eth2Svc eth2client.Service
-			eth2Svc, err = eth2http.New(context.Background(),
-				eth2http.WithLogLevel(1),
-				eth2http.WithAddress("http://"+conf.ValidatorAPIAddr),
-				eth2http.WithTimeout(timeout), // Allow sufficient time to block while fetching duties.
-			)
+			cached, err = eth2wrap.NewMultiHTTP(context.Background(), timeout, "http://"+conf.ValidatorAPIAddr)
 			if err != nil {
 				time.Sleep(time.Millisecond * 100) // Test startup backoff
 				continue
 			}
-			eth2Http, ok := eth2Svc.(*eth2http.Service)
-			if !ok {
-				return nil, errors.New("invalid eth2 http service")
-			}
-
-			cached = eth2wrap.AdaptEth2HTTP(eth2Http, timeout)
 		}
 
 		return cached, err

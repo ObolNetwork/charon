@@ -94,19 +94,27 @@ func (h *httpAdapter) ValidatorsByPubKey(ctx context.Context, stateID string, pu
 		return h.Service.ValidatorsByPubKey(ctx, stateID, pubkeys)
 	}
 
+	// Read cache
 	hits, misses := h.valCache.Get(pubkeys)
 	if len(misses) == 0 {
-		return hits, nil
+		return hits, nil // No misses, got everything from cache
 	}
 
-	resp, err := h.Service.ValidatorsByPubKey(ctx, stateID, misses)
+	// Fetch misses
+	fetched, err := h.Service.ValidatorsByPubKey(ctx, stateID, misses)
 	if err != nil {
 		return nil, err
 	}
 
-	h.valCache.Set(resp)
+	// Cache fetched misses
+	h.valCache.Set(fetched)
 
-	return resp, nil
+	// Merge with hits
+	for index, validator := range hits {
+		fetched[index] = validator
+	}
+
+	return fetched, nil
 }
 
 func (h *httpAdapter) ClearCache() {

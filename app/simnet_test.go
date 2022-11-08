@@ -181,6 +181,7 @@ func TestSimnetNoNetwork_WithSyncCommitteeMockVCs(t *testing.T) {
 	args := newSimnetArgs(t)
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+	args.BMockOpts = append(args.BMockOpts, beaconmock.WithDeterministicSyncCommDuties(1))
 	expect := newSimnetExpect(args.N, core.DutyPrepareSyncContribution, core.DutySyncMessage, core.DutySyncContribution)
 	testSimnet(t, args, expect)
 }
@@ -321,6 +322,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect simnetExpect) {
 				},
 				SimnetBMockOpts: append([]beaconmock.Option{
 					beaconmock.WithSlotsPerEpoch(1),
+					beaconmock.WithSlotDuration(1 * time.Second),
 				}, args.BMockOpts...),
 				BuilderRegistration: registrationFunc(),
 			},

@@ -608,10 +608,10 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 	if conf.SimnetBMock { // Configure the beacon mock.
 		const dutyFactor = 100 // Duty factor spreads duties deterministically in an epoch.
 		opts := []beaconmock.Option{
-			beaconmock.WithSlotDuration(time.Second),
+			beaconmock.WithSlotDuration(time.Second * 2),
 			beaconmock.WithDeterministicAttesterDuties(dutyFactor),
 			beaconmock.WithDeterministicProposerDuties(dutyFactor),
-			beaconmock.WithDeterministicSyncCommDuties(),
+			beaconmock.WithDeterministicSyncCommDuties(4), // 1 out of every 4 epochs.
 			beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
 		}
 		opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
