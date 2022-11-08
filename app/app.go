@@ -373,6 +373,14 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, lock.FeeRecipientAddress))
+	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
+		if !slot.FirstInEpoch() {
+			return nil
+		}
+		eth2Cl.ClearCache()
+
+		return nil
+	})
 
 	fetch, err := fetcher.New(eth2Cl, lock.FeeRecipientAddress)
 	if err != nil {

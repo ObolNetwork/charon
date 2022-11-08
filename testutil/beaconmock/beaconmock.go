@@ -52,6 +52,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -277,6 +278,10 @@ func (m Mock) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 	return m.SlotsPerEpochFunc(ctx)
 }
 
+func (Mock) TekuProposerConfig(context.Context) (validatorapi.TekuProposerConfigResponse, error) {
+	panic("implement me")
+}
+
 func (Mock) Name() string {
 	return "beacon-mock"
 }
@@ -284,6 +289,8 @@ func (Mock) Name() string {
 func (m Mock) Address() string {
 	return "http://" + m.httpServer.Addr
 }
+
+func (Mock) ClearCache() {}
 
 func (m Mock) Close() error {
 	m.headProducer.Close()
