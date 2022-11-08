@@ -168,8 +168,8 @@ func (d Definition) VerifySignatures() error {
 		return errors.New("older version signatures not supported")
 	}
 
-	// Check that we have a valid config signature for each operator.
-	configHashDigest, err := digestEIP712(eip712ConfigHash, d, Operator{})
+	// Check valid operator config signature for each operator.
+	operatorConfigHashDigest, err := digestEIP712(getOperatorEIP712Type(d.Version), d, Operator{})
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (d Definition) VerifySignatures() error {
 			return errors.New("empty operator config signature", z.Any("operator_address", o.Address))
 		}
 
-		if ok, err := verifySig(o.Address, configHashDigest, o.ConfigSignature); err != nil {
+		if ok, err := verifySig(o.Address, operatorConfigHashDigest, o.ConfigSignature); err != nil {
 			return err
 		} else if !ok {
 			return errors.New("invalid operator config signature", z.Any("operator_address", o.Address))
@@ -214,7 +214,7 @@ func (d Definition) VerifySignatures() error {
 	}
 
 	// Verify creator signature
-	if isAnyVersion(d.Version, v1_0, v1_1, v1_2, v1_3) {
+	if isAnyVersion(d.Version, v1_3) {
 		if len(d.Creator.ConfigSignature) > 0 {
 			return errors.New("unexpected creator config signature in old version")
 		}
@@ -228,7 +228,13 @@ func (d Definition) VerifySignatures() error {
 			return errors.New("empty creator config signature")
 		}
 
-		if ok, err := verifySig(d.Creator.Address, configHashDigest, d.Creator.ConfigSignature); err != nil {
+		// Creator config signature is
+		creatorConfigHashDigest, err := digestEIP712(eip712CreatorConfigHash, d, Operator{})
+		if err != nil {
+			return err
+		}
+
+		if ok, err := verifySig(d.Creator.Address, creatorConfigHashDigest, d.Creator.ConfigSignature); err != nil {
 			return err
 		} else if !ok {
 			return errors.New("invalid creator config signature")
