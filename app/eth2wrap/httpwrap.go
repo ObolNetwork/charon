@@ -85,32 +85,6 @@ func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, sele
 	return resp.Data, nil
 }
 
-//
-//// ValidatorsByPubKey provides the validators. If the stateID is "head", it uses a read-through cached.
-// func (h *httpAdapter) ValidatorsByPubKey(ctx context.Context, stateID string, pubkeys []phase0.BLSPubKey) (map[phase0.ValidatorIndex]*apiv1.Validator, error) {
-//	if stateID != "head" { // Do not cache non-head states.
-//		return h.Service.ValidatorsByPubKey(ctx, stateID, pubkeys)
-//	}
-//
-//	hits, misses := h.valCache.Get(pubkeys)
-//	if len(misses) == 0 {
-//		return hits, nil
-//	}
-//
-//	resp, err := h.Service.ValidatorsByPubKey(ctx, stateID, misses)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	h.valCache.Set(resp)
-//
-//	return resp, nil
-//}
-
-func (*httpAdapter) ClearCache() {
-	// h.valCache.Clear()
-}
-
 func httpPost(ctx context.Context, base string, endpoint string, body io.Reader, timeout time.Duration) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

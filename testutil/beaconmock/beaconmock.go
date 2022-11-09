@@ -290,8 +290,6 @@ func (m Mock) Address() string {
 	return "http://" + m.httpServer.Addr
 }
 
-func (Mock) ClearCache() {}
-
 func (m Mock) Close() error {
 	m.headProducer.Close()
 

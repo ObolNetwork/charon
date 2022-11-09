@@ -60,9 +60,6 @@ type Client interface {
 
     {{range .Providers}} eth2client.{{.}}
     {{end -}}
-
-    // ClearCache clears the internal "head" cache.
-	ClearCache()
 }
 
 {{range .Methods}}
