@@ -13,16 +13,16 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package main
+package smoke_test
 
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
 	"path"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -147,18 +147,16 @@ func TestSmoke(t *testing.T) {
 			}
 			require.NoError(t, compose.WriteConfig(dir, conf))
 
-			cmd := newAutoCmd(map[string]func(data *compose.TmplData){
-				"define": test.DefineTmplFunc,
-				"run":    test.RunTmplFunc,
-			})
-			require.NoError(t, cmd.Flags().Set("compose-dir", dir))
-			require.NoError(t, cmd.Flags().Set("alert-timeout", "45s"))
-			require.NoError(t, cmd.Flags().Set("sudo-perms", fmt.Sprint(*sudoPerms)))
-			require.NoError(t, cmd.Flags().Set("print-yml", fmt.Sprint(test.PrintYML)))
-
 			os.Args = []string{"cobra.test"}
 
-			err = cmd.ExecuteContext(context.Background())
+			err = compose.Auto(context.Background(), compose.AutoConfig{
+				Dir:            dir,
+				AlertTimeout:   time.Second * 45,
+				SudoPerms:      *sudoPerms,
+				PrintYML:       test.PrintYML,
+				RunTmplFunc:    test.RunTmplFunc,
+				DefineTmplFunc: test.DefineTmplFunc,
+			})
 			require.NoError(t, err)
 		})
 	}

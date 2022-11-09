@@ -27,7 +27,7 @@ const (
 	defaultFeatureSet = "alpha"
 	defaultLoki       = true
 
-	charonImage      = "ghcr.io/obolnetwork/charon"
+	charonImage      = "obolnetwork/charon"
 	localBinary      = "/compose/charon"
 	containerBinary  = "/usr/local/bin/charon"
 	cmdRun           = "run"
@@ -86,7 +86,7 @@ type Config struct {
 	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
 	NumValidators int `json:"num_validators"`
 
-	// ImageTag defines the charon docker image tag: ghcr.io/obolnetwork/charon:{ImageTag}.
+	// ImageTag defines the charon docker image tag: obolnetwork/charon:{ImageTag}.
 	ImageTag string `json:"image_tag"`
 
 	// BuildBinary enables building a local charon binary from source and using that in the containers.
