@@ -16,12 +16,9 @@
 package cluster
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/obolnetwork/charon/p2p"
 )
 
 func TestGetName(t *testing.T) {
@@ -30,15 +27,11 @@ func TestGetName(t *testing.T) {
 
 	p1, err := op.Peer()
 	require.NoError(t, err)
-	first := p2p.PeerName(p1.ID)
-	require.True(t, strings.Contains(first, "-"))
-	require.Equal(t, first, "wrong-council")
+	require.Equal(t, p1.Name, "wrong-council")
 
 	p2, err := op.Peer()
 	require.NoError(t, err)
-	second := p2p.PeerName(p2.ID)
-	require.True(t, strings.Contains(second, "-"))
 
 	// The two names must be the same.
-	require.Equal(t, first, second)
+	require.Equal(t, p1.Name, p2.Name)
 }
