@@ -268,17 +268,10 @@ func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
 		stateID := params["state_id"]
 
-		var resp []v1Validator
-		for _, id := range getValidatorIDs(query) {
-			val, ok, err := getValidatorByID(ctx, p, stateID, id)
-			if err != nil {
-				return nil, err
-			} else if ok {
-				resp = append(resp, v1Validator(*val))
-			}
-		}
-
-		if len(resp) == 0 {
+		resp, err := getValidatorsByID(ctx, p, stateID, getValidatorIDs(query)...)
+		if err != nil {
+			return nil, err
+		} else if len(resp) == 0 {
 			return nil, apiError{
 				StatusCode: http.StatusNotFound,
 				Message:    "NotFound",
@@ -295,17 +288,19 @@ func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
 		stateID := params["state_id"]
 		id := params["validator_id"]
 
-		val, ok, err := getValidatorByID(ctx, p, stateID, id)
+		vals, err := getValidatorsByID(ctx, p, stateID, id)
 		if err != nil {
 			return nil, err
-		} else if !ok {
+		} else if len(vals) == 0 {
 			return nil, apiError{
 				StatusCode: http.StatusNotFound,
 				Message:    "NotFound",
 			}
+		} else if len(vals) != 1 {
+			return nil, errors.New("unexpected number of validators")
 		}
 
-		return validatorResponse{Data: v1Validator(*val)}, nil
+		return validatorResponse{Data: vals[0]}, nil
 	}
 }
 
@@ -1039,46 +1034,59 @@ func getValidatorIDs(query url.Values) []string {
 	return resp
 }
 
-// getValidatorByID returns the validator and true with id being either a pubkey or a validator index.
-// It returns false if the validator is not found.
-func getValidatorByID(ctx context.Context, p eth2client.ValidatorsProvider, stateID, id string) (*eth2v1.Validator, bool, error) {
-	if strings.HasPrefix(id, "0x") {
-		pubkey, err := tblsconv.KeyFromCore(core.PubKey(id))
-		if err != nil {
-			return nil, false, errors.Wrap(err, "decode public key hex")
-		}
-		eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
-		if err != nil {
-			return nil, false, err
-		}
-
-		temp, err := p.ValidatorsByPubKey(ctx, stateID, []eth2p0.BLSPubKey{eth2Pubkey})
-		if err != nil {
-			return nil, false, err
-		}
-
-		for _, validator := range temp {
-			return validator, true, nil
-		}
-
-		return nil, false, nil
+// getValidatorsByID returns the validators with ids being either pubkeys or validator indexes.
+func getValidatorsByID(ctx context.Context, p eth2client.ValidatorsProvider, stateID string, ids ...string) ([]v1Validator, error) {
+	if len(ids) == 0 {
+		return nil, errors.New("no validator ids provided")
 	}
 
-	vIdx, err := strconv.ParseUint(id, 10, 64)
+	flatten := func(kvs map[eth2p0.ValidatorIndex]*eth2v1.Validator) []v1Validator {
+		var vals []v1Validator
+		for _, v := range kvs {
+			vals = append(vals, v1Validator(*v))
+		}
+
+		return vals
+	}
+
+	if strings.HasPrefix(ids[0], "0x") {
+		var pubkeys []eth2p0.BLSPubKey
+		for _, id := range ids {
+			pubkey, err := tblsconv.KeyFromCore(core.PubKey(id))
+			if err != nil {
+				return nil, errors.Wrap(err, "decode public key hex")
+			}
+			eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
+			if err != nil {
+				return nil, err
+			}
+
+			pubkeys = append(pubkeys, eth2Pubkey)
+		}
+
+		vals, err := p.ValidatorsByPubKey(ctx, stateID, pubkeys)
+		if err != nil {
+			return nil, err
+		}
+
+		return flatten(vals), nil
+	}
+
+	var vIdxs []eth2p0.ValidatorIndex
+	for _, id := range ids {
+		vIdx, err := strconv.ParseUint(id, 10, 64)
+		if err != nil {
+			return nil, errors.Wrap(err, "parse validator index")
+		}
+		vIdxs = append(vIdxs, eth2p0.ValidatorIndex(vIdx))
+	}
+
+	vals, err := p.Validators(ctx, stateID, vIdxs)
 	if err != nil {
-		return nil, false, errors.Wrap(err, "parse validator index")
+		return nil, err
 	}
 
-	temp, err := p.Validators(ctx, stateID, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
-	if err != nil {
-		return nil, false, err
-	}
-
-	for _, validator := range temp {
-		return validator, true, nil
-	}
-
-	return nil, false, nil
+	return flatten(vals), nil
 }
 
 type durationKey struct{}
