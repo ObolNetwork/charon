@@ -603,7 +603,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 			beaconmock.WithSlotDuration(time.Second),
 			beaconmock.WithDeterministicAttesterDuties(dutyFactor),
 			beaconmock.WithDeterministicProposerDuties(dutyFactor),
-			beaconmock.WithDeterministicSyncCommDuties(),
+			beaconmock.WithDeterministicSyncCommDuties(2, 8), // First 2 epochs of every 8
 			beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
 		}
 		opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
