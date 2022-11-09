@@ -69,8 +69,6 @@ type Client interface {
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.ValidatorsProvider
 	eth2client.VoluntaryExitSubmitter
-	// ClearCache clears the internal "head" valCache.
-	ClearCache()
 }
 
 // NodeVersion returns a free-text string with the node version.
