@@ -36,7 +36,7 @@ type AutoConfig struct {
 	SudoPerms bool
 	// Print generated docker-compose.yml files.
 	PrintYML bool
-	// RunTmplFunc allows arbitrary overrides if the run step template.
+	// RunTmplFunc allows arbitrary overrides in the run step template.
 	RunTmplFunc func(*TmplData)
 	// DefineTmplFunc allows arbitrary overrides if the define step template.
 	DefineTmplFunc func(*TmplData)
@@ -105,7 +105,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 		}
 	}
 
-	if conf.AlertTimeout != 0 {
+	if conf.AlertTimeout > 0 {
 		// Ensure everything is clean before we start with alert test.
 		_ = execDown(ctx, conf.Dir)
 
