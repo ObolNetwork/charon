@@ -406,6 +406,15 @@ func TestInfoSync(t *testing.T) {
 		N:        n,
 	}
 
+	var peerAddrs []peer.AddrInfo
+	for _, operator := range lock.Operators {
+		p, err := operator.Peer()
+		require.NoError(t, err)
+		addr, err := p.AddrInfo()
+		require.NoError(t, err)
+		peerAddrs = append(peerAddrs, addr)
+	}
+
 	var eg errgroup.Group
 	for i := 0; i < n; i++ {
 		i := i // Copy iteration variable
@@ -419,6 +428,7 @@ func TestInfoSync(t *testing.T) {
 				PrioritiseCallback: asserter.Callback(t, i),
 				Lock:               &lock,
 				P2PKey:             p2pKeys[i],
+				PeerAddrs:          peerAddrs,
 				SimnetBMockOpts: []beaconmock.Option{
 					beaconmock.WithNoAttesterDuties(),
 					beaconmock.WithNoProposerDuties(),

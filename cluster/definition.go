@@ -124,10 +124,10 @@ type Definition struct {
 	Operators []Operator `json:"operators" ssz:"CompositeList[256]" config_hash:"10" definition_hash:"10"`
 
 	// Creator identifies the creator of a cluster definition. They may also be an operator.
-	Creator Creator `json:"creator" ssz:"Composite" config_hash:"11" definition_hash:"12"`
+	Creator Creator `json:"creator" ssz:"Composite" config_hash:"11" definition_hash:"11"`
 
 	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.
-	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"11"`
+	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"12"`
 
 	// DefinitionHash uniquely identifies a cluster definition including operator ENRs and signatures.
 	DefinitionHash []byte `json:"definition_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"-"`
@@ -251,13 +251,8 @@ func (d Definition) VerifySignatures() error {
 // Peers returns the operators as a slice of p2p peers.
 func (d Definition) Peers() ([]p2p.Peer, error) {
 	var resp []p2p.Peer
-	for i, operator := range d.Operators {
-		record, err := p2p.DecodeENR(operator.ENR)
-		if err != nil {
-			return nil, err
-		}
-
-		p, err := p2p.NewPeer(record, i)
+	for _, operator := range d.Operators {
+		p, err := operator.Peer()
 		if err != nil {
 			return nil, err
 		}

@@ -42,19 +42,14 @@ type Operator struct {
 	ENRSignature []byte `json:"enr_signature,0xhex" ssz:"Bytes65" config_hash:"-" definition_hash:"3"`
 }
 
-// getName returns a deterministic name for operator based on its ENR.
-func (o Operator) getName() (string, error) {
+// Peer returns the p2p peer for operator based on its ENR.
+func (o Operator) Peer() (p2p.Peer, error) {
 	enr, err := p2p.DecodeENR(o.ENR)
 	if err != nil {
-		return "", errors.Wrap(err, "decode enr", z.Str("enr", o.ENR))
+		return p2p.Peer{}, errors.Wrap(err, "decode enr", z.Str("enr", o.ENR))
 	}
 
-	peer, err := p2p.NewPeer(enr, 0)
-	if err != nil {
-		return "", err
-	}
-
-	return p2p.PeerName(peer.ID), nil
+	return p2p.NewPeer(enr, 0)
 }
 
 // operatorJSONv1x1 is the json formatter of Operator for versions v1.0.0 and v1.1.0.

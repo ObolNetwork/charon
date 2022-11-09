@@ -18,6 +18,8 @@ package p2p
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"fmt"
+	"net"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -25,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
+	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -56,6 +59,45 @@ func (p Peer) ShareIdx() int {
 // PublicKey returns peer public key.
 func (p Peer) PublicKey() (*ecdsa.PublicKey, error) {
 	return PeerIDToKey(p.ID)
+}
+
+// MultiAddr returns the libp2p multiaddr (tcp ip and port) from the peer ENR.
+func (p Peer) MultiAddr() (ma.Multiaddr, error) {
+	tcpAddr, err := p.TCPAddr()
+	if err != nil {
+		return nil, err
+	}
+
+	return multiAddrFromIPPort(tcpAddr.IP, tcpAddr.Port)
+}
+
+// AddrInfo returns the libp2p peer addr info (peer ID and multiaddr) from the peer ENR.
+func (p Peer) AddrInfo() (peer.AddrInfo, error) {
+	addr, err := p.MultiAddr()
+	if err != nil {
+		return peer.AddrInfo{}, err
+	}
+
+	return peer.AddrInfo{
+		ID:    p.ID,
+		Addrs: []ma.Multiaddr{addr},
+	}, nil
+}
+
+// TCPAddr returns the tcp address (ip and port) from the peer ENR.
+func (p Peer) TCPAddr() (*net.TCPAddr, error) {
+	var (
+		ip   enr.IPv4
+		port enr.TCP
+	)
+	if err := p.ENR.Load(&ip); err != nil {
+		return nil, errors.Wrap(err, "load ip from enr")
+	}
+	if err := p.ENR.Load(&port); err != nil {
+		return nil, errors.Wrap(err, "load port from enr")
+	}
+
+	return resolveListenAddr(fmt.Sprintf("%s:%d", net.IP(ip), port))
 }
 
 // NewPeer returns a new charon peer.

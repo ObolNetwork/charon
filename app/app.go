@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/automaxprocs/maxprocs"
 
@@ -106,6 +107,8 @@ type TestConfig struct {
 	LcastTransportFunc func() leadercast.Transport
 	// SimnetKeys provides private key shares for the simnet validatormock signer.
 	SimnetKeys []*bls_sig.SecretKey
+	// PeerAddrs contain peer address to manually add to the tcp node peer store.
+	PeerAddrs []peer.AddrInfo
 	// SimnetBMockOpts defines additional simnet beacon mock options.
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
@@ -274,6 +277,11 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// Add test peer address
+	for _, pa := range conf.TestConfig.PeerAddrs {
+		tcpNode.Peerstore().AddAddrs(pa.ID, pa.Addrs, peerstore.PermanentAddrTTL)
 	}
 
 	p2p.RegisterConnectionLogger(tcpNode, peerIDs)
