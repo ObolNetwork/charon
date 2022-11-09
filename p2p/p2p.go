@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/libp2p/go-libp2p"
@@ -153,6 +154,7 @@ func RegisterConnectionLogger(tcpNode host.Host, peerIDs []peer.ID) {
 
 	go func() {
 		ctx := log.WithTopic(context.Background(), "p2p")
+		startTimes := make(map[string]time.Time)
 		for e := range events {
 			addr := NamedAddr(e.Addr)
 			name := PeerName(e.Peer)
@@ -177,8 +179,12 @@ func RegisterConnectionLogger(tcpNode host.Host, peerIDs []peer.ID) {
 
 			if e.Connected {
 				peerConnGauge.WithLabelValues(name, addrType(e.Addr)).Inc()
+				startTimes[e.ConnID] = time.Now()
 			} else if e.Disconnect {
 				peerConnGauge.WithLabelValues(name, addrType(e.Addr)).Dec()
+				if t0, ok := startTimes[e.ConnID]; ok {
+					peerConnDuration.WithLabelValues(name).Observe(time.Since(t0).Seconds())
+				}
 			}
 
 			// Ensure both connection type metrics are initiated
@@ -192,6 +198,7 @@ type logEvent struct {
 	Peer       peer.ID
 	Addr       ma.Multiaddr
 	Direction  network.Direction
+	ConnID     string
 	Connected  bool
 	Disconnect bool
 	Listen     bool
@@ -218,6 +225,7 @@ func (l connLogger) Connected(_ network.Network, conn network.Conn) {
 		Addr:      conn.RemoteMultiaddr(),
 		Direction: conn.Stat().Direction,
 		Connected: true,
+		ConnID:    conn.ID(),
 	}
 }
 
@@ -226,6 +234,7 @@ func (l connLogger) Disconnected(_ network.Network, conn network.Conn) {
 		Peer:       conn.RemotePeer(),
 		Addr:       conn.RemoteMultiaddr(),
 		Disconnect: true,
+		ConnID:     conn.ID(),
 	}
 }
 
