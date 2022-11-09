@@ -124,10 +124,10 @@ type Definition struct {
 	Operators []Operator `json:"operators" ssz:"CompositeList[256]" config_hash:"10" definition_hash:"10"`
 
 	// Creator identifies the creator of a cluster definition. They may also be an operator.
-	Creator Creator `json:"creator" ssz:"Composite" config_hash:"11" definition_hash:"12"`
+	Creator Creator `json:"creator" ssz:"Composite" config_hash:"11" definition_hash:"11"`
 
 	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.
-	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"11"`
+	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"12"`
 
 	// DefinitionHash uniquely identifies a cluster definition including operator ENRs and signatures.
 	DefinitionHash []byte `json:"definition_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"-"`

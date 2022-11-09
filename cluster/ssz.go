@@ -228,13 +228,8 @@ func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) err
 		hh.MerkleizeWithMixin(operatorsIdx, num, sszMaxOperators)
 	}
 
-	if !configOnly {
-		// Field (11) 'ConfigHash' Bytes32
-		hh.PutBytes(d.ConfigHash)
-	}
-
 	if !isV1x3(d.Version) {
-		// Field (11 or 12) 'Creator' Composite for v1.4 and later
+		// Field (11) 'Creator' Composite for v1.4 and later
 		creatorIdx := hh.Index()
 
 		// Field (0) 'Address' Bytes20
@@ -250,6 +245,11 @@ func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) err
 		}
 
 		hh.Merkleize(creatorIdx)
+	}
+
+	if !configOnly {
+		// Field (12) 'ConfigHash' Bytes32
+		hh.PutBytes(d.ConfigHash)
 	}
 
 	hh.Merkleize(indx)
