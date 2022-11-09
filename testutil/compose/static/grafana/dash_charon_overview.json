@@ -1112,6 +1112,34 @@
           "instant": true,
           "range": false,
           "refId": "N"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"sync_contribution\"}[$__range])) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "refId": "O"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"prepare_sync_contribution\"}[$__range])) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "refId": "P"
         }
       ],
       "title": "Peer Connectivity and Duty Participation",
@@ -1131,6 +1159,8 @@
               "Time 11": true,
               "Time 12": true,
               "Time 13": true,
+              "Time 14": true,
+              "Time 15": true,
               "Time 2": true,
               "Time 3": true,
               "Time 4": true,
@@ -1149,6 +1179,8 @@
               "Time 11": 25,
               "Time 12": 27,
               "Time 13": 28,
+              "Time 14": 29,
+              "Time 15": 30,
               "Time 2": 16,
               "Time 3": 17,
               "Time 4": 18,
@@ -1170,6 +1202,8 @@
               "Value #L": 15,
               "Value #M": 26,
               "Value #N": 13,
+              "Value #O": 32,
+              "Value #P": 31,
               "git_hash": 6,
               "peer": 0,
               "version": 5
@@ -1188,6 +1222,8 @@
               "Value #K": "Direct",
               "Value #L": "",
               "Value #N": "SyncMsg",
+              "Value #O": "SyncContrib",
+              "Value #P": "PrepareContrib",
               "git_hash": "GitCommit",
               "peer": "Peer",
               "version": "Version"
@@ -2462,8 +2498,8 @@
       {
         "current": {
           "selected": false,
-          "text": "1c882f1",
-          "value": "1c882f1"
+          "text": "4467160",
+          "value": "4467160"
         },
         "datasource": {
           "type": "prometheus",
@@ -2490,8 +2526,8 @@
       {
         "current": {
           "selected": false,
-          "text": "brainy-farmer",
-          "value": "brainy-farmer"
+          "text": "ample-door",
+          "value": "ample-door"
         },
         "datasource": {
           "type": "prometheus",
@@ -2518,8 +2554,8 @@
       {
         "current": {
           "selected": false,
-          "text": "node1",
-          "value": "node1"
+          "text": "node3",
+          "value": "node3"
         },
         "datasource": {
           "type": "prometheus",
