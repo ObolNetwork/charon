@@ -251,13 +251,8 @@ func (d Definition) VerifySignatures() error {
 // Peers returns the operators as a slice of p2p peers.
 func (d Definition) Peers() ([]p2p.Peer, error) {
 	var resp []p2p.Peer
-	for i, operator := range d.Operators {
-		record, err := p2p.DecodeENR(operator.ENR)
-		if err != nil {
-			return nil, err
-		}
-
-		p, err := p2p.NewPeer(record, i)
+	for _, operator := range d.Operators {
+		p, err := operator.Peer()
 		if err != nil {
 			return nil, err
 		}

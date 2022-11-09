@@ -16,7 +16,6 @@
 package cluster
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,15 +25,13 @@ func TestGetName(t *testing.T) {
 	enr := "enr:-JG4QKXiqTRo5OmRPutHAjW93YAL0eo63NKDHTb2viARXiYaCJZXZeiT3-STunsuvTRxwP8G8CmhSvQLYqdqfZ8kL3aGAYDhssjugmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQOFWExWolIvyowQNrlUAIGqnBaHJexfLJE6zyFcovULYoN0Y3CCPoODdWRwgj6E"
 	op := Operator{ENR: enr}
 
-	first, err := op.getName()
+	p1, err := op.Peer()
 	require.NoError(t, err)
-	require.True(t, strings.Contains(first, "-"))
-	require.Equal(t, first, "wrong-council")
+	require.Equal(t, p1.Name, "wrong-council")
 
-	second, err := op.getName()
+	p2, err := op.Peer()
 	require.NoError(t, err)
-	require.True(t, strings.Contains(second, "-"))
 
 	// The two names must be the same.
-	require.Equal(t, first, second)
+	require.Equal(t, p1.Name, p2.Name)
 }
