@@ -54,135 +54,142 @@ import (
 //go:generate go test . -integration -v
 var integration = flag.Bool("integration", false, "Enable docker based integration test")
 
-func TestSimnetNoNetwork_WithAttesterTekuVC(t *testing.T) {
-	if !*integration {
-		t.Skip("Skipping Teku integration test")
+func TestSimnetDuties(t *testing.T) {
+	tests := []struct {
+		name                string
+		bmockOpts           []beaconmock.Option
+		duties              []core.DutyType
+		builderAPI          bool
+		builderRegistration bool
+		exit                bool
+		teku                bool
+	}{
+		{
+			name: "attester with mock VCs",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoProposerDuties(),
+				beaconmock.WithNoSyncCommitteeDuties(),
+			},
+			duties: []core.DutyType{core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator}, // Teku doesn't support beacon committee selection.
+		},
+		{
+			name: "attester with teku",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoProposerDuties(),
+				beaconmock.WithNoSyncCommitteeDuties(),
+			},
+			duties: []core.DutyType{core.DutyAttester},
+			teku:   true,
+		},
+		{
+			name: "proposer with mock VCs",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoAttesterDuties(),
+				beaconmock.WithNoSyncCommitteeDuties(),
+			},
+			duties: []core.DutyType{core.DutyProposer, core.DutyRandao},
+		},
+		{
+			name: "proposer with teku",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoAttesterDuties(),
+				beaconmock.WithNoSyncCommitteeDuties(),
+			},
+			duties: []core.DutyType{core.DutyProposer, core.DutyRandao},
+			teku:   true,
+		},
+		{
+			name: "builder proposer with mock VCs",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoAttesterDuties(),
+				beaconmock.WithNoSyncCommitteeDuties(),
+			},
+			duties:     []core.DutyType{core.DutyBuilderProposer, core.DutyRandao},
+			builderAPI: true,
+		},
+		{
+			name: "builder proposer with teku",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoAttesterDuties(),
+				beaconmock.WithNoSyncCommitteeDuties(),
+			},
+			duties:     []core.DutyType{core.DutyBuilderProposer, core.DutyRandao},
+			builderAPI: true,
+			teku:       true,
+		},
+		{
+			name: "builder registration with mock VCs",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoAttesterDuties(),
+				beaconmock.WithNoProposerDuties(),
+				beaconmock.WithNoSyncCommitteeDuties(),
+			},
+			duties:              []core.DutyType{core.DutyBuilderRegistration},
+			builderRegistration: true,
+		},
+		{
+			name: "builder registration with teku",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoAttesterDuties(),
+				beaconmock.WithNoProposerDuties(),
+				beaconmock.WithNoSyncCommitteeDuties(),
+			},
+			duties:              []core.DutyType{core.DutyBuilderRegistration},
+			builderRegistration: true,
+			teku:                true,
+		},
+		{
+			name: "sync committee with mock VCs",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoAttesterDuties(),
+				beaconmock.WithNoProposerDuties(),
+			},
+			duties: []core.DutyType{core.DutyPrepareSyncContribution, core.DutySyncMessage, core.DutySyncContribution},
+		},
+		{
+			name: "sync committee with teku",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoAttesterDuties(),
+				beaconmock.WithNoProposerDuties(),
+			},
+			duties: []core.DutyType{core.DutySyncMessage}, // Teku doesn't support sync committee selection.
+			teku:   true,
+		},
+		{
+			name: "voluntary exit with teku",
+			bmockOpts: []beaconmock.Option{
+				beaconmock.WithNoAttesterDuties(),
+				beaconmock.WithNoProposerDuties(),
+				beaconmock.WithNoSyncCommitteeDuties(),
+			},
+			duties: []core.DutyType{core.DutyExit},
+			exit:   true,
+			teku:   true,
+		},
 	}
 
-	args := newSimnetArgs(t)
-	args = startTeku(t, args, 0, tekuVC)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
-	expect := newSimnetExpect(args.N, core.DutyAttester /*core.DutyPrepareAggregator, core.DutyAggregator*/) // Teku doesn't support v2 attestation aggregation.
-	testSimnet(t, args, expect)
-}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.teku && !*integration {
+				t.Skip("Skipping Teku integration test")
+			}
 
-func TestSimnetNoNetwork_WithProposerTekuVC(t *testing.T) {
-	if !*integration {
-		t.Skip("Skipping Teku integration test")
+			args := newSimnetArgs(t)
+			args.BuilderRegistration = test.builderRegistration
+			args.BuilderAPI = test.builderAPI
+			args.VoluntaryExit = test.exit
+
+			if test.teku {
+				for i := 0; i < args.N; i++ {
+					args = startTeku(t, args, i)
+				}
+			}
+
+			args.BMockOpts = test.bmockOpts
+			expect := newSimnetExpect(args.N, test.duties...)
+			testSimnet(t, args, expect)
+		})
 	}
-
-	args := newSimnetArgs(t)
-	args = startTeku(t, args, 0, tekuVC)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
-	expect := newSimnetExpect(args.N, core.DutyProposer, core.DutyRandao)
-	testSimnet(t, args, expect)
-}
-
-func TestSimnetNoNetwork_WithSyncCommTekuVC(t *testing.T) {
-	if !*integration {
-		t.Skip("Skipping Teku integration test")
-	}
-
-	args := newSimnetArgs(t)
-	args = startTeku(t, args, 0, tekuVC)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	expect := newSimnetExpect(args.N, core.DutySyncMessage)
-	testSimnet(t, args, expect)
-}
-
-func TestSimnetNoNetwork_WithExitTekuVC(t *testing.T) {
-	if !*integration {
-		t.Skip("Skipping Teku integration test")
-	}
-
-	args := newSimnetArgs(t)
-	for i := 0; i < args.N; i++ {
-		args = startTeku(t, args, i, tekuExit)
-	}
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
-	expect := newSimnetExpect(args.N, core.DutyExit)
-	testSimnet(t, args, expect)
-}
-
-func TestSimnetNoNetwork_WithBuilderRegistrationTekuVC(t *testing.T) {
-	if !*integration {
-		t.Skip("Skipping Teku integration test")
-	}
-
-	args := newSimnetArgs(t)
-	args.BuilderRegistration = true
-	for i := 0; i < args.N; i++ {
-		args = startTeku(t, args, i, tekuVC)
-	}
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
-	expect := newSimnetExpect(args.N, core.DutyBuilderRegistration)
-	testSimnet(t, args, expect)
-}
-
-func TestSimnetNoNetwork_WithBuilderProposerTekuVC(t *testing.T) {
-	if !*integration {
-		t.Skip("Skipping Teku integration test")
-	}
-
-	args := newSimnetArgs(t)
-	args.BuilderAPI = true
-	for i := 0; i < args.N; i++ {
-		args = startTeku(t, args, i, tekuVC)
-	}
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
-	expect := newSimnetExpect(args.N, core.DutyBuilderProposer, core.DutyRandao)
-	testSimnet(t, args, expect)
-}
-
-func TestSimnetNoNetwork_WithAttesterMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
-	expect := newSimnetExpect(args.N, core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator)
-	testSimnet(t, args, expect)
-}
-
-func TestSimnetNoNetwork_WithProposerMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
-	expect := newSimnetExpect(args.N, core.DutyProposer, core.DutyRandao)
-	testSimnet(t, args, expect)
-}
-
-func TestSimnetNoNetwork_WithBuilderProposerMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
-	args.BuilderAPI = true
-	expect := newSimnetExpect(args.N, core.DutyBuilderProposer, core.DutyRandao)
-	testSimnet(t, args, expect)
-}
-
-func TestSimnetNoNetwork_WithBuilderRegistrationMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
-	args.BuilderRegistration = true
-	expect := newSimnetExpect(args.N, core.DutyBuilderRegistration)
-	testSimnet(t, args, expect)
-}
-
-func TestSimnetNoNetwork_WithSyncCommitteeMockVCs(t *testing.T) {
-	args := newSimnetArgs(t)
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
-	args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
-	expect := newSimnetExpect(args.N, core.DutyPrepareSyncContribution, core.DutySyncMessage, core.DutySyncContribution)
-	testSimnet(t, args, expect)
 }
 
 type simnetArgs struct {
@@ -196,6 +203,7 @@ type simnetArgs struct {
 	ErrChan             chan error
 	BuilderAPI          bool
 	BuilderRegistration bool
+	VoluntaryExit       bool
 }
 
 // newSimnetArgs defines the default simnet test args.
@@ -434,11 +442,16 @@ var (
 
 // startTeku starts a teku validator client for the provided node and returns updated args.
 // See https://docs.teku.consensys.net/en/latest/Reference/CLI/CLI-Syntax/.
-func startTeku(t *testing.T, args simnetArgs, node int, cmd tekuCmd) simnetArgs {
+func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	t.Helper()
 
 	// Configure teku as VC for node0
 	args.VMocks[node] = false
+
+	cmd := tekuVC
+	if args.VoluntaryExit {
+		cmd = tekuExit
+	}
 
 	// Write private share keystore and password
 	tempDir, err := os.MkdirTemp("", "")

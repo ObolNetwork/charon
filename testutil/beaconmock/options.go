@@ -360,11 +360,11 @@ func WithNoSyncCommitteeDuties() Option {
 }
 
 // WithDeterministicSyncCommDuties configures the mock to override SyncCommitteeDutiesFunc to return sync committee
-// duties for all validators with epoch number not divisible by 3.
+// duties for all validators for first 2 epochs in every 4 epochs.
 func WithDeterministicSyncCommDuties() Option {
 	return func(mock *Mock) {
 		mock.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
-			if epoch%3 == 0 {
+			if epoch%4 >= 2 {
 				return nil, nil
 			}
 
@@ -393,7 +393,7 @@ func WithDeterministicSyncCommDuties() Option {
 		mock.overrides = append(mock.overrides, staticOverride{
 			Endpoint: "/eth/v1/config/spec",
 			Key:      "EPOCHS_PER_SYNC_COMMITTEE_PERIOD",
-			Value:    "1",
+			Value:    "2",
 		})
 	}
 }
