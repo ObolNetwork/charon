@@ -107,7 +107,7 @@ func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, sele
 //	return resp, nil
 //}
 
-func (h *httpAdapter) ClearCache() {
+func (*httpAdapter) ClearCache() {
 	// h.valCache.Clear()
 }
 
