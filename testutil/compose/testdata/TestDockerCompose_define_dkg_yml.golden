@@ -1,7 +1,7 @@
 version: "3.8"
 
 x-node-base: &node-base
-  image: ghcr.io/obolnetwork/charon:latest
+  image: obolnetwork/charon:latest
   entrypoint: /usr/local/bin/charon
   command: [create,dkg]
   networks: [compose]

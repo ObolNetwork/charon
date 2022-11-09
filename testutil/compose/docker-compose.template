@@ -1,7 +1,7 @@
 version: "3.8"
 
 x-node-base: &node-base
-  image: ghcr.io/obolnetwork/charon:{{.CharonImageTag}}
+  image: obolnetwork/charon:{{.CharonImageTag}}
   entrypoint: {{.CharonEntrypoint}}
   command: {{.CharonCommand}}
   networks: [compose]
@@ -24,7 +24,7 @@ services:
   node{{$i}}:
     <<: *node-base
     <<: *logging
-    {{if .ImageTag}}image: ghcr.io/obolnetwork/charon:{{.ImageTag}}
+    {{if .ImageTag}}image: obolnetwork/charon:{{.ImageTag}}
     {{end -}}
     {{if .Entrypoint}}entrypoint: {{.Entrypoint}}
     {{end -}}

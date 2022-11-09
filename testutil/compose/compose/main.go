@@ -25,18 +25,13 @@ package main
 
 import (
 	"context"
-	"io/fs"
-	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/testutil/compose"
 )
 
@@ -55,7 +50,7 @@ func newRootCmd() *cobra.Command {
 
 	root.AddCommand(newNewCmd())
 	root.AddCommand(newCleanCmd())
-	root.AddCommand(newAutoCmd(nil))
+	root.AddCommand(newAutoCmd())
 	root.AddCommand(newDockerCmd(
 		"define",
 		"Creates a docker-compose.yml that executes `charon create dkg` if keygen==dkg",
@@ -75,44 +70,8 @@ func newRootCmd() *cobra.Command {
 	return root
 }
 
-// runFunc defines a function that generates docker-compose.yml from config and returns the template data.
-type runFunc func(context.Context, string, compose.Config) (compose.TmplData, error)
-
-// newRunnerFunc returns a function that wraps and runs a run function.
-func newRunnerFunc(topic string, dir string, up bool, runFunc runFunc,
-) func(ctx context.Context) (data compose.TmplData, err error) {
-	return func(ctx context.Context) (data compose.TmplData, err error) {
-		ctx = log.WithTopic(ctx, topic)
-		defer func() {
-			if err != nil {
-				log.Error(ctx, "Fatal error", err)
-			}
-		}()
-
-		conf, err := compose.LoadConfig(dir)
-		if errors.Is(err, fs.ErrNotExist) {
-			return compose.TmplData{}, errors.New("compose config.json not found; maybe try `compose new` first", z.Str("dir", dir))
-		} else if err != nil {
-			return compose.TmplData{}, err
-		}
-
-		log.Info(ctx, "Running compose command", z.Str("command", topic))
-
-		data, err = runFunc(ctx, dir, conf)
-		if err != nil {
-			return compose.TmplData{}, err
-		}
-
-		if up {
-			return data, execUp(ctx, dir)
-		}
-
-		return data, nil
-	}
-}
-
 // newDockerCmd returns a cobra command that generates docker-compose.yml files and executes it.
-func newDockerCmd(use string, short string, runFunc runFunc) *cobra.Command {
+func newDockerCmd(use string, short string, runFunc compose.RunFunc) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   use,
 		Short: short,
@@ -121,7 +80,7 @@ func newDockerCmd(use string, short string, runFunc runFunc) *cobra.Command {
 	up := addUpFlag(cmd.Flags())
 	dir := addDirFlag(cmd.Flags())
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		_, err := newRunnerFunc(use, *dir, *up, runFunc)(cmd.Context())
+		_, err := compose.NewRunnerFunc(use, *dir, *up, runFunc)(cmd.Context())
 		if err != nil {
 			log.Error(cmd.Context(), "Fatal error", err)
 		}
@@ -132,142 +91,30 @@ func newDockerCmd(use string, short string, runFunc runFunc) *cobra.Command {
 	return cmd
 }
 
-//nolint:gocognit // TODO(corver): Move this to compose package and improve API.
-func newAutoCmd(tmplCallbacks map[string]func(data *compose.TmplData)) *cobra.Command {
+func newAutoCmd() *cobra.Command {
+	var conf compose.AutoConfig
+
 	cmd := &cobra.Command{
 		Use:   "auto",
 		Short: "Convenience function that runs `compose define && compose lock && compose run`",
 		Args:  cobra.NoArgs,
-	}
-
-	dir := addDirFlag(cmd.Flags())
-	alertTimeout := cmd.Flags().Duration("alert-timeout", 0, "Timeout to collect alerts before shutdown. Zero disables timeout.")
-	sudoPerms := cmd.Flags().Bool("sudo-perms", false, "Enables changing all compose artefacts file permissions using sudo.")
-	printYML := cmd.Flags().Bool("print-yml", false, "Print generated docker-compose.yml files.")
-
-	cmd.RunE = func(cmd *cobra.Command, _ []string) (err error) {
-		ctx := log.WithTopic(cmd.Context(), "auto")
-
-		defer func() {
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := compose.Auto(cmd.Context(), conf)
 			if err != nil {
-				log.Error(ctx, "Fatal error", err)
-			}
-		}()
-		runFuncs := map[string]func(context.Context) (compose.TmplData, error){
-			"define": newRunnerFunc("define", *dir, false, compose.Define),
-			"lock":   newRunnerFunc("lock", *dir, false, compose.Lock),
-			"run":    newRunnerFunc("run", *dir, false, compose.Run),
-		}
-
-		var lastTmpl compose.TmplData
-		for i, step := range []string{"define", "lock", "run"} {
-			lastTmpl, err = runFuncs[step](ctx)
-			if err != nil {
+				log.Error(cmd.Context(), "auto command fatal error", err)
 				return err
 			}
 
-			if *sudoPerms {
-				if err := fixPerms(ctx, *dir); err != nil {
-					return err
-				}
-			}
-
-			if tmplCallbacks[step] != nil {
-				tmplCallbacks[step](&lastTmpl)
-				err := compose.WriteDockerCompose(*dir, lastTmpl)
-				if err != nil {
-					return err
-				}
-			}
-
-			if *printYML {
-				if err := printDockerCompose(ctx, *dir); err != nil {
-					return err
-				}
-			}
-
-			if i < len(runFuncs)-1 {
-				if err := execUp(ctx, *dir); err != nil {
-					return err
-				}
-			}
-		}
-
-		if *alertTimeout != 0 {
-			// Ensure everything is clean before we start with alert test.
-			_ = execDown(ctx, *dir)
-
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(ctx, *alertTimeout)
-			defer cancel()
-		}
-
-		alerts := startAlertCollector(ctx, *dir)
-
-		defer func() {
-			_ = execDown(context.Background(), *dir)
-		}()
-
-		if err := execUp(ctx, *dir); err != nil && !errors.Is(err, context.DeadlineExceeded) {
-			return err
-		}
-
-		var (
-			alertMsgs    []string
-			alertSuccess bool
-		)
-		for alert := range alerts {
-			if alert == alertsPolled {
-				alertSuccess = true
-			} else {
-				alertMsgs = append(alertMsgs, alert)
-			}
-		}
-		if !alertSuccess {
-			log.Error(ctx, "Alerts couldn't be polled", nil)
-			return nil // TODO(corver): Fix this and error
-		} else if len(alertMsgs) > 0 {
-			return errors.New("alerts detected", z.Any("alerts", alertMsgs))
-		}
-
-		log.Info(ctx, "No alerts detected")
-
-		return nil
+			return nil
+		},
 	}
+
+	cmd.Flags().StringVar(&conf.Dir, "compose-dir", ".", "Directory to use for compose artifacts")
+	cmd.Flags().DurationVar(&conf.AlertTimeout, "alert-timeout", 0, "Timeout to collect alerts before shutdown. Zero disables timeout.")
+	cmd.Flags().BoolVar(&conf.SudoPerms, "sudo-perms", false, "Enables changing all compose artefacts file permissions using sudo.")
+	cmd.Flags().BoolVar(&conf.PrintYML, "print-yml", false, "Print generated docker-compose.yml files.")
 
 	return cmd
-}
-
-// printDockerCompose prints the docker-compose.yml file to stdout.
-func printDockerCompose(ctx context.Context, dir string) error {
-	log.Info(ctx, "Printing docker-compose.yml")
-	cmd := exec.CommandContext(ctx, "cat", "docker-compose.yml")
-	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err := cmd.Run()
-	if err != nil {
-		return errors.Wrap(err, "exec cat docker-compose.yml")
-	}
-
-	return nil
-}
-
-// fixPerms fixes file permissions as a workaround for linux docker by removing
-// all restrictions using sudo chmod.
-func fixPerms(ctx context.Context, dir string) error {
-	cmd := exec.CommandContext(ctx, "sudo", "chmod", "-R", "a+wrX", ".")
-	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err := cmd.Run()
-	if err != nil {
-		return errors.Wrap(err, "exec sudo chmod")
-	}
-
-	return nil
 }
 
 func newNewCmd() *cobra.Command {
@@ -338,53 +185,4 @@ func addDirFlag(flags *pflag.FlagSet) *string {
 
 func addUpFlag(flags *pflag.FlagSet) *bool {
 	return flags.Bool("up", true, "Execute `docker-compose up` when compose command completes")
-}
-
-// execUp executes `docker-compose up`.
-func execUp(ctx context.Context, dir string) error {
-	// Build first so containers start at the same time below.
-	log.Info(ctx, "Executing docker-compose build")
-	cmd := exec.CommandContext(ctx, "docker-compose", "build", "--parallel")
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return errors.Wrap(err, "exec docker-compose build", z.Str("output", string(out)))
-	}
-
-	log.Info(ctx, "Executing docker-compose up")
-	cmd = exec.CommandContext(ctx, "docker-compose", "up",
-		"--remove-orphans",
-		"--abort-on-container-exit",
-		"--quiet-pull",
-	)
-	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() != nil {
-			err = ctx.Err()
-		}
-
-		return errors.Wrap(err, "exec docker-compose up")
-	}
-
-	return nil
-}
-
-// execDown executes `docker-compose down`.
-func execDown(ctx context.Context, dir string) error {
-	log.Info(ctx, "Executing docker-compose down")
-
-	cmd := exec.CommandContext(ctx, "docker-compose", "down",
-		"--remove-orphans",
-		"--timeout=2",
-	)
-	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return errors.Wrap(err, "run down")
-	}
-
-	return nil
 }
