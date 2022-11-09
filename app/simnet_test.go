@@ -143,6 +143,7 @@ func TestSimnetDuties(t *testing.T) {
 			bmockOpts: []beaconmock.Option{
 				beaconmock.WithNoAttesterDuties(),
 				beaconmock.WithNoProposerDuties(),
+				beaconmock.WithDeterministicSyncCommDuties(2, 2), // Always on
 			},
 			duties: []core.DutyType{core.DutyPrepareSyncContribution, core.DutySyncMessage, core.DutySyncContribution},
 		},
@@ -151,6 +152,7 @@ func TestSimnetDuties(t *testing.T) {
 			bmockOpts: []beaconmock.Option{
 				beaconmock.WithNoAttesterDuties(),
 				beaconmock.WithNoProposerDuties(),
+				beaconmock.WithDeterministicSyncCommDuties(2, 2), // Always on
 			},
 			duties: []core.DutyType{core.DutySyncMessage}, // Teku doesn't support sync committee selection.
 			teku:   true,
