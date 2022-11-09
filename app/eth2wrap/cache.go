@@ -23,6 +23,8 @@ import (
 )
 
 // valCache caches validators by public key.
+//
+//nolint:unused
 type valCache struct {
 	mu   sync.RWMutex
 	vals map[eth2p0.BLSPubKey]*eth2v1.Validator
