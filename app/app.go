@@ -107,7 +107,7 @@ type TestConfig struct {
 	LcastTransportFunc func() leadercast.Transport
 	// SimnetKeys provides private key shares for the simnet validatormock signer.
 	SimnetKeys []*bls_sig.SecretKey
-	// PeerAddrs contain peer address to manually add to the tcp node peer store.
+	// PeerAddrs contain peer addresses to manually add to the tcp node peer store.
 	PeerAddrs []peer.AddrInfo
 	// SimnetBMockOpts defines additional simnet beacon mock options.
 	SimnetBMockOpts []beaconmock.Option
