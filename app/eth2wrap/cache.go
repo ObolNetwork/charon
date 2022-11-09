@@ -15,60 +15,51 @@
 
 package eth2wrap
 
-import (
-	"sync"
-
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-)
-
 // valCache caches validators by public key.
+// type valCache struct {
+//	mu   sync.RWMutex
+//	vals map[eth2p0.BLSPubKey]*eth2v1.Validator
+//}
 //
-//nolint:unused
-type valCache struct {
-	mu   sync.RWMutex
-	vals map[eth2p0.BLSPubKey]*eth2v1.Validator
-}
-
-// Clear the cache.
-func (c *valCache) Clear() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.vals = nil
-}
-
-// Get returns any found validators (hits) and the public keys not found (misses).
-func (c *valCache) Get(pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, []eth2p0.BLSPubKey) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	var (
-		misses []eth2p0.BLSPubKey
-		hits   = make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
-	)
-	for _, pk := range pubkeys {
-		val, ok := c.vals[pk]
-		if !ok {
-			misses = append(misses, pk)
-			continue
-		}
-		hits[val.Index] = val
-	}
-
-	return hits, misses
-}
-
-// Set stores the validators in the cache.
-func (c *valCache) Set(vals map[eth2p0.ValidatorIndex]*eth2v1.Validator) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.vals == nil {
-		c.vals = make(map[eth2p0.BLSPubKey]*eth2v1.Validator)
-	}
-
-	for _, val := range vals {
-		c.vals[val.Validator.PublicKey] = val
-	}
-}
+//// Clear the cache.
+// func (c *valCache) Clear() {
+//	c.mu.Lock()
+//	defer c.mu.Unlock()
+//
+//	c.vals = nil
+//}
+//
+//// Get returns any found validators (hits) and the public keys not found (misses).
+// func (c *valCache) Get(pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, []eth2p0.BLSPubKey) {
+//	c.mu.RLock()
+//	defer c.mu.RUnlock()
+//
+//	var (
+//		misses []eth2p0.BLSPubKey
+//		hits   = make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+//	)
+//	for _, pk := range pubkeys {
+//		val, ok := c.vals[pk]
+//		if !ok {
+//			misses = append(misses, pk)
+//			continue
+//		}
+//		hits[val.Index] = val
+//	}
+//
+//	return hits, misses
+//}
+//
+//// Set stores the validators in the cache.
+// func (c *valCache) Set(vals map[eth2p0.ValidatorIndex]*eth2v1.Validator) {
+//	c.mu.Lock()
+//	defer c.mu.Unlock()
+//
+//	if c.vals == nil {
+//		c.vals = make(map[eth2p0.BLSPubKey]*eth2v1.Validator)
+//	}
+//
+//	for _, val := range vals {
+//		c.vals[val.Validator.PublicKey] = val
+//	}
+//}
