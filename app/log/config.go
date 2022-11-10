@@ -16,6 +16,7 @@
 package log
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -29,6 +30,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log/loki"
 	"github.com/obolnetwork/charon/app/z"
 )
 
@@ -38,18 +40,30 @@ const (
 	keyTopic  = "topic"
 )
 
-// logger is the global logger.
+// zapLogger abstracts a zap logger.
+type zapLogger interface {
+	Debug(string, ...zap.Field)
+	Info(string, ...zap.Field)
+	Warn(string, ...zap.Field)
+	Error(string, ...zap.Field)
+}
+
 var (
-	logger = newDefaultLogger()
 	initMu sync.Mutex
+	// logger is the global logger.
+	logger zapLogger = newDefaultLogger()
+	// stopFuncs are the global logger stop functions.
+	stopFuncs []func(context.Context) = nil
 
 	padding = strings.Repeat(" ", padLength)
 )
 
 // Config defines the logging configuration.
 type Config struct {
-	Level  string // debug, info, warn or error
-	Format string // console or json
+	Level         string   // debug, info, warn or error
+	Format        string   // console or json
+	LokiAddresses []string // URLs for loki logging spout
+	LokiService   string   // Value of the service label pushed with loki logs.
 }
 
 // ZapLevel returns the zapcore level.
@@ -72,6 +86,8 @@ func DefaultConfig() Config {
 
 // InitLogger initialises the global logger based on the provided config.
 func InitLogger(config Config) error {
+	Stop(context.Background()) // Stop previously started loggers.
+
 	initMu.Lock()
 	defer initMu.Unlock()
 
@@ -87,12 +103,36 @@ func InitLogger(config Config) error {
 
 	if config.Format == "console" {
 		logger = newConsoleLogger(level, writer)
-		return nil
+	} else {
+		logger, err = newStructuredLogger(config.Format, level, writer)
+		if err != nil {
+			return err
+		}
 	}
 
-	logger, err = newStructuredLogger(config.Format, level, writer)
-	if err != nil {
-		return err
+	if len(config.LokiAddresses) > 0 {
+		// Wire loki clients internal logger
+		ctx := WithTopic(context.Background(), "loki")
+		filter := Filter()
+		logFunc := func(msg string, err error) {
+			Warn(ctx, msg, err, filter)
+		}
+
+		// Create a multi logger
+		loggers := multiLogger{logger}
+		for _, address := range config.LokiAddresses {
+			lokiCl := loki.New(address, config.LokiService, logFunc)
+			lokiLogger, err := newStructuredLogger("logfmt", zapcore.DebugLevel, lokiWriter{cl: lokiCl})
+			if err != nil {
+				return err
+			}
+
+			stopFuncs = append(stopFuncs, lokiCl.Stop)
+			loggers = append(loggers, lokiLogger)
+			go lokiCl.Run()
+		}
+
+		logger = loggers
 	}
 
 	return nil
@@ -125,6 +165,18 @@ func InitLogfmtForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.
 	var err error
 	logger, err = newStructuredLogger("logfmt", zapcore.DebugLevel, ws, opts...)
 	require.NoError(t, err)
+}
+
+// Stop stops all log processors.
+func Stop(ctx context.Context) {
+	initMu.Lock()
+	defer initMu.Unlock()
+
+	for _, stopFunc := range stopFuncs {
+		stopFunc(ctx)
+	}
+
+	stopFuncs = nil
 }
 
 // newStructuredLogger returns an opinionated logfmt or json logger.

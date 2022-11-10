@@ -8,22 +8,10 @@ x-node-base: &node-base
   volumes: [{{.ComposeDir}}:/compose]
   {{if .Bootnode }}depends_on: [bootnode] {{end}}
 
-# Requires: docker plugin install  grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
-x-logging: &logging
-  logging:
-  {{if .Loki}}
-    driver: loki
-    options:
-      loki-url: http://localhost:3100/loki/api/v1/push
-  {{else}}
-    driver: json-file
-  {{end}}
-
 services:
   {{- range $i, $node := .Nodes}}
   node{{$i}}:
     <<: *node-base
-    <<: *logging
     {{if .ImageTag}}image: obolnetwork/charon:{{.ImageTag}}
     {{end -}}
     {{if .Entrypoint}}entrypoint: {{.Entrypoint}}
@@ -45,7 +33,6 @@ services:
   {{- if .Bootnode }}
   bootnode:
     <<: *node-base
-    <<: *logging
     command: bootnode
     depends_on: []
     environment:
@@ -55,12 +42,12 @@ services:
       CHARON_P2P_EXTERNAL_HOSTNAME: bootnode
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
+      CHARON_LOKI_ADDRESS: http://loki:3100/loki/api/v1/push
   {{end -}}
 
   {{- range $i, $vc := .VCs}}
   {{- if $vc.Label}}
   vc{{$i}}-{{$vc.Label}}:
-    <<: *logging
     {{if $vc.Build}}build: {{$vc.Build}}
     {{end -}}
     {{if $vc.Image}}image: {{$vc.Image}}
@@ -112,20 +99,15 @@ services:
     networks: [compose]
     {{if .MonitoringPorts}}ports:
       - "16686:16686"
-    {{end -}}
-  {{end}}
+    {{end}}
 
-  {{if .Loki}}
   loki:
     image: grafana/loki:latest
-    ports:
-      - "3100:3100"
     networks: [compose]
     command: -config.file=/etc/loki/loki.yml
     volumes:
       - ./loki/loki.yml:/etc/loki/loki.yml
   {{end}}
-
 
 networks:
   compose:

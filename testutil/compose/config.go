@@ -25,7 +25,6 @@ const (
 	defaultNumNodes   = 4
 	defaultThreshold  = 3
 	defaultFeatureSet = "alpha"
-	defaultLoki       = true
 
 	charonImage      = "obolnetwork/charon"
 	localBinary      = "/compose/charon"
@@ -116,9 +115,6 @@ type Config struct {
 	// DisableMonitoringPorts defines whether to disable prometheus and jaeger monitoring port binding.
 	DisableMonitoringPorts bool `json:"disable_monitoring_ports"`
 
-	// EnableLoki defines whether to loki logging driver should be configured.
-	EnableLoki bool `json:"enable_loki"`
-
 	// InsecureKeys generates insecure keys. Useful when testing large validator sets
 	// as it speeds up keystore encryption and decryption.
 	InsecureKeys bool `json:"insecure_keys"`
@@ -156,6 +152,5 @@ func NewDefaultConfig() Config {
 		BeaconNode:    defaultBeaconNode,
 		Step:          stepNew,
 		FeatureSet:    defaultFeatureSet,
-		EnableLoki:    defaultLoki,
 	}
 }

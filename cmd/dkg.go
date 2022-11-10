@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/dkg"
 )
 
@@ -35,7 +36,7 @@ distributed validator key shares and a final cluster lock configuration. Note th
 this command at the same time.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := initLogger(cmd.Flags()); err != nil {
+			if err := log.InitLogger(config.Log); err != nil {
 				return err
 			}
 

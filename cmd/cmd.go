@@ -156,21 +156,3 @@ func printFlags(ctx context.Context, flags *pflag.FlagSet) {
 
 	log.Info(ctx, "Parsed config", zStrs...)
 }
-
-// initLogger initialises logger based on provided log config flags.
-func initLogger(flags *pflag.FlagSet) error {
-	logLevel := flags.Lookup("log-level")
-	logFmt := flags.Lookup("log-format")
-
-	if logLevel != nil && logFmt != nil {
-		err := log.InitLogger(log.Config{
-			Level:  logLevel.Value.String(),
-			Format: logFmt.Value.String(),
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}

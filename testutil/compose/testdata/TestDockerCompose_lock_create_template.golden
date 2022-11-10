@@ -43,6 +43,5 @@
  "VCs": null,
  "Bootnode": false,
  "Monitoring": false,
- "MonitoringPorts": false,
- "Loki": false
+ "MonitoringPorts": false
 }

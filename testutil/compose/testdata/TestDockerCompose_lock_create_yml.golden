@@ -8,17 +8,9 @@ x-node-base: &node-base
   volumes: [testdir:/compose]
   
 
-# Requires: docker plugin install  grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
-x-logging: &logging
-  logging:
-  
-    driver: json-file
-  
-
 services:
   node0:
     <<: *node-base
-    <<: *logging
     
     environment:
       CHARON_THRESHOLD: 3
@@ -29,9 +21,6 @@ services:
       CHARON_NUM_VALIDATORS: 1
       CHARON_INSECURE_KEYS: "false"
     
-
-  
-
 
 networks:
   compose:
