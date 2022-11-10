@@ -18,6 +18,7 @@ package fetcher
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -260,7 +261,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 		// Ensure fee recipient is correctly populated in block.
 		if block.Version == spec.DataVersionBellatrix {
 			actual := fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
-			if actual != f.feeRecipientAddress {
+			if !strings.EqualFold(actual, f.feeRecipientAddress) {
 				log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
 					z.Str("expected", f.feeRecipientAddress), z.Str("actual", actual))
 			}
@@ -304,7 +305,7 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defS
 		// Ensure fee recipient is correctly populated in block.
 		if block.Version == spec.DataVersionBellatrix {
 			actual := fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
-			if actual != f.feeRecipientAddress {
+			if !strings.EqualFold(actual, f.feeRecipientAddress) {
 				log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
 					z.Str("expected", f.feeRecipientAddress), z.Str("actual", actual))
 			}
