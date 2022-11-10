@@ -85,7 +85,7 @@ jobs:
           DISCORD_EMBEDS: |
             [{
               "title": "🚨  Main branch workflow failed: ${{ github.workflow }}",
-              "description": "Workflows:${{ join(needs.*, ',')\nResults:${{ join(needs.*.result, ',')}}"
+              "description": "Workflows:${{ join(needs.*, ',')}}\nResults:${{ join(needs.*.result, ',')}}"
               "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
               "color": 10038562
             }]
