@@ -13,8 +13,12 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package loki provides a simple loki log ingestion client supporting batch sends.
-// It is heavily based on https://github.com/grafana/loki/tree/main/clients/pkg/promtail/client
+// Package loki provides a simple best-effort loki log ingestion client supporting batch sends.
+// It is heavily based on https://github.com/grafana/loki/tree/main/clients/pkg/promtail/client.
+//
+// It is best-effort, meaning it doesn't provide delivery guarantees, it will drop logs if
+// loki isn't accessible. It is meant to be used in local dev environments or where log
+// delivery isn't critical.
 package loki
 
 import (
@@ -76,10 +80,11 @@ func newInternal(endpoint string, service string, batchWait time.Duration, batch
 }
 
 // Run blocks until Stop is called.
-// It batches and sends logs to loki.
-// It sends logs every batchWait time or when BatchMax size is reached.
-// Failed sends are retried until BatchMax size is reached, then the logs are dropped.
-// It tries to send the last batch when Stop is called. It doesn't retry this batch.
+//   - It batches and sends logs to loki.
+//   - It sends logs every batchWait time.
+//   - Failed sends are retried.
+//   - Enqueue logs are dropped if BatchMax is reached.
+//   - It tries to send the last batch when Stop is called. It doesn't retry this batch.
 func (c *Client) Run() {
 	var (
 		client        = new(http.Client)
