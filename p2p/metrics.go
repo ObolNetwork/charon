@@ -69,7 +69,7 @@ var (
 	peerConnCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "p2p",
 		Name:      "peer_connection_total",
-		Help:      "Total number of libp2p connection per peer.",
+		Help:      "Total number of libp2p connections per peer.",
 	}, []string{"peer"})
 )
 
