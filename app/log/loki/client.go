@@ -114,11 +114,11 @@ func (c *Client) Run() {
 		case <-ticker.C:
 			// Do not send if the batch is too young
 			if batch.Age() < c.batchWait {
-				break
+				continue
 			}
 			// Do not send if we are backing off
 			if retries > 0 && expbackoff.Backoff(backoffConfig, retries) > 0 {
-				break
+				continue
 			}
 
 			err := send(ctx, client, c.endpoint, batch)
@@ -126,7 +126,7 @@ func (c *Client) Run() {
 				log.Warn(ctx, "Loki batch send failed", err, logFilter)
 				retries++
 
-				break
+				continue
 			}
 
 			batch = newBatch(c.service)
