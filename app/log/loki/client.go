@@ -37,26 +37,39 @@ const (
 	maxErrMsgLen = 1024
 	httpTimeout  = 2 * time.Second
 	batchWait    = 1 * time.Second
-	batchMaxSize = 5 * 1 << 20 // 5MB
+	batchMax     = 5 * 1 << 20 // 5MB
 )
 
 // Client for pushing logs in snappy-compressed protos over HTTP.
 type Client struct {
-	input    chan string
-	quit     chan struct{}
-	done     chan struct{}
-	service  string
-	endpoint string
+	input     chan string
+	quit      chan struct{}
+	done      chan struct{}
+	service   string
+	endpoint  string
+	batchWait time.Duration
+	batchMax  int
 }
 
-// New makes a new Client.
+// NewForT returns a new Client for testing.
+func NewForT(endpoint string, service string, batchWait time.Duration, batchMax int) *Client {
+	return newInternal(endpoint, service, batchWait, batchMax)
+}
+
+// New returns a new Client.
 func New(endpoint string, service string) *Client {
+	return newInternal(endpoint, service, batchWait, batchMax)
+}
+
+func newInternal(endpoint string, service string, batchWait time.Duration, batchMax int) *Client {
 	return &Client{
-		endpoint: endpoint,
-		service:  service,
-		done:     make(chan struct{}),
-		quit:     make(chan struct{}),
-		input:    make(chan string),
+		endpoint:  endpoint,
+		service:   service,
+		done:      make(chan struct{}),
+		quit:      make(chan struct{}),
+		input:     make(chan string),
+		batchMax:  batchMax,
+		batchWait: batchWait,
 	}
 }
 
@@ -67,7 +80,7 @@ func (c *Client) Run() {
 		backoffConfig = expbackoff.DefaultConfig
 		retries       int
 		batch         = newBatch(c.service) // New empty batch
-		ticker        = time.NewTicker(batchWait / 10)
+		ticker        = time.NewTicker(c.batchWait / 10)
 		logFilter     = log.Filter()
 	)
 	defer close(c.done)
@@ -80,7 +93,7 @@ func (c *Client) Run() {
 				Timestamp: timestamppb.Now(),
 				Line:      line,
 			})
-			if batch.Size() > batchMaxSize {
+			if batch.Size() > c.batchMax {
 				batch = newBatch(c.service) // Just silently drop, there should have been multiple error logs below.
 			}
 		case <-c.quit:
@@ -88,7 +101,7 @@ func (c *Client) Run() {
 			return
 		case <-ticker.C:
 			// Do not send if the batch is too young
-			if batch.Age() < batchWait {
+			if batch.Age() < c.batchWait {
 				break
 			}
 			// Do not send if we are backing off
