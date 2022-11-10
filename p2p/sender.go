@@ -112,7 +112,7 @@ func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID pr
 	go func() {
 		// Clone the context since parent context may be closed soon.
 		ctx := log.CopyFields(context.Background(), parent)
-		err := Send(ctx, tcpNode, protoID, peerID, msg)
+		err := Send(ctx, tcpNode, protoID, peerID, msg) // TODO(corver): Retry once on relay errors.
 		s.addResult(ctx, peerID, err)
 	}()
 
