@@ -66,11 +66,10 @@ var (
 		Help:      "Current number of libp2p connections by peer and type ('direct' or 'relay'). Note that peers may have multiple connections.",
 	}, []string{"peer", "type"})
 
-	peerConnDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	peerConnCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "p2p",
-		Name:      "peer_connection_duration_secs",
-		Help:      "Libp2p connection duration in seconds per peer.",
-		Buckets:   []float64{1, 5, 10, 30, 60, 300, 600, 1800, 3600, 21600, 43200},
+		Name:      "peer_connection_total",
+		Help:      "Total number of libp2p connections per peer.",
 	}, []string{"peer"})
 )
 
