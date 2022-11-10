@@ -21,6 +21,8 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-go-
     - run: go test -coverprofile=coverage.out -covermode=atomic -timeout=5m ./...
+    - name: Test
+      run: exit 1
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2.1.0
       with:
@@ -44,6 +46,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - run: docker pull consensys/teku:latest
+      - name: Test
+        run: exit 1
       - run: go test -timeout=5m github.com/obolnetwork/charon/app -integration -slow
 
   compose_tests:
