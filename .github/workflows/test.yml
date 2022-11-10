@@ -20,9 +20,9 @@ jobs:
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
-    - run: go test -coverprofile=coverage.out -covermode=atomic -timeout=5m ./...
     - name: Test
       run: exit 1
+    - run: go test -coverprofile=coverage.out -covermode=atomic -timeout=5m ./...
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2.1.0
       with:
@@ -85,7 +85,7 @@ jobs:
           DISCORD_EMBEDS: |
             [{
               "title": "🚨  Main branch workflow failed: ${{ github.workflow }}",
-              "description": "${{ toJSON(needs) }}"
+              "description": "Workflows:${{ join(needs.*, ',')\nResults:${{ join(needs.*.result, ',')}}"
               "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
               "color": 10038562
             }]
