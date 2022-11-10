@@ -3,7 +3,7 @@ module github.com/obolnetwork/charon
 go 1.19
 
 require (
-	github.com/attestantio/go-eth2-client v0.14.1
+	github.com/attestantio/go-eth2-client v0.14.3
 	github.com/bufbuild/buf v1.9.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/ethereum/go-ethereum v1.10.26
@@ -98,7 +98,7 @@ require (
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jdxcode/netrc v0.0.0-20210204082910-926c7f70242a // indirect
 	github.com/klauspost/compress v1.15.11 // indirect
-	github.com/klauspost/cpuid/v2 v2.1.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.1.2 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/koron/go-ssdp v0.0.3 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
