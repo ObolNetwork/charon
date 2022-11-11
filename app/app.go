@@ -470,6 +470,10 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wirePrioritise(conf Config, life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, thresholhd int,
 	sendFunc p2p.SendReceiveFunc, coreCons core.Consensus, sched core.Scheduler, p2pKey *ecdsa.PrivateKey,
 ) error {
+	if !featureset.Enabled(featureset.Priority) {
+		return nil
+	}
+
 	cons, ok := coreCons.(*consensus.Component)
 	if !ok {
 		// Priority protocol not supported for leader cast.
