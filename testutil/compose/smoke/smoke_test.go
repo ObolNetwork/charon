@@ -137,7 +137,6 @@ func TestSmoke(t *testing.T) {
 
 			conf := compose.NewDefaultConfig()
 			conf.DisableMonitoringPorts = true
-			conf.EnableLoki = false
 			if *prebuiltBinary != "" {
 				copyPrebuiltBinary(t, dir, *prebuiltBinary)
 				conf.PrebuiltBinary = true

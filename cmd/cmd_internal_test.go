@@ -68,8 +68,9 @@ func TestCmdFlags(t *testing.T) {
 			},
 			AppConfig: &app.Config{
 				Log: log.Config{
-					Level:  "info",
-					Format: "console",
+					Level:       "info",
+					Format:      "console",
+					LokiService: "charon",
 				},
 				P2P: p2p.Config{
 					UDPBootnodes:  []string{"http://bootnode.lb.gcp.obol.tech:3640/enr"},

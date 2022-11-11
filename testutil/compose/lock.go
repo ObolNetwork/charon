@@ -118,11 +118,6 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 		p2pRelay = "true"
 	}
 
-	logFmt := "console"
-	if conf.EnableLoki {
-		logFmt = "logfmt"
-	}
-
 	// Common config
 	kvs := []kv{
 		{"private-key-file", fmt.Sprintf("/compose/node%d/charon-enr-private-key", index)},
@@ -133,7 +128,6 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 		{"p2p-bootnodes", p2pBootnodes},
 		{"p2p-bootnode-relay", fmt.Sprintf(`"%v"`, p2pRelay)},
 		{"log-level", "debug"},
-		{"log-format", logFmt},
 		{"feature-set", conf.FeatureSet},
 	}
 
@@ -157,6 +151,8 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 		kv{"simnet-beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},
 		kv{"simnet-validator-mock", fmt.Sprintf(`"%v"`, vcType == VCMock)},
 		kv{"simnet-validator-keys-dir", fmt.Sprintf("/compose/node%d/validator_keys", index)},
+		kv{"loki-addresses", "http://lokid:3100/loki/api/v1/push"},
+		kv{"loki-service", fmt.Sprintf("node%d", index)},
 	)
 }
 

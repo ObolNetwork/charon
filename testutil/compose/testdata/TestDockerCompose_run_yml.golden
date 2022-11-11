@@ -8,19 +8,9 @@ x-node-base: &node-base
   volumes: [testdir:/compose]
   depends_on: [bootnode] 
 
-# Requires: docker plugin install  grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
-x-logging: &logging
-  logging:
-  
-    driver: loki
-    options:
-      loki-url: http://localhost:3100/loki/api/v1/push
-  
-
 services:
   node0:
     <<: *node-base
-    <<: *logging
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node0/charon-enr-private-key
@@ -31,7 +21,6 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
-      CHARON_LOG_FORMAT: logfmt
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node0
       CHARON_JAEGER_SERVICE: node0
@@ -42,6 +31,8 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_SIMNET_VALIDATOR_MOCK: "false"
       CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node0/validator_keys
+      CHARON_LOKI_ADDRESSES: http://lokid:3100/loki/api/v1/push
+      CHARON_LOKI_SERVICE: node0
     
     ports:
       - "3600:3600"
@@ -54,7 +45,6 @@ services:
       
   node1:
     <<: *node-base
-    <<: *logging
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node1/charon-enr-private-key
@@ -65,7 +55,6 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
-      CHARON_LOG_FORMAT: logfmt
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node1
       CHARON_JAEGER_SERVICE: node1
@@ -76,6 +65,8 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_SIMNET_VALIDATOR_MOCK: "false"
       CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node1/validator_keys
+      CHARON_LOKI_ADDRESSES: http://lokid:3100/loki/api/v1/push
+      CHARON_LOKI_SERVICE: node1
     
     ports:
       - "13600:3600"
@@ -88,7 +79,6 @@ services:
       
   node2:
     <<: *node-base
-    <<: *logging
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node2/charon-enr-private-key
@@ -99,7 +89,6 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
-      CHARON_LOG_FORMAT: logfmt
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node2
       CHARON_JAEGER_SERVICE: node2
@@ -110,6 +99,8 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node2/validator_keys
+      CHARON_LOKI_ADDRESSES: http://lokid:3100/loki/api/v1/push
+      CHARON_LOKI_SERVICE: node2
     
     ports:
       - "23600:3600"
@@ -122,7 +113,6 @@ services:
       
   node3:
     <<: *node-base
-    <<: *logging
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node3/charon-enr-private-key
@@ -133,7 +123,6 @@ services:
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
       CHARON_P2P_BOOTNODE_RELAY: "false"
       CHARON_LOG_LEVEL: debug
-      CHARON_LOG_FORMAT: logfmt
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node3
       CHARON_JAEGER_SERVICE: node3
@@ -144,6 +133,8 @@ services:
       CHARON_SIMNET_BEACON_MOCK: "true"
       CHARON_SIMNET_VALIDATOR_MOCK: "false"
       CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node3/validator_keys
+      CHARON_LOKI_ADDRESSES: http://lokid:3100/loki/api/v1/push
+      CHARON_LOKI_SERVICE: node3
     
     ports:
       - "33600:3600"
@@ -156,7 +147,6 @@ services:
       
   bootnode:
     <<: *node-base
-    <<: *logging
     command: bootnode
     depends_on: []
     environment:
@@ -166,9 +156,9 @@ services:
       CHARON_P2P_EXTERNAL_HOSTNAME: bootnode
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
+      CHARON_LOKI_ADDRESS: http://loki:3100/loki/api/v1/push
   
   vc0-teku:
-    <<: *logging
     image: consensys/teku:latest
     command: |
       validator-client
@@ -185,7 +175,6 @@ services:
       - .:/compose
   
   vc1-lighthouse:
-    <<: *logging
     build: lighthouse
     networks: [compose]
     depends_on: [node1]
@@ -195,7 +184,6 @@ services:
       - .:/compose
   
   vc3-teku:
-    <<: *logging
     image: consensys/teku:latest
     command: |
       validator-client
@@ -246,17 +234,13 @@ services:
       - "16686:16686"
     
 
-  
   loki:
     image: grafana/loki:latest
-    ports:
-      - "3100:3100"
     networks: [compose]
     command: -config.file=/etc/loki/loki.yml
     volumes:
       - ./loki/loki.yml:/etc/loki/loki.yml
   
-
 
 networks:
   compose:

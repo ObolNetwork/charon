@@ -33,7 +33,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/expbackoff"
-	"github.com/obolnetwork/charon/app/log"
 	pbv1 "github.com/obolnetwork/charon/app/log/loki/lokipb/v1"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -46,6 +45,34 @@ const (
 	batchMax     = 5 * 1 << 20 // 5MB
 )
 
+// logFunc abstracts logging, since this is a logger itself.
+type logFunc func(string, error)
+
+// NewForT returns a new Client for testing.
+func NewForT(endpoint string, service string, batchWait time.Duration, batchMax int) *Client {
+	return newInternal(endpoint, service, batchWait, batchMax, func(string, error) {})
+}
+
+// New returns a new Client.
+func New(endpoint string, service string, logFunc logFunc) *Client {
+	return newInternal(endpoint, service, batchWait, batchMax, logFunc)
+}
+
+func newInternal(endpoint string, service string, batchWait time.Duration, batchMax int,
+	logFunc logFunc,
+) *Client {
+	return &Client{
+		endpoint:  endpoint,
+		service:   service,
+		done:      make(chan struct{}),
+		quit:      make(chan struct{}),
+		input:     make(chan string),
+		batchMax:  batchMax,
+		batchWait: batchWait,
+		logFunc:   logFunc,
+	}
+}
+
 // Client for pushing logs in snappy-compressed protos over HTTP.
 type Client struct {
 	input     chan string
@@ -55,28 +82,7 @@ type Client struct {
 	endpoint  string
 	batchWait time.Duration
 	batchMax  int
-}
-
-// NewForT returns a new Client for testing.
-func NewForT(endpoint string, service string, batchWait time.Duration, batchMax int) *Client {
-	return newInternal(endpoint, service, batchWait, batchMax)
-}
-
-// New returns a new Client.
-func New(endpoint string, service string) *Client {
-	return newInternal(endpoint, service, batchWait, batchMax)
-}
-
-func newInternal(endpoint string, service string, batchWait time.Duration, batchMax int) *Client {
-	return &Client{
-		endpoint:  endpoint,
-		service:   service,
-		done:      make(chan struct{}),
-		quit:      make(chan struct{}),
-		input:     make(chan string),
-		batchMax:  batchMax,
-		batchWait: batchWait,
-	}
+	logFunc   logFunc
 }
 
 // Run blocks until Stop is called.
@@ -88,12 +94,12 @@ func newInternal(endpoint string, service string, batchWait time.Duration, batch
 func (c *Client) Run() {
 	var (
 		client        = new(http.Client)
-		ctx           = log.WithTopic(context.Background(), "loki")
+		ctx           = context.Background()
 		backoffConfig = expbackoff.DefaultConfig
 		retries       int
+		triedAt       time.Time
 		batch         = newBatch(c.service) // New empty batch
-		ticker        = time.NewTicker(c.batchWait / 10)
-		logFilter     = log.Filter()
+		ticker        = time.NewTicker(c.batchWait)
 	)
 	defer close(c.done)
 	defer ticker.Stop()
@@ -116,15 +122,22 @@ func (c *Client) Run() {
 			if batch.Age() < c.batchWait {
 				continue
 			}
+
 			// Do not send if we are backing off
-			if retries > 0 && expbackoff.Backoff(backoffConfig, retries) > 0 {
-				continue
+			if retries > 0 {
+				nextTry := triedAt.Add(expbackoff.Backoff(backoffConfig, retries))
+				if time.Until(nextTry) > 0 {
+					break
+				}
 			}
 
 			err := send(ctx, client, c.endpoint, batch)
 			if err != nil {
-				log.Warn(ctx, "Loki batch send failed", err, logFilter)
+				// Log async to avoid deadlock by recursive calls to Add.
+				go c.logFunc("Loki batch send failed", err)
+
 				retries++
+				triedAt = time.Now()
 
 				continue
 			}

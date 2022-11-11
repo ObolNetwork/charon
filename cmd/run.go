@@ -37,7 +37,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 		Short: "Run the charon middleware client",
 		Long:  "Starts the long-running Charon middleware process to perform distributed validator duties.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := initLogger(cmd.Flags()); err != nil {
+			if err := log.InitLogger(conf.Log); err != nil {
 				return err
 			}
 
@@ -52,9 +52,15 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 	bindNoVerifyFlag(cmd.Flags(), &conf.NoVerify)
 	bindP2PFlags(cmd, &conf.P2P)
 	bindLogFlags(cmd.Flags(), &conf.Log)
+	bindLokiFlags(cmd.Flags(), &conf.Log)
 	bindFeatureFlags(cmd.Flags(), &conf.Feature)
 
 	return cmd
+}
+
+func bindLokiFlags(flags *pflag.FlagSet, config *log.Config) {
+	flags.StringSliceVar(&config.LokiAddresses, "loki-addresses", nil, "Enables sending of logfmt structured logs to these Loki log aggregation server addresses. This is in addition to normal stderr logs.")
+	flags.StringVar(&config.LokiService, "loki-service", "charon", "Service label sent with logs to Loki.")
 }
 
 func bindNoVerifyFlag(flags *pflag.FlagSet, config *bool) {

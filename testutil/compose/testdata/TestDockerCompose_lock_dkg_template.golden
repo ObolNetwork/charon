@@ -41,10 +41,6 @@
      "Value": "debug"
     },
     {
-     "Key": "log-format",
-     "Value": "logfmt"
-    },
-    {
      "Key": "feature-set",
      "Value": "alpha"
     },
@@ -98,10 +94,6 @@
     {
      "Key": "log-level",
      "Value": "debug"
-    },
-    {
-     "Key": "log-format",
-     "Value": "logfmt"
     },
     {
      "Key": "feature-set",
@@ -159,10 +151,6 @@
      "Value": "debug"
     },
     {
-     "Key": "log-format",
-     "Value": "logfmt"
-    },
-    {
      "Key": "feature-set",
      "Value": "alpha"
     },
@@ -218,10 +206,6 @@
      "Value": "debug"
     },
     {
-     "Key": "log-format",
-     "Value": "logfmt"
-    },
-    {
      "Key": "feature-set",
      "Value": "alpha"
     },
@@ -244,6 +228,5 @@
  "VCs": null,
  "Bootnode": true,
  "Monitoring": false,
- "MonitoringPorts": false,
- "Loki": false
+ "MonitoringPorts": false
 }

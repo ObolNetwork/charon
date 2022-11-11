@@ -41,10 +41,6 @@
      "Value": "debug"
     },
     {
-     "Key": "log-format",
-     "Value": "logfmt"
-    },
-    {
      "Key": "feature-set",
      "Value": "alpha"
     },
@@ -83,6 +79,14 @@
     {
      "Key": "simnet-validator-keys-dir",
      "Value": "/compose/node0/validator_keys"
+    },
+    {
+     "Key": "loki-addresses",
+     "Value": "http://lokid:3100/loki/api/v1/push"
+    },
+    {
+     "Key": "loki-service",
+     "Value": "node0"
     }
    ],
    "Ports": [
@@ -141,10 +145,6 @@
      "Value": "debug"
     },
     {
-     "Key": "log-format",
-     "Value": "logfmt"
-    },
-    {
      "Key": "feature-set",
      "Value": "alpha"
     },
@@ -183,6 +183,14 @@
     {
      "Key": "simnet-validator-keys-dir",
      "Value": "/compose/node1/validator_keys"
+    },
+    {
+     "Key": "loki-addresses",
+     "Value": "http://lokid:3100/loki/api/v1/push"
+    },
+    {
+     "Key": "loki-service",
+     "Value": "node1"
     }
    ],
    "Ports": [
@@ -241,10 +249,6 @@
      "Value": "debug"
     },
     {
-     "Key": "log-format",
-     "Value": "logfmt"
-    },
-    {
      "Key": "feature-set",
      "Value": "alpha"
     },
@@ -283,6 +287,14 @@
     {
      "Key": "simnet-validator-keys-dir",
      "Value": "/compose/node2/validator_keys"
+    },
+    {
+     "Key": "loki-addresses",
+     "Value": "http://lokid:3100/loki/api/v1/push"
+    },
+    {
+     "Key": "loki-service",
+     "Value": "node2"
     }
    ],
    "Ports": [
@@ -341,10 +353,6 @@
      "Value": "debug"
     },
     {
-     "Key": "log-format",
-     "Value": "logfmt"
-    },
-    {
      "Key": "feature-set",
      "Value": "alpha"
     },
@@ -383,6 +391,14 @@
     {
      "Key": "simnet-validator-keys-dir",
      "Value": "/compose/node3/validator_keys"
+    },
+    {
+     "Key": "loki-addresses",
+     "Value": "http://lokid:3100/loki/api/v1/push"
+    },
+    {
+     "Key": "loki-service",
+     "Value": "node3"
     }
    ],
    "Ports": [
@@ -437,6 +453,5 @@
  ],
  "Bootnode": true,
  "Monitoring": true,
- "MonitoringPorts": true,
- "Loki": true
+ "MonitoringPorts": true
 }
