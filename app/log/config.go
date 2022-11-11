@@ -53,7 +53,7 @@ var (
 	// logger is the global logger.
 	logger zapLogger = newDefaultLogger()
 	// stopFuncs are the global logger stop functions.
-	stopFuncs []func(context.Context) = nil
+	stopFuncs []func(context.Context)
 
 	padding = strings.Repeat(" ", padLength)
 )
