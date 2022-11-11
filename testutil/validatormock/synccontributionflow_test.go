@@ -96,7 +96,7 @@ func PseudoSyncCommContributionFlow(t *testing.T, supportDVT bool) {
 	state, _ := eth2Cl.BeaconState(ctx, "head")
 
 	var headBlockRoot eth2p0.Root
-	copy(headBlockRoot[:], state.Bellatrix.BlockRoots[0])
+	copy(headBlockRoot[:], state.Bellatrix.BlockRoots[0][:])
 
 	// Create, sign and submit sync committee message
 	signingRoot, _ := signing.GetDataRoot(ctx, nil, signing.DomainSyncCommittee, epoch, headBlockRoot)
