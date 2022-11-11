@@ -14,6 +14,19 @@
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Package priority implements the priority protocol that resolves arbitrary cluster wide priorities.
+//
+// Protocol overview:
+//   - Priorities are arbitrary protobufs (data).
+//   - Priorities are grouped by a topic (also arbitrary protobuf data).
+//   - Peers in the cluster participate in a priority protocol instances.
+//   - The protocol consists of two steps: priority exchange followed by priority consensus.
+//   - All peers propose their own set of priorities for an instance.
+//   - These are exchanged with all other peers.
+//   - All peers also respond with their priorities.
+//   - The exchange step is complete when the priorities of all peers have been received or on timeout.
+//   - Each peer calculates what they consider as the cluster wide priorities based on the priorities available to them at the point.
+//   - Each peer then starts a consensus instance proposing this deterministic calculated result.
+//   - Consensus is reached if quorum peers propose the same value.
 package priority
 
 import (
@@ -34,7 +47,10 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const ProtocolID = "charon/priority/1.0.0"
+const (
+	ProtocolID  = "charon/priority/1.0.0"
+	deleteAfter = time.Minute
+)
 
 // Instance identifies an instance of the priority protocol.
 type Instance proto.Message
@@ -47,12 +63,13 @@ type Priority proto.Message
 
 // instanceData contains an Instance and its data.
 type instanceData struct {
-	OwnID    string
-	Instance Instance
-	Key      [32]byte                     // Hash of instance
-	Pending  []chan<- *pbv1.PriorityMsg   // Pending exchange requests from peers
-	Msgs     map[string]*pbv1.PriorityMsg // Received messages by peers (including own)
-	Timeout  time.Time                    // Timeout starts consensus even if all messages not received
+	OwnID       string
+	Instance    Instance
+	Key         [32]byte                     // Hash of instance
+	Pending     []chan<- *pbv1.PriorityMsg   // Pending exchange requests from peers
+	Msgs        map[string]*pbv1.PriorityMsg // Received messages by peers (including own)
+	Timeout     time.Time                    // Timeout starts consensus even if all messages not received
+	ConsStarted bool                         // Whether consensus was started
 }
 
 type Consensus interface {
@@ -190,7 +207,7 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 	// Mutable state
 	instances := make(map[[32]byte]instanceData)
 
-	// startConsensus starts consensus and deletes it.
+	// startConsensus starts consensus and marks the instance as such.
 	startConsensus := func(data instanceData) {
 		var msgs []*pbv1.PriorityMsg
 		for _, msg := range data.Msgs {
@@ -208,7 +225,8 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 			return
 		}
 
-		delete(instances, data.Key)
+		data.ConsStarted = true
+		instances[data.Key] = data
 	}
 
 	// processInstance calls the callback with new or existing instance data and
@@ -244,10 +262,12 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 			return
 		}
 
-		instances[key] = processPending(data)
+		data = processPending(data)
+		instances[key] = data
 
-		if len(data.Msgs) == len(p.peers) {
+		if !data.ConsStarted && len(data.Msgs) == len(p.peers) {
 			// All messages received before timeout
+			log.Debug(ctx, "Priority instance received all messages, starting consensus")
 			startConsensus(data)
 		}
 	}
@@ -265,7 +285,9 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 			p.exchangeOnce(ctx, msg)
 		case req := <-p.requests:
 			processInstance(req.Msg.Instance, func(data instanceData) (instanceData, error) {
+				data.Msgs[req.Msg.PeerId] = req.Msg
 				data.Pending = append(data.Pending, req.Response)
+
 				return data, nil
 			})
 		case msg := <-p.responses:
@@ -276,10 +298,19 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 		case now := <-ticker:
 			for _, data := range instances {
 				if now.Before(data.Timeout) {
+					continue // Not timed out yet.
+				}
+				if !data.ConsStarted { // Timed out and consensus not started yet.
+					log.Debug(ctx, "Priority instance timeout, starting consensus")
+					startConsensus(data)
+
 					continue
 				}
+				if now.Before(data.Timeout.Add(deleteAfter)) {
+					continue // Not deletable yet
+				}
 
-				startConsensus(data)
+				delete(instances, data.Key)
 			}
 		}
 	}

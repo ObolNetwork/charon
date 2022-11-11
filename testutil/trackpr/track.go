@@ -143,7 +143,7 @@ func getProjectData(ctx context.Context, client *gh.Client, organization string,
 			data.statusFieldID = statusField.ID
 
 			for _, opt := range statusField.Options {
-				if opt.Name == "Done" {
+				if opt.Name == "ConsStarted" {
 					data.doneOptionID = opt.ID
 				}
 			}
@@ -212,7 +212,7 @@ func setSize(ctx context.Context, client *gh.Client, projectID, itemID, sizeFiel
 	return err
 }
 
-// setStatus sets the status field (ex: "Done", "In Progress" etc.) of the project item.
+// setStatus sets the status field (ex: "ConsStarted", "In Progress" etc.) of the project item.
 func setStatus(ctx context.Context, client *gh.Client, projectID, itemID, statusFieldID gh.ID, doneOptionID gh.String) error {
 	m := new(setFieldMutation)
 	input := UpdateProjectV2ItemFieldValueInput{
