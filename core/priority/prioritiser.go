@@ -197,6 +197,8 @@ func (p *Prioritiser) Prioritise(ctx context.Context, msg *pbv1.PriorityMsg) err
 
 // Run runs the prioritiser until the context is cancelled.
 // Note this will panic if called multiple times.
+//
+//nolint:gocognit // Mostly due to anonymous function.
 func (p *Prioritiser) Run(ctx context.Context) error {
 	defer close(p.quit)
 	ctx = log.WithTopic(ctx, "priority")
