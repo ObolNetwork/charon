@@ -17,7 +17,7 @@ package priority_test
 
 import (
 	"context"
-	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -26,10 +26,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"github.com/obolnetwork/charon/app/errors"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/priority"
 	"github.com/obolnetwork/charon/p2p"
@@ -40,10 +40,10 @@ func TestPrioritiser(t *testing.T) {
 	var (
 		ctx, cancel  = context.WithCancel(context.Background())
 		n            = 3
-		instance     = &pbv1.Duty{Slot: 99}
+		instances    = []*pbv1.Duty{{Slot: 97}, {Slot: 98}, {Slot: 99}}
 		tcpNodes     []host.Host
 		peers        []peer.ID
-		consensus    = new(testConsensus)
+		consensus    = &testConsensus{t: t}
 		msgValidator = func(*pbv1.PriorityMsg) error { return nil }
 		noTicks      = func() (<-chan time.Time, func()) { return nil, func() {} }
 		results      = make(chan []*pbv1.PriorityScoredResult, n)
@@ -81,29 +81,30 @@ func TestPrioritiser(t *testing.T) {
 			resTopic, err := result.Topics[0].Topic.UnmarshalNew()
 			require.NoError(t, err)
 
-			requireProtoEqual(t, instance, resInstance)
+			requireAnyDuty(t, instances, resInstance)
 			requireProtoEqual(t, topic, resTopic)
 			results <- result.Topics[0].Priorities
 
 			return nil
 		})
 
-		msg := &pbv1.PriorityMsg{
-			Topics:   []*pbv1.PriorityTopicProposal{{Topic: mustAny(topic), Priorities: priorities}},
-			Instance: mustAny(instance),
-			PeerId:   tcpNode.ID().String(),
-		}
-
 		go func() {
 			require.ErrorIs(t, prio.Run(ctx), context.Canceled)
 		}()
 
-		go func() {
-			require.NoError(t, prio.Prioritise(ctx, msg))
-		}()
+		for _, instance := range instances {
+			msg := &pbv1.PriorityMsg{
+				Topics:   []*pbv1.PriorityTopicProposal{{Topic: mustAny(topic), Priorities: priorities}},
+				Instance: mustAny(instance),
+				PeerId:   tcpNode.ID().String(),
+			}
+			go func() {
+				require.NoError(t, prio.Prioritise(ctx, msg))
+			}()
+		}
 	}
 
-	for i := 0; i < n; i++ {
+	for i := 0; i < n*len(instances); i++ {
 		res := <-results
 		require.Len(t, res, 1)
 		require.EqualValues(t, n*1000, res[0].Score)
@@ -116,8 +117,9 @@ func TestPrioritiser(t *testing.T) {
 // testConsensus is a mock consensus implementation that "decides" on the first proposal.
 // It also expects all proposals to be identical.
 type testConsensus struct {
+	t        *testing.T
 	mu       sync.Mutex
-	proposed *pbv1.PriorityResult
+	proposed map[int64]*pbv1.PriorityResult
 	subs     []func(ctx context.Context, instance priority.Instance, result *pbv1.PriorityResult) error
 }
 
@@ -125,10 +127,12 @@ func (t *testConsensus) ProposePriority(ctx context.Context, instance priority.I
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if t.proposed != nil {
-		if !reflect.DeepEqual(t.proposed, result) {
-			return errors.New("mismatching proposals")
-		}
+	slot := instance.(*pbv1.Duty).Slot
+
+	if t.proposed[slot] != nil {
+		prev := mustResultsToText(t.proposed[slot].Topics)
+		this := mustResultsToText(result.Topics)
+		require.Equal(t.t, prev, this)
 
 		return nil
 	}
@@ -139,7 +143,11 @@ func (t *testConsensus) ProposePriority(ctx context.Context, instance priority.I
 			return err
 		}
 	}
-	t.proposed = result
+
+	if t.proposed == nil {
+		t.proposed = make(map[int64]*pbv1.PriorityResult)
+	}
+	t.proposed[slot] = result
 
 	return nil
 }
@@ -159,6 +167,32 @@ func mustAny(pb proto.Message) *anypb.Any {
 
 func prioToAny(prio int) *anypb.Any {
 	return mustAny(&pbv1.Duty{Slot: int64(prio)})
+}
+
+func requireAnyDuty(t *testing.T, anyOf []*pbv1.Duty, actual proto.Message) {
+	t.Helper()
+	for _, msg := range anyOf {
+		if proto.Equal(msg, actual) {
+			return
+		}
+	}
+	require.Fail(t, "not anyOf: %#v\nactual: %#v\n", anyOf, actual)
+}
+
+func mustResultsToText(msgs []*pbv1.PriorityTopicResult) string {
+	var resp []string
+	for _, msg := range msgs {
+		b, err := prototext.MarshalOptions{
+			Multiline: true,
+		}.Marshal(msg)
+		if err != nil {
+			panic(err)
+		}
+
+		resp = append(resp, string(b))
+	}
+
+	return strings.Join(resp, ",")
 }
 
 func requireProtoEqual(t *testing.T, expect, actual proto.Message) {

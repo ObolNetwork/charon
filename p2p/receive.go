@@ -69,7 +69,7 @@ func RegisterHandler(logTopic string, tcpNode host.Host, protocol protocol.ID,
 
 		resp, ok, err := handlerFunc(ctx, s.Conn().RemotePeer(), req)
 		if err != nil {
-			log.Error(ctx, "LibP2P handler error", err)
+			log.Error(ctx, "LibP2P handle stream error", err, z.Str("protocol", string(protocol)))
 			return
 		}
 
