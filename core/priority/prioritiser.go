@@ -219,11 +219,13 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 			return
 		}
 
-		err = p.consensus.ProposePriority(ctx, data.Instance, result)
-		if err != nil {
-			log.Warn(ctx, "Propose priority consensus", err) // Unexpected
-			return
-		}
+		go func() {
+			err = p.consensus.ProposePriority(ctx, data.Instance, result)
+			if err != nil {
+				log.Warn(ctx, "Propose priority consensus", err) // Unexpected
+				return
+			}
+		}()
 
 		data.ConsStarted = true
 		instances[data.Key] = data
