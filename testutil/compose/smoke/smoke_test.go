@@ -26,6 +26,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/compose"
 )
 
@@ -157,7 +158,7 @@ func TestSmoke(t *testing.T) {
 				RunTmplFunc:    test.RunTmplFunc,
 				DefineTmplFunc: test.DefineTmplFunc,
 			})
-			require.NoError(t, err)
+			testutil.RequireNoError(t, err)
 		})
 	}
 }
