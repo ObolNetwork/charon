@@ -231,8 +231,8 @@ func (p *Prioritiser) Run(ctx context.Context) error {
 					Timeout:  time.Now().Add(p.consensusTimeout),
 				}
 			}
-			sendResponse(data.Msgs, recv)
 			data.Msgs[recv.Msg.PeerId] = recv
+			sendResponse(data.Msgs)
 			instances[key] = data
 
 			if len(data.Msgs) == len(p.peers) {
@@ -392,28 +392,31 @@ func hashProto(msg proto.Message) ([32]byte, error) {
 }
 
 // sendResponse sends own response to any awaiting peers.
-func sendResponse(msgs map[string]received, recv received) {
-	if recv.Own { // Send our message to all waiting peers.
-		for _, other := range msgs {
-			if other.Response == nil {
-				continue
-			}
-			other.Response <- recv.Msg
-		}
-
-		return
-	}
-
-	if recv.Response == nil {
-		// This peer doesn't need a response
-		return
-	}
-
-	// Send own response to this peer.
-	for _, other := range msgs {
-		if !other.Own {
+func sendResponse(msgs map[string]received) {
+	// Get own message
+	var own *pbv1.PriorityMsg
+	for _, recv := range msgs {
+		if !recv.Own {
 			continue
 		}
-		recv.Response <- other.Msg
+
+		own = recv.Msg
+
+		break
+	}
+
+	if own == nil {
+		// Own message not received yet
+		return
+	}
+
+	// Send own to any awaiting peers
+	for _, recv := range msgs {
+		if recv.Response == nil {
+			continue
+		}
+
+		recv.Response <- own // Response channel has capacity of 1.
+		recv.Response = nil  // Mark channel as responded..
 	}
 }
