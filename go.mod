@@ -8,6 +8,7 @@ require (
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/ferranbt/fastssz v0.1.2
+	github.com/golang/snappy v0.0.4
 	github.com/gorilla/mux v1.8.0
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/jonboulle/clockwork v0.3.0
@@ -85,7 +86,6 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
