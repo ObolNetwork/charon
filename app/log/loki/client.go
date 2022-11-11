@@ -45,7 +45,7 @@ const (
 	batchMax     = 5 * 1 << 20 // 5MB
 )
 
-// logFunc abstract logging, since this is a logger itself.
+// logFunc abstracts logging, since this is a logger itself.
 type logFunc func(string, error)
 
 // NewForT returns a new Client for testing.
