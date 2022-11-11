@@ -260,7 +260,7 @@ func (e simnetExpect) Assert(t *testing.T, typ core.DutyType) {
 	e.counts[typ]--
 }
 
-// ConsStarted returns true if all duties have been asserted sufficient number of times.
+// Done returns true if all duties have been asserted sufficient number of times.
 func (e simnetExpect) Done() bool {
 	for _, v := range e.counts {
 		if v > 0 {
