@@ -396,6 +396,8 @@ func (a *pingAsserter) Callback(t *testing.T, i int) func(peer.ID) {
 }
 
 func TestInfoSync(t *testing.T) {
+	featureset.EnableForT(t, featureset.Priority)
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	const n = 3
