@@ -31,6 +31,7 @@ package priority
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -38,22 +39,18 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
 )
 
 const (
-	ProtocolID  = "charon/priority/1.0.0"
-	deleteAfter = time.Minute
+	ProtocolID = "charon/priority/1.1.0"
 )
-
-// Instance identifies an instance of the priority protocol.
-type Instance proto.Message
 
 // Topic groups priorities in an instance.
 type Topic proto.Message
@@ -61,30 +58,16 @@ type Topic proto.Message
 // Priority is one of many grouped by a Topic being prioritised in an Instance.
 type Priority proto.Message
 
-// instanceData contains an Instance and its data.
-type instanceData struct {
-	OwnID       string
-	Instance    Instance
-	Key         [32]byte                     // Hash of instance
-	Pending     []chan<- *pbv1.PriorityMsg   // Pending exchange requests from peers
-	Msgs        map[string]*pbv1.PriorityMsg // Received messages by peers (including own)
-	Timeout     time.Time                    // Timeout starts consensus even if all messages not received
-	ConsStarted bool                         // Whether consensus was started
-}
-
 type Consensus interface {
-	ProposePriority(context.Context, Instance, *pbv1.PriorityResult) error
-	SubscribePriority(func(context.Context, Instance, *pbv1.PriorityResult) error)
+	ProposePriority(context.Context, core.Duty, *pbv1.PriorityResult) error
+	SubscribePriority(func(context.Context, core.Duty, *pbv1.PriorityResult) error)
 }
 
 // msgValidator abstracts validation of a received priority messages.
 type msgValidator func(*pbv1.PriorityMsg) error
 
-// tickerProvider abstracts the consensus timeout ticker (for testing purposes only).
-type tickerProvider func() (<-chan time.Time, func())
-
 // subscriber abstracts the output subscriber callbacks of Prioritiser.
-type subscriber func(context.Context, Instance, *pbv1.PriorityResult) error
+type subscriber func(context.Context, core.Duty, *pbv1.PriorityResult) error
 
 // request contains a received peer request and a channel to provide response.
 type request struct {
@@ -93,17 +76,20 @@ type request struct {
 }
 
 // NewForT exports newInternal for testing and returns a new prioritiser.
-func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
-	consensus Consensus, msgValidator msgValidator,
-	consensusTimeout time.Duration, tickerProvider tickerProvider,
+func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, minRequired int,
+	sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
+	consensus Consensus, msgValidator msgValidator, exchangeTimeout time.Duration,
+	deadliner core.Deadliner,
 ) *Prioritiser {
-	return newInternal(tcpNode, peers, minRequired, sendFunc, registerHandlerFunc, consensus, msgValidator, consensusTimeout, tickerProvider)
+	return newInternal(tcpNode, peers, minRequired, sendFunc, registerHandlerFunc,
+		consensus, msgValidator, exchangeTimeout, deadliner)
 }
 
 // newInternal returns a new prioritiser, it is the constructor.
-func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
+func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
+	sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
 	consensus Consensus, msgValidator msgValidator,
-	consensusTimeout time.Duration, tickerProvider tickerProvider,
+	exchangeTimeout time.Duration, deadliner core.Deadliner,
 ) *Prioritiser {
 	// Create log filters
 	noSupportFilters := make(map[peer.ID]z.Field)
@@ -111,27 +97,25 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p
 		noSupportFilters[peerID] = log.Filter()
 	}
 
-	n := &Prioritiser{
+	p := &Prioritiser{
 		tcpNode:          tcpNode,
 		sendFunc:         sendFunc,
 		minRequired:      minRequired,
 		peers:            peers,
 		consensus:        consensus,
 		msgValidator:     msgValidator,
-		consensusTimeout: consensusTimeout,
-		tickerProvider:   tickerProvider,
-		own:              make(chan *pbv1.PriorityMsg),
-		responses:        make(chan *pbv1.PriorityMsg),
-		requests:         make(chan request),
+		exchangeTimeout:  exchangeTimeout,
+		deadliner:        deadliner,
 		quit:             make(chan struct{}),
 		noSupportFilters: noSupportFilters,
 		skipAllFilter:    log.Filter(),
+		reqBuffers:       make(map[core.Duty]chan request),
 	}
 
 	// Wire consensus output to Prioritiser subscribers.
-	consensus.SubscribePriority(func(ctx context.Context, instance Instance, result *pbv1.PriorityResult) error {
-		for _, sub := range n.subs {
-			if err := sub(ctx, instance, result); err != nil {
+	consensus.SubscribePriority(func(ctx context.Context, duty core.Duty, result *pbv1.PriorityResult) error {
+		for _, sub := range p.subs {
+			if err := sub(ctx, duty, result); err != nil {
 				return err
 			}
 		}
@@ -148,33 +132,51 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p
 				return nil, false, errors.New("invalid priority message")
 			}
 
-			resp, err := n.handleRequest(ctx, pID, prioMsg)
+			resp, err := p.handleRequest(ctx, pID, prioMsg)
 
 			return resp, true, err
 		})
 
-	return n
+	return p
 }
 
 // Prioritiser resolves cluster wide priorities.
 type Prioritiser struct {
-	// All state immutable wrt Run.
+	// Immutable state
 
 	quit             chan struct{}
-	own              chan *pbv1.PriorityMsg // Own proposed messages to exchange
-	requests         chan request           // Other peers requesting to exchange messages.
-	responses        chan *pbv1.PriorityMsg // Responses from exchanging with peers.
+	deadliner        core.Deadliner
 	minRequired      int
-	consensusTimeout time.Duration
+	exchangeTimeout  time.Duration
 	tcpNode          host.Host
 	sendFunc         p2p.SendReceiveFunc
 	peers            []peer.ID
 	consensus        Consensus
 	msgValidator     msgValidator
-	tickerProvider   tickerProvider
 	subs             []subscriber
 	noSupportFilters map[peer.ID]z.Field
 	skipAllFilter    z.Field
+
+	// Mutable state
+
+	reqMu      sync.Mutex
+	reqBuffers map[core.Duty]chan request
+}
+
+// Start starts a goroutine that cleans state.
+// This must only be called once.
+func (p *Prioritiser) Start(ctx context.Context) {
+	go func() {
+		defer close(p.quit)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case duty := <-p.deadliner.C():
+				p.deleteRecvBuffer(duty)
+			}
+		}
+	}()
 }
 
 // Subscribe registers a prioritiser output subscriber function.
@@ -185,139 +187,20 @@ func (p *Prioritiser) Subscribe(fn subscriber) {
 
 // Prioritise starts a new prioritisation instance for the provided message or returns an error.
 func (p *Prioritiser) Prioritise(ctx context.Context, msg *pbv1.PriorityMsg) error {
-	select {
-	case p.own <- msg:
+	if !p.quorumSupported(ctx) {
+		log.Warn(ctx, "Skipping non-critical priority protocol not supported by quorum peers", nil, p.skipAllFilter)
 		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-p.quit:
-		return errors.New("prioritiser shutdown")
-	}
-}
-
-// Run runs the prioritiser until the context is cancelled.
-// Note this will panic if called multiple times.
-//
-//nolint:gocognit // Mostly due to anonymous function.
-func (p *Prioritiser) Run(ctx context.Context) error {
-	defer close(p.quit)
-	ctx = log.WithTopic(ctx, "priority")
-
-	ticker, stopTicker := p.tickerProvider()
-	defer stopTicker()
-
-	// Mutable state
-	instances := make(map[[32]byte]instanceData)
-
-	// startConsensus starts consensus and marks the instance as such.
-	startConsensus := func(data instanceData) {
-		var msgs []*pbv1.PriorityMsg
-		for _, msg := range data.Msgs {
-			msgs = append(msgs, msg)
-		}
-		result, err := calculateResult(msgs, p.minRequired)
-		if err != nil {
-			log.Error(ctx, "Calculate priority consensus", err) // Unexpected
-			return
-		}
-
-		go func() {
-			err = p.consensus.ProposePriority(ctx, data.Instance, result)
-			if err != nil {
-				log.Warn(ctx, "Propose priority consensus", err) // Unexpected
-				return
-			}
-		}()
-
-		data.ConsStarted = true
-		instances[data.Key] = data
 	}
 
-	// processInstance calls the callback with new or existing instance data and
-	// stores the result after processing any pending requests. It also starts consensus
-	// if all messages were received.
-	processInstance := func(instance *anypb.Any, callback func(instanceData) (instanceData, error)) {
-		// TODO(corver): Instance needs a duty/slot so we can filter out unexpected instances.
-		instancePB, err := instance.UnmarshalNew()
-		if err != nil {
-			log.Error(ctx, "Priority unmarshal any", err)
-			return
-		}
-		key, err := hashProto(instancePB)
-		if err != nil {
-			log.Error(ctx, "Priority hash proto", err)
-			return
-		}
+	duty := core.DutyFromProto(msg.Duty)
 
-		data, ok := instances[key]
-		if !ok {
-			data = instanceData{
-				OwnID:    p.tcpNode.ID().String(),
-				Instance: instancePB,
-				Key:      key,
-				Msgs:     make(map[string]*pbv1.PriorityMsg),
-				Timeout:  time.Now().Add(p.consensusTimeout),
-			}
-		}
-
-		data, err = callback(data)
-		if err != nil {
-			log.Error(ctx, "Priority instance error", err)
-			return
-		}
-
-		data = processPending(data)
-		instances[key] = data
-
-		if !data.ConsStarted && len(data.Msgs) == len(p.peers) {
-			// All messages received before timeout
-			log.Debug(ctx, "Priority instance received all messages, starting consensus")
-			startConsensus(data)
-		}
+	if !p.deadliner.Add(duty) {
+		log.Warn(ctx, "Dropping priority protocol instance for expired duty", nil)
+		return nil
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case msg := <-p.own:
-			log.Debug(ctx, "Priority protocol triggered")
-			processInstance(msg.Instance, func(data instanceData) (instanceData, error) {
-				data.Msgs[msg.PeerId] = msg
-				return data, nil
-			})
-			p.exchangeOnce(ctx, msg)
-		case req := <-p.requests:
-			processInstance(req.Msg.Instance, func(data instanceData) (instanceData, error) {
-				data.Msgs[req.Msg.PeerId] = req.Msg
-				data.Pending = append(data.Pending, req.Response)
-
-				return data, nil
-			})
-		case msg := <-p.responses:
-			processInstance(msg.Instance, func(data instanceData) (instanceData, error) {
-				data.Msgs[msg.PeerId] = msg
-				return data, nil
-			})
-		case now := <-ticker:
-			for _, data := range instances {
-				if now.Before(data.Timeout) {
-					continue // Not timed out yet.
-				}
-				if !data.ConsStarted { // Timed out and consensus not started yet.
-					log.Debug(ctx, "Priority instance timeout, starting consensus")
-					startConsensus(data)
-
-					continue
-				}
-				if now.Before(data.Timeout.Add(deleteAfter)) {
-					continue // Not deletable yet
-				}
-
-				delete(instances, data.Key)
-			}
-		}
-	}
+	return runInstance(ctx, duty, msg, p.getReqBuffer(duty), p.minRequired,
+		p.exchangeTimeout, p.tcpNode, p.sendFunc, p.peers, p.consensus, p.msgValidator)
 }
 
 // handleRequest handles a priority message exchange initiated by a peer.
@@ -334,8 +217,16 @@ func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.
 		Response: response,
 	}
 
+	duty := core.DutyFromProto(msg.Duty)
+
+	if !p.deadliner.Add(duty) {
+		return nil, errors.New("duty expired")
+	}
+
+	reqBuffer := p.getReqBuffer(duty)
+
 	select {
-	case p.requests <- req:
+	case reqBuffer <- req:
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-p.quit:
@@ -352,42 +243,26 @@ func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.
 	}
 }
 
-// exchangeOnce initiates a priority message exchange with all peers.
-func (p *Prioritiser) exchangeOnce(ctx context.Context, msg *pbv1.PriorityMsg) {
-	if !p.quorumSupported(ctx) {
-		log.Warn(ctx, "Skipping non-critical priority protocol not supported by quorum peers", nil, p.skipAllFilter)
-		return
+// getReqBuffer returns a request buffer for the duty instance.
+func (p *Prioritiser) getReqBuffer(duty core.Duty) chan request {
+	p.reqMu.Lock()
+	defer p.reqMu.Unlock()
+
+	ch, ok := p.reqBuffers[duty]
+	if !ok {
+		ch = make(chan request, 2*len(p.peers))
+		p.reqBuffers[duty] = ch
 	}
 
-	for _, pID := range p.peers {
-		if pID == p.tcpNode.ID() {
-			continue // Do not send to self
-		}
+	return ch
+}
 
-		go func(pID peer.ID) {
-			response := new(pbv1.PriorityMsg)
-			err := p.sendFunc(ctx, p.tcpNode, pID, msg, response, ProtocolID)
-			if err != nil {
-				// No need to log, since transport will do it.
-				return
-			}
+// deleteRecvBuffer deletes the receive channel and recvDropped map entry for the duty.
+func (p *Prioritiser) deleteRecvBuffer(duty core.Duty) {
+	p.reqMu.Lock()
+	defer p.reqMu.Unlock()
 
-			if pID.String() != response.PeerId {
-				log.Warn(ctx, "Invalid priority message peer id", nil)
-				return
-			}
-
-			if err := p.msgValidator(response); err != nil {
-				log.Warn(ctx, "Invalid priority message from peer", err, z.Str("peer", p2p.PeerName(peer.ID(msg.PeerId))))
-				return
-			}
-
-			select {
-			case <-ctx.Done():
-			case p.responses <- response:
-			}
-		}(pID)
-	}
+	delete(p.reqBuffers, duty)
 }
 
 // quorumSupported returns true if at least quorum peers support the priority protocol.
@@ -410,6 +285,118 @@ func (p *Prioritiser) quorumSupported(ctx context.Context) bool {
 	}
 
 	return (count + 1) >= p.minRequired // Include ourselves in count
+}
+
+// runInstance blocks until the context is closed. It exchanges messages with peers,
+// responds to peer requests, and starts consensus.
+func runInstance(ctx context.Context, duty core.Duty, own *pbv1.PriorityMsg,
+	requests <-chan request, minRequired int, exchangeTimeout time.Duration,
+	tcpNode host.Host, sendFunc p2p.SendReceiveFunc, peers []peer.ID,
+	consensus Consensus, msgValidator msgValidator,
+) error {
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+	log.Debug(ctx, "Priority protocol instance started")
+
+	var (
+		msgs        = []*pbv1.PriorityMsg{own}
+		dedupPeers  = make(map[string]bool)
+		responses   = make(chan *pbv1.PriorityMsg) // Responses from exchanging with peers.
+		consStarted bool
+	)
+
+	// addMsg adds the first message of each peer to msgs.
+	addMsg := func(msg *pbv1.PriorityMsg) {
+		if dedupPeers[msg.PeerId] {
+			return
+		}
+		dedupPeers[msg.PeerId] = true
+		msgs = append(msgs, msg)
+	}
+
+	exTimeout := time.After(exchangeTimeout)
+
+	exchange(ctx, tcpNode, peers, msgValidator, sendFunc, responses, own)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case req := <-requests:
+			addMsg(req.Msg)
+			req.Response <- own
+		case msg := <-responses:
+			addMsg(msg)
+		case <-exTimeout:
+			log.Debug(ctx, "Priority protocol instance exchange timeout, starting consensus")
+			consStarted = true
+			err := startConsensus(ctx, duty, msgs, minRequired, consensus)
+			if err != nil {
+				return err
+			}
+		}
+
+		if !consStarted && len(msgs) == len(peers) {
+			log.Debug(ctx, "Priority protocol instance messages exchanged, starting consensus")
+			consStarted = true
+			err := startConsensus(ctx, duty, msgs, minRequired, consensus)
+			if err != nil {
+				return err
+			}
+		}
+	}
+}
+
+// exchange initiates a priority message exchange with all peers.
+func exchange(ctx context.Context, tcpNode host.Host, peers []peer.ID, msgValidator msgValidator,
+	sendFunc p2p.SendReceiveFunc, responses chan<- *pbv1.PriorityMsg, own *pbv1.PriorityMsg,
+) {
+	for _, pID := range peers {
+		if pID == tcpNode.ID() {
+			continue // Do not send to self
+		}
+
+		go func(pID peer.ID) {
+			response := new(pbv1.PriorityMsg)
+			err := sendFunc(ctx, tcpNode, pID, own, response, ProtocolID)
+			if err != nil {
+				// No need to log, since transport will do it.
+				return
+			}
+
+			if pID.String() != response.PeerId {
+				log.Warn(ctx, "Invalid priority message peer id", nil, z.Str("peer", p2p.PeerName(pID)))
+				return
+			}
+
+			if err := msgValidator(response); err != nil {
+				log.Warn(ctx, "Invalid priority message from peer", err, z.Str("peer", p2p.PeerName(pID)))
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+			case responses <- response:
+			}
+		}(pID)
+	}
+}
+
+// startConsensus starts a consensus round.
+func startConsensus(ctx context.Context, duty core.Duty, msgs []*pbv1.PriorityMsg, minRequired int, consensus Consensus) error {
+	result, err := calculateResult(msgs, minRequired)
+	if err != nil {
+		return errors.Wrap(err, "calculate priority protocol result")
+	}
+
+	// Do consensus async, since it blocks and this instance still needs to process requests.
+	go func() {
+		err = consensus.ProposePriority(ctx, duty, result)
+		if err != nil {
+			log.Warn(ctx, "Priority protocol consensus", err) // Unexpected
+		}
+	}()
+
+	return nil
 }
 
 // supported returns true if the priority ProtocolID is included in the list of protocols.
@@ -446,24 +433,4 @@ func hashProto(msg proto.Message) ([32]byte, error) {
 	}
 
 	return hash, nil
-}
-
-// processPending sends own proposed msg to any awaiting/pending peers removing them from the returned instance.
-func processPending(data instanceData) instanceData {
-	// Get own message
-	own, ok := data.Msgs[data.OwnID]
-	if !ok {
-		// Own message not received yet
-		return data
-	}
-
-	// Send own to any awaiting peers
-	for _, ch := range data.Pending {
-		ch <- own
-	}
-
-	// Clear pending
-	data.Pending = nil
-
-	return data
 }

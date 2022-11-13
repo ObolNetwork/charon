@@ -18,7 +18,9 @@ package infosync
 
 import (
 	"context"
+	"time"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -26,7 +28,7 @@ import (
 )
 
 // New returns a new infosync component.
-func New(prioritiser *priority.Component, versions []string) *Component {
+func New(prioritiser *priority.Component, versions []string, deadlineFunc func(duty core.Duty) (time.Time, bool)) *Component {
 	prioritiser.Subscribe(func(ctx context.Context, duty core.Duty, results []priority.TopicResult) error {
 		for _, result := range results {
 			log.Debug(ctx, "Infosync completed", z.Any(result.Topic, result.Priorities))
@@ -36,18 +38,30 @@ func New(prioritiser *priority.Component, versions []string) *Component {
 	})
 
 	return &Component{
-		prioritiser: prioritiser,
-		versions:    versions,
+		prioritiser:  prioritiser,
+		versions:     versions,
+		deadlineFunc: deadlineFunc,
 	}
 }
 
 type Component struct {
-	prioritiser *priority.Component
-	versions    []string
+	prioritiser  *priority.Component
+	versions     []string
+	deadlineFunc func(duty core.Duty) (time.Time, bool)
 }
 
 func (c *Component) Trigger(ctx context.Context, slot int64) error {
-	return c.prioritiser.Prioritise(ctx, core.NewInfoSyncDuty(slot), priority.TopicProposal{
+	duty := core.NewInfoSyncDuty(slot)
+
+	deadline, ok := c.deadlineFunc(duty)
+	if !ok {
+		return errors.New("no deadline")
+	}
+
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
+
+	return c.prioritiser.Prioritise(ctx, duty, priority.TopicProposal{
 		Topic:      "version",
 		Priorities: c.versions,
 	})
