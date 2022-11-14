@@ -51,7 +51,10 @@ func RegisterHandler(logTopic string, tcpNode host.Host, protocol protocol.ID,
 	tcpNode.SetStreamHandler(protocol, func(s network.Stream) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		ctx = log.WithTopic(ctx, logTopic)
-		ctx = log.WithCtx(ctx, z.Str("peer", PeerName(s.Conn().RemotePeer())))
+		ctx = log.WithCtx(ctx,
+			z.Str("peer", PeerName(s.Conn().RemotePeer())),
+			z.Str("protocol", string(protocol)),
+		)
 		defer cancel()
 		defer s.Close()
 
@@ -69,7 +72,7 @@ func RegisterHandler(logTopic string, tcpNode host.Host, protocol protocol.ID,
 
 		resp, ok, err := handlerFunc(ctx, s.Conn().RemotePeer(), req)
 		if err != nil {
-			log.Error(ctx, "LibP2P handle stream error", err, z.Str("protocol", string(protocol)))
+			log.Error(ctx, "LibP2P handle stream error", err)
 			return
 		}
 

@@ -112,6 +112,7 @@ func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID pr
 	go func() {
 		// Clone the context since parent context may be closed soon.
 		ctx := log.CopyFields(context.Background(), parent)
+		ctx = log.WithCtx(ctx, z.Str("protocol", string(protoID)))
 		err := Send(ctx, tcpNode, protoID, peerID, msg) // TODO(corver): Retry once on relay errors.
 		s.addResult(ctx, peerID, err)
 	}()
@@ -124,6 +125,7 @@ func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID pr
 // It logs results on state change (success to/from failure).
 // It implements SendReceiveFunc.
 func (s *Sender) SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID, req, resp proto.Message, protocols ...protocol.ID) error {
+	ctx = log.WithCtx(ctx, z.Any("protocol", protocols))
 	err := SendReceive(ctx, tcpNode, peerID, req, resp, protocols...)
 	s.addResult(ctx, peerID, err)
 
@@ -184,7 +186,7 @@ func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID pe
 	// Circuit relay connections are transient
 	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, protoID)
 	if err != nil {
-		return errors.Wrap(err, "tcpNode stream", z.Str("protocol", string(protoID)))
+		return errors.Wrap(err, "tcpNode stream")
 	}
 
 	_, err = s.Write(b)

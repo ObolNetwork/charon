@@ -269,11 +269,11 @@ func (p *Prioritiser) deleteRecvBuffer(duty core.Duty) {
 func (p *Prioritiser) quorumSupported(ctx context.Context) bool {
 	var count int
 	for _, peerID := range p.peers {
-		// Check if peer supports this protocol.
-		if protocols, err := p.tcpNode.Peerstore().GetProtocols(peerID); err != nil || len(protocols) == 0 {
-			// Ignore peer until some protocols detected
+		support, known := peerSupported(p.tcpNode, peerID)
+		if !known {
+			// Ignore peer until protocols known.
 			continue
-		} else if !supported(protocols) {
+		} else if !support {
 			log.Warn(ctx, "Non-critical priority protocol not supported by peer", nil,
 				z.Str("peer", p2p.PeerName(peerID)),
 				p.noSupportFilters[peerID],
@@ -355,6 +355,10 @@ func exchange(ctx context.Context, tcpNode host.Host, peers []peer.ID, msgValida
 			continue // Do not send to self
 		}
 
+		if support, known := peerSupported(tcpNode, pID); !support || !known {
+			continue // Skip peers that are not known to support this protocol
+		}
+
 		go func(pID peer.ID) {
 			response := new(pbv1.PriorityMsg)
 			err := sendFunc(ctx, tcpNode, pID, own, response, ProtocolID)
@@ -397,6 +401,18 @@ func startConsensus(ctx context.Context, duty core.Duty, msgs []*pbv1.PriorityMs
 	}()
 
 	return nil
+}
+
+// peerSupported returns weather the peers supports this protocol and whether this fact is known or not.
+func peerSupported(tcpNode host.Host, peerID peer.ID) (support bool, known bool) {
+	// Check if peer supports this protocol.
+	protocols, err := tcpNode.Peerstore().GetProtocols(peerID)
+	if err != nil || len(protocols) == 0 {
+		// Ignore peer until some protocols detected
+		return false, false
+	}
+
+	return supported(protocols), true
 }
 
 // supported returns true if the priority ProtocolID is included in the list of protocols.
