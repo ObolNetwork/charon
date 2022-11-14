@@ -52,7 +52,7 @@ import (
 )
 
 //go:generate go test . -integration -v
-var integration = flag.Bool("integration", true, "Enable docker based integration test")
+var integration = flag.Bool("integration", false, "Enable docker based integration test")
 
 func TestSimnetDuties(t *testing.T) {
 	tests := []struct {
