@@ -87,6 +87,7 @@ func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet co
 
 // StoreExternal stores an externally received partially signed duty data set.
 func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet core.ParSignedDataSet) error {
+	thresholdReached := make(map[core.PubKey]bool)
 	for pubkey, sig := range signedSet {
 		sigs, ok, err := db.store(key{Duty: duty, PubKey: pubkey}, sig)
 		if err != nil {
@@ -105,7 +106,7 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 		psigs, ok, err := getThresholdMatching(duty.Type, sigs, db.threshold)
 		if err != nil {
 			return err
-		} else if !ok {
+		} else if !ok || thresholdReached[pubkey] {
 			continue
 		}
 
@@ -125,6 +126,8 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 				return err
 			}
 		}
+
+		thresholdReached[pubkey] = true
 	}
 
 	return nil
