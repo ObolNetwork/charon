@@ -56,7 +56,7 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 
 // NewComponent returns a new instance of the validator API core workflow component.
 func NewComponent(eth2Cl eth2wrap.Client, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey,
-	shareIdx int, feeRecipientAddress string,
+	shareIdx int, feeRecipientAddress string, builderAPI bool,
 ) (*Component, error) {
 	// Create pubkey mappings.
 	var (
@@ -121,6 +121,7 @@ func NewComponent(eth2Cl eth2wrap.Client, pubShareByKey map[*bls_sig.PublicKey]*
 		eth2Cl:              eth2Cl,
 		shareIdx:            shareIdx,
 		feeRecipientAddress: feeRecipientAddress,
+		builderAPI:          builderAPI,
 	}, nil
 }
 
@@ -129,6 +130,7 @@ type Component struct {
 	shareIdx            int
 	insecureTest        bool
 	feeRecipientAddress string
+	builderAPI          bool
 
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
 	// to public keys (the DV root public key)
@@ -534,6 +536,11 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 
 // SubmitValidatorRegistrations receives the partially signed validator (builder) registration.
 func (c Component) SubmitValidatorRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
+	// Swallow unexpected validator registrations from VCs (for ex: vouch)
+	if !c.builderAPI {
+		return nil
+	}
+
 	for _, registration := range registrations {
 		err := c.submitRegistration(ctx, registration)
 		if err != nil {

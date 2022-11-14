@@ -126,6 +126,7 @@ func TestSimnetDuties(t *testing.T) {
 			},
 			duties:              []core.DutyType{core.DutyBuilderRegistration},
 			builderRegistration: true,
+			builderAPI:          true,
 		},
 		{
 			name: "builder registration with teku",
@@ -136,6 +137,7 @@ func TestSimnetDuties(t *testing.T) {
 			},
 			duties:              []core.DutyType{core.DutyBuilderRegistration},
 			builderRegistration: true,
+			builderAPI:          true,
 			teku:                true,
 		},
 		{
