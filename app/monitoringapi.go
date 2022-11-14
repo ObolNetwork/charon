@@ -96,7 +96,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 
 // startReadyChecker returns function which returns an error resulting from ready checks periodically.
 func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID, clock clockwork.Clock) func() error {
-	const minNotConnected = 3 // Require three rounds of too few connected
+	const minNotConnected = 6 // Require 6 rounds (1min) of too few connected
 	var (
 		mu                 sync.Mutex
 		readyErr           = errReadyUninitialised
