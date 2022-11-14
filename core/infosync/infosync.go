@@ -48,7 +48,7 @@ func New(prioritiser *priority.Component, versions []string) *Component {
 			}
 		}
 
-		completeTotal.WithLabelValues(resultType).Inc()
+		completeCounter.WithLabelValues(resultType).Inc()
 
 		return nil
 	})

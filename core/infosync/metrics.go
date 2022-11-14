@@ -31,7 +31,7 @@ const (
 	resultOther = "other"
 )
 
-var completeTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+var completeCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "core",
 	Subsystem: "infosync",
 	Name:      "complete_total",
