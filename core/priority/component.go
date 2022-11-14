@@ -28,6 +28,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
@@ -151,7 +152,14 @@ func (c *Component) Prioritise(ctx context.Context, duty core.Duty, proposals ..
 		return err
 	}
 
-	return c.prioritiser.Prioritise(ctx, msg)
+	err = c.prioritiser.Prioritise(ctx, msg)
+	if ctx.Err() != nil {
+		return nil //nolint:nilerr // Context expiry is expected behaviour, return nil.
+	} else if err != nil {
+		return errors.Wrap(err, "prioritise", z.Any("duty", duty))
+	}
+
+	return nil
 }
 
 // signMsg returns a copy of the proto message with a populated signature signed by the provided private key.
