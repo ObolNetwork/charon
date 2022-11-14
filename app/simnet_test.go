@@ -52,7 +52,7 @@ import (
 )
 
 //go:generate go test . -integration -v
-var integration = flag.Bool("integration", false, "Enable docker based integration test")
+var integration = flag.Bool("integration", true, "Enable docker based integration test")
 
 func TestSimnetDuties(t *testing.T) {
 	tests := []struct {
@@ -126,6 +126,7 @@ func TestSimnetDuties(t *testing.T) {
 			},
 			duties:              []core.DutyType{core.DutyBuilderRegistration},
 			builderRegistration: true,
+			builderAPI:          true,
 		},
 		{
 			name: "builder registration with teku",
@@ -136,6 +137,7 @@ func TestSimnetDuties(t *testing.T) {
 			},
 			duties:              []core.DutyType{core.DutyBuilderRegistration},
 			builderRegistration: true,
+			builderAPI:          true,
 			teku:                true,
 		},
 		{

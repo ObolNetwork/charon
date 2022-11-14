@@ -191,7 +191,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", false)
 	require.NoError(t, err)
 
 	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error) {
@@ -291,7 +291,7 @@ func TestSignAndVerify(t *testing.T) {
 	// Setup validatorapi component.
 	vapi, err := validatorapi.NewComponent(bmock, map[*bls_sig.PublicKey]*bls_sig.PublicKey{
 		pubkey: pubkey,
-	}, 0, "")
+	}, 0, "", false)
 	require.NoError(t, err)
 	vapi.RegisterPubKeyByAttestation(func(context.Context, int64, int64, int64) (core.PubKey, error) {
 		return tblsconv.KeyToCore(pubkey)
@@ -413,7 +413,7 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", false)
 	require.NoError(t, err)
 
 	// Prepare unsigned beacon block
@@ -491,7 +491,7 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", false)
 	require.NoError(t, err)
 
 	// Prepare unsigned beacon block
@@ -549,7 +549,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", false)
 	require.NoError(t, err)
 
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
@@ -707,7 +707,7 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", true)
 	require.NoError(t, err)
 
 	// Prepare unsigned beacon block
@@ -781,7 +781,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", true)
 	require.NoError(t, err)
 
 	// Prepare unsigned beacon block
@@ -841,7 +841,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", true)
 	require.NoError(t, err)
 
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
@@ -911,7 +911,7 @@ func TestComponent_SubmitVoluntaryExit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", false)
 	require.NoError(t, err)
 
 	// Prepare unsigned voluntary exit
@@ -973,7 +973,7 @@ func TestComponent_SubmitVoluntaryExitInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", false)
 	require.NoError(t, err)
 
 	// Register subscriber
@@ -1030,7 +1030,7 @@ func TestComponent_Duties(t *testing.T) {
 		}
 
 		// Construct the validator api component
-		vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+		vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", false)
 		require.NoError(t, err)
 		duties, err := vapi.ProposerDuties(ctx, eth2p0.Epoch(epch), []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
 		require.NoError(t, err)
@@ -1050,7 +1050,7 @@ func TestComponent_Duties(t *testing.T) {
 		}
 
 		// Construct the validator api component
-		vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+		vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", false)
 		require.NoError(t, err)
 		duties, err := vapi.AttesterDuties(ctx, eth2p0.Epoch(epch), []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
 		require.NoError(t, err)
@@ -1070,7 +1070,7 @@ func TestComponent_Duties(t *testing.T) {
 		}
 
 		// Construct the validator api component
-		vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+		vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", false)
 		require.NoError(t, err)
 		duties, err := vapi.SyncCommitteeDuties(ctx, eth2p0.Epoch(epch), []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
 		require.NoError(t, err)
@@ -1097,8 +1097,11 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
+	// Enable builder API
+	builderAPI := true
+
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", builderAPI)
 	require.NoError(t, err)
 
 	unsigned := testutil.RandomValidatorRegistration(t)
@@ -1125,19 +1128,31 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 		},
 	}
 
+	output := make(chan core.ParSignedDataSet)
+
 	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		require.Equal(t, core.NewBuilderRegistrationDuty(0), duty)
 
-		registration, ok := set[corePubKey].SignedData.(core.VersionedSignedValidatorRegistration)
-		require.True(t, ok)
-		require.Equal(t, *signed, registration.VersionedSignedValidatorRegistration)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case output <- set:
+		}
 
 		return nil
 	})
 
-	err = vapi.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
-	require.NoError(t, err)
+	go func() {
+		err = vapi.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
+		require.NoError(t, err)
+	}()
+
+	// Assert output, this is blocking since it requires subscribe block to execute.
+	actualData := <-output
+	registration, ok := actualData[corePubKey].SignedData.(core.VersionedSignedValidatorRegistration)
+	require.True(t, ok)
+	require.Equal(t, *signed, registration.VersionedSignedValidatorRegistration)
 }
 
 func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
@@ -1158,8 +1173,11 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
+	// Enable builder API
+	builderAPI := true
+
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", builderAPI)
 	require.NoError(t, err)
 
 	unsigned := testutil.RandomValidatorRegistration(t)
@@ -1205,8 +1223,11 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 
 	feeRecipient := "0x123456"
 
+	// Enable builder API
+	builderAPI := true
+
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, feeRecipient)
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, feeRecipient, builderAPI)
 	require.NoError(t, err)
 
 	resp, err := vapi.TekuProposerConfig(ctx)
@@ -1363,7 +1384,7 @@ func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
 	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", false)
 	require.NoError(t, err)
 
 	done := make(chan struct{})
@@ -1490,7 +1511,7 @@ func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
 	pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
 
 	// Construct validatorapi component.
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", false)
 	require.NoError(t, err)
 
 	done := make(chan struct{})
@@ -1561,7 +1582,7 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	selections := []*eth2exp.SyncCommitteeSelection{selection1, selection2}
 
 	// Construct the validator api component.
-	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "")
+	vapi, err := validatorapi.NewComponent(bmock, pubShareByKey, 0, "", false)
 	require.NoError(t, err)
 
 	vapi.RegisterAwaitAggSigDB(func(ctx context.Context, duty core.Duty, pubkey core.PubKey) (core.SignedData, error) {

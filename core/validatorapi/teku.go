@@ -63,7 +63,7 @@ func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigRe
 		resp.Proposers[string(pubshare)] = TekuProposerConfig{
 			FeeRecipient: c.feeRecipientAddress,
 			Builder: TekuBuilder{
-				Enabled:  true,
+				Enabled:  c.builderAPI,
 				GasLimit: gasLimit,
 				Overrides: map[string]string{
 					"timestamp":  fmt.Sprint(genesis.Unix()),
