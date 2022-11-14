@@ -27,7 +27,7 @@ const (
 	resultEmpty = "empty"
 	// resultOwn indicates that resulting cluster-wide priorities match this node's own priorities.
 	resultOwn = "own"
-	// resultOther indicates that resulting cluster-wide priorities is different from this node's own priorities.
+	// resultOther indicates that resulting cluster-wide priorities are different from this node's own priorities.
 	resultOther = "other"
 )
 
@@ -35,5 +35,5 @@ var completeTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "core",
 	Subsystem: "infosync",
 	Name:      "complete_total",
-	Help:      "Total number of infosync instances completed by result; empty, own, other",
+	Help:      "Total number of infosync instances completed by result: empty, own or other",
 }, []string{"result"})
