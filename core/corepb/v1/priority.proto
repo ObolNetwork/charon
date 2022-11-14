@@ -4,6 +4,7 @@ package core.corepb.v1;
 
 option go_package = "github.com/obolnetwork/charon/core/corepb/v1";
 
+import "core/corepb/v1/core.proto";
 import "google/protobuf/any.proto";
 
 // PriorityResult defines a cluster wide priority result of the Prioritiser protocol.
@@ -14,7 +15,7 @@ message PriorityResult {
 
 // PriorityMsg defines all the priorities and metadata of a single peer in the Prioritiser protocol.
 message PriorityMsg {
-  google.protobuf.Any            instance = 1;
+  core.corepb.v1.Duty                duty = 1;
   repeated PriorityTopicProposal   topics = 2;
   string                          peer_id = 3;
   bytes                         signature = 4;

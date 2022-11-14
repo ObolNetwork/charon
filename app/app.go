@@ -426,16 +426,21 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	cons, startCons, err := newConsensus(conf, lock, tcpNode, p2pKey, sender, nodeIdx, deadlinerFunc("consensus"))
+	cons, startCons, err := newConsensus(conf, lock, tcpNode, p2pKey, sender,
+		nodeIdx, deadlinerFunc("consensus"))
 	if err != nil {
 		return err
 	}
 
-	if err := wireTracker(ctx, life, deadlineFunc, peers, eth2Cl, sched, fetch, cons, vapi, parSigDB, parSigEx, sigAgg); err != nil {
+	err = wireTracker(ctx, life, deadlineFunc, peers, eth2Cl, sched,
+		fetch, cons, vapi, parSigDB, parSigEx, sigAgg)
+	if err != nil {
 		return err
 	}
 
-	if err := wirePrioritise(conf, life, tcpNode, peerIDs, lock.Threshold, sender.SendReceive, cons, sched, p2pKey); err != nil {
+	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, lock.Threshold,
+		sender.SendReceive, cons, sched, p2pKey, deadlineFunc)
+	if err != nil {
 		return err
 	}
 
@@ -467,8 +472,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 }
 
 // wirePrioritise wires the priority protocol which determines cluster wide priorities for the next epoch.
-func wirePrioritise(conf Config, life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, thresholhd int,
-	sendFunc p2p.SendReceiveFunc, coreCons core.Consensus, sched core.Scheduler, p2pKey *ecdsa.PrivateKey,
+func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host,
+	peers []peer.ID, thresholhd int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
+	sched core.Scheduler, p2pKey *ecdsa.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 ) error {
 	if !featureset.Enabled(featureset.Priority) {
 		return nil
@@ -483,13 +489,14 @@ func wirePrioritise(conf Config, life *lifecycle.Manager, tcpNode host.Host, pee
 	// consensusDelay of 6 seconds (half a slot) is a good thumb suck. It is long enough for all peers to share proposals both in prod and in testing.
 	const consensusDelay = time.Second * 6
 
+	deadliner := core.NewDeadliner(ctx, "priority", deadlineFunc)
 	prio, err := priority.NewComponent(tcpNode, peers, thresholhd,
-		sendFunc, p2p.RegisterHandler, cons, consensusDelay, p2pKey)
+		sendFunc, p2p.RegisterHandler, cons, consensusDelay, p2pKey, deadliner)
 	if err != nil {
 		return err
 	}
 
-	sync := infosync.New(prio, version.Supported())
+	sync := infosync.New(prio, version.Supported(), deadlineFunc)
 
 	// Trigger info syncs in last slot of the epoch (for the next epoch).
 	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
@@ -504,7 +511,7 @@ func wirePrioritise(conf Config, life *lifecycle.Manager, tcpNode host.Host, pee
 		prio.Subscribe(conf.TestConfig.PrioritiseCallback)
 	}
 
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFunc(prio.Run))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(prio.Start))
 
 	return nil
 }

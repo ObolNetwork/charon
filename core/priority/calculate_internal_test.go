@@ -49,7 +49,7 @@ func TestCalculateResults(t *testing.T) {
 		Priorities [][]string
 		Result     []string
 		Scores     []int64
-		Instance   int64 // Defaults to test index if not provided.
+		Slot       int64 // Defaults to test index if not provided.
 	}{
 		{
 			Name:       "1*v1",
@@ -148,14 +148,14 @@ func TestCalculateResults(t *testing.T) {
 		{
 			Name:       "deterministic ordering instance 1",
 			Priorities: pl(xy, xy, yx, yx),
-			Instance:   1,
+			Slot:       1,
 			Result:     xy,                  // X as always before Y, since we use lower peer IDs for tie breaking.
 			Scores:     []int64{3998, 3998}, // Tied scores: Users of priority protocol can decide how to handle, either something fancy, or just using the provided order.
 		},
 		{
 			Name:       "deterministic ordering instance 9",
 			Priorities: pl(xy, xy, yx, yx),
-			Instance:   9,
+			Slot:       9,
 			Result:     xy, // Same input (except for slot), same result.
 			Scores:     []int64{3998, 3998},
 		},
@@ -167,8 +167,8 @@ func TestCalculateResults(t *testing.T) {
 
 			var msgs []*pbv1.PriorityMsg
 			for j, prioritySet := range test.Priorities {
-				if test.Instance == 0 {
-					test.Instance = int64(i)
+				if test.Slot == 0 {
+					test.Slot = int64(i)
 				}
 				msgs = append(msgs, &pbv1.PriorityMsg{
 					Topics: []*pbv1.PriorityTopicProposal{
@@ -180,8 +180,8 @@ func TestCalculateResults(t *testing.T) {
 							Topic: toAny("ignored"),
 						},
 					},
-					PeerId:   fmt.Sprint(j),
-					Instance: toAny(fmt.Sprint(test.Instance)),
+					PeerId: fmt.Sprint(j),
+					Duty:   &pbv1.Duty{Slot: test.Slot},
 				})
 			}
 

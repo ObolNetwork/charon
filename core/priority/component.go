@@ -60,20 +60,15 @@ type coreConsensus interface {
 // NewComponent returns a new priority component.
 func NewComponent(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc,
 	registerHandlerFunc p2p.RegisterHandlerFunc, consensus coreConsensus,
-	consensusTimeout time.Duration, privkey *ecdsa.PrivateKey,
+	exchangeTimeout time.Duration, privkey *ecdsa.PrivateKey, deadliner core.Deadliner,
 ) (*Component, error) {
 	verifier, err := newMsgVerifier(peers)
 	if err != nil {
 		return nil, err
 	}
 
-	tickerProvider := func() (<-chan time.Time, func()) {
-		ticker := time.NewTicker(consensusTimeout / 10)
-		return ticker.C, ticker.Stop
-	}
-
 	prioritiser := newInternal(tcpNode, peers, minRequired, sendFunc, registerHandlerFunc,
-		consensusWrapper{consensus}, verifier, consensusTimeout, tickerProvider)
+		consensus, verifier, exchangeTimeout, deadliner)
 
 	return &Component{
 		peerID:      tcpNode.ID(),
@@ -82,27 +77,22 @@ func NewComponent(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc 
 	}, nil
 }
 
-// Component wraps a prioritise protocol instance providing a friendly API (hiding the underlying protobuf types) and does signing.
+// Component wraps a prioritise protocol instance providing a
+// friendly API (hiding the underlying protobuf types) and does signing.
 type Component struct {
 	peerID      peer.ID
 	privkey     *ecdsa.PrivateKey
 	prioritiser *Prioritiser
 }
 
-// Run runs the prioritiser until the context is cancelled.
-// Note this will panic if called multiple times.
-func (c *Component) Run(ctx context.Context) error {
-	return c.prioritiser.Run(ctx)
+// Start starts a goroutine that cleans state.
+func (c *Component) Start(ctx context.Context) {
+	c.prioritiser.Start(ctx)
 }
 
 // Subscribe registers a prioritiser output subscriber function.
 func (c *Component) Subscribe(fn func(context.Context, core.Duty, []TopicResult) error) {
-	c.prioritiser.Subscribe(func(ctx context.Context, instance Instance, result *pbv1.PriorityResult) error {
-		dutypb, ok := instance.(*pbv1.Duty)
-		if !ok {
-			return errors.New("invalid duty instance")
-		}
-
+	c.prioritiser.Subscribe(func(ctx context.Context, duty core.Duty, result *pbv1.PriorityResult) error {
 		var results []TopicResult
 		for _, topic := range result.Topics {
 			result, err := topicResultFromProto(topic)
@@ -113,17 +103,12 @@ func (c *Component) Subscribe(fn func(context.Context, core.Duty, []TopicResult)
 			results = append(results, result)
 		}
 
-		return fn(ctx, core.DutyFromProto(dutypb), results)
+		return fn(ctx, duty, results)
 	})
 }
 
 // Prioritise starts a new prioritisation instance for the provided duty and proposals or returns an error.
 func (c *Component) Prioritise(ctx context.Context, duty core.Duty, proposals ...TopicProposal) error {
-	instance, err := anypb.New(core.DutyToProto(duty))
-	if err != nil {
-		return errors.Wrap(err, "any proto duty")
-	}
-
 	var topics []*pbv1.PriorityTopicProposal
 	for _, proposal := range proposals {
 		proposalPB, err := topicProposalToProto(proposal)
@@ -135,12 +120,12 @@ func (c *Component) Prioritise(ctx context.Context, duty core.Duty, proposals ..
 	}
 
 	msg := &pbv1.PriorityMsg{
-		Instance: instance,
-		PeerId:   c.peerID.String(),
-		Topics:   topics,
+		Duty:   core.DutyToProto(duty),
+		PeerId: c.peerID.String(),
+		Topics: topics,
 	}
 
-	msg, err = signMsg(msg, c.privkey)
+	msg, err := signMsg(msg, c.privkey)
 	if err != nil {
 		return err
 	}
@@ -218,25 +203,6 @@ func newMsgVerifier(peers []peer.ID) (func(msg *pbv1.PriorityMsg) error, error) 
 
 		return nil
 	}, nil
-}
-
-type consensusWrapper struct {
-	consensus coreConsensus
-}
-
-func (c consensusWrapper) ProposePriority(ctx context.Context, instance Instance, result *pbv1.PriorityResult) error {
-	duty, ok := instance.(*pbv1.Duty)
-	if !ok {
-		return errors.New("invalid instance duty")
-	}
-
-	return c.consensus.ProposePriority(ctx, core.DutyFromProto(duty), result)
-}
-
-func (c consensusWrapper) SubscribePriority(fn func(context.Context, Instance, *pbv1.PriorityResult) error) {
-	c.consensus.SubscribePriority(func(ctx context.Context, duty core.Duty, result *pbv1.PriorityResult) error {
-		return fn(ctx, core.DutyToProto(duty), result)
-	})
 }
 
 // topicProposalToProto returns the proto version of the topic proposal.

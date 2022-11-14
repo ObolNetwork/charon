@@ -166,18 +166,14 @@ func validateMsgs(msgs []*pbv1.PriorityMsg) error {
 	}
 
 	var (
-		instance   proto.Message
+		duty       *pbv1.Duty
 		dedupPeers = newDeduper[string]() // Peers may not be duplicated
 	)
 	for _, msg := range msgs {
-		inst, err := msg.Instance.UnmarshalNew()
-		if err != nil {
-			return errors.Wrap(err, "unmarshal any")
-		}
-		if instance == nil {
-			instance = inst
-		} else if !proto.Equal(inst, instance) {
-			return errors.New("mismatching instances")
+		if duty == nil {
+			duty = msg.Duty
+		} else if !proto.Equal(duty, msg.Duty) {
+			return errors.New("mismatching duties")
 		}
 		if dedupPeers(msg.PeerId) {
 			return errors.New("duplicate peer")
