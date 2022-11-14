@@ -486,17 +486,17 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 		return nil
 	}
 
-	// consensusDelay of 6 seconds (half a slot) is a good thumb suck. It is long enough for all peers to share proposals both in prod and in testing.
-	const consensusDelay = time.Second * 6
+	// exchangeTimeout of 6 seconds (half a slot) is a good thumb suck.
+	// It is long enough for all peers to exchange proposals both in prod and in testing.
+	const exchangeTimeout = time.Second * 6
 
-	deadliner := core.NewDeadliner(ctx, "priority", deadlineFunc)
-	prio, err := priority.NewComponent(tcpNode, peers, thresholhd,
-		sendFunc, p2p.RegisterHandler, cons, consensusDelay, p2pKey, deadliner)
+	prio, err := priority.NewComponent(ctx, tcpNode, peers, thresholhd,
+		sendFunc, p2p.RegisterHandler, cons, exchangeTimeout, p2pKey, deadlineFunc)
 	if err != nil {
 		return err
 	}
 
-	sync := infosync.New(prio, version.Supported(), deadlineFunc)
+	sync := infosync.New(prio, version.Supported())
 
 	// Trigger info syncs in last slot of the epoch (for the next epoch).
 	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
