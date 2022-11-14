@@ -45,6 +45,16 @@ type TopicResult struct {
 	Priorities []ScoredPriority
 }
 
+// PrioritiesOnly returns the priorities without scores.
+func (r TopicResult) PrioritiesOnly() []string {
+	var resp []string
+	for _, priority := range r.Priorities {
+		resp = append(resp, priority.Priority)
+	}
+
+	return resp
+}
+
 // ScoredPriority defines a resulting cluster-agreed priority including its score.
 type ScoredPriority struct {
 	Priority string
@@ -58,31 +68,35 @@ type coreConsensus interface {
 }
 
 // NewComponent returns a new priority component.
-func NewComponent(tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc,
+func NewComponent(ctx context.Context, tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc,
 	registerHandlerFunc p2p.RegisterHandlerFunc, consensus coreConsensus,
-	exchangeTimeout time.Duration, privkey *ecdsa.PrivateKey, deadliner core.Deadliner,
+	exchangeTimeout time.Duration, privkey *ecdsa.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 ) (*Component, error) {
 	verifier, err := newMsgVerifier(peers)
 	if err != nil {
 		return nil, err
 	}
 
+	deadliner := core.NewDeadliner(ctx, "priority", deadlineFunc)
+
 	prioritiser := newInternal(tcpNode, peers, minRequired, sendFunc, registerHandlerFunc,
 		consensus, verifier, exchangeTimeout, deadliner)
 
 	return &Component{
-		peerID:      tcpNode.ID(),
-		prioritiser: prioritiser,
-		privkey:     privkey,
+		peerID:       tcpNode.ID(),
+		prioritiser:  prioritiser,
+		privkey:      privkey,
+		deadlineFunc: deadlineFunc,
 	}, nil
 }
 
 // Component wraps a prioritise protocol instance providing a
 // friendly API (hiding the underlying protobuf types) and does signing.
 type Component struct {
-	peerID      peer.ID
-	privkey     *ecdsa.PrivateKey
-	prioritiser *Prioritiser
+	peerID       peer.ID
+	privkey      *ecdsa.PrivateKey
+	prioritiser  *Prioritiser
+	deadlineFunc func(duty core.Duty) (time.Time, bool)
 }
 
 // Start starts a goroutine that cleans state.
@@ -118,6 +132,13 @@ func (c *Component) Prioritise(ctx context.Context, duty core.Duty, proposals ..
 
 		topics = append(topics, proposalPB)
 	}
+
+	deadline, ok := c.deadlineFunc(duty)
+	if !ok {
+		return errors.New("duty already expired")
+	}
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
 
 	msg := &pbv1.PriorityMsg{
 		Duty:   core.DutyToProto(duty),
