@@ -135,5 +135,5 @@ func TestMemDBThreshold(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	require.Equal(t, timesCalled, n-th+1)
+	require.Equal(t, 1, timesCalled)
 }
