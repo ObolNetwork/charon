@@ -116,7 +116,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 			round int64, msgs []qbft.Msg[core.Duty, [32]byte],
 		) {
 			leader := leader(duty, round, peers)
-			reason := timeoutReason(msgs, peers, quorom, int(leader))
+			reason := timeoutReason(round, msgs, peers, quorom, int(leader))
 			log.Debug(ctx, "QBFT round timeout",
 				z.I64("round", round),
 				z.Str("timeout_reason", reason),
@@ -388,7 +388,7 @@ func endCtxSpan(ctx context.Context) {
 }
 
 // timeoutReason returns a human-readable reason why the round timed out round timeout.
-func timeoutReason(msgs []qbft.Msg[core.Duty, [32]byte], peers []p2p.Peer, threshold, leader int) string {
+func timeoutReason(round int64, msgs []qbft.Msg[core.Duty, [32]byte], peers []p2p.Peer, threshold, leader int) string {
 	// includedPeers returns two slices of peer names, one with peers
 	// including the message type and one with excluded peers.
 	includedPeers := func(typ qbft.MsgType) (incl []string, excl []string) {
@@ -408,6 +408,12 @@ func timeoutReason(msgs []qbft.Msg[core.Duty, [32]byte], peers []p2p.Peer, thres
 		}
 
 		return incl, excl
+	}
+
+	if round > 0 {
+		if incl, excl := includedPeers(qbft.MsgRoundChange); len(incl) < threshold {
+			return "insufficient round changes, missing peers=" + fmt.Sprint(excl)
+		}
 	}
 
 	if incl, _ := includedPeers(qbft.MsgPrePrepare); len(incl) == 0 {
