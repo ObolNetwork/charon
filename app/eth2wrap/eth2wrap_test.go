@@ -17,6 +17,7 @@ package eth2wrap_test
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +31,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -241,4 +243,27 @@ func TestCtxCancel(t *testing.T) {
 		_, err = eth2Cl.SlotDuration(ctx)
 		require.ErrorIs(t, err, context.Canceled)
 	}
+}
+
+func TestBlockAttestations(t *testing.T) {
+	atts := []*eth2p0.Attestation{
+		testutil.RandomAttestation(),
+		testutil.RandomAttestation(),
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/eth/v1/beacon/blocks/head/attestations", r.URL.Path)
+		b, err := json.Marshal(struct {
+			Data []*eth2p0.Attestation
+		}{
+			Data: atts,
+		})
+		require.NoError(t, err)
+		_, _ = w.Write(b)
+	}))
+
+	cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, time.Hour)
+	resp, err := cl.BlockAttestations(context.Background(), "head")
+	require.NoError(t, err)
+	require.Equal(t, atts, resp)
 }

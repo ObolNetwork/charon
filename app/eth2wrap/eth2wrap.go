@@ -23,6 +23,7 @@ import (
 	"time"
 
 	eth2http "github.com/attestantio/go-eth2-client/http"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -68,7 +69,7 @@ func Instrument(clients ...Client) (Client, error) {
 // AdaptEth2HTTP returns a Client wrapping an eth2http service by adding experimental endpoints.
 // Note that the returned client doesn't wrap errors, so they are unstructured without stacktraces.
 func AdaptEth2HTTP(eth2Svc *eth2http.Service, timeout time.Duration) Client {
-	return &httpAdapter{Service: eth2Svc, timeout: timeout}
+	return &httpAdapter{Service: eth2Svc, timeout: timeout, address: eth2Svc.Address()}
 }
 
 // NewMultiHTTP returns a new instrumented multi eth2 http client.
@@ -133,6 +134,23 @@ func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections 
 	res, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) ([]*eth2exp.SyncCommitteeSelection, error) {
 			return cl.AggregateSyncCommitteeSelections(ctx, selections)
+		},
+		nil,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res, err
+}
+
+func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
+	const label = "block_attestations"
+
+	res, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) ([]*eth2p0.Attestation, error) {
+			return cl.BlockAttestations(ctx, stateID)
 		},
 		nil,
 	)
