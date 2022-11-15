@@ -30,9 +30,8 @@ import (
 // NewMemDB returns a new in-memory partial signature database instance.
 func NewMemDB(threshold int) *MemDB {
 	return &MemDB{
-		entries:          make(map[key][]core.ParSignedData),
-		threshold:        threshold,
-		thresholdReached: make(map[core.PubKey]bool),
+		entries:   make(map[key][]core.ParSignedData),
+		threshold: threshold,
 	}
 }
 
@@ -43,9 +42,8 @@ type MemDB struct {
 	internalSubs []func(context.Context, core.Duty, core.ParSignedDataSet) error
 	threshSubs   []func(context.Context, core.Duty, core.PubKey, []core.ParSignedData) error
 
-	entries          map[key][]core.ParSignedData
-	thresholdReached map[core.PubKey]bool
-	threshold        int
+	entries   map[key][]core.ParSignedData
+	threshold int
 }
 
 // SubscribeInternal registers a callback when an internal
@@ -107,7 +105,7 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 		psigs, ok, err := getThresholdMatching(duty.Type, sigs, db.threshold)
 		if err != nil {
 			return err
-		} else if !ok || db.isThresholdReached(pubkey) {
+		} else if !ok {
 			continue
 		}
 
@@ -127,7 +125,6 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 				return err
 			}
 		}
-		db.setThresholdReached(pubkey)
 	}
 
 	return nil
@@ -168,21 +165,6 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 	return append([]core.ParSignedData(nil), db.entries[k]...), true, nil
 }
 
-// isThresholdReached checks if threshold is reached or not for given pubkey.
-func (db *MemDB) isThresholdReached(pubkey core.PubKey) bool {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	return db.thresholdReached[pubkey]
-}
-
-func (db *MemDB) setThresholdReached(pubkey core.PubKey) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	db.thresholdReached[pubkey] = true
-}
-
 // getThresholdMatching returns true and threshold number of partial signed data with identical data or false.
 func getThresholdMatching(typ core.DutyType, sigs []core.ParSignedData, threshold int) ([]core.ParSignedData, bool, error) {
 	if len(sigs) < threshold {
@@ -200,15 +182,14 @@ func getThresholdMatching(typ core.DutyType, sigs []core.ParSignedData, threshol
 			return nil, false, errors.Wrap(err, "message root")
 		}
 
-		// Find the first set of length threshold
-		set := sigsByMsgRoot[root]
-		set = append(set, sig)
+		sigsByMsgRoot[root] = append(sigsByMsgRoot[root], sig)
+	}
 
+	// Return true if we have "threshold" number of signatures.
+	for _, set := range sigsByMsgRoot {
 		if len(set) == threshold {
 			return set, true, nil
 		}
-
-		sigsByMsgRoot[root] = set
 	}
 
 	return nil, false, nil
