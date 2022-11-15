@@ -383,6 +383,73 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
+	t.Run("empty_validators", func(t *testing.T) {
+		handler := testHandler{
+			ValidatorsByPubKeyFunc: func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+				return nil, nil //nolint:nilnil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			res, err := cl.ValidatorsByPubKey(ctx, "head", []eth2p0.BLSPubKey{
+				testutil.RandomEth2PubKey(t),
+				testutil.RandomEth2PubKey(t),
+			})
+			require.NoError(t, err)
+			require.Len(t, res, 0)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
+	t.Run("empty_attester_duties", func(t *testing.T) {
+		handler := testHandler{
+			AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+				return nil, nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			res, err := cl.AttesterDuties(ctx, eth2p0.Epoch(1), []eth2p0.ValidatorIndex{1, 2, 3})
+			require.NoError(t, err)
+			require.Len(t, res, 0)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
+	t.Run("empty_synccomm_duties", func(t *testing.T) {
+		handler := testHandler{
+			SyncCommitteeDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+				return nil, nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			res, err := cl.SyncCommitteeDuties(ctx, eth2p0.Epoch(1), []eth2p0.ValidatorIndex{1, 2, 3})
+			require.NoError(t, err)
+			require.Len(t, res, 0)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
+	t.Run("empty_proposer_duties", func(t *testing.T) {
+		handler := testHandler{
+			ProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+				return nil, nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			res, err := cl.ProposerDuties(ctx, eth2p0.Epoch(1), []eth2p0.ValidatorIndex{1, 2, 3})
+			require.NoError(t, err)
+			require.Len(t, res, 0)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
 	t.Run("attestation_data", func(t *testing.T) {
 		handler := testHandler{
 			AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
