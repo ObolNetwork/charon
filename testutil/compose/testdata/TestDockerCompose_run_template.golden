@@ -82,7 +82,7 @@
     },
     {
      "Key": "loki-addresses",
-     "Value": "http://lokid:3100/loki/api/v1/push"
+     "Value": "http://loki:3100/loki/api/v1/push"
     },
     {
      "Key": "loki-service",
@@ -186,7 +186,7 @@
     },
     {
      "Key": "loki-addresses",
-     "Value": "http://lokid:3100/loki/api/v1/push"
+     "Value": "http://loki:3100/loki/api/v1/push"
     },
     {
      "Key": "loki-service",
@@ -290,7 +290,7 @@
     },
     {
      "Key": "loki-addresses",
-     "Value": "http://lokid:3100/loki/api/v1/push"
+     "Value": "http://loki:3100/loki/api/v1/push"
     },
     {
      "Key": "loki-service",
@@ -394,7 +394,7 @@
     },
     {
      "Key": "loki-addresses",
-     "Value": "http://lokid:3100/loki/api/v1/push"
+     "Value": "http://loki:3100/loki/api/v1/push"
     },
     {
      "Key": "loki-service",
