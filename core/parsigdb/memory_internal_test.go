@@ -16,6 +16,7 @@
 package parsigdb
 
 import (
+	"context"
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/spec/altair"
@@ -109,4 +110,30 @@ func TestGetThresholdMatching(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMemDBThreshold(t *testing.T) {
+	const (
+		th = 7
+		n  = 10
+	)
+
+	db := NewMemDB(th)
+	timesCalled := 0
+	db.SubscribeThreshold(func(_ context.Context, _ core.Duty, _ core.PubKey, _ []core.ParSignedData) error {
+		timesCalled++
+
+		return nil
+	})
+
+	pubkey := testutil.RandomCorePubKey(t)
+	att := testutil.RandomAttestation()
+	for i := 0; i < n; i++ {
+		err := db.StoreExternal(context.Background(), core.NewAttesterDuty(123), core.ParSignedDataSet{
+			pubkey: core.NewPartialAttestation(att, i+1),
+		})
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, timesCalled, n-th+1)
 }
