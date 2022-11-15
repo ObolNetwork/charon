@@ -759,6 +759,18 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeReci
 			return err
 		}
 
+		var activeIdxs []eth2p0.ValidatorIndex
+		for _, validator := range vals {
+			if validator.Status != eth2v1.ValidatorStateActiveOngoing {
+				continue
+			}
+			activeIdxs = append(activeIdxs, validator.Index)
+		}
+
+		if len(activeIdxs) == 0 {
+			return nil // No active validators.
+		}
+
 		var addr bellatrix.ExecutionAddress
 		b, err := hex.DecodeString(strings.TrimPrefix(feeRecipient, "0x"))
 		if err != nil {
@@ -767,7 +779,7 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeReci
 		copy(addr[:], b)
 
 		var preps []*eth2v1.ProposalPreparation
-		for vIdx := range vals {
+		for _, vIdx := range activeIdxs {
 			preps = append(preps, &eth2v1.ProposalPreparation{
 				ValidatorIndex: vIdx,
 				FeeRecipient:   addr,

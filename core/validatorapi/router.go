@@ -272,10 +272,7 @@ func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
 		if err != nil {
 			return nil, err
 		} else if len(resp) == 0 {
-			return nil, apiError{
-				StatusCode: http.StatusNotFound,
-				Message:    "NotFound",
-			}
+			resp = []v1Validator{} // Return empty json array instead of null.
 		}
 
 		return validatorsResponse{Data: resp}, nil
@@ -356,10 +353,7 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 		data, err := p.ProposerDuties(ctx, eth2p0.Epoch(epoch), nil)
 		if err != nil {
 			return nil, err
-		}
-
-		// response.data cannot be nil, it leads to NullPointerException in teku.
-		if len(data) == 0 {
+		} else if len(data) == 0 { // Return empty json array instead of null
 			data = []*eth2v1.ProposerDuty{}
 		}
 
@@ -387,10 +381,7 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 		data, err := p.AttesterDuties(ctx, eth2p0.Epoch(epoch), req)
 		if err != nil {
 			return nil, err
-		}
-
-		// response.data cannot be nil, it leads to NullPointerException in teku.
-		if len(data) == 0 {
+		} else if len(data) == 0 { // Return empty json array instead of null
 			data = []*eth2v1.AttesterDuty{}
 		}
 
@@ -418,10 +409,7 @@ func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
 		data, err := p.SyncCommitteeDuties(ctx, eth2p0.Epoch(epoch), req)
 		if err != nil {
 			return nil, err
-		}
-
-		// response.data cannot be nil, it leads to NullPointerException in teku.
-		if len(data) == 0 {
+		} else if len(data) == 0 { // Return empty json array instead of null
 			data = []*eth2v1.SyncCommitteeDuty{}
 		}
 
