@@ -35,7 +35,7 @@
       "title": "Explore Charon Logs",
       "tooltip": "Navigate to Charon Logs Exporer",
       "type": "link",
-      "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22$job%5C%22%7D%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+      "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bservice%3D%5C%22$job%5C%22%7D%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
     }
   ],
   "liveNow": false,
@@ -460,6 +460,7 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
+            "axisSoftMax": 0.2,
             "axisSoftMin": 0,
             "barAlignment": 0,
             "drawStyle": "line",
@@ -483,7 +484,7 @@
               "mode": "none"
             },
             "thresholdsStyle": {
-              "mode": "off"
+              "mode": "line+area"
             }
           },
           "mappings": [],
@@ -495,8 +496,16 @@
                 "value": null
               },
               {
+                "color": "yellow",
+                "value": 0.15
+              },
+              {
+                "color": "orange",
+                "value": 0.3
+              },
+              {
                 "color": "red",
-                "value": 80
+                "value": 0.5
               }
             ]
           },
@@ -1337,7 +1346,7 @@
             {
               "targetBlank": true,
               "title": "Show in log explorer",
-              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22$job%5C%22%7D%20%7C%3D%20%60Duty%20failed%60%20%7C%3D%20%60${__field.labels.duty}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bservice%3D%5C%22$job%5C%22%7D%20%7C%3D%20%60Duty%20failed%60%20%7C%3D%20%60${__field.labels.duty}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
             }
           ],
           "mappings": [],
@@ -1442,7 +1451,7 @@
             {
               "targetBlank": true,
               "title": "Show in log explorer",
-              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22$job%5C%22%7D%20%7C%3D%20%60${__field.labels.msg}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bservice%3D%5C%22$job%5C%22%7D%20%7C%3D%20%60${__field.labels.msg}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
             }
           ],
           "mappings": [],
@@ -1490,7 +1499,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({compose_service=\"$job\"} | logfmt | level=~`(warn|error)` [5m])) by (msg)",
+          "expr": "sum(count_over_time({service=\"$job\"} | logfmt | level=~`(warn|error)` [5m])) by (msg)",
           "legendFormat": "{{msg}}",
           "queryType": "range",
           "refId": "A",
@@ -1530,7 +1539,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{compose_service=\"$job\"} | logfmt | msg=`Duty failed` | line_format `{{.duty}}\t{{.reason}}`",
+          "expr": "{service=\"$job\"} | logfmt | msg=`Duty failed` | line_format `{{.duty}}\t{{.reason}}`",
           "legendFormat": "{{level}} [{{topic}}] {{msg}}",
           "queryType": "range",
           "refId": "A",
@@ -2450,7 +2459,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{compose_service=\"$job\"} | logfmt | line_format \"{{.pretty}}\"",
+          "expr": "{service=\"$job\"} | logfmt | line_format \"{{.pretty}}\"",
           "queryType": "range",
           "refId": "A",
           "resolution": 1
@@ -2498,8 +2507,8 @@
       {
         "current": {
           "selected": false,
-          "text": "4467160",
-          "value": "4467160"
+          "text": "b68540e",
+          "value": "b68540e"
         },
         "datasource": {
           "type": "prometheus",
@@ -2526,8 +2535,8 @@
       {
         "current": {
           "selected": false,
-          "text": "ample-door",
-          "value": "ample-door"
+          "text": "splendid-chocolates",
+          "value": "splendid-chocolates"
         },
         "datasource": {
           "type": "prometheus",
