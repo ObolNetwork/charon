@@ -779,7 +779,7 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeReci
 		copy(addr[:], b)
 
 		var preps []*eth2v1.ProposalPreparation
-		for vIdx := range vals {
+		for _, vIdx := range activeIdxs {
 			preps = append(preps, &eth2v1.ProposalPreparation{
 				ValidatorIndex: vIdx,
 				FeeRecipient:   addr,

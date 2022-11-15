@@ -18,6 +18,7 @@ package beaconmock
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
@@ -89,6 +90,22 @@ func (s ValidatorSet) PublicKeys() []eth2p0.BLSPubKey {
 	}
 
 	return resp
+}
+
+// Clone returns a copy of this validator set.
+func (s ValidatorSet) Clone() (ValidatorSet, error) {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal set")
+	}
+
+	resp := make(ValidatorSet)
+	err = json.Unmarshal(b, &resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal set")
+	}
+
+	return resp, nil
 }
 
 // ValidatorSetA defines a set of 3 validators.
