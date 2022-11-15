@@ -410,7 +410,7 @@ func timeoutReason(round int64, msgs []qbft.Msg[core.Duty, [32]byte], peers []p2
 		return incl, excl
 	}
 
-	if round > 0 {
+	if round > 1 {
 		if incl, excl := includedPeers(qbft.MsgRoundChange); len(incl) < threshold {
 			return "insufficient round changes, missing peers=" + fmt.Sprint(excl)
 		}
