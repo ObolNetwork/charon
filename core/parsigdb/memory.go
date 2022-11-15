@@ -182,15 +182,14 @@ func getThresholdMatching(typ core.DutyType, sigs []core.ParSignedData, threshol
 			return nil, false, errors.Wrap(err, "message root")
 		}
 
-		// Find the first set of length threshold
-		set := sigsByMsgRoot[root]
-		set = append(set, sig)
+		sigsByMsgRoot[root] = append(sigsByMsgRoot[root], sig)
+	}
 
+	// Return true if we have "threshold" number of signatures.
+	for _, set := range sigsByMsgRoot {
 		if len(set) == threshold {
 			return set, true, nil
 		}
-
-		sigsByMsgRoot[root] = set
 	}
 
 	return nil, false, nil

@@ -70,7 +70,7 @@ func TestSimnetDuties(t *testing.T) {
 				beaconmock.WithNoProposerDuties(),
 				beaconmock.WithNoSyncCommitteeDuties(),
 			},
-			duties: []core.DutyType{core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator}, // Teku doesn't support beacon committee selection.
+			duties: []core.DutyType{core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator},
 		},
 		{
 			name: "attester with teku",
@@ -78,7 +78,7 @@ func TestSimnetDuties(t *testing.T) {
 				beaconmock.WithNoProposerDuties(),
 				beaconmock.WithNoSyncCommitteeDuties(),
 			},
-			duties: []core.DutyType{core.DutyAttester},
+			duties: []core.DutyType{core.DutyAttester}, // Teku doesn't support beacon committee selection.
 			teku:   true,
 		},
 		{
