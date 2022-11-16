@@ -6,6 +6,7 @@ option go_package = "github.com/obolnetwork/charon/core/corepb/v1";
 
 import "core/corepb/v1/core.proto";
 import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
 
 message QBFTMsg {
   int64                          type                  = 1;
@@ -38,3 +39,23 @@ message ConsensusMsg {
   QBFTMsg          msg           = 1;
   repeated QBFTMsg justification = 2;
 }
+
+message SniffedConsensusMsg {
+  google.protobuf.Timestamp timestamp = 1;
+  ConsensusMsg          msg           = 2;
+}
+
+message SniffedConsensusInstance {
+  google.protobuf.Timestamp started_at = 1;
+  int64                          nodes = 2;
+  int64                        peerIdx = 3;
+  repeated SniffedConsensusMsg    msgs = 4;
+
+}
+
+message SniffedConsensusInstances {
+  repeated SniffedConsensusInstance instances = 1;
+  string git_hash = 2;
+}
+
+

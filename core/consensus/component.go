@@ -46,7 +46,9 @@ const (
 )
 
 // New returns a new consensus QBFT component.
-func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey, deadliner core.Deadliner) (*Component, error) {
+func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey,
+	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance),
+) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*ecdsa.PublicKey)
 	var labels []string
@@ -70,6 +72,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 		pubkeys:     keys,
 		deadliner:   deadliner,
 		recvBuffers: make(map[core.Duty]chan msg),
+		snifferFunc: snifferFunc,
 	}
 
 	quorom := qbft.Definition[int, int]{Nodes: len(peers)}.Quorum()
@@ -78,7 +81,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 	c.def = qbft.Definition[core.Duty, [32]byte]{
 		// IsLeader is a deterministic leader election function.
 		IsLeader: func(duty core.Duty, round, process int64) bool {
-			return leader(duty, round, peers) == process
+			return leader(duty, round, len(peers)) == process
 		},
 
 		// Decide sends consensus output to subscribers.
@@ -100,14 +103,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 			}
 		},
 
-		// NewTimer returns a 750ms+(round*250ms) period timer.
-		// TODO(corver): Round timeout is a tradeoff between fast rounds to skip unavailable nodes
-		//  and slow rounds to allow consensus in high latency clusters. Dynamic timeout based on
-		//  recent network conditions could be an option.
-		NewTimer: func(round int64) (<-chan time.Time, func()) {
-			timer := time.NewTimer(roundStart + (time.Duration(round) * roundIncrease))
-			return timer.C, func() { timer.Stop() }
-		},
+		NewTimer: newRoundTimer, // newRoundTimer returns a 750ms+(round*250ms) period timer.
 
 		// LogUponRule logs upon rules at debug level.
 		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,
@@ -166,6 +162,8 @@ type Component struct {
 	def        qbft.Definition[core.Duty, [32]byte]
 	subs       []func(ctx context.Context, duty core.Duty, value proto.Message) error
 	deadliner  core.Deadliner
+	snifferFunc func(*pbv1.SniffedConsensusInstance)
+
 
 	// Mutable state
 	recvMu      sync.Mutex
@@ -257,12 +255,23 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		return err
 	}
 
+	peerIdx, err := c.getPeerIdx()
+	if err != nil {
+		return err
+	}
+
 	// Create a transport handles sending and receiving for this instance.
 	t := transport{
 		component:  c,
 		values:     map[[32]byte]proto.Message{hash: value},
 		recvBuffer: make(chan qbft.Msg[core.Duty, [32]byte]),
+		sniffer:    newSniffer(int64(c.def.Nodes), peerIdx),
 	}
+
+	// Provide sniffed buffer to snifferFunc at the end.
+	defer func() {
+		c.snifferFunc(t.sniffer.Instance())
+	}()
 
 	// Start a receiving goroutine.
 	go t.ProcessReceives(ctx, c.getRecvBuffer(duty))
@@ -271,11 +280,6 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 	qt := qbft.Transport[core.Duty, [32]byte]{
 		Broadcast: t.Broadcast,
 		Receive:   t.recvBuffer,
-	}
-
-	peerIdx, err := c.getPeerIdx()
-	if err != nil {
-		return err
 	}
 
 	// Run the algo, blocking until the context is cancelled.
@@ -512,6 +516,16 @@ func fmtStepPeers(step roundStep) string {
 }
 
 // leader return the deterministic leader index.
-func leader(duty core.Duty, round int64, peers []p2p.Peer) int64 {
-	return ((duty.Slot) + int64(duty.Type) + round) % int64(len(peers))
+func leader(duty core.Duty, round int64, nodes int) int64 {
+	return ((duty.Slot) + int64(duty.Type) + round) % int64(nodes)
+}
+
+// newRoundTimer returns a 750ms+(round*250ms) period timer.
+//
+// TODO(corver): Round timeout is a tradeoff between fast rounds to skip unavailable nodes
+// and slow rounds to allow consensus in high latency clusters. Dynamic timeout based on
+// recent network conditions could be an option.
+func newRoundTimer(round int64) (<-chan time.Time, func()) {
+	timer := time.NewTimer(roundStart + (time.Duration(round) * roundIncrease))
+	return timer.C, func() { timer.Stop() }
 }
