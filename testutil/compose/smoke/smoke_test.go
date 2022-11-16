@@ -107,7 +107,7 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name: "teku versions", // TODO(corver): Do the same for lighthouse.
+			Name: "teku_versions", // TODO(corver): Do the same for lighthouse.
 			ConfigFunc: func(conf *compose.Config) {
 				conf.VCs = []compose.VCType{compose.VCTeku}
 			},
