@@ -17,6 +17,7 @@ package compose
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -40,6 +41,8 @@ type AutoConfig struct {
 	RunTmplFunc func(*TmplData)
 	// DefineTmplFunc allows arbitrary overrides if the define step template.
 	DefineTmplFunc func(*TmplData)
+	// LogFile enables writing (appending) docker-compose output to this file path instead of stdout.
+	LogFile string
 }
 
 // Auto runs all three steps (define,lock,run) sequentially with support for detecting alerts.
@@ -70,7 +73,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 	}
 
 	for _, step := range steps {
-		run := NewRunnerFunc(step.Name, conf.Dir, false, step.RunFunc)
+		run := NewRunnerFunc(step.Name, conf.Dir, conf.LogFile, false, step.RunFunc)
 		tmpl, err := run(ctx)
 		if err != nil {
 			return err
@@ -100,7 +103,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 			break
 		}
 
-		if err := execUp(ctx, conf.Dir); err != nil {
+		if err := execUp(ctx, conf.Dir, conf.LogFile, step.Name); err != nil {
 			return err
 		}
 	}
@@ -120,7 +123,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 		_ = execDown(context.Background(), conf.Dir)
 	}()
 
-	if err := execUp(ctx, conf.Dir); err != nil && !errors.Is(err, context.DeadlineExceeded) {
+	if err := execUp(ctx, conf.Dir, conf.LogFile, "auto"); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
 
@@ -198,7 +201,7 @@ func execDown(ctx context.Context, dir string) error {
 }
 
 // execUp executes `docker-compose up`.
-func execUp(ctx context.Context, dir string) error {
+func execUp(ctx context.Context, dir string, logFile string, step string) error {
 	// Build first so containers start at the same time below.
 	log.Info(ctx, "Executing docker-compose build")
 	cmd := exec.CommandContext(ctx, "docker-compose", "build", "--parallel")
@@ -217,6 +220,20 @@ func execUp(ctx context.Context, dir string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
+	if logFile != "" {
+		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644) //nolint:nosnakecase
+		if err != nil {
+			return errors.Wrap(err, "open log file")
+		}
+
+		defer file.Close()
+
+		_, _ = file.WriteString(fmt.Sprintf("=== STEP: %s ===\n", step))
+
+		cmd.Stdout = file
+		cmd.Stderr = file
+	}
+
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
 			err = ctx.Err()
@@ -232,7 +249,7 @@ func execUp(ctx context.Context, dir string) error {
 type RunFunc func(context.Context, string, Config) (TmplData, error)
 
 // NewRunnerFunc returns a function that wraps and runs a run function.
-func NewRunnerFunc(topic string, dir string, up bool, runFunc RunFunc,
+func NewRunnerFunc(topic string, dir string, logFile string, up bool, runFunc RunFunc,
 ) func(ctx context.Context) (data TmplData, err error) {
 	return func(ctx context.Context) (data TmplData, err error) {
 		ctx = log.WithTopic(ctx, topic)
@@ -252,7 +269,7 @@ func NewRunnerFunc(topic string, dir string, up bool, runFunc RunFunc,
 		}
 
 		if up {
-			return data, execUp(ctx, dir)
+			return data, execUp(ctx, dir, logFile, topic)
 		}
 
 		return data, nil

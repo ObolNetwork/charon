@@ -79,8 +79,9 @@ func newDockerCmd(use string, short string, runFunc compose.RunFunc) *cobra.Comm
 
 	up := addUpFlag(cmd.Flags())
 	dir := addDirFlag(cmd.Flags())
+	logFile := addLogFileFlag(cmd.Flags())
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		_, err := compose.NewRunnerFunc(use, *dir, *up, runFunc)(cmd.Context())
+		_, err := compose.NewRunnerFunc(use, *dir, *logFile, *up, runFunc)(cmd.Context())
 		if err != nil {
 			log.Error(cmd.Context(), "Fatal error", err)
 		}
@@ -113,6 +114,7 @@ func newAutoCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&conf.AlertTimeout, "alert-timeout", 0, "Timeout to collect alerts before shutdown. Zero disables timeout.")
 	cmd.Flags().BoolVar(&conf.SudoPerms, "sudo-perms", false, "Enables changing all compose artefacts file permissions using sudo.")
 	cmd.Flags().BoolVar(&conf.PrintYML, "print-yml", false, "Print generated docker-compose.yml files.")
+	cmd.Flags().StringVar(&conf.LogFile, "log-file", "", "Enables writing (appending) docker-compose output to this file path instead of stdout.")
 
 	return cmd
 }
@@ -183,4 +185,8 @@ func addDirFlag(flags *pflag.FlagSet) *string {
 
 func addUpFlag(flags *pflag.FlagSet) *bool {
 	return flags.Bool("up", true, "Execute `docker-compose up` when compose command completes")
+}
+
+func addLogFileFlag(flags *pflag.FlagSet) *string {
+	return flags.String("log-file", "", "Enables writing (appending) docker-compose output to this file path instead of stdout.")
 }
