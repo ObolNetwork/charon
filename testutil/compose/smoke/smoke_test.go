@@ -18,6 +18,7 @@ package smoke_test
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -157,7 +158,7 @@ func TestSmoke(t *testing.T) {
 				PrintYML:       test.PrintYML,
 				RunTmplFunc:    test.RunTmplFunc,
 				DefineTmplFunc: test.DefineTmplFunc,
-				LogFile:        path.Join(*logDir, test.Name),
+				LogFile:        path.Join(*logDir, fmt.Sprintf("%s.log", test.Name)),
 			})
 			testutil.RequireNoError(t, err)
 		})

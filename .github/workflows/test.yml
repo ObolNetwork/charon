@@ -67,8 +67,7 @@ jobs:
         with:
           name: smoke-test-logs
           path: |
-            testutil/compose/smoke
-            !testutil/compose/smoke/**/*.go
+            testutil/compose/smoke/*.log
 
   notify_failure:
     runs-on: ubuntu-latest

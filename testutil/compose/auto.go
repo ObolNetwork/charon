@@ -221,14 +221,17 @@ func execUp(ctx context.Context, dir string, logFile string, step string) error 
 	cmd.Stderr = os.Stderr
 
 	if logFile != "" {
-		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644) //nolint:nosnakecase
+		file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644) //nolint:nosnakecase
 		if err != nil {
 			return errors.Wrap(err, "open log file")
 		}
 
 		defer file.Close()
 
-		_, _ = file.WriteString(fmt.Sprintf("=== STEP: %s ===\n", step))
+		_, err = file.WriteString(fmt.Sprintf("=== STEP: %s ===\n", step))
+		if err != nil {
+			return errors.Wrap(err, "write string to file")
+		}
 
 		cmd.Stdout = file
 		cmd.Stderr = file
