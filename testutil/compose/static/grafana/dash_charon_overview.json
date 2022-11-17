@@ -86,7 +86,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.2.3",
       "targets": [
         {
           "datasource": {
@@ -226,7 +226,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.2.3",
       "targets": [
         {
           "datasource": {
@@ -424,7 +424,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.2.3",
       "targets": [
         {
           "datasource": {
@@ -602,7 +602,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.2.3",
       "targets": [
         {
           "datasource": {
@@ -921,7 +921,7 @@
           }
         ]
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.2.3",
       "targets": [
         {
           "datasource": {
@@ -2277,7 +2277,7 @@
         },
         "showHeader": true
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.2.3",
       "targets": [
         {
           "datasource": {
@@ -2324,8 +2324,10 @@
               "Value": "Balance",
               "Value #A": "Effectiveness",
               "Value #B": "Balance",
+              "cluster_network": "Network",
               "pubkey": "Public Key",
-              "pubkey_full": "Public Key"
+              "pubkey_full": "Public Key",
+              "status": "Status"
             }
           }
         }
@@ -2507,8 +2509,8 @@
       {
         "current": {
           "selected": false,
-          "text": "b68540e",
-          "value": "b68540e"
+          "text": "8d00be8",
+          "value": "8d00be8"
         },
         "datasource": {
           "type": "prometheus",
@@ -2535,8 +2537,8 @@
       {
         "current": {
           "selected": false,
-          "text": "splendid-chocolates",
-          "value": "splendid-chocolates"
+          "text": "elegant-road",
+          "value": "elegant-road"
         },
         "datasource": {
           "type": "prometheus",
@@ -2563,8 +2565,8 @@
       {
         "current": {
           "selected": false,
-          "text": "node3",
-          "value": "node3"
+          "text": "node2",
+          "value": "node2"
         },
         "datasource": {
           "type": "prometheus",

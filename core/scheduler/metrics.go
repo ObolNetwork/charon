@@ -56,8 +56,8 @@ var (
 		Namespace: "core",
 		Subsystem: "scheduler",
 		Name:      "validator_balance_gwei",
-		Help:      "Total balance of a validator by public key",
-	}, []string{"pubkey_full", "pubkey"})
+		Help:      "Total balance of a validator by public key by status",
+	}, []string{"pubkey_full", "pubkey", "status"})
 
 	skipCounter = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "core",
@@ -79,6 +79,6 @@ func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 }
 
 // instrumentValidator sets the validator balance.
-func instrumentValidator(pubkey core.PubKey, totalBal eth2p0.Gwei) {
-	balanceGauge.WithLabelValues(string(pubkey), pubkey.String()).Set(float64(totalBal))
+func instrumentValidator(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
+	balanceGauge.WithLabelValues(string(pubkey), pubkey.String(), status).Set(float64(totalBal))
 }

@@ -568,16 +568,16 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 
 	var resp []validator
 	for index, val := range vals {
-		if !val.Status.IsActive() {
-			continue
-		}
-
 		pubkey, err := core.PubKeyFromBytes(val.Validator.PublicKey[:])
 		if err != nil {
 			return nil, err
 		}
 
-		instrumentValidator(pubkey, val.Balance)
+		instrumentValidator(pubkey, val.Balance, val.Status.String())
+
+		if !val.Status.IsActive() {
+			continue
+		}
 
 		resp = append(resp, validator{
 			PubKey: pubkey,
