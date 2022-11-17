@@ -408,10 +408,11 @@ func TestInfoSync(t *testing.T) {
 		N:        n,
 	}
 
+	peers, err := lock.Peers()
+	require.NoError(t, err)
+
 	var peerAddrs []peer.AddrInfo
-	for _, operator := range lock.Operators {
-		p, err := operator.Peer()
-		require.NoError(t, err)
+	for _, p := range peers {
 		addr, err := p.AddrInfo()
 		require.NoError(t, err)
 		peerAddrs = append(peerAddrs, addr)
@@ -456,7 +457,7 @@ func TestInfoSync(t *testing.T) {
 		return asserter.Await(ctx, t)
 	})
 
-	err := eg.Wait()
+	err = eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 }

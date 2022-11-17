@@ -19,19 +19,17 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/p2p"
 )
 
 func TestGetName(t *testing.T) {
 	enr := "enr:-JG4QKXiqTRo5OmRPutHAjW93YAL0eo63NKDHTb2viARXiYaCJZXZeiT3-STunsuvTRxwP8G8CmhSvQLYqdqfZ8kL3aGAYDhssjugmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQOFWExWolIvyowQNrlUAIGqnBaHJexfLJE6zyFcovULYoN0Y3CCPoODdWRwgj6E"
-	op := Operator{ENR: enr}
-
-	p1, err := op.Peer()
+	record, err := p2p.DecodeENR(enr)
 	require.NoError(t, err)
+
+	p1, err := p2p.NewPeer(record, 0)
+	require.NoError(t, err)
+
 	require.Equal(t, p1.Name, "wrong-council")
-
-	p2, err := op.Peer()
-	require.NoError(t, err)
-
-	// The two names must be the same.
-	require.Equal(t, p1.Name, p2.Name)
 }
