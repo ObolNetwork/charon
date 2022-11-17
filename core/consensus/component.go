@@ -144,7 +144,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 			)
 		},
 
-		// Peers is the number of nodes.
+		// Nodes is the number of nodes.
 		Nodes: len(peers),
 
 		// FIFOLimit caps the max buffered messages per peer.
