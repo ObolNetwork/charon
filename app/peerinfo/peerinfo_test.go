@@ -31,7 +31,8 @@ import (
 )
 
 func TestPeerInfo(t *testing.T) {
-	now := time.Now()
+	t0 := time.Now()
+	now := t0
 	const gitCommit = "1234567"
 
 	nodes := []struct {
@@ -93,7 +94,7 @@ func TestPeerInfo(t *testing.T) {
 		tickProvider := func() (<-chan time.Time, func()) {
 			return nil, func() {}
 		}
-		metricSubmitter := func(peer.ID, time.Duration, string, string) {
+		metricSubmitter := func(peer.ID, time.Duration, string, string, time.Time) {
 			panic("unexpected metric submitted")
 		}
 
@@ -107,7 +108,7 @@ func TestPeerInfo(t *testing.T) {
 			}
 
 			var submitted int
-			metricSubmitter = func(peerID peer.ID, clockOffset time.Duration, version, gitHash string) {
+			metricSubmitter = func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time) {
 				for i, tcpNode := range tcpNodes {
 					if tcpNode.ID() != peerID {
 						continue
@@ -116,6 +117,7 @@ func TestPeerInfo(t *testing.T) {
 					require.Equal(t, node.Version, version)
 					require.Equal(t, node.Offset, clockOffset)
 					require.Equal(t, gitCommit, gitHash)
+					require.Equal(t, t0.UTC(), startTime.UTC())
 
 					submitted++
 					if submitted == n-2 { // Expect metrics from everyone but ourselves or the ignored node.

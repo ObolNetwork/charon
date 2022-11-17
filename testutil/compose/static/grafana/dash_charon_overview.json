@@ -649,7 +649,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "- **Peer**: The peer's name (inferred from their *charon-enr-private-key*)\n- **You**: ⭐️ is this local charon node\n- **Connected**: Whether you are currently connected to this peer.\n- **Direct**: Whether the connection is *direct* (👍) or *relay* (👎) \n- **Latency**: The time messages take to travel to/from the peer.\n- **ClockDiff**: Difference between local and peer's clock time. More than 2s is bad.\n- **Attest**: Number of attestation duties performed in the time window.\n- **PrepareAgg**: Number of aggregation preparation duties performed in the time window.\n- **Aggregate**: Number of aggregations  duties performed in the time window.\n- **Propose**: Number of block proposal duties performed in the time window.",
+      "description": "- **Peer**: The peer's name (inferred from their *charon-enr-private-key*)\n- **You**: ⭐️ is this local charon node\n- **Connected**: Whether you are currently connected to this peer.\n- **Direct**: Whether the connection is *direct* (👍) or *relay* (👎) \n- **Latency**: The time messages take to travel to/from the peer.\n- **Uptime**\" The duration since peer was restarted.\n- **ClockDiff**: Difference between local and peer's clock time. More than 2s is bad.\n- **Attest**: Number of attestation duties performed in the time window.\n- **PrepareAgg**: Number of aggregation preparation duties performed in the time window.\n- **Aggregate**: Number of aggregations  duties performed in the time window.\n- **Propose**: Number of block proposal duties performed in the time window.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -892,6 +892,18 @@
               {
                 "id": "custom.width",
                 "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uptime"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
               }
             ]
           }
@@ -1149,6 +1161,20 @@
           "instant": true,
           "range": false,
           "refId": "P"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "time() - max(app_peerinfo_start_time_secs{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "refId": "Q"
         }
       ],
       "title": "Peer Connectivity and Duty Participation",
@@ -1183,36 +1209,36 @@
               "Value #M": true
             },
             "indexByName": {
-              "Time 1": 14,
-              "Time 10": 24,
-              "Time 11": 25,
-              "Time 12": 27,
-              "Time 13": 28,
-              "Time 14": 29,
-              "Time 15": 30,
-              "Time 2": 16,
-              "Time 3": 17,
-              "Time 4": 18,
-              "Time 5": 19,
-              "Time 6": 20,
-              "Time 7": 21,
-              "Time 8": 22,
-              "Time 9": 23,
+              "Time 1": 16,
+              "Time 10": 26,
+              "Time 11": 27,
+              "Time 12": 29,
+              "Time 13": 30,
+              "Time 14": 31,
+              "Time 15": 32,
+              "Time 2": 18,
+              "Time 3": 19,
+              "Time 4": 20,
+              "Time 5": 21,
+              "Time 6": 22,
+              "Time 7": 23,
+              "Time 8": 24,
+              "Time 9": 25,
               "Value #A": 2,
               "Value #B": 4,
-              "Value #C": 8,
+              "Value #C": 9,
               "Value #D": 12,
               "Value #E": 11,
               "Value #F": 1,
-              "Value #G": 9,
-              "Value #H": 10,
-              "Value #J": 7,
+              "Value #G": 10,
+              "Value #J": 8,
               "Value #K": 3,
-              "Value #L": 15,
-              "Value #M": 26,
+              "Value #L": 17,
+              "Value #M": 28,
               "Value #N": 13,
-              "Value #O": 32,
-              "Value #P": 31,
+              "Value #O": 15,
+              "Value #P": 14,
+              "Value #Q": 7,
               "git_hash": 6,
               "peer": 0,
               "version": 5
@@ -1233,6 +1259,7 @@
               "Value #N": "SyncMsg",
               "Value #O": "SyncContrib",
               "Value #P": "PrepareContrib",
+              "Value #Q": "Uptime",
               "git_hash": "GitCommit",
               "peer": "Peer",
               "version": "Version"
@@ -1461,8 +1488,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1594,8 +1620,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1687,8 +1712,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1780,8 +1804,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1873,8 +1896,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1967,8 +1989,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2075,8 +2096,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2171,8 +2191,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue",
-                "value": null
+                "color": "light-blue"
               },
               {
                 "color": "red",
@@ -2379,8 +2398,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2565,8 +2583,8 @@
       {
         "current": {
           "selected": false,
-          "text": "node2",
-          "value": "node2"
+          "text": "node0",
+          "value": "node0"
         },
         "datasource": {
           "type": "prometheus",
