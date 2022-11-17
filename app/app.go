@@ -398,7 +398,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	parSigDB := parsigdb.NewMemDB(lock.Threshold)
+	parSigDB := parsigdb.NewMemDB(lock.Threshold, deadlinerFunc("parsigdb"))
 
 	var parSigEx core.ParSigEx
 	if conf.TestConfig.ParSigExFunc != nil {
