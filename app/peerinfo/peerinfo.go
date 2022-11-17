@@ -42,16 +42,18 @@ var protocolID protocol.ID = "/charon/peerinfo/1.0.0"
 type (
 	tickerProvider  func() (<-chan time.Time, func())
 	nowFunc         func() time.Time
-	metricSubmitter func(peerID peer.ID, clockOffset time.Duration, version, gitHash string)
+	metricSubmitter func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time)
 )
 
 // New returns a new peer info protocol instance.
 func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc,
 ) *PeerInfo {
-	// Set own version and githash metrics.
-	peerVersion.WithLabelValues(p2p.PeerName(tcpNode.ID()), version).Set(1)
-	peerGitHash.WithLabelValues(p2p.PeerName(tcpNode.ID()), gitHash).Set(1)
+	// Set own version and git hash and start time metrics.
+	name := p2p.PeerName(tcpNode.ID())
+	peerVersion.WithLabelValues(name, version).Set(1)
+	peerGitHash.WithLabelValues(name, gitHash).Set(1)
+	peerStartGauge.WithLabelValues(name).Set(float64(time.Now().Unix()))
 
 	tickerProvider := func() (<-chan time.Time, func()) {
 		ticker := time.NewTicker(period)
@@ -76,6 +78,8 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
 ) *PeerInfo {
+	startTime := timestamppb.New(nowFunc())
+
 	// Register a simple handler that returns our info and ignores the request.
 	registerHandler("peerinfo", tcpNode, protocolID,
 		func() proto.Message { return new(pbv1.PeerInfo) },
@@ -85,6 +89,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 				LockHash:      lockHash,
 				GitHash:       gitHash,
 				SentAt:        timestamppb.New(nowFunc()),
+				StartedAt:     startTime,
 			}, true, nil
 		},
 	)
@@ -103,6 +108,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 		peers:            peers,
 		version:          version,
 		lockHash:         lockHash,
+		startTime:        startTime,
 		metricSubmitter:  metricSubmitter,
 		tickerProvider:   tickerProvider,
 		nowFunc:          nowFunc,
@@ -118,6 +124,7 @@ type PeerInfo struct {
 	version          string
 	lockHash         []byte
 	gitHash          string
+	startTime        *timestamppb.Timestamp
 	tickerProvider   tickerProvider
 	metricSubmitter  metricSubmitter
 	nowFunc          func() time.Time
@@ -167,6 +174,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			LockHash:      p.lockHash,
 			GitHash:       p.gitHash,
 			SentAt:        timestamppb.New(now),
+			StartedAt:     p.startTime,
 		}
 
 		go func(peerID peer.ID) {
@@ -179,7 +187,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			rtt := p.nowFunc().Sub(now)
 			expectSentAt := now.Add(rtt / 2)
 			clockOffset := resp.SentAt.AsTime().Sub(expectSentAt)
-			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash)
+			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash, resp.StartedAt.AsTime())
 
 			// Log unexpected lock hash
 			if !bytes.Equal(resp.LockHash, p.lockHash) {
@@ -216,7 +224,9 @@ func newMetricsSubmitter() metricSubmitter {
 		prevGitHashes = make(map[string]string)
 	)
 
-	return func(peerID peer.ID, clockOffset time.Duration, version string, gitHash string) {
+	return func(peerID peer.ID, clockOffset time.Duration, version string, gitHash string,
+		startTime time.Time,
+	) {
 		peerName := p2p.PeerName(peerID)
 
 		// Limit range of possible values
@@ -226,6 +236,10 @@ func newMetricsSubmitter() metricSubmitter {
 			clockOffset = time.Hour
 		}
 		peerClockOffset.WithLabelValues(peerName).Set(clockOffset.Seconds())
+
+		if !startTime.IsZero() {
+			peerStartGauge.WithLabelValues(peerName).Set(float64(startTime.Unix()))
+		}
 
 		// Limit range of possible values
 		if version == "" {

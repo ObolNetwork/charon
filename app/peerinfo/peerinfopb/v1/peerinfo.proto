@@ -11,4 +11,5 @@ message PeerInfo {
   bytes                     lock_hash      = 2;
   google.protobuf.Timestamp sent_at        = 3;
   string                    git_hash       = 4;
+  google.protobuf.Timestamp started_at     = 5;
 }

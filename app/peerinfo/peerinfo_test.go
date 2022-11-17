@@ -86,6 +86,10 @@ func TestPeerInfo(t *testing.T) {
 		peers = append(peers, tcpNode.ID())
 	}
 
+	nowFunc := func(i int) func() time.Time {
+		return func() time.Time { return now.Add(nodes[i].Offset) }
+	}
+
 	for i := 0; i < n; i++ {
 		node := nodes[i]
 
@@ -93,7 +97,7 @@ func TestPeerInfo(t *testing.T) {
 		tickProvider := func() (<-chan time.Time, func()) {
 			return nil, func() {}
 		}
-		metricSubmitter := func(peer.ID, time.Duration, string, string) {
+		metricSubmitter := func(peer.ID, time.Duration, string, string, time.Time) {
 			panic("unexpected metric submitted")
 		}
 
@@ -107,7 +111,7 @@ func TestPeerInfo(t *testing.T) {
 			}
 
 			var submitted int
-			metricSubmitter = func(peerID peer.ID, clockOffset time.Duration, version, gitHash string) {
+			metricSubmitter = func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time) {
 				for i, tcpNode := range tcpNodes {
 					if tcpNode.ID() != peerID {
 						continue
@@ -116,6 +120,7 @@ func TestPeerInfo(t *testing.T) {
 					require.Equal(t, node.Version, version)
 					require.Equal(t, node.Offset, clockOffset)
 					require.Equal(t, gitCommit, gitHash)
+					require.Equal(t, nowFunc(i)().Unix(), startTime.Unix())
 
 					submitted++
 					if submitted == n-2 { // Expect metrics from everyone but ourselves or the ignored node.
@@ -129,7 +134,7 @@ func TestPeerInfo(t *testing.T) {
 		}
 
 		peerInfo := peerinfo.NewForT(t, tcpNodes[i], peers, node.Version, node.LockHash, gitCommit, p2p.SendReceive, p2p.RegisterHandler,
-			tickProvider, func() time.Time { return now.Add(node.Offset) }, metricSubmitter)
+			tickProvider, nowFunc(i), metricSubmitter)
 
 		peerInfos = append(peerInfos, peerInfo)
 	}

@@ -45,4 +45,11 @@ var (
 		Help:        "Constant gauge with git_hash label set to peer's git commit hash.",
 		ConstLabels: nil,
 	}, []string{"peer", "git_hash"})
+
+	peerStartGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "peerinfo",
+		Name:      "start_time_secs",
+		Help:      "Gauge set to the peer start time of the binary in unix seconds",
+	}, []string{"peer"})
 )
