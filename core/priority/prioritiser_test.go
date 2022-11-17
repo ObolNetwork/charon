@@ -99,7 +99,7 @@ func TestPrioritiser(t *testing.T) {
 				PeerId: tcpNode.ID().String(),
 			}
 			go func() {
-				require.NoError(t, prio.Prioritise(ctx, msg))
+				require.ErrorIs(t, prio.Prioritise(ctx, msg), context.Canceled)
 			}()
 		}
 	}
