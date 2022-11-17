@@ -242,14 +242,15 @@ func (c *Component) ProposePriority(ctx context.Context, duty core.Duty, msg *pb
 // It returns on error or nil when the context is cancelled.
 func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Message) error {
 	ctx = log.WithTopic(ctx, "qbft")
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if !c.deadliner.Add(duty) {
-		log.Warn(ctx, "Skipping consensus for expired duty", nil, z.Any("duty", duty))
+		log.Warn(ctx, "Skipping consensus for expired duty", nil)
 		return nil
 	}
 
-	log.Debug(ctx, "QBFT consensus instance starting", z.Any("duty", duty), z.Any("peers", c.peerLabels))
+	log.Debug(ctx, "QBFT consensus instance starting", z.Any("peers", c.peerLabels))
 
 	hash, err := hashProto(value)
 	if err != nil {
