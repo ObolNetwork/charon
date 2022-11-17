@@ -20,6 +20,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,7 +49,10 @@ const (
 func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey, deadliner core.Deadliner) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*ecdsa.PublicKey)
+	var labels []string
 	for i, p := range peers {
+		labels = append(labels, fmt.Sprintf("%d:%s", p.Index, p.Name))
+
 		pk, err := p.PublicKey()
 		if err != nil {
 			return nil, err
@@ -61,6 +65,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 		tcpNode:     tcpNode,
 		sender:      sender,
 		peers:       peers,
+		peerLabels:  labels,
 		privkey:     p2pKey,
 		pubkeys:     keys,
 		deadliner:   deadliner,
@@ -106,20 +111,36 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 
 		// LogUponRule logs upon rules at debug level.
 		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,
-			_ qbft.Msg[core.Duty, [32]byte], uponRule string,
+			_ qbft.Msg[core.Duty, [32]byte], uponRule qbft.UponRule,
 		) {
-			log.Debug(ctx, "QBFT upon rule triggered", z.Str("rule", uponRule), z.I64("round", round))
+			log.Debug(ctx, "QBFT upon rule triggered", z.Any("rule", uponRule), z.I64("round", round))
 		},
 
-		// LogRoundTimeout logs round timeouts at debug level.
-		LogRoundTimeout: func(ctx context.Context, duty core.Duty, process,
-			round int64, msgs []qbft.Msg[core.Duty, [32]byte],
+		// LogRoundChange logs round changes at debug level.
+		LogRoundChange: func(ctx context.Context, duty core.Duty, process,
+			round, newRound int64, uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte],
 		) {
-			leader := leader(duty, round, peers)
-			reason := timeoutReason(round, msgs, peers, quorom, int(leader))
-			log.Debug(ctx, "QBFT round timeout",
+			fields := []z.Field{
+				z.Any("rule", uponRule),
 				z.I64("round", round),
-				z.Str("timeout_reason", reason),
+				z.I64("new_round", newRound),
+			}
+
+			steps := groupRoundMessages(msgs, len(peers), round, int(leader(duty, round, peers)))
+			for _, step := range steps {
+				fields = append(fields, z.Str(step.Type.String(), fmtStepPeers(step)))
+			}
+			if uponRule == qbft.UponRoundTimeout {
+				fields = append(fields, z.Str("timeout_reason", timeoutReason(steps, round, quorom)))
+			}
+
+			log.Debug(ctx, "QBFT round changed", fields...)
+		},
+
+		LogUnjust: func(ctx context.Context, _ core.Duty, _ int64, msg qbft.Msg[core.Duty, [32]byte]) {
+			log.Warn(ctx, "Unjustified consensus message from peer", nil,
+				z.Any("type", msg.Type()),
+				z.I64("peer", msg.Source()),
 			)
 		},
 
@@ -136,14 +157,15 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 // Component implements core.Consensus.
 type Component struct {
 	// Immutable state
-	tcpNode   host.Host
-	sender    *p2p.Sender
-	peers     []p2p.Peer
-	pubkeys   map[int64]*ecdsa.PublicKey
-	privkey   *ecdsa.PrivateKey
-	def       qbft.Definition[core.Duty, [32]byte]
-	subs      []func(ctx context.Context, duty core.Duty, value proto.Message) error
-	deadliner core.Deadliner
+	tcpNode    host.Host
+	sender     *p2p.Sender
+	peerLabels []string
+	peers      []p2p.Peer
+	pubkeys    map[int64]*ecdsa.PublicKey
+	privkey    *ecdsa.PrivateKey
+	def        qbft.Definition[core.Duty, [32]byte]
+	subs       []func(ctx context.Context, duty core.Duty, value proto.Message) error
+	deadliner  core.Deadliner
 
 	// Mutable state
 	recvMu      sync.Mutex
@@ -220,14 +242,15 @@ func (c *Component) ProposePriority(ctx context.Context, duty core.Duty, msg *pb
 // It returns on error or nil when the context is cancelled.
 func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Message) error {
 	ctx = log.WithTopic(ctx, "qbft")
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if !c.deadliner.Add(duty) {
-		log.Warn(ctx, "Skipping consensus for expired duty", nil, z.Any("duty", duty))
+		log.Warn(ctx, "Skipping consensus for expired duty", nil)
 		return nil
 	}
 
-	log.Debug(ctx, "QBFT consensus instance starting", z.Any("duty", duty))
+	log.Debug(ctx, "QBFT consensus instance starting", z.Any("peers", c.peerLabels))
 
 	hash, err := hashProto(value)
 	if err != nil {
@@ -387,48 +410,105 @@ func endCtxSpan(ctx context.Context) {
 	trace.SpanFromContext(ctx).End()
 }
 
-// timeoutReason returns a human-readable reason why the round timed out round timeout.
-func timeoutReason(round int64, msgs []qbft.Msg[core.Duty, [32]byte], peers []p2p.Peer, threshold, leader int) string {
-	// includedPeers returns two slices of peer names, one with peers
-	// including the message type and one with excluded peers.
-	includedPeers := func(typ qbft.MsgType) (incl []string, excl []string) {
-		for _, peer := range peers {
+// roundStep groups consensus round messages by type and peer status.
+type roundStep struct {
+	Type    qbft.MsgType
+	Present []int
+	Missing []int
+	Peers   int
+}
+
+// groupRoundMessages groups messages by type and returns which peers were present and missing for each type.
+func groupRoundMessages(msgs []qbft.Msg[core.Duty, [32]byte], peers int, round int64, leader int) []roundStep {
+	// checkPeers returns two slices of peer indexes, one with peers
+	// present with the message type and one with messing peers.
+	checkPeers := func(typ qbft.MsgType) (present []int, missing []int) {
+		for i := 0; i < peers; i++ {
 			var included bool
 			for _, msg := range msgs {
-				if msg.Type() == typ && msg.Source() == int64(peer.Index) {
+				if msg.Type() == typ && msg.Source() == int64(i) {
 					included = true
 					break
 				}
 			}
 			if included {
-				incl = append(incl, p2p.PeerName(peer.ID))
-			} else {
-				excl = append(excl, p2p.PeerName(peer.ID))
+				present = append(present, i)
+				continue
 			}
+
+			if typ == qbft.MsgPrePrepare && i != leader {
+				// Only leader can be missing for pre-prepare.
+				continue
+			}
+
+			if typ == qbft.MsgRoundChange && round == 1 {
+				// Round changes only applicable to rounds > 1.
+				continue
+			}
+
+			missing = append(missing, i)
 		}
 
-		return incl, excl
+		return present, missing
 	}
 
-	if round > 1 {
-		if incl, excl := includedPeers(qbft.MsgRoundChange); len(incl) < threshold {
-			return "insufficient round changes, missing peers=" + fmt.Sprint(excl)
+	var resp []roundStep
+	for _, typ := range []qbft.MsgType{qbft.MsgPrePrepare, qbft.MsgPrepare, qbft.MsgCommit, qbft.MsgRoundChange} {
+		present, missing := checkPeers(typ)
+		resp = append(resp, roundStep{
+			Type:    typ,
+			Present: present,
+			Missing: missing,
+			Peers:   peers,
+		})
+	}
+
+	return resp
+}
+
+func timeoutReason(steps []roundStep, round int64, quorum int) string {
+	byType := make(map[qbft.MsgType]roundStep)
+	for _, step := range steps {
+		byType[step.Type] = step
+	}
+
+	if round > 1 { // Quorum round changes are required for leader to propose for rounds > 1.
+		if step := byType[qbft.MsgRoundChange]; len(step.Present) == 0 {
+			return "insufficient round-changes, missing peers=" + fmt.Sprint(step.Missing)
 		}
 	}
 
-	if incl, _ := includedPeers(qbft.MsgPrePrepare); len(incl) == 0 {
-		return "missing pre-prepare, missing leader=" + p2p.PeerName(peers[leader].ID)
+	if step := byType[qbft.MsgPrePrepare]; len(step.Present) == 0 {
+		return "no pre-prepare, missing leader=" + fmt.Sprint(step.Missing)
 	}
 
-	if incl, excl := includedPeers(qbft.MsgPrepare); len(incl) < threshold {
-		return "insufficient prepares, missing peers=" + fmt.Sprint(excl)
+	if step := byType[qbft.MsgPrepare]; len(step.Present) < quorum {
+		return "insufficient prepares, missing peers=" + fmt.Sprint(step.Missing)
 	}
 
-	if incl, excl := includedPeers(qbft.MsgCommit); len(incl) < threshold {
-		return "insufficient commits, missing peers=" + fmt.Sprint(excl)
+	if step := byType[qbft.MsgCommit]; len(step.Present) < quorum {
+		return "insufficient commits, missing peers=" + fmt.Sprint(step.Missing)
 	}
 
 	return "unknown reason"
+}
+
+// fmtStepPeers returns a string representing the present and missing peers.
+func fmtStepPeers(step roundStep) string {
+	var resp []string
+	for i := 0; i < step.Peers; i++ {
+		resp = append(resp, "_")
+	}
+
+	for _, i := range step.Present {
+		resp[i] = "*"
+	}
+
+	for _, i := range step.Missing {
+		resp[i] = "?"
+	}
+
+	return strings.Join(resp, "")
 }
 
 // leader return the deterministic leader index.
