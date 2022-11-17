@@ -56,7 +56,7 @@ var (
 		Namespace: "core",
 		Subsystem: "scheduler",
 		Name:      "validator_balance_gwei",
-		Help:      "Total balance of a validator by public key",
+		Help:      "Total balance of a validator by public key by status",
 	}, []string{"pubkey_full", "pubkey", "status"})
 
 	skipCounter = promauto.NewCounter(prometheus.CounterOpts{
