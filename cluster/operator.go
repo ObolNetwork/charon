@@ -17,8 +17,6 @@ package cluster
 
 import (
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/p2p"
 )
 
 // Operator identifies the operator of a charon node and its ENR.
@@ -40,16 +38,6 @@ type Operator struct {
 
 	// ENRSignature is a EIP712 signature of the ENR by the Address, authorising the charon node to act on behalf of the operator in the cluster.
 	ENRSignature []byte `json:"enr_signature,0xhex" ssz:"Bytes65" config_hash:"-" definition_hash:"3"`
-}
-
-// Peer returns the p2p peer for operator based on its ENR.
-func (o Operator) Peer() (p2p.Peer, error) {
-	enr, err := p2p.DecodeENR(o.ENR)
-	if err != nil {
-		return p2p.Peer{}, errors.Wrap(err, "decode enr", z.Str("enr", o.ENR))
-	}
-
-	return p2p.NewPeer(enr, 0)
 }
 
 // operatorJSONv1x1 is the json formatter of Operator for versions v1.0.0 and v1.1.0.

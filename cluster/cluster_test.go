@@ -192,3 +192,16 @@ func TestExamples(t *testing.T) {
 		})
 	}
 }
+
+func TestDefinitionPeers(t *testing.T) {
+	lock, _, _ := cluster.NewForT(t, 2, 3, 4, 5)
+	peers, err := lock.Peers()
+	require.NoError(t, err)
+
+	names := []string{"lucky-son", "inexpensive-school", "dark-plant", "dazzling-shape"}
+
+	for i, peer := range peers {
+		require.Equal(t, i, peer.Index)
+		require.Equal(t, names[i], peer.Name)
+	}
+}
