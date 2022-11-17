@@ -19,7 +19,6 @@ import (
 	"context"
 	"math"
 	"math/rand"
-	"strings"
 	"testing"
 	"time"
 
@@ -237,17 +236,21 @@ func testQBFT(t *testing.T, test test) {
 		Decide: func(_ context.Context, instance int64, value int64, qcommit []Msg[int64, int64]) {
 			resultChan <- qcommit
 		},
-		LogRoundTimeout: func(ctx context.Context, instance int64, process, round int64, msgs []Msg[int64, int64]) {
-			t.Logf("%s %v@%d ~= %v", clock.NowStr(), process, round, "RoundTimeout")
+		LogRoundChange: func(ctx context.Context, instance int64, process, round, newRound int64, rule UponRule, msgs []Msg[int64, int64]) {
+			t.Logf("%s %v@%d change to %d ~= %v", clock.NowStr(), process, round, newRound, rule)
 		},
-		LogUponRule: func(_ context.Context, instance int64, process, round int64, msg Msg[int64, int64], rule string) {
+		LogUponRule: func(_ context.Context, instance int64, process, round int64, msg Msg[int64, int64], rule UponRule) {
 			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
 			if round > maxRound {
 				cancel()
-			} else if !test.Fuzz && strings.Contains(strings.ToLower(rule), "unjust") {
-				t.Logf("%s: %#v", rule, msg)
-				cancel()
 			}
+		},
+		LogUnjust: func(_ context.Context, instance int64, process int64, msg Msg[int64, int64]) {
+			if test.Fuzz {
+				return // Ignore unjust messages when fuzzing.
+			}
+			t.Logf("Unjust: %#v", msg)
+			cancel()
 		},
 		Nodes:     n,
 		FIFOLimit: fifoLimit,

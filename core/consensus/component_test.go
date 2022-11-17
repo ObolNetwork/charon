@@ -104,8 +104,8 @@ func TestComponent(t *testing.T) {
 	for i, c := range components {
 		go func(ctx context.Context, i int, c *consensus.Component) {
 			runErrs <- c.Propose(
-				log.WithCtx(ctx, z.Int("node", i)),
-				core.Duty{Type: core.DutyAttester},
+				log.WithCtx(ctx, z.Int("node", i), z.Str("peer", p2p.PeerName(hosts[i].ID()))),
+				core.Duty{Type: core.DutyAttester, Slot: 1},
 				core.UnsignedDataSet{pubkey: testutil.RandomCoreAttestationData(t)},
 			)
 		}(ctx, i, c)

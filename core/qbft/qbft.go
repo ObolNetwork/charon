@@ -50,9 +50,13 @@ type Definition[I any, V comparable] struct {
 	// Decide is called when consensus has been reached on a value.
 	Decide func(ctx context.Context, instance I, value V, qcommit []Msg[I, V])
 	// LogUponRule allows debug logging of triggered upon rules on message receipt.
-	LogUponRule func(ctx context.Context, instance I, process, round int64, msg Msg[I, V], uponRule string)
-	// LogRoundTimeout allows debug logging of round timeouts. It includes all received round messages.
-	LogRoundTimeout func(ctx context.Context, instance I, process, round int64, msgs []Msg[I, V])
+	LogUponRule func(ctx context.Context, instance I, process, round int64, msg Msg[I, V], uponRule UponRule)
+	// LogRoundChange allows debug logging of round changes.
+	// It includes the rule that triggered it and all received round messages.
+	LogRoundChange func(ctx context.Context, instance I, process, round, newRound int64, uponRule UponRule, msgs []Msg[I, V])
+	// LogUnjust allows debug logging of unjust messages.
+	LogUnjust func(ctx context.Context, instance I, process int64, msg Msg[I, V])
+
 	// Nodes is the total number of nodes/processes participating in consensus.
 	Nodes int
 	// FIFOLimit limits the amount of message buffered for each peer.
@@ -87,8 +91,21 @@ const (
 	msgSentinel    MsgType = 6
 )
 
-func (i MsgType) Valid() bool {
-	return i > MsgUnknown && i < msgSentinel
+func (t MsgType) Valid() bool {
+	return t > MsgUnknown && t < msgSentinel
+}
+
+func (t MsgType) String() string {
+	return typeLabels[t]
+}
+
+var typeLabels = map[MsgType]string{
+	MsgUnknown:     "unknown",
+	MsgPrePrepare:  "pre_prepare",
+	MsgPrepare:     "prepare",
+	MsgCommit:      "commit",
+	MsgRoundChange: "round_change",
+	MsgDecided:     "decided",
 }
 
 // Msg defines the inter process messages.
@@ -111,21 +128,36 @@ type Msg[I any, V comparable] interface {
 	Justification() []Msg[I, V]
 }
 
-//go:generate stringer -type=uponRule -trimprefix=upon
+// UponRule defines the event based rules that are triggered when messages are received.
+type UponRule int64
 
-// uponRule defines the event based rules that are triggered when messages are received.
-type uponRule int64
+func (r UponRule) String() string {
+	return ruleLabels[r]
+}
 
 const (
-	uponNothing uponRule = iota
-	uponJustifiedPrePrepare
-	uponQuorumPrepares
-	uponQuorumCommits
-	uponUnjustQuorumRoundChanges
-	uponFPlus1RoundChanges
-	uponQuorumRoundChanges
-	uponJustifiedDecided
+	UponNothing UponRule = iota
+	UponJustifiedPrePrepare
+	UponQuorumPrepares
+	UponQuorumCommits
+	UponUnjustQuorumRoundChanges
+	UponFPlus1RoundChanges
+	UponQuorumRoundChanges
+	UponJustifiedDecided
+	UponRoundTimeout // This is not triggered by a message, but by a timer.
 )
+
+var ruleLabels = map[UponRule]string{
+	UponNothing:                  "nothing",
+	UponJustifiedPrePrepare:      "justified_pre_prepare",
+	UponQuorumPrepares:           "quorum_prepares",
+	UponQuorumCommits:            "quorum_commits",
+	UponUnjustQuorumRoundChanges: "unjust_quorum_round_changes",
+	UponFPlus1RoundChanges:       "f_plus_1_round_changes",
+	UponQuorumRoundChanges:       "quorum_round_changes",
+	UponJustifiedDecided:         "justified_decided",
+	UponRoundTimeout:             "round_timeout",
+}
 
 // Run executes the consensus algorithm until the context closed.
 // The generic type I is the instance of consensus and can be anything.
@@ -156,7 +188,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		preparedJustification []Msg[I, V]
 		qCommit               []Msg[I, V]
 		buffer                = make(map[int64][]Msg[I, V])
-		dedupRules            = make(map[uponRule]int64) // map[uponRule]msg.Round()
+		dedupRules            = make(map[UponRule]int64) // map[UponRule]msg.Round()
 		timerChan             <-chan time.Time
 		stopTimer             func()
 	)
@@ -186,7 +218,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	}
 
 	// isDuplicatedRule returns true if the rule has been already executed since last round change.
-	isDuplicatedRule := func(rule uponRule, msgRound int64) bool {
+	isDuplicatedRule := func(rule UponRule, msgRound int64) bool {
 		prevRound, ok := dedupRules[rule]
 		if !ok {
 			dedupRules[rule] = msgRound
@@ -204,9 +236,13 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	}
 
 	// changeRound updates round and clears the rule dedup state.
-	changeRound := func(newRound int64) {
+	changeRound := func(newRound int64, rule UponRule) {
+		if round == newRound {
+			return
+		}
+		d.LogRoundChange(ctx, instance, process, round, newRound, rule, extractRoundMsgs(buffer, round))
 		round = newRound
-		dedupRules = make(map[uponRule]int64)
+		dedupRules = make(map[UponRule]int64)
 	}
 
 	// === Algorithm ===
@@ -237,31 +273,31 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			}
 
 			if !isJustified(d, instance, msg) { // Drop unjust messages
-				d.LogUponRule(ctx, instance, process, round, msg, "unjust"+msg.Type().String())
+				d.LogUnjust(ctx, instance, process, msg)
 				break
 			}
 
 			bufferMsg(msg)
 
 			rule, justification := classify(d, instance, round, process, buffer, msg)
-			if rule == uponNothing || isDuplicatedRule(rule, msg.Round()) {
+			if rule == UponNothing || isDuplicatedRule(rule, msg.Round()) {
 				// Do nothing more if no rule or duplicate rule was triggered
 				break
 			}
 
-			d.LogUponRule(ctx, instance, process, round, msg, rule.String())
+			d.LogUponRule(ctx, instance, process, round, msg, rule)
 
 			switch rule {
-			case uponJustifiedPrePrepare: // Algorithm 2:1
+			case UponJustifiedPrePrepare: // Algorithm 2:1
 				// Applicable to current or future rounds (since justified)
-				changeRound(msg.Round())
+				changeRound(msg.Round(), rule)
 
 				stopTimer()
 				timerChan, stopTimer = d.NewTimer(round)
 
 				err = broadcastMsg(MsgPrepare, msg.Value(), nil)
 
-			case uponQuorumPrepares: // Algorithm 2:4
+			case UponQuorumPrepares: // Algorithm 2:4
 				// Only applicable to current round
 				preparedRound = round /* == msg.Round*/
 				preparedValue = msg.Value()
@@ -269,9 +305,9 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 				err = broadcastMsg(MsgCommit, preparedValue, nil)
 
-			case uponQuorumCommits, uponJustifiedDecided: // Algorithm 2:8
+			case UponQuorumCommits, UponJustifiedDecided: // Algorithm 2:8
 				// Applicable to any round (since can be justified)
-				changeRound(msg.Round())
+				changeRound(msg.Round(), rule)
 				qCommit = justification
 
 				stopTimer()
@@ -279,16 +315,16 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 				d.Decide(ctx, instance, msg.Value(), justification)
 
-			case uponFPlus1RoundChanges: // Algorithm 3:5
+			case UponFPlus1RoundChanges: // Algorithm 3:5
 				// Only applicable to future rounds
-				changeRound(nextMinRound(d, justification, round /* < msg.Round */))
+				changeRound(nextMinRound(d, justification, round /* < msg.Round */), rule)
 
 				stopTimer()
 				timerChan, stopTimer = d.NewTimer(round)
 
 				err = broadcastRoundChange()
 
-			case uponQuorumRoundChanges: // Algorithm 3:11
+			case UponQuorumRoundChanges: // Algorithm 3:11
 				// Only applicable to current round
 				value := inputValue
 				if _, pv, ok := getSingleJustifiedPrPv(d, justification); ok {
@@ -297,7 +333,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 				err = broadcastMsg(MsgPrePrepare, value, justification)
 
-			case uponUnjustQuorumRoundChanges:
+			case UponUnjustQuorumRoundChanges:
 				// Ignore bug or byzantine
 
 			default:
@@ -305,14 +341,10 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			}
 
 		case <-timerChan: // Algorithm 3:1
-			msgs := extractRoundMsgs(buffer, round)
-
-			changeRound(round + 1)
+			changeRound(round+1, UponRoundTimeout)
 
 			stopTimer()
 			timerChan, stopTimer = d.NewTimer(round)
-
-			d.LogRoundTimeout(ctx, instance, process, round, msgs)
 
 			err = broadcastRoundChange()
 
@@ -341,44 +373,44 @@ func extractRoundMsgs[I any, V comparable](buffer map[int64][]Msg[I, V], round i
 }
 
 // classify returns the rule triggered upon receipt of the last message and its justifications.
-func classify[I any, V comparable](d Definition[I, V], instance I, round, process int64, buffer map[int64][]Msg[I, V], msg Msg[I, V]) (uponRule, []Msg[I, V]) {
+func classify[I any, V comparable](d Definition[I, V], instance I, round, process int64, buffer map[int64][]Msg[I, V], msg Msg[I, V]) (UponRule, []Msg[I, V]) {
 	switch msg.Type() {
 	case MsgDecided:
-		return uponJustifiedDecided, msg.Justification()
+		return UponJustifiedDecided, msg.Justification()
 
 	case MsgPrePrepare:
 
 		// Only ignore old rounds, since PRE-PREPARE is justified we may jump ahead.
 		if msg.Round() < round {
-			return uponNothing, nil
+			return UponNothing, nil
 		}
 
-		return uponJustifiedPrePrepare, nil
+		return UponJustifiedPrePrepare, nil
 
 	case MsgPrepare:
 		// Ignore other rounds, since PREPARE isn't justified.
 		if msg.Round() != round {
-			return uponNothing, nil
+			return UponNothing, nil
 		}
 		prepares := filterByRoundAndValue(flatten(buffer), MsgPrepare, msg.Round(), msg.Value())
 		if len(prepares) >= d.Quorum() {
-			return uponQuorumPrepares, prepares
+			return UponQuorumPrepares, prepares
 		}
 
 	case MsgCommit:
 		// Ignore other rounds, since COMMIT isn't justified.
 		if msg.Round() != round {
-			return uponNothing, nil
+			return UponNothing, nil
 		}
 		commits := filterByRoundAndValue(flatten(buffer), MsgCommit, msg.Round(), msg.Value())
 		if len(commits) >= d.Quorum() {
-			return uponQuorumCommits, commits
+			return UponQuorumCommits, commits
 		}
 
 	case MsgRoundChange:
 		// Only ignore old rounds.
 		if msg.Round() < round {
-			return uponNothing, nil
+			return UponNothing, nil
 		}
 
 		all := flatten(buffer)
@@ -386,34 +418,34 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 		if msg.Round() > round {
 			// Jump ahead if we received F+1 higher ROUND-CHANGEs.
 			if frc, ok := getFPlus1RoundChanges(d, all, round); ok {
-				return uponFPlus1RoundChanges, frc
+				return UponFPlus1RoundChanges, frc
 			}
 
-			return uponNothing, nil
+			return UponNothing, nil
 		}
 
 		/* else msg.Round == round */
 
 		if qrc := filterRoundChange(all, msg.Round()); len(qrc) < d.Quorum() {
-			return uponNothing, nil
+			return UponNothing, nil
 		}
 
 		qrc, ok := getJustifiedQrc(d, all, msg.Round())
 		if !ok {
-			return uponUnjustQuorumRoundChanges, nil
+			return UponUnjustQuorumRoundChanges, nil
 		}
 
 		if !d.IsLeader(instance, msg.Round(), process) {
-			return uponNothing, nil
+			return UponNothing, nil
 		}
 
-		return uponQuorumRoundChanges, qrc
+		return UponQuorumRoundChanges, qrc
 
 	default:
 		panic("bug: invalid type")
 	}
 
-	return uponNothing, nil
+	return UponNothing, nil
 }
 
 // nextMinRound implements algorithm 3:6 and returns the next minimum round
