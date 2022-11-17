@@ -31,8 +31,7 @@ import (
 )
 
 func TestPeerInfo(t *testing.T) {
-	t0 := time.Now()
-	now := t0
+	now := time.Now()
 	const gitCommit = "1234567"
 
 	nodes := []struct {
@@ -87,6 +86,10 @@ func TestPeerInfo(t *testing.T) {
 		peers = append(peers, tcpNode.ID())
 	}
 
+	nowFunc := func(i int) func() time.Time {
+		return func() time.Time { return now.Add(nodes[i].Offset) }
+	}
+
 	for i := 0; i < n; i++ {
 		node := nodes[i]
 
@@ -117,7 +120,7 @@ func TestPeerInfo(t *testing.T) {
 					require.Equal(t, node.Version, version)
 					require.Equal(t, node.Offset, clockOffset)
 					require.Equal(t, gitCommit, gitHash)
-					require.Equal(t, t0.UTC(), startTime.UTC())
+					require.Equal(t, nowFunc(i)().Unix(), startTime.Unix())
 
 					submitted++
 					if submitted == n-2 { // Expect metrics from everyone but ourselves or the ignored node.
@@ -131,7 +134,7 @@ func TestPeerInfo(t *testing.T) {
 		}
 
 		peerInfo := peerinfo.NewForT(t, tcpNodes[i], peers, node.Version, node.LockHash, gitCommit, p2p.SendReceive, p2p.RegisterHandler,
-			tickProvider, func() time.Time { return now.Add(node.Offset) }, metricSubmitter)
+			tickProvider, nowFunc(i), metricSubmitter)
 
 		peerInfos = append(peerInfos, peerInfo)
 	}
