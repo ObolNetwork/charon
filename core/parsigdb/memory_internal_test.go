@@ -127,7 +127,8 @@ func TestMemDBThreshold(t *testing.T) {
 		n  = 10
 	)
 
-	db := NewMemDB(th)
+	deadliner := new(testDeadliner)
+	db := NewMemDB(th, deadliner)
 	timesCalled := 0
 	db.SubscribeThreshold(func(_ context.Context, _ core.Duty, _ core.PubKey, _ []core.ParSignedData) error {
 		timesCalled++
@@ -137,12 +138,45 @@ func TestMemDBThreshold(t *testing.T) {
 
 	pubkey := testutil.RandomCorePubKey(t)
 	att := testutil.RandomAttestation()
-	for i := 0; i < n; i++ {
-		err := db.StoreExternal(context.Background(), core.NewAttesterDuty(123), core.ParSignedDataSet{
-			pubkey: core.NewPartialAttestation(att, i+1),
-		})
-		require.NoError(t, err)
+
+	enqueueN := func() {
+		for i := 0; i < n; i++ {
+			err := db.StoreExternal(context.Background(), core.NewAttesterDuty(123), core.ParSignedDataSet{
+				pubkey: core.NewPartialAttestation(att, i+1),
+			})
+			require.NoError(t, err)
+		}
 	}
 
+	enqueueN()
 	require.Equal(t, 1, timesCalled)
+
+	deadliner.Expire()
+
+	enqueueN()
+	require.Equal(t, 2, timesCalled)
+}
+
+type testDeadliner struct {
+	added []core.Duty
+	ch    chan core.Duty
+}
+
+func (t *testDeadliner) Expire() bool {
+	t.ch = make(chan core.Duty, len(t.added))
+	for _, d := range t.added {
+		t.ch <- d
+	}
+	t.added = nil
+
+	return true
+}
+
+func (t *testDeadliner) Add(duty core.Duty) bool {
+	t.added = append(t.added, duty)
+	return true
+}
+
+func (t *testDeadliner) C() <-chan core.Duty {
+	return t.ch
 }

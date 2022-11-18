@@ -28,10 +28,12 @@ import (
 )
 
 // NewMemDB returns a new in-memory partial signature database instance.
-func NewMemDB(threshold int) *MemDB {
+func NewMemDB(threshold int, deadliner core.Deadliner) *MemDB {
 	return &MemDB{
-		entries:   make(map[key][]core.ParSignedData),
-		threshold: threshold,
+		entries:    make(map[key][]core.ParSignedData),
+		keysByDuty: make(map[core.Duty][]key),
+		threshold:  threshold,
+		deadliner:  deadliner,
 	}
 }
 
@@ -42,8 +44,10 @@ type MemDB struct {
 	internalSubs []func(context.Context, core.Duty, core.ParSignedDataSet) error
 	threshSubs   []func(context.Context, core.Duty, core.PubKey, []core.ParSignedData) error
 
-	entries   map[key][]core.ParSignedData
-	threshold int
+	entries    map[key][]core.ParSignedData
+	keysByDuty map[core.Duty][]key
+	threshold  int
+	deadliner  core.Deadliner
 }
 
 // SubscribeInternal registers a callback when an internal
@@ -87,6 +91,8 @@ func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet co
 
 // StoreExternal stores an externally received partially signed duty data set.
 func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet core.ParSignedDataSet) error {
+	db.processDeadline(duty)
+
 	for pubkey, sig := range signedSet {
 		sigs, ok, err := db.store(key{Duty: duty, PubKey: pubkey}, sig)
 		if err != nil {
@@ -130,6 +136,26 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 	return nil
 }
 
+// processDeadline adds duties to the deadliner and deletes expired duties.
+func (db *MemDB) processDeadline(duty core.Duty) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	_ = db.deadliner.Add(duty) // TODO(corver): Distinguish between no deadline supported vs already expired.
+
+	for {
+		select {
+		case duty := <-db.deadliner.C():
+			for _, k := range db.keysByDuty[duty] {
+				delete(db.entries, k)
+			}
+			delete(db.keysByDuty, duty)
+		default:
+			return
+		}
+	}
+}
+
 // store returns true if the value was added to the list of signatures at the provided key
 // and returns a copy of the resulting list.
 func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, bool, error) {
@@ -157,6 +183,7 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 	}
 
 	db.entries[k] = append(db.entries[k], clone)
+	db.keysByDuty[k.Duty] = append(db.keysByDuty[k.Duty], k)
 
 	if k.Duty.Type == core.DutyExit {
 		exitCounter.WithLabelValues(k.PubKey.String()).Inc()

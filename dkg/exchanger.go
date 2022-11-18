@@ -63,7 +63,7 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) *ex
 
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
-		sigdb:   parsigdb.NewMemDB(len(peers)),
+		sigdb:   parsigdb.NewMemDB(len(peers), noopDeadliner{}),
 		sigex:   parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, noopVerifier),
 		sigChan: make(chan sigData, vals), // Allow buffering all signature sets
 		numVals: vals,
@@ -117,5 +117,16 @@ func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, pk core.PubKey,
 		psigs:   psigs,
 	}
 
+	return nil
+}
+
+// noopDeadliner is a deadliner that does nothing.
+type noopDeadliner struct{}
+
+func (noopDeadliner) Add(core.Duty) bool {
+	return true
+}
+
+func (noopDeadliner) C() <-chan core.Duty {
 	return nil
 }
