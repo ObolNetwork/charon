@@ -17,7 +17,6 @@ package compose
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -51,6 +50,12 @@ type AutoConfig struct {
 //nolint:gocognit
 func Auto(ctx context.Context, conf AutoConfig) error {
 	ctx = log.WithTopic(ctx, "auto")
+
+	w, closeFunc, err := newLogWriter(conf.LogFile)
+	if err != nil {
+		return err
+	}
+	defer closeFunc() //nolint:errcheck // non-critical
 
 	steps := []struct {
 		Name     string
@@ -104,7 +109,9 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 			break
 		}
 
-		if err := executeAndLogCompose(ctx, conf.Dir, conf.LogFile, step.Name); err != nil {
+		_, _ = w.Write([]byte("===== " + step.Name + " step: docker-compose up =====\n"))
+
+		if err := execUp(ctx, conf.Dir, w); err != nil {
 			return err
 		}
 	}
@@ -124,7 +131,9 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 		_ = execDown(context.Background(), conf.Dir)
 	}()
 
-	if err := executeAndLogCompose(ctx, conf.Dir, conf.LogFile, "auto"); err != nil && !errors.Is(err, context.DeadlineExceeded) {
+	_, _ = w.Write([]byte("===== run step: docker-compose up =====\n"))
+
+	if err := execUp(ctx, conf.Dir, w); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
 
@@ -202,7 +211,7 @@ func execDown(ctx context.Context, dir string) error {
 }
 
 // execUp executes `docker-compose up` and it stores docker compose logs either to a log file or stdout.
-func execUp(ctx context.Context, dir string, file io.Writer) error {
+func execUp(ctx context.Context, dir string, out io.Writer) error {
 	// Build first so containers start at the same time below.
 	log.Info(ctx, "Executing docker-compose build")
 	cmd := exec.CommandContext(ctx, "docker-compose", "build", "--parallel")
@@ -218,13 +227,8 @@ func execUp(ctx context.Context, dir string, file io.Writer) error {
 		"--quiet-pull",
 	)
 	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if file != nil {
-		cmd.Stdout = file
-		cmd.Stderr = file
-	}
+	cmd.Stdout = out
+	cmd.Stderr = out
 
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
@@ -261,31 +265,24 @@ func NewRunnerFunc(topic string, dir string, up bool, runFunc RunFunc,
 		}
 
 		if up {
-			return data, execUp(ctx, dir, nil)
+			return data, execUp(ctx, dir, os.Stdout)
 		}
 
 		return data, nil
 	}
 }
 
-// executeAndLogCompose prepares log file (if logFile provided) and executes docker compose up command.
-func executeAndLogCompose(ctx context.Context, dir string, logFile string, step string) error {
+// newLogWriter returns io writer and a close function or an error.
+func newLogWriter(logFile string) (io.WriteCloser, func() error, error) {
 	if logFile == "" {
-		return execUp(ctx, dir, nil)
+		return os.Stdout, func() error { return nil }, nil
 	}
 
 	// Preparing log file.
 	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644) //nolint:nosnakecase
 	if err != nil {
-		return errors.Wrap(err, "open log file")
+		return nil, nil, errors.Wrap(err, "open log file")
 	}
 
-	_, err = file.WriteString(fmt.Sprintf("=== STEP: %s ===\n", step))
-	if err != nil {
-		return errors.Wrap(err, "write string to file")
-	}
-
-	defer file.Close()
-
-	return execUp(ctx, dir, file)
+	return file, file.Close, nil
 }
