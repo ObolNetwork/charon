@@ -2,15 +2,15 @@
  "name": "test definition",
  "operators": [
   {
-   "address": "0xeb9d18a44784045d87f3c67cf22746e995af5a25",
-   "enr": "enr://5fb90badb37c5821b6d95526a41a9504680b4e7c8b763a1b1d49d4955c848621",
+   "address": "0xf5059875921e668a5bdf2c7fc4844592d2572bcd",
+   "enr": "enr://f84c7174cb7476364cc3dbd968b0f7172ed85794bb358b0c3b525da1786f9fff",
    "nonce": 0,
    "config_signature": "",
    "enr_signature": ""
   },
   {
-   "address": "0x223beea5f4f74391f445d15afd4294040374f692",
-   "enr": "enr://9192c24224e2cafccae3a61fb586b14323a6bc8f9e7df1d929333ff993933bea",
+   "address": "0xa3b539eb1e5849c6077dbb5722f5717a289a266f",
+   "enr": "enr://3970115e82ed6f4125c8fa7311e4d7defa922daae7786667f7e936cd4f24abf7",
    "nonce": 0,
    "config_signature": "",
    "enr_signature": ""
@@ -25,6 +25,6 @@
  "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
  "dkg_algorithm": "default",
  "fork_version": "0x90000069",
- "config_hash": "oQzZWiCuJFXV9CWz2PPiZYzwJLTbjC1ok803pY+JLqk=",
- "definition_hash": "EiYv1m3CT2iRKY5m9DBQzDrqRRC5kD/LBculhrmVcjs="
+ "config_hash": "6b6N0TwwMyxTE/2yyuarZRY+EoZ2uetiQJlsn857cow=",
+ "definition_hash": "MAqM/VBDIrEz77dZ0OCe1YXJ7eSGySdl13GitXlAgfE="
 }

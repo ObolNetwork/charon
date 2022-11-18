@@ -36,7 +36,7 @@ func TestDefinitionVerify(t *testing.T) {
 	secret3, creator := randomCreator(t)
 
 	t.Run("verify definition v1.4", func(t *testing.T) {
-		definition := randomDefinition(t, op0, op1, WithV1x4(creator))
+		definition := randomDefinition(t, creator, op0, op1)
 
 		definition, err = signCreator(secret3, definition)
 		require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("verify definition v1.3", func(t *testing.T) {
-		definition := randomDefinition(t, op0, op1)
+		definition := randomDefinition(t, Creator{}, op0, op1, WithVersion(v1_3))
 
 		definition.Operators[0], err = signOperator(secret0, definition, op0)
 		require.NoError(t, err)
@@ -65,30 +65,31 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("verify definition v1.2 or lower", func(t *testing.T) {
-		def := randomDefinition(t, op0, op1)
-		def.Version = v1_2
+		def := randomDefinition(t, Creator{}, op0, op1, WithVersion(v1_2))
 		require.NoError(t, def.VerifySignatures())
-		def.Version = v1_0
+
+		def = randomDefinition(t, Creator{}, op0, op1, WithVersion(v1_0))
 		require.NoError(t, def.VerifySignatures())
 	})
 
 	t.Run("unsigned creator and operators", func(t *testing.T) {
-		def := randomDefinition(t, op0, op1, WithV1x4(creator))
+		def := randomDefinition(t, creator, op0, op1)
 		def.Creator = Creator{}
 		def.Operators = []Operator{{}, {}}
 
 		require.NoError(t, def.VerifySignatures())
 	})
 
-	t.Run("unsigned operators", func(t *testing.T) {
-		def := randomDefinition(t, op0, op1)
+	t.Run("unsigned operators v1.3", func(t *testing.T) {
+		def := randomDefinition(t, creator, op0, op1, WithVersion(v1_3))
+
 		def.Operators = []Operator{{}, {}}
 
 		require.NoError(t, def.VerifySignatures())
 	})
 
 	t.Run("empty operator signatures", func(t *testing.T) {
-		def := randomDefinition(t, op0, op1)
+		def := randomDefinition(t, creator, op0, op1)
 
 		// Empty ENR sig
 		err := def.VerifySignatures()
@@ -103,7 +104,7 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("some operators didn't sign", func(t *testing.T) {
-		definition := randomDefinition(t, op0, op1)
+		definition := randomDefinition(t, creator, op0, op1)
 		definition.Operators[0] = Operator{} // Operator with no address, enr sig or config sig
 
 		// Only operator 1 signed.
@@ -116,7 +117,7 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("creator didn't sign", func(t *testing.T) {
-		definition := randomDefinition(t, op0, op1, WithV1x4(creator))
+		definition := randomDefinition(t, creator, op0, op1)
 		definition.Operators[0], err = signOperator(secret0, definition, op0)
 		require.NoError(t, err)
 
@@ -158,12 +159,12 @@ func randomOperator(t *testing.T) (*ecdsa.PrivateKey, Operator) {
 	}
 }
 
-// randomDefinition returns a test cluster definition with version set to v1.3.0.
-func randomDefinition(t *testing.T, op0, op1 Operator, opts ...func(*Definition)) Definition {
+// randomDefinition returns a test cluster definition with version set to v1.4.0.
+func randomDefinition(t *testing.T, cr Creator, op0, op1 Operator, opts ...func(*Definition)) Definition {
 	t.Helper()
 
 	definition, err := NewDefinition("test definition", 1, 2,
-		"", "", eth2util.Sepolia.ForkVersionHex, []Operator{op0, op1},
+		"", "", eth2util.Sepolia.ForkVersionHex, cr, []Operator{op0, op1},
 		rand.New(rand.NewSource(1)), opts...)
 	require.NoError(t, err)
 

@@ -41,19 +41,16 @@ type NodeIdx struct {
 	ShareIdx int
 }
 
-// WithV1x4 provides an option to create a new definition with v1.4 including a creator.
-// TODO(corver): Remove this and add creator to NewDefinition when releasing v1.4.
-func WithV1x4(creator Creator) func(*Definition) {
+func WithVersion(version string) func(*Definition) {
 	return func(d *Definition) {
-		d.Creator = creator
-		d.Version = v1_4
+		d.Version = version
 	}
 }
 
 // NewDefinition returns a new definition populated with the latest version, timestamp and UUID.
 // The hashes are also populated accordingly. Note that the hashes need to be recalculated when any field is modified.
 func NewDefinition(name string, numVals int, threshold int, feeRecipientAddress string, withdrawalAddress string,
-	forkVersionHex string, operators []Operator, random io.Reader, opts ...func(*Definition),
+	forkVersionHex string, creator Creator, operators []Operator, random io.Reader, opts ...func(*Definition),
 ) (Definition, error) {
 	def := Definition{
 		Version:             currentVersion,
@@ -66,6 +63,7 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddress 
 		WithdrawalAddress:   withdrawalAddress,
 		FeeRecipientAddress: feeRecipientAddress,
 		Operators:           operators,
+		Creator:             creator,
 	}
 
 	var err error
