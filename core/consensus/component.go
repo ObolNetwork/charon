@@ -45,8 +45,86 @@ const (
 	protocolID    = "/charon/consensus/qbft/1.0.0"
 )
 
+type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
+
+// newDefinition returns a qbft definition (this is constant across all consensus instances).
+func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Duty, [32]byte] {
+	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
+
+	return qbft.Definition[core.Duty, [32]byte]{
+		// IsLeader is a deterministic leader election function.
+		IsLeader: func(duty core.Duty, round, process int64) bool {
+			return leader(duty, round, nodes) == process
+		},
+
+		// Decide sends consensus output to subscribers.
+		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
+			defer endCtxSpan(ctx) // End the parent tracing span when decided
+			value, ok, err := msgValue(qcommit[0].(msg).msg)
+			if err != nil {
+				log.Error(ctx, "Get decided value", err)
+				return
+			} else if !ok {
+				log.Error(ctx, "Missing decided value", nil)
+				return
+			}
+
+			for _, sub := range subs() {
+				if err := sub(ctx, duty, value); err != nil {
+					log.Warn(ctx, "Subscriber error", err)
+				}
+			}
+		},
+
+		NewTimer: newRoundTimer, // newRoundTimer returns a 750ms+(round*250ms) period timer.
+
+		// LogUponRule logs upon rules at debug level.
+		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,
+			_ qbft.Msg[core.Duty, [32]byte], uponRule qbft.UponRule,
+		) {
+			log.Debug(ctx, "QBFT upon rule triggered", z.Any("rule", uponRule), z.I64("round", round))
+		},
+
+		// LogRoundChange logs round changes at debug level.
+		LogRoundChange: func(ctx context.Context, duty core.Duty, process,
+			round, newRound int64, uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte],
+		) {
+			fields := []z.Field{
+				z.Any("rule", uponRule),
+				z.I64("round", round),
+				z.I64("new_round", newRound),
+			}
+
+			steps := groupRoundMessages(msgs, quorum, round, int(leader(duty, round, nodes)))
+			for _, step := range steps {
+				fields = append(fields, z.Str(step.Type.String(), fmtStepPeers(step)))
+			}
+			if uponRule == qbft.UponRoundTimeout {
+				fields = append(fields, z.Str("timeout_reason", timeoutReason(steps, round, quorum)))
+			}
+
+			log.Debug(ctx, "QBFT round changed", fields...)
+		},
+
+		LogUnjust: func(ctx context.Context, _ core.Duty, _ int64, msg qbft.Msg[core.Duty, [32]byte]) {
+			log.Warn(ctx, "Unjustified consensus message from peer", nil,
+				z.Any("type", msg.Type()),
+				z.I64("peer", msg.Source()),
+			)
+		},
+
+		// Nodes is the number of nodes.
+		Nodes: nodes,
+
+		// FIFOLimit caps the max buffered messages per peer.
+		FIFOLimit: recvBuffer,
+	}
+}
+
 // New returns a new consensus QBFT component.
-func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey, deadliner core.Deadliner) (*Component, error) {
+func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey,
+	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance),
+) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*ecdsa.PublicKey)
 	var labels []string
@@ -70,86 +148,10 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 		pubkeys:     keys,
 		deadliner:   deadliner,
 		recvBuffers: make(map[core.Duty]chan msg),
+		snifferFunc: snifferFunc,
 	}
 
-	quorom := qbft.Definition[int, int]{Nodes: len(peers)}.Quorum()
-
-	// Create qbft definition (this is constant across all consensus instances)
-	c.def = qbft.Definition[core.Duty, [32]byte]{
-		// IsLeader is a deterministic leader election function.
-		IsLeader: func(duty core.Duty, round, process int64) bool {
-			return leader(duty, round, peers) == process
-		},
-
-		// Decide sends consensus output to subscribers.
-		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
-			defer endCtxSpan(ctx) // End the parent tracing span when decided
-			value, ok, err := msgValue(qcommit[0].(msg).msg)
-			if err != nil {
-				log.Error(ctx, "Get decided value", err)
-				return
-			} else if !ok {
-				log.Error(ctx, "Missing decided value", nil)
-				return
-			}
-
-			for _, sub := range c.subs {
-				if err := sub(ctx, duty, value); err != nil {
-					log.Warn(ctx, "Subscriber error", err)
-				}
-			}
-		},
-
-		// NewTimer returns a 750ms+(round*250ms) period timer.
-		// TODO(corver): Round timeout is a tradeoff between fast rounds to skip unavailable nodes
-		//  and slow rounds to allow consensus in high latency clusters. Dynamic timeout based on
-		//  recent network conditions could be an option.
-		NewTimer: func(round int64) (<-chan time.Time, func()) {
-			timer := time.NewTimer(roundStart + (time.Duration(round) * roundIncrease))
-			return timer.C, func() { timer.Stop() }
-		},
-
-		// LogUponRule logs upon rules at debug level.
-		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,
-			_ qbft.Msg[core.Duty, [32]byte], uponRule qbft.UponRule,
-		) {
-			log.Debug(ctx, "QBFT upon rule triggered", z.Any("rule", uponRule), z.I64("round", round))
-		},
-
-		// LogRoundChange logs round changes at debug level.
-		LogRoundChange: func(ctx context.Context, duty core.Duty, process,
-			round, newRound int64, uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte],
-		) {
-			fields := []z.Field{
-				z.Any("rule", uponRule),
-				z.I64("round", round),
-				z.I64("new_round", newRound),
-			}
-
-			steps := groupRoundMessages(msgs, len(peers), round, int(leader(duty, round, peers)))
-			for _, step := range steps {
-				fields = append(fields, z.Str(step.Type.String(), fmtStepPeers(step)))
-			}
-			if uponRule == qbft.UponRoundTimeout {
-				fields = append(fields, z.Str("timeout_reason", timeoutReason(steps, round, quorom)))
-			}
-
-			log.Debug(ctx, "QBFT round changed", fields...)
-		},
-
-		LogUnjust: func(ctx context.Context, _ core.Duty, _ int64, msg qbft.Msg[core.Duty, [32]byte]) {
-			log.Warn(ctx, "Unjustified consensus message from peer", nil,
-				z.Any("type", msg.Type()),
-				z.I64("peer", msg.Source()),
-			)
-		},
-
-		// Nodes is the number of nodes.
-		Nodes: len(peers),
-
-		// FIFOLimit caps the max buffered messages per peer.
-		FIFOLimit: recvBuffer,
-	}
+	c.def = newDefinition(len(peers), c.subscribers)
 
 	return c, nil
 }
@@ -157,15 +159,16 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 // Component implements core.Consensus.
 type Component struct {
 	// Immutable state
-	tcpNode    host.Host
-	sender     *p2p.Sender
-	peerLabels []string
-	peers      []p2p.Peer
-	pubkeys    map[int64]*ecdsa.PublicKey
-	privkey    *ecdsa.PrivateKey
-	def        qbft.Definition[core.Duty, [32]byte]
-	subs       []func(ctx context.Context, duty core.Duty, value proto.Message) error
-	deadliner  core.Deadliner
+	tcpNode     host.Host
+	sender      *p2p.Sender
+	peerLabels  []string
+	peers       []p2p.Peer
+	pubkeys     map[int64]*ecdsa.PublicKey
+	privkey     *ecdsa.PrivateKey
+	def         qbft.Definition[core.Duty, [32]byte]
+	subs        []subscriber
+	deadliner   core.Deadliner
+	snifferFunc func(*pbv1.SniffedConsensusInstance)
 
 	// Mutable state
 	recvMu      sync.Mutex
@@ -189,6 +192,11 @@ func (c *Component) Subscribe(fn func(ctx context.Context, duty core.Duty, set c
 
 		return fn(ctx, duty, unsigned)
 	})
+}
+
+// subscribers returns the subscribers.
+func (c *Component) subscribers() []subscriber {
+	return c.subs
 }
 
 // SubscribePriority registers a callback for priority protocol message proposals from leaders.
@@ -257,12 +265,23 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		return err
 	}
 
+	peerIdx, err := c.getPeerIdx()
+	if err != nil {
+		return err
+	}
+
 	// Create a transport handles sending and receiving for this instance.
 	t := transport{
 		component:  c,
 		values:     map[[32]byte]proto.Message{hash: value},
 		recvBuffer: make(chan qbft.Msg[core.Duty, [32]byte]),
+		sniffer:    newSniffer(int64(c.def.Nodes), peerIdx),
 	}
+
+	// Provide sniffed buffer to snifferFunc at the end.
+	defer func() {
+		c.snifferFunc(t.sniffer.Instance())
+	}()
 
 	// Start a receiving goroutine.
 	go t.ProcessReceives(ctx, c.getRecvBuffer(duty))
@@ -271,11 +290,6 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 	qt := qbft.Transport[core.Duty, [32]byte]{
 		Broadcast: t.Broadcast,
 		Receive:   t.recvBuffer,
-	}
-
-	peerIdx, err := c.getPeerIdx()
-	if err != nil {
-		return err
 	}
 
 	// Run the algo, blocking until the context is cancelled.
@@ -512,6 +526,16 @@ func fmtStepPeers(step roundStep) string {
 }
 
 // leader return the deterministic leader index.
-func leader(duty core.Duty, round int64, peers []p2p.Peer) int64 {
-	return ((duty.Slot) + int64(duty.Type) + round) % int64(len(peers))
+func leader(duty core.Duty, round int64, nodes int) int64 {
+	return ((duty.Slot) + int64(duty.Type) + round) % int64(nodes)
+}
+
+// newRoundTimer returns a 750ms+(round*250ms) period timer.
+//
+// TODO(corver): Round timeout is a tradeoff between fast rounds to skip unavailable nodes
+// and slow rounds to allow consensus in high latency clusters. Dynamic timeout based on
+// recent network conditions could be an option.
+func newRoundTimer(round int64) (<-chan time.Time, func()) {
+	timer := time.NewTimer(roundStart + (time.Duration(round) * roundIncrease))
+	return timer.C, func() { timer.Stop() }
 }

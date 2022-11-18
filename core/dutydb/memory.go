@@ -215,7 +215,7 @@ func (db *MemDB) AwaitBlindedBeaconBlock(ctx context.Context, slot int64) (*eth2
 // AwaitAttestation implements core.DutyDB, see its godoc.
 func (db *MemDB) AwaitAttestation(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error) {
 	db.mu.Lock()
-	response := make(chan *eth2p0.AttestationData, 1) // Buffer of one so resolving never blocks
+	response := make(chan *eth2p0.AttestationData, 1) // Instance of one so resolving never blocks
 	db.attQueries = append(db.attQueries, attQuery{
 		Key: attKey{
 			Slot:    slot,
@@ -241,7 +241,7 @@ func (db *MemDB) AwaitAttestation(ctx context.Context, slot int64, commIdx int64
 func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot int64, attestationRoot eth2p0.Root,
 ) (*eth2p0.Attestation, error) {
 	db.mu.Lock()
-	response := make(chan core.AggregatedAttestation, 1) // Buffer of one so resolving never blocks
+	response := make(chan core.AggregatedAttestation, 1) // Instance of one so resolving never blocks
 	db.aggQueries = append(db.aggQueries, aggQuery{
 		Key: aggKey{
 			Slot: slot,
@@ -276,7 +276,7 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot int64, attestatio
 // the subcommittee and the beacon block root when available.
 func (db *MemDB) AwaitSyncContribution(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
 	db.mu.Lock()
-	response := make(chan *altair.SyncCommitteeContribution, 1) // Buffer of one so resolving never blocks
+	response := make(chan *altair.SyncCommitteeContribution, 1) // Instance of one so resolving never blocks
 	db.contribQueries = append(db.contribQueries, contribQuery{
 		Key: contribKey{
 			Slot:       slot,

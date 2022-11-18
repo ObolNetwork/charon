@@ -54,6 +54,7 @@ import (
 	"github.com/obolnetwork/charon/core/aggsigdb"
 	"github.com/obolnetwork/charon/core/bcast"
 	"github.com/obolnetwork/charon/core/consensus"
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/core/infosync"
@@ -219,9 +220,14 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	wirePeerInfo(life, tcpNode, peerIDs, lock.LockHash, sender)
 
-	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs, promRegistry)
+	qbftDebug := newQBFTDebugger()
 
-	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, peerIDs, sender); err != nil {
+	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs,
+		promRegistry, qbftDebug)
+
+	err = wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl,
+		peerIDs, sender, qbftDebug.AddInstance)
+	if err != nil {
 		return err
 	}
 
@@ -308,6 +314,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
 	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
+	qbftSniffer func(*pbv1.SniffedConsensusInstance),
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -427,7 +434,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	cons, startCons, err := newConsensus(conf, lock, tcpNode, p2pKey, sender,
-		nodeIdx, deadlinerFunc("consensus"))
+		nodeIdx, deadlinerFunc("consensus"), qbftSniffer)
 	if err != nil {
 		return err
 	}
@@ -656,6 +663,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 // newConsensus returns a new consensus component and its start lifecycle hook.
 func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
 	sender *p2p.Sender, nodeIdx cluster.NodeIdx, deadliner core.Deadliner,
+	qbftSniffer func(*pbv1.SniffedConsensusInstance),
 ) (core.Consensus, lifecycle.IHookFunc, error) {
 	peers, err := lock.Peers()
 	if err != nil {
@@ -667,7 +675,7 @@ func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *ecd
 	}
 
 	if featureset.Enabled(featureset.QBFTConsensus) {
-		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner)
+		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, qbftSniffer)
 		if err != nil {
 			return nil, nil, err
 		}

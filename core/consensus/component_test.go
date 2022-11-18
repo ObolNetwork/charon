@@ -34,6 +34,7 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus"
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -52,6 +53,7 @@ func TestComponent(t *testing.T) {
 		components  []*consensus.Component
 		results     = make(chan core.UnsignedDataSet, nodes)
 		runErrs     = make(chan error, nodes)
+		sniffed     = make(chan int, nodes)
 		ctx, cancel = context.WithCancel(context.Background())
 	)
 	defer cancel()
@@ -87,7 +89,11 @@ func TestComponent(t *testing.T) {
 			hosts[i].Peerstore().AddAddrs(hostsInfo[j].ID, hostsInfo[j].Addrs, peerstore.PermanentAddrTTL)
 		}
 
-		c, err := consensus.New(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{})
+		sniffer := func(msgs *pbv1.SniffedConsensusInstance) {
+			sniffed <- len(msgs.Msgs)
+		}
+
+		c, err := consensus.New(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{}, sniffer)
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set
@@ -127,10 +133,17 @@ func TestComponent(t *testing.T) {
 				require.EqualValues(t, result, res)
 			}
 			count++
-			if count == nodes {
-				return
-			}
 		}
+
+		if count == nodes {
+			break
+		}
+	}
+
+	cancel()
+
+	for i := 0; i < nodes; i++ {
+		require.NotZero(t, <-sniffed)
 	}
 }
 

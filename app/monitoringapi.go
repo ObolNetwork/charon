@@ -47,7 +47,7 @@ var (
 // It serves prometheus metrics, pprof profiling and the runtime enr.
 func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string,
 	localNode *enode.LocalNode, tcpNode host.Host, eth2Cl eth2wrap.Client,
-	peerIDs []peer.ID, registry *prometheus.Registry,
+	peerIDs []peer.ID, registry *prometheus.Registry, qbftDebug http.Handler,
 ) {
 	mux := http.NewServeMux()
 
@@ -76,6 +76,9 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 
 		writeResponse(w, http.StatusOK, "ok")
 	})
+
+	// Serve sniffed qbft instances messages in gzipped protobuf format.
+	mux.Handle("/debug/qbft", qbftDebug)
 
 	// Copied from net/http/pprof/pprof.go
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
