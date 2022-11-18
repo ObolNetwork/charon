@@ -46,6 +46,10 @@ func TestEncode(t *testing.T) {
 				testutil.RandomETHAddress(),
 				testutil.RandomETHAddress(),
 				eth2util.Sepolia.ForkVersionHex,
+				cluster.Creator{
+					Address:         testutil.RandomETHAddress(),
+					ConfigSignature: testutil.RandomSecp256k1Signature(),
+				},
 				[]cluster.Operator{
 					{
 						Address:         testutil.RandomETHAddress(),
@@ -64,11 +68,6 @@ func TestEncode(t *testing.T) {
 				func(d *cluster.Definition) {
 					d.Version = version
 					d.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
-
-					if d.Version == "v1.4.0" { // Add this by default once v1.4 released.
-						d.Creator.Address = testutil.RandomETHAddress()
-						d.Creator.ConfigSignature = testutil.RandomSecp256k1Signature()
-					}
 				},
 			)
 			require.NoError(t, err)
@@ -80,6 +79,11 @@ func TestEncode(t *testing.T) {
 					definition.Operators[i].ConfigSignature = []byte{}
 					definition.Operators[i].ENRSignature = []byte{}
 				}
+			}
+
+			// Definition version prior to v1.4.0 don't support creator.
+			if version == "v1.0.0" || version == "v1.1.0" || version == "v1.2.0" || version == "v1.3.0" {
+				definition.Creator = cluster.Creator{}
 			}
 
 			t.Run("definition_json_"+vStr, func(t *testing.T) {
@@ -108,16 +112,16 @@ func TestEncode(t *testing.T) {
 				SignatureAggregate: testutil.RandomBytes32(),
 				Validators: []cluster.DistValidator{
 					{
-						PubKey: testutil.RandomBytes20(), // TODO(corver): Change sigs to Bytes48.
+						PubKey: testutil.RandomBytes48(),
 						PubShares: [][]byte{
-							testutil.RandomBytes32(), // TODO(corver): Change sigs to Bytes48.
-							testutil.RandomBytes32(),
+							testutil.RandomBytes48(),
+							testutil.RandomBytes48(),
 						},
 					}, {
-						PubKey: testutil.RandomBytes20(),
+						PubKey: testutil.RandomBytes48(),
 						PubShares: [][]byte{
-							testutil.RandomBytes32(),
-							testutil.RandomBytes32(),
+							testutil.RandomBytes48(),
+							testutil.RandomBytes48(),
 						},
 					},
 				},

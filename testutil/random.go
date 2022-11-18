@@ -574,6 +574,13 @@ func RandomBytes20() []byte {
 	return RandomBytes32()[:20]
 }
 
+func RandomBytes48() []byte {
+	var resp [48]byte
+	_, _ = rand.Read(resp[:])
+
+	return resp[:]
+}
+
 func RandomBytes32() []byte {
 	var resp [32]byte
 	_, _ = rand.Read(resp[:])

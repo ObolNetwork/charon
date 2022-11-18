@@ -3,14 +3,14 @@
   "name": "test definition",
   "operators": [
    {
-    "address": "0xeb9d18a44784045d87f3c67cf22746e995af5a25",
-    "enr": "enr://5fb90badb37c5821b6d95526a41a9504680b4e7c8b763a1b1d49d4955c848621",
+    "address": "0xf5059875921e668a5bdf2c7fc4844592d2572bcd",
+    "enr": "enr://f84c7174cb7476364cc3dbd968b0f7172ed85794bb358b0c3b525da1786f9fff",
     "config_signature": "",
     "enr_signature": ""
    },
    {
-    "address": "0x223beea5f4f74391f445d15afd4294040374f692",
-    "enr": "enr://9192c24224e2cafccae3a61fb586b14323a6bc8f9e7df1d929333ff993933bea",
+    "address": "0xa3b539eb1e5849c6077dbb5722f5717a289a266f",
+    "enr": "enr://3970115e82ed6f4125c8fa7311e4d7defa922daae7786667f7e936cd4f24abf7",
     "config_signature": "",
     "enr_signature": ""
    }
@@ -24,25 +24,25 @@
   "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
   "dkg_algorithm": "default",
   "fork_version": "0x90000069",
-  "config_hash": "0xf0577c776b42d97418eec0988de901acda5d270e4b44441e73e65c146058832a",
-  "definition_hash": "0x4ecfd2e92ec91dc0c0533d0783779e47d3bb0a9d9141773d1bd32d0570048a0b"
+  "config_hash": "0xcd1aaeb1f4ae67cd76c5efe628dd72532be4882b76ab5fd013703a0c93f52108",
+  "definition_hash": "0x6946c7509737cf8bdeb1920ceecf9e634c98a3ef415c159cf1e52f5737760fea"
  },
  "distributed_validators": [
   {
-   "distributed_public_key": "0x430105220d0b29688b734b8ea0f3ca9936e8461f",
+   "distributed_public_key": "0x2d184fc39d1734ff5716428953bb6865fcf92b0c3a17c9028be9914eb7649c6c9347800979d1830356f2a54c3deab2a4",
    "public_shares": [
-    "0xa63b7f3dfd2567c18979e4d60f26686d9bf2fb26c901ff354cde1607ee294b39",
-    "0xf32b7c7822ba64f84ab43ca0c6e6b91c1fd3be8990434179d3af4491a369012d"
+    "0xb4475d63afbe8fb56987c77f5818526f1814be823350eab13935f31d84484517e924aef78ae151c00755925836b70758",
+    "0x85650c30ec29a3703934bf50a28da102975deda77e758579ea3dfe4136abf752b3b8271d03e944b3c9db366b75045f8e"
    ]
   },
   {
-   "distributed_public_key": "0xb92d184fc39d1734ff5716428953bb6865fcf92b",
+   "distributed_public_key": "0xfd69d22ae5411947cb553d7694267aef4ebcea406b32d6108bd68584f57e37caac6e33feaa3263a399437024ba9c9b14",
    "public_shares": [
-    "0x6c9347800979d1830356f2a54c3deab2a4b4475d63afbe8fb56987c77f581852",
-    "0x6f1814be823350eab13935f31d84484517e924aef78ae151c00755925836b707"
+    "0x678a274f01a910ae295f6efbfe5f5abf44ccde263b5606633e2bf0006f28295d7d39069f01a239c4365854c3af7f6b41",
+    "0xd631f92b9a8d12f41257325fff332f7576b0620556304a3e3eae14c28d0cea39d2901a52720da85ca1e4b38eaf3f44c6"
    ]
   }
  ],
- "signature_aggregate": "0x6a156a8de563afa467d49dec6a40e9a1d007f033c2823061bdd0eaa59f8e4da6",
- "lock_hash": "0x2a7e16d321dfd9792b6e2818642838590099928a6e13d234e4b7e65223e12d0e"
+ "signature_aggregate": "0x2b7c7822ba64f84ab43ca0c6e6b91c1fd3be8990434179d3af4491a369012db9",
+ "lock_hash": "0xd619af0d79e8538917bc59b0833eb777630bc44adaf00403f5f13a24c728c05b"
 }

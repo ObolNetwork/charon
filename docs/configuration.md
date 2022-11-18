@@ -72,10 +72,10 @@ The `cluster-lock.json` has the following schema:
 ### Cluster Config Change Log
 
 The following is the historical change log of the cluster config:
-- `v1.4.0` **draft**:
+- `v1.4.0` **default**:
     - Added the `creator` nested structure to the cluster definition proving who created the cluster definition (including non-operators).
     - Refactored operator `config_signature` EIP712 structure to distinguish between operator and creator `config_signatures`.
-- `v1.3.0` **default**:
+- `v1.3.0`:
     - Refactored `config_hash`, `definition_hash` and `lock_hash` calculations by aligning with SSZ common types:
         - `ByteList[MaxN]`: Variable length with max limit for strings.
         - `BytesN`: Fixed length byte.

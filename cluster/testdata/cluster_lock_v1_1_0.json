@@ -3,15 +3,15 @@
   "name": "test definition",
   "operators": [
    {
-    "address": "0xeb9d18a44784045d87f3c67cf22746e995af5a25",
-    "enr": "enr://5fb90badb37c5821b6d95526a41a9504680b4e7c8b763a1b1d49d4955c848621",
+    "address": "0xf5059875921e668a5bdf2c7fc4844592d2572bcd",
+    "enr": "enr://f84c7174cb7476364cc3dbd968b0f7172ed85794bb358b0c3b525da1786f9fff",
     "nonce": 0,
     "config_signature": "",
     "enr_signature": ""
    },
    {
-    "address": "0x223beea5f4f74391f445d15afd4294040374f692",
-    "enr": "enr://9192c24224e2cafccae3a61fb586b14323a6bc8f9e7df1d929333ff993933bea",
+    "address": "0xa3b539eb1e5849c6077dbb5722f5717a289a266f",
+    "enr": "enr://3970115e82ed6f4125c8fa7311e4d7defa922daae7786667f7e936cd4f24abf7",
     "nonce": 0,
     "config_signature": "",
     "enr_signature": ""
@@ -26,25 +26,25 @@
   "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
   "dkg_algorithm": "default",
   "fork_version": "0x90000069",
-  "config_hash": "CmxY06oRxEw1UMCOLGRb5jSNeG9890x1BuRnTUKEloc=",
-  "definition_hash": "SIqlUaZH0Q2hcpUDG8GUT9Ld8FdJiXX9XJgQkiMbWMk="
+  "config_hash": "GtshpXb8pJUIqr0rqId5SPX8na/DkTXyKZcRVRHffhk=",
+  "definition_hash": "Q7JM5KWFdYNU989iThEuuZHvPSRXTwqZGj6EUpVxIcc="
  },
  "distributed_validators": [
   {
-   "distributed_public_key": "0x430105220d0b29688b734b8ea0f3ca9936e8461f",
+   "distributed_public_key": "0x2d184fc39d1734ff5716428953bb6865fcf92b0c3a17c9028be9914eb7649c6c9347800979d1830356f2a54c3deab2a4",
    "public_shares": [
-    "pjt/Pf0lZ8GJeeTWDyZobZvy+ybJAf81TN4WB+4pSzk=",
-    "8yt8eCK6ZPhKtDygxua5HB/TvomQQ0F5069EkaNpAS0="
+    "tEddY6++j7Vph8d/WBhSbxgUvoIzUOqxOTXzHYRIRRfpJK73iuFRwAdVklg2twdY",
+    "hWUMMOwpo3A5NL9Qoo2hApdd7ad+dYV56j3+QTar91KzuCcdA+lEs8nbNmt1BF+O"
    ]
   },
   {
-   "distributed_public_key": "0xb92d184fc39d1734ff5716428953bb6865fcf92b",
+   "distributed_public_key": "0xfd69d22ae5411947cb553d7694267aef4ebcea406b32d6108bd68584f57e37caac6e33feaa3263a399437024ba9c9b14",
    "public_shares": [
-    "bJNHgAl50YMDVvKlTD3qsqS0R11jr76PtWmHx39YGFI=",
-    "bxgUvoIzUOqxOTXzHYRIRRfpJK73iuFRwAdVklg2twc="
+    "Z4onTwGpEK4pX277/l9av0TM3iY7VgZjPivwAG8oKV19OQafAaI5xDZYVMOvf2tB",
+    "1jH5K5qNEvQSVzJf/zMvdXawYgVWMEo+Pq4Uwo0M6jnSkBpScg2oXKHks46vP0TG"
    ]
   }
  ],
- "signature_aggregate": "ahVqjeVjr6Rn1J3sakDpodAH8DPCgjBhvdDqpZ+OTaY=",
- "lock_hash": "i24Ml+Cd/lwMp5nhmrnciV5/PQHQ8Jv6W4BI8YlPGE4="
+ "signature_aggregate": "K3x4Irpk+Eq0PKDG5rkcH9O+iZBDQXnTr0SRo2kBLbk=",
+ "lock_hash": "hXEeMf1sE9fqoz7hTzbmTsf+EcCzN08rpNrSM5BHn3g="
 }
