@@ -222,9 +222,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	qbftDebug := newQBFTDebugger()
 
-	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs, promRegistry, qbftDebug)
+	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs,
+		promRegistry, qbftDebug)
 
-	if err := wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl, peerIDs, sender, qbftDebug.AddMsgs); err != nil {
+	err = wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl,
+		peerIDs, sender, qbftDebug.AddInstance)
+	if err != nil {
 		return err
 	}
 
@@ -311,7 +314,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
 	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
-	qbftSniffer func(*pbv1.SniffedConsensusMsgs),
+	qbftSniffer func(*pbv1.SniffedConsensusInstance),
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -660,7 +663,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 // newConsensus returns a new consensus component and its start lifecycle hook.
 func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
 	sender *p2p.Sender, nodeIdx cluster.NodeIdx, deadliner core.Deadliner,
-	qbftSniffer func(*pbv1.SniffedConsensusMsgs),
+	qbftSniffer func(*pbv1.SniffedConsensusInstance),
 ) (core.Consensus, lifecycle.IHookFunc, error) {
 	peers, err := lock.Peers()
 	if err != nil {

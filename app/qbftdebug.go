@@ -18,7 +18,6 @@ package app
 import (
 	"bytes"
 	"compress/gzip"
-	"github.com/obolnetwork/charon/app/version"
 	"net/http"
 	"sync"
 
@@ -26,6 +25,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/version"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
