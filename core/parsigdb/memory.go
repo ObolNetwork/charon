@@ -91,7 +91,7 @@ func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet co
 
 // StoreExternal stores an externally received partially signed duty data set.
 func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet core.ParSignedDataSet) error {
-	db.processDeadline(duty)
+	_ = db.deadliner.Add(duty) // TODO(corver): Distinguish between no deadline supported vs already expired.
 
 	for pubkey, sig := range signedSet {
 		sigs, ok, err := db.store(key{Duty: duty, PubKey: pubkey}, sig)
@@ -136,22 +136,20 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 	return nil
 }
 
-// processDeadline adds duties to the deadliner and deletes expired duties.
-func (db *MemDB) processDeadline(duty core.Duty) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	_ = db.deadliner.Add(duty) // TODO(corver): Distinguish between no deadline supported vs already expired.
-
+// Trim blocks until the context is closed, it deletes state for expired duties.
+// It should only be called once.
+func (db *MemDB) Trim(ctx context.Context) {
 	for {
 		select {
-		case duty := <-db.deadliner.C():
-			for _, k := range db.keysByDuty[duty] {
-				delete(db.entries, k)
+		case <-ctx.Done():
+			return
+		case duty := <-db.deadliner.C(): // This buffered channel is small, so we need dedicated goroutine to service it.
+			db.mu.Lock()
+			for _, key := range db.keysByDuty[duty] {
+				delete(db.entries, key)
 			}
 			delete(db.keysByDuty, duty)
-		default:
-			return
+			db.mu.Unlock()
 		}
 	}
 }
