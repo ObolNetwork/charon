@@ -268,30 +268,21 @@ func NewRunnerFunc(topic string, dir string, logFile string, up bool, runFunc Ru
 	}
 }
 
-// prepLogFile returns provided logFile as writer with step string appended to it.
-func prepLogFile(logFile string, step string) (io.WriteCloser, error) {
-	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644) //nolint:nosnakecase
-	if err != nil {
-		return file, errors.Wrap(err, "open log file")
-	}
-
-	_, err = file.WriteString(fmt.Sprintf("=== STEP: %s ===\n", step))
-	if err != nil {
-		return file, errors.Wrap(err, "write string to file")
-	}
-
-	return file, nil
-}
-
 // executeAndLogCompose prepares log file (if logFile provided) and executes docker compose up command.
 func executeAndLogCompose(ctx context.Context, dir string, logFile string, step string) error {
 	if logFile == "" {
 		return execUp(ctx, dir, nil)
 	}
 
-	file, err := prepLogFile(logFile, step)
+	// Preparing log file.
+	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644) //nolint:nosnakecase
 	if err != nil {
-		return err
+		return errors.Wrap(err, "open log file")
+	}
+
+	_, err = file.WriteString(fmt.Sprintf("=== STEP: %s ===\n", step))
+	if err != nil {
+		return errors.Wrap(err, "write string to file")
 	}
 
 	defer file.Close()
