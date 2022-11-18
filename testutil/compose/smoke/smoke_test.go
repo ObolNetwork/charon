@@ -18,6 +18,7 @@ package smoke_test
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -36,6 +37,7 @@ var (
 	integration    = flag.Bool("integration", false, "Enable docker based integration test")
 	prebuiltBinary = flag.String("prebuilt-binary", "", "Path to a prebuilt charon binary to run inside containers")
 	sudoPerms      = flag.Bool("sudo-perms", false, "Enables changing all compose artefacts file permissions using sudo.")
+	logDir         = flag.String("log-dir", "", "Specifies the directory to store test docker-compose logs. Empty defaults to stdout.")
 )
 
 func TestSmoke(t *testing.T) {
@@ -51,7 +53,7 @@ func TestSmoke(t *testing.T) {
 		PrintYML       bool
 	}{
 		{
-			Name:     "default alpha",
+			Name:     "default_alpha",
 			PrintYML: true,
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenCreate
@@ -59,14 +61,14 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name: "default beta",
+			Name: "default_beta",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenCreate
 				conf.FeatureSet = "beta"
 			},
 		},
 		{
-			Name: "default stable",
+			Name: "default_stable",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenCreate
 				conf.FeatureSet = "stable"
@@ -79,7 +81,7 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name: "very large",
+			Name: "very_large",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.NumNodes = 21
 				conf.Threshold = 14
@@ -89,7 +91,7 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name:     "run version matrix with dkg",
+			Name:     "run_version_matrix_with_dkg",
 			PrintYML: true,
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenDKG
@@ -106,7 +108,7 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name: "teku versions", // TODO(corver): Do the same for lighthouse.
+			Name: "teku_versions", // TODO(corver): Do the same for lighthouse.
 			ConfigFunc: func(conf *compose.Config) {
 				conf.VCs = []compose.VCType{compose.VCTeku}
 			},
@@ -118,7 +120,7 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name: "1 of 4 down",
+			Name: "1_of_4_down",
 			RunTmplFunc: func(data *compose.TmplData) {
 				node0 := data.Nodes[0]
 				for i := 0; i < len(node0.EnvVars); i++ {
@@ -149,14 +151,20 @@ func TestSmoke(t *testing.T) {
 
 			os.Args = []string{"cobra.test"}
 
-			err = compose.Auto(context.Background(), compose.AutoConfig{
+			autoConfig := compose.AutoConfig{
 				Dir:            dir,
 				AlertTimeout:   time.Second * 45,
 				SudoPerms:      *sudoPerms,
 				PrintYML:       test.PrintYML,
 				RunTmplFunc:    test.RunTmplFunc,
 				DefineTmplFunc: test.DefineTmplFunc,
-			})
+			}
+
+			if *logDir != "" {
+				autoConfig.LogFile = path.Join(*logDir, fmt.Sprintf("%s.log", test.Name))
+			}
+
+			err = compose.Auto(context.Background(), autoConfig)
 			testutil.RequireNoError(t, err)
 		})
 	}
