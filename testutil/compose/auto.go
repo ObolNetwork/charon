@@ -283,6 +283,7 @@ func prepLogFile(logFile string, step string) (io.WriteCloser, error) {
 	return file, nil
 }
 
+// executeAndLogCompose prepares log file (if logFile provided) and executes docker compose up command.
 func executeAndLogCompose(ctx context.Context, dir string, logFile string, step string) error {
 	if logFile == "" {
 		return execUp(ctx, dir, nil)
