@@ -74,7 +74,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 	}
 
 	for _, step := range steps {
-		run := NewRunnerFunc(step.Name, conf.Dir, conf.LogFile, false, step.RunFunc)
+		run := NewRunnerFunc(step.Name, conf.Dir, false, step.RunFunc)
 		tmpl, err := run(ctx)
 		if err != nil {
 			return err
@@ -241,7 +241,7 @@ func execUp(ctx context.Context, dir string, file io.Writer) error {
 type RunFunc func(context.Context, string, Config) (TmplData, error)
 
 // NewRunnerFunc returns a function that wraps and runs a run function.
-func NewRunnerFunc(topic string, dir string, logFile string, up bool, runFunc RunFunc,
+func NewRunnerFunc(topic string, dir string, up bool, runFunc RunFunc,
 ) func(ctx context.Context) (data TmplData, err error) {
 	return func(ctx context.Context) (data TmplData, err error) {
 		ctx = log.WithTopic(ctx, topic)
@@ -261,7 +261,7 @@ func NewRunnerFunc(topic string, dir string, logFile string, up bool, runFunc Ru
 		}
 
 		if up {
-			return data, executeAndLogCompose(ctx, dir, logFile, topic)
+			return data, execUp(ctx, dir, nil)
 		}
 
 		return data, nil

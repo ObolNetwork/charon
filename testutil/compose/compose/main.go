@@ -79,9 +79,8 @@ func newDockerCmd(use string, short string, runFunc compose.RunFunc) *cobra.Comm
 
 	up := addUpFlag(cmd.Flags())
 	dir := addDirFlag(cmd.Flags())
-	logFile := addLogFileFlag(cmd.Flags())
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		_, err := compose.NewRunnerFunc(use, *dir, *logFile, *up, runFunc)(cmd.Context())
+		_, err := compose.NewRunnerFunc(use, *dir, *up, runFunc)(cmd.Context())
 		if err != nil {
 			log.Error(cmd.Context(), "Fatal error", err)
 		}
