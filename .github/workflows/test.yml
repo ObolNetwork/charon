@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tests: ["TestSmoke/default_alpha", "TestSmoke/default_beta"]
+        tests: ["default_alpha", "default_beta"]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
@@ -65,7 +65,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - run: GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o testutil/compose/smoke # Pre-build current SHA charon binary
-      - run: go test github.com/obolnetwork/charon/testutil/compose/smoke -run=${{ matrix.tests }} -v -integration -sudo-perms -prebuilt-binary=charon -timeout=20m -log-dir=.
+      - run: go test github.com/obolnetwork/charon/testutil/compose/smoke -run=format({0}/{1}, 'TestSmoke', ${{ matrix.tests }} ) -v -integration -sudo-perms -prebuilt-binary=charon -timeout=20m -log-dir=.
       - uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.tests }}
