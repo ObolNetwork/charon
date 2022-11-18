@@ -127,8 +127,13 @@ func TestMemDBThreshold(t *testing.T) {
 		n  = 10
 	)
 
-	deadliner := new(testDeadliner)
+	deadliner := newTestDeadliner()
 	db := NewMemDB(th, deadliner)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go db.Trim(ctx)
+
 	timesCalled := 0
 	db.SubscribeThreshold(func(_ context.Context, _ core.Duty, _ core.PubKey, _ []core.ParSignedData) error {
 		timesCalled++
@@ -157,16 +162,22 @@ func TestMemDBThreshold(t *testing.T) {
 	require.Equal(t, 2, timesCalled)
 }
 
+func newTestDeadliner() *testDeadliner {
+	return &testDeadliner{
+		ch: make(chan core.Duty),
+	}
+}
+
 type testDeadliner struct {
 	added []core.Duty
 	ch    chan core.Duty
 }
 
 func (t *testDeadliner) Expire() bool {
-	t.ch = make(chan core.Duty, len(t.added))
 	for _, d := range t.added {
 		t.ch <- d
 	}
+	t.ch <- core.Duty{} // Dummy duty to ensure all piped duties above were processed.
 	t.added = nil
 
 	return true
