@@ -114,7 +114,6 @@ func newAutoCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&conf.AlertTimeout, "alert-timeout", 0, "Timeout to collect alerts before shutdown. Zero disables timeout.")
 	cmd.Flags().BoolVar(&conf.SudoPerms, "sudo-perms", false, "Enables changing all compose artefacts file permissions using sudo.")
 	cmd.Flags().BoolVar(&conf.PrintYML, "print-yml", false, "Print generated docker-compose.yml files.")
-	cmd.Flags().StringVar(&conf.LogFile, "log-file", "", "Enables writing (appending) docker-compose output to this file path instead of stdout.")
 
 	return cmd
 }

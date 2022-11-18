@@ -18,6 +18,7 @@ package compose
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -103,7 +104,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 			break
 		}
 
-		if err := execUp(ctx, conf.Dir, conf.LogFile, step.Name); err != nil {
+		if err := executeAndLogCompose(ctx, conf.Dir, conf.LogFile, step.Name); err != nil {
 			return err
 		}
 	}
@@ -123,7 +124,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 		_ = execDown(context.Background(), conf.Dir)
 	}()
 
-	if err := execUp(ctx, conf.Dir, conf.LogFile, "auto"); err != nil && !errors.Is(err, context.DeadlineExceeded) {
+	if err := executeAndLogCompose(ctx, conf.Dir, conf.LogFile, "auto"); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
 
@@ -200,8 +201,8 @@ func execDown(ctx context.Context, dir string) error {
 	return nil
 }
 
-// execUp executes `docker-compose up`.
-func execUp(ctx context.Context, dir string, logFile string, step string) error {
+// execUp executes `docker-compose up` and it stores docker compose logs either to a log file or stdout.
+func execUp(ctx context.Context, dir string, file io.Writer) error {
 	// Build first so containers start at the same time below.
 	log.Info(ctx, "Executing docker-compose build")
 	cmd := exec.CommandContext(ctx, "docker-compose", "build", "--parallel")
@@ -220,19 +221,7 @@ func execUp(ctx context.Context, dir string, logFile string, step string) error 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	if logFile != "" {
-		file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644) //nolint:nosnakecase
-		if err != nil {
-			return errors.Wrap(err, "open log file")
-		}
-
-		defer file.Close()
-
-		_, err = file.WriteString(fmt.Sprintf("=== STEP: %s ===\n", step))
-		if err != nil {
-			return errors.Wrap(err, "write string to file")
-		}
-
+	if file != nil {
 		cmd.Stdout = file
 		cmd.Stderr = file
 	}
@@ -272,9 +261,39 @@ func NewRunnerFunc(topic string, dir string, logFile string, up bool, runFunc Ru
 		}
 
 		if up {
-			return data, execUp(ctx, dir, logFile, topic)
+			return data, executeAndLogCompose(ctx, dir, logFile, topic)
 		}
 
 		return data, nil
 	}
+}
+
+// prepLogFile returns provided logFile as writer with step string appended to it.
+func prepLogFile(logFile string, step string) (io.WriteCloser, error) {
+	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644) //nolint:nosnakecase
+	if err != nil {
+		return file, errors.Wrap(err, "open log file")
+	}
+
+	_, err = file.WriteString(fmt.Sprintf("=== STEP: %s ===\n", step))
+	if err != nil {
+		return file, errors.Wrap(err, "write string to file")
+	}
+
+	return file, nil
+}
+
+func executeAndLogCompose(ctx context.Context, dir string, logFile string, step string) error {
+	if logFile == "" {
+		return execUp(ctx, dir, nil)
+	}
+
+	file, err := prepLogFile(logFile, step)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	return execUp(ctx, dir, file)
 }

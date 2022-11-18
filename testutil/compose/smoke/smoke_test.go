@@ -37,7 +37,7 @@ var (
 	integration    = flag.Bool("integration", false, "Enable docker based integration test")
 	prebuiltBinary = flag.String("prebuilt-binary", "", "Path to a prebuilt charon binary to run inside containers")
 	sudoPerms      = flag.Bool("sudo-perms", false, "Enables changing all compose artefacts file permissions using sudo.")
-	logDir         = flag.String("log-dir", "", "Specifies the directory to store test docker-compose logs")
+	logDir         = flag.String("log-dir", "", "Specifies the directory to store test docker-compose logs. Empty defaults to stdout.")
 )
 
 func TestSmoke(t *testing.T) {
@@ -151,15 +151,20 @@ func TestSmoke(t *testing.T) {
 
 			os.Args = []string{"cobra.test"}
 
-			err = compose.Auto(context.Background(), compose.AutoConfig{
+			autoConfig := compose.AutoConfig{
 				Dir:            dir,
 				AlertTimeout:   time.Second * 45,
 				SudoPerms:      *sudoPerms,
 				PrintYML:       test.PrintYML,
 				RunTmplFunc:    test.RunTmplFunc,
 				DefineTmplFunc: test.DefineTmplFunc,
-				LogFile:        path.Join(*logDir, fmt.Sprintf("%s.log", test.Name)),
-			})
+			}
+
+			if *logDir != "" {
+				autoConfig.LogFile = path.Join(*logDir, fmt.Sprintf("%s.log", test.Name))
+			}
+
+			err = compose.Auto(context.Background(), autoConfig)
 			testutil.RequireNoError(t, err)
 		})
 	}
