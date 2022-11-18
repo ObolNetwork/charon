@@ -184,7 +184,3 @@ func addDirFlag(flags *pflag.FlagSet) *string {
 func addUpFlag(flags *pflag.FlagSet) *bool {
 	return flags.Bool("up", true, "Execute `docker-compose up` when compose command completes")
 }
-
-func addLogFileFlag(flags *pflag.FlagSet) *string {
-	return flags.String("log-file", "", "Enables writing (appending) docker-compose output to this file path instead of stdout.")
-}
