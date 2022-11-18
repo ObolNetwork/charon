@@ -210,7 +210,7 @@ func execDown(ctx context.Context, dir string) error {
 	return nil
 }
 
-// execUp executes `docker-compose up` and it stores docker compose logs either to a log file or stdout.
+// execUp executes `docker-compose up` and it writes docker compose logs to the given out io.Writer.
 func execUp(ctx context.Context, dir string, out io.Writer) error {
 	// Build first so containers start at the same time below.
 	log.Info(ctx, "Executing docker-compose build")
