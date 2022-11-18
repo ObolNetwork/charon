@@ -48,6 +48,9 @@ jobs:
 
   compose_tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        tests: ["default_alpha.log", "default_beta.log"]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
@@ -65,9 +68,8 @@ jobs:
       - run: go test github.com/obolnetwork/charon/testutil/compose/smoke -v -integration -sudo-perms -prebuilt-binary=charon -timeout=20m -log-dir=.
       - uses: actions/upload-artifact@v3
         with:
-          name: smoke-test-logs
-          path: |
-            testutil/compose/smoke/*.log
+          name: ${{ matrix.tests }}
+          path: ${{ matrix.tests }}
 
   notify_failure:
     runs-on: ubuntu-latest
