@@ -38,6 +38,7 @@ const (
 	StartScheduler
 	StartP2PEventCollector
 	StartPeerInfo
+	StartParSigDB
 )
 
 // Global ordering of stop hooks; follows dependency tree from root to leaves.
