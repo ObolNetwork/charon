@@ -95,7 +95,7 @@ func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Dut
 				z.I64("new_round", newRound),
 			}
 
-			steps := groupRoundMessages(msgs, quorum, round, int(leader(duty, round, nodes)))
+			steps := groupRoundMessages(msgs, nodes, round, int(leader(duty, round, nodes)))
 			for _, step := range steps {
 				fields = append(fields, z.Str(step.Type.String(), fmtStepPeers(step)))
 			}
@@ -487,7 +487,7 @@ func timeoutReason(steps []roundStep, round int64, quorum int) string {
 	}
 
 	if round > 1 { // Quorum round changes are required for leader to propose for rounds > 1.
-		if step := byType[qbft.MsgRoundChange]; len(step.Present) == 0 {
+		if step := byType[qbft.MsgRoundChange]; len(step.Present) < quorum {
 			return "insufficient round-changes, missing peers=" + fmt.Sprint(step.Missing)
 		}
 	}

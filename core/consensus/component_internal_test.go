@@ -34,12 +34,19 @@ func TestDebugRoundChange(t *testing.T) {
 		leader int
 	}{
 		{
-			name:  "empty",
+			name:  "empty-1",
 			round: 1,
+		},
+		{
+			name:  "empty-2",
+			round: 2,
 		},
 		{
 			name: "quorum",
 			msgs: []qbft.Msg[core.Duty, [32]byte]{
+				m(0, qbft.MsgRoundChange),
+				m(1, qbft.MsgRoundChange),
+				m(2, qbft.MsgRoundChange),
 				m(0, qbft.MsgPrePrepare),
 				m(0, qbft.MsgPrepare),
 				m(1, qbft.MsgPrepare),
@@ -66,7 +73,7 @@ func TestDebugRoundChange(t *testing.T) {
 				Reason string
 			}{
 				Steps:  fmtSteps,
-				Reason: timeoutReason(steps, test.round, test.leader),
+				Reason: timeoutReason(steps, test.round, 3),
 			})
 		})
 	}

@@ -3,7 +3,7 @@
   "*___",
   "***?",
   "?***",
-  "????"
+  "***?"
  ],
- "Reason": "insufficient round-changes, missing peers=[0 1 2 3]"
+ "Reason": "unknown reason"
 }
