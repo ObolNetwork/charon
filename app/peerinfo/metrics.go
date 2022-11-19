@@ -50,6 +50,13 @@ var (
 		Namespace: "app",
 		Subsystem: "peerinfo",
 		Name:      "start_time_secs",
-		Help:      "Gauge set to the peer start time of the binary in unix seconds",
+		Help:      "Constant gauge set to the peer start time of the binary in unix seconds",
+	}, []string{"peer"})
+
+	peerIndexGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "peerinfo",
+		Name:      "index",
+		Help:      "Constant gauge set to the peer index in the cluster definition",
 	}, []string{"peer"})
 )

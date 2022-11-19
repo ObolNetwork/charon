@@ -86,7 +86,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.2.3",
+      "pluginVersion": "9.2.4",
       "targets": [
         {
           "datasource": {
@@ -226,7 +226,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.3",
+      "pluginVersion": "9.2.4",
       "targets": [
         {
           "datasource": {
@@ -424,7 +424,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.3",
+      "pluginVersion": "9.2.4",
       "targets": [
         {
           "datasource": {
@@ -602,7 +602,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.3",
+      "pluginVersion": "9.2.4",
       "targets": [
         {
           "datasource": {
@@ -906,6 +906,18 @@
                 "value": "s"
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Index"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 30
+              }
+            ]
           }
         ]
       },
@@ -929,11 +941,11 @@
         "sortBy": [
           {
             "desc": false,
-            "displayName": "Connected"
+            "displayName": "You"
           }
         ]
       },
-      "pluginVersion": "9.2.3",
+      "pluginVersion": "9.2.4",
       "targets": [
         {
           "datasource": {
@@ -1175,6 +1187,20 @@
           "instant": true,
           "range": false,
           "refId": "Q"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max(app_peerinfo_index{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (peer)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "refId": "R"
         }
       ],
       "title": "Peer Connectivity and Duty Participation",
@@ -1196,6 +1222,8 @@
               "Time 13": true,
               "Time 14": true,
               "Time 15": true,
+              "Time 16": true,
+              "Time 17": true,
               "Time 2": true,
               "Time 3": true,
               "Time 4": true,
@@ -1209,39 +1237,43 @@
               "Value #M": true
             },
             "indexByName": {
-              "Time 1": 16,
-              "Time 10": 26,
-              "Time 11": 27,
-              "Time 12": 29,
-              "Time 13": 30,
-              "Time 14": 31,
-              "Time 15": 32,
-              "Time 2": 18,
-              "Time 3": 19,
-              "Time 4": 20,
-              "Time 5": 21,
-              "Time 6": 22,
-              "Time 7": 23,
-              "Time 8": 24,
-              "Time 9": 25,
-              "Value #A": 2,
-              "Value #B": 4,
-              "Value #C": 9,
-              "Value #D": 12,
-              "Value #E": 11,
-              "Value #F": 1,
-              "Value #G": 10,
-              "Value #J": 8,
-              "Value #K": 3,
-              "Value #L": 17,
-              "Value #M": 28,
-              "Value #N": 13,
-              "Value #O": 15,
-              "Value #P": 14,
-              "Value #Q": 7,
-              "git_hash": 6,
+              "Time 1": 10,
+              "Time 10": 29,
+              "Time 11": 30,
+              "Time 12": 31,
+              "Time 13": 32,
+              "Time 14": 33,
+              "Time 15": 34,
+              "Time 16": 35,
+              "Time 17": 36,
+              "Time 2": 12,
+              "Time 3": 13,
+              "Time 4": 14,
+              "Time 5": 15,
+              "Time 6": 16,
+              "Time 7": 17,
+              "Time 8": 18,
+              "Time 9": 28,
+              "Value #A": 3,
+              "Value #B": 5,
+              "Value #C": 20,
+              "Value #D": 21,
+              "Value #E": 22,
+              "Value #F": 2,
+              "Value #G": 23,
+              "Value #H": 24,
+              "Value #J": 6,
+              "Value #K": 4,
+              "Value #L": 11,
+              "Value #M": 19,
+              "Value #N": 25,
+              "Value #O": 27,
+              "Value #P": 26,
+              "Value #Q": 9,
+              "Value #R": 1,
+              "git_hash": 8,
               "peer": 0,
-              "version": 5
+              "version": 7
             },
             "renameByName": {
               "Value #A": "Connected",
@@ -1260,6 +1292,7 @@
               "Value #O": "SyncContrib",
               "Value #P": "PrepareContrib",
               "Value #Q": "Uptime",
+              "Value #R": "Index",
               "git_hash": "GitCommit",
               "peer": "Peer",
               "version": "Version"
@@ -2527,8 +2560,8 @@
       {
         "current": {
           "selected": false,
-          "text": "8d00be8",
-          "value": "8d00be8"
+          "text": "8439eb3",
+          "value": "8439eb3"
         },
         "datasource": {
           "type": "prometheus",
@@ -2555,8 +2588,8 @@
       {
         "current": {
           "selected": false,
-          "text": "elegant-road",
-          "value": "elegant-road"
+          "text": "excited-group",
+          "value": "excited-group"
         },
         "datasource": {
           "type": "prometheus",
@@ -2583,8 +2616,8 @@
       {
         "current": {
           "selected": false,
-          "text": "node0",
-          "value": "node0"
+          "text": "node2",
+          "value": "node2"
         },
         "datasource": {
           "type": "prometheus",
