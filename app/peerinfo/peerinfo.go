@@ -55,6 +55,10 @@ func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gi
 	peerGitHash.WithLabelValues(name, gitHash).Set(1)
 	peerStartGauge.WithLabelValues(name).Set(float64(time.Now().Unix()))
 
+	for i, p := range peers {
+		peerIndexGauge.WithLabelValues(p2p.PeerName(p)).Set(float64(i))
+	}
+
 	tickerProvider := func() (<-chan time.Time, func()) {
 		ticker := time.NewTicker(period)
 		return ticker.C, ticker.Stop
