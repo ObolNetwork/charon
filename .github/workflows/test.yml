@@ -67,6 +67,7 @@ jobs:
         with:
           name: smoke-test-logs
           path: testutil/compose/smoke/*.log
+          retention-days: 3
 
   notify_failure:
     runs-on: ubuntu-latest
