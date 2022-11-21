@@ -84,7 +84,7 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name: "very_large",
+			Name: "very_large", // TODO(dhruv): fix consensus issues in this test
 			ConfigFunc: func(conf *compose.Config) {
 				conf.NumNodes = 10
 				conf.Threshold = 7
