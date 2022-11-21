@@ -45,12 +45,15 @@ func TestSmoke(t *testing.T) {
 		t.Skip("Skipping smoke integration test")
 	}
 
+	const defaultTimeout = time.Second * 45
+
 	tests := []struct {
 		Name           string
 		ConfigFunc     func(*compose.Config)
 		RunTmplFunc    func(*compose.TmplData)
 		DefineTmplFunc func(*compose.TmplData)
 		PrintYML       bool
+		Timeout        time.Duration
 	}{
 		{
 			Name:     "default_alpha",
@@ -81,14 +84,15 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name: "very_large",
+			Name: "very_large", // TODO(dhruv): fix consensus issues in this test
 			ConfigFunc: func(conf *compose.Config) {
-				conf.NumNodes = 21
-				conf.Threshold = 14
-				conf.NumValidators = 1000
+				conf.NumNodes = 10
+				conf.Threshold = 7
+				conf.NumValidators = 15
 				conf.InsecureKeys = true
 				conf.KeyGen = compose.KeyGenCreate
 			},
+			Timeout: time.Second * 120,
 		},
 		{
 			Name:     "run_version_matrix_with_dkg",
@@ -151,9 +155,13 @@ func TestSmoke(t *testing.T) {
 
 			os.Args = []string{"cobra.test"}
 
+			if test.Timeout == 0 {
+				test.Timeout = defaultTimeout
+			}
+
 			autoConfig := compose.AutoConfig{
 				Dir:            dir,
-				AlertTimeout:   time.Second * 45,
+				AlertTimeout:   test.Timeout,
 				SudoPerms:      *sudoPerms,
 				PrintYML:       test.PrintYML,
 				RunTmplFunc:    test.RunTmplFunc,

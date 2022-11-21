@@ -116,10 +116,17 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 		}
 	}
 
-	if conf.AlertTimeout > 0 {
-		// Ensure everything is clean before we start with alert test.
-		_ = execDown(ctx, conf.Dir)
+	// Ensure everything is clean before we start with alert test.
+	_ = execDown(ctx, conf.Dir)
 
+	_, _ = w.Write([]byte("===== run step: docker-compose up --no-start --build =====\n"))
+
+	// Build and create docker-compose services before executing docker-compose up.
+	if err = execBuildAndCreate(ctx, conf.Dir); err != nil {
+		return err
+	}
+
+	if conf.AlertTimeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, conf.AlertTimeout)
 		defer cancel()
@@ -133,7 +140,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 
 	_, _ = w.Write([]byte("===== run step: docker-compose up =====\n"))
 
-	if err := execUp(ctx, conf.Dir, w); err != nil && !errors.Is(err, context.DeadlineExceeded) {
+	if err = execUp(ctx, conf.Dir, w); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
 
@@ -149,8 +156,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 		}
 	}
 	if !alertSuccess {
-		log.Error(ctx, "Alerts couldn't be polled", nil)
-		return nil // TODO(corver): Fix this and error
+		return errors.New("alerts couldn't be polled")
 	} else if len(alertMsgs) > 0 {
 		return errors.New("alerts detected", z.Any("alerts", alertMsgs))
 	}
@@ -236,6 +242,18 @@ func execUp(ctx context.Context, dir string, out io.Writer) error {
 		}
 
 		return errors.Wrap(err, "exec docker-compose up")
+	}
+
+	return nil
+}
+
+// execBuildAndCreate builds and creates containers. It should be called before execUp for run step.
+func execBuildAndCreate(ctx context.Context, dir string) error {
+	log.Info(ctx, "Executing docker-compose up --no-start --build")
+	cmd := exec.CommandContext(ctx, "docker-compose", "up", "--no-start", "--build")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return errors.Wrap(err, "exec docker-compose up --no-start --build", z.Str("output", string(out)))
 	}
 
 	return nil
