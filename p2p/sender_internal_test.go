@@ -17,9 +17,14 @@ package p2p
 
 import (
 	"context"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -66,4 +71,42 @@ func TestSenderAddResult(t *testing.T) {
 	// INFO P2P sending failing {"peer": "better-week"}
 	// INFO P2P sending recovered {"peer": "better-week"}
 	// INFO P2P sending failing {"peer": "better-week"}
+}
+
+func TestSenderRetry(t *testing.T) {
+	sender := new(Sender)
+	ctx := context.Background()
+
+	h := new(testHost)
+	err := sender.SendReceive(ctx, h, "", nil, nil, "")
+	require.ErrorIs(t, err, network.ErrReset)
+	require.Equal(t, 2, h.Count())
+
+	h = new(testHost)
+	err = sender.SendAsync(ctx, h, "", "", nil)
+	require.Nil(t, err)
+	require.Eventually(t, func() bool {
+		return h.Count() == 2
+	}, time.Second, time.Millisecond)
+}
+
+type testHost struct {
+	host.Host
+	mu    sync.Mutex
+	count int
+}
+
+func (h *testHost) Count() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.count
+}
+
+func (h *testHost) NewStream(context.Context, peer.ID, ...protocol.ID) (network.Stream, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.count++
+
+	return nil, network.ErrReset
 }
