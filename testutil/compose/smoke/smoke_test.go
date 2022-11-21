@@ -45,6 +45,8 @@ func TestSmoke(t *testing.T) {
 		t.Skip("Skipping smoke integration test")
 	}
 
+	const defaultTimeout = time.Second * 45
+
 	tests := []struct {
 		Name           string
 		ConfigFunc     func(*compose.Config)
@@ -60,7 +62,6 @@ func TestSmoke(t *testing.T) {
 				conf.KeyGen = compose.KeyGenCreate
 				conf.FeatureSet = "alpha"
 			},
-			Timeout: time.Second * 45,
 		},
 		{
 			Name: "default_beta",
@@ -68,7 +69,6 @@ func TestSmoke(t *testing.T) {
 				conf.KeyGen = compose.KeyGenCreate
 				conf.FeatureSet = "beta"
 			},
-			Timeout: time.Second * 45,
 		},
 		{
 			Name: "default_stable",
@@ -76,14 +76,12 @@ func TestSmoke(t *testing.T) {
 				conf.KeyGen = compose.KeyGenCreate
 				conf.FeatureSet = "stable"
 			},
-			Timeout: time.Second * 45,
 		},
 		{
 			Name: "dkg",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenDKG
 			},
-			Timeout: time.Second * 45,
 		},
 		{
 			Name: "very_large",
@@ -94,7 +92,7 @@ func TestSmoke(t *testing.T) {
 				conf.InsecureKeys = true
 				conf.KeyGen = compose.KeyGenCreate
 			},
-			Timeout: time.Second * 60,
+			Timeout: time.Second * 120,
 		},
 		{
 			Name:     "run_version_matrix_with_dkg",
@@ -112,7 +110,6 @@ func TestSmoke(t *testing.T) {
 				pegImageTag(data.Nodes, 2, "v0.10.1")
 				pegImageTag(data.Nodes, 3, "v0.10.0")
 			},
-			Timeout: time.Second * 45,
 		},
 		{
 			Name: "teku_versions", // TODO(corver): Do the same for lighthouse.
@@ -125,7 +122,6 @@ func TestSmoke(t *testing.T) {
 				data.VCs[2].Image = "consensys/teku:22.4"
 				data.VCs[3].Image = "consensys/teku:22.3"
 			},
-			Timeout: time.Second * 45,
 		},
 		{
 			Name: "1_of_4_down",
@@ -137,7 +133,6 @@ func TestSmoke(t *testing.T) {
 					}
 				}
 			},
-			Timeout: time.Second * 45,
 		},
 	}
 
@@ -159,6 +154,10 @@ func TestSmoke(t *testing.T) {
 			require.NoError(t, compose.WriteConfig(dir, conf))
 
 			os.Args = []string{"cobra.test"}
+
+			if test.Timeout == 0 {
+				test.Timeout = defaultTimeout
+			}
 
 			autoConfig := compose.AutoConfig{
 				Dir:            dir,
