@@ -148,6 +148,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 		pubkeys:     keys,
 		deadliner:   deadliner,
 		recvBuffers: make(map[core.Duty]chan msg),
+		recvDropped: make(map[core.Duty]bool),
 		snifferFunc: snifferFunc,
 	}
 
