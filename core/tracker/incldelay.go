@@ -24,12 +24,26 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// epochLag is the number of epochs to lag when calculating inclusion distance (to ensure finality).
-const epochLag = 2
+// epochLag is the number of epochs to lag when calculating inclusion delay (to ensure finality).
+const epochLag = 1
 
+// dutiesFunc returns the duty definitions for a given duty.
 type dutiesFunc func(context.Context, core.Duty) (core.DutyDefinitionSet, error)
 
-func InclusionDistance(ctx context.Context, eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc) func(ctx context.Context, slot core.Slot) error {
+func NewInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc) func(context.Context, core.Slot) error {
+	return newInclDelayFunc(eth2Cl, dutiesFunc, func(delays []int64) {
+		var sum int64
+		for _, delay := range delays {
+			sum += delay
+		}
+
+		avg := sum / int64(len(delays))
+		inclusionDelay.Set(float64(avg))
+	})
+}
+
+// NewInclDelayFunc returns a function that calculates this cluster's attestation inclusion delay for a block.
+func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback func([]int64)) func(context.Context, core.Slot) error {
 	var fromSlot int64
 	return func(ctx context.Context, current core.Slot) error {
 		// We have to wait for epochLag since dutiesFunc will not have duties from older epochs.
@@ -38,21 +52,24 @@ func InclusionDistance(ctx context.Context, eth2Cl eth2wrap.Client, dutiesFunc d
 			return nil
 		}
 
-		slot := current.Slot - (epochLag * current.SlotsPerEpoch)
-		if slot < fromSlot {
+		blockSlot := current.Slot - (epochLag * current.SlotsPerEpoch)
+		if blockSlot < fromSlot {
 			return nil
 		}
 
-		atts, err := eth2Cl.BlockAttestations(ctx, fmt.Sprint(slot))
+		atts, err := eth2Cl.BlockAttestations(ctx, fmt.Sprint(blockSlot))
 		if err != nil {
 			return err
 		}
 
-		maxDist := int64(-1)
+		var delays []int64
 		for _, att := range atts {
 			attSlot := att.Data.Slot
+			if int64(attSlot) < fromSlot {
+				continue
+			}
 
-			// Get all our duties for this attestation slot
+			// Get all our duties for this attestation blockSlot
 			set, err := dutiesFunc(ctx, core.NewAttesterDuty(int64(attSlot)))
 			if err != nil {
 				return err
@@ -71,17 +88,14 @@ func InclusionDistance(ctx context.Context, eth2Cl eth2wrap.Client, dutiesFunc d
 
 				if !att.AggregationBits.BitAt(duty.ValidatorCommitteeIndex) {
 					continue // We are not included in attestation
+					// Note to track missed attestations, we'd need to keep state of seen attestations.
 				}
 
-				distance := slot - int64(attSlot)
-
-				if distance > maxDist {
-					maxDist = distance
-				}
+				delays = append(delays, blockSlot-int64(attSlot))
 			}
 		}
 
-		// TODO(corver):
+		callback(delays)
 
 		return nil
 	}
