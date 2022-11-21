@@ -30,6 +30,7 @@ const epochLag = 1
 // dutiesFunc returns the duty definitions for a given duty.
 type dutiesFunc func(context.Context, core.Duty) (core.DutyDefinitionSet, error)
 
+// NewInclDelayFunc returns a function that calculates this cluster's attestation inclusion delay for a block.
 func NewInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc) func(context.Context, core.Slot) error {
 	return newInclDelayFunc(eth2Cl, dutiesFunc, func(delays []int64) {
 		var sum int64
@@ -42,7 +43,7 @@ func NewInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc) func(contex
 	})
 }
 
-// NewInclDelayFunc returns a function that calculates this cluster's attestation inclusion delay for a block.
+// newInclDelayFunc extends NewInclDelayFunc with abstracted callback.
 func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback func([]int64)) func(context.Context, core.Slot) error {
 	var fromSlot int64
 	return func(ctx context.Context, current core.Slot) error {
