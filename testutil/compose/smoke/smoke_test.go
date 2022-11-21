@@ -88,11 +88,12 @@ func TestSmoke(t *testing.T) {
 			ConfigFunc: func(conf *compose.Config) {
 				conf.NumNodes = 21
 				conf.Threshold = 14
-				conf.NumValidators = 1000
+				conf.NumValidators = 100
 				conf.InsecureKeys = true
 				conf.KeyGen = compose.KeyGenCreate
 			},
-			Timeout: time.Second * 120,
+			Timeout:  time.Second * 120,
+			PrintYML: true,
 		},
 		{
 			Name:     "run_version_matrix_with_dkg",

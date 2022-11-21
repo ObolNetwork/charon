@@ -119,6 +119,8 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 	// Ensure everything is clean before we start with alert test.
 	_ = execDown(ctx, conf.Dir)
 
+	_, _ = w.Write([]byte("===== run step: docker-compose up --no-start --build =====\n"))
+
 	// Build and create docker-compose services before executing docker-compose up.
 	if err = execBuildAndCreate(ctx, conf.Dir); err != nil {
 		return err
