@@ -31,6 +31,10 @@ const epochLag = 1
 type dutiesFunc func(context.Context, core.Duty) (core.DutyDefinitionSet, error)
 
 // NewInclDelayFunc returns a function that calculates this cluster's attestation inclusion delay for a block.
+//
+// Inclusion delay is the average of the distance between the slot a validator’s attestation
+// is expected by the network and the slot the attestation is actually included on-chain.
+// See https://rated.gitbook.io/rated-documentation/rating-methodologies/ethereum-beacon-chain/network-explorer-definitions/top-screener#inclusion-delay.
 func NewInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc) func(context.Context, core.Slot) error {
 	return newInclDelayFunc(eth2Cl, dutiesFunc, func(delays []int64) {
 		var sum int64
