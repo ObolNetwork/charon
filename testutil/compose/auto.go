@@ -125,6 +125,11 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 		defer cancel()
 	}
 
+	// Build docker-compose services before executing docker-compose up.
+	if err = execBuild(ctx, conf.Dir); err != nil {
+		return err
+	}
+
 	alerts := startAlertCollector(ctx, conf.Dir)
 
 	defer func() {
@@ -133,7 +138,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 
 	_, _ = w.Write([]byte("===== run step: docker-compose up =====\n"))
 
-	if err := execUp(ctx, conf.Dir, w); err != nil && !errors.Is(err, context.DeadlineExceeded) {
+	if err = execUp(ctx, conf.Dir, w); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
 
@@ -149,8 +154,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 		}
 	}
 	if !alertSuccess {
-		log.Error(ctx, "Alerts couldn't be polled", nil)
-		return nil // TODO(corver): Fix this and error
+		return errors.New("alerts couldn't be polled, containers offline")
 	} else if len(alertMsgs) > 0 {
 		return errors.New("alerts detected", z.Any("alerts", alertMsgs))
 	}
@@ -236,6 +240,19 @@ func execUp(ctx context.Context, dir string, out io.Writer) error {
 		}
 
 		return errors.Wrap(err, "exec docker-compose up")
+	}
+
+	return nil
+}
+
+// execBuild executes docker-compose build command. It should be called before execUp for run step.
+func execBuild(ctx context.Context, dir string) error {
+	// Build first so containers start at the same time below.
+	log.Info(ctx, "Executing docker-compose build")
+	cmd := exec.CommandContext(ctx, "docker-compose", "build", "--parallel")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return errors.Wrap(err, "exec docker-compose build", z.Str("output", string(out)))
 	}
 
 	return nil

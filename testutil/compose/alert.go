@@ -40,8 +40,11 @@ func startAlertCollector(ctx context.Context, dir string) chan string {
 			dedup   = make(map[string]bool)
 		)
 		defer close(resp)
+
+		// Time required to wait for prometheus container to start.
+		time.Sleep(time.Second * 10)
 		for ctx.Err() == nil {
-			time.Sleep(time.Second * 5)
+			time.Sleep(time.Second * 2)
 
 			cmd := exec.CommandContext(ctx, "docker-compose", "exec", "-T", "curl", "curl", "-s", "http://prometheus:9090/api/v1/rules?type=alert")
 			cmd.Dir = dir
