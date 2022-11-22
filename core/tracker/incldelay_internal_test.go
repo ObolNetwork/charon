@@ -33,7 +33,7 @@ func TestInclDelay(t *testing.T) {
 	const (
 		blockSlot     = 10
 		slotsPerEpoch = 16
-		slot          = blockSlot + (epochLag * slotsPerEpoch)
+		slot          = blockSlot + inclDelayLag
 	)
 
 	bmock, err := beaconmock.New()

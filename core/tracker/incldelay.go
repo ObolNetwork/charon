@@ -24,8 +24,9 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// epochLag is the number of epochs to lag when calculating inclusion delay (to ensure finality).
-const epochLag = 1
+// inclDelayLag is the number of slots to lag before calculating inclusion delay.
+// Half an epoch is good compromise between finality and small gaps on startup.
+const inclDelayLag = 16
 
 // dutiesFunc returns the duty definitions for a given duty.
 type dutiesFunc func(context.Context, core.Duty) (core.DutyDefinitionSet, error)
@@ -36,30 +37,23 @@ type dutiesFunc func(context.Context, core.Duty) (core.DutyDefinitionSet, error)
 // is expected by the network and the slot the attestation is actually included on-chain.
 // See https://rated.gitbook.io/rated-documentation/rating-methodologies/ethereum-beacon-chain/network-explorer-definitions/top-screener#inclusion-delay.
 func NewInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc) func(context.Context, core.Slot) error {
-	return newInclDelayFunc(eth2Cl, dutiesFunc, func(delays []int64) {
-		var sum int64
-		for _, delay := range delays {
-			sum += delay
-		}
-
-		avg := sum / int64(len(delays))
-		inclusionDelay.Set(float64(avg))
-	})
+	return newInclDelayFunc(eth2Cl, dutiesFunc, instrumentAvgDelay)
 }
 
 // newInclDelayFunc extends NewInclDelayFunc with abstracted callback.
 func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback func([]int64)) func(context.Context, core.Slot) error {
-	var fromSlot int64
-	return func(ctx context.Context, current core.Slot) error {
-		// We have to wait for epochLag since dutiesFunc will not have duties from older epochs.
-		if fromSlot == 0 {
-			fromSlot = current.Slot
-			return nil
-		}
+	// dutyStartSlot is the first slot we can instrument (since dutiesFunc will not have duties from older slots).
+	var dutyStartSlot int64
 
-		blockSlot := current.Slot - (epochLag * current.SlotsPerEpoch)
-		if blockSlot < fromSlot {
+	return func(ctx context.Context, current core.Slot) error {
+		// blockSlot the block we want to instrument.
+		blockSlot := current.Slot - inclDelayLag
+
+		if dutyStartSlot == 0 {
+			dutyStartSlot = current.Slot // Set start slot.
 			return nil
+		} else if blockSlot < dutyStartSlot {
+			return nil // Still need to wait
 		}
 
 		atts, err := eth2Cl.BlockAttestations(ctx, fmt.Sprint(blockSlot))
@@ -70,7 +64,7 @@ func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback fu
 		var delays []int64
 		for _, att := range atts {
 			attSlot := att.Data.Slot
-			if int64(attSlot) < fromSlot {
+			if int64(attSlot) < dutyStartSlot {
 				continue
 			}
 
@@ -104,4 +98,15 @@ func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback fu
 
 		return nil
 	}
+}
+
+// instrumentAvgDelay sets the avg inclusion delay metric.
+func instrumentAvgDelay(delays []int64) {
+	var sum int64
+	for _, delay := range delays {
+		sum += delay
+	}
+
+	avg := sum / int64(len(delays))
+	inclusionDelay.Set(float64(avg))
 }
