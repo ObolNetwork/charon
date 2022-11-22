@@ -31,7 +31,7 @@ const inclDelayLag = 16
 // dutiesFunc returns the duty definitions for a given duty.
 type dutiesFunc func(context.Context, core.Duty) (core.DutyDefinitionSet, error)
 
-// NewInclDelayFunc returns a function that calculates this cluster's attestation inclusion delay for a block.
+// NewInclDelayFunc returns a function that calculates attestation inclusion delay for a block.
 //
 // Inclusion delay is the average of the distance between the slot a validator’s attestation
 // is expected by the network and the slot the attestation is actually included on-chain.
@@ -87,7 +87,7 @@ func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback fu
 
 				if !att.AggregationBits.BitAt(duty.ValidatorCommitteeIndex) {
 					continue // We are not included in attestation
-					// Note to track missed attestations, we'd need to keep state of seen attestations.
+					// Note that to track missed attestations, we'd need to keep state of seen attestations.
 				}
 
 				delays = append(delays, blockSlot-int64(attSlot))
