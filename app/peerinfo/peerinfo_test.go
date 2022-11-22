@@ -118,7 +118,6 @@ func TestPeerInfo(t *testing.T) {
 					}
 					node := nodes[i]
 					require.Equal(t, node.Version, version)
-					require.Equal(t, node.Offset, clockOffset)
 					require.Equal(t, gitCommit, gitHash)
 					require.Equal(t, nowFunc(i)().Unix(), startTime.Unix())
 
