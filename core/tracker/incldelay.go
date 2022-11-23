@@ -94,7 +94,9 @@ func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback fu
 			}
 		}
 
-		callback(delays)
+		if len(delays) > 0 {
+			callback(delays)
+		}
 
 		return nil
 	}
