@@ -176,7 +176,7 @@ func httpGet(ctx context.Context, base string, endpoint string, timeout time.Dur
 		return nil, errors.Wrap(err, "invalid endpoint")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "new GET request with ctx")
 	}
