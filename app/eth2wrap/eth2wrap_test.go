@@ -252,6 +252,7 @@ func TestBlockAttestations(t *testing.T) {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
 		require.Equal(t, "/eth/v1/beacon/blocks/head/attestations", r.URL.Path)
 		b, err := json.Marshal(struct {
 			Data []*eth2p0.Attestation
