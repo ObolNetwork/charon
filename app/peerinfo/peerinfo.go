@@ -182,13 +182,17 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 		}
 
 		go func(peerID peer.ID) {
+			var rtt time.Duration
+			rttCallback := func(d time.Duration) {
+				rtt = d
+			}
+
 			resp := new(pbv1.PeerInfo)
-			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocolID)
+			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocolID, p2p.WithSendReceiveRTT(rttCallback))
 			if err != nil {
 				return // Logging handled by send func.
 			}
 
-			rtt := p.nowFunc().Sub(now)
 			expectSentAt := now.Add(rtt / 2)
 			clockOffset := resp.SentAt.AsTime().Sub(expectSentAt)
 			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash, resp.StartedAt.AsTime())

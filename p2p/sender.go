@@ -19,6 +19,7 @@ import (
 	"context"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -42,7 +43,7 @@ type SendFunc func(context.Context, host.Host, protocol.ID, peer.ID, proto.Messa
 // SendReceiveFunc is an abstract function responsible for sending a libp2p request and returning
 // (populating) a libp2p response.
 type SendReceiveFunc func(ctx context.Context, tcpNode host.Host, peerID peer.ID,
-	req, resp proto.Message, protocols ...protocol.ID) error
+	req, resp proto.Message, protocol protocol.ID, opts ...func(*sendRecvOpts)) error
 
 var (
 	_ SendFunc = Send
@@ -127,10 +128,11 @@ func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID pr
 // The provided response proto will be populated if err is nil.
 // It logs results on state change (success to/from failure).
 // It implements SendReceiveFunc.
-func (s *Sender) SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID, req, resp proto.Message, protocols ...protocol.ID) error {
-	ctx = log.WithCtx(ctx, z.Any("protocol", protocols))
+func (s *Sender) SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID, req, resp proto.Message,
+	protocol protocol.ID, opts ...func(*sendRecvOpts),
+) error {
 	err := withRelayRetry(func() error {
-		return SendReceive(ctx, tcpNode, peerID, req, resp, protocols...)
+		return SendReceive(ctx, tcpNode, peerID, req, resp, protocol, opts...)
 	})
 	s.addResult(ctx, peerID, err)
 
@@ -147,24 +149,54 @@ func withRelayRetry(fn func() error) error {
 	return err
 }
 
+type sendRecvOpts struct {
+	pids        []protocol.ID
+	rttCallback func(time.Duration)
+}
+
+// WithSendReceiveRTT returns an option for SendReceive that sets a callback for the RTT.
+func WithSendReceiveRTT(callback func(time.Duration)) func(*sendRecvOpts) {
+	return func(opts *sendRecvOpts) {
+		opts.rttCallback = callback
+	}
+}
+
+// WithSendReceiveProtocols returns an option for SendReceive that sets the protocols to use.
+// Note this overrides the protocol provided in the SendReceive.
+func WithSendReceiveProtocols(pids ...protocol.ID) func(*sendRecvOpts) {
+	return func(opts *sendRecvOpts) {
+		opts.pids = pids
+	}
+}
+
 // SendReceive sends and receives a libp2p request and response message
 // pair synchronously and then closes the stream.
 // The provided response proto will be populated if err is nil.
 // It implements SendReceiveFunc.
 func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
-	req, resp proto.Message, protocols ...protocol.ID,
+	req, resp proto.Message, pID protocol.ID, opts ...func(*sendRecvOpts),
 ) error {
+	o := sendRecvOpts{
+		pids:        []protocol.ID{pID},
+		rttCallback: func(time.Duration) {},
+	}
+	for _, opt := range opts {
+		opt(&o)
+	}
+	ctx = log.WithCtx(ctx, z.Any("protocol", o.pids))
+
 	b, err := proto.Marshal(req)
 	if err != nil {
 		return errors.Wrap(err, "marshal proto")
 	}
 
 	// Circuit relay connections are transient
-	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, protocols...)
+	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, o.pids...)
 	if err != nil {
-		return errors.Wrap(err, "new stream", z.Any("protocols", protocols))
+		return errors.Wrap(err, "new stream", z.Any("protocols", o.pids))
 	}
 
+	t0 := time.Now()
 	if _, err = s.Write(b); err != nil {
 		return errors.Wrap(err, "write request")
 	}
@@ -187,6 +219,8 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 	if err = s.Close(); err != nil {
 		return errors.Wrap(err, "unmarshal response")
 	}
+
+	o.rttCallback(time.Since(t0))
 
 	return nil
 }
