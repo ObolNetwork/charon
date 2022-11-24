@@ -36,7 +36,7 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
-var sniffedFile = flag.String("sniffed-file", "", "path to sniffed file")
+var sniffedFile = flag.String("sniffed-file", "/Users/xenowits/Downloads/qbft_messages.pb.gz", "path to sniffed file")
 
 // TestSniffedInstances simulates all the instances in the sniffed file.
 func TestSniffedFile(t *testing.T) {
