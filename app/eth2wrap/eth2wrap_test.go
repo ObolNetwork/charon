@@ -251,6 +251,7 @@ func TestBlockAttestations(t *testing.T) {
 		testutil.RandomAttestation(),
 	}
 
+	statusCode := http.StatusOK
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
 		require.Equal(t, "/eth/v1/beacon/blocks/head/attestations", r.URL.Path)
@@ -260,6 +261,8 @@ func TestBlockAttestations(t *testing.T) {
 			Data: atts,
 		})
 		require.NoError(t, err)
+
+		w.WriteHeader(statusCode)
 		_, _ = w.Write(b)
 	}))
 
@@ -267,4 +270,9 @@ func TestBlockAttestations(t *testing.T) {
 	resp, err := cl.BlockAttestations(context.Background(), "head")
 	require.NoError(t, err)
 	require.Equal(t, atts, resp)
+
+	statusCode = http.StatusNotFound
+	resp, err = cl.BlockAttestations(context.Background(), "head")
+	require.NoError(t, err)
+	require.Empty(t, resp)
 }

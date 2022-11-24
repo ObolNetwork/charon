@@ -112,9 +112,13 @@ func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, sele
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestations.
 func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 	path := fmt.Sprintf("/eth/v1/beacon/blocks/%s/attestations", stateID)
-	respBody, err := httpGet(ctx, h.address, path, h.timeout)
+	respBody, statusCode, err := httpGet(ctx, h.address, path, h.timeout)
 	if err != nil {
 		return nil, errors.Wrap(err, "request block attestations")
+	} else if statusCode == http.StatusNotFound {
+		return nil, nil // No block for slot, so no attestations.
+	} else if statusCode != http.StatusOK {
+		return nil, errors.New("request block attestations failed", z.Int("status", statusCode), z.Str("body", string(respBody)))
 	}
 
 	var resp attestationsJSON
@@ -162,39 +166,36 @@ func httpPost(ctx context.Context, base string, endpoint string, body io.Reader,
 	return data, nil
 }
 
-func httpGet(ctx context.Context, base string, endpoint string, timeout time.Duration) ([]byte, error) {
+// httpGet performs a GET request and returns the body and status code or an error.
+func httpGet(ctx context.Context, base string, endpoint string, timeout time.Duration) ([]byte, int, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	addr, err := url.JoinPath(base, endpoint)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid address")
+		return nil, 0, errors.Wrap(err, "invalid address")
 	}
 
-	url, err := url.Parse(addr)
+	u, err := url.Parse(addr)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid endpoint")
+		return nil, 0, errors.Wrap(err, "invalid endpoint")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "new GET request with ctx")
+		return nil, 0, errors.Wrap(err, "new GET request with ctx")
 	}
 
 	res, err := new(http.Client).Do(req)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to call GET endpoint")
+		return nil, 0, errors.Wrap(err, "failed to call GET endpoint")
 	}
 	defer res.Body.Close()
 
 	data, err := io.ReadAll(res.Body)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read GET response")
+		return nil, 0, errors.Wrap(err, "failed to read GET response")
 	}
 
-	if res.StatusCode/100 != 2 {
-		return nil, errors.New("get failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
-	}
-
-	return data, nil
+	return data, res.StatusCode, nil
 }
