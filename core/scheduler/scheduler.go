@@ -140,7 +140,8 @@ func (s *Scheduler) emitCoreSlot(ctx context.Context, slot core.Slot) {
 	}
 }
 
-// GetDutyDefinition returns the definition for a duty if resolved already, otherwise an error.
+// GetDutyDefinition returns the definition for a duty or core.ErrNotFound if no definitions exist for a resolved epoch
+// or another error.
 func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 	if duty.Type == core.DutyBuilderProposer && !s.builderAPI {
 		return nil, errors.New("builder-api not enabled, but duty builder proposer requested")
@@ -160,7 +161,7 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 
 	defSet, ok := s.getDutyDefinitionSet(duty)
 	if !ok {
-		return nil, errors.New("duty not resolved although epoch is resolved",
+		return nil, errors.Wrap(core.ErrNotFound, "duty not present for resolved epoch",
 			z.Any("duty", duty), z.U64("epoch", epoch))
 	}
 
