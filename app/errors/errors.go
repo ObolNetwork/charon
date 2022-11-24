@@ -36,6 +36,35 @@ func New(msg string, fields ...z.Field) error {
 	}
 }
 
+// NewSentinel returns a sentinel error that does not contain a stack trace. Sentinel errors are package level
+// global variables so their creation stack traces do not add value. Sentinel errors should therefor always be wrapped
+// when first returned to add proper stack trace.
+//
+// Usage:
+//
+//	var ErrNotFound = errors.NewSentinel("not found")
+//
+//	func check() error {
+//	  ok := checkMap["foo"]
+//	  if !ok {
+//	    return errors.Wrap(ErrNotFound, "far not found")
+//	  }
+//	  return nil
+//	}
+//
+//	func do() {
+//	  err := foo()
+//	  if errors.Is(err, ErrNotFound) {
+//	    log.Error("Check not found", err) // This stack trace will be the one from the Wrap call, not the package level variable.
+//	  }
+//	}
+func NewSentinel(msg string, fields ...z.Field) error {
+	return structured{
+		err:    stderrors.New(msg),
+		fields: fields,
+	}
+}
+
 // Wrap returns a new error wrapping the provided with additional structured fields and a stack trace if not already present.
 func Wrap(err error, msg string, fields ...z.Field) error {
 	return SkipWrap(err, msg, 2, fields...)
@@ -43,21 +72,23 @@ func Wrap(err error, msg string, fields ...z.Field) error {
 
 // SkipWrap is the same as Wrap, but allows overriding the skipped stacktraces.
 func SkipWrap(err error, msg string, skip int, fields ...z.Field) error {
-	wrap := fmt.Errorf("%s: %w", msg, err)
-
-	var inner structured
+	var (
+		stack zap.Field
+		inner structured
+	)
 	if As(err, &inner) {
-		return structured{
-			err:    wrap,
-			fields: append(fields, inner.fields...),
-			stack:  inner.stack,
-		}
+		fields = append(fields, inner.fields...) // Append inner fields
+		stack = inner.stack                      // Use inner stack trace
+	}
+
+	if stack.Key == "" {
+		stack = zap.StackSkip("stacktrace", skip) // Make new stack trace
 	}
 
 	return structured{
-		err:    wrap,
+		err:    fmt.Errorf("%s: %w", msg, err), // Wrap error message.
 		fields: fields,
-		stack:  zap.StackSkip("stacktrace", skip),
+		stack:  stack,
 	}
 }
 

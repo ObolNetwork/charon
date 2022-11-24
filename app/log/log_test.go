@@ -119,6 +119,16 @@ func TestFilterNone(t *testing.T) {
 	})
 }
 
+var ErrTest = errors.NewSentinel("test")
+
+func TestSentinelStack(t *testing.T) {
+	testLoggers(t, func(*testing.T) {
+		ctx := context.Background()
+
+		log.Error(ctx, "test", errors.Wrap(ErrTest, "wrap sentinel"))
+	})
+}
+
 func testLoggers(t *testing.T, testFunc func(t *testing.T)) {
 	t.Helper()
 
