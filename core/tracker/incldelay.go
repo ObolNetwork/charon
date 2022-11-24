@@ -70,7 +70,9 @@ func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback fu
 
 			// Get all our duties for this attestation blockSlot
 			set, err := dutiesFunc(ctx, core.NewAttesterDuty(int64(attSlot)))
-			if err != nil {
+			if errors.Is(err, core.ErrNotFound) {
+				continue // No duties for this slot.
+			} else if err != nil {
 				return err
 			}
 

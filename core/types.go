@@ -29,6 +29,9 @@ import (
 	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
+// ErrNotFound is returned by a component when a resource is not found.
+var ErrNotFound = errors.NewSentinel("not found")
+
 // DutyType enumerates the different types of duties.
 type DutyType int
 
