@@ -30,7 +30,7 @@ import (
 )
 
 // ErrNotFound is returned by a component when a resource is not found.
-var ErrNotFound = errors.New("not found")
+var ErrNotFound = errors.NewSentinel("not found")
 
 // DutyType enumerates the different types of duties.
 type DutyType int
