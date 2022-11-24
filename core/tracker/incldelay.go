@@ -41,6 +41,8 @@ func NewInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc) func(contex
 }
 
 // newInclDelayFunc extends NewInclDelayFunc with abstracted callback.
+//
+//nolint:gocognit
 func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback func([]int64)) func(context.Context, core.Slot) error {
 	// dutyStartSlot is the first slot we can instrument (since dutiesFunc will not have duties from older slots).
 	var dutyStartSlot int64
