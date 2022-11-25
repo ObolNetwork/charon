@@ -26,6 +26,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
@@ -44,6 +45,11 @@ const (
 	roundIncrease = time.Millisecond * 250
 	protocolID    = "/charon/consensus/qbft/1.0.0"
 )
+
+// Protocols returns the supported protocols of this package in order of precedence.
+func Protocols() []protocol.ID {
+	return []protocol.ID{protocolID}
+}
 
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 

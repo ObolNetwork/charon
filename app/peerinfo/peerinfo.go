@@ -39,6 +39,11 @@ const period = time.Minute
 
 var protocolID protocol.ID = "/charon/peerinfo/1.0.0"
 
+// Protocols returns the supported protocols of this package in order of precedence.
+func Protocols() []protocol.ID {
+	return []protocol.ID{protocolID}
+}
+
 type (
 	tickerProvider  func() (<-chan time.Time, func())
 	nowFunc         func() time.Time

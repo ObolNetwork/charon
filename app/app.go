@@ -35,6 +35,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/automaxprocs/maxprocs"
 
@@ -505,7 +506,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 		return err
 	}
 
-	sync := infosync.New(prio, version.Supported())
+	sync := infosync.New(prio, version.Supported(), Protocols())
 
 	// Trigger info syncs in last slot of the epoch (for the next epoch).
 	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
@@ -812,4 +813,14 @@ func (h httpServeHook) Call(context.Context) error {
 	}
 
 	return nil
+}
+
+// Protocols returns the list of supported Protocols in order of precedence.
+func Protocols() []protocol.ID {
+	var resp []protocol.ID
+	resp = append(resp, consensus.Protocols()...)
+	resp = append(resp, parsigex.Protocols()...)
+	resp = append(resp, peerinfo.Protocols()...)
+
+	return resp
 }
