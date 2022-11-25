@@ -24,6 +24,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -36,6 +37,11 @@ import (
 )
 
 const protocolID = "/charon/parsigex/1.0.0"
+
+// Protocols returns the supported protocols of this package in order of precedence.
+func Protocols() []protocol.ID {
+	return []protocol.ID{protocolID}
+}
 
 func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID, verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error) *ParSigEx {
 	parSigEx := &ParSigEx{

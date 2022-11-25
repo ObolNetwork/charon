@@ -40,14 +40,18 @@ type Feature string
 const (
 	// QBFTConsensus introduces qbft consensus, see https://github.com/ObolNetwork/charon/issues/445.
 	QBFTConsensus Feature = "qbft_consensus"
-	Priority      Feature = "priority"
+	// Priority enables the infosync component using the priority protocol.
+	Priority Feature = "priority"
+	// MockAlpha is a mock feature in alpha status for testing.
+	MockAlpha Feature = "mock_alpha"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
 		QBFTConsensus: statusStable,
-		Priority:      statusBeta,
+		Priority:      statusStable,
+		MockAlpha:     statusAlpha,
 		// Add all features and there status here.
 	}
 

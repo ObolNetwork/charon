@@ -479,23 +479,22 @@ func (a *priorityAsserter) Callback(t *testing.T, i int) func(ctx context.Contex
 	t.Helper()
 
 	return func(ctx context.Context, duty core.Duty, results []priority.TopicResult) error {
-		if !assert.Len(t, results, 1) {
+		if !assert.Len(t, results, 2) {
 			return errors.New("unexpected number of results")
-		} else if !assert.Equal(t, "version", results[0].Topic) {
-			return errors.New("unexpected topic")
 		}
 
-		if len(results[0].Priorities) == 0 {
-			// Some but not all peers participated, ignore.
-			return nil
-		}
-
-		var actual []string
-		for _, prio := range results[0].Priorities {
-			actual = append(actual, prio.Priority)
-		}
-		if !assert.Equal(t, version.Supported(), actual) {
-			return errors.New("unexpected priorities")
+		for _, result := range results {
+			if result.Topic == "version" {
+				if !assert.Equal(t, version.Supported(), result.PrioritiesOnly()) {
+					return errors.New("unexpected versions")
+				}
+			} else if result.Topic == "protocol" {
+				if !assert.Equal(t, fmt.Sprint(app.Protocols()), fmt.Sprint(result.PrioritiesOnly())) {
+					return errors.New("unexpected protocols")
+				}
+			} else {
+				return errors.New("unexpected topic")
+			}
 		}
 
 		a.callbacks.Store(fmt.Sprint(i), true)
