@@ -137,6 +137,7 @@ func protocolsToStrings(features []protocol.ID) []string {
 	return resp
 }
 
+// result is a cluster-wide agreed-upon infosync result.
 type result struct {
 	slot      int64
 	versions  []string
