@@ -33,11 +33,14 @@ import (
 const (
 	topicVersion  = "version"
 	topicProtocol = "protocol"
+
+	// maxResults limits the number of results to keep.
+	maxResults = 100
 )
 
 // New returns a new infosync component.
 func New(prioritiser *priority.Component, versions []string, protocols []protocol.ID) *Component {
-	// Add a mock alpha protocol if alpha features enabled iot to test infosync in prod.
+	// Add a mock alpha protocol if alpha features enabled in order to to test infosync in prod.
 	// TODO(corver): Remove this once we have an actual use case.
 	if featureset.Enabled(featureset.MockAlpha) {
 		protocols = append(protocols, "/charon/mock_alpha/1.0.0")
@@ -66,7 +69,10 @@ func New(prioritiser *priority.Component, versions []string, protocols []protoco
 		}
 
 		log.Debug(ctx, "Infosync completed", fields...)
-		c.addResult(res)
+
+		if len(res.versions) > 0 {
+			c.addResult(res)
+		}
 
 		return nil
 	})
@@ -102,6 +108,7 @@ func (c *Component) Protocols(slot int64) []protocol.ID {
 	return resp
 }
 
+// addResult adds the result to the results if it is different from the last result.
 func (c *Component) addResult(result result) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -113,6 +120,10 @@ func (c *Component) addResult(result result) {
 	}
 
 	c.results = append(c.results, result)
+
+	if len(c.results) >= maxResults {
+		c.results = c.results[1:]
+	}
 }
 
 func (c *Component) Trigger(ctx context.Context, slot int64) error {
