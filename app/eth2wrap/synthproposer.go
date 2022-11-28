@@ -17,13 +17,15 @@ package eth2wrap
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
-	"math/rand"
 	"sync"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	shuffle "github.com/protolambda/eth2-shuffle"
 )
 
 // fifoEpochMax limits the amount of epochs to cache.
@@ -41,7 +43,7 @@ func newSynthProposerCache(pubkeys []eth2p0.BLSPubKey) *synthProposerCache {
 		pubkeys:     pubkeys,
 		duties:      make(map[eth2p0.Epoch][]*eth2v1.ProposerDuty),
 		synths:      make(map[eth2p0.Epoch]map[eth2p0.Slot]bool),
-		shuffleFunc: pseudoShuffle,
+		shuffleFunc: eth2Shuffle,
 	}
 }
 
@@ -166,13 +168,38 @@ func (c *synthProposerCache) IsSynthetic(ctx context.Context, eth2Cl synthPropos
 	return c.synths[epoch][slot], nil
 }
 
-// pseudoShuffle is a pseudo-random (deterministic) shuffle function.
-func pseudoShuffle(epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) []eth2p0.ValidatorIndex {
-	// TODO(corver): Is this algo stable across go versions?
-	random := rand.New(rand.NewSource(int64(epoch))) //nolint:gosec // Deterministic shuffle.
-	random.Shuffle(len(indices), func(i, j int) {
-		indices[i], indices[j] = indices[j], indices[i]
-	})
+// eth2Shuffle is the eth2 pseudo-random (deterministic) shuffle function.
+func eth2Shuffle(epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) []eth2p0.ValidatorIndex {
+	var uints []uint64
+	for _, i := range indices {
+		uints = append(uints, uint64(i))
+	}
 
-	return indices
+	// Use little endian epoch as the seed.
+	var seed [32]byte
+	binary.LittleEndian.PutUint64(seed[:], uint64(epoch))
+
+	const rounds = 90 // From https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#misc-1
+
+	shuffle.ShuffleList(getStandardHashFn(), uints, rounds, seed)
+
+	var resp []eth2p0.ValidatorIndex
+	for _, i := range uints {
+		resp = append(resp, eth2p0.ValidatorIndex(i))
+	}
+
+	return resp
+}
+
+// getStandardHashFn returns a standard sha256 hash function as per eth2.
+func getStandardHashFn() shuffle.HashFn {
+	hash := sha256.New()
+	hashFn := func(in []byte) []byte {
+		hash.Reset()
+		hash.Write(in)
+
+		return hash.Sum(nil)
+	}
+
+	return hashFn
 }
