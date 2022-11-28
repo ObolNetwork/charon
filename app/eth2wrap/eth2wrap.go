@@ -66,14 +66,8 @@ func Instrument(clients ...Client) (Client, error) {
 	return multi{clients: clients}, nil
 }
 
-// AdaptEth2HTTP returns a Client wrapping an eth2http service by adding experimental endpoints.
-// Note that the returned client doesn't wrap errors, so they are unstructured without stacktraces.
-func AdaptEth2HTTP(eth2Svc *eth2http.Service, timeout time.Duration) Client {
-	return &httpAdapter{Service: eth2Svc, timeout: timeout, address: eth2Svc.Address()}
-}
-
 // NewMultiHTTP returns a new instrumented multi eth2 http client.
-func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses ...string) (Client, error) {
+func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses []string, opts ...Option) (Client, error) {
 	var clients []Client
 	for _, address := range addresses {
 		eth2Svc, err := eth2http.New(ctx,
@@ -89,7 +83,7 @@ func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses ...strin
 			return nil, errors.New("invalid eth2 http service")
 		}
 
-		clients = append(clients, AdaptEth2HTTP(eth2Http, timeout))
+		clients = append(clients, AdaptEth2HTTP(eth2Http, timeout, opts...))
 	}
 
 	return Instrument(clients...)
