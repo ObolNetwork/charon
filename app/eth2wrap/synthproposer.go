@@ -18,6 +18,7 @@ package eth2wrap
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sync"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -37,9 +38,10 @@ type synthProposerEth2Provider interface {
 // synthProposerCache returns a new cache for synthetic proposer duties.
 func newSynthProposerCache(pubkeys []eth2p0.BLSPubKey) *synthProposerCache {
 	return &synthProposerCache{
-		pubkeys: pubkeys,
-		duties:  make(map[eth2p0.Epoch][]*eth2v1.ProposerDuty),
-		synths:  make(map[eth2p0.Epoch]map[eth2p0.Slot]bool),
+		pubkeys:     pubkeys,
+		duties:      make(map[eth2p0.Epoch][]*eth2v1.ProposerDuty),
+		synths:      make(map[eth2p0.Epoch]map[eth2p0.Slot]bool),
+		shuffleFunc: pseudoShuffle,
 	}
 }
 
@@ -142,7 +144,7 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 	return duties, nil
 }
 
-// IsSynthetic returns true if the slot is a synthetic proposer duty.
+// IsSynthetic returns true if the slot is a synthetic proposer duty from via a read-through cache.
 func (c *synthProposerCache) IsSynthetic(ctx context.Context, eth2Cl synthProposerEth2Provider, slot eth2p0.Slot) (bool, error) {
 	// Get the epoch.
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
@@ -151,23 +153,26 @@ func (c *synthProposerCache) IsSynthetic(ctx context.Context, eth2Cl synthPropos
 	}
 	epoch := eth2p0.Epoch(slot) / eth2p0.Epoch(slotsPerEpoch)
 
-	// Check if cache already populated for this epoch using read lock.
-	c.mu.RLock()
-	synths, ok := c.synths[epoch]
-	c.mu.RUnlock()
-	if ok {
-		return synths[slot], nil
-	}
-
-	// Otherwise, populate the cache.
+	// Ensure that cache is populated.
 	_, err = c.Duties(ctx, eth2Cl, epoch)
 	if err != nil {
 		return false, err
 	}
 
-	// Try reading again.
+	// Return the result.
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	return c.synths[epoch][slot], nil
+}
+
+// pseudoShuffle is a pseudo-random (deterministic) shuffle function.
+func pseudoShuffle(epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) []eth2p0.ValidatorIndex {
+	// TODO(corver): Is this algo stable across go versions?
+	random := rand.New(rand.NewSource(int64(epoch))) //nolint:gosec // Deterministic shuffle.
+	random.Shuffle(len(indices), func(i, j int) {
+		indices[i], indices[j] = indices[j], indices[i]
+	})
+
+	return indices
 }
