@@ -28,8 +28,8 @@ import (
 	shuffle "github.com/protolambda/eth2-shuffle"
 )
 
-// fifoEpochMax limits the amount of epochs to cache.
-const fifoEpochMax = 10
+// maxCachedEpochs limits the amount of epochs to cache.
+const maxCachedEpochs = 10
 
 type synthProposerEth2Provider interface {
 	eth2client.ValidatorsProvider
@@ -63,7 +63,7 @@ type synthProposerCache struct {
 }
 
 // Duties returns the upstream and synthetic duties for all pubkeys for the provided epoch
-// via a read-through cache.
+// via a cache.
 func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth2Provider, epoch eth2p0.Epoch) ([]*eth2v1.ProposerDuty, error) {
 	// Check if cache already populated for this epoch using read lock.
 	c.mu.RLock()
@@ -109,12 +109,13 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 
 	// Deterministic synthetic duties for the rest.
 	synthSlots := make(map[eth2p0.Slot]bool)
-	for _, idx := range c.shuffleFunc(epoch, activeIdxs) {
-		if noSynth[idx] {
+	for _, valIdx := range c.shuffleFunc(epoch, activeIdxs) {
+		if noSynth[valIdx] {
 			continue
 		}
 
-		synthSlot := epochSlot + eth2p0.Slot(idx)%eth2p0.Slot(slotsPerEpoch)
+		offset := eth2p0.Slot(valIdx) % eth2p0.Slot(slotsPerEpoch)
+		synthSlot := epochSlot + offset
 		if _, ok := synthSlots[synthSlot]; ok {
 			// We already have a synth proposer for this slot.
 			continue
@@ -122,9 +123,9 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 
 		synthSlots[synthSlot] = true
 		duties = append(duties, &eth2v1.ProposerDuty{
-			PubKey:         vals[idx].Validator.PublicKey,
+			PubKey:         vals[valIdx].Validator.PublicKey,
 			Slot:           synthSlot,
-			ValidatorIndex: idx,
+			ValidatorIndex: valIdx,
 		})
 	}
 
@@ -137,7 +138,7 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 	c.synths[epoch] = synthSlots
 
 	// Trim the cache
-	if len(c.fifo) > fifoEpochMax {
+	if len(c.fifo) > maxCachedEpochs {
 		delete(c.duties, c.fifo[0])
 		delete(c.synths, c.fifo[0])
 		c.fifo = c.fifo[1:]
@@ -146,7 +147,7 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 	return duties, nil
 }
 
-// IsSynthetic returns true if the slot is a synthetic proposer duty from via a read-through cache.
+// IsSynthetic returns true if the slot is a synthetic proposer duty from via a cache.
 func (c *synthProposerCache) IsSynthetic(ctx context.Context, eth2Cl synthProposerEth2Provider, slot eth2p0.Slot) (bool, error) {
 	// Get the epoch.
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
