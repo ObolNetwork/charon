@@ -58,22 +58,14 @@ type synthProposerCache struct {
 	synths map[eth2p0.Epoch]map[eth2p0.Slot]bool
 }
 
-// Duties returns the upstream and synthetic duties for all pubkeys for the provided epoch.
+// Duties returns the upstream and synthetic duties for all pubkeys for the provided epoch
+// via a read-through cache.
 func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth2Provider, epoch eth2p0.Epoch) ([]*eth2v1.ProposerDuty, error) {
 	// Check if cache already populated for this epoch using read lock.
 	c.mu.RLock()
 	duties, ok := c.duties[epoch]
 	c.mu.RUnlock()
 	if ok {
-		return duties, nil
-	}
-
-	// Only a single goroutine should resolve and populate the cache (even though it requires slow IO).
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// Check if populated while waiting for the lock.
-	if duties, ok := c.duties[epoch]; ok {
 		return duties, nil
 	}
 
@@ -133,6 +125,9 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 	}
 
 	// Cache the values for the epoch
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	c.fifo = append(c.fifo, epoch)
 	c.duties[epoch] = duties
 	c.synths[epoch] = synthSlots

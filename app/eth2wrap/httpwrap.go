@@ -51,7 +51,6 @@ type BlockAttestationsProvider interface {
 type Option func(*httpAdapter)
 
 // WithSyntheticDuties returns an option that enables synthetic duties.
-// Note the ordering of pubkeys must be identical for all nodes in the cluster.
 func WithSyntheticDuties(pubkeys []eth2p0.BLSPubKey) Option {
 	return func(a *httpAdapter) {
 		a.syntheticDuties = true
