@@ -99,7 +99,6 @@ func newMetricSubmitter() func(pubkey core.PubKey, totalBal eth2p0.Gwei, status 
 		if prev, ok := prevStatus[pubkey]; ok && prev != status { // Validator status changed
 			statusGauge.WithLabelValues(string(pubkey), pubkey.String(), prev).Set(0)
 		}
-
 		prevStatus[pubkey] = status
 	}
 }
