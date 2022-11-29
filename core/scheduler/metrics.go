@@ -90,10 +90,7 @@ func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 
 // newMetricSubmitter returns a function that sets validator balance and status metric.
 func newMetricSubmitter() func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
-	var (
-		prevBal    = make(map[core.PubKey]eth2p0.Gwei)
-		prevStatus = make(map[core.PubKey]string)
-	)
+	prevStatus := make(map[core.PubKey]string)
 
 	return func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
 		balanceGauge.WithLabelValues(string(pubkey), pubkey.String()).Set(float64(totalBal))
@@ -102,11 +99,7 @@ func newMetricSubmitter() func(pubkey core.PubKey, totalBal eth2p0.Gwei, status 
 		if prev, ok := prevStatus[pubkey]; ok && prev != status { // Validator status changed
 			statusGauge.WithLabelValues(string(pubkey), pubkey.String(), prev).Set(0)
 		}
-		if prev, ok := prevBal[pubkey]; ok && prev != totalBal { // Validator balance changed
-			balanceGauge.WithLabelValues(string(pubkey), pubkey.String()).Set(0)
-		}
 
-		prevBal[pubkey] = totalBal
 		prevStatus[pubkey] = status
 	}
 }
