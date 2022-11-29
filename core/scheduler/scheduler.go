@@ -34,8 +34,13 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// delayFunc abstracts slot offset delaying/sleeping for deterministic tests.
-type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
+type (
+	// delayFunc abstracts slot offset delaying/sleeping for deterministic tests.
+	delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
+
+	// metricSubmitter submits validator balance metric.
+	metricSubmitter func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string)
+)
 
 // NewForT returns a new scheduler for testing using a fake clock.
 func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys []core.PubKey,
@@ -63,23 +68,25 @@ func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderAPI bool) (*Sched
 		delayFunc: func(_ core.Duty, deadline time.Time) <-chan time.Time {
 			return time.After(time.Until(deadline))
 		},
-		resolvedEpoch: math.MaxUint64,
-		builderAPI:    builderAPI,
+		metricSubmitter: newMetricSubmitter(),
+		resolvedEpoch:   math.MaxUint64,
+		builderAPI:      builderAPI,
 	}, nil
 }
 
 type Scheduler struct {
-	eth2Cl        eth2wrap.Client
-	pubkeys       []core.PubKey
-	quit          chan struct{}
-	clock         clockwork.Clock
-	delayFunc     delayFunc
-	resolvedEpoch uint64
-	duties        map[core.Duty]core.DutyDefinitionSet
-	dutiesMutex   sync.Mutex
-	dutySubs      []func(context.Context, core.Duty, core.DutyDefinitionSet) error
-	slotSubs      []func(context.Context, core.Slot) error
-	builderAPI    bool
+	eth2Cl          eth2wrap.Client
+	pubkeys         []core.PubKey
+	quit            chan struct{}
+	clock           clockwork.Clock
+	delayFunc       delayFunc
+	metricSubmitter metricSubmitter
+	resolvedEpoch   uint64
+	duties          map[core.Duty]core.DutyDefinitionSet
+	dutiesMutex     sync.Mutex
+	dutySubs        []func(context.Context, core.Duty, core.DutyDefinitionSet) error
+	slotSubs        []func(context.Context, core.Slot) error
+	builderAPI      bool
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -244,7 +251,7 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 
 // resolveDuties resolves the duties for the slot's epoch, caching the results.
 func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
-	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.pubkeys, slot.Slot)
+	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.pubkeys, slot.Slot, s.metricSubmitter)
 	if err != nil {
 		return err
 	}
@@ -544,7 +551,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 
 // resolveActiveValidators returns the active validators (including their validator index) for the slot.
 func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
-	pubkeys []core.PubKey, slot int64,
+	pubkeys []core.PubKey, slot int64, submitter metricSubmitter,
 ) (validators, error) {
 	var e2pks []eth2p0.BLSPubKey
 	for _, pubkey := range pubkeys {
@@ -574,7 +581,7 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 			return nil, err
 		}
 
-		instrumentValidator(pubkey, val.Balance, val.Status.String())
+		submitter(pubkey, val.Balance, val.Status.String())
 
 		if !val.Status.IsActive() {
 			continue

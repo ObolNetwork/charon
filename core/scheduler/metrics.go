@@ -78,7 +78,16 @@ func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 	dutyCounter.WithLabelValues(duty.Type.String()).Add(float64(len(defSet)))
 }
 
-// instrumentValidator sets the validator balance.
-func instrumentValidator(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
-	balanceGauge.WithLabelValues(string(pubkey), pubkey.String(), status).Set(float64(totalBal))
+// newMetricSubmitter returns a function that sets validator balance metric.
+func newMetricSubmitter() func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
+	prevStatus := make(map[core.PubKey]string)
+
+	return func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
+		balanceGauge.WithLabelValues(string(pubkey), pubkey.String(), status).Set(float64(totalBal))
+
+		if prev, ok := prevStatus[pubkey]; ok && prev != status { // Validator status changed
+			balanceGauge.WithLabelValues(string(pubkey), pubkey.String(), prev).Set(0)
+		}
+		prevStatus[pubkey] = status
+	}
 }
