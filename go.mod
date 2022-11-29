@@ -3,7 +3,7 @@ module github.com/obolnetwork/charon
 go 1.19
 
 require (
-	github.com/attestantio/go-eth2-client v0.14.3
+	github.com/attestantio/go-eth2-client v0.14.5
 	github.com/bufbuild/buf v1.9.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/ethereum/go-ethereum v1.10.26
@@ -119,7 +119,7 @@ require (
 	github.com/marten-seemann/qtls-go1-18 v0.1.2 // indirect
 	github.com/marten-seemann/qtls-go1-19 v0.1.0 // indirect
 	github.com/marten-seemann/tcp v0.0.0-20210406111302-dfbc87cc63fd // indirect
-	github.com/mattn/go-colorable v0.1.12 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-pointer v0.0.1 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
