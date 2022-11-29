@@ -23,7 +23,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// metricSubmitter submits validator balance metric.
+// metricSubmitter submits validator balance and status metrics.
 type metricSubmitter func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string)
 
 var (
@@ -59,7 +59,14 @@ var (
 		Namespace: "core",
 		Subsystem: "scheduler",
 		Name:      "validator_balance_gwei",
-		Help:      "Total balance of a validator by public key by status",
+		Help:      "Total balance of a validator by public key",
+	}, []string{"pubkey_full", "pubkey"})
+
+	statusGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "scheduler",
+		Name:      "validator_status",
+		Help:      "Constant gauge with label set to current status of the validator by pubkey",
 	}, []string{"pubkey_full", "pubkey", "status"})
 
 	skipCounter = promauto.NewCounter(prometheus.CounterOpts{
@@ -81,16 +88,25 @@ func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 	dutyCounter.WithLabelValues(duty.Type.String()).Add(float64(len(defSet)))
 }
 
-// newMetricSubmitter returns a function that sets validator balance metric.
+// newMetricSubmitter returns a function that sets validator balance and status metric.
 func newMetricSubmitter() func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
-	prevStatus := make(map[core.PubKey]string)
+	var (
+		prevBal    = make(map[core.PubKey]eth2p0.Gwei)
+		prevStatus = make(map[core.PubKey]string)
+	)
 
 	return func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
-		balanceGauge.WithLabelValues(string(pubkey), pubkey.String(), status).Set(float64(totalBal))
+		balanceGauge.WithLabelValues(string(pubkey), pubkey.String()).Set(float64(totalBal))
+		statusGauge.WithLabelValues(string(pubkey), pubkey.String(), status).Set(1)
 
 		if prev, ok := prevStatus[pubkey]; ok && prev != status { // Validator status changed
-			balanceGauge.WithLabelValues(string(pubkey), pubkey.String(), prev).Set(0)
+			statusGauge.WithLabelValues(string(pubkey), pubkey.String(), prev).Set(0)
 		}
+		if prev, ok := prevBal[pubkey]; ok && prev != totalBal { // Validator balance changed
+			balanceGauge.WithLabelValues(string(pubkey), pubkey.String()).Set(0)
+		}
+
+		prevBal[pubkey] = totalBal
 		prevStatus[pubkey] = status
 	}
 }
