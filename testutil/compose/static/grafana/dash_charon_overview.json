@@ -86,7 +86,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.2.4",
+      "pluginVersion": "9.2.6",
       "targets": [
         {
           "datasource": {
@@ -226,7 +226,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.4",
+      "pluginVersion": "9.2.6",
       "targets": [
         {
           "datasource": {
@@ -424,7 +424,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.4",
+      "pluginVersion": "9.2.6",
       "targets": [
         {
           "datasource": {
@@ -602,7 +602,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.4",
+      "pluginVersion": "9.2.6",
       "targets": [
         {
           "datasource": {
@@ -945,7 +945,7 @@
           }
         ]
       },
-      "pluginVersion": "9.2.4",
+      "pluginVersion": "9.2.6",
       "targets": [
         {
           "datasource": {
@@ -1521,7 +1521,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1653,7 +1654,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1745,7 +1747,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1837,7 +1840,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1929,7 +1933,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2022,7 +2027,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2129,7 +2135,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2224,7 +2231,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue"
+                "color": "light-blue",
+                "value": null
               },
               {
                 "color": "red",
@@ -2291,7 +2299,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Public Key"
+              "options": "pubkey_full"
             },
             "properties": [
               {
@@ -2300,7 +2308,7 @@
                   {
                     "targetBlank": true,
                     "title": "beaconcha.in",
-                    "url": "http://beaconcha.in/validator/${__data.fields[\"Public Key\"]}"
+                    "url": "http://beaconcha.in/validator/${__data.fields[\"Pubkey\"]}"
                   }
                 ]
               },
@@ -2327,9 +2335,15 @@
           ],
           "show": false
         },
-        "showHeader": true
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Balance"
+          }
+        ]
       },
-      "pluginVersion": "9.2.3",
+      "pluginVersion": "9.2.6",
       "targets": [
         {
           "datasource": {
@@ -2342,7 +2356,22 @@
           "format": "table",
           "hide": false,
           "instant": true,
-          "legendFormat": "{{pubkey}}",
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "core_scheduler_validator_status{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
           "range": false,
           "refId": "B"
         }
@@ -2350,35 +2379,43 @@
       "title": "Validators",
       "transformations": [
         {
+          "id": "joinByField",
+          "options": {
+            "byField": "pubkey_full",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Value #A": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "pubkey 1": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "pubkey_full": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "status": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
           "id": "organize",
           "options": {
-            "excludeByName": {
-              "Time": true,
-              "Time 1": true,
-              "Time 2": true,
-              "__name__": true,
-              "__name__ 1": true,
-              "__name__ 2": true,
-              "cluster_hash": true,
-              "cluster_name": true,
-              "cluster_peer": true,
-              "instance": true,
-              "instance 1": true,
-              "instance 2": true,
-              "job": true,
-              "job 1": true,
-              "job 2": true,
-              "pubkey": true,
-              "pubkey_full": false
-            },
+            "excludeByName": {},
             "indexByName": {},
             "renameByName": {
-              "Value": "Balance",
-              "Value #A": "Effectiveness",
-              "Value #B": "Balance",
-              "cluster_network": "Network",
-              "pubkey": "Public Key",
-              "pubkey_full": "Public Key",
+              "Value #A": "Balance",
+              "pubkey_full": "Pubkey",
               "status": "Status"
             }
           }
@@ -2431,7 +2468,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2560,8 +2598,8 @@
       {
         "current": {
           "selected": false,
-          "text": "8439eb3",
-          "value": "8439eb3"
+          "text": "cad83ab",
+          "value": "cad83ab"
         },
         "datasource": {
           "type": "prometheus",
@@ -2588,8 +2626,8 @@
       {
         "current": {
           "selected": false,
-          "text": "excited-group",
-          "value": "excited-group"
+          "text": "defiant-name",
+          "value": "defiant-name"
         },
         "datasource": {
           "type": "prometheus",
@@ -2616,8 +2654,8 @@
       {
         "current": {
           "selected": false,
-          "text": "node2",
-          "value": "node2"
+          "text": "node0",
+          "value": "node0"
         },
         "datasource": {
           "type": "prometheus",

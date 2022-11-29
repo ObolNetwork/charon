@@ -66,7 +66,7 @@ var (
 		Namespace: "core",
 		Subsystem: "scheduler",
 		Name:      "validator_status",
-		Help:      "Constant gauge with label set to current status of the validator by pubkey",
+		Help:      "Gauge with validator pubkey and status as labels, value=1 is current status, value=0 is previous.",
 	}, []string{"pubkey_full", "pubkey", "status"})
 
 	skipCounter = promauto.NewCounter(prometheus.CounterOpts{
