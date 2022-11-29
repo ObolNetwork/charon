@@ -34,13 +34,8 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-type (
-	// delayFunc abstracts slot offset delaying/sleeping for deterministic tests.
-	delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
-
-	// metricSubmitter submits validator balance metric.
-	metricSubmitter func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string)
-)
+// delayFunc abstracts slot offset delaying/sleeping for deterministic tests.
+type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
 
 // NewForT returns a new scheduler for testing using a fake clock.
 func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys []core.PubKey,

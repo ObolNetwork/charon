@@ -23,6 +23,9 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+// metricSubmitter submits validator balance metric.
+type metricSubmitter func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string)
+
 var (
 	slotGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "core",
