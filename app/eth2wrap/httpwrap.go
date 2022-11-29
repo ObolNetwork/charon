@@ -58,7 +58,7 @@ func WithSyntheticDuties(pubkeys []eth2p0.BLSPubKey) Option {
 	}
 }
 
-// NewHTTPAdapterForT returns a http adaptor for testing non-eth2service methods as it is nil.
+// NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
 func NewHTTPAdapterForT(_ *testing.T, address string, timeout time.Duration, opts ...Option) *httpAdapter {
 	return newHTTPAdapter(nil, address, timeout, opts...)
 }
@@ -69,7 +69,7 @@ func AdaptEth2HTTP(eth2Svc *eth2http.Service, timeout time.Duration, opts ...Opt
 	return newHTTPAdapter(eth2Svc, eth2Svc.Address(), timeout, opts...)
 }
 
-// newHTTPAdapter returns a new http adaptor.
+// newHTTPAdapter returns a new http adapter.
 func newHTTPAdapter(ethSvc *eth2http.Service, address string, timeout time.Duration, opts ...Option) *httpAdapter {
 	a := &httpAdapter{
 		Service: ethSvc,
@@ -176,7 +176,7 @@ func (h *httpAdapter) SubmitBeaconBlock(ctx context.Context, block *spec.Version
 	var synthGraffiti [32]byte
 	copy(synthGraffiti[:], syntheticBlockGraffiti)
 	if graffiti == synthGraffiti {
-		log.Debug(ctx, "Synthetic blinded beacon block swallowed")
+		log.Debug(ctx, "Synthetic beacon block swallowed")
 		return nil
 	}
 

@@ -62,8 +62,7 @@ type synthProposerCache struct {
 	synths map[eth2p0.Epoch]map[eth2p0.Slot]bool
 }
 
-// Duties returns the upstream and synthetic duties for all pubkeys for the provided epoch
-// via a cache.
+// Duties returns the upstream and synthetic duties for all pubkeys for the provided epoch.
 func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth2Provider, epoch eth2p0.Epoch) ([]*eth2v1.ProposerDuty, error) {
 	// Check if cache already populated for this epoch using read lock.
 	c.mu.RLock()
@@ -147,7 +146,7 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 	return duties, nil
 }
 
-// IsSynthetic returns true if the slot is a synthetic proposer duty from via a cache.
+// IsSynthetic returns true if the slot is a synthetic proposer duty.
 func (c *synthProposerCache) IsSynthetic(ctx context.Context, eth2Cl synthProposerEth2Provider, slot eth2p0.Slot) (bool, error) {
 	// Get the epoch.
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
@@ -192,7 +191,8 @@ func eth2Shuffle(epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) []eth2p0.V
 	return resp
 }
 
-// getStandardHashFn returns a standard sha256 hash function as per eth2.
+// getStandardHashFn returns a standard sha256 hash function as per
+// https://github.com/protolambda/eth2-shuffle/blob/master/test_util.go.
 func getStandardHashFn() shuffle.HashFn {
 	hash := sha256.New()
 	hashFn := func(in []byte) []byte {
