@@ -79,6 +79,3 @@ func TestInvalidSignatures(t *testing.T) {
 	_, _, err = aggLockHashSig(map[core.PubKey][]core.ParSignedData{pubkey: getSigs(lockMsg)}, map[core.PubKey]share{pubkey: shares}, lockMsg)
 	require.EqualError(t, err, "invalid lock hash partial signature from peer")
 }
-
-func TestSyncProtocol(t *testing.T) {
-}
