@@ -23,6 +23,9 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+// metricSubmitter submits validator balance and status metrics.
+type metricSubmitter func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string)
+
 var (
 	slotGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "core",
@@ -56,7 +59,14 @@ var (
 		Namespace: "core",
 		Subsystem: "scheduler",
 		Name:      "validator_balance_gwei",
-		Help:      "Total balance of a validator by public key by status",
+		Help:      "Total balance of a validator by public key",
+	}, []string{"pubkey_full", "pubkey"})
+
+	statusGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "scheduler",
+		Name:      "validator_status",
+		Help:      "Gauge with validator pubkey and status as labels, value=1 is current status, value=0 is previous.",
 	}, []string{"pubkey_full", "pubkey", "status"})
 
 	skipCounter = promauto.NewCounter(prometheus.CounterOpts{
@@ -78,7 +88,17 @@ func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 	dutyCounter.WithLabelValues(duty.Type.String()).Add(float64(len(defSet)))
 }
 
-// instrumentValidator sets the validator balance.
-func instrumentValidator(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
-	balanceGauge.WithLabelValues(string(pubkey), pubkey.String(), status).Set(float64(totalBal))
+// newMetricSubmitter returns a function that sets validator balance and status metric.
+func newMetricSubmitter() func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
+	prevStatus := make(map[core.PubKey]string)
+
+	return func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
+		balanceGauge.WithLabelValues(string(pubkey), pubkey.String()).Set(float64(totalBal))
+		statusGauge.WithLabelValues(string(pubkey), pubkey.String(), status).Set(1)
+
+		if prev, ok := prevStatus[pubkey]; ok && prev != status { // Validator status changed
+			statusGauge.WithLabelValues(string(pubkey), pubkey.String(), prev).Set(0)
+		}
+		prevStatus[pubkey] = status
+	}
 }
