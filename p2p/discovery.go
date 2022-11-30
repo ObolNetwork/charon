@@ -135,6 +135,10 @@ func (n *MutableUDPNode) AllNodes() []*enode.Node {
 func NewUDPNode(ctx context.Context, config Config, ln *enode.LocalNode,
 	key *ecdsa.PrivateKey, bootnodes []*MutablePeer,
 ) (*MutableUDPNode, error) {
+	if !config.Discv5Discovery() {
+		return &MutableUDPNode{}, nil
+	}
+
 	if config.UDPAddr == "" {
 		log.Info(ctx, "Discv5 UDP peer discovery disabled since --p2p-udp-address empty")
 		return new(MutableUDPNode), nil

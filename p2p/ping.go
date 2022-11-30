@@ -38,7 +38,7 @@ type TestPingConfig struct {
 	// Disable disables pinging.
 	Disable bool
 	// Callback is called on successful pings.
-	Callback func(peer.ID)
+	Callback func(peer.ID, host.Host)
 	// MaxBackoff overrides default max backoff.
 	MaxBackoff time.Duration
 }
@@ -79,7 +79,7 @@ func NewPingService(h host.Host, peers []peer.ID, conf TestPingConfig) lifecycle
 
 // pingPeer starts (and restarts) a long-lived ping service stream, pinging the peer every second until some error.
 // It returns when the context is cancelled.
-func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID, callback func(peer.ID),
+func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID, callback func(peer.ID, host.Host),
 	maxBackoff time.Duration,
 ) {
 	backoff := expbackoff.New(ctx, expbackoff.WithMaxDelay(maxBackoff)) // Start quick, then slow down
@@ -92,7 +92,7 @@ func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID, callback fu
 
 // pingPeerOnce starts a long lived ping connection with the peer and returns on first error.
 func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
-	logFunc func(context.Context, ping.Result), callback func(peer.ID),
+	logFunc func(context.Context, ping.Result), callback func(peer.ID, host.Host),
 ) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -113,7 +113,7 @@ func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 		}
 
 		observePing(p, result.RTT)
-		callback(p)
+		callback(p, svc.Host)
 	}
 }
 
@@ -220,11 +220,11 @@ func resolveBackoffMsgs(ctx context.Context, tcpNode host.Host, p peer.ID) map[s
 }
 
 // newPingDelayCallback returns a delaying ping callback for periodic 1s pings in production.
-func newPingDelayCallback() func(peer.ID) {
+func newPingDelayCallback() func(peer.ID, host.Host) {
 	const period = time.Second
 	timestamp := time.Now()
 
-	return func(peer.ID) {
+	return func(peer.ID, host.Host) {
 		delay := time.Until(timestamp.Add(period))
 		if delay > 0 {
 			time.Sleep(delay)

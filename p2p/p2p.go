@@ -28,6 +28,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/routing"
+	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -54,6 +55,15 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 		return nil, errors.Wrap(err, "convert privkey")
 	}
 
+	var externalAddrs []ma.Multiaddr
+	// TODO(corver): Convert cfg.ExternalHost and cfg.ExternalIP to multiaddrs and add to externalAddrs.
+
+	if cfg.RelayDiscovery() {
+		// Use own observed addresses as soon as a single relay reports it.
+		// Since there are probably no other directly connected peers to do so.
+		identify.ActivationThresh = 1
+	}
+
 	// Init options.
 	defaultOpts := []libp2p.Option{
 		// Set P2P identity key.
@@ -66,9 +76,14 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 		libp2p.ConnectionGater(connGater),
 		// Enable Autonat (required for hole punching)
 		libp2p.EnableNATService(),
-		// Define p2pcfg.AddrsFactory that does not advertise
-		// addresses via libp2p, since we use discv5 for peer discovery.
-		libp2p.AddrsFactory(func([]ma.Multiaddr) []ma.Multiaddr { return nil }),
+		libp2p.AddrsFactory(func(addrs []ma.Multiaddr) []ma.Multiaddr {
+			if cfg.Discv5Discovery() {
+				// Do not advertise addresses via libp2p when using discv5 for peer discovery.
+				return nil
+			}
+
+			return append(addrs, externalAddrs...)
+		}),
 	}
 
 	defaultOpts = append(defaultOpts, opts...)
@@ -240,16 +255,16 @@ var (
 
 // addrType returns 'direct' or 'relay' based on whether the address contains a relay.
 func addrType(a ma.Multiaddr) string {
-	if isRelayAddr(a) {
+	if IsRelayAddr(a) {
 		return addrTypeRelay
 	}
 
 	return addrTypeDirect
 }
 
-// isRelayAddr returns true if the address is a relayed address.
+// IsRelayAddr returns true if the address is a relayed address.
 // Copied from github.com/libp2p/go-libp2p@v0.22.0/p2p/protocol/circuitv2/relay/relay.go:593.
-func isRelayAddr(a ma.Multiaddr) bool {
+func IsRelayAddr(a ma.Multiaddr) bool {
 	_, err := a.ValueForProtocol(ma.P_CIRCUIT)
 	return err == nil
 }

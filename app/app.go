@@ -267,6 +267,12 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return nil, nil, err
 	}
 
+	if conf.P2P.RelayDiscovery() {
+		log.Info(ctx, "Relay discovery enabled") // TODO(corver): Remove once stable.
+	} else {
+		log.Info(ctx, "Discv5 discovery enabled")
+	}
+
 	// Start discv5 UDP node.
 	udpNode, err := p2p.NewUDPNode(ctx, conf.P2P, localEnode, p2pKey, bootnodes)
 	if err != nil {
