@@ -480,7 +480,12 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 		}
 		copy(randao[:], b)
 
-		block, err := p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, nil)
+		graffiti, err := hexQuery(query, "graffiti")
+		if err != nil {
+			return nil, err
+		}
+
+		block, err := p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, graffiti)
 		if err != nil {
 			return nil, err
 		}
@@ -965,6 +970,7 @@ func uintQuery(query url.Values, name string) (uint64, error) {
 	return res, nil
 }
 
+// hexQuery returns a 0x-prefixed hex query parameter with name.
 func hexQuery(query url.Values, name string) ([]byte, error) {
 	valueA, ok := query[name]
 	if !ok || len(valueA) != 1 {

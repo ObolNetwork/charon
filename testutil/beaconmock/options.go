@@ -56,6 +56,16 @@ func (s ValidatorSet) Validators() []*eth2v1.Validator {
 	return resp
 }
 
+// ValidatorIndexes is a convenience function to return the validator indexes as a slice.
+func (s ValidatorSet) ValidatorIndexes() []eth2p0.ValidatorIndex {
+	var resp []eth2p0.ValidatorIndex
+	for _, validator := range s {
+		resp = append(resp, validator.Index)
+	}
+
+	return resp
+}
+
 // ByPublicKey is a convenience function to return a validator by its public key.
 func (s ValidatorSet) ByPublicKey(pubkey eth2p0.BLSPubKey) (*eth2v1.Validator, bool) {
 	for _, validator := range s {
@@ -579,7 +589,6 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 func array32(slice []byte) [32]byte {
 	var resp [32]byte
 	copy(resp[:], slice)
-
 	return resp
 }
 
