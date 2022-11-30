@@ -308,10 +308,14 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.Privat
 	}
 
 	for _, client := range clients {
-		err := client.AwaitConnected(ctx)
+		err := client.IsConnected(ctx)
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	for _, client := range clients {
+		client.DisableReconnect()
 	}
 
 	err = server.AwaitAllConnected(ctx)

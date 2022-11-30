@@ -156,17 +156,38 @@ func (s *Server) isAllShutdown() bool {
 	return len(s.shutdown) == s.allCount
 }
 
+// clearConnected clears connected state for the given peer.
+func (s *Server) clearConnected(pID peer.ID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.connected, pID)
+}
+
 // handleStream serves a new long-lived client connection.
 func (s *Server) handleStream(ctx context.Context, stream network.Stream) error {
 	defer stream.Close()
 
 	pID := stream.Conn().RemotePeer()
+	defer func() {
+		s.clearConnected(pID)
+
+		if ctx.Err() == nil {
+			log.Info(ctx, "Peer connection dropped!", z.Str("peer", p2p.PeerName(pID)),
+				z.Str("local_peer", p2p.PeerName(s.tcpNode.ID())))
+		}
+	}()
+
 	pubkey, err := pID.ExtractPublicKey()
 	if err != nil {
 		return errors.Wrap(err, "extract pubkey")
 	}
 
 	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
 		// Read next sync message
 		msg := new(pb.MsgSync)
 		if err := readSizedProto(stream, msg); err != nil {
@@ -210,6 +231,10 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 // Start registers sync protocol with the libp2p host.
 func (s *Server) Start(ctx context.Context) {
 	s.tcpNode.SetStreamHandler(protocolID, func(stream network.Stream) {
+		if ctx.Err() != nil {
+			return
+		}
+
 		ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(stream.Conn().RemotePeer())))
 		err := s.handleStream(ctx, stream)
 		if isRelayError(err) {

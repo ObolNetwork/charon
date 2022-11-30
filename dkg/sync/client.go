@@ -35,11 +35,12 @@ import (
 // NewClient returns a new Client instance.
 func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte) *Client {
 	return &Client{
-		tcpNode:  tcpNode,
-		peer:     peer,
-		hashSig:  hashSig,
-		shutdown: make(chan struct{}),
-		done:     make(chan struct{}),
+		tcpNode:   tcpNode,
+		peer:      peer,
+		hashSig:   hashSig,
+		shutdown:  make(chan struct{}),
+		done:      make(chan struct{}),
+		reconnect: true,
 	}
 }
 
@@ -47,47 +48,51 @@ func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte) *Client {
 // it sends period pings (including definition hash signatures),
 // supports reestablishing on relay circuit recycling, and supports soft shutdown.
 type Client struct {
+	// Mutable state
 	mu        sync.Mutex
 	connected bool
+	reconnect bool
 	shutdown  chan struct{}
 	done      chan struct{}
-	hashSig   []byte
-	tcpNode   host.Host
-	peer      peer.ID
+
+	// Immutable state
+	hashSig []byte
+	tcpNode host.Host
+	peer    peer.ID
 }
 
 // Run blocks while running the client-side sync protocol. It returns an error if the context is closed
 // or if an established connection is dropped. It returns nil after successful Shutdown.
 func (c *Client) Run(ctx context.Context) error {
 	defer close(c.done)
-	defer c.clearConnected()
 
 	ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(c.peer)))
 
 	for {
-		retry := !c.connected // Retry connecting if never connected.
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 
-		stream, err := c.connect(ctx, retry)
+		stream, err := c.connect(ctx)
 		if err != nil {
 			return err
 		}
 
 		c.setConnected()
 
-		reconnect, err := c.sendMsgs(ctx, stream)
-		if err != nil {
-			return err
-		} else if reconnect {
-			log.Debug(ctx, "Relay connection dropped, reconnecting")
+		relayBroke, connBroke, err := c.sendMsgs(ctx, stream)
+		if relayBroke || (c.reconnect && connBroke) {
 			continue
+		} else if err != nil {
+			return err
 		}
 
 		return nil
 	}
 }
 
-// AwaitConnected blocks until the connection with the server has been established or returns a context error.
-func (c *Client) AwaitConnected(ctx context.Context) error {
+// IsConnected blocks until the connection with the server has been established or returns a context error.
+func (c *Client) IsConnected(ctx context.Context) error {
 	timer := time.NewTicker(time.Millisecond)
 	defer timer.Stop()
 
@@ -104,7 +109,7 @@ func (c *Client) AwaitConnected(ctx context.Context) error {
 }
 
 // Shutdown triggers the Run goroutine to shut down gracefully and returns nil after it has returned.
-// It should be called after AwaitConnected and may only be called once.
+// It should be called after IsConnected and may only be called once.
 func (c *Client) Shutdown(ctx context.Context) error {
 	close(c.shutdown)
 
@@ -116,7 +121,7 @@ func (c *Client) Shutdown(ctx context.Context) error {
 	}
 }
 
-// clearConnected sets the shared connected state.
+// setConnected sets the shared connected state.
 func (c *Client) setConnected() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -141,9 +146,10 @@ func (c *Client) isConnected() bool {
 }
 
 // sendMsgs sends period sync protocol messages on the stream until error or shutdown.
-func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (bool, error) {
+func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (relayBroke bool, connBroke bool, err error) {
 	timer := time.NewTicker(time.Second)
 	defer timer.Stop()
+	defer c.clearConnected()
 
 	first := make(chan struct{}, 1)
 	first <- struct{}{}
@@ -153,7 +159,7 @@ func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (bool, err
 	for {
 		select {
 		case <-ctx.Done():
-			return false, ctx.Err()
+			return false, false, ctx.Err()
 		case <-c.shutdown:
 			shutdown = true
 		case <-first:
@@ -162,15 +168,15 @@ func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (bool, err
 
 		resp, err := c.sendMsg(stream, shutdown)
 		if isRelayError(err) {
-			return true, nil // Reconnect on relay errors
-		} else if err != nil {
-			return false, err
+			return true, false, err // Reconnect on relay errors
+		} else if err != nil { // TODO(dhruv): differentiate between connection errors and other errors.
+			return false, true, err
 		} else if shutdown {
-			return false, nil
+			return false, false, nil
 		} else if resp.Error == errInvalidSig {
-			return false, errors.New("mismatching cluster definition hash with peer")
+			return false, false, errors.New("mismatching cluster definition hash with peer")
 		} else if resp.Error != "" {
-			return false, errors.New("peer responded with error", z.Str("error_message", resp.Error))
+			return false, false, errors.New("peer responded with error", z.Str("error_message", resp.Error))
 		}
 
 		rtt := time.Since(resp.SyncTimestamp.AsTime())
@@ -199,13 +205,13 @@ func (c *Client) sendMsg(stream network.Stream, shutdown bool) (*pb.MsgSyncRespo
 }
 
 // connect returns an opened libp2p stream/connection, it will retry if instructed.
-func (c *Client) connect(ctx context.Context, retry bool) (network.Stream, error) {
+func (c *Client) connect(ctx context.Context) (network.Stream, error) {
 	for {
 		s, err := c.tcpNode.NewStream(network.WithUseTransient(ctx, "sync"), c.peer, protocolID)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		} else if err != nil {
-			if retry {
+			if c.reconnect {
 				continue
 			}
 
@@ -220,4 +226,12 @@ func (c *Client) connect(ctx context.Context, retry bool) (network.Stream, error
 func isRelayError(err error) bool {
 	return errors.Is(err, network.ErrReset) ||
 		errors.Is(err, network.ErrResourceScopeClosed)
+}
+
+// DisableReconnect disables shared reconnect state.
+func (c *Client) DisableReconnect() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.reconnect = false
 }
