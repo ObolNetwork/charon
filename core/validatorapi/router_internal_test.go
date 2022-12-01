@@ -108,6 +108,67 @@ func TestRawRouter(t *testing.T) {
 		testRawRouter(t, handler, callback)
 	})
 
+	t.Run("missing query params", func(t *testing.T) {
+		handler := testHandler{}
+
+		callback := func(ctx context.Context, baseURL string) {
+			res, err := http.Post(baseURL+"/eth/v2/validator/blocks/123", "", nil)
+			require.NoError(t, err)
+
+			var errRes errorResponse
+			err = json.NewDecoder(res.Body).Decode(&errRes)
+			require.NoError(t, err)
+			require.Equal(t, errRes, errorResponse{
+				Code:    http.StatusBadRequest,
+				Message: "missing 0x-hex query parameter randao_reveal",
+			})
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("invalid length query params", func(t *testing.T) {
+		handler := testHandler{}
+
+		callback := func(ctx context.Context, baseURL string) {
+			res, err := http.Post(baseURL+"/eth/v2/validator/blocks/123?randao_reveal=0x0000", "", nil)
+			require.NoError(t, err)
+
+			var errRes errorResponse
+			err = json.NewDecoder(res.Body).Decode(&errRes)
+			require.NoError(t, err)
+			require.Equal(t, errRes, errorResponse{
+				Code:    http.StatusBadRequest,
+				Message: "invalid length for 0x-hex query parameter randao_reveal, expect 96 bytes",
+			})
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("empty graffiti", func(t *testing.T) {
+		handler := testHandler{}
+		handler.BeaconBlockProposalFunc = func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
+			require.Empty(t, graffiti)
+			resp := testutil.RandomCoreVersionBeaconBlock(t).VersionedBeaconBlock
+
+			return &resp, nil
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			randao := testutil.RandomEth2Signature().String()
+			res, err := http.Post(baseURL+"/eth/v2/validator/blocks/123?randao_reveal="+randao, "", nil)
+			require.NoError(t, err)
+
+			var okResp struct{ Data json.RawMessage }
+			err = json.NewDecoder(res.Body).Decode(&okResp)
+			require.NoError(t, err)
+			require.NotEmpty(t, okResp.Data)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
 	t.Run("empty body", func(t *testing.T) {
 		handler := testHandler{}
 
