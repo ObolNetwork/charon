@@ -46,10 +46,10 @@ const (
 	MockAlpha Feature = "mock_alpha"
 
 	// RelayDiscovery enables relay peer discovery and disables discv5:
-	//   - If a direct connection to a peer is not possible then try to connect to it via all the provided bootnodes/relays
+	//   - If a direct connection to a peer is not possible then try to connect to it via all the provided bootnodes/relays.
 	//   - Direct connections are either not possible since no addresses are known or the addresses do not work.
 	//   - When connected via relay, libp2p's identify protocol detects the remote peer's addresses.
-	//   - Those are added to the peer store so will try to use them.
+	//   - Those are added to the peer store so libp2p will try to use them.
 	RelayDiscovery Feature = "relay_discovery"
 )
 
