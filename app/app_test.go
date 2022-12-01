@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/enr"
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,6 +61,7 @@ func TestPingCluster(t *testing.T) {
 			BootLock:     true,
 			BindENRAddrs: true,
 			Bootnode:     false,
+			ExpectDirect: true,
 		})
 	})
 
@@ -70,6 +72,7 @@ func TestPingCluster(t *testing.T) {
 			BindLocalhost: true,
 			BootLock:      false,
 			Bootnode:      true,
+			ExpectDirect:  true,
 		})
 	})
 
@@ -77,10 +80,11 @@ func TestPingCluster(t *testing.T) {
 	// Discv5 will resolve peers via bootnode and external IP.
 	t.Run("external_ip", func(t *testing.T) {
 		pingCluster(t, pingTest{
-			ExternalIP: "127.0.0.1",
-			BindZeroIP: true,
-			BootLock:   false,
-			Bootnode:   true,
+			ExternalIP:   "127.0.0.1",
+			BindZeroIP:   true,
+			BootLock:     false,
+			Bootnode:     true,
+			ExpectDirect: true,
 		})
 	})
 
@@ -92,6 +96,7 @@ func TestPingCluster(t *testing.T) {
 			BindZeroIP:   true,
 			BootLock:     false,
 			Bootnode:     true,
+			ExpectDirect: true,
 		})
 	})
 
@@ -117,6 +122,33 @@ func TestPingCluster(t *testing.T) {
 			BindLocalhost: true,
 			BootLock:      true,
 			Bootnode:      true,
+			ExpectDirect:  true,
+		})
+	})
+
+	// Nodes bind to random 0.0.0.0 ports, discv5 disabled,
+	// but relay via single bootnode,
+	// then upgrade to direct connections.
+	t.Run("relay_discovery_0000", func(t *testing.T) {
+		pingCluster(t, pingTest{
+			RelayDiscovery: true,
+			BootnodeRelay:  true,
+			BindZeroPort:   true,
+			Bootnode:       true,
+			ExpectDirect:   true,
+		})
+	})
+
+	// Nodes bind to random locahost ports, discv5 disabled,
+	// but relay via single bootnode,
+	// then upgrade to direct connections.
+	t.Run("relay_discovery_local", func(t *testing.T) {
+		pingCluster(t, pingTest{
+			RelayDiscovery: true,
+			BootnodeRelay:  true,
+			BindLocalhost:  true,
+			Bootnode:       true,
+			ExpectDirect:   true,
 		})
 	})
 }
@@ -136,6 +168,9 @@ type pingTest struct {
 
 	ExternalIP   string
 	ExternalHost string
+
+	RelayDiscovery bool // Enable relay discovery (disable discv5)
+	ExpectDirect   bool // Expect pings on direct connections
 }
 
 func pingCluster(t *testing.T, test pingTest) {
@@ -149,6 +184,10 @@ func pingCluster(t *testing.T, test pingTest) {
 			return
 		}
 		timeout = time.Minute
+	}
+
+	if test.RelayDiscovery {
+		featureset.EnableForT(t, featureset.RelayDiscovery)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -165,7 +204,9 @@ func pingCluster(t *testing.T, test pingTest) {
 		asserter: asserter{
 			Timeout: timeout,
 		},
-		N: n, Lock: lock,
+		N:            n,
+		Lock:         lock,
+		ExpectDirect: test.ExpectDirect,
 	}
 
 	var eg errgroup.Group
@@ -361,8 +402,9 @@ func (a *asserter) await(ctx context.Context, t *testing.T, expect int) error {
 // pingAsserter asserts that all nodes ping all other nodes.
 type pingAsserter struct {
 	asserter
-	N    int
-	Lock cluster.Lock
+	N            int
+	Lock         cluster.Lock
+	ExpectDirect bool // Assert direct or relay pings.
 }
 
 // Await waits for all nodes to ping each other or time out.
@@ -380,13 +422,29 @@ func (a *pingAsserter) Await(ctx context.Context, t *testing.T) error {
 }
 
 // Callback returns the PingCallback function for the ith node.
-func (a *pingAsserter) Callback(t *testing.T, i int) func(peer.ID) {
+func (a *pingAsserter) Callback(t *testing.T, i int) func(peer.ID, host.Host) {
 	t.Helper()
 
 	peerIDs, err := a.Lock.PeerIDs()
 	require.NoError(t, err)
 
-	return func(target peer.ID) {
+	return func(target peer.ID, tcpNode host.Host) {
+		var foundDirect bool
+		for _, conn := range tcpNode.Network().ConnsToPeer(target) {
+			directConn := !p2p.IsRelayAddr(conn.RemoteMultiaddr())
+			if a.ExpectDirect && !directConn {
+				require.NoError(t, conn.Close()) // Close relay connections so direct connections are established.
+			} else if !a.ExpectDirect && directConn {
+				require.Fail(t, "expected relay connections, but got direct connection")
+			} else if directConn {
+				foundDirect = true
+			}
+		}
+
+		if a.ExpectDirect != foundDirect {
+			return
+		}
+
 		for j, p := range peerIDs {
 			if p == target {
 				a.callbacks.Store(fmt.Sprint(i, "-", j), true)

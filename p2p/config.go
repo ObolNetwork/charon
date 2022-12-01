@@ -22,6 +22,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/featureset"
 )
 
 type Config struct {
@@ -44,6 +45,16 @@ type Config struct {
 	// BootnodeRelay enables circuit relay via bootnodes if direct connections fail.
 	// Only applicable to charon nodes not bootnodes.
 	BootnodeRelay bool
+}
+
+// RelayDiscovery returns true if relay discovery is enabled and discv5 discovery is disabled.
+func (c Config) RelayDiscovery() bool {
+	return len(c.UDPBootnodes) > 0 && c.BootnodeRelay && featureset.Enabled(featureset.RelayDiscovery)
+}
+
+// Discv5Discovery returns true if discv5 discovery is enabled and relay discovery is disabled.
+func (c Config) Discv5Discovery() bool {
+	return !c.RelayDiscovery()
 }
 
 // ParseTCPAddrs returns the configured tcp addresses as typed net tcp addresses.
