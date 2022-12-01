@@ -431,12 +431,13 @@ func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) h
 		}
 
 		var beaconBlockRoot eth2p0.Root
-		b, err := hexQuery(query, "beacon_block_root")
+		b, ok, err := hexQuery(query, "beacon_block_root")
 		if err != nil {
 			return nil, err
-		}
-		if len(b) != len(beaconBlockRoot) {
-			return nil, errors.New("input beacon_block_root has wrong length")
+		} else if !ok {
+			return nil, errors.New("beacon_block_root query param not found")
+		} else if len(b) != len(beaconBlockRoot) {
+			return nil, errors.New("beacon_block_root query param has wrong length")
 		}
 		copy(beaconBlockRoot[:], b)
 
@@ -471,16 +472,22 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 		}
 
 		var randao eth2p0.BLSSignature
-		b, err := hexQuery(query, "randao_reveal")
+		b, ok, err := hexQuery(query, "randao_reveal")
 		if err != nil {
 			return nil, err
-		}
-		if len(b) != len(randao) {
-			return nil, errors.New("input randao_reveal has wrong length")
+		} else if !ok {
+			return nil, errors.New("randao_reveal query param not found")
+		} else if len(b) != len(randao) {
+			return nil, errors.New("randao_reveal query param has wrong length")
 		}
 		copy(randao[:], b)
 
-		block, err := p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, nil)
+		graffiti, _, err := hexQuery(query, "graffiti") // Graffiti is optional.
+		if err != nil {
+			return nil, err
+		}
+
+		block, err := p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, graffiti)
 		if err != nil {
 			return nil, err
 		}
@@ -528,12 +535,13 @@ func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handle
 		}
 
 		var randao eth2p0.BLSSignature
-		b, err := hexQuery(query, "randao_reveal")
+		b, ok, err := hexQuery(query, "randao_reveal")
 		if err != nil {
 			return nil, err
-		}
-		if len(b) != len(randao) {
-			return nil, errors.New("input randao_reveal has wrong length")
+		} else if !ok {
+			return nil, errors.New("randao_reveal query param not found")
+		} else if len(b) != len(randao) {
+			return nil, errors.New("randao_reveal query param has wrong length")
 		}
 		copy(randao[:], b)
 
@@ -694,12 +702,13 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 		}
 
 		var attDataRoot eth2p0.Root
-		b, err := hexQuery(query, "attestation_data_root")
+		b, ok, err := hexQuery(query, "attestation_data_root")
 		if err != nil {
 			return nil, err
-		}
-		if len(b) != len(attDataRoot) {
-			return nil, errors.New("input attestation_data_root has wrong length")
+		} else if !ok {
+			return nil, errors.New("attestation_data_root query param not found")
+		} else if len(b) != len(attDataRoot) {
+			return nil, errors.New("attestation_data_root query param has wrong length")
 		}
 		copy(attDataRoot[:], b)
 
@@ -965,19 +974,20 @@ func uintQuery(query url.Values, name string) (uint64, error) {
 	return res, nil
 }
 
-func hexQuery(query url.Values, name string) ([]byte, error) {
+// hexQuery returns a 0x-prefixed hex query parameter with name or false if not present.
+func hexQuery(query url.Values, name string) ([]byte, bool, error) {
 	valueA, ok := query[name]
 	if !ok || len(valueA) != 1 {
-		return nil, errors.New("key not present in query")
+		return nil, false, nil
 	}
 	value := valueA[0]
 
 	resp, err := hex.DecodeString(strings.TrimPrefix(value, "0x"))
 	if err != nil {
-		return nil, errors.Wrap(err, "decode hex")
+		return nil, false, errors.Wrap(err, "decode hex query param", z.Str("name", name))
 	}
 
-	return resp, nil
+	return resp, true, nil
 }
 
 // writeFlusher is copied from /net/http/httputil/reverseproxy.go.
