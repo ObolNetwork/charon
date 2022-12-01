@@ -984,7 +984,7 @@ func hexQuery(query url.Values, name string) ([]byte, bool, error) {
 
 	resp, err := hex.DecodeString(strings.TrimPrefix(value, "0x"))
 	if err != nil {
-		return nil, false, errors.Wrap(err, "decode hex")
+		return nil, false, errors.Wrap(err, "decode hex query param", z.Str("name", name))
 	}
 
 	return resp, true, nil
