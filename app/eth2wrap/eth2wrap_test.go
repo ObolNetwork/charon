@@ -174,7 +174,7 @@ func TestSyncState(t *testing.T) {
 func TestErrors(t *testing.T) {
 	ctx := context.Background()
 	t.Run("network dial error", func(t *testing.T) {
-		_, err := eth2wrap.NewMultiHTTP(ctx, time.Hour, []string{"localhost:22222"})
+		_, err := eth2wrap.NewMultiHTTP(ctx, time.Hour, "localhost:22222")
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "beacon api new eth2 client: network operation error: dial: connect: connection refused")
@@ -186,7 +186,7 @@ func TestErrors(t *testing.T) {
 	}))
 
 	t.Run("http timeout", func(t *testing.T) {
-		_, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond, []string{srv.URL})
+		_, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond, srv.URL)
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "beacon api new eth2 client: http request timeout: context deadline exceeded")
@@ -195,7 +195,7 @@ func TestErrors(t *testing.T) {
 	t.Run("caller cancelled", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()
-		_, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond, []string{srv.URL})
+		_, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond, srv.URL)
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "beacon api new eth2 client: caller cancelled http request: context canceled")
@@ -204,7 +204,7 @@ func TestErrors(t *testing.T) {
 	t.Run("go-eth2-client http error", func(t *testing.T) {
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
-		eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, []string{bmock.Address()})
+		eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, bmock.Address())
 		require.NoError(t, err)
 
 		_, err = eth2Cl.AggregateAttestation(ctx, 0, eth2p0.Root{})
@@ -235,7 +235,7 @@ func TestCtxCancel(t *testing.T) {
 
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
-		eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, []string{bmock.Address()})
+		eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, bmock.Address())
 		require.NoError(t, err)
 
 		cancel() // Cancel context before calling method.

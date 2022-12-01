@@ -57,7 +57,7 @@ var integration = flag.Bool("integration", false, "Enable docker based integrati
 func TestSimnetDuties(t *testing.T) {
 	tests := []struct {
 		name                string
-		bmockOpts           []beaconmock.Option
+		scheduledType       core.DutyType
 		duties              []core.DutyType
 		builderAPI          bool
 		builderRegistration bool
@@ -65,110 +65,72 @@ func TestSimnetDuties(t *testing.T) {
 		teku                bool
 	}{
 		{
-			name: "attester with mock VCs",
-			bmockOpts: []beaconmock.Option{
-				beaconmock.WithNoProposerDuties(),
-				beaconmock.WithNoSyncCommitteeDuties(),
-			},
-			duties: []core.DutyType{core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator},
+			name:          "attester with mock VCs",
+			scheduledType: core.DutyAttester,
+			duties:        []core.DutyType{core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator},
 		},
 		{
-			name: "attester with teku",
-			bmockOpts: []beaconmock.Option{
-				beaconmock.WithNoProposerDuties(),
-				beaconmock.WithNoSyncCommitteeDuties(),
-			},
-			duties: []core.DutyType{core.DutyAttester}, // Teku doesn't support beacon committee selection.
-			teku:   true,
+			name:          "attester with teku",
+			scheduledType: core.DutyAttester,
+			duties:        []core.DutyType{core.DutyAttester}, // Teku doesn't support beacon committee selection.
+			teku:          true,
 		},
 		{
-			name: "proposer with mock VCs",
-			bmockOpts: []beaconmock.Option{
-				beaconmock.WithNoAttesterDuties(),
-				beaconmock.WithNoSyncCommitteeDuties(),
-			},
-			duties: []core.DutyType{core.DutyProposer, core.DutyRandao},
+			name:          "proposer with mock VCs",
+			scheduledType: core.DutyProposer,
+			duties:        []core.DutyType{core.DutyProposer, core.DutyRandao},
 		},
 		{
-			name: "proposer with teku",
-			bmockOpts: []beaconmock.Option{
-				beaconmock.WithNoAttesterDuties(),
-				beaconmock.WithNoSyncCommitteeDuties(),
-			},
-			duties: []core.DutyType{core.DutyProposer, core.DutyRandao},
-			teku:   true,
+			name:          "proposer with teku",
+			scheduledType: core.DutyProposer,
+			duties:        []core.DutyType{core.DutyProposer, core.DutyRandao},
+			teku:          true,
 		},
 		{
-			name: "builder proposer with mock VCs",
-			bmockOpts: []beaconmock.Option{
-				beaconmock.WithNoAttesterDuties(),
-				beaconmock.WithNoSyncCommitteeDuties(),
-			},
-			duties:     []core.DutyType{core.DutyBuilderProposer, core.DutyRandao},
-			builderAPI: true,
+			name:          "builder proposer with mock VCs",
+			scheduledType: core.DutyProposer,
+			duties:        []core.DutyType{core.DutyBuilderProposer, core.DutyRandao},
+			builderAPI:    true,
 		},
 		{
-			name: "builder proposer with teku",
-			bmockOpts: []beaconmock.Option{
-				beaconmock.WithNoAttesterDuties(),
-				beaconmock.WithNoSyncCommitteeDuties(),
-			},
-			duties:     []core.DutyType{core.DutyBuilderProposer, core.DutyRandao},
-			builderAPI: true,
-			teku:       true,
+			name:          "builder proposer with teku",
+			scheduledType: core.DutyProposer,
+			duties:        []core.DutyType{core.DutyBuilderProposer, core.DutyRandao},
+			builderAPI:    true,
+			teku:          true,
 		},
 		{
-			name: "builder registration with mock VCs",
-			bmockOpts: []beaconmock.Option{
-				beaconmock.WithNoAttesterDuties(),
-				beaconmock.WithNoProposerDuties(),
-				beaconmock.WithNoSyncCommitteeDuties(),
-			},
+			name:                "builder registration with mock VCs",
+			scheduledType:       0,
 			duties:              []core.DutyType{core.DutyBuilderRegistration},
 			builderRegistration: true,
 			builderAPI:          true,
 		},
 		{
-			name: "builder registration with teku",
-			bmockOpts: []beaconmock.Option{
-				beaconmock.WithNoAttesterDuties(),
-				beaconmock.WithNoProposerDuties(),
-				beaconmock.WithNoSyncCommitteeDuties(),
-			},
+			name:                "builder registration with teku",
+			scheduledType:       0,
 			duties:              []core.DutyType{core.DutyBuilderRegistration},
 			builderRegistration: true,
 			builderAPI:          true,
 			teku:                true,
 		},
 		{
-			name: "sync committee with mock VCs",
-			bmockOpts: []beaconmock.Option{
-				beaconmock.WithNoAttesterDuties(),
-				beaconmock.WithNoProposerDuties(),
-				beaconmock.WithDeterministicSyncCommDuties(2, 2), // Always on
-			},
-			duties: []core.DutyType{core.DutyPrepareSyncContribution, core.DutySyncMessage, core.DutySyncContribution},
+			name:          "sync committee with mock VCs",
+			scheduledType: core.DutySyncMessage,
+			duties:        []core.DutyType{core.DutyPrepareSyncContribution, core.DutySyncMessage, core.DutySyncContribution},
 		},
 		{
-			name: "sync committee with teku",
-			bmockOpts: []beaconmock.Option{
-				beaconmock.WithNoAttesterDuties(),
-				beaconmock.WithNoProposerDuties(),
-				beaconmock.WithDeterministicSyncCommDuties(2, 2), // Always on
-			},
-			duties: []core.DutyType{core.DutySyncMessage}, // Teku doesn't support sync committee selection.
-			teku:   true,
+			name:          "sync committee with teku",
+			scheduledType: core.DutySyncMessage,
+			duties:        []core.DutyType{core.DutySyncMessage}, // Teku doesn't support sync committee selection.
+			teku:          true,
 		},
 		{
-			name: "voluntary exit with teku",
-			bmockOpts: []beaconmock.Option{
-				beaconmock.WithNoAttesterDuties(),
-				beaconmock.WithNoProposerDuties(),
-				beaconmock.WithNoSyncCommitteeDuties(),
-			},
-			duties: []core.DutyType{core.DutyExit},
-			exit:   true,
-			teku:   true,
+			name:          "voluntary exit with teku",
+			scheduledType: 0,
+			duties:        []core.DutyType{core.DutyExit},
+			exit:          true,
+			teku:          true,
 		},
 	}
 
@@ -189,7 +151,25 @@ func TestSimnetDuties(t *testing.T) {
 				}
 			}
 
-			args.BMockOpts = test.bmockOpts
+			if test.scheduledType != core.DutyAttester {
+				// Beaconmock enables attester duties by default.
+				args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+			}
+			if test.scheduledType != core.DutyProposer {
+				// Beaconmock enables proposer duties by default.
+				args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+			} else {
+				// Use synthetic duties instead of deterministic beaconmock duties.
+				args.SyntheticProposals = true
+			}
+			if test.scheduledType != core.DutySyncMessage {
+				// Beaconmock enables sync committee duties by default.
+				args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
+			} else {
+				// Enable for all epochs
+				args.BMockOpts = append(args.BMockOpts, beaconmock.WithDeterministicSyncCommDuties(2, 2))
+			}
+
 			expect := newSimnetExpect(args.N, test.duties...)
 			testSimnet(t, args, expect)
 		})
@@ -207,6 +187,7 @@ type simnetArgs struct {
 	ErrChan             chan error
 	BuilderAPI          bool
 	BuilderRegistration bool
+	SyntheticProposals  bool
 	VoluntaryExit       bool
 }
 
@@ -336,8 +317,9 @@ func testSimnet(t *testing.T, args simnetArgs, expect simnetExpect) {
 				}, args.BMockOpts...),
 				BuilderRegistration: registrationFunc(),
 			},
-			P2P:        p2p.Config{},
-			BuilderAPI: args.BuilderAPI,
+			P2P:                     p2p.Config{},
+			BuilderAPI:              args.BuilderAPI,
+			SyntheticBlockProposals: args.SyntheticProposals,
 		}
 
 		eg.Go(func() error {

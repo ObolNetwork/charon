@@ -66,8 +66,16 @@ func Instrument(clients ...Client) (Client, error) {
 	return multi{clients: clients}, nil
 }
 
+// WithSyntheticDuties wraps the provided client adding synthetic duties.
+func WithSyntheticDuties(cl Client, pubkeys []eth2p0.BLSPubKey) Client {
+	return &synthWrapper{
+		Client:             cl,
+		synthProposerCache: newSynthProposerCache(pubkeys),
+	}
+}
+
 // NewMultiHTTP returns a new instrumented multi eth2 http client.
-func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses []string, opts ...Option) (Client, error) {
+func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses ...string) (Client, error) {
 	var clients []Client
 	for _, address := range addresses {
 		eth2Svc, err := eth2http.New(ctx,
@@ -83,7 +91,7 @@ func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses []string
 			return nil, errors.New("invalid eth2 http service")
 		}
 
-		clients = append(clients, AdaptEth2HTTP(eth2Http, timeout, opts...))
+		clients = append(clients, AdaptEth2HTTP(eth2Http, timeout))
 	}
 
 	return Instrument(clients...)

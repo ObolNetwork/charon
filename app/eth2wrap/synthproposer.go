@@ -23,9 +23,14 @@ import (
 	"sync"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	"github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	shuffle "github.com/protolambda/eth2-shuffle"
+
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 )
 
 // maxCachedEpochs limits the amount of epochs to cache.
@@ -35,6 +40,95 @@ type synthProposerEth2Provider interface {
 	eth2client.ValidatorsProvider
 	eth2client.SlotsPerEpochProvider
 	eth2client.ProposerDutiesProvider
+}
+
+var _ Client = &synthWrapper{}
+
+// synthWrapper wraps an eth2 client and provides synthetic proposer duties.
+type synthWrapper struct {
+	Client
+	synthProposerCache *synthProposerCache
+}
+
+// ProposerDuties returns upstream proposer duties for the provided validator indexes or
+// upstream proposer duties and synthetic duties for all cluster validators if enabled.
+func (h *synthWrapper) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+	// TODO(corver): Should we support fetching duties for other validators not in the cluster?
+	return h.synthProposerCache.Duties(ctx, h.Client, epoch)
+}
+
+// BeaconBlockProposal returns an unsigned beacon block, possibly marked as synthetic.
+func (h *synthWrapper) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
+	ok, err := h.synthProposerCache.IsSynthetic(ctx, h.Client, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	if ok {
+		graffiti = []byte(syntheticBlockGraffiti)
+	}
+
+	return h.Client.BeaconBlockProposal(ctx, slot, randao, graffiti)
+}
+
+// BlindedBeaconBlockProposal returns an unsigned blinded beacon block, possibly marked as synthetic.
+func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, graffiti []byte) (*api.VersionedBlindedBeaconBlock, error) {
+	ok, err := h.synthProposerCache.IsSynthetic(ctx, h.Client, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	if ok {
+		graffiti = []byte(syntheticBlockGraffiti)
+	}
+
+	return h.Client.BlindedBeaconBlockProposal(ctx, slot, randao, graffiti)
+}
+
+// SubmitBlindedBeaconBlock submits a blinded beacon block or swallows it if marked as synthetic.
+func (h synthWrapper) SubmitBlindedBeaconBlock(ctx context.Context, block *api.VersionedSignedBlindedBeaconBlock) error {
+	var graffiti [32]byte
+	switch block.Version {
+	case spec.DataVersionBellatrix:
+		graffiti = block.Bellatrix.Message.Body.Graffiti
+	default:
+		return errors.New("unknown block version")
+	}
+
+	var synthGraffiti [32]byte
+	copy(synthGraffiti[:], syntheticBlockGraffiti)
+	if graffiti == synthGraffiti {
+		log.Debug(ctx, "Synthetic blinded beacon block swallowed")
+		return nil
+	}
+
+	return h.Client.SubmitBlindedBeaconBlock(ctx, block)
+}
+
+// SubmitBeaconBlock submits a beacon block or swallows it if marked as synthetic.
+func (h synthWrapper) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+	var graffiti [32]byte
+	switch block.Version {
+	case spec.DataVersionPhase0:
+		graffiti = block.Phase0.Message.Body.Graffiti
+	case spec.DataVersionAltair:
+		graffiti = block.Altair.Message.Body.Graffiti
+	case spec.DataVersionBellatrix:
+		graffiti = block.Bellatrix.Message.Body.Graffiti
+	case spec.DataVersionCapella:
+		graffiti = block.Capella.Message.Body.Graffiti
+	default:
+		return errors.New("unknown block version")
+	}
+
+	var synthGraffiti [32]byte
+	copy(synthGraffiti[:], syntheticBlockGraffiti)
+	if graffiti == synthGraffiti {
+		log.Debug(ctx, "Synthetic beacon block swallowed")
+		return nil
+	}
+
+	return h.Client.SubmitBeaconBlock(ctx, block)
 }
 
 // synthProposerCache returns a new cache for synthetic proposer duties.

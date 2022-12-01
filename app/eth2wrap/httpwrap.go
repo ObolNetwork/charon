@@ -26,14 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/attestantio/go-eth2-client/api"
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
-	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
@@ -48,40 +44,24 @@ type BlockAttestationsProvider interface {
 	BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
 }
 
-type Option func(*httpAdapter)
-
-// WithSyntheticDuties returns an option that enables synthetic duties.
-func WithSyntheticDuties(pubkeys []eth2p0.BLSPubKey) Option {
-	return func(a *httpAdapter) {
-		a.syntheticDuties = true
-		a.synthProposerCache = newSynthProposerCache(pubkeys)
-	}
-}
-
 // NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
-func NewHTTPAdapterForT(_ *testing.T, address string, timeout time.Duration, opts ...Option) *httpAdapter {
-	return newHTTPAdapter(nil, address, timeout, opts...)
+func NewHTTPAdapterForT(_ *testing.T, address string, timeout time.Duration) *httpAdapter {
+	return newHTTPAdapter(nil, address, timeout)
 }
 
 // AdaptEth2HTTP returns a Client wrapping an eth2http service by adding experimental endpoints.
 // Note that the returned client doesn't wrap errors, so they are unstructured without stacktraces.
-func AdaptEth2HTTP(eth2Svc *eth2http.Service, timeout time.Duration, opts ...Option) Client {
-	return newHTTPAdapter(eth2Svc, eth2Svc.Address(), timeout, opts...)
+func AdaptEth2HTTP(eth2Svc *eth2http.Service, timeout time.Duration) Client {
+	return newHTTPAdapter(eth2Svc, eth2Svc.Address(), timeout)
 }
 
 // newHTTPAdapter returns a new http adapter.
-func newHTTPAdapter(ethSvc *eth2http.Service, address string, timeout time.Duration, opts ...Option) *httpAdapter {
-	a := &httpAdapter{
+func newHTTPAdapter(ethSvc *eth2http.Service, address string, timeout time.Duration) *httpAdapter {
+	return &httpAdapter{
 		Service: ethSvc,
 		address: address,
 		timeout: timeout,
 	}
-
-	for _, opt := range opts {
-		opt(a)
-	}
-
-	return a
 }
 
 // httpAdapter implements Client by wrapping and adding the following to eth2http.Service:
@@ -89,98 +69,8 @@ func newHTTPAdapter(ethSvc *eth2http.Service, address string, timeout time.Durat
 //   - synthetic duties
 type httpAdapter struct {
 	*eth2http.Service
-	address            string
-	timeout            time.Duration
-	syntheticDuties    bool
-	synthProposerCache *synthProposerCache
-}
-
-// ProposerDuties returns upstream proposer duties for the provided validator indexes or
-// upstream proposer duties and synthetic duties for all cluster validators if enabled.
-func (h *httpAdapter) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, valIdxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-	if h.syntheticDuties {
-		return h.synthProposerCache.Duties(ctx, h.Service, epoch)
-	}
-
-	return h.Service.ProposerDuties(ctx, epoch, valIdxs)
-}
-
-// BeaconBlockProposal returns an unsigned beacon block, possibly marked as synthetic.
-func (h *httpAdapter) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
-	if h.syntheticDuties {
-		ok, err := h.synthProposerCache.IsSynthetic(ctx, h.Service, slot)
-		if err != nil {
-			return nil, err
-		}
-
-		if ok {
-			graffiti = []byte(syntheticBlockGraffiti)
-		}
-	}
-
-	return h.Service.BeaconBlockProposal(ctx, slot, randao, graffiti)
-}
-
-// BlindedBeaconBlockProposal returns an unsigned blinded beacon block, possibly marked as synthetic.
-func (h *httpAdapter) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, graffiti []byte) (*api.VersionedBlindedBeaconBlock, error) {
-	if h.syntheticDuties {
-		ok, err := h.synthProposerCache.IsSynthetic(ctx, h.Service, slot)
-		if err != nil {
-			return nil, err
-		}
-
-		if ok {
-			graffiti = []byte(syntheticBlockGraffiti)
-		}
-	}
-
-	return h.Service.BlindedBeaconBlockProposal(ctx, slot, randao, graffiti)
-}
-
-// SubmitBlindedBeaconBlock submits a blinded beacon block or swallows it if marked as synthetic.
-func (h *httpAdapter) SubmitBlindedBeaconBlock(ctx context.Context, block *api.VersionedSignedBlindedBeaconBlock) error {
-	var graffiti [32]byte
-	switch block.Version {
-	case spec.DataVersionBellatrix:
-		graffiti = block.Bellatrix.Message.Body.Graffiti
-	default:
-		return errors.New("unknown block version")
-	}
-
-	var synthGraffiti [32]byte
-	copy(synthGraffiti[:], syntheticBlockGraffiti)
-	if graffiti == synthGraffiti {
-		log.Debug(ctx, "Synthetic blinded beacon block swallowed")
-		return nil
-	}
-
-	return h.Service.SubmitBlindedBeaconBlock(ctx, block)
-}
-
-// SubmitBeaconBlock submits a beacon block or swallows it if marked as synthetic.
-func (h *httpAdapter) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
-	var graffiti [32]byte
-	switch block.Version {
-	case spec.DataVersionPhase0:
-		graffiti = block.Phase0.Message.Body.Graffiti
-	case spec.DataVersionAltair:
-		graffiti = block.Altair.Message.Body.Graffiti
-	case spec.DataVersionBellatrix:
-		graffiti = block.Bellatrix.Message.Body.Graffiti
-	case spec.DataVersionCapella:
-		graffiti = block.Capella.Message.Body.Graffiti
-	default:
-		return errors.New("unknown block version")
-	}
-
-	var synthGraffiti [32]byte
-	copy(synthGraffiti[:], syntheticBlockGraffiti)
-	if graffiti == synthGraffiti {
-		log.Debug(ctx, "Synthetic beacon block swallowed")
-		return nil
-	}
-
-	return h.Service.SubmitBeaconBlock(ctx, block)
+	address string
+	timeout time.Duration
 }
 
 // AggregateBeaconCommitteeSelections implements eth2exp.BeaconCommitteeSelectionAggregator.

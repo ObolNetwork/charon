@@ -73,9 +73,9 @@ func TestSynthProposer(t *testing.T) {
 
 	srv := httptest.NewServer(router)
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Hour, []string{srv.URL},
-		eth2wrap.WithSyntheticDuties(set.PublicKeys()))
+	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Hour, srv.URL)
 	require.NoError(t, err)
+	eth2Cl = eth2wrap.WithSyntheticDuties(eth2Cl, set.PublicKeys())
 
 	// Get synthetic duties
 	duties, err := eth2Cl.ProposerDuties(ctx, epoch, nil)
