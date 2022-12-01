@@ -32,7 +32,7 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
-func TestSyncthProposer(t *testing.T) {
+func TestSynthProposer(t *testing.T) {
 	ctx := context.Background()
 
 	var (
