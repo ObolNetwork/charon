@@ -159,6 +159,12 @@ var ruleLabels = map[UponRule]string{
 	UponRoundTimeout:             "round_timeout",
 }
 
+// dedupKey defines the key used to deduplicate upon rules.
+type dedupKey struct {
+	UponRule UponRule
+	Round    int64
+}
+
 // Run executes the consensus algorithm until the context closed.
 // The generic type I is the instance of consensus and can be anything.
 // The generic type V is the arbitrary data value being proposed; it only requires an Equal method.
@@ -188,7 +194,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		preparedJustification []Msg[I, V]
 		qCommit               []Msg[I, V]
 		buffer                = make(map[int64][]Msg[I, V])
-		dedupRules            = make(map[UponRule]int64) // map[UponRule]msg.Round()
+		dedupRules            = make(map[dedupKey]bool)
 		timerChan             <-chan time.Time
 		stopTimer             func()
 	)
@@ -219,17 +225,12 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 	// isDuplicatedRule returns true if the rule has been already executed since last round change.
 	isDuplicatedRule := func(rule UponRule, msgRound int64) bool {
-		prevRound, ok := dedupRules[rule]
-		if !ok {
-			dedupRules[rule] = msgRound
+		key := dedupKey{UponRule: rule, Round: msgRound}
+
+		if !dedupRules[key] {
+			dedupRules[key] = true
 
 			return false
-		}
-
-		if prevRound != msgRound {
-			// Upon rules are either for the current round,
-			// or for a future round followed by a round change (which clears this map).
-			panic("bug: duplicate rule, but different round")
 		}
 
 		return true
@@ -242,7 +243,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		}
 		d.LogRoundChange(ctx, instance, process, round, newRound, rule, extractRoundMsgs(buffer, round))
 		round = newRound
-		dedupRules = make(map[UponRule]int64)
+		dedupRules = make(map[dedupKey]bool)
 	}
 
 	// === Algorithm ===
