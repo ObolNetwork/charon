@@ -90,7 +90,7 @@
     },
     {
      "Key": "synthetic-block-proposals",
-     "Value": "true"
+     "Value": "\"true\""
     }
    ],
    "Ports": [
@@ -198,7 +198,7 @@
     },
     {
      "Key": "synthetic-block-proposals",
-     "Value": "true"
+     "Value": "\"true\""
     }
    ],
    "Ports": [
@@ -306,7 +306,7 @@
     },
     {
      "Key": "synthetic-block-proposals",
-     "Value": "true"
+     "Value": "\"true\""
     }
    ],
    "Ports": [
@@ -414,7 +414,7 @@
     },
     {
      "Key": "synthetic-block-proposals",
-     "Value": "true"
+     "Value": "\"true\""
     }
    ],
    "Ports": [
