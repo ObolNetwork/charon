@@ -44,6 +44,15 @@ type AddProjectV2ItemByIdInput struct { //nolint:revive,stylecheck
 	ContentID gh.ID `json:"contentId"`
 }
 
+// AddAssigneesToAssignableInput is an input for AddAssigneesToAssignable.
+// https://docs.github.com/en/graphql/reference/input-objects#addassigneestoassignableinput
+type AddAssigneesToAssignableInput struct {
+	// The id of the assignable object to add assignees to. (Required.)
+	AssignableID gh.ID `json:"assignableId"`
+	// The id of users to add as assignees. (Required.)
+	AssigneeIDs []gh.ID `json:"assigneeIds"`
+}
+
 // projectQuery represents the graphql response when querying GitHub graphql API for a project. Note that we query only for the first 25 fields.
 // https://docs.github.com/en/graphql/reference/queries#organization
 type projectQuery struct {
@@ -105,4 +114,16 @@ type setFieldMutation struct {
 			ID gh.ID `graphql:"id"`
 		} `graphql:"projectV2Item"`
 	} `graphql:"updateProjectV2ItemFieldValue(input: $input)"`
+}
+
+// addAssigneesToAssignable adds assignees to an assignable object..
+// https://docs.github.com/en/graphql/reference/mutations#addassigneestoassignable
+type addAssigneesToAssignable struct {
+	UpdateProjectV2ItemFieldValue struct {
+		Assignable struct {
+			Assignees struct {
+				TotalCount int `json:"totalCount"`
+			} `graphql:"assignees"`
+		} `graphql:"assignable"`
+	} `graphql:"addAssigneesToAssignable(input: $input)"`
 }
