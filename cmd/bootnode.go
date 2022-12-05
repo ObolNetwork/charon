@@ -135,6 +135,7 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 
 	go func() {
 		if !config.P2PRelay {
+			log.SetLokiLabels(nil)
 			return
 		}
 
@@ -161,6 +162,10 @@ func RunBootnode(ctx context.Context, config BootnodeConfig) error {
 			p2pErr <- errors.Wrap(err, "new tcp node")
 			return
 		}
+
+		log.SetLokiLabels(map[string]string{
+			"bootnode_peer": p2p.PeerName(tcpNode.ID()),
+		})
 
 		p2p.RegisterConnectionLogger(tcpNode, nil)
 

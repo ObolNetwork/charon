@@ -54,26 +54,31 @@ var (
 	logger zapLogger = newDefaultLogger()
 	// stopFuncs are the global logger stop functions.
 	stopFuncs []func(context.Context)
-	// labels are the global logger labels.
-	labels map[string]string
+	// lokiLabels are the global loki logger labels.
+	lokiLabels map[string]string
 
 	padding = strings.Repeat(" ", padLength)
 )
 
-// getLabels returns the global logger labels and whether they are populated.
-func getLabels() (map[string]string, bool) {
+// getLokiLabels returns the global loki logger labels and whether they are populated.
+func getLokiLabels() (map[string]string, bool) {
 	initMu.RLock()
 	defer initMu.RUnlock()
 
-	return labels, len(labels) > 0
+	return lokiLabels, lokiLabels != nil
 }
 
-// SetLabels sets the global logger labels.
-func SetLabels(l map[string]string) {
+// SetLokiLabels sets the global logger loki labels.
+func SetLokiLabels(l map[string]string) {
 	initMu.Lock()
 	defer initMu.Unlock()
 
-	labels = l
+	if l == nil {
+		lokiLabels = make(map[string]string)
+		return
+	}
+
+	lokiLabels = l
 }
 
 // Config defines the logging configuration.
@@ -139,7 +144,7 @@ func InitLogger(config Config) error {
 		// Create a multi logger
 		loggers := multiLogger{logger}
 		for _, address := range config.LokiAddresses {
-			lokiCl := loki.New(address, config.LokiService, logFunc, getLabels)
+			lokiCl := loki.New(address, config.LokiService, logFunc, getLokiLabels)
 			lokiLogger, err := newStructuredLogger("logfmt", zapcore.DebugLevel, lokiWriter{cl: lokiCl})
 			if err != nil {
 				return err

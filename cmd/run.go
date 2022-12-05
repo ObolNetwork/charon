@@ -58,6 +58,9 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 	return cmd
 }
 
+// bindLokiFlags binds the loki flags to the config.
+// Note all commands that use this MUST also call log.SetLokiLabels
+// or logs will not be sent to loki.
 func bindLokiFlags(flags *pflag.FlagSet, config *log.Config) {
 	flags.StringSliceVar(&config.LokiAddresses, "loki-addresses", nil, "Enables sending of logfmt structured logs to these Loki log aggregation server addresses. This is in addition to normal stderr logs.")
 	flags.StringVar(&config.LokiService, "loki-service", "charon", "Service label sent with logs to Loki.")
