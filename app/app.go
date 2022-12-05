@@ -36,7 +36,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -195,12 +194,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Int("peers", len(lock.Operators)),
 		z.Str("enr", localEnode.Node().String()))
 
-	promRegistry, err := promauto.NewRegistry(prometheus.Labels{
+	// Metric and logging labels.
+	labels := map[string]string{
 		"cluster_hash":    lockHashHex,
 		"cluster_name":    lock.Name,
 		"cluster_peer":    p2p.PeerName(tcpNode.ID()),
 		"cluster_network": network,
-	})
+	}
+	log.SetLabels(labels)
+	promRegistry, err := promauto.NewRegistry(labels)
 	if err != nil {
 		return err
 	}

@@ -33,7 +33,11 @@ import (
 )
 
 func TestLoki(t *testing.T) {
-	const label = "test"
+	const (
+		serviceLabel    = "test"
+		otherLabelKey   = "k"
+		otherLabelValue = "v"
+	)
 
 	received := make(chan string)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -42,13 +46,27 @@ func TestLoki(t *testing.T) {
 		require.NoError(t, r.Body.Close())
 		req := decode(t, b)
 		require.Len(t, req.Streams, 1)
-		require.Contains(t, req.Streams[0].Labels, label)
+		require.Contains(t, req.Streams[0].Labels, fmt.Sprintf(`service="%s"`, serviceLabel))
+		require.Contains(t, req.Streams[0].Labels, fmt.Sprintf(`%s="%s"`, otherLabelKey, otherLabelValue))
 		for _, entry := range req.Streams[0].Entries {
 			received <- entry.Line
 		}
 	}))
 
-	cl := loki.NewForT(srv.URL, label, time.Millisecond, 1024)
+	// Only return lazy labels after 3 attempts.
+	var count int
+	lazyLabels := func() (map[string]string, bool) {
+		count++
+		if count < 3 {
+			return nil, false
+		}
+
+		return map[string]string{
+			otherLabelKey: otherLabelValue,
+		}, true
+	}
+
+	cl := loki.NewForT(srv.URL, serviceLabel, time.Millisecond, 1024, lazyLabels)
 
 	const n = 4
 

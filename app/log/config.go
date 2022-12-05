@@ -49,14 +49,32 @@ type zapLogger interface {
 }
 
 var (
-	initMu sync.Mutex
+	initMu sync.RWMutex
 	// logger is the global logger.
 	logger zapLogger = newDefaultLogger()
 	// stopFuncs are the global logger stop functions.
 	stopFuncs []func(context.Context)
+	// labels are the global logger labels.
+	labels map[string]string
 
 	padding = strings.Repeat(" ", padLength)
 )
+
+// getLabels returns the global logger labels and whether they are populated.
+func getLabels() (map[string]string, bool) {
+	initMu.RLock()
+	defer initMu.RUnlock()
+
+	return labels, len(labels) > 0
+}
+
+// SetLabels sets the global logger labels.
+func SetLabels(l map[string]string) {
+	initMu.Lock()
+	defer initMu.Unlock()
+
+	labels = l
+}
 
 // Config defines the logging configuration.
 type Config struct {
@@ -121,7 +139,7 @@ func InitLogger(config Config) error {
 		// Create a multi logger
 		loggers := multiLogger{logger}
 		for _, address := range config.LokiAddresses {
-			lokiCl := loki.New(address, config.LokiService, logFunc)
+			lokiCl := loki.New(address, config.LokiService, logFunc, getLabels)
 			lokiLogger, err := newStructuredLogger("logfmt", zapcore.DebugLevel, lokiWriter{cl: lokiCl})
 			if err != nil {
 				return err
