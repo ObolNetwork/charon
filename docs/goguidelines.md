@@ -119,3 +119,8 @@ Please try to inform your decisions by the following style for improved consiste
 - **Naming**:
   - Data labels should be snake_case. This include json fields, structured logging fields, prometheus labels etc.
   - Go package names should be concise; aim for a single noun (`validator`) or two concatenated nouns (`validatorapi`). Avoid underscores or three word nouns.
+- **Declarations**:
+  - Follow [Dave Cheney's Practical](https://dave.cheney.net/practical-go/presentations/gophercon-israel.html#_use_a_consistent_declaration_style) Go for declarations.
+  - TL;DR:
+    - Use `var foo <type>` when declaring zero types.
+    - Prefer `var foo []slice` over micro-optimization of pre-defining slice lengths, unless in specific hot path.
