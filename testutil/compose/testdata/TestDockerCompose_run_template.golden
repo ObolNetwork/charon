@@ -87,6 +87,10 @@
     {
      "Key": "loki-service",
      "Value": "node0"
+    },
+    {
+     "Key": "synthetic-block-proposals",
+     "Value": "\"true\""
     }
    ],
    "Ports": [
@@ -191,6 +195,10 @@
     {
      "Key": "loki-service",
      "Value": "node1"
+    },
+    {
+     "Key": "synthetic-block-proposals",
+     "Value": "\"true\""
     }
    ],
    "Ports": [
@@ -295,6 +303,10 @@
     {
      "Key": "loki-service",
      "Value": "node2"
+    },
+    {
+     "Key": "synthetic-block-proposals",
+     "Value": "\"true\""
     }
    ],
    "Ports": [
@@ -399,6 +411,10 @@
     {
      "Key": "loki-service",
      "Value": "node3"
+    },
+    {
+     "Key": "synthetic-block-proposals",
+     "Value": "\"true\""
     }
    ],
    "Ports": [

@@ -55,7 +55,7 @@ func TestIntegration(t *testing.T) {
 
 	ctx := context.Background()
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second*2, []string{beaconURL})
+	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second*2, beaconURL)
 	require.NoError(t, err)
 
 	// Use random actual mainnet validators
