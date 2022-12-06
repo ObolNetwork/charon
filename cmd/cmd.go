@@ -29,6 +29,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cmd/bootnode"
 	"github.com/obolnetwork/charon/dkg"
 )
 
@@ -47,7 +48,7 @@ func New() *cobra.Command {
 		newVersionCmd(runVersionCmd),
 		newEnrCmd(runNewENR),
 		newRunCmd(app.Run),
-		newBootnodeCmd(RunBootnode),
+		newBootnodeCmd(bootnode.Run),
 		newDKGCmd(dkg.Run),
 		newCreateCmd(
 			newCreateDKGCmd(runCreateDKG),
