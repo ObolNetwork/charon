@@ -547,6 +547,11 @@ func (a *priorityAsserter) Callback(t *testing.T, i int) func(ctx context.Contex
 		}
 
 		for _, result := range results {
+			if len(result.Priorities) == 0 {
+				// Some but not all peers participated, ignore this result.
+				return nil
+			}
+
 			if !assert.Equal(t, expect[result.Topic], fmt.Sprint(result.PrioritiesOnly())) {
 				return errors.New("unexpected priorities")
 			}
