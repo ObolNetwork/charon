@@ -86,7 +86,7 @@ func Run(ctx context.Context, config Config) error {
 	}
 	defer udpNode.Close()
 
-	// Setup p2p tcp relay (async for snappy startup)
+	// Setup p2p tcp relay (async for snappy startup).
 	var (
 		p2pErr = make(chan error, 1)
 		logP2P = func() {}
