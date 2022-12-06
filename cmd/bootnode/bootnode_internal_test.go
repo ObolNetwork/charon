@@ -13,11 +13,10 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package cmd
+package bootnode
 
 import (
 	"context"
-	"io"
 	"os"
 	"testing"
 
@@ -32,20 +31,20 @@ func TestRunBootnode(t *testing.T) {
 	temp, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	config := BootnodeConfig{
+	config := Config{
 		DataDir:   temp,
 		LogConfig: log.DefaultConfig(),
 		P2PConfig: p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},
 		HTTPAddr:  testutil.AvailableAddr(t).String(),
 	}
 
-	err = runCreateEnrCmd(io.Discard, config.P2PConfig, temp)
+	_, err = p2p.NewSavedPrivKey(temp)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err = RunBootnode(ctx, config)
+	err = Run(ctx, config)
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 }
@@ -54,7 +53,7 @@ func TestRunBootnodeAutoP2P(t *testing.T) {
 	temp, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
-	config := BootnodeConfig{
+	config := Config{
 		DataDir:   temp,
 		LogConfig: log.DefaultConfig(),
 		P2PConfig: p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},
@@ -64,12 +63,12 @@ func TestRunBootnodeAutoP2P(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err = RunBootnode(ctx, config)
+	err = Run(ctx, config)
 	testutil.SkipIfBindErr(t, err)
 	require.Error(t, err)
 
 	config.AutoP2PKey = true
-	err = RunBootnode(ctx, config)
+	err = Run(ctx, config)
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 }
