@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 func TestQBFT(t *testing.T) {
@@ -534,4 +536,66 @@ func makeIsLeader(n int64) func(int64, int64, int64) bool {
 	return func(instance int64, round int64, process int64) bool {
 		return (instance+round)%n == process
 	}
+}
+
+// TestDuplicatePrePreparesRules tests that two pre-prepares for different rounds are not detected as duplicates.
+func TestDuplicatePrePreparesRules(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const (
+		noLeader = 1
+		leader   = 2
+	)
+
+	newPreprepare := func(round int64) Msg[int64, int64] {
+		return msg{
+			msgType: MsgPrePrepare,
+			peerIdx: leader,
+			round:   round,
+			// Justification not required since nodes and quorum both 0.
+		}
+	}
+
+	def := noopDef
+	def.IsLeader = func(_ int64, _ int64, process int64) bool {
+		return process == leader
+	}
+	def.LogUponRule = func(ctx context.Context, instance int64, process, round int64, msg Msg[int64, int64], uponRule UponRule) {
+		log.Info(ctx, "UponRule", z.Str("rule", uponRule.String()), z.I64("round", msg.Round()))
+		require.Equal(t, uponRule, UponJustifiedPrePrepare)
+		if msg.Round() == 1 {
+			return
+		}
+		if msg.Round() == 2 {
+			cancel()
+			return
+		}
+		require.Fail(t, "unexpected round", "round=%d", round)
+	}
+
+	ch := make(chan Msg[int64, int64], 2)
+	ch <- newPreprepare(1)
+	ch <- newPreprepare(2)
+
+	transport := noopTransport
+	transport.Receive = ch
+
+	_ = Run(ctx, def, transport, 0, noLeader, 1)
+}
+
+// noopTransport is a transport that does nothing.
+var noopTransport = Transport[int64, int64]{
+	Broadcast: func(context.Context, MsgType, int64, int64, int64, int64, int64, int64, []Msg[int64, int64]) error {
+		return nil
+	},
+}
+
+// noopDef is a definition that does nothing.
+var noopDef = Definition[int64, int64]{
+	IsLeader:       func(int64, int64, int64) bool { return false },
+	NewTimer:       func(int64) (<-chan time.Time, func()) { return nil, func() {} },
+	LogUponRule:    func(context.Context, int64, int64, int64, Msg[int64, int64], UponRule) {},
+	LogRoundChange: func(context.Context, int64, int64, int64, int64, UponRule, []Msg[int64, int64]) {},
+	LogUnjust:      func(context.Context, int64, int64, Msg[int64, int64]) {},
 }
