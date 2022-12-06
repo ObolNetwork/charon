@@ -17,6 +17,7 @@ package loki
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang/snappy"
@@ -30,15 +31,13 @@ import (
 // to reduce the number of push requests to Loki aggregating multiple
 // entries in a single batch request.
 type batch struct {
-	service   string
 	entries   []*pbv1.Entry
 	bytes     int
 	createdAt time.Time
 }
 
-func newBatch(service string, entries ...*pbv1.Entry) *batch {
+func newBatch(entries ...*pbv1.Entry) *batch {
 	b := &batch{
-		service:   service,
 		createdAt: time.Now(),
 	}
 
@@ -67,10 +66,10 @@ func (b batch) Age() time.Duration {
 
 // Encode the batch as snappy-compressed push request, and returns
 // the encoded bytes and the number of encoded entries.
-func (b batch) Encode() ([]byte, error) {
+func (b batch) Encode(labels map[string]string) ([]byte, error) {
 	buf, err := proto.Marshal(&pbv1.PushRequest{
 		Streams: []*pbv1.Stream{{
-			Labels:  fmt.Sprintf(`{service="%s"}`, b.service),
+			Labels:  fmtLabels(labels),
 			Entries: b.entries,
 		}},
 	})
@@ -79,4 +78,18 @@ func (b batch) Encode() ([]byte, error) {
 	}
 
 	return snappy.Encode(nil, buf), nil
+}
+
+// fmtLabels returns the labels map as formatted string.
+func fmtLabels(labels map[string]string) string {
+	if len(labels) == 0 {
+		return "{}"
+	}
+
+	var resp []string
+	for k, v := range labels {
+		resp = append(resp, fmt.Sprintf(`%s="%s"`, k, v))
+	}
+
+	return "{" + strings.Join(resp, ",") + "}"
 }

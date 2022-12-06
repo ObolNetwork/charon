@@ -45,44 +45,51 @@ const (
 	batchMax     = 5 * 1 << 20 // 5MB
 )
 
+// lazyLabelsFunc abstracts lazy loading of labels, logs will only be sent when it returns true.
+type lazyLabelsFunc func() (map[string]string, bool)
+
 // logFunc abstracts logging, since this is a logger itself.
 type logFunc func(string, error)
 
 // NewForT returns a new Client for testing.
-func NewForT(endpoint string, service string, batchWait time.Duration, batchMax int) *Client {
-	return newInternal(endpoint, service, batchWait, batchMax, func(string, error) {})
+func NewForT(endpoint string, serviceLabel string, batchWait time.Duration, batchMax int,
+	moreLabelsFunc lazyLabelsFunc,
+) *Client {
+	return newInternal(endpoint, serviceLabel, batchWait, batchMax, func(string, error) {}, moreLabelsFunc)
 }
 
 // New returns a new Client.
-func New(endpoint string, service string, logFunc logFunc) *Client {
-	return newInternal(endpoint, service, batchWait, batchMax, logFunc)
+func New(endpoint string, serviceLabel string, logFunc logFunc, moreLabelsFunc lazyLabelsFunc) *Client {
+	return newInternal(endpoint, serviceLabel, batchWait, batchMax, logFunc, moreLabelsFunc)
 }
 
-func newInternal(endpoint string, service string, batchWait time.Duration, batchMax int,
-	logFunc logFunc,
+func newInternal(endpoint string, serviceLabel string, batchWait time.Duration, batchMax int,
+	logFunc logFunc, moreLabelsFunc lazyLabelsFunc,
 ) *Client {
 	return &Client{
-		endpoint:  endpoint,
-		service:   service,
-		done:      make(chan struct{}),
-		quit:      make(chan struct{}),
-		input:     make(chan string),
-		batchMax:  batchMax,
-		batchWait: batchWait,
-		logFunc:   logFunc,
+		endpoint:       endpoint,
+		done:           make(chan struct{}),
+		quit:           make(chan struct{}),
+		input:          make(chan string),
+		batchMax:       batchMax,
+		batchWait:      batchWait,
+		logFunc:        logFunc,
+		serviceLabel:   serviceLabel,
+		moreLabelsFunc: moreLabelsFunc,
 	}
 }
 
 // Client for pushing logs in snappy-compressed protos over HTTP.
 type Client struct {
-	input     chan string
-	quit      chan struct{}
-	done      chan struct{}
-	service   string
-	endpoint  string
-	batchWait time.Duration
-	batchMax  int
-	logFunc   logFunc
+	input          chan string
+	quit           chan struct{}
+	done           chan struct{}
+	endpoint       string
+	batchWait      time.Duration
+	batchMax       int
+	serviceLabel   string
+	moreLabelsFunc lazyLabelsFunc
+	logFunc        logFunc
 }
 
 // Run blocks until Stop is called.
@@ -98,7 +105,7 @@ func (c *Client) Run() {
 		backoffConfig = expbackoff.DefaultConfig
 		retries       int
 		triedAt       time.Time
-		batch         = newBatch(c.service) // New empty batch
+		batch         = newBatch() // New empty batch
 		ticker        = time.NewTicker(c.batchWait)
 	)
 	defer close(c.done)
@@ -112,14 +119,14 @@ func (c *Client) Run() {
 				Line:      line,
 			})
 			if batch.Size() > c.batchMax {
-				batch = newBatch(c.service) // Just silently drop, there should have been multiple error logs below.
+				batch = newBatch() // Just silently drop, there should have been multiple error logs below.
 			}
 		case <-c.quit:
-			_ = send(ctx, client, c.endpoint, batch) // On shutdown just try to send once as best effort.
+			_ = send(ctx, client, c.endpoint, batch, c.labels()) // On shutdown just try to send once as best effort.
 			return
 		case <-ticker.C:
-			// Do not send if the batch is too young
-			if batch.Age() < c.batchWait {
+			// Do not send if the batch is too young or labels not ready yet.
+			if batch.Age() < c.batchWait || !c.labelsReady() {
 				continue
 			}
 
@@ -131,7 +138,7 @@ func (c *Client) Run() {
 				}
 			}
 
-			err := send(ctx, client, c.endpoint, batch)
+			err := send(ctx, client, c.endpoint, batch, c.labels())
 			if err != nil {
 				// Log async to avoid deadlock by recursive calls to Add.
 				go c.logFunc("Loki batch send failed", err)
@@ -142,7 +149,7 @@ func (c *Client) Run() {
 				continue
 			}
 
-			batch = newBatch(c.service)
+			batch = newBatch()
 			retries = 0
 		}
 	}
@@ -167,8 +174,28 @@ func (c *Client) Stop(ctx context.Context) {
 	}
 }
 
-func send(ctx context.Context, client *http.Client, endpoint string, batch *batch) error {
-	buf, err := batch.Encode()
+// labelsReady returns true if the lazy labels are ready.
+func (c *Client) labelsReady() bool {
+	_, ok := c.moreLabelsFunc()
+	return ok
+}
+
+// labels returns all labels by merging the service label with those returned by lazyLabelsFunc.
+func (c *Client) labels() map[string]string {
+	labels := map[string]string{
+		"service": c.serviceLabel,
+	}
+
+	kvs, _ := c.moreLabelsFunc()
+	for k, v := range kvs {
+		labels[k] = v
+	}
+
+	return labels
+}
+
+func send(ctx context.Context, client *http.Client, endpoint string, batch *batch, labels map[string]string) error {
+	buf, err := batch.Encode(labels)
 	if err != nil {
 		return err
 	}
