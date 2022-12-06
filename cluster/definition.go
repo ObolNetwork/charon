@@ -152,6 +152,34 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 	return NodeIdx{}, errors.New("peer not in definition")
 }
 
+// VerifyPartialSignatures verifies the partial definition signatures, i.e., valid creator config signature and empty operators.
+func (d Definition) VerifyPartialSignatures() error {
+	if isAnyVersion(d.Version, v1_0, v1_1, v1_2, v1_3) {
+		return errors.New("partial definition only supported from v1.4.0 onwards")
+	}
+
+	if len(d.Operators) == 0 {
+		return errors.New("partial definition operators not empty")
+	}
+
+	if d.Creator.Address == "" || len(d.Creator.ConfigSignature) == 0 {
+		return errors.New("partial definition creator address and signature empty")
+	}
+
+	creatorConfigHashDigest, err := digestEIP712(eip712CreatorConfigHash, d, Operator{})
+	if err != nil {
+		return err
+	}
+
+	if ok, err := verifySig(d.Creator.Address, creatorConfigHashDigest, d.Creator.ConfigSignature); err != nil {
+		return err
+	} else if !ok {
+		return errors.New("invalid creator config signature")
+	}
+
+	return nil
+}
+
 // VerifySignatures returns true if all config signatures are fully populated and valid. A verified definition is ready for use in DKG.
 //
 //nolint:nestif,gocognit // We should try and break this into functions.
@@ -359,6 +387,36 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 	}
 
 	*d = def
+
+	return nil
+}
+
+// VerifyPartialHashes verifies partial definition hashes, i.e., valid config hash and empty definition hash.
+func (d Definition) VerifyPartialHashes() error {
+	if isAnyVersion(d.Version, v1_0, v1_1, v1_2, v1_3) {
+		return errors.New("partial definition only supported from v1.4.0 onwards")
+	}
+
+	if len(d.Operators) == 0 {
+		return errors.New("partial definition operators not empty")
+	}
+
+	if d.Creator.Address == "" {
+		return errors.New("partial definition creator address and signature empty")
+	}
+
+	if len(d.DefinitionHash) != 0 {
+		return errors.New("partial definition definition hash not empty")
+	}
+
+	configHash, err := hashDefinition(d, true)
+	if err != nil {
+		return errors.Wrap(err, "config hash")
+	}
+
+	if !bytes.Equal(d.ConfigHash, configHash[:]) {
+		return errors.New("invalid config hash")
+	}
 
 	return nil
 }
