@@ -44,9 +44,14 @@ type projectData struct {
 }
 
 type PR struct {
-	Title string `json:"title"`
-	Body  string `json:"body"`
-	ID    string `json:"node_id"`
+	Title  string `json:"title"`
+	Body   string `json:"body"`
+	NodeID string `json:"node_id"`
+	User   User   `json:"user"`
+}
+
+type User struct {
+	NodeID string `json:"node_id"`
 }
 
 // PRFromEnv returns the PR by parsing it from "GITHUB_PR" env var or an error.
@@ -62,7 +67,7 @@ func PRFromEnv() (PR, error) {
 		return PR{}, errors.Wrap(err, "unmarshal PR body")
 	}
 
-	if pr.Title == "" || pr.Body == "" || pr.ID == "" {
+	if pr.Title == "" || pr.Body == "" || pr.NodeID == "" {
 		return PR{}, errors.New("pr field not set")
 	}
 
@@ -90,7 +95,7 @@ func track(ctx context.Context, ghToken string, pr PR, organization string, proj
 	}
 
 	// Step 2: Add PR to project board
-	itemID, err := addProjectItem(ctx, client, data.projectID, pr.ID)
+	itemID, err := addProjectItem(ctx, client, data.projectID, pr.NodeID)
 	if err != nil {
 		return errors.Wrap(err, "failed to add to project")
 	}
@@ -106,6 +111,11 @@ func track(ctx context.Context, ghToken string, pr PR, organization string, proj
 
 	if err := setSize(ctx, client, data.projectID, itemID, data.sizeFieldID, 1); err != nil {
 		return errors.Wrap(err, "set size")
+	}
+
+	// Step 4: Assign PR to author
+	if err := assignPR(ctx, client, pr.NodeID, pr.User.NodeID); err != nil {
+		return errors.Wrap(err, "add assignee")
 	}
 
 	return nil
@@ -193,6 +203,19 @@ func addProjectItem(ctx context.Context, client *gh.Client, projectID gh.ID, con
 	}
 
 	return m.AddProjectV2ItemByID.Item.ID, nil
+}
+
+// assignPR sets the assignee field (ex: 1, 2 etc.) of the project item.
+func assignPR(ctx context.Context, client *gh.Client, prID, userID gh.ID) error {
+	m := new(addAssigneesToAssignable)
+	input := AddAssigneesToAssignableInput{
+		AssignableID: prID,
+		AssigneeIDs:  []gh.ID{userID},
+	}
+
+	err := client.Mutate(ctx, m, input, nil)
+
+	return err
 }
 
 // setSize sets the size field (ex: 1, 2 etc.) of the project item.
