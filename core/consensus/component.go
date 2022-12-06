@@ -75,6 +75,8 @@ func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Dut
 				return
 			}
 
+			decidedRoundsGauge.WithLabelValues(duty.Type.String()).Set(float64(qcommit[0].Round()))
+
 			for _, sub := range subs() {
 				if err := sub(ctx, duty, value); err != nil {
 					log.Warn(ctx, "Subscriber error", err)
