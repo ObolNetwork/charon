@@ -158,7 +158,7 @@ func (d Definition) VerifyPartialSignatures() error {
 		return errors.New("partial definition only supported from v1.4.0 onwards")
 	}
 
-	if len(d.Operators) == 0 {
+	if len(d.Operators) != 0 {
 		return errors.New("partial definition operators not empty")
 	}
 
@@ -397,7 +397,7 @@ func (d Definition) VerifyPartialHashes() error {
 		return errors.New("partial definition only supported from v1.4.0 onwards")
 	}
 
-	if len(d.Operators) == 0 {
+	if len(d.Operators) != 0 {
 		return errors.New("partial definition operators not empty")
 	}
 

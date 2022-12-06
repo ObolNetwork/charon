@@ -180,7 +180,7 @@ func TestExamples(t *testing.T) {
 		})
 	}
 
-	defFiles, err := filepath.Glob("examples/*definition*")
+	defFiles, err := filepath.Glob("examples/*-definition*")
 	require.NoError(t, err)
 
 	for _, file := range defFiles {
@@ -193,6 +193,22 @@ func TestExamples(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, def.VerifyHashes())
 			require.NoError(t, def.VerifySignatures())
+		})
+	}
+
+	parDefFiles, err := filepath.Glob("examples/*-partialdefinition*")
+	require.NoError(t, err)
+
+	for _, file := range parDefFiles {
+		t.Run(filepath.Base(file), func(t *testing.T) {
+			b, err := os.ReadFile(file)
+			require.NoError(t, err)
+
+			var def cluster.Definition
+			err = json.Unmarshal(b, &def)
+			require.NoError(t, err)
+			require.NoError(t, def.VerifyPartialHashes())
+			require.NoError(t, def.VerifyPartialSignatures())
 		})
 	}
 }
