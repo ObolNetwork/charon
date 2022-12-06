@@ -431,15 +431,10 @@ func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) h
 		}
 
 		var beaconBlockRoot eth2p0.Root
-		b, ok, err := hexQuery(query, "beacon_block_root")
+		err = hexQueryFixed(query, "beacon_block_root", beaconBlockRoot[:])
 		if err != nil {
 			return nil, err
-		} else if !ok {
-			return nil, errors.New("beacon_block_root query param not found")
-		} else if len(b) != len(beaconBlockRoot) {
-			return nil, errors.New("beacon_block_root query param has wrong length")
 		}
-		copy(beaconBlockRoot[:], b)
 
 		contribution, err := s.SyncCommitteeContribution(ctx, eth2p0.Slot(slot), subcommIdx, beaconBlockRoot)
 		if err != nil {
@@ -472,15 +467,9 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 		}
 
 		var randao eth2p0.BLSSignature
-		b, ok, err := hexQuery(query, "randao_reveal")
-		if err != nil {
+		if err = hexQueryFixed(query, "randao_reveal", randao[:]); err != nil {
 			return nil, err
-		} else if !ok {
-			return nil, errors.New("randao_reveal query param not found")
-		} else if len(b) != len(randao) {
-			return nil, errors.New("randao_reveal query param has wrong length")
 		}
-		copy(randao[:], b)
 
 		graffiti, _, err := hexQuery(query, "graffiti") // Graffiti is optional.
 		if err != nil {
@@ -535,15 +524,9 @@ func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handle
 		}
 
 		var randao eth2p0.BLSSignature
-		b, ok, err := hexQuery(query, "randao_reveal")
-		if err != nil {
+		if err := hexQueryFixed(query, "randao_reveal", randao[:]); err != nil {
 			return nil, err
-		} else if !ok {
-			return nil, errors.New("randao_reveal query param not found")
-		} else if len(b) != len(randao) {
-			return nil, errors.New("randao_reveal query param has wrong length")
 		}
-		copy(randao[:], b)
 
 		block, err := p.BlindedBeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, nil)
 		if err != nil {
@@ -702,15 +685,9 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 		}
 
 		var attDataRoot eth2p0.Root
-		b, ok, err := hexQuery(query, "attestation_data_root")
-		if err != nil {
+		if err := hexQueryFixed(query, "attestation_data_root", attDataRoot[:]); err != nil {
 			return nil, err
-		} else if !ok {
-			return nil, errors.New("attestation_data_root query param not found")
-		} else if len(b) != len(attDataRoot) {
-			return nil, errors.New("attestation_data_root query param has wrong length")
 		}
-		copy(attDataRoot[:], b)
 
 		data, err := p.AggregateAttestation(ctx, eth2p0.Slot(slot), attDataRoot)
 		if err != nil {
@@ -974,6 +951,27 @@ func uintQuery(query url.Values, name string) (uint64, error) {
 	return res, nil
 }
 
+// hexQueryFixed parses a fixed length 0x-hex query parameter into target.
+func hexQueryFixed(query url.Values, name string, target []byte) error {
+	resp, ok, err := hexQuery(query, name)
+	if err != nil {
+		return err
+	} else if !ok {
+		return apiError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("missing 0x-hex query parameter %s", name),
+		}
+	} else if len(resp) != len(target) {
+		return apiError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("invalid length for 0x-hex query parameter %s, expect %d bytes", name, len(target)),
+		}
+	}
+	copy(target, resp)
+
+	return nil
+}
+
 // hexQuery returns a 0x-prefixed hex query parameter with name or false if not present.
 func hexQuery(query url.Values, name string) ([]byte, bool, error) {
 	valueA, ok := query[name]
@@ -984,7 +982,11 @@ func hexQuery(query url.Values, name string) ([]byte, bool, error) {
 
 	resp, err := hex.DecodeString(strings.TrimPrefix(value, "0x"))
 	if err != nil {
-		return nil, false, errors.Wrap(err, "decode hex query param", z.Str("name", name))
+		return nil, false, apiError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("invalid 0x-hex query parameter %s [%s]", name, value),
+			Err:        err,
+		}
 	}
 
 	return resp, true, nil
