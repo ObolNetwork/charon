@@ -98,7 +98,7 @@ func (c *Client) Run(ctx context.Context) error {
 	}
 }
 
-// IsConnected blocks until the connection with the server has been established or returns a context error.
+// IsConnected returns if client is connected to the server or not.
 func (c *Client) IsConnected() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -107,7 +107,7 @@ func (c *Client) IsConnected() bool {
 }
 
 // Shutdown triggers the Run goroutine to shut down gracefully and returns nil after it has returned.
-// It should be called after IsConnected and may only be called once.
+// It should be called after client is connected and may only be called once.
 func (c *Client) Shutdown(ctx context.Context) error {
 	close(c.shutdown)
 
@@ -133,14 +133,6 @@ func (c *Client) clearConnected() {
 	defer c.mu.Unlock()
 
 	c.connected = false
-}
-
-// isConnected returns the shared connected state.
-func (c *Client) isConnected() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return c.connected
 }
 
 // sendMsgs sends period sync protocol messages on the stream until error or shutdown.
