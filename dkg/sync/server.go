@@ -169,14 +169,7 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 	defer stream.Close()
 
 	pID := stream.Conn().RemotePeer()
-	defer func() {
-		s.clearConnected(pID)
-
-		if ctx.Err() == nil {
-			log.Info(ctx, "Peer connection dropped!", z.Str("peer", p2p.PeerName(pID)),
-				z.Str("local_peer", p2p.PeerName(s.tcpNode.ID())))
-		}
-	}()
+	defer s.clearConnected(pID)
 
 	pubkey, err := pID.ExtractPublicKey()
 	if err != nil {

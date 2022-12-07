@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -249,39 +250,40 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 }
 
 func TestSyncFlow(t *testing.T) {
-	if !*slow {
-		t.Skip("skipping slow tests")
-	}
-
-	const (
-		nodes = 4
-		vals  = 2
-	)
-
-	lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0)
+	//if !*slow {
+	//	t.Skip("skipping slow tests")
+	//}
 
 	tests := []struct {
 		name       string
 		connect    []int // Initial connections
 		disconnect []int // Drop some peers
 		reconnect  []int // Connect remaining peers
+		nodes      int
+		vals       int
 	}{
 		{
-			name:       "first",
-			connect:    []int{0, 1, 2},
-			disconnect: []int{0, 1},
-			reconnect:  []int{0, 1, 3},
-		},
-		{
-			name:       "second",
+			name:       "three_connect_one_disconnect",
 			connect:    []int{0, 1, 3},
 			disconnect: []int{3},
 			reconnect:  []int{2, 3},
+			vals:       2,
+			nodes:      4,
+		},
+		{
+			name:       "four_connect_two_disconnect",
+			connect:    []int{0, 1, 2, 3},
+			disconnect: []int{0, 1},
+			reconnect:  []int{0, 1, 4},
+			vals:       4,
+			nodes:      5,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			lock, keys, _ := cluster.NewForT(t, test.vals, test.nodes, test.nodes, 0)
+
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
@@ -293,32 +295,50 @@ func TestSyncFlow(t *testing.T) {
 
 			configs := getConfigs(t, lock.Definition, keys, dir, bootnode)
 
-			dkgs := make([]*testDkg, nodes)
+			// Initialise slice with the given number of nodes since this table tests input node indices as testcases.
+			dkgs := make([]*testDkg, test.nodes)
+
+			var (
+				wg   sync.WaitGroup
+				once bool
+			)
+			callback := func(connected int) {
+				if !once && connected == len(test.connect)-1 {
+					fmt.Println("🔥🔥🔥🔥")
+					wg.Done()
+				}
+			}
 
 			// Start DKG for initial peers.
+			wg.Add(len(test.connect))
 			for _, idx := range test.connect {
-				dkgs[idx] = startNewDKG(configs[idx], errChan)
+				configs[idx].TestSyncCallback = callback
+				dkgs[idx] = startNewDKG(t, configs[idx], errChan)
 			}
+
+			// Wait for initial peers to connect.
+			wg.Wait()
 
 			// Drop some peers.
-			time.Sleep(time.Second * 5) // Give some time to connect.
 			for _, idx := range test.disconnect {
 				dkgs[idx].Stop()
+				<-dkgs[idx].runChan
 			}
 
-			time.Sleep(time.Second * 5) // Give some time to exit.
+			// Do not execute callback again.
+			once = true
 
+			//time.Sleep(time.Second * 5)
 			// Start remaining peers.
 			for _, idx := range test.reconnect {
-				dkgs[idx] = startNewDKG(configs[idx], errChan)
+				dkgs[idx] = startNewDKG(t, configs[idx], errChan)
 			}
 
 			// Assert DKG results
-			for i := 0; i < nodes; i++ {
+			for i := 0; i < test.nodes; i++ {
 				dkgs[i].AssertDone(t)
 			}
 			verifyDKGResults(t, lock.Definition, dir)
-			require.NoError(t, os.RemoveAll(dir))
 		})
 	}
 }
@@ -326,21 +346,20 @@ func TestSyncFlow(t *testing.T) {
 func getConfigs(t *testing.T, def cluster.Definition, keys []*ecdsa.PrivateKey, dir, bootnode string) []dkg.Config {
 	t.Helper()
 
-	conf := dkg.Config{
-		DataDir: dir,
-		P2P: p2p.Config{
-			UDPBootnodes: []string{bootnode},
-		},
-		Log:     log.DefaultConfig(),
-		TestDef: &def,
-	}
-
 	var configs []dkg.Config
 	for i := 0; i < len(def.Operators); i++ {
-		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
-		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
-		conf.P2P.UDPAddr = testutil.AvailableAddr(t).String()
+		conf := dkg.Config{
+			DataDir: path.Join(dir, fmt.Sprintf("node%d", i)),
+			P2P: p2p.Config{
+				UDPBootnodes: []string{bootnode},
+				TCPAddrs:     []string{testutil.AvailableAddr(t).String()},
+				UDPAddr:      testutil.AvailableAddr(t).String(),
+			},
+			Log:     log.DefaultConfig(),
+			TestDef: &def,
+		}
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
+
 		err := crypto.SaveECDSA(p2p.KeyPath(conf.DataDir), keys[i])
 		require.NoError(t, err)
 
@@ -357,9 +376,15 @@ type testDkg struct {
 	errChan <-chan error
 }
 
-func startNewDKG(config dkg.Config, errChan <-chan error) *testDkg {
+func startNewDKG(t *testing.T, config dkg.Config, errChan <-chan error) *testDkg {
+	t.Helper()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	runChan := make(chan error, 1)
+
+	// Assign new addresses to avoid duplication.
+	config.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
+	config.P2P.UDPAddr = testutil.AvailableAddr(t).String()
 
 	go func() {
 		runChan <- dkg.Run(ctx, config)
