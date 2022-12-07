@@ -299,12 +299,12 @@ func TestSyncFlow(t *testing.T) {
 				done = make(map[peer.ID]bool) // To not execute callback more than once per peer.
 			)
 			callback := func(connected int, id peer.ID) {
+				mu.Lock()
+				defer mu.Unlock()
+
 				if once || done[id] || connected != len(test.connect)-1 {
 					return
 				}
-
-				mu.Lock()
-				defer mu.Unlock()
 
 				done[id] = true
 				wg.Done()
