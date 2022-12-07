@@ -51,7 +51,7 @@ type Config struct {
 	Log      log.Config
 
 	TestDef          *cluster.Definition
-	TestSyncCallback func(connected int)
+	TestSyncCallback func(connected int, id peer.ID)
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
@@ -273,7 +273,7 @@ func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, pe
 // startSyncProtocol sets up a sync protocol server and clients for each peer and returns a shutdown function
 // when all peers are connected.
 func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.PrivateKey, defHash []byte, peerIDs []peer.ID,
-	onFailure func(), testCallback func(connected int),
+	onFailure func(), testCallback func(connected int, id peer.ID),
 ) (func(context.Context) error, error) {
 	// Sign definition hash with charon-enr-private-key
 	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))
@@ -323,7 +323,7 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.Privat
 		}
 
 		if testCallback != nil {
-			testCallback(connectedCount)
+			testCallback(connectedCount, tcpNode.ID())
 		}
 
 		// Break if all clients are connected

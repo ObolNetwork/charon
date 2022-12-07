@@ -19,7 +19,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -30,6 +29,7 @@ import (
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -43,8 +43,6 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
-
-var slow = flag.Bool("slow", false, "enable slow tests")
 
 func TestDKG(t *testing.T) {
 	const (
@@ -250,10 +248,6 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 }
 
 func TestSyncFlow(t *testing.T) {
-	//if !*slow {
-	//	t.Skip("skipping slow tests")
-	//}
-
 	tests := []struct {
 		name       string
 		connect    []int // Initial connections
@@ -299,14 +293,21 @@ func TestSyncFlow(t *testing.T) {
 			dkgs := make([]*testDkg, test.nodes)
 
 			var (
+				mu   sync.Mutex
 				wg   sync.WaitGroup
-				once bool
+				once bool                     // 'once' all initial peers are connected.
+				done = make(map[peer.ID]bool) // To not execute callback more than once per peer.
 			)
-			callback := func(connected int) {
-				if !once && connected == len(test.connect)-1 {
-					fmt.Println("🔥🔥🔥🔥")
-					wg.Done()
+			callback := func(connected int, id peer.ID) {
+				if once || done[id] || connected != len(test.connect)-1 {
+					return
 				}
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				done[id] = true
+				wg.Done()
 			}
 
 			// Start DKG for initial peers.
@@ -322,13 +323,14 @@ func TestSyncFlow(t *testing.T) {
 			// Drop some peers.
 			for _, idx := range test.disconnect {
 				dkgs[idx].Stop()
+
+				// Wait for this dkg process to return.
 				<-dkgs[idx].runChan
 			}
 
 			// Do not execute callback again.
 			once = true
 
-			//time.Sleep(time.Second * 5)
 			// Start remaining peers.
 			for _, idx := range test.reconnect {
 				dkgs[idx] = startNewDKG(t, configs[idx], errChan)
@@ -381,10 +383,6 @@ func startNewDKG(t *testing.T, config dkg.Config, errChan <-chan error) *testDkg
 
 	ctx, cancel := context.WithCancel(context.Background())
 	runChan := make(chan error, 1)
-
-	// Assign new addresses to avoid duplication.
-	config.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
-	config.P2P.UDPAddr = testutil.AvailableAddr(t).String()
 
 	go func() {
 		runChan <- dkg.Run(ctx, config)
