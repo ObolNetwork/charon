@@ -29,6 +29,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
+	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -64,6 +65,11 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 		identify.ActivationThresh = 1
 	}
 
+	var tcpOpts []interface{} // libp2p.Transport requires empty interface options.
+	if cfg.DisableReuseport {
+		tcpOpts = append(tcpOpts, tcp.DisableReuseport())
+	}
+
 	// Init options.
 	defaultOpts := []libp2p.Option{
 		// Set P2P identity key.
@@ -84,6 +90,7 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 
 			return append(addrs, externalAddrs...)
 		}),
+		libp2p.Transport(tcp.NewTCPTransport, tcpOpts...),
 	}
 
 	defaultOpts = append(defaultOpts, opts...)

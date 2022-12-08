@@ -141,6 +141,7 @@ Flags:
       --p2p-bootnodes strings              Comma-separated list of discv5 bootnode URLs or ENRs. (default [http://bootnode.lb.gcp.obol.tech:3640/enr])
       --p2p-bootnodes-from-lockfile        Enables using cluster lock ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs.
       --p2p-denylist string                Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.
+      --p2p-disable-reuseport              Disables TCP port reuse for outgoing libp2p connections.
       --p2p-external-hostname string       The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.
       --p2p-external-ip string             The IP address advertised by libp2p. This may be used to advertise an external IP.
       --p2p-tcp-address strings            Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.
