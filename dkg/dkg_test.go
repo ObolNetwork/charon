@@ -75,8 +75,8 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start bootnode
-	bootnode, errChan := startBootnode(ctx, t)
+	// Start bootnode.
+	bnode, errChan := startBootnode(ctx, t)
 
 	// Setup
 	dir, err := os.MkdirTemp("", "")
@@ -85,7 +85,7 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	conf := dkg.Config{
 		DataDir: dir,
 		P2P: p2p.Config{
-			UDPBootnodes: []string{bootnode},
+			UDPBootnodes: []string{bnode},
 		},
 		Log:     log.DefaultConfig(),
 		TestDef: &def,
@@ -281,13 +281,13 @@ func TestSyncFlow(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Start bootnode
-			bootnode, errChan := startBootnode(ctx, t)
+			// Start bootnode.
+			bnode, errChan := startBootnode(ctx, t)
 
 			dir, err := os.MkdirTemp("", "")
 			require.NoError(t, err)
 
-			configs := getConfigs(t, lock.Definition, keys, dir, bootnode)
+			configs := getConfigs(t, lock.Definition, keys, dir, bnode)
 
 			// Initialise slice with the given number of nodes since this table tests input node indices as testcases.
 			dkgs := make([]*testDkg, test.nodes)
@@ -317,7 +317,7 @@ func TestSyncFlow(t *testing.T) {
 				dkgs[idx] = startNewDKG(t, configs[idx], errChan)
 			}
 
-			// Wait for initial peers to connect.
+			// Wait for initial peers to connect with each other.
 			wg.Wait()
 
 			// Drop some peers.

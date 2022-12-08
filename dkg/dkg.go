@@ -308,14 +308,14 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.Privat
 		}()
 	}
 
-	// Check if all clients connected
+	// Check if all clients are connected.
 	for {
 		// Return if there is a context error.
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 
-		connectedCount := 0
+		var connectedCount int
 		for _, client := range clients {
 			if client.IsConnected() {
 				connectedCount++
