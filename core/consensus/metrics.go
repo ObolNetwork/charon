@@ -21,9 +21,19 @@ import (
 	"github.com/obolnetwork/charon/app/promauto"
 )
 
-var decidedRoundsGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-	Namespace: "core",
-	Subsystem: "consensus",
-	Name:      "decided_rounds",
-	Help:      "Number of rounds it took to decide consensus instances by duty type.",
-}, []string{"duty"}) // Using gauge since the value changes slowly, once per slot.
+var (
+	decidedRoundsGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "consensus",
+		Name:      "decided_rounds",
+		Help:      "Number of rounds it took to decide consensus instances by duty type.",
+	}, []string{"duty"}) // Using gauge since the value changes slowly, once per slot.
+
+	consensusDelay = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "core",
+		Subsystem: "consensus",
+		Name:      "completion_delay_seconds",
+		Help:      "Consensus completion delay in seconds by duty",
+		Buckets:   []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 20, 30, 60},
+	}, []string{"duty"})
+)

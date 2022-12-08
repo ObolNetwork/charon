@@ -301,6 +301,11 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		Receive:   t.recvBuffer,
 	}
 
+	startTime := time.Now()
+	defer func() {
+		consensusDelay.WithLabelValues(duty.Type.String()).Observe(time.Until(startTime).Seconds())
+	}()
+
 	// Run the algo, blocking until the context is cancelled.
 	err = qbft.Run[core.Duty, [32]byte](ctx, c.def, qt, duty, peerIdx, hash)
 	if err != nil && !isContextErr(err) {
