@@ -303,7 +303,7 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 
 	startTime := time.Now()
 	defer func() {
-		consensusDelay.WithLabelValues(duty.Type.String()).Observe(time.Until(startTime).Seconds())
+		consensusDuration.WithLabelValues(duty.Type.String()).Observe(time.Until(startTime).Seconds())
 	}()
 
 	// Run the algo, blocking until the context is cancelled.
