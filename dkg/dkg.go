@@ -20,6 +20,7 @@ import (
 	"crypto/ecdsa"
 	crand "crypto/rand"
 	"fmt"
+	"time"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/common"
@@ -49,8 +50,8 @@ type Config struct {
 	P2P      p2p.Config
 	Log      log.Config
 
-	TestDef     *cluster.Definition
-	TestSigning bool
+	TestDef          *cluster.Definition
+	TestSyncCallback func(connected int, id peer.ID)
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
@@ -134,7 +135,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Improve UX of "context cancelled" errors when sync fails.
 	ctx = errors.WithCtxErr(ctx, "p2p connection failed, please retry DKG")
 
-	stopSync, err := startSyncProtocol(ctx, tcpNode, key, def.DefinitionHash, peerIds, cancel)
+	stopSync, err := startSyncProtocol(ctx, tcpNode, key, def.DefinitionHash, peerIds, cancel, conf.TestSyncCallback)
 	if err != nil {
 		return err
 	}
@@ -272,7 +273,7 @@ func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, pe
 // startSyncProtocol sets up a sync protocol server and clients for each peer and returns a shutdown function
 // when all peers are connected.
 func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.PrivateKey, defHash []byte, peerIDs []peer.ID,
-	onFailure func(),
+	onFailure func(), testCallback func(connected int, id peer.ID),
 ) (func(context.Context) error, error) {
 	// Sign definition hash with charon-enr-private-key
 	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))
@@ -307,11 +308,36 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.Privat
 		}()
 	}
 
-	for _, client := range clients {
-		err := client.AwaitConnected(ctx)
-		if err != nil {
-			return nil, err
+	// Check if all clients are connected.
+	for {
+		// Return if there is a context error.
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
+
+		var connectedCount int
+		for _, client := range clients {
+			if client.IsConnected() {
+				connectedCount++
+			}
+		}
+
+		if testCallback != nil {
+			testCallback(connectedCount, tcpNode.ID())
+		}
+
+		// Break if all clients are connected
+		if len(clients) == connectedCount {
+			break
+		}
+
+		// Sleep for 100ms to let clients connect with each other.
+		time.Sleep(time.Millisecond * 100)
+	}
+
+	// Disable reconnecting clients to other peer's server once all clients are connected.
+	for _, client := range clients {
+		client.DisableReconnect()
 	}
 
 	err = server.AwaitAllConnected(ctx)

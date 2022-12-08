@@ -104,16 +104,15 @@ func testCluster(t *testing.T, n int) {
 		server.Start(log.WithTopic(ctx, fmt.Sprintf("server%d", i)))
 	}
 
-	t.Log("client.AwaitConnected")
-	for _, client := range clients {
-		err := client.AwaitConnected(ctx)
-		require.NoError(t, err)
-	}
-
 	t.Log("server.AwaitAllConnected")
 	for _, server := range servers {
 		err := server.AwaitAllConnected(ctx)
 		require.NoError(t, err)
+	}
+
+	t.Log("client.IsConnected")
+	for _, client := range clients {
+		require.True(t, client.IsConnected())
 	}
 
 	go func() {

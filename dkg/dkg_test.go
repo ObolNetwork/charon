@@ -23,11 +23,13 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -73,8 +75,8 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start bootnode
-	bootnode, errChan := startBootnode(ctx, t)
+	// Start bootnode.
+	bnode, errChan := startBootnode(ctx, t)
 
 	// Setup
 	dir, err := os.MkdirTemp("", "")
@@ -83,7 +85,7 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	conf := dkg.Config{
 		DataDir: dir,
 		P2P: p2p.Config{
-			UDPBootnodes: []string{bootnode},
+			UDPBootnodes: []string{bnode},
 		},
 		Log:     log.DefaultConfig(),
 		TestDef: &def,
@@ -133,6 +135,54 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 		testutil.SkipIfBindErr(t, err)
 		require.NoError(t, err)
 	}
+
+	verifyDKGResults(t, def, dir)
+}
+
+// startBootnode starts a charon bootnode and returns its http ENR endpoint.
+func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
+	t.Helper()
+
+	dir, err := os.MkdirTemp("", "")
+	require.NoError(t, err)
+
+	addr := testutil.AvailableAddr(t).String()
+
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- bootnode.Run(ctx, bootnode.Config{
+			DataDir:  dir,
+			HTTPAddr: addr,
+			P2PConfig: p2p.Config{
+				UDPAddr:  testutil.AvailableAddr(t).String(),
+				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
+			},
+			LogConfig: log.Config{
+				Level:  "error",
+				Format: "console",
+			},
+			AutoP2PKey: true,
+			P2PRelay:   true,
+			MaxConns:   1024,
+		})
+	}()
+
+	endpoint := "http://" + addr + "/enr"
+
+	// Wait for bootnode to become available.
+	for ctx.Err() == nil {
+		_, err := http.Get(endpoint)
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+
+	return endpoint, errChan
+}
+
+func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
+	t.Helper()
 
 	// Read generated lock and keystores from disk
 	var (
@@ -197,44 +247,171 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	}
 }
 
-// startBootnode starts a charon bootnode and returns its http ENR endpoint.
-func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
-	t.Helper()
-
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-
-	addr := testutil.AvailableAddr(t).String()
-
-	errChan := make(chan error, 1)
-	go func() {
-		errChan <- bootnode.Run(ctx, bootnode.Config{
-			DataDir:  dir,
-			HTTPAddr: addr,
-			P2PConfig: p2p.Config{
-				UDPAddr:  testutil.AvailableAddr(t).String(),
-				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
-			},
-			LogConfig: log.Config{
-				Level:  "error",
-				Format: "console",
-			},
-			AutoP2PKey: true,
-			P2PRelay:   true,
-			MaxConns:   1024,
-		})
-	}()
-
-	endpoint := "http://" + addr + "/enr"
-
-	// Wait for bootnode to become available.
-	for ctx.Err() == nil {
-		_, err := http.Get(endpoint)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Millisecond * 100)
+func TestSyncFlow(t *testing.T) {
+	tests := []struct {
+		name       string
+		connect    []int // Initial connections
+		disconnect []int // Drop some peers
+		reconnect  []int // Connect remaining peers
+		nodes      int
+		vals       int
+	}{
+		{
+			name:       "three_connect_one_disconnect",
+			connect:    []int{0, 1, 3},
+			disconnect: []int{3},
+			reconnect:  []int{2, 3},
+			vals:       2,
+			nodes:      4,
+		},
+		{
+			name:       "four_connect_two_disconnect",
+			connect:    []int{0, 1, 2, 3},
+			disconnect: []int{0, 1},
+			reconnect:  []int{0, 1, 4},
+			vals:       4,
+			nodes:      5,
+		},
 	}
 
-	return endpoint, errChan
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			lock, keys, _ := cluster.NewForT(t, test.vals, test.nodes, test.nodes, 0)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// Start bootnode.
+			bnode, errChan := startBootnode(ctx, t)
+
+			dir, err := os.MkdirTemp("", "")
+			require.NoError(t, err)
+
+			configs := getConfigs(t, lock.Definition, keys, dir, bnode)
+
+			// Initialise slice with the given number of nodes since this table tests input node indices as testcases.
+			dkgs := make([]*testDkg, test.nodes)
+
+			var (
+				mu   sync.Mutex
+				wg   sync.WaitGroup
+				once bool                     // 'once' all initial peers are connected.
+				done = make(map[peer.ID]bool) // To not execute callback more than once per peer.
+			)
+			callback := func(connected int, id peer.ID) {
+				mu.Lock()
+				defer mu.Unlock()
+
+				if once || done[id] || connected != len(test.connect)-1 {
+					return
+				}
+
+				done[id] = true
+				wg.Done()
+			}
+
+			// Start DKG for initial peers.
+			for _, idx := range test.connect {
+				wg.Add(1)
+				configs[idx].TestSyncCallback = callback
+				dkgs[idx] = startNewDKG(t, configs[idx], errChan)
+			}
+
+			// Wait for initial peers to connect with each other.
+			wg.Wait()
+
+			// Drop some peers.
+			for _, idx := range test.disconnect {
+				dkgs[idx].Stop()
+
+				// Wait for this dkg process to return.
+				<-dkgs[idx].runChan
+			}
+
+			// Do not execute callback again.
+			once = true
+
+			// Start remaining peers.
+			for _, idx := range test.reconnect {
+				dkgs[idx] = startNewDKG(t, configs[idx], errChan)
+			}
+
+			// Assert DKG results
+			for i := 0; i < test.nodes; i++ {
+				dkgs[i].AssertDone(t)
+			}
+			verifyDKGResults(t, lock.Definition, dir)
+		})
+	}
+}
+
+func getConfigs(t *testing.T, def cluster.Definition, keys []*ecdsa.PrivateKey, dir, bootnode string) []dkg.Config {
+	t.Helper()
+
+	var configs []dkg.Config
+	for i := 0; i < len(def.Operators); i++ {
+		conf := dkg.Config{
+			DataDir: path.Join(dir, fmt.Sprintf("node%d", i)),
+			P2P: p2p.Config{
+				UDPBootnodes: []string{bootnode},
+				TCPAddrs:     []string{testutil.AvailableAddr(t).String()},
+				UDPAddr:      testutil.AvailableAddr(t).String(),
+			},
+			Log:     log.DefaultConfig(),
+			TestDef: &def,
+		}
+		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
+
+		err := crypto.SaveECDSA(p2p.KeyPath(conf.DataDir), keys[i])
+		require.NoError(t, err)
+
+		configs = append(configs, conf)
+	}
+
+	return configs
+}
+
+type testDkg struct {
+	ctx     context.Context
+	cancel  context.CancelFunc
+	runChan chan error
+	errChan <-chan error
+}
+
+func startNewDKG(t *testing.T, config dkg.Config, errChan <-chan error) *testDkg {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	runChan := make(chan error, 1)
+
+	go func() {
+		runChan <- dkg.Run(ctx, config)
+	}()
+
+	return &testDkg{
+		ctx:     ctx,
+		cancel:  cancel,
+		runChan: runChan,
+		errChan: errChan,
+	}
+}
+
+func (d *testDkg) Stop() {
+	d.cancel()
+}
+
+func (d *testDkg) AssertDone(t *testing.T) {
+	t.Helper()
+
+	select {
+	case <-d.ctx.Done():
+		return
+	case err := <-d.errChan:
+		testutil.SkipIfBindErr(t, err)
+		require.Fail(t, "bootnode error: %v", err)
+	case err := <-d.runChan:
+		d.cancel()
+		testutil.SkipIfBindErr(t, err)
+		require.NoError(t, err)
+	}
 }
