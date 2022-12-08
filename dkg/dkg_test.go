@@ -311,8 +311,8 @@ func TestSyncFlow(t *testing.T) {
 			}
 
 			// Start DKG for initial peers.
-			wg.Add(len(test.connect))
 			for _, idx := range test.connect {
+				wg.Add(1)
 				configs[idx].TestSyncCallback = callback
 				dkgs[idx] = startNewDKG(t, configs[idx], errChan)
 			}
