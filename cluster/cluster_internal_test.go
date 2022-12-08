@@ -128,6 +128,36 @@ func TestDefinitionVerify(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "empty creator config signature")
 	})
+
+	t.Run("partial definition", func(t *testing.T) {
+		definition := randomDefinition(t, creator, Operator{}, Operator{}, func(def *Definition) {
+			def.Operators = []Operator{}
+		})
+		definition.DefinitionHash = nil
+
+		definition, err = signCreator(secret3, definition)
+		require.NoError(t, err)
+
+		err = definition.VerifyPartialHashes()
+		require.NoError(t, err)
+
+		err = definition.VerifyPartialSignatures()
+		require.NoError(t, err)
+	})
+
+	t.Run("partial definition operators not empty", func(t *testing.T) {
+		definition := randomDefinition(t, creator, Operator{}, Operator{})
+		definition, err = signCreator(secret3, definition)
+		require.NoError(t, err)
+
+		err = definition.VerifyPartialHashes()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "partial definition operators not empty")
+
+		err = definition.VerifyPartialSignatures()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "partial definition operators not empty")
+	})
 }
 
 // randomOperator returns a random ETH1 private key and populated creator struct (excluding config signature).
