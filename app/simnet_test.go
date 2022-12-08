@@ -489,7 +489,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
 		err = c.Run()
-		if ctx.Err() != nil {
+		if err == nil || ctx.Err() != nil {
 			// Expected shutdown
 			return
 		}
