@@ -45,6 +45,8 @@ type Config struct {
 	// BootnodeRelay enables circuit relay via bootnodes if direct connections fail.
 	// Only applicable to charon nodes not bootnodes.
 	BootnodeRelay bool
+	// DisableReuseport disables TCP port reuse for libp2p.
+	DisableReuseport bool
 }
 
 // RelayDiscovery returns true if relay discovery is enabled and discv5 discovery is disabled.
