@@ -346,12 +346,12 @@ type bellatrixBlockJSON struct {
 
 // beaconBlockProposal is used rather than go-eth2-client's BeaconBlockProposal to avoid the randao reveal check
 // refer: https://github.com/attestantio/go-eth2-client/blob/906db73739859de06f46dfa91384675ed9300af0/http/beaconblockproposal.go#L87
-func beaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature,
+func beaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature,
 	graffiti []byte, addr string,
 ) (*spec.VersionedBeaconBlock, error) {
 	endpoint := fmt.Sprintf("/eth/v2/validator/blocks/%d?randao_reveal=%#x&graffiti=%#x",
 		slot, randaoReveal, graffiti)
-	body, err := httpGet(addr, endpoint)
+	body, err := httpGet(ctx, addr, endpoint)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to request beacon block proposal")
 	}
@@ -408,12 +408,12 @@ type bellatrixBlindedBlockJSON struct {
 
 // blindedBeaconBlockProposal is used rather than go-eth2-client's BlindedBeaconBlockProposal to avoid the randao reveal check
 // refer: https://github.com/attestantio/go-eth2-client/blob/dceb0b761e5ea6a75534a7b11d544d91a5d610ee/http/blindedbeaconblockproposal.go#L75
-func blindedBeaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature,
+func blindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature,
 	graffiti []byte, addr string,
 ) (*eth2api.VersionedBlindedBeaconBlock, error) {
 	endpoint := fmt.Sprintf("/eth/v1/validator/blinded_blocks/%d?randao_reveal=%#x&graffiti=%#x",
 		slot, randaoReveal, graffiti)
-	body, err := httpGet(addr, endpoint)
+	body, err := httpGet(ctx, addr, endpoint)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to request beacon block proposal")
 	}
@@ -444,14 +444,20 @@ func blindedBeaconBlockProposal(_ context.Context, slot eth2p0.Slot, randaoRevea
 	return res, nil
 }
 
-func httpGet(base string, endpoint string) ([]byte, error) {
-	url, err := url.Parse(fmt.Sprintf("%s%s", strings.TrimSuffix(base, "/"), endpoint))
+func httpGet(ctx context.Context, base string, endpoint string) ([]byte, error) {
+	u, err := url.Parse(fmt.Sprintf("%s%s", strings.TrimSuffix(base, "/"), endpoint))
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid endpoint")
 	}
-	res, err := http.Get(url.String()) //nolint:noctx // Test code
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "http get")
+		return nil, errors.Wrap(err, "new GET request with ctx")
+	}
+
+	res, err := new(http.Client).Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to call GET endpoint")
 	}
 	defer res.Body.Close()
 
