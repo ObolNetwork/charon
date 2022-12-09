@@ -165,11 +165,11 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			continue // Do not send to self.
 		}
 
-		// Check if peer supports this protocol.
-		if protocols, err := p.tcpNode.Peerstore().GetProtocols(peerID); err != nil || len(protocols) == 0 {
+		supported, known := p2p.ProtocolSupported(p.tcpNode, peerID, protocolID)
+		if !known {
 			// Ignore peer until some protocols detected
 			continue
-		} else if !supported(protocols) {
+		} else if !supported {
 			log.Warn(ctx, "Non-critical peerinfo protocol not supported by peer", nil,
 				z.Str("peer", p2p.PeerName(peerID)),
 				p.noSupportFilters[peerID],
@@ -214,19 +214,6 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			}
 		}(peerID)
 	}
-}
-
-// supported returns true if the peerinfo protocolID is included in the list of protocols.
-func supported(protocols []string) bool {
-	var supported bool
-	for _, p := range protocols {
-		if p == string(protocolID) {
-			supported = true
-			break
-		}
-	}
-
-	return supported
 }
 
 // newMetricsSubmitter returns a prometheus metric submitter.

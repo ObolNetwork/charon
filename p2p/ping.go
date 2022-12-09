@@ -98,7 +98,7 @@ func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 	defer cancel()
 
 	for result := range svc.Ping(ctx, p) {
-		if isRelayError(result.Error) || errors.Is(result.Error, context.Canceled) {
+		if IsRelayError(result.Error) || errors.Is(result.Error, context.Canceled) {
 			// Just exit if relay error or context cancelled.
 			return
 		}
@@ -117,8 +117,8 @@ func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 	}
 }
 
-// isRelayError returns true if the error is due to temporary relay circuit recycling.
-func isRelayError(err error) bool {
+// IsRelayError returns true if the error is due to temporary relay circuit recycling.
+func IsRelayError(err error) bool {
 	return errors.Is(err, network.ErrReset) ||
 		errors.Is(err, network.ErrResourceScopeClosed)
 }

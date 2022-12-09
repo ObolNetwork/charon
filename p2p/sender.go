@@ -142,7 +142,7 @@ func (s *Sender) SendReceive(ctx context.Context, tcpNode host.Host, peerID peer
 // withRelayRetry wraps a function and retries it once if the error is a relay error.
 func withRelayRetry(fn func() error) error {
 	err := fn()
-	if isRelayError(err) { // Retry once if relay error
+	if IsRelayError(err) { // Retry once if relay error
 		err = fn()
 	}
 
@@ -248,4 +248,21 @@ func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID pe
 	}
 
 	return nil
+}
+
+// ProtocolSupported returns whether the peer supports the protocol or whether this is unknown.
+func ProtocolSupported(tcpNode host.Host, peerID peer.ID, protocolID protocol.ID) (supported bool, known bool) {
+	// Check if peer supports this protocol.
+	protocols, err := tcpNode.Peerstore().GetProtocols(peerID)
+	if err != nil || len(protocols) == 0 {
+		return false, false // Unknown
+	}
+
+	for _, p := range protocols {
+		if p == string(protocolID) {
+			return true, true // Supported
+		}
+	}
+
+	return false, true // Not supported
 }
