@@ -129,22 +129,24 @@ func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, slot eth2
 
 // syntheticBlock returns a synthetic beacon block to propose.
 func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot) (*spec.VersionedBeaconBlock, error) {
-	var (
-		signedBlock *spec.VersionedSignedBeaconBlock
-		blockSlot   = slot - 1 // Start with previous slot.
-	)
-	for {
-		var err error
-		signedBlock, err = h.Client.SignedBeaconBlock(ctx, fmt.Sprint(blockSlot))
+	var signedBlock *spec.VersionedSignedBeaconBlock
+
+	// Work our way back from previous slot to find a block to base the synthetic block on.
+	for prev := slot - 1; prev > 0; prev-- {
+		signed, err := h.Client.SignedBeaconBlock(ctx, fmt.Sprint(prev))
 		if err != nil {
 			return nil, err
-		} else if signedBlock == nil { // go-eth2-client returns nil if block is not found.
-			// Try previous slot
-			blockSlot--
+		} else if signed == nil { // go-eth2-client returns nil if block is not found.
 			continue
 		}
 
+		signedBlock = signed
+
 		break
+	}
+
+	if signedBlock == nil {
+		return nil, errors.New("no block found to base synthetic block on")
 	}
 
 	// Convert signed block into unsigned block with synthetic graffiti and correct slot.
