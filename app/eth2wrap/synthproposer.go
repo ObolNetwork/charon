@@ -147,6 +147,8 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot) (*s
 		break
 	}
 
+	// Convert signed block into unsigned block with synthetic graffiti and correct slot.
+
 	var synthGraffiti [32]byte
 	copy(synthGraffiti[:], syntheticBlockGraffiti)
 
@@ -169,6 +171,8 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot) (*s
 		block.Capella = signedBlock.Capella.Message
 		block.Capella.Body.Graffiti = synthGraffiti
 		block.Capella.Slot = slot
+	default:
+		return nil, errors.New("unsupported block version")
 	}
 
 	return block, nil
