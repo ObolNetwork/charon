@@ -23,33 +23,30 @@ import (
 
 var (
 	newConnsCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace:   "bootnode",
-		Subsystem:   "p2p",
-		Name:        "connection_total",
-		Help:        "Total number of connections per peers by cluster",
-		ConstLabels: nil,
-	}, []string{"cluster_hash", "peer"})
+		Namespace: "bootnode",
+		Subsystem: "p2p",
+		Name:      "connection_total",
+		Help:      "Total number of connections by peer and cluster",
+	}, []string{"peer", "peer_cluster"})
 
 	bandwidthInGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace:   "bootnode",
-		Subsystem:   "p2p",
-		Name:        "bandwidth_in",
-		Help:        "Bandwidth rate in by peer and cluster",
-		ConstLabels: nil,
-	}, []string{"cluster_hash", "peer"})
+		Namespace: "bootnode",
+		Subsystem: "p2p",
+		Name:      "bandwidth_in",
+		Help:      "Bandwidth rate in by peer and cluster",
+	}, []string{"peer", "peer_cluster"})
 
 	bandwidthOutGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace:   "bootnode",
-		Subsystem:   "p2p",
-		Name:        "bandwidth_out",
-		Help:        "Bandwidth rate out by peer and cluster",
-		ConstLabels: nil,
-	}, []string{"cluster_hash", "peer"})
+		Namespace: "bootnode",
+		Subsystem: "p2p",
+		Name:      "bandwidth_out",
+		Help:      "Bandwidth rate out by peer and cluster",
+	}, []string{"peer", "peer_cluster"})
 
 	peerPingLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "bootnode",
 		Subsystem: "p2p",
 		Name:      "ping_latency",
-		Help:      "Ping latency by peer",
-	}, []string{"cluster_hash", "peer"})
+		Help:      "Ping latency by peer and cluster",
+	}, []string{"peer", "peer_cluster"})
 )

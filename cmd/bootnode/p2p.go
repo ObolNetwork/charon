@@ -129,9 +129,9 @@ func monitorConnections(ctx context.Context, tcpNode host.Host, reporter metrics
 			name := p2p.PeerName(info.ID)
 			stats := reporter.GetBandwidthForPeer(info.ID)
 
-			bandwidthInGauge.WithLabelValues(info.ClusterHash, name).Set(stats.RateIn)
-			bandwidthOutGauge.WithLabelValues(info.ClusterHash, name).Set(stats.RateOut)
-			newConnsCounter.WithLabelValues(info.ClusterHash, name).Add(float64(conns.New))
+			bandwidthInGauge.WithLabelValues(name, info.ClusterHash).Set(stats.RateIn)
+			bandwidthOutGauge.WithLabelValues(name, info.ClusterHash).Set(stats.RateOut)
+			newConnsCounter.WithLabelValues(name, info.ClusterHash).Add(float64(conns.New))
 
 			// Reset new connection state
 			conns.New = 0
@@ -170,7 +170,7 @@ func monitorConnections(ctx context.Context, tcpNode host.Host, reporter metrics
 						hash = unknownCluster
 					} else {
 						hash = clusterHash(info.LockHash)
-						peerPingLatency.WithLabelValues(hash, name).Observe(rtt.Seconds() / 2)
+						peerPingLatency.WithLabelValues(name, hash).Observe(rtt.Seconds() / 2)
 					}
 
 					//  Enqueue peer for instrumentation (async since blocking)

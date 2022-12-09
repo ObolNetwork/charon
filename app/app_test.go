@@ -281,8 +281,7 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
-
-	require.NoError(t, err)
+	testutil.RequireNoError(t, err)
 }
 
 // startBootnode starts a charon bootnode and returns its http ENR endpoint.
