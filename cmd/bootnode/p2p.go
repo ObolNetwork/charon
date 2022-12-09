@@ -121,7 +121,7 @@ func monitorConnections(ctx context.Context, tcpNode host.Host, reporter metrics
 		case <-ctx.Done():
 			return
 		case info := <-infos:
-			// Instrument peer every time we get peerinfo response
+			// Instrument peer every time we get peerinfo respsonse
 			conns, ok := peers[info.ID]
 			if !ok {
 				continue // Peer not connected anymore
@@ -133,13 +133,10 @@ func monitorConnections(ctx context.Context, tcpNode host.Host, reporter metrics
 			bandwidthOutGauge.WithLabelValues(info.ClusterHash, name).Set(stats.RateOut)
 			newConnsCounter.WithLabelValues(info.ClusterHash, name).Add(float64(conns.New))
 
-			// Update/reset state
+			// Reset new connection state
 			conns.New = 0
-			if conns.Active == 0 {
-				delete(peers, info.ID)
-			} else {
-				peers[info.ID] = conns
-			}
+			peers[info.ID] = conns
+
 		case e := <-events:
 			// Update peer connection data on libp2p events.
 			conns := peers[e.Peer]
