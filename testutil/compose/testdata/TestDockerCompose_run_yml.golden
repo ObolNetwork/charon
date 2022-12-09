@@ -25,7 +25,7 @@ services:
       CHARON_DATA_DIR: /compose/node0
       CHARON_JAEGER_SERVICE: node0
       CHARON_JAEGER_ADDRESS: jaeger:6831
-      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_LOCK_FILE: /compose/node0/cluster-lock.json
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINT: 
       CHARON_SIMNET_BEACON_MOCK: "true"
@@ -60,7 +60,7 @@ services:
       CHARON_DATA_DIR: /compose/node1
       CHARON_JAEGER_SERVICE: node1
       CHARON_JAEGER_ADDRESS: jaeger:6831
-      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_LOCK_FILE: /compose/node1/cluster-lock.json
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINT: 
       CHARON_SIMNET_BEACON_MOCK: "true"
@@ -95,7 +95,7 @@ services:
       CHARON_DATA_DIR: /compose/node2
       CHARON_JAEGER_SERVICE: node2
       CHARON_JAEGER_ADDRESS: jaeger:6831
-      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_LOCK_FILE: /compose/node2/cluster-lock.json
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINT: 
       CHARON_SIMNET_BEACON_MOCK: "true"
@@ -130,7 +130,7 @@ services:
       CHARON_DATA_DIR: /compose/node3
       CHARON_JAEGER_SERVICE: node3
       CHARON_JAEGER_ADDRESS: jaeger:6831
-      CHARON_LOCK_FILE: /compose/cluster-lock.json
+      CHARON_LOCK_FILE: /compose/node3/cluster-lock.json
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINT: 
       CHARON_SIMNET_BEACON_MOCK: "true"
