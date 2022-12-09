@@ -150,7 +150,7 @@ func TestRawRouter(t *testing.T) {
 		handler := testHandler{}
 		handler.BeaconBlockProposalFunc = func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
 			require.Empty(t, graffiti)
-			resp := testutil.RandomCoreVersionBeaconBlock(t).VersionedBeaconBlock
+			resp := testutil.RandomCoreVersionBeaconBlock().VersionedBeaconBlock
 
 			return &resp, nil
 		}
@@ -601,7 +601,7 @@ func TestRouter(t *testing.T) {
 		block1 := &spec.VersionedSignedBeaconBlock{
 			Version: spec.DataVersionAltair,
 			Altair: &altair.SignedBeaconBlock{
-				Message:   testutil.RandomAltairBeaconBlock(t),
+				Message:   testutil.RandomAltairBeaconBlock(),
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}
@@ -624,7 +624,7 @@ func TestRouter(t *testing.T) {
 		block1 := &spec.VersionedSignedBeaconBlock{
 			Version: spec.DataVersionBellatrix,
 			Bellatrix: &bellatrix.SignedBeaconBlock{
-				Message:   testutil.RandomBellatrixBeaconBlock(t),
+				Message:   testutil.RandomBellatrixBeaconBlock(),
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}
@@ -647,7 +647,7 @@ func TestRouter(t *testing.T) {
 		block1 := &eth2api.VersionedSignedBlindedBeaconBlock{
 			Version: spec.DataVersionBellatrix,
 			Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-				Message:   testutil.RandomBellatrixBlindedBeaconBlock(t),
+				Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}

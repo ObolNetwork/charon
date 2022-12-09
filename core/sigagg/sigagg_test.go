@@ -242,7 +242,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			block: &spec.VersionedSignedBeaconBlock{
 				Version: spec.DataVersionAltair,
 				Altair: &altair.SignedBeaconBlock{
-					Message:   testutil.RandomAltairBeaconBlock(t),
+					Message:   testutil.RandomAltairBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
 				},
 			},
@@ -252,7 +252,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			block: &spec.VersionedSignedBeaconBlock{
 				Version: spec.DataVersionBellatrix,
 				Bellatrix: &bellatrix.SignedBeaconBlock{
-					Message:   testutil.RandomBellatrixBeaconBlock(t),
+					Message:   testutil.RandomBellatrixBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
 				},
 			},
@@ -337,7 +337,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			block: &eth2api.VersionedSignedBlindedBeaconBlock{
 				Version: spec.DataVersionBellatrix,
 				Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-					Message:   testutil.RandomBellatrixBlindedBeaconBlock(t),
+					Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
 				},
 			},

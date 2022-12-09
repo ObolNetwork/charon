@@ -26,6 +26,7 @@ import (
 	"github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	shuffle "github.com/protolambda/eth2-shuffle"
 
@@ -33,8 +34,10 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 )
 
-// maxCachedEpochs limits the amount of epochs to cache.
-const maxCachedEpochs = 10
+const (
+	// maxCachedEpochs limits the amount of epochs to cache.
+	maxCachedEpochs = 10
+)
 
 type synthProposerEth2Provider interface {
 	eth2client.ValidatorsProvider
@@ -62,13 +65,11 @@ func (h *synthWrapper) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot
 	ok, err := h.synthProposerCache.IsSynthetic(ctx, h.Client, slot)
 	if err != nil {
 		return nil, err
+	} else if !ok {
+		return h.Client.BeaconBlockProposal(ctx, slot, randao, graffiti)
 	}
 
-	if ok {
-		graffiti = []byte(syntheticBlockGraffiti)
-	}
-
-	return h.Client.BeaconBlockProposal(ctx, slot, randao, graffiti)
+	return h.syntheticBlock(ctx, slot)
 }
 
 // BlindedBeaconBlockProposal returns an unsigned blinded beacon block, possibly marked as synthetic.
@@ -76,13 +77,107 @@ func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, slot eth2
 	ok, err := h.synthProposerCache.IsSynthetic(ctx, h.Client, slot)
 	if err != nil {
 		return nil, err
+	} else if !ok {
+		return h.Client.BlindedBeaconBlockProposal(ctx, slot, randao, graffiti)
 	}
 
-	if ok {
-		graffiti = []byte(syntheticBlockGraffiti)
+	block, err := h.syntheticBlock(ctx, slot)
+	if err != nil {
+		return nil, err
+	} else if block.Version != spec.DataVersionBellatrix {
+		return nil, errors.New("unsupported blinded block version")
 	}
 
-	return h.Client.BlindedBeaconBlockProposal(ctx, slot, randao, graffiti)
+	// Convert normal block into blinded block.
+	return &api.VersionedBlindedBeaconBlock{
+		Version: block.Version,
+		Bellatrix: &eth2v1.BlindedBeaconBlock{
+			Slot:          block.Bellatrix.Slot,
+			ProposerIndex: block.Bellatrix.ProposerIndex,
+			ParentRoot:    block.Bellatrix.ParentRoot,
+			StateRoot:     block.Bellatrix.StateRoot,
+			Body: &eth2v1.BlindedBeaconBlockBody{
+				RANDAOReveal:      block.Bellatrix.Body.RANDAOReveal,
+				ETH1Data:          block.Bellatrix.Body.ETH1Data,
+				Graffiti:          block.Bellatrix.Body.Graffiti,
+				ProposerSlashings: block.Bellatrix.Body.ProposerSlashings,
+				AttesterSlashings: block.Bellatrix.Body.AttesterSlashings,
+				Attestations:      block.Bellatrix.Body.Attestations,
+				Deposits:          block.Bellatrix.Body.Deposits,
+				VoluntaryExits:    block.Bellatrix.Body.VoluntaryExits,
+				SyncAggregate:     block.Bellatrix.Body.SyncAggregate,
+				ExecutionPayloadHeader: &bellatrix.ExecutionPayloadHeader{
+					ParentHash:       block.Bellatrix.Body.ExecutionPayload.ParentHash,
+					FeeRecipient:     block.Bellatrix.Body.ExecutionPayload.FeeRecipient,
+					StateRoot:        block.Bellatrix.Body.ExecutionPayload.StateRoot,
+					ReceiptsRoot:     block.Bellatrix.Body.ExecutionPayload.ReceiptsRoot,
+					LogsBloom:        block.Bellatrix.Body.ExecutionPayload.LogsBloom,
+					PrevRandao:       block.Bellatrix.Body.ExecutionPayload.PrevRandao,
+					BlockNumber:      block.Bellatrix.Body.ExecutionPayload.BlockNumber,
+					GasLimit:         block.Bellatrix.Body.ExecutionPayload.GasLimit,
+					GasUsed:          block.Bellatrix.Body.ExecutionPayload.GasUsed,
+					Timestamp:        block.Bellatrix.Body.ExecutionPayload.Timestamp,
+					ExtraData:        block.Bellatrix.Body.ExecutionPayload.ExtraData,
+					BaseFeePerGas:    block.Bellatrix.Body.ExecutionPayload.BaseFeePerGas,
+					BlockHash:        block.Bellatrix.Body.ExecutionPayload.BlockHash,
+					TransactionsRoot: eth2p0.Root{}, // Use empty root.
+				},
+			},
+		},
+	}, nil
+}
+
+// syntheticBlock returns a synthetic beacon block to propose.
+func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot) (*spec.VersionedBeaconBlock, error) {
+	var signedBlock *spec.VersionedSignedBeaconBlock
+
+	// Work our way back from previous slot to find a block to base the synthetic block on.
+	for prev := slot - 1; prev > 0; prev-- {
+		signed, err := h.Client.SignedBeaconBlock(ctx, fmt.Sprint(prev))
+		if err != nil {
+			return nil, err
+		} else if signed == nil { // go-eth2-client returns nil if block is not found.
+			continue
+		}
+
+		signedBlock = signed
+
+		break
+	}
+
+	if signedBlock == nil {
+		return nil, errors.New("no block found to base synthetic block on")
+	}
+
+	// Convert signed block into unsigned block with synthetic graffiti and correct slot.
+
+	var synthGraffiti [32]byte
+	copy(synthGraffiti[:], syntheticBlockGraffiti)
+
+	block := &spec.VersionedBeaconBlock{Version: signedBlock.Version}
+
+	switch signedBlock.Version {
+	case spec.DataVersionPhase0:
+		block.Phase0 = signedBlock.Phase0.Message
+		block.Phase0.Body.Graffiti = synthGraffiti
+		block.Phase0.Slot = slot
+	case spec.DataVersionAltair:
+		block.Altair = signedBlock.Altair.Message
+		block.Altair.Body.Graffiti = synthGraffiti
+		block.Altair.Slot = slot
+	case spec.DataVersionBellatrix:
+		block.Bellatrix = signedBlock.Bellatrix.Message
+		block.Bellatrix.Body.Graffiti = synthGraffiti
+		block.Bellatrix.Slot = slot
+	case spec.DataVersionCapella:
+		block.Capella = signedBlock.Capella.Message
+		block.Capella.Body.Graffiti = synthGraffiti
+		block.Capella.Slot = slot
+	default:
+		return nil, errors.New("unsupported block version")
+	}
+
+	return block, nil
 }
 
 // SubmitBlindedBeaconBlock submits a blinded beacon block or swallows it if marked as synthetic.

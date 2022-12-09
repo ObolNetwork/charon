@@ -116,6 +116,7 @@ type Client interface {
 		"SlotDurationProvider":                  false,
 		"SlotsPerEpochProvider":                 false,
 		"SpecProvider":                          false,
+		"SignedBeaconBlockProvider":             true,
 		"SyncCommitteeDutiesProvider":           true,
 		"SyncCommitteeContributionProvider":     true,
 		"SyncCommitteeContributionsSubmitter":   true,

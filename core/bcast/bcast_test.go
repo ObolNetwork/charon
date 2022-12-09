@@ -154,7 +154,7 @@ func blindedBeaconBlockData(t *testing.T, mock *beaconmock.Mock) test {
 	block1 := eth2api.VersionedSignedBlindedBeaconBlock{
 		Version: spec.DataVersionBellatrix,
 		Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-			Message:   testutil.RandomBellatrixBlindedBeaconBlock(t),
+			Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
 			Signature: testutil.RandomEth2Signature(),
 		},
 	}

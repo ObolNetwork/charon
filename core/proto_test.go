@@ -54,11 +54,11 @@ func TestParSignedDataSetProto(t *testing.T) {
 		},
 		{
 			Type: core.DutyProposer,
-			Data: testutil.RandomCoreVersionSignedBeaconBlock(t),
+			Data: testutil.RandomCoreVersionSignedBeaconBlock(),
 		},
 		{
 			Type: core.DutyBuilderProposer,
-			Data: testutil.RandomCoreVersionSignedBlindedBeaconBlock(t),
+			Data: testutil.RandomCoreVersionSignedBlindedBeaconBlock(),
 		},
 		{
 			Type: core.DutyBuilderRegistration,
@@ -128,11 +128,11 @@ func TestUnsignedDataToProto(t *testing.T) {
 		},
 		{
 			Type: core.DutyProposer,
-			Data: testutil.RandomCoreVersionBeaconBlock(t),
+			Data: testutil.RandomCoreVersionBeaconBlock(),
 		},
 		{
 			Type: core.DutyBuilderProposer,
-			Data: testutil.RandomCoreVersionBlindedBeaconBlock(t),
+			Data: testutil.RandomCoreVersionBlindedBeaconBlock(),
 		},
 		{
 			Type: core.DutyAggregator,
@@ -233,8 +233,8 @@ func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
 	return map[core.DutyType]core.SignedData{
 		core.DutyAttester:                core.NewAttestation(testutil.RandomAttestation()),
 		core.DutyExit:                    core.NewSignedVoluntaryExit(testutil.RandomExit()),
-		core.DutyRandao:                  core.SignedRandao{eth2util.SignedEpoch{Epoch: testutil.RandomEpoch(), Signature: testutil.RandomEth2Signature()}},
-		core.DutyProposer:                testutil.RandomCoreVersionSignedBeaconBlock(t),
+		core.DutyRandao:                  core.SignedRandao{SignedEpoch: eth2util.SignedEpoch{Epoch: testutil.RandomEpoch(), Signature: testutil.RandomEth2Signature()}},
+		core.DutyProposer:                testutil.RandomCoreVersionSignedBeaconBlock(),
 		core.DutyPrepareAggregator:       testutil.RandomCoreBeaconCommitteeSelection(),
 		core.DutyAggregator:              core.NewSignedAggregateAndProof(testutil.RandomSignedAggregateAndProof()),
 		core.DutyPrepareSyncContribution: core.NewSyncCommitteeSelection(testutil.RandomSyncCommitteeSelection()),

@@ -42,7 +42,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 				VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
 					Version: spec.DataVersionBellatrix,
 					Bellatrix: &bellatrix.SignedBeaconBlock{
-						Message:   testutil.RandomBellatrixBeaconBlock(t),
+						Message:   testutil.RandomBellatrixBeaconBlock(),
 						Signature: testutil.RandomEth2Signature(),
 					},
 				},
@@ -54,7 +54,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 				VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
 					Version: spec.DataVersionBellatrix,
 					Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-						Message:   testutil.RandomBellatrixBlindedBeaconBlock(t),
+						Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
 						Signature: testutil.RandomEth2Signature(),
 					},
 				},

@@ -411,7 +411,7 @@ func TestMemDBBuilderProposer(t *testing.T) {
 	for i := 0; i < queries; i++ {
 		blocks[i] = &eth2api.VersionedBlindedBeaconBlock{
 			Version:   spec.DataVersionBellatrix,
-			Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(t),
+			Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 		}
 		blocks[i].Bellatrix.Slot = eth2p0.Slot(slots[i])
 		blocks[i].Bellatrix.ProposerIndex = eth2p0.ValidatorIndex(i)
@@ -444,12 +444,12 @@ func TestMemDBClashingBlindedBlocks(t *testing.T) {
 	const slot = 123
 	block1 := &eth2api.VersionedBlindedBeaconBlock{
 		Version:   spec.DataVersionBellatrix,
-		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(t),
+		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 	}
 	block1.Bellatrix.Slot = eth2p0.Slot(slot)
 	block2 := &eth2api.VersionedBlindedBeaconBlock{
 		Version:   spec.DataVersionBellatrix,
-		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(t),
+		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 	}
 	block2.Bellatrix.Slot = eth2p0.Slot(slot)
 	pubkey := testutil.RandomCorePubKey(t)
@@ -482,7 +482,7 @@ func TestMemDBClashBuilderProposer(t *testing.T) {
 
 	block := &eth2api.VersionedBlindedBeaconBlock{
 		Version:   spec.DataVersionBellatrix,
-		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(t),
+		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 	}
 	block.Bellatrix.Slot = eth2p0.Slot(slot)
 	pubkey := testutil.RandomCorePubKey(t)
@@ -538,7 +538,7 @@ func TestDutyExpiry(t *testing.T) {
 
 	// Store another duty which deletes expired duties
 	err = db.Store(ctx, core.NewProposerDuty(slot+1), core.UnsignedDataSet{
-		testutil.RandomCorePubKey(t): testutil.RandomCoreVersionBeaconBlock(t),
+		testutil.RandomCorePubKey(t): testutil.RandomCoreVersionBeaconBlock(),
 	})
 	require.NoError(t, err)
 

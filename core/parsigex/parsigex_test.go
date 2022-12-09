@@ -164,7 +164,7 @@ func TestParSigExVerifier(t *testing.T) {
 	})
 
 	t.Run("Verify block", func(t *testing.T) {
-		block := testutil.RandomVersionSignedBeaconBlock(t)
+		block := testutil.RandomVersionSignedBeaconBlock()
 		block.Bellatrix.Message.Slot = slot
 		sigRoot, err := block.Root()
 		require.NoError(t, err)
@@ -178,7 +178,7 @@ func TestParSigExVerifier(t *testing.T) {
 	})
 
 	t.Run("Verify blinded block", func(t *testing.T) {
-		blindedBlock := testutil.RandomVersionSignedBlindedBeaconBlock(t)
+		blindedBlock := testutil.RandomVersionSignedBlindedBeaconBlock()
 		blindedBlock.Bellatrix.Message.Slot = slot
 		sigRoot, err := blindedBlock.Root()
 		require.NoError(t, err)
