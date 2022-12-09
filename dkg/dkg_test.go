@@ -162,7 +162,6 @@ func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 				Format: "console",
 			},
 			AutoP2PKey: true,
-			P2PRelay:   true,
 			MaxConns:   1024,
 		})
 	}()
