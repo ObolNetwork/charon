@@ -143,9 +143,13 @@ func Run(ctx context.Context, config Config) error {
 		z.Str("p2p_udp_addr", config.P2PConfig.UDPAddr),
 		z.Str("enr", localEnode.Node().String()),
 	)
-	log.Info(ctx, "Runtime ENR available via http",
-		z.Str("url", fmt.Sprintf("http://%s/enr", config.HTTPAddr)),
-	)
+	if config.HTTPAddr != "" {
+		log.Info(ctx, "Runtime ENR available via http",
+			z.Str("url", fmt.Sprintf("http://%s/enr", config.HTTPAddr)),
+		)
+	} else {
+		log.Info(ctx, "Runtime ENR not available via http, since bootnode-http-address flag is not set")
+	}
 
 	ticker := time.NewTicker(time.Minute)
 	for {
