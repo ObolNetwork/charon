@@ -38,6 +38,7 @@ import (
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -49,8 +50,13 @@ import (
 )
 
 const (
-	ProtocolID = "charon/priority/1.1.0"
+	protocolID = "charon/priority/1.1.0"
 )
+
+// Protocols returns the supported protocols of this package in order of precedence.
+func Protocols() []protocol.ID {
+	return []protocol.ID{protocolID}
+}
 
 // Topic groups priorities in an instance.
 type Topic proto.Message
@@ -124,7 +130,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
 	})
 
 	// Register prioritiser protocol handler.
-	registerHandlerFunc("priority", tcpNode, ProtocolID,
+	registerHandlerFunc("priority", tcpNode, protocolID,
 		func() proto.Message { return new(pbv1.PriorityMsg) },
 		func(ctx context.Context, pID peer.ID, msg proto.Message) (proto.Message, bool, error) {
 			prioMsg, ok := msg.(*pbv1.PriorityMsg)
@@ -133,8 +139,12 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
 			}
 
 			resp, err := p.handleRequest(ctx, pID, prioMsg)
+			if err != nil {
+				return nil, false, errors.Wrap(err, "handle priority request",
+					z.Any("duty", core.DutyFromProto(prioMsg.Duty)))
+			}
 
-			return resp, true, err
+			return resp, true, nil
 		})
 
 	return p
@@ -187,12 +197,13 @@ func (p *Prioritiser) Subscribe(fn subscriber) {
 
 // Prioritise starts a new prioritisation instance for the provided message or returns an error.
 func (p *Prioritiser) Prioritise(ctx context.Context, msg *pbv1.PriorityMsg) error {
+	duty := core.DutyFromProto(msg.Duty)
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
 	if !p.quorumSupported(ctx) {
 		log.Warn(ctx, "Skipping non-critical priority protocol not supported by quorum peers", nil, p.skipAllFilter)
 		return nil
 	}
-
-	duty := core.DutyFromProto(msg.Duty)
 
 	if !p.deadliner.Add(duty) {
 		log.Warn(ctx, "Dropping priority protocol instance for expired duty", nil)
@@ -228,7 +239,7 @@ func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.
 	select {
 	case reqBuffer <- req:
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, errors.Wrap(ctx.Err(), "timeout enqueuing request")
 	case <-p.quit:
 		return nil, errors.New("prioritiser shutdown")
 	}
@@ -237,7 +248,7 @@ func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.
 	case resp := <-response:
 		return resp, nil
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, errors.Wrap(ctx.Err(), "timeout waiting for proposed priorities")
 	case <-p.quit:
 		return nil, errors.New("prioritiser shutdown")
 	}
@@ -294,7 +305,6 @@ func runInstance(ctx context.Context, duty core.Duty, own *pbv1.PriorityMsg,
 	tcpNode host.Host, sendFunc p2p.SendReceiveFunc, peers []peer.ID,
 	consensus Consensus, msgValidator msgValidator,
 ) error {
-	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 	log.Debug(ctx, "Priority protocol instance started")
 
 	var (
@@ -361,7 +371,7 @@ func exchange(ctx context.Context, tcpNode host.Host, peers []peer.ID, msgValida
 
 		go func(pID peer.ID) {
 			response := new(pbv1.PriorityMsg)
-			err := sendFunc(ctx, tcpNode, pID, own, response, ProtocolID)
+			err := sendFunc(ctx, tcpNode, pID, own, response, protocolID)
 			if err != nil {
 				// No need to log, since transport will do it.
 				return
@@ -415,10 +425,10 @@ func peerSupported(tcpNode host.Host, peerID peer.ID) (support bool, known bool)
 	return supported(protocols), true
 }
 
-// supported returns true if the priority ProtocolID is included in the list of protocols.
+// supported returns true if the priority protocolID is included in the list of protocols.
 func supported(protocols []string) bool {
 	for _, p := range protocols {
-		if p == ProtocolID {
+		if p == protocolID {
 			return true
 		}
 	}
