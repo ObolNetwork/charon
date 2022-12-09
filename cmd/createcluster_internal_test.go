@@ -137,7 +137,8 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 	})
 
 	t.Run("valid lock", func(t *testing.T) {
-		b, err := os.ReadFile(path.Join(dir, "cluster-lock.json"))
+		// Since `cluster-lock.json` is copied into each node directory, use any one of them.
+		b, err := os.ReadFile(path.Join(nodeDir(conf.ClusterDir, 0), "cluster-lock.json"))
 		require.NoError(t, err)
 
 		var lock cluster.Lock

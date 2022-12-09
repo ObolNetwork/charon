@@ -105,11 +105,7 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 		beaconNode = ""
 	}
 
-	lockFile := "/compose/cluster-lock.json"
-	if conf.KeyGen == KeyGenDKG {
-		// Lock files for DKG in node dirs.
-		lockFile = fmt.Sprintf("/compose/node%d/cluster-lock.json", index)
-	}
+	lockFile := fmt.Sprintf("/compose/node%d/cluster-lock.json", index)
 
 	p2pBootnodes := "http://bootnode:3640/enr"
 	p2pRelay := "false"
