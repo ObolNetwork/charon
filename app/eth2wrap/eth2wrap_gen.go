@@ -59,6 +59,7 @@ type Client interface {
 	eth2client.NodeVersionProvider
 	eth2client.ProposalPreparationsSubmitter
 	eth2client.ProposerDutiesProvider
+	eth2client.SignedBeaconBlockProvider
 	eth2client.SlotDurationProvider
 	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
@@ -140,6 +141,26 @@ func (m multi) DepositContract(ctx context.Context) (*apiv1.DepositContract, err
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*apiv1.DepositContract, error) {
 			return cl.DepositContract(ctx)
+		},
+		nil,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+// SignedBeaconBlock fetches a signed beacon block given a block ID.
+func (m multi) SignedBeaconBlock(ctx context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error) {
+	const label = "signed_beacon_block"
+	defer latency(label)()
+
+	res0, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) (*spec.VersionedSignedBeaconBlock, error) {
+			return cl.SignedBeaconBlock(ctx, blockID)
 		},
 		nil,
 	)

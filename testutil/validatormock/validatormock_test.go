@@ -182,7 +182,7 @@ func TestProposeBlindedBlock(t *testing.T) {
 	slotsPerEpoch, err := beaconMock.SlotsPerEpoch(ctx)
 	require.NoError(t, err)
 
-	block := testutil.RandomBellatrixBlindedBeaconBlock(t)
+	block := testutil.RandomBellatrixBlindedBeaconBlock()
 	block.Slot = eth2p0.Slot(slotsPerEpoch)
 
 	mockVAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

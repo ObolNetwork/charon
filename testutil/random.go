@@ -142,21 +142,17 @@ func RandomPhase0BeaconBlockBody() *eth2p0.BeaconBlockBody {
 	}
 }
 
-func RandomAltairBeaconBlock(t *testing.T) *altair.BeaconBlock {
-	t.Helper()
-
+func RandomAltairBeaconBlock() *altair.BeaconBlock {
 	return &altair.BeaconBlock{
 		Slot:          RandomSlot(),
 		ProposerIndex: RandomVIdx(),
 		ParentRoot:    RandomRoot(),
 		StateRoot:     RandomRoot(),
-		Body:          RandomAltairBeaconBlockBody(t),
+		Body:          RandomAltairBeaconBlockBody(),
 	}
 }
 
-func RandomAltairBeaconBlockBody(t *testing.T) *altair.BeaconBlockBody {
-	t.Helper()
-
+func RandomAltairBeaconBlockBody() *altair.BeaconBlockBody {
 	return &altair.BeaconBlockBody{
 		RANDAOReveal: RandomEth2Signature(),
 		ETH1Data: &eth2p0.ETH1Data{
@@ -170,25 +166,21 @@ func RandomAltairBeaconBlockBody(t *testing.T) *altair.BeaconBlockBody {
 		Attestations:      []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
 		Deposits:          []*eth2p0.Deposit{},
 		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
-		SyncAggregate:     RandomSyncAggregate(t),
+		SyncAggregate:     RandomSyncAggregate(),
 	}
 }
 
-func RandomBellatrixBeaconBlock(t *testing.T) *bellatrix.BeaconBlock {
-	t.Helper()
-
+func RandomBellatrixBeaconBlock() *bellatrix.BeaconBlock {
 	return &bellatrix.BeaconBlock{
 		Slot:          RandomSlot(),
 		ProposerIndex: RandomVIdx(),
 		ParentRoot:    RandomRoot(),
 		StateRoot:     RandomRoot(),
-		Body:          RandomBellatrixBeaconBlockBody(t),
+		Body:          RandomBellatrixBeaconBlockBody(),
 	}
 }
 
-func RandomBellatrixBeaconBlockBody(t *testing.T) *bellatrix.BeaconBlockBody {
-	t.Helper()
-
+func RandomBellatrixBeaconBlockBody() *bellatrix.BeaconBlockBody {
 	return &bellatrix.BeaconBlockBody{
 		RANDAOReveal: RandomEth2Signature(),
 		ETH1Data: &eth2p0.ETH1Data{
@@ -202,63 +194,53 @@ func RandomBellatrixBeaconBlockBody(t *testing.T) *bellatrix.BeaconBlockBody {
 		Attestations:      []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
 		Deposits:          []*eth2p0.Deposit{},
 		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
-		SyncAggregate:     RandomSyncAggregate(t),
+		SyncAggregate:     RandomSyncAggregate(),
 		ExecutionPayload:  RandomExecutionPayLoad(),
 	}
 }
 
-func RandomCoreVersionBeaconBlock(t *testing.T) core.VersionedBeaconBlock {
-	t.Helper()
-
+func RandomCoreVersionBeaconBlock() core.VersionedBeaconBlock {
 	return core.VersionedBeaconBlock{
 		VersionedBeaconBlock: spec.VersionedBeaconBlock{
 			Version:   spec.DataVersionBellatrix,
-			Bellatrix: RandomBellatrixBeaconBlock(t),
+			Bellatrix: RandomBellatrixBeaconBlock(),
 		},
 	}
 }
 
-func RandomCoreVersionSignedBeaconBlock(t *testing.T) core.VersionedSignedBeaconBlock {
-	t.Helper()
-
+func RandomCoreVersionSignedBeaconBlock() core.VersionedSignedBeaconBlock {
 	return core.VersionedSignedBeaconBlock{
 		VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
 			Version: spec.DataVersionBellatrix,
 			Bellatrix: &bellatrix.SignedBeaconBlock{
-				Message:   RandomBellatrixBeaconBlock(t),
+				Message:   RandomBellatrixBeaconBlock(),
 				Signature: RandomEth2Signature(),
 			},
 		},
 	}
 }
 
-func RandomVersionSignedBeaconBlock(t *testing.T) *spec.VersionedSignedBeaconBlock {
-	t.Helper()
-
+func RandomVersionSignedBeaconBlock() *spec.VersionedSignedBeaconBlock {
 	return &spec.VersionedSignedBeaconBlock{
 		Version: spec.DataVersionBellatrix,
 		Bellatrix: &bellatrix.SignedBeaconBlock{
-			Message:   RandomBellatrixBeaconBlock(t),
+			Message:   RandomBellatrixBeaconBlock(),
 			Signature: RandomEth2Signature(),
 		},
 	}
 }
 
-func RandomBellatrixBlindedBeaconBlock(t *testing.T) *eth2v1.BlindedBeaconBlock {
-	t.Helper()
-
+func RandomBellatrixBlindedBeaconBlock() *eth2v1.BlindedBeaconBlock {
 	return &eth2v1.BlindedBeaconBlock{
 		Slot:          RandomSlot(),
 		ProposerIndex: RandomVIdx(),
 		ParentRoot:    RandomRoot(),
 		StateRoot:     RandomRoot(),
-		Body:          RandomBellatrixBlindedBeaconBlockBody(t),
+		Body:          RandomBellatrixBlindedBeaconBlockBody(),
 	}
 }
 
-func RandomBellatrixBlindedBeaconBlockBody(t *testing.T) *eth2v1.BlindedBeaconBlockBody {
-	t.Helper()
-
+func RandomBellatrixBlindedBeaconBlockBody() *eth2v1.BlindedBeaconBlockBody {
 	return &eth2v1.BlindedBeaconBlockBody{
 		RANDAOReveal: RandomEth2Signature(),
 		ETH1Data: &eth2p0.ETH1Data{
@@ -272,43 +254,37 @@ func RandomBellatrixBlindedBeaconBlockBody(t *testing.T) *eth2v1.BlindedBeaconBl
 		Attestations:           []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
 		Deposits:               []*eth2p0.Deposit{},
 		VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
-		SyncAggregate:          RandomSyncAggregate(t),
+		SyncAggregate:          RandomSyncAggregate(),
 		ExecutionPayloadHeader: RandomExecutionPayloadHeader(),
 	}
 }
 
-func RandomCoreVersionBlindedBeaconBlock(t *testing.T) core.VersionedBlindedBeaconBlock {
-	t.Helper()
-
+func RandomCoreVersionBlindedBeaconBlock() core.VersionedBlindedBeaconBlock {
 	return core.VersionedBlindedBeaconBlock{
 		VersionedBlindedBeaconBlock: eth2api.VersionedBlindedBeaconBlock{
 			Version:   spec.DataVersionBellatrix,
-			Bellatrix: RandomBellatrixBlindedBeaconBlock(t),
+			Bellatrix: RandomBellatrixBlindedBeaconBlock(),
 		},
 	}
 }
 
-func RandomCoreVersionSignedBlindedBeaconBlock(t *testing.T) core.VersionedSignedBlindedBeaconBlock {
-	t.Helper()
-
+func RandomCoreVersionSignedBlindedBeaconBlock() core.VersionedSignedBlindedBeaconBlock {
 	return core.VersionedSignedBlindedBeaconBlock{
 		VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
 			Version: spec.DataVersionBellatrix,
 			Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-				Message:   RandomBellatrixBlindedBeaconBlock(t),
+				Message:   RandomBellatrixBlindedBeaconBlock(),
 				Signature: RandomEth2Signature(),
 			},
 		},
 	}
 }
 
-func RandomVersionSignedBlindedBeaconBlock(t *testing.T) *eth2api.VersionedSignedBlindedBeaconBlock {
-	t.Helper()
-
+func RandomVersionSignedBlindedBeaconBlock() *eth2api.VersionedSignedBlindedBeaconBlock {
 	return &eth2api.VersionedSignedBlindedBeaconBlock{
 		Version: spec.DataVersionBellatrix,
 		Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-			Message:   RandomBellatrixBlindedBeaconBlock(t),
+			Message:   RandomBellatrixBlindedBeaconBlock(),
 			Signature: RandomEth2Signature(),
 		},
 	}
@@ -450,14 +426,14 @@ func RandomSyncCommitteeDuty(t *testing.T) *eth2v1.SyncCommitteeDuty {
 	}
 }
 
-func RandomSyncAggregate(t *testing.T) *altair.SyncAggregate {
-	t.Helper()
-
+func RandomSyncAggregate() *altair.SyncAggregate {
 	var syncSSZ [160]byte
 	_, _ = rand.Read(syncSSZ[:])
 	sync := new(altair.SyncAggregate)
 	err := sync.UnmarshalSSZ(syncSSZ[:])
-	require.NoError(t, err)
+	if err != nil {
+		panic(err) // Should never happen, and this is test code.
+	}
 
 	return sync
 }

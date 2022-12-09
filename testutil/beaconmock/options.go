@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -484,6 +485,15 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 					},
 				},
 			}, nil
+		},
+		SignedBeaconBlockFunc: func(_ context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error) {
+			block := testutil.RandomVersionSignedBeaconBlock()
+
+			if slot, err := strconv.ParseInt(blockID, 10, 64); err == nil {
+				block.Bellatrix.Message.Slot = eth2p0.Slot(slot)
+			}
+
+			return block, nil
 		},
 		ProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return []*eth2v1.ProposerDuty{}, nil

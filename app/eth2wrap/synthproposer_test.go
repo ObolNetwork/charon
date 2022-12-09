@@ -17,17 +17,15 @@ package eth2wrap_test
 
 import (
 	"context"
-	"net/http/httptest"
 	"testing"
-	"time"
 
-	api "github.com/attestantio/go-eth2-client/api/v1"
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
-	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -52,10 +50,10 @@ func TestSynthProposer(t *testing.T) {
 
 		return nil
 	}
-	bmock.ProposerDutiesFunc = func(ctx context.Context, e eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*api.ProposerDuty, error) {
+	bmock.ProposerDutiesFunc = func(ctx context.Context, e eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 		require.Equal(t, int(epoch), int(e))
 
-		return []*api.ProposerDuty{ // First validator is the proposer for first slot in the epoch.
+		return []*eth2v1.ProposerDuty{ // First validator is the proposer for first slot in the epoch.
 			{
 				PubKey:         set[1].Validator.PublicKey,
 				Slot:           realBlockSlot,
@@ -64,18 +62,12 @@ func TestSynthProposer(t *testing.T) {
 		}, nil
 	}
 	cached := bmock.ValidatorsByPubKey
-	bmock.ValidatorsByPubKeyFunc = func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*api.Validator, error) {
+	bmock.ValidatorsByPubKeyFunc = func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 		valsByPubkey++
 		return cached(ctx, stateID, pubkeys)
 	}
-	router, err := validatorapi.NewRouter(bmock, bmock)
-	require.NoError(t, err)
 
-	srv := httptest.NewServer(router)
-
-	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Hour, srv.URL)
-	require.NoError(t, err)
-	eth2Cl = eth2wrap.WithSyntheticDuties(eth2Cl, set.PublicKeys())
+	eth2Cl := eth2wrap.WithSyntheticDuties(bmock, set.PublicKeys())
 
 	// Get synthetic duties
 	duties, err := eth2Cl.ProposerDuties(ctx, epoch, nil)
@@ -99,9 +91,30 @@ func TestSynthProposer(t *testing.T) {
 			require.Contains(t, string(block.Bellatrix.Body.Graffiti[:]), "DO NOT SUBMIT")
 		}
 
-		signed := testutil.RandomVersionSignedBeaconBlock(t)
+		signed := testutil.RandomVersionSignedBeaconBlock()
 		signed.Bellatrix.Message = block.Bellatrix
 		err = eth2Cl.SubmitBeaconBlock(ctx, signed)
+		require.NoError(t, err)
+	}
+
+	// Submit blinded blocks
+	for _, duty := range duties {
+		block, err := eth2Cl.BlindedBeaconBlockProposal(ctx, duty.Slot, testutil.RandomEth2Signature(), []byte("test"))
+		require.NoError(t, err)
+		if duty.Slot == realBlockSlot {
+			require.NotContains(t, string(block.Bellatrix.Body.Graffiti[:]), "DO NOT SUBMIT")
+		} else {
+			require.Contains(t, string(block.Bellatrix.Body.Graffiti[:]), "DO NOT SUBMIT")
+		}
+
+		signed := &eth2api.VersionedSignedBlindedBeaconBlock{
+			Version: spec.DataVersionBellatrix,
+			Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
+				Message:   block.Bellatrix,
+				Signature: testutil.RandomEth2Signature(),
+			},
+		}
+		err = eth2Cl.SubmitBlindedBeaconBlock(ctx, signed)
 		require.NoError(t, err)
 	}
 

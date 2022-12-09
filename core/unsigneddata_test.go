@@ -35,11 +35,11 @@ func TestUnsignedDataClone(t *testing.T) {
 		},
 		{
 			name: "versioned beacon block",
-			data: testutil.RandomCoreVersionBeaconBlock(t),
+			data: testutil.RandomCoreVersionBeaconBlock(),
 		},
 		{
 			name: "versioned blinded beacon block",
-			data: testutil.RandomCoreVersionBlindedBeaconBlock(t),
+			data: testutil.RandomCoreVersionBlindedBeaconBlock(),
 		},
 		{
 			name: "aggregated attestation",

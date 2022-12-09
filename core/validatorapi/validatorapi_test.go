@@ -598,7 +598,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 			block: &spec.VersionedSignedBeaconBlock{
 				Version: spec.DataVersionAltair,
 				Altair: &altair.SignedBeaconBlock{
-					Message:   &altair.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomAltairBeaconBlockBody(t)},
+					Message:   &altair.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomAltairBeaconBlockBody()},
 					Signature: eth2p0.BLSSignature{},
 				},
 			},
@@ -609,7 +609,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 			block: &spec.VersionedSignedBeaconBlock{
 				Version: spec.DataVersionBellatrix,
 				Bellatrix: &bellatrix.SignedBeaconBlock{
-					Message:   &bellatrix.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomBellatrixBeaconBlockBody(t)},
+					Message:   &bellatrix.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomBellatrixBeaconBlockBody()},
 					Signature: eth2p0.BLSSignature{},
 				},
 			},
@@ -656,7 +656,7 @@ func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 
 	block1 := &eth2api.VersionedBlindedBeaconBlock{
 		Version:   spec.DataVersionPhase0,
-		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(t),
+		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 	}
 	block1.Bellatrix.Slot = slot
 	block1.Bellatrix.ProposerIndex = vIdx
@@ -715,7 +715,7 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
-	unsignedBlindedBlock := testutil.RandomBellatrixBlindedBeaconBlock(t)
+	unsignedBlindedBlock := testutil.RandomBellatrixBlindedBeaconBlock()
 	unsignedBlindedBlock.Body.RANDAOReveal = tblsconv.SigToETH2(sig)
 	unsignedBlindedBlock.Slot = slot
 	unsignedBlindedBlock.ProposerIndex = vIdx
@@ -789,7 +789,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
-	unsignedBlindedBlock := testutil.RandomBellatrixBlindedBeaconBlock(t)
+	unsignedBlindedBlock := testutil.RandomBellatrixBlindedBeaconBlock()
 	unsignedBlindedBlock.Body.RANDAOReveal = tblsconv.SigToETH2(sig)
 	unsignedBlindedBlock.Slot = slot
 	unsignedBlindedBlock.ProposerIndex = vIdx
@@ -869,7 +869,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidBlock(t *testing.T) {
 			block: &eth2api.VersionedSignedBlindedBeaconBlock{
 				Version: spec.DataVersionBellatrix,
 				Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-					Message:   &eth2v1.BlindedBeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomBellatrixBlindedBeaconBlockBody(t)},
+					Message:   &eth2v1.BlindedBeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomBellatrixBlindedBeaconBlockBody()},
 					Signature: eth2p0.BLSSignature{},
 				},
 			},
