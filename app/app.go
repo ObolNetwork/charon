@@ -840,6 +840,7 @@ func Protocols() []protocol.ID {
 	resp = append(resp, consensus.Protocols()...)
 	resp = append(resp, parsigex.Protocols()...)
 	resp = append(resp, peerinfo.Protocols()...)
+	resp = append(resp, priority.Protocols()...)
 
 	return resp
 }
