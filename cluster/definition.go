@@ -152,18 +152,27 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 	return NodeIdx{}, errors.New("peer not in definition")
 }
 
-// VerifyPartialSignatures verifies the partial definition signatures, i.e., valid creator config signature and empty operators.
+// VerifyPartialSignatures verifies signatures in a partial definition.
+// A definition is a "partial definition" if it satisfies the following:
+// - The creator struct is fully populated, ie, the creator address and creator config signature, both are non-empty.
+// - It contains N (num_nodes) zero operators. That means N operator objects in the operators array all with empty (zero) fields.
+// - The definition_hash can be populated or empty.
 func (d Definition) VerifyPartialSignatures() error {
 	if isAnyVersion(d.Version, v1_0, v1_1, v1_2, v1_3) {
 		return errors.New("partial definition only supported from v1.4.0 onwards")
 	}
 
-	if len(d.Operators) != 0 {
-		return errors.New("partial definition operators not empty")
+	for _, op := range d.Operators {
+		if op.Address != "" || op.ENR != "" || len(op.ENRSignature) != 0 || len(op.ConfigSignature) != 0 {
+			return errors.New("partial definition operator not empty")
+		}
 	}
 
-	if d.Creator.Address == "" || len(d.Creator.ConfigSignature) == 0 {
-		return errors.New("partial definition creator address and signature empty")
+	if d.Creator.Address == "" {
+		return errors.New("partial definition creator address empty")
+	}
+	if len(d.Creator.ConfigSignature) == 0 {
+		return errors.New("partial definition creator config signature empty")
 	}
 
 	creatorConfigHashDigest, err := digestEIP712(eip712CreatorConfigHash, d, Operator{})
@@ -254,7 +263,6 @@ func (d Definition) VerifySignatures() error {
 			return errors.New("empty creator config signature")
 		}
 
-		// Creator config signature is
 		creatorConfigHashDigest, err := digestEIP712(eip712CreatorConfigHash, d, Operator{})
 		if err != nil {
 			return err
@@ -266,9 +274,10 @@ func (d Definition) VerifySignatures() error {
 			return errors.New("invalid creator config signature")
 		}
 
-		if noOpSigs > 0 {
-			return errors.New("creator signed while operators didn't")
-		}
+		// TODO(xenowits): Uncomment this after definition of "partial definition" is finalized.
+		// if noOpSigs > 0 {
+		// 	return errors.New("creator signed while operators didn't")
+		// }
 	}
 
 	return nil
@@ -391,22 +400,23 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// VerifyPartialHashes verifies partial definition hashes, i.e., valid config hash and empty definition hash.
+// VerifyPartialHashes verifies partial definition hashes, i.e., valid config hash.
 func (d Definition) VerifyPartialHashes() error {
 	if isAnyVersion(d.Version, v1_0, v1_1, v1_2, v1_3) {
 		return errors.New("partial definition only supported from v1.4.0 onwards")
 	}
 
-	if len(d.Operators) != 0 {
-		return errors.New("partial definition operators not empty")
+	for _, op := range d.Operators {
+		if op.Address != "" || op.ENR != "" || len(op.ENRSignature) != 0 || len(op.ConfigSignature) != 0 {
+			return errors.New("partial definition operator not empty")
+		}
 	}
 
 	if d.Creator.Address == "" {
-		return errors.New("partial definition creator address and signature empty")
+		return errors.New("partial definition creator address empty")
 	}
-
-	if len(d.DefinitionHash) != 0 {
-		return errors.New("partial definition definition hash not empty")
+	if len(d.Creator.ConfigSignature) == 0 {
+		return errors.New("partial definition creator config signature empty")
 	}
 
 	configHash, err := hashDefinition(d, true)

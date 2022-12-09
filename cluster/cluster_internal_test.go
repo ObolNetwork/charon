@@ -151,12 +151,10 @@ func TestDefinitionVerify(t *testing.T) {
 		require.NoError(t, err)
 
 		err = definition.VerifyPartialHashes()
-		require.Error(t, err)
-		require.ErrorContains(t, err, "partial definition operators not empty")
+		require.NoError(t, err)
 
 		err = definition.VerifyPartialSignatures()
-		require.Error(t, err)
-		require.ErrorContains(t, err, "partial definition operators not empty")
+		require.NoError(t, err)
 	})
 }
 

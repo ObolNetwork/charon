@@ -85,6 +85,29 @@ func TestCreateCluster(t *testing.T) {
 				Network:   "goerli",
 			},
 		},
+		{
+			Name: "partial definition from disk",
+			Config: clusterConfig{
+				NumNodes: minNodes,
+			},
+			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
+				t.Helper()
+
+				dir, err := os.MkdirTemp("", "")
+				require.NoError(t, err)
+
+				def := cluster.NewPartialDefinition(t, config.NumNodes)
+				filename := path.Join(dir, "cluster-definition.json")
+				b, err := cluster.MarshalPartialDefinition(t, def, config.NumNodes)
+				require.NoError(t, err)
+
+				err = os.WriteFile(filename, b, 0o666)
+				require.NoError(t, err)
+				config.DefFile = filename
+
+				return config
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {

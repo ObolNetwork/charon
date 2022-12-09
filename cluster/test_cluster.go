@@ -18,6 +18,7 @@ package cluster
 import (
 	"crypto/ecdsa"
 	crand "crypto/rand"
+	"encoding/json"
 	"io"
 	"math/rand"
 	"net"
@@ -29,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
@@ -168,4 +170,66 @@ func getAddrFunc(seed int) func(*testing.T) *net.TCPAddr {
 			Port: j,
 		}
 	}
+}
+
+// MarshalPartialDefinition marshals partial definitions, i.e., definitions with N zero operators.
+func MarshalPartialDefinition(t *testing.T, def Definition, numNodes int) ([]byte, error) {
+	t.Helper()
+
+	if isAnyVersion(def.Version, v1_0, v1_1, v1_2, v1_3) {
+		return nil, errors.New("partial definition only supported from v1.4.0 onwards")
+	}
+
+	var ops []operatorJSONv1x2orLater
+	for i := 0; i < numNodes; i++ {
+		ops = append(ops, operatorJSONv1x2orLater{})
+	}
+
+	resp, err := json.Marshal(definitionJSONv1x4{
+		Name:                def.Name,
+		UUID:                def.UUID,
+		Version:             def.Version,
+		Timestamp:           def.Timestamp,
+		NumValidators:       def.NumValidators,
+		Threshold:           def.Threshold,
+		FeeRecipientAddress: def.FeeRecipientAddress,
+		WithdrawalAddress:   def.WithdrawalAddress,
+		DKGAlgorithm:        def.DKGAlgorithm,
+		ForkVersion:         def.ForkVersion,
+		ConfigHash:          def.ConfigHash,
+		Operators:           ops,
+		Creator: creatorJSON{
+			Address:         def.Creator.Address,
+			ConfigSignature: def.Creator.ConfigSignature,
+		},
+	})
+	require.NoError(t, err)
+
+	return resp, nil
+}
+
+// NewPartialDefinition returns a partial cluster definition for tests.
+func NewPartialDefinition(t *testing.T, numNodes int) Definition {
+	t.Helper()
+
+	lock, p2pKeys, _ := NewForT(t, 1, 3, numNodes, 0)
+	definition := lock.Definition
+
+	var ops []Operator
+	for i := 0; i < numNodes; i++ {
+		ops = append(ops, Operator{})
+	}
+	definition.Operators = ops
+
+	definition, err := definition.SetDefinitionHashes()
+	require.NoError(t, err)
+
+	// Update creator config signature as config hash changed.
+	definition, err = signCreator(p2pKeys[0], definition)
+	require.NoError(t, err)
+
+	require.NoError(t, definition.VerifyPartialSignatures())
+	require.NoError(t, definition.VerifyPartialHashes())
+
+	return definition
 }

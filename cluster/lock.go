@@ -27,7 +27,7 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-// Lock extends the cluster config Definition with bls threshold public keys and checksums.
+// Lock extends the cluster config Definition with BLS threshold public keys and checksums.
 type Lock struct {
 	// Definition is embedded and extended by Lock.
 	Definition `json:"cluster_definition" ssz:"Composite" lock_hash:"0"`

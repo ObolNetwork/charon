@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -37,6 +38,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -54,6 +56,7 @@ const (
 type clusterConfig struct {
 	Name       string
 	ClusterDir string
+	DefFile    string
 	Clean      bool
 
 	NumNodes       int
@@ -91,6 +94,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.Name, "name", "", "The cluster name")
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
+	flags.StringVar(&config.DefFile, "definition-file", "", "Optional path to a cluster definition file or an HTTP URL. This overrides all other configuration flags.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", minNodes, "The number of charon nodes in the cluster. Minimum is 4.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
@@ -112,11 +116,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		if err := os.RemoveAll(conf.ClusterDir); err != nil {
 			return errors.Wrap(err, "remove cluster dir")
 		}
-	} else if _, err := os.Stat(path.Join(conf.ClusterDir, "cluster-lock.json")); err == nil {
+	} else if _, err := os.Stat(path.Join(nodeDir(conf.ClusterDir, 0), "cluster-lock.json")); err == nil {
 		return errors.New("existing cluster found. Try again with --clean")
 	}
 
-	// Create cluster directory at given location
+	// Create cluster directory at the given location
 	if err := os.MkdirAll(conf.ClusterDir, 0o755); err != nil {
 		return errors.Wrap(err, "mkdir")
 	}
@@ -131,36 +135,90 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	safeThreshold := cluster.Threshold(conf.NumNodes)
-	if conf.Threshold == 0 {
-		conf.Threshold = safeThreshold
-	} else if conf.Threshold != safeThreshold {
-		log.Warn(ctx, "Non standard `--threshold` flag provided, this will affect cluster safety", nil, z.Int("threshold", conf.Threshold), z.Int("safe_threshold", safeThreshold))
+	var (
+		def            cluster.Definition
+		threshold      = conf.Threshold
+		numDVs         = conf.NumDVs
+		withdrawalAddr = conf.WithdrawalAddr
+		network        = conf.Network
+	)
+
+	if conf.DefFile != "" {
+		var err error
+		def, err = loadDefinition(ctx, conf.DefFile)
+		if err != nil {
+			return err
+		}
+
+		if err = def.VerifyPartialSignatures(); err != nil {
+			return err
+		}
+		if err = def.VerifyPartialHashes(); err != nil {
+			return err
+		}
+
+		threshold = def.Threshold
+		numDVs = def.NumValidators
+		withdrawalAddr = def.WithdrawalAddress
+		network, err = eth2util.ForkVersionToNetwork(def.ForkVersion)
+		if err != nil {
+			return err
+		}
 	}
 
+	threshold = safeThreshold(ctx, conf.NumNodes, threshold)
+
 	// Get root bls secrets
-	secrets, err := getKeys(conf)
+	secrets, err := getKeys(conf.SplitKeys, conf.SplitKeysDir, numDVs)
 	if err != nil {
 		return err
 	}
 
 	// Generate threshold bls key shares
-	dvs, shareSets, err2 := getTSSShares(secrets, conf)
-	if err2 != nil {
-		return err2
-	}
-
-	// Create p2p peers
-	peers, err := createPeers(conf, shareSets)
+	dvs, shareSets, err := getTSSShares(secrets, threshold, conf.NumNodes)
 	if err != nil {
 		return err
 	}
 
-	if err = writeDepositData(conf, secrets); err != nil {
+	// Create validators
+	vals, err := getValidators(dvs)
+	if err != nil {
 		return err
 	}
 
-	if err = writeLock(conf, dvs, peers, shareSets); err != nil {
+	// Create operators
+	ops, err := getOperators(conf.NumNodes, conf.ClusterDir, conf.InsecureKeys, shareSets)
+	if err != nil {
+		return err
+	}
+	if conf.DefFile != "" {
+		def.Operators = ops
+	}
+
+	// Write deposit-data file
+	if err = writeDepositData(withdrawalAddr, network, conf.ClusterDir, conf.NumNodes, secrets); err != nil {
+		return err
+	}
+
+	var lock cluster.Lock
+	if conf.DefFile != "" { // Create lock using partial definition
+		lock = cluster.Lock{
+			Definition: def,
+			Validators: vals,
+		}
+
+		lock, err = lock.SetLockHash()
+		if err != nil {
+			return err
+		}
+	} else { // Create a new lock
+		lock, err = newLock(conf, vals, ops)
+		if err != nil {
+			return err
+		}
+	}
+
+	if err = writeLock(conf, lock, shareSets); err != nil {
 		return err
 	}
 
@@ -168,7 +226,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		writeWarning(w)
 	}
 
-	writeOutput(w, conf)
+	writeOutput(w, conf.SplitKeys, conf.ClusterDir, conf.NumNodes)
 
 	return nil
 }
@@ -208,53 +266,13 @@ func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddr string, netwo
 	return resp, nil
 }
 
-// createPeers creates new peers from the provided config and saves validator keys to disk for each peer.
-func createPeers(conf clusterConfig, shareSets [][]*bls_sig.SecretKeyShare) ([]p2p.Peer, error) {
-	var peers []p2p.Peer
-	for i := 0; i < conf.NumNodes; i++ {
-		peer, err := newPeer(conf, i)
-		if err != nil {
-			return nil, err
-		}
-
-		peers = append(peers, peer)
-
-		var secrets []*bls_sig.SecretKey
-		for _, shares := range shareSets {
-			secret, err := tblsconv.ShareToSecret(shares[i])
-			if err != nil {
-				return nil, err
-			}
-			secrets = append(secrets, secret)
-		}
-
-		keysDir := path.Join(nodeDir(conf.ClusterDir, i), "/validator_keys")
-
-		if err := os.MkdirAll(keysDir, 0o755); err != nil {
-			return nil, errors.Wrap(err, "mkdir validator_keys")
-		}
-
-		if conf.InsecureKeys {
-			if err := keystore.StoreKeysInsecure(secrets, keysDir, keystore.ConfirmInsecureKeys); err != nil {
-				return nil, err
-			}
-		} else {
-			if err := keystore.StoreKeys(secrets, keysDir); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	return peers, nil
-}
-
-func getTSSShares(secrets []*bls_sig.SecretKey, conf clusterConfig) ([]tbls.TSS, [][]*bls_sig.SecretKeyShare, error) {
+func getTSSShares(secrets []*bls_sig.SecretKey, threshold, numNodes int) ([]tbls.TSS, [][]*bls_sig.SecretKeyShare, error) {
 	var (
 		dvs    []tbls.TSS
 		splits [][]*bls_sig.SecretKeyShare
 	)
 	for _, secret := range secrets {
-		shares, verifier, err := tbls.SplitSecret(secret, conf.Threshold, conf.NumNodes, rand.Reader)
+		shares, verifier, err := tbls.SplitSecret(secret, threshold, numNodes, rand.Reader)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -286,17 +304,17 @@ func writeWarning(w io.Writer) {
 }
 
 // getKeys fetches secret keys for each distributed validator.
-func getKeys(conf clusterConfig) ([]*bls_sig.SecretKey, error) {
-	if conf.SplitKeys {
-		if conf.SplitKeysDir == "" {
+func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]*bls_sig.SecretKey, error) {
+	if splitKeys {
+		if splitKeysDir == "" {
 			return nil, errors.New("--split-keys-dir required when splitting keys")
 		}
 
-		return keystore.LoadKeys(conf.SplitKeysDir)
+		return keystore.LoadKeys(splitKeysDir)
 	}
 
 	var secrets []*bls_sig.SecretKey
-	for i := 0; i < conf.NumDVs; i++ {
+	for i := 0; i < numDVs; i++ {
 		_, secret, err := tbls.KeygenWithSeed(rand.Reader)
 		if err != nil {
 			return nil, err
@@ -308,22 +326,22 @@ func getKeys(conf clusterConfig) ([]*bls_sig.SecretKey, error) {
 	return secrets, nil
 }
 
-// writeDepositData writes deposit data to disk for the DVs in a cluster.
-func writeDepositData(conf clusterConfig, secrets []*bls_sig.SecretKey) error {
+// writeDepositData writes deposit data to disk for the DVs for all peers in a cluster.
+func writeDepositData(withdrawalAddr, network, clusterDir string, numNodes int, secrets []*bls_sig.SecretKey) error {
 	// Create deposit message signatures
-	msgSigs, err := signDepositDatas(secrets, conf.WithdrawalAddr, conf.Network)
+	msgSigs, err := signDepositDatas(secrets, withdrawalAddr, network)
 	if err != nil {
 		return err
 	}
 
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(msgSigs, conf.WithdrawalAddr, conf.Network)
+	bytes, err := deposit.MarshalDepositData(msgSigs, withdrawalAddr, network)
 	if err != nil {
 		return err
 	}
 
-	for i := 0; i < conf.NumNodes; i++ {
-		depositPath := path.Join(nodeDir(conf.ClusterDir, i), "deposit-data.json")
+	for i := 0; i < numNodes; i++ {
+		depositPath := path.Join(nodeDir(clusterDir, i), "deposit-data.json")
 		err = os.WriteFile(depositPath, bytes, 0o400) // read-only
 		if err != nil {
 			return errors.Wrap(err, "write deposit data")
@@ -333,13 +351,9 @@ func writeDepositData(conf clusterConfig, secrets []*bls_sig.SecretKey) error {
 	return nil
 }
 
-// writeLock creates a cluster lock and writes it to disk.
-func writeLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer, shareSets [][]*bls_sig.SecretKeyShare) error {
-	lock, err := newLock(conf, dvs, peers)
-	if err != nil {
-		return err
-	}
-
+// writeLock creates a cluster lock and writes it to disk for all peers.
+func writeLock(conf clusterConfig, lock cluster.Lock, shareSets [][]*bls_sig.SecretKeyShare) error {
+	var err error
 	lock.SignatureAggregate, err = aggSign(shareSets, lock.LockHash)
 	if err != nil {
 		return err
@@ -361,23 +375,14 @@ func writeLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer, shareSets [
 	return nil
 }
 
-// newLock returns a new unsigned cluster lock.
-func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock, error) {
-	var ops []cluster.Operator
-	for _, p := range peers {
-		enrStr, err := p2p.EncodeENR(p.ENR)
-		if err != nil {
-			return cluster.Lock{}, err
-		}
-
-		ops = append(ops, cluster.Operator{ENR: enrStr})
-	}
-
+// getValidators returns distributed validators from the provided dv public keys and keyshares.
+// It creates new peers from the provided config and saves validator keys to disk for each peer.
+func getValidators(dvs []tbls.TSS) ([]cluster.DistValidator, error) {
 	var vals []cluster.DistValidator
 	for _, dv := range dvs {
 		pk, err := dv.PublicKey().MarshalBinary()
 		if err != nil {
-			return cluster.Lock{}, errors.Wrap(err, "marshal pubkey")
+			return []cluster.DistValidator{}, errors.Wrap(err, "marshal pubkey")
 		}
 
 		var pubshares [][]byte
@@ -385,7 +390,7 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 			share := dv.PublicShare(i + 1) // Shares are 1-indexed.
 			b, err := share.MarshalBinary()
 			if err != nil {
-				return cluster.Lock{}, errors.Wrap(err, "marshal pubshare")
+				return []cluster.DistValidator{}, errors.Wrap(err, "marshal pubshare")
 			}
 			pubshares = append(pubshares, b)
 		}
@@ -396,12 +401,67 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 		})
 	}
 
+	return vals, nil
+}
+
+// getOperators returns a list of operators from the provided secret keyshares.
+func getOperators(numNodes int, clusterDir string, insecureKeys bool, shareSets [][]*bls_sig.SecretKeyShare) ([]cluster.Operator, error) {
+	var peers []p2p.Peer
+	for i := 0; i < numNodes; i++ {
+		peer, err := newPeer(clusterDir, i)
+		if err != nil {
+			return nil, err
+		}
+
+		peers = append(peers, peer)
+
+		var secrets []*bls_sig.SecretKey
+		for _, shares := range shareSets {
+			secret, err := tblsconv.ShareToSecret(shares[i])
+			if err != nil {
+				return nil, err
+			}
+			secrets = append(secrets, secret)
+		}
+
+		keysDir := path.Join(nodeDir(clusterDir, i), "/validator_keys")
+
+		if err := os.MkdirAll(keysDir, 0o755); err != nil {
+			return nil, errors.Wrap(err, "mkdir validator_keys")
+		}
+
+		if insecureKeys {
+			if err := keystore.StoreKeysInsecure(secrets, keysDir, keystore.ConfirmInsecureKeys); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := keystore.StoreKeys(secrets, keysDir); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	var ops []cluster.Operator
+	for _, p := range peers {
+		enrStr, err := p2p.EncodeENR(p.ENR)
+		if err != nil {
+			return []cluster.Operator{}, err
+		}
+
+		ops = append(ops, cluster.Operator{ENR: enrStr})
+	}
+
+	return ops, nil
+}
+
+// newLock returns a new unsigned cluster lock.
+func newLock(conf clusterConfig, vals []cluster.DistValidator, ops []cluster.Operator) (cluster.Lock, error) {
 	forkVersion, err := eth2util.NetworkToForkVersion(conf.Network)
 	if err != nil {
 		return cluster.Lock{}, err
 	}
 
-	def, err := cluster.NewDefinition(conf.Name, len(dvs), conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddr,
+	def, err := cluster.NewDefinition(conf.Name, len(vals), conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddr,
 		forkVersion, cluster.Creator{}, ops, rand.Reader)
 	if err != nil {
 		return cluster.Lock{}, err
@@ -416,8 +476,8 @@ func newLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer) (cluster.Lock
 }
 
 // newPeer returns a new peer, generating a p2pkey and ENR and node directory and run script in the process.
-func newPeer(conf clusterConfig, peerIdx int) (p2p.Peer, error) {
-	dir := nodeDir(conf.ClusterDir, peerIdx)
+func newPeer(clusterDir string, peerIdx int) (p2p.Peer, error) {
+	dir := nodeDir(clusterDir, peerIdx)
 
 	p2pKey, err := p2p.NewSavedPrivKey(dir)
 	if err != nil {
@@ -438,13 +498,13 @@ func newPeer(conf clusterConfig, peerIdx int) (p2p.Peer, error) {
 }
 
 // writeOutput writes the gen_cluster output.
-func writeOutput(out io.Writer, conf clusterConfig) {
+func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int) {
 	var sb strings.Builder
 	_, _ = sb.WriteString("Created charon cluster:\n")
-	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", conf.SplitKeys))
+	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", splitKeys))
 	_, _ = sb.WriteString("\n")
-	_, _ = sb.WriteString(strings.TrimSuffix(conf.ClusterDir, "/") + "/\n")
-	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\t\tDirectory for each node\n", conf.NumNodes-1))
+	_, _ = sb.WriteString(strings.TrimSuffix(clusterDir, "/") + "/\n")
+	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\t\tDirectory for each node\n", numNodes-1))
 	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
 	_, _ = sb.WriteString("│  ├─ deposit-data.json\t\tDeposit data file is used to activate a Distributed Validator on DV Launchpad\n")
@@ -471,22 +531,26 @@ func checksumAddr(a string) (string, error) {
 
 // validateClusterConfig returns an error if the cluster config is invalid.
 func validateClusterConfig(ctx context.Context, conf clusterConfig) error {
-	if conf.Name == "" {
-		return errors.New("name not provided")
-	}
-
 	if conf.NumNodes < minNodes {
-		return errors.New("insufficient number of nodes (min = 4)")
-	}
-
-	if !eth2util.ValidNetwork(conf.Network) {
-		return errors.New("unsupported network", z.Str("network", conf.Network))
+		return errors.New("insufficient number of nodes (min = 4)", z.Int("num_nodes", conf.NumNodes))
 	}
 
 	if conf.InsecureKeys && isMainNetwork(conf.Network) {
 		return errors.New("insecure keys not supported on mainnet")
 	} else if conf.InsecureKeys {
 		log.Warn(ctx, "Insecure keystores configured. ONLY DO THIS DURING TESTING", nil)
+	}
+
+	if conf.DefFile != "" {
+		return nil
+	}
+
+	if conf.Name == "" {
+		return errors.New("name not provided")
+	}
+
+	if !eth2util.ValidNetwork(conf.Network) {
+		return errors.New("unsupported network", z.Str("network", conf.Network))
 	}
 
 	return validateWithdrawalAddr(conf.WithdrawalAddr, conf.Network)
@@ -520,4 +584,59 @@ func aggSign(secrets [][]*bls_sig.SecretKeyShare, message []byte) ([]byte, error
 	}
 
 	return b, nil
+}
+
+// loadDefinition returns the cluster definition from disk or an HTTP URL.
+func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, error) {
+	var def cluster.Definition
+
+	// Fetch definition from network if URI is provided
+	if validURI(defFile) {
+		var err error
+		def, err = dkg.FetchDefinition(ctx, defFile)
+		if err != nil {
+			return cluster.Definition{}, errors.Wrap(err, "read definition")
+		}
+
+		log.Info(ctx, "Cluster definition downloaded from URL", z.Str("URL", defFile),
+			z.Str("definition_hash", fmt.Sprintf("%#x", def.DefinitionHash)))
+
+		return def, nil
+	}
+
+	// Fetch definition from disk
+	buf, err := os.ReadFile(defFile)
+	if err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "read definition")
+	}
+
+	if err = json.Unmarshal(buf, &def); err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
+	}
+
+	log.Info(ctx, "Cluster definition loaded from disk", z.Str("path", defFile),
+		z.Str("definition_hash", fmt.Sprintf("%#x", def.DefinitionHash)))
+
+	return def, nil
+}
+
+// validURI returns true if the input string is a valid HTTP/HTTPS URI.
+func validURI(str string) bool {
+	u, err := url.Parse(str)
+
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+}
+
+// safeThreshold logs a warning when a non-standard threshold is provided.
+func safeThreshold(ctx context.Context, numNodes, threshold int) int {
+	safeThreshold := cluster.Threshold(numNodes)
+	if threshold == 0 {
+		return safeThreshold
+	}
+	if threshold != safeThreshold {
+		log.Warn(ctx, "Non standard threshold provided, this will affect cluster safety", nil,
+			z.Int("num_nodes", numNodes), z.Int("threshold", threshold), z.Int("safe_threshold", safeThreshold))
+	}
+
+	return threshold
 }

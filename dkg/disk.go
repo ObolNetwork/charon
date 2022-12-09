@@ -51,7 +51,7 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	var def cluster.Definition
 	if validURI(conf.DefFile) {
 		var err error
-		def, err = fetchDefinition(ctx, conf.DefFile)
+		def, err = FetchDefinition(ctx, conf.DefFile)
 		if err != nil {
 			return cluster.Definition{}, errors.Wrap(err, "read definition")
 		}
@@ -98,8 +98,8 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	return def, nil
 }
 
-// fetchDefinition fetches cluster definition file from a remote URI.
-func fetchDefinition(ctx context.Context, url string) (cluster.Definition, error) {
+// FetchDefinition fetches cluster definition from a remote URI.
+func FetchDefinition(ctx context.Context, url string) (cluster.Definition, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 

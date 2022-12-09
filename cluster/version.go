@@ -69,7 +69,9 @@ func isV1x4(version string) bool {
 }
 
 // SupportedVersionsForT returns the supported definition versions for testing purposes only.
-func SupportedVersionsForT(*testing.T) []string {
+func SupportedVersionsForT(t *testing.T) []string {
+	t.Helper()
+
 	var resp []string
 	for version := range supportedVersions {
 		resp = append(resp, version)
