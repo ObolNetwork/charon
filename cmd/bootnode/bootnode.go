@@ -19,17 +19,15 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"time"
 
-	relaylog "github.com/ipfs/go-log/v2"
-	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p/core/peer"
-	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
-	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
@@ -37,15 +35,15 @@ import (
 
 // Config defines the config of the bootnode.
 type Config struct {
-	DataDir       string
-	HTTPAddr      string
-	P2PConfig     p2p.Config
-	LogConfig     log.Config
-	AutoP2PKey    bool
-	P2PRelay      bool
-	MaxResPerPeer int
-	MaxConns      int
-	RelayLogLevel string
+	DataDir        string
+	HTTPAddr       string
+	MonitoringAddr string
+	P2PConfig      p2p.Config
+	LogConfig      log.Config
+	AutoP2PKey     bool
+	MaxResPerPeer  int
+	MaxConns       int
+	RelayLogLevel  string
 }
 
 // Run starts an Obol libp2p-tcp-relay and udp-discv5 bootnode.
@@ -86,87 +84,27 @@ func Run(ctx context.Context, config Config) error {
 	}
 	defer udpNode.Close()
 
-	// Setup p2p tcp relay (async for snappy startup).
-	var (
-		p2pErr = make(chan error, 1)
-		logP2P = func() {}
-	)
+	tcpNode, err := startP2P(ctx, config, key)
+	if err != nil {
+		return err
+	}
 
+	labels := map[string]string{
+		"bootnode_peer": p2p.PeerName(tcpNode.ID()),
+	}
+	log.SetLokiLabels(labels)
+	promRegistry, err := promauto.NewRegistry(labels)
+	if err != nil {
+		return err
+	}
+
+	// Start serving HTTP: ENR and monitoring.
+	serverErr := make(chan error, 2)
 	go func() {
-		if !config.P2PRelay {
-			log.SetLokiLabels(nil)
+		if config.HTTPAddr == "" {
 			return
 		}
 
-		if config.RelayLogLevel != "" {
-			if err := relaylog.SetLogLevel("relay", config.RelayLogLevel); err != nil {
-				p2pErr <- errors.Wrap(err, "set relay log level")
-				return
-			}
-		}
-
-		// Increase resource limits
-		limiter := rcmgr.DefaultLimits
-		limiter.SystemBaseLimit.ConnsInbound = config.MaxConns
-		limiter.SystemBaseLimit.FD = config.MaxConns
-		limiter.TransientBaseLimit = limiter.SystemBaseLimit
-
-		mgr, err := rcmgr.NewResourceManager(rcmgr.NewFixedLimiter(limiter.Scale(1<<30, config.MaxConns))) // 1GB Memory
-		if err != nil {
-			p2pErr <- errors.Wrap(err, "new resource manager")
-		}
-
-		tcpNode, err := p2p.NewTCPNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(), libp2p.ResourceManager(mgr))
-		if err != nil {
-			p2pErr <- errors.Wrap(err, "new tcp node")
-			return
-		}
-
-		log.SetLokiLabels(map[string]string{
-			"bootnode_peer": p2p.PeerName(tcpNode.ID()),
-		})
-
-		p2p.RegisterConnectionLogger(tcpNode, nil)
-
-		// Reservations are valid for 30min (github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay/constraints.go:14)
-		relayResources := relay.DefaultResources()
-		relayResources.Limit.Data = 32 * (1 << 20) // 32MB
-		relayResources.MaxReservationsPerPeer = config.MaxResPerPeer
-		relayResources.MaxReservationsPerIP = config.MaxResPerPeer
-		relayResources.MaxReservations = config.MaxConns
-		relayResources.MaxCircuits = config.MaxResPerPeer
-
-		relayService, err := relay.New(tcpNode, relay.WithResources(relayResources))
-		if err != nil {
-			p2pErr <- err
-			return
-		}
-
-		logP2P = func() {
-			peers := make(map[peer.ID]bool)
-			conns := tcpNode.Network().Conns()
-			for _, conn := range conns {
-				peers[conn.RemotePeer()] = true
-			}
-			log.Info(ctx, "Libp2p TCP open connections",
-				z.Int("total", len(conns)),
-				z.Int("peers", len(peers)),
-			)
-		}
-
-		log.Info(ctx, "Libp2p TCP relay started",
-			z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
-			z.Any("p2p_tcp_addr", config.P2PConfig.TCPAddrs),
-		)
-
-		<-ctx.Done()
-		_ = tcpNode.Close()
-		_ = relayService.Close()
-	}()
-
-	// Start serving http
-	serverErr := make(chan error, 1)
-	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/enr", func(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte(localEnode.Node().String()))
@@ -175,6 +113,32 @@ func Run(ctx context.Context, config Config) error {
 		serverErr <- server.ListenAndServe()
 	}()
 
+	go func() {
+		if config.MonitoringAddr == "" {
+			return
+		}
+
+		// Serve prometheus metrics wrapped with bootnode identifiers.
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.InstrumentMetricHandler(
+			promRegistry, promhttp.HandlerFor(promRegistry, promhttp.HandlerOpts{}),
+		))
+
+		// Copied from net/http/pprof/pprof.go
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+		server := http.Server{Addr: config.MonitoringAddr, Handler: mux, ReadHeaderTimeout: time.Second}
+		serverErr <- server.ListenAndServe()
+	}()
+
+	log.Info(ctx, "Libp2p TCP relay started",
+		z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
+		z.Any("p2p_tcp_addr", config.P2PConfig.TCPAddrs),
+	)
 	log.Info(ctx, "Discv5 UDP bootnode started",
 		z.Str("p2p_udp_addr", config.P2PConfig.UDPAddr),
 		z.Str("enr", localEnode.Node().String()),
@@ -188,11 +152,8 @@ func Run(ctx context.Context, config Config) error {
 		select {
 		case err := <-serverErr:
 			return err
-		case err := <-p2pErr:
-			return err
 		case <-ticker.C:
 			log.Info(ctx, "Discv5 UDP discovered peers", z.Int("peers", len(udpNode.AllNodes())))
-			logP2P()
 		case <-ctx.Done():
 			log.Info(ctx, "Shutting down")
 			return nil

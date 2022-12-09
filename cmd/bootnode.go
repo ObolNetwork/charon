@@ -54,10 +54,10 @@ func newBootnodeCmd(runFunc func(context.Context, bootnode.Config) error) *cobra
 }
 
 func bindBootnodeFlag(flags *pflag.FlagSet, config *bootnode.Config) {
-	flags.StringVar(&config.HTTPAddr, "bootnode-http-address", "127.0.0.1:3640", "Listening address (ip and port) for the bootnode http server serving runtime ENR")
-	flags.BoolVar(&config.AutoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory")
-	flags.BoolVar(&config.P2PRelay, "p2p-relay", true, "Enable libp2p tcp host providing circuit relay to charon clusters")
-	flags.StringVar(&config.RelayLogLevel, "p2p-relay-loglevel", "", "Libp2p circuit relay log level. E.g., debug, info, warn, error")
+	flags.StringVar(&config.HTTPAddr, "bootnode-http-address", "127.0.0.1:3640", "Listening address (ip and port) for the bootnode http server serving runtime ENR.")
+	flags.StringVar(&config.MonitoringAddr, "bootnode-monitoring-address", "127.0.0.1:3620", "Listening address (ip and port) for the prometheus and pprof monitoring http server.")
+	flags.BoolVar(&config.AutoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory.")
+	flags.StringVar(&config.RelayLogLevel, "p2p-relay-loglevel", "", "Libp2p circuit relay log level. E.g., debug, info, warn, error.")
 
 	// Decrease defaults after this has been addressed https://github.com/libp2p/go-libp2p/issues/1713
 	flags.IntVar(&config.MaxResPerPeer, "max-reservations", 512, "Updates max circuit reservations per peer (each valid for 30min)") // TODO(corver): Align flag name to p2p-max-reservations
