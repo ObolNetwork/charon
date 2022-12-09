@@ -17,6 +17,7 @@ package eth2wrap_test
 
 import (
 	"context"
+	"math/rand"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -65,6 +66,14 @@ func TestSynthProposer(t *testing.T) {
 	bmock.ValidatorsByPubKeyFunc = func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 		valsByPubkey++
 		return cached(ctx, stateID, pubkeys)
+	}
+	signedBeaconBlock := bmock.SignedBeaconBlock
+	bmock.SignedBeaconBlockFunc = func(ctx context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error) {
+		if rand.Float32() < 0.3 { // Fail to find 2/3 of blocks.
+			return nil, nil //nolint:nilnil // go-eth2-client returns nilnil if block not found.
+		}
+
+		return signedBeaconBlock(ctx, blockID)
 	}
 
 	eth2Cl := eth2wrap.WithSyntheticDuties(bmock, set.PublicKeys())

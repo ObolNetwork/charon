@@ -138,7 +138,7 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot) (*s
 		signedBlock, err = h.Client.SignedBeaconBlock(ctx, fmt.Sprint(blockSlot))
 		if err != nil {
 			return nil, err
-		} else if signedBlock == nil {
+		} else if signedBlock == nil { // go-eth2-client returns nil if block is not found.
 			// Try previous slot
 			blockSlot--
 			continue
@@ -156,15 +156,19 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot) (*s
 	case spec.DataVersionPhase0:
 		block.Phase0 = signedBlock.Phase0.Message
 		block.Phase0.Body.Graffiti = synthGraffiti
+		block.Phase0.Slot = slot
 	case spec.DataVersionAltair:
 		block.Altair = signedBlock.Altair.Message
 		block.Altair.Body.Graffiti = synthGraffiti
+		block.Altair.Slot = slot
 	case spec.DataVersionBellatrix:
 		block.Bellatrix = signedBlock.Bellatrix.Message
 		block.Bellatrix.Body.Graffiti = synthGraffiti
+		block.Bellatrix.Slot = slot
 	case spec.DataVersionCapella:
 		block.Capella = signedBlock.Capella.Message
 		block.Capella.Body.Graffiti = synthGraffiti
+		block.Capella.Slot = slot
 	}
 
 	return block, nil
