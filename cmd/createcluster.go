@@ -208,6 +208,7 @@ func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddr string, netwo
 	return resp, nil
 }
 
+// createPeers creates new peers from the provided config and saves validator keys to disk for each peer.
 func createPeers(conf clusterConfig, shareSets [][]*bls_sig.SecretKeyShare) ([]p2p.Peer, error) {
 	var peers []p2p.Peer
 	for i := 0; i < conf.NumNodes; i++ {
@@ -321,11 +322,12 @@ func writeDepositData(conf clusterConfig, secrets []*bls_sig.SecretKey) error {
 		return err
 	}
 
-	// Write it to disk
-	depositPath := path.Join(conf.ClusterDir, "deposit-data.json")
-	err = os.WriteFile(depositPath, bytes, 0o400) // read-only
-	if err != nil {
-		return errors.Wrap(err, "write deposit data")
+	for i := 0; i < conf.NumNodes; i++ {
+		depositPath := path.Join(nodeDir(conf.ClusterDir, i), "deposit-data.json")
+		err = os.WriteFile(depositPath, bytes, 0o400) // read-only
+		if err != nil {
+			return errors.Wrap(err, "write deposit data")
+		}
 	}
 
 	return nil
@@ -348,10 +350,12 @@ func writeLock(conf clusterConfig, dvs []tbls.TSS, peers []p2p.Peer, shareSets [
 		return errors.Wrap(err, "marshal cluster lock")
 	}
 
-	lockPath := path.Join(conf.ClusterDir, "cluster-lock.json")
-	err = os.WriteFile(lockPath, b, 0o400) // read-only
-	if err != nil {
-		return errors.Wrap(err, "write cluster lock")
+	for i := 0; i < conf.NumNodes; i++ {
+		lockPath := path.Join(nodeDir(conf.ClusterDir, i), "cluster-lock.json")
+		err = os.WriteFile(lockPath, b, 0o400) // read-only
+		if err != nil {
+			return errors.Wrap(err, "write cluster lock")
+		}
 	}
 
 	return nil
@@ -440,13 +444,13 @@ func writeOutput(out io.Writer, conf clusterConfig) {
 	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", conf.SplitKeys))
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString(strings.TrimSuffix(conf.ClusterDir, "/") + "/\n")
-	_, _ = sb.WriteString("├─ cluster-lock.json\tCluster lock defines the cluster lock file which is signed by all nodes\n")
-	_, _ = sb.WriteString("├─ deposit-data.json\tDeposit data file is used to activate a Distributed Validator on DV Launchpad\n")
-	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\tDirectory for each node\n", conf.NumNodes-1))
-	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\t\tCharon networking private key for node authentication\n")
+	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\t\tDirectory for each node\n", conf.NumNodes-1))
+	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
+	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
+	_, _ = sb.WriteString("│  ├─ deposit-data.json\t\tDeposit data file is used to activate a Distributed Validator on DV Launchpad\n")
 	_, _ = sb.WriteString("│  ├─ validator_keys\t\tValidator keystores and password\n")
 	_, _ = sb.WriteString("│  │  ├─ keystore-*.json\tValidator private share key for duty signing\n")
-	_, _ = sb.WriteString("│  │  ├─ keystore-*.txt\tKeystore password files for keystore-*.json\n")
+	_, _ = sb.WriteString("│  │  ├─ keystore-*.txt\t\tKeystore password files for keystore-*.json\n")
 
 	_, _ = fmt.Fprint(out, sb.String())
 }
