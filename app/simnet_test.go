@@ -137,8 +137,9 @@ func TestSimnetDuties(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if test.teku && !*integration {
-				t.Skip("Skipping Teku integration test")
+				t.Skipf("Skipping Teku integration test: %v", t.Name())
 			}
+			t.Logf("Running test: %v", t.Name())
 
 			args := newSimnetArgs(t)
 			args.BuilderRegistration = test.builderRegistration
