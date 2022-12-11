@@ -34,7 +34,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"go.uber.org/automaxprocs/maxprocs"
 
@@ -109,8 +108,6 @@ type TestConfig struct {
 	LcastTransportFunc func() leadercast.Transport
 	// SimnetKeys provides private key shares for the simnet validatormock signer.
 	SimnetKeys []*bls_sig.SecretKey
-	// PeerAddrs contain peer addresses to manually add to the tcp node peer store.
-	PeerAddrs []peer.AddrInfo
 	// SimnetBMockOpts defines additional simnet beacon mock options.
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
@@ -119,6 +116,8 @@ type TestConfig struct {
 	BuilderRegistration <-chan *eth2api.VersionedValidatorRegistration
 	// PrioritiseCallback is called with priority protocol results.
 	PrioritiseCallback func(context.Context, core.Duty, []priority.TopicResult) error
+	// TCPNodeCallback provides test logic access to the libp2p host.
+	TCPNodeCallback func(host.Host)
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -295,9 +294,8 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return nil, nil, err
 	}
 
-	// Add test peer address
-	for _, pa := range conf.TestConfig.PeerAddrs {
-		tcpNode.Peerstore().AddAddrs(pa.ID, pa.Addrs, peerstore.PermanentAddrTTL)
+	if conf.TestConfig.TCPNodeCallback != nil {
+		conf.TestConfig.TCPNodeCallback(tcpNode)
 	}
 
 	p2p.RegisterConnectionLogger(tcpNode, peerIDs)
@@ -842,6 +840,7 @@ func Protocols() []protocol.ID {
 	resp = append(resp, consensus.Protocols()...)
 	resp = append(resp, parsigex.Protocols()...)
 	resp = append(resp, peerinfo.Protocols()...)
+	resp = append(resp, priority.Protocols()...)
 
 	return resp
 }

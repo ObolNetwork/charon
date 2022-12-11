@@ -29,6 +29,8 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -475,6 +477,15 @@ func TestInfoSync(t *testing.T) {
 		peerAddrs = append(peerAddrs, addr)
 	}
 
+	// Hard code peer addresses and protocols
+	tcpNodeCallback := func(tcpNode host.Host) {
+		for _, pa := range peerAddrs {
+			tcpNode.Peerstore().AddAddrs(pa.ID, pa.Addrs, peerstore.PermanentAddrTTL)
+			err := tcpNode.Peerstore().AddProtocols(pa.ID, toStrs(priority.Protocols())...)
+			require.NoError(t, err)
+		}
+	}
+
 	var eg errgroup.Group
 	for i := 0; i < n; i++ {
 		i := i // Copy iteration variable
@@ -488,7 +499,7 @@ func TestInfoSync(t *testing.T) {
 				PrioritiseCallback: asserter.Callback(t, i),
 				Lock:               &lock,
 				P2PKey:             p2pKeys[i],
-				PeerAddrs:          peerAddrs,
+				TCPNodeCallback:    tcpNodeCallback,
 				SimnetBMockOpts: []beaconmock.Option{
 					beaconmock.WithNoAttesterDuties(),
 					beaconmock.WithNoProposerDuties(),
@@ -560,4 +571,13 @@ func (a *priorityAsserter) Callback(t *testing.T, i int) func(ctx context.Contex
 
 		return nil
 	}
+}
+
+func toStrs(protocols []protocol.ID) []string {
+	var strs []string
+	for _, p := range protocols {
+		strs = append(strs, string(p))
+	}
+
+	return strs
 }

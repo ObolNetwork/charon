@@ -25,6 +25,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
@@ -59,8 +60,8 @@ func TestPrioritiser(t *testing.T) {
 		for _, other := range tcpNodes {
 			tcpNode.Peerstore().AddAddrs(other.ID(), other.Addrs(), peerstore.PermanentAddrTTL)
 			other.Peerstore().AddAddrs(tcpNode.ID(), tcpNode.Addrs(), peerstore.PermanentAddrTTL)
-			require.NoError(t, tcpNode.Peerstore().AddProtocols(other.ID(), priority.ProtocolID))
-			require.NoError(t, other.Peerstore().AddProtocols(tcpNode.ID(), priority.ProtocolID))
+			require.NoError(t, tcpNode.Peerstore().AddProtocols(other.ID(), toStrs(priority.Protocols())...))
+			require.NoError(t, other.Peerstore().AddProtocols(tcpNode.ID(), toStrs(priority.Protocols())...))
 		}
 		tcpNodes = append(tcpNodes, tcpNode)
 		peers = append(peers, tcpNode.ID())
@@ -196,4 +197,13 @@ func mustResultsToText(msgs []*pbv1.PriorityTopicResult) string {
 func requireProtoEqual(t *testing.T, expect, actual proto.Message) {
 	t.Helper()
 	require.True(t, proto.Equal(expect, actual), "expected: %#v\nactual: %#v\n", expect, actual)
+}
+
+func toStrs(protocols []protocol.ID) []string {
+	var resp []string
+	for _, p := range protocols {
+		resp = append(resp, string(p))
+	}
+
+	return resp
 }
