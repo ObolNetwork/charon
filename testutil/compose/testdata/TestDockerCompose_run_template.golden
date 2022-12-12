@@ -34,7 +34,7 @@
     },
     {
      "Key": "p2p-bootnode-relay",
-     "Value": "\"false\""
+     "Value": "\"true\""
     },
     {
      "Key": "log-level",
@@ -142,7 +142,7 @@
     },
     {
      "Key": "p2p-bootnode-relay",
-     "Value": "\"false\""
+     "Value": "\"true\""
     },
     {
      "Key": "log-level",
@@ -250,7 +250,7 @@
     },
     {
      "Key": "p2p-bootnode-relay",
-     "Value": "\"false\""
+     "Value": "\"true\""
     },
     {
      "Key": "log-level",
@@ -358,7 +358,7 @@
     },
     {
      "Key": "p2p-bootnode-relay",
-     "Value": "\"false\""
+     "Value": "\"true\""
     },
     {
      "Key": "log-level",

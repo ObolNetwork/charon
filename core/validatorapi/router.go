@@ -240,6 +240,17 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 		ctx = log.WithCtx(ctx, z.Str("vapi_endpoint", endpoint))
 		ctx = withCtxDuration(ctx)
 
+		// TODO(corver): Add support for octet-stream (SSZ).
+		contentType := r.Header.Get("Content-Type")
+		if contentType != "" && !strings.Contains(contentType, "application/json") {
+			writeError(ctx, w, endpoint, apiError{
+				StatusCode: http.StatusUnsupportedMediaType,
+				Message:    fmt.Sprintf("unsupported media type %s (only application/json supported)", contentType),
+			})
+
+			return
+		}
+
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			writeError(ctx, w, endpoint, err)
@@ -550,7 +561,7 @@ func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handle
 }
 
 func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, body []byte) (interface{}, error) {
 		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
 		err := bellatrixBlock.UnmarshalJSON(body)
 		if err == nil {
@@ -584,7 +595,7 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 			return nil, p.SubmitBeaconBlock(ctx, block)
 		}
 
-		return nil, errors.New("invalid block")
+		return nil, errors.New("invalid submitted block", z.Hex("body", body))
 	}
 }
 

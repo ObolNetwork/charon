@@ -593,7 +593,7 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 
 // waitChainStart blocks until the beacon chain has started.
 func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
-	for {
+	for ctx.Err() == nil {
 		genesis, err := eth2Cl.GenesisTime(ctx)
 		if err != nil {
 			log.Error(ctx, "Failure getting genesis time", err)
@@ -618,7 +618,7 @@ func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork
 
 // waitBeaconSync blocks until the beacon node is synced.
 func waitBeaconSync(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
-	for {
+	for ctx.Err() == nil {
 		state, err := eth2Cl.NodeSyncing(ctx)
 		if err != nil {
 			log.Error(ctx, "Failure getting sync state", err)

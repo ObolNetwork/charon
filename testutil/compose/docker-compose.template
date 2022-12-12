@@ -37,6 +37,7 @@ services:
     depends_on: []
     environment:
       CHARON_BOOTNODE_HTTP_ADDRESS: 0.0.0.0:3640
+      CHARON_BOOTNODE_MONITORING_ADDRESS: 0.0.0.0:3620
       CHARON_DATA_DIR: /compose/bootnode
       CHARON_P2P_BOOTNODES: ""
       CHARON_P2P_EXTERNAL_HOSTNAME: bootnode

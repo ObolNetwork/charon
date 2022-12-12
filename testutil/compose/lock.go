@@ -108,10 +108,9 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 	lockFile := fmt.Sprintf("/compose/node%d/cluster-lock.json", index)
 
 	p2pBootnodes := "http://bootnode:3640/enr"
-	p2pRelay := "false"
+	p2pRelay := "true"
 	if conf.ExternalBootnode != "" {
 		p2pBootnodes = conf.ExternalBootnode
-		p2pRelay = "true"
 	}
 
 	// Common config

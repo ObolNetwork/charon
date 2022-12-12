@@ -19,7 +19,7 @@ services:
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
-      CHARON_P2P_BOOTNODE_RELAY: "false"
+      CHARON_P2P_BOOTNODE_RELAY: "true"
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node0
@@ -36,7 +36,7 @@ services:
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
-      CHARON_P2P_BOOTNODE_RELAY: "false"
+      CHARON_P2P_BOOTNODE_RELAY: "true"
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node1
@@ -53,7 +53,7 @@ services:
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
-      CHARON_P2P_BOOTNODE_RELAY: "false"
+      CHARON_P2P_BOOTNODE_RELAY: "true"
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node2
@@ -70,7 +70,7 @@ services:
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
-      CHARON_P2P_BOOTNODE_RELAY: "false"
+      CHARON_P2P_BOOTNODE_RELAY: "true"
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node3
@@ -83,6 +83,7 @@ services:
     depends_on: []
     environment:
       CHARON_BOOTNODE_HTTP_ADDRESS: 0.0.0.0:3640
+      CHARON_BOOTNODE_MONITORING_ADDRESS: 0.0.0.0:3620
       CHARON_DATA_DIR: /compose/bootnode
       CHARON_P2P_BOOTNODES: ""
       CHARON_P2P_EXTERNAL_HOSTNAME: bootnode
