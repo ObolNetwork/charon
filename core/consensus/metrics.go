@@ -16,9 +16,12 @@
 package consensus
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/obolnetwork/charon/app/promauto"
+	"github.com/obolnetwork/charon/core"
 )
 
 var (
@@ -37,3 +40,8 @@ var (
 		Buckets:   []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 20, 30, 60},
 	}, []string{"duty"})
 )
+
+func instrumentConsensus(duty core.Duty, round int64, startTime time.Time) {
+	decidedRoundsGauge.WithLabelValues(duty.Type.String()).Set(float64(round))
+	consensusDuration.WithLabelValues(duty.Type.String()).Observe(time.Since(startTime).Seconds())
+}

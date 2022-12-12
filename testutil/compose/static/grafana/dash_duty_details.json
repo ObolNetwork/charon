@@ -24,7 +24,6 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": 141,
   "links": [
     {
       "asDropdown": false,
@@ -58,7 +57,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PABDA7AB1AD2A1489"
+        "uid": "prometheus"
       },
       "description": "",
       "fieldConfig": {
@@ -113,7 +112,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -128,7 +127,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -143,7 +142,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -162,7 +161,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PABDA7AB1AD2A1489"
+        "uid": "prometheus"
       },
       "description": "Node is healthy if Beacon Node connected and synced and at least quorum peers are connected.",
       "fieldConfig": {
@@ -285,7 +284,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -304,7 +303,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PABDA7AB1AD2A1489"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -391,7 +390,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": true,
@@ -408,7 +407,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PABDA7AB1AD2A1489"
+        "uid": "prometheus"
       },
       "description": "- **Peer**: The peer's name (inferred from their *charon-enr-private-key*)\n- **You**: ⭐️ is this local charon node\n- **Connected**: Whether you are currently connected to this peer.\n- **Direct**: Whether the connection is *direct* (👍) or *relay* (👎) \n- **Latency**: The time messages take to travel to/from the peer.\n- **Uptime**\" The duration since peer was restarted.\n- **ClockDiff**: Difference between local and peer's clock time. More than 2s is bad.\n- **Attest**: Number of attestation duties performed in the time window.\n- **PrepareAgg**: Number of aggregation preparation duties performed in the time window.\n- **Aggregate**: Number of aggregations  duties performed in the time window.\n- **Propose**: Number of block proposal duties performed in the time window.",
       "fieldConfig": {
@@ -710,7 +709,7 @@
           }
         ]
       },
-      "pluginVersion": "9.2.5",
+      "pluginVersion": "9.3.1",
       "targets": [
         {
           "datasource": {
@@ -1070,7 +1069,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PABDA7AB1AD2A1489"
+        "uid": "prometheus"
       },
       "description": "Beacon node score over time",
       "fieldConfig": {
@@ -1157,7 +1156,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "clamp_min((clamp(app_monitoring_readyz{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} == 1 OR app_monitoring_readyz{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} == 4, 1, 1) OR on() vector(0))\n*\n(\n    (\n0.5 * (1.0 - 10*(sum(increase(app_eth2_errors_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$interval])) / (sum(increase(app_eth2_latency_seconds_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$interval]))))) OR on() vector(0.5)\n    )\n    +\n    (\n        0.5 * (1.0 - clamp_max(histogram_quantile(0.99, sum(rate(app_eth2_latency_seconds_bucket{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$interval])) by (le)),1))\n    )\n), 0)",
@@ -1172,7 +1171,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PABDA7AB1AD2A1489"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1228,7 +1227,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "max(p2p_peer_connection_types{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\",type=\"relay\",peer=~\"$peer\"}) by (peer) + (100 * max(p2p_peer_connection_types{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\",type=\"direct\",peer=~\"$peer\"}) by (peer)) > 0",
@@ -1245,7 +1244,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PABDA7AB1AD2A1489"
+        "uid": "prometheus"
       },
       "description": "Completed duties by type over time.",
       "fieldConfig": {
@@ -1301,7 +1300,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -1319,7 +1318,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PABDA7AB1AD2A1489"
+        "uid": "prometheus"
       },
       "description": "",
       "fieldConfig": {
@@ -1374,7 +1373,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": true,
@@ -1391,7 +1390,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PABDA7AB1AD2A1489"
+        "uid": "prometheus"
       },
       "description": "Failed duties by type over time. Use data link to show logs.",
       "fieldConfig": {
@@ -1449,7 +1448,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -1467,7 +1466,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PABDA7AB1AD2A1489"
+        "uid": "prometheus"
       },
       "description": "",
       "fieldConfig": {
@@ -1522,7 +1521,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": true,
@@ -1539,7 +1538,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PABDA7AB1AD2A1489"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1582,7 +1581,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "yellow",
@@ -1625,7 +1625,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "max(core_consensus_decided_rounds{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"})",
@@ -1637,7 +1637,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "max(core_consensus_decided_rounds{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"$duty\"})",
@@ -1653,7 +1653,101 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PABDA7AB1AD2A1489"
+        "uid": "prometheus"
+      },
+      "description": "Duration of consensus instance by duty",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 97,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.90, sum(rate(core_consensus_duration_seconds_bucket{cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\",duty=\"$duty\"}[$__rate_interval])) by (le,duty))",
+          "legendFormat": "{{duty}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Consensus duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1697,7 +1791,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "yellow",
@@ -1740,7 +1835,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": true,
@@ -1753,7 +1848,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PABDA7AB1AD2A1489"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": true,
@@ -1779,13 +1874,14 @@
     "list": [
       {
         "current": {
+          "isNone": true,
           "selected": false,
-          "text": "Obol Core Team 3 of 4",
-          "value": "Obol Core Team 3 of 4"
+          "text": "None",
+          "value": ""
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "PABDA7AB1AD2A1489"
+          "uid": "prometheus"
         },
         "definition": "label_values(app_peer_name, cluster_name)",
         "description": "",
@@ -1808,12 +1904,12 @@
       {
         "current": {
           "selected": false,
-          "text": "736c122",
-          "value": "736c122"
+          "text": "635d97c",
+          "value": "635d97c"
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "PABDA7AB1AD2A1489"
+          "uid": "prometheus"
         },
         "definition": "label_values(app_peer_name{cluster_name=\"$cluster_name\"}, cluster_hash)",
         "description": "",
@@ -1836,12 +1932,12 @@
       {
         "current": {
           "selected": false,
-          "text": "outrageous-taxi",
-          "value": "outrageous-taxi"
+          "text": "beautiful-box",
+          "value": "beautiful-box"
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "PABDA7AB1AD2A1489"
+          "uid": "prometheus"
         },
         "definition": "label_values(app_peer_name{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\"}, cluster_peer)",
         "description": "",
@@ -1864,12 +1960,12 @@
       {
         "current": {
           "selected": false,
-          "text": "charon",
-          "value": "charon"
+          "text": "node3",
+          "value": "node3"
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "PABDA7AB1AD2A1489"
+          "uid": "prometheus"
         },
         "definition": "label_values(app_peer_name{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"},job)",
         "description": "Prometheus job (can be ignored)",
@@ -1898,7 +1994,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "PABDA7AB1AD2A1489"
+          "uid": "prometheus"
         },
         "definition": "label_values(p2p_ping_success{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\", cluster_peer=\"$cluster_peer\"}, peer)",
         "description": "",
