@@ -19,6 +19,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -150,10 +151,40 @@ func titledHelp(cmd *cobra.Command) {
 func printFlags(ctx context.Context, flags *pflag.FlagSet) {
 	ctx = log.WithTopic(ctx, "cmd")
 
-	var zStrs []z.Field
+	log.Info(ctx, "Parsed config", flagsToLogFields(flags)...)
+}
+
+// flagsToLogFields converts the given flags to log fields.
+func flagsToLogFields(flags *pflag.FlagSet) []z.Field {
+	var fields []z.Field
 	flags.VisitAll(func(flag *pflag.Flag) {
-		zStrs = append(zStrs, z.Str(flag.Name, flag.Value.String()))
+		val := redact(flag.Name, flag.Value.String())
+
+		if sliceVal, ok := flag.Value.(pflag.SliceValue); ok {
+			var vals []string
+			for _, s := range sliceVal.GetSlice() {
+				vals = append(vals, redact(flag.Name, s))
+			}
+			val = "[" + strings.Join(vals, ",") + "]"
+		}
+
+		fields = append(fields, z.Str(flag.Name, val))
 	})
 
-	log.Info(ctx, "Parsed config", zStrs...)
+	return fields
+}
+
+// redact returns a redacted version of the given flag value.
+// It currently only supports redacting passwords in valid URLs provided in ".*address.*" flags.
+func redact(flag, val string) string {
+	if !strings.Contains(flag, "address") {
+		return val
+	}
+
+	u, err := url.Parse(val)
+	if err != nil {
+		return val
+	}
+
+	return u.Redacted()
 }
