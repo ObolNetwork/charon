@@ -154,6 +154,7 @@ func printFlags(ctx context.Context, flags *pflag.FlagSet) {
 	log.Info(ctx, "Parsed config", flagsToLogFields(flags)...)
 }
 
+// flagsToLogFields converts the given flags to log fields.
 func flagsToLogFields(flags *pflag.FlagSet) []z.Field {
 	var fields []z.Field
 	flags.VisitAll(func(flag *pflag.Flag) {
@@ -174,7 +175,7 @@ func flagsToLogFields(flags *pflag.FlagSet) []z.Field {
 }
 
 // redact returns a redacted version of the given flag value.
-// It currently only supports redacting address URLs.
+// It currently only supports redacting passwords in valid URLs provided in ".*address.*" flags.
 func redact(flag, val string) string {
 	if !strings.Contains(flag, "address") {
 		return val
