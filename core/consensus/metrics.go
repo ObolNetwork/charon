@@ -39,6 +39,20 @@ var (
 		Help:      "Duration of a consensus instance in seconds by duty",
 		Buckets:   []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 20, 30, 60},
 	}, []string{"duty"})
+
+	consensusTimeout = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "consensus",
+		Name:      "timeout_total",
+		Help:      "Total count of consensus timeouts by duty",
+	}, []string{"duty"})
+
+	consensusError = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "consensus",
+		Name:      "error_total",
+		Help:      "Total count of consensus errors",
+	})
 )
 
 func instrumentConsensus(duty core.Duty, round int64, startTime time.Time) {

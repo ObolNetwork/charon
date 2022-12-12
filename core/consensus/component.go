@@ -54,7 +54,7 @@ func Protocols() []protocol.ID {
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
-func newDefinition(nodes int, subs func() []subscriber, startTime time.Time) qbft.Definition[core.Duty, [32]byte] {
+func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Duty, [32]byte] {
 	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
 
 	return qbft.Definition[core.Duty, [32]byte]{
@@ -74,8 +74,6 @@ func newDefinition(nodes int, subs func() []subscriber, startTime time.Time) qbf
 				log.Error(ctx, "Missing decided value", nil)
 				return
 			}
-
-			instrumentConsensus(duty, qcommit[0].Round(), startTime)
 
 			for _, sub := range subs() {
 				if err := sub(ctx, duty, value); err != nil {
@@ -159,6 +157,8 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 		recvDropped: make(map[core.Duty]bool),
 		snifferFunc: snifferFunc,
 	}
+
+	c.def = newDefinition(len(c.peers), c.subscribers)
 
 	return c, nil
 }
@@ -267,8 +267,6 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 
 	log.Debug(ctx, "QBFT consensus instance starting", z.Any("peers", c.peerLabels))
 
-	c.def = newDefinition(len(c.peers), c.subscribers, time.Now())
-
 	hash, err := hashProto(value)
 	if err != nil {
 		return err
@@ -301,9 +299,20 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		Receive:   t.recvBuffer,
 	}
 
+	// Instrument consensus instance.
+	t0 := time.Now()
+	def := c.def
+	def.Decide = func(ctx context.Context, duty core.Duty, val [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
+		instrumentConsensus(duty, qcommit[0].Round(), t0)
+		c.def.Decide(ctx, duty, val, qcommit)
+	}
+
 	// Run the algo, blocking until the context is cancelled.
-	err = qbft.Run[core.Duty, [32]byte](ctx, c.def, qt, duty, peerIdx, hash)
-	if err != nil && !isContextErr(err) {
+	err = qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, peerIdx, hash)
+	if isContextErr(err) {
+		consensusTimeout.WithLabelValues(duty.String()).Inc()
+	} else if err != nil {
+		consensusError.Inc()
 		return err // Only return non-context errors.
 	}
 
