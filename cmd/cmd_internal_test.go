@@ -24,7 +24,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/featureset"
@@ -233,6 +235,21 @@ func TestConfigReference(t *testing.T) {
 	require.Containsf(t, string(content), buf.String(),
 		"docs/configuration.md doesn't contain latest `charon run --help` output. "+
 			"Run with -update_conf to fix")
+}
+
+func TestFlagsToLogFields(t *testing.T) {
+	set := pflag.NewFlagSet("test", pflag.PanicOnError)
+	bindLokiFlags(set, &log.Config{})
+	err := set.Parse([]string{
+		"--loki-addresses=https://user:password@loki.tech/push",
+	})
+	require.NoError(t, err)
+
+	for _, field := range flagsToLogFields(set) {
+		field(func(f zap.Field) {
+			require.NotContains(t, f.String, "password")
+		})
+	}
 }
 
 // slice is a convenience function for creating string slice literals.
