@@ -246,7 +246,7 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 
 // resolveDuties resolves the duties for the slot's epoch, caching the results.
 func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
-	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.pubkeys, slot.Slot, s.metricSubmitter)
+	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.pubkeys, s.metricSubmitter)
 	if err != nil {
 		return err
 	}
@@ -546,7 +546,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 
 // resolveActiveValidators returns the active validators (including their validator index) for the slot.
 func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
-	pubkeys []core.PubKey, slot int64, submitter metricSubmitter,
+	pubkeys []core.PubKey, submitter metricSubmitter,
 ) (validators, error) {
 	var e2pks []eth2p0.BLSPubKey
 	for _, pubkey := range pubkeys {
@@ -558,12 +558,7 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 		e2pks = append(e2pks, e2pk)
 	}
 
-	// Use "head" instead of current slot to mitigate clock skew timing issues.
-	// Note this does introduce the risk that the resulting active validators
-	// is not for this specific slot.
-	// TODO(corver): Explicitly sync with beacon node clock.
-	_ = slot
-
+	// TODO(corver): Use cache instead of using head to try to mitigate this expensive call.
 	vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", e2pks)
 	if err != nil {
 		return nil, err

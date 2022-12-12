@@ -141,7 +141,7 @@ func wait(ctx context.Context, chs ...chan struct{}) {
 func activeValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 	pubkeys []eth2p0.BLSPubKey,
 ) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
-	// Using head to mitigate future slot issues.
+	// TODO(corver): Use cache instead of using head to try to mitigate this expensive call.
 	vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", pubkeys)
 	if err != nil {
 		return nil, err
