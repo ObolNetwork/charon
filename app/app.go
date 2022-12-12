@@ -784,6 +784,7 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeReci
 		}
 		onStartup = false
 
+		// TODO(corver): Use cache instead of using head to try to mitigate this expensive call.
 		vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", pubkeys)
 		if err != nil {
 			return err

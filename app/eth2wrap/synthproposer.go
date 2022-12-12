@@ -261,16 +261,9 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 		return duties, nil
 	}
 
-	// Get slotsPerEpoch and the starting slot of the epoch.
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	epochSlot := eth2p0.Slot(epoch) * eth2p0.Slot(slotsPerEpoch)
-
 	// Get active validators for the epoch
-	vals, err := eth2Cl.ValidatorsByPubKey(ctx, fmt.Sprint(epochSlot), c.pubkeys)
+	// TODO(corver): Use cache instead of using head to try to mitigate this expensive call.
+	vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", c.pubkeys)
 	if err != nil {
 		return nil, err
 	}
@@ -288,6 +281,13 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 	if err != nil {
 		return nil, err
 	}
+
+	// Get slotsPerEpoch and the starting slot of the epoch.
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return nil, err
+	}
+	epochSlot := eth2p0.Slot(epoch) * eth2p0.Slot(slotsPerEpoch)
 
 	// Mark those not requiring synthetic duties.
 	noSynth := make(map[eth2p0.ValidatorIndex]bool)

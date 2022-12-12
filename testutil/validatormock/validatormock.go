@@ -49,17 +49,17 @@ type SignFunc func(pubshare eth2p0.BLSPubKey, data []byte) (eth2p0.BLSSignature,
 func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	slot eth2p0.Slot, pubkeys ...eth2p0.BLSPubKey,
 ) error {
+	// TODO(corver): Use cache instead of using head to try to mitigate this expensive call.
+	valMap, err := eth2Cl.ValidatorsByPubKey(ctx, "head", pubkeys)
+	if err != nil {
+		return err
+	}
+
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
 		return err
 	}
-
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
-
-	valMap, err := eth2Cl.ValidatorsByPubKey(ctx, fmt.Sprint(slot), pubkeys)
-	if err != nil {
-		return err
-	}
 
 	var indexes []eth2p0.ValidatorIndex
 	for index, val := range valMap {
@@ -158,17 +158,18 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	slot eth2p0.Slot, pubkeys ...eth2p0.BLSPubKey,
 ) error {
+	// TODO(corver): Use cache instead of using head to try to mitigate this expensive call.
+	valMap, err := eth2Cl.ValidatorsByPubKey(ctx, "head", pubkeys)
+	if err != nil {
+		return err
+	}
+
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
 		return err
 	}
 
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
-
-	valMap, err := eth2Cl.ValidatorsByPubKey(ctx, fmt.Sprint(slot), pubkeys)
-	if err != nil {
-		return err
-	}
 
 	var indexes []eth2p0.ValidatorIndex
 	for index, val := range valMap {
