@@ -158,7 +158,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 		snifferFunc: snifferFunc,
 	}
 
-	c.def = newDefinition(len(c.peers), c.subscribers)
+	c.def = newDefinition(len(peers), c.subscribers)
 
 	return c, nil
 }
