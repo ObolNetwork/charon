@@ -19,13 +19,12 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	"io"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
@@ -154,8 +153,8 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.
 		pubkeys:     keys,
 		deadliner:   deadliner,
 		recvBuffers: make(map[core.Duty]chan msg),
-		recvDropped: make(map[core.Duty]bool),
 		snifferFunc: snifferFunc,
+		dropFilter:  log.Filter(),
 	}
 
 	c.def = newDefinition(len(peers), c.subscribers)
@@ -176,11 +175,11 @@ type Component struct {
 	subs        []subscriber
 	deadliner   core.Deadliner
 	snifferFunc func(*pbv1.SniffedConsensusInstance)
+	dropFilter  z.Field // Filter buffer overflow errors (possible DDoS)
 
 	// Mutable state
 	recvMu      sync.Mutex
 	recvBuffers map[core.Duty]chan msg // Instance outer receive buffers.
-	recvDropped map[core.Duty]bool
 }
 
 // Subscribe registers a callback for unsigned duty data proposals from leaders.
@@ -221,7 +220,9 @@ func (c *Component) SubscribePriority(fn func(ctx context.Context, duty core.Dut
 
 // Start registers the libp2p receive handler and starts a goroutine that cleans state. This should only be called once.
 func (c *Component) Start(ctx context.Context) {
-	c.tcpNode.SetStreamHandler(protocolID, c.handle)
+	p2p.RegisterHandler("qbft", c.tcpNode, protocolID,
+		func() proto.Message { return new(pbv1.ConsensusMsg) },
+		c.handle)
 
 	go func() {
 		for {
@@ -327,69 +328,48 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 }
 
 // handle processes an incoming consensus wire message.
-func (c *Component) handle(s network.Stream) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	ctx = log.WithTopic(ctx, "qbft")
-	ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
-	defer cancel()
-	defer s.Close()
-
-	b, err := io.ReadAll(s)
-	if p2p.IsRelayError(err) {
-		return // Ignore relay errors.
-	} else if err != nil {
-		log.Error(ctx, "Failed reading consensus stream", err)
-		return
-	}
-
-	pbMsg := new(pbv1.ConsensusMsg)
-	if err := proto.Unmarshal(b, pbMsg); err != nil {
-		log.Error(ctx, "Failed unmarshalling consensus proto", err)
-		return
+func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+	pbMsg, ok := req.(*pbv1.ConsensusMsg)
+	if !ok {
+		return nil, false, errors.New("invalid consensus message type")
 	}
 
 	if pbMsg.Msg == nil || pbMsg.Msg.Duty == nil {
-		log.Error(ctx, "Invalid consensus message", errors.New("nil msg"))
-		return
+		return nil, false, errors.New("invalid consensus message fields")
 	}
 
 	duty := core.DutyFromProto(pbMsg.Msg.Duty)
 	if !duty.Type.Valid() {
-		log.Error(ctx, "Invalid consensus duty type", errors.New("", z.Str("type", duty.Type.String())))
-		return
+		return nil, false, errors.New("invalid consensus message duty type", z.Str("type", duty.Type.String()))
 	}
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	if ok, err := verifyMsgSig(pbMsg.Msg, c.pubkeys[pbMsg.Msg.PeerIdx]); err != nil || !ok {
-		log.Error(ctx, "Invalid consensus message signature", err)
-		return
+		return nil, false, errors.Wrap(err, "invalid consensus message signature", z.Any("duty", duty))
 	}
 
 	for _, msg := range pbMsg.Justification {
 		if ok, err := verifyMsgSig(msg, c.pubkeys[msg.PeerIdx]); err != nil || !ok {
-			log.Error(ctx, "Invalid consensus justification signature", err)
-			return
+			return nil, false, errors.Wrap(err, "invalid consensus justification signature", z.Any("duty", duty))
 		}
 	}
 	msg, err := newMsg(pbMsg.Msg, pbMsg.Justification)
 	if err != nil {
-		log.Error(ctx, "Create consensus message", err)
-		return
+		return nil, false, err
 	}
 
 	if !c.deadliner.Add(duty) {
-		log.Warn(ctx, "Dropping peer consensus message for expired duty", nil)
-		return
+		return nil, false, errors.New("duty expired", z.Any("duty", duty), c.dropFilter)
 	}
 
 	select {
 	case c.getRecvBuffer(duty) <- msg:
+		return nil, false, nil
 	case <-ctx.Done():
-		log.Error(ctx, "Dropping peer consensus message due to timeout", ctx.Err())
+		return nil, false, errors.Wrap(err, "receive buffer timeout", z.Any("duty", duty))
 	default:
-		if c.markRecvDropped(duty) {
-			log.Warn(ctx, "Dropping peer consensus messages, duty not scheduled locally", nil)
-		}
+		return nil, false, errors.Wrap(err, "receive buffer overflow, duty not scheduled locally",
+			z.Any("duty", duty), c.dropFilter)
 	}
 }
 
@@ -407,24 +387,12 @@ func (c *Component) getRecvBuffer(duty core.Duty) chan msg {
 	return ch
 }
 
-// markRecvDropped marks receives as dropped for the duty and returns true if this is the first.
-func (c *Component) markRecvDropped(duty core.Duty) bool {
-	c.recvMu.Lock()
-	defer c.recvMu.Unlock()
-
-	prev := c.recvDropped[duty]
-	c.recvDropped[duty] = true
-
-	return !prev
-}
-
 // deleteRecvChan deletes the receive channel and recvDropped map entry for the duty.
 func (c *Component) deleteRecvChan(duty core.Duty) {
 	c.recvMu.Lock()
 	defer c.recvMu.Unlock()
 
 	delete(c.recvBuffers, duty)
-	delete(c.recvDropped, duty)
 }
 
 // getPeerIdx returns the local peer index.
