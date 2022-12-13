@@ -28,7 +28,19 @@ import (
 
 var cfg Config
 
-func init() {
+func main() {
+	ctx := context.Background()
+	readConfig()
+
+	for {
+		log.Info(ctx, "Promrated looping.", z.Str("network", cfg.Network))
+
+		sleepFor := time.Minute * time.Duration(10)
+		time.Sleep(sleepFor)
+	}
+}
+
+func readConfig() {
 	if len(os.Args) == 2 {
 		err := initConfig(os.Args[1], &cfg)
 		if err != nil {
@@ -36,16 +48,5 @@ func init() {
 		}
 	} else {
 		panic("No config file provided.")
-	}
-}
-
-func main() {
-	ctx := context.Background()
-
-	for {
-		log.Info(ctx, "Promrated looping.", z.Str("network", cfg.Network))
-
-		sleepFor := time.Minute * time.Duration(10)
-		time.Sleep(sleepFor)
 	}
 }
