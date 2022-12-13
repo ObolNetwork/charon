@@ -143,6 +143,7 @@ func (s *Sender) SendReceive(ctx context.Context, tcpNode host.Host, peerID peer
 func withRelayRetry(fn func() error) error {
 	err := fn()
 	if IsRelayError(err) { // Retry once if relay error
+		time.Sleep(time.Millisecond * 100)
 		err = fn()
 	}
 

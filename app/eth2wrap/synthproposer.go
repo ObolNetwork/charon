@@ -37,6 +37,8 @@ import (
 const (
 	// maxCachedEpochs limits the amount of epochs to cache.
 	maxCachedEpochs = 10
+	// syntheticBlockGraffiti defines the graffiti to identify synthetic blocks.
+	syntheticBlockGraffiti = "SYNTHETIC BLOCK: DO NOT SUBMIT"
 )
 
 type synthProposerEth2Provider interface {
@@ -51,6 +53,27 @@ var _ Client = &synthWrapper{}
 type synthWrapper struct {
 	Client
 	synthProposerCache *synthProposerCache
+
+	mu            sync.RWMutex
+	feeRecipients map[eth2p0.ValidatorIndex]bellatrix.ExecutionAddress
+}
+
+// setFeeRecipients caches the provided fee recipients.
+func (h *synthWrapper) setFeeRecipients(preparations []*eth2v1.ProposalPreparation) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for _, preparation := range preparations {
+		h.feeRecipients[preparation.ValidatorIndex] = preparation.FeeRecipient
+	}
+}
+
+// getFeeRecipients returns the fee recipient for the provided validator index.
+func (h *synthWrapper) getFeeRecipients(vIdx eth2p0.ValidatorIndex) bellatrix.ExecutionAddress {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	return h.feeRecipients[vIdx]
 }
 
 // ProposerDuties returns upstream proposer duties for the provided validator indexes or
@@ -60,28 +83,34 @@ func (h *synthWrapper) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, _
 	return h.synthProposerCache.Duties(ctx, h.Client, epoch)
 }
 
+func (h *synthWrapper) SubmitProposalPreparations(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error {
+	h.setFeeRecipients(preparations)
+
+	return h.Client.SubmitProposalPreparations(ctx, preparations)
+}
+
 // BeaconBlockProposal returns an unsigned beacon block, possibly marked as synthetic.
 func (h *synthWrapper) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
-	ok, err := h.synthProposerCache.IsSynthetic(ctx, h.Client, slot)
+	vIdx, ok, err := h.synthProposerCache.SyntheticVIdx(ctx, h.Client, slot)
 	if err != nil {
 		return nil, err
 	} else if !ok {
 		return h.Client.BeaconBlockProposal(ctx, slot, randao, graffiti)
 	}
 
-	return h.syntheticBlock(ctx, slot)
+	return h.syntheticBlock(ctx, slot, vIdx)
 }
 
 // BlindedBeaconBlockProposal returns an unsigned blinded beacon block, possibly marked as synthetic.
 func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, graffiti []byte) (*api.VersionedBlindedBeaconBlock, error) {
-	ok, err := h.synthProposerCache.IsSynthetic(ctx, h.Client, slot)
+	vIdx, ok, err := h.synthProposerCache.SyntheticVIdx(ctx, h.Client, slot)
 	if err != nil {
 		return nil, err
 	} else if !ok {
 		return h.Client.BlindedBeaconBlockProposal(ctx, slot, randao, graffiti)
 	}
 
-	block, err := h.syntheticBlock(ctx, slot)
+	block, err := h.syntheticBlock(ctx, slot, vIdx)
 	if err != nil {
 		return nil, err
 	} else if block.Version != spec.DataVersionBellatrix {
@@ -128,7 +157,7 @@ func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, slot eth2
 }
 
 // syntheticBlock returns a synthetic beacon block to propose.
-func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot) (*spec.VersionedBeaconBlock, error) {
+func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vIdx eth2p0.ValidatorIndex) (*spec.VersionedBeaconBlock, error) {
 	var signedBlock *spec.VersionedSignedBeaconBlock
 
 	// Work our way back from previous slot to find a block to base the synthetic block on.
@@ -154,6 +183,8 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot) (*s
 	var synthGraffiti [32]byte
 	copy(synthGraffiti[:], syntheticBlockGraffiti)
 
+	feeRecipient := h.getFeeRecipients(vIdx)
+
 	block := &spec.VersionedBeaconBlock{Version: signedBlock.Version}
 
 	switch signedBlock.Version {
@@ -169,10 +200,12 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot) (*s
 		block.Bellatrix = signedBlock.Bellatrix.Message
 		block.Bellatrix.Body.Graffiti = synthGraffiti
 		block.Bellatrix.Slot = slot
+		block.Bellatrix.Body.ExecutionPayload.FeeRecipient = feeRecipient
 	case spec.DataVersionCapella:
 		block.Capella = signedBlock.Capella.Message
 		block.Capella.Body.Graffiti = synthGraffiti
 		block.Capella.Slot = slot
+		block.Capella.Body.ExecutionPayload.FeeRecipient = feeRecipient
 	default:
 		return nil, errors.New("unsupported block version")
 	}
@@ -181,7 +214,7 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot) (*s
 }
 
 // SubmitBlindedBeaconBlock submits a blinded beacon block or swallows it if marked as synthetic.
-func (h synthWrapper) SubmitBlindedBeaconBlock(ctx context.Context, block *api.VersionedSignedBlindedBeaconBlock) error {
+func (h *synthWrapper) SubmitBlindedBeaconBlock(ctx context.Context, block *api.VersionedSignedBlindedBeaconBlock) error {
 	var graffiti [32]byte
 	switch block.Version {
 	case spec.DataVersionBellatrix:
@@ -201,7 +234,7 @@ func (h synthWrapper) SubmitBlindedBeaconBlock(ctx context.Context, block *api.V
 }
 
 // SubmitBeaconBlock submits a beacon block or swallows it if marked as synthetic.
-func (h synthWrapper) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+func (h *synthWrapper) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
 	var graffiti [32]byte
 	switch block.Version {
 	case spec.DataVersionPhase0:
@@ -231,7 +264,7 @@ func newSynthProposerCache(pubkeys []eth2p0.BLSPubKey) *synthProposerCache {
 	return &synthProposerCache{
 		pubkeys:     pubkeys,
 		duties:      make(map[eth2p0.Epoch][]*eth2v1.ProposerDuty),
-		synths:      make(map[eth2p0.Epoch]map[eth2p0.Slot]bool),
+		synths:      make(map[eth2p0.Epoch]map[eth2p0.Slot]eth2p0.ValidatorIndex),
 		shuffleFunc: eth2Shuffle,
 	}
 }
@@ -248,7 +281,7 @@ type synthProposerCache struct {
 	mu     sync.RWMutex
 	fifo   []eth2p0.Epoch
 	duties map[eth2p0.Epoch][]*eth2v1.ProposerDuty
-	synths map[eth2p0.Epoch]map[eth2p0.Slot]bool
+	synths map[eth2p0.Epoch]map[eth2p0.Slot]eth2p0.ValidatorIndex
 }
 
 // Duties returns the upstream and synthetic duties for all pubkeys for the provided epoch.
@@ -296,7 +329,7 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 	}
 
 	// Deterministic synthetic duties for the rest.
-	synthSlots := make(map[eth2p0.Slot]bool)
+	synthSlots := make(map[eth2p0.Slot]eth2p0.ValidatorIndex)
 	for _, valIdx := range c.shuffleFunc(epoch, activeIdxs) {
 		if noSynth[valIdx] {
 			continue
@@ -309,7 +342,7 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 			continue
 		}
 
-		synthSlots[synthSlot] = true
+		synthSlots[synthSlot] = valIdx
 		duties = append(duties, &eth2v1.ProposerDuty{
 			PubKey:         vals[valIdx].Validator.PublicKey,
 			Slot:           synthSlot,
@@ -335,26 +368,28 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 	return duties, nil
 }
 
-// IsSynthetic returns true if the slot is a synthetic proposer duty.
-func (c *synthProposerCache) IsSynthetic(ctx context.Context, eth2Cl synthProposerEth2Provider, slot eth2p0.Slot) (bool, error) {
+// SyntheticVIdx returns the validator index and true if the slot is a synthetic proposer duty.
+func (c *synthProposerCache) SyntheticVIdx(ctx context.Context, eth2Cl synthProposerEth2Provider, slot eth2p0.Slot) (eth2p0.ValidatorIndex, bool, error) {
 	// Get the epoch.
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
-		return false, err
+		return 0, false, err
 	}
 	epoch := eth2p0.Epoch(slot) / eth2p0.Epoch(slotsPerEpoch)
 
 	// Ensure that cache is populated.
 	_, err = c.Duties(ctx, eth2Cl, epoch)
 	if err != nil {
-		return false, err
+		return 0, false, err
 	}
 
 	// Return the result.
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.synths[epoch][slot], nil
+	vIdx, ok := c.synths[epoch][slot]
+
+	return vIdx, ok, nil
 }
 
 // eth2Shuffle is the eth2 pseudo-random (deterministic) shuffle function.

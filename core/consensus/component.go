@@ -319,7 +319,9 @@ func (c *Component) handle(s network.Stream) {
 	defer s.Close()
 
 	b, err := io.ReadAll(s)
-	if err != nil {
+	if p2p.IsRelayError(err) {
+		return // Ignore relay errors.
+	} else if err != nil {
 		log.Error(ctx, "Failed reading consensus stream", err)
 		return
 	}
