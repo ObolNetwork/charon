@@ -32,8 +32,7 @@ func init() {
 	if len(os.Args) == 2 {
 		err := initConfig(os.Args[1], &cfg)
 		if err != nil {
-			log.Error(context.Background(), "Error reading promrated config.", err)
-			panic("")
+			panic(err)
 		}
 	} else {
 		panic("No config file provided.")
