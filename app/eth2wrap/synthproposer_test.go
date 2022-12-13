@@ -23,6 +23,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -36,6 +37,7 @@ func TestSynthProposer(t *testing.T) {
 
 	var (
 		set                        = beaconmock.ValidatorSetA
+		feeRecipient               = bellatrix.ExecutionAddress{0x00, 0x01, 0x02}
 		slotsPerEpoch              = 16
 		epoch         eth2p0.Epoch = 100
 		realBlockSlot              = eth2p0.Slot(slotsPerEpoch) * eth2p0.Slot(epoch)
@@ -78,6 +80,15 @@ func TestSynthProposer(t *testing.T) {
 
 	eth2Cl := eth2wrap.WithSyntheticDuties(bmock, set.PublicKeys())
 
+	var preps []*eth2v1.ProposalPreparation
+	for vIdx := range set {
+		preps = append(preps, &eth2v1.ProposalPreparation{
+			ValidatorIndex: vIdx,
+			FeeRecipient:   feeRecipient,
+		})
+	}
+	require.NoError(t, eth2Cl.SubmitProposalPreparations(ctx, preps))
+
 	// Get synthetic duties
 	duties, err := eth2Cl.ProposerDuties(ctx, epoch, nil)
 	require.NoError(t, err)
@@ -96,9 +107,12 @@ func TestSynthProposer(t *testing.T) {
 		require.NoError(t, err)
 		if duty.Slot == realBlockSlot {
 			require.NotContains(t, string(block.Bellatrix.Body.Graffiti[:]), "DO NOT SUBMIT")
+			require.NotEqual(t, feeRecipient, block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
 		} else {
 			require.Contains(t, string(block.Bellatrix.Body.Graffiti[:]), "DO NOT SUBMIT")
+			require.Equal(t, feeRecipient, block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
 		}
+		require.Equal(t, spec.DataVersionBellatrix, block.Version)
 
 		signed := testutil.RandomVersionSignedBeaconBlock()
 		signed.Bellatrix.Message = block.Bellatrix
@@ -112,9 +126,11 @@ func TestSynthProposer(t *testing.T) {
 		require.NoError(t, err)
 		if duty.Slot == realBlockSlot {
 			require.NotContains(t, string(block.Bellatrix.Body.Graffiti[:]), "DO NOT SUBMIT")
+			require.NotEqual(t, feeRecipient, block.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
 		} else {
-			require.Contains(t, string(block.Bellatrix.Body.Graffiti[:]), "DO NOT SUBMIT")
+			require.Equal(t, feeRecipient, block.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
 		}
+		require.Equal(t, spec.DataVersionBellatrix, block.Version)
 
 		signed := &eth2api.VersionedSignedBlindedBeaconBlock{
 			Version: spec.DataVersionBellatrix,

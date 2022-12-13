@@ -34,9 +34,6 @@ import (
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
-// syntheticBlockGraffiti defines the graffiti to identify synthetic blocks.
-const syntheticBlockGraffiti = "SYNTHETIC BLOCK: DO NOT SUBMIT"
-
 // BlockAttestationsProvider is the interface for providing attestations included in blocks.
 // It is a standard beacon API endpoint not implemented by eth2client.
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestations.

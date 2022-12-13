@@ -23,6 +23,7 @@ import (
 	"time"
 
 	eth2http "github.com/attestantio/go-eth2-client/http"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -71,6 +72,7 @@ func WithSyntheticDuties(cl Client, pubkeys []eth2p0.BLSPubKey) Client {
 	return &synthWrapper{
 		Client:             cl,
 		synthProposerCache: newSynthProposerCache(pubkeys),
+		feeRecipients:      make(map[eth2p0.ValidatorIndex]bellatrix.ExecutionAddress),
 	}
 }
 
