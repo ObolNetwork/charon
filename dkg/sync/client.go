@@ -85,10 +85,10 @@ func (c *Client) Run(ctx context.Context) error {
 		relayBroke, connBroke, err := c.sendMsgs(ctx, stream)
 		c.clearConnected()
 		if relayBroke {
-			log.Debug(ctx, "Relay connection dropped, reconnecting")
+			log.Warn(ctx, "Relay connection dropped, reconnecting", nil, z.Str("peer", p2p.PeerName(stream.Conn().RemotePeer())))
 			continue // Always reconnect on relay circuit recycling.
 		} else if connBroke && c.reconnect {
-			log.Debug(ctx, "Connection dropped, reconnecting")
+			log.Warn(ctx, "Connection dropped, reconnecting", nil, z.Str("peer", p2p.PeerName(stream.Conn().RemotePeer())))
 			continue // Only reconnect for connection breaks in reconnect state.
 		} else if err != nil {
 			return err
