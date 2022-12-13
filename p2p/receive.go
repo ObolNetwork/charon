@@ -49,17 +49,20 @@ func RegisterHandler(logTopic string, tcpNode host.Host, protocol protocol.ID,
 	zeroReq func() proto.Message, handlerFunc HandlerFunc,
 ) {
 	tcpNode.SetStreamHandler(protocol, func(s network.Stream) {
+		name := PeerName(s.Conn().RemotePeer())
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		ctx = log.WithTopic(ctx, logTopic)
 		ctx = log.WithCtx(ctx,
-			z.Str("peer", PeerName(s.Conn().RemotePeer())),
+			z.Str("peer", name),
 			z.Str("protocol", string(protocol)),
 		)
 		defer cancel()
 		defer s.Close()
 
 		b, err := io.ReadAll(s)
-		if err != nil {
+		if IsRelayError(err) {
+			return // Ignore relay errors.
+		} else if err != nil {
 			log.Error(ctx, "LibP2P read request", err)
 			return
 		}
@@ -69,6 +72,8 @@ func RegisterHandler(logTopic string, tcpNode host.Host, protocol protocol.ID,
 			log.Error(ctx, "LibP2P unmarshal request", err)
 			return
 		}
+
+		networkRXCounter.WithLabelValues(name, string(s.Protocol())).Add(float64(len(b)))
 
 		resp, ok, err := handlerFunc(ctx, s.Conn().RemotePeer(), req)
 		if err != nil {
@@ -86,9 +91,13 @@ func RegisterHandler(logTopic string, tcpNode host.Host, protocol protocol.ID,
 			return
 		}
 
-		if _, err := s.Write(b); err != nil {
+		if _, err := s.Write(b); IsRelayError(err) {
+			return // Ignore relay errors.
+		} else if err != nil {
 			log.Error(ctx, "LibP2P write response", err)
 			return
 		}
+
+		networkTXCounter.WithLabelValues(name, string(s.Protocol())).Add(float64(len(b)))
 	})
 }

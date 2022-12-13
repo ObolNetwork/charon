@@ -206,6 +206,9 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 		return errors.Wrap(err, "close write")
 	}
 
+	name := PeerName(peerID)
+	networkTXCounter.WithLabelValues(name, string(s.Protocol())).Add(float64(len(b)))
+
 	b, err = io.ReadAll(s)
 	if err != nil {
 		return errors.Wrap(err, "read response")
@@ -222,6 +225,8 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 	}
 
 	o.rttCallback(time.Since(t0))
+
+	networkRXCounter.WithLabelValues(name, string(s.Protocol())).Add(float64(len(b)))
 
 	return nil
 }
@@ -247,6 +252,8 @@ func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID pe
 	if err := s.Close(); err != nil {
 		return errors.Wrap(err, "tcpNode close")
 	}
+
+	networkTXCounter.WithLabelValues(PeerName(peerID), string(s.Protocol())).Add(float64(len(b)))
 
 	return nil
 }
