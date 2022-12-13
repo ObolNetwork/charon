@@ -29,7 +29,7 @@ import (
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
-const maxQBFTDebugger = 20 * (1 << 20) // 20MB
+const maxQBFTDebugger = 200 * (1 << 20) // 200MB
 
 // newQBFTDebugger returns a new qbftDebugger.
 func newQBFTDebugger() *qbftDebugger {
