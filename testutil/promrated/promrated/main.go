@@ -13,10 +13,12 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package cmd
+package main
 
 import (
 	"context"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -24,23 +26,29 @@ import (
 	"github.com/obolnetwork/charon/testutil/promrated"
 )
 
-func newPromratedCmd(runFunc func(context.Context, promrated.Config) error) *cobra.Command {
+func main() {
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	cobra.CheckErr(newRootCmd(promrated.Run).ExecuteContext(ctx))
+}
+
+func newRootCmd(runFunc func(context.Context, promrated.Config) error) *cobra.Command {
 	var config promrated.Config
 
-	cmd := &cobra.Command{
+	root := &cobra.Command{
 		Use:   "promrated",
 		Short: "Starts a promrated server",
 		Long:  `Starts a promrated server that polls rated and makes metrics available to prometheus`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			printFlags(cmd.Context(), cmd.Flags())
 			return runFunc(cmd.Context(), config)
 		},
 	}
 
-	bindPromratedFlag(cmd.Flags(), &config)
+	bindPromratedFlag(root.Flags(), &config)
 
-	return cmd
+	return root
 }
 
 func bindPromratedFlag(flags *pflag.FlagSet, config *promrated.Config) {
