@@ -68,8 +68,8 @@ func (h *synthWrapper) setFeeRecipients(preparations []*eth2v1.ProposalPreparati
 	}
 }
 
-// getFeeRecipients returns the fee recipient for the provided validator index.
-func (h *synthWrapper) getFeeRecipients(vIdx eth2p0.ValidatorIndex) bellatrix.ExecutionAddress {
+// getFeeRecipient returns the fee recipient for the provided validator index.
+func (h *synthWrapper) getFeeRecipient(vIdx eth2p0.ValidatorIndex) bellatrix.ExecutionAddress {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -183,7 +183,7 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vId
 	var synthGraffiti [32]byte
 	copy(synthGraffiti[:], syntheticBlockGraffiti)
 
-	feeRecipient := h.getFeeRecipients(vIdx)
+	feeRecipient := h.getFeeRecipient(vIdx)
 
 	block := &spec.VersionedBeaconBlock{Version: signedBlock.Version}
 
