@@ -39,6 +39,10 @@ const (
 	maxCachedEpochs = 10
 	// syntheticBlockGraffiti defines the graffiti to identify synthetic blocks.
 	syntheticBlockGraffiti = "SYNTHETIC BLOCK: DO NOT SUBMIT"
+
+	// syntheticBlockFraction is the fraction 1/Nth of transactions to include in a synthetic block.
+	// This decreases synthetic block size to manageable levels.
+	syntheticBlockFraction = 10
 )
 
 type synthProposerEth2Provider interface {
@@ -201,16 +205,24 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vId
 		block.Bellatrix.Body.Graffiti = synthGraffiti
 		block.Bellatrix.Slot = slot
 		block.Bellatrix.Body.ExecutionPayload.FeeRecipient = feeRecipient
+		block.Bellatrix.Body.ExecutionPayload.Transactions = fraction(block.Bellatrix.Body.ExecutionPayload.Transactions)
 	case spec.DataVersionCapella:
 		block.Capella = signedBlock.Capella.Message
 		block.Capella.Body.Graffiti = synthGraffiti
 		block.Capella.Slot = slot
 		block.Capella.Body.ExecutionPayload.FeeRecipient = feeRecipient
+		block.Capella.Body.ExecutionPayload.Transactions = fraction(block.Capella.Body.ExecutionPayload.Transactions)
 	default:
 		return nil, errors.New("unsupported block version")
 	}
 
 	return block, nil
+}
+
+// fraction returns a fraction of the transactions in the block.
+// This is used to reduce the size of synthetic blocks to manageable levels.
+func fraction(transactions []bellatrix.Transaction) []bellatrix.Transaction {
+	return transactions[:len(transactions)/syntheticBlockFraction]
 }
 
 // SubmitBlindedBeaconBlock submits a blinded beacon block or swallows it if marked as synthetic.
