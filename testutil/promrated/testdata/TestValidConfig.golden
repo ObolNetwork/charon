@@ -1,6 +1,0 @@
-{
- "RatedApiEndpoint": "https://api.rated.network",
- "Network": "prater",
- "PromAuth": "token",
- "PromListenPort": ":9100"
-}

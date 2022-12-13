@@ -32,6 +32,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cmd/bootnode"
 	"github.com/obolnetwork/charon/dkg"
+	"github.com/obolnetwork/charon/testutil/promrated"
 )
 
 const (
@@ -51,6 +52,7 @@ func New() *cobra.Command {
 		newRunCmd(app.Run),
 		newBootnodeCmd(bootnode.Run),
 		newDKGCmd(dkg.Run),
+		newPromratedCmd(promrated.Run),
 		newCreateCmd(
 			newCreateDKGCmd(runCreateDKG),
 			newCreateEnrCmd(runCreateEnrCmd),

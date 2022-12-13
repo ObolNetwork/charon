@@ -15,38 +15,27 @@
 
 // Command promrated grabs rated stats for all monitored charon clusters
 
-package main
+package promrated
 
 import (
 	"context"
-	"os"
 	"time"
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
 
-var cfg Config
+type Config struct {
+	RatedAPIEndpoint string
+	PromAuth         string
+	MonitoringAddr   string
+}
 
-func main() {
-	ctx := context.Background()
-	readConfig()
-
+func Run(ctx context.Context, config Config) error {
 	for {
-		log.Info(ctx, "Promrated looping.", z.Str("network", cfg.Network))
+		log.Info(ctx, "Promrated looping.", z.Str("endpoint", config.RatedAPIEndpoint))
 
 		sleepFor := time.Minute * time.Duration(10)
 		time.Sleep(sleepFor)
-	}
-}
-
-func readConfig() {
-	if len(os.Args) == 2 {
-		err := initConfig(os.Args[1], &cfg)
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		panic("No config file provided.")
 	}
 }
