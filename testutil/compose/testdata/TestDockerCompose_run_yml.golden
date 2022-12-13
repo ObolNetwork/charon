@@ -230,6 +230,7 @@ services:
       - ./grafana/notifiers.yml:/etc/grafana/provisioning/notifiers/notifiers.yml
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
       - ./grafana/dash_charon_overview.json:/etc/dashboards/dash_charon_overview.json
+      - ./grafana/dash_duty_details.json:/etc/dashboards/dash_duty_details.json
       - ./grafana/dash_alerts.json:/etc/dashboards/dash_alerts.json
 
   jaeger:
