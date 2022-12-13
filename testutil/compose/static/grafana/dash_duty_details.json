@@ -1655,7 +1655,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Duration of consensus instance by duty",
+      "description": "Number of consenus instance timeouts per duty",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1704,8 +1704,7 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "s"
+          }
         },
         "overrides": []
       },
@@ -1715,7 +1714,7 @@
         "x": 12,
         "y": 28
       },
-      "id": 97,
+      "id": 99,
       "options": {
         "legend": {
           "calcs": [],
@@ -1735,13 +1734,13 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.90, sum(rate(core_consensus_duration_seconds_bucket{cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\",duty=\"$duty\"}[$__rate_interval])) by (le,duty))",
-          "legendFormat": "{{duty}}",
+          "expr": "increase(core_consensus_timeout_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Consensus duration",
+      "title": "Consensus timeouts: $duty",
       "type": "timeseries"
     },
     {
@@ -1862,6 +1861,100 @@
       ],
       "title": "Attestation Inclusion Delay (slots)",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Duration of consensus instance by duty",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      },
+      "id": 97,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.90, sum(rate(core_consensus_duration_seconds_bucket{cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\",duty=\"$duty\"}[$interval])) by (le,duty))",
+          "legendFormat": "{{duty}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Consensus duration",
+      "type": "timeseries"
     }
   ],
   "refresh": false,
@@ -1904,8 +1997,8 @@
       {
         "current": {
           "selected": false,
-          "text": "635d97c",
-          "value": "635d97c"
+          "text": "6576466",
+          "value": "6576466"
         },
         "datasource": {
           "type": "prometheus",
@@ -1932,8 +2025,8 @@
       {
         "current": {
           "selected": false,
-          "text": "beautiful-box",
-          "value": "beautiful-box"
+          "text": "important-pen",
+          "value": "important-pen"
         },
         "datasource": {
           "type": "prometheus",
@@ -2177,6 +2270,6 @@
   "timezone": "",
   "title": "Charon Duty Details",
   "uid": "-su_K8K4z",
-  "version": 9,
+  "version": 1,
   "weekStart": ""
 }

@@ -300,20 +300,27 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 	}
 
 	// Instrument consensus instance.
-	t0 := time.Now()
-	def := c.def
+	var (
+		t0      = time.Now()
+		def     = c.def
+		decided bool
+	)
+	// Wrap Decide function of c.def to instrument consensus instance with provided start time (t0) and decided round.
 	def.Decide = func(ctx context.Context, duty core.Duty, val [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
+		decided = true
 		instrumentConsensus(duty, qcommit[0].Round(), t0)
 		c.def.Decide(ctx, duty, val, qcommit)
 	}
 
 	// Run the algo, blocking until the context is cancelled.
 	err = qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, peerIdx, hash)
-	if isContextErr(err) {
-		consensusTimeout.WithLabelValues(duty.String()).Inc()
-	} else if err != nil {
+	if err != nil && !isContextErr(err) {
 		consensusError.Inc()
 		return err // Only return non-context errors.
+	}
+
+	if !decided {
+		consensusTimeout.WithLabelValues(duty.Type.String()).Inc()
 	}
 
 	return nil
