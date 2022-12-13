@@ -13,32 +13,29 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Command promrated grabs rated stats for all monitored charon clusters
-
-package promrated
+package prom
 
 import (
 	"context"
-	"time"
+	"net/http"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/testutil/promrated/prom"
 )
 
-type Config struct {
-	RatedAPIEndpoint string
-	PromAuth         string
-	MonitoringAddr   string
-}
+func ListenAndServe(ctx context.Context, addr string) {
+	// Healthz handler used in Kubernetes set-ups to automatically restart
+	// the container in case something goes off.
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 
-func Run(ctx context.Context, config Config) error {
-	go prom.ListenAndServe(ctx, config.MonitoringAddr)
+	// Prometheus handler to expose metrics to prometheus.
+	http.Handle("/metrics", promhttp.Handler())
 
-	for {
-		log.Info(ctx, "Promrated looping.", z.Str("endpoint", config.RatedAPIEndpoint))
-
-		sleepFor := time.Minute * time.Duration(10)
-		time.Sleep(sleepFor)
+	err := http.ListenAndServe(addr, nil)
+	if err != nil {
+		log.Error(ctx, "Failed to serve Prom Metrics", err)
 	}
 }
