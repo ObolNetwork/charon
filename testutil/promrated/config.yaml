@@ -1,0 +1,6 @@
+rated:
+  apiEndpoint: https://api.rated.network
+  network: prater
+prometheus:
+  port: :9100
+  auth: #VMETRICS_TOKEN
