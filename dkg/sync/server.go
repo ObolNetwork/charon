@@ -230,7 +230,9 @@ func (s *Server) Start(ctx context.Context) {
 
 		ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(stream.Conn().RemotePeer())))
 		err := s.handleStream(ctx, stream)
-		if err != nil && !isRelayError(err) { // Ignore relay errors
+		if isRelayError(err) { // Relay errors are expected
+			log.Debug(ctx, "Relay error serving sync protocol", z.Str("err", err.Error()))
+		} else if err != nil {
 			log.Warn(ctx, "Error serving sync protocol", err)
 		}
 	})
