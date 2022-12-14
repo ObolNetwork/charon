@@ -13,6 +13,7 @@ services:
     <<: *node-base
     
     environment:
+      CHARON_NAME: compose-4-1
       CHARON_THRESHOLD: 3
       CHARON_NODES: 4
       CHARON_CLUSTER_DIR: /compose

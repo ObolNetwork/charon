@@ -45,6 +45,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 
 		// Only single node to call charon create cluster generate keys
 		n := TmplNode{EnvVars: []kv{
+			{"name", fmt.Sprintf("compose-%d-%d", conf.NumNodes, conf.NumValidators)},
 			{"threshold", fmt.Sprint(conf.Threshold)},
 			{"nodes", fmt.Sprint(conf.NumNodes)},
 			{"cluster-dir", "/compose"},
