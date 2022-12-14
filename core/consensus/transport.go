@@ -170,35 +170,30 @@ func createMsg(typ qbft.MsgType, duty core.Duty,
 ) (msg, error) {
 	// Convert opaque protos to anys
 	var (
-		vAny, pvAny       *anypb.Any
-		vlegacy, pvLegacy *pbv1.UnsignedDataSet
-		err               error
+		vAny, pvAny *anypb.Any
+		err         error
 	)
 	if value != nil {
 		vAny, err = anypb.New(value)
 		if err != nil {
 			return msg{}, errors.Wrap(err, "new any value")
 		}
-		vlegacy, _ = value.(*pbv1.UnsignedDataSet)
 	}
 	if pv != nil {
 		pvAny, err = anypb.New(pv)
 		if err != nil {
 			return msg{}, errors.Wrap(err, "new any value")
 		}
-		pvLegacy, _ = pv.(*pbv1.UnsignedDataSet)
 	}
 
 	pbMsg := &pbv1.QBFTMsg{
-		Type:                int64(typ),
-		Duty:                core.DutyToProto(duty),
-		PeerIdx:             peerIdx,
-		Round:               round,
-		Value:               vAny,
-		ValueLegacy:         vlegacy,
-		PreparedRound:       pr,
-		PreparedValue:       pvAny,
-		PreparedValueLegacy: pvLegacy,
+		Type:          int64(typ),
+		Duty:          core.DutyToProto(duty),
+		PeerIdx:       peerIdx,
+		Round:         round,
+		Value:         vAny,
+		PreparedRound: pr,
+		PreparedValue: pvAny,
 	}
 
 	pbMsg, err = signMsg(pbMsg, privkey)
