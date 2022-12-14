@@ -53,6 +53,6 @@ func newRootCmd(runFunc func(context.Context, promrated.Config) error) *cobra.Co
 
 func bindPromratedFlag(flags *pflag.FlagSet, config *promrated.Config) {
 	flags.StringVar(&config.RatedAPIEndpoint, "rated-api-endpoint", "https://api.rated.network", "Rated API endpoint to poll for validator metrics.")
-	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:9100", "Listening address (ip and port) for the prometheus monitoring http server.")
+	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:9354", "Listening address (ip and port) for the prometheus monitoring http server.")
 	flags.StringVar(&config.PromAuth, "prom-auth-token", "token", "[REQUIRED] Token for VMetrics Promtetheus API.")
 }

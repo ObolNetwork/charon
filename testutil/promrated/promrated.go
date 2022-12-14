@@ -47,15 +47,28 @@ func Run(ctx context.Context, config Config) error {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
+	reportMetrics(ctx, config)
+
 	for {
 		select {
 		case err := <-serverErr:
 			return err
 		case <-ticker.C:
-			log.Info(ctx, "Promrated looping")
+			reportMetrics(ctx, config)
 		case <-ctx.Done():
 			log.Info(ctx, "Shutting down")
 			return nil
 		}
+	}
+}
+
+func reportMetrics(ctx context.Context, config Config) {
+	pubkeyToClusterLabels, err := getPubkeyToClusterInfo(ctx, config.PromAuth)
+	if err != nil {
+		log.Error(context.Background(), "Failed getting pubkey info", err)
+	}
+
+	for pubkey, labels := range pubkeyToClusterLabels {
+		log.Info(ctx, "Fetched cluster from prometheus", z.Str("pubkey", pubkey), z.Str("cluster_name", labels["cluster_name"]))
 	}
 }
