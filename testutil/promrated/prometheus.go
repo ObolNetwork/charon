@@ -24,8 +24,8 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// listenAndServe creates a liveness endpoint and serves metrics to prometheus.
-func listenAndServe(addr string) error {
+// serveMonitoring creates a liveness endpoint and serves metrics to prometheus.
+func serveMonitoring(addr string) error {
 	mux := http.NewServeMux()
 
 	mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

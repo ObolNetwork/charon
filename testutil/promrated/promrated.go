@@ -31,26 +31,31 @@ type Config struct {
 	MonitoringAddr   string
 }
 
+// Run blocks running the promrated program until the context is canceled or a fatal error occurs.
 func Run(ctx context.Context, config Config) error {
+	log.Info(ctx, "Promrated started",
+		z.Str("rated_api_endpoint", config.RatedAPIEndpoint), // TODO(corver): This may contain a password
+		z.Str("prom_auth", config.PromAuth),                  // TODO(corver): This may contain a password
+		z.Str("monitoring_addr", config.MonitoringAddr),
+	)
+
 	serverErr := make(chan error, 1)
 	go func() {
-		serverErr <- listenAndServe(config.MonitoringAddr)
+		serverErr <- serveMonitoring(config.MonitoringAddr)
 	}()
 
-	go func() {
-		log.Info(ctx, "Promrated looping.", z.Str("endpoint", config.RatedAPIEndpoint))
-
-		sleepFor := time.Minute * time.Duration(10)
-		time.Sleep(sleepFor)
-	}()
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case err := <-serverErr:
 			return err
+		case <-ticker.C:
+			log.Info(ctx, "Promrated looping")
 		case <-ctx.Done():
 			log.Info(ctx, "Shutting down")
-			continue
+			return nil
 		}
 	}
 }
