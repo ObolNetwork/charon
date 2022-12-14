@@ -88,7 +88,7 @@ func getPubkeyToClusterInfo(ctx context.Context, promAuth string) (map[string]pr
 	}
 
 	if res.StatusCode == 200 {
-		result, err := readPromJson(ctx, res)
+		result, err := readPromJSON(ctx, res)
 		if err != nil {
 			return nil, err
 		}
@@ -133,7 +133,7 @@ func getPromClusters(ctx context.Context, promAuth string) (*http.Response, erro
 	return res, nil
 }
 
-func readPromJson(ctx context.Context, res *http.Response) (*PromResponse, error) {
+func readPromJSON(ctx context.Context, res *http.Response) (*PromResponse, error) {
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		log.Error(ctx, "Failed to read body", err)
