@@ -42,6 +42,7 @@ var (
 	errReadyInsufficientPeers = errors.New("quorum peers not connected")
 	errReadyBeaconNodeSyncing = errors.New("beacon node not synced")
 	errReadyBeaconNodeDown    = errors.New("beacon node down")
+	errReadyVCNotConfigured   = errors.New("vc not configured")
 )
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
@@ -111,27 +112,18 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 	)
 	go func() {
 		ticker := clock.NewTicker(10 * time.Second)
-		epochTicker := clock.NewTicker(32 * 12 * time.Second) // 32 slots * 12 second slot time
+		epochTicker := clock.NewTicker(384 * time.Second) // 32 slots * 12 second slot time
+		current := make(map[core.PubKey]bool)
+		previous := make(map[core.PubKey]bool)
 
-		// newCurrent returns a new current map, populated with all the pubkeys.
-		newCurrent := func() map[core.PubKey]bool {
-			current := make(map[core.PubKey]bool)
-			for _, pubkey := range pubkeys {
-				current[pubkey] = true
-			}
-
-			return current
+		for _, pubkey := range pubkeys {
+			current[pubkey] = true
 		}
-
-		// Initialise current.
-		current := newCurrent()
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-epochTicker.Chan():
-				// Copy current to previous and clear current.
 			case <-ticker.Chan():
 				if quorumPeersConnected(peerIDs, tcpNode) {
 					notConnectedRounds = 0
@@ -150,6 +142,9 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 				} else if notConnectedRounds >= minNotConnected {
 					err = errReadyInsufficientPeers
 					readyzGauge.Set(readyzInsufficientPeers)
+				} else if len(previous) > 0 {
+					err = errReadyVCNotConfigured
+					readyzGauge.Set(readyzVCNotConfigured)
 				} else {
 					readyzGauge.Set(readyzReady)
 				}
@@ -157,6 +152,11 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 				mu.Lock()
 				readyErr = err
 				mu.Unlock()
+			case <-epochTicker.Chan():
+				previous = current
+				for _, pubkey := range pubkeys {
+					current[pubkey] = true
+				}
 			case pubkey := <-seenPubkeys:
 				// Delete pubkey if called by a VC.
 				delete(current, pubkey)

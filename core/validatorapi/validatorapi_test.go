@@ -580,13 +580,8 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 			errMsg: "no bellatrix block",
 		},
 		{
-			name:   "no capella block",
-			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersionCapella},
-			errMsg: "no capella block",
-		},
-		{
 			name:   "none",
-			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersion(4)},
+			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersion(-1)},
 			errMsg: "unknown version",
 		},
 		{

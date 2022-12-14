@@ -65,21 +65,13 @@ func TestStartChecker(t *testing.T) {
 			seenPubkeys: pubkeys,
 			err:         errReadyInsufficientPeers,
 		},
-		// {
-		//	name:        "vc not configured",
-		//	isSyncing:   false,
-		//	numPeers:    4,
-		//	absentPeers: 0,
-		//	err:         errReadyVCNotConfigured,
-		// },
-		// {
-		//	name:        "vc missing some validators",
-		//	isSyncing:   false,
-		//	numPeers:    4,
-		//	absentPeers: 0,
-		//	seenPubkeys: []core.PubKey{pubkeys[0]},
-		//	err:         errReadyVCMissingVals,
-		// },
+		{
+			name:        "vc not configured",
+			isSyncing:   false,
+			numPeers:    4,
+			absentPeers: 0,
+			err:         errReadyVCNotConfigured,
+		},
 		{
 			name:        "success",
 			isSyncing:   false,
@@ -132,14 +124,11 @@ func TestStartChecker(t *testing.T) {
 				seenPubkeys <- pubkey
 			}
 
-			// Advance clock for first tick.
-			advanceClock(clock, 10*time.Second, 2)
-
-			// Advance clock for first epoch tick.
-			advanceClock(clock, 384*time.Second, 2)
-
-			// Advance clock for last tick.
-			advanceClock(clock, 10*time.Second, 2)
+			// We wrap the Advance() calls with blockers to make sure that the ticker
+			// can go to sleep and produce ticks without time passing in parallel.
+			clock.BlockUntil(1)
+			clock.Advance(400 * time.Second) // Advance clock more than an epoch's time.
+			clock.BlockUntil(1)
 
 			if tt.err != nil {
 				require.Eventually(t, func() bool {
@@ -158,12 +147,4 @@ func TestStartChecker(t *testing.T) {
 			}
 		})
 	}
-}
-
-func advanceClock(clock clockwork.FakeClock, duration time.Duration, numTickers int) {
-	// We wrap the Advance() calls with blockers to make sure that the ticker
-	// can go to sleep and produce ticks without time passing in parallel.
-	clock.BlockUntil(numTickers)
-	clock.Advance(duration)
-	clock.BlockUntil(numTickers)
 }
