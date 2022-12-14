@@ -109,6 +109,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	conf.ClusterDir = dir
+	conf.Name = t.Name()
 
 	var buf bytes.Buffer
 	err = runCreateCluster(context.Background(), &buf, conf)
@@ -163,6 +164,7 @@ func TestValidNetwork(t *testing.T) {
 	ctx := context.Background()
 
 	conf := clusterConfig{
+		Name:           "test",
 		NumNodes:       4,
 		Threshold:      3,
 		WithdrawalAddr: "0x0000000000000000000000000000000000000000",

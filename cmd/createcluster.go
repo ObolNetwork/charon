@@ -471,6 +471,10 @@ func checksumAddr(a string) (string, error) {
 
 // validateClusterConfig returns an error if the cluster config is invalid.
 func validateClusterConfig(ctx context.Context, conf clusterConfig) error {
+	if conf.Name == "" {
+		return errors.New("name not provided")
+	}
+
 	if conf.NumNodes < minNodes {
 		return errors.New("insufficient number of nodes (min = 4)")
 	}

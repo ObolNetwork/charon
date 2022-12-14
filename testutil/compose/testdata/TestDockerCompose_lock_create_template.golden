@@ -9,6 +9,10 @@
    "Entrypoint": "",
    "EnvVars": [
     {
+     "Key": "name",
+     "Value": "compose-4-1"
+    },
+    {
      "Key": "threshold",
      "Value": "3"
     },
