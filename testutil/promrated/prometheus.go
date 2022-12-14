@@ -28,6 +28,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 const (
@@ -81,7 +82,10 @@ func serveMonitoring(addr string) error {
 }
 
 func getPubkeyToClusterInfo(ctx context.Context, promAuth string) (map[string]prometheus.Labels, error) {
-	req, res := getPromClusters(ctx, promAuth)
+	res, err := getPromClusters(ctx, promAuth)
+	if err != nil {
+		return nil, err
+	}
 
 	if res.StatusCode == 200 {
 		result, err := readPromJson(ctx, res)
@@ -104,27 +108,29 @@ func getPubkeyToClusterInfo(ctx context.Context, promAuth string) (map[string]pr
 		}
 
 		return keyToClusterLabels, nil
-	} else {
-		return nil, fmt.Errorf("error reporting metrics for %q", req.URL)
 	}
+
+	return nil, errors.New("error processing prom metrics", z.Str("url", res.Request.RequestURI))
 }
 
-func getPromClusters(ctx context.Context, promAuth string) (*http.Request, *http.Response) {
+func getPromClusters(ctx context.Context, promAuth string) (*http.Response, error) {
 	client := new(http.Client)
 	url := fmt.Sprintf("%s/query?query=%s", promEndpoint, promQuery)
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		log.Error(ctx, "HTTP Request malformed for prom query", err)
+		return nil, errors.Wrap(err, "error creating prom metrics query")
 	}
 
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", promAuth))
 	res, err := client.Do(req)
 	if err != nil {
 		log.Error(ctx, "HTTP Request failed for prom query", err)
+		return nil, errors.Wrap(err, "error requesting prom metrics")
 	}
 
-	return req, res
+	return res, nil
 }
 
 func readPromJson(ctx context.Context, res *http.Response) (*PromResponse, error) {

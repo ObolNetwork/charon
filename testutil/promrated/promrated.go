@@ -47,8 +47,6 @@ func Run(ctx context.Context, config Config) error {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
-	reportMetrics(ctx, config)
-
 	for {
 		select {
 		case err := <-serverErr:
