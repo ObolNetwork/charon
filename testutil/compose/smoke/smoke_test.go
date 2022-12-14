@@ -101,14 +101,14 @@ func TestSmoke(t *testing.T) {
 				conf.KeyGen = compose.KeyGenDKG
 			},
 			DefineTmplFunc: func(data *compose.TmplData) {
-				// v0.11.0 of charon generates v1.3.0 definition files.
-				pegImageTag(data.Nodes, 0, "v0.11.0")
+				// v0.10.0 of charon generates v1.2.0 definition files.
+				pegImageTag(data.Nodes, 0, "v0.10.0")
 			},
 			RunTmplFunc: func(data *compose.TmplData) {
 				// Node 0 is local build
-				pegImageTag(data.Nodes, 1, "latest")
-				pegImageTag(data.Nodes, 2, "v0.12.0")
-				pegImageTag(data.Nodes, 3, "v0.11.0")
+				pegImageTag(data.Nodes, 1, "latest") // TODO(corver): Update to newer release
+				pegImageTag(data.Nodes, 2, "v0.10.1")
+				pegImageTag(data.Nodes, 3, "v0.10.0")
 			},
 		},
 		{
