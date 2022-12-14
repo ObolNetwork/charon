@@ -219,17 +219,37 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	var pubkeys []core.PubKey
+	for _, dv := range lock.Validators {
+		pk, err := dv.PublicKey()
+		if err != nil {
+			return err
+		}
+
+		pubkey, err := tblsconv.KeyToCore(pk)
+		if err != nil {
+			return err
+		}
+		pubkeys = append(pubkeys, pubkey)
+	}
+
 	sender := new(p2p.Sender)
 
 	wirePeerInfo(life, tcpNode, peerIDs, lock.LockHash, sender)
 
 	qbftDebug := newQBFTDebugger()
 
+	// Non-blocking channel to send seen public keys from validatorapi to monitoringapi.
+	seenPubkeys := make(chan core.PubKey, 1)
+	seenPubkeysFunc := func(pubkey core.PubKey) {
+		seenPubkeys <- pubkey
+	}
+
 	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs,
-		promRegistry, qbftDebug)
+		promRegistry, qbftDebug, pubkeys, seenPubkeys)
 
 	err = wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl,
-		peerIDs, sender, qbftDebug.AddInstance)
+		peerIDs, sender, qbftDebug.AddInstance, seenPubkeysFunc)
 	if err != nil {
 		return err
 	}
@@ -322,7 +342,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
 	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
-	qbftSniffer func(*pbv1.SniffedConsensusInstance),
+	qbftSniffer func(*pbv1.SniffedConsensusInstance), seenPubkeysFunc func(key core.PubKey),
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -405,7 +425,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, pubSharesByKey, nodeIdx.ShareIdx, lock.FeeRecipientAddress, conf.BuilderAPI)
+	vapi, err := validatorapi.NewComponent(eth2Cl, pubSharesByKey, nodeIdx.ShareIdx, lock.FeeRecipientAddress,
+		conf.BuilderAPI, seenPubkeysFunc)
 	if err != nil {
 		return err
 	}

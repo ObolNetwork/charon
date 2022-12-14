@@ -27,16 +27,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestStartChecker(t *testing.T) {
+	pubkeys := []core.PubKey{testutil.RandomCorePubKey(t), testutil.RandomCorePubKey(t), testutil.RandomCorePubKey(t)}
 	tests := []struct {
 		name        string
 		isSyncing   bool
 		numPeers    int
 		absentPeers int
+		seenPubkeys []core.PubKey
 		err         error
 	}{
 		{
@@ -44,12 +47,14 @@ func TestStartChecker(t *testing.T) {
 			isSyncing:   false,
 			numPeers:    5,
 			absentPeers: 0,
+			seenPubkeys: pubkeys,
 		},
 		{
 			name:        "syncing",
 			isSyncing:   true,
 			numPeers:    5,
 			absentPeers: 0,
+			seenPubkeys: pubkeys,
 			err:         errReadyBeaconNodeSyncing,
 		},
 		{
@@ -57,13 +62,22 @@ func TestStartChecker(t *testing.T) {
 			isSyncing:   false,
 			numPeers:    5,
 			absentPeers: 3,
+			seenPubkeys: pubkeys,
 			err:         errReadyInsufficientPeers,
+		},
+		{
+			name:        "vc not configured",
+			isSyncing:   false,
+			numPeers:    4,
+			absentPeers: 0,
+			err:         errReadyVCNotConfigured,
 		},
 		{
 			name:        "success",
 			isSyncing:   false,
 			numPeers:    4,
 			absentPeers: 1,
+			seenPubkeys: pubkeys,
 		},
 	}
 
@@ -103,12 +117,17 @@ func TestStartChecker(t *testing.T) {
 			}
 
 			clock := clockwork.NewFakeClock()
-			readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock)
+			seenPubkeys := make(chan core.PubKey)
+			readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock, pubkeys, seenPubkeys)
+
+			for _, pubkey := range tt.seenPubkeys {
+				seenPubkeys <- pubkey
+			}
 
 			// We wrap the Advance() calls with blockers to make sure that the ticker
 			// can go to sleep and produce ticks without time passing in parallel.
 			clock.BlockUntil(1)
-			clock.Advance(15 * time.Second)
+			clock.Advance(400 * time.Second) // Advance clock more than an epoch's time.
 			clock.BlockUntil(1)
 
 			if tt.err != nil {
