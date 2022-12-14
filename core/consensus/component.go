@@ -329,6 +329,8 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 
 // handle processes an incoming consensus wire message.
 func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+	t0 := time.Now()
+
 	pbMsg, ok := req.(*pbv1.ConsensusMsg)
 	if !ok {
 		return nil, false, errors.New("invalid consensus message type")
@@ -344,13 +346,17 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 	}
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	if ok, err := verifyMsgSig(pbMsg.Msg, c.pubkeys[pbMsg.Msg.PeerIdx]); err != nil || !ok {
-		return nil, false, errors.Wrap(err, "invalid consensus message signature", z.Any("duty", duty))
+	if ok, err := verifyMsgSig(pbMsg.Msg, c.pubkeys[pbMsg.Msg.PeerIdx]); err != nil {
+		return nil, false, errors.Wrap(err, "verify consensus message signature", z.Any("duty", duty))
+	} else if !ok {
+		return nil, false, errors.New("invalid consensus message signature", z.Any("duty", duty))
 	}
 
 	for _, msg := range pbMsg.Justification {
-		if ok, err := verifyMsgSig(msg, c.pubkeys[msg.PeerIdx]); err != nil || !ok {
-			return nil, false, errors.Wrap(err, "invalid consensus justification signature", z.Any("duty", duty))
+		if ok, err := verifyMsgSig(msg, c.pubkeys[msg.PeerIdx]); err != nil {
+			return nil, false, errors.Wrap(err, "verify consensus justification signature", z.Any("duty", duty))
+		} else if !ok {
+			return nil, false, errors.New("invalid consensus justification signature", z.Any("duty", duty))
 		}
 	}
 	msg, err := newMsg(pbMsg.Msg, pbMsg.Justification)
@@ -362,14 +368,17 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		return nil, false, errors.New("duty expired", z.Any("duty", duty), c.dropFilter)
 	}
 
+	if ctx.Err() != nil {
+		return nil, false, errors.Wrap(ctx.Err(), "receive cancelled during verification", z.Any("duty", duty),
+			z.Any("duration", time.Since(t0)))
+	}
+
 	select {
 	case c.getRecvBuffer(duty) <- msg:
 		return nil, false, nil
 	case <-ctx.Done():
-		return nil, false, errors.Wrap(err, "receive buffer timeout", z.Any("duty", duty))
-	default:
-		return nil, false, errors.Wrap(err, "receive buffer overflow, duty not scheduled locally",
-			z.Any("duty", duty), c.dropFilter)
+		return nil, false, errors.Wrap(ctx.Err(), "timeout enqueuing receive buffer",
+			z.Any("duty", duty), z.Any("duration", time.Since(t0)))
 	}
 }
 
