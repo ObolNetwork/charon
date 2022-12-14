@@ -370,7 +370,7 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 
 	if ctx.Err() != nil {
 		return nil, false, errors.Wrap(ctx.Err(), "receive cancelled during verification", z.Any("duty", duty),
-			z.Any("duration", time.Since(t0)))
+			z.Any("after", time.Since(t0)))
 	}
 
 	select {
@@ -378,7 +378,7 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		return nil, false, nil
 	case <-ctx.Done():
 		return nil, false, errors.Wrap(ctx.Err(), "timeout enqueuing receive buffer",
-			z.Any("duty", duty), z.Any("duration", time.Since(t0)))
+			z.Any("duty", duty), z.Any("after", time.Since(t0)))
 	}
 }
 
