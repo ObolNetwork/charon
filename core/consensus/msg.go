@@ -191,39 +191,31 @@ func signMsg(msg *pbv1.QBFTMsg, privkey *ecdsa.PrivateKey) (*pbv1.QBFTMsg, error
 
 // msgValue returns either the unwrapped new value or the legacy UnsignedDataSet value and true if either is not nil.
 func msgValue(msg *pbv1.QBFTMsg) (proto.Message, bool, error) {
-	if msg.Value == nil && msg.ValueLegacy == nil {
+	if msg.Value == nil {
 		return nil, false, nil
 	}
 
-	if msg.Value != nil {
-		value, err := msg.Value.UnmarshalNew()
-		if err != nil {
-			return nil, false, errors.Wrap(err, "unmarshal any")
-		}
-
-		return value, true, nil
+	value, err := msg.Value.UnmarshalNew()
+	if err != nil {
+		return nil, false, errors.Wrap(err, "unmarshal any")
 	}
 
-	return msg.ValueLegacy, true, nil
+	return value, true, nil
 }
 
 // msgPreparedValue returns either the unwrapped new prepared value or the legacy UnsignedDataSet
 // prepared value and true if either is not nil.
 func msgPreparedValue(msg *pbv1.QBFTMsg) (proto.Message, bool, error) {
-	if msg.PreparedValue == nil && msg.PreparedValueLegacy == nil {
+	if msg.PreparedValue == nil {
 		return nil, false, nil
 	}
 
-	if msg.PreparedValue != nil {
-		value, err := msg.PreparedValue.UnmarshalNew()
-		if err != nil {
-			return nil, false, errors.Wrap(err, "unmarshal any")
-		}
-
-		return value, true, nil
+	value, err := msg.PreparedValue.UnmarshalNew()
+	if err != nil {
+		return nil, false, errors.Wrap(err, "unmarshal any")
 	}
 
-	return msg.PreparedValueLegacy, true, nil
+	return value, true, nil
 }
 
 var _ qbft.Msg[core.Duty, [32]byte] = msg{} // Interface assertion
