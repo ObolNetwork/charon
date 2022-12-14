@@ -34,7 +34,7 @@ type Config struct {
 func Run(ctx context.Context, config Config) error {
 	serverErr := make(chan error, 1)
 	go func() {
-		serverErr <- listenAndServe(ctx, config.MonitoringAddr)
+		serverErr <- listenAndServe(config.MonitoringAddr)
 	}()
 
 	go func() {

@@ -16,15 +16,16 @@
 package promrated
 
 import (
-	"context"
 	"net/http"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 // listenAndServe creates a liveness endpoint and serves metrics to prometheus.
-func listenAndServe(ctx context.Context, addr string) error {
+func listenAndServe(addr string) error {
 	mux := http.NewServeMux()
 
 	mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -35,9 +36,9 @@ func listenAndServe(ctx context.Context, addr string) error {
 		promhttp.Handler(),
 	)
 
-	// Copied from net/http/pprof/pprof.go
 	server := http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: time.Second}
-	return server.ListenAndServe()
+
+	return errors.Wrap(server.ListenAndServe(), "failed to serve prometheus metrics")
 }
 
 func writeResponse(w http.ResponseWriter, status int, msg string) {
