@@ -99,7 +99,6 @@ func NewComponent(eth2Cl eth2wrap.Client, pubShareByKey map[*bls_sig.PublicKey]*
 	}
 
 	getPubShareFunc := func(pubkey eth2p0.BLSPubKey) (eth2p0.BLSPubKey, bool) {
-		seenPubkeysFunc(core.PubKeyFrom48Bytes(pubkey))
 		share, ok := sharesByKey[pubkey]
 
 		return share, ok
@@ -110,6 +109,8 @@ func NewComponent(eth2Cl eth2wrap.Client, pubShareByKey map[*bls_sig.PublicKey]*
 		if !ok {
 			return eth2p0.BLSPubKey{}, errors.New("unknown public share")
 		}
+
+		seenPubkeysFunc(core.PubKeyFrom48Bytes(key))
 
 		return key, nil
 	}
