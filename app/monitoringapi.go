@@ -116,6 +116,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 		current := make(map[core.PubKey]bool)
 		previous := make(map[core.PubKey]bool)
 
+		// Initialise current with given pubkeys.
 		for _, pubkey := range pubkeys {
 			current[pubkey] = true
 		}
