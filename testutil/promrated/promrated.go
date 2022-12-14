@@ -23,7 +23,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/testutil/promrated/prom"
 )
 
 type Config struct {
@@ -33,7 +32,7 @@ type Config struct {
 }
 
 func Run(ctx context.Context, config Config) error {
-	go prom.ListenAndServe(ctx, config.MonitoringAddr)
+	go ListenAndServe(ctx, config.MonitoringAddr)
 
 	for {
 		log.Info(ctx, "Promrated looping.", z.Str("endpoint", config.RatedAPIEndpoint))

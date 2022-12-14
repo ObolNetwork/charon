@@ -13,29 +13,49 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package prom
+package promrated
 
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/obolnetwork/charon/app/log"
 )
 
+// ListenAndServe creates a liveness endpoint and serves metrics to prometheus.
 func ListenAndServe(ctx context.Context, addr string) {
-	// Healthz handler used in Kubernetes set-ups to automatically restart
-	// the container in case something goes off.
-	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	serverErr := make(chan error, 2)
+	go func() {
+		mux := http.NewServeMux()
 
-	// Prometheus handler to expose metrics to prometheus.
-	http.Handle("/metrics", promhttp.Handler())
+		mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			writeResponse(w, http.StatusOK, "ok")
+		}))
 
-	err := http.ListenAndServe(addr, nil)
-	if err != nil {
-		log.Error(ctx, "Failed to serve Prom Metrics", err)
+		mux.Handle("/metrics",
+			promhttp.Handler(),
+		)
+
+		// Copied from net/http/pprof/pprof.go
+		server := http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: time.Second}
+		serverErr <- server.ListenAndServe()
+	}()
+
+	for {
+		select {
+		case err := <-serverErr:
+			panic(err)
+		case <-ctx.Done():
+			log.Info(ctx, "Shutting down")
+			continue
+		}
 	}
+}
+
+func writeResponse(w http.ResponseWriter, status int, msg string) {
+	w.WriteHeader(status)
+	_, _ = w.Write([]byte(msg))
 }
