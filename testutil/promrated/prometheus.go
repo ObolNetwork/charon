@@ -21,38 +21,23 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"github.com/obolnetwork/charon/app/log"
 )
 
-// ListenAndServe creates a liveness endpoint and serves metrics to prometheus.
-func ListenAndServe(ctx context.Context, addr string) {
-	serverErr := make(chan error, 2)
-	go func() {
-		mux := http.NewServeMux()
+// listenAndServe creates a liveness endpoint and serves metrics to prometheus.
+func listenAndServe(ctx context.Context, addr string) error {
+	mux := http.NewServeMux()
 
-		mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			writeResponse(w, http.StatusOK, "ok")
-		}))
+	mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeResponse(w, http.StatusOK, "ok")
+	}))
 
-		mux.Handle("/metrics",
-			promhttp.Handler(),
-		)
+	mux.Handle("/metrics",
+		promhttp.Handler(),
+	)
 
-		// Copied from net/http/pprof/pprof.go
-		server := http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: time.Second}
-		serverErr <- server.ListenAndServe()
-	}()
-
-	for {
-		select {
-		case err := <-serverErr:
-			panic(err)
-		case <-ctx.Done():
-			log.Info(ctx, "Shutting down")
-			continue
-		}
-	}
+	// Copied from net/http/pprof/pprof.go
+	server := http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: time.Second}
+	return server.ListenAndServe()
 }
 
 func writeResponse(w http.ResponseWriter, status int, msg string) {

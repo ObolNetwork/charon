@@ -32,12 +32,25 @@ type Config struct {
 }
 
 func Run(ctx context.Context, config Config) error {
-	go ListenAndServe(ctx, config.MonitoringAddr)
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- listenAndServe(ctx, config.MonitoringAddr)
+	}()
 
-	for {
+	go func() {
 		log.Info(ctx, "Promrated looping.", z.Str("endpoint", config.RatedAPIEndpoint))
 
 		sleepFor := time.Minute * time.Duration(10)
 		time.Sleep(sleepFor)
+	}()
+
+	for {
+		select {
+		case err := <-serverErr:
+			return err
+		case <-ctx.Done():
+			log.Info(ctx, "Shutting down")
+			continue
+		}
 	}
 }
