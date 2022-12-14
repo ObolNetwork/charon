@@ -88,7 +88,7 @@ func (c *Client) Run(ctx context.Context) error {
 			log.Debug(ctx, "Relay connection dropped, reconnecting")
 			continue // Always reconnect on relay circuit recycling.
 		} else if connBroke && c.reconnect {
-			log.Debug(ctx, "Connection dropped, reconnecting")
+			log.Info(ctx, "Disconnected from peer")
 			continue // Only reconnect for connection breaks in reconnect state.
 		} else if err != nil {
 			return err
