@@ -40,7 +40,7 @@ import (
 const (
 	contentType  = "application/x-protobuf"
 	maxErrMsgLen = 1024
-	httpTimeout  = 2 * time.Second
+	httpTimeout  = 10 * time.Second
 	batchWait    = 1 * time.Second
 	batchMax     = 5 * 1 << 20 // 5MB
 )
@@ -141,7 +141,7 @@ func (c *Client) Run() {
 			err := send(ctx, client, c.endpoint, batch, c.labels())
 			if err != nil {
 				// Log async to avoid deadlock by recursive calls to Add.
-				go c.logFunc("Loki batch send failed", err)
+				go c.logFunc("Loki batch send failed (will retry)", err)
 
 				retries++
 				triedAt = time.Now()
