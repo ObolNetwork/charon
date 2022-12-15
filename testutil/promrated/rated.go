@@ -74,9 +74,20 @@ func getValidationStatistics(ctx context.Context, ratedEndpoint string, validato
 			return nil, errors.Wrap(err, "requesting rated matrics")
 		}
 
-		body, err := io.ReadAll(res.Body)
+		bodyFunc := func() ([]byte, error) {
+			body, err := io.ReadAll(res.Body)
+			if err != nil {
+				return nil, errors.Wrap(err, "reading body")
+			}
+
+			defer res.Body.Close()
+
+			return body, nil
+		}
+
+		body, err := bodyFunc()
 		if err != nil {
-			return nil, errors.Wrap(err, "reading body")
+			return nil, err
 		}
 
 		if res.StatusCode == 429 {
@@ -88,8 +99,6 @@ func getValidationStatistics(ctx context.Context, ratedEndpoint string, validato
 		} else if res.StatusCode/100 != 2 {
 			return nil, errors.New("not ok http response", z.Str("body", string(body)))
 		}
-
-		defer res.Body.Close()
 
 		return parseMetrics(body)
 	}
