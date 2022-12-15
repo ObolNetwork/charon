@@ -125,6 +125,13 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 			select {
 			case <-ctx.Done():
 				return
+			case <-epochTicker.Chan():
+				for k, v := range current {
+					previous[k] = v
+				}
+				for _, pubkey := range pubkeys {
+					current[pubkey] = true
+				}
 			case <-ticker.Chan():
 				if quorumPeersConnected(peerIDs, tcpNode) {
 					notConnectedRounds = 0
@@ -152,12 +159,6 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 				mu.Lock()
 				readyErr = err
 				mu.Unlock()
-			case <-epochTicker.Chan():
-				previous = current
-				for _, pubkey := range pubkeys {
-					current[pubkey] = true
-				}
-
 			case pubkey := <-seenPubkeys:
 				// Delete pubkey if called by a VC.
 				delete(current, pubkey)
