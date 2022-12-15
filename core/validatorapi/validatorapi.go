@@ -56,7 +56,7 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 
 // NewComponent returns a new instance of the validator API core workflow component.
 func NewComponent(eth2Cl eth2wrap.Client, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey,
-	shareIdx int, feeRecipientAddress string, builderAPI bool,
+	shareIdx int, feeRecipientAddress string, builderAPI bool, seenPubkeys chan core.PubKey,
 ) (*Component, error) {
 	// Create pubkey mappings.
 	var (
@@ -108,6 +108,10 @@ func NewComponent(eth2Cl eth2wrap.Client, pubShareByKey map[*bls_sig.PublicKey]*
 		key, ok := keysByShare[share]
 		if !ok {
 			return eth2p0.BLSPubKey{}, errors.New("unknown public share")
+		}
+
+		if seenPubkeys != nil {
+			seenPubkeys <- core.PubKeyFrom48Bytes(key)
 		}
 
 		return key, nil

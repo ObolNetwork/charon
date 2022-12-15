@@ -27,16 +27,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestStartChecker(t *testing.T) {
+	pubkeys := []core.PubKey{testutil.RandomCorePubKey(t), testutil.RandomCorePubKey(t), testutil.RandomCorePubKey(t)}
 	tests := []struct {
 		name        string
 		isSyncing   bool
 		numPeers    int
 		absentPeers int
+		seenPubkeys []core.PubKey
 		err         error
 	}{
 		{
@@ -44,12 +47,14 @@ func TestStartChecker(t *testing.T) {
 			isSyncing:   false,
 			numPeers:    5,
 			absentPeers: 0,
+			seenPubkeys: pubkeys,
 		},
 		{
 			name:        "syncing",
 			isSyncing:   true,
 			numPeers:    5,
 			absentPeers: 0,
+			seenPubkeys: pubkeys,
 			err:         errReadyBeaconNodeSyncing,
 		},
 		{
@@ -57,13 +62,30 @@ func TestStartChecker(t *testing.T) {
 			isSyncing:   false,
 			numPeers:    5,
 			absentPeers: 3,
+			seenPubkeys: pubkeys,
 			err:         errReadyInsufficientPeers,
+		},
+		{
+			name:        "vc not configured",
+			isSyncing:   false,
+			numPeers:    4,
+			absentPeers: 0,
+			err:         errReadyVCNotConfigured,
+		},
+		{
+			name:        "vc missing some validators",
+			isSyncing:   false,
+			numPeers:    4,
+			absentPeers: 0,
+			seenPubkeys: []core.PubKey{pubkeys[0]},
+			err:         errReadyVCMissingVals,
 		},
 		{
 			name:        "success",
 			isSyncing:   false,
 			numPeers:    4,
 			absentPeers: 1,
+			seenPubkeys: pubkeys,
 		},
 	}
 
@@ -103,13 +125,21 @@ func TestStartChecker(t *testing.T) {
 			}
 
 			clock := clockwork.NewFakeClock()
-			readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock)
+			seenPubkeys := make(chan core.PubKey)
+			readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock, pubkeys, seenPubkeys)
 
-			// We wrap the Advance() calls with blockers to make sure that the ticker
-			// can go to sleep and produce ticks without time passing in parallel.
-			clock.BlockUntil(1)
-			clock.Advance(15 * time.Second)
-			clock.BlockUntil(1)
+			for _, pubkey := range tt.seenPubkeys {
+				seenPubkeys <- pubkey
+			}
+
+			// Advance clock for first tick.
+			advanceClock(clock, 10*time.Second, 2)
+
+			// Advance clock for first epoch tick.
+			advanceClock(clock, 384*time.Second, 2)
+
+			// Advance clock for last tick.
+			advanceClock(clock, 10*time.Second, 2)
 
 			if tt.err != nil {
 				require.Eventually(t, func() bool {
@@ -128,4 +158,12 @@ func TestStartChecker(t *testing.T) {
 			}
 		})
 	}
+}
+
+func advanceClock(clock clockwork.FakeClock, duration time.Duration, numTickers int) {
+	// We wrap the Advance() calls with blockers to make sure that the ticker
+	// can go to sleep and produce ticks without time passing in parallel.
+	clock.BlockUntil(numTickers)
+	clock.Advance(duration)
+	clock.BlockUntil(numTickers)
 }
