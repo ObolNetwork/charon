@@ -423,7 +423,7 @@ func (d Definition) Partial() error {
 		return errors.New("partial definition config signature empty")
 	}
 	if len(d.DefinitionHash) != 0 {
-		return errors.New("partial definition definition hash not empty")
+		return errors.New("partial definition hash not empty")
 	}
 
 	return nil

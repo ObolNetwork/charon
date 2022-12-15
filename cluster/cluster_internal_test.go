@@ -209,3 +209,47 @@ func TestSupportEIP712Sigs(t *testing.T) {
 	require.False(t, supportEIP712Sigs(unsupported))
 	require.True(t, supportEIP712Sigs(supported))
 }
+
+func TestPartial(t *testing.T) {
+	secret3, creator := randomCreator(t)
+	definition := randomDefinition(t, creator, Operator{}, Operator{}, func(def *Definition) {
+		def.Operators = []Operator{}
+	})
+	definition.DefinitionHash = nil
+
+	definition, err := signCreator(secret3, definition)
+	require.NoError(t, err)
+
+	t.Run("definition version", func(t *testing.T) {
+		d := definition
+		d.Version = v1_3 // unsupported
+		require.ErrorContains(t, d.Partial(), "partial definition only supported from v1.4.0 onwards")
+		d.Version = v1_4 // supported
+		require.NoError(t, d.Partial())
+	})
+
+	t.Run("operators list", func(t *testing.T) {
+		d := definition
+		require.NoError(t, d.Partial())
+		_, op := randomOperator(t)
+		d.Operators = []Operator{op}
+		require.ErrorContains(t, d.Partial(), "partial definition operators not empty")
+	})
+
+	t.Run("creator", func(t *testing.T) {
+		d := definition
+		require.NoError(t, d.Partial())
+		d.Creator.Address = ""
+		require.ErrorContains(t, d.Partial(), "partial definition creator address empty")
+		d.Creator.Address = testutil.RandomETHAddress()
+		d.Creator.ConfigSignature = nil
+		require.ErrorContains(t, d.Partial(), "partial definition config signature empty")
+	})
+
+	t.Run("definition hash", func(t *testing.T) {
+		d := definition
+		require.NoError(t, d.Partial())
+		d.DefinitionHash = testutil.RandomBytes32()
+		require.ErrorContains(t, d.Partial(), "partial definition hash not empty")
+	})
+}
