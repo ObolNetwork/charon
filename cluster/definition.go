@@ -154,16 +154,8 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 
 // VerifyPartialSignatures verifies the partial definition signatures, i.e., valid creator config signature and empty operators.
 func (d Definition) VerifyPartialSignatures() error {
-	if isAnyVersion(d.Version, v1_0, v1_1, v1_2, v1_3) {
-		return errors.New("partial definition only supported from v1.4.0 onwards")
-	}
-
-	if len(d.Operators) != 0 {
-		return errors.New("partial definition operators not empty")
-	}
-
-	if d.Creator.Address == "" || len(d.Creator.ConfigSignature) == 0 {
-		return errors.New("partial definition creator address and signature empty")
+	if err := d.Partial(); err != nil {
+		return err
 	}
 
 	creatorConfigHashDigest, err := digestEIP712(eip712CreatorConfigHash, d, Operator{})
@@ -318,13 +310,15 @@ func (d Definition) SetDefinitionHashes() (Definition, error) {
 
 	d.ConfigHash = configHash[:]
 
-	// Marshal definition hashDefinition
-	defHash, err := hashDefinition(d, false)
-	if err != nil {
-		return Definition{}, errors.Wrap(err, "definition hashDefinition")
-	}
+	if err := d.Partial(); err != nil { // Partial definition doesn't contain definition-hash
+		// Marshal definition hash
+		defHash, err := hashDefinition(d, false)
+		if err != nil {
+			return Definition{}, errors.Wrap(err, "definition hash")
+		}
 
-	d.DefinitionHash = defHash[:]
+		d.DefinitionHash = defHash[:]
+	}
 
 	return d, nil
 }
@@ -393,20 +387,8 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 
 // VerifyPartialHashes verifies partial definition hashes, i.e., valid config hash and empty definition hash.
 func (d Definition) VerifyPartialHashes() error {
-	if isAnyVersion(d.Version, v1_0, v1_1, v1_2, v1_3) {
-		return errors.New("partial definition only supported from v1.4.0 onwards")
-	}
-
-	if len(d.Operators) != 0 {
-		return errors.New("partial definition operators not empty")
-	}
-
-	if d.Creator.Address == "" {
-		return errors.New("partial definition creator address and signature empty")
-	}
-
-	if len(d.DefinitionHash) != 0 {
-		return errors.New("partial definition definition hash not empty")
+	if err := d.Partial(); err != nil {
+		return err
 	}
 
 	configHash, err := hashDefinition(d, true)
@@ -416,6 +398,32 @@ func (d Definition) VerifyPartialHashes() error {
 
 	if !bytes.Equal(d.ConfigHash, configHash[:]) {
 		return errors.New("invalid config hash")
+	}
+
+	return nil
+}
+
+// Partial returns nil if the provided definition is partial. A partial definition satisfies the following conditions:
+// 1. Version >= v1.4.0.
+// 2. Operators list is empty.
+// 3. Creator fields are non-empty.
+// 4. DefinitionHash is non-empty.
+func (d Definition) Partial() error {
+	if isAnyVersion(d.Version, v1_0, v1_1, v1_2, v1_3) {
+		return errors.New("partial definition only supported from v1.4.0 onwards")
+	}
+
+	if len(d.Operators) != 0 {
+		return errors.New("partial definition operators not empty")
+	}
+	if d.Creator.Address == "" {
+		return errors.New("partial definition creator address empty")
+	}
+	if len(d.Creator.ConfigSignature) == 0 {
+		return errors.New("partial definition config signature empty")
+	}
+	if len(d.DefinitionHash) != 0 {
+		return errors.New("partial definition definition hash not empty")
 	}
 
 	return nil
