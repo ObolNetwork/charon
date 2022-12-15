@@ -43,6 +43,7 @@ var (
 	errReadyBeaconNodeSyncing = errors.New("beacon node not synced")
 	errReadyBeaconNodeDown    = errors.New("beacon node down")
 	errReadyVCNotConfigured   = errors.New("vc not configured")
+	errReadyVCMissingVals     = errors.New("vc missing some validators")
 )
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
@@ -112,31 +113,29 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 	)
 	go func() {
 		ticker := clock.NewTicker(10 * time.Second)
-		epochTicker := clock.NewTicker(384 * time.Second) // 32 slots * 12 second slot time
-		current := make(map[core.PubKey]bool)
+		epochTicker := clock.NewTicker(32 * 12 * time.Second) // 32 slots * 12 second slot time
 		previous := make(map[core.PubKey]bool)
 
-		// Initialise current with given pubkeys.
-		for _, pubkey := range pubkeys {
-			current[pubkey] = true
+		// newCurrent returns a new current map, populated with all the pubkeys.
+		newCurrent := func() map[core.PubKey]bool {
+			current := make(map[core.PubKey]bool)
+			for _, pubkey := range pubkeys {
+				current[pubkey] = true
+			}
+
+			return current
 		}
+
+		// Initialise current.
+		current := newCurrent()
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-epochTicker.Chan():
-				// Copy current to previous.
-				previous = make(map[core.PubKey]bool)
-				for k, v := range current {
-					previous[k] = v
-				}
-
-				// Initialise current with given pubkeys for next iteration.
-				current = make(map[core.PubKey]bool)
-				for _, pubkey := range pubkeys {
-					current[pubkey] = true
-				}
+				// Copy current to previous and clear current.
+				previous, current = current, newCurrent()
 			case <-ticker.Chan():
 				if quorumPeersConnected(peerIDs, tcpNode) {
 					notConnectedRounds = 0
@@ -154,9 +153,12 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 				} else if notConnectedRounds >= minNotConnected {
 					err = errReadyInsufficientPeers
 					readyzGauge.Set(readyzInsufficientPeers)
-				} else if len(previous) > 0 {
+				} else if len(previous) == len(pubkeys) {
 					err = errReadyVCNotConfigured
 					readyzGauge.Set(readyzVCNotConfigured)
+				} else if len(previous) > 0 {
+					err = errReadyVCMissingVals
+					readyzGauge.Set(readyzVCMissingValidators)
 				} else {
 					readyzGauge.Set(readyzReady)
 				}
