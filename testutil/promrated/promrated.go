@@ -26,17 +26,17 @@ import (
 )
 
 type Config struct {
-	RatedAPIEndpoint string
-	PromEndpoint     string
-	PromAuth         string
-	MonitoringAddr   string
+	RatedEndpoint  string
+	PromEndpoint   string
+	PromAuth       string
+	MonitoringAddr string
 }
 
 // Run blocks running the promrated program until the context is canceled or a fatal error occurs.
 func Run(ctx context.Context, config Config) error {
 	log.Info(ctx, "Promrated started",
-		z.Str("rated_api_endpoint", config.RatedAPIEndpoint), // TODO(corver): This may contain a password
-		z.Str("prom_auth", config.PromAuth),                  // TODO(corver): This may contain a password
+		z.Str("rated_endpoint", config.RatedEndpoint), // TODO(corver): This may contain a password
+		z.Str("prom_auth", config.PromAuth),           // TODO(corver): This may contain a password
 		z.Str("monitoring_addr", config.MonitoringAddr),
 	)
 
