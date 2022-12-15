@@ -85,18 +85,16 @@ func Run(ctx context.Context, config Config) error {
 	defer udpNode.Close()
 
 	bwTuples := make(chan bwTuple)
-	reporter := newBandwidthCounter(ctx, bwTuples)
+	counter := newBandwidthCounter(ctx, bwTuples)
 
-	tcpNode, err := startP2P(ctx, config, key, reporter)
+	tcpNode, err := startP2P(ctx, config, key, counter)
 	if err != nil {
 		return err
 	}
 
 	go monitorConnections(ctx, tcpNode, bwTuples)
 
-	labels := map[string]string{
-		"bootnode_peer": p2p.PeerName(tcpNode.ID()),
-	}
+	labels := map[string]string{"bootnode_peer": p2p.PeerName(tcpNode.ID())}
 	log.SetLokiLabels(labels)
 	promRegistry, err := promauto.NewRegistry(labels)
 	if err != nil {
