@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -42,16 +43,16 @@ type validator struct {
 }
 
 // serveMonitoring creates a liveness endpoint and serves metrics to prometheus.
-func serveMonitoring(addr string) error {
+func serveMonitoring(addr string, registry *prometheus.Registry) error {
 	mux := http.NewServeMux()
 
 	mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		writeResponse(w, http.StatusOK, "ok")
 	}))
 
-	mux.Handle("/metrics",
-		promhttp.Handler(),
-	)
+	mux.Handle("/metrics", promhttp.InstrumentMetricHandler(
+		registry, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}),
+	))
 
 	server := http.Server{
 		Addr:              addr,
@@ -116,7 +117,7 @@ func parseValidators(body []byte) ([]validator, error) {
 
 	var validators []validator
 	for _, datum := range result.Data.Result {
-		if datum.Labels.ClusterName == "" || datum.Labels.PubKey == "" {
+		if datum.Labels.ClusterName == "" || datum.Labels.ClusterNetwork == "" || datum.Labels.PubKey == "" {
 			continue
 		}
 		validators = append(validators, datum.Labels)

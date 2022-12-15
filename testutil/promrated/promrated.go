@@ -21,6 +21,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -40,9 +42,10 @@ func Run(ctx context.Context, config Config) error {
 		z.Str("monitoring_addr", config.MonitoringAddr),
 	)
 
+	registry := prometheus.NewRegistry()
 	serverErr := make(chan error, 1)
 	go func() {
-		serverErr <- serveMonitoring(config.MonitoringAddr)
+		serverErr <- serveMonitoring(config.MonitoringAddr, registry)
 	}()
 
 	ticker := time.NewTicker(10 * time.Minute)
@@ -56,9 +59,9 @@ func Run(ctx context.Context, config Config) error {
 		case err := <-serverErr:
 			return err
 		case <-onStartup:
-			reportMetrics(ctx, config)
+			reportMetrics(ctx, config, registry)
 		case <-ticker.C:
-			reportMetrics(ctx, config)
+			reportMetrics(ctx, config, registry)
 		case <-ctx.Done():
 			log.Info(ctx, "Shutting down")
 			return nil
@@ -66,12 +69,15 @@ func Run(ctx context.Context, config Config) error {
 	}
 }
 
-func reportMetrics(ctx context.Context, config Config) {
+// report the validator effectiveness metrics for prometheus
+func reportMetrics(ctx context.Context, config Config, reg prometheus.Registerer) {
 	validators, err := getValidators(ctx, config.PromEndpoint, config.PromAuth)
 	if err != nil {
 		log.Error(ctx, "Failed fetching validators from prometheus", err)
 		return
 	}
+
+	metrics := newWatcherMetrics(reg)
 
 	for _, validator := range validators {
 		log.Info(ctx, "Fetched validator from prometheus",
@@ -79,5 +85,24 @@ func reportMetrics(ctx context.Context, config Config) {
 			z.Str("cluster_name", validator.ClusterName),
 			z.Str("cluster_network", validator.ClusterNetwork),
 		)
+
+		stats, err := getValidationStatistics(ctx, config.RatedEndpoint, validator)
+		if err != nil {
+			log.Error(ctx, "Getting validator statistics", err, z.Str("validator", validator.PubKey))
+			continue
+		}
+
+		clusterLabels := prometheus.Labels{
+			"pubkey_full":     validator.ClusterName,
+			"cluster_name":    validator.ClusterName,
+			"cluster_hash":    validator.ClusterHash,
+			"cluster_network": validator.ClusterNetwork,
+		}
+
+		metrics.RatedValidationUptime.With(clusterLabels).Set(stats.Uptime)
+		metrics.RatedValidationAvgCorrectness.With(clusterLabels).Set(stats.AvgCorrectness)
+		metrics.RatedValidationAttesterEffectiveness.With(clusterLabels).Set(stats.AttesterEffectiveness)
+		metrics.RatedValidationProposerEffectiveness.With(clusterLabels).Set(stats.ProposerEffectiveness)
+		metrics.RatedValidationValidatorEffectiveness.With(clusterLabels).Set(stats.ValidatorEffectiveness)
 	}
 }
