@@ -82,7 +82,7 @@ func getValidators(ctx context.Context, promEndpoint string, promAuth string) ([
 	url, err := url.Parse(promEndpoint)
 
 	query := url.Query()
-	query.Add("query", "group by (cluster_name, cluster_hash, cluster_peer, pubkey_full) (core_scheduler_validator_balance_gwei)")
+	query.Add("query", promQuery)
 	url.RawQuery = query.Encode()
 
 	if err != nil {
@@ -101,19 +101,15 @@ func getValidators(ctx context.Context, promEndpoint string, promAuth string) ([
 	}
 	defer res.Body.Close()
 
-	if err != nil {
-		return nil, err
-	}
-
 	if res.StatusCode == 200 {
-		return constructValidators(ctx, res)
+		return constructValidators(res)
 	}
 
 	return nil, errors.New("processing prom metrics", z.Str("url", url.String()))
 }
 
 // constructValidators reads prometheus response and returns a list of validators
-func constructValidators(ctx context.Context, res *http.Response) ([]validator, error) {
+func constructValidators(res *http.Response) ([]validator, error) {
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, errors.Wrap(err, "reading body")
@@ -122,10 +118,6 @@ func constructValidators(ctx context.Context, res *http.Response) ([]validator, 
 	var result *promResponse
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, errors.Wrap(err, "deserializing json")
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	validators := make([]validator, len(result.Data.Result))
