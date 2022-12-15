@@ -126,9 +126,14 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 			case <-ctx.Done():
 				return
 			case <-epochTicker.Chan():
+				// Copy current to previous.
+				previous = make(map[core.PubKey]bool)
 				for k, v := range current {
 					previous[k] = v
 				}
+
+				// Initialise current with given pubkeys for next iteration.
+				current = make(map[core.PubKey]bool)
 				for _, pubkey := range pubkeys {
 					current[pubkey] = true
 				}

@@ -124,11 +124,15 @@ func TestStartChecker(t *testing.T) {
 				seenPubkeys <- pubkey
 			}
 
-			// We wrap the Advance() calls with blockers to make sure that the ticker
-			// can go to sleep and produce ticks without time passing in parallel.
-			clock.BlockUntil(1)
-			clock.Advance(400 * time.Second) // Advance clock more than an epoch's time.
-			clock.BlockUntil(1)
+			// Advance clock for first tick.
+			advanceClock(clock, 10*time.Second)
+
+			// Advance clock for first epoch tick.
+			advanceClock(clock, 384*time.Second)
+
+			// Wait for epoch tick to happen before last 10s periodic tick.
+			time.Sleep(100 * time.Millisecond)
+			advanceClock(clock, 10*time.Second)
 
 			if tt.err != nil {
 				require.Eventually(t, func() bool {
@@ -147,4 +151,12 @@ func TestStartChecker(t *testing.T) {
 			}
 		})
 	}
+}
+
+func advanceClock(clock clockwork.FakeClock, duration time.Duration) {
+	// We wrap the Advance() calls with blockers to make sure that the ticker
+	// can go to sleep and produce ticks without time passing in parallel.
+	clock.BlockUntil(1)
+	clock.Advance(duration)
+	clock.BlockUntil(1)
 }
