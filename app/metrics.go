@@ -32,8 +32,10 @@ const (
 	// readyzInsufficientPeers indicates the readyz is returning 500s since this node isn't connected
 	// to quorum peers via the P2P network.
 	readyzInsufficientPeers = 4
-	// readyzVCNotConfigured indicated the readyz is returning 500s since VC is not configured for this node.
+	// readyzVCNotConfigured indicates the readyz is returning 500s since VC is not configured for this node.
 	readyzVCNotConfigured = 5
+	// readyVCMissingValidators indicates the ready is returning 500s since VC missing some validators.
+	readyzVCMissingValidators = 6
 )
 
 var (
