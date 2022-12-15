@@ -62,7 +62,7 @@ func serveMonitoring(addr string) error {
 	return errors.Wrap(server.ListenAndServe(), "failed to serve prometheus metrics")
 }
 
-// getValidators queries prometheus and returns a list of validators with associated cluster and pubkey
+// getValidators queries prometheus and returns a list of validators with associated cluster and pubkey.
 func getValidators(ctx context.Context, promEndpoint string, promAuth string) ([]validator, error) {
 	client := new(http.Client)
 
