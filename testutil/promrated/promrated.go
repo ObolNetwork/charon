@@ -27,6 +27,7 @@ import (
 
 type Config struct {
 	RatedAPIEndpoint string
+	PromEndpoint     string
 	PromAuth         string
 	MonitoringAddr   string
 }
@@ -47,6 +48,8 @@ func Run(ctx context.Context, config Config) error {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
+	reportMetrics(ctx, config)
+
 	for {
 		select {
 		case err := <-serverErr:
@@ -61,12 +64,12 @@ func Run(ctx context.Context, config Config) error {
 }
 
 func reportMetrics(ctx context.Context, config Config) {
-	pubkeyToClusterLabels, err := getPubkeyToClusterInfo(ctx, config.PromAuth)
+	validators, err := getValidators(ctx, config.PromEndpoint, config.PromAuth)
 	if err != nil {
-		log.Error(context.Background(), "Failed getting pubkey info", err)
+		log.Error(context.Background(), "getting pubkey info", err)
 	}
 
-	for pubkey, labels := range pubkeyToClusterLabels {
-		log.Info(ctx, "Fetched cluster from prometheus", z.Str("pubkey", pubkey), z.Str("cluster_name", labels["cluster_name"]))
+	for _, validator := range validators {
+		log.Info(ctx, "Fetched validator from prometheus", z.Str("pubkey", validator.PubKey), z.Str("cluster_name", validator.ClusterName))
 	}
 }

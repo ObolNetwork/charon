@@ -21,47 +21,41 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
 
 const (
-	promEndpoint = "https://vm.monitoring.gcp.obol.tech"
-	promQuery    = "group%20by%20%28cluster_name%2C%20ccluster_hash%2C%20cluster_peer%2C%20cluster_network%2C%20pubkey_full%29%20%28core_scheduler_validator_balance_gwei%29"
+	promQuery = "group by (cluster_name, cluster_hash, cluster_peer, pubkey_full) (core_scheduler_validator_balance_gwei)"
 )
 
-type ClusterInfo struct {
+type validator struct {
+	PubKey         string `json:"pubkey_full"`
 	ClusterName    string `json:"cluster_name"`
 	ClusterHash    string `json:"cluster_hash"`
 	ClusterNetwork string `json:"cluster_network"`
 	ClusterPeer    string `json:"cluster_peer"`
 }
 
-type PromMetric struct {
-	*ClusterInfo
-	PubKey string `json:"pubkey_full"`
+type promMetric struct {
+	validator
 }
 
-type PromResult struct {
-	Metric PromMetric `json:"metric"`
+type promResult struct {
+	Metric promMetric `json:"metric"`
 }
 
-type PromData struct {
-	ResultType string       `json:"resultType"`
-	Result     []PromResult `json:"result"`
+type promData struct {
+	Result []promResult `json:"result"`
 }
 
-type PromResponse struct {
-	Status    string `json:"status"`
-	IsPartial bool   `json:"isPartial"`
-
-	Data PromData `json:"data"`
+type promResponse struct {
+	Data promData `json:"data"`
 }
 
 // serveMonitoring creates a liveness endpoint and serves metrics to prometheus.
@@ -81,71 +75,68 @@ func serveMonitoring(addr string) error {
 	return errors.Wrap(server.ListenAndServe(), "failed to serve prometheus metrics")
 }
 
-func getPubkeyToClusterInfo(ctx context.Context, promAuth string) (map[string]prometheus.Labels, error) {
-	res, err := getPromClusters(ctx, promAuth)
-	if err != nil {
-		return nil, err
-	}
-
-	if res.StatusCode == 200 {
-		result, err := readPromJSON(ctx, res)
-		if err != nil {
-			return nil, err
-		}
-
-		keyToClusterLabels := make(map[string]prometheus.Labels)
-
-		for _, cluster := range result.Data.Result {
-			if cluster.Metric.ClusterInfo != nil && cluster.Metric.ClusterName != "" {
-				keyToClusterLabels[cluster.Metric.PubKey] = map[string]string{
-					"cluster_name":    cluster.Metric.ClusterName,
-					"cluster_hash":    cluster.Metric.ClusterHash,
-					"cluster_network": cluster.Metric.ClusterNetwork,
-					"cluster_peer":    cluster.Metric.ClusterPeer,
-					"pubkey":          cluster.Metric.PubKey,
-				}
-			}
-		}
-
-		return keyToClusterLabels, nil
-	}
-
-	return nil, errors.New("error processing prom metrics", z.Str("url", res.Request.RequestURI))
-}
-
-func getPromClusters(ctx context.Context, promAuth string) (*http.Response, error) {
+// getValidators queries prometheus and returns a list of validators with associated cluster and pubkey
+func getValidators(ctx context.Context, promEndpoint string, promAuth string) ([]validator, error) {
 	client := new(http.Client)
-	url := fmt.Sprintf("%s/query?query=%s", promEndpoint, promQuery)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	url, err := url.Parse(promEndpoint)
+
+	query := url.Query()
+	query.Add("query", "group by (cluster_name, cluster_hash, cluster_peer, pubkey_full) (core_scheduler_validator_balance_gwei)")
+	url.RawQuery = query.Encode()
+
 	if err != nil {
-		log.Error(ctx, "HTTP Request malformed for prom query", err)
-		return nil, errors.Wrap(err, "error creating prom metrics query")
+		return nil, errors.Wrap(err, "parsing url")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "new prometheus request")
 	}
 
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", promAuth))
 	res, err := client.Do(req)
 	if err != nil {
-		log.Error(ctx, "HTTP Request failed for prom query", err)
-		return nil, errors.Wrap(err, "error requesting prom metrics")
+		return nil, errors.Wrap(err, "requesting prom metrics")
+	}
+	defer res.Body.Close()
+
+	if err != nil {
+		return nil, err
 	}
 
-	return res, nil
+	if res.StatusCode == 200 {
+		return constructValidators(ctx, res)
+	}
+
+	return nil, errors.New("processing prom metrics", z.Str("url", url.String()))
 }
 
-func readPromJSON(ctx context.Context, res *http.Response) (*PromResponse, error) {
+// constructValidators reads prometheus response and returns a list of validators
+func constructValidators(ctx context.Context, res *http.Response) ([]validator, error) {
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		log.Error(ctx, "Failed to read body", err)
-		return nil, errors.Wrap(err, "failed to read body")
+		return nil, errors.Wrap(err, "reading body")
 	}
 
-	var result *PromResponse
+	var result *promResponse
 	if err := json.Unmarshal(body, &result); err != nil {
-		log.Error(ctx, "Failed to deserialize json", err)
+		return nil, errors.Wrap(err, "deserializing json")
 	}
 
-	return result, nil
+	if err != nil {
+		return nil, err
+	}
+
+	validators := make([]validator, len(result.Data.Result))
+
+	for i, cluster := range result.Data.Result {
+		if cluster.Metric.validator.ClusterName != "" && cluster.Metric.PubKey != "" {
+			validators[i] = cluster.Metric.validator
+		}
+	}
+
+	return validators, nil
 }
 
 func writeResponse(w http.ResponseWriter, status int, msg string) {
