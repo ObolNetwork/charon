@@ -225,8 +225,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	qbftDebug := newQBFTDebugger()
 
-	// Non-blocking channel to send seen public keys from validatorapi to monitoringapi.
-	seenPubkeys := make(chan core.PubKey, 1)
+	// seenPubkeys channel to send seen public keys from validatorapi to monitoringapi.
+	seenPubkeys := make(chan core.PubKey)
 
 	pubkeys, err := getDVPubkeys(lock)
 	if err != nil {
