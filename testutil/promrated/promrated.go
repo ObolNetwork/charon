@@ -26,16 +26,17 @@ import (
 )
 
 type Config struct {
-	RatedAPIEndpoint string
-	PromAuth         string
-	MonitoringAddr   string
+	RatedEndpoint  string
+	PromEndpoint   string
+	PromAuth       string
+	MonitoringAddr string
 }
 
 // Run blocks running the promrated program until the context is canceled or a fatal error occurs.
 func Run(ctx context.Context, config Config) error {
 	log.Info(ctx, "Promrated started",
-		z.Str("rated_api_endpoint", config.RatedAPIEndpoint), // TODO(corver): This may contain a password
-		z.Str("prom_auth", config.PromAuth),                  // TODO(corver): This may contain a password
+		z.Str("rated_endpoint", config.RatedEndpoint), // TODO(corver): This may contain a password
+		z.Str("prom_auth", config.PromAuth),           // TODO(corver): This may contain a password
 		z.Str("monitoring_addr", config.MonitoringAddr),
 	)
 
@@ -47,15 +48,36 @@ func Run(ctx context.Context, config Config) error {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
+	onStartup := make(chan struct{}, 1)
+	onStartup <- struct{}{}
+
 	for {
 		select {
 		case err := <-serverErr:
 			return err
+		case <-onStartup:
+			reportMetrics(ctx, config)
 		case <-ticker.C:
-			log.Info(ctx, "Promrated looping")
+			reportMetrics(ctx, config)
 		case <-ctx.Done():
 			log.Info(ctx, "Shutting down")
 			return nil
 		}
+	}
+}
+
+func reportMetrics(ctx context.Context, config Config) {
+	validators, err := getValidators(ctx, config.PromEndpoint, config.PromAuth)
+	if err != nil {
+		log.Error(ctx, "Failed fetching validators from prometheus", err)
+		return
+	}
+
+	for _, validator := range validators {
+		log.Info(ctx, "Fetched validator from prometheus",
+			z.Str("pubkey", validator.PubKey),
+			z.Str("cluster_name", validator.ClusterName),
+			z.Str("cluster_network", validator.ClusterNetwork),
+		)
 	}
 }
