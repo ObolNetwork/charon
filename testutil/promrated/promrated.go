@@ -48,12 +48,15 @@ func Run(ctx context.Context, config Config) error {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
-	reportMetrics(ctx, config)
+	onStartup := make(chan struct{}, 1)
+	onStartup <- struct{}{}
 
 	for {
 		select {
 		case err := <-serverErr:
 			return err
+		case <-onStartup:
+			reportMetrics(ctx, config)
 		case <-ticker.C:
 			reportMetrics(ctx, config)
 		case <-ctx.Done():
@@ -66,10 +69,15 @@ func Run(ctx context.Context, config Config) error {
 func reportMetrics(ctx context.Context, config Config) {
 	validators, err := getValidators(ctx, config.PromEndpoint, config.PromAuth)
 	if err != nil {
-		log.Error(context.Background(), "getting pubkey info", err)
+		log.Error(ctx, "Failed fetching validators from prometheus", err)
+		return
 	}
 
 	for _, validator := range validators {
-		log.Info(ctx, "Fetched validator from prometheus", z.Str("pubkey", validator.PubKey), z.Str("cluster_name", validator.ClusterName))
+		log.Info(ctx, "Fetched validator from prometheus",
+			z.Str("pubkey", validator.PubKey),
+			z.Str("cluster_name", validator.ClusterName),
+			z.Str("cluster_network", validator.ClusterNetwork),
+		)
 	}
 }
