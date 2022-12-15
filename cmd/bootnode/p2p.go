@@ -140,7 +140,7 @@ func monitorConnections(ctx context.Context, tcpNode host.Host, bwTuples <-chan 
 			state, ok := peers[info.ID]
 			if !ok {
 				continue // Peer not connected anymore
-			} else if state.ClusterHash != "" {
+			} else if state.ClusterHash == "" {
 				state.ClusterHash = info.ClusterHash
 			}
 
