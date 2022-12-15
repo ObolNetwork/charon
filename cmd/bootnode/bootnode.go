@@ -23,7 +23,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -85,14 +84,15 @@ func Run(ctx context.Context, config Config) error {
 	}
 	defer udpNode.Close()
 
-	reporter := metrics.NewBandwidthCounter()
+	bwTuples := make(chan bwTuple)
+	reporter := newBandwidthCounter(ctx, bwTuples)
 
 	tcpNode, err := startP2P(ctx, config, key, reporter)
 	if err != nil {
 		return err
 	}
 
-	go monitorConnections(ctx, tcpNode, reporter)
+	go monitorConnections(ctx, tcpNode, bwTuples)
 
 	labels := map[string]string{
 		"bootnode_peer": p2p.PeerName(tcpNode.ID()),
@@ -104,7 +104,7 @@ func Run(ctx context.Context, config Config) error {
 	}
 
 	// Start serving HTTP: ENR and monitoring.
-	serverErr := make(chan error, 2)
+	serverErr := make(chan error, 2) // Buffer for 2 servers.
 	go func() {
 		if config.HTTPAddr == "" {
 			return

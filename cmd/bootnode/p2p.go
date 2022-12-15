@@ -90,22 +90,26 @@ func startP2P(ctx context.Context, config Config, key *ecdsa.PrivateKey, reporte
 const unknownCluster = "unknown"
 
 // monitorConnections blocks instrumenting peer connection metrics until the context is closed.
-func monitorConnections(ctx context.Context, tcpNode host.Host, reporter metrics.Reporter) {
-	// peerConns tracks connection data per peer.
-	type peerConns struct {
-		Active int
-		New    int
+//
+//nolint:gocognit // Long but not complex.
+func monitorConnections(ctx context.Context, tcpNode host.Host, bwTuples <-chan bwTuple) {
+	// peerState tracks connection data per peer.
+	type peerState struct {
+		Active      int
+		New         int
+		Name        string
+		ClusterHash string
 	}
-	// peerInfo combines peer ID with cluster hash.
-	type peerInfo struct {
+	// infoTuple combines peer ID with cluster hash.
+	type infoTuple struct {
 		ID          peer.ID
 		ClusterHash string
 	}
 
 	// State
 	var (
-		infos  = make(chan peerInfo)
-		peers  = make(map[peer.ID]peerConns)
+		infos  = make(chan infoTuple)
+		peers  = make(map[peer.ID]peerState)
 		events = make(chan connEvent)
 	)
 
@@ -120,67 +124,90 @@ func monitorConnections(ctx context.Context, tcpNode host.Host, reporter metrics
 		select {
 		case <-ctx.Done():
 			return
-		case info := <-infos:
-			// Instrument peer every time we get peerinfo respsonse
-			conns, ok := peers[info.ID]
+		case tuple := <-bwTuples:
+			// Instrument bandwidth
+			state, ok := peers[tuple.ID]
 			if !ok {
 				continue // Peer not connected anymore
 			}
-			name := p2p.PeerName(info.ID)
-			stats := reporter.GetBandwidthForPeer(info.ID)
+			if tuple.Sent {
+				networkTXCounter.WithLabelValues(state.Name, state.ClusterHash).Add(float64(tuple.Size))
+			} else {
+				networkRXCounter.WithLabelValues(state.Name, state.ClusterHash).Add(float64(tuple.Size))
+			}
+		case info := <-infos:
+			// Instrument peer every time we get peerinfo respsonse
+			state, ok := peers[info.ID]
+			if !ok {
+				continue // Peer not connected anymore
+			} else if state.ClusterHash != "" {
+				state.ClusterHash = info.ClusterHash
+			}
 
-			bandwidthInGauge.WithLabelValues(name, info.ClusterHash).Set(stats.RateIn)
-			bandwidthOutGauge.WithLabelValues(name, info.ClusterHash).Set(stats.RateOut)
-			newConnsCounter.WithLabelValues(name, info.ClusterHash).Add(float64(conns.New))
+			newConnsCounter.WithLabelValues(state.Name, state.ClusterHash).Add(float64(state.New))
+			activeConnsCounter.WithLabelValues(state.Name, state.ClusterHash).Set(float64(state.Active))
 
 			// Reset new connection state
-			conns.New = 0
-			peers[info.ID] = conns
-
+			state.New = 0
+			peers[info.ID] = state
 		case e := <-events:
 			// Update peer connection data on libp2p events.
-			conns := peers[e.Peer]
+			state := peers[e.Peer]
+			state.Name = p2p.PeerName(e.Peer)
 			if e.Connected {
-				conns.Active++
-				conns.New++
+				state.Active++
+				state.New++
 			} else {
-				conns.Active--
+				state.Active--
 			}
-			if conns.Active == 0 {
-				delete(peers, e.Peer)
-			} else {
-				peers[e.Peer] = conns
-			}
+			peers[e.Peer] = state
 		case <-ticker.C:
-			// Periodically request peerinfo for all peers we have connection data for.
-			for p := range peers {
-				go func(p peer.ID) {
-					name := p2p.PeerName(p)
-					var hash string
-					info, rtt, ok, err := peerinfo.DoOnce(ctx, tcpNode, p)
-					if p2p.IsRelayError(err) {
-						// Ignore relay errors, since peer probably not connected anymore.
-						return
-					} else if err != nil {
-						// Log other errors, but peer probably not connected anymore.
-						log.Warn(ctx, "Protocol peerinfo failed", err, z.Str("peer", name))
-						return
-					} else if !ok {
-						// Group peers that don't support the protocol with unknown cluster hash.
-						hash = unknownCluster
-					} else {
-						hash = clusterHash(info.LockHash)
-						peerPingLatency.WithLabelValues(name, hash).Observe(rtt.Seconds() / 2)
+			// Periodically request peerinfo for all peers we have active connections to.
+			for p, state := range peers {
+				if state.Active == 0 {
+					// No active connections, remove peer from state.
+					delete(peers, p)
+
+					if state.ClusterHash != "" {
+						activeConnsCounter.WithLabelValues(state.Name, state.ClusterHash).Set(0)
 					}
 
-					//  Enqueue peer for instrumentation (async since blocking)
-					go func() {
-						infos <- peerInfo{ClusterHash: hash, ID: p}
-					}()
-				}(p)
+					continue
+				}
+
+				go func(p peer.ID, name string) {
+					hash, ok, err := getPeerInfo(ctx, tcpNode, p, name)
+					if err != nil {
+						log.Warn(ctx, "Peerinfo failed", err, z.Str("peer", name))
+						return
+					} else if !ok {
+						return
+					}
+
+					infos <- infoTuple{ClusterHash: hash, ID: p} //  Enqueue peer for instrumentation
+				}(p, state.Name)
 			}
 		}
 	}
+}
+
+// getPeerInfo returns the peer's cluster hash and true.
+func getPeerInfo(ctx context.Context, tcpNode host.Host, pID peer.ID, name string) (string, bool, error) {
+	info, rtt, ok, err := peerinfo.DoOnce(ctx, tcpNode, pID)
+	if p2p.IsRelayError(err) {
+		// Ignore relay errors, since peer probably not connected anymore.
+		return "", false, nil
+	} else if err != nil {
+		return "", false, err
+	} else if !ok {
+		// Group peers that don't support the protocol with unknown cluster hash.
+		return unknownCluster, true, nil
+	}
+
+	hash := clusterHash(info.LockHash)
+	peerPingLatency.WithLabelValues(name, hash).Observe(rtt.Seconds() / 2)
+
+	return hash, true, nil
 }
 
 // clusterHash returns the cluster hash hex from the lock hash.
