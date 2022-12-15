@@ -20,13 +20,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -81,12 +80,9 @@ func getValidationStatistics(ctx context.Context, ratedEndpoint string, validato
 		}
 
 		if res.StatusCode == 429 {
-			min := 0.95
-			max := 1.05
-			sleepFor := math.Pow(2, float64(r)) * ((rand.Float64() * (max - min)) + min)
-
-			log.Info(ctx, fmt.Sprintln("Rate limit exceeded. Retrying in %i seconds.", sleepFor))
-			time.Sleep(time.Duration(sleepFor) * time.Second)
+			sleepFor := expbackoff.Backoff(expbackoff.DefaultConfig, r)
+			log.Info(ctx, fmt.Sprintln("Rate limit exceeded. Retrying after .", sleepFor))
+			time.Sleep(sleepFor)
 
 			continue
 		} else if res.StatusCode/100 != 2 {
