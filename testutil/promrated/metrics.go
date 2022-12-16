@@ -21,46 +21,43 @@ import (
 	"github.com/obolnetwork/charon/app/promauto"
 )
 
+// metrics.
 var (
+	labels = []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"}
+
 	uptime = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "rated",
-		Subsystem: "sentinel",
-		Name:      "validation_key_uptime",
+		Namespace: "promrated",
+		Name:      "validator_uptime",
 		Help:      "Uptime of a validation key.",
-	}, []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"})
+	}, labels)
 
 	correctness = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "rated",
-		Subsystem: "sentinel",
-		Name:      "validation_key_correctness",
+		Namespace: "promrated",
+		Name:      "validator_correctness",
 		Help:      "Average correctness of a validation key.",
-	}, []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"})
+	}, labels)
 
 	inclusionDelay = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "rated",
-		Subsystem: "sentinel",
-		Name:      "validation_key_inclusion_delay",
+		Namespace: "promrated",
+		Name:      "validator_inclusion_delay",
 		Help:      "Average inclusion delay of a validation key.",
-	}, []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"})
+	}, labels)
 
 	attester = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "rated",
-		Subsystem: "sentinel",
-		Name:      "validation_key_attester_effectiveness",
+		Namespace: "promrated",
+		Name:      "validator_attester_effectiveness",
 		Help:      "Attester effectiveness of a validation key.",
-	}, []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"})
+	}, labels)
 
 	proposer = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "rated",
-		Subsystem: "sentinel",
-		Name:      "validation_key_proposer_effectiveness",
+		Namespace: "promrated",
+		Name:      "validator_proposer_effectiveness",
 		Help:      "Proposer effectiveness of a validation key.",
-	}, []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"})
+	}, labels)
 
 	effectiveness = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "rated",
-		Subsystem: "sentinel",
-		Name:      "validation_key_effectiveness",
+		Namespace: "promrated",
+		Name:      "validator_effectiveness",
 		Help:      "Effectiveness of a validation key.",
-	}, []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"})
+	}, labels)
 )

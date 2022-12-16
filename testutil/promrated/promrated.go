@@ -43,9 +43,7 @@ func Run(ctx context.Context, config Config) error {
 		z.Str("monitoring_addr", config.MonitoringAddr),
 	)
 
-	labels := map[string]string{}
-
-	promRegistry, err := promauto.NewRegistry(labels)
+	promRegistry, err := promauto.NewRegistry(nil)
 	if err != nil {
 		return err
 	}
@@ -98,7 +96,7 @@ func reportMetrics(ctx context.Context, config Config) {
 		}
 
 		clusterLabels := prometheus.Labels{
-			"pubkey_full":     validator.ClusterName,
+			"pubkey_full":     validator.PubKey,
 			"cluster_name":    validator.ClusterName,
 			"cluster_hash":    validator.ClusterHash,
 			"cluster_network": validator.ClusterNetwork,
