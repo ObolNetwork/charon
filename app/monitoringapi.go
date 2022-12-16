@@ -114,7 +114,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 	go func() {
 		ticker := clock.NewTicker(10 * time.Second)
 		epochTicker := clock.NewTicker(32 * 12 * time.Second) // 32 slots * 12 second slot time
-		previous := make(map[core.PubKey]bool)
+		// previous := make(map[core.PubKey]bool)
 
 		// newCurrent returns a new current map, populated with all the pubkeys.
 		newCurrent := func() map[core.PubKey]bool {
@@ -135,7 +135,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 				return
 			case <-epochTicker.Chan():
 				// Copy current to previous and clear current.
-				previous, current = current, newCurrent()
+				// previous, current = current, newCurrent()
 			case <-ticker.Chan():
 				if quorumPeersConnected(peerIDs, tcpNode) {
 					notConnectedRounds = 0
@@ -154,12 +154,12 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 				} else if notConnectedRounds >= minNotConnected {
 					err = errReadyInsufficientPeers
 					readyzGauge.Set(readyzInsufficientPeers)
-				} else if len(previous) == len(pubkeys) {
-					err = errReadyVCNotConfigured
-					readyzGauge.Set(readyzVCNotConfigured)
-				} else if len(previous) > 0 {
-					err = errReadyVCMissingVals
-					readyzGauge.Set(readyzVCMissingValidators)
+					// } else if len(previous) == len(pubkeys) {
+					//	err = errReadyVCNotConfigured
+					//	readyzGauge.Set(readyzVCNotConfigured)
+					// } else if len(previous) > 0 {
+					//	err = errReadyVCMissingVals
+					//	readyzGauge.Set(readyzVCMissingValidators)
 				} else {
 					readyzGauge.Set(readyzReady)
 				}
