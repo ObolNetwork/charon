@@ -21,7 +21,6 @@ import (
 	"github.com/obolnetwork/charon/app/promauto"
 )
 
-// metrics.
 var (
 	labels = []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"}
 

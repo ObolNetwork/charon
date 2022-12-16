@@ -49,7 +49,7 @@ func getValidationStatistics(ctx context.Context, ratedEndpoint string, validato
 
 	url.Path = fmt.Sprintf("/v0/eth/validators/%s/effectiveness", validator.PubKey)
 
-	//Adding size=1 will get only the latest day of data
+	// Adding size=1 will get only the latest day of data
 	query := url.Query()
 	query.Add("size", "1")
 	url.RawQuery = query.Encode()
@@ -86,7 +86,7 @@ func getValidationStatistics(ctx context.Context, ratedEndpoint string, validato
 		}
 
 		if res.StatusCode == http.StatusTooManyRequests {
-			log.Info(ctx, "Rate limit exceeded.", z.Int("retry", r))
+			log.Info(ctx, "Rate limit exceeded", z.Int("retry", r))
 			backoff()
 
 			continue
