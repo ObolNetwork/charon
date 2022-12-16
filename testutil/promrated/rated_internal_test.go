@@ -29,50 +29,39 @@ import (
 
 //go:generate go test . -update -clean
 
-func TestGetValidators(t *testing.T) {
+func TestGetValidationStatistics(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, promQuery, r.URL.Query()["query"][0])
-		require.Equal(t, "Bearer test", r.Header.Get("Authorization"))
-		_, _ = w.Write([]byte(fixture))
+		require.Equal(t, "/v0/eth/validators/0xA/effectiveness", r.URL.Path)
+		require.Equal(t, "1", r.URL.Query()["size"][0])
+		_, _ = w.Write([]byte(ratedFixture))
 	}))
 	defer ts.Close()
 
-	vals, err := getValidators(context.Background(), ts.URL, "test")
+	validator := validator{ClusterName: "test-cluster", ClusterHash: "hash", ClusterNetwork: "goerli", PubKey: "0xA"}
+
+	vals, err := getValidationStatistics(context.Background(), ts.URL, validator)
 	assert.NoError(t, err)
 	testutil.RequireGoldenJSON(t, vals)
 }
 
-const fixture = `
+const ratedFixture = `
 {
-  "status": "success",
-  "isPartial": false,
-  "data": {
-    "resultType": "vector",
-    "result": [
+  "page": {
+      "from": null,
+      "size": 1,
+      "granularity": "day",
+      "filterType": "day"
+  },
+  "total": 115,
+  "data": [
       {
-        "metric": {
-          "cluster_hash": "hash1",
-          "cluster_name": "cluster1",
-          "cluster_network": "network1",
-          "pubkey_full": "0x96c85da36a35123aa17ace6588e56e948b1f7fe320f53163015f144541b65645a7aa4df44e5638a00467aff16666629c"
-        },
-        "value": [
-          1671108542,
-          "1"
-        ]
-      },
-      {
-        "metric": {
-          "cluster_hash": "hash2",
-          "cluster_name": "cluster2",
-          "cluster_network": "network2",
-          "pubkey_full": "0x800a9a1c9f6cd9fbe30a3759070646bc8bf17a1da26bbcd5b72c696396ec2dd40265fd7174231dffe9f19cfc6e64df54"
-        },
-        "value": [
-          1671108542,
-          "1"
-        ]
+          "avgInclusionDelay": 1.4330357142857142,
+          "uptime": 0.9955555555555555,
+          "avgCorrectness": 0.9300595238095238,
+          "attesterEffectiveness": 64.61289950386524,
+          "proposerEffectiveness": null,
+          "validatorEffectiveness": 64.61289950386524
       }
-	  ]
-  }
+  ],
+  "next": "/v0/eth/validators/379356/effectiveness?size=1&from=629&granularity=day&filterType=day"
 }`

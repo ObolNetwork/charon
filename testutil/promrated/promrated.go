@@ -21,7 +21,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/z"
 )
 
@@ -40,9 +43,14 @@ func Run(ctx context.Context, config Config) error {
 		z.Str("monitoring_addr", config.MonitoringAddr),
 	)
 
+	promRegistry, err := promauto.NewRegistry(nil)
+	if err != nil {
+		return err
+	}
+
 	serverErr := make(chan error, 1)
 	go func() {
-		serverErr <- serveMonitoring(config.MonitoringAddr)
+		serverErr <- serveMonitoring(config.MonitoringAddr, promRegistry)
 	}()
 
 	ticker := time.NewTicker(10 * time.Minute)
@@ -66,6 +74,7 @@ func Run(ctx context.Context, config Config) error {
 	}
 }
 
+// report the validator effectiveness metrics for prometheus
 func reportMetrics(ctx context.Context, config Config) {
 	validators, err := getValidators(ctx, config.PromEndpoint, config.PromAuth)
 	if err != nil {
@@ -79,5 +88,25 @@ func reportMetrics(ctx context.Context, config Config) {
 			z.Str("cluster_name", validator.ClusterName),
 			z.Str("cluster_network", validator.ClusterNetwork),
 		)
+
+		stats, err := getValidationStatistics(ctx, config.RatedEndpoint, validator)
+		if err != nil {
+			log.Error(ctx, "Getting validator statistics", err, z.Str("validator", validator.PubKey))
+			continue
+		}
+
+		clusterLabels := prometheus.Labels{
+			"pubkey_full":     validator.PubKey,
+			"cluster_name":    validator.ClusterName,
+			"cluster_hash":    validator.ClusterHash,
+			"cluster_network": validator.ClusterNetwork,
+		}
+
+		uptime.With(clusterLabels).Set(stats.Uptime)
+		correctness.With(clusterLabels).Set(stats.AvgCorrectness)
+		inclusionDelay.With(clusterLabels).Set(stats.AvgInclusionDelay)
+		attester.With(clusterLabels).Set(stats.AttesterEffectiveness)
+		proposer.With(clusterLabels).Set(stats.ProposerEffectiveness)
+		effectiveness.With(clusterLabels).Set(stats.ValidatorEffectiveness)
 	}
 }
