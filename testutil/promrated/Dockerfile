@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . .
 
 # Build with Go module and Go build caches.
-RUN go build -o promrated ./promrated
+RUN go build -o promrated github.com/obolnetwork/charon/testutil/promrated/promrated
 
 # Don't run container as root
 ENV USER=promrated
