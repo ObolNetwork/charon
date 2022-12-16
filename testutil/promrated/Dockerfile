@@ -23,12 +23,12 @@ RUN adduser \
     --no-create-home \
     --uid "$UID" \
     "$USER"
-RUN chown promrated /app/promrated/promrated
-RUN chmod u+x /app/promrated/promrated
+RUN chown promrated /app/promrated
+RUN chmod u+x /app/promrated
 WORKDIR "/opt/$USER"
 USER promrated
 
-CMD ["/app/promrated/promrated"]
+CMD ["/app/promrated"]
 
 # Used by GitHub to associate container with repo.
 LABEL org.opencontainers.image.source="https://github.com/obolnetwork/charon/testutil/promrated"
