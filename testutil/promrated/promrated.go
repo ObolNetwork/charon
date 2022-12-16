@@ -104,7 +104,7 @@ func reportMetrics(ctx context.Context, config Config) {
 
 		uptime.With(clusterLabels).Set(stats.Uptime)
 		correctness.With(clusterLabels).Set(stats.AvgCorrectness)
-		inclusionDelay.With(clusterLabels).Set(stats.AvgCorrectness)
+		inclusionDelay.With(clusterLabels).Set(stats.AvgInclusionDelay)
 		attester.With(clusterLabels).Set(stats.AttesterEffectiveness)
 		proposer.With(clusterLabels).Set(stats.ProposerEffectiveness)
 		effectiveness.With(clusterLabels).Set(stats.ValidatorEffectiveness)
