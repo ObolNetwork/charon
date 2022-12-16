@@ -17,68 +17,50 @@ package promrated
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"github.com/obolnetwork/charon/app/promauto"
 )
 
-type watcherMetrics struct {
-	RatedValidationUptime                 *prometheus.GaugeVec
-	RatedValidationAvgCorrectness         *prometheus.GaugeVec
-	RatedValidationAvgInclustionDelay     *prometheus.GaugeVec
-	RatedValidationAttesterEffectiveness  *prometheus.GaugeVec
-	RatedValidationProposerEffectiveness  *prometheus.GaugeVec
-	RatedValidationValidatorEffectiveness *prometheus.GaugeVec
-}
-
-// newWatcherMetrics creates prometheus metrics for the watcher.
-func newWatcherMetrics(reg prometheus.Registerer) *watcherMetrics {
-	uptime := promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+var (
+	uptime = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "rated",
 		Subsystem: "sentinel",
 		Name:      "validation_key_uptime",
 		Help:      "Uptime of a validation key.",
 	}, []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"})
 
-	correctness := promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+	correctness = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "rated",
 		Subsystem: "sentinel",
 		Name:      "validation_key_correctness",
 		Help:      "Average correctness of a validation key.",
 	}, []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"})
 
-	inclusionDelay := promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+	inclusionDelay = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "rated",
 		Subsystem: "sentinel",
 		Name:      "validation_key_inclusion_delay",
 		Help:      "Average inclusion delay of a validation key.",
 	}, []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"})
 
-	attester := promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+	attester = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "rated",
 		Subsystem: "sentinel",
 		Name:      "validation_key_attester_effectiveness",
 		Help:      "Attester effectiveness of a validation key.",
 	}, []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"})
 
-	proposer := promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+	proposer = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "rated",
 		Subsystem: "sentinel",
 		Name:      "validation_key_proposer_effectiveness",
 		Help:      "Proposer effectiveness of a validation key.",
 	}, []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"})
 
-	effectiveness := promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+	effectiveness = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "rated",
 		Subsystem: "sentinel",
 		Name:      "validation_key_effectiveness",
 		Help:      "Effectiveness of a validation key.",
 	}, []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"})
-
-	return &watcherMetrics{
-		RatedValidationUptime:                 uptime,
-		RatedValidationAvgCorrectness:         correctness,
-		RatedValidationAvgInclustionDelay:     inclusionDelay,
-		RatedValidationAttesterEffectiveness:  attester,
-		RatedValidationProposerEffectiveness:  proposer,
-		RatedValidationValidatorEffectiveness: effectiveness,
-	}
-}
+)
