@@ -76,7 +76,7 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 	case core.DutyBuilderProposer:
 		unsignedSet, err = f.fetchBuilderProposerData(ctx, duty.Slot, defSet)
 		if err != nil {
-			return errors.Wrap(err, "fetch proposer data")
+			return errors.Wrap(err, "fetch builder proposer data")
 		}
 	case core.DutyAggregator:
 		unsignedSet, err = f.fetchAggregatorData(ctx, duty.Slot, defSet)
@@ -259,13 +259,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 		}
 
 		// Ensure fee recipient is correctly populated in block.
-		if block.Version == spec.DataVersionBellatrix {
-			actual := fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
-			if !strings.EqualFold(actual, f.feeRecipientAddress) {
-				log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
-					z.Str("expected", f.feeRecipientAddress), z.Str("actual", actual))
-			}
-		}
+		verifyFeeRecipient(ctx, block, f.feeRecipientAddress)
 
 		coreBlock, err := core.NewVersionedBeaconBlock(block)
 		if err != nil {
@@ -378,4 +372,21 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot int64, defSet 
 	}
 
 	return resp, nil
+}
+
+// verifyFeeRecipient logs a warning when fee recipient is not correctly populated in the block.
+func verifyFeeRecipient(ctx context.Context, block *spec.VersionedBeaconBlock, feeRecipientAddress string) {
+	var actualAddr string
+	//nolint:exhaustive
+	switch block.Version { // Fee-recipient is not available in forks earlier than bellatrix.
+	case spec.DataVersionBellatrix:
+		actualAddr = fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
+	case spec.DataVersionCapella:
+		actualAddr = fmt.Sprintf("%#x", block.Capella.Body.ExecutionPayload.FeeRecipient)
+	}
+
+	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
+		log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
+			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
+	}
 }

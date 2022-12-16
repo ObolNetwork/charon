@@ -23,8 +23,10 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	apiv1capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -106,6 +108,16 @@ type proposeBlockResponseBellatrix struct {
 type proposeBlindedBlockResponseBellatrix struct {
 	Version string                             `json:"version"`
 	Data    *apiv1bellatrix.BlindedBeaconBlock `json:"data"`
+}
+
+type proposeBlindedBlockResponseCapella struct {
+	Version string                           `json:"version"`
+	Data    *apiv1capella.BlindedBeaconBlock `json:"data"`
+}
+
+type proposeBlockResponseCapella struct {
+	Version string               `json:"version"`
+	Data    *capella.BeaconBlock `json:"data"`
 }
 
 type validatorsResponse struct {

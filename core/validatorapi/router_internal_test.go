@@ -32,11 +32,13 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	apiv1capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2mock "github.com/attestantio/go-eth2-client/mock"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -151,7 +153,7 @@ func TestRawRouter(t *testing.T) {
 		handler := testHandler{}
 		handler.BeaconBlockProposalFunc = func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
 			require.Empty(t, graffiti)
-			resp := testutil.RandomCoreVersionBeaconBlock().VersionedBeaconBlock
+			resp := testutil.RandomBellatrixCoreVersionedBeaconBlock().VersionedBeaconBlock
 
 			return &resp, nil
 		}
@@ -644,6 +646,29 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
+	t.Run("submit_block_capella", func(t *testing.T) {
+		block1 := &spec.VersionedSignedBeaconBlock{
+			Version: spec.DataVersionCapella,
+			Capella: &capella.SignedBeaconBlock{
+				Message:   testutil.RandomCapellaBeaconBlock(),
+				Signature: testutil.RandomEth2Signature(),
+			},
+		}
+		handler := testHandler{
+			SubmitBeaconBlockFunc: func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+				require.Equal(t, block, block1)
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			err := cl.SubmitBeaconBlock(ctx, block1)
+			require.NoError(t, err)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
 	t.Run("submit_blinded_block_bellatrix", func(t *testing.T) {
 		block1 := &eth2api.VersionedSignedBlindedBeaconBlock{
 			Version: spec.DataVersionBellatrix,
@@ -655,6 +680,29 @@ func TestRouter(t *testing.T) {
 		handler := testHandler{
 			SubmitBlindedBeaconBlockFunc: func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
 				require.Equal(t, block, block1)
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			err := cl.SubmitBlindedBeaconBlock(ctx, block1)
+			require.NoError(t, err)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
+	t.Run("submit_blinded_block_capella", func(t *testing.T) {
+		block1 := &eth2api.VersionedSignedBlindedBeaconBlock{
+			Version: spec.DataVersionCapella,
+			Capella: &apiv1capella.SignedBlindedBeaconBlock{
+				Message:   testutil.RandomCapellaBlindedBeaconBlock(),
+				Signature: testutil.RandomEth2Signature(),
+			},
+		}
+		handler := testHandler{
+			SubmitBlindedBeaconBlockFunc: func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
+				require.Equal(t, block1, block)
 				return nil
 			},
 		}

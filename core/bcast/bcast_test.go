@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
-	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	apiv1capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -153,8 +153,8 @@ func blindedBeaconBlockData(t *testing.T, mock *beaconmock.Mock) test {
 
 	block1 := eth2api.VersionedSignedBlindedBeaconBlock{
 		Version: spec.DataVersionBellatrix,
-		Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
-			Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
+		Capella: &apiv1capella.SignedBlindedBeaconBlock{
+			Message:   testutil.RandomCapellaBlindedBeaconBlock(),
 			Signature: testutil.RandomEth2Signature(),
 		},
 	}

@@ -538,7 +538,7 @@ func TestDutyExpiry(t *testing.T) {
 
 	// Store another duty which deletes expired duties
 	err = db.Store(ctx, core.NewProposerDuty(slot+1), core.UnsignedDataSet{
-		testutil.RandomCorePubKey(t): testutil.RandomCoreVersionBeaconBlock(),
+		testutil.RandomCorePubKey(t): testutil.RandomBellatrixCoreVersionedBeaconBlock(),
 	})
 	require.NoError(t, err)
 

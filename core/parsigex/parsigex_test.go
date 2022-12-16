@@ -164,13 +164,13 @@ func TestParSigExVerifier(t *testing.T) {
 	})
 
 	t.Run("Verify block", func(t *testing.T) {
-		block := testutil.RandomVersionSignedBeaconBlock()
-		block.Bellatrix.Message.Slot = slot
+		block := testutil.RandomCapellaVersionedSignedBeaconBlock()
+		block.Capella.Message.Slot = slot
 		sigRoot, err := block.Root()
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconProposer, epoch, sigRoot)
 		require.NoError(t, err)
-		block.Bellatrix.Signature = sign(sigData[:])
+		block.Capella.Signature = sign(sigData[:])
 		data, err := core.NewPartialVersionedSignedBeaconBlock(block, shareIdx)
 		require.NoError(t, err)
 
@@ -178,14 +178,14 @@ func TestParSigExVerifier(t *testing.T) {
 	})
 
 	t.Run("Verify blinded block", func(t *testing.T) {
-		blindedBlock := testutil.RandomVersionSignedBlindedBeaconBlock()
-		blindedBlock.Bellatrix.Message.Slot = slot
+		blindedBlock := testutil.RandomCapellaVersionedSignedBlindedBeaconBlock()
+		blindedBlock.Capella.Message.Slot = slot
 		sigRoot, err := blindedBlock.Root()
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconProposer, epoch, sigRoot)
 		require.NoError(t, err)
-		blindedBlock.Bellatrix.Signature = sign(sigData[:])
-		data, err := core.NewPartialVersionedSignedBlindedBeaconBlock(blindedBlock, shareIdx)
+		blindedBlock.Capella.Signature = sign(sigData[:])
+		data, err := core.NewPartialVersionedSignedBlindedBeaconBlock(&blindedBlock.VersionedSignedBlindedBeaconBlock, shareIdx)
 		require.NoError(t, err)
 
 		require.NoError(t, verifyFunc(ctx, core.NewBuilderProposerDuty(slot), pubkey, data))

@@ -22,7 +22,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	apiv1capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -49,7 +49,7 @@ func TestSynthProposer(t *testing.T) {
 	require.NoError(t, err)
 
 	bmock.SubmitBeaconBlockFunc = func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
-		require.Equal(t, realBlockSlot, block.Bellatrix.Message.Slot)
+		require.Equal(t, realBlockSlot, block.Capella.Message.Slot)
 		close(done)
 
 		return nil
@@ -107,16 +107,16 @@ func TestSynthProposer(t *testing.T) {
 		block, err := eth2Cl.BeaconBlockProposal(ctx, duty.Slot, testutil.RandomEth2Signature(), []byte("test"))
 		require.NoError(t, err)
 		if duty.Slot == realBlockSlot {
-			require.NotContains(t, string(block.Bellatrix.Body.Graffiti[:]), "DO NOT SUBMIT")
-			require.NotEqual(t, feeRecipient, block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
+			require.NotContains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
+			require.NotEqual(t, feeRecipient, block.Capella.Body.ExecutionPayload.FeeRecipient)
 		} else {
-			require.Contains(t, string(block.Bellatrix.Body.Graffiti[:]), "DO NOT SUBMIT")
-			require.Equal(t, feeRecipient, block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
+			require.Contains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
+			require.Equal(t, feeRecipient, block.Capella.Body.ExecutionPayload.FeeRecipient)
 		}
-		require.Equal(t, spec.DataVersionBellatrix, block.Version)
+		require.Equal(t, spec.DataVersionCapella, block.Version)
 
-		signed := testutil.RandomVersionSignedBeaconBlock()
-		signed.Bellatrix.Message = block.Bellatrix
+		signed := testutil.RandomCapellaVersionedSignedBeaconBlock()
+		signed.Capella.Message = block.Capella
 		err = eth2Cl.SubmitBeaconBlock(ctx, signed)
 		require.NoError(t, err)
 	}
@@ -126,17 +126,17 @@ func TestSynthProposer(t *testing.T) {
 		block, err := eth2Cl.BlindedBeaconBlockProposal(ctx, duty.Slot, testutil.RandomEth2Signature(), []byte("test"))
 		require.NoError(t, err)
 		if duty.Slot == realBlockSlot {
-			require.NotContains(t, string(block.Bellatrix.Body.Graffiti[:]), "DO NOT SUBMIT")
-			require.NotEqual(t, feeRecipient, block.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
+			require.NotContains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
+			require.NotEqual(t, feeRecipient, block.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
 		} else {
-			require.Equal(t, feeRecipient, block.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
+			require.Equal(t, feeRecipient, block.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
 		}
-		require.Equal(t, spec.DataVersionBellatrix, block.Version)
+		require.Equal(t, spec.DataVersionCapella, block.Version)
 
 		signed := &eth2api.VersionedSignedBlindedBeaconBlock{
-			Version: spec.DataVersionBellatrix,
-			Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
-				Message:   block.Bellatrix,
+			Version: spec.DataVersionCapella,
+			Capella: &apiv1capella.SignedBlindedBeaconBlock{
+				Message:   block.Capella,
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}

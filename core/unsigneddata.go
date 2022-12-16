@@ -21,9 +21,11 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	apiv1capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -134,6 +136,10 @@ func NewVersionedBeaconBlock(block *spec.VersionedBeaconBlock) (VersionedBeaconB
 		if block.Bellatrix == nil {
 			return VersionedBeaconBlock{}, errors.New("no bellatrix block")
 		}
+	case spec.DataVersionCapella:
+		if block.Capella == nil {
+			return VersionedBeaconBlock{}, errors.New("no capella block")
+		}
 	default:
 		return VersionedBeaconBlock{}, errors.New("unknown version")
 	}
@@ -165,6 +171,8 @@ func (b VersionedBeaconBlock) MarshalJSON() ([]byte, error) {
 		marshaller = b.Altair
 	case spec.DataVersionBellatrix:
 		marshaller = b.Bellatrix
+	case spec.DataVersionCapella:
+		marshaller = b.Capella
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -211,6 +219,12 @@ func (b *VersionedBeaconBlock) UnmarshalJSON(input []byte) error {
 			return errors.Wrap(err, "unmarshal bellatrix")
 		}
 		resp.Bellatrix = block
+	case spec.DataVersionCapella:
+		block := new(capella.BeaconBlock)
+		if err := json.Unmarshal(raw.Block, &block); err != nil {
+			return errors.Wrap(err, "unmarshal capella")
+		}
+		resp.Capella = block
 	default:
 		return errors.New("unknown version")
 	}
@@ -229,7 +243,11 @@ func NewVersionedBlindedBeaconBlock(block *eth2api.VersionedBlindedBeaconBlock) 
 	switch block.Version {
 	case spec.DataVersionBellatrix:
 		if block.Bellatrix == nil {
-			return VersionedBlindedBeaconBlock{}, errors.New("no bellatrix block")
+			return VersionedBlindedBeaconBlock{}, errors.New("no bellatrix blinded block")
+		}
+	case spec.DataVersionCapella:
+		if block.Capella == nil {
+			return VersionedBlindedBeaconBlock{}, errors.New("no capella blinded block")
 		}
 	default:
 		return VersionedBlindedBeaconBlock{}, errors.New("unknown version")
@@ -254,6 +272,8 @@ func (b VersionedBlindedBeaconBlock) MarshalJSON() ([]byte, error) {
 	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
 	case spec.DataVersionBellatrix:
 		marshaller = b.Bellatrix
+	case spec.DataVersionCapella:
+		marshaller = b.Capella
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -288,6 +308,12 @@ func (b *VersionedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
 			return errors.Wrap(err, "unmarshal bellatrix")
 		}
 		resp.Bellatrix = block
+	case spec.DataVersionCapella:
+		block := new(apiv1capella.BlindedBeaconBlock)
+		if err := json.Unmarshal(raw.Block, &block); err != nil {
+			return errors.Wrap(err, "unmarshal capella")
+		}
+		resp.Capella = block
 	default:
 		return errors.New("unknown version")
 	}
