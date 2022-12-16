@@ -227,6 +227,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	// seenPubkeys channel to send seen public keys from validatorapi to monitoringapi.
 	seenPubkeys := make(chan core.PubKey)
+	seenPubkeysFunc := func(pk core.PubKey) {
+		select {
+		case <-ctx.Done():
+		case seenPubkeys <- pk:
+		}
+	}
 
 	pubkeys, err := getDVPubkeys(lock)
 	if err != nil {
@@ -237,7 +243,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		promRegistry, qbftDebug, pubkeys, seenPubkeys)
 
 	err = wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl,
-		peerIDs, sender, qbftDebug.AddInstance, seenPubkeys)
+		peerIDs, sender, qbftDebug.AddInstance, seenPubkeysFunc)
 	if err != nil {
 		return err
 	}
@@ -330,7 +336,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
 	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
-	qbftSniffer func(*pbv1.SniffedConsensusInstance), seenPubkeys chan core.PubKey,
+	qbftSniffer func(*pbv1.SniffedConsensusInstance), seenPubkeys func(core.PubKey),
 ) error {
 	// Convert and prep public keys and public shares
 	var (
