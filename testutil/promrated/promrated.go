@@ -74,7 +74,7 @@ func Run(ctx context.Context, config Config) error {
 	}
 }
 
-// report the validator effectiveness metrics for prometheus
+// report the validator effectiveness metrics for prometheus.
 func reportMetrics(ctx context.Context, config Config) {
 	validators, err := getValidators(ctx, config.PromEndpoint, config.PromAuth)
 	if err != nil {

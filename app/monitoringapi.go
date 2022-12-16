@@ -42,8 +42,8 @@ var (
 	errReadyInsufficientPeers = errors.New("quorum peers not connected")
 	errReadyBeaconNodeSyncing = errors.New("beacon node not synced")
 	errReadyBeaconNodeDown    = errors.New("beacon node down")
-	errReadyVCNotConfigured   = errors.New("vc not configured")
-	errReadyVCMissingVals     = errors.New("vc missing some validators")
+	// errReadyVCNotConfigured   = errors.New("vc not configured")
+	// errReadyVCMissingVals     = errors.New("vc missing some validators").
 )
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.

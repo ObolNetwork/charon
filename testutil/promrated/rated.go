@@ -54,7 +54,7 @@ func getValidationStatistics(ctx context.Context, ratedEndpoint string, validato
 	query.Add("size", "1")
 	url.RawQuery = query.Encode()
 
-	//Workaround for rated api not recognising goerli
+	// Workaround for rated api not recognising goerli
 	clusterNetwork := validator.ClusterNetwork
 	if clusterNetwork == "goerli" {
 		clusterNetwork = "prater"
@@ -100,7 +100,7 @@ func getValidationStatistics(ctx context.Context, ratedEndpoint string, validato
 	return validatorEffectivenessData{}, errors.New("max retries exceeded fetching validator data", z.Int("max", maxRetries))
 }
 
-// parseMetrics reads rated response and returns the validator effectiveness data
+// parseMetrics reads rated response and returns the validator effectiveness data.
 func parseMetrics(body []byte) (validatorEffectivenessData, error) {
 	var result struct {
 		Data []validatorEffectivenessData `json:"data"`
