@@ -3,7 +3,7 @@ module github.com/obolnetwork/charon
 go 1.19
 
 require (
-	github.com/attestantio/go-eth2-client v0.14.5
+	github.com/attestantio/go-eth2-client v0.15.0
 	github.com/bufbuild/buf v1.10.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/ethereum/go-ethereum v1.10.26
