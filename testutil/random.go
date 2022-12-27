@@ -272,6 +272,18 @@ func RandomBellatrixCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconB
 	}
 }
 
+func RandomCapellaCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlock {
+	return core.VersionedSignedBeaconBlock{
+		VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
+			Version: spec.DataVersionCapella,
+			Capella: &capella.SignedBeaconBlock{
+				Message:   RandomCapellaBeaconBlock(),
+				Signature: RandomEth2Signature(),
+			},
+		},
+	}
+}
+
 // RandomCapellaVersionedSignedBeaconBlock returns a random signed capella beacon block.
 func RandomCapellaVersionedSignedBeaconBlock() *spec.VersionedSignedBeaconBlock {
 	return &spec.VersionedSignedBeaconBlock{

@@ -57,8 +57,16 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Data: testutil.RandomBellatrixCoreVersionedSignedBeaconBlock(),
 		},
 		{
+			Type: core.DutyProposer,
+			Data: testutil.RandomCapellaCoreVersionedSignedBeaconBlock(),
+		},
+		{
 			Type: core.DutyBuilderProposer,
 			Data: testutil.RandomBellatrixVersionedSignedBlindedBeaconBlock(),
+		},
+		{
+			Type: core.DutyBuilderProposer,
+			Data: testutil.RandomCapellaVersionedSignedBlindedBeaconBlock(),
 		},
 		{
 			Type: core.DutyBuilderRegistration,

@@ -451,31 +451,6 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			block.Capella.Body.Graffiti = array32(graffiti)
 
 			return block, nil
-			// return &eth2api.VersionedBlindedBeaconBlock{
-			// 	Version: spec.DataVersionCapella,
-			// 	Capella: &apiv1capella.BlindedBeaconBlock{
-			// 		Slot: slot, // DONE
-			// 		Body: &apiv1capella.BlindedBeaconBlockBody{
-			// 			RANDAOReveal: randaoReveal, // DONE
-			// 			ETH1Data: &eth2p0.ETH1Data{
-			// 				DepositRoot:  testutil.RandomRoot(),
-			// 				DepositCount: 0,
-			// 				BlockHash:    testutil.RandomBytes32(),
-			// 			},
-			// 			Graffiti:          array32(graffiti),
-			// 			ProposerSlashings: []*eth2p0.ProposerSlashing{},
-			// 			AttesterSlashings: []*eth2p0.AttesterSlashing{},
-			// 			Attestations:      []*eth2p0.Attestation{testutil.RandomAttestation(), testutil.RandomAttestation()},
-			// 			Deposits:          []*eth2p0.Deposit{},
-			// 			VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
-			// 			SyncAggregate: &altair.SyncAggregate{
-			// 				SyncCommitteeBits:      bitfield.NewBitvector512(),
-			// 				SyncCommitteeSignature: testutil.RandomEth2Signature(),
-			// 			},
-			// 			ExecutionPayloadHeader: testutil.RandomCapellaExecutionPayloadHeader(),
-			// 		},
-			// 	},
-			// }, nil
 		},
 		SignedBeaconBlockFunc: func(_ context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error) {
 			return testutil.RandomCapellaVersionedSignedBeaconBlock(), nil // Note the slot is probably wrong.

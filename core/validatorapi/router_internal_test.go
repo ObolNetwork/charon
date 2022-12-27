@@ -373,7 +373,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("get_validator_index", func(t *testing.T) {
+	t.Run("get validator index", func(t *testing.T) {
 		handler := testHandler{
 			ValidatorsFunc: func(_ context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 				res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
@@ -411,7 +411,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("get_validator_pubkeu", func(t *testing.T) {
+	t.Run("get validator pubkeu", func(t *testing.T) {
 		var idx eth2p0.ValidatorIndex
 		handler := testHandler{
 			ValidatorsByPubKeyFunc: func(_ context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
@@ -447,7 +447,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("empty_validators", func(t *testing.T) {
+	t.Run("empty validators", func(t *testing.T) {
 		handler := testHandler{
 			ValidatorsByPubKeyFunc: func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 				return nil, nil //nolint:nilnil
@@ -466,7 +466,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("empty_attester_duties", func(t *testing.T) {
+	t.Run("empty attester duties", func(t *testing.T) {
 		handler := testHandler{
 			AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 				return nil, nil
@@ -482,7 +482,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("empty_synccomm_duties", func(t *testing.T) {
+	t.Run("empty synccomm duties", func(t *testing.T) {
 		handler := testHandler{
 			SyncCommitteeDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 				return nil, nil
@@ -498,7 +498,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("empty_proposer_duties", func(t *testing.T) {
+	t.Run("empty proposer duties", func(t *testing.T) {
 		handler := testHandler{
 			ProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 				return nil, nil
@@ -514,7 +514,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("attestation_data", func(t *testing.T) {
+	t.Run("attestation data", func(t *testing.T) {
 		handler := testHandler{
 			AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 				data := testutil.RandomAttestationData()
@@ -537,7 +537,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("submit_randao", func(t *testing.T) {
+	t.Run("submit randao", func(t *testing.T) {
 		handler := testHandler{
 			BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
 				return nil, errors.New("not implemented")
@@ -557,7 +557,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("submit_randao_blinded_block", func(t *testing.T) {
+	t.Run("submit randao blinded block", func(t *testing.T) {
 		handler := testHandler{
 			BlindedBeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
 				return nil, errors.New("not implemented")
@@ -577,7 +577,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("submit_block_phase0", func(t *testing.T) {
+	t.Run("submit block phase0", func(t *testing.T) {
 		block1 := &spec.VersionedSignedBeaconBlock{
 			Version: spec.DataVersionPhase0,
 			Phase0: &eth2p0.SignedBeaconBlock{
@@ -600,7 +600,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("submit_block_altair", func(t *testing.T) {
+	t.Run("submit block altair", func(t *testing.T) {
 		block1 := &spec.VersionedSignedBeaconBlock{
 			Version: spec.DataVersionAltair,
 			Altair: &altair.SignedBeaconBlock{
@@ -623,7 +623,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("submit_block_bellatrix", func(t *testing.T) {
+	t.Run("submit block bellatrix", func(t *testing.T) {
 		block1 := &spec.VersionedSignedBeaconBlock{
 			Version: spec.DataVersionBellatrix,
 			Bellatrix: &bellatrix.SignedBeaconBlock{
@@ -646,7 +646,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("submit_block_capella", func(t *testing.T) {
+	t.Run("submit block capella", func(t *testing.T) {
 		block1 := &spec.VersionedSignedBeaconBlock{
 			Version: spec.DataVersionCapella,
 			Capella: &capella.SignedBeaconBlock{
@@ -669,7 +669,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("submit_blinded_block_bellatrix", func(t *testing.T) {
+	t.Run("submit blinded block bellatrix", func(t *testing.T) {
 		block1 := &eth2api.VersionedSignedBlindedBeaconBlock{
 			Version: spec.DataVersionBellatrix,
 			Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
@@ -692,7 +692,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("submit_blinded_block_capella", func(t *testing.T) {
+	t.Run("submit blinded block capella", func(t *testing.T) {
 		block1 := &eth2api.VersionedSignedBlindedBeaconBlock{
 			Version: spec.DataVersionCapella,
 			Capella: &apiv1capella.SignedBlindedBeaconBlock{
@@ -715,7 +715,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("submit_validator_registration", func(t *testing.T) {
+	t.Run("submit validator registration", func(t *testing.T) {
 		expect := []*eth2api.VersionedSignedValidatorRegistration{
 			{
 				Version: spec.BuilderVersionV1,
@@ -738,7 +738,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("submit_voluntary_exit", func(t *testing.T) {
+	t.Run("submit voluntary exit", func(t *testing.T) {
 		exit1 := testutil.RandomExit()
 
 		handler := testHandler{
@@ -756,7 +756,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("sync_committee_contribution", func(t *testing.T) {
+	t.Run("sync committee contribution", func(t *testing.T) {
 		handler := testHandler{
 			SyncCommitteeContributionFunc: func(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
 				contrib := testutil.RandomSyncCommitteeContribution()
@@ -786,7 +786,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("submit_sync_committee_messages", func(t *testing.T) {
+	t.Run("submit sync committee messages", func(t *testing.T) {
 		msgs := []*altair.SyncCommitteeMessage{testutil.RandomSyncCommitteeMessage(), testutil.RandomSyncCommitteeMessage()}
 
 		handler := testHandler{
@@ -806,7 +806,7 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("aggregate_sync_committee_selections", func(t *testing.T) {
+	t.Run("aggregate sync committee selections", func(t *testing.T) {
 		selections := []*eth2exp.SyncCommitteeSelection{testutil.RandomSyncCommitteeSelection(), testutil.RandomSyncCommitteeSelection()}
 
 		handler := testHandler{

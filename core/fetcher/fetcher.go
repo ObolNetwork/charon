@@ -376,9 +376,14 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot int64, defSet 
 
 // verifyFeeRecipient logs a warning when fee recipient is not correctly populated in the block.
 func verifyFeeRecipient(ctx context.Context, block *spec.VersionedBeaconBlock, feeRecipientAddress string) {
+	// Fee-recipient is not available in forks earlier than bellatrix.
+	if block.Version == spec.DataVersionPhase0 || block.Version == spec.DataVersionAltair {
+		return
+	}
+
 	var actualAddr string
 	//nolint:exhaustive
-	switch block.Version { // Fee-recipient is not available in forks earlier than bellatrix.
+	switch block.Version {
 	case spec.DataVersionBellatrix:
 		actualAddr = fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
 	case spec.DataVersionCapella:

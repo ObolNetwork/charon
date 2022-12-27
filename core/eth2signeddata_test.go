@@ -45,8 +45,12 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			data: testutil.RandomBellatrixCoreVersionedSignedBeaconBlock(),
 		},
 		{
-			name: "verify blinded beacon block",
+			name: "verify blinded beacon block bellatrix",
 			data: testutil.RandomBellatrixVersionedSignedBlindedBeaconBlock(),
+		},
+		{
+			name: "verify blinded beacon block capella",
+			data: testutil.RandomCapellaVersionedSignedBlindedBeaconBlock(),
 		},
 		{
 			name: "verify randao",
