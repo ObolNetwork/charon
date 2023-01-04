@@ -349,7 +349,7 @@ func getSubcommittees(ctx context.Context, eth2Cl eth2client.SpecProvider, duty 
 
 	var subcommittees []eth2p0.CommitteeIndex
 	for _, idx := range duty.ValidatorSyncCommitteeIndices {
-		subcommIdx := uint64(idx) / commSize / subnetCount
+		subcommIdx := uint64(idx) / (commSize / subnetCount)
 		subcommittees = append(subcommittees, eth2p0.CommitteeIndex(subcommIdx))
 	}
 
