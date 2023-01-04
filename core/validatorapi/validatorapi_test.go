@@ -24,7 +24,8 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -579,8 +580,13 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 			errMsg: "no bellatrix block",
 		},
 		{
+			name:   "no capella block",
+			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersionCapella},
+			errMsg: "no capella block",
+		},
+		{
 			name:   "none",
-			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersion(5)},
+			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersion(4)},
 			errMsg: "unknown version",
 		},
 		{
@@ -716,7 +722,7 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
-	unsignedBlindedBlock := testutil.RandomBellatrixBlindedBeaconBlock()
+	unsignedBlindedBlock := testutil.RandomCapellaBlindedBeaconBlock()
 	unsignedBlindedBlock.Body.RANDAOReveal = tblsconv.SigToETH2(sig)
 	unsignedBlindedBlock.Slot = slot
 	unsignedBlindedBlock.ProposerIndex = vIdx
@@ -740,8 +746,8 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 
 	sigEth2 := tblsconv.SigToETH2(s)
 	signedBlindedBlock := &eth2api.VersionedSignedBlindedBeaconBlock{
-		Version: spec.DataVersionBellatrix,
-		Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
+		Version: spec.DataVersionCapella,
+		Capella: &eth2capella.SignedBlindedBeaconBlock{
 			Message:   unsignedBlindedBlock,
 			Signature: sigEth2,
 		},
@@ -790,7 +796,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
-	unsignedBlindedBlock := testutil.RandomBellatrixBlindedBeaconBlock()
+	unsignedBlindedBlock := testutil.RandomCapellaBlindedBeaconBlock()
 	unsignedBlindedBlock.Body.RANDAOReveal = tblsconv.SigToETH2(sig)
 	unsignedBlindedBlock.Slot = slot
 	unsignedBlindedBlock.ProposerIndex = vIdx
@@ -806,8 +812,8 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 
 	sigEth2 := tblsconv.SigToETH2(s)
 	signedBlindedBlock := &eth2api.VersionedSignedBlindedBeaconBlock{
-		Version: spec.DataVersionBellatrix,
-		Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
+		Version: spec.DataVersionCapella,
+		Capella: &eth2capella.SignedBlindedBeaconBlock{
 			Message:   unsignedBlindedBlock,
 			Signature: sigEth2,
 		},
@@ -869,8 +875,19 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidBlock(t *testing.T) {
 			name: "no bellatrix sig",
 			block: &eth2api.VersionedSignedBlindedBeaconBlock{
 				Version: spec.DataVersionBellatrix,
-				Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
-					Message:   &apiv1bellatrix.BlindedBeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomBellatrixBlindedBeaconBlockBody()},
+				Bellatrix: &eth2bellatrix.SignedBlindedBeaconBlock{
+					Message:   &eth2bellatrix.BlindedBeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomBellatrixBlindedBeaconBlockBody()},
+					Signature: eth2p0.BLSSignature{},
+				},
+			},
+			errMsg: "no signature found",
+		},
+		{
+			name: "no capella sig",
+			block: &eth2api.VersionedSignedBlindedBeaconBlock{
+				Version: spec.DataVersionCapella,
+				Capella: &eth2capella.SignedBlindedBeaconBlock{
+					Message:   &eth2capella.BlindedBeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomCapellaBlindedBeaconBlockBody()},
 					Signature: eth2p0.BLSSignature{},
 				},
 			},

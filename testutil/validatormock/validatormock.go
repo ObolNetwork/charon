@@ -27,10 +27,12 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
@@ -148,6 +150,11 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 			Message:   block.Bellatrix,
 			Signature: sig,
 		}
+	case spec.DataVersionCapella:
+		signedBlock.Capella = &capella.SignedBeaconBlock{
+			Message:   block.Capella,
+			Signature: sig,
+		}
 	default:
 		return errors.New("invalid block")
 	}
@@ -246,8 +253,13 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 	signedBlock.Version = block.Version
 	switch block.Version {
 	case spec.DataVersionBellatrix:
-		signedBlock.Bellatrix = &apiv1bellatrix.SignedBlindedBeaconBlock{
+		signedBlock.Bellatrix = &eth2bellatrix.SignedBlindedBeaconBlock{
 			Message:   block.Bellatrix,
+			Signature: sig,
+		}
+	case spec.DataVersionCapella:
+		signedBlock.Capella = &eth2capella.SignedBlindedBeaconBlock{
+			Message:   block.Capella,
 			Signature: sig,
 		}
 	default:
@@ -346,6 +358,10 @@ type bellatrixBlockJSON struct {
 	Data *bellatrix.BeaconBlock `json:"data"`
 }
 
+type capellaBlockJSON struct {
+	Data *capella.BeaconBlock `json:"data"`
+}
+
 // beaconBlockProposal is used rather than go-eth2-client's BeaconBlockProposal to avoid the randao reveal check
 // refer: https://github.com/attestantio/go-eth2-client/blob/906db73739859de06f46dfa91384675ed9300af0/http/beaconblockproposal.go#L87
 func beaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature,
@@ -397,6 +413,16 @@ func beaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth
 			return nil, errors.New("beacon block proposal not for requested slot")
 		}
 		res.Bellatrix = resp.Data
+	case spec.DataVersionCapella:
+		var resp capellaBlockJSON
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, errors.Wrap(err, "failed to parse capella beacon block proposal")
+		}
+		// Ensure the data returned to us is as expected given our input.
+		if resp.Data.Slot != slot {
+			return nil, errors.New("beacon block proposal not for requested slot")
+		}
+		res.Capella = resp.Data
 	default:
 		return nil, errors.New("unsupported block version", z.Any("version", version.Version))
 	}
@@ -405,7 +431,11 @@ func beaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth
 }
 
 type bellatrixBlindedBlockJSON struct {
-	Data *apiv1bellatrix.BlindedBeaconBlock `json:"data"`
+	Data *eth2bellatrix.BlindedBeaconBlock `json:"data"`
+}
+
+type capellaBlindedBlockJSON struct {
+	Data *eth2capella.BlindedBeaconBlock `json:"data"`
 }
 
 // blindedBeaconBlockProposal is used rather than go-eth2-client's BlindedBeaconBlockProposal to avoid the randao reveal check
@@ -439,6 +469,16 @@ func blindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoRev
 			return nil, errors.New("beacon block proposal not for requested slot")
 		}
 		res.Bellatrix = resp.Data
+	case spec.DataVersionCapella:
+		var resp capellaBlindedBlockJSON
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, errors.Wrap(err, "failed to parse capella beacon block proposal")
+		}
+		// Ensure the data returned to us is as expected given our input.
+		if resp.Data.Slot != slot {
+			return nil, errors.New("beacon block proposal not for requested slot")
+		}
+		res.Capella = resp.Data
 	default:
 		return nil, errors.New("unsupported block version", z.Any("version", version.Version))
 	}

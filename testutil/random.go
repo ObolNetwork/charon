@@ -29,10 +29,12 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -83,12 +85,12 @@ func RandomValidator(t *testing.T) *eth2v1.Validator {
 
 	return &eth2v1.Validator{
 		Index:   eth2p0.ValidatorIndex(rand.Uint64()),
-		Balance: eth2p0.Gwei(rand.Uint64()),
+		Balance: RandomGwei(),
 		Status:  eth2v1.ValidatorStateActiveOngoing,
 		Validator: &eth2p0.Validator{
 			PublicKey:                  RandomEth2PubKey(t),
 			WithdrawalCredentials:      RandomBytes32(),
-			EffectiveBalance:           eth2p0.Gwei(rand.Uint64()),
+			EffectiveBalance:           RandomGwei(),
 			Slashed:                    false,
 			ActivationEligibilityEpoch: 1,
 			ActivationEpoch:            2,
@@ -196,11 +198,51 @@ func RandomBellatrixBeaconBlockBody() *bellatrix.BeaconBlockBody {
 		Deposits:          []*eth2p0.Deposit{},
 		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
 		SyncAggregate:     RandomSyncAggregate(),
-		ExecutionPayload:  RandomExecutionPayLoad(),
+		ExecutionPayload:  RandomBellatrixExecutionPayLoad(),
 	}
 }
 
-func RandomCoreVersionBeaconBlock() core.VersionedBeaconBlock {
+func RandomCapellaBeaconBlock() *capella.BeaconBlock {
+	return &capella.BeaconBlock{
+		Slot: RandomSlot(),
+		Body: RandomCapellaBeaconBlockBody(),
+	}
+}
+
+func RandomCapellaBeaconBlockBody() *capella.BeaconBlockBody {
+	return &capella.BeaconBlockBody{
+		RANDAOReveal: RandomEth2Signature(),
+		ETH1Data: &eth2p0.ETH1Data{
+			DepositRoot:  RandomRoot(),
+			DepositCount: 0,
+			BlockHash:    RandomBytes32(),
+		},
+		Graffiti:          RandomArray32(),
+		ProposerSlashings: []*eth2p0.ProposerSlashing{},
+		AttesterSlashings: []*eth2p0.AttesterSlashing{},
+		Attestations:      []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Deposits:          []*eth2p0.Deposit{},
+		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
+		SyncAggregate:     RandomSyncAggregate(),
+		ExecutionPayload:  RandomCapellaExecutionPayload(),
+	}
+}
+
+func RandomCapellaExecutionPayload() *capella.ExecutionPayload {
+	return &capella.ExecutionPayload{
+		ParentHash:    RandomArray32(),
+		StateRoot:     RandomArray32(),
+		ReceiptsRoot:  RandomArray32(),
+		PrevRandao:    RandomArray32(),
+		ExtraData:     RandomBytes32(),
+		BaseFeePerGas: RandomArray32(),
+		BlockHash:     RandomArray32(),
+		Transactions:  []bellatrix.Transaction{},
+		Withdrawals:   RandomWithdrawals(),
+	}
+}
+
+func RandomBellatrixCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
 	return core.VersionedBeaconBlock{
 		VersionedBeaconBlock: spec.VersionedBeaconBlock{
 			Version:   spec.DataVersionBellatrix,
@@ -209,7 +251,16 @@ func RandomCoreVersionBeaconBlock() core.VersionedBeaconBlock {
 	}
 }
 
-func RandomCoreVersionSignedBeaconBlock() core.VersionedSignedBeaconBlock {
+func RandomCapellaCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
+	return core.VersionedBeaconBlock{
+		VersionedBeaconBlock: spec.VersionedBeaconBlock{
+			Version: spec.DataVersionCapella,
+			Capella: RandomCapellaBeaconBlock(),
+		},
+	}
+}
+
+func RandomBellatrixCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlock {
 	return core.VersionedSignedBeaconBlock{
 		VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
 			Version: spec.DataVersionBellatrix,
@@ -221,18 +272,31 @@ func RandomCoreVersionSignedBeaconBlock() core.VersionedSignedBeaconBlock {
 	}
 }
 
-func RandomVersionSignedBeaconBlock() *spec.VersionedSignedBeaconBlock {
+func RandomCapellaCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlock {
+	return core.VersionedSignedBeaconBlock{
+		VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
+			Version: spec.DataVersionCapella,
+			Capella: &capella.SignedBeaconBlock{
+				Message:   RandomCapellaBeaconBlock(),
+				Signature: RandomEth2Signature(),
+			},
+		},
+	}
+}
+
+// RandomCapellaVersionedSignedBeaconBlock returns a random signed capella beacon block.
+func RandomCapellaVersionedSignedBeaconBlock() *spec.VersionedSignedBeaconBlock {
 	return &spec.VersionedSignedBeaconBlock{
-		Version: spec.DataVersionBellatrix,
-		Bellatrix: &bellatrix.SignedBeaconBlock{
-			Message:   RandomBellatrixBeaconBlock(),
+		Version: spec.DataVersionCapella,
+		Capella: &capella.SignedBeaconBlock{
+			Message:   RandomCapellaBeaconBlock(),
 			Signature: RandomEth2Signature(),
 		},
 	}
 }
 
-func RandomBellatrixBlindedBeaconBlock() *apiv1bellatrix.BlindedBeaconBlock {
-	return &apiv1bellatrix.BlindedBeaconBlock{
+func RandomBellatrixBlindedBeaconBlock() *eth2bellatrix.BlindedBeaconBlock {
+	return &eth2bellatrix.BlindedBeaconBlock{
 		Slot:          RandomSlot(),
 		ProposerIndex: RandomVIdx(),
 		ParentRoot:    RandomRoot(),
@@ -241,8 +305,8 @@ func RandomBellatrixBlindedBeaconBlock() *apiv1bellatrix.BlindedBeaconBlock {
 	}
 }
 
-func RandomBellatrixBlindedBeaconBlockBody() *apiv1bellatrix.BlindedBeaconBlockBody {
-	return &apiv1bellatrix.BlindedBeaconBlockBody{
+func RandomBellatrixBlindedBeaconBlockBody() *eth2bellatrix.BlindedBeaconBlockBody {
+	return &eth2bellatrix.BlindedBeaconBlockBody{
 		RANDAOReveal: RandomEth2Signature(),
 		ETH1Data: &eth2p0.ETH1Data{
 			DepositRoot:  RandomRoot(),
@@ -256,11 +320,41 @@ func RandomBellatrixBlindedBeaconBlockBody() *apiv1bellatrix.BlindedBeaconBlockB
 		Deposits:               []*eth2p0.Deposit{},
 		VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
 		SyncAggregate:          RandomSyncAggregate(),
-		ExecutionPayloadHeader: RandomExecutionPayloadHeader(),
+		ExecutionPayloadHeader: RandomBellatrixExecutionPayloadHeader(),
 	}
 }
 
-func RandomCoreVersionBlindedBeaconBlock() core.VersionedBlindedBeaconBlock {
+func RandomCapellaBlindedBeaconBlock() *eth2capella.BlindedBeaconBlock {
+	return &eth2capella.BlindedBeaconBlock{
+		Slot:          RandomSlot(),
+		ProposerIndex: RandomVIdx(),
+		ParentRoot:    RandomRoot(),
+		StateRoot:     RandomRoot(),
+		Body:          RandomCapellaBlindedBeaconBlockBody(),
+	}
+}
+
+func RandomCapellaBlindedBeaconBlockBody() *eth2capella.BlindedBeaconBlockBody {
+	return &eth2capella.BlindedBeaconBlockBody{
+		RANDAOReveal: RandomEth2Signature(),
+		ETH1Data: &eth2p0.ETH1Data{
+			DepositRoot:  RandomRoot(),
+			DepositCount: 0,
+			BlockHash:    RandomBytes32(),
+		},
+		Graffiti:               RandomArray32(),
+		ProposerSlashings:      []*eth2p0.ProposerSlashing{},
+		AttesterSlashings:      []*eth2p0.AttesterSlashing{},
+		Attestations:           []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Deposits:               []*eth2p0.Deposit{},
+		VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
+		SyncAggregate:          RandomSyncAggregate(),
+		ExecutionPayloadHeader: RandomCapellaExecutionPayloadHeader(),
+		BLSToExecutionChanges:  []*capella.SignedBLSToExecutionChange{},
+	}
+}
+
+func RandomBellatrixVersionedBlindedBeaconBlock() core.VersionedBlindedBeaconBlock {
 	return core.VersionedBlindedBeaconBlock{
 		VersionedBlindedBeaconBlock: eth2api.VersionedBlindedBeaconBlock{
 			Version:   spec.DataVersionBellatrix,
@@ -269,11 +363,20 @@ func RandomCoreVersionBlindedBeaconBlock() core.VersionedBlindedBeaconBlock {
 	}
 }
 
-func RandomCoreVersionSignedBlindedBeaconBlock() core.VersionedSignedBlindedBeaconBlock {
+func RandomCapellaVersionedBlindedBeaconBlock() core.VersionedBlindedBeaconBlock {
+	return core.VersionedBlindedBeaconBlock{
+		VersionedBlindedBeaconBlock: eth2api.VersionedBlindedBeaconBlock{
+			Version: spec.DataVersionCapella,
+			Capella: RandomCapellaBlindedBeaconBlock(),
+		},
+	}
+}
+
+func RandomBellatrixVersionedSignedBlindedBeaconBlock() core.VersionedSignedBlindedBeaconBlock {
 	return core.VersionedSignedBlindedBeaconBlock{
 		VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
 			Version: spec.DataVersionBellatrix,
-			Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
+			Bellatrix: &eth2bellatrix.SignedBlindedBeaconBlock{
 				Message:   RandomBellatrixBlindedBeaconBlock(),
 				Signature: RandomEth2Signature(),
 			},
@@ -281,12 +384,14 @@ func RandomCoreVersionSignedBlindedBeaconBlock() core.VersionedSignedBlindedBeac
 	}
 }
 
-func RandomVersionSignedBlindedBeaconBlock() *eth2api.VersionedSignedBlindedBeaconBlock {
-	return &eth2api.VersionedSignedBlindedBeaconBlock{
-		Version: spec.DataVersionBellatrix,
-		Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
-			Message:   RandomBellatrixBlindedBeaconBlock(),
-			Signature: RandomEth2Signature(),
+func RandomCapellaVersionedSignedBlindedBeaconBlock() core.VersionedSignedBlindedBeaconBlock {
+	return core.VersionedSignedBlindedBeaconBlock{
+		VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
+			Version: spec.DataVersionCapella,
+			Capella: &eth2capella.SignedBlindedBeaconBlock{
+				Message:   RandomCapellaBlindedBeaconBlock(),
+				Signature: RandomEth2Signature(),
+			},
 		},
 	}
 }
@@ -439,7 +544,7 @@ func RandomSyncAggregate() *altair.SyncAggregate {
 	return sync
 }
 
-func RandomExecutionPayLoad() *bellatrix.ExecutionPayload {
+func RandomBellatrixExecutionPayLoad() *bellatrix.ExecutionPayload {
 	return &bellatrix.ExecutionPayload{
 		ParentHash:    RandomArray32(),
 		StateRoot:     RandomArray32(),
@@ -452,8 +557,32 @@ func RandomExecutionPayLoad() *bellatrix.ExecutionPayload {
 	}
 }
 
-func RandomExecutionPayloadHeader() *bellatrix.ExecutionPayloadHeader {
+func RandomWithdrawals() []*capella.Withdrawal {
+	return []*capella.Withdrawal{
+		{
+			Index:          RandomWithdrawalIdx(),
+			ValidatorIndex: RandomVIdx(),
+			Address:        RandomExecutionAddress(),
+			Amount:         RandomGwei(),
+		},
+	}
+}
+
+func RandomBellatrixExecutionPayloadHeader() *bellatrix.ExecutionPayloadHeader {
 	return &bellatrix.ExecutionPayloadHeader{
+		ParentHash:       RandomArray32(),
+		StateRoot:        RandomArray32(),
+		ReceiptsRoot:     RandomArray32(),
+		PrevRandao:       RandomArray32(),
+		ExtraData:        RandomBytes32(),
+		BaseFeePerGas:    RandomArray32(),
+		BlockHash:        RandomArray32(),
+		TransactionsRoot: RandomArray32(),
+	}
+}
+
+func RandomCapellaExecutionPayloadHeader() *capella.ExecutionPayloadHeader {
+	return &capella.ExecutionPayloadHeader{
 		ParentHash:       RandomArray32(),
 		StateRoot:        RandomArray32(),
 		ReceiptsRoot:     RandomArray32(),
@@ -541,6 +670,14 @@ func RandomCommIdx() eth2p0.CommitteeIndex {
 
 func RandomVIdx() eth2p0.ValidatorIndex {
 	return eth2p0.ValidatorIndex(rand.Uint64())
+}
+
+func RandomWithdrawalIdx() capella.WithdrawalIndex {
+	return capella.WithdrawalIndex(rand.Uint64())
+}
+
+func RandomGwei() eth2p0.Gwei {
+	return eth2p0.Gwei(rand.Uint64())
 }
 
 func RandomETHAddress() string {

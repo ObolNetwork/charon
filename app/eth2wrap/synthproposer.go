@@ -25,9 +25,11 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	shuffle "github.com/protolambda/eth2-shuffle"
 
@@ -118,47 +120,14 @@ func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, slot eth2
 	block, err := h.syntheticBlock(ctx, slot, vIdx)
 	if err != nil {
 		return nil, err
-	} else if block.Version != spec.DataVersionBellatrix {
-		return nil, errors.New("unsupported blinded block version")
 	}
 
-	// Convert normal block into blinded block.
-	return &api.VersionedBlindedBeaconBlock{
-		Version: block.Version,
-		Bellatrix: &apiv1bellatrix.BlindedBeaconBlock{
-			Slot:          block.Bellatrix.Slot,
-			ProposerIndex: block.Bellatrix.ProposerIndex,
-			ParentRoot:    block.Bellatrix.ParentRoot,
-			StateRoot:     block.Bellatrix.StateRoot,
-			Body: &apiv1bellatrix.BlindedBeaconBlockBody{
-				RANDAOReveal:      block.Bellatrix.Body.RANDAOReveal,
-				ETH1Data:          block.Bellatrix.Body.ETH1Data,
-				Graffiti:          block.Bellatrix.Body.Graffiti,
-				ProposerSlashings: block.Bellatrix.Body.ProposerSlashings,
-				AttesterSlashings: block.Bellatrix.Body.AttesterSlashings,
-				Attestations:      block.Bellatrix.Body.Attestations,
-				Deposits:          block.Bellatrix.Body.Deposits,
-				VoluntaryExits:    block.Bellatrix.Body.VoluntaryExits,
-				SyncAggregate:     block.Bellatrix.Body.SyncAggregate,
-				ExecutionPayloadHeader: &bellatrix.ExecutionPayloadHeader{
-					ParentHash:       block.Bellatrix.Body.ExecutionPayload.ParentHash,
-					FeeRecipient:     block.Bellatrix.Body.ExecutionPayload.FeeRecipient,
-					StateRoot:        block.Bellatrix.Body.ExecutionPayload.StateRoot,
-					ReceiptsRoot:     block.Bellatrix.Body.ExecutionPayload.ReceiptsRoot,
-					LogsBloom:        block.Bellatrix.Body.ExecutionPayload.LogsBloom,
-					PrevRandao:       block.Bellatrix.Body.ExecutionPayload.PrevRandao,
-					BlockNumber:      block.Bellatrix.Body.ExecutionPayload.BlockNumber,
-					GasLimit:         block.Bellatrix.Body.ExecutionPayload.GasLimit,
-					GasUsed:          block.Bellatrix.Body.ExecutionPayload.GasUsed,
-					Timestamp:        block.Bellatrix.Body.ExecutionPayload.Timestamp,
-					ExtraData:        block.Bellatrix.Body.ExecutionPayload.ExtraData,
-					BaseFeePerGas:    block.Bellatrix.Body.ExecutionPayload.BaseFeePerGas,
-					BlockHash:        block.Bellatrix.Body.ExecutionPayload.BlockHash,
-					TransactionsRoot: eth2p0.Root{}, // Use empty root.
-				},
-			},
-		},
-	}, nil
+	switch block.Version {
+	case spec.DataVersionBellatrix, spec.DataVersionCapella:
+		return blindedBlock(block), nil
+	default:
+		return nil, errors.New("unsupported blinded block version")
+	}
 }
 
 // syntheticBlock returns a synthetic beacon block to propose.
@@ -232,6 +201,8 @@ func (h *synthWrapper) SubmitBlindedBeaconBlock(ctx context.Context, block *api.
 	switch block.Version {
 	case spec.DataVersionBellatrix:
 		graffiti = block.Bellatrix.Message.Body.Graffiti
+	case spec.DataVersionCapella:
+		graffiti = block.Capella.Message.Body.Graffiti
 	default:
 		return errors.New("unknown block version")
 	}
@@ -440,4 +411,88 @@ func getStandardHashFn() shuffle.HashFn {
 	}
 
 	return hashFn
+}
+
+// blindedBlock converts a normal block into a blinded block.
+func blindedBlock(block *spec.VersionedBeaconBlock) *api.VersionedBlindedBeaconBlock {
+	var resp *api.VersionedBlindedBeaconBlock
+	// Blinded blocks are only available from bellatrix.
+	switch block.Version { //nolint:exhaustive
+	case spec.DataVersionBellatrix:
+		resp = &api.VersionedBlindedBeaconBlock{
+			Version: block.Version,
+			Bellatrix: &eth2bellatrix.BlindedBeaconBlock{
+				Slot:          block.Bellatrix.Slot,
+				ProposerIndex: block.Bellatrix.ProposerIndex,
+				ParentRoot:    block.Bellatrix.ParentRoot,
+				StateRoot:     block.Bellatrix.StateRoot,
+				Body: &eth2bellatrix.BlindedBeaconBlockBody{
+					RANDAOReveal:      block.Bellatrix.Body.RANDAOReveal,
+					ETH1Data:          block.Bellatrix.Body.ETH1Data,
+					Graffiti:          block.Bellatrix.Body.Graffiti,
+					ProposerSlashings: block.Bellatrix.Body.ProposerSlashings,
+					AttesterSlashings: block.Bellatrix.Body.AttesterSlashings,
+					Attestations:      block.Bellatrix.Body.Attestations,
+					Deposits:          block.Bellatrix.Body.Deposits,
+					VoluntaryExits:    block.Bellatrix.Body.VoluntaryExits,
+					SyncAggregate:     block.Bellatrix.Body.SyncAggregate,
+					ExecutionPayloadHeader: &bellatrix.ExecutionPayloadHeader{
+						ParentHash:       block.Bellatrix.Body.ExecutionPayload.ParentHash,
+						FeeRecipient:     block.Bellatrix.Body.ExecutionPayload.FeeRecipient,
+						StateRoot:        block.Bellatrix.Body.ExecutionPayload.StateRoot,
+						ReceiptsRoot:     block.Bellatrix.Body.ExecutionPayload.ReceiptsRoot,
+						LogsBloom:        block.Bellatrix.Body.ExecutionPayload.LogsBloom,
+						PrevRandao:       block.Bellatrix.Body.ExecutionPayload.PrevRandao,
+						BlockNumber:      block.Bellatrix.Body.ExecutionPayload.BlockNumber,
+						GasLimit:         block.Bellatrix.Body.ExecutionPayload.GasLimit,
+						GasUsed:          block.Bellatrix.Body.ExecutionPayload.GasUsed,
+						Timestamp:        block.Bellatrix.Body.ExecutionPayload.Timestamp,
+						ExtraData:        block.Bellatrix.Body.ExecutionPayload.ExtraData,
+						BaseFeePerGas:    block.Bellatrix.Body.ExecutionPayload.BaseFeePerGas,
+						BlockHash:        block.Bellatrix.Body.ExecutionPayload.BlockHash,
+						TransactionsRoot: eth2p0.Root{}, // Use empty root.
+					},
+				},
+			},
+		}
+	case spec.DataVersionCapella:
+		resp = &api.VersionedBlindedBeaconBlock{
+			Version: block.Version,
+			Capella: &eth2capella.BlindedBeaconBlock{
+				Slot:          block.Capella.Slot,
+				ProposerIndex: block.Capella.ProposerIndex,
+				ParentRoot:    block.Capella.ParentRoot,
+				StateRoot:     block.Capella.StateRoot,
+				Body: &eth2capella.BlindedBeaconBlockBody{
+					RANDAOReveal:      block.Capella.Body.RANDAOReveal,
+					ETH1Data:          block.Capella.Body.ETH1Data,
+					Graffiti:          block.Capella.Body.Graffiti,
+					ProposerSlashings: block.Capella.Body.ProposerSlashings,
+					AttesterSlashings: block.Capella.Body.AttesterSlashings,
+					Attestations:      block.Capella.Body.Attestations,
+					Deposits:          block.Capella.Body.Deposits,
+					VoluntaryExits:    block.Capella.Body.VoluntaryExits,
+					SyncAggregate:     block.Capella.Body.SyncAggregate,
+					ExecutionPayloadHeader: &capella.ExecutionPayloadHeader{
+						ParentHash:       block.Capella.Body.ExecutionPayload.ParentHash,
+						FeeRecipient:     block.Capella.Body.ExecutionPayload.FeeRecipient,
+						StateRoot:        block.Capella.Body.ExecutionPayload.StateRoot,
+						ReceiptsRoot:     block.Capella.Body.ExecutionPayload.ReceiptsRoot,
+						LogsBloom:        block.Capella.Body.ExecutionPayload.LogsBloom,
+						PrevRandao:       block.Capella.Body.ExecutionPayload.PrevRandao,
+						BlockNumber:      block.Capella.Body.ExecutionPayload.BlockNumber,
+						GasLimit:         block.Capella.Body.ExecutionPayload.GasLimit,
+						GasUsed:          block.Capella.Body.ExecutionPayload.GasUsed,
+						Timestamp:        block.Capella.Body.ExecutionPayload.Timestamp,
+						ExtraData:        block.Capella.Body.ExecutionPayload.ExtraData,
+						BaseFeePerGas:    block.Capella.Body.ExecutionPayload.BaseFeePerGas,
+						BlockHash:        block.Capella.Body.ExecutionPayload.BlockHash,
+						TransactionsRoot: eth2p0.Root{}, // Use empty root.
+					},
+				},
+			},
+		}
+	}
+
+	return resp
 }

@@ -27,10 +27,8 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
-	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/prysmaticlabs/go-bitfield"
@@ -433,61 +431,29 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		httpServer:   httpServer,
 		headProducer: headProducer,
 		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
-			return &spec.VersionedBeaconBlock{
-				Version: spec.DataVersionBellatrix,
-				Bellatrix: &bellatrix.BeaconBlock{
-					Slot: slot,
-					Body: &bellatrix.BeaconBlockBody{
-						RANDAOReveal: randaoReveal,
-						ETH1Data: &eth2p0.ETH1Data{
-							DepositRoot:  testutil.RandomRoot(),
-							DepositCount: 0,
-							BlockHash:    testutil.RandomBytes32(),
-						},
-						Graffiti:          array32(graffiti),
-						ProposerSlashings: []*eth2p0.ProposerSlashing{},
-						AttesterSlashings: []*eth2p0.AttesterSlashing{},
-						Attestations:      []*eth2p0.Attestation{testutil.RandomAttestation(), testutil.RandomAttestation()},
-						Deposits:          []*eth2p0.Deposit{},
-						VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
-						SyncAggregate: &altair.SyncAggregate{
-							SyncCommitteeBits:      bitfield.NewBitvector512(),
-							SyncCommitteeSignature: testutil.RandomEth2Signature(),
-						},
-						ExecutionPayload: testutil.RandomExecutionPayLoad(),
-					},
-				},
-			}, nil
+			block := &spec.VersionedBeaconBlock{
+				Version: spec.DataVersionCapella,
+				Capella: testutil.RandomCapellaBeaconBlock(),
+			}
+			block.Capella.Slot = slot
+			block.Capella.Body.RANDAOReveal = randaoReveal
+			block.Capella.Body.Graffiti = array32(graffiti)
+
+			return block, nil
 		},
 		BlindedBeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
-			return &eth2api.VersionedBlindedBeaconBlock{
-				Version: spec.DataVersionBellatrix,
-				Bellatrix: &apiv1bellatrix.BlindedBeaconBlock{
-					Slot: slot,
-					Body: &apiv1bellatrix.BlindedBeaconBlockBody{
-						RANDAOReveal: randaoReveal,
-						ETH1Data: &eth2p0.ETH1Data{
-							DepositRoot:  testutil.RandomRoot(),
-							DepositCount: 0,
-							BlockHash:    testutil.RandomBytes32(),
-						},
-						Graffiti:          array32(graffiti),
-						ProposerSlashings: []*eth2p0.ProposerSlashing{},
-						AttesterSlashings: []*eth2p0.AttesterSlashing{},
-						Attestations:      []*eth2p0.Attestation{testutil.RandomAttestation(), testutil.RandomAttestation()},
-						Deposits:          []*eth2p0.Deposit{},
-						VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
-						SyncAggregate: &altair.SyncAggregate{
-							SyncCommitteeBits:      bitfield.NewBitvector512(),
-							SyncCommitteeSignature: testutil.RandomEth2Signature(),
-						},
-						ExecutionPayloadHeader: testutil.RandomExecutionPayloadHeader(),
-					},
-				},
-			}, nil
+			block := &eth2api.VersionedBlindedBeaconBlock{
+				Version: spec.DataVersionCapella,
+				Capella: testutil.RandomCapellaBlindedBeaconBlock(),
+			}
+			block.Capella.Slot = slot
+			block.Capella.Body.RANDAOReveal = randaoReveal
+			block.Capella.Body.Graffiti = array32(graffiti)
+
+			return block, nil
 		},
 		SignedBeaconBlockFunc: func(_ context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error) {
-			return testutil.RandomVersionSignedBeaconBlock(), nil // Note the slot is probably wrong.
+			return testutil.RandomCapellaVersionedSignedBeaconBlock(), nil // Note the slot is probably wrong.
 		},
 		ProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return []*eth2v1.ProposerDuty{}, nil

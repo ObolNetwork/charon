@@ -258,7 +258,7 @@ func TestFetchProposer(t *testing.T) {
 		slotA, err := dutyDataA.Slot()
 		require.NoError(t, err)
 		require.EqualValues(t, slot, slotA)
-		require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Bellatrix.Body.ExecutionPayload.FeeRecipient))
+		require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayload.FeeRecipient))
 		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 
 		dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedBeaconBlock)
@@ -327,7 +327,7 @@ func TestFetchBuilderProposer(t *testing.T) {
 		slotA, err := dutyDataA.Slot()
 		require.NoError(t, err)
 		require.EqualValues(t, slot, slotA)
-		require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient))
+		require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayloadHeader.FeeRecipient))
 		assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 
 		dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedBlindedBeaconBlock)
@@ -561,6 +561,8 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 		require.EqualValues(t, randao, block.Altair.Body.RANDAOReveal)
 	case spec.DataVersionBellatrix:
 		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
+	case spec.DataVersionCapella:
+		require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
 	default:
 		require.Fail(t, "invalid block")
 	}
@@ -572,6 +574,8 @@ func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block co
 	switch block.Version {
 	case spec.DataVersionBellatrix:
 		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
+	case spec.DataVersionCapella:
+		require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
 	default:
 		require.Fail(t, "invalid block")
 	}

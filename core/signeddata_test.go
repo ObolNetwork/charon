@@ -20,7 +20,8 @@ import (
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
-	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -37,7 +38,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 		data core.SignedData
 	}{
 		{
-			name: "version signed beacon block",
+			name: "versioned signed beacon block",
 			data: core.VersionedSignedBeaconBlock{
 				VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
 					Version: spec.DataVersionBellatrix,
@@ -49,12 +50,24 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
-			name: "version signed blinded beacon block",
+			name: "versioned signed blinded beacon block bellatrix",
 			data: core.VersionedSignedBlindedBeaconBlock{
 				VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
 					Version: spec.DataVersionBellatrix,
-					Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
+					Bellatrix: &eth2bellatrix.SignedBlindedBeaconBlock{
 						Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "versioned signed blinded beacon block capella",
+			data: core.VersionedSignedBlindedBeaconBlock{
+				VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
+					Version: spec.DataVersionCapella,
+					Capella: &eth2capella.SignedBlindedBeaconBlock{
+						Message:   testutil.RandomCapellaBlindedBeaconBlock(),
 						Signature: testutil.RandomEth2Signature(),
 					},
 				},
