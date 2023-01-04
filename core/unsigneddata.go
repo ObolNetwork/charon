@@ -20,8 +20,8 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
-	apiv1capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -303,13 +303,13 @@ func (b *VersionedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
 	resp := eth2api.VersionedBlindedBeaconBlock{Version: spec.DataVersion(raw.Version)}
 	switch resp.Version {
 	case spec.DataVersionBellatrix:
-		block := new(apiv1bellatrix.BlindedBeaconBlock)
+		block := new(eth2bellatrix.BlindedBeaconBlock)
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal bellatrix")
 		}
 		resp.Bellatrix = block
 	case spec.DataVersionCapella:
-		block := new(apiv1capella.BlindedBeaconBlock)
+		block := new(eth2capella.BlindedBeaconBlock)
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal capella")
 		}

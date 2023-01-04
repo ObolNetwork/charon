@@ -31,8 +31,8 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
-	apiv1capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2mock "github.com/attestantio/go-eth2-client/mock"
 	"github.com/attestantio/go-eth2-client/spec"
@@ -672,7 +672,7 @@ func TestRouter(t *testing.T) {
 	t.Run("submit blinded block bellatrix", func(t *testing.T) {
 		block1 := &eth2api.VersionedSignedBlindedBeaconBlock{
 			Version: spec.DataVersionBellatrix,
-			Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
+			Bellatrix: &eth2bellatrix.SignedBlindedBeaconBlock{
 				Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
 				Signature: testutil.RandomEth2Signature(),
 			},
@@ -695,7 +695,7 @@ func TestRouter(t *testing.T) {
 	t.Run("submit blinded block capella", func(t *testing.T) {
 		block1 := &eth2api.VersionedSignedBlindedBeaconBlock{
 			Version: spec.DataVersionCapella,
-			Capella: &apiv1capella.SignedBlindedBeaconBlock{
+			Capella: &eth2capella.SignedBlindedBeaconBlock{
 				Message:   testutil.RandomCapellaBlindedBeaconBlock(),
 				Signature: testutil.RandomEth2Signature(),
 			},

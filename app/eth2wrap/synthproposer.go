@@ -25,8 +25,8 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
-	apiv1capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
@@ -418,12 +418,12 @@ func blindedBlock(block *spec.VersionedBeaconBlock) *api.VersionedBlindedBeaconB
 	case spec.DataVersionBellatrix:
 		resp = &api.VersionedBlindedBeaconBlock{
 			Version: block.Version,
-			Bellatrix: &apiv1bellatrix.BlindedBeaconBlock{
+			Bellatrix: &eth2bellatrix.BlindedBeaconBlock{
 				Slot:          block.Bellatrix.Slot,
 				ProposerIndex: block.Bellatrix.ProposerIndex,
 				ParentRoot:    block.Bellatrix.ParentRoot,
 				StateRoot:     block.Bellatrix.StateRoot,
-				Body: &apiv1bellatrix.BlindedBeaconBlockBody{
+				Body: &eth2bellatrix.BlindedBeaconBlockBody{
 					RANDAOReveal:      block.Bellatrix.Body.RANDAOReveal,
 					ETH1Data:          block.Bellatrix.Body.ETH1Data,
 					Graffiti:          block.Bellatrix.Body.Graffiti,
@@ -455,12 +455,12 @@ func blindedBlock(block *spec.VersionedBeaconBlock) *api.VersionedBlindedBeaconB
 	case spec.DataVersionCapella:
 		resp = &api.VersionedBlindedBeaconBlock{
 			Version: block.Version,
-			Capella: &apiv1capella.BlindedBeaconBlock{
+			Capella: &eth2capella.BlindedBeaconBlock{
 				Slot:          block.Capella.Slot,
 				ProposerIndex: block.Capella.ProposerIndex,
 				ParentRoot:    block.Capella.ParentRoot,
 				StateRoot:     block.Capella.StateRoot,
-				Body: &apiv1capella.BlindedBeaconBlockBody{
+				Body: &eth2capella.BlindedBeaconBlockBody{
 					RANDAOReveal:      block.Capella.Body.RANDAOReveal,
 					ETH1Data:          block.Capella.Body.ETH1Data,
 					Graffiti:          block.Capella.Body.Graffiti,

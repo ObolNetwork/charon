@@ -22,7 +22,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	apiv1capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -135,7 +135,7 @@ func TestSynthProposer(t *testing.T) {
 
 		signed := &eth2api.VersionedSignedBlindedBeaconBlock{
 			Version: spec.DataVersionCapella,
-			Capella: &apiv1capella.SignedBlindedBeaconBlock{
+			Capella: &eth2capella.SignedBlindedBeaconBlock{
 				Message:   block.Capella,
 				Signature: testutil.RandomEth2Signature(),
 			},

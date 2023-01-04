@@ -27,8 +27,8 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
-	apiv1capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -253,12 +253,12 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 	signedBlock.Version = block.Version
 	switch block.Version {
 	case spec.DataVersionBellatrix:
-		signedBlock.Bellatrix = &apiv1bellatrix.SignedBlindedBeaconBlock{
+		signedBlock.Bellatrix = &eth2bellatrix.SignedBlindedBeaconBlock{
 			Message:   block.Bellatrix,
 			Signature: sig,
 		}
 	case spec.DataVersionCapella:
-		signedBlock.Capella = &apiv1capella.SignedBlindedBeaconBlock{
+		signedBlock.Capella = &eth2capella.SignedBlindedBeaconBlock{
 			Message:   block.Capella,
 			Signature: sig,
 		}
@@ -431,11 +431,11 @@ func beaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth
 }
 
 type bellatrixBlindedBlockJSON struct {
-	Data *apiv1bellatrix.BlindedBeaconBlock `json:"data"`
+	Data *eth2bellatrix.BlindedBeaconBlock `json:"data"`
 }
 
 type capellaBlindedBlockJSON struct {
-	Data *apiv1capella.BlindedBeaconBlock `json:"data"`
+	Data *eth2capella.BlindedBeaconBlock `json:"data"`
 }
 
 // blindedBeaconBlockProposal is used rather than go-eth2-client's BlindedBeaconBlockProposal to avoid the randao reveal check
