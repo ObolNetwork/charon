@@ -120,11 +120,14 @@ func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, slot eth2
 	block, err := h.syntheticBlock(ctx, slot, vIdx)
 	if err != nil {
 		return nil, err
-	} else if block.Version == spec.DataVersionPhase0 || block.Version == spec.DataVersionAltair {
-		return nil, errors.New("unsupported blinded block version")
 	}
 
-	return blindedBlock(block), nil
+	switch block.Version {
+	case spec.DataVersionBellatrix, spec.DataVersionCapella:
+		return blindedBlock(block), nil
+	default:
+		return nil, errors.New("unsupported blinded block version")
+	}
 }
 
 // syntheticBlock returns a synthetic beacon block to propose.
