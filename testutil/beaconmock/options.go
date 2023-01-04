@@ -27,6 +27,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -461,9 +462,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		BlindedBeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
 			return &eth2api.VersionedBlindedBeaconBlock{
 				Version: spec.DataVersionBellatrix,
-				Bellatrix: &eth2v1.BlindedBeaconBlock{
+				Bellatrix: &apiv1bellatrix.BlindedBeaconBlock{
 					Slot: slot,
-					Body: &eth2v1.BlindedBeaconBlockBody{
+					Body: &apiv1bellatrix.BlindedBeaconBlockBody{
 						RANDAOReveal: randaoReveal,
 						ETH1Data: &eth2p0.ETH1Data{
 							DepositRoot:  testutil.RandomRoot(),

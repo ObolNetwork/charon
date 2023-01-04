@@ -36,6 +36,7 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -601,7 +602,7 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 
 func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, body []byte) (interface{}, error) {
-		bellatrixBlock := new(eth2v1.SignedBlindedBeaconBlock)
+		bellatrixBlock := new(apiv1bellatrix.SignedBlindedBeaconBlock)
 		err := bellatrixBlock.UnmarshalJSON(body)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedBeaconBlock{

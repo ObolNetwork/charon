@@ -29,6 +29,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -230,8 +231,8 @@ func RandomVersionSignedBeaconBlock() *spec.VersionedSignedBeaconBlock {
 	}
 }
 
-func RandomBellatrixBlindedBeaconBlock() *eth2v1.BlindedBeaconBlock {
-	return &eth2v1.BlindedBeaconBlock{
+func RandomBellatrixBlindedBeaconBlock() *apiv1bellatrix.BlindedBeaconBlock {
+	return &apiv1bellatrix.BlindedBeaconBlock{
 		Slot:          RandomSlot(),
 		ProposerIndex: RandomVIdx(),
 		ParentRoot:    RandomRoot(),
@@ -240,8 +241,8 @@ func RandomBellatrixBlindedBeaconBlock() *eth2v1.BlindedBeaconBlock {
 	}
 }
 
-func RandomBellatrixBlindedBeaconBlockBody() *eth2v1.BlindedBeaconBlockBody {
-	return &eth2v1.BlindedBeaconBlockBody{
+func RandomBellatrixBlindedBeaconBlockBody() *apiv1bellatrix.BlindedBeaconBlockBody {
+	return &apiv1bellatrix.BlindedBeaconBlockBody{
 		RANDAOReveal: RandomEth2Signature(),
 		ETH1Data: &eth2p0.ETH1Data{
 			DepositRoot:  RandomRoot(),
@@ -272,7 +273,7 @@ func RandomCoreVersionSignedBlindedBeaconBlock() core.VersionedSignedBlindedBeac
 	return core.VersionedSignedBlindedBeaconBlock{
 		VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
 			Version: spec.DataVersionBellatrix,
-			Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
+			Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
 				Message:   RandomBellatrixBlindedBeaconBlock(),
 				Signature: RandomEth2Signature(),
 			},
@@ -283,7 +284,7 @@ func RandomCoreVersionSignedBlindedBeaconBlock() core.VersionedSignedBlindedBeac
 func RandomVersionSignedBlindedBeaconBlock() *eth2api.VersionedSignedBlindedBeaconBlock {
 	return &eth2api.VersionedSignedBlindedBeaconBlock{
 		Version: spec.DataVersionBellatrix,
-		Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
+		Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
 			Message:   RandomBellatrixBlindedBeaconBlock(),
 			Signature: RandomEth2Signature(),
 		},

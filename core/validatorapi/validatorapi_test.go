@@ -24,6 +24,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -579,7 +580,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 		},
 		{
 			name:   "none",
-			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersion(-1)},
+			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersion(5)},
 			errMsg: "unknown version",
 		},
 		{
@@ -740,7 +741,7 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	sigEth2 := tblsconv.SigToETH2(s)
 	signedBlindedBlock := &eth2api.VersionedSignedBlindedBeaconBlock{
 		Version: spec.DataVersionBellatrix,
-		Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
+		Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
 			Message:   unsignedBlindedBlock,
 			Signature: sigEth2,
 		},
@@ -806,7 +807,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 	sigEth2 := tblsconv.SigToETH2(s)
 	signedBlindedBlock := &eth2api.VersionedSignedBlindedBeaconBlock{
 		Version: spec.DataVersionBellatrix,
-		Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
+		Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
 			Message:   unsignedBlindedBlock,
 			Signature: sigEth2,
 		},
@@ -861,15 +862,15 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidBlock(t *testing.T) {
 		},
 		{
 			name:   "none",
-			block:  &eth2api.VersionedSignedBlindedBeaconBlock{Version: spec.DataVersion(3)},
+			block:  &eth2api.VersionedSignedBlindedBeaconBlock{Version: spec.DataVersion(4)},
 			errMsg: "unsupported version",
 		},
 		{
 			name: "no bellatrix sig",
 			block: &eth2api.VersionedSignedBlindedBeaconBlock{
 				Version: spec.DataVersionBellatrix,
-				Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
-					Message:   &eth2v1.BlindedBeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomBellatrixBlindedBeaconBlockBody()},
+				Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
+					Message:   &apiv1bellatrix.BlindedBeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomBellatrixBlindedBeaconBlockBody()},
 					Signature: eth2p0.BLSSignature{},
 				},
 			},
