@@ -378,7 +378,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot int64, defSet 
 func verifyFeeRecipient(ctx context.Context, block *spec.VersionedBeaconBlock, feeRecipientAddress string) {
 	// Note that fee-recipient is not available in forks earlier than bellatrix.
 	var actualAddr string
-	//nolint:exhaustive
+
 	switch block.Version {
 	case spec.DataVersionBellatrix:
 		actualAddr = fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayload.FeeRecipient)

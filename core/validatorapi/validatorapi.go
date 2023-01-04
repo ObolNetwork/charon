@@ -56,7 +56,7 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 
 // NewComponent returns a new instance of the validator API core workflow component.
 func NewComponent(eth2Cl eth2wrap.Client, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey,
-	shareIdx int, feeRecipientAddress string, builderAPI bool, seenPubkeys func(core.PubKey),
+	allPubSharesByKey map[core.PubKey]map[int]*bls_sig.PublicKey, shareIdx int, feeRecipientAddress string, builderAPI bool, seenPubkeys func(core.PubKey),
 ) (*Component, error) {
 	// Create pubkey mappings.
 	var (
@@ -107,7 +107,17 @@ func NewComponent(eth2Cl eth2wrap.Client, pubShareByKey map[*bls_sig.PublicKey]*
 	getPubKeyFunc := func(share eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error) {
 		key, ok := keysByShare[share]
 		if !ok {
-			return eth2p0.BLSPubKey{}, errors.New("unknown public share")
+			for _, shares := range allPubSharesByKey {
+				for keyshareIdx, pubshare := range shares {
+					eth2key, err := tblsconv.KeyToETH2(pubshare)
+					if err == nil && eth2key == share {
+						return eth2p0.BLSPubKey{}, errors.New("mismatching validator client key share index, Mth key share submitted to Nth charon peer",
+							z.Int("key_share_index", keyshareIdx), z.Int("charon_peer_index", shareIdx))
+					}
+				}
+			}
+
+			return eth2p0.BLSPubKey{}, errors.New("unknown public key")
 		}
 
 		if seenPubkeys != nil {
@@ -139,9 +149,9 @@ type Component struct {
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
 	// to public keys (the DV root public key)
 	getVerifyShareFunc func(core.PubKey) (*bls_sig.PublicKey, error)
-	// getPubShareFunc return the public shares for a root public key.
+	// getPubShareFunc returns the public share for a root public key.
 	getPubShareFunc func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, bool)
-	// getPubKeyFunc return the root public key for a public share.
+	// getPubKeyFunc returns the root public key for a public share.
 	getPubKeyFunc func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, error)
 	// sharesByKey contains this node's public shares (value) by root public (key)
 	sharesByKey map[core.PubKey]core.PubKey
