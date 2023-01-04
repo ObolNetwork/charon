@@ -25,6 +25,7 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -124,12 +125,12 @@ func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, slot eth2
 	// Convert normal block into blinded block.
 	return &api.VersionedBlindedBeaconBlock{
 		Version: block.Version,
-		Bellatrix: &eth2v1.BlindedBeaconBlock{
+		Bellatrix: &apiv1bellatrix.BlindedBeaconBlock{
 			Slot:          block.Bellatrix.Slot,
 			ProposerIndex: block.Bellatrix.ProposerIndex,
 			ParentRoot:    block.Bellatrix.ParentRoot,
 			StateRoot:     block.Bellatrix.StateRoot,
-			Body: &eth2v1.BlindedBeaconBlockBody{
+			Body: &apiv1bellatrix.BlindedBeaconBlockBody{
 				RANDAOReveal:      block.Bellatrix.Body.RANDAOReveal,
 				ETH1Data:          block.Bellatrix.Body.ETH1Data,
 				Graffiti:          block.Bellatrix.Body.Graffiti,

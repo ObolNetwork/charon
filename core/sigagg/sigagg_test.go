@@ -22,6 +22,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -336,7 +337,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			name: "bellatrix block",
 			block: &eth2api.VersionedSignedBlindedBeaconBlock{
 				Version: spec.DataVersionBellatrix,
-				Bellatrix: &eth2v1.SignedBlindedBeaconBlock{
+				Bellatrix: &apiv1bellatrix.SignedBlindedBeaconBlock{
 					Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
 				},

@@ -22,6 +22,7 @@ import (
 	"strconv"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -103,8 +104,8 @@ type proposeBlockResponseBellatrix struct {
 }
 
 type proposeBlindedBlockResponseBellatrix struct {
-	Version string                     `json:"version"`
-	Data    *eth2v1.BlindedBeaconBlock `json:"data"`
+	Version string                             `json:"version"`
+	Data    *apiv1bellatrix.BlindedBeaconBlock `json:"data"`
 }
 
 type validatorsResponse struct {

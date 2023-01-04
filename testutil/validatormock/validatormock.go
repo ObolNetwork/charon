@@ -27,6 +27,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	apiv1bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -245,7 +246,7 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 	signedBlock.Version = block.Version
 	switch block.Version {
 	case spec.DataVersionBellatrix:
-		signedBlock.Bellatrix = &eth2v1.SignedBlindedBeaconBlock{
+		signedBlock.Bellatrix = &apiv1bellatrix.SignedBlindedBeaconBlock{
 			Message:   block.Bellatrix,
 			Signature: sig,
 		}
@@ -404,7 +405,7 @@ func beaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth
 }
 
 type bellatrixBlindedBlockJSON struct {
-	Data *eth2v1.BlindedBeaconBlock `json:"data"`
+	Data *apiv1bellatrix.BlindedBeaconBlock `json:"data"`
 }
 
 // blindedBeaconBlockProposal is used rather than go-eth2-client's BlindedBeaconBlockProposal to avoid the randao reveal check
