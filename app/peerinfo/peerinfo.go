@@ -198,8 +198,9 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 				return // Logging handled by send func.
 			}
 
-			expectSentAt := now.Add(rtt / 2)
-			clockOffset := resp.SentAt.AsTime().Sub(expectSentAt)
+			expectedSentAt := time.Now().Add(-rtt / 2)
+			actualSentAt := resp.SentAt.AsTime()
+			clockOffset := actualSentAt.Sub(expectedSentAt)
 			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash, resp.StartedAt.AsTime())
 
 			// Log unexpected lock hash
