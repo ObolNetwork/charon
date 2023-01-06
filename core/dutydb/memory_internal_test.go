@@ -17,7 +17,6 @@ package dutydb
 
 import (
 	"context"
-	"sync"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -27,53 +26,35 @@ import (
 )
 
 func TestCancelledQueries(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := context.Background()
 
 	db := NewMemDB(noopDeadliner{})
+	db.Shutdown()
 
 	const slot = 99
 
-	var wg sync.WaitGroup
-
 	// Enqueue queries of each type.
+	_, err := db.AwaitAttestation(ctx, slot, 0)
+	require.ErrorContains(t, err, "shutdown")
 
-	wg.Add(1)
-	go func() {
-		_, err := db.AwaitAttestation(ctx, slot, 0)
-		require.ErrorIs(t, err, context.Canceled)
-		wg.Done()
-	}()
+	_, err = db.AwaitAggAttestation(ctx, slot, eth2p0.Root{})
+	require.ErrorContains(t, err, "shutdown")
 
-	wg.Add(1)
-	go func() {
-		_, err := db.AwaitAggAttestation(ctx, slot, eth2p0.Root{})
-		require.ErrorIs(t, err, context.Canceled)
-		wg.Done()
-	}()
+	_, err = db.AwaitBeaconBlock(ctx, slot)
+	require.ErrorContains(t, err, "shutdown")
 
-	wg.Add(1)
-	go func() {
-		_, err := db.AwaitBeaconBlock(ctx, slot)
-		require.ErrorIs(t, err, context.Canceled)
-		wg.Done()
-	}()
+	_, err = db.AwaitBlindedBeaconBlock(ctx, slot)
+	require.ErrorContains(t, err, "shutdown")
 
-	wg.Add(1)
-	go func() {
-		_, err := db.AwaitBlindedBeaconBlock(ctx, slot)
-		require.ErrorIs(t, err, context.Canceled)
-		wg.Done()
-	}()
+	_, err = db.AwaitSyncContribution(ctx, slot, 0, eth2p0.Root{})
+	require.ErrorContains(t, err, "shutdown")
 
-	wg.Add(1)
-	go func() {
-		_, err := db.AwaitSyncContribution(ctx, slot, 0, eth2p0.Root{})
-		require.ErrorIs(t, err, context.Canceled)
-		wg.Done()
-	}()
-
-	cancel()  // Cancel the queries
-	wg.Wait() // Wait for them to complete
+	// Ensure all queries are preset.
+	require.NotEmpty(t, db.contribQueries)
+	require.NotEmpty(t, db.attQueries)
+	require.NotEmpty(t, db.proQueries)
+	require.NotEmpty(t, db.aggQueries)
+	require.NotEmpty(t, db.builderProQueries)
 
 	// Resolve queries
 	db.resolveAggQueriesUnsafe()
