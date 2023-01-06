@@ -172,11 +172,15 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 
 // AwaitBeaconBlock implements core.DutyDB, see its godoc.
 func (db *MemDB) AwaitBeaconBlock(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error) {
-	db.mu.Lock()
+	cancel := make(chan struct{})
+	defer close(cancel)
 	response := make(chan *spec.VersionedBeaconBlock, 1)
+
+	db.mu.Lock()
 	db.proQueries = append(db.proQueries, proQuery{
 		Key:      slot,
 		Response: response,
+		Cancel:   cancel,
 	})
 	db.resolveProQueriesUnsafe()
 	db.mu.Unlock()
@@ -193,11 +197,15 @@ func (db *MemDB) AwaitBeaconBlock(ctx context.Context, slot int64) (*spec.Versio
 
 // AwaitBlindedBeaconBlock implements core.DutyDB, see its godoc.
 func (db *MemDB) AwaitBlindedBeaconBlock(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error) {
-	db.mu.Lock()
+	cancel := make(chan struct{})
+	defer close(cancel)
 	response := make(chan *eth2api.VersionedBlindedBeaconBlock, 1)
+
+	db.mu.Lock()
 	db.builderProQueries = append(db.builderProQueries, builderProQuery{
 		Key:      slot,
 		Response: response,
+		Cancel:   cancel,
 	})
 	db.resolveBuilderProQueriesUnsafe()
 	db.mu.Unlock()
@@ -214,14 +222,18 @@ func (db *MemDB) AwaitBlindedBeaconBlock(ctx context.Context, slot int64) (*eth2
 
 // AwaitAttestation implements core.DutyDB, see its godoc.
 func (db *MemDB) AwaitAttestation(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error) {
-	db.mu.Lock()
+	cancel := make(chan struct{})
+	defer close(cancel)
 	response := make(chan *eth2p0.AttestationData, 1) // Instance of one so resolving never blocks
+
+	db.mu.Lock()
 	db.attQueries = append(db.attQueries, attQuery{
 		Key: attKey{
 			Slot:    slot,
 			CommIdx: commIdx,
 		},
 		Response: response,
+		Cancel:   cancel,
 	})
 	db.resolveAttQueriesUnsafe()
 	db.mu.Unlock()
@@ -240,14 +252,18 @@ func (db *MemDB) AwaitAttestation(ctx context.Context, slot int64, commIdx int64
 // and attestation when available.
 func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot int64, attestationRoot eth2p0.Root,
 ) (*eth2p0.Attestation, error) {
-	db.mu.Lock()
+	cancel := make(chan struct{})
+	defer close(cancel)
 	response := make(chan core.AggregatedAttestation, 1) // Instance of one so resolving never blocks
+
+	db.mu.Lock()
 	db.aggQueries = append(db.aggQueries, aggQuery{
 		Key: aggKey{
 			Slot: slot,
 			Root: attestationRoot,
 		},
 		Response: response,
+		Cancel:   cancel,
 	})
 	db.resolveAggQueriesUnsafe()
 	db.mu.Unlock()
@@ -275,8 +291,11 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot int64, attestatio
 // AwaitSyncContribution blocks and returns the sync committee contribution data for the slot and
 // the subcommittee and the beacon block root when available.
 func (db *MemDB) AwaitSyncContribution(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
-	db.mu.Lock()
+	cancel := make(chan struct{})
+	defer close(cancel)
 	response := make(chan *altair.SyncCommitteeContribution, 1) // Instance of one so resolving never blocks
+
+	db.mu.Lock()
 	db.contribQueries = append(db.contribQueries, contribQuery{
 		Key: contribKey{
 			Slot:       slot,
@@ -284,6 +303,7 @@ func (db *MemDB) AwaitSyncContribution(ctx context.Context, slot, subcommIdx int
 			Root:       beaconBlockRoot,
 		},
 		Response: response,
+		Cancel:   cancel,
 	})
 	db.resolveContribQueriesUnsafe()
 	db.mu.Unlock()
@@ -528,6 +548,10 @@ func (db *MemDB) storeBlindedBeaconBlockUnsafe(unsignedData core.UnsignedData) e
 func (db *MemDB) resolveAttQueriesUnsafe() {
 	var unresolved []attQuery
 	for _, query := range db.attQueries {
+		if cancelled(query.Cancel) {
+			continue // Drop cancelled queries.
+		}
+
 		value, ok := db.attDuties[query.Key]
 		if !ok {
 			unresolved = append(unresolved, query)
@@ -545,6 +569,10 @@ func (db *MemDB) resolveAttQueriesUnsafe() {
 func (db *MemDB) resolveProQueriesUnsafe() {
 	var unresolved []proQuery
 	for _, query := range db.proQueries {
+		if cancelled(query.Cancel) {
+			continue // Drop cancelled queries.
+		}
+
 		value, ok := db.proDuties[query.Key]
 		if !ok {
 			unresolved = append(unresolved, query)
@@ -562,6 +590,10 @@ func (db *MemDB) resolveProQueriesUnsafe() {
 func (db *MemDB) resolveAggQueriesUnsafe() {
 	var unresolved []aggQuery
 	for _, query := range db.aggQueries {
+		if cancelled(query.Cancel) {
+			continue // Drop cancelled queries.
+		}
+
 		value, ok := db.aggDuties[query.Key]
 		if !ok {
 			unresolved = append(unresolved, query)
@@ -579,6 +611,10 @@ func (db *MemDB) resolveAggQueriesUnsafe() {
 func (db *MemDB) resolveBuilderProQueriesUnsafe() {
 	var unresolved []builderProQuery
 	for _, query := range db.builderProQueries {
+		if cancelled(query.Cancel) {
+			continue // Drop cancelled queries.
+		}
+
 		value, ok := db.builderProDuties[query.Key]
 		if !ok {
 			unresolved = append(unresolved, query)
@@ -596,6 +632,10 @@ func (db *MemDB) resolveBuilderProQueriesUnsafe() {
 func (db *MemDB) resolveContribQueriesUnsafe() {
 	var unresolved []contribQuery
 	for _, query := range db.contribQueries {
+		if cancelled(query.Cancel) {
+			continue // Drop cancelled queries.
+		}
+
 		contribution, ok := db.contribDuties[query.Key]
 		if !ok {
 			unresolved = append(unresolved, query)
@@ -668,28 +708,43 @@ type contribKey struct {
 type attQuery struct {
 	Key      attKey
 	Response chan<- *eth2p0.AttestationData
+	Cancel   <-chan struct{}
 }
 
 // proQuery is a waiting proQuery with a response channel.
 type proQuery struct {
 	Key      int64
 	Response chan<- *spec.VersionedBeaconBlock
+	Cancel   <-chan struct{}
 }
 
 // aggQuery is a waiting aggQuery with a response channel.
 type aggQuery struct {
 	Key      aggKey
 	Response chan<- core.AggregatedAttestation
+	Cancel   <-chan struct{}
 }
 
 // builderProQuery is a waiting builderProQuery with a response channel.
 type builderProQuery struct {
 	Key      int64
 	Response chan<- *eth2api.VersionedBlindedBeaconBlock
+	Cancel   <-chan struct{}
 }
 
 // contribQuery is a waiting contribQuery with a response channel.
 type contribQuery struct {
 	Key      contribKey
 	Response chan<- *altair.SyncCommitteeContribution
+	Cancel   <-chan struct{}
+}
+
+// cancelled returns true if channel has been closed.
+func cancelled(cancel <-chan struct{}) bool {
+	select {
+	case <-cancel:
+		return true
+	default:
+		return false
+	}
 }
