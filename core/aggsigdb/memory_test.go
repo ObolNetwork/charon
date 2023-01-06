@@ -31,7 +31,7 @@ import (
 func TestCoreAggsigdb_MemDB_WriteRead(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(newNoopDeadliner())
 	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
@@ -50,7 +50,7 @@ func TestCoreAggsigdb_MemDB_WriteRead(t *testing.T) {
 func TestCoreAggsigdb_MemDB_WriteUnblocks(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(newNoopDeadliner())
 	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
@@ -80,7 +80,7 @@ func TestCoreAggsigdb_MemDB_CancelAwait(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(newNoopDeadliner())
 	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
@@ -108,7 +108,7 @@ func TestCoreAggsigdb_MemDB_CancelledAwait(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(newNoopDeadliner())
 	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
@@ -127,7 +127,7 @@ func TestCoreAggsigdb_MemDB_CancelAwaitDoesnotblock(t *testing.T) {
 	// to block after a await query has been canceled
 	ctx, cancel := context.WithCancel(context.Background())
 
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(newNoopDeadliner())
 	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
@@ -160,7 +160,7 @@ func TestCoreAggsigdb_MemDB_CancelAwaitDoesnotblock(t *testing.T) {
 func TestCoreAggsigdb_MemDB_CannotOverwrite(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(newNoopDeadliner())
 	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
@@ -178,7 +178,7 @@ func TestCoreAggsigdb_MemDB_CannotOverwrite(t *testing.T) {
 func TestCoreAggsigdb_MemDB_WriteIdempotent(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(newNoopDeadliner())
 	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
@@ -198,7 +198,7 @@ func TestCoreAggsigdb_MemDB_WriteIdempotent(t *testing.T) {
 
 func TestCoreAggsigdb_MemDB_WriteReadAftersStopped(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	db := aggsigdb.NewMemDB()
+	db := aggsigdb.NewMemDB(newNoopDeadliner())
 	go db.Run(ctx)
 
 	testDuty := core.Duty{Slot: 10, Type: core.DutyProposer}
@@ -219,4 +219,18 @@ func TestCoreAggsigdb_MemDB_WriteReadAftersStopped(t *testing.T) {
 
 	_, err = db.Await(context.Background(), testDuty, testPubKey)
 	require.Equal(t, err.Error(), aggsigdb.ErrStopped.Error())
+}
+
+func newNoopDeadliner() core.Deadliner {
+	return noopDeadliner{}
+}
+
+type noopDeadliner struct{}
+
+func (noopDeadliner) Add(core.Duty) bool {
+	return true
+}
+
+func (noopDeadliner) C() <-chan core.Duty {
+	return make(chan core.Duty)
 }

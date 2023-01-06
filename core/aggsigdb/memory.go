@@ -26,25 +26,31 @@ import (
 var ErrStopped = errors.New("database stopped")
 
 // NewMemDB creates a basic memory based AggSigDB.
-func NewMemDB() *MemDB {
+func NewMemDB(deadliner core.Deadliner) *MemDB {
 	return &MemDB{
 		data:           make(map[memDBKey]core.SignedData),
+		keysByDuty:     make(map[core.Duty][]memDBKey),
 		commands:       make(chan writeCommand),
 		queries:        make(chan readQuery),
 		blockedQueries: []readQuery{},
+		queryCallback:  func([]readQuery) {},
 		quit:           make(chan struct{}),
+		deadliner:      deadliner,
 	}
 }
 
 // MemDB is a basic memory implementation of core.AggSigDB.
 type MemDB struct {
-	data map[memDBKey]core.SignedData
+	data       map[memDBKey]core.SignedData
+	keysByDuty map[core.Duty][]memDBKey // Key index by duty for fast deletion.
 
 	commands       chan writeCommand
 	queries        chan readQuery
 	blockedQueries []readQuery
+	queryCallback  func([]readQuery) // Callback for testing.
 
-	quit chan struct{}
+	quit      chan struct{}
+	deadliner core.Deadliner
 }
 
 // Store implements core.AggSigDB, see its godoc.
@@ -81,10 +87,14 @@ func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 
 // Await implements core.AggSigDB, see its godoc.
 func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.SignedData, error) {
+	cancel := make(chan struct{})
+	defer close(cancel)
 	response := make(chan core.SignedData, 1)
+
 	query := readQuery{
 		memDBKey: memDBKey{duty, pubKey},
 		response: response,
+		cancel:   cancel,
 	}
 
 	select {
@@ -114,10 +124,17 @@ func (db *MemDB) Run(ctx context.Context) {
 		case command := <-db.commands:
 			db.execCommand(command)
 			db.processBlockedQueries()
+			db.callbackBlockedQueriesForT()
 		case query := <-db.queries:
 			if !db.execQuery(query) {
 				db.blockedQueries = append(db.blockedQueries, query)
+				db.callbackBlockedQueriesForT()
 			}
+		case duty := <-db.deadliner.C():
+			for _, key := range db.keysByDuty[duty] {
+				delete(db.data, key)
+			}
+			delete(db.keysByDuty, duty)
 		case <-ctx.Done():
 			return
 		}
@@ -126,6 +143,13 @@ func (db *MemDB) Run(ctx context.Context) {
 
 // execCommand executes a write command.
 func (db *MemDB) execCommand(command writeCommand) {
+	defer close(command.response)
+
+	if !db.deadliner.Add(command.duty) {
+		command.response <- errors.New("expired duty")
+		return
+	}
+
 	key := memDBKey{command.duty, command.pubKey}
 
 	if existing, ok := db.data[key]; ok {
@@ -137,9 +161,8 @@ func (db *MemDB) execCommand(command writeCommand) {
 		}
 	} else {
 		db.data[key] = command.data
+		db.keysByDuty[command.duty] = append(db.keysByDuty[command.duty], key)
 	}
-
-	close(command.response)
 }
 
 func dataEqual(x core.SignedData, y core.SignedData) (bool, error) {
@@ -177,9 +200,29 @@ func (db *MemDB) processBlockedQueries() {
 	db.blockedQueries = nil
 
 	for _, query := range queries {
+		if cancelled(query.cancel) {
+			continue
+		}
 		if !db.execQuery(query) {
 			db.blockedQueries = append(db.blockedQueries, query)
 		}
+	}
+}
+
+// callbackBlockedQueriesForT calls the queryCallback with the blocked queries for testing.
+func (db *MemDB) callbackBlockedQueriesForT() {
+	if db.queryCallback != nil {
+		db.queryCallback(db.blockedQueries)
+	}
+}
+
+// cancelled returns true if the channel is closed.
+func cancelled(cancel <-chan struct{}) bool {
+	select {
+	case <-cancel:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -199,4 +242,5 @@ type writeCommand struct {
 type readQuery struct {
 	memDBKey
 	response chan<- core.SignedData
+	cancel   <-chan struct{}
 }
