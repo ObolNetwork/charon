@@ -316,7 +316,8 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 		}
 
 		if !s.deadliner.Add(duty) {
-			return errors.New("unexpected expired attester duty", nil, z.I64("slot", slot.Slot))
+			log.Warn(ctx, "Ignoring unexpected expired attester duty", nil, z.I64("slot", slot.Slot))
+			continue
 		}
 
 		if !s.setDutyDefinition(duty, pubkey, core.NewAttesterDefinition(attDuty)) {
@@ -334,7 +335,8 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 		aggDuty := core.NewAggregatorDuty(int64(attDuty.Slot))
 
 		if !s.deadliner.Add(aggDuty) {
-			return errors.New("unexpected expired aggregator duty", nil, z.I64("slot", slot.Slot))
+			log.Warn(ctx, "Ignoring unexpected expired aggregation duty", nil, z.I64("slot", slot.Slot))
+			continue
 		}
 
 		if !s.setDutyDefinition(aggDuty, pubkey, core.NewAttesterDefinition(attDuty)) {
@@ -381,7 +383,8 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 		}
 
 		if !s.deadliner.Add(duty) {
-			return errors.New("unexpected expired proposer duty", nil, z.I64("slot", slot.Slot))
+			log.Warn(ctx, "Ignoring unexpected expired proposer duty", nil, z.I64("slot", slot.Slot))
+			continue
 		}
 
 		if !s.setDutyDefinition(duty, pubkey, core.NewProposerDefinition(proDuty)) {
@@ -426,7 +429,8 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 			duty := core.NewSyncContributionDuty(sl.Slot)
 
 			if !s.deadliner.Add(duty) {
-				return errors.New("unexpected expired sync contribution duty", nil, z.I64("slot", slot.Slot))
+				log.Warn(ctx, "Ignoring unexpected expired sync contribution duty", nil, z.I64("slot", slot.Slot))
+				continue
 			}
 
 			s.setDutyDefinition(duty, pubkey, core.NewSyncCommitteeDefinition(syncCommDuty))
