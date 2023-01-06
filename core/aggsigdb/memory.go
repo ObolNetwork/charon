@@ -145,10 +145,7 @@ func (db *MemDB) Run(ctx context.Context) {
 func (db *MemDB) execCommand(command writeCommand) {
 	defer close(command.response)
 
-	if !db.deadliner.Add(command.duty) {
-		command.response <- errors.New("expired duty")
-		return
-	}
+	_ = db.deadliner.Add(command.duty) // TODO(corver): Distinguish between no deadline supported vs already expired.
 
 	key := memDBKey{command.duty, command.pubKey}
 
