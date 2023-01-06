@@ -471,9 +471,6 @@ func (s *Scheduler) setDutyDefinition(duty core.Duty, pubkey core.PubKey, set co
 }
 
 // deleteDuty deletes the duty from the cache.
-// TODO(corver): Call this on duty deadline to trim duties.
-//
-//nolint:unused
 func (s *Scheduler) deleteDuty(duty core.Duty) {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
