@@ -29,6 +29,8 @@ import (
 )
 
 func TestMismatchKeysFunc(t *testing.T) {
+	const shareIdx = 1
+
 	// Create keys (just use normal keys, not split tbls)
 	pubkey, _, err := tbls.Keygen()
 	require.NoError(t, err)
@@ -38,11 +40,9 @@ func TestMismatchKeysFunc(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("no mismatch", func(t *testing.T) {
-		pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey} // Maps self to self since not tbls
-		pubshares := map[int]*bls_sig.PublicKey{1: pubkey}
-		allPubSharesByKey := map[core.PubKey]map[int]*bls_sig.PublicKey{corePubKey: pubshares}
+		allPubSharesByKey := map[core.PubKey]map[int]*bls_sig.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
-		vapi, err := NewComponent(nil, pubShareByKey, allPubSharesByKey, 0, "", false, nil)
+		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, "", false, nil)
 		require.NoError(t, err)
 		pk, err := vapi.getPubKeyFunc(eth2Pubkey)
 		require.NoError(t, err)
@@ -53,18 +53,32 @@ func TestMismatchKeysFunc(t *testing.T) {
 		// Create a mismatching key
 		pk, err := tblsconv.KeyFromCore(testutil.RandomCorePubKey(t))
 		require.NoError(t, err)
-		eth2key, err := tblsconv.KeyToETH2(pk)
+		pubshare, err := tblsconv.KeyToETH2(pk)
+		require.NoError(t, err)
+		allPubSharesByKey := map[core.PubKey]map[int]*bls_sig.PublicKey{corePubKey: {shareIdx: pubkey, shareIdx + 1: pk}}
+
+		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, "", false, nil)
 		require.NoError(t, err)
 
-		pubShareByKey := map[*bls_sig.PublicKey]*bls_sig.PublicKey{pubkey: pubkey}
-		pubshares := map[int]*bls_sig.PublicKey{1: pk}
-		allPubSharesByKey := map[core.PubKey]map[int]*bls_sig.PublicKey{corePubKey: pubshares}
-
-		vapi, err := NewComponent(nil, pubShareByKey, allPubSharesByKey, 0, "", false, nil)
-		require.NoError(t, err)
-		resp, err := vapi.getPubKeyFunc(eth2key)
+		resp, err := vapi.getPubKeyFunc(pubshare) // Ask for a mismatching key
 		require.Error(t, err)
 		require.Equal(t, resp, eth2p0.BLSPubKey{})
 		require.ErrorContains(t, err, "mismatching validator client key share index, Mth key share submitted to Nth charon peer")
+	})
+
+	t.Run("unknown public key", func(t *testing.T) {
+		// Create a mismatching key
+		pk, err := tblsconv.KeyFromCore(testutil.RandomCorePubKey(t))
+		require.NoError(t, err)
+		pubshare, err := tblsconv.KeyToETH2(pk)
+		require.NoError(t, err)
+		allPubSharesByKey := map[core.PubKey]map[int]*bls_sig.PublicKey{corePubKey: {shareIdx: pubkey}}
+
+		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, "", false, nil)
+		require.NoError(t, err)
+
+		_, err = vapi.getPubKeyFunc(pubshare) // Ask for a mismatching key
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unknown public key")
 	})
 }

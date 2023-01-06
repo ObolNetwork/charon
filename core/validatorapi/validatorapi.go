@@ -55,38 +55,37 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 }
 
 // NewComponent returns a new instance of the validator API core workflow component.
-func NewComponent(eth2Cl eth2wrap.Client, pubShareByKey map[*bls_sig.PublicKey]*bls_sig.PublicKey,
-	allPubSharesByKey map[core.PubKey]map[int]*bls_sig.PublicKey, shareIdx int, feeRecipientAddress string, builderAPI bool, seenPubkeys func(core.PubKey),
+func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[int]*bls_sig.PublicKey,
+	shareIdx int, feeRecipientAddress string, builderAPI bool, seenPubkeys func(core.PubKey),
 ) (*Component, error) {
-	// Create pubkey mappings.
 	var (
 		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
 		keysByShare     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
 		sharesByCoreKey = make(map[core.PubKey]*bls_sig.PublicKey)
 		coreSharesByKey = make(map[core.PubKey]core.PubKey)
 	)
-
-	for pubkey, pubshare := range pubShareByKey {
-		coreKey, err := tblsconv.KeyToCore(pubkey)
-		if err != nil {
-			return nil, err
-		}
+	for corePubkey, shares := range allPubSharesByKey {
+		pubshare := shares[shareIdx]
 		coreShare, err := tblsconv.KeyToCore(pubshare)
 		if err != nil {
 			return nil, err
 		}
-		key, err := tblsconv.KeyToETH2(pubkey)
+		pubkey, err := tblsconv.KeyFromCore(corePubkey)
 		if err != nil {
 			return nil, err
 		}
-		share, err := tblsconv.KeyToETH2(pubshare)
+		eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
 		if err != nil {
 			return nil, err
 		}
-		sharesByCoreKey[coreKey] = pubshare
-		coreSharesByKey[coreKey] = coreShare
-		sharesByKey[key] = share
-		keysByShare[share] = key
+		eth2Share, err := tblsconv.KeyToETH2(pubshare)
+		if err != nil {
+			return nil, err
+		}
+		sharesByCoreKey[corePubkey] = pubshare
+		coreSharesByKey[corePubkey] = coreShare
+		sharesByKey[eth2Pubkey] = eth2Share
+		keysByShare[eth2Share] = eth2Pubkey
 	}
 
 	getVerifyShareFunc := func(pubkey core.PubKey) (*bls_sig.PublicKey, error) {
