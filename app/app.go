@@ -343,7 +343,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		corePubkeys       []core.PubKey
 		eth2Pubkeys       []eth2p0.BLSPubKey
 		pubshares         []eth2p0.BLSPubKey
-		pubSharesByKey    = make(map[*bls_sig.PublicKey]*bls_sig.PublicKey)
 		allPubSharesByKey = make(map[core.PubKey]map[int]*bls_sig.PublicKey) // map[pubkey]map[shareIdx]pubshare
 	)
 	for _, dv := range lock.Validators {
@@ -385,7 +384,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 		eth2Pubkeys = append(eth2Pubkeys, eth2Pubkey)
 		corePubkeys = append(corePubkeys, corePubkey)
-		pubSharesByKey[pubkey] = pubShare
 		pubshares = append(pubshares, eth2Share)
 		allPubSharesByKey[corePubkey] = allPubShares
 	}
@@ -419,7 +417,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, pubSharesByKey, nodeIdx.ShareIdx, lock.FeeRecipientAddress,
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, lock.FeeRecipientAddress,
 		conf.BuilderAPI, seenPubkeys)
 	if err != nil {
 		return err
