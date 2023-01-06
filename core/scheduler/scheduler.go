@@ -39,11 +39,11 @@ type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
 
 // NewForT returns a new scheduler for testing using a fake clock.
 func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys []core.PubKey,
-	eth2Cl eth2wrap.Client, builderAPI bool,
+	eth2Cl eth2wrap.Client, deadliner core.Deadliner, builderAPI bool,
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(pubkeys, eth2Cl, builderAPI)
+	s, err := New(pubkeys, eth2Cl, deadliner, builderAPI)
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -53,7 +53,7 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys [
 }
 
 // New returns a new scheduler.
-func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderAPI bool) (*Scheduler, error) {
+func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, deadliner core.Deadliner, builderAPI bool) (*Scheduler, error) {
 	return &Scheduler{
 		eth2Cl:  eth2Cl,
 		pubkeys: pubkeys,
@@ -66,6 +66,7 @@ func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderAPI bool) (*Sched
 		metricSubmitter: newMetricSubmitter(),
 		resolvedEpoch:   math.MaxUint64,
 		builderAPI:      builderAPI,
+		deadliner:       deadliner,
 	}, nil
 }
 
@@ -74,6 +75,7 @@ type Scheduler struct {
 	pubkeys         []core.PubKey
 	quit            chan struct{}
 	clock           clockwork.Clock
+	deadliner       core.Deadliner
 	delayFunc       delayFunc
 	metricSubmitter metricSubmitter
 	resolvedEpoch   uint64
@@ -118,6 +120,8 @@ func (s *Scheduler) Run() error {
 		select {
 		case <-s.quit:
 			return nil
+		case duty := <-s.deadliner.C():
+			s.deleteDuty(duty)
 		case slot := <-slotTicker:
 			log.Debug(ctx, "Slot ticked", z.I64("slot", slot.Slot)) // Not adding slot to context since duty will be added that also contains slot.
 
@@ -254,7 +258,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 	activeValsGauge.Set(float64(len(vals)))
 
 	if len(vals) == 0 {
-		log.Info(ctx, "No active DVs for slot", z.I64("slot", slot.Slot))
+		log.Info(ctx, "No active validators for slot", z.I64("slot", slot.Slot))
 		return nil
 	}
 
@@ -311,6 +315,10 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 			continue
 		}
 
+		if !s.deadliner.Add(duty) {
+			return errors.New("unexpected expired attester duty", nil, z.I64("slot", slot.Slot))
+		}
+
 		if !s.setDutyDefinition(duty, pubkey, core.NewAttesterDefinition(attDuty)) {
 			continue
 		}
@@ -324,6 +332,11 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 
 		// Schedule aggregation duty as well.
 		aggDuty := core.NewAggregatorDuty(int64(attDuty.Slot))
+
+		if !s.deadliner.Add(aggDuty) {
+			return errors.New("unexpected expired aggregator duty", nil, z.I64("slot", slot.Slot))
+		}
+
 		if !s.setDutyDefinition(aggDuty, pubkey, core.NewAttesterDefinition(attDuty)) {
 			continue
 		}
@@ -367,6 +380,10 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 			continue
 		}
 
+		if !s.deadliner.Add(duty) {
+			return errors.New("unexpected expired proposer duty", nil, z.I64("slot", slot.Slot))
+		}
+
 		if !s.setDutyDefinition(duty, pubkey, core.NewProposerDefinition(proDuty)) {
 			continue
 		}
@@ -407,6 +424,11 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 		for sl := startSlot; sl.Epoch() == currEpoch; sl = sl.Next() {
 			// Schedule sync committee contribution aggregation.
 			duty := core.NewSyncContributionDuty(sl.Slot)
+
+			if !s.deadliner.Add(duty) {
+				return errors.New("unexpected expired sync contribution duty", nil, z.I64("slot", slot.Slot))
+			}
+
 			s.setDutyDefinition(duty, pubkey, core.NewSyncCommitteeDefinition(syncCommDuty))
 		}
 
@@ -429,6 +451,7 @@ func (s *Scheduler) getDutyDefinitionSet(duty core.Duty) (core.DutyDefinitionSet
 	return defSet, ok
 }
 
+// setDutyDefinition returns true if the duty definition for the pubkey was set, false if it was already set.
 func (s *Scheduler) setDutyDefinition(duty core.Duty, pubkey core.PubKey, set core.DutyDefinition) bool {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
