@@ -111,7 +111,7 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 					eth2key, err := tblsconv.KeyToETH2(pubshare)
 					if err == nil && eth2key == share {
 						return eth2p0.BLSPubKey{}, errors.New("mismatching validator client key share index, Mth key share submitted to Nth charon peer",
-							z.Int("key_share_index", keyshareIdx), z.Int("charon_peer_index", shareIdx))
+							z.Int("key_share_index", keyshareIdx-1), z.Int("charon_peer_index", shareIdx-1)) // 0-indexed
 					}
 				}
 			}
