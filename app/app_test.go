@@ -44,7 +44,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cmd/bootnode"
+	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/priority"
 	"github.com/obolnetwork/charon/p2p"
@@ -337,7 +337,7 @@ func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- bootnode.Run(ctx, bootnode.Config{
+		errChan <- relay.Run(ctx, relay.Config{
 			DataDir:  dir,
 			HTTPAddr: addr,
 			P2PConfig: p2p.Config{

@@ -122,7 +122,9 @@ func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 }
 
 func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
-	cmd.Flags().StringSliceVar(&config.UDPBootnodes, "p2p-bootnodes", []string{"http://bootnode.lb.gcp.obol.tech:3640/enr"}, "Comma-separated list of discv5 bootnode URLs or ENRs.")
+	var relays []string
+	cmd.Flags().StringSliceVar(&relays, "p2p-relays", []string{"http://bootnode.lb.gcp.obol.tech:3640/enr"}, "Comma-separated list of libp2p relay URLs or ENRs.")
+	cmd.Flags().StringSliceVar(&config.UDPBootnodes, "p2p-bootnodes", nil, "Comma-separated list of discv5 bootnode URLs or ENRs. Deprecated, use p2p-relays flag.")
 	cmd.Flags().BoolVar(&config.BootnodeRelay, "p2p-bootnode-relay", true, "Enables using bootnodes as libp2p circuit relays. Useful if some charon nodes are not publicly accessible. Deprecated, should always be enabled.")
 	cmd.Flags().BoolVar(&config.UDPBootLock, "p2p-bootnodes-from-lockfile", false, "Enables using cluster lock ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs. Discv5 is deprecated, use relay discovery.")
 	cmd.Flags().StringVar(&config.UDPAddr, "p2p-udp-address", "", "Listening UDP address (ip and port) for discv5 discovery. Empty default disables discv5 discovery. Discv5 is deprecated, use relay discovery.")
@@ -145,12 +147,18 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 		}
 
 		if config.UDPBootLock {
-			log.Warn(ctx, "Deprecated flag 'p2p-bootnodes-from-lockfile' used, it will be removed in the next release along with discv5 peer discovery.", nil)
+			log.Warn(ctx, "Deprecated flag 'p2p-bootnodes-from-lockfile' used, it will be removed in the next release along with discv5 peer discovery", nil)
 		}
 
 		if config.UDPAddr != "" {
-			log.Warn(ctx, "Deprecated flag 'p2p-udp-address' used, discv5 peer discovery will be removed in the next release.", nil)
+			log.Warn(ctx, "Deprecated flag 'p2p-udp-address' used, discv5 peer discovery will be removed in the next release", nil)
 		}
+
+		if len(config.UDPBootnodes) > 0 {
+			log.Warn(ctx, "Deprecated flag 'p2p-bootnodes' used, please use 'p2p-relays'", nil)
+		}
+
+		config.UDPBootnodes = append(config.UDPBootnodes, relays...)
 
 		return nil
 	})
