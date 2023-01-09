@@ -55,6 +55,8 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 }
 
 // NewComponent returns a new instance of the validator API core workflow component.
+//
+//nolint:gocognit
 func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[int]*bls_sig.PublicKey,
 	shareIdx int, feeRecipientAddress string, builderAPI bool, seenPubkeys func(core.PubKey),
 ) (*Component, error) {
