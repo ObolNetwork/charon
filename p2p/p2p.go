@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"net"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/libp2p/go-libp2p"
@@ -57,12 +58,15 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 	}
 
 	var externalAddrs []ma.Multiaddr
-	// TODO(corver): Convert cfg.ExternalHost and cfg.ExternalIP to multiaddrs and add to externalAddrs.
-
 	if cfg.RelayDiscovery() {
 		// Use own observed addresses as soon as a single relay reports it.
 		// Since there are probably no other directly connected peers to do so.
 		identify.ActivationThresh = 1
+
+		externalAddrs, err = externalMultiAddrs(cfg)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var tcpOpts []interface{} // libp2p.Transport requires empty interface options.
@@ -101,6 +105,46 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 	}
 
 	return tcpNode, nil
+}
+
+// externalMultiAddrs returns the external IP and Hostname fields as multiaddrs using the listen TCP address ports.
+func externalMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
+	tcpAddrs, err := cfg.ParseTCPAddrs()
+	if err != nil {
+		return nil, err
+	}
+
+	var ports []int
+	for _, addr := range tcpAddrs {
+		ports = append(ports, addr.Port)
+	}
+
+	var resp []ma.Multiaddr
+
+	if cfg.ExternalIP != "" {
+		ip := net.ParseIP(cfg.ExternalIP)
+		for _, port := range ports {
+			maddr, err := multiAddrFromIPPort(ip, port)
+			if err != nil {
+				return nil, err
+			}
+
+			resp = append(resp, maddr)
+		}
+	}
+
+	if cfg.ExternalHost != "" {
+		for _, port := range ports {
+			maddr, err := ma.NewMultiaddr(fmt.Sprintf("/dns/%s/tcp/%d", cfg.ExternalHost, port))
+			if err != nil {
+				return nil, errors.Wrap(err, "invalid dns multiaddr")
+			}
+
+			resp = append(resp, maddr)
+		}
+	}
+
+	return resp, nil
 }
 
 // multiAddrViaRelay returns a multiaddr to the peer via the relay.

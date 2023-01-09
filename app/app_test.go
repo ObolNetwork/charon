@@ -22,15 +22,18 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/enr"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	ma "github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -153,6 +156,21 @@ func TestPingCluster(t *testing.T) {
 			ExpectDirect:   true,
 		})
 	})
+
+	// Nodes bind to random locahost ports, discv5 disabled,
+	// but relay via single bootnode, filters external dns multiaddrs only,
+	// then upgrade to direct connections.
+	t.Run("relay_discovery_externalhost", func(t *testing.T) {
+		pingCluster(t, pingTest{
+			RelayDiscovery: true,
+			BootnodeRelay:  true,
+			BindLocalhost:  true,
+			Bootnode:       true,
+			ExpectDirect:   true,
+			ExternalHost:   "localhost",
+			AddrFilter:     "dns",
+		})
+	})
 }
 
 type pingTest struct {
@@ -173,6 +191,8 @@ type pingTest struct {
 
 	RelayDiscovery bool // Enable relay discovery (disable discv5)
 	ExpectDirect   bool // Expect pings on direct connections
+
+	AddrFilter string // Regexp filter for advertised libp2p addresses.
 }
 
 func pingCluster(t *testing.T, test pingTest) {
@@ -232,6 +252,7 @@ func pingCluster(t *testing.T, test pingTest) {
 					beaconmock.WithNoProposerDuties(),
 					beaconmock.WithNoSyncCommitteeDuties(),
 				},
+				LibP2POpts: []libp2p.Option{newAddrFactoryFilter(test.AddrFilter)},
 			},
 			P2P: p2p.Config{
 				UDPBootnodes:  bootnodes,
@@ -282,6 +303,27 @@ func pingCluster(t *testing.T, test pingTest) {
 	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	testutil.RequireNoError(t, err)
+}
+
+// newAddrFactoryFilter returns a libp2p option that filters any advertised addresses based on the provided regexp string.
+func newAddrFactoryFilter(filterStr string) libp2p.Option {
+	filter := regexp.MustCompile(filterStr)
+
+	return func(cfg *libp2p.Config) error {
+		cached := cfg.AddrsFactory
+		cfg.AddrsFactory = func(addrs []ma.Multiaddr) []ma.Multiaddr {
+			var match []ma.Multiaddr
+			for _, addr := range cached(addrs) {
+				if filterStr == "" || filter.MatchString(addr.String()) {
+					match = append(match, addr)
+				}
+			}
+
+			return match
+		}
+
+		return nil
+	}
 }
 
 // startBootnode starts a charon bootnode and returns its http ENR endpoint.

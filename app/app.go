@@ -32,6 +32,7 @@ import (
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -118,6 +119,8 @@ type TestConfig struct {
 	PrioritiseCallback func(context.Context, core.Duty, []priority.TopicResult) error
 	// TCPNodeCallback provides test logic access to the libp2p host.
 	TCPNodeCallback func(host.Host)
+	// LibP2POpts provide test specific libp2p options.
+	LibP2POpts []libp2p.Option
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -303,7 +306,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	// Start libp2p TCP node.
-	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater)
+	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater, conf.TestConfig.LibP2POpts...)
 	if err != nil {
 		return nil, nil, err
 	}
