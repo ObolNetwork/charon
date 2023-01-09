@@ -122,7 +122,7 @@ func externalMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
 	var resp []ma.Multiaddr
 
 	if cfg.ExternalIP != "" {
-                ip := net.ParseIP(cfg.ExternalIP)
+		ip := net.ParseIP(cfg.ExternalIP)
 		for _, port := range ports {
 			maddr, err := multiAddrFromIPPort(ip, port)
 			if err != nil {
