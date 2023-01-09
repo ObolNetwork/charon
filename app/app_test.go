@@ -305,6 +305,7 @@ func pingCluster(t *testing.T, test pingTest) {
 	testutil.RequireNoError(t, err)
 }
 
+// newAddrFactoryFilter returns a libp2p option that filters any advertised addresses based on the provided regexp string.
 func newAddrFactoryFilter(filterStr string) libp2p.Option {
 	filter := regexp.MustCompile(filterStr)
 
