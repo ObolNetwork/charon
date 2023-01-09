@@ -1,0 +1,30 @@
+{
+  "name": "solo flow",
+  "creator": {
+    "address": "0x20D0dD74bA23e9a241FD533833E91B3Bf38F0DB2",
+    "config_signature": "0x97a3e4a7634c3c635991bdb01db8edb3eaae003b25c9d25e39378cf2c8a2f9bd5f598e8ce2791fa7d67c3bf344a1b4ea772929349a71c9eb10f123061aab788700"
+  },
+  "operators": [
+    {
+      "address": "",
+      "enr": "",
+      "config_signature": "",
+      "enr_signature": ""
+    },
+    {
+      "address": "",
+      "enr": "",
+      "config_signature": "",
+      "enr_signature": ""
+    }
+  ],
+  "uuid": "52FDFC07-2182-654F-163F-5F0F9A621D72",
+  "version": "v1.4.0",
+  "timestamp": "2023-01-09T11:04:17+02:00",
+  "num_validators": 1,
+  "threshold": 2,
+  "dkg_algorithm": "default",
+  "fork_version": "0x90000069",
+  "config_hash": "0x4faee45f81477905c50b33743e033dc9eeab091423156da273ccd9ad585caf3a",
+  "definition_hash": "0x9f7d1e52b75ba93c58121f0f92df5905a84195cd03c7435784c67c713d026bf5"
+}
