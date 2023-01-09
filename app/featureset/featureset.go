@@ -59,7 +59,7 @@ var (
 		QBFTConsensus:  statusStable,
 		Priority:       statusStable,
 		MockAlpha:      statusAlpha,
-		RelayDiscovery: statusAlpha,
+		RelayDiscovery: statusStable,
 		// Add all features and there status here.
 	}
 

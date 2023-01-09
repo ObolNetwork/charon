@@ -208,8 +208,8 @@ func pingCluster(t *testing.T, test pingTest) {
 		timeout = time.Minute
 	}
 
-	if test.RelayDiscovery {
-		featureset.EnableForT(t, featureset.RelayDiscovery)
+	if !test.RelayDiscovery {
+		featureset.DisableForT(t, featureset.RelayDiscovery)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

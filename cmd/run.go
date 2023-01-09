@@ -123,9 +123,9 @@ func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 
 func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 	cmd.Flags().StringSliceVar(&config.UDPBootnodes, "p2p-bootnodes", []string{"http://bootnode.lb.gcp.obol.tech:3640/enr"}, "Comma-separated list of discv5 bootnode URLs or ENRs.")
-	cmd.Flags().BoolVar(&config.BootnodeRelay, "p2p-bootnode-relay", true, "Enables using bootnodes as libp2p circuit relays. Useful if some charon nodes are not publicly accessible.")
-	cmd.Flags().BoolVar(&config.UDPBootLock, "p2p-bootnodes-from-lockfile", false, "Enables using cluster lock ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs.")
-	cmd.Flags().StringVar(&config.UDPAddr, "p2p-udp-address", "", "Listening UDP address (ip and port) for discv5 discovery. Empty default disables discv5 discovery.")
+	cmd.Flags().BoolVar(&config.BootnodeRelay, "p2p-bootnode-relay", true, "Enables using bootnodes as libp2p circuit relays. Useful if some charon nodes are not publicly accessible. Deprecated, should always enabled.")
+	cmd.Flags().BoolVar(&config.UDPBootLock, "p2p-bootnodes-from-lockfile", false, "Enables using cluster lock ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs. Discv5 is deprecated, use relay discovery.")
+	cmd.Flags().StringVar(&config.UDPAddr, "p2p-udp-address", "", "Listening UDP address (ip and port) for discv5 discovery. Empty default disables discv5 discovery. Discv5 is deprecated, use relay discovery.")
 	cmd.Flags().StringVar(&config.ExternalIP, "p2p-external-ip", "", "The IP address advertised by libp2p. This may be used to advertise an external IP.")
 	cmd.Flags().StringVar(&config.ExternalHost, "p2p-external-hostname", "", "The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.")
 	cmd.Flags().StringSliceVar(&config.TCPAddrs, "p2p-tcp-address", nil, "Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.")
@@ -134,8 +134,22 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 	cmd.Flags().BoolVar(&config.DisableReuseport, "p2p-disable-reuseport", false, "Disables TCP port reuse for outgoing libp2p connections.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
+		ctx := log.WithTopic(cmd.Context(), "cmd")
+
 		if config.UDPAddr == "" && !config.BootnodeRelay && !config.UDPBootLock {
 			return errors.New("node undiscoverable with the provided settings, please configure any one of `p2p-udp-address`, `p2p-bootnode-relay` or `p2p-bootnodes-from-lockfile`")
+		}
+
+		if !config.BootnodeRelay {
+			log.Warn(ctx, "Deprecated flag 'p2p-bootnode-relay' disabled, it will always be enabled from the next released", nil)
+		}
+
+		if config.UDPBootLock {
+			log.Warn(ctx, "Deprecated flag 'p2p-bootnodes-from-lockfile' used, it will be removed in the next release along with discv5 peer discovery.", nil)
+		}
+
+		if config.UDPAddr != "" {
+			log.Warn(ctx, "Deprecated flag 'p2p-udp-address' used, discv5 peer discovery will be removed in the next release.", nil)
 		}
 
 		return nil
