@@ -116,6 +116,13 @@ func TestDefinitionVerify(t *testing.T) {
 		require.ErrorContains(t, err, "some operators signed while others didn't")
 	})
 
+	t.Run("no operators no creator", func(t *testing.T) {
+		definition := randomDefinition(t, Creator{}, Operator{}, Operator{})
+
+		err = definition.VerifySignatures()
+		require.NoError(t, err)
+	})
+
 	t.Run("creator didn't sign", func(t *testing.T) {
 		definition := randomDefinition(t, creator, op0, op1)
 		definition.Operators[0], err = signOperator(secret0, definition, op0)
@@ -129,34 +136,40 @@ func TestDefinitionVerify(t *testing.T) {
 		require.ErrorContains(t, err, "empty creator config signature")
 	})
 
-	t.Run("partial definition", func(t *testing.T) {
+	t.Run("solo flow definition empty operators slice", func(t *testing.T) {
 		definition := randomDefinition(t, creator, Operator{}, Operator{}, func(def *Definition) {
 			def.Operators = []Operator{}
 		})
-		definition.DefinitionHash = nil
 
 		definition, err = signCreator(secret3, definition)
 		require.NoError(t, err)
 
-		err = definition.VerifyPartialHashes()
+		definition, err = definition.SetDefinitionHashes()
 		require.NoError(t, err)
 
-		err = definition.VerifyPartialSignatures()
+		err = definition.VerifyHashes()
+		require.NoError(t, err)
+
+		err = definition.VerifySignatures()
 		require.NoError(t, err)
 	})
 
-	t.Run("partial definition operators not empty", func(t *testing.T) {
-		definition := randomDefinition(t, creator, Operator{}, Operator{})
+	t.Run("solo flow definition empty operator structs", func(t *testing.T) {
+		definition := randomDefinition(t, creator, Operator{}, Operator{}, func(definition *Definition) {
+			definition.Name = "solo flow"
+		})
+
 		definition, err = signCreator(secret3, definition)
 		require.NoError(t, err)
 
-		err = definition.VerifyPartialHashes()
-		require.Error(t, err)
-		require.ErrorContains(t, err, "partial definition operators not empty")
+		definition, err = definition.SetDefinitionHashes()
+		require.NoError(t, err)
 
-		err = definition.VerifyPartialSignatures()
-		require.Error(t, err)
-		require.ErrorContains(t, err, "partial definition operators not empty")
+		err = definition.VerifyHashes()
+		require.NoError(t, err)
+
+		err = definition.VerifySignatures()
+		require.NoError(t, err)
 	})
 }
 
