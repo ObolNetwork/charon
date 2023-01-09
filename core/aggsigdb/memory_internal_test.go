@@ -74,20 +74,27 @@ func TestCancelledQuery(t *testing.T) {
 	// Enqueue 2 queries and wait for them to be blocked.
 	qctx, qcancel := context.WithCancel(ctx)
 
+	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
 		_, err := db.Await(qctx, duty, pubkey)
 		require.ErrorIs(t, err, context.Canceled)
+		wg.Done()
 	}()
 	require.Equal(t, 1, <-queryCount)
 
+	wg.Add(1)
 	go func() {
 		_, err := db.Await(qctx, duty, pubkey)
 		require.ErrorIs(t, err, context.Canceled)
+		wg.Done()
 	}()
 	require.Equal(t, 2, <-queryCount)
 
 	// Cancel queries
 	qcancel()
+	wg.Wait()
 
 	// Store something and ensure no blocked queries
 	err := db.Store(ctx, duty, pubkey, sig)
