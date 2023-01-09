@@ -49,14 +49,14 @@ type Config struct {
 	DisableReuseport bool
 }
 
-// RelayDiscovery returns true if relay discovery is enabled and discv5 discovery is disabled.
+// RelayDiscovery returns true if relay discovery is enabled.
 func (c Config) RelayDiscovery() bool {
 	return len(c.UDPBootnodes) > 0 && c.BootnodeRelay && featureset.Enabled(featureset.RelayDiscovery)
 }
 
-// Discv5Discovery returns true if discv5 discovery is enabled and relay discovery is disabled.
+// Discv5Discovery returns true if discv5 discovery is enabled.
 func (c Config) Discv5Discovery() bool {
-	return !c.RelayDiscovery()
+	return c.UDPAddr != ""
 }
 
 // ParseTCPAddrs returns the configured tcp addresses as typed net tcp addresses.

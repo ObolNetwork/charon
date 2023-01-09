@@ -87,8 +87,8 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 		// Enable Autonat (required for hole punching)
 		libp2p.EnableNATService(),
 		libp2p.AddrsFactory(func(addrs []ma.Multiaddr) []ma.Multiaddr {
-			if cfg.Discv5Discovery() {
-				// Do not advertise addresses via libp2p when using discv5 for peer discovery.
+			if !cfg.RelayDiscovery() {
+				// Do not advertise addresses via libp2p when not using relay discovery.
 				return nil
 			}
 

@@ -288,7 +288,8 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	if conf.P2P.RelayDiscovery() {
 		log.Info(ctx, "Relay discovery enabled") // TODO(corver): Remove once stable.
-	} else {
+	}
+	if conf.P2P.Discv5Discovery() {
 		log.Info(ctx, "Discv5 discovery enabled")
 	}
 

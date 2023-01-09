@@ -137,15 +137,15 @@ Flags:
       --monitoring-address string          Listening address (ip and port) for the monitoring API (prometheus, pprof). (default "127.0.0.1:3620")
       --no-verify                          Disables cluster definition and lock file verification.
       --p2p-allowlist string               Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.
-      --p2p-bootnode-relay                 Enables using bootnodes as libp2p circuit relays. Useful if some charon nodes are not publicly accessible. (default true)
+      --p2p-bootnode-relay                 Enables using bootnodes as libp2p circuit relays. Useful if some charon nodes are not publicly accessible. Deprecated, should always be enabled. (default true)
       --p2p-bootnodes strings              Comma-separated list of discv5 bootnode URLs or ENRs. (default [http://bootnode.lb.gcp.obol.tech:3640/enr])
-      --p2p-bootnodes-from-lockfile        Enables using cluster lock ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs.
+      --p2p-bootnodes-from-lockfile        Enables using cluster lock ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs. Discv5 is deprecated, use relay discovery.
       --p2p-denylist string                Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.
       --p2p-disable-reuseport              Disables TCP port reuse for outgoing libp2p connections.
       --p2p-external-hostname string       The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.
       --p2p-external-ip string             The IP address advertised by libp2p. This may be used to advertise an external IP.
       --p2p-tcp-address strings            Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.
-      --p2p-udp-address string             Listening UDP address (ip and port) for discv5 discovery. Empty default disables discv5 discovery.
+      --p2p-udp-address string             Listening UDP address (ip and port) for discv5 discovery. Empty default disables discv5 discovery. Discv5 is deprecated, use relay discovery.
       --private-key-file string            The path to the charon enr private key file. (default ".charon/charon-enr-private-key")
       --simnet-beacon-mock                 Enables an internal mock beacon node for running a simnet.
       --simnet-validator-keys-dir string   The directory containing the simnet validator key shares. (default ".charon/validator_keys")
