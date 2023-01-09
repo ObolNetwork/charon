@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -296,14 +297,7 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defS
 			return nil, err
 		}
 
-		// Ensure fee recipient is correctly populated in block.
-		if block.Version == spec.DataVersionBellatrix {
-			actual := fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
-			if !strings.EqualFold(actual, f.feeRecipientAddress) {
-				log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
-					z.Str("expected", f.feeRecipientAddress), z.Str("actual", actual))
-			}
-		}
+		verifyFeeRecipientBlindedBlock(ctx, block, f.feeRecipientAddress)
 
 		coreBlock, err := core.NewVersionedBlindedBeaconBlock(block)
 		if err != nil {
@@ -384,6 +378,26 @@ func verifyFeeRecipient(ctx context.Context, block *spec.VersionedBeaconBlock, f
 		actualAddr = fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
 	case spec.DataVersionCapella:
 		actualAddr = fmt.Sprintf("%#x", block.Capella.Body.ExecutionPayload.FeeRecipient)
+	default:
+		return
+	}
+
+	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
+		log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
+			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
+	}
+}
+
+// verifyFeeRecipientBlindedBlock logs a warning when fee recipient is not correctly populated in the provided blinded beacon block.
+func verifyFeeRecipientBlindedBlock(ctx context.Context, block *api.VersionedBlindedBeaconBlock, feeRecipientAddress string) {
+	// Note that fee-recipient is not available in forks earlier than bellatrix.
+	var actualAddr string
+
+	switch block.Version {
+	case spec.DataVersionBellatrix:
+		actualAddr = fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
+	case spec.DataVersionCapella:
+		actualAddr = fmt.Sprintf("%#x", block.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
 	default:
 		return
 	}

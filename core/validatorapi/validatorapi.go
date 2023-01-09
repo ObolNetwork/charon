@@ -384,7 +384,7 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedS
 		return err
 	}
 
-	log.Debug(ctx, "Beacon block submitted by validator client")
+	log.Debug(ctx, "Beacon block submitted by validator client", z.Str("block_version", block.Version.String()))
 
 	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, sub := range c.subs {
