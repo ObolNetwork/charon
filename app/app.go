@@ -443,7 +443,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	sigAgg := sigagg.New(lock.Threshold)
 
-	aggSigDB := aggsigdb.NewMemDB()
+	aggSigDB := aggsigdb.NewMemDB(deadlinerFunc("aggsigdb"))
 
 	broadcaster, err := bcast.New(ctx, eth2Cl)
 	if err != nil {
