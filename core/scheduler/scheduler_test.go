@@ -366,7 +366,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 	// Expire all duties
 	const trimEpochOffset = 3
 	expiry := time.Duration(trimEpochOffset*slotsPerEpoch) * slotDuration
-	clock.CallbackAfter(t0.Add(expiry).Add(time.Second), func() {
+	clock.CallbackAfter(t0.Add(expiry).Add(time.Minute), func() {
 		_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
 		require.ErrorContains(t, err, "epoch already trimmed")
 
