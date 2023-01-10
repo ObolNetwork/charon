@@ -43,20 +43,15 @@ import (
 //go:generate go test . -run=TestCreateCluster -update -clean
 
 func TestCreateCluster(t *testing.T) {
-	def := newDefinition(t, "solo flow definition", minNodes)
-	defBytes, err := def.MarshalJSON()
-	require.NoError(t, err)
-
-	// Save definition to disk
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-	defPath := path.Join(dir, "cluster-definition.json")
-
-	err = os.WriteFile(defPath, defBytes, 0o444)
+	defPath := "../cluster/examples/cluster-definition-002.json"
+	def, err := loadDefinition(context.Background(), defPath)
 	require.NoError(t, err)
 
 	// Serve definition over network
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defBytes, err := os.ReadFile(defPath)
+		require.NoError(t, err)
+
 		_, err = w.Write(defBytes)
 		require.NoError(t, err)
 	}))
@@ -134,12 +129,12 @@ func TestCreateCluster(t *testing.T) {
 				test.Config.Network = defaultNetwork
 			}
 
-			testCreateCluster(t, test.Config)
+			testCreateCluster(t, test.Config, def)
 		})
 	}
 }
 
-func testCreateCluster(t *testing.T, conf clusterConfig) {
+func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition) {
 	t.Helper()
 
 	dir, err := os.MkdirTemp("", "")
@@ -184,10 +179,6 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 		require.NoError(t, lock.VerifySignatures())
 
 		if conf.DefFile != "" {
-			var def cluster.Definition
-			def, err = loadDefinition(context.Background(), conf.DefFile)
-			require.NoError(t, err)
-
 			// Config hash and creator should remain the same
 			require.Equal(t, def.ConfigHash, lock.ConfigHash)
 			require.Equal(t, def.Creator, lock.Creator)
