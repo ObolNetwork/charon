@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package bootnode
+package relay
 
 import (
 	"context"
@@ -28,35 +28,35 @@ import (
 
 var (
 	newConnsCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "bootnode",
+		Namespace: "relay",
 		Subsystem: "p2p",
 		Name:      "connection_total",
 		Help:      "Total number of new connections by peer and cluster",
 	}, []string{"peer", "peer_cluster"})
 
 	activeConnsCounter = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "bootnode",
+		Namespace: "relay",
 		Subsystem: "p2p",
 		Name:      "active_connections",
 		Help:      "Current number of active connections by peer and cluster",
 	}, []string{"peer", "peer_cluster"})
 
 	networkTXCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "bootnode",
+		Namespace: "relay",
 		Subsystem: "p2p",
 		Name:      "network_sent_bytes_total",
 		Help:      "Total number of network bytes sent to the peer and cluster",
 	}, []string{"peer", "peer_cluster"})
 
 	networkRXCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "bootnode",
+		Namespace: "relay",
 		Subsystem: "p2p",
 		Name:      "network_receive_bytes_total",
 		Help:      "Total number of network bytes received from the peer and cluster",
 	}, []string{"peer", "peer_cluster"})
 
 	peerPingLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "bootnode",
+		Namespace: "relay",
 		Subsystem: "p2p",
 		Name:      "ping_latency",
 		Help:      "Ping latency by peer and cluster",

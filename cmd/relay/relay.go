@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package bootnode
+package relay
 
 import (
 	"context"
@@ -33,7 +33,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-// Config defines the config of the bootnode.
+// Config defines the config of the relay.
 type Config struct {
 	DataDir        string
 	HTTPAddr       string
@@ -51,9 +51,9 @@ func Run(ctx context.Context, config Config) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ctx = log.WithTopic(ctx, "bootnode")
+	ctx = log.WithTopic(ctx, "relay")
 
-	version.LogInfo(ctx, "Charon bootnode starting")
+	version.LogInfo(ctx, "Charon relay starting")
 
 	key, err := p2p.LoadPrivKey(config.DataDir)
 	if errors.Is(err, os.ErrNotExist) {
@@ -94,7 +94,7 @@ func Run(ctx context.Context, config Config) error {
 
 	go monitorConnections(ctx, tcpNode, bwTuples)
 
-	labels := map[string]string{"bootnode_peer": p2p.PeerName(tcpNode.ID())}
+	labels := map[string]string{"relay_peer": p2p.PeerName(tcpNode.ID())}
 	log.SetLokiLabels(labels)
 	promRegistry, err := promauto.NewRegistry(labels)
 	if err != nil {
@@ -121,7 +121,7 @@ func Run(ctx context.Context, config Config) error {
 			return
 		}
 
-		// Serve prometheus metrics wrapped with bootnode identifiers.
+		// Serve prometheus metrics wrapped with relay identifiers.
 		mux := http.NewServeMux()
 		mux.Handle("/metrics", promhttp.InstrumentMetricHandler(
 			promRegistry, promhttp.HandlerFor(promRegistry, promhttp.HandlerOpts{}),
@@ -151,7 +151,7 @@ func Run(ctx context.Context, config Config) error {
 			z.Str("url", fmt.Sprintf("http://%s/enr", config.HTTPAddr)),
 		)
 	} else {
-		log.Info(ctx, "Runtime ENR not available via http, since bootnode-http-address flag is not set")
+		log.Info(ctx, "Runtime ENR not available via http, since http-address flag is not set")
 	}
 
 	ticker := time.NewTicker(time.Minute)

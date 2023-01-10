@@ -27,7 +27,7 @@ import (
 
 type Config struct {
 	// UDPBootnodes defines the discv5 boot node URLs.
-	UDPBootnodes []string
+	UDPBootnodes []string // TODO(corver): Rename to Relays once discv5 removed.
 	// UDPBootLock enables using cluster-lock ENRs as discv5 boot nodes.
 	UDPBootLock bool
 	// UDPAddr defines the discv5 udp listen address.
