@@ -190,18 +190,18 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	// Write cluster-lock file
+	// Create cluster-lock
 	var lock cluster.Lock
 	lock = cluster.Lock{
 		Definition: def,
 		Validators: vals,
 	}
-
 	lock, err = lock.SetLockHash()
 	if err != nil {
 		return err
 	}
 
+	// Write cluster-lock file
 	if err = writeLock(lock, conf.ClusterDir, numNodes, shareSets); err != nil {
 		return err
 	}
@@ -250,6 +250,7 @@ func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddr string, netwo
 	return resp, nil
 }
 
+// getTSSShares splits the secrets and returns the threshold key shares.
 func getTSSShares(secrets []*bls_sig.SecretKey, threshold, numNodes int) ([]tbls.TSS, [][]*bls_sig.SecretKeyShare, error) {
 	var (
 		dvs    []tbls.TSS
