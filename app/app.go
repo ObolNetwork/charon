@@ -406,7 +406,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return core.NewDeadliner(ctx, label, deadlineFunc)
 	}
 
-	sched, err := scheduler.New(corePubkeys, eth2Cl, deadlinerFunc("scheduler"), conf.BuilderAPI)
+	sched, err := scheduler.New(corePubkeys, eth2Cl, conf.BuilderAPI)
 	if err != nil {
 		return err
 	}

@@ -144,12 +144,12 @@ func TestStartChecker(t *testing.T) {
 			if tt.err != nil {
 				require.Eventually(t, func() bool {
 					err = readyErrFunc()
-					if !errors.Is(err, errReadyUninitialised) {
-						require.EqualError(t, err, tt.err.Error())
-						return true
+					if !errors.Is(err, tt.err) {
+						t.Logf("Ignoring unexpected error, got=%v, want=%v", err, tt.err)
+						return false
 					}
 
-					return false
+					return true
 				}, time.Second, 100*time.Millisecond)
 			} else {
 				require.Eventually(t, func() bool {

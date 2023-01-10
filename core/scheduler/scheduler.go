@@ -34,16 +34,18 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+const trimEpochOffset = 3 // Trim cached duties after 3 epochs. Note inclusion delay calculation requires now-32 slot duties.
+
 // delayFunc abstracts slot offset delaying/sleeping for deterministic tests.
 type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
 
 // NewForT returns a new scheduler for testing using a fake clock.
 func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys []core.PubKey,
-	eth2Cl eth2wrap.Client, deadliner core.Deadliner, builderAPI bool,
+	eth2Cl eth2wrap.Client, builderAPI bool,
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(pubkeys, eth2Cl, deadliner, builderAPI)
+	s, err := New(pubkeys, eth2Cl, builderAPI)
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -53,20 +55,20 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys [
 }
 
 // New returns a new scheduler.
-func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, deadliner core.Deadliner, builderAPI bool) (*Scheduler, error) {
+func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderAPI bool) (*Scheduler, error) {
 	return &Scheduler{
-		eth2Cl:  eth2Cl,
-		pubkeys: pubkeys,
-		quit:    make(chan struct{}),
-		duties:  make(map[core.Duty]core.DutyDefinitionSet),
-		clock:   clockwork.NewRealClock(),
+		eth2Cl:        eth2Cl,
+		pubkeys:       pubkeys,
+		quit:          make(chan struct{}),
+		duties:        make(map[core.Duty]core.DutyDefinitionSet),
+		dutiesByEpoch: make(map[int64][]core.Duty),
+		clock:         clockwork.NewRealClock(),
 		delayFunc: func(_ core.Duty, deadline time.Time) <-chan time.Time {
 			return time.After(time.Until(deadline))
 		},
 		metricSubmitter: newMetricSubmitter(),
-		resolvedEpoch:   math.MaxUint64,
+		resolvedEpoch:   math.MaxInt64,
 		builderAPI:      builderAPI,
-		deadliner:       deadliner,
 	}, nil
 }
 
@@ -75,11 +77,11 @@ type Scheduler struct {
 	pubkeys         []core.PubKey
 	quit            chan struct{}
 	clock           clockwork.Clock
-	deadliner       core.Deadliner
 	delayFunc       delayFunc
 	metricSubmitter metricSubmitter
-	resolvedEpoch   uint64
+	resolvedEpoch   int64
 	duties          map[core.Duty]core.DutyDefinitionSet
+	dutiesByEpoch   map[int64][]core.Duty
 	dutiesMutex     sync.Mutex
 	dutySubs        []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 	slotSubs        []func(context.Context, core.Slot) error
@@ -120,8 +122,6 @@ func (s *Scheduler) Run() error {
 		select {
 		case <-s.quit:
 			return nil
-		case duty := <-s.deadliner.C():
-			s.deleteDuty(duty)
 		case slot := <-slotTicker:
 			log.Debug(ctx, "Slot ticked", z.I64("slot", slot.Slot)) // Not adding slot to context since duty will be added that also contains slot.
 
@@ -160,15 +160,18 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 		return nil, err
 	}
 
-	epoch := uint64(duty.Slot) / slotsPerEpoch
+	epoch := duty.Slot / int64(slotsPerEpoch)
 	if !s.isEpochResolved(epoch) {
 		return nil, errors.New("epoch not resolved yet")
+	}
+	if s.isEpochTrimmed(epoch) {
+		return nil, errors.New("epoch already trimmed")
 	}
 
 	defSet, ok := s.getDutyDefinitionSet(duty)
 	if !ok {
 		return nil, errors.Wrap(core.ErrNotFound, "duty not present for resolved epoch",
-			z.Any("duty", duty), z.U64("epoch", epoch))
+			z.Any("duty", duty), z.I64("epoch", epoch))
 	}
 
 	return defSet.Clone() // Clone before returning.
@@ -176,7 +179,7 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 
 // scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
 func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
-	if s.getResolvedEpoch() != uint64(slot.Epoch()) {
+	if s.getResolvedEpoch() != slot.Epoch() {
 		err := s.resolveDuties(ctx, slot)
 		if err != nil {
 			log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.I64("slot", slot.Slot))
@@ -277,7 +280,8 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 		return err
 	}
 
-	s.setResolvedEpoch(uint64(slot.Epoch()))
+	s.setResolvedEpoch(slot.Epoch())
+	s.trimDuties(slot.Epoch() - trimEpochOffset)
 
 	return nil
 }
@@ -315,12 +319,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 			continue
 		}
 
-		if !s.deadliner.Add(duty) {
-			log.Warn(ctx, "Ignoring unexpected expired attester duty", nil, z.I64("slot", slot.Slot))
-			continue
-		}
-
-		if !s.setDutyDefinition(duty, pubkey, core.NewAttesterDefinition(attDuty)) {
+		if !s.setDutyDefinition(duty, slot.Epoch(), pubkey, core.NewAttesterDefinition(attDuty)) {
 			continue
 		}
 
@@ -334,12 +333,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 		// Schedule aggregation duty as well.
 		aggDuty := core.NewAggregatorDuty(int64(attDuty.Slot))
 
-		if !s.deadliner.Add(aggDuty) {
-			log.Warn(ctx, "Ignoring unexpected expired aggregation duty", nil, z.I64("slot", slot.Slot))
-			continue
-		}
-
-		if !s.setDutyDefinition(aggDuty, pubkey, core.NewAttesterDefinition(attDuty)) {
+		if !s.setDutyDefinition(aggDuty, slot.Epoch(), pubkey, core.NewAttesterDefinition(attDuty)) {
 			continue
 		}
 	}
@@ -382,12 +376,7 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 			continue
 		}
 
-		if !s.deadliner.Add(duty) {
-			log.Warn(ctx, "Ignoring unexpected expired proposer duty", nil, z.I64("slot", slot.Slot))
-			continue
-		}
-
-		if !s.setDutyDefinition(duty, pubkey, core.NewProposerDefinition(proDuty)) {
+		if !s.setDutyDefinition(duty, slot.Epoch(), pubkey, core.NewProposerDefinition(proDuty)) {
 			continue
 		}
 
@@ -428,12 +417,7 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 			// Schedule sync committee contribution aggregation.
 			duty := core.NewSyncContributionDuty(sl.Slot)
 
-			if !s.deadliner.Add(duty) {
-				log.Warn(ctx, "Ignoring unexpected expired sync contribution duty", nil, z.I64("slot", slot.Slot))
-				continue
-			}
-
-			s.setDutyDefinition(duty, pubkey, core.NewSyncCommitteeDefinition(syncCommDuty))
+			s.setDutyDefinition(duty, slot.Epoch(), pubkey, core.NewSyncCommitteeDefinition(syncCommDuty))
 		}
 
 		log.Info(ctx, "Resolved sync committee duty",
@@ -456,7 +440,7 @@ func (s *Scheduler) getDutyDefinitionSet(duty core.Duty) (core.DutyDefinitionSet
 }
 
 // setDutyDefinition returns true if the duty definition for the pubkey was set, false if it was already set.
-func (s *Scheduler) setDutyDefinition(duty core.Duty, pubkey core.PubKey, set core.DutyDefinition) bool {
+func (s *Scheduler) setDutyDefinition(duty core.Duty, epoch int64, pubkey core.PubKey, set core.DutyDefinition) bool {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
 
@@ -470,38 +454,58 @@ func (s *Scheduler) setDutyDefinition(duty core.Duty, pubkey core.PubKey, set co
 
 	defSet[pubkey] = set
 	s.duties[duty] = defSet
+	s.dutiesByEpoch[epoch] = append(s.dutiesByEpoch[epoch], duty)
 
 	return true
 }
 
-// deleteDuty deletes the duty from the cache.
-func (s *Scheduler) deleteDuty(duty core.Duty) {
-	s.dutiesMutex.Lock()
-	defer s.dutiesMutex.Unlock()
-
-	delete(s.duties, duty)
-}
-
-func (s *Scheduler) getResolvedEpoch() uint64 {
+func (s *Scheduler) getResolvedEpoch() int64 {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
 
 	return s.resolvedEpoch
 }
 
-func (s *Scheduler) setResolvedEpoch(epoch uint64) {
+func (s *Scheduler) setResolvedEpoch(epoch int64) {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
 
 	s.resolvedEpoch = epoch
 }
 
-func (s *Scheduler) isEpochResolved(epoch uint64) bool {
-	if s.getResolvedEpoch() == math.MaxUint64 {
+// isEpochResolved returns true if the.
+func (s *Scheduler) isEpochResolved(epoch int64) bool {
+	if s.getResolvedEpoch() == math.MaxInt64 {
 		return false
 	}
 
 	return s.getResolvedEpoch() >= epoch
+}
+
+// isEpochTrimmed returns true if the epoch's duties have been trimmed.
+func (s *Scheduler) isEpochTrimmed(epoch int64) bool {
+	if s.getResolvedEpoch() == math.MaxInt64 {
+		return false
+	}
+
+	return s.getResolvedEpoch() >= epoch+trimEpochOffset
+}
+
+// trimDuties deletes all duties for the provided epoch.
+func (s *Scheduler) trimDuties(epoch int64) {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	duties := s.dutiesByEpoch[epoch]
+	if len(duties) == 0 {
+		return
+	}
+
+	for _, duty := range duties {
+		delete(s.duties, duty)
+	}
+
+	delete(s.dutiesByEpoch, epoch)
 }
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
