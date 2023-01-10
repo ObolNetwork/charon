@@ -43,7 +43,7 @@ import (
 //go:generate go test . -run=TestCreateCluster -update -clean
 
 func TestCreateCluster(t *testing.T) {
-	def := newDefinition(t, "solo flow definition")
+	def := newDefinition(t, "solo flow definition", minNodes)
 	defBytes, err := def.MarshalJSON()
 	require.NoError(t, err)
 
@@ -239,7 +239,7 @@ func TestValidNetwork(t *testing.T) {
 }
 
 // newDefinition returns a new definition with creator field populated.
-func newDefinition(t *testing.T, clusterName string) cluster.Definition {
+func newDefinition(t *testing.T, clusterName string, numNodes int) cluster.Definition {
 	t.Helper()
 
 	// Construct the creator
@@ -252,7 +252,10 @@ func newDefinition(t *testing.T, clusterName string) cluster.Definition {
 	}
 
 	// Construct the definition
-	ops := []cluster.Operator{{}, {}, {}, {}}
+	var ops []cluster.Operator
+	for i := 0; i < numNodes; i++ {
+		ops = append(ops, cluster.Operator{})
+	}
 	def, err := cluster.NewDefinition(clusterName, 1, 3,
 		"", defaultWithdrawalAddr, eth2util.Sepolia.ForkVersionHex, creator, ops, rand.New(rand.NewSource(1)))
 	require.NoError(t, err)
