@@ -117,6 +117,7 @@ func (m multi) Address() string {
 
 func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
 	const label = "aggregate_beacon_committee_selections"
+	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) ([]*eth2exp.BeaconCommitteeSelection, error) {
@@ -134,6 +135,7 @@ func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selection
 
 func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
 	const label = "aggregate_sync_committee_selections"
+	defer latency(label)()
 
 	res, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) ([]*eth2exp.SyncCommitteeSelection, error) {
@@ -151,6 +153,7 @@ func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections 
 
 func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 	const label = "block_attestations"
+	defer latency(label)()
 
 	res, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) ([]*eth2p0.Attestation, error) {
