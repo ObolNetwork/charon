@@ -67,7 +67,7 @@ func TestIntegration(t *testing.T) {
 		"0xb790b322e1cce41c48e3c344cf8d752bdc3cfd51e8eeef44a4bdaac081bc92b53b73e823a9878b5d7a532eb9d9dce1e3",
 	}
 
-	s, err := scheduler.New(pubkeys, eth2Cl, new(testDeadliner), false)
+	s, err := scheduler.New(pubkeys, eth2Cl, false)
 	require.NoError(t, err)
 
 	count := 10
@@ -154,7 +154,7 @@ func TestSchedulerWait(t *testing.T) {
 				}, err
 			}
 
-			sched := scheduler.NewForT(t, clock, new(delayer).delay, nil, eth2Cl, new(testDeadliner), false)
+			sched := scheduler.NewForT(t, clock, new(delayer).delay, nil, eth2Cl, false)
 			sched.Stop() // Just run wait functions, then quit.
 			require.NoError(t, sched.Run())
 			require.EqualValues(t, test.WaitSecs, clock.Since(t0).Seconds())
@@ -225,7 +225,7 @@ func TestSchedulerDuties(t *testing.T) {
 			// Construct scheduler
 			clock := newTestClock(t0)
 			delayer := new(delayer)
-			sched := scheduler.NewForT(t, clock, delayer.delay, pubkeys, eth2Cl, new(testDeadliner), false)
+			sched := scheduler.NewForT(t, clock, delayer.delay, pubkeys, eth2Cl, false)
 
 			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
@@ -297,10 +297,10 @@ func TestSchedulerDuties(t *testing.T) {
 
 func TestScheduler_GetDuty(t *testing.T) {
 	var (
-		t0        time.Time
-		slot      = int64(1)
-		valSet    = beaconmock.ValidatorSetA
-		deadliner = newTestDeadliner()
+		ctx    = context.Background()
+		t0     time.Time
+		slot   = int64(1)
+		valSet = beaconmock.ValidatorSetA
 	)
 
 	// Configure beacon mock.
@@ -319,25 +319,25 @@ func TestScheduler_GetDuty(t *testing.T) {
 
 	// Construct scheduler.
 	clock := newTestClock(t0)
-	sched := scheduler.NewForT(t, clock, new(delayer).delay, pubkeys, eth2Cl, deadliner, false)
+	sched := scheduler.NewForT(t, clock, new(delayer).delay, pubkeys, eth2Cl, false)
 
-	_, err = sched.GetDutyDefinition(context.Background(), core.NewAttesterDuty(slot))
+	_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
 
-	_, err = sched.GetDutyDefinition(context.Background(), core.NewAggregatorDuty(slot))
+	_, err = sched.GetDutyDefinition(ctx, core.NewAggregatorDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
 
-	_, err = sched.GetDutyDefinition(context.Background(), core.NewSyncContributionDuty(slot))
+	_, err = sched.GetDutyDefinition(ctx, core.NewSyncContributionDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
 
-	_, err = sched.GetDutyDefinition(context.Background(), core.NewBuilderProposerDuty(slot))
+	_, err = sched.GetDutyDefinition(ctx, core.NewBuilderProposerDuty(slot))
 	require.ErrorContains(t, err, "builder-api not enabled")
 
-	slotDuration, err := eth2Cl.SlotDuration(context.Background())
+	slotDuration, err := eth2Cl.SlotDuration(ctx)
 	require.NoError(t, err)
 
 	clock.CallbackAfter(t0.Add(slotDuration).Add(time.Second), func() {
-		res, err := sched.GetDutyDefinition(context.Background(), core.NewAttesterDuty(slot))
+		res, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
 		require.NoError(t, err)
 
 		pubKeys, err := valSet.CorePubKeys()
@@ -347,30 +347,34 @@ func TestScheduler_GetDuty(t *testing.T) {
 			require.NotNil(t, res[pubKey])
 		}
 
-		res, err = sched.GetDutyDefinition(context.Background(), core.NewAggregatorDuty(slot))
+		res, err = sched.GetDutyDefinition(ctx, core.NewAggregatorDuty(slot))
 		require.NoError(t, err)
 		for _, pubKey := range pubKeys {
 			require.NotNil(t, res[pubKey])
 		}
 
-		res, err = sched.GetDutyDefinition(context.Background(), core.NewSyncContributionDuty(slot))
+		res, err = sched.GetDutyDefinition(ctx, core.NewSyncContributionDuty(slot))
 		require.NoError(t, err)
 		for _, pubKey := range pubKeys {
 			require.NotNil(t, res[pubKey])
 		}
+	})
 
-		// Expire all duties
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	require.NoError(t, err)
 
-		deadliner.Expire()
+	// Expire all duties
+	const trimEpochOffset = 3
+	expiry := time.Duration(trimEpochOffset*slotsPerEpoch) * slotDuration
+	clock.CallbackAfter(t0.Add(expiry).Add(time.Second), func() {
+		_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
+		require.ErrorContains(t, err, "epoch already trimmed")
 
-		_, err = sched.GetDutyDefinition(context.Background(), core.NewAttesterDuty(slot))
-		require.ErrorContains(t, err, "duty not present for resolved epoch: not found")
+		_, err = sched.GetDutyDefinition(ctx, core.NewAggregatorDuty(slot))
+		require.ErrorContains(t, err, "epoch already trimmed")
 
-		_, err = sched.GetDutyDefinition(context.Background(), core.NewAggregatorDuty(slot))
-		require.ErrorContains(t, err, "duty not present for resolved epoch: not found")
-
-		_, err = sched.GetDutyDefinition(context.Background(), core.NewSyncContributionDuty(slot))
-		require.ErrorContains(t, err, "duty not present for resolved epoch: not found")
+		_, err = sched.GetDutyDefinition(ctx, core.NewSyncContributionDuty(slot))
+		require.ErrorContains(t, err, "epoch already trimmed")
 
 		sched.Stop()
 	})
@@ -409,7 +413,8 @@ func (d *delayer) delay(duty core.Duty, deadline time.Time) <-chan time.Time {
 
 func newTestClock(now time.Time) *testClock {
 	return &testClock{
-		now: now,
+		now:       now,
+		callbacks: make(map[time.Time]func()),
 	}
 }
 
@@ -417,17 +422,15 @@ func newTestClock(now time.Time) *testClock {
 // that is advanced by calls to Sleep or After.
 // Note this *does not* support concurrency.
 type testClock struct {
-	now           time.Time
-	callbackAfter time.Time
-	callback      func()
+	now       time.Time
+	callbacks map[time.Time]func()
 }
 
 // CallbackAfter sets a callback function that is called once
 // before Sleep returns at or after the time has been reached.
 // It is useful to trigger logic "when a certain time has been reached".
 func (c *testClock) CallbackAfter(after time.Time, callback func()) {
-	c.callbackAfter = after
-	c.callback = callback
+	c.callbacks[after] = callback
 }
 
 func (c *testClock) After(d time.Duration) <-chan time.Time {
@@ -441,11 +444,14 @@ func (c *testClock) After(d time.Duration) <-chan time.Time {
 
 func (c *testClock) Sleep(d time.Duration) {
 	c.now = c.now.Add(d)
-	if c.callback == nil || c.now.Before(c.callbackAfter) {
-		return
+
+	for after, callback := range c.callbacks {
+		if c.now.Before(after) {
+			continue
+		}
+		callback()
+		delete(c.callbacks, after)
 	}
-	c.callback()
-	c.callback = nil
 }
 
 func (c *testClock) Now() time.Time {
@@ -462,43 +468,4 @@ func (c *testClock) NewTicker(time.Duration) clockwork.Ticker {
 
 func (c *testClock) NewTimer(time.Duration) clockwork.Timer {
 	panic("not supported")
-}
-
-func newTestDeadliner() *testDeadliner {
-	return &testDeadliner{
-		ch: make(chan core.Duty),
-	}
-}
-
-// testDeadliner is a mock deadliner implementation.
-type testDeadliner struct {
-	mu    sync.Mutex
-	added []core.Duty
-	ch    chan core.Duty
-}
-
-func (d *testDeadliner) Add(duty core.Duty) bool {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	d.added = append(d.added, duty)
-
-	return true
-}
-
-func (d *testDeadliner) C() <-chan core.Duty {
-	return d.ch
-}
-
-func (d *testDeadliner) Expire() {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	for _, duty := range d.added {
-		d.ch <- duty
-	}
-
-	d.ch <- core.Duty{} // Ensure all duties are processed before returning.
-
-	d.added = nil
 }
