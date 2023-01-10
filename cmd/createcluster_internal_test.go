@@ -254,7 +254,7 @@ func newDefinition(t *testing.T, clusterName string) cluster.Definition {
 	// Construct the definition
 	ops := []cluster.Operator{{}, {}, {}, {}}
 	def, err := cluster.NewDefinition(clusterName, 1, 3,
-		"", "", eth2util.Sepolia.ForkVersionHex, creator, ops, rand.New(rand.NewSource(1)))
+		"", defaultWithdrawalAddr, eth2util.Sepolia.ForkVersionHex, creator, ops, rand.New(rand.NewSource(1)))
 	require.NoError(t, err)
 
 	def, err = cluster.SignCreator(secret, def)

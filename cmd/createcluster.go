@@ -131,50 +131,42 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	var (
-		def            cluster.Definition
-		threshold      = conf.Threshold
-		numDVs         = conf.NumDVs
-		numNodes       = conf.NumNodes
-		withdrawalAddr = conf.WithdrawalAddr
-		network        = conf.Network
-		clusterName    = conf.Name
+		def     cluster.Definition
+		network = conf.Network
+		err     error
 	)
 
-	if conf.DefFile != "" {
-		var err error
+	if conf.DefFile != "" { // Load definition from DefFile
 		def, err = loadDefinition(ctx, conf.DefFile)
 		if err != nil {
 			return err
 		}
 
-		threshold = def.Threshold
-		numDVs = def.NumValidators
-		numNodes = len(def.Operators)
-		clusterName = def.Name
-		if def.WithdrawalAddress != "" {
-			withdrawalAddr = def.WithdrawalAddress
-		}
 		network, err = eth2util.ForkVersionToNetwork(def.ForkVersion)
+		if err != nil {
+			return err
+		}
+	} else { // Create new definition from cluster config
+		def, err = newDefFromConfig(ctx, conf)
 		if err != nil {
 			return err
 		}
 	}
 
-	err := validateDef(ctx, conf.InsecureKeys, numNodes, clusterName, withdrawalAddr, network)
+	// Validate definition
+	err = validateDef(ctx, conf.InsecureKeys, len(def.Operators), def.Name, def.WithdrawalAddress, network)
 	if err != nil {
 		return err
 	}
 
-	threshold = safeThreshold(ctx, numNodes, threshold)
-
 	// Get root bls secrets
-	secrets, err := getKeys(conf.SplitKeys, conf.SplitKeysDir, numDVs)
+	secrets, err := getKeys(conf.SplitKeys, conf.SplitKeysDir, def.NumValidators)
 	if err != nil {
 		return err
 	}
 
 	// Generate threshold bls key shares
-	dvs, shareSets, err := getTSSShares(secrets, threshold, numNodes)
+	dvs, shareSets, err := getTSSShares(secrets, def.Threshold, len(def.Operators))
 	if err != nil {
 		return err
 	}
@@ -186,38 +178,30 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	// Create operators
-	ops, err := getOperators(numNodes, conf.ClusterDir, conf.InsecureKeys, shareSets)
+	ops, err := getOperators(len(def.Operators), conf.ClusterDir, conf.InsecureKeys, shareSets)
 	if err != nil {
 		return err
 	}
-	if conf.DefFile != "" {
-		def.Operators = ops
-	}
+	def.Operators = ops
 
 	// Write deposit-data file
-	if err = writeDepositData(withdrawalAddr, network, conf.ClusterDir, numNodes, secrets); err != nil {
+	if err = writeDepositData(def.WithdrawalAddress, network, conf.ClusterDir, len(def.Operators), secrets); err != nil {
 		return err
 	}
 
+	// Write cluster-lock file
 	var lock cluster.Lock
-	if conf.DefFile != "" { // Create lock using definition
-		lock = cluster.Lock{
-			Definition: def,
-			Validators: vals,
-		}
-
-		lock, err = lock.SetLockHash()
-		if err != nil {
-			return err
-		}
-	} else { // Create a new lock
-		lock, err = newLock(conf, vals, ops)
-		if err != nil {
-			return err
-		}
+	lock = cluster.Lock{
+		Definition: def,
+		Validators: vals,
 	}
 
-	if err = writeLock(lock, conf.ClusterDir, numNodes, shareSets); err != nil {
+	lock, err = lock.SetLockHash()
+	if err != nil {
+		return err
+	}
+
+	if err = writeLock(lock, conf.ClusterDir, len(def.Operators), shareSets); err != nil {
 		return err
 	}
 
@@ -225,7 +209,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		writeWarning(w)
 	}
 
-	writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes)
+	writeOutput(w, conf.SplitKeys, conf.ClusterDir, len(def.Operators))
 
 	return nil
 }
@@ -472,6 +456,28 @@ func newLock(conf clusterConfig, vals []cluster.DistValidator, ops []cluster.Ope
 	}
 
 	return l.SetLockHash()
+}
+
+// newDefFromConfig returns a new cluster definition using the provided config values.
+func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definition, error) {
+	forkVersion, err := eth2util.NetworkToForkVersion(conf.Network)
+	if err != nil {
+		return cluster.Definition{}, err
+	}
+
+	var ops []cluster.Operator
+	for i := 0; i < conf.NumNodes; i++ {
+		ops = append(ops, cluster.Operator{})
+	}
+	threshold := safeThreshold(ctx, conf.NumNodes, conf.Threshold)
+
+	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, conf.FeeRecipient,
+		conf.WithdrawalAddr, forkVersion, cluster.Creator{}, ops, rand.Reader)
+	if err != nil {
+		return cluster.Definition{}, err
+	}
+
+	return def, nil
 }
 
 // newPeer returns a new peer, generating a p2pkey and ENR and node directory and run script in the process.
