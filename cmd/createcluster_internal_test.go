@@ -19,6 +19,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"path/filepath"
@@ -26,10 +29,12 @@ import (
 	"testing"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
@@ -38,6 +43,16 @@ import (
 //go:generate go test . -run=TestCreateCluster -update -clean
 
 func TestCreateCluster(t *testing.T) {
+	def := newDefinition(t, "solo flow definition")
+	defBytes, err := def.MarshalJSON()
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err = w.Write(defBytes)
+		require.NoError(t, err)
+	}))
+	defer srv.Close()
+
 	tests := []struct {
 		Name   string
 		Config clusterConfig
@@ -83,6 +98,32 @@ func TestCreateCluster(t *testing.T) {
 				Threshold: 3,
 				NumDVs:    2,
 				Network:   "goerli",
+			},
+		},
+		{
+			Name: "solo flow definition from disk",
+			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
+				t.Helper()
+
+				// Save definition to disk
+				dir, err := os.MkdirTemp("", "")
+				require.NoError(t, err)
+				defPath := path.Join(dir, "cluster-definition.json")
+
+				err = os.WriteFile(defPath, defBytes, 0o444)
+				require.NoError(t, err)
+				config.DefFile = defPath
+
+				return config
+			},
+		},
+		{
+			Name: "solo flow definition from network",
+			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
+				t.Helper()
+				config.DefFile = srv.URL
+
+				return config
 			},
 		},
 	}
@@ -146,6 +187,21 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 		require.NoError(t, json.Unmarshal(b, &lock))
 		require.NoError(t, lock.VerifyHashes())
 		require.NoError(t, lock.VerifySignatures())
+
+		if conf.DefFile != "" {
+			var def cluster.Definition
+			def, err = loadDefinition(context.Background(), conf.DefFile)
+			require.NoError(t, err)
+
+			// Config hash and creator should remain the same
+			require.Equal(t, def.ConfigHash, lock.ConfigHash)
+			require.Equal(t, def.Creator, lock.Creator)
+
+			for i := 0; i < len(def.Operators); i++ {
+				// ENRs should be populated
+				require.NotEqual(t, lock.Operators[i].ENR, "")
+			}
+		}
 	})
 }
 
@@ -170,19 +226,53 @@ func TestValidNetwork(t *testing.T) {
 		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
 		Network:        "gnosis",
 	}
-	err := validateClusterConfig(ctx, conf)
+	err := validateClusterConfig(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
 	require.Error(t, err, "zero address")
 
 	conf.Network = "goerli"
-	err = validateClusterConfig(ctx, conf)
+	err = validateClusterConfig(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
 	require.NoError(t, err)
 
 	conf.InsecureKeys = true
 
-	err = validateClusterConfig(ctx, conf)
+	err = validateClusterConfig(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
 	require.NoError(t, err)
 
 	conf.Network = "mainnet"
-	err = validateClusterConfig(ctx, conf)
+	err = validateClusterConfig(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
 	require.Error(t, err, "zero address")
+}
+
+// newDefinition returns a new definition with creator field populated.
+func newDefinition(t *testing.T, clusterName string) cluster.Definition {
+	t.Helper()
+
+	// Construct the creator
+	secret, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	addr := crypto.PubkeyToAddress(secret.PublicKey)
+	creator := cluster.Creator{
+		Address: addr.Hex(),
+	}
+
+	// Construct the definition
+	ops := []cluster.Operator{{}, {}, {}, {}}
+	def, err := cluster.NewDefinition(clusterName, 1, 3,
+		"", "", eth2util.Sepolia.ForkVersionHex, creator, ops, rand.New(rand.NewSource(1)))
+	require.NoError(t, err)
+
+	def, err = cluster.SignCreator(secret, def)
+	require.NoError(t, err)
+
+	def, err = def.SetDefinitionHashes()
+	require.NoError(t, err)
+
+	err = def.VerifyHashes()
+	require.NoError(t, err)
+
+	err = def.VerifySignatures()
+	require.NoError(t, err)
+
+	return def
 }
