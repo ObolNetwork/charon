@@ -437,27 +437,6 @@ func getOperators(numNodes int, clusterDir string, insecureKeys bool, shareSets 
 	return ops, nil
 }
 
-// newLock returns a new unsigned cluster lock.
-func newLock(conf clusterConfig, vals []cluster.DistValidator, ops []cluster.Operator) (cluster.Lock, error) {
-	forkVersion, err := eth2util.NetworkToForkVersion(conf.Network)
-	if err != nil {
-		return cluster.Lock{}, err
-	}
-
-	def, err := cluster.NewDefinition(conf.Name, len(vals), conf.Threshold, conf.FeeRecipient, conf.WithdrawalAddr,
-		forkVersion, cluster.Creator{}, ops, rand.Reader)
-	if err != nil {
-		return cluster.Lock{}, err
-	}
-
-	l := cluster.Lock{
-		Definition: def,
-		Validators: vals,
-	}
-
-	return l.SetLockHash()
-}
-
 // newDefFromConfig returns a new cluster definition using the provided config values.
 func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definition, error) {
 	forkVersion, err := eth2util.NetworkToForkVersion(conf.Network)
