@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -29,12 +28,10 @@ import (
 	"testing"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
@@ -227,41 +224,4 @@ func TestValidNetwork(t *testing.T) {
 	conf.Network = "mainnet"
 	err = validateDef(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
 	require.Error(t, err, "zero address")
-}
-
-// newDefinition returns a new definition with creator field populated.
-func newDefinition(t *testing.T, clusterName string, numNodes int) cluster.Definition {
-	t.Helper()
-
-	// Construct the creator
-	secret, err := crypto.GenerateKey()
-	require.NoError(t, err)
-
-	addr := crypto.PubkeyToAddress(secret.PublicKey)
-	creator := cluster.Creator{
-		Address: addr.Hex(),
-	}
-
-	// Construct the definition
-	var ops []cluster.Operator
-	for i := 0; i < numNodes; i++ {
-		ops = append(ops, cluster.Operator{})
-	}
-	def, err := cluster.NewDefinition(clusterName, 1, 3,
-		"", defaultWithdrawalAddr, eth2util.Sepolia.ForkVersionHex, creator, ops, rand.New(rand.NewSource(1)))
-	require.NoError(t, err)
-
-	def, err = cluster.SignCreator(secret, def)
-	require.NoError(t, err)
-
-	def, err = def.SetDefinitionHashes()
-	require.NoError(t, err)
-
-	err = def.VerifyHashes()
-	require.NoError(t, err)
-
-	err = def.VerifySignatures()
-	require.NoError(t, err)
-
-	return def
 }
