@@ -38,7 +38,7 @@ func TestDefinitionVerify(t *testing.T) {
 	t.Run("verify definition v1.4", func(t *testing.T) {
 		definition := randomDefinition(t, creator, op0, op1)
 
-		definition, err = SignCreator(secret3, definition)
+		definition, err = signCreator(secret3, definition)
 		require.NoError(t, err)
 
 		definition.Operators[0], err = signOperator(secret0, definition, op0)
@@ -141,7 +141,7 @@ func TestDefinitionVerify(t *testing.T) {
 			def.Operators = []Operator{}
 		})
 
-		definition, err = SignCreator(secret3, definition)
+		definition, err = signCreator(secret3, definition)
 		require.NoError(t, err)
 
 		definition, err = definition.SetDefinitionHashes()
@@ -159,7 +159,7 @@ func TestDefinitionVerify(t *testing.T) {
 			definition.Name = "solo flow"
 		})
 
-		definition, err = SignCreator(secret3, definition)
+		definition, err = signCreator(secret3, definition)
 		require.NoError(t, err)
 
 		definition, err = definition.SetDefinitionHashes()

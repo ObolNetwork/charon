@@ -132,8 +132,8 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	var (
 		def     cluster.Definition
-		network = conf.Network
 		err     error
+		network = conf.Network
 	)
 
 	if conf.DefFile != "" { // Load definition from DefFile
@@ -153,8 +153,9 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 	}
 
+	numNodes := len(def.Operators)
 	// Validate definition
-	err = validateDef(ctx, conf.InsecureKeys, len(def.Operators), def.Name, def.WithdrawalAddress, network)
+	err = validateDef(ctx, conf.InsecureKeys, numNodes, def.Name, def.WithdrawalAddress, network)
 	if err != nil {
 		return err
 	}
@@ -166,7 +167,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	// Generate threshold bls key shares
-	dvs, shareSets, err := getTSSShares(secrets, def.Threshold, len(def.Operators))
+	dvs, shareSets, err := getTSSShares(secrets, def.Threshold, numNodes)
 	if err != nil {
 		return err
 	}
@@ -178,14 +179,14 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	// Create operators
-	ops, err := getOperators(len(def.Operators), conf.ClusterDir, conf.InsecureKeys, shareSets)
+	ops, err := getOperators(numNodes, conf.ClusterDir, conf.InsecureKeys, shareSets)
 	if err != nil {
 		return err
 	}
 	def.Operators = ops
 
 	// Write deposit-data file
-	if err = writeDepositData(def.WithdrawalAddress, network, conf.ClusterDir, len(def.Operators), secrets); err != nil {
+	if err = writeDepositData(def.WithdrawalAddress, network, conf.ClusterDir, numNodes, secrets); err != nil {
 		return err
 	}
 
@@ -201,7 +202,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	if err = writeLock(lock, conf.ClusterDir, len(def.Operators), shareSets); err != nil {
+	if err = writeLock(lock, conf.ClusterDir, numNodes, shareSets); err != nil {
 		return err
 	}
 
@@ -209,7 +210,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		writeWarning(w)
 	}
 
-	writeOutput(w, conf.SplitKeys, conf.ClusterDir, len(def.Operators))
+	writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes)
 
 	return nil
 }

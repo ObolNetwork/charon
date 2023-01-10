@@ -161,7 +161,8 @@ func TestUnsupportedVersion(t *testing.T) {
 	require.ErrorContains(t, err, "unsupported definition version")
 }
 
-// TestExamples tests whether charon is backwards compatible with all examples.
+// TestExamples tests whether charon is backwards compatible with all examples. Note that these examples
+// are added manually and not auto-generated.
 func TestExamples(t *testing.T) {
 	lockFiles, err := filepath.Glob("examples/*lock*")
 	require.NoError(t, err)

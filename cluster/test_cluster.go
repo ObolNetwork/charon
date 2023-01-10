@@ -129,7 +129,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 			require.NoError(t, err)
 		}
 
-		def, err = SignCreator(p2pKeys[0], def)
+		def, err = signCreator(p2pKeys[0], def)
 		require.NoError(t, err)
 
 		// Recalculate definition hash after adding signatures.
