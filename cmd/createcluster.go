@@ -38,7 +38,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -161,7 +160,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 	}
 
-	err := validateClusterConfig(ctx, conf.InsecureKeys, numNodes, clusterName, withdrawalAddr, network)
+	err := validateDef(ctx, conf.InsecureKeys, numNodes, clusterName, withdrawalAddr, network)
 	if err != nil {
 		return err
 	}
@@ -529,8 +528,8 @@ func checksumAddr(a string) (string, error) {
 	return common.HexToAddress(a).Hex(), nil
 }
 
-// validateClusterConfig returns an error if the cluster config is invalid.
-func validateClusterConfig(ctx context.Context, insecureKeys bool, numNodes int, clusterName, withdrawalAddr, network string) error {
+// validateDef returns an error if any of the provided cluster fields are invalid.
+func validateDef(ctx context.Context, insecureKeys bool, numNodes int, clusterName, withdrawalAddr, network string) error {
 	if numNodes < minNodes {
 		return errors.New("insufficient number of nodes (min = 4)", z.Int("num_nodes", numNodes))
 	}
@@ -590,34 +589,31 @@ func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, er
 	// Fetch definition from network if URI is provided
 	if validURI(defFile) {
 		var err error
-		def, err = dkg.FetchDefinition(ctx, defFile)
+		def, err = cluster.FetchDefinition(ctx, defFile)
 		if err != nil {
 			return cluster.Definition{}, errors.Wrap(err, "read definition")
 		}
 
 		log.Info(ctx, "Cluster definition downloaded from URL", z.Str("URL", defFile),
 			z.Str("definition_hash", fmt.Sprintf("%#x", def.DefinitionHash)))
+	} else { // Fetch definition from disk
+		buf, err := os.ReadFile(defFile)
+		if err != nil {
+			return cluster.Definition{}, errors.Wrap(err, "read definition")
+		}
 
-		return def, nil
+		if err = json.Unmarshal(buf, &def); err != nil {
+			return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
+		}
+
+		log.Info(ctx, "Cluster definition loaded from disk", z.Str("path", defFile),
+			z.Str("definition_hash", fmt.Sprintf("%#x", def.DefinitionHash)))
 	}
 
-	// Fetch definition from disk
-	buf, err := os.ReadFile(defFile)
-	if err != nil {
-		return cluster.Definition{}, errors.Wrap(err, "read definition")
-	}
-
-	if err = json.Unmarshal(buf, &def); err != nil {
-		return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
-	}
-
-	log.Info(ctx, "Cluster definition loaded from disk", z.Str("path", defFile),
-		z.Str("definition_hash", fmt.Sprintf("%#x", def.DefinitionHash)))
-
-	if err = def.VerifySignatures(); err != nil {
+	if err := def.VerifySignatures(); err != nil {
 		return cluster.Definition{}, err
 	}
-	if err = def.VerifyHashes(); err != nil {
+	if err := def.VerifyHashes(); err != nil {
 		return cluster.Definition{}, err
 	}
 

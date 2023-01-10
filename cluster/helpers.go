@@ -17,13 +17,16 @@ package cluster
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -41,6 +44,35 @@ const (
 	// k1RecIdx is the secp256k1 signature recovery id index.
 	k1RecIdx = 64
 )
+
+// FetchDefinition fetches cluster definition file from a remote URI.
+func FetchDefinition(ctx context.Context, url string) (Definition, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return Definition{}, errors.Wrap(err, "create http request")
+	}
+
+	resp, err := new(http.Client).Do(req)
+	if err != nil {
+		return Definition{}, errors.Wrap(err, "fetch file")
+	}
+	defer resp.Body.Close()
+
+	buf, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return Definition{}, errors.Wrap(err, "read response body")
+	}
+
+	var res Definition
+	if err := json.Unmarshal(buf, &res); err != nil {
+		return Definition{}, errors.Wrap(err, "unmarshal definition")
+	}
+
+	return res, nil
+}
 
 // uuid returns a random uuid.
 func uuid(random io.Reader) string {

@@ -47,6 +47,15 @@ func TestCreateCluster(t *testing.T) {
 	defBytes, err := def.MarshalJSON()
 	require.NoError(t, err)
 
+	// Save definition to disk
+	dir, err := os.MkdirTemp("", "")
+	require.NoError(t, err)
+	defPath := path.Join(dir, "cluster-definition.json")
+
+	err = os.WriteFile(defPath, defBytes, 0o444)
+	require.NoError(t, err)
+
+	// Serve definition over network
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err = w.Write(defBytes)
 		require.NoError(t, err)
@@ -102,28 +111,14 @@ func TestCreateCluster(t *testing.T) {
 		},
 		{
 			Name: "solo flow definition from disk",
-			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
-				t.Helper()
-
-				// Save definition to disk
-				dir, err := os.MkdirTemp("", "")
-				require.NoError(t, err)
-				defPath := path.Join(dir, "cluster-definition.json")
-
-				err = os.WriteFile(defPath, defBytes, 0o444)
-				require.NoError(t, err)
-				config.DefFile = defPath
-
-				return config
+			Config: clusterConfig{
+				DefFile: defPath,
 			},
 		},
 		{
 			Name: "solo flow definition from network",
-			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
-				t.Helper()
-				config.DefFile = srv.URL
-
-				return config
+			Config: clusterConfig{
+				DefFile: srv.URL,
 			},
 		},
 	}
@@ -226,20 +221,20 @@ func TestValidNetwork(t *testing.T) {
 		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
 		Network:        "gnosis",
 	}
-	err := validateClusterConfig(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
+	err := validateDef(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
 	require.Error(t, err, "zero address")
 
 	conf.Network = "goerli"
-	err = validateClusterConfig(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
+	err = validateDef(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
 	require.NoError(t, err)
 
 	conf.InsecureKeys = true
 
-	err = validateClusterConfig(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
+	err = validateDef(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
 	require.NoError(t, err)
 
 	conf.Network = "mainnet"
-	err = validateClusterConfig(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
+	err = validateDef(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
 	require.Error(t, err, "zero address")
 }
 
