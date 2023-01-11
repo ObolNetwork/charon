@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"sync"
 	"testing"
 	"time"
 
@@ -289,56 +288,77 @@ func TestSyncFlow(t *testing.T) {
 			configs := getConfigs(t, lock.Definition, keys, dir, bnode)
 
 			// Initialise slice with the given number of nodes since this table tests input node indices as testcases.
-			dkgs := make([]*testDkg, test.nodes)
+			stopDkgs := make([]context.CancelFunc, test.nodes)
 
 			var (
-				mu   sync.Mutex
-				wg   sync.WaitGroup
-				once bool                     // 'once' all initial peers are connected.
-				done = make(map[peer.ID]bool) // To not execute callback more than once per peer.
+				done       = make(chan struct{})
+				dkgErrChan = make(chan error)
 			)
-			callback := func(connected int, id peer.ID) {
-				mu.Lock()
-				defer mu.Unlock()
 
-				if once || done[id] || connected != len(test.connect)-1 {
-					return
+			newCallback := func(required int) func(int, peer.ID) {
+				var called bool
+				return func(connected int, id peer.ID) {
+					if called || connected != required {
+						return
+					}
+
+					called = true
+					done <- struct{}{}
 				}
-
-				done[id] = true
-				wg.Done()
 			}
 
 			// Start DKG for initial peers.
 			for _, idx := range test.connect {
-				wg.Add(1)
-				configs[idx].TestSyncCallback = callback
-				dkgs[idx] = startNewDKG(t, configs[idx], errChan)
+				configs[idx].TestSyncCallback = newCallback(len(test.connect) - 1)
+				stopDkgs[idx] = startNewDKG(t, ctx, configs[idx], dkgErrChan)
 			}
 
 			// Wait for initial peers to connect with each other.
-			wg.Wait()
+			var connectedCount int
+			for connectedCount != len(test.connect) {
+				select {
+				case <-done:
+					connectedCount++
+				case err = <-errChan:
+					cancel()
+					testutil.SkipIfBindErr(t, err)
+					require.Fail(t, fmt.Sprintf("bootnode error: %v", err))
+				case err = <-dkgErrChan:
+					cancel()
+					testutil.SkipIfBindErr(t, err)
+					require.Fail(t, fmt.Sprintf("dkg error: %v", err))
+				}
+			}
 
 			// Drop some peers.
 			for _, idx := range test.disconnect {
-				dkgs[idx].Stop()
+				stopDkgs[idx]()
 
 				// Wait for this dkg process to return.
-				<-dkgs[idx].runChan
+				err = <-dkgErrChan
+				require.ErrorIs(t, err, context.Canceled)
 			}
-
-			// Do not execute callback again.
-			once = true
 
 			// Start remaining peers.
 			for _, idx := range test.reconnect {
-				dkgs[idx] = startNewDKG(t, configs[idx], errChan)
+				stopDkgs[idx] = startNewDKG(t, ctx, configs[idx], dkgErrChan)
 			}
 
-			// Assert DKG results
-			for i := 0; i < test.nodes; i++ {
-				dkgs[i].AssertDone(t)
+			// Assert DKG results for all DKG processes.
+			var disconnectedCount int
+			for disconnectedCount != test.nodes {
+				select {
+				case err = <-errChan:
+					cancel()
+					testutil.SkipIfBindErr(t, err)
+					require.Fail(t, fmt.Sprintf("bootnode error: %v", err))
+				case err = <-dkgErrChan:
+					testutil.SkipIfBindErr(t, err)
+					require.NoError(t, err)
+					disconnectedCount++
+				}
 			}
+
 			verifyDKGResults(t, lock.Definition, dir)
 		})
 	}
@@ -370,47 +390,19 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*ecdsa.PrivateKey, 
 	return configs
 }
 
-type testDkg struct {
-	ctx     context.Context
-	cancel  context.CancelFunc
-	runChan chan error
-	errChan <-chan error
-}
-
-func startNewDKG(t *testing.T, config dkg.Config, errChan <-chan error) *testDkg {
+func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkgErrChan chan error) context.CancelFunc {
 	t.Helper()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	runChan := make(chan error, 1)
+	ctx, cancel := context.WithCancel(parentCtx)
 
 	go func() {
-		runChan <- dkg.Run(ctx, config)
+		err := dkg.Run(ctx, config)
+		select {
+		case <-parentCtx.Done():
+			return
+		case dkgErrChan <- err:
+		}
 	}()
 
-	return &testDkg{
-		ctx:     ctx,
-		cancel:  cancel,
-		runChan: runChan,
-		errChan: errChan,
-	}
-}
-
-func (d *testDkg) Stop() {
-	d.cancel()
-}
-
-func (d *testDkg) AssertDone(t *testing.T) {
-	t.Helper()
-
-	select {
-	case <-d.ctx.Done():
-		return
-	case err := <-d.errChan:
-		testutil.SkipIfBindErr(t, err)
-		require.Fail(t, "bootnode error: %v", err)
-	case err := <-d.runChan:
-		d.cancel()
-		testutil.SkipIfBindErr(t, err)
-		require.NoError(t, err)
-	}
+	return cancel
 }
