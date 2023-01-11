@@ -245,6 +245,7 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 	}
 }
 
+//nolint:gocognit
 func TestSyncFlow(t *testing.T) {
 	tests := []struct {
 		name       string
