@@ -291,9 +291,8 @@ func TestSyncFlow(t *testing.T) {
 			stopDkgs := make([]context.CancelFunc, test.nodes)
 
 			var (
-				done           = make(chan struct{})
-				dkgErrChan     = make(chan error)
-				connectedCount int
+				done       = make(chan struct{})
+				dkgErrChan = make(chan error)
 			)
 
 			newCallback := func(required int) func(int, peer.ID) {
@@ -315,6 +314,7 @@ func TestSyncFlow(t *testing.T) {
 			}
 
 			// Wait for initial peers to connect with each other.
+			var connectedCount int
 			for connectedCount != len(test.connect) {
 				select {
 				case <-done:
