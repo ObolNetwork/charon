@@ -131,18 +131,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	var (
-		def     cluster.Definition
-		err     error
-		network = conf.Network
+		def cluster.Definition
+		err error
 	)
-
 	if conf.DefFile != "" { // Load definition from DefFile
 		def, err = loadDefinition(ctx, conf.DefFile)
-		if err != nil {
-			return err
-		}
-
-		network, err = eth2util.ForkVersionToNetwork(def.ForkVersion)
 		if err != nil {
 			return err
 		}
@@ -155,7 +148,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	numNodes := len(def.Operators)
 	// Validate definition
-	err = validateDef(ctx, conf.InsecureKeys, numNodes, def.Name, def.WithdrawalAddress, network)
+	err = validateDef(ctx, conf.InsecureKeys, def)
 	if err != nil {
 		return err
 	}
@@ -186,13 +179,12 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	def.Operators = ops
 
 	// Write deposit-data file
-	if err = writeDepositData(def.WithdrawalAddress, network, conf.ClusterDir, numNodes, secrets); err != nil {
+	if err = writeDepositData(def.WithdrawalAddress, conf.ClusterDir, def.ForkVersion, numNodes, secrets); err != nil {
 		return err
 	}
 
 	// Create cluster-lock
-	var lock cluster.Lock
-	lock = cluster.Lock{
+	lock := cluster.Lock{
 		Definition: def,
 		Validators: vals,
 	}
@@ -312,7 +304,12 @@ func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]*bls_sig.Secret
 }
 
 // writeDepositData writes deposit data to disk for the DVs for all peers in a cluster.
-func writeDepositData(withdrawalAddr, network, clusterDir string, numNodes int, secrets []*bls_sig.SecretKey) error {
+func writeDepositData(withdrawalAddr, clusterDir string, forkVersion []byte, numNodes int, secrets []*bls_sig.SecretKey) error {
+	network, err := eth2util.ForkVersionToNetwork(forkVersion)
+	if err != nil {
+		return err
+	}
+
 	// Create deposit message signatures
 	msgSigs, err := signDepositDatas(secrets, withdrawalAddr, network)
 	if err != nil {
@@ -515,19 +512,23 @@ func checksumAddr(a string) (string, error) {
 	return common.HexToAddress(a).Hex(), nil
 }
 
-// validateDef returns an error if any of the provided cluster fields are invalid.
-func validateDef(ctx context.Context, insecureKeys bool, numNodes int, clusterName, withdrawalAddr, network string) error {
-	if numNodes < minNodes {
-		return errors.New("insufficient number of nodes (min = 4)", z.Int("num_nodes", numNodes))
+// validateDef returns an error if the provided cluster definition is valid.
+func validateDef(ctx context.Context, insecureKeys bool, def cluster.Definition) error {
+	if len(def.Operators) < minNodes {
+		return errors.New("insufficient number of nodes (min = 4)", z.Int("num_nodes", len(def.Operators)))
 	}
 
+	network, err := eth2util.ForkVersionToNetwork(def.ForkVersion)
+	if err != nil {
+		return err
+	}
 	if insecureKeys && isMainNetwork(network) {
 		return errors.New("insecure keys not supported on mainnet")
 	} else if insecureKeys {
 		log.Warn(ctx, "Insecure keystores configured. ONLY DO THIS DURING TESTING", nil)
 	}
 
-	if clusterName == "" {
+	if def.Name == "" {
 		return errors.New("name not provided")
 	}
 
@@ -535,7 +536,7 @@ func validateDef(ctx context.Context, insecureKeys bool, numNodes int, clusterNa
 		return errors.New("unsupported network", z.Str("network", network))
 	}
 
-	return validateWithdrawalAddr(withdrawalAddr, network)
+	return validateWithdrawalAddr(def.WithdrawalAddress, network)
 }
 
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.

@@ -18,6 +18,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
@@ -201,7 +203,6 @@ func TestChecksumAddr(t *testing.T) {
 
 func TestValidNetwork(t *testing.T) {
 	ctx := context.Background()
-
 	conf := clusterConfig{
 		Name:           "test",
 		NumNodes:       4,
@@ -209,19 +210,25 @@ func TestValidNetwork(t *testing.T) {
 		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
 		Network:        "gnosis",
 	}
-	err := validateDef(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
+
+	def, err := newDefFromConfig(ctx, conf)
+	require.NoError(t, err)
+
+	err = validateDef(ctx, false, def)
 	require.Error(t, err, "zero address")
 
-	conf.Network = "goerli"
-	err = validateDef(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
+	goerli, err := hex.DecodeString(strings.TrimPrefix(eth2util.Goerli.ForkVersionHex, "0x"))
+	require.NoError(t, err)
+	def.ForkVersion = goerli
+	err = validateDef(ctx, false, def)
 	require.NoError(t, err)
 
-	conf.InsecureKeys = true
-
-	err = validateDef(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
+	err = validateDef(ctx, true, def) // Validate with insecure keys set to true
 	require.NoError(t, err)
 
-	conf.Network = "mainnet"
-	err = validateDef(ctx, conf.InsecureKeys, conf.NumNodes, conf.Name, conf.WithdrawalAddr, conf.Network)
+	mainnet, err := hex.DecodeString(strings.TrimPrefix(eth2util.Mainnet.ForkVersionHex, "0x"))
+	require.NoError(t, err)
+	def.ForkVersion = mainnet
+	err = validateDef(ctx, conf.InsecureKeys, def)
 	require.Error(t, err, "zero address")
 }
