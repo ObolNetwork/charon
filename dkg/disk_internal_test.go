@@ -18,66 +18,13 @@ package dkg
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
 )
-
-func TestFetchDefinition(t *testing.T) {
-	lock, _, _ := cluster.NewForT(t, 1, 2, 3, 0)
-	validDef := lock.Definition
-	invalidDef := cluster.Definition{}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch strings.TrimSpace(r.URL.Path) {
-		case "/validDef":
-			b, _ := validDef.MarshalJSON()
-			_, _ = w.Write(b)
-		case "/invalidDef":
-			b, _ := invalidDef.MarshalJSON()
-			_, _ = w.Write(b)
-		}
-	}))
-	defer server.Close()
-
-	tests := []struct {
-		name    string
-		url     string
-		want    cluster.Definition
-		wantErr bool
-	}{
-		{
-			name:    "Fetch valid definition",
-			url:     fmt.Sprintf("%s/%s", server.URL, "validDef"),
-			want:    validDef,
-			wantErr: false,
-		},
-		{
-			name:    "Fetch invalid definition",
-			url:     fmt.Sprintf("%s/%s", server.URL, "invalidDef"),
-			want:    invalidDef,
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := fetchDefinition(context.Background(), tt.url)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
 
 func TestLoadDefinition(t *testing.T) {
 	// Valid definition

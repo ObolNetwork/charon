@@ -1,10 +1,22 @@
 {
   "name": "solo flow",
   "creator": {
-    "address": "0x20D0dD74bA23e9a241FD533833E91B3Bf38F0DB2",
-    "config_signature": "0x97a3e4a7634c3c635991bdb01db8edb3eaae003b25c9d25e39378cf2c8a2f9bd5f598e8ce2791fa7d67c3bf344a1b4ea772929349a71c9eb10f123061aab788700"
+    "address": "0xb795B19cD5473586dA16a1524C6b6756a9cf5416",
+    "config_signature": "0xcfbe7ee884d45364ad66b116335b5a0bf00a27a4108094c3302b908b8142909c24d57c4fdeb02f6b2bd263a07c653b672fe7159cf2e9c6581de8c7e77d134bfe00"
   },
   "operators": [
+    {
+      "address": "",
+      "enr": "",
+      "config_signature": "",
+      "enr_signature": ""
+    },
+    {
+      "address": "",
+      "enr": "",
+      "config_signature": "",
+      "enr_signature": ""
+    },
     {
       "address": "",
       "enr": "",
@@ -20,11 +32,12 @@
   ],
   "uuid": "52FDFC07-2182-654F-163F-5F0F9A621D72",
   "version": "v1.4.0",
-  "timestamp": "2023-01-09T11:04:17+02:00",
+  "timestamp": "2023-01-10T22:22:25+05:30",
   "num_validators": 1,
-  "threshold": 2,
+  "threshold": 3,
+  "withdrawal_address": "0x0000000000000000000000000000000000000000",
   "dkg_algorithm": "default",
   "fork_version": "0x90000069",
-  "config_hash": "0x4faee45f81477905c50b33743e033dc9eeab091423156da273ccd9ad585caf3a",
-  "definition_hash": "0x9f7d1e52b75ba93c58121f0f92df5905a84195cd03c7435784c67c713d026bf5"
+  "config_hash": "0x9dcdcf5a51bb9cdbdfedb3d94e0ebf21e7ffa049189ab393202b099eaf74eb36",
+  "definition_hash": "0x77f105a3e17f96c0c27cba0eb037691c8f7c15fc9b8daf0f62903fd743550f91"
 }

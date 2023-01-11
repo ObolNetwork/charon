@@ -18,7 +18,10 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"path/filepath"
@@ -30,6 +33,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
@@ -38,6 +42,20 @@ import (
 //go:generate go test . -run=TestCreateCluster -update -clean
 
 func TestCreateCluster(t *testing.T) {
+	defPath := "../cluster/examples/cluster-definition-002.json"
+	def, err := loadDefinition(context.Background(), defPath)
+	require.NoError(t, err)
+
+	// Serve definition over network
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defBytes, err := os.ReadFile(defPath)
+		require.NoError(t, err)
+
+		_, err = w.Write(defBytes)
+		require.NoError(t, err)
+	}))
+	defer srv.Close()
+
 	tests := []struct {
 		Name   string
 		Config clusterConfig
@@ -85,6 +103,18 @@ func TestCreateCluster(t *testing.T) {
 				Network:   "goerli",
 			},
 		},
+		{
+			Name: "solo flow definition from disk",
+			Config: clusterConfig{
+				DefFile: defPath,
+			},
+		},
+		{
+			Name: "solo flow definition from network",
+			Config: clusterConfig{
+				DefFile: srv.URL,
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
@@ -98,12 +128,12 @@ func TestCreateCluster(t *testing.T) {
 				test.Config.Network = defaultNetwork
 			}
 
-			testCreateCluster(t, test.Config)
+			testCreateCluster(t, test.Config, def)
 		})
 	}
 }
 
-func testCreateCluster(t *testing.T, conf clusterConfig) {
+func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition) {
 	t.Helper()
 
 	dir, err := os.MkdirTemp("", "")
@@ -146,6 +176,17 @@ func testCreateCluster(t *testing.T, conf clusterConfig) {
 		require.NoError(t, json.Unmarshal(b, &lock))
 		require.NoError(t, lock.VerifyHashes())
 		require.NoError(t, lock.VerifySignatures())
+
+		if conf.DefFile != "" {
+			// Config hash and creator should remain the same
+			require.Equal(t, def.ConfigHash, lock.ConfigHash)
+			require.Equal(t, def.Creator, lock.Creator)
+
+			for i := 0; i < len(def.Operators); i++ {
+				// ENRs should be populated
+				require.NotEqual(t, lock.Operators[i].ENR, "")
+			}
+		}
 	})
 }
 
@@ -162,7 +203,6 @@ func TestChecksumAddr(t *testing.T) {
 
 func TestValidNetwork(t *testing.T) {
 	ctx := context.Background()
-
 	conf := clusterConfig{
 		Name:           "test",
 		NumNodes:       4,
@@ -170,19 +210,25 @@ func TestValidNetwork(t *testing.T) {
 		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
 		Network:        "gnosis",
 	}
-	err := validateClusterConfig(ctx, conf)
+
+	def, err := newDefFromConfig(ctx, conf)
+	require.NoError(t, err)
+
+	err = validateDef(ctx, false, def)
 	require.Error(t, err, "zero address")
 
-	conf.Network = "goerli"
-	err = validateClusterConfig(ctx, conf)
+	goerli, err := hex.DecodeString(strings.TrimPrefix(eth2util.Goerli.ForkVersionHex, "0x"))
+	require.NoError(t, err)
+	def.ForkVersion = goerli
+	err = validateDef(ctx, false, def)
 	require.NoError(t, err)
 
-	conf.InsecureKeys = true
-
-	err = validateClusterConfig(ctx, conf)
+	err = validateDef(ctx, true, def) // Validate with insecure keys set to true
 	require.NoError(t, err)
 
-	conf.Network = "mainnet"
-	err = validateClusterConfig(ctx, conf)
+	mainnet, err := hex.DecodeString(strings.TrimPrefix(eth2util.Mainnet.ForkVersionHex, "0x"))
+	require.NoError(t, err)
+	def.ForkVersion = mainnet
+	err = validateDef(ctx, conf.InsecureKeys, def)
 	require.Error(t, err, "zero address")
 }

@@ -16,6 +16,11 @@
 package cluster
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -67,4 +72,53 @@ func TestVerifySig(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
+}
+
+func TestFetchDefinition(t *testing.T) {
+	lock, _, _ := NewForT(t, 1, 2, 3, 0)
+	validDef := lock.Definition
+	invalidDef := Definition{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch strings.TrimSpace(r.URL.Path) {
+		case "/validDef":
+			b, _ := validDef.MarshalJSON()
+			_, _ = w.Write(b)
+		case "/invalidDef":
+			b, _ := invalidDef.MarshalJSON()
+			_, _ = w.Write(b)
+		}
+	}))
+	defer server.Close()
+
+	tests := []struct {
+		name    string
+		url     string
+		want    Definition
+		wantErr bool
+	}{
+		{
+			name:    "Fetch valid definition",
+			url:     fmt.Sprintf("%s/%s", server.URL, "validDef"),
+			want:    validDef,
+			wantErr: false,
+		},
+		{
+			name:    "Fetch invalid definition",
+			url:     fmt.Sprintf("%s/%s", server.URL, "invalidDef"),
+			want:    invalidDef,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := FetchDefinition(context.Background(), tt.url)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

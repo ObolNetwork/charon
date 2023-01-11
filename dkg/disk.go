@@ -19,13 +19,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
-	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -51,7 +48,7 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	var def cluster.Definition
 	if validURI(conf.DefFile) {
 		var err error
-		def, err = fetchDefinition(ctx, conf.DefFile)
+		def, err = cluster.FetchDefinition(ctx, conf.DefFile)
 		if err != nil {
 			return cluster.Definition{}, errors.Wrap(err, "read definition")
 		}
@@ -96,35 +93,6 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	}
 
 	return def, nil
-}
-
-// fetchDefinition fetches cluster definition file from a remote URI.
-func fetchDefinition(ctx context.Context, url string) (cluster.Definition, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return cluster.Definition{}, errors.Wrap(err, "create http request")
-	}
-
-	resp, err := new(http.Client).Do(req)
-	if err != nil {
-		return cluster.Definition{}, errors.Wrap(err, "fetch file")
-	}
-	defer resp.Body.Close()
-
-	buf, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return cluster.Definition{}, errors.Wrap(err, "read response body")
-	}
-
-	var res cluster.Definition
-	if err := json.Unmarshal(buf, &res); err != nil {
-		return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
-	}
-
-	return res, nil
 }
 
 // writeKeystores writes the private share keystores to disk.
