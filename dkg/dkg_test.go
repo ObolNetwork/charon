@@ -288,7 +288,7 @@ func TestSyncFlow(t *testing.T) {
 			configs := getConfigs(t, lock.Definition, keys, dir, bnode)
 
 			// Initialise slice with the given number of nodes since this table tests input node indices as testcases.
-			dkgs := make([]*testDkg, test.nodes)
+			stopDkgs := make([]context.CancelFunc, test.nodes)
 
 			var (
 				done           = make(chan struct{})
@@ -311,7 +311,7 @@ func TestSyncFlow(t *testing.T) {
 			// Start DKG for initial peers.
 			for _, idx := range test.connect {
 				configs[idx].TestSyncCallback = newCallback(len(test.connect) - 1)
-				dkgs[idx] = startNewDKG(t, ctx, configs[idx], dkgErrChan)
+				stopDkgs[idx] = startNewDKG(t, ctx, configs[idx], dkgErrChan)
 			}
 
 			// Wait for initial peers to connect with each other.
@@ -332,28 +332,31 @@ func TestSyncFlow(t *testing.T) {
 
 			// Drop some peers.
 			for _, idx := range test.disconnect {
-				dkgs[idx].Stop()
+				stopDkgs[idx]()
 
 				// Wait for this dkg process to return.
 				err = <-dkgErrChan
-				require.ErrorContains(t, err, "context canceled")
+				require.ErrorIs(t, err, context.Canceled)
 			}
 
 			// Start remaining peers.
 			for _, idx := range test.reconnect {
-				dkgs[idx] = startNewDKG(t, ctx, configs[idx], dkgErrChan)
+				stopDkgs[idx] = startNewDKG(t, ctx, configs[idx], dkgErrChan)
 			}
 
-			// Assert DKG results
-			select {
-			case err = <-errChan:
-				cancel()
-				testutil.SkipIfBindErr(t, err)
-				require.Fail(t, fmt.Sprintf("bootnode error: %v", err))
-			case err = <-dkgErrChan:
-				cancel()
-				testutil.SkipIfBindErr(t, err)
-				require.NoError(t, err)
+			// Assert DKG results for all DKG processes.
+			var disconnectedCount int
+			for disconnectedCount != test.nodes {
+				select {
+				case err = <-errChan:
+					cancel()
+					testutil.SkipIfBindErr(t, err)
+					require.Fail(t, fmt.Sprintf("bootnode error: %v", err))
+				case err = <-dkgErrChan:
+					testutil.SkipIfBindErr(t, err)
+					require.NoError(t, err)
+					disconnectedCount++
+				}
 			}
 
 			verifyDKGResults(t, lock.Definition, dir)
@@ -387,12 +390,7 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*ecdsa.PrivateKey, 
 	return configs
 }
 
-type testDkg struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-}
-
-func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkgErrChan chan error) *testDkg {
+func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkgErrChan chan error) context.CancelFunc {
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -406,12 +404,5 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 		}
 	}()
 
-	return &testDkg{
-		ctx:    ctx,
-		cancel: cancel,
-	}
-}
-
-func (d *testDkg) Stop() {
-	d.cancel()
+	return cancel
 }
