@@ -62,6 +62,39 @@ func StoreKeys(secrets []*bls_sig.SecretKey, dir string) error {
 	return storeKeysInternal(secrets, dir, "keystore-%d.json")
 }
 
+// keymanagerReq represents the keymanager API request body. Refer: https://ethereum.github.io/keymanager-APIs/#/Local%20Key%20Manager/importKeystores
+type keymanagerReq struct {
+	Keystores          []keystore `json:"keystores"`
+	Passwords          []string   `json:"passwords"`
+	SlashingProtection string     `json:"slashing_protection"` // https://eips.ethereum.org/EIPS/eip-3076
+}
+
+// KeymanagerAPIReqBody returns the marshalled data for making keymanager API request.
+func KeymanagerAPIReqBody(secrets []*bls_sig.SecretKey) ([]byte, error) {
+	var req keymanagerReq
+	for _, secret := range secrets {
+		password, err := randomHex32()
+		if err != nil {
+			return nil, err
+		}
+
+		store, err := encrypt(secret, password, rand.Reader)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Keystores = append(req.Keystores, store)
+		req.Passwords = append(req.Passwords, password)
+	}
+
+	res, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.New("marshal keymanager request body")
+	}
+
+	return res, nil
+}
+
 func storeKeysInternal(secrets []*bls_sig.SecretKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
 	for i, secret := range secrets {
 		password, err := randomHex32()

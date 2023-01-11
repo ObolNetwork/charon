@@ -16,11 +16,13 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -53,10 +55,11 @@ const (
 )
 
 type clusterConfig struct {
-	Name       string
-	ClusterDir string
-	DefFile    string
-	Clean      bool
+	Name            string
+	ClusterDir      string
+	DefFile         string
+	KeymanagerAddrs []string
+	Clean           bool
 
 	NumNodes       int
 	Threshold      int
@@ -94,6 +97,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.Name, "name", "", "The cluster name")
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
 	flags.StringVar(&config.DefFile, "definition-file", "", "Optional path to a cluster definition file or an HTTP URL. This overrides all other configuration flags.")
+	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager APIs to push validator keys to.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", minNodes, "The number of charon nodes in the cluster. Minimum is 4.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
@@ -172,11 +176,22 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	// Create operators
-	ops, err := getOperators(numNodes, conf.ClusterDir, conf.InsecureKeys, shareSets)
+	ops, err := getOperators(numNodes, conf.ClusterDir)
 	if err != nil {
 		return err
 	}
 	def.Operators = ops
+
+	if len(conf.KeymanagerAddrs) != 0 { // Push keys to keymanager
+		if err = saveKeysToKeymanager(ctx, conf.KeymanagerAddrs, numNodes, shareSets); err != nil {
+			return err
+		}
+	}
+
+	// Write keys
+	if err = saveKeysToDisk(numNodes, conf.ClusterDir, conf.InsecureKeys, shareSets); err != nil {
+		return err
+	}
 
 	// Write deposit-data file
 	if err = writeDepositData(def.WithdrawalAddress, conf.ClusterDir, def.ForkVersion, numNodes, secrets); err != nil {
@@ -386,8 +401,84 @@ func getValidators(dvs []tbls.TSS) ([]cluster.DistValidator, error) {
 	return vals, nil
 }
 
-// getOperators returns a list of operators from the provided secret keyshares.
-func getOperators(numNodes int, clusterDir string, insecureKeys bool, shareSets [][]*bls_sig.SecretKeyShare) ([]cluster.Operator, error) {
+// saveKeysToKeyManager saves validator keys to the provided keymanager API endpoint.
+func saveKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]*bls_sig.SecretKeyShare) error {
+	if len(addrs) != numNodes {
+		return errors.New("insufficient no of keymanager addresses", z.Int("expected", numNodes), z.Int("got", len(addrs)))
+	}
+
+	for i := 0; i < numNodes; i++ {
+		var secrets []*bls_sig.SecretKey
+		for _, shares := range shareSets {
+			secret, err := tblsconv.ShareToSecret(shares[i])
+			if err != nil {
+				return err
+			}
+			secrets = append(secrets, secret)
+		}
+
+		body, err := keystore.KeymanagerAPIReqBody(secrets)
+		if err != nil {
+			return err
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, addrs[i], bytes.NewReader(body))
+		if err != nil {
+			return errors.Wrap(err, "new POST request", z.Str("url", addrs[i]))
+		}
+
+		resp, err := new(http.Client).Do(req)
+		if err != nil {
+			return errors.Wrap(err, "post validator keys to keymanager")
+		}
+
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return errors.Wrap(err, "read response")
+		}
+		resp.Body.Close()
+
+		if resp.StatusCode/100 != 2 {
+			return errors.New("failed posting keys", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
+		}
+	}
+
+	return nil
+}
+
+// saveKeysToDisk saves validator keys to disk. It assumes that the directory for each node already exists.
+func saveKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSets [][]*bls_sig.SecretKeyShare) error {
+	for i := 0; i < numNodes; i++ {
+		var secrets []*bls_sig.SecretKey
+		for _, shares := range shareSets {
+			secret, err := tblsconv.ShareToSecret(shares[i])
+			if err != nil {
+				return err
+			}
+			secrets = append(secrets, secret)
+		}
+
+		keysDir := path.Join(nodeDir(clusterDir, i), "/validator_keys")
+		if err := os.MkdirAll(keysDir, 0o755); err != nil {
+			return errors.Wrap(err, "mkdir validator_keys")
+		}
+
+		if insecureKeys {
+			if err := keystore.StoreKeysInsecure(secrets, keysDir, keystore.ConfirmInsecureKeys); err != nil {
+				return err
+			}
+		} else {
+			if err := keystore.StoreKeys(secrets, keysDir); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// getOperators returns a list of operators from the provided secret keyshares.  It also creates a new directory corresponding to each node.
+func getOperators(numNodes int, clusterDir string) ([]cluster.Operator, error) {
 	var peers []p2p.Peer
 	for i := 0; i < numNodes; i++ {
 		peer, err := newPeer(clusterDir, i)
@@ -396,31 +487,6 @@ func getOperators(numNodes int, clusterDir string, insecureKeys bool, shareSets 
 		}
 
 		peers = append(peers, peer)
-
-		var secrets []*bls_sig.SecretKey
-		for _, shares := range shareSets {
-			secret, err := tblsconv.ShareToSecret(shares[i])
-			if err != nil {
-				return nil, err
-			}
-			secrets = append(secrets, secret)
-		}
-
-		keysDir := path.Join(nodeDir(clusterDir, i), "/validator_keys")
-
-		if err := os.MkdirAll(keysDir, 0o755); err != nil {
-			return nil, errors.Wrap(err, "mkdir validator_keys")
-		}
-
-		if insecureKeys {
-			if err := keystore.StoreKeysInsecure(secrets, keysDir, keystore.ConfirmInsecureKeys); err != nil {
-				return nil, err
-			}
-		} else {
-			if err := keystore.StoreKeys(secrets, keysDir); err != nil {
-				return nil, err
-			}
-		}
 	}
 
 	var ops []cluster.Operator
