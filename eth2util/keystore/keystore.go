@@ -64,9 +64,8 @@ func StoreKeys(secrets []*bls_sig.SecretKey, dir string) error {
 
 // keymanagerReq represents the keymanager API request body for POST request. Refer: https://ethereum.github.io/keymanager-APIs/#/Local%20Key%20Manager/importKeystores
 type keymanagerReq struct {
-	Keystores          []keystore `json:"keystores"`
-	Passwords          []string   `json:"passwords"`
-	SlashingProtection string     `json:"slashing_protection"` // https://eips.ethereum.org/EIPS/eip-3076
+	Keystores []keystore `json:"keystores"`
+	Passwords []string   `json:"passwords"`
 }
 
 // KeymanagerReqBody converts the provided secrets into keymanagerReq and returns the marshalled request.

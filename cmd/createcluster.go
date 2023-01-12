@@ -442,7 +442,7 @@ func saveKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sha
 	}
 
 	grp := new(errgroup.Group)
-	retriesCount := 5
+	maxRetries := 5
 	for i := 0; i < numNodes; i++ {
 		var secrets []*bls_sig.SecretKey
 		for _, shares := range shareSets {
@@ -453,7 +453,7 @@ func saveKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sha
 			secrets = append(secrets, secret)
 		}
 
-		retries := retriesCount
+		retries := maxRetries
 		addr := addrs[i]
 		grp.Go(func() error {
 			for retries > 0 {
@@ -472,10 +472,10 @@ func saveKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sha
 
 	if err := grp.Wait(); err != nil {
 		// TODO(xenowits): Do we delete pushed keys since some got pushed while others didn't?
-		return errors.Wrap(err, "push key to keymanager API")
+		return errors.Wrap(err, "push keys to keymanager API")
 	}
 
-	log.Info(ctx, "Pushed validator keys to keymanager APIs")
+	log.Info(ctx, "Pushed all validator keys to keymanager APIs")
 
 	return nil
 }

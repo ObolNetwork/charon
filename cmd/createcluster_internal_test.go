@@ -253,6 +253,8 @@ func TestKeymanager(t *testing.T) {
 
 	// Create minNodes test servers
 	results := make(chan result, minNodes) // Buffered channel
+	defer close(results)
+
 	var addrs []string
 	var servers []*httptest.Server
 	for i := 0; i < minNodes; i++ {
@@ -277,44 +279,56 @@ func TestKeymanager(t *testing.T) {
 		KeymanagerAddrs: addrs,
 		Network:         defaultNetwork,
 		WithdrawalAddr:  defaultWithdrawalAddr,
+		Clean:           true,
 	}
 	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	conf.ClusterDir = dir
 
-	// Run create cluster command
-	var buf bytes.Buffer
-	err = runCreateCluster(context.Background(), &buf, conf)
-	if err != nil {
-		log.Error(context.Background(), "", err)
-	}
-	require.NoError(t, err)
-
-	// Receive secret shares from all keymanager servers
-	var shares []*bls_sig.SecretKeyShare
-	for len(shares) < minNodes {
-		res := <-results
-		secretBin, err := res.secret.MarshalBinary()
-		require.NoError(t, err)
-
-		share := new(bls_sig.SecretKeyShare)
-		err = share.UnmarshalBinary(append(secretBin, byte(res.id+1)))
-		require.NoError(t, err)
-
-		shares = append(shares, share)
-
-		if len(shares) == minNodes {
-			close(results)
+	t.Run("all successful", func(t *testing.T) {
+		// Run create cluster command
+		var buf bytes.Buffer
+		err = runCreateCluster(context.Background(), &buf, conf)
+		if err != nil {
+			log.Error(context.Background(), "", err)
 		}
-	}
+		require.NoError(t, err)
 
-	// Combine the shares and test equality with original share
-	csb, err := tbls.CombineShares(shares, 3, minNodes)
-	require.NoError(t, err)
-	combinedSecret, err := csb.MarshalBinary()
-	require.NoError(t, err)
+		// Receive secret shares from all keymanager servers
+		var shares []*bls_sig.SecretKeyShare
+		for len(shares) < minNodes {
+			res := <-results
+			secretBin, err := res.secret.MarshalBinary()
+			require.NoError(t, err)
 
-	require.Equal(t, combinedSecret, originalSecret)
+			share := new(bls_sig.SecretKeyShare)
+			err = share.UnmarshalBinary(append(secretBin, byte(res.id+1)))
+			require.NoError(t, err)
+
+			shares = append(shares, share)
+		}
+
+		// Combine the shares and test equality with original share
+		csb, err := tbls.CombineShares(shares, 3, minNodes)
+		require.NoError(t, err)
+		combinedSecret, err := csb.MarshalBinary()
+		require.NoError(t, err)
+
+		require.Equal(t, combinedSecret, originalSecret)
+	})
+
+	t.Run("some unsuccessful", func(t *testing.T) {
+		// Close one server so that request to it fails
+		servers[0].Close()
+
+		// Run create cluster command
+		var buf bytes.Buffer
+		err = runCreateCluster(context.Background(), &buf, conf)
+		if err != nil {
+			log.Error(context.Background(), "", err)
+		}
+		require.ErrorContains(t, err, "push keys to keymanager API: max retries done")
+	})
 }
 
 // noopKeymanagerReq is a mock keystore.keymanagerReq for use in tests.
