@@ -26,6 +26,52 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
+var (
+	loremIn  = []byte("Lorem ipsum dolor sit amet, consectetur adipisicing elit")
+	loremOut = []byte{0xb8, 0x38, 'L', 'o', 'r', 'e', 'm', ' ', 'i', 'p', 's', 'u', 'm', ' ', 'd', 'o', 'l', 'o', 'r', ' ', 's', 'i', 't', ' ', 'a', 'm', 'e', 't', ',', ' ', 'c', 'o', 'n', 's', 'e', 'c', 't', 'e', 't', 'u', 'r', ' ', 'a', 'd', 'i', 'p', 'i', 's', 'i', 'c', 'i', 'n', 'g', ' ', 'e', 'l', 'i', 't'}
+)
+
+// TestBytesList tests encoding and decoding of lists of byte slices using examples from the RLP spec.
+// See https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/#examples.
+func TestBytesList(t *testing.T) {
+	tests := []struct {
+		input  [][]byte
+		output []byte
+	}{
+		{
+			input:  [][]byte{[]byte("cat"), []byte("dog")},
+			output: []byte{0xc8, 0x83, 'c', 'a', 't', 0x83, 'd', 'o', 'g'},
+		},
+		{
+			input:  [][]byte{},
+			output: []byte{0xc0},
+		},
+		{
+			input:  [][]byte{loremIn, loremIn, loremIn, loremIn, loremIn, loremIn, loremIn, loremIn},
+			output: appendSlices([]byte{0xf9, 0x01, 0xd0}, loremOut, loremOut, loremOut, loremOut, loremOut, loremOut, loremOut, loremOut),
+		},
+	}
+	for i, test := range tests {
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			encoded, err := rlp.EncodeBytesList(test.input)
+			testutil.RequireNoError(t, err)
+			if len(test.output) == 0 {
+				require.Empty(t, encoded)
+			} else {
+				require.Equal(t, test.output, encoded)
+			}
+
+			decoded, err := rlp.DecodeBytesList(encoded)
+			testutil.RequireNoError(t, err)
+			if len(test.input) == 0 {
+				require.Empty(t, decoded)
+			} else {
+				require.Equal(t, test.input, decoded)
+			}
+		})
+	}
+}
+
 // TestBytes tests encoding and decoding of byte slices using examples from the RLP spec.
 // See https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/#examples.
 func TestBytes(t *testing.T) {
@@ -35,7 +81,7 @@ func TestBytes(t *testing.T) {
 	}{
 		{
 			input:  []byte("dog"),
-			output: []byte{0x83, byte('d'), byte('o'), byte('g')},
+			output: []byte{0x83, 'd', 'o', 'g'},
 		},
 		{
 			input:  []byte(""),
@@ -55,8 +101,8 @@ func TestBytes(t *testing.T) {
 			output: []byte{0x0f},
 		},
 		{
-			input:  []byte("Lorem ipsum dolor sit amet, consectetur adipisicing elit"),
-			output: []byte{0xb8, 0x38, 'L', 'o', 'r', 'e', 'm', ' ', 'i', 'p', 's', 'u', 'm', ' ', 'd', 'o', 'l', 'o', 'r', ' ', 's', 'i', 't', ' ', 'a', 'm', 'e', 't', ',', ' ', 'c', 'o', 'n', 's', 'e', 'c', 't', 'e', 't', 'u', 'r', ' ', 'a', 'd', 'i', 'p', 'i', 's', 'i', 'c', 'i', 'n', 'g', ' ', 'e', 'l', 'i', 't'},
+			input:  loremIn,
+			output: loremOut,
 		},
 	}
 	for i, test := range tests {
@@ -99,4 +145,13 @@ func TestLengths(t *testing.T) {
 			require.Equal(t, buf, decoded)
 		})
 	}
+}
+
+func appendSlices(slices ...[]byte) []byte {
+	var resp []byte
+	for _, slice := range slices {
+		resp = append(resp, slice...)
+	}
+
+	return resp
 }
