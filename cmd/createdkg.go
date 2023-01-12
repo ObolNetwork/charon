@@ -176,7 +176,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 func validateWithdrawalAddr(addr string, network string) error {
 	if !common.IsHexAddress(addr) {
-		return errors.New("invalid address", z.Str("addr", addr))
+		return errors.New("invalid withdrawal address", z.Str("addr", addr))
 	}
 
 	// We cannot allow a zero withdrawal address on mainnet or gnosis.

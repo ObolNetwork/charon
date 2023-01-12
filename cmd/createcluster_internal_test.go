@@ -20,8 +20,10 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -30,12 +32,14 @@ import (
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
+	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -231,4 +235,153 @@ func TestValidNetwork(t *testing.T) {
 	def.ForkVersion = mainnet
 	err = validateDef(ctx, conf.InsecureKeys, def)
 	require.Error(t, err, "zero address")
+}
+
+// TestKeymanager tests keymanager support by letting create cluster command to split a single secret and then receiving those keyshares
+// using a test server. These shares are then combined to create the combined share which is then compared to the original secret that was split.
+func TestKeymanager(t *testing.T) {
+	// Create secret
+	_, secret1, err := tbls.Keygen()
+	require.NoError(t, err)
+	originalSecret, err := secret1.MarshalBinary()
+	require.NoError(t, err)
+
+	// Store secret
+	keyDir, err := os.MkdirTemp("", "")
+	require.NoError(t, err)
+	err = keystore.StoreKeys([]*bls_sig.SecretKey{secret1}, keyDir)
+	require.NoError(t, err)
+
+	// Create minNodes test servers
+	results := make(chan result, minNodes) // Buffered channel
+	var addrs []string
+	var servers []*httptest.Server
+	for i := 0; i < minNodes; i++ {
+		srv := httptest.NewServer(newKeymanagerHandler(t, i, results))
+		servers = append(servers, srv)
+
+		urlPath := "/eth/v1/keystores"
+		addr, err := url.JoinPath(srv.URL, urlPath)
+		require.NoError(t, err)
+		addrs = append(addrs, addr)
+	}
+
+	defer func() {
+		for _, srv := range servers {
+			srv.Close()
+		}
+	}()
+
+	// Create cluster config
+	conf := clusterConfig{
+		Name:            t.Name(),
+		SplitKeysDir:    keyDir,
+		SplitKeys:       true,
+		NumNodes:        minNodes,
+		NumDVs:          1,
+		KeymanagerAddrs: addrs,
+		Network:         defaultNetwork,
+		WithdrawalAddr:  defaultWithdrawalAddr,
+	}
+	dir, err := os.MkdirTemp("", "")
+	require.NoError(t, err)
+	conf.ClusterDir = dir
+
+	// Run create cluster command
+	var buf bytes.Buffer
+	err = runCreateCluster(context.Background(), &buf, conf)
+	if err != nil {
+		log.Error(context.Background(), "", err)
+	}
+	require.NoError(t, err)
+
+	// Receive secret shares from all keymanager servers
+	var shares []*bls_sig.SecretKeyShare
+	for len(shares) < minNodes {
+		res := <-results
+		secretBin, err := res.secret.MarshalBinary()
+		require.NoError(t, err)
+
+		share := new(bls_sig.SecretKeyShare)
+		err = share.UnmarshalBinary(append(secretBin, byte(res.id+1)))
+		require.NoError(t, err)
+
+		shares = append(shares, share)
+
+		if len(shares) == minNodes {
+			close(results)
+		}
+	}
+
+	// Combine the shares and test equality with original share
+	csb, err := tbls.CombineShares(shares, 3, minNodes)
+	require.NoError(t, err)
+	combinedSecret, err := csb.MarshalBinary()
+	require.NoError(t, err)
+
+	require.Equal(t, combinedSecret, originalSecret)
+}
+
+// noopKeymanagerReq is a mock keystore.keymanagerReq for use in tests.
+type noopKeymanagerReq struct {
+	Keystores          []noopKeystore `json:"keystores"`
+	Passwords          []string       `json:"passwords"`
+	SlashingProtection string         `json:"slashing_protection"` // https://eips.ethereum.org/EIPS/eip-3076
+}
+
+// noopKeystore is a mock keystore.keystore for use in tests.
+type noopKeystore struct {
+	Crypto      map[string]interface{} `json:"crypto"`
+	Description string                 `json:"description"`
+	Pubkey      string                 `json:"pubkey"`
+	Path        string                 `json:"path"`
+	ID          string                 `json:"uuid"`
+	Version     uint                   `json:"version"`
+}
+
+// decrypt returns the secret from the encrypted keystore.
+func decrypt(t *testing.T, store noopKeystore, password string) (*bls_sig.SecretKey, error) {
+	t.Helper()
+
+	decryptor := keystorev4.New()
+	secretBytes, err := decryptor.Decrypt(store.Crypto, password)
+	require.NoError(t, err)
+
+	return tblsconv.SecretFromBytes(secretBytes)
+}
+
+// result is a struct for receiving secrets along with their id.
+// This is needed as tbls.CombineShares needs shares in the correct (original) order.
+type result struct {
+	id     int
+	secret *bls_sig.SecretKey
+}
+
+// newKeymanagerHandler returns an http handler for a test keymanager API server.
+func newKeymanagerHandler(t *testing.T, id int, receivers chan<- result) http.Handler {
+	t.Helper()
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+
+		var req noopKeymanagerReq
+		require.NoError(t, json.Unmarshal(data, &req))
+
+		require.Equal(t, len(req.Keystores), len(req.Passwords))
+		require.Equal(t, len(req.Keystores), 1) // Since we split only 1 key
+
+		secret, err := decrypt(t, req.Keystores[0], req.Passwords[0])
+		require.NoError(t, err)
+
+		res := result{
+			id:     id,
+			secret: secret,
+		}
+
+		receivers <- res
+
+		w.WriteHeader(http.StatusOK)
+	})
 }

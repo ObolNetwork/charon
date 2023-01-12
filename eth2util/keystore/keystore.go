@@ -69,8 +69,8 @@ type keymanagerReq struct {
 	SlashingProtection string     `json:"slashing_protection"` // https://eips.ethereum.org/EIPS/eip-3076
 }
 
-// KeymanagerAPIReqBody returns the marshalled data for making keymanager API request.
-func KeymanagerAPIReqBody(secrets []*bls_sig.SecretKey) ([]byte, error) {
+// KeymanagerReqBody returns the marshalled data for use as keymanager API request body.
+func KeymanagerReqBody(secrets []*bls_sig.SecretKey) ([]byte, error) {
 	var req keymanagerReq
 	for _, secret := range secrets {
 		password, err := randomHex32()

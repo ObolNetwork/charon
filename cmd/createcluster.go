@@ -27,6 +27,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -35,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -162,7 +164,6 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	if err != nil {
 		return err
 	}
-
 	// Generate threshold bls key shares
 	dvs, shareSets, err := getTSSShares(secrets, def.Threshold, numNodes)
 	if err != nil {
@@ -186,11 +187,10 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		if err = saveKeysToKeymanager(ctx, conf.KeymanagerAddrs, numNodes, shareSets); err != nil {
 			return err
 		}
-	}
-
-	// Write keys
-	if err = saveKeysToDisk(numNodes, conf.ClusterDir, conf.InsecureKeys, shareSets); err != nil {
-		return err
+	} else { // Write keys to disk
+		if err = saveKeysToDisk(numNodes, conf.ClusterDir, conf.InsecureKeys, shareSets); err != nil {
+			return err
+		}
 	}
 
 	// Write deposit-data file
@@ -401,12 +401,48 @@ func getValidators(dvs []tbls.TSS) ([]cluster.DistValidator, error) {
 	return vals, nil
 }
 
+// postKeymanager pushes the secrets to the provided keymanager address. The HTTP request times out after 2s.
+func postKeymanager(ctx context.Context, addr string, secrets []*bls_sig.SecretKey) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	body, err := keystore.KeymanagerReqBody(secrets)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, addr, bytes.NewReader(body))
+	if err != nil {
+		return errors.Wrap(err, "new post request", z.Str("url", addr))
+	}
+	req.Header.Add("Content-Type", `application/json`)
+
+	resp, err := new(http.Client).Do(req)
+	if err != nil {
+		return errors.Wrap(err, "post validator keys to keymanager")
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errors.Wrap(err, "read response")
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return errors.New("failed posting keys", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
+	}
+
+	return nil
+}
+
 // saveKeysToKeyManager saves validator keys to the provided keymanager API endpoint.
 func saveKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]*bls_sig.SecretKeyShare) error {
 	if len(addrs) != numNodes {
 		return errors.New("insufficient no of keymanager addresses", z.Int("expected", numNodes), z.Int("got", len(addrs)))
 	}
 
+	grp := new(errgroup.Group)
+	retriesCount := 5
 	for i := 0; i < numNodes; i++ {
 		var secrets []*bls_sig.SecretKey
 		for _, shares := range shareSets {
@@ -417,31 +453,29 @@ func saveKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sha
 			secrets = append(secrets, secret)
 		}
 
-		body, err := keystore.KeymanagerAPIReqBody(secrets)
-		if err != nil {
-			return err
-		}
+		retries := retriesCount
+		addr := addrs[i]
+		grp.Go(func() error {
+			for retries > 0 {
+				err := postKeymanager(ctx, addr, secrets)
+				if err == nil {
+					log.Debug(ctx, "Pushed keys to keymanager", z.Str("addr", addr))
+					return nil
+				}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, addrs[i], bytes.NewReader(body))
-		if err != nil {
-			return errors.Wrap(err, "new POST request", z.Str("url", addrs[i]))
-		}
+				retries--
+			}
 
-		resp, err := new(http.Client).Do(req)
-		if err != nil {
-			return errors.Wrap(err, "post validator keys to keymanager")
-		}
-
-		data, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return errors.Wrap(err, "read response")
-		}
-		resp.Body.Close()
-
-		if resp.StatusCode/100 != 2 {
-			return errors.New("failed posting keys", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
-		}
+			return errors.New("max retries done")
+		})
 	}
+
+	if err := grp.Wait(); err != nil {
+		// TODO(xenowits): Do we delete pushed keys since some got pushed while others didn't?
+		return errors.Wrap(err, "push key to keymanager API")
+	}
+
+	log.Info(ctx, "Pushed validator keys to keymanager APIs")
 
 	return nil
 }
