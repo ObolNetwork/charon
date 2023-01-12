@@ -53,18 +53,6 @@ var stepLabels = map[step]string{
 	sigAgg:            "sig_aggregation",
 }
 
-var labelsToStep = map[string]step{
-	"unknown":             zero,
-	"scheduler":           scheduler,
-	"fetcher":             fetcher,
-	"consensus":           consensus,
-	"validator_api":       validatorAPI,
-	"parsig_db_local":     parSigDBInternal,
-	"parsig_exchange":     parSigEx,
-	"parsig_db_threshold": parSigDBThreshold,
-	"sig_aggregation":     sigAgg,
-}
-
 // step in the core workflow.
 type step int
 
@@ -795,23 +783,20 @@ func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.P
 	return nil
 }
 
-// SendEvent implements core.Tracker interface.
-func (t *Tracker) SendEvent(ctx context.Context, duty core.Duty, label string, pubkey core.PubKey, componentErr error, parSig core.ParSignedData) error {
+// Fetcher implements core.Tracker interface.
+func (t *Tracker) Fetcher(ctx context.Context, duty core.Duty, pubkey core.PubKey, componentErr error) {
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return
 	case <-t.quit:
-		return nil
+		return
 	case t.input <- event{
 		duty:         duty,
-		step:         labelsToStep[label],
+		step:         fetcher,
 		pubkey:       pubkey,
 		componentErr: componentErr,
-		parSig:       &parSig,
 	}:
 	}
-
-	return nil
 }
 
 func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg) {

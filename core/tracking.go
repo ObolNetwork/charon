@@ -17,9 +17,6 @@ package core
 
 import (
 	"context"
-
-	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 )
 
 // WithTracking wraps component input functions to support tracking of core components.
@@ -29,14 +26,9 @@ func WithTracking(tracker Tracker) WireOption {
 
 		w.FetcherFetch = func(ctx context.Context, duty Duty, set DutyDefinitionSet) error {
 			fetchErr := clone.FetcherFetch(ctx, duty, set)
-			defer func() {
-				for pubkey := range set {
-					err := tracker.SendEvent(ctx, duty, "fetcher", pubkey, fetchErr, ParSignedData{})
-					if err != nil {
-						log.Error(ctx, "Send event to tracker", err, z.Str("duty", duty.String()))
-					}
-				}
-			}()
+			for pubkey := range set {
+				tracker.Fetcher(ctx, duty, pubkey, fetchErr)
+			}
 
 			return fetchErr
 		}

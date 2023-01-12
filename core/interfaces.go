@@ -175,7 +175,8 @@ type Broadcaster interface {
 
 // Tracker sends core component events for further analysis and instrumentation.
 type Tracker interface {
-	SendEvent(context.Context, Duty, string, PubKey, error, ParSignedData) error
+	// Fetcher sends fetcher component's events to tracker.
+	Fetcher(context.Context, Duty, PubKey, error)
 }
 
 // wireFuncs defines the core workflow components as a list of input and output functions
