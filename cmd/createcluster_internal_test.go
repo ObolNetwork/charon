@@ -23,7 +23,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -237,8 +236,8 @@ func TestValidNetwork(t *testing.T) {
 	require.Error(t, err, "zero address")
 }
 
-// TestKeymanager tests keymanager support by letting create cluster command to split a single secret and then receiving those keyshares
-// using a test server. These shares are then combined to create the combined share which is then compared to the original secret that was split.
+// TestKeymanager tests keymanager support by letting create cluster command split a single secret and then receiving those keyshares using test
+// keymanager servers. These shares are then combined to create the combined share which is then compared to the original secret that was split.
 func TestKeymanager(t *testing.T) {
 	// Create secret
 	_, secret1, err := tbls.Keygen()
@@ -259,11 +258,7 @@ func TestKeymanager(t *testing.T) {
 	for i := 0; i < minNodes; i++ {
 		srv := httptest.NewServer(newKeymanagerHandler(t, i, results))
 		servers = append(servers, srv)
-
-		urlPath := "/eth/v1/keystores"
-		addr, err := url.JoinPath(srv.URL, urlPath)
-		require.NoError(t, err)
-		addrs = append(addrs, addr)
+		addrs = append(addrs, srv.URL)
 	}
 
 	defer func() {
@@ -324,19 +319,13 @@ func TestKeymanager(t *testing.T) {
 
 // noopKeymanagerReq is a mock keystore.keymanagerReq for use in tests.
 type noopKeymanagerReq struct {
-	Keystores          []noopKeystore `json:"keystores"`
-	Passwords          []string       `json:"passwords"`
-	SlashingProtection string         `json:"slashing_protection"` // https://eips.ethereum.org/EIPS/eip-3076
+	Keystores []noopKeystore `json:"keystores"`
+	Passwords []string       `json:"passwords"`
 }
 
 // noopKeystore is a mock keystore.keystore for use in tests.
 type noopKeystore struct {
-	Crypto      map[string]interface{} `json:"crypto"`
-	Description string                 `json:"description"`
-	Pubkey      string                 `json:"pubkey"`
-	Path        string                 `json:"path"`
-	ID          string                 `json:"uuid"`
-	Version     uint                   `json:"version"`
+	Crypto map[string]interface{} `json:"crypto"`
 }
 
 // decrypt returns the secret from the encrypted keystore.
@@ -357,7 +346,7 @@ type result struct {
 	secret *bls_sig.SecretKey
 }
 
-// newKeymanagerHandler returns an http handler for a test keymanager API server.
+// newKeymanagerHandler returns http handler for a test keymanager API server.
 func newKeymanagerHandler(t *testing.T, id int, receivers chan<- result) http.Handler {
 	t.Helper()
 

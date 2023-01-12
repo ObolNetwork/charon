@@ -99,7 +99,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.Name, "name", "", "The cluster name")
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
 	flags.StringVar(&config.DefFile, "definition-file", "", "Optional path to a cluster definition file or an HTTP URL. This overrides all other configuration flags.")
-	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager APIs to push validator keys to.")
+	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to push validator keys to.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", minNodes, "The number of charon nodes in the cluster. Minimum is 4.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
@@ -187,7 +187,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		if err = saveKeysToKeymanager(ctx, conf.KeymanagerAddrs, numNodes, shareSets); err != nil {
 			return err
 		}
-	} else { // Write keys to disk
+	} else { // Or else write keys to disk
 		if err = saveKeysToDisk(numNodes, conf.ClusterDir, conf.InsecureKeys, shareSets); err != nil {
 			return err
 		}
@@ -435,7 +435,7 @@ func postKeymanager(ctx context.Context, addr string, secrets []*bls_sig.SecretK
 	return nil
 }
 
-// saveKeysToKeyManager saves validator keys to the provided keymanager API endpoint.
+// saveKeysToKeyManager saves validator keys to the provided keymanager addresses.
 func saveKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]*bls_sig.SecretKeyShare) error {
 	if len(addrs) != numNodes {
 		return errors.New("insufficient no of keymanager addresses", z.Int("expected", numNodes), z.Int("got", len(addrs)))
