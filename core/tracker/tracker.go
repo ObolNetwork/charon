@@ -53,6 +53,18 @@ var stepLabels = map[step]string{
 	sigAgg:            "sig_aggregation",
 }
 
+var labelsToStep = map[string]step{
+	"unknown":             zero,
+	"scheduler":           scheduler,
+	"fetcher":             fetcher,
+	"consensus":           consensus,
+	"validator_api":       validatorAPI,
+	"parsig_db_local":     parSigDBInternal,
+	"parsig_exchange":     parSigEx,
+	"parsig_db_threshold": parSigDBThreshold,
+	"sig_aggregation":     sigAgg,
+}
+
 // step in the core workflow.
 type step int
 
@@ -180,9 +192,10 @@ func (m parsigsByMsg) MsgRootsConsistent() bool {
 
 // event represents an event emitted by a core workflow step.
 type event struct {
-	duty   core.Duty
-	step   step
-	pubkey core.PubKey
+	duty         core.Duty
+	step         step
+	pubkey       core.PubKey
+	componentErr error
 
 	// parSig is an optional field only set by validatorAPI, parSigDBInternal and parSigEx events.
 	parSig *core.ParSignedData
@@ -776,6 +789,25 @@ func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.P
 		duty:   duty,
 		step:   sigAgg,
 		pubkey: pubkey,
+	}:
+	}
+
+	return nil
+}
+
+// SendEvent implements core.Tracker interface.
+func (t *Tracker) SendEvent(ctx context.Context, duty core.Duty, label string, pubkey core.PubKey, componentErr error, parSig core.ParSignedData) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.quit:
+		return nil
+	case t.input <- event{
+		duty:         duty,
+		step:         labelsToStep[label],
+		pubkey:       pubkey,
+		componentErr: componentErr,
+		parSig:       &parSig,
 	}:
 	}
 

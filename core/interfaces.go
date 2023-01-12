@@ -173,6 +173,11 @@ type Broadcaster interface {
 	Broadcast(context.Context, Duty, PubKey, SignedData) error
 }
 
+// Tracker sends core component events for further analysis and instrumentation.
+type Tracker interface {
+	SendEvent(context.Context, Duty, string, PubKey, error, ParSignedData) error
+}
+
 // wireFuncs defines the core workflow components as a list of input and output functions
 // instead as interfaces, since functions are easier to wrap than interfaces.
 type wireFuncs struct {
