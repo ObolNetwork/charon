@@ -217,7 +217,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		writeWarning(w)
 	}
 
-	writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes)
+	writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, len(conf.KeymanagerAddrs) != 0)
 
 	return nil
 }
@@ -581,7 +581,7 @@ func newPeer(clusterDir string, peerIdx int) (p2p.Peer, error) {
 }
 
 // writeOutput writes the gen_cluster output.
-func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int) {
+func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int, keymanager bool) {
 	var sb strings.Builder
 	_, _ = sb.WriteString("Created charon cluster:\n")
 	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", splitKeys))
@@ -591,9 +591,11 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int)
 	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
 	_, _ = sb.WriteString("│  ├─ deposit-data.json\t\tDeposit data file is used to activate a Distributed Validator on DV Launchpad\n")
-	_, _ = sb.WriteString("│  ├─ validator_keys\t\tValidator keystores and password\n")
-	_, _ = sb.WriteString("│  │  ├─ keystore-*.json\tValidator private share key for duty signing\n")
-	_, _ = sb.WriteString("│  │  ├─ keystore-*.txt\t\tKeystore password files for keystore-*.json\n")
+	if !keymanager {
+		_, _ = sb.WriteString("│  ├─ validator_keys\t\tValidator keystores and password\n")
+		_, _ = sb.WriteString("│  │  ├─ keystore-*.json\tValidator private share key for duty signing\n")
+		_, _ = sb.WriteString("│  │  ├─ keystore-*.txt\t\tKeystore password files for keystore-*.json\n")
+	}
 
 	_, _ = fmt.Fprint(out, sb.String())
 }
