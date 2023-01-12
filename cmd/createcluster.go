@@ -16,18 +16,15 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"strings"
-	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -401,40 +398,6 @@ func getValidators(dvs []tbls.TSS) ([]cluster.DistValidator, error) {
 	return vals, nil
 }
 
-// postKeymanager pushes the secrets to the provided keymanager address. The HTTP request times out after 2s.
-func postKeymanager(ctx context.Context, addr string, secrets []*bls_sig.SecretKey) error {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-
-	body, err := keystore.KeymanagerReqBody(secrets)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, addr, bytes.NewReader(body))
-	if err != nil {
-		return errors.Wrap(err, "new post request", z.Str("url", addr))
-	}
-	req.Header.Add("Content-Type", `application/json`)
-
-	resp, err := new(http.Client).Do(req)
-	if err != nil {
-		return errors.Wrap(err, "post validator keys to keymanager")
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return errors.Wrap(err, "read response")
-	}
-	resp.Body.Close()
-
-	if resp.StatusCode/100 != 2 {
-		return errors.New("failed posting keys", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
-	}
-
-	return nil
-}
-
 // saveKeysToKeyManager saves validator keys to the provided keymanager addresses.
 func saveKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]*bls_sig.SecretKeyShare) error {
 	if len(addrs) != numNodes {
@@ -457,7 +420,7 @@ func saveKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sha
 		addr := addrs[i]
 		grp.Go(func() error {
 			for retries > 0 {
-				err := postKeymanager(ctx, addr, secrets)
+				err := keystore.PostKeysToKeymanager(ctx, addr, secrets)
 				if err == nil {
 					log.Debug(ctx, "Pushed keys to keymanager", z.Str("addr", addr))
 					return nil

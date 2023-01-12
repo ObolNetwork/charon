@@ -19,21 +19,26 @@
 package keystore
 
 import (
+	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
@@ -68,8 +73,8 @@ type keymanagerReq struct {
 	Passwords []string   `json:"passwords"`
 }
 
-// KeymanagerReqBody converts the provided secrets into keymanagerReq and returns the marshalled request.
-func KeymanagerReqBody(secrets []*bls_sig.SecretKey) ([]byte, error) {
+// keymanagerReqBody converts the provided secrets into keymanagerReq and returns the marshalled request.
+func keymanagerReqBody(secrets []*bls_sig.SecretKey) ([]byte, error) {
 	var req keymanagerReq
 	for _, secret := range secrets {
 		password, err := randomHex32()
@@ -92,6 +97,40 @@ func KeymanagerReqBody(secrets []*bls_sig.SecretKey) ([]byte, error) {
 	}
 
 	return res, nil
+}
+
+// PostKeysToKeymanager pushes the secrets to the provided keymanager address. The HTTP request times out after 2s.
+func PostKeysToKeymanager(ctx context.Context, addr string, secrets []*bls_sig.SecretKey) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	body, err := keymanagerReqBody(secrets)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, addr, bytes.NewReader(body))
+	if err != nil {
+		return errors.Wrap(err, "new post request", z.Str("url", addr))
+	}
+	req.Header.Add("Content-Type", `application/json`)
+
+	resp, err := new(http.Client).Do(req)
+	if err != nil {
+		return errors.Wrap(err, "post validator keys to keymanager")
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errors.Wrap(err, "read response")
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return errors.New("failed posting keys", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
+	}
+
+	return nil
 }
 
 func storeKeysInternal(secrets []*bls_sig.SecretKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
