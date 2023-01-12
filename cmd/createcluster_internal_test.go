@@ -239,6 +239,9 @@ func TestValidNetwork(t *testing.T) {
 // TestKeymanager tests keymanager support by letting create cluster command split a single secret and then receiving those keyshares using test
 // keymanager servers. These shares are then combined to create the combined share which is then compared to the original secret that was split.
 func TestKeymanager(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Create secret
 	_, secret1, err := tbls.Keygen()
 	require.NoError(t, err)
@@ -258,7 +261,7 @@ func TestKeymanager(t *testing.T) {
 	var addrs []string
 	var servers []*httptest.Server
 	for i := 0; i < minNodes; i++ {
-		srv := httptest.NewServer(newKeymanagerHandler(t, i, results))
+		srv := httptest.NewServer(newKeymanagerHandler(ctx, t, i, results))
 		servers = append(servers, srv)
 		addrs = append(addrs, srv.URL)
 	}
@@ -361,7 +364,7 @@ type result struct {
 }
 
 // newKeymanagerHandler returns http handler for a test keymanager API server.
-func newKeymanagerHandler(t *testing.T, id int, receivers chan<- result) http.Handler {
+func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results chan<- result) http.Handler {
 	t.Helper()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -383,8 +386,12 @@ func newKeymanagerHandler(t *testing.T, id int, receivers chan<- result) http.Ha
 			secret: secret,
 		}
 
-		receivers <- res
-
 		w.WriteHeader(http.StatusOK)
+
+		select {
+		case <-ctx.Done():
+			return
+		case results <- res:
+		}
 	})
 }
