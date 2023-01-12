@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package rlp implements the simple byte slice and lists of bytes slices encoding/decoding using
+// Package rlp implements the simple byte slice and lists of byte slices encoding/decoding using
 // recursive length prefix encoding scheme as per spec
 // https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/.
 package rlp
@@ -82,7 +82,7 @@ func EncodeBytesList(items [][]byte) ([]byte, error) {
 	return append(length, output...), nil
 }
 
-// DecodeBytes returns the bytes slices contained in the given RLP encoded byte slice.
+// DecodeBytes returns the byte slices contained in the given RLP encoded byte slice.
 func DecodeBytes(input []byte) ([]byte, error) {
 	if len(input) == 0 {
 		return nil, nil

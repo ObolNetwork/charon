@@ -91,7 +91,6 @@ func TestBytes(t *testing.T) {
 			input:  nil,
 			output: []byte{0x80},
 		},
-		// Not sure how to represent "the integer 0" resulting in "[]byte{0x80}"
 		{
 			input:  []byte{0x00},
 			output: []byte{0x00},
