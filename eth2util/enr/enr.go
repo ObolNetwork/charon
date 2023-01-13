@@ -130,7 +130,7 @@ func encodeElements(signature []byte, pubkey *ecdsa.PublicKey) []byte {
 	return rlp.EncodeBytesList(elements)
 }
 
-// sign returns a minimal enr record Signature.
+// sign returns a enr record signature.
 func sign(privkey *ecdsa.PrivateKey) ([]byte, error) {
 	h := sha3.NewLegacyKeccak256()
 	_, _ = h.Write(encodeElements(nil, &privkey.PublicKey))
@@ -144,7 +144,7 @@ func sign(privkey *ecdsa.PrivateKey) ([]byte, error) {
 	return sig[:len(sig)-1], nil // remove v (recovery id), nil
 }
 
-// verify return an error if the record Signature verification fails.
+// verify return an error if the record signature verification fails.
 func verify(pubkey *ecdsa.PublicKey, signature, rawExclSig []byte) error {
 	h := sha3.NewLegacyKeccak256()
 	h.Write(rawExclSig)
