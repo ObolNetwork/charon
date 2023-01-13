@@ -19,8 +19,6 @@
 package rlp
 
 import (
-	"encoding/binary"
-
 	"github.com/obolnetwork/charon/app/errors"
 )
 
@@ -132,18 +130,11 @@ func decodeLength(item []byte) (offset int, length int, err error) {
 
 	if prefix < 0xc0 {
 		length = int(prefix - 0xb7)
-		if length > 8 {
+		if length > 64 {
 			return 0, 0, errors.New("invalid length prefix")
 		}
-		if len(item) < length+1 {
-			return 0, 0, errors.New("input too short")
-		}
 
-		// Prepend leading zero to make length 8 bytes long.
-		lengthAsBytes := make([]byte, 8)
-		copy(lengthAsBytes[8-length:], item[1:length+1])
-
-		return 1 + length, int(binary.BigEndian.Uint64(lengthAsBytes)), nil
+		return 1 + length, fromBigEndian(item, 1, length), nil
 	}
 
 	if prefix < 0xf8 {
@@ -151,42 +142,43 @@ func decodeLength(item []byte) (offset int, length int, err error) {
 	}
 
 	length = int(prefix - 0xf7)
-	if length > 8 {
+	if length > 64 {
 		return 0, 0, errors.New("invalid length prefix")
 	}
-	if len(item) < length+1 {
-		return 0, 0, errors.New("input too short")
-	}
 
-	// Prepend leading zero to make length 8 bytes long.
-	lengthAsBytes := make([]byte, 8)
-	copy(lengthAsBytes[8-length:], item[1:length+1])
-
-	return 1 + length, int(binary.BigEndian.Uint64(lengthAsBytes)), nil
+	return 1 + length, fromBigEndian(item, 1, length), nil
 }
 
 // encodeLength return the RLP encoding prefix for the given item length and offset.
 func encodeLength(length, offset int) ([]byte, error) {
-	if length >= 1024 {
-		return nil, errors.New("input too long")
-	}
-
 	if length < 56 {
 		return []byte{byte(length + offset)}, nil
 	}
 
-	lengthAsBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(lengthAsBytes, uint64(length))
+	b := toBigEndian(length)
 
-	// Remove leading zeros.
-	for i := 0; i < len(lengthAsBytes); i++ {
-		if lengthAsBytes[i] != 0 {
-			lengthAsBytes = lengthAsBytes[i:]
-			break
-		}
+	prefix := len(b) + offset + 55
+
+	return append([]byte{byte(prefix)}, b...), nil
+}
+
+// toBigEndian returns the big endian representation of the given integer without leading zeros.
+func toBigEndian(i int) []byte {
+	var resp []byte
+	for i > 0 {
+		resp = append([]byte{byte(i)}, resp...)
+		i >>= 8
 	}
 
-	prefix := len(lengthAsBytes) + offset + 55
+	return resp
+}
 
-	return append([]byte{byte(prefix)}, lengthAsBytes...), nil
+// fromBigEndian returns the integer encoded as big endian at the provided byte slice offset and length.
+func fromBigEndian(b []byte, offset int, length int) int {
+	var x uint64
+	for i := offset; i < offset+length; i++ {
+		x = x<<8 | uint64(b[i])
+	}
+
+	return int(x)
 }

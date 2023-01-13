@@ -132,10 +132,6 @@ func TestLengths(t *testing.T) {
 			rand.Read(buf)
 
 			encoded, err := rlp.EncodeBytes(buf)
-			if len(buf) >= 1024 {
-				require.ErrorContains(t, err, "input too long")
-				return
-			}
 			testutil.RequireNoError(t, err)
 
 			decoded, err := rlp.DecodeBytes(encoded)
