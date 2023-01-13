@@ -60,24 +60,14 @@ func DecodeBytesList(input []byte) ([][]byte, error) {
 }
 
 // EncodeBytesList returns a byte slice containing the RLP encoding of the given list of byte slices.
-func EncodeBytesList(items [][]byte) ([]byte, error) {
+func EncodeBytesList(items [][]byte) []byte {
 	var output []byte
 
 	for _, item := range items {
-		b, err := EncodeBytes(item)
-		if err != nil {
-			return nil, err
-		}
-
-		output = append(output, b...)
+		output = append(output, EncodeBytes(item)...)
 	}
 
-	length, err := encodeLength(len(output), 0xc0)
-	if err != nil {
-		return nil, err
-	}
-
-	return append(length, output...), nil
+	return append(encodeLength(len(output), 0xc0), output...)
 }
 
 // DecodeBytes returns the byte slices contained in the given RLP encoded byte slice.
@@ -99,17 +89,12 @@ func DecodeBytes(input []byte) ([]byte, error) {
 }
 
 // EncodeBytes returns a byte slice containing the RLP encoding of the given byte slice.
-func EncodeBytes(item []byte) ([]byte, error) {
+func EncodeBytes(item []byte) []byte {
 	if len(item) == 1 && item[0] < 0x80 {
-		return item, nil
+		return item
 	}
 
-	length, err := encodeLength(len(item), 0x80)
-	if err != nil {
-		return nil, err
-	}
-
-	return append(length, item...), nil
+	return append(encodeLength(len(item), 0x80), item...)
 }
 
 // decodeLength returns the length of the RLP encoding prefix (offset) and the length of the encoded byte slice.
@@ -150,16 +135,16 @@ func decodeLength(item []byte) (offset int, length int, err error) {
 }
 
 // encodeLength return the RLP encoding prefix for the given item length and offset.
-func encodeLength(length, offset int) ([]byte, error) {
+func encodeLength(length, offset int) []byte {
 	if length < 56 {
-		return []byte{byte(length + offset)}, nil
+		return []byte{byte(length + offset)}
 	}
 
 	b := toBigEndian(length)
 
 	prefix := len(b) + offset + 55
 
-	return append([]byte{byte(prefix)}, b...), nil
+	return append([]byte{byte(prefix)}, b...)
 }
 
 // toBigEndian returns the big endian representation of the given integer without leading zeros.

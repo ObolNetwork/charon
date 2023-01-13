@@ -53,8 +53,7 @@ func TestBytesList(t *testing.T) {
 	}
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			encoded, err := rlp.EncodeBytesList(test.input)
-			testutil.RequireNoError(t, err)
+			encoded := rlp.EncodeBytesList(test.input)
 			if len(test.output) == 0 {
 				require.Empty(t, encoded)
 			} else {
@@ -106,8 +105,7 @@ func TestBytes(t *testing.T) {
 	}
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			encoded, err := rlp.EncodeBytes(test.input)
-			testutil.RequireNoError(t, err)
+			encoded := rlp.EncodeBytes(test.input)
 			if len(test.output) == 0 {
 				require.Empty(t, encoded)
 			} else {
@@ -131,8 +129,7 @@ func TestLengths(t *testing.T) {
 			buf := make([]byte, length)
 			rand.Read(buf)
 
-			encoded, err := rlp.EncodeBytes(buf)
-			testutil.RequireNoError(t, err)
+			encoded := rlp.EncodeBytes(buf)
 
 			decoded, err := rlp.DecodeBytes(encoded)
 			testutil.RequireNoError(t, err)
