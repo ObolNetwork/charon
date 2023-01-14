@@ -74,10 +74,10 @@ github.com/btcsuite/btcd v0.22.1/go.mod h1:wqgTSL29+50LRkmOVknEdmt8ZojIzhuWvgu/i
 github.com/btcsuite/btcd/btcec/v2 v2.2.0 h1:fzn1qaOt32TuLjFlkzYSsBC35Q3KUjT1SwPxiMSCF5k=
 github.com/btcsuite/btcd/btcec/v2 v2.2.0/go.mod h1:U7MHm051Al6XmscBQ0BoNydpOTsFAn707034b5nY8zU=
 github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 h1:q0rUy8C/TYNBQS1+CGKw68tLOFYSNEs0TFnxxnS9+4U=
-github.com/bufbuild/buf v1.11.0 h1:jq/ckkxg87GaEgyHMqGGvZkVh8FeZuYLBF9DyOQK1RU=
-github.com/bufbuild/buf v1.11.0/go.mod h1:IoaGkUhois4gv4EqTGT7H+4bbhZUvlYutECLgfoE2cA=
-github.com/bufbuild/connect-go v1.4.0 h1:N94D0tGxuM2cSI7hM/aL8mtxL6+8rtHuFcIj9oGRp5s=
-github.com/bufbuild/connect-go v1.4.0/go.mod h1:9iNvh/NOsfhNBUH5CtvXeVUskQO1xsrEviH7ZArwZ3I=
+github.com/bufbuild/buf v1.12.0 h1:F5yU2VNaJv3PzfQu+qnUWyzn9KerhbIfV/dM961jJ70=
+github.com/bufbuild/buf v1.12.0/go.mod h1:tgUhc+/7jgJPn6EbcS8oIFOiSRewkyO/9j+Acbby9SQ=
+github.com/bufbuild/connect-go v1.4.1 h1:6usL3JGjKhxQpvDlizP7u8VfjAr1JkckcAUbrdcbgNY=
+github.com/bufbuild/connect-go v1.4.1/go.mod h1:9iNvh/NOsfhNBUH5CtvXeVUskQO1xsrEviH7ZArwZ3I=
 github.com/bufbuild/protocompile v0.1.0 h1:HjgJBI85hY/qmW5tw/66sNDZ7z0UDdVSi/5r40WHw4s=
 github.com/bufbuild/protocompile v0.1.0/go.mod h1:ix/MMMdsT3fzxfw91dvbfzKW3fRRnuPCP47kpAm5m/4=
 github.com/buger/jsonparser v0.0.0-20181115193947-bf1c66bbce23/go.mod h1:bbYlZJ7hK1yFx9hf58LP0zeX7UjIGs20ufpu3evjr+s=
