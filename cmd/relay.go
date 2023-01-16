@@ -108,6 +108,7 @@ func bindBootnodeFlag(flags *pflag.FlagSet, config *relay.Config) {
 
 // bindP2PFlagsRelay binds p2p flags for the relay command.
 func bindP2PFlagsRelay(cmd *cobra.Command, config *p2p.Config) {
+	cmd.Flags().StringVar(&config.UDPAddr, "p2p-udp-address", "", "Listening UDP address (ip and port) for discv5 discovery. Empty default disables discv5 discovery. Discv5 is deprecated, use relay discovery.")
 	cmd.Flags().StringVar(&config.ExternalIP, "p2p-external-ip", "", "The IP address advertised by libp2p. This may be used to advertise an external IP.")
 	cmd.Flags().StringVar(&config.ExternalHost, "p2p-external-hostname", "", "The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.")
 	cmd.Flags().StringSliceVar(&config.TCPAddrs, "p2p-tcp-address", nil, "Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.")
