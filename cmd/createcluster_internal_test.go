@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -30,12 +31,14 @@ import (
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
+	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -201,34 +204,236 @@ func TestChecksumAddr(t *testing.T) {
 	require.Error(t, err, "invalid address")
 }
 
-func TestValidNetwork(t *testing.T) {
+func TestValidateDef(t *testing.T) {
 	ctx := context.Background()
 	conf := clusterConfig{
 		Name:           "test",
 		NumNodes:       4,
 		Threshold:      3,
 		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
-		Network:        "gnosis",
+		Network:        "goerli",
 	}
 
-	def, err := newDefFromConfig(ctx, conf)
+	definition, err := newDefFromConfig(ctx, conf)
 	require.NoError(t, err)
 
-	err = validateDef(ctx, false, def)
-	require.Error(t, err, "zero address")
+	t.Run("zero address", func(t *testing.T) {
+		def := definition
+		gnosis, err := hex.DecodeString(strings.TrimPrefix(eth2util.Gnosis.ForkVersionHex, "0x"))
+		require.NoError(t, err)
+		def.ForkVersion = gnosis
 
-	goerli, err := hex.DecodeString(strings.TrimPrefix(eth2util.Goerli.ForkVersionHex, "0x"))
+		err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
+		require.Error(t, err, "zero address")
+	})
+
+	t.Run("fork versions", func(t *testing.T) {
+		def := definition
+		err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
+		require.NoError(t, err)
+
+		mainnet, err := hex.DecodeString(strings.TrimPrefix(eth2util.Mainnet.ForkVersionHex, "0x"))
+		require.NoError(t, err)
+		def.ForkVersion = mainnet
+
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		require.Error(t, err, "zero address")
+	})
+
+	t.Run("insufficient keymanager addresses", func(t *testing.T) {
+		conf := conf
+		conf.KeymanagerAddrs = []string{"127.0.0.1:1234"}
+
+		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition)
+		require.Error(t, err)
+	})
+
+	t.Run("insecure keys", func(t *testing.T) {
+		conf := conf
+		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition) // Validate with insecure keys set to true
+		require.NoError(t, err)
+	})
+
+	t.Run("insufficient number of nodes", func(t *testing.T) {
+		def := definition
+		def.Operators = nil
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		require.ErrorContains(t, err, "insufficient number of nodes")
+	})
+
+	t.Run("name not provided", func(t *testing.T) {
+		def := definition
+		def.Name = ""
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		require.ErrorContains(t, err, "name not provided")
+	})
+}
+
+// TestKeymanager tests keymanager support by letting create cluster command split a single secret and then receiving those keyshares using test
+// keymanager servers. These shares are then combined to create the combined share which is then compared to the original secret that was split.
+func TestKeymanager(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create secret
+	_, secret1, err := tbls.Keygen()
 	require.NoError(t, err)
-	def.ForkVersion = goerli
-	err = validateDef(ctx, false, def)
+	originalSecret, err := secret1.MarshalBinary()
 	require.NoError(t, err)
 
-	err = validateDef(ctx, true, def) // Validate with insecure keys set to true
+	// Store secret
+	keyDir, err := os.MkdirTemp("", "")
+	require.NoError(t, err)
+	err = keystore.StoreKeys([]*bls_sig.SecretKey{secret1}, keyDir)
 	require.NoError(t, err)
 
-	mainnet, err := hex.DecodeString(strings.TrimPrefix(eth2util.Mainnet.ForkVersionHex, "0x"))
+	// Create minNodes test servers
+	results := make(chan result, minNodes) // Buffered channel
+	defer close(results)
+
+	var addrs []string
+	var servers []*httptest.Server
+	for i := 0; i < minNodes; i++ {
+		srv := httptest.NewServer(newKeymanagerHandler(ctx, t, i, results))
+		servers = append(servers, srv)
+		addrs = append(addrs, srv.URL)
+	}
+
+	defer func() {
+		for _, srv := range servers {
+			srv.Close()
+		}
+	}()
+
+	// Create cluster config
+	conf := clusterConfig{
+		Name:            t.Name(),
+		SplitKeysDir:    keyDir,
+		SplitKeys:       true,
+		NumNodes:        minNodes,
+		NumDVs:          1,
+		KeymanagerAddrs: addrs,
+		Network:         defaultNetwork,
+		WithdrawalAddr:  defaultWithdrawalAddr,
+		Clean:           true,
+	}
+	dir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
-	def.ForkVersion = mainnet
-	err = validateDef(ctx, conf.InsecureKeys, def)
-	require.Error(t, err, "zero address")
+	conf.ClusterDir = dir
+
+	t.Run("all successful", func(t *testing.T) {
+		// Run create cluster command
+		var buf bytes.Buffer
+		err = runCreateCluster(context.Background(), &buf, conf)
+		if err != nil {
+			log.Error(context.Background(), "", err)
+		}
+		require.NoError(t, err)
+
+		// Receive secret shares from all keymanager servers
+		var shares []*bls_sig.SecretKeyShare
+		for len(shares) < minNodes {
+			res := <-results
+			secretBin, err := res.secret.MarshalBinary()
+			require.NoError(t, err)
+
+			share := new(bls_sig.SecretKeyShare)
+			err = share.UnmarshalBinary(append(secretBin, byte(res.id+1)))
+			require.NoError(t, err)
+
+			shares = append(shares, share)
+		}
+
+		// Combine the shares and test equality with original share
+		csb, err := tbls.CombineShares(shares, 3, minNodes)
+		require.NoError(t, err)
+		combinedSecret, err := csb.MarshalBinary()
+		require.NoError(t, err)
+
+		require.Equal(t, combinedSecret, originalSecret)
+	})
+
+	t.Run("some unsuccessful", func(t *testing.T) {
+		// Close one server so that request to it fails
+		servers[0].Close()
+
+		// Run create cluster command
+		var buf bytes.Buffer
+		err = runCreateCluster(context.Background(), &buf, conf)
+		if err != nil {
+			log.Error(context.Background(), "", err)
+		}
+		require.ErrorContains(t, err, "cannot ping address")
+	})
+}
+
+// noopKeymanagerReq is a mock keystore.keymanagerReq for use in tests.
+type noopKeymanagerReq struct {
+	Keystores []noopKeystore `json:"keystores"`
+	Passwords []string       `json:"passwords"`
+}
+
+// noopKeystore is a mock keystore.keystore for use in tests.
+type noopKeystore struct {
+	Crypto map[string]interface{} `json:"crypto"`
+}
+
+// decrypt returns the secret from the encrypted keystore.
+func decrypt(t *testing.T, store noopKeystore, password string) (*bls_sig.SecretKey, error) {
+	t.Helper()
+
+	decryptor := keystorev4.New()
+	secretBytes, err := decryptor.Decrypt(store.Crypto, password)
+	require.NoError(t, err)
+
+	return tblsconv.SecretFromBytes(secretBytes)
+}
+
+// result is a struct for receiving secrets along with their id.
+// This is needed as tbls.CombineShares needs shares in the correct (original) order.
+type result struct {
+	id     int
+	secret *bls_sig.SecretKey
+}
+
+// newKeymanagerHandler returns http handler for a test keymanager API server.
+func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results chan<- result) http.Handler {
+	t.Helper()
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+
+		var req noopKeymanagerReq
+		require.NoError(t, json.Unmarshal(data, &req))
+
+		require.Equal(t, len(req.Keystores), len(req.Passwords))
+		require.Equal(t, len(req.Keystores), 1) // Since we split only 1 key
+
+		secret, err := decrypt(t, req.Keystores[0], req.Passwords[0])
+		require.NoError(t, err)
+
+		res := result{
+			id:     id,
+			secret: secret,
+		}
+
+		w.WriteHeader(http.StatusOK)
+
+		select {
+		case <-ctx.Done():
+			return
+		case results <- res:
+		}
+	})
+}
+
+func TestVerifyConnection(t *testing.T) {
+	ctx := context.Background()
+	srv := httptest.NewServer(nil)
+	defer srv.Close()
+
+	require.NoError(t, verifyConnection(ctx, srv.URL))
+	require.Error(t, verifyConnection(ctx, "1.1.1.1"))
 }
