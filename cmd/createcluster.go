@@ -37,7 +37,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -184,12 +183,13 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 	def.Operators = ops
 
-	if len(conf.KeymanagerAddrs) != 0 { // Push keys to keymanager
-		if err = writeKeysToKeymanager(ctx, conf.KeymanagerAddrs, numNodes, shareSets); err != nil {
+	keysToDisk := len(conf.KeymanagerAddrs) == 0
+	if keysToDisk { // Write keys to disk
+		if err = writeKeysToDisk(numNodes, conf.ClusterDir, conf.InsecureKeys, shareSets); err != nil {
 			return err
 		}
-	} else { // Or else write keys to disk
-		if err = writeKeysToDisk(numNodes, conf.ClusterDir, conf.InsecureKeys, shareSets); err != nil {
+	} else { // Or else push keys to keymanager
+		if err = writeKeysToKeymanager(ctx, conf.KeymanagerAddrs, numNodes, shareSets); err != nil {
 			return err
 		}
 	}
@@ -218,7 +218,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		writeWarning(w)
 	}
 
-	writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, len(conf.KeymanagerAddrs) != 0)
+	writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk)
 
 	return nil
 }
@@ -404,7 +404,6 @@ func getValidators(dvs []tbls.TSS) ([]cluster.DistValidator, error) {
 
 // writeKeysToKeymanager writes validator keys to the provided keymanager addresses.
 func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]*bls_sig.SecretKeyShare) error {
-	eg := new(errgroup.Group)
 	for i := 0; i < numNodes; i++ {
 		var secrets []*bls_sig.SecretKey
 		for _, shares := range shareSets {
@@ -429,12 +428,7 @@ func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sh
 		log.Debug(ctx, "Pushed keys to keymanager", z.Str("addr", addrs[i]))
 	}
 
-	if err := eg.Wait(); err != nil {
-		// TODO(xenowits): Do we delete pushed keys since some got pushed while others didn't?
-		return errors.Wrap(err, "push keys to keymanager API")
-	}
-
-	log.Info(ctx, "Pushed all validator keys to keymanager APIs")
+	log.Info(ctx, "Pushed all validator keys to respective keymanagers")
 
 	return nil
 }
@@ -478,7 +472,7 @@ func postKeysToKeymanager(ctx context.Context, addr string, secrets []*bls_sig.S
 	return nil
 }
 
-// writeKeysToDisk writes validator keys to disk. It assumes that the directory for each node already exists.
+// writeKeysToDisk writes validator keyshares to disk. It assumes that the directory for each node already exists.
 func writeKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSets [][]*bls_sig.SecretKeyShare) error {
 	for i := 0; i < numNodes; i++ {
 		var secrets []*bls_sig.SecretKey
@@ -509,7 +503,7 @@ func writeKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSe
 	return nil
 }
 
-// getOperators returns a list of operators from the provided secret keyshares.  It also creates a new directory corresponding to each node.
+// getOperators returns a list of `numNodes` operators. It also creates a new directory corresponding to each node.
 func getOperators(numNodes int, clusterDir string) ([]cluster.Operator, error) {
 	var peers []p2p.Peer
 	for i := 0; i < numNodes; i++ {
@@ -578,8 +572,8 @@ func newPeer(clusterDir string, peerIdx int) (p2p.Peer, error) {
 	return peer, nil
 }
 
-// writeOutput writes the gen_cluster output.
-func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int, keymanager bool) {
+// writeOutput writes the cluster generation output.
+func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int, keysToDisk bool) {
 	var sb strings.Builder
 	_, _ = sb.WriteString("Created charon cluster:\n")
 	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", splitKeys))
@@ -589,7 +583,7 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
 	_, _ = sb.WriteString("│  ├─ deposit-data.json\t\tDeposit data file is used to activate a Distributed Validator on DV Launchpad\n")
-	if !keymanager {
+	if keysToDisk {
 		_, _ = sb.WriteString("│  ├─ validator_keys\t\tValidator keystores and password\n")
 		_, _ = sb.WriteString("│  │  ├─ keystore-*.json\tValidator private share key for duty signing\n")
 		_, _ = sb.WriteString("│  │  ├─ keystore-*.txt\t\tKeystore password files for keystore-*.json\n")
@@ -612,7 +606,7 @@ func checksumAddr(a string) (string, error) {
 	return common.HexToAddress(a).Hex(), nil
 }
 
-// validateDef returns an error if the provided cluster definition is valid.
+// validateDef returns an error if the provided cluster definition is invalid.
 func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []string, def cluster.Definition) error {
 	if len(def.Operators) < minNodes {
 		return errors.New("insufficient number of nodes (min = 4)", z.Int("num_nodes", len(def.Operators)))
@@ -626,6 +620,7 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 	if err != nil {
 		return err
 	}
+
 	if insecureKeys && isMainNetwork(network) {
 		return errors.New("insecure keys not supported on mainnet")
 	} else if insecureKeys {

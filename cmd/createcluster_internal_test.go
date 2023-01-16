@@ -204,36 +204,69 @@ func TestChecksumAddr(t *testing.T) {
 	require.Error(t, err, "invalid address")
 }
 
-func TestValidNetwork(t *testing.T) {
+func TestValidateDef(t *testing.T) {
 	ctx := context.Background()
 	conf := clusterConfig{
 		Name:           "test",
 		NumNodes:       4,
 		Threshold:      3,
 		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
-		Network:        "gnosis",
+		Network:        "goerli",
 	}
 
-	def, err := newDefFromConfig(ctx, conf)
+	definition, err := newDefFromConfig(ctx, conf)
 	require.NoError(t, err)
 
-	err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
-	require.Error(t, err, "zero address")
+	t.Run("zero address", func(t *testing.T) {
+		def := definition
+		gnosis, err := hex.DecodeString(strings.TrimPrefix(eth2util.Gnosis.ForkVersionHex, "0x"))
+		require.NoError(t, err)
+		def.ForkVersion = gnosis
 
-	goerli, err := hex.DecodeString(strings.TrimPrefix(eth2util.Goerli.ForkVersionHex, "0x"))
-	require.NoError(t, err)
-	def.ForkVersion = goerli
-	err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
-	require.NoError(t, err)
+		err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
+		require.Error(t, err, "zero address")
+	})
 
-	err = validateDef(ctx, true, conf.KeymanagerAddrs, def) // Validate with insecure keys set to true
-	require.NoError(t, err)
+	t.Run("fork versions", func(t *testing.T) {
+		def := definition
+		err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
+		require.NoError(t, err)
 
-	mainnet, err := hex.DecodeString(strings.TrimPrefix(eth2util.Mainnet.ForkVersionHex, "0x"))
-	require.NoError(t, err)
-	def.ForkVersion = mainnet
-	err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
-	require.Error(t, err, "zero address")
+		mainnet, err := hex.DecodeString(strings.TrimPrefix(eth2util.Mainnet.ForkVersionHex, "0x"))
+		require.NoError(t, err)
+		def.ForkVersion = mainnet
+
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		require.Error(t, err, "zero address")
+	})
+
+	t.Run("insufficient keymanager addresses", func(t *testing.T) {
+		conf := conf
+		conf.KeymanagerAddrs = []string{"127.0.0.1:1234"}
+
+		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition)
+		require.Error(t, err)
+	})
+
+	t.Run("insecure keys", func(t *testing.T) {
+		conf := conf
+		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition) // Validate with insecure keys set to true
+		require.NoError(t, err)
+	})
+
+	t.Run("insufficient number of nodes", func(t *testing.T) {
+		def := definition
+		def.Operators = nil
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		require.ErrorContains(t, err, "insufficient number of nodes")
+	})
+
+	t.Run("name not provided", func(t *testing.T) {
+		def := definition
+		def.Name = ""
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		require.ErrorContains(t, err, "name not provided")
+	})
 }
 
 // TestKeymanager tests keymanager support by letting create cluster command split a single secret and then receiving those keyshares using test
