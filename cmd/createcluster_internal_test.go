@@ -330,7 +330,7 @@ func TestKeymanager(t *testing.T) {
 		if err != nil {
 			log.Error(context.Background(), "", err)
 		}
-		require.ErrorContains(t, err, "push keys to keymanager API: cannot ping address")
+		require.ErrorContains(t, err, "cannot ping address")
 	})
 }
 
@@ -394,4 +394,13 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 		case results <- res:
 		}
 	})
+}
+
+func TestPingAddress(t *testing.T) {
+	ctx := context.Background()
+	srv := httptest.NewServer(nil)
+	defer srv.Close()
+
+	require.NoError(t, pingAddress(ctx, srv.URL))
+	require.Error(t, pingAddress(ctx, "1.1.1.1"))
 }

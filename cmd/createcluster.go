@@ -16,15 +16,19 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -96,9 +100,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.Name, "name", "", "The cluster name")
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
 	flags.StringVar(&config.DefFile, "definition-file", "", "Optional path to a cluster definition file or an HTTP URL. This overrides all other configuration flags.")
-
-	// Note that we need numNodes no of keymanager addresses since an address is required for each node.
-	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to push validator keys to.")
+	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to push validator keys to. Note that you need to provide `nodes` no of keymanager addresses since an address is required for each node.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", minNodes, "The number of charon nodes in the cluster. Minimum is 4.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
@@ -400,7 +402,7 @@ func getValidators(dvs []tbls.TSS) ([]cluster.DistValidator, error) {
 	return vals, nil
 }
 
-// saveKeysToKeyManager writes validator keys to the provided keymanager addresses.
+// writeKeysToKeymanager writes validator keys to the provided keymanager addresses.
 func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]*bls_sig.SecretKeyShare) error {
 	eg := new(errgroup.Group)
 	for i := 0; i < numNodes; i++ {
@@ -413,18 +415,18 @@ func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sh
 			secrets = append(secrets, secret)
 		}
 
-		addr := addrs[i]
-		eg.Go(func() error {
-			err := keystore.PostKeysToKeymanager(ctx, addr, secrets)
-			if err != nil {
-				log.Error(ctx, "Failed to push keys", err, z.Str("addr", addr))
-				return err
-			}
+		// Check if keymanager address is accessible
+		if err := pingAddress(ctx, addrs[i]); err != nil {
+			return err
+		}
 
-			log.Debug(ctx, "Pushed keys to keymanager", z.Str("addr", addr))
+		err := postKeysToKeymanager(ctx, addrs[i], secrets)
+		if err != nil {
+			log.Error(ctx, "Failed to push keys", err, z.Str("addr", addrs[i]))
+			return err
+		}
 
-			return nil
-		})
+		log.Debug(ctx, "Pushed keys to keymanager", z.Str("addr", addrs[i]))
 	}
 
 	if err := eg.Wait(); err != nil {
@@ -433,6 +435,45 @@ func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sh
 	}
 
 	log.Info(ctx, "Pushed all validator keys to keymanager APIs")
+
+	return nil
+}
+
+// postKeysToKeymanager pushes the secrets to the provided keymanager address. The HTTP request times out after 10s.
+func postKeysToKeymanager(ctx context.Context, addr string, secrets []*bls_sig.SecretKey) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	reqBody, err := keystore.KeymanagerReqBody(secrets)
+	if err != nil {
+		return err
+	}
+
+	reqBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return errors.New("marshal keymanager request body")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, addr, bytes.NewReader(reqBytes))
+	if err != nil {
+		return errors.Wrap(err, "new post request", z.Str("url", addr))
+	}
+	req.Header.Add("Content-Type", `application/json`)
+
+	resp, err := new(http.Client).Do(req)
+	if err != nil {
+		return errors.Wrap(err, "post validator keys to keymanager")
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errors.Wrap(err, "read response")
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return errors.New("failed posting keys", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
+	}
 
 	return nil
 }
@@ -690,4 +731,24 @@ func safeThreshold(ctx context.Context, numNodes, threshold int) int {
 	}
 
 	return threshold
+}
+
+// pingAddress returns an error if the provided HTTP address is not reachable.
+func pingAddress(ctx context.Context, addr string) error {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return errors.Wrap(err, "parse address")
+	}
+
+	var d net.Dialer
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	conn, err := d.DialContext(ctx, "tcp", u.Host)
+	if err != nil {
+		return errors.Wrap(err, "cannot ping address", z.Str("addr", addr))
+	}
+	conn.Close()
+
+	return nil
 }

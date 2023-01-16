@@ -19,28 +19,21 @@
 package keystore
 
 import (
-	"bytes"
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
@@ -69,24 +62,24 @@ func StoreKeys(secrets []*bls_sig.SecretKey, dir string) error {
 	return storeKeysInternal(secrets, dir, "keystore-%d.json")
 }
 
-// keymanagerReq represents the keymanager API request body for POST request. Refer: https://ethereum.github.io/keymanager-APIs/#/Local%20Key%20Manager/importKeystores
-type keymanagerReq struct {
+// KeymanagerReq represents the keymanager API request body for POST request. Refer: https://ethereum.github.io/keymanager-APIs/#/Local%20Key%20Manager/importKeystores
+type KeymanagerReq struct {
 	Keystores []keystore `json:"keystores"`
 	Passwords []string   `json:"passwords"`
 }
 
-// keymanagerReqBody constructs a keymanagerReq using the provided secrets and returns it.
-func keymanagerReqBody(secrets []*bls_sig.SecretKey) (keymanagerReq, error) {
-	var resp keymanagerReq
+// KeymanagerReqBody constructs a KeymanagerReq using the provided secrets and returns it.
+func KeymanagerReqBody(secrets []*bls_sig.SecretKey) (KeymanagerReq, error) {
+	var resp KeymanagerReq
 	for _, secret := range secrets {
 		password, err := randomHex32()
 		if err != nil {
-			return keymanagerReq{}, err
+			return KeymanagerReq{}, err
 		}
 
 		store, err := encrypt(secret, password, rand.Reader)
 		if err != nil {
-			return keymanagerReq{}, err
+			return KeymanagerReq{}, err
 		}
 
 		resp.Keystores = append(resp.Keystores, store)
@@ -94,66 +87,6 @@ func keymanagerReqBody(secrets []*bls_sig.SecretKey) (keymanagerReq, error) {
 	}
 
 	return resp, nil
-}
-
-// PostKeysToKeymanager pushes the secrets to the provided keymanager address. The HTTP request times out after 10s.
-func PostKeysToKeymanager(ctx context.Context, addr string, secrets []*bls_sig.SecretKey) error {
-	// Check if keymanager address is accessible
-	if err := pingAddress(addr); err != nil {
-		return err
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	reqBody, err := keymanagerReqBody(secrets)
-	if err != nil {
-		return err
-	}
-
-	reqBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return errors.New("marshal keymanager request body")
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, addr, bytes.NewReader(reqBytes))
-	if err != nil {
-		return errors.Wrap(err, "new post request", z.Str("url", addr))
-	}
-	req.Header.Add("Content-Type", `application/json`)
-
-	resp, err := new(http.Client).Do(req)
-	if err != nil {
-		return errors.Wrap(err, "post validator keys to keymanager")
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return errors.Wrap(err, "read response")
-	}
-	resp.Body.Close()
-
-	if resp.StatusCode/100 != 2 {
-		return errors.New("failed posting keys", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
-	}
-
-	return nil
-}
-
-// pingAddress returns an error if the provided address is not reachable.
-func pingAddress(addr string) error {
-	u, err := url.Parse(addr)
-	if err != nil {
-		return errors.Wrap(err, "parse address")
-	}
-
-	conn, err := net.DialTimeout("tcp", u.Host, 2*time.Second)
-	if err != nil {
-		return errors.Wrap(err, "cannot ping address", z.Str("addr", addr))
-	}
-	conn.Close()
-
-	return nil
 }
 
 func storeKeysInternal(secrets []*bls_sig.SecretKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
