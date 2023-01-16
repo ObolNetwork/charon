@@ -429,11 +429,11 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 	})
 }
 
-func TestPingAddress(t *testing.T) {
+func TestVerifyConnection(t *testing.T) {
 	ctx := context.Background()
 	srv := httptest.NewServer(nil)
 	defer srv.Close()
 
-	require.NoError(t, pingAddress(ctx, srv.URL))
-	require.Error(t, pingAddress(ctx, "1.1.1.1"))
+	require.NoError(t, verifyConnection(ctx, srv.URL))
+	require.Error(t, verifyConnection(ctx, "1.1.1.1"))
 }

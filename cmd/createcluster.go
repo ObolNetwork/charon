@@ -404,6 +404,13 @@ func getValidators(dvs []tbls.TSS) ([]cluster.DistValidator, error) {
 
 // writeKeysToKeymanager writes validator keys to the provided keymanager addresses.
 func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]*bls_sig.SecretKeyShare) error {
+	// Ping all keymanager addresses to check if they are accessible to avoid partial writes
+	for i := 0; i < numNodes; i++ {
+		if err := verifyConnection(ctx, addrs[i]); err != nil {
+			return err
+		}
+	}
+
 	for i := 0; i < numNodes; i++ {
 		var secrets []*bls_sig.SecretKey
 		for _, shares := range shareSets {
@@ -412,11 +419,6 @@ func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sh
 				return err
 			}
 			secrets = append(secrets, secret)
-		}
-
-		// Check if keymanager address is accessible
-		if err := pingAddress(ctx, addrs[i]); err != nil {
-			return err
 		}
 
 		err := postKeysToKeymanager(ctx, addrs[i], secrets)
@@ -728,8 +730,8 @@ func safeThreshold(ctx context.Context, numNodes, threshold int) int {
 	return threshold
 }
 
-// pingAddress returns an error if the provided HTTP address is not reachable.
-func pingAddress(ctx context.Context, addr string) error {
+// verifyConnection returns an error if the provided HTTP address is not reachable.
+func verifyConnection(ctx context.Context, addr string) error {
 	u, err := url.Parse(addr)
 	if err != nil {
 		return errors.Wrap(err, "parse address")
