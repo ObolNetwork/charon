@@ -28,7 +28,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
-	enr2 "github.com/obolnetwork/charon/eth2util/enr"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -63,7 +63,7 @@ func runNewENR(w io.Writer, dataDir string, verbose bool) error {
 		return err
 	}
 
-	r, err := enr2.New(key)
+	r, err := enr.New(key)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func runNewENR(w io.Writer, dataDir string, verbose bool) error {
 }
 
 // writeExpandedEnr writes the expanded form of ENR to the terminal.
-func writeExpandedEnr(w io.Writer, r enr2.Record, privKey *ecdsa.PrivateKey) {
+func writeExpandedEnr(w io.Writer, r enr.Record, privKey *ecdsa.PrivateKey) {
 	var sb strings.Builder
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString("***************** Decoded ENR (see https://enr-viewer.com/ for additional fields) **********************\n")
