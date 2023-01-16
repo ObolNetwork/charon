@@ -75,7 +75,7 @@ func TestCmdFlags(t *testing.T) {
 					LokiService: "charon",
 				},
 				P2P: p2p.Config{
-					UDPBootnodes:  []string{"http://bootnode.lb.gcp.obol.tech:3640/enr"},
+					UDPBootnodes:  []string{"https://0.relay.obol.tech/enr"},
 					UDPAddr:       "",
 					TCPAddrs:      nil,
 					Allowlist:     "",
@@ -102,7 +102,7 @@ func TestCmdFlags(t *testing.T) {
 			Args:    slice("create", "enr"),
 			Datadir: ".charon",
 			P2PConfig: &p2p.Config{
-				UDPBootnodes:  []string{"http://bootnode.lb.gcp.obol.tech:3640/enr"},
+				UDPBootnodes:  []string{"https://0.relay.obol.tech/enr"},
 				UDPAddr:       "",
 				TCPAddrs:      nil,
 				Allowlist:     "",
