@@ -173,6 +173,24 @@ type Broadcaster interface {
 	Broadcast(context.Context, Duty, PubKey, SignedData) error
 }
 
+// Tracker sends core component events for further analysis and instrumentation.
+type Tracker interface {
+	// FetcherFetched sends Fetcher component's events to tracker.
+	FetcherFetched(context.Context, Duty, DutyDefinitionSet, error)
+
+	// DutyDBStored sends DutyDB component's store events to tracker.
+	DutyDBStored(context.Context, Duty, UnsignedDataSet, error)
+
+	// ParSigDBStoredInternal sends ParSigDB component's store internal events to tracker.
+	ParSigDBStoredInternal(context.Context, Duty, ParSignedDataSet, error)
+
+	// ParSigDBStoredExternal sends ParSigDB component's store external events to tracker.
+	ParSigDBStoredExternal(context.Context, Duty, ParSignedDataSet, error)
+
+	// BroadcasterBroadcast sends Broadcaster component's broadcast events to tracker.
+	BroadcasterBroadcast(context.Context, Duty, PubKey, SignedData, error)
+}
+
 // wireFuncs defines the core workflow components as a list of input and output functions
 // instead as interfaces, since functions are easier to wrap than interfaces.
 type wireFuncs struct {
