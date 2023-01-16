@@ -33,11 +33,14 @@ const (
 	scheduler              // Duty scheduled with definition
 	fetcher                // Duty data fetched
 	consensus              // Duty data consensus reached
+	dutyDBStore            // Duty data stored in DutyDB
 	validatorAPI           // Partial signed data from local VC submitted to vapi
 	parSigDBInternal       // Partial signed data from local VC stored in parsigdb
 	parSigEx               // Partial signed data from other VC received via parsigex
+	parSigDBExternal       // Partial signed data from other VC stored in parsigdb
 	parSigDBThreshold      // Partial signed data threshold reached; emitted from parsigdb
 	sigAgg                 // Partial signed data aggregated; emitted from sigagg
+	bcast                  // Aggregated data submitted to beacon node
 	sentinel
 )
 
@@ -46,11 +49,14 @@ var stepLabels = map[step]string{
 	scheduler:         "scheduler",
 	fetcher:           "fetcher",
 	consensus:         "consensus",
+	dutyDBStore:       "duty_db_store",
 	validatorAPI:      "validator_api",
 	parSigDBInternal:  "parsig_db_local",
 	parSigEx:          "parsig_exchange",
+	parSigDBExternal:  "parsig_db_external",
 	parSigDBThreshold: "parsig_db_threshold",
 	sigAgg:            "sig_aggregation",
+	bcast:             "bcast",
 }
 
 // step in the core workflow.
@@ -180,10 +186,10 @@ func (m parsigsByMsg) MsgRootsConsistent() bool {
 
 // event represents an event emitted by a core workflow step.
 type event struct {
-	duty         core.Duty
-	step         step
-	pubkey       core.PubKey
-	componentErr error
+	duty    core.Duty
+	step    step
+	pubkey  core.PubKey
+	stepErr error
 
 	// parSig is an optional field only set by validatorAPI, parSigDBInternal and parSigEx events.
 	parSig *core.ParSignedData
@@ -273,23 +279,28 @@ func (t *Tracker) Run(ctx context.Context) error {
 // If the duty didn't fail, it returns false and the zero step.
 // It assumes that all the input events are for a single duty.
 // If the input events slice is empty, it returns true and the zero step.
-func dutyFailedStep(es []event) (bool, step) {
+func dutyFailedStep(es []event) (bool, step, error) {
 	if len(es) == 0 {
-		return true, zero // Duty failed since no events.
+		return true, zero, nil // Duty failed since no events.
 	}
 
-	// Copy and sort in reverse order (see step order above).
+	n := len(es)
+
+	// Copy and sort in the step order specified above.
 	clone := append([]event(nil), es...)
 	sort.Slice(clone, func(i, j int) bool {
-		return clone[i].step > clone[j].step
+		return clone[i].step < clone[j].step
 	})
 
-	step := clone[0].step
-	if step == sigAgg {
-		return false, zero
+	if clone[n-1].step == bcast && clone[n-1].stepErr == nil {
+		return false, zero, nil
 	}
 
-	return true, step + 1
+	if clone[n-1].stepErr != nil {
+		return true, clone[n-1].step, clone[n-1].stepErr
+	}
+
+	return true, clone[n-1].step + 1, nil
 }
 
 // analyseDutyFailed detects if the given duty failed.
@@ -298,9 +309,9 @@ func dutyFailedStep(es []event) (bool, step) {
 // where the duty got stuck and a human friendly error message explaining why.
 //
 // It returns false if the duty didn't fail, i.e., the duty
-// didn't get stuck and completed the sigAgg step.
+// didn't get stuck and completed the bcast step.
 func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootConsistent bool) (bool, step, string) {
-	failed, step := dutyFailedStep(allEvents[duty])
+	failed, step, _ := dutyFailedStep(allEvents[duty])
 	if !failed {
 		return false, zero, ""
 	}
@@ -385,7 +396,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 	// Proposer duties depend on randao duty, so check if that was why it failed.
 	if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
 		// Proposer duties will fail if core.DutyRandao fails
-		randaoFailed, randaoStep := dutyFailedStep(allEvents[core.NewRandaoDuty(duty.Slot)])
+		randaoFailed, randaoStep, _ := dutyFailedStep(allEvents[core.NewRandaoDuty(duty.Slot)])
 		if randaoFailed {
 			switch randaoStep {
 			case parSigDBThreshold:
@@ -403,7 +414,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 	// Duty aggregator depend on prepare aggregator duty, so check if that was why it failed.
 	if duty.Type == core.DutyAggregator {
 		// Aggregator duties will fail if core.DutyPrapareAggregator fails
-		prepAggFailed, prepAggStep := dutyFailedStep(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
+		prepAggFailed, prepAggStep, _ := dutyFailedStep(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
 		if prepAggFailed {
 			switch prepAggStep {
 			case parSigDBThreshold:
@@ -418,7 +429,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 		}
 
 		// Aggregator duties will fail if no attestation data in DutyDB
-		attFailed, attStep := dutyFailedStep(allEvents[core.NewAttesterDuty(duty.Slot)])
+		attFailed, attStep, _ := dutyFailedStep(allEvents[core.NewAttesterDuty(duty.Slot)])
 		if attFailed && attStep <= consensus {
 			// Note we do not handle the edge case of the local peer failing to store attestation data
 			// but the attester duty succeeding in any case due to external peer partial signatures.
@@ -435,7 +446,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 	// Duty sync contribution depends on prepare sync contribution duty, so check if that was why it failed.
 	if duty.Type == core.DutySyncContribution {
 		// Sync contribution duties will fail if core.DutyPrepareSyncContribution fails.
-		prepSyncConFailed, prepSyncConStep := dutyFailedStep(allEvents[core.NewPrepareSyncContributionDuty(duty.Slot)])
+		prepSyncConFailed, prepSyncConStep, _ := dutyFailedStep(allEvents[core.NewPrepareSyncContributionDuty(duty.Slot)])
 		if prepSyncConFailed {
 			switch prepSyncConStep {
 			case parSigDBThreshold:
@@ -450,7 +461,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 		}
 
 		// Sync contribution duties will fail if no sync message in DutyDB.
-		syncMsgFailed, syncMsgStep := dutyFailedStep(allEvents[core.NewSyncMessageDuty(duty.Slot)])
+		syncMsgFailed, syncMsgStep, _ := dutyFailedStep(allEvents[core.NewSyncMessageDuty(duty.Slot)])
 		if syncMsgFailed && syncMsgStep <= consensus {
 			// Note we do not handle the edge case of the local peer failing to store sync message
 			// but the sync message duty succeeding in any case due to external peer partial signatures.
@@ -627,28 +638,6 @@ func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet cor
 	return nil
 }
 
-// FetcherEvent inputs event from core.Fetcher step.
-func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
-	if ctx.Err() != nil {
-		return nil //nolint:nilerr // Ignore event if expired.
-	}
-	for pubkey := range data {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-t.quit:
-			return nil
-		case t.input <- event{
-			duty:   duty,
-			step:   fetcher,
-			pubkey: pubkey,
-		}:
-		}
-	}
-
-	return nil
-}
-
 // ConsensusEvent inputs event from core.Consensus step.
 func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	if ctx.Err() != nil {
@@ -719,30 +708,6 @@ func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.P
 	return nil
 }
 
-// ParSigDBInternalEvent inputs events from core.ParSigDB step event for local VC submitted parsigs.
-func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
-	if ctx.Err() != nil {
-		return nil //nolint:nilerr // Ignore event if expired.
-	}
-	for pubkey, parSig := range data {
-		parSig := parSig // Copy loop iteration values
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-t.quit:
-			return nil
-		case t.input <- event{
-			duty:   duty,
-			step:   parSigDBInternal,
-			pubkey: pubkey,
-			parSig: &parSig,
-		}:
-		}
-	}
-
-	return nil
-}
-
 // ParSigDBThresholdEvent inputs event from core.ParSigDB step for threshold emitted parsigs.
 func (t *Tracker) ParSigDBThresholdEvent(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData) error {
 	if ctx.Err() != nil {
@@ -784,17 +749,93 @@ func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.P
 }
 
 // Fetcher implements core.Tracker interface.
-func (t *Tracker) Fetcher(ctx context.Context, duty core.Duty, pubkey core.PubKey, componentErr error) {
+func (t *Tracker) Fetcher(ctx context.Context, duty core.Duty, set core.DutyDefinitionSet, stepErr error) {
+	for pubkey := range set {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.quit:
+			return
+		case t.input <- event{
+			duty:    duty,
+			step:    fetcher,
+			pubkey:  pubkey,
+			stepErr: stepErr,
+		}:
+		}
+	}
+}
+
+// DutyDBStore implements core.Tracker interface.
+func (t *Tracker) DutyDBStore(ctx context.Context, duty core.Duty, set core.UnsignedDataSet, stepErr error) {
+	for pubkey := range set {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.quit:
+			return
+		case t.input <- event{
+			duty:    duty,
+			step:    dutyDBStore,
+			pubkey:  pubkey,
+			stepErr: stepErr,
+		}:
+		}
+	}
+}
+
+// ParSigDBStoreInternal implements core.Tracker interface.
+func (t *Tracker) ParSigDBStoreInternal(ctx context.Context, duty core.Duty, set core.ParSignedDataSet, stepErr error) {
+	for pubkey, parSig := range set {
+		parSig := parSig
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.quit:
+			return
+		case t.input <- event{
+			duty:    duty,
+			step:    parSigDBInternal,
+			pubkey:  pubkey,
+			parSig:  &parSig,
+			stepErr: stepErr,
+		}:
+		}
+	}
+}
+
+// ParSigDBStoreExternal implements core.Tracker interface.
+func (t *Tracker) ParSigDBStoreExternal(ctx context.Context, duty core.Duty, set core.ParSignedDataSet, stepErr error) {
+	for pubkey, parSig := range set {
+		parSig := parSig
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.quit:
+			return
+		case t.input <- event{
+			duty:    duty,
+			step:    parSigDBExternal,
+			pubkey:  pubkey,
+			parSig:  &parSig,
+			stepErr: stepErr,
+		}:
+		}
+	}
+}
+
+// BroadcasterBroadcast implements core.Tracker interface.
+func (t *Tracker) BroadcasterBroadcast(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ core.SignedData, stepErr error) {
 	select {
 	case <-ctx.Done():
 		return
 	case <-t.quit:
 		return
 	case t.input <- event{
-		duty:         duty,
-		step:         fetcher,
-		pubkey:       pubkey,
-		componentErr: componentErr,
+		duty:    duty,
+		step:    bcast,
+		pubkey:  pubkey,
+		stepErr: stepErr,
 	}:
 	}
 }

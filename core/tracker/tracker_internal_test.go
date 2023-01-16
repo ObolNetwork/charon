@@ -66,7 +66,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 		go func() {
 			for _, td := range testData {
 				require.NoError(t, tr.SchedulerEvent(ctx, td.duty, td.defSet))
-				require.NoError(t, tr.FetcherEvent(ctx, td.duty, td.unsignedDataSet))
+				tr.Fetcher(ctx, td.duty, td.defSet, nil)
 
 				// Explicitly mark the current duty as deadlined.
 				analyser.deadlineChan <- td.duty
@@ -106,14 +106,15 @@ func TestTrackerFailedDuty(t *testing.T) {
 		go func() {
 			for _, td := range testData {
 				require.NoError(t, tr.SchedulerEvent(ctx, td.duty, td.defSet))
-				require.NoError(t, tr.FetcherEvent(ctx, td.duty, td.unsignedDataSet))
+				tr.Fetcher(ctx, td.duty, td.defSet, nil)
 				require.NoError(t, tr.ConsensusEvent(ctx, td.duty, td.unsignedDataSet))
 				require.NoError(t, tr.ValidatorAPIEvent(ctx, td.duty, td.parSignedDataSet))
-				require.NoError(t, tr.ParSigDBInternalEvent(ctx, td.duty, td.parSignedDataSet))
+				tr.ParSigDBStoreInternal(ctx, td.duty, td.parSignedDataSet, nil)
 				require.NoError(t, tr.ParSigExEvent(ctx, td.duty, td.parSignedDataSet))
 				for _, pubkey := range pubkeys {
 					require.NoError(t, tr.ParSigDBThresholdEvent(ctx, td.duty, pubkey, nil))
 					require.NoError(t, tr.SigAggEvent(ctx, td.duty, pubkey, nil))
+					tr.BroadcasterBroadcast(ctx, td.duty, pubkey, nil, nil)
 				}
 
 				// Explicitly mark the current duty as deadlined.
@@ -166,6 +167,9 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		events[attDuty] = append(events[attDuty], event{
 			duty: attDuty,
 			step: consensus,
+		}, event{
+			duty: attDuty,
+			step: dutyDBStore,
 		})
 
 		failed, step, msg = analyseDutyFailed(attDuty, events, true)
@@ -199,6 +203,9 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		events[attDuty] = append(events[attDuty], event{
 			duty: attDuty,
 			step: parSigEx,
+		}, event{
+			duty: attDuty,
+			step: parSigDBExternal,
 		})
 
 		failed, step, msg = analyseDutyFailed(attDuty, events, true)
@@ -248,6 +255,9 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		events[randaoDuty] = append(events[randaoDuty], event{
 			duty: proposerDuty,
 			step: parSigEx,
+		}, event{
+			duty: proposerDuty,
+			step: parSigDBExternal,
 		})
 
 		failed, step, msg = analyseDutyFailed(proposerDuty, events, true)
@@ -288,29 +298,33 @@ func TestDutyFailedStep(t *testing.T) {
 	}
 
 	t.Run("DutySuccess", func(t *testing.T) {
-		failed, step := dutyFailedStep(events)
+		failed, step, err := dutyFailedStep(events)
+		require.NoError(t, err)
 		require.False(t, failed)
 		require.Equal(t, zero, step)
 	})
 
 	t.Run("EmptyEvents", func(t *testing.T) {
-		f, step := dutyFailedStep([]event{})
+		f, step, err := dutyFailedStep([]event{})
+		require.NoError(t, err)
 		require.True(t, f)
 		require.Equal(t, zero, step)
 	})
 
 	t.Run("DutyFailed", func(t *testing.T) {
-		// Remove the last step (sigAgg) from the events array.
+		// Remove the last step (bcast) from the events array.
 		events = events[:len(events)-1]
-		f, step := dutyFailedStep(events)
+		f, step, err := dutyFailedStep(events)
+		require.NoError(t, err)
+		require.True(t, f)
+		require.Equal(t, step, bcast)
+
+		// Remove the second-last step (sigAgg) from the events array.
+		events = events[:len(events)-1]
+		f, step, err = dutyFailedStep(events)
+		require.NoError(t, err)
 		require.True(t, f)
 		require.Equal(t, step, sigAgg)
-
-		// Remove the second-last step (parsigDBThreshold) from the events array.
-		events = events[:len(events)-1]
-		f, step = dutyFailedStep(events)
-		require.True(t, f)
-		require.Equal(t, step, parSigDBThreshold)
 	})
 }
 
@@ -403,13 +417,13 @@ func TestTrackerParticipation(t *testing.T) {
 	go func() {
 		for _, td := range testData {
 			require.NoError(t, tr.SchedulerEvent(ctx, td.duty, td.defSet))
-			require.NoError(t, tr.ParSigDBInternalEvent(ctx, td.duty, td.parSignedDataSet))
+			tr.ParSigDBStoreInternal(ctx, td.duty, td.parSignedDataSet, nil)
 			for _, data := range psigDataPerDutyPerPeer[td.duty] {
 				require.NoError(t, tr.ParSigExEvent(ctx, td.duty, data))
 			}
 			for _, pk := range pubkeys {
 				require.NoError(t, tr.ParSigDBThresholdEvent(ctx, td.duty, pk, nil))
-				require.NoError(t, tr.SigAggEvent(ctx, td.duty, pk, nil))
+				tr.BroadcasterBroadcast(ctx, td.duty, pk, nil, nil)
 			}
 
 			// Explicitly mark the current duty as deadlined.
@@ -705,6 +719,9 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutyPrepAgg: {event{
 					duty: dutyPrepAgg,
 					step: parSigEx,
+				}, event{
+					duty: dutyPrepAgg,
+					step: parSigDBExternal,
 				}},
 			},
 			msg:    msgFetcherAggregatorFewPrepares,
@@ -736,7 +753,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				}},
 				dutyPrepAgg: {event{
 					duty: dutyPrepAgg,
-					step: sigAgg,
+					step: bcast,
 				}},
 				dutyAtt: {event{
 					duty: dutyAtt,
@@ -756,7 +773,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				}},
 				dutyPrepAgg: {event{
 					duty: dutyPrepAgg,
-					step: sigAgg,
+					step: bcast,
 				}},
 				dutyAtt: {event{
 					duty: dutyAtt,
@@ -789,6 +806,9 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutyPrepSyncCon: {event{
 					duty: dutyPrepSyncCon,
 					step: parSigEx,
+				}, event{
+					duty: dutyPrepSyncCon,
+					step: parSigDBExternal,
 				}},
 			},
 			msg:    msgFetcherSyncContributionFewPrepares,
@@ -820,7 +840,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				}},
 				dutyPrepSyncCon: {event{
 					duty: dutyPrepSyncCon,
-					step: sigAgg,
+					step: bcast,
 				}},
 				dutySyncMsg: {event{
 					duty: dutySyncMsg,
@@ -840,11 +860,11 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				}},
 				dutyPrepSyncCon: {event{
 					duty: dutyPrepSyncCon,
-					step: sigAgg,
+					step: bcast,
 				}},
 				dutySyncMsg: {event{
 					duty: dutySyncMsg,
-					step: sigAgg,
+					step: bcast,
 				}},
 			},
 			msg:    "",

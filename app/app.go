@@ -465,7 +465,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	err = wireTracker(ctx, life, deadlineFunc, peers, eth2Cl, sched,
+	track, err := wireTracker(ctx, life, deadlineFunc, peers, eth2Cl, sched,
 		fetch, cons, vapi, parSigDB, parSigEx, sigAgg)
 	if err != nil {
 		return err
@@ -482,6 +482,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	core.Wire(sched, fetch, cons, dutyDB, vapi,
 		parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster,
 		core.WithTracing(),
+		core.WithTracking(track),
 		core.WithAsyncRetry(retryer),
 	)
 
@@ -564,7 +565,7 @@ func wireTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func
 	peers []p2p.Peer, ethCl eth2wrap.Client,
 	sched core.Scheduler, fetcher core.Fetcher, cons core.Consensus, vapi core.ValidatorAPI,
 	parSigDB core.ParSigDB, parSigEx core.ParSigEx, sigAgg core.SigAgg,
-) error {
+) (core.Tracker, error) {
 	analyser := core.NewDeadliner(ctx, "tracker_analyser", deadlineFunc)
 	deleter := core.NewDeadliner(ctx, "tracker_deleter", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
@@ -573,23 +574,21 @@ func wireTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func
 
 	trackFrom, err := calculateTrackerDelay(ctx, ethCl, time.Now())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	trackr := tracker.New(analyser, deleter, peers, trackFrom)
 
 	sched.SubscribeDuties(trackr.SchedulerEvent)
-	fetcher.Subscribe(trackr.FetcherEvent)
 	cons.Subscribe(trackr.ConsensusEvent)
 	vapi.Subscribe(trackr.ValidatorAPIEvent)
-	parSigDB.SubscribeInternal(trackr.ParSigDBInternalEvent)
 	parSigDB.SubscribeThreshold(trackr.ParSigDBThresholdEvent)
 	parSigEx.Subscribe(trackr.ParSigExEvent)
 	sigAgg.Subscribe(trackr.SigAggEvent)
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartTracker, lifecycle.HookFunc(trackr.Run))
 
-	return nil
+	return trackr, nil
 }
 
 // calculateTrackerDelay returns the slot to start tracking from. This mitigates noisy failed duties on

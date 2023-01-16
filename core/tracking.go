@@ -25,12 +25,34 @@ func WithTracking(tracker Tracker) WireOption {
 		clone := *w
 
 		w.FetcherFetch = func(ctx context.Context, duty Duty, set DutyDefinitionSet) error {
-			fetchErr := clone.FetcherFetch(ctx, duty, set)
-			for pubkey := range set {
-				tracker.Fetcher(ctx, duty, pubkey, fetchErr)
-			}
+			err := clone.FetcherFetch(ctx, duty, set)
+			tracker.Fetcher(ctx, duty, set, err)
 
-			return fetchErr
+			return err
+		}
+		w.DutyDBStore = func(ctx context.Context, duty Duty, set UnsignedDataSet) error {
+			err := clone.DutyDBStore(ctx, duty, set)
+			tracker.DutyDBStore(ctx, duty, set, err)
+
+			return err
+		}
+		w.ParSigDBStoreInternal = func(ctx context.Context, duty Duty, set ParSignedDataSet) error {
+			err := clone.ParSigDBStoreInternal(ctx, duty, set)
+			tracker.ParSigDBStoreInternal(ctx, duty, set, err)
+
+			return err
+		}
+		w.ParSigDBStoreExternal = func(ctx context.Context, duty Duty, set ParSignedDataSet) error {
+			err := clone.ParSigDBStoreExternal(ctx, duty, set)
+			tracker.ParSigDBStoreExternal(ctx, duty, set, err)
+
+			return err
+		}
+		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, pubkey PubKey, data SignedData) error {
+			err := clone.BroadcasterBroadcast(ctx, duty, pubkey, data)
+			tracker.BroadcasterBroadcast(ctx, duty, pubkey, data, err)
+
+			return err
 		}
 	}
 }
