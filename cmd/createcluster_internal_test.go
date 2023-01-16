@@ -217,22 +217,22 @@ func TestValidNetwork(t *testing.T) {
 	def, err := newDefFromConfig(ctx, conf)
 	require.NoError(t, err)
 
-	err = validateDef(ctx, false, def)
+	err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
 	require.Error(t, err, "zero address")
 
 	goerli, err := hex.DecodeString(strings.TrimPrefix(eth2util.Goerli.ForkVersionHex, "0x"))
 	require.NoError(t, err)
 	def.ForkVersion = goerli
-	err = validateDef(ctx, false, def)
+	err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
 	require.NoError(t, err)
 
-	err = validateDef(ctx, true, def) // Validate with insecure keys set to true
+	err = validateDef(ctx, true, conf.KeymanagerAddrs, def) // Validate with insecure keys set to true
 	require.NoError(t, err)
 
 	mainnet, err := hex.DecodeString(strings.TrimPrefix(eth2util.Mainnet.ForkVersionHex, "0x"))
 	require.NoError(t, err)
 	def.ForkVersion = mainnet
-	err = validateDef(ctx, conf.InsecureKeys, def)
+	err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
 	require.Error(t, err, "zero address")
 }
 
@@ -330,7 +330,7 @@ func TestKeymanager(t *testing.T) {
 		if err != nil {
 			log.Error(context.Background(), "", err)
 		}
-		require.ErrorContains(t, err, "push keys to keymanager API: max retries done")
+		require.ErrorContains(t, err, "push keys to keymanager API: cannot ping address")
 	})
 }
 

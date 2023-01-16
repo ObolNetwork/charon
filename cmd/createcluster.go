@@ -96,6 +96,8 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.Name, "name", "", "The cluster name")
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
 	flags.StringVar(&config.DefFile, "definition-file", "", "Optional path to a cluster definition file or an HTTP URL. This overrides all other configuration flags.")
+
+	// Note that we need numNodes no of keymanager addresses since an address is required for each node.
 	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to push validator keys to.")
 	flags.IntVarP(&config.NumNodes, "nodes", "n", minNodes, "The number of charon nodes in the cluster. Minimum is 4.")
 	flags.IntVarP(&config.Threshold, "threshold", "t", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
@@ -151,7 +153,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	numNodes := len(def.Operators)
 	// Validate definition
-	err = validateDef(ctx, conf.InsecureKeys, def)
+	err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
 	if err != nil {
 		return err
 	}
@@ -181,11 +183,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	def.Operators = ops
 
 	if len(conf.KeymanagerAddrs) != 0 { // Push keys to keymanager
-		if err = saveKeysToKeymanager(ctx, conf.KeymanagerAddrs, numNodes, shareSets); err != nil {
+		if err = writeKeysToKeymanager(ctx, conf.KeymanagerAddrs, numNodes, shareSets); err != nil {
 			return err
 		}
 	} else { // Or else write keys to disk
-		if err = saveKeysToDisk(numNodes, conf.ClusterDir, conf.InsecureKeys, shareSets); err != nil {
+		if err = writeKeysToDisk(numNodes, conf.ClusterDir, conf.InsecureKeys, shareSets); err != nil {
 			return err
 		}
 	}
@@ -398,14 +400,9 @@ func getValidators(dvs []tbls.TSS) ([]cluster.DistValidator, error) {
 	return vals, nil
 }
 
-// saveKeysToKeyManager saves validator keys to the provided keymanager addresses.
-func saveKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]*bls_sig.SecretKeyShare) error {
-	if len(addrs) != numNodes {
-		return errors.New("insufficient no of keymanager addresses", z.Int("expected", numNodes), z.Int("got", len(addrs)))
-	}
-
-	grp := new(errgroup.Group)
-	maxRetries := 5
+// saveKeysToKeyManager writes validator keys to the provided keymanager addresses.
+func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]*bls_sig.SecretKeyShare) error {
+	eg := new(errgroup.Group)
 	for i := 0; i < numNodes; i++ {
 		var secrets []*bls_sig.SecretKey
 		for _, shares := range shareSets {
@@ -416,24 +413,21 @@ func saveKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sha
 			secrets = append(secrets, secret)
 		}
 
-		retries := maxRetries
 		addr := addrs[i]
-		grp.Go(func() error {
-			for retries > 0 {
-				err := keystore.PostKeysToKeymanager(ctx, addr, secrets)
-				if err == nil {
-					log.Debug(ctx, "Pushed keys to keymanager", z.Str("addr", addr))
-					return nil
-				}
-
-				retries--
+		eg.Go(func() error {
+			err := keystore.PostKeysToKeymanager(ctx, addr, secrets)
+			if err != nil {
+				log.Error(ctx, "Failed to push keys", err, z.Str("addr", addr))
+				return err
 			}
 
-			return errors.New("max retries done")
+			log.Debug(ctx, "Pushed keys to keymanager", z.Str("addr", addr))
+
+			return nil
 		})
 	}
 
-	if err := grp.Wait(); err != nil {
+	if err := eg.Wait(); err != nil {
 		// TODO(xenowits): Do we delete pushed keys since some got pushed while others didn't?
 		return errors.Wrap(err, "push keys to keymanager API")
 	}
@@ -443,8 +437,8 @@ func saveKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sha
 	return nil
 }
 
-// saveKeysToDisk saves validator keys to disk. It assumes that the directory for each node already exists.
-func saveKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSets [][]*bls_sig.SecretKeyShare) error {
+// writeKeysToDisk writes validator keys to disk. It assumes that the directory for each node already exists.
+func writeKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSets [][]*bls_sig.SecretKeyShare) error {
 	for i := 0; i < numNodes; i++ {
 		var secrets []*bls_sig.SecretKey
 		for _, shares := range shareSets {
@@ -578,9 +572,13 @@ func checksumAddr(a string) (string, error) {
 }
 
 // validateDef returns an error if the provided cluster definition is valid.
-func validateDef(ctx context.Context, insecureKeys bool, def cluster.Definition) error {
+func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []string, def cluster.Definition) error {
 	if len(def.Operators) < minNodes {
 		return errors.New("insufficient number of nodes (min = 4)", z.Int("num_nodes", len(def.Operators)))
+	}
+
+	if len(keymanagerAddrs) > 0 && (len(keymanagerAddrs) != len(def.Operators)) {
+		return errors.New("insufficient no of keymanager addresses", z.Int("expected", len(def.Operators)), z.Int("got", len(keymanagerAddrs)))
 	}
 
 	network, err := eth2util.ForkVersionToNetwork(def.ForkVersion)

@@ -26,7 +26,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -73,43 +75,48 @@ type keymanagerReq struct {
 	Passwords []string   `json:"passwords"`
 }
 
-// keymanagerReqBody converts the provided secrets into keymanagerReq and returns the marshalled request.
-func keymanagerReqBody(secrets []*bls_sig.SecretKey) ([]byte, error) {
-	var req keymanagerReq
+// keymanagerReqBody constructs a keymanagerReq using the provided secrets and returns it.
+func keymanagerReqBody(secrets []*bls_sig.SecretKey) (keymanagerReq, error) {
+	var resp keymanagerReq
 	for _, secret := range secrets {
 		password, err := randomHex32()
 		if err != nil {
-			return nil, err
+			return keymanagerReq{}, err
 		}
 
 		store, err := encrypt(secret, password, rand.Reader)
 		if err != nil {
-			return nil, err
+			return keymanagerReq{}, err
 		}
 
-		req.Keystores = append(req.Keystores, store)
-		req.Passwords = append(req.Passwords, password)
+		resp.Keystores = append(resp.Keystores, store)
+		resp.Passwords = append(resp.Passwords, password)
 	}
 
-	res, err := json.Marshal(req)
-	if err != nil {
-		return nil, errors.New("marshal keymanager request body")
-	}
-
-	return res, nil
+	return resp, nil
 }
 
-// PostKeysToKeymanager pushes the secrets to the provided keymanager address. The HTTP request times out after 2s.
+// PostKeysToKeymanager pushes the secrets to the provided keymanager address. The HTTP request times out after 10s.
 func PostKeysToKeymanager(ctx context.Context, addr string, secrets []*bls_sig.SecretKey) error {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	// Check if keymanager address is accessible
+	if err := pingAddress(addr); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	body, err := keymanagerReqBody(secrets)
+	reqBody, err := keymanagerReqBody(secrets)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, addr, bytes.NewReader(body))
+	reqBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return errors.New("marshal keymanager request body")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, addr, bytes.NewReader(reqBytes))
 	if err != nil {
 		return errors.Wrap(err, "new post request", z.Str("url", addr))
 	}
@@ -129,6 +136,22 @@ func PostKeysToKeymanager(ctx context.Context, addr string, secrets []*bls_sig.S
 	if resp.StatusCode/100 != 2 {
 		return errors.New("failed posting keys", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
 	}
+
+	return nil
+}
+
+// pingAddress returns an error if the provided address is not reachable.
+func pingAddress(addr string) error {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return errors.Wrap(err, "parse address")
+	}
+
+	conn, err := net.DialTimeout("tcp", u.Host, 2*time.Second)
+	if err != nil {
+		return errors.Wrap(err, "cannot ping address", z.Str("addr", addr))
+	}
+	conn.Close()
 
 	return nil
 }
