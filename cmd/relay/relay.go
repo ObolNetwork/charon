@@ -17,6 +17,7 @@ package relay
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
@@ -109,8 +110,18 @@ func Run(ctx context.Context, config Config) error {
 		}
 
 		mux := http.NewServeMux()
-		mux.HandleFunc("/enr", func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc("/enr/", func(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte(localEnode.Node().String()))
+		})
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			b, err := json.Marshal(tcpNode.Addrs())
+			if err != nil {
+				log.Error(r.Context(), "Marshal multiaddrs", err)
+				w.WriteHeader(http.StatusInternalServerError)
+
+				return
+			}
+			_, _ = w.Write(b)
 		})
 		server := http.Server{Addr: config.HTTPAddr, Handler: mux, ReadHeaderTimeout: time.Second}
 		serverErr <- server.ListenAndServe()
