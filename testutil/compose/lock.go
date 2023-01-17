@@ -66,7 +66,11 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 
 		var nodes []TmplNode
 		for i := 0; i < conf.NumNodes; i++ {
-			n := TmplNode{EnvVars: newNodeEnvs(i, conf, "")}
+			n := TmplNode{
+				EnvVars:    newNodeEnvs(i, conf, ""),
+				Entrypoint: "sh",
+				Command:    fmt.Sprintf("[-c,'%s %s && sleep 2']", conf.entrypoint(), cmdDKG), // Sleep after completion to allow other nodes to finish
+			}
 			nodes = append(nodes, n)
 		}
 
@@ -74,12 +78,12 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: conf.entrypoint(),
-			CharonCommand:    cmdDKG,
+			CharonCommand:    "not used",
 			Bootnode:         true,
 			Nodes:            nodes,
 		}
 	default:
-		return TmplData{}, errors.New("supported keygen")
+		return TmplData{}, errors.New("unsupported keygen", z.Any("keygen", conf.KeyGen))
 	}
 
 	log.Info(ctx, "Creating docker-compose.yml")

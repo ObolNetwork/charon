@@ -3,7 +3,7 @@ version: "3.8"
 x-node-base: &node-base
   image: obolnetwork/charon:latest
   entrypoint: /usr/local/bin/charon
-  command: dkg
+  command: not used
   networks: [compose]
   volumes: [testdir:/compose]
   depends_on: [bootnode] 
@@ -11,6 +11,8 @@ x-node-base: &node-base
 services:
   node0:
     <<: *node-base
+    entrypoint: sh
+    command: [-c,'/usr/local/bin/charon dkg && sleep 2']
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node0/charon-enr-private-key
@@ -28,6 +30,8 @@ services:
     
   node1:
     <<: *node-base
+    entrypoint: sh
+    command: [-c,'/usr/local/bin/charon dkg && sleep 2']
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node1/charon-enr-private-key
@@ -45,6 +49,8 @@ services:
     
   node2:
     <<: *node-base
+    entrypoint: sh
+    command: [-c,'/usr/local/bin/charon dkg && sleep 2']
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node2/charon-enr-private-key
@@ -62,6 +68,8 @@ services:
     
   node3:
     <<: *node-base
+    entrypoint: sh
+    command: [-c,'/usr/local/bin/charon dkg && sleep 2']
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node3/charon-enr-private-key

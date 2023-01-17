@@ -16,6 +16,8 @@ services:
     {{end -}}
     {{if .Entrypoint}}entrypoint: {{.Entrypoint}}
     {{end -}}
+    {{if .Command}}command: {{.Command}}
+    {{end -}}
     {{- if .EnvVars}}
     environment:
       {{- range $node.EnvVars}}
