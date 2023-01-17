@@ -332,7 +332,9 @@ func parsePRs(gitRange string) ([]pullRequest, error) {
 	out = strings.ReplaceAll(out, "\r", ``)   // Drop carriage returns if any
 	out = strings.ReplaceAll(out, "\n", `\n`) // Escape new lines
 	out = strings.ReplaceAll(out, "\t", `\t`) // Escape tabs
+	out = strings.ReplaceAll(out, `\"`, `‰`)  // Hide already escaped quotes
 	out = strings.ReplaceAll(out, `"`, `\"`)  // Escape double quotes
+	out = strings.ReplaceAll(out, `‰`, `\"`)  // Unhide already escaped quotes
 	out = strings.ReplaceAll(out, `…`, `"`)   // Replace field separator
 
 	var logs []log

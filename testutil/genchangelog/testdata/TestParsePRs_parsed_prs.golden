@@ -1,56 +1,314 @@
 [
  {
-  "Title": "testutil/beaconmock: default to gnosis as preset base (#273)",
-  "Number": 273,
-  "Category": "test",
-  "Issue": 271
+  "Title": "cmd: add `keymanager-address` flag to create cluster command (#1622)",
+  "Number": 1622,
+  "Category": "feature",
+  "Issue": 1503
  },
  {
-  "Title": "app: add teku simnet integration test (#271)",
-  "Number": 271,
-  "Category": "test",
-  "Issue": 268
+  "Title": "eth2util/enr: port minimal implementation (#1627)",
+  "Number": 1627,
+  "Category": "feature",
+  "Issue": 1608
  },
  {
-  "Title": "*: add support for external VC to simnet (#265)",
-  "Number": 265,
-  "Category": "misc",
-  "Issue": 251
+  "Title": "eth2util/rlp: implement basic rlp encoding (#1624)",
+  "Number": 1624,
+  "Category": "feature",
+  "Issue": 1608
  },
  {
-  "Title": "core/validatorapi: fix attestation domain and signature verification (#264)",
-  "Number": 264,
+  "Title": "cmd: add `--definition-file` flag to create cluster command (#1615)",
+  "Number": 1615,
+  "Category": "feature",
+  "Issue": 1490
+ },
+ {
+  "Title": "cmd: rebrand bootnode to relay (#1610)",
+  "Number": 1610,
+  "Category": "refactor",
+  "Issue": 1524
+ },
+ {
+  "Title": "core/validatorapi: fix readyz issue (#1609)",
+  "Number": 1609,
   "Category": "bug",
-  "Issue": 251
+  "Issue": 1501
  },
  {
-  "Title": "cmd: add flag to disable simnet mock validator (#263)",
-  "Number": 263,
-  "Category": "feature",
-  "Issue": 251
+  "Title": "cmd: deprecate discv5 and release relay discovery (#1607)",
+  "Number": 1607,
+  "Category": "refactor",
+  "Issue": 1606
  },
  {
-  "Title": "testutil/beaconmock: refactor http mock (#260)",
-  "Number": 260,
+  "Title": "p2p: relay discovery supports external ip and host (#1604)",
+  "Number": 1604,
   "Category": "feature",
-  "Issue": 251
+  "Issue": 1590
  },
  {
-  "Title": "core/validatorapi: add validators to router (#259)",
-  "Number": 259,
+  "Title": "core/aggsigdb: delete expired duties and queries (#1598)",
+  "Number": 1598,
   "Category": "feature",
-  "Issue": 251
+  "Issue": 1582
  },
  {
-  "Title": "testutil/keystore: use hardcoded password (#258)",
-  "Number": 258,
-  "Category": "feature",
-  "Issue": 251
+  "Title": "cluster: revert partial definition (#1602)",
+  "Number": 1602,
+  "Category": "refactor",
+  "Issue": 1591
  },
  {
-  "Title": "core/aggsigdb: implement in-memory AggSigDB (#249)",
-  "Number": 249,
+  "Title": "core/validatorapi: refactor to 0-indexed (#1601)",
+  "Number": 1601,
+  "Category": "refactor",
+  "Issue": 947
+ },
+ {
+  "Title": "core/fetcher: add capella support to verify fee recipient for blinded blocks (#1600)",
+  "Number": 1600,
+  "Category": "refactor",
+  "Issue": 1587
+ },
+ {
+  "Title": "core/validatorapi: fix readyz issues in canary clusters (#1599)",
+  "Number": 1599,
+  "Category": "bug",
+  "Issue": 1501
+ },
+ {
+  "Title": "core/validatorapi: improve error (#1586)",
+  "Number": 1586,
   "Category": "feature",
-  "Issue": 220
+  "Issue": 947
+ },
+ {
+  "Title": "app/monitoring: re-enable detect VC feature (#1597)",
+  "Number": 1597,
+  "Category": "feature",
+  "Issue": 1501
+ },
+ {
+  "Title": "core/scheduler: delete expired duties (#1596)",
+  "Number": 1596,
+  "Category": "feature",
+  "Issue": 1584
+ },
+ {
+  "Title": "core/dutydb: delete cancelled queries (#1595)",
+  "Number": 1595,
+  "Category": "bug",
+  "Issue": 978
+ },
+ {
+  "Title": "peerinfo: fix clock diff calculation (#1592)",
+  "Number": 1592,
+  "Category": "refactor",
+  "Issue": 1494
+ },
+ {
+  "Title": "core: add support for capella blocks (#1570)",
+  "Number": 1570,
+  "Category": "feature",
+  "Issue": 1464
+ },
+ {
+  "Title": "testutil/promrated: fix promrated dockerfile (#1575)",
+  "Number": 1575,
+  "Category": "bug",
+  "Issue": 1540
+ },
+ {
+  "Title": "testutil/promrated: add workflow and docker image for promrated (#1574)",
+  "Number": 1574,
+  "Category": "misc",
+  "Issue": 1540
+ },
+ {
+  "Title": "testutil/promrated: implement rated fetching and reporting (#1569)",
+  "Number": 1569,
+  "Category": "misc",
+  "Issue": 1540
+ },
+ {
+  "Title": "app/monitoringapi: detect all validators queried by VC (#1566)",
+  "Number": 1566,
+  "Category": "feature",
+  "Issue": 1501
+ },
+ {
+  "Title": "testutils/promrated: add prom query to collect pubkey to cluster information (#1562)",
+  "Number": 1562,
+  "Category": "misc",
+  "Issue": 1540
+ },
+ {
+  "Title": "testutil/promrated: add health listener and monitoring endpoint (#1553)",
+  "Number": 1553,
+  "Category": "misc",
+  "Issue": 1540
+ },
+ {
+  "Title": "core/consensus: fix wire compatibility (#1556)",
+  "Number": 1556,
+  "Category": "bug",
+  "Issue": 1555
+ },
+ {
+  "Title": "core/consensus: remove deprecated value fields (#1554)",
+  "Number": 1554,
+  "Category": "refactor",
+  "Issue": 1555
+ },
+ {
+  "Title": "testutil/promrated: add initial basic looping and read in config (#1548)",
+  "Number": 1548,
+  "Category": "misc",
+  "Issue": 1540
+ },
+ {
+  "Title": "app/eth2wrap: use correct fee recipient in synthetic blocks (#1544)",
+  "Number": 1544,
+  "Category": "bug",
+  "Issue": 1486
+ },
+ {
+  "Title": "core/consensus: add histogram metric for consensus duration (#1526)",
+  "Number": 1526,
+  "Category": "feature",
+  "Issue": 1247
+ },
+ {
+  "Title": "app/eth2wrap: use validators at head for synthetic blocks (#1539)",
+  "Number": 1539,
+  "Category": "refactor",
+  "Issue": 1486
+ },
+ {
+  "Title": "cmd/bootnode: instrument peer connections (#1536)",
+  "Number": 1536,
+  "Category": "feature",
+  "Issue": 1521
+ },
+ {
+  "Title": "app/eth2wrap: query previous block for synthetic proposals (#1533)",
+  "Number": 1533,
+  "Category": "bug",
+  "Issue": 1486
+ },
+ {
+  "Title": "cmd/bootnode: enable prometheus (#1534)",
+  "Number": 1534,
+  "Category": "feature",
+  "Issue": 1506
+ },
+ {
+  "Title": "cmd: refactor charon create cluster output (#1532)",
+  "Number": 1532,
+  "Category": "refactor",
+  "Issue": 1490
+ },
+ {
+  "Title": "dkg: refactor dkg to reconnect to connecting phase (#1495)",
+  "Number": 1495,
+  "Category": "refactor",
+  "Issue": 1475
+ },
+ {
+  "Title": "testutil/validatormock: add context to validatormock httpGet (#1528)",
+  "Number": 1528,
+  "Category": "bug",
+  "Issue": 1527
+ },
+ {
+  "Title": "cluster: add partial definition verification (#1520)",
+  "Number": 1520,
+  "Category": "feature",
+  "Issue": 1488
+ },
+ {
+  "Title": "cmd/bootnode: move bootnode to own package (#1512)",
+  "Number": 1512,
+  "Category": "refactor",
+  "Issue": 1506
+ },
+ {
+  "Title": "app: wire synthetic block proposals (#1499)",
+  "Number": 1499,
+  "Category": "feature",
+  "Issue": 1486
+ },
+ {
+  "Title": "core/qbft: include round when deduping (#1505)",
+  "Number": 1505,
+  "Category": "bug",
+  "Issue": 1493
+ },
+ {
+  "Title": "log/loki: lazy loading of cluster labels (#1511)",
+  "Number": 1511,
+  "Category": "feature",
+  "Issue": 1509
+ },
+ {
+  "Title": "p2p: add alpha relay discovery feature (#1496)",
+  "Number": 1496,
+  "Category": "feature",
+  "Issue": 712
+ },
+ {
+  "Title": "app/eth2wrap: add synthetic blocks unit test (#1497)",
+  "Number": 1497,
+  "Category": "test",
+  "Issue": 1486
+ },
+ {
+  "Title": "scheduler: clear previous status when validator status changes (#1489)",
+  "Number": 1489,
+  "Category": "refactor",
+  "Issue": 139
+ },
+ {
+  "Title": "app/eth2wrap: support synthetic proposers (#1487)",
+  "Number": 1487,
+  "Category": "feature",
+  "Issue": 1486
+ },
+ {
+  "Title": "core/infosync: prioritise p2p  protocols (#1485)",
+  "Number": 1485,
+  "Category": "feature",
+  "Issue": 1421
+ },
+ {
+  "Title": "github: update workflows to go1.19.3 (#1481)",
+  "Number": 1481,
+  "Category": "misc",
+  "Issue": 1366
+ },
+ {
+  "Title": "app/peerinfo: fix clock offset calculation (#1474)",
+  "Number": 1474,
+  "Category": "bug",
+  "Issue": 1445
+ },
+ {
+  "Title": "app: wire inclusion delay tracker (#1473)",
+  "Number": 1473,
+  "Category": "feature",
+  "Issue": 1446
+ },
+ {
+  "Title": "core/tracker: implement inclusion delay tracker (#1468)",
+  "Number": 1468,
+  "Category": "feature",
+  "Issue": 1254
+ },
+ {
+  "Title": "testutil/compose: handle docker-compose build seperately (#1466)",
+  "Number": 1466,
+  "Category": "test",
+  "Issue": 992
  }
 ]
