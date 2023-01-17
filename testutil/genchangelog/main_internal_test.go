@@ -125,7 +125,7 @@ func TestParsePRs(t *testing.T) {
 		return
 	}
 
-	gitRange := "606e9bc^..eff988a"
+	gitRange := "v0.12.0..v0.13.0"
 	prs, err := parsePRs(gitRange)
 	require.NoError(t, err)
 
