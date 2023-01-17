@@ -123,7 +123,7 @@ func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 
 func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 	var relays []string
-	cmd.Flags().StringSliceVar(&relays, "p2p-relays", []string{"https://0.relay.obol.tech/enr"}, "Comma-separated list of libp2p relay URLs or ENRs.")
+	cmd.Flags().StringSliceVar(&relays, "p2p-relays", []string{"https://0.relay.obol.tech/enr", "http://bootnode.lb.gcp.obol.tech:3640/enr"}, "Comma-separated list of libp2p relay URLs or ENRs.")
 	cmd.Flags().StringSliceVar(&config.UDPBootnodes, "p2p-bootnodes", nil, "Comma-separated list of discv5 bootnode URLs or ENRs. Deprecated, use p2p-relays flag.")
 	cmd.Flags().BoolVar(&config.BootnodeRelay, "p2p-bootnode-relay", true, "Enables using bootnodes as libp2p circuit relays. Useful if some charon nodes are not publicly accessible. Deprecated, should always be enabled.")
 	cmd.Flags().BoolVar(&config.UDPBootLock, "p2p-bootnodes-from-lockfile", false, "Enables using cluster lock ENRs as discv5 bootnodes. Allows skipping explicit bootnodes if key generation ceremony included correct IPs. Discv5 is deprecated, use relay discovery.")
