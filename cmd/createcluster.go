@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -440,7 +441,7 @@ func postKeysToKeymanager(ctx context.Context, addr string, secrets []*bls_sig.S
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	reqBody, err := keystore.KeymanagerReqBody(secrets)
+	reqBody, err := keymanagerReqBody(secrets)
 	if err != nil {
 		return err
 	}
@@ -748,4 +749,42 @@ func verifyConnection(ctx context.Context, addr string) error {
 	conn.Close()
 
 	return nil
+}
+
+// keymanagerReq represents the keymanager API request body for POST request. Refer: https://ethereum.github.io/keymanager-APIs/#/Local%20Key%20Manager/importKeystores
+type keymanagerReq struct {
+	Keystores []keystore.Keystore `json:"keystores"`
+	Passwords []string            `json:"passwords"`
+}
+
+// keymanagerReqBody constructs a keymanagerReq using the provided secrets and returns it.
+func keymanagerReqBody(secrets []*bls_sig.SecretKey) (keymanagerReq, error) {
+	var resp keymanagerReq
+	for _, secret := range secrets {
+		password, err := randomHex32()
+		if err != nil {
+			return keymanagerReq{}, err
+		}
+
+		store, err := keystore.Encrypt(secret, password, rand.Reader)
+		if err != nil {
+			return keymanagerReq{}, err
+		}
+
+		resp.Keystores = append(resp.Keystores, store)
+		resp.Passwords = append(resp.Passwords, password)
+	}
+
+	return resp, nil
+}
+
+// randomHex32 returns a random 32 character hex string.
+func randomHex32() (string, error) {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", errors.Wrap(err, "read random")
+	}
+
+	return hex.EncodeToString(b), nil
 }
