@@ -71,7 +71,8 @@ func TestCreateCluster(t *testing.T) {
 				Threshold: 3,
 				NumDVs:    1,
 			},
-		}, {
+		},
+		{
 			Name: "splitkeys",
 			Config: clusterConfig{
 				NumNodes:  4,
@@ -97,7 +98,8 @@ func TestCreateCluster(t *testing.T) {
 
 				return config
 			},
-		}, {
+		},
+		{
 			Name: "goerli",
 			Config: clusterConfig{
 				NumNodes:  minNodes,

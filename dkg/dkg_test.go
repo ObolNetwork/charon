@@ -155,7 +155,7 @@ func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
 				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
 			},
 			LogConfig: log.Config{
-				Level:  "debug",
+				Level:  "error",
 				Format: "console",
 			},
 			AutoP2PKey:    true,
