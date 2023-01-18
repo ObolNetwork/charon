@@ -367,13 +367,13 @@ func TestKeymanager(t *testing.T) {
 	})
 }
 
-// noopKeymanagerReq is a mock keystore.KeymanagerReq for use in tests.
+// noopKeymanagerReq is a mock KeymanagerReq for use in tests.
 type noopKeymanagerReq struct {
 	Keystores []noopKeystore `json:"keystores"`
 	Passwords []string       `json:"passwords"`
 }
 
-// noopKeystore is a mock keystore.keystore for use in tests.
+// noopKeystore is a mock keystore.Keystore for use in tests.
 type noopKeystore struct {
 	Crypto map[string]interface{} `json:"crypto"`
 }
