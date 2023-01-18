@@ -2,11 +2,12 @@
  "ComposeDir": "testdir",
  "CharonImageTag": "latest",
  "CharonEntrypoint": "/usr/local/bin/charon",
- "CharonCommand": "dkg",
+ "CharonCommand": "not used",
  "Nodes": [
   {
    "ImageTag": "",
-   "Entrypoint": "",
+   "Entrypoint": "sh",
+   "Command": "[-c,'/usr/local/bin/charon dkg \u0026\u0026 sleep 2']",
    "EnvVars": [
     {
      "Key": "private-key-file",
@@ -61,7 +62,8 @@
   },
   {
    "ImageTag": "",
-   "Entrypoint": "",
+   "Entrypoint": "sh",
+   "Command": "[-c,'/usr/local/bin/charon dkg \u0026\u0026 sleep 2']",
    "EnvVars": [
     {
      "Key": "private-key-file",
@@ -116,7 +118,8 @@
   },
   {
    "ImageTag": "",
-   "Entrypoint": "",
+   "Entrypoint": "sh",
+   "Command": "[-c,'/usr/local/bin/charon dkg \u0026\u0026 sleep 2']",
    "EnvVars": [
     {
      "Key": "private-key-file",
@@ -171,7 +174,8 @@
   },
   {
    "ImageTag": "",
-   "Entrypoint": "",
+   "Entrypoint": "sh",
+   "Command": "[-c,'/usr/local/bin/charon dkg \u0026\u0026 sleep 2']",
    "EnvVars": [
     {
      "Key": "private-key-file",

@@ -7,6 +7,7 @@
   {
    "ImageTag": "",
    "Entrypoint": "",
+   "Command": "",
    "EnvVars": [
     {
      "Key": "private-key-file",
@@ -115,6 +116,7 @@
   {
    "ImageTag": "",
    "Entrypoint": "",
+   "Command": "",
    "EnvVars": [
     {
      "Key": "private-key-file",
@@ -223,6 +225,7 @@
   {
    "ImageTag": "",
    "Entrypoint": "",
+   "Command": "",
    "EnvVars": [
     {
      "Key": "private-key-file",
@@ -331,6 +334,7 @@
   {
    "ImageTag": "",
    "Entrypoint": "",
+   "Command": "",
    "EnvVars": [
     {
      "Key": "private-key-file",
