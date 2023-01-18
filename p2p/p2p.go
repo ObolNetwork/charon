@@ -41,7 +41,7 @@ import (
 )
 
 // NewTCPNode returns a started tcp-based libp2p host.
-func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGater ConnGater, opts ...libp2p.Option,
+func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGater ConnGater, advertise bool, opts ...libp2p.Option,
 ) (host.Host, error) {
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
@@ -58,7 +58,7 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 	}
 
 	var externalAddrs []ma.Multiaddr
-	if cfg.RelayDiscovery() {
+	if advertise {
 		// Use own observed addresses as soon as a single relay reports it.
 		// Since there are probably no other directly connected peers to do so.
 		identify.ActivationThresh = 1
@@ -87,8 +87,7 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 		// Enable Autonat (required for hole punching)
 		libp2p.EnableNATService(),
 		libp2p.AddrsFactory(func(addrs []ma.Multiaddr) []ma.Multiaddr {
-			if !cfg.RelayDiscovery() {
-				// Do not advertise addresses via libp2p when not using relay discovery.
+			if !advertise {
 				return nil
 			}
 

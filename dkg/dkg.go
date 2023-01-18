@@ -244,7 +244,7 @@ func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, pe
 		return nil, nil, err
 	}
 
-	tcpNode, err := p2p.NewTCPNode(ctx, p2pConf, key, connGater)
+	tcpNode, err := p2p.NewTCPNode(ctx, p2pConf, key, connGater, p2pConf.RelayDiscovery())
 	if err != nil {
 		return nil, nil, err
 	}
