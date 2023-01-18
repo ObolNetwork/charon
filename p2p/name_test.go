@@ -21,18 +21,19 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 )
 
 func TestPeerName(t *testing.T) {
-	enr := "enr:-JG4QBqxg9KCQ1vnvVagJsg08-qbtOjJ9Mkcm3d-FOX1Z2dqdw6Rp0S5lBRC2Uh4_Hk6KvyZoRJY5VGlkVb8scEWXaeGAYDhsvrogmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMsMU_1-8n0xkoOJD9v-DOSjmc8FFTXv9xWW8gqbZxlcIN0Y3CCPoODdWRwgj6E"
-	record, err := p2p.DecodeENR(enr)
+	enrStr := "enr:-JG4QBqxg9KCQ1vnvVagJsg08-qbtOjJ9Mkcm3d-FOX1Z2dqdw6Rp0S5lBRC2Uh4_Hk6KvyZoRJY5VGlkVb8scEWXaeGAYDhsvrogmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMsMU_1-8n0xkoOJD9v-DOSjmc8FFTXv9xWW8gqbZxlcIN0Y3CCPoODdWRwgj6E"
+	record, err := enr.Parse(enrStr)
 	require.NoError(t, err)
 
-	peer, err := p2p.NewPeer(record, 0)
+	p, err := p2p.NewPeerFromENR(record, 0)
 	require.NoError(t, err)
 
-	require.Equal(t, peer.Name, "happy-floor")
+	require.Equal(t, p.Name, "happy-floor")
 }
 
 func Test(t *testing.T) {

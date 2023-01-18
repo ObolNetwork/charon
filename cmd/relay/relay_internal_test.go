@@ -40,7 +40,7 @@ func TestRunBootnode(t *testing.T) {
 	config := Config{
 		DataDir:   temp,
 		LogConfig: log.DefaultConfig(),
-		P2PConfig: p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},
+		P2PConfig: p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}},
 		HTTPAddr:  testutil.AvailableAddr(t).String(),
 	}
 
@@ -62,7 +62,7 @@ func TestRunBootnodeAutoP2P(t *testing.T) {
 	config := Config{
 		DataDir:   temp,
 		LogConfig: log.DefaultConfig(),
-		P2PConfig: p2p.Config{UDPAddr: testutil.AvailableAddr(t).String()},
+		P2PConfig: p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}},
 		HTTPAddr:  testutil.AvailableAddr(t).String(),
 	}
 

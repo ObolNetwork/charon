@@ -20,12 +20,9 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	circuit "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/client"
-	ma "github.com/multiformats/go-multiaddr"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
@@ -38,18 +35,6 @@ import (
 // or removing them.
 var routedAddrTTL = peerstore.TempAddrTTL + 1
 
-// NewRelays returns the libp2p circuit relays from bootnodes if enabled.
-func NewRelays(conf Config, bootnodes []*MutablePeer) []*MutablePeer {
-	if !conf.BootnodeRelay {
-		return nil
-	} else if conf.UDPBootLock {
-		// Relays not supported via manifest bootnodes yet.
-		return nil
-	}
-
-	return bootnodes
-}
-
 // NewRelayReserver returns a life cycle hook function that continuously
 // reserves a relay circuit until the context is closed.
 func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc {
@@ -59,7 +44,7 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 
 		for ctx.Err() == nil {
 			relayPeer, ok := relay.Peer()
-			if !ok || relayPeer.Enode.TCP() == 0 {
+			if !ok {
 				time.Sleep(time.Second * 10) // Constant 10s backoff ok for mutexed lookups
 				continue
 			}
@@ -67,18 +52,9 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 			name := PeerName(relayPeer.ID)
 			ctx = log.WithCtx(ctx, z.Str("relay_peer", name))
 
-			bootAddr, err := multiAddrFromIPPort(relayPeer.Enode.IP(), relayPeer.Enode.TCP())
-			if err != nil {
-				return errors.Wrap(err, "relay address")
-			}
-
-			addrInfo := peer.AddrInfo{
-				ID:    relayPeer.ID,
-				Addrs: []ma.Multiaddr{bootAddr},
-			}
 			relayConnGauge.WithLabelValues(name).Set(0)
 
-			resv, err := circuit.Reserve(ctx, tcpNode, addrInfo)
+			resv, err := circuit.Reserve(ctx, tcpNode, relayPeer.AddrInfo())
 			if err != nil {
 				log.Warn(ctx, "Reserve relay circuit", err)
 				backoff()
@@ -147,17 +123,17 @@ func NewRelayRouter(tcpNode host.Host, peers []Peer, relays []*MutablePeer) life
 
 				for _, mutable := range relays {
 					relay, ok := mutable.Peer()
-					if !ok || relay.Enode.TCP() == 0 {
+					if !ok {
 						continue
 					}
 
-					relayAddr, err := multiAddrViaRelay(relay, p.ID)
+					relayAddrs, err := multiAddrsViaRelay(relay, p.ID)
 					if err != nil {
 						log.Error(ctx, "Failed discovering peer address", err)
 						continue
 					}
 
-					tcpNode.Peerstore().AddAddr(p.ID, relayAddr, routedAddrTTL)
+					tcpNode.Peerstore().AddAddrs(p.ID, relayAddrs, routedAddrTTL)
 				}
 			}
 

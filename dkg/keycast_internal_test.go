@@ -26,7 +26,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -44,11 +43,9 @@ func TestKeyCastNoNetwork(t *testing.T) {
 	var ops []cluster.Operator
 	for i := 0; i < nodes; i++ {
 		_, r := testutil.RandomENR(t, random)
-		enrStr, err := p2p.EncodeENR(r)
-		require.NoError(t, err)
 
 		ops = append(ops, cluster.Operator{
-			ENR: enrStr,
+			ENR: r.String(),
 		})
 	}
 

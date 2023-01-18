@@ -33,8 +33,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -44,6 +42,7 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
@@ -505,26 +504,16 @@ func writeKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSe
 	return nil
 }
 
-// getOperators returns a list of `numNodes` operators. It also creates a new directory corresponding to each node.
-func getOperators(numNodes int, clusterDir string) ([]cluster.Operator, error) {
-	var peers []p2p.Peer
-	for i := 0; i < numNodes; i++ {
-		peer, err := newPeer(clusterDir, i)
+// getOperators returns a list of `n` operators. It also creates a new directory corresponding to each node.
+func getOperators(n int, clusterDir string) ([]cluster.Operator, error) {
+	var ops []cluster.Operator
+	for i := 0; i < n; i++ {
+		record, err := newPeer(clusterDir, i)
 		if err != nil {
 			return nil, err
 		}
 
-		peers = append(peers, peer)
-	}
-
-	var ops []cluster.Operator
-	for _, p := range peers {
-		enrStr, err := p2p.EncodeENR(p.ENR)
-		if err != nil {
-			return []cluster.Operator{}, err
-		}
-
-		ops = append(ops, cluster.Operator{ENR: enrStr})
+		ops = append(ops, cluster.Operator{ENR: record.String()})
 	}
 
 	return ops, nil
@@ -552,26 +541,16 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	return def, nil
 }
 
-// newPeer returns a new peer, generating a p2pkey and ENR and node directory and run script in the process.
-func newPeer(clusterDir string, peerIdx int) (p2p.Peer, error) {
+// newPeer returns a new peer ENR, generating a p2pkey in node directory.
+func newPeer(clusterDir string, peerIdx int) (enr.Record, error) {
 	dir := nodeDir(clusterDir, peerIdx)
 
 	p2pKey, err := p2p.NewSavedPrivKey(dir)
 	if err != nil {
-		return p2p.Peer{}, errors.Wrap(err, "create charon-enr-private-key")
+		return enr.Record{}, errors.Wrap(err, "create charon-enr-private-key")
 	}
 
-	var r enr.Record
-	if err = enode.SignV4(&r, p2pKey); err != nil {
-		return p2p.Peer{}, errors.Wrap(err, "enode sign")
-	}
-
-	peer, err := p2p.NewPeer(r, peerIdx)
-	if err != nil {
-		return p2p.Peer{}, errors.Wrap(err, "new peer")
-	}
-
-	return peer, nil
+	return enr.New(p2pKey)
 }
 
 // writeOutput writes the cluster generation output.

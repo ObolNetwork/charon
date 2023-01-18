@@ -39,8 +39,6 @@ import (
 	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/libp2p/go-libp2p"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -51,6 +49,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -820,11 +819,10 @@ func RandomENR(t *testing.T, random io.Reader) (*ecdsa.PrivateKey, enr.Record) {
 	p2pKey, err := ecdsa.GenerateKey(crypto.S256(), random)
 	require.NoError(t, err)
 
-	var r enr.Record
-	err = enode.SignV4(&r, p2pKey)
+	record, err := enr.New(p2pKey)
 	require.NoError(t, err)
 
-	return p2pKey, r
+	return p2pKey, record
 }
 
 func RandomCoreAttestationData(t *testing.T) core.AttestationData {

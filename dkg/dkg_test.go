@@ -74,8 +74,8 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start bootnode.
-	bnode, errChan := startBootnode(ctx, t)
+	// Start relay.
+	relayAddr, errChan := startRelay(ctx, t)
 
 	// Setup
 	dir, err := os.MkdirTemp("", "")
@@ -84,7 +84,7 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	conf := dkg.Config{
 		DataDir: dir,
 		P2P: p2p.Config{
-			UDPBootnodes: []string{bnode},
+			Relays: []string{relayAddr},
 		},
 		Log:     log.DefaultConfig(),
 		TestDef: &def,
@@ -96,7 +96,6 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 		conf := conf
 		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
 		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
-		conf.P2P.UDPAddr = testutil.AvailableAddr(t).String()
 
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
 		err := crypto.SaveECDSA(p2p.KeyPath(conf.DataDir), p2pKeys[i])
@@ -138,8 +137,8 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	verifyDKGResults(t, def, dir)
 }
 
-// startBootnode starts a charon bootnode and returns its http ENR endpoint.
-func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
+// startRelay starts a charon relay and returns its http endpoint.
+func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
 	t.Helper()
 
 	dir, err := os.MkdirTemp("", "")
@@ -153,19 +152,19 @@ func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 			DataDir:  dir,
 			HTTPAddr: addr,
 			P2PConfig: p2p.Config{
-				UDPAddr:  testutil.AvailableAddr(t).String(),
 				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
 			},
 			LogConfig: log.Config{
-				Level:  "error",
+				Level:  "debug",
 				Format: "console",
 			},
-			AutoP2PKey: true,
-			MaxConns:   1024,
+			AutoP2PKey:    true,
+			MaxResPerPeer: 8,
+			MaxConns:      1024,
 		})
 	}()
 
-	endpoint := "http://" + addr + "/enr"
+	endpoint := "http://" + addr
 
 	// Wait for bootnode to become available.
 	for ctx.Err() == nil {
@@ -281,7 +280,7 @@ func TestSyncFlow(t *testing.T) {
 			defer cancel()
 
 			// Start bootnode.
-			bnode, errChan := startBootnode(ctx, t)
+			bnode, errChan := startRelay(ctx, t)
 
 			dir, err := os.MkdirTemp("", "")
 			require.NoError(t, err)
@@ -373,9 +372,8 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*ecdsa.PrivateKey, 
 		conf := dkg.Config{
 			DataDir: path.Join(dir, fmt.Sprintf("node%d", i)),
 			P2P: p2p.Config{
-				UDPBootnodes: []string{bootnode},
-				TCPAddrs:     []string{testutil.AvailableAddr(t).String()},
-				UDPAddr:      testutil.AvailableAddr(t).String(),
+				Relays:   []string{bootnode},
+				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
 			},
 			Log:     log.DefaultConfig(),
 			TestDef: &def,

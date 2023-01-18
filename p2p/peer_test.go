@@ -23,11 +23,10 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -35,23 +34,20 @@ func TestNewPeer(t *testing.T) {
 	p2pKey, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(0)))
 	require.NoError(t, err)
 
-	var r enr.Record
-	r.SetSeq(0)
-
-	err = enode.SignV4(&r, p2pKey)
+	record, err := enr.New(p2pKey)
 	require.NoError(t, err)
 
-	p, err := p2p.NewPeer(r, 0)
+	p, err := p2p.NewPeerFromENR(record, 0)
 	require.NoError(t, err)
 
-	require.Equal(t, "16Uiu2HAm87ieJpGmqjdqVF6Y4LAodxdsUY2sVCX5b31QVHCLt116", p.ID.Pretty())
+	require.Equal(t, "16Uiu2HAm87ieJpGmqjdqVF6Y4LAodxdsUY2sVCX5b31QVHCLt116", p.ID.String())
 }
 
 func TestNewHost(t *testing.T) {
 	privKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
-	_, err = p2p.NewTCPNode(context.Background(), p2p.Config{}, privKey, p2p.NewOpenGater(), false)
+	_, err = p2p.NewTCPNode(context.Background(), p2p.Config{}, privKey, p2p.NewOpenGater())
 	require.NoError(t, err)
 }
 
