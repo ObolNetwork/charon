@@ -16,23 +16,20 @@
 package cmd
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 )
 
-func newCreateEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.Command {
+func newCreateEnrCmd(runFunc func(io.Writer, string) error) *cobra.Command {
 	var (
-		config  p2p.Config
 		dataDir string
 	)
 
@@ -41,19 +38,18 @@ func newCreateEnrCmd(runFunc func(io.Writer, p2p.Config, string) error) *cobra.C
 		Short: "Create an Ethereum Node Record (ENR) private key to identify this charon client",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(cmd.OutOrStdout(), config, dataDir)
+			return runFunc(cmd.OutOrStdout(), dataDir)
 		},
 	}
 
 	bindDataDirFlag(cmd.Flags(), &dataDir)
-	bindP2PFlags(cmd, &config)
 
 	return cmd
 }
 
 // runCreateEnrCmd stores a new charon-enr-private-key to disk and prints the ENR for the provided config.
 // It returns an error if the key already exists.
-func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
+func runCreateEnrCmd(w io.Writer, dataDir string) error {
 	_, err := p2p.LoadPrivKey(dataDir)
 	if err == nil {
 		return errors.New("charon-enr-private-key already exists", z.Str("enr_path", p2p.KeyPath(dataDir)))
@@ -64,12 +60,7 @@ func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 		return err
 	}
 
-	record, err := createENR(key, config)
-	if err != nil {
-		return err
-	}
-
-	enrStr, err := p2p.EncodeENR(record)
+	r, err := enr.New(key)
 	if err != nil {
 		return err
 	}
@@ -77,27 +68,11 @@ func runCreateEnrCmd(w io.Writer, config p2p.Config, dataDir string) error {
 	keyPath := p2p.KeyPath(dataDir)
 
 	_, _ = fmt.Fprintf(w, "Created ENR private key: %s\n", keyPath)
-	_, _ = fmt.Fprintln(w, enrStr)
+	_, _ = fmt.Fprintln(w, r.String())
 
 	writeEnrWarning(w, keyPath)
 
 	return nil
-}
-
-// createENR returns enr.Record used by charon create enr and charon enr commands.
-func createENR(key *ecdsa.PrivateKey, config p2p.Config) (enr.Record, error) {
-	node, _, err := p2p.NewLocalEnode(config, key)
-	if err != nil {
-		return enr.Record{}, err
-	}
-
-	record := node.Node().Record()
-	record.SetSeq(0)
-	if err = enode.SignV4(record, key); err != nil {
-		return enr.Record{}, errors.Wrap(err, "sign enr")
-	}
-
-	return *record, nil
 }
 
 // writeEnrWarning writes backup key warning to the terminal.

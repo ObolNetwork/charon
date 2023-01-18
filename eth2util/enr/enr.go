@@ -119,8 +119,8 @@ func (r Record) String() string {
 func encodeElements(signature []byte, pubkey *ecdsa.PublicKey) []byte {
 	elements := [][]byte{
 		{}, // Sequence number=0
-		[]byte(keySecp256k1), crypto.CompressPubkey(pubkey),
 		[]byte(keyID), []byte(valID),
+		[]byte(keySecp256k1), crypto.CompressPubkey(pubkey),
 	}
 
 	if len(signature) > 0 {

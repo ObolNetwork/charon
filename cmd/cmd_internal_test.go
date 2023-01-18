@@ -140,9 +140,7 @@ func TestCmdFlags(t *testing.T) {
 					return nil
 				}),
 				newCreateCmd(
-					newCreateEnrCmd(func(_ io.Writer, config p2p.Config, datadir string) error {
-						require.NotNil(t, test.P2PConfig)
-						require.Equal(t, *test.P2PConfig, config)
+					newCreateEnrCmd(func(_ io.Writer, datadir string) error {
 						require.Equal(t, test.Datadir, datadir)
 
 						return nil
