@@ -31,24 +31,29 @@ import (
 	"github.com/obolnetwork/charon/eth2util/keystore"
 )
 
-// New returns a new Keymanager.
-func New(url string) Keymanager {
-	return Keymanager{
+// New returns a new Client.
+func New(url string) Client {
+	return Client{
 		baseURL: url,
 	}
 }
 
-// Keymanager is the REST client for keymanager API requests.
-type Keymanager struct {
+// Client is the REST client for keymanager API requests.
+type Client struct {
 	baseURL string // Base keymanager URL
 }
 
-// ImportKeystores pushes the keystores to keymanager.
+// ImportKeystores pushes the keystores and passwords to keymanager.
 // See https://ethereum.github.io/keymanager-APIs/#/Local%20Key%20Manager/importKeystores.
-func (km Keymanager) ImportKeystores(ctx context.Context, keystores []keystore.Keystore, passwords []string) error {
-	addr, err := url.JoinPath(km.baseURL, "/eth/v1/keystores")
+func (c Client) ImportKeystores(ctx context.Context, keystores []keystore.Keystore, passwords []string) error {
+	if len(keystores) != len(passwords) {
+		return errors.New("lengths of keystores and passwords don't match",
+			z.Int("keystores", len(keystores)), z.Int("passwords", len(passwords)))
+	}
+
+	addr, err := url.JoinPath(c.baseURL, "/eth/v1/keystores")
 	if err != nil {
-		return errors.Wrap(err, "invalid base url", z.Str("base_url", km.baseURL))
+		return errors.Wrap(err, "invalid base url", z.Str("base_url", c.baseURL))
 	}
 
 	req := keymanagerReq{
@@ -65,8 +70,8 @@ func (km Keymanager) ImportKeystores(ctx context.Context, keystores []keystore.K
 }
 
 // VerifyConnection returns an error if the provided keymanager address is not reachable.
-func (km Keymanager) VerifyConnection(ctx context.Context) error {
-	u, err := url.Parse(km.baseURL)
+func (c Client) VerifyConnection(ctx context.Context) error {
+	u, err := url.Parse(c.baseURL)
 	if err != nil {
 		return errors.Wrap(err, "parse address")
 	}
@@ -77,14 +82,15 @@ func (km Keymanager) VerifyConnection(ctx context.Context) error {
 
 	conn, err := d.DialContext(ctx, "tcp", u.Host)
 	if err != nil {
-		return errors.Wrap(err, "cannot ping address", z.Str("addr", km.baseURL))
+		return errors.Wrap(err, "cannot ping address", z.Str("addr", c.baseURL))
 	}
 	conn.Close()
 
 	return nil
 }
 
-// keymanagerReq represents the keymanager API request body for POST request. Refer: https://ethereum.github.io/keymanager-APIs/#/Local%20Key%20Manager/importKeystores
+// keymanagerReq represents the keymanager API request body for POST request.
+// Refer: https://ethereum.github.io/keymanager-APIs/#/Local%20Key%20Manager/importKeystores
 type keymanagerReq struct {
 	Keystores []keystore.Keystore `json:"keystores"`
 	Passwords []string            `json:"passwords"`

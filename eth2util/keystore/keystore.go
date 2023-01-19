@@ -35,6 +35,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 // insecureCost decreases the cipher key cost from the default 18 to 4 which speeds up
@@ -72,7 +73,7 @@ type KeymanagerReq struct {
 func KeymanagerReqBody(secrets []*bls_sig.SecretKey) (KeymanagerReq, error) {
 	var resp KeymanagerReq
 	for _, secret := range secrets {
-		password, err := randomHex32()
+		password, err := testutil.RandomHex32()
 		if err != nil {
 			return KeymanagerReq{}, err
 		}
@@ -91,7 +92,7 @@ func KeymanagerReqBody(secrets []*bls_sig.SecretKey) (KeymanagerReq, error) {
 
 func storeKeysInternal(secrets []*bls_sig.SecretKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
 	for i, secret := range secrets {
-		password, err := randomHex32()
+		password, err := testutil.RandomHex32()
 		if err != nil {
 			return err
 		}
@@ -247,15 +248,4 @@ func storePassword(keyFile string, password string) error {
 	}
 
 	return nil
-}
-
-// randomHex32 returns a random 32 character hex string.
-func randomHex32() (string, error) {
-	b := make([]byte, 16)
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", errors.Wrap(err, "read random")
-	}
-
-	return hex.EncodeToString(b), nil
 }
