@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util/enr"
-	"github.com/obolnetwork/charon/p2p"
 )
 
 func TestParse(t *testing.T) {
@@ -59,20 +58,4 @@ func TestNew(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "enr:-HW4QMNo8q6cHeIVPW70BA6PZKjKwTKNIALmuE0tkvtAB8YgYzOYYaf8evsNo2Z1nnqPRiJAJp3-1i3shLchccqovCmAgmlkgnY0iXNlY3AyNTZrMaECvI5821Dg_9UqVPr5hNasj-XuaFbTil-KzZvTP8nH1Q0", r.String())
-}
-
-func TestCompatibility(t *testing.T) {
-	privkey, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(0)))
-	require.NoError(t, err)
-
-	r, err := enr.New(privkey)
-	require.NoError(t, err)
-
-	r2, err := p2p.DecodeENR(r.String())
-	require.NoError(t, err)
-
-	str2, err := p2p.EncodeENR(r2)
-	require.NoError(t, err)
-
-	require.Equal(t, r.String(), str2)
 }

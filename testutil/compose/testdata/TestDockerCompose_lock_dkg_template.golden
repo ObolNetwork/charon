@@ -26,16 +26,8 @@
      "Value": "0.0.0.0:3610"
     },
     {
-     "Key": "p2p_udp_address",
-     "Value": "0.0.0.0:3630"
-    },
-    {
-     "Key": "p2p-bootnodes",
-     "Value": "http://bootnode:3640/enr"
-    },
-    {
-     "Key": "p2p-bootnode-relay",
-     "Value": "\"true\""
+     "Key": "p2p-relays",
+     "Value": "http://relay:3640/enr"
     },
     {
      "Key": "log-level",
@@ -82,16 +74,8 @@
      "Value": "0.0.0.0:3610"
     },
     {
-     "Key": "p2p_udp_address",
-     "Value": "0.0.0.0:3630"
-    },
-    {
-     "Key": "p2p-bootnodes",
-     "Value": "http://bootnode:3640/enr"
-    },
-    {
-     "Key": "p2p-bootnode-relay",
-     "Value": "\"true\""
+     "Key": "p2p-relays",
+     "Value": "http://relay:3640/enr"
     },
     {
      "Key": "log-level",
@@ -138,16 +122,8 @@
      "Value": "0.0.0.0:3610"
     },
     {
-     "Key": "p2p_udp_address",
-     "Value": "0.0.0.0:3630"
-    },
-    {
-     "Key": "p2p-bootnodes",
-     "Value": "http://bootnode:3640/enr"
-    },
-    {
-     "Key": "p2p-bootnode-relay",
-     "Value": "\"true\""
+     "Key": "p2p-relays",
+     "Value": "http://relay:3640/enr"
     },
     {
      "Key": "log-level",
@@ -194,16 +170,8 @@
      "Value": "0.0.0.0:3610"
     },
     {
-     "Key": "p2p_udp_address",
-     "Value": "0.0.0.0:3630"
-    },
-    {
-     "Key": "p2p-bootnodes",
-     "Value": "http://bootnode:3640/enr"
-    },
-    {
-     "Key": "p2p-bootnode-relay",
-     "Value": "\"true\""
+     "Key": "p2p-relays",
+     "Value": "http://relay:3640/enr"
     },
     {
      "Key": "log-level",
@@ -230,7 +198,7 @@
   }
  ],
  "VCs": null,
- "Bootnode": true,
+ "Relay": true,
  "Monitoring": false,
  "MonitoringPorts": false
 }

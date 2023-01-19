@@ -10,7 +10,7 @@
  "key_gen": "create",
  "split_keys_dir": "",
  "beacon_node": "mock",
- "external_bootnode": "",
+ "external_relay": "",
  "validator_clients": [
   "teku",
   "lighthouse",

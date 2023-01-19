@@ -33,9 +33,6 @@ const (
 func Supported() []string {
 	return []string{
 		"v0.13",
-		"v0.12",
-		"v0.11",
-		"v0.10",
 	}
 }
 

@@ -24,6 +24,7 @@ import (
 	"os"
 	"time"
 
+	ma "github.com/multiformats/go-multiaddr"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -72,19 +73,6 @@ func Run(ctx context.Context, config Config) error {
 		return err
 	}
 
-	// Setup p2p udp discovery.
-	localEnode, db, err := p2p.NewLocalEnode(config.P2PConfig, key)
-	if err != nil {
-		return errors.Wrap(err, "failed to open enode")
-	}
-	defer db.Close()
-
-	udpNode, err := p2p.NewUDPNode(ctx, config.P2PConfig, localEnode, key, nil)
-	if err != nil {
-		return err
-	}
-	defer udpNode.Close()
-
 	bwTuples := make(chan bwTuple)
 	counter := newBandwidthCounter(ctx, bwTuples)
 
@@ -110,11 +98,21 @@ func Run(ctx context.Context, config Config) error {
 		}
 
 		mux := http.NewServeMux()
-		mux.HandleFunc("/enr/", func(w http.ResponseWriter, r *http.Request) {
-			_, _ = w.Write([]byte(localEnode.Node().String()))
-		})
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			b, err := json.Marshal(tcpNode.Addrs())
+			p2pAddr, err := ma.NewMultiaddr(fmt.Sprintf("/p2p/%s", tcpNode.ID()))
+			if err != nil {
+				log.Error(r.Context(), "Peer address", err)
+				w.WriteHeader(http.StatusInternalServerError)
+
+				return
+			}
+
+			var addrs []ma.Multiaddr
+			for _, addr := range tcpNode.Addrs() {
+				addrs = append(addrs, addr.Encapsulate(p2pAddr))
+			}
+
+			b, err := json.Marshal(addrs)
 			if err != nil {
 				log.Error(r.Context(), "Marshal multiaddrs", err)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -149,29 +147,22 @@ func Run(ctx context.Context, config Config) error {
 		serverErr <- server.ListenAndServe()
 	}()
 
-	log.Info(ctx, "Libp2p TCP relay started",
+	log.Info(ctx, "Relay started",
 		z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
 		z.Any("p2p_tcp_addr", config.P2PConfig.TCPAddrs),
 	)
-	log.Info(ctx, "Discv5 UDP bootnode started",
-		z.Str("p2p_udp_addr", config.P2PConfig.UDPAddr),
-		z.Str("enr", localEnode.Node().String()),
-	)
 	if config.HTTPAddr != "" {
-		log.Info(ctx, "Runtime ENR available via http",
-			z.Str("url", fmt.Sprintf("http://%s/enr", config.HTTPAddr)),
+		log.Info(ctx, "Runtime multiaddrs available via http",
+			z.Str("url", fmt.Sprintf("http://%s", config.HTTPAddr)),
 		)
 	} else {
 		log.Info(ctx, "Runtime ENR not available via http, since http-address flag is not set")
 	}
 
-	ticker := time.NewTicker(time.Minute)
 	for {
 		select {
 		case err := <-serverErr:
 			return err
-		case <-ticker.C:
-			log.Info(ctx, "Discv5 UDP discovered peers", z.Int("peers", len(udpNode.AllNodes())))
 		case <-ctx.Done():
 			log.Info(ctx, "Shutting down")
 			return nil

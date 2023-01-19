@@ -79,7 +79,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			CharonImageTag:   conf.ImageTag,
 			CharonEntrypoint: conf.entrypoint(),
 			CharonCommand:    "not used",
-			Bootnode:         true,
+			Relay:            true,
 			Nodes:            nodes,
 		}
 	default:
@@ -112,10 +112,9 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 
 	lockFile := fmt.Sprintf("/compose/node%d/cluster-lock.json", index)
 
-	p2pBootnodes := "http://bootnode:3640/enr"
-	p2pRelay := "true"
-	if conf.ExternalBootnode != "" {
-		p2pBootnodes = conf.ExternalBootnode
+	p2pRelayAddr := "http://relay:3640/enr"
+	if conf.ExternalRelay != "" {
+		p2pRelayAddr = conf.ExternalRelay
 	}
 
 	// Common config
@@ -124,9 +123,7 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 		{"monitoring-address", "0.0.0.0:3620"},
 		{"p2p-external-hostname", fmt.Sprintf("node%d", index)},
 		{"p2p-tcp-address", "0.0.0.0:3610"},
-		{"p2p_udp_address", "0.0.0.0:3630"},
-		{"p2p-bootnodes", p2pBootnodes},
-		{"p2p-bootnode-relay", fmt.Sprintf(`"%v"`, p2pRelay)},
+		{"p2p-relays", p2pRelayAddr},
 		{"log-level", "debug"},
 		{"feature-set", conf.FeatureSet},
 	}
@@ -142,7 +139,6 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 
 	// Define run config
 	return append(kvs,
-		kv{"data-dir", fmt.Sprintf("/compose/node%d", index)}, // Required for backwards compatibility with v0.10.0
 		kv{"jaeger-service", fmt.Sprintf("node%d", index)},
 		kv{"jaeger-address", "jaeger:6831"},
 		kv{"lock-file", lockFile},

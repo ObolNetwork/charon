@@ -75,12 +75,10 @@ func TestCmdFlags(t *testing.T) {
 					LokiService: "charon",
 				},
 				P2P: p2p.Config{
-					UDPBootnodes:  []string{"https://0.relay.obol.tech/enr", "http://bootnode.lb.gcp.obol.tech:3640/enr"},
-					UDPAddr:       "",
-					TCPAddrs:      nil,
-					Allowlist:     "",
-					Denylist:      "",
-					BootnodeRelay: true,
+					Relays:    []string{"https://0.relay.obol.tech"},
+					TCPAddrs:  nil,
+					Allowlist: "",
+					Denylist:  "",
 				},
 				Feature: featureset.Config{
 					MinStatus: "stable",
@@ -102,27 +100,16 @@ func TestCmdFlags(t *testing.T) {
 			Args:    slice("create", "enr"),
 			Datadir: ".charon",
 			P2PConfig: &p2p.Config{
-				UDPBootnodes:  []string{"https://0.relay.obol.tech/enr", "http://bootnode.lb.gcp.obol.tech:3640/enr"},
-				UDPAddr:       "",
-				TCPAddrs:      nil,
-				Allowlist:     "",
-				Denylist:      "",
-				BootnodeRelay: true,
+				Relays:    []string{"https://0.relay.obol.tech"},
+				TCPAddrs:  nil,
+				Allowlist: "",
+				Denylist:  "",
 			},
 		},
 		{
 			Name:     "run require beacon addrs",
 			Args:     slice("run"),
 			ErrorMsg: "either flag 'beacon-node-endpoints' or flag 'simnet-beacon-mock=true' must be specified",
-		},
-		{
-			Name: "run requires node discoverability",
-			Args: slice("run"),
-			Envs: map[string]string{
-				"CHARON_BEACON_NODE_ENDPOINTS": "http://beacon.node",
-				"CHARON_P2P_BOOTNODE_RELAY":    "false",
-			},
-			ErrorMsg: "node undiscoverable with the provided settings, please configure any one of `p2p-udp-address`, `p2p-bootnode-relay` or `p2p-bootnodes-from-lockfile`",
 		},
 	}
 

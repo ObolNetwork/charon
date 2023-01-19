@@ -6,7 +6,7 @@ x-node-base: &node-base
   command: {{.CharonCommand}}
   networks: [compose]
   volumes: [{{.ComposeDir}}:/compose]
-  {{if .Bootnode }}depends_on: [bootnode] {{end}}
+  {{if .Relay }}depends_on: [relay] {{end}}
 
 services:
   {{- range $i, $node := .Nodes}}
@@ -32,17 +32,17 @@ services:
     {{end -}}
   {{end -}}
 
-  {{- if .Bootnode }}
-  bootnode:
+  {{- if .Relay }}
+  relay:
     <<: *node-base
-    command: bootnode
+    command: relay
     depends_on: []
     environment:
-      CHARON_BOOTNODE_HTTP_ADDRESS: 0.0.0.0:3640
-      CHARON_BOOTNODE_MONITORING_ADDRESS: 0.0.0.0:3620
-      CHARON_DATA_DIR: /compose/bootnode
-      CHARON_P2P_BOOTNODES: ""
-      CHARON_P2P_EXTERNAL_HOSTNAME: bootnode
+      CHARON_HTTP_ADDRESS: 0.0.0.0:3640
+      CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
+      CHARON_DATA_DIR: /compose/relay
+      CHARON_P2P_RELAYS: ""
+      CHARON_P2P_EXTERNAL_HOSTNAME: relay
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_LOKI_ADDRESS: http://loki:3100/loki/api/v1/push

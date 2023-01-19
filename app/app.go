@@ -31,7 +31,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -179,7 +178,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	tcpNode, localEnode, err := wireP2P(ctx, life, conf, lock, p2pKey, lockHashHex)
+	tcpNode, err := wireP2P(ctx, life, conf, lock, p2pKey, lockHashHex)
 	if err != nil {
 		return err
 	}
@@ -194,8 +193,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Int("peer_index", nodeIdx.PeerIdx),
 		z.Str("cluster_hash", lockHashHex),
 		z.Str("cluster_name", lock.Name),
-		z.Int("peers", len(lock.Operators)),
-		z.Str("enr", localEnode.Node().String()))
+		z.Int("peers", len(lock.Operators)))
 
 	// Metric and logging labels.
 	labels := map[string]string{
@@ -242,7 +240,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, localEnode, tcpNode, eth2Cl, peerIDs,
+	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, tcpNode, eth2Cl, peerIDs,
 		promRegistry, qbftDebug, pubkeys, seenPubkeys)
 
 	err = wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl,
@@ -265,51 +263,31 @@ func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, l
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
 func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock cluster.Lock, p2pKey *ecdsa.PrivateKey, lockHashHex string,
-) (host.Host, *enode.LocalNode, error) {
+) (host.Host, error) {
 	peers, err := lock.Peers()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	peerIDs, err := lock.PeerIDs()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	localEnode, peerDB, err := p2p.NewLocalEnode(conf.P2P, p2pKey)
+	relays, err := p2p.NewRelays(ctx, conf.P2P.Relays, lockHashHex)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	bootnodes, err := p2p.NewUDPBootnodes(ctx, conf.P2P, peers, localEnode.ID(), lockHashHex)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if conf.P2P.RelayDiscovery() {
-		log.Info(ctx, "Relay discovery enabled") // TODO(corver): Remove once stable.
-	}
-	if conf.P2P.Discv5Discovery() {
-		log.Info(ctx, "Discv5 discovery enabled")
-	}
-
-	// Start discv5 UDP node.
-	udpNode, err := p2p.NewUDPNode(ctx, conf.P2P, localEnode, p2pKey, bootnodes)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	relays := p2p.NewRelays(conf.P2P, bootnodes)
 
 	connGater, err := p2p.NewConnGater(peerIDs, relays)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Start libp2p TCP node.
-	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater, conf.P2P.RelayDiscovery(), conf.TestConfig.LibP2POpts...)
+	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater, conf.TestConfig.LibP2POpts...)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if conf.TestConfig.TCPNodeCallback != nil {
@@ -318,9 +296,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	p2p.RegisterConnectionLogger(tcpNode, peerIDs)
 
-	life.RegisterStop(lifecycle.StopP2PPeerDB, lifecycle.HookFuncMin(peerDB.Close))
 	life.RegisterStop(lifecycle.StopP2PTCPNode, lifecycle.HookFuncErr(tcpNode.Close))
-	life.RegisterStop(lifecycle.StopP2PUDPNode, lifecycle.HookFuncMin(udpNode.Close))
 
 	for _, relay := range relays {
 		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(tcpNode, relay))
@@ -328,10 +304,9 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, p2p.NewPingService(tcpNode, peerIDs, conf.TestConfig.TestPingConfig))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PEventCollector, p2p.NewEventCollector(tcpNode))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewDiscoveryRouter(tcpNode, udpNode, peers))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewRelayRouter(tcpNode, peers, relays))
 
-	return tcpNode, localEnode, nil
+	return tcpNode, nil
 }
 
 // wireCoreWorkflow wires the core workflow components.

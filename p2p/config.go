@@ -22,16 +22,11 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/featureset"
 )
 
 type Config struct {
-	// UDPBootnodes defines the discv5 boot node URLs.
-	UDPBootnodes []string // TODO(corver): Rename to Relays once discv5 removed.
-	// UDPBootLock enables using cluster-lock ENRs as discv5 boot nodes.
-	UDPBootLock bool
-	// UDPAddr defines the discv5 udp listen address.
-	UDPAddr string
+	// Relays defines the libp2p relay multiaddrs or URLs.
+	Relays []string
 	// ExternalIP is the IP advertised by libp2p.
 	ExternalIP string
 	// ExternalHost is the DNS hostname advertised by libp2p.
@@ -42,21 +37,8 @@ type Config struct {
 	Allowlist string
 	// Allowlist defines csv CIDR blocks for lib-p2p denied connections.
 	Denylist string
-	// BootnodeRelay enables circuit relay via bootnodes if direct connections fail.
-	// Only applicable to charon nodes not bootnodes.
-	BootnodeRelay bool
 	// DisableReuseport disables TCP port reuse for libp2p.
 	DisableReuseport bool
-}
-
-// RelayDiscovery returns true if relay discovery is enabled.
-func (c Config) RelayDiscovery() bool {
-	return len(c.UDPBootnodes) > 0 && c.BootnodeRelay && featureset.Enabled(featureset.RelayDiscovery)
-}
-
-// Discv5Discovery returns true if discv5 discovery is enabled.
-func (c Config) Discv5Discovery() bool {
-	return c.UDPAddr != ""
 }
 
 // ParseTCPAddrs returns the configured tcp addresses as typed net tcp addresses.

@@ -23,7 +23,6 @@ import (
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/jonboulle/clockwork"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -49,7 +48,7 @@ var (
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
 func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string,
-	localNode *enode.LocalNode, tcpNode host.Host, eth2Cl eth2wrap.Client,
+	tcpNode host.Host, eth2Cl eth2wrap.Client,
 	peerIDs []peer.ID, registry *prometheus.Registry, qbftDebug http.Handler,
 	pubkeys []core.PubKey, seenPubkeys chan core.PubKey,
 ) {
@@ -59,11 +58,6 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 	mux.Handle("/metrics", promhttp.InstrumentMetricHandler(
 		registry, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}),
 	))
-
-	// Serve local ENR to allow simple HTTP Get to this node to resolve it as bootnode ENR.
-	mux.Handle("/enr", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		writeResponse(w, http.StatusOK, localNode.Node().String())
-	}))
 
 	// Serve monitoring endpoints
 	mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

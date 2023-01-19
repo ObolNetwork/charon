@@ -35,6 +35,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -69,10 +70,10 @@ func TestComponent(t *testing.T) {
 		h, err := libp2p.New(libp2p.Identity(priv), libp2p.ListenAddrs(mAddr))
 		require.NoError(t, err)
 
-		record, err := p2p.DecodeENR(lock.Operators[i].ENR)
+		record, err := enr.Parse(lock.Operators[i].ENR)
 		require.NoError(t, err)
 
-		p, err := p2p.NewPeer(record, i)
+		p, err := p2p.NewPeerFromENR(record, i)
 		require.NoError(t, err)
 
 		hostsInfo = append(hostsInfo, peer.AddrInfo{ID: h.ID(), Addrs: h.Addrs()})

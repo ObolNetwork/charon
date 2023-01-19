@@ -17,13 +17,17 @@ package p2p
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/libp2p/go-libp2p/core/peer"
+	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/expbackoff"
@@ -31,43 +35,30 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// NewUDPBootnodes returns the discv5 udp bootnodes from the config.
-func NewUDPBootnodes(ctx context.Context, config Config, peers []Peer,
-	localEnode enode.ID, lockHashHex string,
+// NewRelays returns the libp2p relays from the provided addresses.
+func NewRelays(ctx context.Context, relayAddrs []string, lockHashHex string,
 ) ([]*MutablePeer, error) {
 	var resp []*MutablePeer
-	for _, rawURL := range config.UDPBootnodes {
-		if strings.HasPrefix(rawURL, "http") {
+	for _, relayAddr := range relayAddrs {
+		if strings.HasPrefix(relayAddr, "http") {
 			mutable := new(MutablePeer)
-			go resolveBootnode(ctx, rawURL, lockHashHex, mutable.Set)
+			go resolveRelay(ctx, relayAddr, lockHashHex, mutable.Set)
 			resp = append(resp, mutable)
 
 			continue
 		}
 
-		node, err := enode.Parse(enode.V4ID{}, rawURL)
+		addr, err := ma.NewMultiaddr(relayAddr)
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid bootnode address")
+			return nil, errors.Wrap(err, "invalid relay multiaddr", z.Str("addr", relayAddr))
 		}
 
-		r := node.Record()
-		p, err := NewPeer(*r, -1)
+		info, err := peer.AddrInfoFromP2pAddr(addr)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "peer from multiaddr", z.Str("addr", relayAddr))
 		}
 
-		resp = append(resp, NewMutablePeer(p))
-	}
-
-	if config.UDPBootLock {
-		for _, p := range peers {
-			if p.Enode.ID() == localEnode {
-				// Do not include ourselves as bootnode.
-				continue
-			}
-
-			resp = append(resp, NewMutablePeer(p))
-		}
+		resp = append(resp, NewMutablePeer(NewRelayPeer(*info)))
 	}
 
 	if len(resp) == 0 {
@@ -93,34 +84,41 @@ func NewUDPBootnodes(ctx context.Context, config Config, peers []Peer,
 	return nil, errors.Wrap(ctx.Err(), "timeout resolving bootnode ENR")
 }
 
-// resolveBootnode continuously resolves the bootnode ENR from the HTTP url and returns
-// the new bootnode ENR/Peer when it changes via the callback.
-func resolveBootnode(ctx context.Context, rawURL, lockHashHex string, callback func(Peer)) {
+// resolveRelay continuously resolves the relay multiaddrs from the HTTP url and returns
+// the new Peer when it changes via the callback.
+func resolveRelay(ctx context.Context, rawURL, lockHashHex string, callback func(Peer)) {
 	var (
-		prevENR        string
+		prevAddrs      string
 		backoff, reset = expbackoff.NewWithReset(ctx)
 	)
 	for ctx.Err() == nil {
-		node, err := queryBootnodeENR(ctx, rawURL, backoff, lockHashHex)
+		addrs, err := queryRelayAddrs(ctx, rawURL, backoff, lockHashHex)
 		if err != nil {
-			log.Error(ctx, "Failed resolving bootnode ENR from URL", err, z.Str("url", rawURL))
+			log.Error(ctx, "Failed resolving relay addresses from URL", err, z.Str("url", rawURL))
 			return
 		}
 		reset()
 
-		newENR := node.String()
-		if prevENR != newENR {
-			prevENR = newENR
+		sort.Slice(addrs, func(i, j int) bool {
+			return addrs[i].String() < addrs[j].String()
+		})
 
-			r := node.Record()
-			p, err := NewPeer(*r, -1)
+		newAddrs := fmt.Sprint(addrs)
+
+		if prevAddrs != newAddrs {
+			prevAddrs = newAddrs
+
+			infos, err := peer.AddrInfosFromP2pAddrs(addrs...)
 			if err != nil {
-				log.Error(ctx, "Failed to create bootnode peer", err)
+				log.Error(ctx, "Failed resolving relay ID from addresses", err, z.Any("addrs", addrs))
+			} else if len(infos) != 1 {
+				log.Error(ctx, "Failed resolving a single relay ID from addresses", nil, z.Int("n", len(infos)))
 			} else {
-				log.Info(ctx, "Resolved new bootnode ENR",
+				p := NewRelayPeer(infos[0])
+				log.Info(ctx, "Resolved new relay",
 					z.Str("peer", p.Name),
 					z.Str("url", rawURL),
-					z.Str("enr", newENR),
+					z.Any("addrs", p.Addrs),
 				)
 				callback(p)
 			}
@@ -130,18 +128,18 @@ func resolveBootnode(ctx context.Context, rawURL, lockHashHex string, callback f
 	}
 }
 
-// queryBootnodeENR returns the bootnode ENR via a http GET query to the url.
+// queryRelayAddrs returns the relay multiaddrs via a http GET query to the url.
 //
-// This supports resolving bootnode ENR from known http URLs which is handy
-// when bootnodes are deployed in docker-compose or kubernetes
+// This supports resolving relay addrs from known http URLs which is handy
+// when relays are deployed in docker-compose or kubernetes
 //
 // It retries until the context is cancelled.
-func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff func(), lockHashHex string) (*enode.Node, error) {
-	parsedURL, err := url.Parse(bootnodeURL)
+func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockHashHex string) ([]ma.Multiaddr, error) {
+	parsedURL, err := url.Parse(relayURL)
 	if err != nil {
-		return nil, errors.Wrap(err, "parse bootnode url")
+		return nil, errors.Wrap(err, "parse relay url")
 	} else if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return nil, errors.New("invalid bootnode url")
+		return nil, errors.New("invalid relay url")
 	}
 
 	var (
@@ -154,7 +152,7 @@ func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff func(), l
 		}
 		doBackoff = true
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, bootnodeURL, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, relayURL, nil)
 		if err != nil {
 			return nil, errors.Wrap(err, "new request")
 		}
@@ -162,28 +160,42 @@ func queryBootnodeENR(ctx context.Context, bootnodeURL string, backoff func(), l
 
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Warn(ctx, "Failure querying bootnode ENR (will try again)", err)
+			log.Warn(ctx, "Failure querying relay addresses (will try again)", err)
 			continue
 		} else if resp.StatusCode/100 != 2 {
-			log.Warn(ctx, "Non-200 response querying bootnode ENR (will try again)", nil, z.Int("status_code", resp.StatusCode))
+			log.Warn(ctx, "Non-200 response querying relay addresses (will try again)", nil, z.Int("status_code", resp.StatusCode))
 			continue
 		}
 
 		b, err := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		if err != nil {
-			log.Warn(ctx, "Failure reading bootnode ENR (will try again)", err)
+			log.Warn(ctx, "Failure reading relay addresses (will try again)", err)
 			continue
 		}
 
-		node, err := enode.Parse(enode.V4ID{}, string(b))
-		if err != nil {
-			log.Warn(ctx, "Failure parsing ENR (will try again)", err, z.Str("enr", string(b)))
+		if strings.HasPrefix(string(b), "enr:") {
+			return nil, errors.New("querying relay address returned ENR instead of multiaddrs")
+		}
+
+		var addrs []string
+		if err := json.Unmarshal(b, &addrs); err != nil {
+			log.Warn(ctx, "Failure parsing relay addresses json (will try again)", err)
 			continue
 		}
 
-		return node, nil
+		var maddrs []ma.Multiaddr
+		for _, addr := range addrs {
+			maddr, err := ma.NewMultiaddr(addr)
+			if err != nil {
+				log.Warn(ctx, "Failure parsing relay multiaddrs (will try again)", err, z.Str("addr", addr))
+				continue
+			}
+			maddrs = append(maddrs, maddr)
+		}
+
+		return maddrs, nil
 	}
 
-	return nil, errors.Wrap(ctx.Err(), "timeout querying bootnode ENR")
+	return nil, errors.Wrap(ctx.Err(), "timeout querying relay addresses")
 }

@@ -25,6 +25,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -246,12 +247,12 @@ func (d Definition) VerifySignatures() error {
 func (d Definition) Peers() ([]p2p.Peer, error) {
 	var resp []p2p.Peer
 	for i, operator := range d.Operators {
-		record, err := p2p.DecodeENR(operator.ENR)
+		record, err := enr.Parse(operator.ENR)
 		if err != nil {
 			return nil, errors.Wrap(err, "decode enr", z.Str("enr", operator.ENR))
 		}
 
-		p, err := p2p.NewPeer(record, i)
+		p, err := p2p.NewPeerFromENR(record, i)
 		if err != nil {
 			return nil, err
 		}

@@ -6,7 +6,7 @@ x-node-base: &node-base
   command: run
   networks: [compose]
   volumes: [testdir:/compose]
-  depends_on: [bootnode] 
+  depends_on: [relay] 
 
 services:
   node0:
@@ -17,12 +17,9 @@ services:
       CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
       CHARON_P2P_EXTERNAL_HOSTNAME: node0
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
-      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
-      CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
-      CHARON_P2P_BOOTNODE_RELAY: "true"
+      CHARON_P2P_RELAYS: http://relay:3640/enr
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
-      CHARON_DATA_DIR: /compose/node0
       CHARON_JAEGER_SERVICE: node0
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_LOCK_FILE: /compose/node0/cluster-lock.json
@@ -52,12 +49,9 @@ services:
       CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
       CHARON_P2P_EXTERNAL_HOSTNAME: node1
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
-      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
-      CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
-      CHARON_P2P_BOOTNODE_RELAY: "true"
+      CHARON_P2P_RELAYS: http://relay:3640/enr
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
-      CHARON_DATA_DIR: /compose/node1
       CHARON_JAEGER_SERVICE: node1
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_LOCK_FILE: /compose/node1/cluster-lock.json
@@ -87,12 +81,9 @@ services:
       CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
       CHARON_P2P_EXTERNAL_HOSTNAME: node2
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
-      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
-      CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
-      CHARON_P2P_BOOTNODE_RELAY: "true"
+      CHARON_P2P_RELAYS: http://relay:3640/enr
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
-      CHARON_DATA_DIR: /compose/node2
       CHARON_JAEGER_SERVICE: node2
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_LOCK_FILE: /compose/node2/cluster-lock.json
@@ -122,12 +113,9 @@ services:
       CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
       CHARON_P2P_EXTERNAL_HOSTNAME: node3
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
-      CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
-      CHARON_P2P_BOOTNODES: http://bootnode:3640/enr
-      CHARON_P2P_BOOTNODE_RELAY: "true"
+      CHARON_P2P_RELAYS: http://relay:3640/enr
       CHARON_LOG_LEVEL: debug
       CHARON_FEATURE_SET: alpha
-      CHARON_DATA_DIR: /compose/node3
       CHARON_JAEGER_SERVICE: node3
       CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_LOCK_FILE: /compose/node3/cluster-lock.json
@@ -149,16 +137,16 @@ services:
       
       - "33630:3630"
       
-  bootnode:
+  relay:
     <<: *node-base
-    command: bootnode
+    command: relay
     depends_on: []
     environment:
-      CHARON_BOOTNODE_HTTP_ADDRESS: 0.0.0.0:3640
-      CHARON_BOOTNODE_MONITORING_ADDRESS: 0.0.0.0:3620
-      CHARON_DATA_DIR: /compose/bootnode
-      CHARON_P2P_BOOTNODES: ""
-      CHARON_P2P_EXTERNAL_HOSTNAME: bootnode
+      CHARON_HTTP_ADDRESS: 0.0.0.0:3640
+      CHARON_MONITORING_ADDRESS: 0.0.0.0:3620
+      CHARON_DATA_DIR: /compose/relay
+      CHARON_P2P_RELAYS: ""
+      CHARON_P2P_EXTERNAL_HOSTNAME: relay
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_UDP_ADDRESS: 0.0.0.0:3630
       CHARON_LOKI_ADDRESS: http://loki:3100/loki/api/v1/push

@@ -129,7 +129,7 @@ func newNewCmd() *cobra.Command {
 	keygen := cmd.Flags().String("keygen", string(conf.KeyGen), "Key generation process: create, split, dkg")
 	buildLocal := cmd.Flags().Bool("build-local", conf.BuildBinary, "Enables building a local charon binary from source. Note this requires the CHARON_REPO env var.")
 	beaconNode := cmd.Flags().String("beacon-node", conf.BeaconNode, "Beacon node URL endpoint or 'mock' for simnet.")
-	extBootnode := cmd.Flags().String("external-bootnode", "", "Optional external bootnode HTTP url.")
+	extRelay := cmd.Flags().String("external-relay", "", "Optional external relay HTTP url.")
 	splitKeys := cmd.Flags().String("split-keys-dir", conf.SplitKeysDir, "Directory containing keys to split for keygen==create, or empty not to split.")
 	featureSet := cmd.Flags().String("feature-set", conf.FeatureSet, "Minimum feature set to enable: alpha, beta, stable")
 	numVals := cmd.Flags().Int("num-validators", conf.NumValidators, "Number of distributed validators.")
@@ -141,7 +141,7 @@ func newNewCmd() *cobra.Command {
 		conf.BeaconNode = *beaconNode
 		conf.SplitKeysDir = *splitKeys
 		conf.FeatureSet = *featureSet
-		conf.ExternalBootnode = *extBootnode
+		conf.ExternalRelay = *extRelay
 		conf.NumValidators = *numVals
 
 		var vcs []compose.VCType

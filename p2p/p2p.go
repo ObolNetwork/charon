@@ -41,7 +41,7 @@ import (
 )
 
 // NewTCPNode returns a started tcp-based libp2p host.
-func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGater ConnGater, advertise bool, opts ...libp2p.Option,
+func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGater ConnGater, opts ...libp2p.Option,
 ) (host.Host, error) {
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
@@ -57,16 +57,13 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 		return nil, errors.Wrap(err, "convert privkey")
 	}
 
-	var externalAddrs []ma.Multiaddr
-	if advertise {
-		// Use own observed addresses as soon as a single relay reports it.
-		// Since there are probably no other directly connected peers to do so.
-		identify.ActivationThresh = 1
+	// Use own observed addresses as soon as a single relay reports it.
+	// Since there are probably no other directly connected peers to do so.
+	identify.ActivationThresh = 1
 
-		externalAddrs, err = externalMultiAddrs(cfg)
-		if err != nil {
-			return nil, err
-		}
+	externalAddrs, err := externalMultiAddrs(cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	var tcpOpts []interface{} // libp2p.Transport requires empty interface options.
@@ -87,10 +84,6 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 		// Enable Autonat (required for hole punching)
 		libp2p.EnableNATService(),
 		libp2p.AddrsFactory(func(addrs []ma.Multiaddr) []ma.Multiaddr {
-			if !advertise {
-				return nil
-			}
-
 			return append(addrs, externalAddrs...)
 		}),
 		libp2p.Transport(tcp.NewTCPTransport, tcpOpts...),
@@ -146,21 +139,23 @@ func externalMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
 	return resp, nil
 }
 
-// multiAddrViaRelay returns a multiaddr to the peer via the relay.
+// multiAddrsViaRelay returns multiaddrs to the peer via the relay.
 // See https://github.com/libp2p/go-libp2p/blob/master/examples/relay/main.go.
-func multiAddrViaRelay(relayPeer Peer, peerID peer.ID) (ma.Multiaddr, error) {
-	transportAddr, err := multiAddrFromIPPort(relayPeer.Enode.IP(), relayPeer.Enode.TCP())
-	if err != nil {
-		return nil, err
+func multiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) {
+	var resp []ma.Multiaddr
+	for _, addr := range relayPeer.Addrs {
+		transportAddr, _ := peer.SplitAddr(addr)
+
+		addr := fmt.Sprintf("/p2p/%s/p2p-circuit/p2p/%s", relayPeer.ID, peerID)
+		relayAddr, err := ma.NewMultiaddr(addr)
+		if err != nil {
+			return nil, errors.Wrap(err, "new multiaddr")
+		}
+
+		resp = append(resp, transportAddr.Encapsulate(relayAddr))
 	}
 
-	addr := fmt.Sprintf("/p2p/%s/p2p-circuit/p2p/%s", relayPeer.ID.Pretty(), peerID.Pretty())
-	relayAddr, err := ma.NewMultiaddr(addr)
-	if err != nil {
-		return nil, errors.Wrap(err, "new multiaddr")
-	}
-
-	return transportAddr.Encapsulate(relayAddr), nil
+	return resp, nil
 }
 
 // NewEventCollector returns a lifecycle hook that instruments libp2p events.

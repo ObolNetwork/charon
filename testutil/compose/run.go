@@ -60,7 +60,7 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		CharonEntrypoint: conf.entrypoint(),
 		CharonCommand:    cmdRun,
 		Nodes:            nodes,
-		Bootnode:         true,
+		Relay:            true,
 		Monitoring:       true,
 		MonitoringPorts:  !conf.DisableMonitoringPorts,
 		VCs:              vcs,

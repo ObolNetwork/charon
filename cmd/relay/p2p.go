@@ -40,6 +40,10 @@ import (
 
 // startP2P returns a started libp2p host or an error.
 func startP2P(ctx context.Context, config Config, key *ecdsa.PrivateKey, reporter metrics.Reporter) (host.Host, error) {
+	if len(config.P2PConfig.TCPAddrs) == 0 {
+		return nil, errors.New("p2p TCP addresses required")
+	}
+
 	if config.RelayLogLevel != "" {
 		if err := relaylog.SetLogLevel("relay", config.RelayLogLevel); err != nil {
 			return nil, errors.Wrap(err, "set relay log level")
@@ -57,7 +61,7 @@ func startP2P(ctx context.Context, config Config, key *ecdsa.PrivateKey, reporte
 		return nil, errors.Wrap(err, "new resource manager")
 	}
 
-	tcpNode, err := p2p.NewTCPNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(), true,
+	tcpNode, err := p2p.NewTCPNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(),
 		libp2p.ResourceManager(mgr), libp2p.BandwidthReporter(reporter))
 	if err != nil {
 		return nil, errors.Wrap(err, "new tcp node")

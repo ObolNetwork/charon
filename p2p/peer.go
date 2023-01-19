@@ -18,30 +18,24 @@ package p2p
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"fmt"
-	"net"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/eth2util/enr"
 )
 
 // Peer represents a peer in the libp2p network, either a charon node or a relay.
 type Peer struct {
-	// ENR defines the networking information of the peer.
-	ENR enr.Record
-
-	// Enode represents the networking host of the peer.
-	Enode enode.Node
-
-	// ID is a libp2p peer identity. It is inferred from the ENR.
+	// ID is a libp2p peer identity.
 	ID peer.ID
+
+	// Addrs is the list of libp2p multiaddresses of the peer.
+	Addrs []ma.Multiaddr
 
 	// Index is the order of this node in the cluster.
 	// This is only applicable to charon nodes, not relays.
@@ -61,67 +55,31 @@ func (p Peer) PublicKey() (*ecdsa.PublicKey, error) {
 	return PeerIDToKey(p.ID)
 }
 
-// MultiAddr returns the libp2p multiaddr (tcp ip and port) from the peer ENR.
-func (p Peer) MultiAddr() (ma.Multiaddr, error) {
-	tcpAddr, err := p.TCPAddr()
-	if err != nil {
-		return nil, err
-	}
-
-	return multiAddrFromIPPort(tcpAddr.IP, tcpAddr.Port)
-}
-
-// AddrInfo returns the libp2p peer addr info (peer ID and multiaddr) from the peer ENR.
-func (p Peer) AddrInfo() (peer.AddrInfo, error) {
-	addr, err := p.MultiAddr()
-	if err != nil {
-		return peer.AddrInfo{}, err
-	}
-
+// AddrInfo returns the libp2p peer addr info (peer ID and multiaddrs).
+func (p Peer) AddrInfo() peer.AddrInfo {
 	return peer.AddrInfo{
 		ID:    p.ID,
-		Addrs: []ma.Multiaddr{addr},
-	}, nil
+		Addrs: p.Addrs,
+	}
 }
 
-// TCPAddr returns the tcp address (ip and port) from the peer ENR.
-func (p Peer) TCPAddr() (*net.TCPAddr, error) {
-	var (
-		ip   enr.IPv4
-		port enr.TCP
-	)
-	if err := p.ENR.Load(&ip); err != nil {
-		return nil, errors.Wrap(err, "load ip from enr")
+// NewRelayPeer returns a new relay peer (-1 index).
+func NewRelayPeer(info peer.AddrInfo) Peer {
+	return Peer{
+		ID:    info.ID,
+		Addrs: info.Addrs,
+		Name:  PeerName(info.ID),
 	}
-	if err := p.ENR.Load(&port); err != nil {
-		return nil, errors.Wrap(err, "load port from enr")
-	}
-
-	return resolveListenAddr(fmt.Sprintf("%s:%d", net.IP(ip), port))
 }
 
-// NewPeer returns a new charon peer.
-func NewPeer(record enr.Record, index int) (Peer, error) {
-	var enodePubkey enode.Secp256k1
-	if err := record.Load(&enodePubkey); err != nil {
-		return Peer{}, errors.Wrap(err, "pubkey from enr")
-	}
-
-	ecdsaPubkey := ecdsa.PublicKey(enodePubkey)
-
-	id, err := PeerIDFromKey(&ecdsaPubkey)
+// NewPeerFromENR returns a new charon peer without addresses.
+func NewPeerFromENR(record enr.Record, index int) (Peer, error) {
+	id, err := PeerIDFromKey(record.PubKey)
 	if err != nil {
 		return Peer{}, err
 	}
 
-	node, err := enode.New(new(enode.V4ID), &record)
-	if err != nil {
-		return Peer{}, errors.Wrap(err, "new peer enode")
-	}
-
 	return Peer{
-		ENR:   record,
-		Enode: *node,
 		ID:    id,
 		Index: index,
 		Name:  PeerName(id),

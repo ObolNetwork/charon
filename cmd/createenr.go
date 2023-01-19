@@ -29,9 +29,7 @@ import (
 )
 
 func newCreateEnrCmd(runFunc func(io.Writer, string) error) *cobra.Command {
-	var (
-		dataDir string
-	)
+	var dataDir string
 
 	cmd := &cobra.Command{
 		Use:   "enr",

@@ -29,13 +29,11 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/eth2util/enr"
 )
 
 // zeroXDead is the 0x00..00dead Ethereum address.
@@ -132,11 +130,11 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 				return TmplData{}, errors.Wrap(err, "save charon-enr-private-key")
 			}
 
-			enrStr, err := keyToENR(key)
+			record, err := enr.New(key)
 			if err != nil {
 				return TmplData{}, err
 			}
-			enrs = append(enrs, enrStr)
+			enrs = append(enrs, record.String())
 		}
 
 		n := TmplNode{EnvVars: []kv{
@@ -312,17 +310,6 @@ func copyStaticFolders(dir string) error {
 	}
 
 	return nil
-}
-
-func keyToENR(key *ecdsa.PrivateKey) (string, error) {
-	var r enr.Record
-	r.SetSeq(0)
-
-	if err := enode.SignV4(&r, key); err != nil {
-		return "", errors.Wrap(err, "sign enr")
-	}
-
-	return p2p.EncodeENR(r)
 }
 
 // p2pSeed can be overridden in tests for deterministic p2pkeys.

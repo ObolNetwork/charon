@@ -26,16 +26,8 @@
      "Value": "0.0.0.0:3610"
     },
     {
-     "Key": "p2p_udp_address",
-     "Value": "0.0.0.0:3630"
-    },
-    {
-     "Key": "p2p-bootnodes",
-     "Value": "http://bootnode:3640/enr"
-    },
-    {
-     "Key": "p2p-bootnode-relay",
-     "Value": "\"true\""
+     "Key": "p2p-relays",
+     "Value": "http://relay:3640/enr"
     },
     {
      "Key": "log-level",
@@ -44,10 +36,6 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
-    },
-    {
-     "Key": "data-dir",
-     "Value": "/compose/node0"
     },
     {
      "Key": "jaeger-service",
@@ -135,16 +123,8 @@
      "Value": "0.0.0.0:3610"
     },
     {
-     "Key": "p2p_udp_address",
-     "Value": "0.0.0.0:3630"
-    },
-    {
-     "Key": "p2p-bootnodes",
-     "Value": "http://bootnode:3640/enr"
-    },
-    {
-     "Key": "p2p-bootnode-relay",
-     "Value": "\"true\""
+     "Key": "p2p-relays",
+     "Value": "http://relay:3640/enr"
     },
     {
      "Key": "log-level",
@@ -153,10 +133,6 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
-    },
-    {
-     "Key": "data-dir",
-     "Value": "/compose/node1"
     },
     {
      "Key": "jaeger-service",
@@ -244,16 +220,8 @@
      "Value": "0.0.0.0:3610"
     },
     {
-     "Key": "p2p_udp_address",
-     "Value": "0.0.0.0:3630"
-    },
-    {
-     "Key": "p2p-bootnodes",
-     "Value": "http://bootnode:3640/enr"
-    },
-    {
-     "Key": "p2p-bootnode-relay",
-     "Value": "\"true\""
+     "Key": "p2p-relays",
+     "Value": "http://relay:3640/enr"
     },
     {
      "Key": "log-level",
@@ -262,10 +230,6 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
-    },
-    {
-     "Key": "data-dir",
-     "Value": "/compose/node2"
     },
     {
      "Key": "jaeger-service",
@@ -353,16 +317,8 @@
      "Value": "0.0.0.0:3610"
     },
     {
-     "Key": "p2p_udp_address",
-     "Value": "0.0.0.0:3630"
-    },
-    {
-     "Key": "p2p-bootnodes",
-     "Value": "http://bootnode:3640/enr"
-    },
-    {
-     "Key": "p2p-bootnode-relay",
-     "Value": "\"true\""
+     "Key": "p2p-relays",
+     "Value": "http://relay:3640/enr"
     },
     {
      "Key": "log-level",
@@ -371,10 +327,6 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
-    },
-    {
-     "Key": "data-dir",
-     "Value": "/compose/node3"
     },
     {
      "Key": "jaeger-service",
@@ -471,7 +423,7 @@
    "Ports": null
   }
  ],
- "Bootnode": true,
+ "Relay": true,
  "Monitoring": true,
  "MonitoringPorts": true
 }

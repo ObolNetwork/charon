@@ -20,16 +20,13 @@ import (
 	crand "crypto/rand"
 	"io"
 	"math/rand"
-	"net"
 	"testing"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -47,8 +44,6 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		ops      []Operator
 		dvShares [][]*bls_sig.SecretKeyShare
 	)
-
-	addrFunc := getAddrFunc(seed)
 
 	random := io.Reader(rand.New(rand.NewSource(int64(seed)))) //nolint:gosec // Explicit use of weak random generator for determinism.
 	if seed == 0 {
@@ -86,25 +81,13 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		p2pKey, err := ecdsa.GenerateKey(crypto.S256(), random)
 		require.NoError(t, err)
 
-		tcp := addrFunc(t) // localhost and lib-p2p tcp port
-		udp := addrFunc(t) // localhost and discv5 udp port
-
-		var r enr.Record
-		r.Set(enr.IPv4(tcp.IP))
-		r.Set(enr.TCP(tcp.Port))
-		r.Set(enr.UDP(udp.Port))
-		r.SetSeq(0)
-
-		err = enode.SignV4(&r, p2pKey)
-		require.NoError(t, err)
-
-		enrStr, err := p2p.EncodeENR(r)
+		record, err := enr.New(p2pKey)
 		require.NoError(t, err)
 
 		addr := crypto.PubkeyToAddress(p2pKey.PublicKey)
 		op := Operator{
 			Address: addr.Hex(),
-			ENR:     enrStr,
+			ENR:     record.String(),
 			// Set to empty signatures instead of nil so aligned with unmarshalled json
 			ENRSignature:    ethHex{},
 			ConfigSignature: ethHex{},
@@ -150,22 +133,4 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 	require.NoError(t, err)
 
 	return lock, p2pKeys, dvShares
-}
-
-// getAddrFunc returns either actual available ports for zero seeds
-// or deterministic addresses for non-zero seeds.
-func getAddrFunc(seed int) func(*testing.T) *net.TCPAddr {
-	if seed == 0 {
-		return testutil.AvailableAddr
-	}
-
-	var j int
-
-	return func(*testing.T) *net.TCPAddr {
-		j++
-		return &net.TCPAddr{
-			IP:   net.ParseIP("127.0.0.1"),
-			Port: j,
-		}
-	}
 }

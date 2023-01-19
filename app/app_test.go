@@ -17,7 +17,6 @@ package app_test
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -27,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -52,147 +50,46 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
-//go:generate go test . -v -run=TestPingCluster -slow
-var slow = flag.Bool("slow", false, "enable slow tests")
-
 // TestPingCluster starts a cluster of charon nodes and waits for each node to ping all the others.
 // It relies on discv5 for peer discovery.
 func TestPingCluster(t *testing.T) {
-	// Nodes bind to lock ENR addresses.
-	// Discv5 can just use those as bootnodes.
-	t.Run("bind_enrs", func(t *testing.T) {
-		pingCluster(t, pingTest{
-			Slow:         false,
-			BootLock:     true,
-			BindENRAddrs: true,
-			Bootnode:     false,
-			ExpectDirect: true,
-		})
-	})
-
-	// Nodes bind to random localhost ports (not the lock ENRs), with only single bootnode.
-	// Discv5 will resolve peers via bootnode.
-	t.Run("bootnode_only", func(t *testing.T) {
-		pingCluster(t, pingTest{
-			BindLocalhost: true,
-			BootLock:      false,
-			Bootnode:      true,
-			ExpectDirect:  true,
-		})
-	})
-
-	// Nodes bind to random 0.0.0.0 ports (but use 127.0.0.1 as external IP), with only single bootnode.
-	// Discv5 will resolve peers via bootnode and external IP.
-	t.Run("external_ip", func(t *testing.T) {
-		pingCluster(t, pingTest{
-			ExternalIP:   "127.0.0.1",
-			BindZeroIP:   true,
-			BootLock:     false,
-			Bootnode:     true,
-			ExpectDirect: true,
-		})
-	})
-
-	// Nodes bind to 0.0.0.0 (but use localhost as external host), with only single bootnode.
-	// Discv5 will resolve peers via bootnode and external host.
-	t.Run("external_host", func(t *testing.T) {
-		pingCluster(t, pingTest{
-			ExternalHost: "localhost",
-			BindZeroIP:   true,
-			BootLock:     false,
-			Bootnode:     true,
-			ExpectDirect: true,
-		})
-	})
-
-	// Nodes are not accessible (bind to random 0.0.0.0 ports and use incorrect external IP),
-	// but relay via single bootnode.
-	// Node discv5 will not resolve direct address, nodes will connect to bootnode,
-	// and libp2p will relay via bootnode.
-	t.Run("bootnode_relay", func(t *testing.T) {
-		pingCluster(t, pingTest{
-			BootnodeRelay: true,
-			BindZeroPort:  true,
-			Bootnode:      true,
-			ExternalIP:    "222.222.222.222", // Random IP, so nodes are not reachable.
-		})
-	})
-
-	// Nodes bind to non-ENR addresses, with single bootnode AS WELL AS stale ENRs.
-	// Discv5 times out resolving stale ENRs, then resolves peers via external node.
-	// This is slow due to discv5 internal timeouts, run with -slow.
-	t.Run("bootnode_and_stale_enrs", func(t *testing.T) {
-		pingCluster(t, pingTest{
-			Slow:          true,
-			BindLocalhost: true,
-			BootLock:      true,
-			Bootnode:      true,
-			ExpectDirect:  true,
-		})
-	})
-
-	// Nodes bind to random 0.0.0.0 ports, discv5 disabled,
-	// but relay via single bootnode,
-	// then upgrade to direct connections.
-	t.Run("relay_discovery_0000", func(t *testing.T) {
-		pingCluster(t, pingTest{
-			RelayDiscovery: true,
-			BootnodeRelay:  true,
-			BindZeroPort:   true,
-			Bootnode:       true,
-			ExpectDirect:   true,
-		})
-	})
-
-	// Nodes bind to random locahost ports, discv5 disabled,
-	// but relay via single bootnode,
+	// Nodes bind to random locahost ports,
+	// use relay,
 	// then upgrade to direct connections.
 	t.Run("relay_discovery_local", func(t *testing.T) {
 		pingCluster(t, pingTest{
-			RelayDiscovery: true,
-			BootnodeRelay:  true,
-			BindLocalhost:  true,
-			Bootnode:       true,
-			ExpectDirect:   true,
+			BindLocalhost: true,
 		})
 	})
 
-	// Nodes bind to random locahost ports, discv5 disabled,
-	// but relay via single bootnode, filters external dns multiaddrs only,
+	// Nodes bind to random locahost ports,
+	// use relay, filters external dns multiaddrs only,
 	// then upgrade to direct connections.
 	t.Run("relay_discovery_externalhost", func(t *testing.T) {
 		pingCluster(t, pingTest{
-			RelayDiscovery: true,
-			BootnodeRelay:  true,
-			BindLocalhost:  true,
-			Bootnode:       true,
-			ExpectDirect:   true,
-			ExternalHost:   "localhost",
-			AddrFilter:     "dns",
+			BindLocalhost: true,
+			ExternalHost:  "localhost",
+			AddrFilter:    "dns",
+		})
+	})
+
+	// Nodes bind to random locahost ports,
+	// use relay, includes incorrect external IP, but should include local address,
+	// then upgrade to direct connections.
+	t.Run("relay_incorrect_externalhost", func(t *testing.T) {
+		pingCluster(t, pingTest{
+			BindLocalhost: true,
+			ExternalIP:    "222.222.222.22",
 		})
 	})
 }
 
 type pingTest struct {
-	Slow bool
-
-	BindENRAddrs  bool
 	BindLocalhost bool
 	BindZeroIP    bool
-	BindZeroPort  bool
-	BindNoTCP     bool
-
-	BootLock      bool
-	Bootnode      bool
-	BootnodeRelay bool
-
-	ExternalIP   string
-	ExternalHost string
-
-	RelayDiscovery bool // Enable relay discovery (disable discv5)
-	ExpectDirect   bool // Expect pings on direct connections
-
-	AddrFilter string // Regexp filter for advertised libp2p addresses.
+	ExternalIP    string
+	ExternalHost  string
+	AddrFilter    string // Regexp filter for advertised libp2p addresses.
 }
 
 func pingCluster(t *testing.T, test pingTest) {
@@ -200,25 +97,9 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	timeout := time.Second * 10
 
-	if test.Slow {
-		if !*slow {
-			t.Skip("skipping slow test")
-			return
-		}
-		timeout = time.Minute
-	}
-
-	if !test.RelayDiscovery {
-		featureset.DisableForT(t, featureset.RelayDiscovery)
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 
-	bootAddr, bootErr := startBootnode(ctx, t)
-	var bootnodes []string
-	if test.Bootnode {
-		bootnodes = append(bootnodes, bootAddr)
-	}
+	relayAddr, relayErr := startRelay(ctx, t)
 
 	const n = 3
 	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, 0)
@@ -226,9 +107,8 @@ func pingCluster(t *testing.T, test pingTest) {
 		asserter: asserter{
 			Timeout: timeout,
 		},
-		N:            n,
-		Lock:         lock,
-		ExpectDirect: test.ExpectDirect,
+		N:    n,
+		Lock: lock,
 	}
 
 	var eg errgroup.Group
@@ -255,31 +135,18 @@ func pingCluster(t *testing.T, test pingTest) {
 				LibP2POpts: []libp2p.Option{newAddrFactoryFilter(test.AddrFilter)},
 			},
 			P2P: p2p.Config{
-				UDPBootnodes:  bootnodes,
-				UDPBootLock:   test.BootLock,
-				ExternalHost:  test.ExternalHost,
-				ExternalIP:    test.ExternalIP,
-				BootnodeRelay: test.BootnodeRelay,
+				Relays:       []string{relayAddr},
+				ExternalHost: test.ExternalHost,
+				ExternalIP:   test.ExternalIP,
 			},
 		}
 
-		// Either bind to ENR addresses, or bind to random address resulting in stale ENRs
-		if test.BindENRAddrs {
-			conf.P2P.TCPAddrs = []string{tcpAddrFromENR(t, lock.Operators[i].ENR)}
-			conf.P2P.UDPAddr = udpAddrFromENR(t, lock.Operators[i].ENR)
-		} else if test.BindLocalhost {
+		if test.BindLocalhost { // Bind to random address
 			conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
-			conf.P2P.UDPAddr = testutil.AvailableAddr(t).String()
 		} else if test.BindZeroIP {
 			addr1 := testutil.AvailableAddr(t)
-			addr2 := testutil.AvailableAddr(t)
 			addr1.IP = net.IPv4zero
-			addr2.IP = net.IPv4zero
 			conf.P2P.TCPAddrs = []string{addr1.String()}
-			conf.P2P.UDPAddr = addr2.String()
-		} else if test.BindZeroPort {
-			conf.P2P.TCPAddrs = []string{"0.0.0.0:0"}
-			conf.P2P.UDPAddr = "0.0.0.0:0"
 		} else {
 			require.Fail(t, "no bind flag set")
 		}
@@ -297,7 +164,7 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	eg.Go(func() error {
 		defer cancel()
-		return <-bootErr
+		return <-relayErr
 	})
 
 	err := eg.Wait()
@@ -326,8 +193,8 @@ func newAddrFactoryFilter(filterStr string) libp2p.Option {
 	}
 }
 
-// startBootnode starts a charon bootnode and returns its http ENR endpoint.
-func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
+// startRelay starts a charon relay and returns its http multiaddr endpoint.
+func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
 	t.Helper()
 
 	dir, err := os.MkdirTemp("", "")
@@ -341,7 +208,6 @@ func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 			DataDir:  dir,
 			HTTPAddr: addr,
 			P2PConfig: p2p.Config{
-				UDPAddr:  testutil.AvailableAddr(t).String(),
 				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
 			},
 			LogConfig: log.Config{
@@ -354,7 +220,7 @@ func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 		})
 	}()
 
-	endpoint := "http://" + addr + "/enr"
+	endpoint := "http://" + addr
 
 	// Wait for bootnode to become available.
 	for ctx.Err() == nil {
@@ -366,42 +232,6 @@ func startBootnode(ctx context.Context, t *testing.T) (string, <-chan error) {
 	}
 
 	return endpoint, errChan
-}
-
-// tcpAddrFromENR returns the "<ip4>:<tcp>" address stored in the ENR.
-func tcpAddrFromENR(t *testing.T, record string) string {
-	t.Helper()
-
-	r, err := p2p.DecodeENR(record)
-	require.NoError(t, err)
-
-	var (
-		ip   enr.IPv4
-		port enr.TCP
-	)
-
-	require.NoError(t, r.Load(&ip))
-	require.NoError(t, r.Load(&port))
-
-	return fmt.Sprintf("%s:%d", net.IP(ip), port)
-}
-
-// udoAddrFromENR returns the "<ip4>:<udp>" address stored in the ENR.
-func udpAddrFromENR(t *testing.T, record string) string {
-	t.Helper()
-
-	r, err := p2p.DecodeENR(record)
-	require.NoError(t, err)
-
-	var (
-		ip   enr.IPv4
-		port enr.UDP
-	)
-
-	require.NoError(t, r.Load(&ip))
-	require.NoError(t, r.Load(&port))
-
-	return fmt.Sprintf("%s:%d", net.IP(ip), port)
 }
 
 // asserter provides an abstract callback asserter.
@@ -444,9 +274,8 @@ func (a *asserter) await(ctx context.Context, t *testing.T, expect int) error {
 // pingAsserter asserts that all nodes ping all other nodes.
 type pingAsserter struct {
 	asserter
-	N            int
-	Lock         cluster.Lock
-	ExpectDirect bool // Assert direct or relay pings.
+	N    int
+	Lock cluster.Lock
 }
 
 // Await waits for all nodes to ping each other or time out.
@@ -474,16 +303,14 @@ func (a *pingAsserter) Callback(t *testing.T, i int) func(peer.ID, host.Host) {
 		var foundDirect bool
 		for _, conn := range tcpNode.Network().ConnsToPeer(target) {
 			directConn := !p2p.IsRelayAddr(conn.RemoteMultiaddr())
-			if a.ExpectDirect && !directConn {
+			if !directConn {
 				require.NoError(t, conn.Close()) // Close relay connections so direct connections are established.
-			} else if !a.ExpectDirect && directConn {
-				require.Fail(t, "expected relay connections, but got direct connection")
-			} else if directConn {
+			} else {
 				foundDirect = true
 			}
 		}
 
-		if a.ExpectDirect != foundDirect {
+		if !foundDirect {
 			return
 		}
 
@@ -508,23 +335,20 @@ func TestInfoSync(t *testing.T) {
 		N:        n,
 	}
 
-	peers, err := lock.Peers()
-	require.NoError(t, err)
-
-	var peerAddrs []peer.AddrInfo
-	for _, p := range peers {
-		addr, err := p.AddrInfo()
-		require.NoError(t, err)
-		peerAddrs = append(peerAddrs, addr)
-	}
+	var tcpNodes []host.Host
 
 	// Hard code peer addresses and protocols
 	tcpNodeCallback := func(tcpNode host.Host) {
-		for _, pa := range peerAddrs {
-			tcpNode.Peerstore().AddAddrs(pa.ID, pa.Addrs, peerstore.PermanentAddrTTL)
-			err := tcpNode.Peerstore().AddProtocols(pa.ID, toStrs(priority.Protocols())...)
+		for _, other := range tcpNodes {
+			other.Peerstore().AddAddrs(tcpNode.ID(), tcpNode.Addrs(), peerstore.PermanentAddrTTL)
+			err := other.Peerstore().AddProtocols(tcpNode.ID(), toStrs(priority.Protocols())...)
+			require.NoError(t, err)
+
+			tcpNode.Peerstore().AddAddrs(other.ID(), other.Addrs(), peerstore.PermanentAddrTTL)
+			err = tcpNode.Peerstore().AddProtocols(other.ID(), toStrs(priority.Protocols())...)
 			require.NoError(t, err)
 		}
+		tcpNodes = append(tcpNodes, tcpNode)
 	}
 
 	var eg errgroup.Group
@@ -549,9 +373,7 @@ func TestInfoSync(t *testing.T) {
 				},
 			},
 			P2P: p2p.Config{
-				TCPAddrs:    []string{tcpAddrFromENR(t, lock.Operators[i].ENR)},
-				UDPAddr:     udpAddrFromENR(t, lock.Operators[i].ENR),
-				UDPBootLock: true,
+				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
 			},
 		}
 
@@ -566,7 +388,7 @@ func TestInfoSync(t *testing.T) {
 		return asserter.Await(ctx, t)
 	})
 
-	err = eg.Wait()
+	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 }
