@@ -18,16 +18,21 @@ package keymanager_test
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
+	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -59,15 +64,58 @@ func TestImportKeystores(t *testing.T) {
 		passwords = append(passwords, password)
 	}
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer srv.Close()
+	t.Run("2xx response", func(t *testing.T) {
+		var receivedSecrets []string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, r.URL.Path, "/eth/v1/keystores")
 
-	t.Run("successful import keystores", func(t *testing.T) {
+			data, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			defer r.Body.Close()
+
+			var req noopKeymanagerReq
+			require.NoError(t, json.Unmarshal(data, &req))
+			require.Equal(t, len(req.Keystores), len(req.Passwords))
+			require.Equal(t, len(req.Keystores), numSecrets)
+
+			for i := 0; i < numSecrets; i++ {
+				secret, err := decrypt(t, req.Keystores[i], req.Passwords[i])
+				require.NoError(t, err)
+
+				secretBytes, err := secret.MarshalBinary()
+				require.NoError(t, err)
+				receivedSecrets = append(receivedSecrets, hex.EncodeToString(secretBytes))
+			}
+
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer srv.Close()
+
 		cl := keymanager.New(srv.URL)
 		err := cl.ImportKeystores(ctx, keystores, passwords)
 		require.NoError(t, err)
+
+		// Convert original secrets to strings
+		var originalSecrets []string
+		for _, secret := range secrets {
+			secretBytes, err := secret.MarshalBinary()
+			require.NoError(t, err)
+			originalSecrets = append(originalSecrets, hex.EncodeToString(secretBytes))
+		}
+
+		require.Equal(t, originalSecrets, receivedSecrets)
+	})
+
+	t.Run("4xx response", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, r.URL.Path, "/eth/v1/keystores")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		defer srv.Close()
+
+		cl := keymanager.New(srv.URL)
+		err := cl.ImportKeystores(ctx, keystores, passwords)
+		require.ErrorContains(t, err, "failed posting keys")
 	})
 
 	t.Run("mismatching lengths", func(t *testing.T) {
@@ -99,4 +147,26 @@ func TestVerifyConnection(t *testing.T) {
 		require.Error(t, cl.VerifyConnection(ctx))
 		require.ErrorContains(t, cl.VerifyConnection(ctx), "parse address")
 	})
+}
+
+// noopKeymanagerReq is a mock keymanager request for use in tests.
+type noopKeymanagerReq struct {
+	Keystores []noopKeystore `json:"keystores"`
+	Passwords []string       `json:"passwords"`
+}
+
+// noopKeystore is a mock keystore for use in tests.
+type noopKeystore struct {
+	Crypto map[string]interface{} `json:"crypto"`
+}
+
+// decrypt returns the secret from the encrypted keystore.
+func decrypt(t *testing.T, store noopKeystore, password string) (*bls_sig.SecretKey, error) {
+	t.Helper()
+
+	decryptor := keystorev4.New()
+	secretBytes, err := decryptor.Decrypt(store.Crypto, password)
+	require.NoError(t, err)
+
+	return tblsconv.SecretFromBytes(secretBytes)
 }
