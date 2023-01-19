@@ -27,6 +27,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/compose"
 )
@@ -101,14 +102,14 @@ func TestSmoke(t *testing.T) {
 				conf.KeyGen = compose.KeyGenDKG
 			},
 			DefineTmplFunc: func(data *compose.TmplData) {
-				// v0.11.0 of charon generates v1.3.0 definition files.
-				pegImageTag(data.Nodes, 0, "v0.11.0")
+				// Use oldest supported version for cluster lock
+				pegImageTag(data.Nodes, 0, last(version.Supported())+".0")
 			},
 			RunTmplFunc: func(data *compose.TmplData) {
 				// Node 0 is local build
-				pegImageTag(data.Nodes, 1, "latest")
-				pegImageTag(data.Nodes, 2, "v0.12.0")
-				pegImageTag(data.Nodes, 3, "v0.11.0")
+				pegImageTag(data.Nodes, 1, nth(version.Supported(), 0)+".0")
+				pegImageTag(data.Nodes, 2, nth(version.Supported(), 1)+".0")
+				pegImageTag(data.Nodes, 3, nth(version.Supported(), 2)+".0")
 			},
 		},
 		{
@@ -192,4 +193,14 @@ func copyPrebuiltBinary(t *testing.T, dir string, binary string) {
 func pegImageTag(nodes []compose.TmplNode, index int, imageTag string) {
 	nodes[index].ImageTag = imageTag
 	nodes[index].Entrypoint = "/usr/local/bin/charon" // Use contains binary, not locally built latest version.
+}
+
+// last returns the last element of a slice.
+func last(s []string) string {
+	return s[len(s)-1]
+}
+
+// nth returns the nth element of a slice, wrapping if n > len(s).
+func nth(s []string, n int) string {
+	return s[n%len(s)]
 }

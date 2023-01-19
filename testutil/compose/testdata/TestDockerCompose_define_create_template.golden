@@ -13,7 +13,7 @@
   }
  ],
  "VCs": null,
- "Bootnode": false,
+ "Relay": false,
  "Monitoring": false,
  "MonitoringPorts": false
 }

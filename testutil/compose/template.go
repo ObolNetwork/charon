@@ -43,7 +43,7 @@ type TmplData struct {
 	Nodes []TmplNode
 	VCs   []TmplVC
 
-	Bootnode        bool
+	Relay           bool
 	Monitoring      bool
 	MonitoringPorts bool
 }
