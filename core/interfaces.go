@@ -178,6 +178,9 @@ type Tracker interface {
 	// FetcherFetched sends Fetcher component's events to tracker.
 	FetcherFetched(context.Context, Duty, DutyDefinitionSet, error)
 
+	// ConsensusProposed sends Consensus component's events to tracker.
+	ConsensusProposed(context.Context, Duty, UnsignedDataSet, error)
+
 	// DutyDBStored sends DutyDB component's store events to tracker.
 	DutyDBStored(context.Context, Duty, UnsignedDataSet, error)
 
@@ -186,6 +189,9 @@ type Tracker interface {
 
 	// ParSigDBStoredExternal sends ParSigDB component's store external events to tracker.
 	ParSigDBStoredExternal(context.Context, Duty, ParSignedDataSet, error)
+
+	// SigAggAggregated sends SigAgg component's events to tracker.
+	SigAggAggregated(context.Context, Duty, PubKey, []ParSignedData, error)
 
 	// BroadcasterBroadcast sends Broadcaster component's broadcast events to tracker.
 	BroadcasterBroadcast(context.Context, Duty, PubKey, SignedData, error)

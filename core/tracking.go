@@ -30,6 +30,12 @@ func WithTracking(tracker Tracker) WireOption {
 
 			return err
 		}
+		w.ConsensusPropose = func(ctx context.Context, duty Duty, set UnsignedDataSet) error {
+			err := clone.ConsensusPropose(ctx, duty, set)
+			tracker.ConsensusProposed(ctx, duty, set, err)
+
+			return err
+		}
 		w.DutyDBStore = func(ctx context.Context, duty Duty, set UnsignedDataSet) error {
 			err := clone.DutyDBStore(ctx, duty, set)
 			tracker.DutyDBStored(ctx, duty, set, err)
@@ -45,6 +51,12 @@ func WithTracking(tracker Tracker) WireOption {
 		w.ParSigDBStoreExternal = func(ctx context.Context, duty Duty, set ParSignedDataSet) error {
 			err := clone.ParSigDBStoreExternal(ctx, duty, set)
 			tracker.ParSigDBStoredExternal(ctx, duty, set, err)
+
+			return err
+		}
+		w.SigAggAggregate = func(ctx context.Context, duty Duty, key PubKey, data []ParSignedData) error {
+			err := clone.SigAggAggregate(ctx, duty, key, data)
+			tracker.SigAggAggregated(ctx, duty, key, data, err)
 
 			return err
 		}
