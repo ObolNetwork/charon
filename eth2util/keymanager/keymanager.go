@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Package keymanager provides ETH2 keymanager API (https://ethereum.github.io/keymanager-APIs/) functionalities.
 package keymanager
 
 import (
@@ -42,7 +43,7 @@ type Keymanager struct {
 	baseURL string // Base keymanager URL
 }
 
-// ImportKeystores pushes the keystores to the keymanager API.
+// ImportKeystores pushes the keystores to keymanager.
 // See https://ethereum.github.io/keymanager-APIs/#/Local%20Key%20Manager/importKeystores.
 func (km Keymanager) ImportKeystores(ctx context.Context, keystores []keystore.Keystore, passwords []string) error {
 	addr, err := url.JoinPath(km.baseURL, "/eth/v1/keystores")
