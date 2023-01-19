@@ -376,7 +376,7 @@ func analyseParSigs(events []event) parsigsByMsg {
 	return datas
 }
 
-// analyseFetcherFailed returns whether the duty that got stack in fetcher actually failed
+// analyseFetcherFailed returns whether the duty that got stuck in fetcher actually failed
 // and the reason which might actually be due a pre-requisite duty that failed.
 func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, step, string) {
 	msg := msgFetcher
@@ -448,9 +448,9 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool
 			return true, fetcher, msg
 		}
 
-		// Sync contribution duties will fail if no sync message in DutyDB.
+		// Sync contribution duties will fail if no sync message in AggSigDB.
 		syncMsgFailed, syncMsgStep := dutyFailedStep(allEvents[core.NewSyncMessageDuty(duty.Slot)])
-		if syncMsgFailed && syncMsgStep <= consensus {
+		if syncMsgFailed && syncMsgStep <= sigAgg {
 			// Note we do not handle the edge case of the local peer failing to store sync message
 			// but the sync message duty succeeding in any case due to external peer partial signatures.
 			return true, fetcher, msgFetcherSyncContributionNoSyncMsg
