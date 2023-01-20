@@ -1,6 +1,9 @@
 package taketwo
 
+import "sync"
+
 var impl Implementation = Unimplemented{}
+var implLock sync.Mutex
 
 // Implementation defines the backing implementation for all the public functions of this package.
 type Implementation interface {
@@ -32,6 +35,8 @@ type Implementation interface {
 
 // SetImplementation sets newImpl as the package backing implementation.
 func SetImplementation(newImpl Implementation) {
+	implLock.Lock()
+	defer implLock.Unlock()
 	impl = newImpl
 }
 
