@@ -71,7 +71,7 @@ func TestHerumi_ThresholdAggregate(t *testing.T) {
 	shares, err := impl.ThresholdSplit(secret, 5, 3)
 	require.NoError(t, err)
 
-	signatures := map[int][]byte{}
+	signatures := map[int]taketwo.Signature{}
 
 	for idx, key := range shares {
 		p := bls.SecretKey{}
