@@ -19,7 +19,7 @@ func (u Unimplemented) ThresholdSplit(_ PrivateKey, _ uint, _ uint) (map[int]Pri
 	return nil, ErrNotImplemented
 }
 
-func (u Unimplemented) RecoverSecret(_ map[int]PrivateKey) (PrivateKey, error) {
+func (u Unimplemented) RecoverSecret(_ map[int]PrivateKey, _ uint, _ uint) (PrivateKey, error) {
 	return nil, ErrNotImplemented
 }
 

@@ -91,7 +91,7 @@ func (h Herumi) ThresholdSplit(secret taketwo.PrivateKey, total uint, threshold 
 	return ret, nil
 }
 
-func (h Herumi) RecoverSecret(shares map[int]taketwo.PrivateKey) (taketwo.PrivateKey, error) {
+func (h Herumi) RecoverSecret(shares map[int]taketwo.PrivateKey, _, _ uint) (taketwo.PrivateKey, error) {
 	var pk bls.SecretKey
 
 	var rawKeys []bls.SecretKey

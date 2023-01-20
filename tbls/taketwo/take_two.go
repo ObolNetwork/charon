@@ -30,7 +30,7 @@ type Implementation interface {
 	ThresholdSplit(secret PrivateKey, total uint, threshold uint) (map[int]PrivateKey, error)
 
 	// RecoverSecret recovers the original secret off the input shares.
-	RecoverSecret(shares map[int]PrivateKey) (PrivateKey, error)
+	RecoverSecret(shares map[int]PrivateKey, total uint, threshold uint) (PrivateKey, error)
 
 	// ThresholdAggregate aggregates the partial signatures passed in input in the final original signature.
 	ThresholdAggregate(partialSignaturesByIndex map[int]Signature) (Signature, error)
@@ -63,8 +63,8 @@ func ThresholdSplit(secret PrivateKey, total uint, threshold uint) (map[int]Priv
 	return impl.ThresholdSplit(secret, total, threshold)
 }
 
-func RecoverSecret(shares map[int]PrivateKey) (PrivateKey, error) {
-	return impl.RecoverSecret(shares)
+func RecoverSecret(shares map[int]PrivateKey, total uint, threshold uint) (PrivateKey, error) {
+	return impl.RecoverSecret(shares, total, threshold)
 }
 
 func ThresholdAggregate(partialSignaturesByIndex map[int]Signature) (Signature, error) {

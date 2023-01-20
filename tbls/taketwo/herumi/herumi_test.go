@@ -50,7 +50,7 @@ func TestHerumi_RecoverSecret(t *testing.T) {
 	shares, err := impl.ThresholdSplit(secret, 5, 3)
 	require.NoError(t, err)
 
-	recovered, err := impl.RecoverSecret(shares)
+	recovered, err := impl.RecoverSecret(shares, 5, 3)
 	require.NoError(t, err)
 
 	require.Equal(t, secret, recovered)
