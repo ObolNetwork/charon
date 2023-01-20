@@ -9,9 +9,9 @@
 
 This repo contains the source code for the distributed validator client _Charon_ (pronounced 'kharon'); a HTTP middleware client for Ethereum Staking that enables you to safely run a single validator across a group of independent nodes.
 
-Charon is accompanied by a webapp called the [Distributed Validator Launchpad](https://github.com/obolnetwork/dv-launchpad) for distributed validator key creation.
+Charon is accompanied by a webapp called the [Distributed Validator Launchpad](https://goerli.launchpad.obol.tech/) for distributed validator key creation.
 
-Charon is used by Enterprises and DAOs to distribute the responsibility of running Ethereum Validators across a number of different instances and client implementations.
+Charon is used by stakers to distribute the responsibility of running Ethereum Validators across a number of different instances and client implementations.
 
 ![Example Obol Cluster](./docs/images/DVCluster.png)
 
@@ -53,7 +53,7 @@ Charon aims to support any downstream standalone validator client that consumes 
 | [Lodestar](https://github.com/ChainSafe/lodestar)  |     ✅      |       \*️⃣        | DVT compatibility issue                 |
 | [Vouch](https://github.com/attestantio/vouch)      |     \*️⃣     |        ✅        | Only validator client provided          |
 | [Prysm](https://github.com/prysmaticlabs/prysm)    |     ✅      |        🛑        | Validator client requires gRPC API      |
-| [Nimbus](https://github.com/status-im/nimbus-eth2) |     ✅      |       \*️⃣        | No standalone validator client provided |
+| [Nimbus](https://github.com/status-im/nimbus-eth2) |     ✅      |        ✅        | Soon to be supported |
 
 ## Project Status
 
