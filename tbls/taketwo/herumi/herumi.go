@@ -1,7 +1,6 @@
 package herumi
 
 import (
-	"encoding/hex"
 	"fmt"
 	"github.com/herumi/bls-eth-go-binary/bls"
 	"strconv"
@@ -29,14 +28,14 @@ func init() {
 type Herumi struct{}
 
 func (h Herumi) GenerateSecretKey() ([]byte, error) {
-	p := bls.SecretKey{}
+	var p bls.SecretKey
 	p.SetByCSPRNG()
 
 	return p.Serialize(), nil
 }
 
 func (h Herumi) SecretToPublicKey(secret []byte) ([]byte, error) {
-	p := bls.SecretKey{}
+	var p bls.SecretKey
 
 	if err := p.Deserialize(secret); err != nil {
 		return nil, fmt.Errorf("cannot unmarshal secret into Herumi secret key, %w", err)
@@ -51,7 +50,7 @@ func (h Herumi) SecretToPublicKey(secret []byte) ([]byte, error) {
 }
 
 func (h Herumi) ThresholdSplit(secret []byte, total uint, threshold uint) (map[int][]byte, error) {
-	p := bls.SecretKey{}
+	var p bls.SecretKey
 
 	if err := p.Deserialize(secret); err != nil {
 		return nil, fmt.Errorf("cannot unmarshal bytes into Herumi secret key, %w", err)
@@ -64,21 +63,21 @@ func (h Herumi) ThresholdSplit(secret []byte, total uint, threshold uint) (map[i
 
 	// initialize threshold amount of points
 	for i := 1; i < int(threshold); i++ {
-		sk := bls.SecretKey{}
+		var sk bls.SecretKey
 		sk.SetByCSPRNG()
 		poly[i] = sk
 	}
 
 	ret := make(map[int][]byte)
 	for i := 1; i <= int(total); i++ {
-		blsID := bls.ID{}
+		var blsID bls.ID
 
 		err := blsID.SetDecString(fmt.Sprintf("%d", i))
 		if err != nil {
 			return nil, fmt.Errorf("cannot set ID %d for key number %d, %w", i, i, err)
 		}
 
-		sk := bls.SecretKey{}
+		var sk bls.SecretKey
 
 		err = sk.Set(poly, &blsID)
 		if err != nil {
@@ -105,7 +104,7 @@ func (h Herumi) RecoverSecret(shares map[int][]byte) ([]byte, error) {
 
 		rawKeys = append(rawKeys, kpk)
 
-		id := bls.ID{}
+		var id bls.ID
 		if err := id.SetDecString(strconv.Itoa(idx)); err != nil {
 			return nil, fmt.Errorf("private key id %d id isn't a number", idx)
 		}
@@ -132,7 +131,7 @@ func (h Herumi) ThresholdAggregate(partialSignaturesByIndex map[int][]byte) ([]b
 
 		rawSigns = append(rawSigns, signature)
 
-		id := bls.ID{}
+		var id bls.ID
 		if err := id.SetDecString(strconv.Itoa(idx)); err != nil {
 			return nil, fmt.Errorf("signature id %d id isn't a number", idx)
 		}
@@ -140,7 +139,7 @@ func (h Herumi) ThresholdAggregate(partialSignaturesByIndex map[int][]byte) ([]b
 		rawIDs = append(rawIDs, id)
 	}
 
-	complete := bls.Sign{}
+	var complete bls.Sign
 
 	if err := complete.Recover(rawSigns, rawIDs); err != nil {
 		return nil, fmt.Errorf("cannot combine signatures, %w", err)
@@ -168,9 +167,9 @@ func (h Herumi) Verify(compressedPublicKey []byte, data []byte, rawSignature []b
 }
 
 func (h Herumi) Sign(privateKey []byte, data []byte) ([]byte, error) {
-	p := bls.SecretKey{}
+	var p bls.SecretKey
 
-	if err := p.SetHexString(hex.EncodeToString(privateKey)); err != nil {
+	if err := p.Deserialize(privateKey); err != nil {
 		return nil, fmt.Errorf("cannot unmarshal secret into Herumi secret key, %w", err)
 	}
 
