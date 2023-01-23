@@ -73,7 +73,7 @@ func TestImportKeystores(t *testing.T) {
 			require.NoError(t, err)
 			defer r.Body.Close()
 
-			var req noopKeymanagerReq
+			var req mockKeymanagerReq
 			require.NoError(t, json.Unmarshal(data, &req))
 			require.Equal(t, len(req.Keystores), len(req.Passwords))
 			require.Equal(t, len(req.Keystores), numSecrets)
@@ -149,8 +149,8 @@ func TestVerifyConnection(t *testing.T) {
 	})
 }
 
-// noopKeymanagerReq is a mock keymanager request for use in tests.
-type noopKeymanagerReq struct {
+// mockKeymanagerReq is a mock keymanager request for use in tests.
+type mockKeymanagerReq struct {
 	Keystores []noopKeystore `json:"keystores"`
 	Passwords []string       `json:"passwords"`
 }
