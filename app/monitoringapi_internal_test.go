@@ -136,13 +136,11 @@ func TestStartChecker(t *testing.T) {
 			advanceClock(clock, 10*time.Second, 2)
 
 			// Advance clock for first epoch tick.
-			advanceClock(clock, 384*time.Second, 2)
-
-			// Advance clock for last tick.
-			advanceClock(clock, 10*time.Second, 2)
+			advanceClock(clock, 32*12*time.Second, 2)
 
 			if tt.err != nil {
 				require.Eventually(t, func() bool {
+					advanceClock(clock, 10*time.Second, 2)
 					err = readyErrFunc()
 					if !errors.Is(err, tt.err) {
 						t.Logf("Ignoring unexpected error, got=%v, want=%v", err, tt.err)
@@ -153,6 +151,7 @@ func TestStartChecker(t *testing.T) {
 				}, time.Second, 100*time.Millisecond)
 			} else {
 				require.Eventually(t, func() bool {
+					advanceClock(clock, 12*time.Second, 2)
 					return readyErrFunc() == nil
 				}, time.Second, 100*time.Millisecond)
 			}
