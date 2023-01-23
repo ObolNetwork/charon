@@ -27,10 +27,6 @@ func (ts *TestSuite) SetupTest() {
 	taketwo.SetImplementation(ts.impl)
 }
 
-func (ts *TestSuite) implToUse() {
-
-}
-
 func (ts *TestSuite) Test_GenerateSecretKey() {
 	secret, err := taketwo.GenerateSecretKey()
 	require.NoError(ts.T(), err)
