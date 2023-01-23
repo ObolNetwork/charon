@@ -824,7 +824,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				}},
 				dutySyncMsg: {event{
 					duty: dutySyncMsg,
-					step: fetcher,
+					step: parSigDBInternal,
 				}},
 			},
 			msg:    msgFetcherSyncContributionNoSyncMsg,
