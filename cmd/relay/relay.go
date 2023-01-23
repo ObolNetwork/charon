@@ -268,6 +268,7 @@ func newMultiaddrHandler(tcpNode host.Host) func(ctx context.Context) ([]byte, e
 	}
 }
 
+// wrapHandler returns a http handler by wrapping the provided function with error handling.
 func wrapHandler(handler func(ctx context.Context) (response []byte, err error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
