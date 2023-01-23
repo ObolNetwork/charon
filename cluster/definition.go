@@ -125,11 +125,22 @@ type Definition struct {
 	// Creator identifies the creator of a cluster definition. They may also be an operator.
 	Creator Creator `json:"creator" ssz:"Composite" config_hash:"11" definition_hash:"11"`
 
+	// Validators define the configuration required by each cluster validator.
+	Validators []Validator `json:"validators" ssz:"CompositeList[65536]" config_hash:"12" definition_hash:"12"`
+
 	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.
-	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"12"`
+	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"13"`
 
 	// DefinitionHash uniquely identifies a cluster definition including operator ENRs and signatures.
 	DefinitionHash []byte `json:"definition_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"-"`
+}
+
+type Validator struct {
+	// FeeRecipientAddress 20 byte Ethereum address.
+	FeeRecipientAddress string `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"-" definition_hash:"1"`
+
+	// WithdrawalAddress 20 byte Ethereum address.
+	WithdrawalAddress string `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"-" definition_hash:"2"`
 }
 
 // NodeIdx returns the node index for the peer.
@@ -312,6 +323,8 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 		return marshalDefinitionV1x2or3(d)
 	case isV1x4(d.Version):
 		return marshalDefinitionV1x4(d)
+	case isV1x5(d.Version):
+		return marshalDefinitionV1x5(d)
 	default:
 		return nil, errors.New("unsupported version")
 	}
@@ -348,6 +361,11 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		}
 	case isV1x4(version.Version):
 		def, err = unmarshalDefinitionV1x4(data)
+		if err != nil {
+			return err
+		}
+	case isV1x5(version.Version):
+		def, err = unmarshalDefinitionV1x5(data)
 		if err != nil {
 			return err
 		}
@@ -457,6 +475,32 @@ func marshalDefinitionV1x4(def Definition) ([]byte, error) {
 	return resp, nil
 }
 
+func marshalDefinitionV1x5(def Definition) ([]byte, error) {
+	resp, err := json.Marshal(definitionJSONv1x5{
+		Name:           def.Name,
+		UUID:           def.UUID,
+		Version:        def.Version,
+		Timestamp:      def.Timestamp,
+		NumValidators:  def.NumValidators,
+		Threshold:      def.Threshold,
+		DKGAlgorithm:   def.DKGAlgorithm,
+		Validators:     def.Validators,
+		ForkVersion:    def.ForkVersion,
+		ConfigHash:     def.ConfigHash,
+		DefinitionHash: def.DefinitionHash,
+		Operators:      operatorsToV1x2orLater(def.Operators),
+		Creator: creatorJSON{
+			Address:         def.Creator.Address,
+			ConfigSignature: def.Creator.ConfigSignature,
+		},
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal definition")
+	}
+
+	return resp, nil
+}
+
 func unmarshalDefinitionV1x0or1(data []byte) (def Definition, err error) {
 	var defJSON definitionJSONv1x0or1
 	if err := json.Unmarshal(data, &defJSON); err != nil {
@@ -543,6 +587,32 @@ func unmarshalDefinitionV1x4(data []byte) (def Definition, err error) {
 	}, nil
 }
 
+func unmarshalDefinitionV1x5(data []byte) (def Definition, err error) {
+	var defJSON definitionJSONv1x5
+	if err := json.Unmarshal(data, &defJSON); err != nil {
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1v2")
+	}
+
+	return Definition{
+		Name:           defJSON.Name,
+		UUID:           defJSON.UUID,
+		Version:        defJSON.Version,
+		Timestamp:      defJSON.Timestamp,
+		NumValidators:  defJSON.NumValidators,
+		Threshold:      defJSON.Threshold,
+		Validators:     defJSON.Validators,
+		DKGAlgorithm:   defJSON.DKGAlgorithm,
+		ForkVersion:    defJSON.ForkVersion,
+		ConfigHash:     defJSON.ConfigHash,
+		DefinitionHash: defJSON.DefinitionHash,
+		Operators:      operatorsFromV1x2orLater(defJSON.Operators),
+		Creator: Creator{
+			Address:         defJSON.Creator.Address,
+			ConfigSignature: defJSON.Creator.ConfigSignature,
+		},
+	}, nil
+}
+
 // supportEIP712Sigs returns true if the provided definition version supports EIP712 signatures.
 // Note that Definition versions prior to v1.3.0 don't support EIP712 signatures.
 func supportEIP712Sigs(version string) bool {
@@ -609,6 +679,23 @@ type definitionJSONv1x4 struct {
 	ForkVersion         ethHex                    `json:"fork_version"`
 	ConfigHash          ethHex                    `json:"config_hash"`
 	DefinitionHash      ethHex                    `json:"definition_hash"`
+}
+
+// definitionJSONv1x5 is the json formatter of Definition for versions v1.5.
+type definitionJSONv1x5 struct {
+	Name           string                    `json:"name,omitempty"`
+	Creator        creatorJSON               `json:"creator"`
+	Operators      []operatorJSONv1x2orLater `json:"operators"`
+	UUID           string                    `json:"uuid"`
+	Version        string                    `json:"version"`
+	Timestamp      string                    `json:"timestamp,omitempty"`
+	NumValidators  int                       `json:"num_validators"`
+	Threshold      int                       `json:"threshold"`
+	Validators     []Validator               `json:"validators"`
+	DKGAlgorithm   string                    `json:"dkg_algorithm"`
+	ForkVersion    ethHex                    `json:"fork_version"`
+	ConfigHash     ethHex                    `json:"config_hash"`
+	DefinitionHash ethHex                    `json:"definition_hash"`
 }
 
 // Creator identifies the creator of a cluster definition.

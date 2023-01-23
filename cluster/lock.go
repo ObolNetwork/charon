@@ -55,7 +55,7 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 	switch {
 	case isV1x0(l.Version) || isV1x1(l.Version):
 		return marshalLockV1x0or1(l, lockHash)
-	case isV1x2(l.Version) || isV1x3(l.Version) || isV1x4(l.Version):
+	case isV1x2(l.Version) || isV1x3(l.Version) || isV1x4(l.Version) || isV1x5(l.Version):
 		return marshalLockV1x2orLater(l, lockHash)
 	default:
 		return nil, errors.New("unsupported version")
@@ -90,6 +90,11 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		}
 	case isAnyVersion(version.Definition.Version, v1_2, v1_3, v1_4):
 		lock, err = unmarshalLockV1x2orLater(data)
+		if err != nil {
+			return err
+		}
+	case isAnyVersion(version.Definition.Version, v1_5):
+		lock, err = unmarshalLockV1x5orLater(data)
 		if err != nil {
 			return err
 		}
@@ -225,6 +230,26 @@ func unmarshalLockV1x0or1(data []byte) (lock Lock, err error) {
 func unmarshalLockV1x2orLater(data []byte) (lock Lock, err error) {
 	var lockJSON lockJSONv1x2orLater
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
+		return Lock{}, errors.Wrap(err, "unmarshal definition")
+	}
+
+	lock = Lock{
+		Definition:         lockJSON.Definition,
+		Validators:         distValidatorsFromV1x2orLater(lockJSON.Validators),
+		SignatureAggregate: lockJSON.SignatureAggregate,
+		LockHash:           lockJSON.LockHash,
+	}
+
+	return lock, nil
+}
+
+func unmarshalLockV1x5orLater(data []byte) (lock Lock, err error) {
+	var lockJSON lockJSONv1x2orLater
+	if err := json.Unmarshal(data, &lockJSON); err != nil {
+		return Lock{}, errors.Wrap(err, "unmarshal definition")
+	}
+
+	if len(lockJSON.Definition.Validators) != lockJSON.Definition.NumValidators {
 		return Lock{}, errors.Wrap(err, "unmarshal definition")
 	}
 

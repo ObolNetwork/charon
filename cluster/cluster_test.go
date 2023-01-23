@@ -68,6 +68,22 @@ func TestEncode(t *testing.T) {
 				func(d *cluster.Definition) {
 					d.Version = version
 					d.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
+
+					if version == "v1.5.0" {
+						d.Validators = []cluster.Validator{
+							{
+								FeeRecipientAddress: testutil.RandomETHAddress(),
+								WithdrawalAddress:   testutil.RandomETHAddress(),
+							},
+							{
+								FeeRecipientAddress: testutil.RandomETHAddress(),
+								WithdrawalAddress:   testutil.RandomETHAddress(),
+							},
+						}
+
+						d.FeeRecipientAddress = ""
+						d.WithdrawalAddress = ""
+					}
 				},
 			)
 			require.NoError(t, err)

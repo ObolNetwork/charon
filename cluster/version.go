@@ -21,6 +21,7 @@ const (
 	currentVersion = v1_4
 	dkgAlgo        = "default"
 
+	v1_5 = "v1.5.0"
 	v1_4 = "v1.4.0" // Default
 	v1_3 = "v1.3.0"
 	v1_2 = "v1.2.0"
@@ -31,6 +32,7 @@ const (
 )
 
 var supportedVersions = map[string]bool{
+	v1_5: true,
 	v1_4: true,
 	v1_3: true,
 	v1_2: true,
@@ -66,6 +68,10 @@ func isV1x3(version string) bool {
 
 func isV1x4(version string) bool {
 	return version == v1_4
+}
+
+func isV1x5(version string) bool {
+	return version == v1_5
 }
 
 // SupportedVersionsForT returns the supported definition versions for testing purposes only.

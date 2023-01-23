@@ -35,7 +35,7 @@ func TestDefinitionVerify(t *testing.T) {
 	secret1, op1 := randomOperator(t)
 	secret3, creator := randomCreator(t)
 
-	t.Run("verify definition v1.4", func(t *testing.T) {
+	t.Run("verify definition v1.4 and v1.5", func(t *testing.T) {
 		definition := randomDefinition(t, creator, op0, op1)
 
 		definition, err = signCreator(secret3, definition)

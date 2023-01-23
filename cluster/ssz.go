@@ -40,6 +40,8 @@ func hashDefinition(d Definition, configOnly bool) ([32]byte, error) {
 		hashFunc = hashDefinitionLegacy
 	} else if isAnyVersion(d.Version, v1_3, v1_4) { //nolint:revive // Early return not applicable to else if
 		hashFunc = hashDefinitionV1x3or4
+	} else if isAnyVersion(d.Version, v1_5) { //nolint:revive // Early return not applicable to else if
+		hashFunc = hashDefinitionV1x5
 	} else {
 		return [32]byte{}, errors.New("unknown version")
 	}
@@ -257,6 +259,131 @@ func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) err
 	return nil
 }
 
+// hashDefinitionV1x5 hashes the new definition.
+func hashDefinitionV1x5(d Definition, hh ssz.HashWalker, configOnly bool) error {
+	indx := hh.Index()
+
+	// Field (0) 'UUID' ByteList[64]
+	if err := putByteList(hh, []byte(d.UUID), sszMaxUUID, "uuid"); err != nil {
+		return err
+	}
+
+	// Field (1) 'Name' ByteList[256]
+	if err := putByteList(hh, []byte(d.Name), sszMaxName, "name"); err != nil {
+		return err
+	}
+
+	// Field (2) 'version' ByteList[16]
+	if err := putByteList(hh, []byte(d.Version), sszMaxVersion, "version"); err != nil {
+		return err
+	}
+
+	// Field (3) 'Timestamp' ByteList[32]
+	if err := putByteList(hh, []byte(d.Timestamp), sszMaxTimestamp, "timestamp"); err != nil {
+		return err
+	}
+
+	// Field (4) 'NumValidators' uint64
+	hh.PutUint64(uint64(d.NumValidators))
+
+	// Field (5) 'Threshold' uint64
+	hh.PutUint64(uint64(d.Threshold))
+
+	// Field (8) 'DKGAlgorithm' ByteList[32]
+	if err := putByteList(hh, []byte(d.DKGAlgorithm), sszMaxDKGAlgorithm, "dkg_algorithm"); err != nil {
+		return err
+	}
+
+	// Field (9) 'ForkVersion' Bytes4
+	hh.PutBytes(d.ForkVersion)
+
+	// Field (10) 'Operators' CompositeList[256]
+	{
+		operatorsIdx := hh.Index()
+		num := uint64(len(d.Operators))
+		for _, o := range d.Operators {
+			operatorIdx := hh.Index()
+
+			// Field (0) 'Address' Bytes20
+			addrBytes, err := from0xHex(o.Address, addressLen)
+			if err != nil {
+				return err
+			}
+			hh.PutBytes(addrBytes)
+
+			if !configOnly {
+				// Field (1) 'ENR' ByteList[1024]
+				if err := putByteList(hh, []byte(o.ENR), sszMaxENR, "enr"); err != nil {
+					return err
+				}
+
+				// Field (2) 'ConfigSignature' Bytes65
+				hh.PutBytes(o.ConfigSignature)
+
+				// Field (3) 'ENRSignature' Bytes65
+				hh.PutBytes(o.ENRSignature)
+			}
+
+			hh.Merkleize(operatorIdx)
+		}
+		hh.MerkleizeWithMixin(operatorsIdx, num, sszMaxOperators)
+	}
+
+	// Field (11) 'Creator' Composite for v1.4 and later
+	creatorIdx := hh.Index()
+
+	// Field (0) 'Address' Bytes20
+	addrBytes, err := from0xHex(d.Creator.Address, addressLen)
+	if err != nil {
+		return err
+	}
+	hh.PutBytes(addrBytes)
+
+	if !configOnly {
+		// Field (1) 'ConfigSignature' Bytes65
+		hh.PutBytes(d.Creator.ConfigSignature)
+	}
+
+	hh.Merkleize(creatorIdx)
+
+	// Field (12) 'Validators' CompositeList[65536]
+	{
+		validatorsIdx := hh.Index()
+		num := uint64(len(d.Validators))
+		for _, v := range d.Validators {
+			validatorIdx := hh.Index()
+
+			feeRecipientAddress, err := from0xHex(v.FeeRecipientAddress, addressLen)
+			if err != nil {
+				return err
+			}
+
+			withdrawalAddress, err := from0xHex(v.WithdrawalAddress, addressLen)
+			if err != nil {
+				return err
+			}
+
+			// Field (0) 'FeeRecipientAddress' Bytes20
+			hh.PutBytes(feeRecipientAddress)
+
+			// Field (1) 'WithdrawalAddress' Bytes20
+			hh.PutBytes(withdrawalAddress)
+
+			hh.Merkleize(validatorIdx)
+		}
+		hh.MerkleizeWithMixin(validatorsIdx, num, sszMaxOperators)
+	}
+
+	if !configOnly {
+		// Field (12) 'ConfigHash' Bytes32
+		hh.PutBytes(d.ConfigHash)
+	}
+
+	hh.Merkleize(indx)
+
+	return nil
+}
+
 // hashLock returns a lock hash.
 func hashLock(l Lock) ([32]byte, error) {
 	var hashFunc func(Lock, ssz.HashWalker) error
@@ -264,6 +391,8 @@ func hashLock(l Lock) ([32]byte, error) {
 		hashFunc = hashLockLegacy
 	} else if isV1x3(l.Version) || isV1x4(l.Version) { //nolint:revive // Early return not applicable to else if
 		hashFunc = hashLockV1x3or4
+	} else if isV1x5(l.Version) { //nolint:revive // Early return not applicable to else if
+		hashFunc = hashLockV1x5
 	} else {
 		return [32]byte{}, errors.New("unknown version")
 	}
@@ -281,6 +410,32 @@ func hashLock(l Lock) ([32]byte, error) {
 	}
 
 	return resp, nil
+}
+
+// hashLockV1x5 hashes the latest lock hash.
+func hashLockV1x5(l Lock, hh ssz.HashWalker) error {
+	indx := hh.Index()
+
+	// Field (0) 'Definition' Composite
+	if err := hashDefinitionV1x5(l.Definition, hh, false); err != nil {
+		return err
+	}
+
+	// Field (1) 'Validators' CompositeList[65536]
+	{
+		subIndx := hh.Index()
+		num := uint64(len(l.Validators))
+		for _, validator := range l.Validators {
+			if err := hashValidatorV1x3(validator, hh); err != nil {
+				return err
+			}
+		}
+		hh.MerkleizeWithMixin(subIndx, num, sszMaxValidators)
+	}
+
+	hh.Merkleize(indx)
+
+	return nil
 }
 
 // hashLockV1x3or4 hashes the latest lock hash.
