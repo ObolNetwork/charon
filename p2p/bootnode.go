@@ -90,7 +90,7 @@ func NewRelays(ctx context.Context, relayAddrs []string, lockHashHex string,
 func resolveRelay(ctx context.Context, rawURL, lockHashHex string, callback func(Peer)) {
 	var (
 		prevAddrs      string
-		backoff, reset = expbackoff.NewWithReset(ctx)
+		backoff, reset = expbackoff.NewWithReset(ctx, expbackoff.WithFastConfig()) // Fast retries mostly for unit tests.
 	)
 	for ctx.Err() == nil {
 		addrs, err := queryRelayAddrs(ctx, rawURL, backoff, lockHashHex)
