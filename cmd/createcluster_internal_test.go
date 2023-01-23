@@ -369,8 +369,8 @@ func TestKeymanager(t *testing.T) {
 	})
 }
 
-// noopKeymanagerReq is a mock keymanager request for use in tests.
-type noopKeymanagerReq struct {
+// mockKeymanagerReq is a mock keymanager request for use in tests.
+type mockKeymanagerReq struct {
 	Keystores []keystore.Keystore `json:"keystores"`
 	Passwords []string            `json:"passwords"`
 }
@@ -402,7 +402,7 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 		require.NoError(t, err)
 		defer r.Body.Close()
 
-		var req noopKeymanagerReq
+		var req mockKeymanagerReq
 		require.NoError(t, json.Unmarshal(data, &req))
 
 		require.Equal(t, len(req.Keystores), len(req.Passwords))
