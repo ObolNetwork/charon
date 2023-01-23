@@ -133,14 +133,14 @@ func TestStartChecker(t *testing.T) {
 			}
 
 			// Advance clock for first tick.
-			advanceClock(clock, 10*time.Second, 2)
+			advanceClock(clock, 10*time.Second)
 
 			// Advance clock for first epoch tick.
-			advanceClock(clock, 32*12*time.Second, 2)
+			advanceClock(clock, 32*12*time.Second)
 
 			if tt.err != nil {
 				require.Eventually(t, func() bool {
-					advanceClock(clock, 10*time.Second, 2)
+					advanceClock(clock, 10*time.Second)
 					err = readyErrFunc()
 					if !errors.Is(err, tt.err) {
 						t.Logf("Ignoring unexpected error, got=%v, want=%v", err, tt.err)
@@ -151,7 +151,7 @@ func TestStartChecker(t *testing.T) {
 				}, time.Second, 100*time.Millisecond)
 			} else {
 				require.Eventually(t, func() bool {
-					advanceClock(clock, 12*time.Second, 2)
+					advanceClock(clock, 12*time.Second)
 					return readyErrFunc() == nil
 				}, time.Second, 100*time.Millisecond)
 			}
@@ -159,7 +159,9 @@ func TestStartChecker(t *testing.T) {
 	}
 }
 
-func advanceClock(clock clockwork.FakeClock, duration time.Duration, numTickers int) {
+func advanceClock(clock clockwork.FakeClock, duration time.Duration) {
+	numTickers := 2
+
 	// We wrap the Advance() calls with blockers to make sure that the ticker
 	// can go to sleep and produce ticks without time passing in parallel.
 	clock.BlockUntil(numTickers)
