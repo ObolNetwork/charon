@@ -47,12 +47,17 @@ this command at the same time.`,
 	}
 
 	bindDataDirFlag(cmd.Flags(), &config.DataDir)
+	bindKeymanagerAddrFlag(cmd.Flags(), &config.KeymanagerAddr)
 	bindDefDirFlag(cmd.Flags(), &config.DefFile)
 	bindNoVerifyFlag(cmd.Flags(), &config.NoVerify)
 	bindP2PFlags(cmd, &config.P2P)
 	bindLogFlags(cmd.Flags(), &config.Log)
 
 	return cmd
+}
+
+func bindKeymanagerAddrFlag(flags *pflag.FlagSet, addr *string) {
+	flags.StringVar(addr, "keymanager-address", "", "The keymanager URL to push validator keyshares to.")
 }
 
 func bindDefDirFlag(flags *pflag.FlagSet, dataDir *string) {
