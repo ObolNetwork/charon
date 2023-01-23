@@ -33,6 +33,7 @@ import (
 	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util/enr"
 )
 
 // NewRelays returns the libp2p relays from the provided addresses.
@@ -175,7 +176,13 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 		}
 
 		if strings.HasPrefix(string(b), "enr:") {
-			return nil, errors.New("querying relay address returned ENR instead of multiaddrs")
+			addr, err := multiAddrFromENRStr(string(b))
+			if err != nil {
+				log.Warn(ctx, "Failure parsing relay address from ENR (will try again)", err)
+				continue
+			}
+
+			return []ma.Multiaddr{addr}, nil
 		}
 
 		var addrs []string
@@ -198,4 +205,34 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 	}
 
 	return nil, errors.Wrap(ctx.Err(), "timeout querying relay addresses")
+}
+
+// multiAddrFromENRStr returns the multiaddr from the ENR string.
+func multiAddrFromENRStr(enrStr string) (ma.Multiaddr, error) {
+	r, err := enr.Parse(enrStr)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse ENR")
+	}
+
+	ip, ok := r.IP()
+	if !ok {
+		return nil, errors.New("enr does not have an IP")
+	}
+
+	port, ok := r.TCP()
+	if !ok {
+		return nil, errors.New("enr does not have a TCP port")
+	}
+
+	id, err := PeerIDFromKey(r.PubKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "get peer ID from ENR key")
+	}
+
+	addr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", ip.String(), port, id))
+	if err != nil {
+		return nil, errors.Wrap(err, "create multiaddr")
+	}
+
+	return addr, nil
 }
