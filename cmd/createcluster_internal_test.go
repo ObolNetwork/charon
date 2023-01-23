@@ -369,19 +369,14 @@ func TestKeymanager(t *testing.T) {
 	})
 }
 
-// noopKeymanagerReq is a mock keystore.keymanagerReq for use in tests.
-type noopKeymanagerReq struct {
-	Keystores []noopKeystore `json:"keystores"`
-	Passwords []string       `json:"passwords"`
-}
-
-// noopKeystore is a mock keystore.keystore for use in tests.
-type noopKeystore struct {
-	Crypto map[string]interface{} `json:"crypto"`
+// mockKeymanagerReq is a mock keymanager request for use in tests.
+type mockKeymanagerReq struct {
+	Keystores []keystore.Keystore `json:"keystores"`
+	Passwords []string            `json:"passwords"`
 }
 
 // decrypt returns the secret from the encrypted keystore.
-func decrypt(t *testing.T, store noopKeystore, password string) (*bls_sig.SecretKey, error) {
+func decrypt(t *testing.T, store keystore.Keystore, password string) (*bls_sig.SecretKey, error) {
 	t.Helper()
 
 	decryptor := keystorev4.New()
@@ -407,7 +402,7 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 		require.NoError(t, err)
 		defer r.Body.Close()
 
-		var req noopKeymanagerReq
+		var req mockKeymanagerReq
 		require.NoError(t, json.Unmarshal(data, &req))
 
 		require.Equal(t, len(req.Keystores), len(req.Passwords))
@@ -429,13 +424,4 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 		case results <- res:
 		}
 	})
-}
-
-func TestVerifyConnection(t *testing.T) {
-	ctx := context.Background()
-	srv := httptest.NewServer(nil)
-	defer srv.Close()
-
-	require.NoError(t, verifyConnection(ctx, srv.URL))
-	require.Error(t, verifyConnection(ctx, "1.1.1.1"))
 }
