@@ -156,9 +156,9 @@ func Run(ctx context.Context, config Config) error {
 	}
 }
 
-// newENRHandler returns a handler that returns the nodes ID and public address encoded as a ENR.
+// newENRHandler returns a handler that returns the node's ID and public address encoded as a ENR.
 func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *ecdsa.PrivateKey, config p2p.Config) func(ctx context.Context) ([]byte, error) {
-	// Resolve external hostname peridodically.
+	// Resolve external hostname periodically.
 	var (
 		extHostMu sync.Mutex
 		extHostIP net.IP
@@ -226,7 +226,7 @@ func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *ecdsa.Private
 		}
 		tcpAddr, ok := addr.(*net.TCPAddr)
 		if !ok {
-			return nil, errors.New("not a TCP address")
+			return nil, errors.New("invalid TCP address")
 		}
 
 		// Override IP with external IP or external hostname if set.
