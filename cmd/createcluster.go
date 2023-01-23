@@ -402,11 +402,13 @@ func getValidators(dvs []tbls.TSS) ([]cluster.DistValidator, error) {
 // writeKeysToKeymanager writes validator keys to the provided keymanager addresses.
 func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]*bls_sig.SecretKeyShare) error {
 	// Ping all keymanager addresses to check if they are accessible to avoid partial writes
+	var clients []keymanager.Client
 	for i := 0; i < numNodes; i++ {
 		cl := keymanager.New(addrs[i])
 		if err := cl.VerifyConnection(ctx); err != nil {
 			return err
 		}
+		clients = append(clients, cl)
 	}
 
 	for i := 0; i < numNodes; i++ {
@@ -433,17 +435,16 @@ func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sh
 			keystores = append(keystores, store)
 		}
 
-		cl := keymanager.New(addrs[i])
-		err := cl.ImportKeystores(ctx, keystores, passwords)
+		err := clients[i].ImportKeystores(ctx, keystores, passwords)
 		if err != nil {
 			log.Error(ctx, "Failed to push keys", err, z.Str("addr", addrs[i]))
 			return err
 		}
 
-		log.Debug(ctx, "Pushed keys to keymanager", z.Str("addr", addrs[i]))
+		log.Info(ctx, "Imported key shares to keymanager", z.Str("node", fmt.Sprintf("node%d", i)), z.Str("addr", addrs[i]))
 	}
 
-	log.Info(ctx, "Pushed all validator keys to respective keymanagers")
+	log.Info(ctx, "Imported all validator keys to respective keymanagers")
 
 	return nil
 }
