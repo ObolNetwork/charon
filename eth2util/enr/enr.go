@@ -125,7 +125,7 @@ func WithUDP(port int) Option {
 	}
 }
 
-// New returns a new enr record for the given private key.
+// New returns a new enr record for the given private key and provided options.
 func New(privkey *ecdsa.PrivateKey, opts ...Option) (Record, error) {
 	kvs := map[string][]byte{
 		keyID:        []byte(valID),
