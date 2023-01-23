@@ -19,6 +19,8 @@ package enr
 import (
 	"crypto/ecdsa"
 	"encoding/base64"
+	"net"
+	"sort"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -35,6 +37,13 @@ const (
 	// keyID is the key used to store the identity scheme in the record, only v4 supported.
 	keyID = "id"
 	valID = "v4"
+
+	// keyIP is the key used to store the IP v4 address in the record.
+	keyIP = "ip"
+	// keyTCP is the key used to store the TCP port in the record.
+	keyTCP = "tcp"
+	// keyUDP is the key used to store the UDP port in the record.
+	keyUDP = "udp"
 )
 
 // Parse parses the given base64 encoded string into a record.
@@ -62,9 +71,12 @@ func Parse(enrStr string) (Record, error) {
 
 	r := Record{
 		Signature: elements[0],
+		kvs:       make(map[string][]byte),
 	}
 
 	for i := 2; i < len(elements); i += 2 {
+		r.kvs[string(elements[i])] = elements[i+1]
+
 		switch string(elements[i]) {
 		case keySecp256k1:
 			r.PubKey, err = crypto.DecompressPubkey(elements[i+1])
@@ -89,9 +101,42 @@ func Parse(enrStr string) (Record, error) {
 	return r, nil
 }
 
-// New returns a new enr record for the given private key.
-func New(privkey *ecdsa.PrivateKey) (Record, error) {
-	sig, err := sign(privkey)
+// Option is a function that sets a key-value pair in the record.
+type Option func(elements map[string][]byte)
+
+// WithIP returns an option that sets the IP address of the record.
+func WithIP(ip net.IP) Option {
+	return func(kvs map[string][]byte) {
+		kvs[keyIP] = ip.To4()
+	}
+}
+
+// WithTCP returns an option that sets the TCP port of the record.
+func WithTCP(port int) Option {
+	return func(kvs map[string][]byte) {
+		kvs[keyTCP] = toBigEndian(port)
+	}
+}
+
+// WithUDP returns an option that sets the TCP port of the record.
+func WithUDP(port int) Option {
+	return func(kvs map[string][]byte) {
+		kvs[keyUDP] = toBigEndian(port)
+	}
+}
+
+// New returns a new enr record for the given private key and provided options.
+func New(privkey *ecdsa.PrivateKey, opts ...Option) (Record, error) {
+	kvs := map[string][]byte{
+		keyID:        []byte(valID),
+		keySecp256k1: crypto.CompressPubkey(&privkey.PublicKey),
+	}
+
+	for _, opt := range opts {
+		opt(kvs)
+	}
+
+	sig, err := sign(privkey, kvs)
 	if err != nil {
 		return Record{}, err
 	}
@@ -99,6 +144,7 @@ func New(privkey *ecdsa.PrivateKey) (Record, error) {
 	return Record{
 		PubKey:    &privkey.PublicKey,
 		Signature: sig,
+		kvs:       kvs,
 	}, nil
 }
 
@@ -108,19 +154,44 @@ type Record struct {
 	PubKey *ecdsa.PublicKey
 	// Signature of the record.
 	Signature []byte
+
+	kvs map[string][]byte
+}
+
+// IP returns the IP address of the record or false if not present.
+func (r Record) IP() (net.IP, bool) {
+	ip, ok := r.kvs[keyIP]
+	return ip, ok
+}
+
+// TCP returns the TCP port of the record or false if not present.
+func (r Record) TCP() (int, bool) {
+	b, ok := r.kvs[keyTCP]
+	return fromBigEndian(b), ok
+}
+
+// UDP returns the UDP port of the record or false if not present.
+func (r Record) UDP() (int, bool) {
+	b, ok := r.kvs[keyUDP]
+	return fromBigEndian(b), ok
 }
 
 // String returns the base64 encoded string representation of the record.
 func (r Record) String() string {
-	return "enr:" + base64.RawURLEncoding.EncodeToString(encodeElements(r.Signature, r.PubKey))
+	return "enr:" + base64.RawURLEncoding.EncodeToString(encodeElements(r.Signature, r.kvs))
 }
 
 // encodeElements return the RLP encoding of a minimal set of record elements including optional signature.
-func encodeElements(signature []byte, pubkey *ecdsa.PublicKey) []byte {
-	elements := [][]byte{
-		{}, // Sequence number=0
-		[]byte(keyID), []byte(valID),
-		[]byte(keySecp256k1), crypto.CompressPubkey(pubkey),
+func encodeElements(signature []byte, kvs map[string][]byte) []byte {
+	var keys []string
+	for k := range kvs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	elements := [][]byte{toBigEndian(0)} // Sequence number=0
+	for _, key := range keys {
+		elements = append(elements, []byte(key), kvs[key])
 	}
 
 	if len(signature) > 0 {
@@ -131,9 +202,9 @@ func encodeElements(signature []byte, pubkey *ecdsa.PublicKey) []byte {
 }
 
 // sign returns a enr record signature.
-func sign(privkey *ecdsa.PrivateKey) ([]byte, error) {
+func sign(privkey *ecdsa.PrivateKey, kvs map[string][]byte) ([]byte, error) {
 	h := sha3.NewLegacyKeccak256()
-	_, _ = h.Write(encodeElements(nil, &privkey.PublicKey))
+	_, _ = h.Write(encodeElements(nil, kvs))
 	digest := h.Sum(nil)
 
 	sig, err := crypto.Sign(digest, privkey)
@@ -155,4 +226,25 @@ func verify(pubkey *ecdsa.PublicKey, signature, rawExclSig []byte) error {
 	}
 
 	return nil
+}
+
+// toBigEndian returns the big endian representation of the given integer without leading zeros.
+func toBigEndian(i int) []byte {
+	var resp []byte
+	for i > 0 {
+		resp = append([]byte{byte(i)}, resp...)
+		i >>= 8
+	}
+
+	return resp
+}
+
+// fromBigEndian returns the integer encoded as big endian byte slice.
+func fromBigEndian(b []byte) int {
+	var x uint64
+	for i := 0; i < len(b); i++ {
+		x = x<<8 | uint64(b[i])
+	}
+
+	return int(x)
 }

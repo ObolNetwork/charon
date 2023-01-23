@@ -19,6 +19,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/rand"
+	"net"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -35,6 +36,17 @@ func TestParse(t *testing.T) {
 		"0x030052012a7333a37afc9cba59d42287e10a3d0392026e744acceea09822f224cc",
 		fmt.Sprintf("%#x", crypto.CompressPubkey(r.PubKey)),
 	)
+	ip, ok := r.IP()
+	require.True(t, ok)
+	require.Equal(t, net.IPv4(127, 0, 0, 1).To4(), ip)
+
+	tcp, ok := r.TCP()
+	require.True(t, ok)
+	require.Equal(t, 3610, tcp)
+
+	udp, ok := r.UDP()
+	require.True(t, ok)
+	require.Equal(t, 3630, udp)
 }
 
 func TestEncodeDecode(t *testing.T) {
@@ -48,6 +60,51 @@ func TestEncodeDecode(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, r1, r2)
+
+	_, ok := r1.IP()
+	require.False(t, ok)
+
+	_, ok = r1.TCP()
+	require.False(t, ok)
+}
+
+func TestIPTCP(t *testing.T) {
+	privkey, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(0)))
+	require.NoError(t, err)
+
+	expectIP := net.IPv4(1, 2, 3, 4)
+	expectTCP := 8000
+	expectUDP := 9000
+
+	r1, err := enr.New(privkey, enr.WithIP(expectIP), enr.WithTCP(expectTCP), enr.WithUDP(expectUDP))
+	require.NoError(t, err)
+
+	ip, ok := r1.IP()
+	require.True(t, ok)
+	require.Equal(t, expectIP.To4(), ip)
+
+	tcp, ok := r1.TCP()
+	require.True(t, ok)
+	require.Equal(t, expectTCP, tcp)
+
+	udp, ok := r1.UDP()
+	require.True(t, ok)
+	require.Equal(t, expectUDP, udp)
+
+	r2, err := enr.Parse(r1.String())
+	require.NoError(t, err)
+
+	ip, ok = r2.IP()
+	require.True(t, ok)
+	require.Equal(t, expectIP.To4(), ip)
+
+	tcp, ok = r2.TCP()
+	require.True(t, ok)
+	require.Equal(t, expectTCP, tcp)
+
+	udp, ok = r2.UDP()
+	require.True(t, ok)
+	require.Equal(t, expectUDP, udp)
 }
 
 func TestNew(t *testing.T) {
