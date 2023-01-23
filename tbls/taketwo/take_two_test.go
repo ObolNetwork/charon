@@ -138,6 +138,37 @@ func TestKryptologyImplementation(t *testing.T) {
 	runSuite(t, kryptology.Kryptology{})
 }
 
+func runBenchmark(b *testing.B, impl taketwo.Implementation) {
+	s := NewTestSuite(impl)
+	t := &testing.T{}
+	s.SetT(t)
+	s.SetupTest()
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// NOTE: we can't run suite.Run() here because testify doesn't allow us to pass testing.B in place of
+		// testing.T.
+		// So we're manually listing all the interface's methods here.
+		// I'm sorry.
+		s.Test_GenerateSecretKey()
+		s.Test_SecretToPublicKey()
+		s.Test_ThresholdSplit()
+		s.Test_RecoverSecret()
+		s.Test_ThresholdAggregate()
+		s.Test_Verify()
+		s.Test_Sign()
+	}
+}
+
+func BenchmarkHerumiImplementation(b *testing.B) {
+	runBenchmark(b, herumiImpl.Herumi{})
+}
+
+func BenchmarkKryptologyImplementation(b *testing.B) {
+	runBenchmark(b, kryptology.Kryptology{})
+}
+
 func TestRandomized(t *testing.T) {
 	runSuite(t, randomizedImpl{
 		implementations: []taketwo.Implementation{
