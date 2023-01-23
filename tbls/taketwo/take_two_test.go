@@ -3,6 +3,7 @@ package taketwo_test
 import (
 	"github.com/obolnetwork/charon/tbls/taketwo"
 	herumiImpl "github.com/obolnetwork/charon/tbls/taketwo/herumi"
+	"github.com/obolnetwork/charon/tbls/taketwo/kryptology"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"testing"
@@ -121,10 +122,16 @@ func (ts *TestSuite) Test_Sign() {
 	require.NotEmpty(ts.T(), signature)
 }
 
-func TestHerumiImplementation(t *testing.T) {
-	herumi := herumiImpl.Herumi{}
-
-	ts := NewTestSuite(herumi)
+func runSuite(t *testing.T, i taketwo.Implementation) {
+	ts := NewTestSuite(i)
 
 	suite.Run(t, &ts)
+}
+
+func TestHerumiImplementation(t *testing.T) {
+	runSuite(t, herumiImpl.Herumi{})
+}
+
+func TestKryptologyImplementation(t *testing.T) {
+	runSuite(t, kryptology.Kryptology{})
 }
