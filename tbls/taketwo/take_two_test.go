@@ -261,3 +261,9 @@ func (r randomizedImpl) Sign(privateKey taketwo.PrivateKey, data []byte) (taketw
 
 	return impl.Sign(privateKey, data)
 }
+
+func FuzzRandomImplementations(f *testing.F) {
+	f.Fuzz(func(t *testing.T, _ byte) {
+		TestRandomized(t)
+	})
+}
