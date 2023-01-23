@@ -75,6 +75,6 @@ func Verify(compressedPublicKey PublicKey, data []byte, signature Signature) err
 	return impl.Verify(compressedPublicKey, data, signature)
 }
 
-func SSign(privateKey PrivateKey, data []byte) (Signature, error) {
+func Sign(privateKey PrivateKey, data []byte) (Signature, error) {
 	return impl.Sign(privateKey, data)
 }
