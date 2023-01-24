@@ -41,6 +41,22 @@ type BlockAttestationsProvider interface {
 	BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
 }
 
+// PeerCount is the response for querying beacon node peer count (/eth/v1/node/peer_count).
+type PeerCount struct {
+	Disconnected  int
+	Connecting    int
+	Connected     int
+	Disconnecting int
+}
+
+// NodePeerCountProvider is the interface for providing node peer count.
+// It is a standard beacon API endpoint not implemented by eth2client.
+// See https://ethereum.github.io/beacon-APIs/#/Node/getPeerCount.
+type NodePeerCountProvider interface {
+	// NodePeerCount provides peer count of the beacon node.
+	NodePeerCount(ctx context.Context) (PeerCount, error)
+}
+
 // NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
 func NewHTTPAdapterForT(_ *testing.T, address string, timeout time.Duration) *httpAdapter {
 	return newHTTPAdapter(nil, address, timeout)
@@ -62,7 +78,8 @@ func newHTTPAdapter(ethSvc *eth2http.Service, address string, timeout time.Durat
 }
 
 // httpAdapter implements Client by wrapping and adding the following to eth2http.Service:
-//   - experimental interfaces not present in go-eth2-client
+//   - interfaces not present in go-eth2-client
+//   - experimental interfaces
 //   - synthetic duties
 type httpAdapter struct {
 	*eth2http.Service
@@ -131,6 +148,25 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 	return resp.Data, nil
 }
 
+// NodePeerCount provides the peer count of the beacon node.
+// See https://ethereum.github.io/beacon-APIs/#/Node/getPeerCount.
+func (h *httpAdapter) NodePeerCount(ctx context.Context) (PeerCount, error) {
+	path := "/eth/v1/node/peer_count"
+	respBody, statusCode, err := httpGet(ctx, h.address, path, h.timeout)
+	if err != nil {
+		return PeerCount{}, errors.Wrap(err, "request beacon node peer count")
+	} else if statusCode != http.StatusOK {
+		return PeerCount{}, errors.New("request beacon node peer count failed", z.Int("status", statusCode), z.Str("body", string(respBody)))
+	}
+
+	var resp peerCountJSON
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return PeerCount{}, errors.Wrap(err, "failed to parse beacon node peer count response")
+	}
+
+	return resp.Data, nil
+}
+
 type submitBeaconCommitteeSelectionsJSON struct {
 	Data []*eth2exp.BeaconCommitteeSelection `json:"data"`
 }
@@ -141,6 +177,10 @@ type submitSyncCommitteeSelectionsJSON struct {
 
 type attestationsJSON struct {
 	Data []*eth2p0.Attestation `json:"data"`
+}
+
+type peerCountJSON struct {
+	Data PeerCount `json:"data"`
 }
 
 func httpPost(ctx context.Context, base string, endpoint string, body io.Reader, timeout time.Duration) ([]byte, error) {
