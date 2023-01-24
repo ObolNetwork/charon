@@ -58,7 +58,7 @@ type Client interface {
     eth2exp.BeaconCommitteeSelectionAggregator
     eth2exp.SyncCommitteeSelectionAggregator
     BlockAttestationsProvider
-	NodePeerCountProvider
+    NodePeerCountProvider
 
     {{range .Providers}} eth2client.{{.}}
     {{end -}}
