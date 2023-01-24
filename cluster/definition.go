@@ -137,10 +137,10 @@ type Definition struct {
 
 type Validator struct {
 	// FeeRecipientAddress 20 byte Ethereum address.
-	FeeRecipientAddress string `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"-" definition_hash:"1"`
+	FeeRecipientAddress string `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"-" definition_hash:"0"`
 
 	// WithdrawalAddress 20 byte Ethereum address.
-	WithdrawalAddress string `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"-" definition_hash:"2"`
+	WithdrawalAddress string `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"-" definition_hash:"1"`
 }
 
 // NodeIdx returns the node index for the peer.
