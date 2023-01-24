@@ -20,7 +20,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"sort"
 	"strings"
@@ -492,8 +491,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return []*eth2p0.Attestation{}, nil
 		},
 		NodePeerCountFunc: func(ctx context.Context) (eth2wrap.PeerCount, error) {
-			//nolint:gosec
-			return eth2wrap.PeerCount{Connected: rand.Int() % 100}, nil
+			return eth2wrap.PeerCount{}, nil
 		},
 		AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 			return attStore.NewAttestationData(ctx, slot, index)

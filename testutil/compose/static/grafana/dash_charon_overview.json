@@ -1880,7 +1880,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "app_beacon_node_peer_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "expr": "app_beacon_node_peers{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "instant": false,
           "legendFormat": "Peer count",
           "range": true,
@@ -2449,8 +2449,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue",
-                "value": null
+                "color": "light-blue"
               },
               {
                 "color": "red",
@@ -2717,8 +2716,8 @@
       {
         "current": {
           "selected": false,
-          "text": "48e0490",
-          "value": "48e0490"
+          "text": "70260bf",
+          "value": "70260bf"
         },
         "datasource": {
           "type": "prometheus",
@@ -2745,8 +2744,8 @@
       {
         "current": {
           "selected": false,
-          "text": "open-game",
-          "value": "open-game"
+          "text": "courageous-glass",
+          "value": "courageous-glass"
         },
         "datasource": {
           "type": "prometheus",
@@ -2773,8 +2772,8 @@
       {
         "current": {
           "selected": false,
-          "text": "node3",
-          "value": "node3"
+          "text": "node2",
+          "value": "node2"
         },
         "datasource": {
           "type": "prometheus",

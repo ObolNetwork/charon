@@ -191,18 +191,29 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 
 // peerCounter populates the peerCountGauge with the beacon node peer count.
 func peerCounter(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
-	ticker := clock.NewTicker(10 * time.Second)
+	ticker := clock.NewTicker(1 * time.Minute)
+
+	setPeerCount := func() {
+		count, err := beaconNodePeerCount(ctx, eth2Cl)
+		if err != nil {
+			log.Error(ctx, "Failed to get beacon node peer count", err)
+			return
+		}
+		peerCountGauge.Set(float64(count))
+	}
+
 	go func() {
+		onStartup := make(chan struct{}, 1)
+		onStartup <- struct{}{}
+
 		for {
 			select {
+			case <-onStartup:
+				setPeerCount()
+			case <-ticker.Chan():
+				setPeerCount()
 			case <-ctx.Done():
 				return
-			case <-ticker.Chan():
-				resp, err := beaconNodePeerCount(ctx, eth2Cl)
-				if err != nil {
-					log.Error(ctx, "Failed to get beacon node peer count", err)
-				}
-				peerCountGauge.Set(float64(resp))
 			}
 		}
 	}()
