@@ -88,13 +88,8 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return err
 		}
-	case isAnyVersion(version.Definition.Version, v1_2, v1_3, v1_4):
+	case isAnyVersion(version.Definition.Version, v1_2, v1_3, v1_4, v1_5):
 		lock, err = unmarshalLockV1x2orLater(data)
-		if err != nil {
-			return err
-		}
-	case isAnyVersion(version.Definition.Version, v1_5):
-		lock, err = unmarshalLockV1x5orLater(data)
 		if err != nil {
 			return err
 		}
@@ -228,22 +223,6 @@ func unmarshalLockV1x0or1(data []byte) (lock Lock, err error) {
 }
 
 func unmarshalLockV1x2orLater(data []byte) (lock Lock, err error) {
-	var lockJSON lockJSONv1x2orLater
-	if err := json.Unmarshal(data, &lockJSON); err != nil {
-		return Lock{}, errors.Wrap(err, "unmarshal definition")
-	}
-
-	lock = Lock{
-		Definition:         lockJSON.Definition,
-		Validators:         distValidatorsFromV1x2orLater(lockJSON.Validators),
-		SignatureAggregate: lockJSON.SignatureAggregate,
-		LockHash:           lockJSON.LockHash,
-	}
-
-	return lock, nil
-}
-
-func unmarshalLockV1x5orLater(data []byte) (lock Lock, err error) {
 	var lockJSON lockJSONv1x2orLater
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
 		return Lock{}, errors.Wrap(err, "unmarshal definition")

@@ -21,7 +21,7 @@ const (
 	currentVersion = v1_4
 	dkgAlgo        = "default"
 
-	v1_5 = "v1.5.0"
+	v1_5 = "v1.5.0" // Draft
 	v1_4 = "v1.4.0" // Default
 	v1_3 = "v1.3.0"
 	v1_2 = "v1.2.0"

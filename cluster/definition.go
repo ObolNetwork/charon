@@ -641,7 +641,7 @@ func unmarshalDefinitionV1x4(data []byte) (def Definition, err error) {
 func unmarshalDefinitionV1x5(data []byte) (def Definition, err error) {
 	var defJSON definitionJSONv1x5
 	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return Definition{}, errors.Wrap(err, "unmarshal definition v1v2")
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1_5")
 	}
 
 	if len(defJSON.ValidatorAddresses) != defJSON.NumValidators {
