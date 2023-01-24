@@ -249,10 +249,6 @@ func unmarshalLockV1x5orLater(data []byte) (lock Lock, err error) {
 		return Lock{}, errors.Wrap(err, "unmarshal definition")
 	}
 
-	if len(lockJSON.Definition.Validators) != lockJSON.Definition.NumValidators {
-		return Lock{}, errors.Wrap(err, "unmarshal definition")
-	}
-
 	lock = Lock{
 		Definition:         lockJSON.Definition,
 		Validators:         distValidatorsFromV1x2orLater(lockJSON.Validators),

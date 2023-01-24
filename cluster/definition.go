@@ -107,10 +107,10 @@ type Definition struct {
 	// Threshold required for signature reconstruction. Defaults to safe value for number of nodes/peers.
 	Threshold int `json:"threshold" ssz:"uint64" config_hash:"5" definition_hash:"5"`
 
-	// FeeRecipientAddress 20 byte Ethereum address.
+	// FeeRecipientAddress 20 byte Ethereum address. Deprecated: use Validators instead.
 	FeeRecipientAddress string `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"6" definition_hash:"6"`
 
-	// WithdrawalAddress 20 byte Ethereum address.
+	// WithdrawalAddress 20 byte Ethereum address. Deprecated: use Validators instead.
 	WithdrawalAddress string `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"7" definition_hash:"7"`
 
 	// DKGAlgorithm to use for key generation. Max 32 chars.
@@ -137,10 +137,10 @@ type Definition struct {
 
 type Validator struct {
 	// FeeRecipientAddress 20 byte Ethereum address.
-	FeeRecipientAddress string `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"-" definition_hash:"0"`
+	FeeRecipientAddress string `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"0" definition_hash:"0"`
 
 	// WithdrawalAddress 20 byte Ethereum address.
-	WithdrawalAddress string `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"-" definition_hash:"1"`
+	WithdrawalAddress string `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"1" definition_hash:"1"`
 }
 
 // NodeIdx returns the node index for the peer.
@@ -591,6 +591,10 @@ func unmarshalDefinitionV1x5(data []byte) (def Definition, err error) {
 	var defJSON definitionJSONv1x5
 	if err := json.Unmarshal(data, &defJSON); err != nil {
 		return Definition{}, errors.Wrap(err, "unmarshal definition v1v2")
+	}
+
+	if len(defJSON.Validators) != defJSON.NumValidators {
+		return Definition{}, errors.Wrap(err, "insufficient validators")
 	}
 
 	return Definition{
