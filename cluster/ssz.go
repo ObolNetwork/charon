@@ -19,6 +19,7 @@ import (
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 const (
@@ -32,18 +33,25 @@ const (
 	sszMaxValidators   = 65536
 )
 
+// getDefinitionHashFunc returns the function to hash a definition based on the provided version.
+func getDefinitionHashFunc(version string) (func(Definition, ssz.HashWalker, bool) error, error) {
+	if isAnyVersion(version, v1_0, v1_1, v1_2) {
+		return hashDefinitionLegacy, nil
+	} else if isAnyVersion(version, v1_3, v1_4) {
+		return hashDefinitionV1x3or4, nil
+	} else if isAnyVersion(version, v1_5) {
+		return hashDefinitionV1x5, nil
+	} else {
+		return nil, errors.New("unknown version", z.Str("version", version))
+	}
+}
+
 // hashDefinition returns a config or definition hash. The config hash excludes operator ENRs and signatures
 // while the definition hash includes all fields.
 func hashDefinition(d Definition, configOnly bool) ([32]byte, error) {
-	var hashFunc func(Definition, ssz.HashWalker, bool) error
-	if isAnyVersion(d.Version, v1_0, v1_1, v1_2) {
-		hashFunc = hashDefinitionLegacy
-	} else if isAnyVersion(d.Version, v1_3, v1_4) { //nolint:revive // Early return not applicable to else if
-		hashFunc = hashDefinitionV1x3or4
-	} else if isAnyVersion(d.Version, v1_5) { //nolint:revive // Early return not applicable to else if
-		hashFunc = hashDefinitionV1x5
-	} else {
-		return [32]byte{}, errors.New("unknown version")
+	hashFunc, err := getDefinitionHashFunc(d.Version)
+	if err != nil {
+		return [32]byte{}, err
 	}
 
 	hh := ssz.DefaultHasherPool.Get()
@@ -400,10 +408,8 @@ func hashLock(l Lock) ([32]byte, error) {
 	var hashFunc func(Lock, ssz.HashWalker) error
 	if isV1x0(l.Version) || isV1x1(l.Version) || isV1x2(l.Version) {
 		hashFunc = hashLockLegacy
-	} else if isV1x3(l.Version) || isV1x4(l.Version) { //nolint:revive // Early return not applicable to else if
-		hashFunc = hashLockV1x3or4
-	} else if isV1x5(l.Version) { //nolint:revive // Early return not applicable to else if
-		hashFunc = hashLockV1x5
+	} else if isAnyVersion(l.Version, v1_3, v1_4, v1_5) { //nolint:revive // Early return not applicable to else if
+		hashFunc = hashLockV1x3orLater
 	} else {
 		return [32]byte{}, errors.New("unknown version")
 	}
@@ -423,38 +429,17 @@ func hashLock(l Lock) ([32]byte, error) {
 	return resp, nil
 }
 
-// hashLockV1x5 hashes the latest lock hash.
-func hashLockV1x5(l Lock, hh ssz.HashWalker) error {
+// hashLockV1x3orLater hashes the latest lock hash.
+func hashLockV1x3orLater(l Lock, hh ssz.HashWalker) error {
 	indx := hh.Index()
 
-	// Field (0) 'Definition' Composite
-	if err := hashDefinitionV1x5(l.Definition, hh, false); err != nil {
+	defHashFunc, err := getDefinitionHashFunc(l.Version)
+	if err != nil {
 		return err
 	}
 
-	// Field (1) 'Validators' CompositeList[65536]
-	{
-		subIndx := hh.Index()
-		num := uint64(len(l.Validators))
-		for _, validator := range l.Validators {
-			if err := hashValidatorV1x3(validator, hh); err != nil {
-				return err
-			}
-		}
-		hh.MerkleizeWithMixin(subIndx, num, sszMaxValidators)
-	}
-
-	hh.Merkleize(indx)
-
-	return nil
-}
-
-// hashLockV1x3or4 hashes the latest lock hash.
-func hashLockV1x3or4(l Lock, hh ssz.HashWalker) error {
-	indx := hh.Index()
-
 	// Field (0) 'Definition' Composite
-	if err := hashDefinitionV1x3or4(l.Definition, hh, false); err != nil {
+	if err := defHashFunc(l.Definition, hh, false); err != nil {
 		return err
 	}
 
@@ -463,7 +448,7 @@ func hashLockV1x3or4(l Lock, hh ssz.HashWalker) error {
 		subIndx := hh.Index()
 		num := uint64(len(l.Validators))
 		for _, validator := range l.Validators {
-			if err := hashValidatorV1x3(validator, hh); err != nil {
+			if err := hashValidatorV1x3OrLater(validator, hh); err != nil {
 				return err
 			}
 		}
@@ -476,7 +461,7 @@ func hashLockV1x3or4(l Lock, hh ssz.HashWalker) error {
 }
 
 // hashValidatorV1x3 hashes the distributed validator.
-func hashValidatorV1x3(v DistValidator, hh ssz.HashWalker) error {
+func hashValidatorV1x3OrLater(v DistValidator, hh ssz.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'PubKey' Bytes48
