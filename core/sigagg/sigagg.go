@@ -51,6 +51,8 @@ func (a *Aggregator) Subscribe(fn func(context.Context, core.Duty, core.PubKey, 
 
 // Aggregate aggregates the partially signed duty data for the DV.
 func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.PubKey, parSigs []core.ParSignedData) error {
+	ctx = log.WithTopic(ctx, "sigagg")
+
 	if len(parSigs) < a.threshold {
 		return errors.New("require threshold signatures")
 	} else if a.threshold == 0 {
