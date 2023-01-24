@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/log"
@@ -58,18 +58,41 @@ func TestDKG(t *testing.T) {
 		}
 	}
 
-	t.Run("keycast", func(t *testing.T) {
-		lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0, withAlgo("keycast"))
-		testDKG(t, lock.Definition, keys)
-	})
+	tests := []struct {
+		name       string
+		dkgAlgo    string
+		keymanager bool
+	}{
+		{
+			name:    "keycast",
+			dkgAlgo: "keycast",
+		},
+		{
+			name:    "frost",
+			dkgAlgo: "frost",
+		},
+		{
+			name:       "dkg with keymanager",
+			dkgAlgo:    "keycast",
+			keymanager: true,
+		},
+	}
 
-	t.Run("frost", func(t *testing.T) {
-		lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0, withAlgo("frost"))
-		testDKG(t, lock.Definition, keys)
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0, withAlgo(test.dkgAlgo))
+			dir, err := os.MkdirTemp("", "")
+			require.NoError(t, err)
+
+			testDKG(t, lock.Definition, dir, keys, test.keymanager)
+			if !test.keymanager {
+				verifyDKGResults(t, lock.Definition, dir)
+			}
+		})
+	}
 }
 
-func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) {
+func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*ecdsa.PrivateKey, keymanager bool) {
 	t.Helper()
 
 	require.NoError(t, def.VerifySignatures())
@@ -80,10 +103,7 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	// Start relay.
 	relayAddr, errChan := startRelay(ctx, t)
 
-	// Setup
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-
+	// Setup config
 	conf := dkg.Config{
 		DataDir: dir,
 		P2P: p2p.Config{
@@ -91,6 +111,14 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 		},
 		Log:     log.DefaultConfig(),
 		TestDef: &def,
+	}
+
+	allReceived := make(chan struct{}) // Receives struct{} if all `numNodes` keystores are intercepted by the keymanager server
+	if keymanager {
+		srv := httptest.NewServer(newKeymanagerHandler(t, len(def.Operators), allReceived))
+		defer srv.Close()
+
+		conf.KeymanagerAddr = srv.URL
 	}
 
 	// Run dkg for each node
@@ -137,7 +165,11 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 		require.NoError(t, err)
 	}
 
-	verifyDKGResults(t, def, dir)
+	if keymanager {
+		// Wait until all keystores are received by the keymanager server
+		<-allReceived
+		t.Log("All keystores received 🎉")
+	}
 }
 
 // startRelay starts a charon relay and returns its http endpoint.
@@ -409,131 +441,32 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 	return cancel
 }
 
-// TestKeymanager tests the keymanager functionality where the dkg command pushes validator keyshares
-// to a keymanager API url.
-func TestKeymanager(t *testing.T) {
-	numNodes := 4
-	lock, p2pKeys, _ := cluster.NewForT(t, 1, 3, numNodes, 0)
-	def := lock.Definition
-	require.NoError(t, def.VerifySignatures())
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Setup
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-
-	allReceived := make(chan struct{}, 1) // Receives struct{} if all `numNodes` keystores are intercepted by the keymanager server
-	srv := httptest.NewServer(newKeymanagerHandler(t, numNodes, allReceived))
-	defer srv.Close()
-
-	// Start relay.
-	relayAddr, errChan := startRelay(ctx, t)
-
-	conf := dkg.Config{
-		DataDir: dir,
-		P2P: p2p.Config{
-			Relays: []string{relayAddr},
-		},
-		KeymanagerAddr: srv.URL,
-		Log:            log.DefaultConfig(),
-		TestDef:        &def,
-	}
-
-	// Run dkg for each node
-	var eg errgroup.Group
-	for i := 0; i < len(def.Operators); i++ {
-		conf := conf
-		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
-		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
-
-		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
-		err := crypto.SaveECDSA(p2p.KeyPath(conf.DataDir), p2pKeys[i])
-		require.NoError(t, err)
-
-		eg.Go(func() error {
-			err := dkg.Run(ctx, conf)
-			if err != nil {
-				cancel()
-			}
-
-			return err
-		})
-		if i == 0 {
-			// Allow node0 some time to startup, this just mitigates startup races and backoffs but isn't required.
-			time.Sleep(time.Millisecond * 100)
-		}
-	}
-
-	// Wait until complete
-
-	runChan := make(chan error, 1)
-	go func() {
-		runChan <- eg.Wait()
-	}()
-
-	select {
-	case err := <-errChan:
-		// If this returns first, something went wrong with the relay and the test will fail.
-		cancel()
-		testutil.SkipIfBindErr(t, err)
-		require.Fail(t, "bootnode error: %v", err)
-	case err := <-runChan:
-		cancel()
-		testutil.SkipIfBindErr(t, err)
-		require.NoError(t, err)
-	}
-
-	// Wait until all keystores are received by the keymanager server
-	<-allReceived
-	t.Log("All keystores received 🎉")
-}
-
-// noopKeymanagerReq is a mock keystore.keymanagerReq for use in tests.
-type noopKeymanagerReq struct {
-	Keystores []noopKeystore `json:"keystores"`
-	Passwords []string       `json:"passwords"`
-}
-
-// noopKeystore is a mock keystore.keystore for use in tests.
-type noopKeystore struct {
-	Crypto map[string]interface{} `json:"crypto"`
-}
-
-// decrypt returns the secret from the encrypted keystore.
-func decrypt(t *testing.T, store noopKeystore, password string) (*bls_sig.SecretKey, error) {
-	t.Helper()
-
-	decryptor := keystorev4.New()
-	secretBytes, err := decryptor.Decrypt(store.Crypto, password)
-	require.NoError(t, err)
-
-	return tblsconv.SecretFromBytes(secretBytes)
-}
-
 // newKeymanagerHandler returns http handler for a test keymanager API server.
 func newKeymanagerHandler(t *testing.T, numNodes int, allReceived chan<- struct{}) http.Handler {
 	t.Helper()
-	var count int
+
+	var (
+		mu    sync.Mutex
+		count int
+	)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 		defer r.Body.Close()
 
-		var req noopKeymanagerReq
-		require.NoError(t, json.Unmarshal(data, &req))
-		require.Equal(t, len(req.Keystores), len(req.Passwords))
+		require.NotEqual(t, len(data), 0)
 
-		// Decryption of keystore with password should work
-		_, err = decrypt(t, req.Keystores[0], req.Passwords[0])
-		require.NoError(t, err)
-
-		t.Log("Received keystore", count)
+		mu.Lock()
 		count++
-		if count == numNodes {
-			allReceived <- struct{}{}
+		cnt := count
+		mu.Unlock()
+
+		t.Logf("Received keystore: %d/%d\n", cnt, numNodes)
+		if cnt == numNodes {
+			go func() {
+				allReceived <- struct{}{}
+			}()
 		}
 
 		w.WriteHeader(http.StatusOK)

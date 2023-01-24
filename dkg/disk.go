@@ -18,6 +18,7 @@ package dkg
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -37,7 +38,6 @@ import (
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"github.com/obolnetwork/charon/testutil"
 )
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It returns the test definition if configured.
@@ -106,7 +106,7 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL string, shares []s
 	)
 
 	for _, s := range shares {
-		password, err := testutil.RandomHex32()
+		password, err := randomHex32()
 		if err != nil {
 			return err
 		}
@@ -236,4 +236,15 @@ func validURI(str string) bool {
 	u, err := url.Parse(str)
 
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+}
+
+// randomHex32 returns a random 32 character hex string. It uses crypto/rand.
+func randomHex32() (string, error) {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", errors.Wrap(err, "read random")
+	}
+
+	return hex.EncodeToString(b), nil
 }

@@ -57,7 +57,7 @@ this command at the same time.`,
 }
 
 func bindKeymanagerAddrFlag(flags *pflag.FlagSet, addr *string) {
-	flags.StringVar(addr, "keymanager-address", "", "The keymanager URL to push validator keyshares to.")
+	flags.StringVar(addr, "keymanager-address", "", "The keymanager URL to import validator keyshares.")
 }
 
 func bindDefDirFlag(flags *pflag.FlagSet, dataDir *string) {

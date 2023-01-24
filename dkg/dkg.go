@@ -205,7 +205,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		if err = writeKeysToKeymanager(ctx, conf.KeymanagerAddr, shares); err != nil {
 			return err
 		}
-		log.Debug(ctx, "Saved keyshares to keymanager")
+		log.Debug(ctx, "Imported keyshares to keymanager", z.Str("keymanager_address", conf.KeymanagerAddr))
 	} else { // Else save to disk
 		if err = writeKeysToDisk(conf.DataDir, shares); err != nil {
 			return err
