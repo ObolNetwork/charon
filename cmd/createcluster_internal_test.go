@@ -211,6 +211,7 @@ func TestValidateDef(t *testing.T) {
 	conf := clusterConfig{
 		Name:           "test",
 		NumNodes:       4,
+		NumDVs:         4,
 		Threshold:      3,
 		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
 		Network:        "goerli",

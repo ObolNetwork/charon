@@ -191,8 +191,14 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 	}
 
+	// TODO(corver): Refactor writeDepositData to take a slice of withdrawal addresses.
+	vaddrs, err := def.LegacyValidatorAddresses()
+	if err != nil {
+		return err
+	}
+
 	// Write deposit-data file
-	if err = writeDepositData(def.WithdrawalAddress, conf.ClusterDir, def.ForkVersion, numNodes, secrets); err != nil {
+	if err = writeDepositData(vaddrs.WithdrawalAddress, conf.ClusterDir, def.ForkVersion, numNodes, secrets); err != nil {
 		return err
 	}
 
@@ -592,7 +598,13 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		return errors.New("unsupported network", z.Str("network", network))
 	}
 
-	return validateWithdrawalAddr(def.WithdrawalAddress, network)
+	// TODO(corver): Refactor validateWithdrawalAddr to take a slice of withdrawal addresses.
+	vaddrs, err := def.LegacyValidatorAddresses()
+	if err != nil {
+		return err
+	}
+
+	return validateWithdrawalAddr(vaddrs.WithdrawalAddress, network)
 }
 
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.

@@ -35,8 +35,27 @@ func TestDefinitionVerify(t *testing.T) {
 	secret1, op1 := randomOperator(t)
 	secret3, creator := randomCreator(t)
 
+	t.Run("verify definition v1.5", func(t *testing.T) {
+		definition := randomDefinition(t, creator, op0, op1,
+			WithVersion(v1_5),
+			WithMultiVAddrs(RandomValidatorAddresses(2)),
+		)
+
+		definition, err = signCreator(secret3, definition)
+		require.NoError(t, err)
+
+		definition.Operators[0], err = signOperator(secret0, definition, op0)
+		require.NoError(t, err)
+
+		definition.Operators[1], err = signOperator(secret1, definition, op1)
+		require.NoError(t, err)
+
+		err = definition.VerifySignatures()
+		require.NoError(t, err)
+	})
+
 	t.Run("verify definition v1.4", func(t *testing.T) {
-		definition := randomDefinition(t, creator, op0, op1)
+		definition := randomDefinition(t, creator, op0, op1, WithVersion(v1_4))
 
 		definition, err = signCreator(secret3, definition)
 		require.NoError(t, err)
@@ -206,7 +225,7 @@ func randomOperator(t *testing.T) (*ecdsa.PrivateKey, Operator) {
 func randomDefinition(t *testing.T, cr Creator, op0, op1 Operator, opts ...func(*Definition)) Definition {
 	t.Helper()
 
-	definition, err := NewDefinition("test definition", 1, 2,
+	definition, err := NewDefinition("test definition", 2, 2,
 		"", "", eth2util.Sepolia.ForkVersionHex, cr, []Operator{op0, op1},
 		rand.New(rand.NewSource(1)), opts...)
 	require.NoError(t, err)
@@ -221,4 +240,16 @@ func TestSupportEIP712Sigs(t *testing.T) {
 	)
 	require.False(t, supportEIP712Sigs(unsupported))
 	require.True(t, supportEIP712Sigs(supported))
+}
+
+func RandomValidatorAddresses(n int) []ValidatorAddresses {
+	var resp []ValidatorAddresses
+	for i := 0; i < n; i++ {
+		resp = append(resp, ValidatorAddresses{
+			FeeRecipientAddress: testutil.RandomETHAddress(),
+			WithdrawalAddress:   testutil.RandomETHAddress(),
+		})
+	}
+
+	return resp
 }

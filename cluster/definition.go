@@ -42,9 +42,17 @@ type NodeIdx struct {
 	ShareIdx int
 }
 
+// WithVersion returns an option to set a non-default version in a new definition.
 func WithVersion(version string) func(*Definition) {
 	return func(d *Definition) {
 		d.Version = version
+	}
+}
+
+// WithMultiVAddrs returns an option to set multiple validator addresses in a new definition.
+func WithMultiVAddrs(vaddrs []ValidatorAddresses) func(*Definition) {
+	return func(d *Definition) {
+		d.ValidatorAddresses = vaddrs
 	}
 }
 
@@ -54,17 +62,22 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddress 
 	forkVersionHex string, creator Creator, operators []Operator, random io.Reader, opts ...func(*Definition),
 ) (Definition, error) {
 	def := Definition{
-		Version:             currentVersion,
-		Name:                name,
-		UUID:                uuid(random),
-		Timestamp:           time.Now().Format(time.RFC3339),
-		NumValidators:       numVals,
-		Threshold:           threshold,
-		DKGAlgorithm:        dkgAlgo,
-		WithdrawalAddress:   withdrawalAddress,
-		FeeRecipientAddress: feeRecipientAddress,
-		Operators:           operators,
-		Creator:             creator,
+		Version:       currentVersion,
+		Name:          name,
+		UUID:          uuid(random),
+		Timestamp:     time.Now().Format(time.RFC3339),
+		NumValidators: numVals,
+		Threshold:     threshold,
+		DKGAlgorithm:  dkgAlgo,
+		Operators:     operators,
+		Creator:       creator,
+	}
+
+	for i := 0; i < numVals; i++ {
+		def.ValidatorAddresses = append(def.ValidatorAddresses, ValidatorAddresses{
+			FeeRecipientAddress: feeRecipientAddress,
+			WithdrawalAddress:   withdrawalAddress,
+		})
 	}
 
 	var err error
@@ -107,26 +120,23 @@ type Definition struct {
 	// Threshold required for signature reconstruction. Defaults to safe value for number of nodes/peers.
 	Threshold int `json:"threshold" ssz:"uint64" config_hash:"5" definition_hash:"5"`
 
-	// FeeRecipientAddress 20 byte Ethereum address.
-	FeeRecipientAddress string `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"6" definition_hash:"6"`
-
-	// WithdrawalAddress 20 byte Ethereum address.
-	WithdrawalAddress string `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"7" definition_hash:"7"`
-
 	// DKGAlgorithm to use for key generation. Max 32 chars.
-	DKGAlgorithm string `json:"dkg_algorithm" ssz:"ByteList[32]" config_hash:"8" definition_hash:"8"`
+	DKGAlgorithm string `json:"dkg_algorithm" ssz:"ByteList[32]" config_hash:"6" definition_hash:"6"`
 
 	// ForkVersion defines the cluster's 4 byte beacon chain fork version (network/chain identifier).
-	ForkVersion []byte `json:"fork_version,0xhex" ssz:"Bytes4" config_hash:"9" definition_hash:"9"`
+	ForkVersion []byte `json:"fork_version,0xhex" ssz:"Bytes4" config_hash:"7" definition_hash:"7"`
 
 	// Operators define the charon nodes in the cluster and their operators. Max 256 operators.
-	Operators []Operator `json:"operators" ssz:"CompositeList[256]" config_hash:"10" definition_hash:"10"`
+	Operators []Operator `json:"operators" ssz:"CompositeList[256]" config_hash:"8" definition_hash:"8"`
 
 	// Creator identifies the creator of a cluster definition. They may also be an operator.
-	Creator Creator `json:"creator" ssz:"Composite" config_hash:"11" definition_hash:"11"`
+	Creator Creator `json:"creator" ssz:"Composite" config_hash:"9" definition_hash:"9"`
+
+	// ValidatorAddresses define addresses of each validator.
+	ValidatorAddresses []ValidatorAddresses `json:"validators" ssz:"CompositeList[65536]" config_hash:"10" definition_hash:"10"`
 
 	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.
-	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"12"`
+	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"11"`
 
 	// DefinitionHash uniquely identifies a cluster definition including operator ENRs and signatures.
 	DefinitionHash []byte `json:"definition_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"-"`
@@ -277,6 +287,31 @@ func (d Definition) PeerIDs() ([]peer.ID, error) {
 	return resp, nil
 }
 
+// LegacyValidatorAddresses returns the legacy single withdrawal and single fee recipient addresses
+// or an error if multiple addresses are found.
+func (d Definition) LegacyValidatorAddresses() (ValidatorAddresses, error) {
+	var resp ValidatorAddresses
+	for i, vaddrs := range d.ValidatorAddresses {
+		if i == 0 {
+			resp = vaddrs
+		} else if resp != vaddrs {
+			return ValidatorAddresses{}, errors.New("multiple withdrawal or fee recipient addresses found")
+		}
+	}
+
+	return resp, nil
+}
+
+// WithdrawalAddresses is a convenience function to return all withdrawal address from the validator addresses slice.
+func (d Definition) WithdrawalAddresses() ([]string, error) {
+	var resp []string
+	for _, vaddrs := range d.ValidatorAddresses {
+		resp = append(resp, vaddrs.WithdrawalAddress)
+	}
+
+	return resp, nil
+}
+
 // SetDefinitionHashes returns a copy of the definition with the config hash and definition hash populated.
 func (d Definition) SetDefinitionHashes() (Definition, error) {
 	// Marshal config hash
@@ -312,6 +347,8 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 		return marshalDefinitionV1x2or3(d)
 	case isV1x4(d.Version):
 		return marshalDefinitionV1x4(d)
+	case isV1x5(d.Version):
+		return marshalDefinitionV1x5(d)
 	default:
 		return nil, errors.New("unsupported version")
 	}
@@ -351,6 +388,11 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return err
 		}
+	case isV1x5(version.Version):
+		def, err = unmarshalDefinitionV1x5(data)
+		if err != nil {
+			return err
+		}
 	default:
 		return errors.New("unsupported version")
 	}
@@ -385,6 +427,11 @@ func (d Definition) VerifyHashes() error {
 }
 
 func marshalDefinitionV1x0or1(def Definition) ([]byte, error) {
+	vaddrs, err := def.LegacyValidatorAddresses()
+	if err != nil {
+		return nil, err
+	}
+
 	resp, err := json.Marshal(definitionJSONv1x0or1{
 		Name:                def.Name,
 		UUID:                def.UUID,
@@ -392,8 +439,8 @@ func marshalDefinitionV1x0or1(def Definition) ([]byte, error) {
 		Timestamp:           def.Timestamp,
 		NumValidators:       def.NumValidators,
 		Threshold:           def.Threshold,
-		FeeRecipientAddress: def.FeeRecipientAddress,
-		WithdrawalAddress:   def.WithdrawalAddress,
+		FeeRecipientAddress: vaddrs.FeeRecipientAddress,
+		WithdrawalAddress:   vaddrs.WithdrawalAddress,
 		DKGAlgorithm:        def.DKGAlgorithm,
 		ForkVersion:         to0xHex(def.ForkVersion),
 		Operators:           operatorsToV1x1(def.Operators),
@@ -408,6 +455,11 @@ func marshalDefinitionV1x0or1(def Definition) ([]byte, error) {
 }
 
 func marshalDefinitionV1x2or3(def Definition) ([]byte, error) {
+	vaddrs, err := def.LegacyValidatorAddresses()
+	if err != nil {
+		return nil, err
+	}
+
 	resp, err := json.Marshal(definitionJSONv1x2or3{
 		Name:                def.Name,
 		UUID:                def.UUID,
@@ -415,8 +467,8 @@ func marshalDefinitionV1x2or3(def Definition) ([]byte, error) {
 		Timestamp:           def.Timestamp,
 		NumValidators:       def.NumValidators,
 		Threshold:           def.Threshold,
-		FeeRecipientAddress: def.FeeRecipientAddress,
-		WithdrawalAddress:   def.WithdrawalAddress,
+		FeeRecipientAddress: vaddrs.FeeRecipientAddress,
+		WithdrawalAddress:   vaddrs.WithdrawalAddress,
 		DKGAlgorithm:        def.DKGAlgorithm,
 		ForkVersion:         def.ForkVersion,
 		Operators:           operatorsToV1x2orLater(def.Operators),
@@ -431,6 +483,11 @@ func marshalDefinitionV1x2or3(def Definition) ([]byte, error) {
 }
 
 func marshalDefinitionV1x4(def Definition) ([]byte, error) {
+	vaddrs, err := def.LegacyValidatorAddresses()
+	if err != nil {
+		return nil, err
+	}
+
 	resp, err := json.Marshal(definitionJSONv1x4{
 		Name:                def.Name,
 		UUID:                def.UUID,
@@ -438,13 +495,39 @@ func marshalDefinitionV1x4(def Definition) ([]byte, error) {
 		Timestamp:           def.Timestamp,
 		NumValidators:       def.NumValidators,
 		Threshold:           def.Threshold,
-		FeeRecipientAddress: def.FeeRecipientAddress,
-		WithdrawalAddress:   def.WithdrawalAddress,
+		FeeRecipientAddress: vaddrs.FeeRecipientAddress,
+		WithdrawalAddress:   vaddrs.WithdrawalAddress,
 		DKGAlgorithm:        def.DKGAlgorithm,
 		ForkVersion:         def.ForkVersion,
 		ConfigHash:          def.ConfigHash,
 		DefinitionHash:      def.DefinitionHash,
 		Operators:           operatorsToV1x2orLater(def.Operators),
+		Creator: creatorJSON{
+			Address:         def.Creator.Address,
+			ConfigSignature: def.Creator.ConfigSignature,
+		},
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal definition")
+	}
+
+	return resp, nil
+}
+
+func marshalDefinitionV1x5(def Definition) ([]byte, error) {
+	resp, err := json.Marshal(definitionJSONv1x5{
+		Name:               def.Name,
+		UUID:               def.UUID,
+		Version:            def.Version,
+		Timestamp:          def.Timestamp,
+		NumValidators:      def.NumValidators,
+		Threshold:          def.Threshold,
+		DKGAlgorithm:       def.DKGAlgorithm,
+		ValidatorAddresses: validatorAddressesToJSON(def.ValidatorAddresses),
+		ForkVersion:        def.ForkVersion,
+		ConfigHash:         def.ConfigHash,
+		DefinitionHash:     def.DefinitionHash,
+		Operators:          operatorsToV1x2orLater(def.Operators),
 		Creator: creatorJSON{
 			Address:         def.Creator.Address,
 			ConfigSignature: def.Creator.ConfigSignature,
@@ -468,19 +551,23 @@ func unmarshalDefinitionV1x0or1(data []byte) (def Definition, err error) {
 		return Definition{}, err
 	}
 
-	def = Definition{
-		Name:                defJSON.Name,
-		UUID:                defJSON.UUID,
-		Version:             defJSON.Version,
-		Timestamp:           defJSON.Timestamp,
-		NumValidators:       defJSON.NumValidators,
-		Threshold:           defJSON.Threshold,
-		DKGAlgorithm:        defJSON.DKGAlgorithm,
-		ConfigHash:          defJSON.ConfigHash,
-		DefinitionHash:      defJSON.DefinitionHash,
-		Operators:           operators,
+	vaddrs := ValidatorAddresses{
 		FeeRecipientAddress: defJSON.FeeRecipientAddress,
 		WithdrawalAddress:   defJSON.WithdrawalAddress,
+	}
+
+	def = Definition{
+		Name:               defJSON.Name,
+		UUID:               defJSON.UUID,
+		Version:            defJSON.Version,
+		Timestamp:          defJSON.Timestamp,
+		NumValidators:      defJSON.NumValidators,
+		Threshold:          defJSON.Threshold,
+		DKGAlgorithm:       defJSON.DKGAlgorithm,
+		ConfigHash:         defJSON.ConfigHash,
+		DefinitionHash:     defJSON.DefinitionHash,
+		Operators:          operators,
+		ValidatorAddresses: repeatVAddrs(vaddrs, defJSON.NumValidators),
 	}
 
 	def.ForkVersion, err = from0xHex(defJSON.ForkVersion, forkVersionLen)
@@ -497,20 +584,24 @@ func unmarshalDefinitionV1x2or3(data []byte) (def Definition, err error) {
 		return Definition{}, errors.Wrap(err, "unmarshal definition v1v2")
 	}
 
-	def = Definition{
-		Name:                defJSON.Name,
-		UUID:                defJSON.UUID,
-		Version:             defJSON.Version,
-		Timestamp:           defJSON.Timestamp,
-		NumValidators:       defJSON.NumValidators,
-		Threshold:           defJSON.Threshold,
+	vaddrs := ValidatorAddresses{
 		FeeRecipientAddress: defJSON.FeeRecipientAddress,
 		WithdrawalAddress:   defJSON.WithdrawalAddress,
-		DKGAlgorithm:        defJSON.DKGAlgorithm,
-		ForkVersion:         defJSON.ForkVersion,
-		ConfigHash:          defJSON.ConfigHash,
-		DefinitionHash:      defJSON.DefinitionHash,
-		Operators:           operatorsFromV1x2orLater(defJSON.Operators),
+	}
+
+	def = Definition{
+		Name:               defJSON.Name,
+		UUID:               defJSON.UUID,
+		Version:            defJSON.Version,
+		Timestamp:          defJSON.Timestamp,
+		NumValidators:      defJSON.NumValidators,
+		Threshold:          defJSON.Threshold,
+		DKGAlgorithm:       defJSON.DKGAlgorithm,
+		ForkVersion:        defJSON.ForkVersion,
+		ConfigHash:         defJSON.ConfigHash,
+		DefinitionHash:     defJSON.DefinitionHash,
+		Operators:          operatorsFromV1x2orLater(defJSON.Operators),
+		ValidatorAddresses: repeatVAddrs(vaddrs, defJSON.NumValidators),
 	}
 
 	return def, nil
@@ -522,20 +613,54 @@ func unmarshalDefinitionV1x4(data []byte) (def Definition, err error) {
 		return Definition{}, errors.Wrap(err, "unmarshal definition v1v2")
 	}
 
-	return Definition{
-		Name:                defJSON.Name,
-		UUID:                defJSON.UUID,
-		Version:             defJSON.Version,
-		Timestamp:           defJSON.Timestamp,
-		NumValidators:       defJSON.NumValidators,
-		Threshold:           defJSON.Threshold,
+	vaddrs := ValidatorAddresses{
 		FeeRecipientAddress: defJSON.FeeRecipientAddress,
 		WithdrawalAddress:   defJSON.WithdrawalAddress,
-		DKGAlgorithm:        defJSON.DKGAlgorithm,
-		ForkVersion:         defJSON.ForkVersion,
-		ConfigHash:          defJSON.ConfigHash,
-		DefinitionHash:      defJSON.DefinitionHash,
-		Operators:           operatorsFromV1x2orLater(defJSON.Operators),
+	}
+
+	return Definition{
+		Name:               defJSON.Name,
+		UUID:               defJSON.UUID,
+		Version:            defJSON.Version,
+		Timestamp:          defJSON.Timestamp,
+		NumValidators:      defJSON.NumValidators,
+		Threshold:          defJSON.Threshold,
+		DKGAlgorithm:       defJSON.DKGAlgorithm,
+		ForkVersion:        defJSON.ForkVersion,
+		ConfigHash:         defJSON.ConfigHash,
+		DefinitionHash:     defJSON.DefinitionHash,
+		Operators:          operatorsFromV1x2orLater(defJSON.Operators),
+		ValidatorAddresses: repeatVAddrs(vaddrs, defJSON.NumValidators),
+		Creator: Creator{
+			Address:         defJSON.Creator.Address,
+			ConfigSignature: defJSON.Creator.ConfigSignature,
+		},
+	}, nil
+}
+
+func unmarshalDefinitionV1x5(data []byte) (def Definition, err error) {
+	var defJSON definitionJSONv1x5
+	if err := json.Unmarshal(data, &defJSON); err != nil {
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1_5")
+	}
+
+	if len(defJSON.ValidatorAddresses) != defJSON.NumValidators {
+		return Definition{}, errors.New("num_validators not matching validators length")
+	}
+
+	return Definition{
+		Name:               defJSON.Name,
+		UUID:               defJSON.UUID,
+		Version:            defJSON.Version,
+		Timestamp:          defJSON.Timestamp,
+		NumValidators:      defJSON.NumValidators,
+		Threshold:          defJSON.Threshold,
+		DKGAlgorithm:       defJSON.DKGAlgorithm,
+		ForkVersion:        defJSON.ForkVersion,
+		ConfigHash:         defJSON.ConfigHash,
+		DefinitionHash:     defJSON.DefinitionHash,
+		Operators:          operatorsFromV1x2orLater(defJSON.Operators),
+		ValidatorAddresses: validatorAddressesFromJSON(defJSON.ValidatorAddresses),
 		Creator: Creator{
 			Address:         defJSON.Creator.Address,
 			ConfigSignature: defJSON.Creator.ConfigSignature,
@@ -611,6 +736,23 @@ type definitionJSONv1x4 struct {
 	DefinitionHash      ethHex                    `json:"definition_hash"`
 }
 
+// definitionJSONv1x5 is the json formatter of Definition for versions v1.5.
+type definitionJSONv1x5 struct {
+	Name               string                    `json:"name,omitempty"`
+	Creator            creatorJSON               `json:"creator"`
+	Operators          []operatorJSONv1x2orLater `json:"operators"`
+	UUID               string                    `json:"uuid"`
+	Version            string                    `json:"version"`
+	Timestamp          string                    `json:"timestamp,omitempty"`
+	NumValidators      int                       `json:"num_validators"`
+	Threshold          int                       `json:"threshold"`
+	ValidatorAddresses []validatorAddressesJSON  `json:"validators"`
+	DKGAlgorithm       string                    `json:"dkg_algorithm"`
+	ForkVersion        ethHex                    `json:"fork_version"`
+	ConfigHash         ethHex                    `json:"config_hash"`
+	DefinitionHash     ethHex                    `json:"definition_hash"`
+}
+
 // Creator identifies the creator of a cluster definition.
 // Note the following struct tag meanings:
 //   - json: json field name. Suffix 0xhex indicates bytes are formatted as 0x prefixed hex strings.
@@ -630,4 +772,49 @@ type Creator struct {
 type creatorJSON struct {
 	Address         string `json:"address"`
 	ConfigSignature ethHex `json:"config_signature"`
+}
+
+// ValidatorAddresses defines addresses of a validator.
+type ValidatorAddresses struct {
+	// FeeRecipientAddress 20 byte Ethereum address.
+	FeeRecipientAddress string `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"0" definition_hash:"0"`
+
+	// WithdrawalAddress 20 byte Ethereum address.
+	WithdrawalAddress string `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"1" definition_hash:"1"`
+}
+
+// validatorAddressesJSON is the json formatter of ValidatorAddresses.
+type validatorAddressesJSON struct {
+	FeeRecipientAddress string `json:"fee_recipient_address"`
+	WithdrawalAddress   string `json:"withdrawal_address"`
+}
+
+// validatorAddressesToJSON returns the json formatters for the slice of ValidatorAddresses.
+func validatorAddressesToJSON(vaddrs []ValidatorAddresses) []validatorAddressesJSON {
+	var resp []validatorAddressesJSON
+	for _, vaddr := range vaddrs {
+		resp = append(resp, validatorAddressesJSON(vaddr))
+	}
+
+	return resp
+}
+
+// validatorAddressesFromJSON returns a slice of ValidatorAddresses from the json formatters.
+func validatorAddressesFromJSON(vaddrs []validatorAddressesJSON) []ValidatorAddresses {
+	var resp []ValidatorAddresses
+	for _, vaddr := range vaddrs {
+		resp = append(resp, ValidatorAddresses(vaddr))
+	}
+
+	return resp
+}
+
+// repeatVAddrs returns a slice of n identical ValidatorAddresses.
+func repeatVAddrs(addr ValidatorAddresses, n int) []ValidatorAddresses {
+	var resp []ValidatorAddresses
+	for i := 0; i < n; i++ {
+		resp = append(resp, addr)
+	}
+
+	return resp
 }

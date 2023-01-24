@@ -19,6 +19,7 @@ import (
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 const (
@@ -32,16 +33,25 @@ const (
 	sszMaxValidators   = 65536
 )
 
+// getDefinitionHashFunc returns the function to hash a definition based on the provided version.
+func getDefinitionHashFunc(version string) (func(Definition, ssz.HashWalker, bool) error, error) {
+	if isAnyVersion(version, v1_0, v1_1, v1_2) {
+		return hashDefinitionLegacy, nil
+	} else if isAnyVersion(version, v1_3, v1_4) {
+		return hashDefinitionV1x3or4, nil
+	} else if isAnyVersion(version, v1_5) {
+		return hashDefinitionV1x5, nil
+	} else {
+		return nil, errors.New("unknown version", z.Str("version", version))
+	}
+}
+
 // hashDefinition returns a config or definition hash. The config hash excludes operator ENRs and signatures
 // while the definition hash includes all fields.
 func hashDefinition(d Definition, configOnly bool) ([32]byte, error) {
-	var hashFunc func(Definition, ssz.HashWalker, bool) error
-	if isAnyVersion(d.Version, v1_0, v1_1, v1_2) {
-		hashFunc = hashDefinitionLegacy
-	} else if isAnyVersion(d.Version, v1_3, v1_4) { //nolint:revive // Early return not applicable to else if
-		hashFunc = hashDefinitionV1x3or4
-	} else {
-		return [32]byte{}, errors.New("unknown version")
+	hashFunc, err := getDefinitionHashFunc(d.Version)
+	if err != nil {
+		return [32]byte{}, err
 	}
 
 	hh := ssz.DefaultHasherPool.Get()
@@ -61,6 +71,11 @@ func hashDefinition(d Definition, configOnly bool) ([32]byte, error) {
 
 // hashLegaacy hashes a legacy definition.
 func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) error {
+	vaddrs, err := d.LegacyValidatorAddresses()
+	if err != nil {
+		return err
+	}
+
 	indx := hh.Index()
 
 	// Field (0) 'uuid'
@@ -79,10 +94,10 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 	hh.PutUint64(uint64(d.Threshold))
 
 	// Field (5) 'feeRecipientAddress'
-	hh.PutBytes([]byte(d.FeeRecipientAddress))
+	hh.PutBytes([]byte(vaddrs.FeeRecipientAddress))
 
 	// Field (6) 'withdrawalAddress'
-	hh.PutBytes([]byte(d.WithdrawalAddress))
+	hh.PutBytes([]byte(vaddrs.WithdrawalAddress))
 
 	// Field (7) 'dkgAlgorithm'
 	hh.PutBytes([]byte(d.DKGAlgorithm))
@@ -144,12 +159,17 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 
 // hashDefinitionV1x3or4 hashes the latest definition.
 func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) error {
-	feeRecipientAddress, err := from0xHex(d.FeeRecipientAddress, addressLen)
+	vaddrs, err := d.LegacyValidatorAddresses()
 	if err != nil {
 		return err
 	}
 
-	withdrawalAddress, err := from0xHex(d.WithdrawalAddress, addressLen)
+	feeRecipientAddress, err := from0xHex(vaddrs.FeeRecipientAddress, addressLen)
+	if err != nil {
+		return err
+	}
+
+	withdrawalAddress, err := from0xHex(vaddrs.WithdrawalAddress, addressLen)
 	if err != nil {
 		return err
 	}
@@ -257,13 +277,139 @@ func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) err
 	return nil
 }
 
+// hashDefinitionV1x5 hashes the new definition.
+func hashDefinitionV1x5(d Definition, hh ssz.HashWalker, configOnly bool) error {
+	indx := hh.Index()
+
+	// Field (0) 'UUID' ByteList[64]
+	if err := putByteList(hh, []byte(d.UUID), sszMaxUUID, "uuid"); err != nil {
+		return err
+	}
+
+	// Field (1) 'Name' ByteList[256]
+	if err := putByteList(hh, []byte(d.Name), sszMaxName, "name"); err != nil {
+		return err
+	}
+
+	// Field (2) 'version' ByteList[16]
+	if err := putByteList(hh, []byte(d.Version), sszMaxVersion, "version"); err != nil {
+		return err
+	}
+
+	// Field (3) 'Timestamp' ByteList[32]
+	if err := putByteList(hh, []byte(d.Timestamp), sszMaxTimestamp, "timestamp"); err != nil {
+		return err
+	}
+
+	// Field (4) 'NumValidators' uint64
+	hh.PutUint64(uint64(d.NumValidators))
+
+	// Field (5) 'Threshold' uint64
+	hh.PutUint64(uint64(d.Threshold))
+
+	// Field (6) 'DKGAlgorithm' ByteList[32]
+	if err := putByteList(hh, []byte(d.DKGAlgorithm), sszMaxDKGAlgorithm, "dkg_algorithm"); err != nil {
+		return err
+	}
+
+	// Field (7) 'ForkVersion' Bytes4
+	hh.PutBytes(d.ForkVersion)
+
+	// Field (8) 'Operators' CompositeList[256]
+	{
+		operatorsIdx := hh.Index()
+		num := uint64(len(d.Operators))
+		for _, o := range d.Operators {
+			operatorIdx := hh.Index()
+
+			// Field (0) 'Address' Bytes20
+			addrBytes, err := from0xHex(o.Address, addressLen)
+			if err != nil {
+				return err
+			}
+			hh.PutBytes(addrBytes)
+
+			if !configOnly {
+				// Field (1) 'ENR' ByteList[1024]
+				if err := putByteList(hh, []byte(o.ENR), sszMaxENR, "enr"); err != nil {
+					return err
+				}
+
+				// Field (2) 'ConfigSignature' Bytes65
+				hh.PutBytes(o.ConfigSignature)
+
+				// Field (3) 'ENRSignature' Bytes65
+				hh.PutBytes(o.ENRSignature)
+			}
+
+			hh.Merkleize(operatorIdx)
+		}
+		hh.MerkleizeWithMixin(operatorsIdx, num, sszMaxOperators)
+	}
+
+	// Field (9) 'Creator' Composite for v1.4 and later
+	{
+		creatorIdx := hh.Index()
+
+		// Field (0) 'Address' Bytes20
+		addrBytes, err := from0xHex(d.Creator.Address, addressLen)
+		if err != nil {
+			return err
+		}
+		hh.PutBytes(addrBytes)
+
+		if !configOnly {
+			// Field (1) 'ConfigSignature' Bytes65
+			hh.PutBytes(d.Creator.ConfigSignature)
+		}
+		hh.Merkleize(creatorIdx)
+	}
+
+	// Field (10) 'ValidatorAddresses' CompositeList[65536]
+	{
+		validatorsIdx := hh.Index()
+		num := uint64(len(d.ValidatorAddresses))
+		for _, v := range d.ValidatorAddresses {
+			validatorIdx := hh.Index()
+
+			feeRecipientAddress, err := from0xHex(v.FeeRecipientAddress, addressLen)
+			if err != nil {
+				return err
+			}
+
+			withdrawalAddress, err := from0xHex(v.WithdrawalAddress, addressLen)
+			if err != nil {
+				return err
+			}
+
+			// Field (0) 'FeeRecipientAddress' Bytes20
+			hh.PutBytes(feeRecipientAddress)
+
+			// Field (1) 'WithdrawalAddress' Bytes20
+			hh.PutBytes(withdrawalAddress)
+
+			hh.Merkleize(validatorIdx)
+		}
+		hh.MerkleizeWithMixin(validatorsIdx, num, sszMaxValidators)
+	}
+
+	if !configOnly {
+		// Field (11) 'ConfigHash' Bytes32
+		hh.PutBytes(d.ConfigHash)
+	}
+
+	hh.Merkleize(indx)
+
+	return nil
+}
+
 // hashLock returns a lock hash.
 func hashLock(l Lock) ([32]byte, error) {
 	var hashFunc func(Lock, ssz.HashWalker) error
 	if isV1x0(l.Version) || isV1x1(l.Version) || isV1x2(l.Version) {
 		hashFunc = hashLockLegacy
-	} else if isV1x3(l.Version) || isV1x4(l.Version) { //nolint:revive // Early return not applicable to else if
-		hashFunc = hashLockV1x3or4
+	} else if isAnyVersion(l.Version, v1_3, v1_4, v1_5) { //nolint:revive // Early return not applicable to else if
+		hashFunc = hashLockV1x3orLater
 	} else {
 		return [32]byte{}, errors.New("unknown version")
 	}
@@ -283,21 +429,26 @@ func hashLock(l Lock) ([32]byte, error) {
 	return resp, nil
 }
 
-// hashLockV1x3or4 hashes the latest lock hash.
-func hashLockV1x3or4(l Lock, hh ssz.HashWalker) error {
+// hashLockV1x3orLater hashes the latest lock hash.
+func hashLockV1x3orLater(l Lock, hh ssz.HashWalker) error {
 	indx := hh.Index()
 
-	// Field (0) 'Definition' Composite
-	if err := hashDefinitionV1x3or4(l.Definition, hh, false); err != nil {
+	defHashFunc, err := getDefinitionHashFunc(l.Version)
+	if err != nil {
 		return err
 	}
 
-	// Field (1) 'Validators' CompositeList[65536]
+	// Field (0) 'Definition' Composite
+	if err := defHashFunc(l.Definition, hh, false); err != nil {
+		return err
+	}
+
+	// Field (1) 'ValidatorAddresses' CompositeList[65536]
 	{
 		subIndx := hh.Index()
 		num := uint64(len(l.Validators))
 		for _, validator := range l.Validators {
-			if err := hashValidatorV1x3(validator, hh); err != nil {
+			if err := hashValidatorV1x3OrLater(validator, hh); err != nil {
 				return err
 			}
 		}
@@ -310,7 +461,7 @@ func hashLockV1x3or4(l Lock, hh ssz.HashWalker) error {
 }
 
 // hashValidatorV1x3 hashes the distributed validator.
-func hashValidatorV1x3(v DistValidator, hh ssz.HashWalker) error {
+func hashValidatorV1x3OrLater(v DistValidator, hh ssz.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'PubKey' Bytes48
@@ -343,7 +494,7 @@ func hashLockLegacy(l Lock, hh ssz.HashWalker) error {
 		return err
 	}
 
-	// Field (1) 'Validators'
+	// Field (1) 'ValidatorAddresses'
 	{
 		subIndx := hh.Index()
 		num := uint64(len(l.Validators))

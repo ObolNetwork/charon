@@ -33,16 +33,40 @@ import (
 
 //go:generate go test . -v -update -clean
 
+const (
+	v1_4 = "v1.4.0"
+	v1_3 = "v1.3.0"
+	v1_2 = "v1.2.0"
+	v1_1 = "v1.1.0"
+	v1_0 = "v1.0.0"
+)
+
 func TestEncode(t *testing.T) {
 	for _, version := range cluster.SupportedVersionsForT(t) {
 		t.Run(version, func(t *testing.T) {
 			vStr := strings.ReplaceAll(version, ".", "_")
 			rand.Seed(1)
 
+			const (
+				numVals   = 2
+				threshold = 3
+			)
+
+			opts := []func(d *cluster.Definition){
+				func(d *cluster.Definition) {
+					d.Version = version
+					d.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
+				},
+			}
+			// Add multiple validator address from v1.5 and later.
+			if version != v1_0 && version != v1_1 && version != v1_2 && version != v1_3 && version != v1_4 {
+				opts = append(opts, cluster.WithMultiVAddrs(cluster.RandomValidatorAddresses(numVals)))
+			}
+
 			definition, err := cluster.NewDefinition(
 				"test definition",
-				2,
-				3,
+				numVals,
+				threshold,
 				testutil.RandomETHAddress(),
 				testutil.RandomETHAddress(),
 				eth2util.Sepolia.ForkVersionHex,
@@ -65,15 +89,12 @@ func TestEncode(t *testing.T) {
 					},
 				},
 				rand.New(rand.NewSource(0)),
-				func(d *cluster.Definition) {
-					d.Version = version
-					d.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
-				},
+				opts...,
 			)
 			require.NoError(t, err)
 
 			// Definition version prior to v1.3.0 don't support EIP712 signatures.
-			if version == "v1.0.0" || version == "v1.1.0" || version == "v1.2.0" {
+			if version == v1_0 || version == v1_1 || version == v1_2 {
 				for i := range definition.Operators {
 					// Set to empty values instead of nil to align with unmarshalled json.
 					definition.Operators[i].ConfigSignature = []byte{}
@@ -82,7 +103,7 @@ func TestEncode(t *testing.T) {
 			}
 
 			// Definition version prior to v1.4.0 don't support creator.
-			if version == "v1.0.0" || version == "v1.1.0" || version == "v1.2.0" || version == "v1.3.0" {
+			if version == v1_0 || version == v1_1 || version == v1_2 || version == v1_3 {
 				definition.Creator = cluster.Creator{}
 			}
 

@@ -386,17 +386,23 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, lock.FeeRecipientAddress))
+	// TODO(corver): refactor to support multiple fee recipient addresses.
+	vaddrs, err := lock.LegacyValidatorAddresses()
+	if err != nil {
+		return err
+	}
+
+	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, vaddrs.FeeRecipientAddress))
 	sched.SubscribeSlots(tracker.NewInclDelayFunc(eth2Cl, sched.GetDutyDefinition))
 
-	fetch, err := fetcher.New(eth2Cl, lock.FeeRecipientAddress)
+	fetch, err := fetcher.New(eth2Cl, vaddrs.FeeRecipientAddress)
 	if err != nil {
 		return err
 	}
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, lock.FeeRecipientAddress,
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, vaddrs.FeeRecipientAddress,
 		conf.BuilderAPI, seenPubkeys)
 	if err != nil {
 		return err

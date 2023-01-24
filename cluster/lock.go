@@ -55,7 +55,7 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 	switch {
 	case isV1x0(l.Version) || isV1x1(l.Version):
 		return marshalLockV1x0or1(l, lockHash)
-	case isV1x2(l.Version) || isV1x3(l.Version) || isV1x4(l.Version):
+	case isV1x2(l.Version) || isV1x3(l.Version) || isV1x4(l.Version) || isV1x5(l.Version):
 		return marshalLockV1x2orLater(l, lockHash)
 	default:
 		return nil, errors.New("unsupported version")
@@ -88,7 +88,7 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return err
 		}
-	case isAnyVersion(version.Definition.Version, v1_2, v1_3, v1_4):
+	case isAnyVersion(version.Definition.Version, v1_2, v1_3, v1_4, v1_5):
 		lock, err = unmarshalLockV1x2orLater(data)
 		if err != nil {
 			return err
