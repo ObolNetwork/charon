@@ -134,6 +134,7 @@ type Mock struct {
 	AttestationDataFunc                    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	BlockAttestationsFunc                  func(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
+	NodePeerCountFunc                      func(ctx context.Context) (eth2wrap.PeerCount, error)
 	BlindedBeaconBlockProposalFunc         func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
 	BeaconCommitteesFunc                   func(ctx context.Context, stateID string) ([]*eth2v1.BeaconCommittee, error)
 	BeaconBlockProposalFunc                func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
@@ -166,6 +167,10 @@ type Mock struct {
 
 func (m Mock) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 	return m.BlockAttestationsFunc(ctx, stateID)
+}
+
+func (m Mock) NodePeerCount(ctx context.Context) (eth2wrap.PeerCount, error) {
+	return m.NodePeerCountFunc(ctx)
 }
 
 func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {

@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"sort"
 	"strings"
@@ -34,6 +35,7 @@ import (
 	"github.com/prysmaticlabs/go-bitfield"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
@@ -488,6 +490,10 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		},
 		BlockAttestationsFunc: func(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 			return []*eth2p0.Attestation{}, nil
+		},
+		NodePeerCountFunc: func(ctx context.Context) (eth2wrap.PeerCount, error) {
+			//nolint:gosec
+			return eth2wrap.PeerCount{Connected: rand.Int() % 100}, nil
 		},
 		AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 			return attStore.NewAttestationData(ctx, slot, index)

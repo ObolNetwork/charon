@@ -86,7 +86,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.2.6",
+      "pluginVersion": "9.3.2",
       "targets": [
         {
           "datasource": {
@@ -226,7 +226,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.6",
+      "pluginVersion": "9.3.2",
       "targets": [
         {
           "datasource": {
@@ -424,7 +424,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.6",
+      "pluginVersion": "9.3.2",
       "targets": [
         {
           "datasource": {
@@ -602,7 +602,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.6",
+      "pluginVersion": "9.3.2",
       "targets": [
         {
           "datasource": {
@@ -945,7 +945,7 @@
           }
         ]
       },
-      "pluginVersion": "9.2.6",
+      "pluginVersion": "9.3.2",
       "targets": [
         {
           "datasource": {
@@ -1800,6 +1800,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Peer count of the connected beacon node",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1820,7 +1821,7 @@
               "viz": false
             },
             "lineInterpolation": "linear",
-            "lineWidth": 2,
+            "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -1848,8 +1849,7 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "reqps"
+          }
         },
         "overrides": []
       },
@@ -1859,7 +1859,7 @@
         "x": 0,
         "y": 33
       },
-      "id": 15,
+      "id": 69,
       "options": {
         "legend": {
           "calcs": [],
@@ -1878,14 +1878,16 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "exemplar": true,
-          "expr": "rate(core_validatorapi_request_latency_seconds_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])",
-          "interval": "",
-          "legendFormat": "{{endpoint}}",
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "app_beacon_node_peer_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "instant": false,
+          "legendFormat": "Peer count",
+          "range": true,
           "refId": "A"
         }
       ],
-      "title": "Validator API requests rate",
+      "title": "Beacon node peer count",
       "type": "timeseries"
     },
     {
@@ -2022,7 +2024,6 @@
             }
           },
           "mappings": [],
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -2036,7 +2037,7 @@
               }
             ]
           },
-          "unit": "decbytes"
+          "unit": "reqps"
         },
         "overrides": []
       },
@@ -2046,7 +2047,7 @@
         "x": 0,
         "y": 40
       },
-      "id": 50,
+      "id": 15,
       "options": {
         "legend": {
           "calcs": [],
@@ -2065,28 +2066,14 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "editorMode": "code",
           "exemplar": true,
-          "expr": "go_memstats_alloc_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "expr": "rate(core_validatorapi_request_latency_seconds_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])",
           "interval": "",
-          "legendFormat": "Allocated Memory",
-          "range": true,
+          "legendFormat": "{{endpoint}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "go_memstats_heap_inuse_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
-          "hide": true,
-          "legendFormat": "Inuse Heap",
-          "range": true,
-          "refId": "B"
         }
       ],
-      "title": "Memory",
+      "title": "Validator API requests rate",
       "type": "timeseries"
     },
     {
@@ -2215,6 +2202,237 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "Allocated Memory"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 47
+      },
+      "id": 50,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": true,
+          "expr": "go_memstats_alloc_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "interval": "",
+          "legendFormat": "Allocated Memory",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "go_memstats_heap_inuse_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "hide": true,
+          "legendFormat": "Inuse Heap",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Memory",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 47
+      },
+      "id": 52,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "9.0.4",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "irate(process_cpu_seconds_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])",
+          "intervalFactor": 2,
+          "legendFormat": "CPU",
+          "metric": "go_gc_duration_seconds",
+          "range": true,
+          "refId": "A",
+          "step": 4
+        }
+      ],
+      "title": "CPU",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "description": "Total balance of validators with links to beaconcha.in for each public key.",
       "fieldConfig": {
         "defaults": {
@@ -2324,7 +2542,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 47
+        "y": 54
       },
       "id": 56,
       "options": {
@@ -2343,7 +2561,7 @@
           }
         ]
       },
-      "pluginVersion": "9.2.6",
+      "pluginVersion": "9.3.2",
       "targets": [
         {
           "datasource": {
@@ -2425,104 +2643,6 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 12,
-        "y": 47
-      },
-      "id": 52,
-      "links": [],
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "9.0.4",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "irate(process_cpu_seconds_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])",
-          "intervalFactor": 2,
-          "legendFormat": "CPU",
-          "metric": "go_gc_duration_seconds",
-          "range": true,
-          "refId": "A",
-          "step": 4
-        }
-      ],
-      "title": "CPU",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
         "type": "loki",
         "uid": "loki"
       },
@@ -2530,7 +2650,7 @@
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 54
+        "y": 61
       },
       "id": 65,
       "options": {
@@ -2568,10 +2688,9 @@
     "list": [
       {
         "current": {
-          "isNone": true,
           "selected": false,
-          "text": "None",
-          "value": ""
+          "text": "compose-4-1",
+          "value": "compose-4-1"
         },
         "datasource": {
           "type": "prometheus",
@@ -2598,8 +2717,8 @@
       {
         "current": {
           "selected": false,
-          "text": "cad83ab",
-          "value": "cad83ab"
+          "text": "48e0490",
+          "value": "48e0490"
         },
         "datasource": {
           "type": "prometheus",
@@ -2626,8 +2745,8 @@
       {
         "current": {
           "selected": false,
-          "text": "defiant-name",
-          "value": "defiant-name"
+          "text": "open-game",
+          "value": "open-game"
         },
         "datasource": {
           "type": "prometheus",
@@ -2654,8 +2773,8 @@
       {
         "current": {
           "selected": false,
-          "text": "node0",
-          "value": "node0"
+          "text": "node3",
+          "value": "node3"
         },
         "datasource": {
           "type": "prometheus",
@@ -2682,7 +2801,7 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-5m",
     "to": "now"
   },
   "timepicker": {},

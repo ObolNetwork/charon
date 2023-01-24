@@ -32,6 +32,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/lifecycle"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 )
@@ -52,6 +53,8 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 	peerIDs []peer.ID, registry *prometheus.Registry, qbftDebug http.Handler,
 	pubkeys []core.PubKey, seenPubkeys chan core.PubKey,
 ) {
+	peerCounter(ctx, eth2Cl, clockwork.NewRealClock())
+
 	mux := http.NewServeMux()
 
 	// Serve prometheus metrics wrapped with cluster and node identifiers.
@@ -184,6 +187,35 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 	}
 
 	return state.IsSyncing, nil
+}
+
+// peerCounter populates the peerCountGauge with the beacon node peer count.
+func peerCounter(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
+	ticker := clock.NewTicker(10 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.Chan():
+				resp, err := beaconNodePeerCount(ctx, eth2Cl)
+				if err != nil {
+					log.Error(ctx, "Failed to get beacon node peer count", err)
+				}
+				peerCountGauge.Set(float64(resp))
+			}
+		}
+	}()
+}
+
+// beaconNodePeerCount returns the number of connected peers of the beacon node.
+func beaconNodePeerCount(ctx context.Context, eth2Cl eth2wrap.Client) (int, error) {
+	peerCount, err := eth2Cl.NodePeerCount(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "get beacon node peer count")
+	}
+
+	return peerCount.Connected, nil
 }
 
 // quorumPeersConnected returns true if quorum peers are currently connected.

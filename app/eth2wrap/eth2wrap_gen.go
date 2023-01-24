@@ -36,6 +36,7 @@ type Client interface {
 	eth2exp.BeaconCommitteeSelectionAggregator
 	eth2exp.SyncCommitteeSelectionAggregator
 	BlockAttestationsProvider
+	NodePeerCountProvider
 
 	eth2client.AggregateAttestationProvider
 	eth2client.AggregateAttestationsSubmitter

@@ -169,6 +169,24 @@ func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0
 	return res, err
 }
 
+func (m multi) NodePeerCount(ctx context.Context) (PeerCount, error) {
+	const label = "node_peer_count"
+	defer latency(label)()
+
+	res, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) (PeerCount, error) {
+			return cl.NodePeerCount(ctx)
+		},
+		nil,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res, err
+}
+
 // provide calls the work function with each client in parallel, returning the
 // first successful result or first error.
 func provide[O any](ctx context.Context, clients []Client,
