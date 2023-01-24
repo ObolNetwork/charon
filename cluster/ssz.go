@@ -63,6 +63,11 @@ func hashDefinition(d Definition, configOnly bool) ([32]byte, error) {
 
 // hashLegaacy hashes a legacy definition.
 func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) error {
+	vaddrs, err := d.LegacyValidatorAddresses()
+	if err != nil {
+		return err
+	}
+
 	indx := hh.Index()
 
 	// Field (0) 'uuid'
@@ -81,10 +86,10 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 	hh.PutUint64(uint64(d.Threshold))
 
 	// Field (5) 'feeRecipientAddress'
-	hh.PutBytes([]byte(d.FeeRecipientAddress))
+	hh.PutBytes([]byte(vaddrs.FeeRecipientAddress))
 
 	// Field (6) 'withdrawalAddress'
-	hh.PutBytes([]byte(d.WithdrawalAddress))
+	hh.PutBytes([]byte(vaddrs.WithdrawalAddress))
 
 	// Field (7) 'dkgAlgorithm'
 	hh.PutBytes([]byte(d.DKGAlgorithm))
@@ -146,12 +151,17 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 
 // hashDefinitionV1x3or4 hashes the latest definition.
 func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) error {
-	feeRecipientAddress, err := from0xHex(d.FeeRecipientAddress, addressLen)
+	vaddrs, err := d.LegacyValidatorAddresses()
 	if err != nil {
 		return err
 	}
 
-	withdrawalAddress, err := from0xHex(d.WithdrawalAddress, addressLen)
+	feeRecipientAddress, err := from0xHex(vaddrs.FeeRecipientAddress, addressLen)
+	if err != nil {
+		return err
+	}
+
+	withdrawalAddress, err := from0xHex(vaddrs.WithdrawalAddress, addressLen)
 	if err != nil {
 		return err
 	}
@@ -289,15 +299,15 @@ func hashDefinitionV1x5(d Definition, hh ssz.HashWalker, configOnly bool) error 
 	// Field (5) 'Threshold' uint64
 	hh.PutUint64(uint64(d.Threshold))
 
-	// Field (8) 'DKGAlgorithm' ByteList[32]
+	// Field (6) 'DKGAlgorithm' ByteList[32]
 	if err := putByteList(hh, []byte(d.DKGAlgorithm), sszMaxDKGAlgorithm, "dkg_algorithm"); err != nil {
 		return err
 	}
 
-	// Field (9) 'ForkVersion' Bytes4
+	// Field (7) 'ForkVersion' Bytes4
 	hh.PutBytes(d.ForkVersion)
 
-	// Field (10) 'Operators' CompositeList[256]
+	// Field (8) 'Operators' CompositeList[256]
 	{
 		operatorsIdx := hh.Index()
 		num := uint64(len(d.Operators))
@@ -329,28 +339,29 @@ func hashDefinitionV1x5(d Definition, hh ssz.HashWalker, configOnly bool) error 
 		hh.MerkleizeWithMixin(operatorsIdx, num, sszMaxOperators)
 	}
 
-	// Field (11) 'Creator' Composite for v1.4 and later
-	creatorIdx := hh.Index()
+	// Field (9) 'Creator' Composite for v1.4 and later
+	{
+		creatorIdx := hh.Index()
 
-	// Field (0) 'Address' Bytes20
-	addrBytes, err := from0xHex(d.Creator.Address, addressLen)
-	if err != nil {
-		return err
+		// Field (0) 'Address' Bytes20
+		addrBytes, err := from0xHex(d.Creator.Address, addressLen)
+		if err != nil {
+			return err
+		}
+		hh.PutBytes(addrBytes)
+
+		if !configOnly {
+			// Field (1) 'ConfigSignature' Bytes65
+			hh.PutBytes(d.Creator.ConfigSignature)
+		}
+		hh.Merkleize(creatorIdx)
 	}
-	hh.PutBytes(addrBytes)
 
-	if !configOnly {
-		// Field (1) 'ConfigSignature' Bytes65
-		hh.PutBytes(d.Creator.ConfigSignature)
-	}
-
-	hh.Merkleize(creatorIdx)
-
-	// Field (12) 'Validators' CompositeList[65536]
+	// Field (10) 'ValidatorAddresses' CompositeList[65536]
 	{
 		validatorsIdx := hh.Index()
-		num := uint64(len(d.Validators))
-		for _, v := range d.Validators {
+		num := uint64(len(d.ValidatorAddresses))
+		for _, v := range d.ValidatorAddresses {
 			validatorIdx := hh.Index()
 
 			feeRecipientAddress, err := from0xHex(v.FeeRecipientAddress, addressLen)
@@ -371,11 +382,11 @@ func hashDefinitionV1x5(d Definition, hh ssz.HashWalker, configOnly bool) error 
 
 			hh.Merkleize(validatorIdx)
 		}
-		hh.MerkleizeWithMixin(validatorsIdx, num, sszMaxOperators)
+		hh.MerkleizeWithMixin(validatorsIdx, num, sszMaxValidators)
 	}
 
 	if !configOnly {
-		// Field (12) 'ConfigHash' Bytes32
+		// Field (11) 'ConfigHash' Bytes32
 		hh.PutBytes(d.ConfigHash)
 	}
 
@@ -447,7 +458,7 @@ func hashLockV1x3or4(l Lock, hh ssz.HashWalker) error {
 		return err
 	}
 
-	// Field (1) 'Validators' CompositeList[65536]
+	// Field (1) 'ValidatorAddresses' CompositeList[65536]
 	{
 		subIndx := hh.Index()
 		num := uint64(len(l.Validators))
@@ -498,7 +509,7 @@ func hashLockLegacy(l Lock, hh ssz.HashWalker) error {
 		return err
 	}
 
-	// Field (1) 'Validators'
+	// Field (1) 'ValidatorAddresses'
 	{
 		subIndx := hh.Index()
 		num := uint64(len(l.Validators))
