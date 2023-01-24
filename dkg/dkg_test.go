@@ -111,7 +111,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*ecdsa.
 		TestDef: &def,
 	}
 
-	allReceived := make(chan struct{}) // Receives struct{} if all `numNodes` keystores are intercepted by the keymanager server
+	allReceived := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
 	if keymanager {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			go func() {
