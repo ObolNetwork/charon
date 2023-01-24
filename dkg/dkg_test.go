@@ -20,12 +20,10 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
-	"sync"
 	"testing"
 	"time"
 
@@ -115,7 +113,11 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*ecdsa.
 
 	allReceived := make(chan struct{}) // Receives struct{} if all `numNodes` keystores are intercepted by the keymanager server
 	if keymanager {
-		srv := httptest.NewServer(newKeymanagerHandler(t, len(def.Operators), allReceived))
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			go func() {
+				allReceived <- struct{}{}
+			}()
+		}))
 		defer srv.Close()
 
 		conf.KeymanagerAddr = srv.URL
@@ -167,7 +169,12 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*ecdsa.
 
 	if keymanager {
 		// Wait until all keystores are received by the keymanager server
-		<-allReceived
+		expectedReceives := len(def.Operators)
+		for expectedReceives > 0 {
+			<-allReceived
+			expectedReceives--
+		}
+
 		t.Log("All keystores received 🎉")
 	}
 }
@@ -439,36 +446,4 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 	}()
 
 	return cancel
-}
-
-// newKeymanagerHandler returns http handler for a test keymanager API server.
-func newKeymanagerHandler(t *testing.T, numNodes int, allReceived chan<- struct{}) http.Handler {
-	t.Helper()
-
-	var (
-		mu    sync.Mutex
-		count int
-	)
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		data, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
-		defer r.Body.Close()
-
-		require.NotEqual(t, len(data), 0)
-
-		mu.Lock()
-		count++
-		cnt := count
-		mu.Unlock()
-
-		t.Logf("Received keystore: %d/%d\n", cnt, numNodes)
-		if cnt == numNodes {
-			go func() {
-				allReceived <- struct{}{}
-			}()
-		}
-
-		w.WriteHeader(http.StatusOK)
-	})
 }

@@ -79,7 +79,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if conf.KeymanagerAddr != "" {
 		cl := keymanager.New(conf.KeymanagerAddr)
 		if err = cl.VerifyConnection(ctx); err != nil {
-			return err
+			return errors.Wrap(err, "verify keymanager address")
 		}
 	}
 
