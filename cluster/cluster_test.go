@@ -60,7 +60,7 @@ func TestEncode(t *testing.T) {
 			}
 			// Add multiple validator address from v1.5 and later.
 			if version != v1_0 && version != v1_1 && version != v1_2 && version != v1_3 && version != v1_4 {
-				opts = append(opts, cluster.WithMultiVAddrs(randomValidatorAddresses(numVals)))
+				opts = append(opts, cluster.WithMultiVAddrs(cluster.RandomValidatorAddresses(numVals)))
 			}
 
 			definition, err := cluster.NewDefinition(
@@ -230,16 +230,4 @@ func TestDefinitionPeers(t *testing.T) {
 		require.Equal(t, i, peer.Index)
 		require.Equal(t, names[i], peer.Name)
 	}
-}
-
-func randomValidatorAddresses(n int) []cluster.ValidatorAddresses {
-	var resp []cluster.ValidatorAddresses
-	for i := 0; i < n; i++ {
-		resp = append(resp, cluster.ValidatorAddresses{
-			FeeRecipientAddress: testutil.RandomETHAddress(),
-			WithdrawalAddress:   testutil.RandomETHAddress(),
-		})
-	}
-
-	return resp
 }
