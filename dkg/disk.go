@@ -17,6 +17,8 @@ package dkg
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -33,6 +35,7 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/deposit"
+	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -95,8 +98,43 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	return def, nil
 }
 
-// writeKeystores writes the private share keystores to disk.
-func writeKeystores(datadir string, shares []share) error {
+// writeKeysToKeymanager writes validator private keyshares for the node to the provided keymanager address.
+func writeKeysToKeymanager(ctx context.Context, keymanagerURL string, shares []share) error {
+	var (
+		keystores []keystore.Keystore
+		passwords []string
+	)
+
+	for _, s := range shares {
+		password, err := randomHex32()
+		if err != nil {
+			return err
+		}
+		passwords = append(passwords, password)
+
+		secret, err := tblsconv.ShareToSecret(s.SecretShare)
+		if err != nil {
+			return err
+		}
+
+		store, err := keystore.Encrypt(secret, password, rand.Reader)
+		if err != nil {
+			return err
+		}
+		keystores = append(keystores, store)
+	}
+
+	cl := keymanager.New(keymanagerURL)
+	err := cl.ImportKeystores(ctx, keystores, passwords)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// writeKeysToDisk writes validator private keyshares for the node to disk.
+func writeKeysToDisk(datadir string, shares []share) error {
 	var secrets []*bls_sig.SecretKey
 	for _, s := range shares {
 		secret, err := tblsconv.ShareToSecret(s.SecretShare)
@@ -198,4 +236,15 @@ func validURI(str string) bool {
 	u, err := url.Parse(str)
 
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+}
+
+// randomHex32 returns a random 32 character hex string. It uses crypto/rand.
+func randomHex32() (string, error) {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", errors.Wrap(err, "read random")
+	}
+
+	return hex.EncodeToString(b), nil
 }

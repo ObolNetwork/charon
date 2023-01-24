@@ -322,6 +322,8 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 
 	if !decided {
 		consensusTimeout.WithLabelValues(duty.Type.String()).Inc()
+
+		return errors.New("consensus timeout", z.Str("duty", duty.String()))
 	}
 
 	return nil

@@ -13,14 +13,16 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package tracker
+package tracker2
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -30,27 +32,30 @@ import (
 // Steps arranged in the order they are triggered in the core workflow.
 const (
 	zero              step = iota
-	scheduler              // Duty scheduled with definition
 	fetcher                // Duty data fetched
 	consensus              // Duty data consensus reached
+	dutyDB                 // Duty data stored in DutyDB
 	validatorAPI           // Partial signed data from local VC submitted to vapi
 	parSigDBInternal       // Partial signed data from local VC stored in parsigdb
 	parSigEx               // Partial signed data from other VC received via parsigex
+	parSigDBExternal       // Partial signed data from other VC stored in parsigdb
 	parSigDBThreshold      // Partial signed data threshold reached; emitted from parsigdb
 	sigAgg                 // Partial signed data aggregated; emitted from sigagg
-	sentinel
+	bcast                  // Aggregated data submitted to beacon node
 )
 
 var stepLabels = map[step]string{
 	zero:              "unknown",
-	scheduler:         "scheduler",
 	fetcher:           "fetcher",
 	consensus:         "consensus",
+	dutyDB:            "duty_db",
 	validatorAPI:      "validator_api",
 	parSigDBInternal:  "parsig_db_local",
 	parSigEx:          "parsig_exchange",
+	parSigDBExternal:  "parsig_db_external",
 	parSigDBThreshold: "parsig_db_threshold",
 	sigAgg:            "sig_aggregation",
+	bcast:             "bcast",
 }
 
 // step in the core workflow.
@@ -89,6 +94,17 @@ const (
 	// This indicates the associated prepare aggregation duty failed.
 	msgFetcherAggregatorFailedPrepare = "couldn't aggregate attestation due to failed prepare aggregator duty"
 
+	// msgFetcherAggregatorNoExternalPrepares indicates an attestation aggregation duty failed in
+	// the fetcher step since it couldn't fetch the prerequisite aggregated beacon committee selections.
+	// This indicates the associated prepare aggregation duty failed due to no partial beacon committee selections received from peers.
+	msgFetcherAggregatorNoExternalPrepares = "couldn't aggregate attestation due to no partial beacon committee selections received from peers"
+
+	// msgFetcherAggregatorFailedSigAggPrepare indicates an attestation aggregation duty failed in
+	// the fetcher step since it couldn't fetch the prerequisite aggregated beacon committee selections.
+	// This indicates the associated prepare aggregation duty failed due to failure of threshold signature aggregation.
+	// This indicates a bug in charon as it is unexpected.
+	msgFetcherAggregatorFailedSigAggPrepare = "couldn't aggregate attestation due to no aggregated beacon committee selection, this is unexpected"
+
 	// msgFetcherProposerFewRandaos indicates a block proposer duty failed in
 	// the fetcher step since it couldn't fetch the prerequisite aggregated RANDAO.
 	// This indicates the associated randao duty failed due to insufficient partial randao signatures
@@ -105,6 +121,17 @@ const (
 	// the fetcher step since it couldn't fetch the prerequisite aggregated RANDAO.
 	// This indicates the associated randao duty failed.
 	msgFetcherProposerFailedRandao = "couldn't propose block due to failed randao duty"
+
+	// msgFetcherProposerNoExternalRandaos indicates a block proposer duty failed in
+	// the fetcher step since it couldn't fetch the prerequisite aggregated RANDAO.
+	// This indicates the associated randao duty failed due to no partial randao signatures received from peers.
+	msgFetcherProposerNoExternalRandaos = "couldn't propose block due to no partial randao signatures received from peers"
+
+	// msgFetcherProposerFailedSigAggRandao indicates a block proposer duty failed in
+	// the fetcher step since it couldn't fetch the prerequisite aggregated RANDAO.
+	// This indicates the associated randao duty failed due to failure of threshold signature aggregation.
+	// This indicates a bug in charon as it is unexpected.
+	msgFetcherProposerFailedSigAggRandao = "couldn't propose block due to no aggregated randao signature, this is unexpected"
 
 	// msgFetcherSyncContributionNoSyncMsg indicates a sync contribution duty failed in
 	// the fetcher step since it couldn't fetch the prerequisite sync message. This
@@ -128,10 +155,24 @@ const (
 	// This indicates the associated prepare sync contribution duty failed.
 	msgFetcherSyncContributionFailedPrepare = "couldn't fetch sync contribution due to failed prepare sync contribution duty"
 
+	// msgFetcherSyncContributionNoExternalPrepares indicates a sync contribution duty failed in
+	// the fetcher step since it couldn't fetch the prerequisite aggregated sync contribution selections.
+	// This indicates the associated prepare sync contribution duty failed due to no partial sync contribution selections received from peers.
+	msgFetcherSyncContributionNoExternalPrepares = "couldn't fetch sync contribution due to no partial sync contribution selections received from peers"
+
+	// msgFetcherSyncContributionFailedSigAggPrepare indicates a sync contribution duty failed in
+	// the fetcher step since it couldn't fetch the prerequisite aggregated sync contribution selections.
+	// This indicates the associated prepare sync contribution duty failed due to failure of threshold signature aggregation.
+	// This indicates a bug in charon as it is unexpected.
+	msgFetcherSyncContributionFailedSigAggPrepare = "couldn't fetch sync contribution due to no aggregated sync contribution selection, this is unexpected"
+
 	// msgConsensus indicates a duty failed in consensus step.
 	// This could indicate that insufficient honest peers participated in consensus or p2p network
 	// connection problems.
 	msgConsensus = "consensus algorithm didn't complete"
+
+	// msgDutyDB indicates a bug in the DutyDB database as it is unexpected.
+	msgDutyDB = "bug: failed to store duty data in DutyDB"
 
 	// msgValidatorAPI indicates that partial signature we never submitted by the local
 	// validator client. This could indicate that the local validator client is offline,
@@ -159,9 +200,15 @@ const (
 	// This indicates a bug in charon as it is unexpected (for non-sync-committee-duties).
 	msgParSigDBInconsistent = "bug: inconsistent partial signatures received"
 
+	// msgParSigDBExternal indicates a bug in the partial signature database as it is unexpected.
+	msgParSigDBExternal = "bug: failed to store external partial signatures in parsigdb"
+
 	// msgSigAgg indicates that BLS threshold aggregation of sufficient partial signatures failed. This
 	// indicates inconsistent signed data. This indicates a bug in charon as it is unexpected.
 	msgSigAgg = "bug: threshold aggregation of partial signatures failed due to inconsistent signed data"
+
+	// msgBcast indicates that beacon node returned an error while submitting aggregated duty signature to beacon node.
+	msgBcast = "failed to broadcast duty to beacon node"
 )
 
 // parsigsByMsg contains partial signatures grouped by message root grouped by pubkey.
@@ -180,9 +227,10 @@ func (m parsigsByMsg) MsgRootsConsistent() bool {
 
 // event represents an event emitted by a core workflow step.
 type event struct {
-	duty   core.Duty
-	step   step
-	pubkey core.PubKey
+	duty    core.Duty
+	step    step
+	pubkey  core.PubKey
+	stepErr error
 
 	// parSig is an optional field only set by validatorAPI, parSigDBInternal and parSigEx events.
 	parSig *core.ParSignedData
@@ -272,23 +320,30 @@ func (t *Tracker) Run(ctx context.Context) error {
 // If the duty didn't fail, it returns false and the zero step.
 // It assumes that all the input events are for a single duty.
 // If the input events slice is empty, it returns true and the zero step.
-func dutyFailedStep(es []event) (bool, step) {
+func dutyFailedStep(es []event) (bool, step, error) {
 	if len(es) == 0 {
-		return true, zero // Duty failed since no events.
+		return true, zero, errors.New("") // Duty failed since no events.
 	}
 
 	// Copy and sort in reverse order (see step order above).
 	clone := append([]event(nil), es...)
 	sort.Slice(clone, func(i, j int) bool {
-		return clone[i].step > clone[j].step
+		return clone[i].step < clone[j].step
 	})
 
-	step := clone[0].step
-	if step == sigAgg {
-		return false, zero
+	lastEvent := clone[len(clone)-1]
+
+	// No failed step.
+	if lastEvent.step == bcast && lastEvent.stepErr == nil {
+		return false, zero, nil
 	}
 
-	return true, step + 1
+	// Failed in last event.
+	if lastEvent.stepErr != nil {
+		return true, lastEvent.step, lastEvent.stepErr
+	}
+
+	return true, lastEvent.step + 1, nil
 }
 
 // analyseDutyFailed detects if the given duty failed.
@@ -297,25 +352,35 @@ func dutyFailedStep(es []event) (bool, step) {
 // where the duty got stuck and a human friendly error message explaining why.
 //
 // It returns false if the duty didn't fail, i.e., the duty
-// didn't get stuck and completed the sigAgg step.
-func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootConsistent bool) (bool, step, string) {
-	failed, step := dutyFailedStep(allEvents[duty])
+// didn't get stuck and completed the bcast step.
+func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootConsistent bool) (failed bool, failedStep step, failureMsg string) {
+	failed, step, err := dutyFailedStep(allEvents[duty])
 	if !failed {
 		return false, zero, ""
 	}
 
+	defer func() {
+		if err != nil {
+			failureMsg = fmt.Sprintf("%s with error: %s", failureMsg, err.Error())
+		}
+	}()
+
 	var msg string
 	switch step {
 	case fetcher:
-		return analyseFetcherFailed(duty, allEvents)
+		msg = analyseFetcherFailed(duty, allEvents, err)
 	case consensus:
-		msg = msgConsensus
+		return analyseConsensusFailed(duty, err)
+	case dutyDB:
+		msg = msgDutyDB
 	case validatorAPI:
 		msg = msgValidatorAPI
 	case parSigDBInternal:
 		msg = msgParSigDBInternal
 	case parSigEx:
 		msg = msgParSigEx
+	case parSigDBExternal:
+		msg = msgParSigDBExternal
 	case parSigDBThreshold:
 		if msgRootConsistent {
 			msg = msgParSigDBInsufficient
@@ -325,17 +390,117 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 				msg = msgParSigDBInconsistentSync
 			}
 		}
-
-		return true, parSigDBThreshold, msg
 	case sigAgg:
 		msg = msgSigAgg
+	case bcast:
+		msg = msgBcast
 	case zero:
 		msg = fmt.Sprintf("no events for %s duty", duty.String()) // This should never happen.
 	default:
 		msg = fmt.Sprintf("%s duty failed at %s", duty.String(), step.String())
 	}
 
-	return true, step, msg
+	return failed, step, msg
+}
+
+// analyseFetcherFailed returns whether the duty that got stuck in fetcher actually failed
+// and the reason which might actually be due a pre-requisite duty that failed.
+func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetchErr error) string {
+	// Check for beacon api errors.
+	if strings.Contains(fetchErr.Error(), "beacon api") {
+		return msgFetcher
+	}
+
+	// Proposer duties depend on randao duty, so check if that was why it failed.
+	if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
+		// Proposer duties will fail if core.DutyRandao fails.
+		// Ignoring error as it will be handled in DutyRandao analysis.
+		randaoFailed, randaoStep, _ := dutyFailedStep(allEvents[core.NewRandaoDuty(duty.Slot)])
+		if randaoFailed {
+			switch randaoStep {
+			case parSigDBThreshold:
+				return msgFetcherProposerFewRandaos
+			case parSigEx, parSigDBExternal:
+				return msgFetcherProposerNoExternalRandaos
+			case sigAgg:
+				return msgFetcherProposerFailedSigAggRandao
+			case zero:
+				return msgFetcherProposerZeroRandaos
+			default:
+				return msgFetcherProposerFailedRandao
+			}
+		}
+	}
+
+	// Duty aggregator depend on prepare aggregator duty, so check if that was why it failed.
+	if duty.Type == core.DutyAggregator {
+		// Aggregator duties will fail if core.DutyPrepareAggregator fails.
+		// Ignoring error as it will be handled in DutyPrepareAggregator duty analysis.
+		prepAggFailed, prepAggStep, _ := dutyFailedStep(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
+		if prepAggFailed {
+			switch prepAggStep {
+			case parSigDBThreshold:
+				return msgFetcherAggregatorFewPrepares
+			case parSigEx, parSigDBExternal:
+				return msgFetcherAggregatorNoExternalPrepares
+			case sigAgg:
+				return msgFetcherAggregatorFailedSigAggPrepare
+			case zero:
+				return msgFetcherAggregatorZeroPrepares
+			default:
+				return msgFetcherAggregatorFailedPrepare
+			}
+		}
+
+		// Aggregator duties will fail if no attestation data in DutyDB.
+		// Ignoring error as it will be handled in DutyAttester analysis.
+		attFailed, attStep, _ := dutyFailedStep(allEvents[core.NewAttesterDuty(duty.Slot)])
+		if attFailed && attStep <= dutyDB {
+			return msgFetcherAggregatorNoAttData
+		}
+	}
+
+	// Duty sync contribution depends on prepare sync contribution duty, so check if that was why it failed.
+	if duty.Type == core.DutySyncContribution {
+		// Sync contribution duties will fail if core.DutyPrepareSyncContribution fails.
+		// Ignoring error as it will be handled in DutyPrepareSyncContribution analysis.
+		prepSyncConFailed, prepSyncConStep, _ := dutyFailedStep(allEvents[core.NewPrepareSyncContributionDuty(duty.Slot)])
+		if prepSyncConFailed {
+			switch prepSyncConStep {
+			case parSigDBThreshold:
+				return msgFetcherSyncContributionFewPrepares
+			case parSigEx, parSigDBExternal:
+				return msgFetcherSyncContributionNoExternalPrepares
+			case sigAgg:
+				return msgFetcherSyncContributionFailedSigAggPrepare
+			case zero:
+				return msgFetcherSyncContributionZeroPrepares
+			default:
+				return msgFetcherSyncContributionFailedPrepare
+			}
+		}
+
+		// Sync contribution duties will fail if no sync message in AggSigDB.
+		// Ignoring error as it will be handled in DutySyncMessage analysis.
+		syncMsgFailed, syncMsgStep, _ := dutyFailedStep(allEvents[core.NewSyncMessageDuty(duty.Slot)])
+		if syncMsgFailed && syncMsgStep <= sigAgg {
+			return msgFetcherSyncContributionNoSyncMsg
+		}
+	}
+
+	return fmt.Sprintf("unknown error in fetcher: %s", fetchErr.Error())
+}
+
+// analyseConsensusFailed returns whether the duty that got stuck in consensus got failed
+// because of error in consensus component.
+func analyseConsensusFailed(duty core.Duty, consensusErr error) (bool, step, string) {
+	// No aggregators or sync committee contributors found in this slot.
+	// Fetcher sends an event with nil error in this case.
+	if consensusErr == nil && (duty.Type == core.DutyAggregator || duty.Type == core.DutySyncContribution) {
+		return false, zero, ""
+	}
+
+	return true, consensus, msgConsensus
 }
 
 // analyseParSigs returns a mapping of partial signed data messages by peers (share index) by validator (pubkey).
@@ -374,96 +539,6 @@ func analyseParSigs(events []event) parsigsByMsg {
 	}
 
 	return datas
-}
-
-// analyseFetcherFailed returns whether the duty that got stuck in fetcher actually failed
-// and the reason which might actually be due a pre-requisite duty that failed.
-func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event) (bool, step, string) {
-	msg := msgFetcher
-
-	// Proposer duties depend on randao duty, so check if that was why it failed.
-	if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
-		// Proposer duties will fail if core.DutyRandao fails
-		randaoFailed, randaoStep := dutyFailedStep(allEvents[core.NewRandaoDuty(duty.Slot)])
-		if randaoFailed {
-			switch randaoStep {
-			case parSigDBThreshold:
-				msg = msgFetcherProposerFewRandaos
-			case zero:
-				msg = msgFetcherProposerZeroRandaos
-			default:
-				msg = msgFetcherProposerFailedRandao
-			}
-		}
-
-		return true, fetcher, msg
-	}
-
-	// Duty aggregator depend on prepare aggregator duty, so check if that was why it failed.
-	if duty.Type == core.DutyAggregator {
-		// Aggregator duties will fail if core.DutyPrapareAggregator fails
-		prepAggFailed, prepAggStep := dutyFailedStep(allEvents[core.NewPrepareAggregatorDuty(duty.Slot)])
-		if prepAggFailed {
-			switch prepAggStep {
-			case parSigDBThreshold:
-				msg = msgFetcherAggregatorFewPrepares
-			case zero:
-				msg = msgFetcherAggregatorZeroPrepares
-			default:
-				msg = msgFetcherAggregatorFailedPrepare
-			}
-
-			return true, fetcher, msg
-		}
-
-		// Aggregator duties will fail if no attestation data in DutyDB
-		attFailed, attStep := dutyFailedStep(allEvents[core.NewAttesterDuty(duty.Slot)])
-		if attFailed && attStep <= consensus {
-			// Note we do not handle the edge case of the local peer failing to store attestation data
-			// but the attester duty succeeding in any case due to external peer partial signatures.
-			return true, fetcher, msgFetcherAggregatorNoAttData
-		}
-
-		// TODO(corver): We cannot distinguish between "no aggregators for slot"
-		//  and "failed fetching aggregated attestation from BN".
-		//
-		// Assume no aggregators for slot as this is very common.
-		return false, fetcher, ""
-	}
-
-	// Duty sync contribution depends on prepare sync contribution duty, so check if that was why it failed.
-	if duty.Type == core.DutySyncContribution {
-		// Sync contribution duties will fail if core.DutyPrepareSyncContribution fails.
-		prepSyncConFailed, prepSyncConStep := dutyFailedStep(allEvents[core.NewPrepareSyncContributionDuty(duty.Slot)])
-		if prepSyncConFailed {
-			switch prepSyncConStep {
-			case parSigDBThreshold:
-				msg = msgFetcherSyncContributionFewPrepares
-			case zero:
-				msg = msgFetcherSyncContributionZeroPrepares
-			default:
-				msg = msgFetcherSyncContributionFailedPrepare
-			}
-
-			return true, fetcher, msg
-		}
-
-		// Sync contribution duties will fail if no sync message in AggSigDB.
-		syncMsgFailed, syncMsgStep := dutyFailedStep(allEvents[core.NewSyncMessageDuty(duty.Slot)])
-		if syncMsgFailed && syncMsgStep <= sigAgg {
-			// Note we do not handle the edge case of the local peer failing to store sync message
-			// but the sync message duty succeeding in any case due to external peer partial signatures.
-			return true, fetcher, msgFetcherSyncContributionNoSyncMsg
-		}
-
-		// TODO(dhruv): We cannot distinguish between "no sync committee aggregators for slot"
-		//  and "failed fetching sync committee contribution from BN".
-		//
-		// Assume no aggregators for slot as this is very common.
-		return false, fetcher, ""
-	}
-
-	return true, fetcher, msg
 }
 
 // newFailedDutyReporter returns failed duty reporter which instruments failed duties.
@@ -512,8 +587,8 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (map[
 
 	for _, e := range allEvents[duty] {
 		// If we get a parSigDBInternal event, then the current node participated successfully.
-		// If we get a parSigEx event, then the corresponding peer with e.shareIdx participated successfully.
-		if e.step == parSigEx || e.step == parSigDBInternal {
+		// If we get a parSigDBExternal event, then the corresponding peer with e.shareIdx participated successfully.
+		if e.step == parSigDBExternal || e.step == parSigDBInternal {
 			if !isParSigEventExpected(duty, e.pubkey, allEvents) {
 				unexpectedShares[e.parSig.ShareIdx] = true
 				continue
@@ -537,7 +612,7 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 	// scheduled returns true if the provided duty type was scheduled for the above slot and pubkey.
 	scheduled := func(typ core.DutyType) bool {
 		for _, e := range allEvents[core.Duty{Slot: duty.Slot, Type: typ}] {
-			if e.step == scheduler && e.pubkey == pubkey {
+			if e.step == fetcher && e.pubkey == pubkey {
 				return true
 			}
 		}
@@ -604,182 +679,130 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 	}
 }
 
-// SchedulerEvent inputs event from core.Scheduler step.
-func (t *Tracker) SchedulerEvent(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) error {
-	if ctx.Err() != nil {
-		return nil //nolint:nilerr // Ignore event if expired.
-	}
-	for pubkey := range defSet {
+// FetcherFetched implements core.Tracker interface.
+func (t *Tracker) FetcherFetched(ctx context.Context, duty core.Duty, set core.DutyDefinitionSet, stepErr error) {
+	for pubkey := range set {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return
 		case <-t.quit:
-			return nil
+			return
 		case t.input <- event{
-			duty:   duty,
-			step:   scheduler,
-			pubkey: pubkey,
+			duty:    duty,
+			step:    fetcher,
+			pubkey:  pubkey,
+			stepErr: stepErr,
 		}:
 		}
 	}
-
-	return nil
 }
 
-// FetcherEvent inputs event from core.Fetcher step.
-func (t *Tracker) FetcherEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
-	if ctx.Err() != nil {
-		return nil //nolint:nilerr // Ignore event if expired.
-	}
-	for pubkey := range data {
+// ConsensusProposed implements core.Tracker interface.
+func (t *Tracker) ConsensusProposed(ctx context.Context, duty core.Duty, set core.UnsignedDataSet, stepErr error) {
+	for pubkey := range set {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return
 		case <-t.quit:
-			return nil
+			return
 		case t.input <- event{
-			duty:   duty,
-			step:   fetcher,
-			pubkey: pubkey,
+			duty:    duty,
+			step:    consensus,
+			pubkey:  pubkey,
+			stepErr: stepErr,
 		}:
 		}
 	}
-
-	return nil
 }
 
-// ConsensusEvent inputs event from core.Consensus step.
-func (t *Tracker) ConsensusEvent(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
-	if ctx.Err() != nil {
-		return nil //nolint:nilerr // Ignore event if expired.
-	}
-	for pubkey := range data {
+// DutyDBStored implements core.Tracker interface.
+func (t *Tracker) DutyDBStored(ctx context.Context, duty core.Duty, set core.UnsignedDataSet, stepErr error) {
+	for pubkey := range set {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return
 		case <-t.quit:
-			return nil
+			return
 		case t.input <- event{
-			duty:   duty,
-			step:   consensus,
-			pubkey: pubkey,
+			duty:    duty,
+			step:    dutyDB,
+			pubkey:  pubkey,
+			stepErr: stepErr,
 		}:
 		}
 	}
-
-	return nil
 }
 
-// ValidatorAPIEvent inputs events from core.ValidatorAPI step.
-func (t *Tracker) ValidatorAPIEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
-	if ctx.Err() != nil {
-		return nil //nolint:nilerr // Ignore event if expired.
-	}
-	for pubkey, parSig := range data {
-		parSig := parSig // Copy loop iteration values
+// ParSigDBStoredInternal implements core.Tracker interface.
+func (t *Tracker) ParSigDBStoredInternal(ctx context.Context, duty core.Duty, set core.ParSignedDataSet, stepErr error) {
+	for pubkey, parSig := range set {
+		parSig := parSig
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return
 		case <-t.quit:
-			return nil
+			return
 		case t.input <- event{
-			duty:   duty,
-			step:   validatorAPI,
-			pubkey: pubkey,
-			parSig: &parSig,
+			duty:    duty,
+			step:    parSigDBInternal,
+			pubkey:  pubkey,
+			parSig:  &parSig,
+			stepErr: stepErr,
 		}:
 		}
 	}
-
-	return nil
 }
 
-// ParSigExEvent inputs event from core.ParSigEx step event for other VC submitted parsigs.
-func (t *Tracker) ParSigExEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
-	if ctx.Err() != nil {
-		return nil //nolint:nilerr // Ignore event if expired.
-	}
-	for pubkey, parSig := range data {
-		parSig := parSig // Copy loop iteration values
+// ParSigDBStoredExternal implements core.Tracker interface.
+func (t *Tracker) ParSigDBStoredExternal(ctx context.Context, duty core.Duty, set core.ParSignedDataSet, stepErr error) {
+	for pubkey, parSig := range set {
+		parSig := parSig
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return
 		case <-t.quit:
-			return nil
+			return
 		case t.input <- event{
-			duty:   duty,
-			step:   parSigEx,
-			pubkey: pubkey,
-			parSig: &parSig,
+			duty:    duty,
+			step:    parSigDBExternal,
+			pubkey:  pubkey,
+			parSig:  &parSig,
+			stepErr: stepErr,
 		}:
 		}
 	}
-
-	return nil
 }
 
-// ParSigDBInternalEvent inputs events from core.ParSigDB step event for local VC submitted parsigs.
-func (t *Tracker) ParSigDBInternalEvent(ctx context.Context, duty core.Duty, data core.ParSignedDataSet) error {
-	if ctx.Err() != nil {
-		return nil //nolint:nilerr // Ignore event if expired.
-	}
-	for pubkey, parSig := range data {
-		parSig := parSig // Copy loop iteration values
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-t.quit:
-			return nil
-		case t.input <- event{
-			duty:   duty,
-			step:   parSigDBInternal,
-			pubkey: pubkey,
-			parSig: &parSig,
-		}:
-		}
-	}
-
-	return nil
-}
-
-// ParSigDBThresholdEvent inputs event from core.ParSigDB step for threshold emitted parsigs.
-func (t *Tracker) ParSigDBThresholdEvent(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData) error {
-	if ctx.Err() != nil {
-		return nil //nolint:nilerr // Ignore event if expired.
-	}
+// SigAggAggregated implements core.Tracker interface.
+func (t *Tracker) SigAggAggregated(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData, stepErr error) {
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return
 	case <-t.quit:
-		return nil
+		return
 	case t.input <- event{
-		duty:   duty,
-		step:   parSigDBThreshold,
-		pubkey: pubkey,
+		duty:    duty,
+		step:    sigAgg,
+		pubkey:  pubkey,
+		stepErr: stepErr,
 	}:
 	}
-
-	return nil
 }
 
-// SigAggEvent inputs event from core.SigAgg step.
-func (t *Tracker) SigAggEvent(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ core.SignedData) error {
-	if ctx.Err() != nil {
-		return nil //nolint:nilerr // Ignore event if expired.
-	}
+// BroadcasterBroadcast implements core.Tracker interface.
+func (t *Tracker) BroadcasterBroadcast(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ core.SignedData, stepErr error) {
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return
 	case <-t.quit:
-		return nil
+		return
 	case t.input <- event{
-		duty:   duty,
-		step:   sigAgg,
-		pubkey: pubkey,
+		duty:    duty,
+		step:    bcast,
+		pubkey:  pubkey,
+		stepErr: stepErr,
 	}:
 	}
-
-	return nil
 }
 
 func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg) {

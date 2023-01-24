@@ -16,19 +16,15 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"strings"
-	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -43,10 +39,12 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
+	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 const (
@@ -410,71 +408,49 @@ func getValidators(dvs []tbls.TSS) ([]cluster.DistValidator, error) {
 // writeKeysToKeymanager writes validator keys to the provided keymanager addresses.
 func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]*bls_sig.SecretKeyShare) error {
 	// Ping all keymanager addresses to check if they are accessible to avoid partial writes
+	var clients []keymanager.Client
 	for i := 0; i < numNodes; i++ {
-		if err := verifyConnection(ctx, addrs[i]); err != nil {
+		cl := keymanager.New(addrs[i])
+		if err := cl.VerifyConnection(ctx); err != nil {
 			return err
 		}
+		clients = append(clients, cl)
 	}
 
 	for i := 0; i < numNodes; i++ {
-		var secrets []*bls_sig.SecretKey
+		var (
+			keystores []keystore.Keystore
+			passwords []string
+		)
 		for _, shares := range shareSets {
+			password, err := testutil.RandomHex32()
+			if err != nil {
+				return err
+			}
+			passwords = append(passwords, password)
+
 			secret, err := tblsconv.ShareToSecret(shares[i])
 			if err != nil {
 				return err
 			}
-			secrets = append(secrets, secret)
+
+			store, err := keystore.Encrypt(secret, password, rand.Reader)
+			if err != nil {
+				return err
+			}
+			keystores = append(keystores, store)
 		}
 
-		err := postKeysToKeymanager(ctx, addrs[i], secrets)
+		err := clients[i].ImportKeystores(ctx, keystores, passwords)
 		if err != nil {
 			log.Error(ctx, "Failed to push keys", err, z.Str("addr", addrs[i]))
 			return err
 		}
 
-		log.Debug(ctx, "Pushed keys to keymanager", z.Str("addr", addrs[i]))
+		log.Info(ctx, "Imported key shares to keymanager", z.Str("node", fmt.Sprintf("node%d", i)), z.Str("addr", addrs[i]))
 	}
 
-	log.Info(ctx, "Pushed all validator keys to respective keymanagers")
-
-	return nil
-}
-
-// postKeysToKeymanager pushes the secrets to the provided keymanager address. The HTTP request times out after 10s.
-func postKeysToKeymanager(ctx context.Context, addr string, secrets []*bls_sig.SecretKey) error {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	reqBody, err := keystore.KeymanagerReqBody(secrets)
-	if err != nil {
-		return err
-	}
-
-	reqBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return errors.New("marshal keymanager request body")
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, addr, bytes.NewReader(reqBytes))
-	if err != nil {
-		return errors.Wrap(err, "new post request", z.Str("url", addr))
-	}
-	req.Header.Add("Content-Type", `application/json`)
-
-	resp, err := new(http.Client).Do(req)
-	if err != nil {
-		return errors.Wrap(err, "post validator keys to keymanager")
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return errors.Wrap(err, "read response")
-	}
-	resp.Body.Close()
-
-	if resp.StatusCode/100 != 2 {
-		return errors.New("failed posting keys", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
-	}
+	log.Info(ctx, "Imported all validator keys to respective keymanagers")
 
 	return nil
 }
@@ -719,24 +695,4 @@ func safeThreshold(ctx context.Context, numNodes, threshold int) int {
 	}
 
 	return threshold
-}
-
-// verifyConnection returns an error if the provided HTTP address is not reachable.
-func verifyConnection(ctx context.Context, addr string) error {
-	u, err := url.Parse(addr)
-	if err != nil {
-		return errors.Wrap(err, "parse address")
-	}
-
-	var d net.Dialer
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-
-	conn, err := d.DialContext(ctx, "tcp", u.Host)
-	if err != nil {
-		return errors.Wrap(err, "cannot ping address", z.Str("addr", addr))
-	}
-	conn.Close()
-
-	return nil
 }

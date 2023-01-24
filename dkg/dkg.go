@@ -38,23 +38,27 @@ import (
 	"github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
+	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 type Config struct {
-	DefFile  string
-	NoVerify bool
-	DataDir  string
-	P2P      p2p.Config
-	Log      log.Config
+	DefFile        string
+	KeymanagerAddr string
+	NoVerify       bool
+	DataDir        string
+	P2P            p2p.Config
+	Log            log.Config
 
 	TestDef          *cluster.Definition
 	TestSyncCallback func(connected int, id peer.ID)
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
+//
+//nolint:gocognit
 func Run(ctx context.Context, conf Config) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -77,6 +81,14 @@ func Run(ctx context.Context, conf Config) (err error) {
 	vaddrs, err := def.LegacyValidatorAddresses()
 	if err != nil {
 		return err
+	}
+
+	// Check if keymanager address is reachable.
+	if conf.KeymanagerAddr != "" {
+		cl := keymanager.New(conf.KeymanagerAddr)
+		if err = cl.VerifyConnection(ctx); err != nil {
+			return errors.Wrap(err, "verify keymanager address")
+		}
 	}
 
 	if err = checkWrites(conf.DataDir); err != nil {
@@ -197,10 +209,17 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Write keystores, deposit data and cluster lock files after exchange of partial signatures in order
 	// to prevent partial data writes in case of peer connection lost
 
-	if err := writeKeystores(conf.DataDir, shares); err != nil {
-		return err
+	if conf.KeymanagerAddr != "" { // Save to keymanager
+		if err = writeKeysToKeymanager(ctx, conf.KeymanagerAddr, shares); err != nil {
+			return err
+		}
+		log.Debug(ctx, "Imported keyshares to keymanager", z.Str("keymanager_address", conf.KeymanagerAddr))
+	} else { // Else save to disk
+		if err = writeKeysToDisk(conf.DataDir, shares); err != nil {
+			return err
+		}
+		log.Debug(ctx, "Saved keyshares to disk")
 	}
-	log.Debug(ctx, "Saved keyshares to disk")
 
 	if err = writeLock(conf.DataDir, lock); err != nil {
 		return err

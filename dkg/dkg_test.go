@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"testing"
@@ -55,18 +56,41 @@ func TestDKG(t *testing.T) {
 		}
 	}
 
-	t.Run("keycast", func(t *testing.T) {
-		lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0, withAlgo("keycast"))
-		testDKG(t, lock.Definition, keys)
-	})
+	tests := []struct {
+		name       string
+		dkgAlgo    string
+		keymanager bool
+	}{
+		{
+			name:    "keycast",
+			dkgAlgo: "keycast",
+		},
+		{
+			name:    "frost",
+			dkgAlgo: "frost",
+		},
+		{
+			name:       "dkg with keymanager",
+			dkgAlgo:    "keycast",
+			keymanager: true,
+		},
+	}
 
-	t.Run("frost", func(t *testing.T) {
-		lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0, withAlgo("frost"))
-		testDKG(t, lock.Definition, keys)
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0, withAlgo(test.dkgAlgo))
+			dir, err := os.MkdirTemp("", "")
+			require.NoError(t, err)
+
+			testDKG(t, lock.Definition, dir, keys, test.keymanager)
+			if !test.keymanager {
+				verifyDKGResults(t, lock.Definition, dir)
+			}
+		})
+	}
 }
 
-func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) {
+func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*ecdsa.PrivateKey, keymanager bool) {
 	t.Helper()
 
 	require.NoError(t, def.VerifySignatures())
@@ -77,10 +101,7 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 	// Start relay.
 	relayAddr, errChan := startRelay(ctx, t)
 
-	// Setup
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-
+	// Setup config
 	conf := dkg.Config{
 		DataDir: dir,
 		P2P: p2p.Config{
@@ -88,6 +109,18 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 		},
 		Log:     log.DefaultConfig(),
 		TestDef: &def,
+	}
+
+	allReceived := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
+	if keymanager {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			go func() {
+				allReceived <- struct{}{}
+			}()
+		}))
+		defer srv.Close()
+
+		conf.KeymanagerAddr = srv.URL
 	}
 
 	// Run dkg for each node
@@ -124,7 +157,7 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 
 	select {
 	case err := <-errChan:
-		// If this returns first, something went wrong with the bootnode and the test will fail.
+		// If this returns first, something went wrong with the relay and the test will fail.
 		cancel()
 		testutil.SkipIfBindErr(t, err)
 		require.Fail(t, "bootnode error: %v", err)
@@ -134,7 +167,16 @@ func testDKG(t *testing.T, def cluster.Definition, p2pKeys []*ecdsa.PrivateKey) 
 		require.NoError(t, err)
 	}
 
-	verifyDKGResults(t, def, dir)
+	if keymanager {
+		// Wait until all keystores are received by the keymanager server
+		expectedReceives := len(def.Operators)
+		for expectedReceives > 0 {
+			<-allReceived
+			expectedReceives--
+		}
+
+		t.Log("All keystores received 🎉")
+	}
 }
 
 // startRelay starts a charon relay and returns its http endpoint.

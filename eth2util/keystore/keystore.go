@@ -35,7 +35,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"github.com/obolnetwork/charon/testutil"
 )
 
 // insecureCost decreases the cipher key cost from the default 18 to 4 which speeds up
@@ -63,36 +62,9 @@ func StoreKeys(secrets []*bls_sig.SecretKey, dir string) error {
 	return storeKeysInternal(secrets, dir, "keystore-%d.json")
 }
 
-// KeymanagerReq represents the keymanager API request body for POST request. Refer: https://ethereum.github.io/keymanager-APIs/#/Local%20Key%20Manager/importKeystores
-type KeymanagerReq struct {
-	Keystores []Keystore `json:"keystores"`
-	Passwords []string   `json:"passwords"`
-}
-
-// KeymanagerReqBody constructs a KeymanagerReq using the provided secrets and returns it.
-func KeymanagerReqBody(secrets []*bls_sig.SecretKey) (KeymanagerReq, error) {
-	var resp KeymanagerReq
-	for _, secret := range secrets {
-		password, err := testutil.RandomHex32()
-		if err != nil {
-			return KeymanagerReq{}, err
-		}
-
-		store, err := Encrypt(secret, password, rand.Reader)
-		if err != nil {
-			return KeymanagerReq{}, err
-		}
-
-		resp.Keystores = append(resp.Keystores, store)
-		resp.Passwords = append(resp.Passwords, password)
-	}
-
-	return resp, nil
-}
-
 func storeKeysInternal(secrets []*bls_sig.SecretKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
 	for i, secret := range secrets {
-		password, err := testutil.RandomHex32()
+		password, err := randomHex32()
 		if err != nil {
 			return err
 		}
@@ -248,4 +220,15 @@ func storePassword(keyFile string, password string) error {
 	}
 
 	return nil
+}
+
+// randomHex32 returns a random 32 character hex string. It uses crypto/rand.
+func randomHex32() (string, error) {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", errors.Wrap(err, "read random")
+	}
+
+	return hex.EncodeToString(b), nil
 }
