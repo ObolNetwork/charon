@@ -17,10 +17,10 @@ package consensus
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"sync"
 	"time"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -166,7 +166,7 @@ func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
 func createMsg(typ qbft.MsgType, duty core.Duty,
 	peerIdx int64, round int64, value proto.Message,
 	pr int64, pv proto.Message,
-	justification []qbft.Msg[core.Duty, [32]byte], privkey *ecdsa.PrivateKey,
+	justification []qbft.Msg[core.Duty, [32]byte], privkey *k1.PrivateKey,
 ) (msg, error) {
 	// Convert opaque protos to anys
 	var (

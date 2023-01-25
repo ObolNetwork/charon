@@ -16,13 +16,13 @@
 package p2p
 
 import (
-	"crypto/ecdsa"
 	"os"
 	"path"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 )
 
 // KeyPath returns the charon-enr-private-key path relative to the data dir.
@@ -31,8 +31,8 @@ func KeyPath(datadir string) string {
 }
 
 // LoadPrivKey returns the ecdsa k1 key saved in the directory.
-func LoadPrivKey(dataDir string) (*ecdsa.PrivateKey, error) {
-	key, err := crypto.LoadECDSA(KeyPath(dataDir))
+func LoadPrivKey(dataDir string) (*k1.PrivateKey, error) {
+	key, err := k1util.Load(KeyPath(dataDir))
 	if err != nil {
 		return nil, errors.Wrap(err, "load priv key")
 	}
@@ -41,17 +41,17 @@ func LoadPrivKey(dataDir string) (*ecdsa.PrivateKey, error) {
 }
 
 // NewSavedPrivKey generates a new ecdsa k1 key and saves it to the directory.
-func NewSavedPrivKey(datadir string) (*ecdsa.PrivateKey, error) {
+func NewSavedPrivKey(datadir string) (*k1.PrivateKey, error) {
 	if err := os.MkdirAll(datadir, 0o755); err != nil {
 		return nil, errors.Wrap(err, "mkdir")
 	}
 
-	key, err := crypto.GenerateKey()
+	key, err := k1.GeneratePrivateKey()
 	if err != nil {
 		return nil, errors.Wrap(err, "gen key")
 	}
 
-	err = crypto.SaveECDSA(KeyPath(datadir), key)
+	err = k1util.Save(key, KeyPath(datadir))
 	if err != nil {
 		return nil, errors.Wrap(err, "save key")
 	}

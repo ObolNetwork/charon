@@ -16,13 +16,12 @@
 package cluster
 
 import (
-	"crypto/ecdsa"
-
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	ethmath "github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/eth2util"
 )
 
@@ -122,13 +121,13 @@ func digestEIP712(typ eip712Type, def Definition, operator Operator) ([]byte, er
 }
 
 // signEIP712 returns the EIP712 signature for the primary type.
-func signEIP712(secret *ecdsa.PrivateKey, typ eip712Type, def Definition, operator Operator) ([]byte, error) {
+func signEIP712(secret *k1.PrivateKey, typ eip712Type, def Definition, operator Operator) ([]byte, error) {
 	digest, err := digestEIP712(typ, def, operator)
 	if err != nil {
 		return nil, err
 	}
 
-	sig, err := crypto.Sign(digest, secret)
+	sig, err := k1util.Sign(secret, digest)
 	if err != nil {
 		return nil, errors.Wrap(err, "sign EIP712")
 	}

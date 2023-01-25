@@ -17,22 +17,20 @@ package p2p_test
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"math/rand"
 	"testing"
-	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestNewPeer(t *testing.T) {
-	p2pKey, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(0)))
-	require.NoError(t, err)
+	p2pKey := testutil.GenerateInsecureK1Key(t, rand.New(rand.NewSource(0)))
 
 	record, err := enr.New(p2pKey)
 	require.NoError(t, err)
@@ -44,7 +42,7 @@ func TestNewPeer(t *testing.T) {
 }
 
 func TestNewHost(t *testing.T) {
-	privKey, err := crypto.GenerateKey()
+	privKey, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
 	_, err = p2p.NewTCPNode(context.Background(), p2p.Config{}, privKey, p2p.NewOpenGater())
@@ -61,7 +59,7 @@ func TestVerifyP2PKey(t *testing.T) {
 		require.NoError(t, p2p.VerifyP2PKey(peers, key))
 	}
 
-	key, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(time.Now().Unix())))
+	key, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 	require.Error(t, p2p.VerifyP2PKey(peers, key))
 }
@@ -75,7 +73,7 @@ func TestPeerIDKey(t *testing.T) {
 	for i, p := range peers {
 		pk, err := p2p.PeerIDToKey(p.ID)
 		require.NoError(t, err)
-		require.Equal(t, keys[i].PublicKey, *pk)
+		require.True(t, keys[i].PubKey().IsEqual(pk))
 
 		pID, err := p2p.PeerIDFromKey(pk)
 		require.NoError(t, err)

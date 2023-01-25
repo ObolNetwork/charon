@@ -16,11 +16,11 @@
 package cluster
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"math/rand"
 	"testing"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
@@ -193,13 +193,14 @@ func TestDefinitionVerify(t *testing.T) {
 }
 
 // randomOperator returns a random ETH1 private key and populated creator struct (excluding config signature).
-func randomCreator(t *testing.T) (*ecdsa.PrivateKey, Creator) {
+func randomCreator(t *testing.T) (*k1.PrivateKey, Creator) {
 	t.Helper()
 
-	secret, err := crypto.GenerateKey()
+	secret, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
-	addr := crypto.PubkeyToAddress(secret.PublicKey)
+	pk := secret.PubKey().ToECDSA()
+	addr := crypto.PubkeyToAddress(*pk)
 
 	return secret, Creator{
 		Address: addr.Hex(),
@@ -207,13 +208,14 @@ func randomCreator(t *testing.T) (*ecdsa.PrivateKey, Creator) {
 }
 
 // randomOperator returns a random ETH1 private key and populated operator struct (excluding config signature).
-func randomOperator(t *testing.T) (*ecdsa.PrivateKey, Operator) {
+func randomOperator(t *testing.T) (*k1.PrivateKey, Operator) {
 	t.Helper()
 
-	secret, err := crypto.GenerateKey()
+	secret, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
-	addr := crypto.PubkeyToAddress(secret.PublicKey)
+	pk := secret.PubKey().ToECDSA()
+	addr := crypto.PubkeyToAddress(*pk)
 
 	return secret, Operator{
 		Address: addr.Hex(),

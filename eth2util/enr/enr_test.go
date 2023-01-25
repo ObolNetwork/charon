@@ -16,16 +16,16 @@
 package enr_test
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"math/rand"
 	"net"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util/enr"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestParse(t *testing.T) {
@@ -34,7 +34,7 @@ func TestParse(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t,
 		"0x030052012a7333a37afc9cba59d42287e10a3d0392026e744acceea09822f224cc",
-		fmt.Sprintf("%#x", crypto.CompressPubkey(r.PubKey)),
+		fmt.Sprintf("%#x", r.PubKey.SerializeCompressed()),
 	)
 	ip, ok := r.IP()
 	require.True(t, ok)
@@ -50,7 +50,7 @@ func TestParse(t *testing.T) {
 }
 
 func TestEncodeDecode(t *testing.T) {
-	privkey, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(0)))
+	privkey, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
 	r1, err := enr.New(privkey)
@@ -69,7 +69,7 @@ func TestEncodeDecode(t *testing.T) {
 }
 
 func TestIPTCP(t *testing.T) {
-	privkey, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(0)))
+	privkey, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
 	expectIP := net.IPv4(1, 2, 3, 4)
@@ -108,8 +108,7 @@ func TestIPTCP(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	privkey, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(0)))
-	require.NoError(t, err)
+	privkey := testutil.GenerateInsecureK1Key(t, rand.New(rand.NewSource(0)))
 
 	r, err := enr.New(privkey)
 	require.NoError(t, err)

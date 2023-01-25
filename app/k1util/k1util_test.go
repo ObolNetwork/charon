@@ -105,6 +105,45 @@ func TestRandom(t *testing.T) {
 	require.True(t, key.PubKey().IsEqual(recovered))
 }
 
+// BenchmarkRecoverVerify benchmarks recovery vs verification.
+//
+// TL;DR: verify is slightly faster than recover, both in the order of hundreds of microseconds.
+func BenchmarkRecoverVerify(b *testing.B) {
+	b.StopTimer()
+
+	key, err := k1.GeneratePrivateKey()
+	require.NoError(b, err)
+
+	digest := make([]byte, 32)
+	_, _ = rand.Read(digest)
+
+	sig, err := k1util.Sign(key, digest)
+	require.NoError(b, err)
+
+	b.StartTimer()
+
+	b.Run("recover", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			recovered, err := k1util.Recover(
+				digest,
+				sig)
+			require.NoError(b, err)
+			require.True(b, key.PubKey().IsEqual(recovered))
+		}
+	})
+
+	b.Run("verify", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ok, err := k1util.Verify(
+				key.PubKey(),
+				digest,
+				sig[:len(sig)-1])
+			require.NoError(b, err)
+			require.True(b, ok)
+		}
+	})
+}
+
 func fromHex(t *testing.T, hexStr string) []byte {
 	t.Helper()
 	b, err := hex.DecodeString(hexStr)

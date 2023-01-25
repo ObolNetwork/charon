@@ -17,7 +17,6 @@ package relay
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -28,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
@@ -157,7 +157,7 @@ func Run(ctx context.Context, config Config) error {
 }
 
 // newENRHandler returns a handler that returns the node's ID and public address encoded as a ENR.
-func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *ecdsa.PrivateKey, config p2p.Config) func(ctx context.Context) ([]byte, error) {
+func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *k1.PrivateKey, config p2p.Config) func(ctx context.Context) ([]byte, error) {
 	// Resolve external hostname periodically.
 	var (
 		extHostMu sync.Mutex

@@ -17,13 +17,12 @@ package p2p
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"fmt"
 	"net"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p"
-	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -41,7 +40,7 @@ import (
 )
 
 // NewTCPNode returns a started tcp-based libp2p host.
-func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGater ConnGater, opts ...libp2p.Option,
+func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater ConnGater, opts ...libp2p.Option,
 ) (host.Host, error) {
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
@@ -50,11 +49,6 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 
 	if len(addrs) == 0 {
 		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses empty")
-	}
-
-	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))
-	if err != nil {
-		return nil, errors.Wrap(err, "convert privkey")
 	}
 
 	// Use own observed addresses as soon as a single relay reports it.
@@ -74,7 +68,7 @@ func NewTCPNode(ctx context.Context, cfg Config, key *ecdsa.PrivateKey, connGate
 	// Init options.
 	defaultOpts := []libp2p.Option{
 		// Set P2P identity key.
-		libp2p.Identity(priv),
+		libp2p.Identity((*crypto.Secp256k1PrivateKey)(key)),
 		// Set TCP listen addresses.
 		libp2p.ListenAddrs(addrs...),
 		// Set up user-agent.

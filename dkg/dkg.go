@@ -17,14 +17,13 @@ package dkg
 
 import (
 	"context"
-	"crypto/ecdsa"
 	crand "crypto/rand"
 	"fmt"
 	"time"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -112,7 +111,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	pID, err := p2p.PeerIDFromKey(&key.PublicKey)
+	pID, err := p2p.PeerIDFromKey(key.PubKey())
 	if err != nil {
 		return err
 	}
@@ -237,7 +236,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
-func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, peers []p2p.Peer, lockHashHex string) (host.Host, func(), error) {
+func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers []p2p.Peer, lockHashHex string) (host.Host, func(), error) {
 	var peerIDs []peer.ID
 	for _, p := range peers {
 		peerIDs = append(peerIDs, p.ID)
@@ -282,16 +281,12 @@ func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, pe
 
 // startSyncProtocol sets up a sync protocol server and clients for each peer and returns a shutdown function
 // when all peers are connected.
-func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.PrivateKey, defHash []byte, peerIDs []peer.ID,
+func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKey, defHash []byte, peerIDs []peer.ID,
 	onFailure func(), testCallback func(connected int, id peer.ID),
 ) (func(context.Context) error, error) {
 	// Sign definition hash with charon-enr-private-key
-	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))
-	if err != nil {
-		return nil, errors.Wrap(err, "convert key")
-	}
-
-	hashSig, err := priv.Sign(defHash)
+	// Note: libp2p signing does another hash of the defHash.
+	hashSig, err := ((*libp2pcrypto.Secp256k1PrivateKey)(key)).Sign(defHash)
 	if err != nil {
 		return nil, errors.Wrap(err, "sign definition hash")
 	}
