@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -163,8 +164,15 @@ func (h *httpAdapter) NodePeerCount(ctx context.Context) (PeerCount, error) {
 	if err := json.Unmarshal(respBody, &resp); err != nil {
 		return PeerCount{}, errors.Wrap(err, "failed to parse beacon node peer count response")
 	}
+	if resp.Data.Connected == "" {
+		return PeerCount{}, errors.New("connected peers missing")
+	}
+	count, err := strconv.ParseInt(resp.Data.Connected, 10, 64)
+	if err != nil {
+		return PeerCount{}, errors.Wrap(err, "invalid value for connected peers")
+	}
 
-	return resp.Data, nil
+	return PeerCount{Connected: int(count)}, nil
 }
 
 type submitBeaconCommitteeSelectionsJSON struct {
@@ -180,7 +188,9 @@ type attestationsJSON struct {
 }
 
 type peerCountJSON struct {
-	Data PeerCount `json:"data"`
+	Data struct {
+		Connected string `json:"connected"`
+	} `json:"data"`
 }
 
 func httpPost(ctx context.Context, base string, endpoint string, body io.Reader, timeout time.Duration) ([]byte, error) {
