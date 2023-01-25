@@ -18,6 +18,7 @@ package dkg
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -33,7 +34,6 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -106,7 +106,7 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL string, shares []s
 	)
 
 	for _, s := range shares {
-		password, err := eth2util.RandomHex32()
+		password, err := randomHex64()
 		if err != nil {
 			return err
 		}
@@ -236,4 +236,15 @@ func validURI(str string) bool {
 	u, err := url.Parse(str)
 
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+}
+
+// randomHex64 returns a random 64 character hex string. It uses crypto/rand.
+func randomHex64() (string, error) {
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", errors.Wrap(err, "read random")
+	}
+
+	return hex.EncodeToString(b), nil
 }
