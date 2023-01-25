@@ -16,6 +16,9 @@
 package eth2util
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 
@@ -39,4 +42,15 @@ func SlotHashRoot(slot eth2p0.Slot) ([32]byte, error) {
 	}
 
 	return hash, nil
+}
+
+// RandomHex32 returns a random 32 character hex string. It uses crypto/rand.
+func RandomHex32() (string, error) {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", errors.Wrap(err, "read random")
+	}
+
+	return hex.EncodeToString(b), nil
 }

@@ -44,7 +44,6 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"github.com/obolnetwork/charon/testutil"
 )
 
 const (
@@ -423,7 +422,7 @@ func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sh
 			passwords []string
 		)
 		for _, shares := range shareSets {
-			password, err := testutil.RandomHex32()
+			password, err := eth2util.RandomHex32()
 			if err != nil {
 				return err
 			}
