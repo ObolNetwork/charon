@@ -125,7 +125,9 @@ func TestSetFeeRecipient(t *testing.T) {
 			return nil
 		}
 
-		fn := setFeeRecipient(bmock, clone.PublicKeys(), "0xdead")
+		fn := setFeeRecipient(bmock, clone.PublicKeys(), func(core.PubKey) string {
+			return "0xdead"
+		})
 		err = fn(context.Background(), core.Slot{SlotsPerEpoch: 1})
 		require.NoError(t, err)
 

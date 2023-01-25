@@ -317,14 +317,20 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 	qbftSniffer func(*pbv1.SniffedConsensusInstance), seenPubkeys func(core.PubKey),
 ) error {
+	feeRecipientAddrs, err := lock.FeeRecipientAddresses()
+	if err != nil {
+		return err
+	}
+
 	// Convert and prep public keys and public shares
 	var (
-		corePubkeys       []core.PubKey
-		eth2Pubkeys       []eth2p0.BLSPubKey
-		pubshares         []eth2p0.BLSPubKey
-		allPubSharesByKey = make(map[core.PubKey]map[int]*bls_sig.PublicKey) // map[pubkey]map[shareIdx]pubshare
+		corePubkeys                  []core.PubKey
+		eth2Pubkeys                  []eth2p0.BLSPubKey
+		pubshares                    []eth2p0.BLSPubKey
+		allPubSharesByKey            = make(map[core.PubKey]map[int]*bls_sig.PublicKey) // map[pubkey]map[shareIdx]pubshare
+		feeRecipientAddrByCorePubkey = make(map[core.PubKey]string)
 	)
-	for _, dv := range lock.Validators {
+	for i, dv := range lock.Validators {
 		pubkey, err := dv.PublicKey()
 		if err != nil {
 			return err
@@ -365,6 +371,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		corePubkeys = append(corePubkeys, corePubkey)
 		pubshares = append(pubshares, eth2Share)
 		allPubSharesByKey[corePubkey] = allPubShares
+		feeRecipientAddrByCorePubkey[corePubkey] = feeRecipientAddrs[i]
 	}
 
 	peers, err := lock.Peers()
@@ -386,23 +393,21 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	// TODO(corver): refactor to support multiple fee recipient addresses.
-	vaddrs, err := lock.LegacyValidatorAddresses()
-	if err != nil {
-		return err
+	feeRecipientFunc := func(pubkey core.PubKey) string {
+		return feeRecipientAddrByCorePubkey[pubkey]
 	}
 
-	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, vaddrs.FeeRecipientAddress))
+	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, feeRecipientFunc))
 	sched.SubscribeSlots(tracker.NewInclDelayFunc(eth2Cl, sched.GetDutyDefinition))
 
-	fetch, err := fetcher.New(eth2Cl, vaddrs.FeeRecipientAddress)
+	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc)
 	if err != nil {
 		return err
 	}
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, vaddrs.FeeRecipientAddress,
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientFunc,
 		conf.BuilderAPI, seenPubkeys)
 	if err != nil {
 		return err
@@ -772,7 +777,7 @@ func wireTracing(life *lifecycle.Manager, conf Config) error {
 
 // setFeeRecipient returns a slot subscriber for scheduler which calls prepare_beacon_proposer endpoint at start of each epoch.
 // TODO(dhruv): move this somewhere else once more use-cases like this becomes clear.
-func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeRecipient string) func(ctx context.Context, slot core.Slot) error {
+func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeRecipientFunc func(core.PubKey) string) func(ctx context.Context, slot core.Slot) error {
 	onStartup := true
 
 	return func(ctx context.Context, slot core.Slot) error {
@@ -788,29 +793,31 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeReci
 			return err
 		}
 
-		var activeIdxs []eth2p0.ValidatorIndex
+		var activeVals []*eth2v1.Validator
 		for _, validator := range vals {
 			if validator.Status != eth2v1.ValidatorStateActiveOngoing {
 				continue
 			}
-			activeIdxs = append(activeIdxs, validator.Index)
+			activeVals = append(activeVals, validator)
 		}
 
-		if len(activeIdxs) == 0 {
+		if len(activeVals) == 0 {
 			return nil // No active validators.
 		}
 
-		var addr bellatrix.ExecutionAddress
-		b, err := hex.DecodeString(strings.TrimPrefix(feeRecipient, "0x"))
-		if err != nil {
-			return errors.Wrap(err, "hex decode fee recipient address")
-		}
-		copy(addr[:], b)
-
 		var preps []*eth2v1.ProposalPreparation
-		for _, vIdx := range activeIdxs {
+		for _, val := range activeVals {
+			feeRecipient := feeRecipientFunc(core.PubKeyFrom48Bytes(val.Validator.PublicKey))
+
+			var addr bellatrix.ExecutionAddress
+			b, err := hex.DecodeString(strings.TrimPrefix(feeRecipient, "0x"))
+			if err != nil {
+				return errors.Wrap(err, "hex decode fee recipient address")
+			}
+			copy(addr[:], b)
+
 			preps = append(preps, &eth2v1.ProposalPreparation{
-				ValidatorIndex: vIdx,
+				ValidatorIndex: val.Index,
 				FeeRecipient:   addr,
 			})
 		}
