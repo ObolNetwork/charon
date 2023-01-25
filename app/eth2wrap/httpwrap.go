@@ -23,7 +23,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"testing"
 	"time"
 
@@ -44,7 +43,7 @@ type BlockAttestationsProvider interface {
 
 // PeerCount is the response for querying beacon node peer count (/eth/v1/node/peer_count).
 type PeerCount struct {
-	Connected int64
+	Connected int
 }
 
 // NodePeerCountProvider is the interface for providing node peer count.
@@ -161,15 +160,8 @@ func (h *httpAdapter) NodePeerCount(ctx context.Context) (PeerCount, error) {
 	if err := json.Unmarshal(respBody, &resp); err != nil {
 		return PeerCount{}, errors.Wrap(err, "failed to parse beacon node peer count response")
 	}
-	if resp.Data.Connected == "" {
-		return PeerCount{}, errors.New("connected peers missing")
-	}
-	count, err := strconv.ParseInt(resp.Data.Connected, 10, 64)
-	if err != nil {
-		return PeerCount{}, errors.Wrap(err, "invalid value for connected peers")
-	}
 
-	return PeerCount{Connected: count}, nil
+	return PeerCount{Connected: resp.Data.Connected}, nil
 }
 
 type submitBeaconCommitteeSelectionsJSON struct {
@@ -186,7 +178,7 @@ type attestationsJSON struct {
 
 type peerCountJSON struct {
 	Data struct {
-		Connected string `json:"connected"`
+		Connected int `json:"connected,string"`
 	} `json:"data"`
 }
 

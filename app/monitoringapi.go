@@ -220,7 +220,7 @@ func peerCounter(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Cl
 }
 
 // beaconNodePeerCount returns the number of connected peers of the beacon node.
-func beaconNodePeerCount(ctx context.Context, eth2Cl eth2wrap.Client) (int64, error) {
+func beaconNodePeerCount(ctx context.Context, eth2Cl eth2wrap.Client) (int, error) {
 	peerCount, err := eth2Cl.NodePeerCount(ctx)
 	if err != nil {
 		return 0, errors.Wrap(err, "get beacon node peer count")
