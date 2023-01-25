@@ -225,40 +225,38 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 }
 
 // signDepositDatas returns a map of deposit data signatures by DV pubkey.
-func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddresses []string, network string) (map[eth2p0.BLSPubKey]eth2p0.BLSSignature, map[eth2p0.BLSPubKey]string, error) {
+func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddresses []string, network string) (map[eth2p0.BLSPubKey]eth2p0.BLSSignature, error) {
 	msgSigs := make(map[eth2p0.BLSPubKey]eth2p0.BLSSignature)
-	withdrawalAddrByPubkey := make(map[eth2p0.BLSPubKey]string)
 	for i, secret := range secrets {
 		withdrawalAddr, err := eth2util.ChecksumAddress(withdrawalAddresses[i])
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		pk, err := secret.GetPublicKey()
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "secret to pubkey")
+			return nil, errors.Wrap(err, "secret to pubkey")
 		}
 
 		pubkey, err := tblsconv.KeyToETH2(pk)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		msgRoot, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, network)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		sig, err := tbls.Sign(secret, msgRoot[:])
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		msgSigs[pubkey] = tblsconv.SigToETH2(sig)
-		withdrawalAddrByPubkey[pubkey] = withdrawalAddresses[i]
 	}
 
-	return msgSigs, withdrawalAddrByPubkey, nil
+	return msgSigs, nil
 }
 
 // getTSSShares splits the secrets and returns the threshold key shares.
@@ -330,9 +328,24 @@ func writeDepositData(withdrawalAddresses []string, clusterDir string, forkVersi
 	}
 
 	// Create deposit message signatures
-	msgSigs, withdrawalAddressByPubkey, err := signDepositDatas(secrets, withdrawalAddresses, network)
+	msgSigs, err := signDepositDatas(secrets, withdrawalAddresses, network)
 	if err != nil {
 		return err
+	}
+
+	withdrawalAddressByPubkey := make(map[eth2p0.BLSPubKey]string)
+	for i, secret := range secrets {
+		pk, err := secret.GetPublicKey()
+		if err != nil {
+			return errors.Wrap(err, "secret to pubkey")
+		}
+
+		pubkey, err := tblsconv.KeyToETH2(pk)
+		if err != nil {
+			return err
+		}
+
+		withdrawalAddressByPubkey[pubkey] = withdrawalAddresses[i]
 	}
 
 	// Serialize the deposit data into bytes
