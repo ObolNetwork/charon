@@ -328,8 +328,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		eth2Pubkeys                  []eth2p0.BLSPubKey
 		pubshares                    []eth2p0.BLSPubKey
 		allPubSharesByKey            = make(map[core.PubKey]map[int]*bls_sig.PublicKey) // map[pubkey]map[shareIdx]pubshare
-		feeRecipientAddsByEth2Pubkey = make(map[eth2p0.BLSPubKey]string)
-		feeRecipientAddsByCorePubkey = make(map[core.PubKey]string)
+		feeRecipientAddrByEth2Pubkey = make(map[eth2p0.BLSPubKey]string)
+		feeRecipientAddrByCorePubkey = make(map[core.PubKey]string)
 	)
 	for i, dv := range lock.Validators {
 		pubkey, err := dv.PublicKey()
@@ -372,8 +372,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		corePubkeys = append(corePubkeys, corePubkey)
 		pubshares = append(pubshares, eth2Share)
 		allPubSharesByKey[corePubkey] = allPubShares
-		feeRecipientAddsByEth2Pubkey[eth2Pubkey] = feeRecipientAddrs[i]
-		feeRecipientAddsByCorePubkey[corePubkey] = feeRecipientAddrs[i]
+		feeRecipientAddrByEth2Pubkey[eth2Pubkey] = feeRecipientAddrs[i]
+		feeRecipientAddrByCorePubkey[corePubkey] = feeRecipientAddrs[i]
 	}
 
 	peers, err := lock.Peers()
@@ -395,17 +395,17 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, feeRecipientAddsByEth2Pubkey))
+	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, feeRecipientAddrByEth2Pubkey))
 	sched.SubscribeSlots(tracker.NewInclDelayFunc(eth2Cl, sched.GetDutyDefinition))
 
-	fetch, err := fetcher.New(eth2Cl, feeRecipientAddsByCorePubkey)
+	fetch, err := fetcher.New(eth2Cl, feeRecipientAddrByCorePubkey)
 	if err != nil {
 		return err
 	}
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientAddsByCorePubkey,
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientAddrByCorePubkey,
 		conf.BuilderAPI, seenPubkeys)
 	if err != nil {
 		return err
