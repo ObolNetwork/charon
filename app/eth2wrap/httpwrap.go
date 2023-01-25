@@ -41,17 +41,12 @@ type BlockAttestationsProvider interface {
 	BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
 }
 
-// PeerCount is the response for querying beacon node peer count (/eth/v1/node/peer_count).
-type PeerCount struct {
-	Connected int
-}
-
 // NodePeerCountProvider is the interface for providing node peer count.
 // It is a standard beacon API endpoint not implemented by eth2client.
 // See https://ethereum.github.io/beacon-APIs/#/Node/getPeerCount.
 type NodePeerCountProvider interface {
 	// NodePeerCount provides peer count of the beacon node.
-	NodePeerCount(ctx context.Context) (PeerCount, error)
+	NodePeerCount(ctx context.Context) (int, error)
 }
 
 // NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
@@ -147,21 +142,21 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 
 // NodePeerCount provides the peer count of the beacon node.
 // See https://ethereum.github.io/beacon-APIs/#/Node/getPeerCount.
-func (h *httpAdapter) NodePeerCount(ctx context.Context) (PeerCount, error) {
+func (h *httpAdapter) NodePeerCount(ctx context.Context) (int, error) {
 	path := "/eth/v1/node/peer_count"
 	respBody, statusCode, err := httpGet(ctx, h.address, path, h.timeout)
 	if err != nil {
-		return PeerCount{}, errors.Wrap(err, "request beacon node peer count")
+		return 0, errors.Wrap(err, "request beacon node peer count")
 	} else if statusCode != http.StatusOK {
-		return PeerCount{}, errors.New("request beacon node peer count failed", z.Int("status", statusCode), z.Str("body", string(respBody)))
+		return 0, errors.New("request beacon node peer count failed", z.Int("status", statusCode), z.Str("body", string(respBody)))
 	}
 
 	var resp peerCountJSON
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return PeerCount{}, errors.Wrap(err, "failed to parse beacon node peer count response")
+		return 0, errors.Wrap(err, "failed to parse beacon node peer count response")
 	}
 
-	return PeerCount{Connected: resp.Data.Connected}, nil
+	return resp.Data.Connected, nil
 }
 
 type submitBeaconCommitteeSelectionsJSON struct {
