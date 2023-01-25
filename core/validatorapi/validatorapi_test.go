@@ -1291,6 +1291,7 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 			},
 		},
 		Default: validatorapi.TekuProposerConfig{
+			FeeRecipient: feeRecipient,
 			Builder: validatorapi.TekuBuilder{
 				Enabled:  false,
 				GasLimit: 30000000,

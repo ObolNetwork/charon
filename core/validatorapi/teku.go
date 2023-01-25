@@ -43,9 +43,15 @@ type TekuProposerConfigProvider interface {
 }
 
 func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigResponse, error) {
+	var defaultFeeRecipientAddr string
+	for _, addr := range c.feeRecipientAddressByPubkey {
+		defaultFeeRecipientAddr = addr
+		break
+	}
 	resp := TekuProposerConfigResponse{
 		Proposers: make(map[string]TekuProposerConfig),
 		Default: TekuProposerConfig{ // Default doesn't make sense, disable for now.
+			FeeRecipient: defaultFeeRecipientAddr,
 			Builder: TekuBuilder{
 				Enabled:  false,
 				GasLimit: gasLimit,
