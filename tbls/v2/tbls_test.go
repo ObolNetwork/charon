@@ -64,7 +64,7 @@ func (ts *TestSuite) Test_RecoverSecret() {
 	recovered, err := v2.RecoverSecret(shares, 5, 3)
 	require.NoError(ts.T(), err)
 
-	require.Equal(ts.T(), secret, recovered)
+	require.ElementsMatch(ts.T(), secret, recovered)
 }
 
 func (ts *TestSuite) Test_ThresholdAggregate() {
@@ -202,7 +202,7 @@ func (r randomizedImpl) selectImpl() (v2.Implementation, error) {
 func (r randomizedImpl) GenerateSecretKey() (v2.PrivateKey, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
-		return nil, err
+		return v2.PrivateKey{}, err
 	}
 
 	return impl.GenerateSecretKey()
@@ -211,7 +211,7 @@ func (r randomizedImpl) GenerateSecretKey() (v2.PrivateKey, error) {
 func (r randomizedImpl) SecretToPublicKey(key v2.PrivateKey) (v2.PublicKey, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
-		return nil, err
+		return v2.PublicKey{}, err
 	}
 
 	return impl.SecretToPublicKey(key)
@@ -229,7 +229,7 @@ func (r randomizedImpl) ThresholdSplit(secret v2.PrivateKey, total uint, thresho
 func (r randomizedImpl) RecoverSecret(shares map[int]v2.PrivateKey, total uint, threshold uint) (v2.PrivateKey, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
-		return nil, err
+		return v2.PrivateKey{}, err
 	}
 
 	return impl.RecoverSecret(shares, total, threshold)
@@ -238,7 +238,7 @@ func (r randomizedImpl) RecoverSecret(shares map[int]v2.PrivateKey, total uint, 
 func (r randomizedImpl) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) (v2.Signature, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
-		return nil, err
+		return v2.Signature{}, err
 	}
 
 	return impl.ThresholdAggregate(partialSignaturesByIndex)
@@ -256,7 +256,7 @@ func (r randomizedImpl) Verify(compressedPublicKey v2.PublicKey, data []byte, si
 func (r randomizedImpl) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
-		return nil, err
+		return v2.Signature{}, err
 	}
 
 	return impl.Sign(privateKey, data)

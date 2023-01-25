@@ -20,24 +20,33 @@ type Kryptology struct{}
 func (k Kryptology) GenerateSecretKey() (v2.PrivateKey, error) {
 	_, secret, err := blsScheme.Keygen()
 	if err != nil {
-		return nil, errors.Wrap(err, "generate key")
+		return v2.PrivateKey{}, errors.Wrap(err, "generate key")
 	}
 
-	return secret.MarshalBinary()
+	ret, err := secret.MarshalBinary()
+
+	// Commenting here once, this syntax will appear often:
+	// here I'm converting ret to a pointer to instance of v2.PrivateKey, which is
+	// an array with constant size.
+	// I'm dereferencing it to return a copy as well.
+	// Ref: https://go.dev/ref/spec#Conversions_from_slice_to_array_pointer
+	return *(*v2.PrivateKey)(ret), err
 }
 
 func (k Kryptology) SecretToPublicKey(key v2.PrivateKey) (v2.PublicKey, error) {
 	rawKey := new(bls_sig.SecretKey)
-	if err := rawKey.UnmarshalBinary(key); err != nil {
-		return nil, errors.Wrap(err, "unmarshal raw key into kryptology object")
+	if err := rawKey.UnmarshalBinary(key[:]); err != nil {
+		return v2.PublicKey{}, errors.Wrap(err, "unmarshal raw key into kryptology object")
 	}
 
 	pubKey, err := rawKey.GetPublicKey()
 	if err != nil {
-		return nil, errors.Wrap(err, "get public key")
+		return v2.PublicKey{}, errors.Wrap(err, "get public key")
 	}
 
-	return pubKey.MarshalBinary()
+	ret, err := pubKey.MarshalBinary()
+
+	return *(*v2.PublicKey)(ret), err
 }
 
 func (k Kryptology) ThresholdSplit(secret v2.PrivateKey, total uint, threshold uint) (map[int]v2.PrivateKey, error) {
@@ -46,7 +55,7 @@ func (k Kryptology) ThresholdSplit(secret v2.PrivateKey, total uint, threshold u
 		return nil, errors.Wrap(err, "new Feldman VSS")
 	}
 
-	secretScaler, err := curves.BLS12381G1().NewScalar().SetBytes(secret)
+	secretScaler, err := curves.BLS12381G1().NewScalar().SetBytes(secret[:])
 	if err != nil {
 		return nil, errors.Wrap(err, "convert to scaler")
 	}
@@ -59,7 +68,7 @@ func (k Kryptology) ThresholdSplit(secret v2.PrivateKey, total uint, threshold u
 	sks := make(map[int]v2.PrivateKey)
 
 	for _, s := range shares {
-		sks[int(s.Id)] = s.Value
+		sks[int(s.Id)] = *(*v2.PrivateKey)(s.Value)
 	}
 
 	return sks, nil
@@ -68,9 +77,11 @@ func (k Kryptology) ThresholdSplit(secret v2.PrivateKey, total uint, threshold u
 func (k Kryptology) RecoverSecret(shares map[int]v2.PrivateKey, total uint, threshold uint) (v2.PrivateKey, error) {
 	var shamirShares []*share.ShamirShare
 	for idx, value := range shares {
+		// do a local copy, we're dealing with references here
+		value := value
 		shamirShare := share.ShamirShare{
 			Id:    uint32(idx),
-			Value: value,
+			Value: value[:],
 		}
 
 		shamirShares = append(shamirShares, &shamirShare)
@@ -78,29 +89,33 @@ func (k Kryptology) RecoverSecret(shares map[int]v2.PrivateKey, total uint, thre
 
 	scheme, err := share.NewFeldman(uint32(threshold), uint32(total), curves.BLS12381G1())
 	if err != nil {
-		return nil, errors.Wrap(err, "new Feldman VSS")
+		return v2.PrivateKey{}, errors.Wrap(err, "new Feldman VSS")
 	}
 
 	secretScaler, err := scheme.Combine(shamirShares...)
 	if err != nil {
-		return nil, errors.Wrap(err, "combine shares")
+		return v2.PrivateKey{}, errors.Wrap(err, "combine shares")
 	}
 
 	resp := new(bls_sig.SecretKey)
 	if err := resp.UnmarshalBinary(secretScaler.Bytes()); err != nil {
-		return nil, errors.Wrap(err, "unmarshal secret")
+		return v2.PrivateKey{}, errors.Wrap(err, "unmarshal secret")
 	}
 
-	return resp.MarshalBinary()
+	ret, err := resp.MarshalBinary()
+
+	return *(*v2.PrivateKey)(ret), err
 }
 
 func (k Kryptology) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) (v2.Signature, error) {
 	var kryptologyPartialSigs []*bls_sig.PartialSignature
 
 	for idx, sig := range partialSignaturesByIndex {
+		// do a local copy, we're dealing with references here
+		sig := sig
 		rawSign := new(bls_sig.Signature)
-		if err := rawSign.UnmarshalBinary(sig); err != nil {
-			return nil, errors.Wrap(err, "unmarshal raw signature into kryptology object")
+		if err := rawSign.UnmarshalBinary(sig[:]); err != nil {
+			return v2.Signature{}, errors.Wrap(err, "unmarshal raw signature into kryptology object")
 		}
 
 		kryptologyPartialSigs = append(kryptologyPartialSigs, &bls_sig.PartialSignature{
@@ -111,20 +126,22 @@ func (k Kryptology) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signa
 
 	aggSig, err := blsScheme.CombineSignatures(kryptologyPartialSigs...)
 	if err != nil {
-		return nil, errors.Wrap(err, "aggregate signatures")
+		return v2.Signature{}, errors.Wrap(err, "aggregate signatures")
 	}
 
-	return aggSig.MarshalBinary()
+	ret, err := aggSig.MarshalBinary()
+
+	return *(*v2.Signature)(ret), err
 }
 
 func (k Kryptology) Verify(compressedPublicKey v2.PublicKey, data []byte, signature v2.Signature) error {
 	rawKey := new(bls_sig.PublicKey)
-	if err := rawKey.UnmarshalBinary(compressedPublicKey); err != nil {
+	if err := rawKey.UnmarshalBinary(compressedPublicKey[:]); err != nil {
 		return errors.Wrap(err, "unmarshal raw public key into kryptology object")
 	}
 
 	rawSign := new(bls_sig.Signature)
-	if err := rawSign.UnmarshalBinary(signature); err != nil {
+	if err := rawSign.UnmarshalBinary(signature[:]); err != nil {
 		return errors.Wrap(err, "unmarshal raw signature into kryptology object")
 	}
 
@@ -142,14 +159,16 @@ func (k Kryptology) Verify(compressedPublicKey v2.PublicKey, data []byte, signat
 
 func (k Kryptology) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, error) {
 	rawKey := new(bls_sig.SecretKey)
-	if err := rawKey.UnmarshalBinary(privateKey); err != nil {
-		return nil, errors.Wrap(err, "unmarshal raw private key into kryptology object")
+	if err := rawKey.UnmarshalBinary(privateKey[:]); err != nil {
+		return v2.Signature{}, errors.Wrap(err, "unmarshal raw private key into kryptology object")
 	}
 
 	rawSign, err := blsScheme.Sign(rawKey, data)
 	if err != nil {
-		return nil, err
+		return v2.Signature{}, err
 	}
 
-	return rawSign.MarshalBinary()
+	ret, err := rawSign.MarshalBinary()
+
+	return *(*v2.Signature)(ret), err
 }

@@ -7,13 +7,13 @@ var implLock sync.Mutex
 
 type (
 	// PublicKey is a byte slice containing a compressed BLS12-381 public key.
-	PublicKey []byte
+	PublicKey [48]byte
 
 	// PrivateKey is a byte slice containing a compressed BLS12-381 private key.
-	PrivateKey []byte
+	PrivateKey [32]byte
 
 	// Signature is a byte slice containing a BLS12-381 signature.
-	Signature []byte
+	Signature [96]byte
 )
 
 // Implementation defines the backing implementation for all the public functions of this package.
