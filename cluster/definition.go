@@ -312,6 +312,16 @@ func (d Definition) WithdrawalAddresses() ([]string, error) {
 	return resp, nil
 }
 
+// FeeRecipientAddresses is a convenience function to return all fee-recipient address from the validator addresses slice.
+func (d Definition) FeeRecipientAddresses() ([]string, error) {
+	var resp []string
+	for _, vaddrs := range d.ValidatorAddresses {
+		resp = append(resp, vaddrs.FeeRecipientAddress)
+	}
+
+	return resp, nil
+}
+
 // SetDefinitionHashes returns a copy of the definition with the config hash and definition hash populated.
 func (d Definition) SetDefinitionHashes() (Definition, error) {
 	// Marshal config hash

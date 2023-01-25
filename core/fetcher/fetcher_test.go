@@ -75,7 +75,7 @@ func TestFetchAttester(t *testing.T) {
 	duty := core.NewAttesterDuty(slot)
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
-	fetch, err := fetcher.New(bmock, "")
+	fetch, err := fetcher.New(bmock, nil)
 	require.NoError(t, err)
 
 	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
@@ -163,7 +163,7 @@ func TestFetchAggregator(t *testing.T) {
 		return nil, errors.New("expected unknown root")
 	}
 
-	fetch, err := fetcher.New(bmock, "")
+	fetch, err := fetcher.New(bmock, nil)
 	require.NoError(t, err)
 
 	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
@@ -220,6 +220,11 @@ func TestFetchProposer(t *testing.T) {
 		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
+	feeRecipientByPubkey := map[core.PubKey]string{
+		pubkeysByIdx[vIdxA]: feeRecipientAddr,
+		pubkeysByIdx[vIdxB]: feeRecipientAddr,
+	}
+
 	dutyA := eth2v1.ProposerDuty{
 		Slot:           slot,
 		ValidatorIndex: vIdxA,
@@ -243,7 +248,7 @@ func TestFetchProposer(t *testing.T) {
 
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
-	fetch, err := fetcher.New(bmock, feeRecipientAddr)
+	fetch, err := fetcher.New(bmock, feeRecipientByPubkey)
 	require.NoError(t, err)
 
 	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
@@ -289,6 +294,11 @@ func TestFetchBuilderProposer(t *testing.T) {
 		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
+	feeRecipientByPubkey := map[core.PubKey]string{
+		pubkeysByIdx[vIdxA]: feeRecipientAddr,
+		pubkeysByIdx[vIdxB]: feeRecipientAddr,
+	}
+
 	dutyA := eth2v1.ProposerDuty{
 		Slot:           slot,
 		ValidatorIndex: vIdxA,
@@ -312,7 +322,7 @@ func TestFetchBuilderProposer(t *testing.T) {
 
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
-	fetch, err := fetcher.New(bmock, feeRecipientAddr)
+	fetch, err := fetcher.New(bmock, feeRecipientByPubkey)
 	require.NoError(t, err)
 
 	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
@@ -446,7 +456,7 @@ func TestFetchSyncContribution(t *testing.T) {
 		}
 
 		// Construct fetcher component.
-		fetch, err := fetcher.New(bmock, "")
+		fetch, err := fetcher.New(bmock, nil)
 		require.NoError(t, err)
 
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
@@ -507,7 +517,7 @@ func TestFetchSyncContribution(t *testing.T) {
 		require.NoError(t, err)
 
 		// Construct fetcher component.
-		fetch, err := fetcher.New(bmock, "")
+		fetch, err := fetcher.New(bmock, nil)
 		require.NoError(t, err)
 
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
@@ -537,7 +547,7 @@ func TestFetchSyncContribution(t *testing.T) {
 		require.NoError(t, err)
 
 		// Construct fetcher component.
-		fetch, err := fetcher.New(bmock, "")
+		fetch, err := fetcher.New(bmock, nil)
 		require.NoError(t, err)
 
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
