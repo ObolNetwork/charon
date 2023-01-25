@@ -190,14 +190,13 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 	}
 
-	// TODO(corver): Refactor writeDepositData to take a slice of withdrawal addresses.
-	vaddrs, err := def.LegacyValidatorAddresses()
+	withdrawalAddresses, err := def.WithdrawalAddresses()
 	if err != nil {
 		return err
 	}
 
 	// Write deposit-data file
-	if err = writeDepositData(vaddrs.WithdrawalAddress, conf.ClusterDir, def.ForkVersion, numNodes, secrets); err != nil {
+	if err = writeDepositData(withdrawalAddresses, conf.ClusterDir, def.ForkVersion, numNodes, secrets); err != nil {
 		return err
 	}
 
@@ -226,38 +225,40 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 }
 
 // signDepositDatas returns a map of deposit data signatures by DV pubkey.
-func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddr string, network string) (map[eth2p0.BLSPubKey]eth2p0.BLSSignature, error) {
-	withdrawalAddr, err := eth2util.ChecksumAddress(withdrawalAddr)
-	if err != nil {
-		return nil, err
-	}
+func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddresses []string, network string) (map[eth2p0.BLSPubKey]eth2p0.BLSSignature, map[eth2p0.BLSPubKey]string, error) {
+	msgSigs := make(map[eth2p0.BLSPubKey]eth2p0.BLSSignature)
+	withdrawalAddrByPubkey := make(map[eth2p0.BLSPubKey]string)
+	for i, secret := range secrets {
+		withdrawalAddr, err := eth2util.ChecksumAddress(withdrawalAddresses[i])
+		if err != nil {
+			return nil, nil, err
+		}
 
-	resp := make(map[eth2p0.BLSPubKey]eth2p0.BLSSignature)
-	for _, secret := range secrets {
 		pk, err := secret.GetPublicKey()
 		if err != nil {
-			return nil, errors.Wrap(err, "secret to pubkey")
+			return nil, nil, errors.Wrap(err, "secret to pubkey")
 		}
 
 		pubkey, err := tblsconv.KeyToETH2(pk)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		msgRoot, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, network)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		sig, err := tbls.Sign(secret, msgRoot[:])
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		resp[pubkey] = tblsconv.SigToETH2(sig)
+		msgSigs[pubkey] = tblsconv.SigToETH2(sig)
+		withdrawalAddrByPubkey[pubkey] = withdrawalAddresses[i]
 	}
 
-	return resp, nil
+	return msgSigs, withdrawalAddrByPubkey, nil
 }
 
 // getTSSShares splits the secrets and returns the threshold key shares.
@@ -322,20 +323,20 @@ func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]*bls_sig.Secret
 }
 
 // writeDepositData writes deposit data to disk for the DVs for all peers in a cluster.
-func writeDepositData(withdrawalAddr, clusterDir string, forkVersion []byte, numNodes int, secrets []*bls_sig.SecretKey) error {
+func writeDepositData(withdrawalAddresses []string, clusterDir string, forkVersion []byte, numNodes int, secrets []*bls_sig.SecretKey) error {
 	network, err := eth2util.ForkVersionToNetwork(forkVersion)
 	if err != nil {
 		return err
 	}
 
 	// Create deposit message signatures
-	msgSigs, err := signDepositDatas(secrets, withdrawalAddr, network)
+	msgSigs, withdrawalAddressByPubkey, err := signDepositDatas(secrets, withdrawalAddresses, network)
 	if err != nil {
 		return err
 	}
 
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(msgSigs, withdrawalAddr, network)
+	bytes, err := deposit.MarshalDepositData(msgSigs, withdrawalAddressByPubkey, network)
 	if err != nil {
 		return err
 	}

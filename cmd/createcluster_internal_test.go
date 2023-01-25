@@ -77,7 +77,7 @@ func TestCreateCluster(t *testing.T) {
 			Config: clusterConfig{
 				NumNodes:  4,
 				Threshold: 3,
-				NumDVs:    1,
+				NumDVs:    2,
 				SplitKeys: true,
 			},
 			Prep: func(t *testing.T, config clusterConfig) clusterConfig {

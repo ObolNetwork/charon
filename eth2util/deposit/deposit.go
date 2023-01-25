@@ -66,12 +66,7 @@ func getMessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.Root
 }
 
 // MarshalDepositData serializes a list of deposit data into a single file.
-func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdrawalAddr, network string) ([]byte, error) {
-	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
-	if err != nil {
-		return nil, err
-	}
-
+func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdrawalAddrByPubkey map[eth2p0.BLSPubKey]string, network string) ([]byte, error) {
 	forkVersion, err := eth2util.NetworkToForkVersion(network)
 	if err != nil {
 		return nil, err
@@ -79,6 +74,16 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 
 	var ddList []depositDataJSON
 	for pubkey, sig := range msgSigs {
+		withdrawalAddr, ok := withdrawalAddrByPubkey[pubkey]
+		if !ok {
+			return nil, errors.New("withdrawal address not found", z.Str("pubkey", pubkey.String()))
+		}
+
+		creds, err := withdrawalCredsFromAddr(withdrawalAddr)
+		if err != nil {
+			return nil, err
+		}
+
 		// calculate depositMessage root
 		msgRoot, err := getMessageRoot(pubkey, withdrawalAddr)
 		if err != nil {
@@ -100,7 +105,7 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 			return nil, err
 		}
 
-		ok, err := tbls.Verify(blsPubkey, sigData[:], blsSig)
+		ok, err = tbls.Verify(blsPubkey, sigData[:], blsSig)
 		if err != nil {
 			return nil, err
 		} else if !ok {
