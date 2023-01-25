@@ -226,7 +226,7 @@ func beaconNodePeerCount(ctx context.Context, eth2Cl eth2wrap.Client) (int, erro
 		return 0, errors.Wrap(err, "get beacon node peer count")
 	}
 
-	return peerCount.Connected, nil
+	return peerCount, nil
 }
 
 // quorumPeersConnected returns true if quorum peers are currently connected.
