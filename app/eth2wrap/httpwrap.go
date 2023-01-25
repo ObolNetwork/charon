@@ -44,10 +44,7 @@ type BlockAttestationsProvider interface {
 
 // PeerCount is the response for querying beacon node peer count (/eth/v1/node/peer_count).
 type PeerCount struct {
-	Disconnected  int
-	Connecting    int
-	Connected     int
-	Disconnecting int
+	Connected int64
 }
 
 // NodePeerCountProvider is the interface for providing node peer count.
@@ -172,7 +169,7 @@ func (h *httpAdapter) NodePeerCount(ctx context.Context) (PeerCount, error) {
 		return PeerCount{}, errors.Wrap(err, "invalid value for connected peers")
 	}
 
-	return PeerCount{Connected: int(count)}, nil
+	return PeerCount{Connected: count}, nil
 }
 
 type submitBeaconCommitteeSelectionsJSON struct {
