@@ -1,10 +1,10 @@
-package taketwo_test
+package v2_test
 
 import (
 	"crypto/rand"
-	"github.com/obolnetwork/charon/tbls/taketwo"
-	herumiImpl "github.com/obolnetwork/charon/tbls/taketwo/herumi"
-	"github.com/obolnetwork/charon/tbls/taketwo/kryptology"
+	"github.com/obolnetwork/charon/tbls/v2"
+	herumiImpl "github.com/obolnetwork/charon/tbls/v2/herumi"
+	"github.com/obolnetwork/charon/tbls/v2/kryptology"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"math/big"
@@ -14,54 +14,54 @@ import (
 type TestSuite struct {
 	suite.Suite
 
-	impl taketwo.Implementation
+	impl v2.Implementation
 }
 
-func NewTestSuite(implementations taketwo.Implementation) TestSuite {
+func NewTestSuite(implementations v2.Implementation) TestSuite {
 	return TestSuite{
 		impl: implementations,
 	}
 }
 
 func (ts *TestSuite) SetupTest() {
-	taketwo.SetImplementation(ts.impl)
+	v2.SetImplementation(ts.impl)
 }
 
 func (ts *TestSuite) Test_GenerateSecretKey() {
-	secret, err := taketwo.GenerateSecretKey()
+	secret, err := v2.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 }
 
 func (ts *TestSuite) Test_SecretToPublicKey() {
-	secret, err := taketwo.GenerateSecretKey()
+	secret, err := v2.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 
-	pubk, err := taketwo.SecretToPublicKey(secret)
+	pubk, err := v2.SecretToPublicKey(secret)
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), pubk)
 }
 
 func (ts *TestSuite) Test_ThresholdSplit() {
-	secret, err := taketwo.GenerateSecretKey()
+	secret, err := v2.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 
-	shares, err := taketwo.ThresholdSplit(secret, 5, 3)
+	shares, err := v2.ThresholdSplit(secret, 5, 3)
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), shares)
 }
 
 func (ts *TestSuite) Test_RecoverSecret() {
-	secret, err := taketwo.GenerateSecretKey()
+	secret, err := v2.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 
-	shares, err := taketwo.ThresholdSplit(secret, 5, 3)
+	shares, err := v2.ThresholdSplit(secret, 5, 3)
 	require.NoError(ts.T(), err)
 
-	recovered, err := taketwo.RecoverSecret(shares, 5, 3)
+	recovered, err := v2.RecoverSecret(shares, 5, 3)
 	require.NoError(ts.T(), err)
 
 	require.Equal(ts.T(), secret, recovered)
@@ -70,25 +70,25 @@ func (ts *TestSuite) Test_RecoverSecret() {
 func (ts *TestSuite) Test_ThresholdAggregate() {
 	data := []byte("hello obol!")
 
-	secret, err := taketwo.GenerateSecretKey()
+	secret, err := v2.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 
-	totalOGSig, err := taketwo.Sign(secret, data)
+	totalOGSig, err := v2.Sign(secret, data)
 	require.NoError(ts.T(), err)
 
-	shares, err := taketwo.ThresholdSplit(secret, 5, 3)
+	shares, err := v2.ThresholdSplit(secret, 5, 3)
 	require.NoError(ts.T(), err)
 
-	signatures := map[int]taketwo.Signature{}
+	signatures := map[int]v2.Signature{}
 
 	for idx, key := range shares {
-		signature, err := taketwo.Sign(key, data)
+		signature, err := v2.Sign(key, data)
 		require.NoError(ts.T(), err)
 		signatures[idx] = signature
 	}
 
-	totalSig, err := taketwo.ThresholdAggregate(signatures)
+	totalSig, err := v2.ThresholdAggregate(signatures)
 	require.NoError(ts.T(), err)
 
 	require.Equal(ts.T(), totalOGSig, totalSig)
@@ -97,34 +97,34 @@ func (ts *TestSuite) Test_ThresholdAggregate() {
 func (ts *TestSuite) Test_Verify() {
 	data := []byte("hello obol!")
 
-	secret, err := taketwo.GenerateSecretKey()
+	secret, err := v2.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 
-	signature, err := taketwo.Sign(secret, data)
+	signature, err := v2.Sign(secret, data)
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), signature)
 
-	pubkey, err := taketwo.SecretToPublicKey(secret)
+	pubkey, err := v2.SecretToPublicKey(secret)
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), pubkey)
 
-	require.NoError(ts.T(), taketwo.Verify(pubkey, data, signature))
+	require.NoError(ts.T(), v2.Verify(pubkey, data, signature))
 }
 
 func (ts *TestSuite) Test_Sign() {
 	data := []byte("hello obol!")
 
-	secret, err := taketwo.GenerateSecretKey()
+	secret, err := v2.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 
-	signature, err := taketwo.Sign(secret, data)
+	signature, err := v2.Sign(secret, data)
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), signature)
 }
 
-func runSuite(t *testing.T, i taketwo.Implementation) {
+func runSuite(t *testing.T, i v2.Implementation) {
 	ts := NewTestSuite(i)
 
 	suite.Run(t, &ts)
@@ -138,7 +138,7 @@ func TestKryptologyImplementation(t *testing.T) {
 	runSuite(t, kryptology.Kryptology{})
 }
 
-func runBenchmark(b *testing.B, impl taketwo.Implementation) {
+func runBenchmark(b *testing.B, impl v2.Implementation) {
 	s := NewTestSuite(impl)
 	t := &testing.T{}
 	s.SetT(t)
@@ -171,7 +171,7 @@ func BenchmarkKryptologyImplementation(b *testing.B) {
 
 func TestRandomized(t *testing.T) {
 	runSuite(t, randomizedImpl{
-		implementations: []taketwo.Implementation{
+		implementations: []v2.Implementation{
 			herumiImpl.Herumi{},
 			kryptology.Kryptology{},
 		},
@@ -182,10 +182,10 @@ func TestRandomized(t *testing.T) {
 // the implementations slice.
 // Useful to test whether two implementations are compatible.
 type randomizedImpl struct {
-	implementations []taketwo.Implementation
+	implementations []v2.Implementation
 }
 
-func (r randomizedImpl) selectImpl() (taketwo.Implementation, error) {
+func (r randomizedImpl) selectImpl() (v2.Implementation, error) {
 	blen := big.NewInt(int64(len(r.implementations)))
 
 	// random number: [0, len(ts.impl))
@@ -199,7 +199,7 @@ func (r randomizedImpl) selectImpl() (taketwo.Implementation, error) {
 	return r.implementations[nativeN], nil
 }
 
-func (r randomizedImpl) GenerateSecretKey() (taketwo.PrivateKey, error) {
+func (r randomizedImpl) GenerateSecretKey() (v2.PrivateKey, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
 		return nil, err
@@ -208,7 +208,7 @@ func (r randomizedImpl) GenerateSecretKey() (taketwo.PrivateKey, error) {
 	return impl.GenerateSecretKey()
 }
 
-func (r randomizedImpl) SecretToPublicKey(key taketwo.PrivateKey) (taketwo.PublicKey, error) {
+func (r randomizedImpl) SecretToPublicKey(key v2.PrivateKey) (v2.PublicKey, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
 		return nil, err
@@ -217,7 +217,7 @@ func (r randomizedImpl) SecretToPublicKey(key taketwo.PrivateKey) (taketwo.Publi
 	return impl.SecretToPublicKey(key)
 }
 
-func (r randomizedImpl) ThresholdSplit(secret taketwo.PrivateKey, total uint, threshold uint) (map[int]taketwo.PrivateKey, error) {
+func (r randomizedImpl) ThresholdSplit(secret v2.PrivateKey, total uint, threshold uint) (map[int]v2.PrivateKey, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
 		return nil, err
@@ -226,7 +226,7 @@ func (r randomizedImpl) ThresholdSplit(secret taketwo.PrivateKey, total uint, th
 	return impl.ThresholdSplit(secret, total, threshold)
 }
 
-func (r randomizedImpl) RecoverSecret(shares map[int]taketwo.PrivateKey, total uint, threshold uint) (taketwo.PrivateKey, error) {
+func (r randomizedImpl) RecoverSecret(shares map[int]v2.PrivateKey, total uint, threshold uint) (v2.PrivateKey, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
 		return nil, err
@@ -235,7 +235,7 @@ func (r randomizedImpl) RecoverSecret(shares map[int]taketwo.PrivateKey, total u
 	return impl.RecoverSecret(shares, total, threshold)
 }
 
-func (r randomizedImpl) ThresholdAggregate(partialSignaturesByIndex map[int]taketwo.Signature) (taketwo.Signature, error) {
+func (r randomizedImpl) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) (v2.Signature, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
 		return nil, err
@@ -244,7 +244,7 @@ func (r randomizedImpl) ThresholdAggregate(partialSignaturesByIndex map[int]take
 	return impl.ThresholdAggregate(partialSignaturesByIndex)
 }
 
-func (r randomizedImpl) Verify(compressedPublicKey taketwo.PublicKey, data []byte, signature taketwo.Signature) error {
+func (r randomizedImpl) Verify(compressedPublicKey v2.PublicKey, data []byte, signature v2.Signature) error {
 	impl, err := r.selectImpl()
 	if err != nil {
 		return err
@@ -253,7 +253,7 @@ func (r randomizedImpl) Verify(compressedPublicKey taketwo.PublicKey, data []byt
 	return impl.Verify(compressedPublicKey, data, signature)
 }
 
-func (r randomizedImpl) Sign(privateKey taketwo.PrivateKey, data []byte) (taketwo.Signature, error) {
+func (r randomizedImpl) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
 		return nil, err

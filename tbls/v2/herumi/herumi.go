@@ -3,7 +3,7 @@ package herumi
 import (
 	"fmt"
 	"github.com/herumi/bls-eth-go-binary/bls"
-	"github.com/obolnetwork/charon/tbls/taketwo"
+	"github.com/obolnetwork/charon/tbls/v2"
 	"strconv"
 	"sync"
 )
@@ -28,14 +28,14 @@ func init() {
 // Herumi is an Implementation with Herumi-specific inner logic.
 type Herumi struct{}
 
-func (h Herumi) GenerateSecretKey() (taketwo.PrivateKey, error) {
+func (h Herumi) GenerateSecretKey() (v2.PrivateKey, error) {
 	var p bls.SecretKey
 	p.SetByCSPRNG()
 
 	return p.Serialize(), nil
 }
 
-func (h Herumi) SecretToPublicKey(secret taketwo.PrivateKey) (taketwo.PublicKey, error) {
+func (h Herumi) SecretToPublicKey(secret v2.PrivateKey) (v2.PublicKey, error) {
 	var p bls.SecretKey
 
 	if err := p.Deserialize(secret); err != nil {
@@ -50,7 +50,7 @@ func (h Herumi) SecretToPublicKey(secret taketwo.PrivateKey) (taketwo.PublicKey,
 	return pubk.Serialize(), nil
 }
 
-func (h Herumi) ThresholdSplit(secret taketwo.PrivateKey, total uint, threshold uint) (map[int]taketwo.PrivateKey, error) {
+func (h Herumi) ThresholdSplit(secret v2.PrivateKey, total uint, threshold uint) (map[int]v2.PrivateKey, error) {
 	var p bls.SecretKey
 
 	if err := p.Deserialize(secret); err != nil {
@@ -69,7 +69,7 @@ func (h Herumi) ThresholdSplit(secret taketwo.PrivateKey, total uint, threshold 
 		poly[i] = sk
 	}
 
-	ret := make(map[int]taketwo.PrivateKey)
+	ret := make(map[int]v2.PrivateKey)
 	for i := 1; i <= int(total); i++ {
 		var blsID bls.ID
 
@@ -91,7 +91,7 @@ func (h Herumi) ThresholdSplit(secret taketwo.PrivateKey, total uint, threshold 
 	return ret, nil
 }
 
-func (h Herumi) RecoverSecret(shares map[int]taketwo.PrivateKey, _, _ uint) (taketwo.PrivateKey, error) {
+func (h Herumi) RecoverSecret(shares map[int]v2.PrivateKey, _, _ uint) (v2.PrivateKey, error) {
 	var pk bls.SecretKey
 
 	var rawKeys []bls.SecretKey
@@ -120,7 +120,7 @@ func (h Herumi) RecoverSecret(shares map[int]taketwo.PrivateKey, _, _ uint) (tak
 	return pk.Serialize(), nil
 }
 
-func (h Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]taketwo.Signature) (taketwo.Signature, error) {
+func (h Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) (v2.Signature, error) {
 	var rawSigns []bls.Sign
 	var rawIDs []bls.ID
 
@@ -149,7 +149,7 @@ func (h Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]taketwo.Sign
 	return complete.Serialize(), nil
 }
 
-func (h Herumi) Verify(compressedPublicKey taketwo.PublicKey, data []byte, rawSignature taketwo.Signature) error {
+func (h Herumi) Verify(compressedPublicKey v2.PublicKey, data []byte, rawSignature v2.Signature) error {
 	var pubKey bls.PublicKey
 	if err := pubKey.Deserialize(compressedPublicKey); err != nil {
 		return fmt.Errorf("cannot set compressed public key in Herumi format, %w", err)
@@ -167,7 +167,7 @@ func (h Herumi) Verify(compressedPublicKey taketwo.PublicKey, data []byte, rawSi
 	return nil
 }
 
-func (h Herumi) Sign(privateKey taketwo.PrivateKey, data []byte) (taketwo.Signature, error) {
+func (h Herumi) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, error) {
 	var p bls.SecretKey
 
 	if err := p.Deserialize(privateKey); err != nil {

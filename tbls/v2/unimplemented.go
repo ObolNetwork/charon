@@ -1,4 +1,4 @@
-package taketwo
+package v2
 
 import "fmt"
 
