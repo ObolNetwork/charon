@@ -96,7 +96,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.Name, "name", "", "The cluster name")
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
 	flags.StringVar(&config.DefFile, "definition-file", "", "Optional path to a cluster definition file or an HTTP URL. This overrides all other configuration flags.")
-	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to push validator key shares to. Note that multiple addresses are required, one for each node in the cluster, with node0's keyshares being pushed to the first address, node1's keyshares to the second, and so on.")
+	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to import validator key shares to. Note that multiple addresses are required, one for each node in the cluster, with node0's keyshares being imported to the first address, node1's keyshares to the second, and so on.")
 	flags.IntVarP(&config.NumNodes, "nodes", "", minNodes, "The number of charon nodes in the cluster. Minimum is 4.")
 	flags.IntVarP(&config.Threshold, "threshold", "", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
@@ -181,11 +181,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	def.Operators = ops
 
 	keysToDisk := len(conf.KeymanagerAddrs) == 0
-	if keysToDisk { // Write keys to disk
+	if keysToDisk { // Save keys to disk
 		if err = writeKeysToDisk(numNodes, conf.ClusterDir, conf.InsecureKeys, shareSets); err != nil {
 			return err
 		}
-	} else { // Or else push keys to keymanager
+	} else { // Or else save keys to keymanager
 		if err = writeKeysToKeymanager(ctx, conf.KeymanagerAddrs, numNodes, shareSets); err != nil {
 			return err
 		}
@@ -443,7 +443,7 @@ func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sh
 
 		err := clients[i].ImportKeystores(ctx, keystores, passwords)
 		if err != nil {
-			log.Error(ctx, "Failed to push keys", err, z.Str("addr", addrs[i]))
+			log.Error(ctx, "Failed to import keys", err, z.Str("addr", addrs[i]))
 			return err
 		}
 
