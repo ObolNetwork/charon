@@ -1246,7 +1246,11 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 
 func TestComponent_TekuProposerConfig(t *testing.T) {
 	ctx := context.Background()
-	shareIdx := 1
+	const (
+		zeroAddr     = "0x0000000000000000000000000000000000000000"
+		feeRecipient = "0x123456"
+		shareIdx     = 1
+	)
 	// Create keys (just use normal keys, not split tbls)
 	pubkey, _, err := tbls.Keygen()
 	require.NoError(t, err)
@@ -1260,11 +1264,10 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	const feeRecipient = "0x123456"
-	feeRecipientByPubkey := map[core.PubKey]string{corePubKey: feeRecipient}
-
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, feeRecipientByPubkey, true, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, func(core.PubKey) string {
+		return feeRecipient
+	}, true, nil)
 	require.NoError(t, err)
 
 	resp, err := vapi.TekuProposerConfig(ctx)
@@ -1291,7 +1294,7 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 			},
 		},
 		Default: validatorapi.TekuProposerConfig{
-			FeeRecipient: feeRecipient,
+			FeeRecipient: zeroAddr,
 			Builder: validatorapi.TekuBuilder{
 				Enabled:  false,
 				GasLimit: 30000000,

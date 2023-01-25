@@ -58,7 +58,7 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 //
 //nolint:gocognit
 func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[int]*bls_sig.PublicKey,
-	shareIdx int, feeRecipientAddressByPubkey map[core.PubKey]string, builderAPI bool, seenPubkeys func(core.PubKey),
+	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderAPI bool, seenPubkeys func(core.PubKey),
 ) (*Component, error) {
 	var (
 		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
@@ -133,23 +133,23 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 	}
 
 	return &Component{
-		getVerifyShareFunc:          getVerifyShareFunc,
-		getPubShareFunc:             getPubShareFunc,
-		getPubKeyFunc:               getPubKeyFunc,
-		sharesByKey:                 coreSharesByKey,
-		eth2Cl:                      eth2Cl,
-		shareIdx:                    shareIdx,
-		feeRecipientAddressByPubkey: feeRecipientAddressByPubkey,
-		builderAPI:                  builderAPI,
+		getVerifyShareFunc: getVerifyShareFunc,
+		getPubShareFunc:    getPubShareFunc,
+		getPubKeyFunc:      getPubKeyFunc,
+		sharesByKey:        coreSharesByKey,
+		eth2Cl:             eth2Cl,
+		shareIdx:           shareIdx,
+		feeRecipientFunc:   feeRecipientFunc,
+		builderAPI:         builderAPI,
 	}, nil
 }
 
 type Component struct {
-	eth2Cl                      eth2wrap.Client
-	shareIdx                    int
-	insecureTest                bool
-	feeRecipientAddressByPubkey map[core.PubKey]string
-	builderAPI                  bool
+	eth2Cl           eth2wrap.Client
+	shareIdx         int
+	insecureTest     bool
+	feeRecipientFunc func(core.PubKey) string
+	builderAPI       bool
 
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
 	// to public keys (the DV root public key)

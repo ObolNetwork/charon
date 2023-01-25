@@ -328,7 +328,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		eth2Pubkeys                  []eth2p0.BLSPubKey
 		pubshares                    []eth2p0.BLSPubKey
 		allPubSharesByKey            = make(map[core.PubKey]map[int]*bls_sig.PublicKey) // map[pubkey]map[shareIdx]pubshare
-		feeRecipientAddrByEth2Pubkey = make(map[eth2p0.BLSPubKey]string)
 		feeRecipientAddrByCorePubkey = make(map[core.PubKey]string)
 	)
 	for i, dv := range lock.Validators {
@@ -372,7 +371,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		corePubkeys = append(corePubkeys, corePubkey)
 		pubshares = append(pubshares, eth2Share)
 		allPubSharesByKey[corePubkey] = allPubShares
-		feeRecipientAddrByEth2Pubkey[eth2Pubkey] = feeRecipientAddrs[i]
 		feeRecipientAddrByCorePubkey[corePubkey] = feeRecipientAddrs[i]
 	}
 
@@ -395,7 +393,11 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, feeRecipientAddrByEth2Pubkey))
+	feeRecipientFunc := func(pubkey core.PubKey) string {
+		return feeRecipientAddrByCorePubkey[pubkey]
+	}
+
+	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, feeRecipientFunc))
 	sched.SubscribeSlots(tracker.NewInclDelayFunc(eth2Cl, sched.GetDutyDefinition))
 
 	fetch, err := fetcher.New(eth2Cl, feeRecipientAddrByCorePubkey)
@@ -405,7 +407,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientAddrByCorePubkey,
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientFunc,
 		conf.BuilderAPI, seenPubkeys)
 	if err != nil {
 		return err
@@ -775,7 +777,7 @@ func wireTracing(life *lifecycle.Manager, conf Config) error {
 
 // setFeeRecipient returns a slot subscriber for scheduler which calls prepare_beacon_proposer endpoint at start of each epoch.
 // TODO(dhruv): move this somewhere else once more use-cases like this becomes clear.
-func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeRecipientByPubkey map[eth2p0.BLSPubKey]string) func(ctx context.Context, slot core.Slot) error {
+func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeRecipientFunc func(core.PubKey) string) func(ctx context.Context, slot core.Slot) error {
 	onStartup := true
 
 	return func(ctx context.Context, slot core.Slot) error {
@@ -805,7 +807,7 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeReci
 
 		var preps []*eth2v1.ProposalPreparation
 		for _, val := range activeVals {
-			feeRecipient := feeRecipientByPubkey[val.Validator.PublicKey]
+			feeRecipient := feeRecipientFunc(core.PubKeyFrom48Bytes(val.Validator.PublicKey))
 
 			var addr bellatrix.ExecutionAddress
 			b, err := hex.DecodeString(strings.TrimPrefix(feeRecipient, "0x"))

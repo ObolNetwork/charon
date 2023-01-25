@@ -24,7 +24,6 @@ import (
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -126,12 +125,9 @@ func TestSetFeeRecipient(t *testing.T) {
 			return nil
 		}
 
-		feeRecipientByPubkey := make(map[eth2p0.BLSPubKey]string)
-		for _, pubkey := range clone.PublicKeys() {
-			feeRecipientByPubkey[pubkey] = "0xdead"
-		}
-
-		fn := setFeeRecipient(bmock, clone.PublicKeys(), feeRecipientByPubkey)
+		fn := setFeeRecipient(bmock, clone.PublicKeys(), func(core.PubKey) string {
+			return "0xdead"
+		})
 		err = fn(context.Background(), core.Slot{SlotsPerEpoch: 1})
 		require.NoError(t, err)
 

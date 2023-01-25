@@ -36,22 +36,20 @@ type TekuBuilder struct {
 	Overrides map[string]string `json:"registration_overrides,omitempty"`
 }
 
-const gasLimit = 30000000
+const (
+	gasLimit    = 30000000
+	zeroAddress = "0x0000000000000000000000000000000000000000"
+)
 
 type TekuProposerConfigProvider interface {
 	TekuProposerConfig(ctx context.Context) (TekuProposerConfigResponse, error)
 }
 
 func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigResponse, error) {
-	var defaultFeeRecipientAddr string
-	for _, addr := range c.feeRecipientAddressByPubkey {
-		defaultFeeRecipientAddr = addr
-		break
-	}
 	resp := TekuProposerConfigResponse{
 		Proposers: make(map[string]TekuProposerConfig),
 		Default: TekuProposerConfig{ // Default doesn't make sense, disable for now.
-			FeeRecipient: defaultFeeRecipientAddr,
+			FeeRecipient: zeroAddress,
 			Builder: TekuBuilder{
 				Enabled:  false,
 				GasLimit: gasLimit,
@@ -66,7 +64,7 @@ func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigRe
 
 	for pubkey, pubshare := range c.sharesByKey {
 		resp.Proposers[string(pubshare)] = TekuProposerConfig{
-			FeeRecipient: c.feeRecipientAddressByPubkey[pubkey],
+			FeeRecipient: c.feeRecipientFunc(pubkey),
 			Builder: TekuBuilder{
 				Enabled:  c.builderAPI,
 				GasLimit: gasLimit,
