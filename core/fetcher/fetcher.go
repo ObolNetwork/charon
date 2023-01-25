@@ -34,20 +34,20 @@ import (
 )
 
 // New returns a new fetcher instance.
-func New(eth2Cl eth2wrap.Client, feeRecipientAddressByPubkey map[core.PubKey]string) (*Fetcher, error) {
+func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string) (*Fetcher, error) {
 	return &Fetcher{
-		eth2Cl:                      eth2Cl,
-		feeRecipientAddressByPubkey: feeRecipientAddressByPubkey,
+		eth2Cl:           eth2Cl,
+		feeRecipientFunc: feeRecipientFunc,
 	}, nil
 }
 
 // Fetcher fetches proposed duty data.
 type Fetcher struct {
-	eth2Cl                      eth2wrap.Client
-	feeRecipientAddressByPubkey map[core.PubKey]string
-	subs                        []func(context.Context, core.Duty, core.UnsignedDataSet) error
-	aggSigDBFunc                func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
-	awaitAttDataFunc            func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error)
+	eth2Cl           eth2wrap.Client
+	feeRecipientFunc func(core.PubKey) string
+	subs             []func(context.Context, core.Duty, core.UnsignedDataSet) error
+	aggSigDBFunc     func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
+	awaitAttDataFunc func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error)
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -260,7 +260,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 		}
 
 		// Ensure fee recipient is correctly populated in block.
-		verifyFeeRecipient(ctx, block, f.feeRecipientAddressByPubkey[pubkey])
+		verifyFeeRecipient(ctx, block, f.feeRecipientFunc(pubkey))
 
 		coreBlock, err := core.NewVersionedBeaconBlock(block)
 		if err != nil {
@@ -297,7 +297,7 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defS
 			return nil, err
 		}
 
-		verifyFeeRecipientBlindedBlock(ctx, block, f.feeRecipientAddressByPubkey[pubkey])
+		verifyFeeRecipientBlindedBlock(ctx, block, f.feeRecipientFunc(pubkey))
 
 		coreBlock, err := core.NewVersionedBlindedBeaconBlock(block)
 		if err != nil {

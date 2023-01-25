@@ -400,7 +400,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, feeRecipientFunc))
 	sched.SubscribeSlots(tracker.NewInclDelayFunc(eth2Cl, sched.GetDutyDefinition))
 
-	fetch, err := fetcher.New(eth2Cl, feeRecipientAddrByCorePubkey)
+	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc)
 	if err != nil {
 		return err
 	}

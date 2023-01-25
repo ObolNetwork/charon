@@ -220,11 +220,6 @@ func TestFetchProposer(t *testing.T) {
 		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
-	feeRecipientByPubkey := map[core.PubKey]string{
-		pubkeysByIdx[vIdxA]: feeRecipientAddr,
-		pubkeysByIdx[vIdxB]: feeRecipientAddr,
-	}
-
 	dutyA := eth2v1.ProposerDuty{
 		Slot:           slot,
 		ValidatorIndex: vIdxA,
@@ -248,7 +243,9 @@ func TestFetchProposer(t *testing.T) {
 
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
-	fetch, err := fetcher.New(bmock, feeRecipientByPubkey)
+	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
+		return feeRecipientAddr
+	})
 	require.NoError(t, err)
 
 	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
@@ -270,6 +267,7 @@ func TestFetchProposer(t *testing.T) {
 		slotB, err := dutyDataB.Slot()
 		require.NoError(t, err)
 		require.EqualValues(t, slot, slotB)
+		require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayload.FeeRecipient))
 		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
 
 		return nil
@@ -292,11 +290,6 @@ func TestFetchBuilderProposer(t *testing.T) {
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
 		vIdxA: testutil.RandomCorePubKey(t),
 		vIdxB: testutil.RandomCorePubKey(t),
-	}
-
-	feeRecipientByPubkey := map[core.PubKey]string{
-		pubkeysByIdx[vIdxA]: feeRecipientAddr,
-		pubkeysByIdx[vIdxB]: feeRecipientAddr,
 	}
 
 	dutyA := eth2v1.ProposerDuty{
@@ -322,7 +315,9 @@ func TestFetchBuilderProposer(t *testing.T) {
 
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
-	fetch, err := fetcher.New(bmock, feeRecipientByPubkey)
+	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
+		return feeRecipientAddr
+	})
 	require.NoError(t, err)
 
 	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
@@ -344,6 +339,7 @@ func TestFetchBuilderProposer(t *testing.T) {
 		slotB, err := dutyDataB.Slot()
 		require.NoError(t, err)
 		require.EqualValues(t, slot, slotB)
+		require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayloadHeader.FeeRecipient))
 		assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
 
 		return nil
