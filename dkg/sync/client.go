@@ -17,9 +17,10 @@ package sync
 
 import (
 	"context"
-	"github.com/obolnetwork/charon/app/expbackoff"
 	"sync"
 	"time"
+
+	"github.com/obolnetwork/charon/app/expbackoff"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
