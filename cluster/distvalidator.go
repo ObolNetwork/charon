@@ -29,9 +29,6 @@ type DistValidator struct {
 	// PubShares are the public keys corresponding to each node's secret key share.
 	// It can be used to verify a partial signature created by any node in the cluster.
 	PubShares [][]byte `json:"public_shares,omitempty" ssz:"CompositeList[256],Bytes48" lock_hash:"1"`
-
-	// FeeRecipientAddress Ethereum address override for this validator, defaults to definition withdrawal address.
-	FeeRecipientAddress []byte `json:"fee_recipient_address,omitempty" ssz:"Bytes20" lock_hash:"2"`
 }
 
 // PublicKey returns the validator BLS group public key.
@@ -67,9 +64,8 @@ func distValidatorsFromV1x1(distValidators []distValidatorJSONv1x1) []DistValida
 	var resp []DistValidator
 	for _, dv := range distValidators {
 		resp = append(resp, DistValidator{
-			PubKey:              dv.PubKey,
-			PubShares:           dv.PubShares,
-			FeeRecipientAddress: dv.FeeRecipientAddress,
+			PubKey:    dv.PubKey,
+			PubShares: dv.PubShares,
 		})
 	}
 
@@ -80,9 +76,8 @@ func distValidatorsToV1x1(distValidators []DistValidator) []distValidatorJSONv1x
 	var resp []distValidatorJSONv1x1
 	for _, dv := range distValidators {
 		resp = append(resp, distValidatorJSONv1x1{
-			PubKey:              dv.PubKey,
-			PubShares:           dv.PubShares,
-			FeeRecipientAddress: dv.FeeRecipientAddress,
+			PubKey:    dv.PubKey,
+			PubShares: dv.PubShares,
 		})
 	}
 
@@ -97,9 +92,8 @@ func distValidatorsFromV1x2orLater(distValidators []distValidatorJSONv1x2) []Dis
 			shares = append(shares, share)
 		}
 		resp = append(resp, DistValidator{
-			PubKey:              dv.PubKey,
-			PubShares:           shares,
-			FeeRecipientAddress: dv.FeeRecipientAddress,
+			PubKey:    dv.PubKey,
+			PubShares: shares,
 		})
 	}
 
@@ -115,9 +109,8 @@ func distValidatorsToV1x2orLater(distValidators []DistValidator) []distValidator
 		}
 
 		resp = append(resp, distValidatorJSONv1x2{
-			PubKey:              dv.PubKey,
-			PubShares:           shares,
-			FeeRecipientAddress: dv.FeeRecipientAddress,
+			PubKey:    dv.PubKey,
+			PubShares: shares,
 		})
 	}
 

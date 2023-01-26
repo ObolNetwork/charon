@@ -29,6 +29,14 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
+func TestLeftPad(t *testing.T) {
+	b := []byte{0x01, 0x02}
+	require.Equal(t, []byte{0x01, 0x02}, leftPad(b, 1))
+	require.Equal(t, []byte{0x01, 0x02}, leftPad(b, 2))
+	require.Equal(t, []byte{0x00, 0x01, 0x02}, leftPad(b, 3))
+	require.Equal(t, []byte{0x00, 0x00, 0x01, 0x02}, leftPad(b, 4))
+}
+
 func TestVerifySig(t *testing.T) {
 	secret, err := crypto.GenerateKey()
 	require.NoError(t, err)
