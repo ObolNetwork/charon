@@ -27,7 +27,7 @@ import (
 	v2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
-var initializationOnce = sync.Once{}
+var initOnce = sync.Once{}
 
 // PSA: as much as init() is (almost) an antipattern in Go, Herumi BLS implementation needs an initialization routine
 // before it can be used.
@@ -35,7 +35,7 @@ var initializationOnce = sync.Once{}
 //
 //nolint:gochecknoinits
 func init() {
-	initializationOnce.Do(func() {
+	initOnce.Do(func() {
 		//nolint:nosnakecase
 		if err := bls.Init(bls.BLS12_381); err != nil {
 			panic(errors.Wrap(err, "cannot initialize Herumi BLS"))
