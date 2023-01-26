@@ -24,6 +24,27 @@ linters-settings:
     disable:
       - fieldalignment
       - shadow
+  importas:
+    no-unaliased: true
+    alias:
+      - pkg: github.com/attestantio/go-eth2-client/spec/phase0
+        alias: eth2p0
+      - pkg: github.com/attestantio/go-eth2-client/api/v1
+        alias: eth2v1
+      - pkg: github.com/attestantio/go-eth2-client/api
+        alias: eth2api
+      - pkg: github.com/attestantio/go-eth2-client/spec
+        alias: eth2spec
+      - pkg: github.com/attestantio/go-eth2-client/http
+        alias: eth2http
+      - pkg: github.com/attestantio/go-eth2-client/mock
+        alias: eth2mock
+      - pkg: github.com/attestantio/go-eth2-client/api/v1/bellatrix
+        alias: eth2bellatrix
+      - pkg: github.com/attestantio/go-eth2-client/api/v1/capella
+        alias: eth2capella
+      - pkg: github.com/decred/dcrd/dcrec/secp256k1/v4
+        alias: k1
   nlreturn:
     block-size: 2
   revive:
@@ -83,6 +104,9 @@ issues:
         - gosec
         - noctx
         - revive
+    - path: 'eth2wrap'
+      linters:
+        - importas
   exclude:
     - "error returned from interface method should be wrapped" # Relax wrapcheck
     - "defer: prefer not to defer chains of function calls" # Relax revive

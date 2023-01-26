@@ -23,7 +23,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -146,7 +146,7 @@ func TestMemDBProposer(t *testing.T) {
 	slots := [queries]int64{123, 456, 789}
 
 	type response struct {
-		block *spec.VersionedBeaconBlock
+		block *eth2spec.VersionedBeaconBlock
 	}
 	var awaitResponse [queries]chan response
 	for i := 0; i < queries; i++ {
@@ -158,11 +158,11 @@ func TestMemDBProposer(t *testing.T) {
 		}(i)
 	}
 
-	blocks := make([]*spec.VersionedBeaconBlock, queries)
+	blocks := make([]*eth2spec.VersionedBeaconBlock, queries)
 	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
 	for i := 0; i < queries; i++ {
-		blocks[i] = &spec.VersionedBeaconBlock{
-			Version: spec.DataVersionPhase0,
+		blocks[i] = &eth2spec.VersionedBeaconBlock{
+			Version: eth2spec.DataVersionPhase0,
 			Phase0:  testutil.RandomPhase0BeaconBlock(),
 		}
 		blocks[i].Phase0.Slot = eth2p0.Slot(slots[i])
@@ -314,13 +314,13 @@ func TestMemDBClashingBlocks(t *testing.T) {
 	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const slot = 123
-	block1 := &spec.VersionedBeaconBlock{
-		Version: spec.DataVersionPhase0,
+	block1 := &eth2spec.VersionedBeaconBlock{
+		Version: eth2spec.DataVersionPhase0,
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	block1.Phase0.Slot = eth2p0.Slot(slot)
-	block2 := &spec.VersionedBeaconBlock{
-		Version: spec.DataVersionPhase0,
+	block2 := &eth2spec.VersionedBeaconBlock{
+		Version: eth2spec.DataVersionPhase0,
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	block2.Phase0.Slot = eth2p0.Slot(slot)
@@ -352,8 +352,8 @@ func TestMemDBClashProposer(t *testing.T) {
 
 	const slot = 123
 
-	block := &spec.VersionedBeaconBlock{
-		Version: spec.DataVersionPhase0,
+	block := &eth2spec.VersionedBeaconBlock{
+		Version: eth2spec.DataVersionPhase0,
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	block.Phase0.Slot = eth2p0.Slot(slot)
@@ -410,7 +410,7 @@ func TestMemDBBuilderProposer(t *testing.T) {
 	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
 	for i := 0; i < queries; i++ {
 		blocks[i] = &eth2api.VersionedBlindedBeaconBlock{
-			Version:   spec.DataVersionBellatrix,
+			Version:   eth2spec.DataVersionBellatrix,
 			Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 		}
 		blocks[i].Bellatrix.Slot = eth2p0.Slot(slots[i])
@@ -443,12 +443,12 @@ func TestMemDBClashingBlindedBlocks(t *testing.T) {
 
 	const slot = 123
 	block1 := &eth2api.VersionedBlindedBeaconBlock{
-		Version:   spec.DataVersionBellatrix,
+		Version:   eth2spec.DataVersionBellatrix,
 		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 	}
 	block1.Bellatrix.Slot = eth2p0.Slot(slot)
 	block2 := &eth2api.VersionedBlindedBeaconBlock{
-		Version:   spec.DataVersionBellatrix,
+		Version:   eth2spec.DataVersionBellatrix,
 		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 	}
 	block2.Bellatrix.Slot = eth2p0.Slot(slot)
@@ -481,7 +481,7 @@ func TestMemDBClashBuilderProposer(t *testing.T) {
 	const slot = 123
 
 	block := &eth2api.VersionedBlindedBeaconBlock{
-		Version:   spec.DataVersionBellatrix,
+		Version:   eth2spec.DataVersionBellatrix,
 		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 	}
 	block.Bellatrix.Slot = eth2p0.Slot(slot)

@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/attestantio/go-eth2-client/api"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -369,14 +369,14 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot int64, defSet 
 }
 
 // verifyFeeRecipient logs a warning when fee recipient is not correctly populated in the block.
-func verifyFeeRecipient(ctx context.Context, block *spec.VersionedBeaconBlock, feeRecipientAddress string) {
+func verifyFeeRecipient(ctx context.Context, block *eth2spec.VersionedBeaconBlock, feeRecipientAddress string) {
 	// Note that fee-recipient is not available in forks earlier than bellatrix.
 	var actualAddr string
 
 	switch block.Version {
-	case spec.DataVersionBellatrix:
+	case eth2spec.DataVersionBellatrix:
 		actualAddr = fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
-	case spec.DataVersionCapella:
+	case eth2spec.DataVersionCapella:
 		actualAddr = fmt.Sprintf("%#x", block.Capella.Body.ExecutionPayload.FeeRecipient)
 	default:
 		return
@@ -389,14 +389,14 @@ func verifyFeeRecipient(ctx context.Context, block *spec.VersionedBeaconBlock, f
 }
 
 // verifyFeeRecipientBlindedBlock logs a warning when fee recipient is not correctly populated in the provided blinded beacon block.
-func verifyFeeRecipientBlindedBlock(ctx context.Context, block *api.VersionedBlindedBeaconBlock, feeRecipientAddress string) {
+func verifyFeeRecipientBlindedBlock(ctx context.Context, block *eth2api.VersionedBlindedBeaconBlock, feeRecipientAddress string) {
 	// Note that fee-recipient is not available in forks earlier than bellatrix.
 	var actualAddr string
 
 	switch block.Version {
-	case spec.DataVersionBellatrix:
+	case eth2spec.DataVersionBellatrix:
 		actualAddr = fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
-	case spec.DataVersionCapella:
+	case eth2spec.DataVersionCapella:
 		actualAddr = fmt.Sprintf("%#x", block.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
 	default:
 		return

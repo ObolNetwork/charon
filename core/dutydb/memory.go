@@ -20,7 +20,7 @@ import (
 	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -36,7 +36,7 @@ func NewMemDB(deadliner core.Deadliner) *MemDB {
 		attPubKeys:        make(map[pkKey]core.PubKey),
 		attKeysBySlot:     make(map[int64][]pkKey),
 		builderProDuties:  make(map[int64]*eth2api.VersionedBlindedBeaconBlock),
-		proDuties:         make(map[int64]*spec.VersionedBeaconBlock),
+		proDuties:         make(map[int64]*eth2spec.VersionedBeaconBlock),
 		aggDuties:         make(map[aggKey]core.AggregatedAttestation),
 		aggKeysBySlot:     make(map[int64][]aggKey),
 		contribDuties:     make(map[contribKey]*altair.SyncCommitteeContribution),
@@ -62,7 +62,7 @@ type MemDB struct {
 	builderProQueries []builderProQuery
 
 	// DutyProposer
-	proDuties  map[int64]*spec.VersionedBeaconBlock
+	proDuties  map[int64]*eth2spec.VersionedBeaconBlock
 	proQueries []proQuery
 
 	// DutyAggregator
@@ -171,10 +171,10 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 }
 
 // AwaitBeaconBlock implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitBeaconBlock(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error) {
+func (db *MemDB) AwaitBeaconBlock(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
-	response := make(chan *spec.VersionedBeaconBlock, 1)
+	response := make(chan *eth2spec.VersionedBeaconBlock, 1)
 
 	db.mu.Lock()
 	db.proQueries = append(db.proQueries, proQuery{
@@ -714,7 +714,7 @@ type attQuery struct {
 // proQuery is a waiting proQuery with a response channel.
 type proQuery struct {
 	Key      int64
-	Response chan<- *spec.VersionedBeaconBlock
+	Response chan<- *eth2spec.VersionedBeaconBlock
 	Cancel   <-chan struct{}
 }
 
