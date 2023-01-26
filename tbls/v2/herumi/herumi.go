@@ -2,12 +2,13 @@ package herumi
 
 import (
 	"fmt"
+	"strconv"
+	"sync"
+
 	"github.com/herumi/bls-eth-go-binary/bls"
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/tbls/v2"
-	"strconv"
-	"sync"
+	v2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
 var initializationOnce = sync.Once{}
@@ -15,8 +16,11 @@ var initializationOnce = sync.Once{}
 // PSA: as much as init() is (almost) an antipattern in Go, Herumi BLS implementation needs an initialization routine
 // before it can be used.
 // Hence, we embed it in an init() method along with a sync.Once, so that this effect is only run once.
+//
+//nolint:gochecknoinits
 func init() {
 	initializationOnce.Do(func() {
+		//nolint:nosnakecase
 		if err := bls.Init(bls.BLS12_381); err != nil {
 			panic(errors.Wrap(err, "cannot initialize Herumi BLS"))
 		}
@@ -30,7 +34,7 @@ func init() {
 // Herumi is an Implementation with Herumi-specific inner logic.
 type Herumi struct{}
 
-func (h Herumi) GenerateSecretKey() (v2.PrivateKey, error) {
+func (Herumi) GenerateSecretKey() (v2.PrivateKey, error) {
 	var p bls.SecretKey
 	p.SetByCSPRNG()
 
@@ -42,7 +46,7 @@ func (h Herumi) GenerateSecretKey() (v2.PrivateKey, error) {
 	return *(*v2.PrivateKey)(p.Serialize()), nil
 }
 
-func (h Herumi) SecretToPublicKey(secret v2.PrivateKey) (v2.PublicKey, error) {
+func (Herumi) SecretToPublicKey(secret v2.PrivateKey) (v2.PublicKey, error) {
 	var p bls.SecretKey
 
 	if err := p.Deserialize(secret[:]); err != nil {
@@ -51,13 +55,13 @@ func (h Herumi) SecretToPublicKey(secret v2.PrivateKey) (v2.PublicKey, error) {
 
 	pubk, err := p.GetSafePublicKey()
 	if err != nil {
-		return v2.PublicKey{}, errors.Wrap(err, "cannot obtain public key from secret secret")
+		return v2.PublicKey{}, errors.Wrap(err, "cannot obtain public key from secret")
 	}
 
 	return *(*v2.PublicKey)(pubk.Serialize()), nil
 }
 
-func (h Herumi) ThresholdSplit(secret v2.PrivateKey, total uint, threshold uint) (map[int]v2.PrivateKey, error) {
+func (Herumi) ThresholdSplit(secret v2.PrivateKey, total uint, threshold uint) (map[int]v2.PrivateKey, error) {
 	var p bls.SecretKey
 
 	if err := p.Deserialize(secret[:]); err != nil {
@@ -103,7 +107,7 @@ func (h Herumi) ThresholdSplit(secret v2.PrivateKey, total uint, threshold uint)
 	return ret, nil
 }
 
-func (h Herumi) RecoverSecret(shares map[int]v2.PrivateKey, _, _ uint) (v2.PrivateKey, error) {
+func (Herumi) RecoverSecret(shares map[int]v2.PrivateKey, _, _ uint) (v2.PrivateKey, error) {
 	var pk bls.SecretKey
 
 	var rawKeys []bls.SecretKey
@@ -142,7 +146,7 @@ func (h Herumi) RecoverSecret(shares map[int]v2.PrivateKey, _, _ uint) (v2.Priva
 	return *(*v2.PrivateKey)(pk.Serialize()), nil
 }
 
-func (h Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) (v2.Signature, error) {
+func (Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) (v2.Signature, error) {
 	var rawSigns []bls.Sign
 	var rawIDs []bls.ID
 
@@ -181,7 +185,7 @@ func (h Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature
 	return *(*v2.Signature)(complete.Serialize()), nil
 }
 
-func (h Herumi) Verify(compressedPublicKey v2.PublicKey, data []byte, rawSignature v2.Signature) error {
+func (Herumi) Verify(compressedPublicKey v2.PublicKey, data []byte, rawSignature v2.Signature) error {
 	var pubKey bls.PublicKey
 	if err := pubKey.Deserialize(compressedPublicKey[:]); err != nil {
 		return errors.Wrap(err, "cannot set compressed public key in Herumi format")
@@ -199,7 +203,7 @@ func (h Herumi) Verify(compressedPublicKey v2.PublicKey, data []byte, rawSignatu
 	return nil
 }
 
-func (h Herumi) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, error) {
+func (Herumi) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, error) {
 	var p bls.SecretKey
 
 	if err := p.Deserialize(privateKey[:]); err != nil {
@@ -207,5 +211,6 @@ func (h Herumi) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, error
 	}
 
 	sigBytes := p.SignByte(data).Serialize()
+
 	return *(*v2.Signature)(sigBytes), nil
 }

@@ -2,8 +2,10 @@ package v2
 
 import "sync"
 
-var impl Implementation = Unimplemented{}
-var implLock sync.Mutex
+var (
+	impl     Implementation = Unimplemented{}
+	implLock sync.Mutex
+)
 
 type (
 	// PublicKey is a byte slice containing a compressed BLS12-381 public key.

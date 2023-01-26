@@ -2,13 +2,14 @@ package v2_test
 
 import (
 	"crypto/rand"
-	"github.com/obolnetwork/charon/tbls/v2"
+	"math/big"
+	"testing"
+
+	v2 "github.com/obolnetwork/charon/tbls/v2"
 	herumiImpl "github.com/obolnetwork/charon/tbls/v2/herumi"
 	"github.com/obolnetwork/charon/tbls/v2/kryptology"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"math/big"
-	"testing"
 )
 
 type TestSuite struct {
@@ -125,6 +126,7 @@ func (ts *TestSuite) Test_Sign() {
 }
 
 func runSuite(t *testing.T, i v2.Implementation) {
+	t.Helper()
 	ts := NewTestSuite(i)
 
 	suite.Run(t, &ts)
@@ -139,6 +141,7 @@ func TestKryptologyImplementation(t *testing.T) {
 }
 
 func runBenchmark(b *testing.B, impl v2.Implementation) {
+	b.Helper()
 	s := NewTestSuite(impl)
 	t := &testing.T{}
 	s.SetT(t)
@@ -191,6 +194,7 @@ func (r randomizedImpl) selectImpl() (v2.Implementation, error) {
 	// random number: [0, len(ts.impl))
 	rawN, err := rand.Int(rand.Reader, blen)
 	if err != nil {
+		//nolint:wrapcheck
 		return nil, err
 	}
 

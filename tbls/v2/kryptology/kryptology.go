@@ -2,11 +2,12 @@ package kryptology
 
 import (
 	"crypto/rand"
+
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	share "github.com/coinbase/kryptology/pkg/sharing"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/tbls/v2"
+	v2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
 // blsScheme is the BLS12-381 ETH2 signature scheme with standard domain separation tag used for signatures.
@@ -17,23 +18,26 @@ var blsScheme = bls_sig.NewSigEth2()
 // Kryptology is an Implementation with Kryptology-specific inner logic.
 type Kryptology struct{}
 
-func (k Kryptology) GenerateSecretKey() (v2.PrivateKey, error) {
+func (Kryptology) GenerateSecretKey() (v2.PrivateKey, error) {
 	_, secret, err := blsScheme.Keygen()
 	if err != nil {
 		return v2.PrivateKey{}, errors.Wrap(err, "generate key")
 	}
 
 	ret, err := secret.MarshalBinary()
+	if err != nil {
+		return v2.PrivateKey{}, errors.Wrap(err, "cannot unmarshal generated secret into kryptology object")
+	}
 
 	// Commenting here once, this syntax will appear often:
 	// here I'm converting ret to a pointer to instance of v2.PrivateKey, which is
 	// an array with constant size.
 	// I'm dereferencing it to return a copy as well.
 	// Ref: https://go.dev/ref/spec#Conversions_from_slice_to_array_pointer
-	return *(*v2.PrivateKey)(ret), err
+	return *(*v2.PrivateKey)(ret), nil
 }
 
-func (k Kryptology) SecretToPublicKey(key v2.PrivateKey) (v2.PublicKey, error) {
+func (Kryptology) SecretToPublicKey(key v2.PrivateKey) (v2.PublicKey, error) {
 	rawKey := new(bls_sig.SecretKey)
 	if err := rawKey.UnmarshalBinary(key[:]); err != nil {
 		return v2.PublicKey{}, errors.Wrap(err, "unmarshal raw key into kryptology object")
@@ -45,11 +49,14 @@ func (k Kryptology) SecretToPublicKey(key v2.PrivateKey) (v2.PublicKey, error) {
 	}
 
 	ret, err := pubKey.MarshalBinary()
+	if err != nil {
+		return v2.PublicKey{}, errors.Wrap(err, "cannot marshal public key from kryptology object")
+	}
 
-	return *(*v2.PublicKey)(ret), err
+	return *(*v2.PublicKey)(ret), nil
 }
 
-func (k Kryptology) ThresholdSplit(secret v2.PrivateKey, total uint, threshold uint) (map[int]v2.PrivateKey, error) {
+func (Kryptology) ThresholdSplit(secret v2.PrivateKey, total uint, threshold uint) (map[int]v2.PrivateKey, error) {
 	scheme, err := share.NewFeldman(uint32(threshold), uint32(total), curves.BLS12381G1())
 	if err != nil {
 		return nil, errors.Wrap(err, "new Feldman VSS")
@@ -74,7 +81,7 @@ func (k Kryptology) ThresholdSplit(secret v2.PrivateKey, total uint, threshold u
 	return sks, nil
 }
 
-func (k Kryptology) RecoverSecret(shares map[int]v2.PrivateKey, total uint, threshold uint) (v2.PrivateKey, error) {
+func (Kryptology) RecoverSecret(shares map[int]v2.PrivateKey, total uint, threshold uint) (v2.PrivateKey, error) {
 	var shamirShares []*share.ShamirShare
 	for idx, value := range shares {
 		// do a local copy, we're dealing with references here
@@ -103,11 +110,14 @@ func (k Kryptology) RecoverSecret(shares map[int]v2.PrivateKey, total uint, thre
 	}
 
 	ret, err := resp.MarshalBinary()
+	if err != nil {
+		return v2.PrivateKey{}, errors.Wrap(err, "cannot marshal private key from kryptology object")
+	}
 
-	return *(*v2.PrivateKey)(ret), err
+	return *(*v2.PrivateKey)(ret), nil
 }
 
-func (k Kryptology) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) (v2.Signature, error) {
+func (Kryptology) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) (v2.Signature, error) {
 	var kryptologyPartialSigs []*bls_sig.PartialSignature
 
 	for idx, sig := range partialSignaturesByIndex {
@@ -130,11 +140,14 @@ func (k Kryptology) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signa
 	}
 
 	ret, err := aggSig.MarshalBinary()
+	if err != nil {
+		return v2.Signature{}, errors.Wrap(err, "cannot marshal signature from kryptology object")
+	}
 
-	return *(*v2.Signature)(ret), err
+	return *(*v2.Signature)(ret), nil
 }
 
-func (k Kryptology) Verify(compressedPublicKey v2.PublicKey, data []byte, signature v2.Signature) error {
+func (Kryptology) Verify(compressedPublicKey v2.PublicKey, data []byte, signature v2.Signature) error {
 	rawKey := new(bls_sig.PublicKey)
 	if err := rawKey.UnmarshalBinary(compressedPublicKey[:]); err != nil {
 		return errors.Wrap(err, "unmarshal raw public key into kryptology object")
@@ -157,7 +170,7 @@ func (k Kryptology) Verify(compressedPublicKey v2.PublicKey, data []byte, signat
 	return nil
 }
 
-func (k Kryptology) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, error) {
+func (Kryptology) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, error) {
 	rawKey := new(bls_sig.SecretKey)
 	if err := rawKey.UnmarshalBinary(privateKey[:]); err != nil {
 		return v2.Signature{}, errors.Wrap(err, "unmarshal raw private key into kryptology object")
@@ -165,10 +178,13 @@ func (k Kryptology) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, e
 
 	rawSign, err := blsScheme.Sign(rawKey, data)
 	if err != nil {
-		return v2.Signature{}, err
+		return v2.Signature{}, errors.Wrap(err, "cannot execute kryptology signature")
 	}
 
 	ret, err := rawSign.MarshalBinary()
+	if err != nil {
+		return v2.Signature{}, errors.Wrap(err, "cannot marshal signature from kryptology object")
+	}
 
-	return *(*v2.Signature)(ret), err
+	return *(*v2.Signature)(ret), nil
 }
