@@ -55,7 +55,7 @@ func (Herumi) GenerateSecretKey() (v2.PrivateKey, error) {
 	p.SetByCSPRNG()
 
 	// Commenting here once, this syntax will appear often:
-	// here I'm converting ret to a pointer to instance of v2.PrivateKey, which is
+	// here I'm converting the output of p.Serialize() to a pointer to instance of v2.PrivateKey, which is
 	// an array with constant size.
 	// I'm dereferencing it to return a copy as well.
 	// Ref: https://go.dev/ref/spec#Conversions_from_slice_to_array_pointer
