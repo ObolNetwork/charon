@@ -222,17 +222,26 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Saved lock file to disk")
 
-	withdrawalAddressByPubkey := make(map[eth2p0.BLSPubKey]string)
-	for i, share := range shares {
-		pubkey, err := tblsconv.KeyToETH2(share.PubKey)
+	var (
+		pubkeys         []eth2p0.BLSPubKey
+		depositDataSigs []eth2p0.BLSSignature
+	)
+	for _, sh := range shares {
+		eth2Pk, err := tblsconv.KeyToETH2(sh.PubKey)
 		if err != nil {
 			return err
 		}
 
-		withdrawalAddressByPubkey[pubkey] = withdrawalAddresses[i]
+		corePk, err := tblsconv.KeyToCore(sh.PubKey)
+		if err != nil {
+			return err
+		}
+
+		pubkeys = append(pubkeys, eth2Pk)
+		depositDataSigs = append(depositDataSigs, tblsconv.SigToETH2(aggSigDepositData[corePk]))
 	}
 
-	if err := writeDepositData(aggSigDepositData, withdrawalAddressByPubkey, network, conf.DataDir); err != nil {
+	if err := writeDepositData(pubkeys, depositDataSigs, withdrawalAddresses, network, conf.DataDir); err != nil {
 		return err
 	}
 	log.Debug(ctx, "Saved deposit data file to disk")

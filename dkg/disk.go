@@ -21,24 +21,21 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net/url"
-	"os"
-	"path"
-	"path/filepath"
-
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	"net/url"
+	"os"
+	"path"
+	"path/filepath"
 )
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It returns the test definition if configured.
@@ -170,34 +167,17 @@ func writeLock(datadir string, lock cluster.Lock) error {
 }
 
 // writeDepositData writes deposit data file to disk.
-func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddressByPubkey map[eth2p0.BLSPubKey]string, network string, dataDir string) error {
-	// Create deposit message signatures
-	aggSigsEth2 := make(map[eth2p0.BLSPubKey]eth2p0.BLSSignature)
-	for pk, sig := range aggSigs {
-		blsPubKey, err := tblsconv.KeyFromCore(pk)
-		if err != nil {
-			return err
-		}
-
-		pubkey, err := tblsconv.KeyToETH2(blsPubKey)
-		if err != nil {
-			return err
-		}
-
-		sigEth2 := tblsconv.SigToETH2(sig)
-		aggSigsEth2[pubkey] = sigEth2
-	}
-
-	for pk, addr := range withdrawalAddressByPubkey {
+func writeDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLSSignature, withdrawalAddresses []string, network string, dataDir string) error {
+	for i := 0; i < len(withdrawalAddresses); i++ {
 		var err error
-		withdrawalAddressByPubkey[pk], err = eth2util.ChecksumAddress(addr)
+		withdrawalAddresses[i], err = eth2util.ChecksumAddress(withdrawalAddresses[i])
 		if err != nil {
 			return err
 		}
 	}
 
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(aggSigsEth2, withdrawalAddressByPubkey, network)
+	bytes, err := deposit.MarshalDepositData(pubkeys, depositDataSigs, withdrawalAddresses, network)
 	if err != nil {
 		return err
 	}
