@@ -98,6 +98,7 @@ linters:
   disable:
     # Keep disabled
     - containedctx
+    - contextcheck
     - cyclop
     - exhaustivestruct
     - exhaustruct
@@ -112,6 +113,7 @@ linters:
     - gomnd
     - gomoddirectives
     - ifshort
+    - interfacebloat
     - interfacer
     - ireturn
     - lll # Think about adding this (max line length)
