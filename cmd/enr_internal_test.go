@@ -27,10 +27,6 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const (
-	compressedK1PubkeyLen = 33
-)
-
 func TestRunNewEnr(t *testing.T) {
 	temp, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
