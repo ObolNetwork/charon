@@ -205,7 +205,7 @@ func TestFetchAggregator(t *testing.T) {
 	require.ErrorContains(t, err, "aggregate attestation not found by root (retryable)")
 }
 
-func TestFetchProposer(t *testing.T) {
+func TestFetchBlocks(t *testing.T) {
 	ctx := context.Background()
 
 	const (
@@ -232,7 +232,6 @@ func TestFetchProposer(t *testing.T) {
 		pubkeysByIdx[vIdxA]: core.NewProposerDefinition(&dutyA),
 		pubkeysByIdx[vIdxB]: core.NewProposerDefinition(&dutyB),
 	}
-	duty := core.NewProposerDuty(slot)
 
 	randaoA := testutil.RandomCoreSignature()
 	randaoB := testutil.RandomCoreSignature()
@@ -243,110 +242,78 @@ func TestFetchProposer(t *testing.T) {
 
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
-	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
-		return feeRecipientAddr
-	})
-	require.NoError(t, err)
 
-	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
-		return randaoByPubKey[key], nil
-	})
-
-	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
-		require.Equal(t, duty, resDuty)
-		require.Len(t, resDataSet, 2)
-
-		dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.VersionedBeaconBlock)
-		slotA, err := dutyDataA.Slot()
+	t.Run("fetch DutyProposer", func(t *testing.T) {
+		duty := core.NewProposerDuty(slot)
+		fetch, err := fetcher.New(bmock, func(core.PubKey) string {
+			return feeRecipientAddr
+		})
 		require.NoError(t, err)
-		require.EqualValues(t, slot, slotA)
-		require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayload.FeeRecipient))
-		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 
-		dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedBeaconBlock)
-		slotB, err := dutyDataB.Slot()
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+			return randaoByPubKey[key], nil
+		})
+
+		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+			require.Equal(t, duty, resDuty)
+			require.Len(t, resDataSet, 2)
+
+			dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.VersionedBeaconBlock)
+			slotA, err := dutyDataA.Slot()
+			require.NoError(t, err)
+			require.EqualValues(t, slot, slotA)
+			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayload.FeeRecipient))
+			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
+
+			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedBeaconBlock)
+			slotB, err := dutyDataB.Slot()
+			require.NoError(t, err)
+			require.EqualValues(t, slot, slotB)
+			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayload.FeeRecipient))
+			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
+
+			return nil
+		})
+
+		err = fetch.Fetch(ctx, duty, defSet)
 		require.NoError(t, err)
-		require.EqualValues(t, slot, slotB)
-		require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayload.FeeRecipient))
-		assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
-
-		return nil
 	})
 
-	err = fetch.Fetch(ctx, duty, defSet)
-	require.NoError(t, err)
-}
-
-func TestFetchBuilderProposer(t *testing.T) {
-	ctx := context.Background()
-
-	const (
-		slot             = 1
-		vIdxA            = 2
-		vIdxB            = 3
-		feeRecipientAddr = "0x0000000000000000000000000000000000000000"
-	)
-
-	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
-		vIdxA: testutil.RandomCorePubKey(t),
-		vIdxB: testutil.RandomCorePubKey(t),
-	}
-
-	dutyA := eth2v1.ProposerDuty{
-		Slot:           slot,
-		ValidatorIndex: vIdxA,
-	}
-	dutyB := eth2v1.ProposerDuty{
-		Slot:           slot,
-		ValidatorIndex: vIdxB,
-	}
-	defSet := core.DutyDefinitionSet{
-		pubkeysByIdx[vIdxA]: core.NewProposerDefinition(&dutyA),
-		pubkeysByIdx[vIdxB]: core.NewProposerDefinition(&dutyB),
-	}
-	duty := core.NewBuilderProposerDuty(slot)
-
-	randaoA := testutil.RandomCoreSignature()
-	randaoB := testutil.RandomCoreSignature()
-	randaoByPubKey := map[core.PubKey]core.SignedData{
-		pubkeysByIdx[vIdxA]: randaoA,
-		pubkeysByIdx[vIdxB]: randaoB,
-	}
-
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
-		return feeRecipientAddr
-	})
-	require.NoError(t, err)
-
-	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
-		return randaoByPubKey[key], nil
-	})
-
-	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
-		require.Equal(t, duty, resDuty)
-		require.Len(t, resDataSet, 2)
-
-		dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.VersionedBlindedBeaconBlock)
-		slotA, err := dutyDataA.Slot()
+	t.Run("fetch DutyBuilderProposer", func(t *testing.T) {
+		duty := core.NewBuilderProposerDuty(slot)
+		fetch, err := fetcher.New(bmock, func(core.PubKey) string {
+			return feeRecipientAddr
+		})
 		require.NoError(t, err)
-		require.EqualValues(t, slot, slotA)
-		require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayloadHeader.FeeRecipient))
-		assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 
-		dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedBlindedBeaconBlock)
-		slotB, err := dutyDataB.Slot()
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+			return randaoByPubKey[key], nil
+		})
+
+		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+			require.Equal(t, duty, resDuty)
+			require.Len(t, resDataSet, 2)
+
+			dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.VersionedBlindedBeaconBlock)
+			slotA, err := dutyDataA.Slot()
+			require.NoError(t, err)
+			require.EqualValues(t, slot, slotA)
+			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayloadHeader.FeeRecipient))
+			assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
+
+			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedBlindedBeaconBlock)
+			slotB, err := dutyDataB.Slot()
+			require.NoError(t, err)
+			require.EqualValues(t, slot, slotB)
+			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayloadHeader.FeeRecipient))
+			assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
+
+			return nil
+		})
+
+		err = fetch.Fetch(ctx, duty, defSet)
 		require.NoError(t, err)
-		require.EqualValues(t, slot, slotB)
-		require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayloadHeader.FeeRecipient))
-		assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
-
-		return nil
 	})
-
-	err = fetch.Fetch(ctx, duty, defSet)
-	require.NoError(t, err)
 }
 
 //nolint:gocognit
