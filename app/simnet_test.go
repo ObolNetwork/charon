@@ -17,7 +17,6 @@ package app_test
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"flag"
 	"fmt"
 	"net"
@@ -32,6 +31,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -181,7 +181,7 @@ type simnetArgs struct {
 	N                   int
 	VMocks              []bool
 	VAPIAddrs           []string
-	P2PKeys             []*ecdsa.PrivateKey
+	P2PKeys             []*k1.PrivateKey
 	SimnetKeys          []*bls_sig.SecretKey
 	BMockOpts           []beaconmock.Option
 	Lock                cluster.Lock

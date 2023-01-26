@@ -109,12 +109,12 @@ func Recover(hash []byte, sig []byte) (*k1.PublicKey, error) {
 		return nil, errors.New("invalid recovery id", z.Any("id", sig[k1RecIdx]))
 	}
 
-	if sig[k1RecIdx] == 0 || sig[k1RecIdx] == 1 {
-		sig[k1RecIdx] += compactSigMagicOffset // Make the last byte 27 or 28 since that is required below.
-	}
-
 	// Put recovery ID first.
 	sig = append([]byte{sig[k1RecIdx]}, sig[:k1RecIdx]...)
+
+	if sig[0] == 0 || sig[0] == 1 {
+		sig[0] += compactSigMagicOffset // Make the recovery ID 27 or 28 since that is required below.
+	}
 
 	pubkey, _, err := ecdsa.RecoverCompact(sig, hash)
 	if err != nil {

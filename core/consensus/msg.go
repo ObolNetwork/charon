@@ -16,13 +16,12 @@
 package consensus
 
 import (
-	"crypto/ecdsa"
-
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	ssz "github.com/ferranbt/fastssz"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
@@ -147,7 +146,7 @@ func hashProto(msg proto.Message) ([32]byte, error) {
 }
 
 // verifyMsgSig returns true if the message was signed by pubkey.
-func verifyMsgSig(msg *pbv1.QBFTMsg, pubkey *ecdsa.PublicKey) (bool, error) {
+func verifyMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
 	if msg.Signature == nil {
 		return false, errors.New("empty signature")
 	}
@@ -159,20 +158,16 @@ func verifyMsgSig(msg *pbv1.QBFTMsg, pubkey *ecdsa.PublicKey) (bool, error) {
 		return false, err
 	}
 
-	actual, err := crypto.SigToPub(hash[:], msg.Signature)
+	recovered, err := k1util.Recover(hash[:], msg.Signature)
 	if err != nil {
-		return false, errors.Wrap(err, "sig to pub")
+		return false, errors.Wrap(err, "recover pubkey")
 	}
 
-	if !pubkey.Equal(actual) {
-		return false, nil
-	}
-
-	return true, nil
+	return recovered.IsEqual(pubkey), nil
 }
 
 // signMsg returns a copy of the proto message with a populated signature signed by the provided private key.
-func signMsg(msg *pbv1.QBFTMsg, privkey *ecdsa.PrivateKey) (*pbv1.QBFTMsg, error) {
+func signMsg(msg *pbv1.QBFTMsg, privkey *k1.PrivateKey) (*pbv1.QBFTMsg, error) {
 	clone := proto.Clone(msg).(*pbv1.QBFTMsg)
 	clone.Signature = nil
 
@@ -181,7 +176,7 @@ func signMsg(msg *pbv1.QBFTMsg, privkey *ecdsa.PrivateKey) (*pbv1.QBFTMsg, error
 		return nil, err
 	}
 
-	clone.Signature, err = crypto.Sign(hash[:], privkey)
+	clone.Signature, err = k1util.Sign(privkey, hash[:])
 	if err != nil {
 		return nil, errors.Wrap(err, "sign")
 	}

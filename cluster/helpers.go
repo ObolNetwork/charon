@@ -18,7 +18,6 @@ package cluster
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -29,6 +28,7 @@ import (
 	"time"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/ethereum/go-ethereum/crypto"
 	ssz "github.com/ferranbt/fastssz"
 
@@ -114,7 +114,7 @@ func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
 }
 
 // signCreator returns the definition with signed creator config hash.
-func signCreator(secret *ecdsa.PrivateKey, def Definition) (Definition, error) {
+func signCreator(secret *k1.PrivateKey, def Definition) (Definition, error) {
 	var err error
 
 	def.Creator.ConfigSignature, err = signEIP712(secret, eip712CreatorConfigHash, def, Operator{})
@@ -126,7 +126,7 @@ func signCreator(secret *ecdsa.PrivateKey, def Definition) (Definition, error) {
 }
 
 // signOperator returns the operator with signed config hash and enr.
-func signOperator(secret *ecdsa.PrivateKey, def Definition, operator Operator) (Operator, error) {
+func signOperator(secret *k1.PrivateKey, def Definition, operator Operator) (Operator, error) {
 	var err error
 
 	operator.ConfigSignature, err = signEIP712(secret, getOperatorEIP712Type(def.Version), def, operator)

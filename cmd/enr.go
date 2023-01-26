@@ -16,13 +16,12 @@
 package cmd
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"io/fs"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -80,23 +79,16 @@ func runNewENR(w io.Writer, dataDir string, verbose bool) error {
 }
 
 // writeExpandedEnr writes the expanded form of ENR to the terminal.
-func writeExpandedEnr(w io.Writer, r enr.Record, privKey *ecdsa.PrivateKey) {
+func writeExpandedEnr(w io.Writer, r enr.Record, privKey *k1.PrivateKey) {
 	var sb strings.Builder
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString("***************** Decoded ENR (see https://enr-viewer.com/ for additional fields) **********************\n")
-	_, _ = sb.WriteString(fmt.Sprintf("secp256k1 pubkey: %#x\n", pubkeyHex(privKey.PublicKey)))
+	_, _ = sb.WriteString(fmt.Sprintf("secp256k1 pubkey: %#x\n", privKey.PubKey().SerializeCompressed()))
 	_, _ = sb.WriteString(fmt.Sprintf("signature: %#x\n", r.Signature))
 	_, _ = sb.WriteString("********************************************************************************************************\n")
 	_, _ = sb.WriteString("\n")
 
 	_, _ = w.Write([]byte(sb.String()))
-}
-
-// pubkeyHex compresses the provided public key and returns the 0x hex encoded string.
-func pubkeyHex(pubkey ecdsa.PublicKey) string {
-	b := crypto.CompressPubkey(&pubkey)
-
-	return fmt.Sprintf("%#x", b)
 }
 
 func bindEnrFlags(flags *pflag.FlagSet, verbose *bool) {

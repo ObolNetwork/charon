@@ -193,6 +193,7 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 		}
 
 		// Verify definition hash
+		// Note: libp2p verify does another hash of defHash.
 		ok, err := pubkey.Verify(s.defHash, msg.HashSignature)
 		if err != nil {
 			return errors.Wrap(err, "verify sig hash")

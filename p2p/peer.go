@@ -16,16 +16,15 @@
 package p2p
 
 import (
-	"bytes"
-	"crypto/ecdsa"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/crypto"
-	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/eth2util/enr"
 )
 
@@ -51,7 +50,7 @@ func (p Peer) ShareIdx() int {
 }
 
 // PublicKey returns peer public key.
-func (p Peer) PublicKey() (*ecdsa.PublicKey, error) {
+func (p Peer) PublicKey() (*k1.PublicKey, error) {
 	return PeerIDToKey(p.ID)
 }
 
@@ -87,33 +86,18 @@ func NewPeerFromENR(record enr.Record, index int) (Peer, error) {
 }
 
 // PeerIDToKey returns the public key of the peer ID.
-func PeerIDToKey(p peer.ID) (*ecdsa.PublicKey, error) {
+func PeerIDToKey(p peer.ID) (*k1.PublicKey, error) {
 	pk, err := p.ExtractPublicKey()
 	if err != nil {
 		return nil, errors.Wrap(err, "extract pubkey")
 	}
 
-	raw, err := pk.Raw()
-	if err != nil {
-		return nil, errors.Wrap(err, "raw pubkey")
-	}
-
-	resp, err := crypto.DecompressPubkey(raw)
-	if err != nil {
-		return nil, errors.Wrap(err, "decompress pubkey")
-	}
-
-	return resp, nil
+	return k1util.PublicKeyFromLibP2P(pk)
 }
 
 // PeerIDFromKey returns the peer ID of the public key.
-func PeerIDFromKey(pubkey *ecdsa.PublicKey) (peer.ID, error) {
-	p2pPubkey, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(crypto.CompressPubkey(pubkey))
-	if err != nil {
-		return "", errors.Wrap(err, "convert pubkey")
-	}
-
-	id, err := peer.IDFromPublicKey(p2pPubkey)
+func PeerIDFromKey(pubkey *k1.PublicKey) (peer.ID, error) {
+	id, err := peer.IDFromPublicKey((*crypto.Secp256k1PublicKey)(pubkey))
 	if err != nil {
 		return "", errors.Wrap(err, "p2p id from pubkey")
 	}
@@ -167,8 +151,8 @@ func (p *MutablePeer) Subscribe(sub func(Peer)) {
 }
 
 // VerifyP2PKey returns an error if the p2pkey doesn't match any lock operator ENR.
-func VerifyP2PKey(peers []Peer, key *ecdsa.PrivateKey) error {
-	wantBytes := crypto.CompressPubkey(&key.PublicKey)
+func VerifyP2PKey(peers []Peer, key *k1.PrivateKey) error {
+	want := key.PubKey()
 
 	for _, p := range peers {
 		pk, err := p.ID.ExtractPublicKey()
@@ -176,12 +160,12 @@ func VerifyP2PKey(peers []Peer, key *ecdsa.PrivateKey) error {
 			return errors.Wrap(err, "extract pubkey from peer id")
 		}
 
-		gotBytes, err := pk.Raw()
+		got, err := k1util.PublicKeyFromLibP2P(pk)
 		if err != nil {
-			return errors.Wrap(err, "key to bytes")
+			return err
 		}
 
-		if bytes.Equal(wantBytes, gotBytes) {
+		if got.IsEqual(want) {
 			return nil
 		}
 	}

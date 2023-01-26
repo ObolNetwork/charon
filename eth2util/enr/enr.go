@@ -17,16 +17,16 @@
 package enr
 
 import (
-	"crypto/ecdsa"
 	"encoding/base64"
 	"net"
 	"sort"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"golang.org/x/crypto/sha3"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/eth2util/rlp"
 )
 
@@ -79,7 +79,7 @@ func Parse(enrStr string) (Record, error) {
 
 		switch string(elements[i]) {
 		case keySecp256k1:
-			r.PubKey, err = crypto.DecompressPubkey(elements[i+1])
+			r.PubKey, err = k1.ParsePubKey(elements[i+1])
 			if err != nil {
 				return Record{}, errors.Wrap(err, "invalid secp256k1 public key")
 			}
@@ -126,10 +126,10 @@ func WithUDP(port int) Option {
 }
 
 // New returns a new enr record for the given private key and provided options.
-func New(privkey *ecdsa.PrivateKey, opts ...Option) (Record, error) {
+func New(privkey *k1.PrivateKey, opts ...Option) (Record, error) {
 	kvs := map[string][]byte{
 		keyID:        []byte(valID),
-		keySecp256k1: crypto.CompressPubkey(&privkey.PublicKey),
+		keySecp256k1: privkey.PubKey().SerializeCompressed(),
 	}
 
 	for _, opt := range opts {
@@ -142,7 +142,7 @@ func New(privkey *ecdsa.PrivateKey, opts ...Option) (Record, error) {
 	}
 
 	return Record{
-		PubKey:    &privkey.PublicKey,
+		PubKey:    privkey.PubKey(),
 		Signature: sig,
 		kvs:       kvs,
 	}, nil
@@ -151,7 +151,7 @@ func New(privkey *ecdsa.PrivateKey, opts ...Option) (Record, error) {
 // Record represents an Ethereum Node Record.
 type Record struct {
 	// Node public key (identity).
-	PubKey *ecdsa.PublicKey
+	PubKey *k1.PublicKey
 	// Signature of the record.
 	Signature []byte
 
@@ -202,27 +202,29 @@ func encodeElements(signature []byte, kvs map[string][]byte) []byte {
 }
 
 // sign returns a enr record signature.
-func sign(privkey *ecdsa.PrivateKey, kvs map[string][]byte) ([]byte, error) {
+func sign(privkey *k1.PrivateKey, kvs map[string][]byte) ([]byte, error) {
 	h := sha3.NewLegacyKeccak256()
 	_, _ = h.Write(encodeElements(nil, kvs))
 	digest := h.Sum(nil)
 
-	sig, err := crypto.Sign(digest, privkey)
+	sig, err := k1util.Sign(privkey, digest)
 	if err != nil {
 		return nil, errors.Wrap(err, "sign enr")
 	}
 
-	return sig[:len(sig)-1], nil // remove v (recovery id), nil
+	return sig[:len(sig)-1], nil // remove v (recovery id)
 }
 
 // verify return an error if the record signature verification fails.
-func verify(pubkey *ecdsa.PublicKey, signature, rawExclSig []byte) error {
+func verify(pubkey *k1.PublicKey, signature, rawExclSig []byte) error {
 	h := sha3.NewLegacyKeccak256()
 	h.Write(rawExclSig)
 	digest := h.Sum(nil)
 
-	if !crypto.VerifySignature(crypto.CompressPubkey(pubkey), digest, signature) {
-		return errors.New("invalid enr Signature")
+	if ok, err := k1util.Verify(pubkey, digest, signature); err != nil {
+		return err
+	} else if !ok {
+		return errors.New("invalid enr signature")
 	}
 
 	return nil

@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/libp2p/go-libp2p"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -65,8 +64,7 @@ func TestComponent(t *testing.T) {
 		mAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", addr.IP, addr.Port))
 		require.NoError(t, err)
 
-		priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(p2pkeys[i]))
-		require.NoError(t, err)
+		priv := (*libp2pcrypto.Secp256k1PrivateKey)(p2pkeys[i])
 		h, err := libp2p.New(libp2p.Identity(priv), libp2p.ListenAddrs(mAddr))
 		require.NoError(t, err)
 

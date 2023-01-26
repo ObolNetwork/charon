@@ -17,10 +17,9 @@ package priority
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
@@ -28,6 +27,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
@@ -71,7 +71,7 @@ type coreConsensus interface {
 // NewComponent returns a new priority component.
 func NewComponent(ctx context.Context, tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc,
 	registerHandlerFunc p2p.RegisterHandlerFunc, consensus coreConsensus,
-	exchangeTimeout time.Duration, privkey *ecdsa.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
+	exchangeTimeout time.Duration, privkey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 ) (*Component, error) {
 	verifier, err := newMsgVerifier(peers)
 	if err != nil {
@@ -95,7 +95,7 @@ func NewComponent(ctx context.Context, tcpNode host.Host, peers []peer.ID, minRe
 // friendly API (hiding the underlying protobuf types) and does signing.
 type Component struct {
 	peerID       peer.ID
-	privkey      *ecdsa.PrivateKey
+	privkey      *k1.PrivateKey
 	prioritiser  *Prioritiser
 	deadlineFunc func(duty core.Duty) (time.Time, bool)
 }
@@ -163,7 +163,7 @@ func (c *Component) Prioritise(ctx context.Context, duty core.Duty, proposals ..
 }
 
 // signMsg returns a copy of the proto message with a populated signature signed by the provided private key.
-func signMsg(msg *pbv1.PriorityMsg, privkey *ecdsa.PrivateKey) (*pbv1.PriorityMsg, error) {
+func signMsg(msg *pbv1.PriorityMsg, privkey *k1.PrivateKey) (*pbv1.PriorityMsg, error) {
 	clone := proto.Clone(msg).(*pbv1.PriorityMsg)
 	clone.Signature = nil
 
@@ -172,7 +172,7 @@ func signMsg(msg *pbv1.PriorityMsg, privkey *ecdsa.PrivateKey) (*pbv1.PriorityMs
 		return nil, err
 	}
 
-	clone.Signature, err = crypto.Sign(hash[:], privkey)
+	clone.Signature, err = k1util.Sign(privkey, hash[:])
 	if err != nil {
 		return nil, errors.Wrap(err, "sign")
 	}
@@ -181,7 +181,7 @@ func signMsg(msg *pbv1.PriorityMsg, privkey *ecdsa.PrivateKey) (*pbv1.PriorityMs
 }
 
 // verifyMsgSig returns true if the message was signed by pubkey.
-func verifyMsgSig(msg *pbv1.PriorityMsg, pubkey *ecdsa.PublicKey) (bool, error) {
+func verifyMsgSig(msg *pbv1.PriorityMsg, pubkey *k1.PublicKey) (bool, error) {
 	if msg.Signature == nil {
 		return false, errors.New("empty signature")
 	}
@@ -193,12 +193,12 @@ func verifyMsgSig(msg *pbv1.PriorityMsg, pubkey *ecdsa.PublicKey) (bool, error) 
 		return false, err
 	}
 
-	actual, err := crypto.SigToPub(hash[:], msg.Signature)
+	actual, err := k1util.Recover(hash[:], msg.Signature)
 	if err != nil {
 		return false, errors.Wrap(err, "sig to pub")
 	}
 
-	if !pubkey.Equal(actual) {
+	if !pubkey.IsEqual(actual) {
 		return false, nil
 	}
 
@@ -208,7 +208,7 @@ func verifyMsgSig(msg *pbv1.PriorityMsg, pubkey *ecdsa.PublicKey) (bool, error) 
 // newMsgVerifier returns a function that verifies message signatures using peer public keys.
 func newMsgVerifier(peers []peer.ID) (func(msg *pbv1.PriorityMsg) error, error) {
 	// Extract peer pubkeys.
-	keys := make(map[string]*ecdsa.PublicKey)
+	keys := make(map[string]*k1.PublicKey)
 	for _, p := range peers {
 		pk, err := p2p.PeerIDToKey(p)
 		if err != nil {

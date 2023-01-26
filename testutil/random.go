@@ -39,7 +39,8 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/libp2p/go-libp2p"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -814,16 +815,15 @@ func CreateHost(t *testing.T, addr *net.TCPAddr, opts ...libp2p.Option) host.Hos
 	return h
 }
 
-func RandomENR(t *testing.T, random io.Reader) (*ecdsa.PrivateKey, enr.Record) {
+func RandomENR(t *testing.T, random io.Reader) (*k1.PrivateKey, enr.Record) {
 	t.Helper()
 
-	p2pKey, err := ecdsa.GenerateKey(crypto.S256(), random)
+	key := GenerateInsecureK1Key(t, random)
+
+	record, err := enr.New(key)
 	require.NoError(t, err)
 
-	record, err := enr.New(p2pKey)
-	require.NoError(t, err)
-
-	return p2pKey, record
+	return key, record
 }
 
 func RandomCoreAttestationData(t *testing.T) core.AttestationData {
@@ -872,4 +872,17 @@ func RandomHex32() (string, error) {
 	}
 
 	return hex.EncodeToString(b), nil
+}
+
+// GenerateInsecureK1Key returns a new deterministic insecure secp256k1 private using the provided seed for testing purposes only.
+// For random keys, rather use k1.GeneratePrivateKey().
+func GenerateInsecureK1Key(t *testing.T, random io.Reader) *k1.PrivateKey {
+	t.Helper()
+
+	k, err := ecdsa.GenerateKey(k1.S256(), random)
+	require.NoError(t, err)
+
+	b := math.PaddedBigBytes(k.D, k.Params().BitSize/8)
+
+	return k1.PrivKeyFromBytes(b)
 }

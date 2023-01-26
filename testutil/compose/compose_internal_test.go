@@ -18,11 +18,13 @@ package compose
 import (
 	"bytes"
 	"context"
+	"math/rand"
 	"os"
 	"path"
 	"testing"
 	"text/template"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/testutil"
@@ -76,7 +78,10 @@ func TestDockerCompose(t *testing.T) {
 		},
 	}
 
-	p2pSeed = 1
+	random := rand.New(rand.NewSource(0))
+	keyGenFunc = func() (*k1.PrivateKey, error) {
+		return testutil.GenerateInsecureK1Key(t, random), nil
+	}
 	noPull = true
 
 	for _, test := range tests {
