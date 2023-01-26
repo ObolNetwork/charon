@@ -16,9 +16,11 @@
 package eth2util_test
 
 import (
+	"encoding/hex"
 	"strings"
 	"testing"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util"
@@ -62,4 +64,18 @@ func TestInvalidAddrs(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestPublicKeyToAddress(t *testing.T) {
+	// Test fixtures from geth/crypto package.
+	const testAddrHex = "0x970E8128AB834E8EAC17Ab8E3812F010678CF791"
+	const testPrivHex = "289c2857d4598e37fb9647507e47a309d6133539bf21a8b9cb6df88fd5232032"
+
+	b, err := hex.DecodeString(testPrivHex)
+	require.NoError(t, err)
+
+	privKey := k1.PrivKeyFromBytes(b)
+
+	actual := eth2util.PublicKeyToAddress(privKey.PubKey())
+	require.Equal(t, testAddrHex, actual)
 }

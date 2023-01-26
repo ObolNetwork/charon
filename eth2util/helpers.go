@@ -23,6 +23,7 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"golang.org/x/crypto/sha3"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -49,11 +50,16 @@ func ChecksumAddress(address string) (string, error) {
 		return "", errors.New("invalid ethereum hex address", z.Str("address", address))
 	}
 
-	hexAddr := hex.EncodeToString(b)
+	return checksumAddressBytes(b), nil
+}
 
-	sha := sha3.NewLegacyKeccak256()
-	_, _ = sha.Write([]byte(hexAddr))
-	hexHash := hex.EncodeToString(sha.Sum(nil))
+// ChecksumAddress returns an EIP55-compliant 0xhex representation of the 0xhex ethereum address.
+func checksumAddressBytes(addressBytes []byte) string {
+	hexAddr := hex.EncodeToString(addressBytes)
+
+	h := sha3.NewLegacyKeccak256()
+	_, _ = h.Write([]byte(hexAddr))
+	hexHash := hex.EncodeToString(h.Sum(nil))
 
 	resp := []rune{'0', 'x'}
 	for i, c := range []rune(hexAddr) {
@@ -63,5 +69,13 @@ func ChecksumAddress(address string) (string, error) {
 		resp = append(resp, c)
 	}
 
-	return string(resp), nil
+	return string(resp)
+}
+
+// PublicKeyToAddress returns the EIP55-compliant 0xhex ethereum address of the public key.
+func PublicKeyToAddress(pubkey *k1.PublicKey) string {
+	h := sha3.NewLegacyKeccak256()
+	_, _ = h.Write(pubkey.SerializeUncompressed()[1:])
+
+	return checksumAddressBytes(h.Sum(nil)[12:])
 }
