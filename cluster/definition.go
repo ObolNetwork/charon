@@ -344,21 +344,21 @@ func (d Definition) SetDefinitionHashes() (Definition, error) {
 }
 
 func (d Definition) MarshalJSON() ([]byte, error) {
-	d, err := d.SetDefinitionHashes()
+	d2, err := d.SetDefinitionHashes()
 	if err != nil {
 		return nil, err
 	}
 
 	switch {
-	case isV1x0(d.Version) || isV1x1(d.Version):
-		return marshalDefinitionV1x0or1(d)
-	case isV1x2(d.Version) || isV1x3(d.Version):
+	case isV1x0(d2.Version) || isV1x1(d2.Version):
+		return marshalDefinitionV1x0or1(d2)
+	case isV1x2(d2.Version) || isV1x3(d2.Version):
 		// v1.2 and v1.3 has the same json format.
-		return marshalDefinitionV1x2or3(d)
-	case isV1x4(d.Version):
-		return marshalDefinitionV1x4(d)
-	case isV1x5(d.Version):
-		return marshalDefinitionV1x5(d)
+		return marshalDefinitionV1x2or3(d2)
+	case isV1x4(d2.Version):
+		return marshalDefinitionV1x4(d2)
+	case isV1x5(d2.Version):
+		return marshalDefinitionV1x5(d2)
 	default:
 		return nil, errors.New("unsupported version")
 	}

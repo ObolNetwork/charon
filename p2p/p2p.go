@@ -191,7 +191,11 @@ func (f peerRoutingFunc) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo
 // RegisterConnectionLogger registers a connection logger with the host.
 // This is pretty weird and hacky, but that is because libp2p uses the network.Notifiee interface as a map key,
 // so the implementation can only contain fields that are hashable. So we use a channel and do the logic externally. :(.
-func RegisterConnectionLogger(tcpNode host.Host, peerIDs []peer.ID) {
+func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []peer.ID) {
+	ctx = log.WithTopic(ctx, "p2p")
+	quit := make(chan struct{})
+	defer close(quit)
+
 	var (
 		peers  = make(map[peer.ID]bool)
 		events = make(chan logEvent)
@@ -203,42 +207,47 @@ func RegisterConnectionLogger(tcpNode host.Host, peerIDs []peer.ID) {
 
 	tcpNode.Network().Notify(connLogger{
 		events: events,
+		quit:   quit,
 	})
 
 	go func() {
-		ctx := log.WithTopic(context.Background(), "p2p")
-		for e := range events {
-			addr := NamedAddr(e.Addr)
-			name := PeerName(e.Peer)
-			typ := addrType(e.Addr)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case e := <-events:
+				addr := NamedAddr(e.Addr)
+				name := PeerName(e.Peer)
+				typ := addrType(e.Addr)
 
-			if e.Listen {
-				log.Debug(ctx, "Libp2p listening on address", z.Str("address", addr))
-				continue
-			} else if e.Connected {
-				log.Debug(ctx, "Libp2p new connection",
-					z.Str("peer", name),
-					z.Any("peer_address", addr),
-					z.Any("direction", e.Direction),
-					z.Str("type", typ),
-				)
+				if e.Listen {
+					log.Debug(ctx, "Libp2p listening on address", z.Str("address", addr))
+					continue
+				} else if e.Connected {
+					log.Debug(ctx, "Libp2p new connection",
+						z.Str("peer", name),
+						z.Any("peer_address", addr),
+						z.Any("direction", e.Direction),
+						z.Str("type", typ),
+					)
+				}
+
+				if !peers[e.Peer] {
+					// Do not instrument relays.
+					continue
+				}
+
+				if e.Connected {
+					peerConnGauge.WithLabelValues(name, addrType(e.Addr)).Inc()
+					peerConnCounter.WithLabelValues(name).Inc()
+				} else if e.Disconnect {
+					peerConnGauge.WithLabelValues(name, addrType(e.Addr)).Dec()
+				}
+
+				// Ensure both connection type metrics are initiated
+				peerConnGauge.WithLabelValues(name, addrTypeDirect).Add(0)
+				peerConnGauge.WithLabelValues(name, addrTypeRelay).Add(0)
 			}
-
-			if !peers[e.Peer] {
-				// Do not instrument relays.
-				continue
-			}
-
-			if e.Connected {
-				peerConnGauge.WithLabelValues(name, addrType(e.Addr)).Inc()
-				peerConnCounter.WithLabelValues(name).Inc()
-			} else if e.Disconnect {
-				peerConnGauge.WithLabelValues(name, addrType(e.Addr)).Dec()
-			}
-
-			// Ensure both connection type metrics are initiated
-			peerConnGauge.WithLabelValues(name, addrTypeDirect).Add(0)
-			peerConnGauge.WithLabelValues(name, addrTypeRelay).Add(0)
 		}
 	}()
 }
@@ -256,34 +265,44 @@ type logEvent struct {
 // connLogger implements network.Notifee and only sends logEvents on a channel since
 // it is used as a map key internally in libp2p, it cannot contain complex types.
 type connLogger struct {
+	quit   chan struct{}
 	events chan logEvent
 }
 
 func (l connLogger) Listen(_ network.Network, addr ma.Multiaddr) {
-	l.events <- logEvent{
+	select {
+	case <-l.quit:
+	case l.events <- logEvent{
 		Addr:   addr,
 		Listen: true,
+	}:
 	}
 }
 
 func (connLogger) ListenClose(network.Network, ma.Multiaddr) {}
 
 func (l connLogger) Connected(_ network.Network, conn network.Conn) {
-	l.events <- logEvent{
+	select {
+	case <-l.quit:
+	case l.events <- logEvent{
 		Peer:      conn.RemotePeer(),
 		Addr:      conn.RemoteMultiaddr(),
 		Direction: conn.Stat().Direction,
 		Connected: true,
 		ConnID:    conn.ID(),
+	}:
 	}
 }
 
 func (l connLogger) Disconnected(_ network.Network, conn network.Conn) {
-	l.events <- logEvent{
+	select {
+	case <-l.quit:
+	case l.events <- logEvent{
 		Peer:       conn.RemotePeer(),
 		Addr:       conn.RemoteMultiaddr(),
 		Disconnect: true,
 		ConnID:     conn.ID(),
+	}:
 	}
 }
 

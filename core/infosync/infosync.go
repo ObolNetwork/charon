@@ -40,7 +40,7 @@ const (
 
 // New returns a new infosync component.
 func New(prioritiser *priority.Component, versions []string, protocols []protocol.ID) *Component {
-	// Add a mock alpha protocol if alpha features enabled in order to to test infosync in prod.
+	// Add a mock alpha protocol if alpha features enabled in order to test infosync in prod.
 	// TODO(corver): Remove this once we have an actual use case.
 	if featureset.Enabled(featureset.MockAlpha) {
 		protocols = append(protocols, "/charon/mock_alpha/1.0.0")

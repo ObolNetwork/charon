@@ -76,7 +76,7 @@ func TestPRFromLog(t *testing.T) {
 		},
 		{
 			in: log{
-				Subject: "build(deps): blah blah",
+				Subject: "build(deps): foo bar",
 			},
 		},
 	}

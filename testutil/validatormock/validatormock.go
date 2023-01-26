@@ -503,7 +503,7 @@ func httpGet(ctx context.Context, base string, endpoint string) ([]byte, error) 
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode == 404 {
+	if res.StatusCode == http.StatusNotFound {
 		// Nothing found.  This is not an error, so we return nil on both counts.
 		return nil, nil
 	}

@@ -32,7 +32,7 @@ import (
 const lateFactor = 5
 
 // lateMin defines the minimum absolute value of the lateFactor.
-const lateMin = time.Second * 30
+const lateMin = time.Second * 30 //nolint:revive // Min suffix is minimum not minute.
 
 // Deadliner provides duty Deadline functionality. The C method isn’t thread safe and
 // may only be used by a single goroutine. So, multiple instances are required

@@ -261,7 +261,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers
 		return nil, nil, err
 	}
 
-	p2p.RegisterConnectionLogger(tcpNode, peerIDs)
+	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
 
 	for _, relay := range relays {
 		go func(relay *p2p.MutablePeer) {

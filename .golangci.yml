@@ -13,6 +13,7 @@ linters-settings:
   forbidigo:
     forbid:
       - 'fmt\.Print.*(# Avoid debug logging)?'
+      - 'fmt\.Errorf.*(# Prefer app/errors.Wrap)?'
   gci:
     local-prefixes: github.com/obolnetwork/charon
   gocritic:
@@ -50,8 +51,11 @@ linters-settings:
         disabled: true
       - name: cognitive-complexity
         disabled: true
-
       # Some configured revive rules
+      - name: unhandled-error
+        arguments:
+         - 'fmt.Printf'
+         - 'fmt.Println'
       - name: imports-blacklist
         arguments:
          - "errors" # Prefer ./app/errors
@@ -94,6 +98,7 @@ linters:
   disable:
     # Keep disabled
     - containedctx
+    - contextcheck
     - cyclop
     - exhaustivestruct
     - exhaustruct
@@ -108,6 +113,7 @@ linters:
     - gomnd
     - gomoddirectives
     - ifshort
+    - interfacebloat
     - interfacer
     - ireturn
     - lll # Think about adding this (max line length)
