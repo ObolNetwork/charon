@@ -294,7 +294,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 		conf.TestConfig.TCPNodeCallback(tcpNode)
 	}
 
-	p2p.RegisterConnectionLogger(tcpNode, peerIDs)
+	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
 
 	life.RegisterStop(lifecycle.StopP2PTCPNode, lifecycle.HookFuncErr(tcpNode.Close))
 

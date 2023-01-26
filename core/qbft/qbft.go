@@ -181,7 +181,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			if !strings.Contains(fmt.Sprint(r), "bug") {
 				panic(r) // Only catch internal sanity checks.
 			}
-			err = fmt.Errorf("qbft sanity check: %v", r)
+			err = fmt.Errorf("qbft sanity check: %v", r) //nolint: forbidigo // Wrapping a panic, not error.
 		}
 	}()
 

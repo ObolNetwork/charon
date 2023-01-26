@@ -50,7 +50,7 @@ type NodePeerCountProvider interface {
 }
 
 // NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
-func NewHTTPAdapterForT(_ *testing.T, address string, timeout time.Duration) *httpAdapter {
+func NewHTTPAdapterForT(_ *testing.T, address string, timeout time.Duration) Client {
 	return newHTTPAdapter(nil, address, timeout)
 }
 

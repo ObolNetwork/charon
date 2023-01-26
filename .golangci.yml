@@ -13,6 +13,7 @@ linters-settings:
   forbidigo:
     forbid:
       - 'fmt\.Print.*(# Avoid debug logging)?'
+      - 'fmt\.Errorf.*(# Prefer app/errors.Wrap)?'
   gci:
     local-prefixes: github.com/obolnetwork/charon
   gocritic:
@@ -50,8 +51,11 @@ linters-settings:
         disabled: true
       - name: cognitive-complexity
         disabled: true
-
       # Some configured revive rules
+      - name: unhandled-error
+        arguments:
+         - 'fmt.Printf'
+         - 'fmt.Println'
       - name: imports-blacklist
         arguments:
          - "errors" # Prefer ./app/errors
@@ -90,37 +94,41 @@ issues:
     - "shadow: declaration of \"err\" shadows declaration" # Relax govet
 
 linters:
-  enable-all: true
-  disable:
-    # Keep disabled
-    - containedctx
-    - cyclop
-    - exhaustivestruct
-    - exhaustruct
-    - funlen
-    - forcetypeassert
-    - gci
-    - gochecknoglobals
-    - gocyclo
-    - godox
-    - goerr113
-    - golint
-    - gomnd
-    - gomoddirectives
-    - ifshort
-    - interfacer
-    - ireturn
-    - lll # Think about adding this (max line length)
-    - maligned
-    - nonamedreturns
-    - paralleltest
-    - prealloc
-    - scopelint
-    - tagliatelle
-    - varnamelen
-    - wsl
-    # Deprecated
-    - nosnakecase
-    - structcheck
-    - varcheck
-    - deadcode
+  disable-all: true
+  enable:
+    - forbidigo
+#  disable:
+#    # Keep disabled
+#    - containedctx
+#    - contextcheck
+#    - cyclop
+#    - exhaustivestruct
+#    - exhaustruct
+#    - funlen
+#    - forcetypeassert
+#    - gci
+#    - gochecknoglobals
+#    - gocyclo
+#    - godox
+#    - goerr113
+#    - golint
+#    - gomnd
+#    - gomoddirectives
+#    - ifshort
+#    - interfacebloat
+#    - interfacer
+#    - ireturn
+#    - lll # Think about adding this (max line length)
+#    - maligned
+#    - nonamedreturns
+#    - paralleltest
+#    - prealloc
+#    - scopelint
+#    - tagliatelle
+#    - varnamelen
+#    - wsl
+#    # Deprecated
+#    - nosnakecase
+#    - structcheck
+#    - varcheck
+#    - deadcode

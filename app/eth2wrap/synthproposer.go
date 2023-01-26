@@ -405,7 +405,7 @@ func getStandardHashFn() shuffle.HashFn {
 	hash := sha256.New()
 	hashFn := func(in []byte) []byte {
 		hash.Reset()
-		hash.Write(in)
+		_, _ = hash.Write(in)
 
 		return hash.Sum(nil)
 	}

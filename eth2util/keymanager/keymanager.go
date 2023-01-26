@@ -84,7 +84,7 @@ func (c Client) VerifyConnection(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "cannot ping address", z.Str("addr", c.baseURL))
 	}
-	conn.Close()
+	_ = conn.Close()
 
 	return nil
 }
@@ -121,7 +121,7 @@ func postKeys(ctx context.Context, addr string, reqBody keymanagerReq) error {
 	if err != nil {
 		return errors.Wrap(err, "read response")
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
 		return errors.New("failed posting keys", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
