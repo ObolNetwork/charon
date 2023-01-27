@@ -17,7 +17,6 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           version: v1.50.1
-          only-new-issues: true
 
       - name: notify failure
         if: failure() && github.ref == 'refs/heads/main'
