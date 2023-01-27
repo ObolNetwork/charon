@@ -88,7 +88,6 @@ func run(ctx context.Context, lockfile, inputDir, outputDir string) error {
 	return keystore.StoreKeys([]*bls_sig.SecretKey{secret}, outputDir)
 }
 
-//nolint:gocognit // It is just nested loops searching through all DVs to find the index of each share.
 func secretsToShares(lock cluster.Lock, secrets []*bls_sig.SecretKey) ([]*bls_sig.SecretKeyShare, error) {
 	n := len(lock.Operators)
 

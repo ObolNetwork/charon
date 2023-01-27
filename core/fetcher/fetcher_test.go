@@ -316,7 +316,6 @@ func TestFetchBlocks(t *testing.T) {
 	})
 }
 
-//nolint:gocognit
 func TestFetchSyncContribution(t *testing.T) {
 	ctx := context.Background()
 
