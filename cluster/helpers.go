@@ -220,6 +220,38 @@ func putByteList(h ssz.HashWalker, b []byte, limit int, field string) error {
 	return nil
 }
 
+// putByteList appends b as a ssz fixed size byte array of length n.
+func putBytesN(h ssz.HashWalker, b []byte, n int) error {
+	if len(b) > n {
+		return errors.New("bytes too long", z.Int("n", n), z.Int("l", len(b)))
+	}
+
+	h.PutBytes(leftPad(b, n))
+
+	return nil
+}
+
+// putHexBytes20 appends a 20 byte fixed size byte ssz array from the 0xhex address.
+func putHexBytes20(h ssz.HashWalker, addr string) error {
+	b, err := from0xHex(addr, addressLen)
+	if err != nil {
+		return err
+	}
+
+	h.PutBytes(leftPad(b, addressLen))
+
+	return nil
+}
+
+// leftPad returns the byte slice left padded with zero to ensure a length of at least l.
+func leftPad(b []byte, l int) []byte {
+	for len(b) < l {
+		b = append([]byte{0x00}, b...)
+	}
+
+	return b
+}
+
 // to0xHex returns the bytes as a 0x prefixed hex string.
 func to0xHex(b []byte) string {
 	if len(b) == 0 {

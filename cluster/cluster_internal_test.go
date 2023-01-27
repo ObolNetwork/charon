@@ -35,6 +35,19 @@ func TestDefinitionVerify(t *testing.T) {
 	secret1, op1 := randomOperator(t)
 	secret3, creator := randomCreator(t)
 
+	t.Run("verify definition v1.5 solo", func(t *testing.T) {
+		definition := randomDefinition(t, creator, Operator{}, Operator{},
+			WithVersion(v1_5),
+			WithMultiVAddrs(RandomValidatorAddresses(2)),
+		)
+
+		definition, err = signCreator(secret3, definition)
+		require.NoError(t, err)
+
+		err = definition.VerifySignatures()
+		require.NoError(t, err)
+	})
+
 	t.Run("verify definition v1.5", func(t *testing.T) {
 		definition := randomDefinition(t, creator, op0, op1,
 			WithVersion(v1_5),
