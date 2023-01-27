@@ -472,25 +472,23 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	wireRecaster(sched, sigAgg, broadcaster)
 
+	opts := []core.WireOption{
+		core.WithTracing(),
+		core.WithAsyncRetry(retryer),
+	}
 	if featureset.Enabled(featureset.TrackerV2) {
 		track, err := newTrackerV2(ctx, life, deadlineFunc, peers, eth2Cl)
 		if err != nil {
 			return err
 		}
 
-		core.Wire(sched, fetch, cons, dutyDB, vapi,
-			parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster,
+		opts = []core.WireOption{
 			core.WithTracing(),
 			core.WithTracking(track),
 			core.WithAsyncRetry(retryer),
-		)
-	} else {
-		core.Wire(sched, fetch, cons, dutyDB, vapi,
-			parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster,
-			core.WithTracing(),
-			core.WithAsyncRetry(retryer),
-		)
+		}
 	}
+	core.Wire(sched, fetch, cons, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 
 	err = wireValidatorMock(conf, pubshares, sched)
 	if err != nil {
@@ -610,7 +608,15 @@ func wireTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func
 func newTrackerV2(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(duty core.Duty) (time.Time, bool),
 	peers []p2p.Peer, eth2Cl eth2wrap.Client,
 ) (core.Tracker, error) {
-	analyser := core.NewDeadliner(ctx, "tracker2_analyser", deadlineFunc)
+	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	analyser := core.NewDeadliner(ctx, "tracker2_analyser", func(duty core.Duty) (time.Time, bool) {
+		d, ok := deadlineFunc(duty)
+		return d.Add(slotDuration), ok // Add one slot delay to analyser to capture duty expired errors.
+	})
 	deleter := core.NewDeadliner(ctx, "tracker2_deleter", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
 		return d.Add(time.Minute), ok // Delete duties after deadline+1min.

@@ -329,8 +329,12 @@ func dutyFailedStep(es []event) (bool, step, error) {
 		return true, zero, nil // Duty failed since no events.
 	}
 
-	// Copy and sort in reverse order (see step order above).
+	// Copy and sort in ascending order of steps (see step order above).
 	clone := append([]event(nil), es...)
+
+	// This sorting is based on assumption:
+	// If we have multiple events of the same step with at least one non-error event then
+	// non-error events are present after error events. Retryer doesn't retry after successful attempt.
 	sort.Slice(clone, func(i, j int) bool {
 		return clone[i].step < clone[j].step
 	})

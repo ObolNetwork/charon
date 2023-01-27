@@ -1082,3 +1082,18 @@ func TestAnalyseParSigs(t *testing.T) {
 
 	require.Equal(t, expect, lengths)
 }
+
+func TestDutyFailedMultipleEvents(t *testing.T) {
+	err := errors.New("test error")
+	var events []event
+	for step := fetcher; step < sentinel; step++ {
+		for i := 0; i < 5; i++ {
+			events = append(events, event{step: step, stepErr: err})
+		}
+		events = append(events, event{step: step})
+	}
+	failed, step, err := dutyFailedStep(events)
+	require.False(t, failed)
+	require.Equal(t, zero, step)
+	require.NoError(t, err)
+}
