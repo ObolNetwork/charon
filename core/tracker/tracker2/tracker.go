@@ -334,10 +334,10 @@ func dutyFailedStep(es []event) (bool, step, error) {
 	// Copy and sort in ascending order of steps (see step order above).
 	clone := append([]event(nil), es...)
 
-	// This sorting is based on assumption:
-	// If we have multiple events of the same step with at least one non-error event then
-	// non-error events are present after error events. Retryer doesn't retry after successful attempt.
-	sort.Slice(clone, func(i, j int) bool {
+	// SliceStable is needed to keep same elements in the original order which means multiple events of the same step
+	// with at least one non-error event will have error events followed by non-error events in the sorted slice as
+	// retryer doesn't retry after successful attempt.
+	sort.SliceStable(clone, func(i, j int) bool {
 		return clone[i].step < clone[j].step
 	})
 

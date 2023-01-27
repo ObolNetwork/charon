@@ -691,6 +691,7 @@ func TestFromSlot(t *testing.T) {
 	<-done
 }
 
+//nolint:maintidx
 func TestAnalyseFetcherFailed(t *testing.T) {
 	const slot = 123
 	dutyAgg := core.NewAggregatorDuty(slot)
