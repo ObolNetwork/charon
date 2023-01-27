@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Package eip712 provides a minimal EIP-712 implementation supporting only a few
+// primitive types and fixed set of domain fields.
 package eip712
 
 import (
