@@ -16,14 +16,12 @@
 package consensus
 
 import (
-	"crypto/ecdsa"
 	"encoding/hex"
 	"math/rand"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -196,10 +194,9 @@ func TestLegacyMsgHashAndSig(t *testing.T) {
 	hash, err := hashProto(msg)
 	require.NoError(t, err)
 
-	privkey, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(0)))
-	require.NoError(t, err)
+	privkey := testutil.GenerateInsecureK1Key(t, rand.New(rand.NewSource(0)))
 
-	sig, err := crypto.Sign(hash[:], privkey)
+	sig, err := k1util.Sign(privkey, hash[:])
 	require.NoError(t, err)
 
 	require.Equal(t,

@@ -53,7 +53,7 @@ func ChecksumAddress(address string) (string, error) {
 	return checksumAddressBytes(b), nil
 }
 
-// ChecksumAddress returns an EIP55-compliant 0xhex representation of the 0xhex ethereum address.
+// ChecksumAddress returns an EIP55-compliant 0xhex representation of the binary ethereum address.
 func checksumAddressBytes(addressBytes []byte) string {
 	hexAddr := hex.EncodeToString(addressBytes)
 

@@ -34,6 +34,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -187,8 +188,13 @@ func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr
 		aggSigsEth2[pubkey] = sigEth2
 	}
 
+	withdrawalAddr, err := eth2util.ChecksumAddress(withdrawalAddr)
+	if err != nil {
+		return err
+	}
+
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(aggSigsEth2, checksumAddr(withdrawalAddr), network)
+	bytes, err := deposit.MarshalDepositData(aggSigsEth2, withdrawalAddr, network)
 	if err != nil {
 		return err
 	}

@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util"
@@ -212,11 +211,10 @@ func randomCreator(t *testing.T) (*k1.PrivateKey, Creator) {
 	secret, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
-	pk := secret.PubKey().ToECDSA()
-	addr := crypto.PubkeyToAddress(*pk)
+	addr := eth2util.PublicKeyToAddress(secret.PubKey())
 
 	return secret, Creator{
-		Address: addr.Hex(),
+		Address: addr,
 	}
 }
 
@@ -227,11 +225,10 @@ func randomOperator(t *testing.T) (*k1.PrivateKey, Operator) {
 	secret, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
-	pk := secret.PubKey().ToECDSA()
-	addr := crypto.PubkeyToAddress(*pk)
+	addr := eth2util.PublicKeyToAddress(secret.PubKey())
 
 	return secret, Operator{
-		Address: addr.Hex(),
+		Address: addr,
 		ENR:     fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
 	}
 }

@@ -23,9 +23,9 @@ import (
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
@@ -83,10 +83,9 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		record, err := enr.New(p2pKey)
 		require.NoError(t, err)
 
-		pk := p2pKey.PubKey().ToECDSA()
-		addr := crypto.PubkeyToAddress(*pk)
+		addr := eth2util.PublicKeyToAddress(p2pKey.PubKey())
 		op := Operator{
-			Address: addr.Hex(),
+			Address: addr,
 			ENR:     record.String(),
 			// Set to empty signatures instead of nil so aligned with unmarshalled json
 			ENRSignature:    ethHex{},
