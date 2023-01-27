@@ -21,8 +21,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"os"
+	"path"
+	"path/filepath"
+
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
@@ -32,10 +38,6 @@ import (
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"net/url"
-	"os"
-	"path"
-	"path/filepath"
 )
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It returns the test definition if configured.
@@ -168,6 +170,10 @@ func writeLock(datadir string, lock cluster.Lock) error {
 
 // writeDepositData writes deposit data file to disk.
 func writeDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLSSignature, withdrawalAddresses []string, network string, dataDir string) error {
+	if len(pubkeys) != len(withdrawalAddresses) {
+		return errors.New("insufficient withdrawal addresses")
+	}
+
 	for i := 0; i < len(withdrawalAddresses); i++ {
 		var err error
 		withdrawalAddresses[i], err = eth2util.ChecksumAddress(withdrawalAddresses[i])

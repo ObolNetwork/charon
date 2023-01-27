@@ -67,6 +67,10 @@ func getMessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.Root
 
 // MarshalDepositData serializes a list of deposit data into a single file.
 func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLSSignature, withdrawalAddrs []string, network string) ([]byte, error) {
+	if len(pubkeys) != len(withdrawalAddrs) {
+		return nil, errors.New("insufficient withdrawal addresses")
+	}
+
 	forkVersion, err := eth2util.NetworkToForkVersion(network)
 	if err != nil {
 		return nil, err

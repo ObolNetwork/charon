@@ -226,6 +226,10 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 // signDepositDatas returns Distributed Validator pubkeys and deposit data signatures corresponding to each pubkey.
 func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddresses []string, network string) ([]eth2p0.BLSPubKey, []eth2p0.BLSSignature, error) {
+	if len(secrets) != len(withdrawalAddresses) {
+		return nil, nil, errors.New("insufficient withdrawal addresses")
+	}
+
 	var (
 		pubkeys    []eth2p0.BLSPubKey
 		signatures []eth2p0.BLSSignature
