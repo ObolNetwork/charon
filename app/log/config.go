@@ -35,9 +35,10 @@ import (
 )
 
 const (
-	padLength = 40
-	keyStack  = "stacktrace"
-	keyTopic  = "topic"
+	defaultCallerSkip = 1
+	padLength         = 40
+	keyStack          = "stacktrace"
+	keyTopic          = "topic"
 )
 
 // zapLogger abstracts a zap logger.
@@ -124,10 +125,15 @@ func InitLogger(config Config) error {
 		return errors.Wrap(err, "open writer")
 	}
 
+	callerSkip := defaultCallerSkip
+	if len(config.LokiAddresses) > 0 {
+		callerSkip++
+	}
+
 	if config.Format == "console" {
 		logger = newConsoleLogger(level, writer)
 	} else {
-		logger, err = newStructuredLogger(config.Format, level, writer)
+		logger, err = newStructuredLogger(config.Format, level, writer, callerSkip)
 		if err != nil {
 			return err
 		}
@@ -145,7 +151,7 @@ func InitLogger(config Config) error {
 		loggers := multiLogger{logger}
 		for _, address := range config.LokiAddresses {
 			lokiCl := loki.New(address, config.LokiService, logFunc, getLokiLabels)
-			lokiLogger, err := newStructuredLogger("logfmt", zapcore.DebugLevel, lokiWriter{cl: lokiCl})
+			lokiLogger, err := newStructuredLogger("logfmt", zapcore.DebugLevel, lokiWriter{cl: lokiCl}, callerSkip)
 			if err != nil {
 				return err
 			}
@@ -175,7 +181,7 @@ func InitJSONForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.En
 	defer initMu.Unlock()
 
 	var err error
-	logger, err = newStructuredLogger("json", zapcore.DebugLevel, ws, opts...)
+	logger, err = newStructuredLogger("json", zapcore.DebugLevel, ws, defaultCallerSkip, opts...)
 	require.NoError(t, err)
 }
 
@@ -186,7 +192,7 @@ func InitLogfmtForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.
 	defer initMu.Unlock()
 
 	var err error
-	logger, err = newStructuredLogger("logfmt", zapcore.DebugLevel, ws, opts...)
+	logger, err = newStructuredLogger("logfmt", zapcore.DebugLevel, ws, defaultCallerSkip, opts...)
 	require.NoError(t, err)
 }
 
@@ -203,7 +209,7 @@ func Stop(ctx context.Context) {
 }
 
 // newStructuredLogger returns an opinionated logfmt or json logger.
-func newStructuredLogger(format string, level zapcore.Level, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) (*zap.Logger, error) {
+func newStructuredLogger(format string, level zapcore.Level, ws zapcore.WriteSyncer, callerSkip int, opts ...func(*zapcore.EncoderConfig)) (*zap.Logger, error) {
 	encConfig := zap.NewProductionEncoderConfig()
 	encConfig.EncodeTime = zapcore.RFC3339NanoTimeEncoder
 
@@ -229,7 +235,7 @@ func newStructuredLogger(format string, level zapcore.Level, ws zapcore.WriteSyn
 	return zap.New(
 		zapcore.NewCore(structured, ws, zap.NewAtomicLevelAt(level)),
 		zap.WithCaller(true),
-		zap.AddCallerSkip(1),
+		zap.AddCallerSkip(callerSkip),
 	), nil
 }
 
