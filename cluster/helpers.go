@@ -16,7 +16,6 @@
 package cluster
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -29,11 +28,12 @@ import (
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/ethereum/go-ethereum/crypto"
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -84,33 +84,19 @@ func uuid(random io.Reader) string {
 
 // verifySig returns true if the signature matches the digest and address.
 func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
-	if len(sig) != k1SigLen {
-		return false, errors.New("invalid signature length", z.Int("siglen", len(sig)))
-	}
-
-	// https://github.com/ethereum/go-ethereum/issues/19751#issuecomment-504900739
-	// TL;DR: Metamask signatures end with 0x1b (27) or 0x1c (28) while go-ethereum/crypto signatures end with 0x0(0) or 0x1(1) and both are correct.
-	if sig[k1RecIdx] != 0 && sig[k1RecIdx] != 1 && sig[k1RecIdx] != 27 && sig[k1RecIdx] != 28 {
-		return false, errors.New("invalid recovery id", z.Any("id", sig[k1RecIdx]))
-	}
-
-	if sig[k1RecIdx] == 27 || sig[k1RecIdx] == 28 {
-		sig[k1RecIdx] -= 27 // Make the last byte 0 or 1 since that is the canonical V value.
-	}
-
-	pubkey, err := crypto.SigToPub(digest, sig)
-	if err != nil {
-		return false, errors.Wrap(err, "pubkey from signature")
-	}
-
-	actualAddr := crypto.PubkeyToAddress(*pubkey)
-
-	addrBytes, err := from0xHex(expectedAddr, addressLen)
+	expectedAddr, err := eth2util.ChecksumAddress(expectedAddr)
 	if err != nil {
 		return false, err
 	}
 
-	return bytes.Equal(addrBytes, actualAddr[:]), nil
+	pubkey, err := k1util.Recover(digest, sig)
+	if err != nil {
+		return false, errors.Wrap(err, "pubkey from signature")
+	}
+
+	actualAddr := eth2util.PublicKeyToAddress(pubkey)
+
+	return expectedAddr == actualAddr, nil
 }
 
 // signCreator returns the definition with signed creator config hash.

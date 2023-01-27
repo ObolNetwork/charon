@@ -40,7 +40,6 @@ import (
 	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/libp2p/go-libp2p"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -882,7 +881,5 @@ func GenerateInsecureK1Key(t *testing.T, random io.Reader) *k1.PrivateKey {
 	k, err := ecdsa.GenerateKey(k1.S256(), random)
 	require.NoError(t, err)
 
-	b := math.PaddedBigBytes(k.D, k.Params().BitSize/8)
-
-	return k1.PrivKeyFromBytes(b)
+	return k1.PrivKeyFromBytes(k.D.Bytes())
 }

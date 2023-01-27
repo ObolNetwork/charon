@@ -28,7 +28,6 @@ import (
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -228,7 +227,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 // signDepositDatas returns a map of deposit data signatures by DV pubkey.
 func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddr string, network string) (map[eth2p0.BLSPubKey]eth2p0.BLSSignature, error) {
-	withdrawalAddr, err := checksumAddr(withdrawalAddr)
+	withdrawalAddr, err := eth2util.ChecksumAddress(withdrawalAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -558,15 +557,6 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 // nodeDir returns a node directory.
 func nodeDir(clusterDir string, i int) string {
 	return fmt.Sprintf("%s/node%d", clusterDir, i)
-}
-
-// checksumAddr returns a valid EIP55-compliant checksummed ethereum address. Returns an error if a valid address cannot be constructed.
-func checksumAddr(a string) (string, error) {
-	if !common.IsHexAddress(a) {
-		return "", errors.New("invalid address", z.Str("address", a))
-	}
-
-	return common.HexToAddress(a).Hex(), nil
 }
 
 // validateDef returns an error if the provided cluster definition is invalid.

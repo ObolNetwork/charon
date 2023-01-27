@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -193,8 +192,8 @@ func GetMessageSigningRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string, netwo
 // WithdrawalCredsFromAddr returns the Withdrawal Credentials corresponding to a '0x01' Ethereum withdrawal address.
 func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 	// Check for validity of address.
-	if !common.IsHexAddress(addr) {
-		return [32]byte{}, errors.New("invalid withdrawal address", z.Str("address", addr))
+	if _, err := eth2util.ChecksumAddress(addr); err != nil {
+		return [32]byte{}, errors.Wrap(err, "invalid withdrawal address", z.Str("addr", addr))
 	}
 
 	addrBytes, err := hex.DecodeString(strings.TrimPrefix(addr, "0x"))

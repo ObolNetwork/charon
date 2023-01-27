@@ -23,7 +23,6 @@ import (
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/ethereum/go-ethereum/common"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -535,7 +534,10 @@ func signLockHash(shareIdx int, shares []share, hash []byte) (core.ParSignedData
 
 // signDepositData returns a partially signed dataset containing signatures of the deposit data signing root.
 func signDepositData(shares []share, shareIdx int, withdrawalAddr string, network string) (core.ParSignedDataSet, map[core.PubKey][]byte, error) {
-	withdrawalHex := checksumAddr(withdrawalAddr)
+	withdrawalHex, err := eth2util.ChecksumAddress(withdrawalAddr)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	msgs := make(map[core.PubKey][]byte)
 	set := make(core.ParSignedDataSet)
@@ -629,10 +631,6 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []shar
 	}
 
 	return resp, nil
-}
-
-func checksumAddr(addr string) string {
-	return common.HexToAddress(addr).Hex()
 }
 
 // dvsFromShares returns the shares as a slice of cluster distributed validator types.

@@ -22,7 +22,6 @@ import (
 	"os"
 	"path"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -175,8 +174,8 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 }
 
 func validateWithdrawalAddr(addr string, network string) error {
-	if !common.IsHexAddress(addr) {
-		return errors.New("invalid withdrawal address", z.Str("addr", addr))
+	if _, err := eth2util.ChecksumAddress(addr); err != nil {
+		return errors.Wrap(err, "invalid withdrawal address", z.Str("addr", addr))
 	}
 
 	// We cannot allow a zero withdrawal address on mainnet or gnosis.
