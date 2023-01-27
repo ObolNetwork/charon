@@ -138,12 +138,10 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 			u, err := url.Parse(relay)
 			if err != nil {
 				return errors.Wrap(err, "parse relay address", z.Str("relay", relay))
-			} else if u.Host == "" {
-				return errors.New("invalid host", z.Str("relay", relay))
 			}
 
 			if u.Scheme == "http" {
-				log.Warn(ctx, "Relay uses HTTP which is unsafe, relays should use HTTPS instead.", nil, z.Str("relay", relay))
+				log.Warn(ctx, "Insecure relay address provided, not HTTPS", nil, z.Str("address", relay))
 			}
 		}
 
