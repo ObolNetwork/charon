@@ -38,13 +38,6 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-const (
-	// k1SigLen is the length of secp256k1 signatures.
-	k1SigLen = 65
-	// k1RecIdx is the secp256k1 signature recovery id index.
-	k1RecIdx = 64
-)
-
 // FetchDefinition fetches cluster definition file from a remote URI.
 func FetchDefinition(ctx context.Context, url string) (Definition, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
