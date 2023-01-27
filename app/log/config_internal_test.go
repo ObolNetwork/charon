@@ -16,10 +16,18 @@
 package log
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/golang/snappy"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+
+	pbv1 "github.com/obolnetwork/charon/app/log/loki/lokipb/v1"
 )
 
 func TestFormatZapTest(t *testing.T) {
@@ -42,4 +50,44 @@ testing.tRunner
 			require.Equal(t, test.Output, actual)
 		})
 	}
+}
+
+func TestLokiCaller(t *testing.T) {
+	done := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.NoError(t, r.Body.Close())
+		req := decode(t, b)
+		require.Len(t, req.Streams, 1)
+		require.Len(t, req.Streams[0].Entries, 1)
+		// Assert caller is this file.
+		require.Contains(t, req.Streams[0].Entries[0].String(), "caller=log/config_internal_test.go:")
+		close(done)
+	}))
+
+	SetLokiLabels(nil)
+
+	err := InitLogger(Config{
+		Level:         "info",
+		Format:        "console",
+		LokiAddresses: []string{srv.URL},
+		LokiService:   "test",
+	})
+	require.NoError(t, err)
+
+	Info(context.Background(), "test")
+	<-done
+}
+
+func decode(t *testing.T, b []byte) *pbv1.PushRequest {
+	t.Helper()
+
+	pb, err := snappy.Decode(nil, b)
+	require.NoError(t, err)
+
+	resp := new(pbv1.PushRequest)
+	require.NoError(t, proto.Unmarshal(pb, resp))
+
+	return resp
 }

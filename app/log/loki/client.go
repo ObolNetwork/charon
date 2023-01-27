@@ -125,8 +125,8 @@ func (c *Client) Run() {
 			_ = send(ctx, client, c.endpoint, batch, c.labels()) // On shutdown just try to send once as best effort.
 			return
 		case <-ticker.C:
-			// Do not send if the batch is too young or labels not ready yet.
-			if batch.Age() < c.batchWait || !c.labelsReady() {
+			// Do not send if the batch is empty or too young or labels not ready yet.
+			if batch.Size() == 0 || batch.Age() < c.batchWait || !c.labelsReady() {
 				continue
 			}
 
