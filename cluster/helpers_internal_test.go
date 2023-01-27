@@ -65,7 +65,7 @@ func TestVerifySig(t *testing.T) {
 	t.Run("invalid recovery id", func(t *testing.T) {
 		var newSig [65]byte
 		copy(newSig[:], sig)
-		newSig[k1RecIdx] = byte(165) // Make the last byte invalid.
+		newSig[64] = byte(165) // Make the last byte invalid.
 
 		ok, err := verifySig(addr, digest[:], newSig[:])
 		require.Error(t, err)
@@ -76,7 +76,7 @@ func TestVerifySig(t *testing.T) {
 	t.Run("sig ending with 27/28", func(t *testing.T) {
 		var newSig [65]byte
 		copy(newSig[:], sig)
-		newSig[k1RecIdx] += 27 // Make last byte 27/28.
+		newSig[64] += 27 // Make last byte 27/28.
 
 		ok, err := verifySig(addr, digest[:], newSig[:])
 		require.NoError(t, err)
