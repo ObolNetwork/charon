@@ -33,7 +33,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
@@ -170,31 +169,21 @@ func writeLock(datadir string, lock cluster.Lock) error {
 }
 
 // writeDepositData writes deposit data file to disk.
-func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr string, network string, dataDir string) error {
-	// Create deposit message signatures
-	aggSigsEth2 := make(map[eth2p0.BLSPubKey]eth2p0.BLSSignature)
-	for pk, sig := range aggSigs {
-		blsPubKey, err := tblsconv.KeyFromCore(pk)
-		if err != nil {
-			return err
-		}
-
-		pubkey, err := tblsconv.KeyToETH2(blsPubKey)
-		if err != nil {
-			return err
-		}
-
-		sigEth2 := tblsconv.SigToETH2(sig)
-		aggSigsEth2[pubkey] = sigEth2
+func writeDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLSSignature, withdrawalAddresses []string, network string, dataDir string) error {
+	if len(pubkeys) != len(withdrawalAddresses) {
+		return errors.New("insufficient withdrawal addresses")
 	}
 
-	withdrawalAddr, err := eth2util.ChecksumAddress(withdrawalAddr)
-	if err != nil {
-		return err
+	for i := 0; i < len(withdrawalAddresses); i++ {
+		var err error
+		withdrawalAddresses[i], err = eth2util.ChecksumAddress(withdrawalAddresses[i])
+		if err != nil {
+			return err
+		}
 	}
 
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(aggSigsEth2, withdrawalAddr, network)
+	bytes, err := deposit.MarshalDepositData(pubkeys, depositDataSigs, withdrawalAddresses, network)
 	if err != nil {
 		return err
 	}

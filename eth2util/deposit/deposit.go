@@ -66,10 +66,9 @@ func getMessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.Root
 }
 
 // MarshalDepositData serializes a list of deposit data into a single file.
-func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdrawalAddr, network string) ([]byte, error) {
-	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
-	if err != nil {
-		return nil, err
+func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLSSignature, withdrawalAddrs []string, network string) ([]byte, error) {
+	if len(pubkeys) != len(withdrawalAddrs) {
+		return nil, errors.New("insufficient withdrawal addresses")
 	}
 
 	forkVersion, err := eth2util.NetworkToForkVersion(network)
@@ -78,15 +77,20 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 	}
 
 	var ddList []depositDataJSON
-	for pubkey, sig := range msgSigs {
+	for i, sig := range depositDataSigs {
+		creds, err := withdrawalCredsFromAddr(withdrawalAddrs[i])
+		if err != nil {
+			return nil, err
+		}
+
 		// calculate depositMessage root
-		msgRoot, err := getMessageRoot(pubkey, withdrawalAddr)
+		msgRoot, err := getMessageRoot(pubkeys[i], withdrawalAddrs[i])
 		if err != nil {
 			return nil, err
 		}
 
 		// Verify deposit data signature
-		sigData, err := GetMessageSigningRoot(pubkey, withdrawalAddr, network)
+		sigData, err := GetMessageSigningRoot(pubkeys[i], withdrawalAddrs[i], network)
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +99,7 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 		if err != nil {
 			return nil, err
 		}
-		blsPubkey, err := tblsconv.KeyFromETH2(pubkey)
+		blsPubkey, err := tblsconv.KeyFromETH2(pubkeys[i])
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +112,7 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 		}
 
 		dd := eth2p0.DepositData{
-			PublicKey:             pubkey,
+			PublicKey:             pubkeys[i],
 			WithdrawalCredentials: creds[:],
 			Amount:                validatorAmt,
 			Signature:             sig,
@@ -119,7 +123,7 @@ func MarshalDepositData(msgSigs map[eth2p0.BLSPubKey]eth2p0.BLSSignature, withdr
 		}
 
 		ddList = append(ddList, depositDataJSON{
-			PubKey:                fmt.Sprintf("%x", pubkey),
+			PubKey:                fmt.Sprintf("%x", pubkeys[i]),
 			WithdrawalCredentials: fmt.Sprintf("%x", creds),
 			Amount:                uint64(validatorAmt),
 			Signature:             fmt.Sprintf("%x", sig),
