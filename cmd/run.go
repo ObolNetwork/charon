@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"net/url"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -26,6 +27,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -129,6 +131,24 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 	cmd.Flags().StringVar(&config.Allowlist, "p2p-allowlist", "", "Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.")
 	cmd.Flags().StringVar(&config.Denylist, "p2p-denylist", "", "Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.")
 	cmd.Flags().BoolVar(&config.DisableReuseport, "p2p-disable-reuseport", false, "Disables TCP port reuse for outgoing libp2p connections.")
+
+	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
+		ctx := log.WithTopic(cmd.Context(), "cmd")
+		for _, relay := range config.Relays {
+			u, err := url.Parse(relay)
+			if err != nil {
+				return errors.Wrap(err, "parse relay address", z.Str("relay", relay))
+			} else if u.Host == "" {
+				return errors.New("invalid host", z.Str("relay", relay))
+			}
+
+			if u.Scheme == "http" {
+				log.Warn(ctx, "Relay uses HTTP which is unsafe, relays should use HTTPS instead.", nil, z.Str("relay", relay))
+			}
+		}
+
+		return nil
+	})
 }
 
 func bindFeatureFlags(flags *pflag.FlagSet, config *featureset.Config) {
