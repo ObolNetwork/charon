@@ -22,7 +22,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -42,6 +41,7 @@ const (
 	parSigDBThreshold      // Partial signed data threshold reached; emitted from parsigdb
 	sigAgg                 // Partial signed data aggregated; emitted from sigagg
 	bcast                  // Aggregated data submitted to beacon node
+	sentinel
 )
 
 var stepLabels = map[step]string{
@@ -166,6 +166,10 @@ const (
 	// This indicates a bug in charon as it is unexpected.
 	msgFetcherSyncContributionFailedSigAggPrepare = "couldn't fetch sync contribution due to no aggregated sync contribution selection, this is unexpected"
 
+	// msgFetcherUnknownError indicates duty failed in fetcher step with some unknown error.
+	// This indicates a bug in charon as it is unexpected.
+	msgFetcherUnknownError = "couldn't fetch due to unknown error"
+
 	// msgConsensus indicates a duty failed in consensus step.
 	// This could indicate that insufficient honest peers participated in consensus or p2p network
 	// connection problems.
@@ -281,7 +285,7 @@ func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, from
 // Run blocks and registers events from each step in tracker's input channel.
 // It also analyses and reports the duties whose deadline gets crossed.
 func (t *Tracker) Run(ctx context.Context) error {
-	ctx = log.WithTopic(ctx, "tracker")
+	ctx = log.WithTopic(ctx, "tracker2")
 	defer close(t.quit)
 
 	for {
@@ -300,7 +304,7 @@ func (t *Tracker) Run(ctx context.Context) error {
 		case duty := <-t.analyser.C():
 			ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
-			parsigs := analyseParSigs(t.events[duty])
+			parsigs := analyseParSigs(ctx, t.events[duty])
 			t.parSigReporter(ctx, duty, parsigs)
 
 			// Analyse failed duties
@@ -322,7 +326,7 @@ func (t *Tracker) Run(ctx context.Context) error {
 // If the input events slice is empty, it returns true and the zero step.
 func dutyFailedStep(es []event) (bool, step, error) {
 	if len(es) == 0 {
-		return true, zero, errors.New("") // Duty failed since no events.
+		return true, zero, nil // Duty failed since no events.
 	}
 
 	// Copy and sort in reverse order (see step order above).
@@ -488,7 +492,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetch
 		}
 	}
 
-	return fmt.Sprintf("unknown error in fetcher: %s", fetchErr.Error())
+	return msgFetcherUnknownError
 }
 
 // analyseConsensusFailed returns whether the duty that got stuck in consensus got failed
@@ -497,14 +501,14 @@ func analyseConsensusFailed(duty core.Duty, consensusErr error) (bool, step, str
 	// No aggregators or sync committee contributors found in this slot.
 	// Fetcher sends an event with nil error in this case.
 	if consensusErr == nil && (duty.Type == core.DutyAggregator || duty.Type == core.DutySyncContribution) {
-		return false, zero, ""
+		return false, fetcher, ""
 	}
 
 	return true, consensus, msgConsensus
 }
 
 // analyseParSigs returns a mapping of partial signed data messages by peers (share index) by validator (pubkey).
-func analyseParSigs(events []event) parsigsByMsg {
+func analyseParSigs(ctx context.Context, events []event) parsigsByMsg {
 	type dedupKey struct {
 		Pubkey   core.PubKey
 		ShareIdx int
@@ -526,7 +530,7 @@ func analyseParSigs(events []event) parsigsByMsg {
 
 		root, err := e.parSig.MessageRoot()
 		if err != nil {
-			log.Warn(context.Background(), "Parsig message root", err)
+			log.Warn(ctx, "Parsig message root", err)
 			continue // Just log and ignore as this is highly unlikely and non-critical code.
 		}
 
