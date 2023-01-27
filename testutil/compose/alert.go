@@ -105,7 +105,6 @@ func getActiveAlerts(alerts promAlerts) []string {
 }
 
 // promAlerts is the json response returned by querying prometheus alerts.
-// nolint: revive // Nested structs are ok in this case.
 type promAlerts struct {
 	Status string `json:"status"`
 	Data   struct {

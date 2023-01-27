@@ -86,8 +86,6 @@ func (db *MemDB) Shutdown() {
 }
 
 // Store implements core.DutyDB, see its godoc.
-//
-//nolint:gocognit
 func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.UnsignedDataSet) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()

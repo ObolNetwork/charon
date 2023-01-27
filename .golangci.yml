@@ -130,6 +130,7 @@ linters:
     - forcetypeassert
     - gci
     - gochecknoglobals
+    - gocognit
     - gocyclo
     - godox
     - goerr113

@@ -94,8 +94,6 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 const unknownCluster = "unknown"
 
 // monitorConnections blocks instrumenting peer connection metrics until the context is closed.
-//
-//nolint:gocognit // Long but not complex.
 func monitorConnections(ctx context.Context, tcpNode host.Host, bwTuples <-chan bwTuple) {
 	// peerState tracks connection data per peer.
 	type peerState struct {

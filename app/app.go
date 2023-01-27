@@ -310,8 +310,6 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 }
 
 // wireCoreWorkflow wires the core workflow components.
-//
-//nolint:gocognit
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,

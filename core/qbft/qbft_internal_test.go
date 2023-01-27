@@ -205,7 +205,6 @@ type test struct {
 	Fuzz          bool                    // Enables fuzzing by Node 1.
 }
 
-//nolint:gocognit
 func testQBFT(t *testing.T, test test) {
 	t.Helper()
 
