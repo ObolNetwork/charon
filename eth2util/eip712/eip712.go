@@ -28,17 +28,12 @@ import (
 )
 
 // Primitive represents a primitive field type.
-type Primitive int
+type Primitive string
 
 const (
-	PrimitiveString  Primitive = 1
-	PrimitiveUint256 Primitive = 2
+	PrimitiveString  Primitive = "string"
+	PrimitiveUint256 Primitive = "uint256"
 )
-
-var primitiveNames = map[Primitive]string{
-	PrimitiveString:  "string",
-	PrimitiveUint256: "uint256",
-}
 
 // TypedData represents a dynamically typed EIP-712 message.
 type TypedData struct {
@@ -150,7 +145,7 @@ func encodeType(typ Type) []byte {
 		if i != 0 {
 			_, _ = buf.WriteString(",")
 		}
-		_, _ = buf.WriteString(primitiveNames[field.Type])
+		_, _ = buf.WriteString(string(field.Type))
 		_, _ = buf.WriteString(" ")
 		_, _ = buf.WriteString(field.Name)
 	}
