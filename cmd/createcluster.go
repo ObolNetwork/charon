@@ -330,6 +330,10 @@ func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]*bls_sig.Secret
 
 // writeDepositData writes deposit data to disk for the DVs for all peers in a cluster.
 func writeDepositData(withdrawalAddresses []string, clusterDir string, forkVersion []byte, numNodes int, secrets []*bls_sig.SecretKey) error {
+	if len(secrets) != len(withdrawalAddresses) {
+		return errors.New("insufficient withdrawal addresses")
+	}
+
 	network, err := eth2util.ForkVersionToNetwork(forkVersion)
 	if err != nil {
 		return err
