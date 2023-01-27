@@ -21,7 +21,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
@@ -120,8 +120,8 @@ func beaconBlockData(t *testing.T, mock *beaconmock.Mock) test {
 
 	asserted := make(chan struct{})
 
-	block1 := spec.VersionedSignedBeaconBlock{
-		Version: spec.DataVersionPhase0,
+	block1 := eth2spec.VersionedSignedBeaconBlock{
+		Version: eth2spec.DataVersionPhase0,
 		Phase0: &eth2p0.SignedBeaconBlock{
 			Message:   testutil.RandomPhase0BeaconBlock(),
 			Signature: testutil.RandomEth2Signature(),
@@ -130,7 +130,7 @@ func beaconBlockData(t *testing.T, mock *beaconmock.Mock) test {
 
 	aggData := core.VersionedSignedBeaconBlock{VersionedSignedBeaconBlock: block1}
 
-	mock.SubmitBeaconBlockFunc = func(ctx context.Context, block2 *spec.VersionedSignedBeaconBlock) error {
+	mock.SubmitBeaconBlockFunc = func(ctx context.Context, block2 *eth2spec.VersionedSignedBeaconBlock) error {
 		require.Equal(t, block1, *block2)
 		close(asserted)
 
@@ -152,7 +152,7 @@ func blindedBeaconBlockData(t *testing.T, mock *beaconmock.Mock) test {
 	asserted := make(chan struct{})
 
 	block1 := eth2api.VersionedSignedBlindedBeaconBlock{
-		Version: spec.DataVersionBellatrix,
+		Version: eth2spec.DataVersionBellatrix,
 		Capella: &eth2capella.SignedBlindedBeaconBlock{
 			Message:   testutil.RandomCapellaBlindedBeaconBlock(),
 			Signature: testutil.RandomEth2Signature(),

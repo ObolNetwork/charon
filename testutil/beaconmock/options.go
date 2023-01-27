@@ -27,7 +27,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
@@ -452,9 +452,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		HTTPMock:     httpMock,
 		httpServer:   httpServer,
 		headProducer: headProducer,
-		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
-			block := &spec.VersionedBeaconBlock{
-				Version: spec.DataVersionCapella,
+		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error) {
+			block := &eth2spec.VersionedBeaconBlock{
+				Version: eth2spec.DataVersionCapella,
 				Capella: testutil.RandomCapellaBeaconBlock(),
 			}
 			block.Capella.Slot = slot
@@ -465,7 +465,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		},
 		BlindedBeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
 			block := &eth2api.VersionedBlindedBeaconBlock{
-				Version: spec.DataVersionCapella,
+				Version: eth2spec.DataVersionCapella,
 				Capella: testutil.RandomCapellaBlindedBeaconBlock(),
 			}
 			block.Capella.Slot = slot
@@ -474,7 +474,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 
 			return block, nil
 		},
-		SignedBeaconBlockFunc: func(_ context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error) {
+		SignedBeaconBlockFunc: func(_ context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 			return testutil.RandomCapellaVersionedSignedBeaconBlock(), nil // Note the slot is probably wrong.
 		},
 		ProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -515,7 +515,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitAttestationsFunc: func(context.Context, []*eth2p0.Attestation) error {
 			return nil
 		},
-		SubmitBeaconBlockFunc: func(context.Context, *spec.VersionedSignedBeaconBlock) error {
+		SubmitBeaconBlockFunc: func(context.Context, *eth2spec.VersionedSignedBeaconBlock) error {
 			return nil
 		},
 		SubmitBlindedBeaconBlockFunc: func(context.Context, *eth2api.VersionedSignedBlindedBeaconBlock) error {

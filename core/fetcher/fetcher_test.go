@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -528,13 +528,13 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 	t.Helper()
 
 	switch block.Version {
-	case spec.DataVersionPhase0:
+	case eth2spec.DataVersionPhase0:
 		require.EqualValues(t, randao, block.Phase0.Body.RANDAOReveal)
-	case spec.DataVersionAltair:
+	case eth2spec.DataVersionAltair:
 		require.EqualValues(t, randao, block.Altair.Body.RANDAOReveal)
-	case spec.DataVersionBellatrix:
+	case eth2spec.DataVersionBellatrix:
 		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
-	case spec.DataVersionCapella:
+	case eth2spec.DataVersionCapella:
 		require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
 	default:
 		require.Fail(t, "invalid block")
@@ -545,9 +545,9 @@ func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block co
 	t.Helper()
 
 	switch block.Version {
-	case spec.DataVersionBellatrix:
+	case eth2spec.DataVersionBellatrix:
 		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
-	case spec.DataVersionCapella:
+	case eth2spec.DataVersionCapella:
 		require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
 	default:
 		require.Fail(t, "invalid block")

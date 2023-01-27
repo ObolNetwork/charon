@@ -38,7 +38,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
@@ -362,7 +362,7 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 			return nil, err
 		}
 
-		// Note the ProposerDutiesProvider interface adds some sugar to the official spec.
+		// Note the ProposerDutiesProvider interface adds some sugar to the official eth2spec.
 		// ValidatorIndices aren't provided over the wire.
 		data, err := p.ProposerDuties(ctx, eth2p0.Epoch(epoch), nil)
 		if err != nil {
@@ -496,7 +496,7 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 		}
 
 		switch block.Version {
-		case spec.DataVersionPhase0:
+		case eth2spec.DataVersionPhase0:
 			if block.Phase0 == nil {
 				return 0, errors.New("no phase0 block")
 			}
@@ -505,7 +505,7 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 				Version: "PHASE0",
 				Data:    block.Phase0,
 			}, nil
-		case spec.DataVersionAltair:
+		case eth2spec.DataVersionAltair:
 			if block.Altair == nil {
 				return 0, errors.New("no altair block")
 			}
@@ -514,7 +514,7 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 				Version: "ALTAIR",
 				Data:    block.Altair,
 			}, nil
-		case spec.DataVersionBellatrix:
+		case eth2spec.DataVersionBellatrix:
 			if block.Bellatrix == nil {
 				return 0, errors.New("no bellatrix block")
 			}
@@ -523,7 +523,7 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 				Version: "BELLATRIX",
 				Data:    block.Bellatrix,
 			}, nil
-		case spec.DataVersionCapella:
+		case eth2spec.DataVersionCapella:
 			if block.Capella == nil {
 				return 0, errors.New("no capella block")
 			}
@@ -557,7 +557,7 @@ func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handle
 		}
 
 		switch block.Version {
-		case spec.DataVersionBellatrix:
+		case eth2spec.DataVersionBellatrix:
 			if block.Bellatrix == nil {
 				return 0, errors.New("no bellatrix block")
 			}
@@ -566,7 +566,7 @@ func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handle
 				Version: "BELLATRIX",
 				Data:    block.Bellatrix,
 			}, nil
-		case spec.DataVersionCapella:
+		case eth2spec.DataVersionCapella:
 			if block.Capella == nil {
 				return 0, errors.New("no capella block")
 			}
@@ -586,8 +586,8 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 		capellaBlock := new(capella.SignedBeaconBlock)
 		err := capellaBlock.UnmarshalJSON(body)
 		if err == nil {
-			block := &spec.VersionedSignedBeaconBlock{
-				Version: spec.DataVersionCapella,
+			block := &eth2spec.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionCapella,
 				Capella: capellaBlock,
 			}
 
@@ -597,8 +597,8 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
 		err = bellatrixBlock.UnmarshalJSON(body)
 		if err == nil {
-			block := &spec.VersionedSignedBeaconBlock{
-				Version:   spec.DataVersionBellatrix,
+			block := &eth2spec.VersionedSignedBeaconBlock{
+				Version:   eth2spec.DataVersionBellatrix,
 				Bellatrix: bellatrixBlock,
 			}
 
@@ -608,8 +608,8 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 		altairBlock := new(altair.SignedBeaconBlock)
 		err = altairBlock.UnmarshalJSON(body)
 		if err == nil {
-			block := &spec.VersionedSignedBeaconBlock{
-				Version: spec.DataVersionAltair,
+			block := &eth2spec.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionAltair,
 				Altair:  altairBlock,
 			}
 
@@ -619,8 +619,8 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 		phase0Block := new(eth2p0.SignedBeaconBlock)
 		err = phase0Block.UnmarshalJSON(body)
 		if err == nil {
-			block := &spec.VersionedSignedBeaconBlock{
-				Version: spec.DataVersionPhase0,
+			block := &eth2spec.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionPhase0,
 				Phase0:  phase0Block,
 			}
 
@@ -638,7 +638,7 @@ func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
 		err := capellaBlock.UnmarshalJSON(body)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedBeaconBlock{
-				Version: spec.DataVersionCapella,
+				Version: eth2spec.DataVersionCapella,
 				Capella: capellaBlock,
 			}
 
@@ -649,7 +649,7 @@ func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
 		err = bellatrixBlock.UnmarshalJSON(body)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedBeaconBlock{
-				Version:   spec.DataVersionBellatrix,
+				Version:   eth2spec.DataVersionBellatrix,
 				Bellatrix: bellatrixBlock,
 			}
 
@@ -671,7 +671,7 @@ func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) 
 		var versioned []*eth2api.VersionedSignedValidatorRegistration
 		for _, registration := range unversioned {
 			versioned = append(versioned, &eth2api.VersionedSignedValidatorRegistration{
-				Version: spec.BuilderVersionV1,
+				Version: eth2spec.BuilderVersionV1,
 				V1:      registration,
 			})
 		}

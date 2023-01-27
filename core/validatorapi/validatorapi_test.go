@@ -26,7 +26,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -369,8 +369,8 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 	pubkey, err := tblsconv.KeyToCore(pk)
 	require.NoError(t, err)
 
-	block1 := &spec.VersionedBeaconBlock{
-		Version: spec.DataVersionPhase0,
+	block1 := &eth2spec.VersionedBeaconBlock{
+		Version: eth2spec.DataVersionPhase0,
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	block1.Phase0.Slot = slot
@@ -381,7 +381,7 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
-	component.RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error) {
+	component.RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error) {
 		return block1, nil
 	})
 
@@ -432,8 +432,8 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	randao := tblsconv.SigToETH2(sig)
-	unsignedBlock := &spec.VersionedBeaconBlock{
-		Version: spec.DataVersionPhase0,
+	unsignedBlock := &eth2spec.VersionedBeaconBlock{
+		Version: eth2spec.DataVersionPhase0,
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	unsignedBlock.Phase0.Body.RANDAOReveal = randao
@@ -458,8 +458,8 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	sigEth2 := tblsconv.SigToETH2(s)
-	signedBlock := &spec.VersionedSignedBeaconBlock{
-		Version: spec.DataVersionPhase0,
+	signedBlock := &eth2spec.VersionedSignedBeaconBlock{
+		Version: eth2spec.DataVersionPhase0,
 		Phase0: &eth2p0.SignedBeaconBlock{
 			Message:   unsignedBlock.Phase0,
 			Signature: sigEth2,
@@ -523,8 +523,8 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	unsignedBlock.Slot = slot
 	unsignedBlock.ProposerIndex = vIdx
 
-	signedBlock := &spec.VersionedSignedBeaconBlock{
-		Version: spec.DataVersionPhase0,
+	signedBlock := &eth2spec.VersionedSignedBeaconBlock{
+		Version: eth2spec.DataVersionPhase0,
 		Phase0: &eth2p0.SignedBeaconBlock{
 			Message:   unsignedBlock,
 			Signature: tblsconv.SigToETH2(s),
@@ -570,38 +570,38 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 	// invalid block scenarios
 	tests := []struct {
 		name   string
-		block  *spec.VersionedSignedBeaconBlock
+		block  *eth2spec.VersionedSignedBeaconBlock
 		errMsg string
 	}{
 		{
 			name:   "no phase 0 block",
-			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersionPhase0},
+			block:  &eth2spec.VersionedSignedBeaconBlock{Version: eth2spec.DataVersionPhase0},
 			errMsg: "no phase0 block",
 		},
 		{
 			name:   "no altair block",
-			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersionAltair},
+			block:  &eth2spec.VersionedSignedBeaconBlock{Version: eth2spec.DataVersionAltair},
 			errMsg: "no altair block",
 		},
 		{
 			name:   "no bellatrix block",
-			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersionBellatrix},
+			block:  &eth2spec.VersionedSignedBeaconBlock{Version: eth2spec.DataVersionBellatrix},
 			errMsg: "no bellatrix block",
 		},
 		{
 			name:   "no capella block",
-			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersionCapella},
+			block:  &eth2spec.VersionedSignedBeaconBlock{Version: eth2spec.DataVersionCapella},
 			errMsg: "no capella block",
 		},
 		{
 			name:   "none",
-			block:  &spec.VersionedSignedBeaconBlock{Version: spec.DataVersion(4)},
+			block:  &eth2spec.VersionedSignedBeaconBlock{Version: eth2spec.DataVersion(4)},
 			errMsg: "unknown version",
 		},
 		{
 			name: "no phase 0 sig",
-			block: &spec.VersionedSignedBeaconBlock{
-				Version: spec.DataVersionPhase0,
+			block: &eth2spec.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionPhase0,
 				Phase0: &eth2p0.SignedBeaconBlock{
 					Message:   &eth2p0.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomPhase0BeaconBlockBody()},
 					Signature: eth2p0.BLSSignature{},
@@ -611,8 +611,8 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 		},
 		{
 			name: "no altair sig",
-			block: &spec.VersionedSignedBeaconBlock{
-				Version: spec.DataVersionAltair,
+			block: &eth2spec.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionAltair,
 				Altair: &altair.SignedBeaconBlock{
 					Message:   &altair.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomAltairBeaconBlockBody()},
 					Signature: eth2p0.BLSSignature{},
@@ -622,8 +622,8 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 		},
 		{
 			name: "no bellatrix sig",
-			block: &spec.VersionedSignedBeaconBlock{
-				Version: spec.DataVersionBellatrix,
+			block: &eth2spec.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionBellatrix,
 				Bellatrix: &bellatrix.SignedBeaconBlock{
 					Message:   &bellatrix.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomBellatrixBeaconBlockBody()},
 					Signature: eth2p0.BLSSignature{},
@@ -671,7 +671,7 @@ func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 	require.NoError(t, err)
 
 	block1 := &eth2api.VersionedBlindedBeaconBlock{
-		Version:   spec.DataVersionPhase0,
+		Version:   eth2spec.DataVersionPhase0,
 		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 	}
 	block1.Bellatrix.Slot = slot
@@ -756,7 +756,7 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 
 	sigEth2 := tblsconv.SigToETH2(s)
 	signedBlindedBlock := &eth2api.VersionedSignedBlindedBeaconBlock{
-		Version: spec.DataVersionCapella,
+		Version: eth2spec.DataVersionCapella,
 		Capella: &eth2capella.SignedBlindedBeaconBlock{
 			Message:   unsignedBlindedBlock,
 			Signature: sigEth2,
@@ -823,7 +823,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 
 	sigEth2 := tblsconv.SigToETH2(s)
 	signedBlindedBlock := &eth2api.VersionedSignedBlindedBeaconBlock{
-		Version: spec.DataVersionCapella,
+		Version: eth2spec.DataVersionCapella,
 		Capella: &eth2capella.SignedBlindedBeaconBlock{
 			Message:   unsignedBlindedBlock,
 			Signature: sigEth2,
@@ -874,18 +874,18 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidBlock(t *testing.T) {
 	}{
 		{
 			name:   "no bellatrix block",
-			block:  &eth2api.VersionedSignedBlindedBeaconBlock{Version: spec.DataVersionBellatrix},
+			block:  &eth2api.VersionedSignedBlindedBeaconBlock{Version: eth2spec.DataVersionBellatrix},
 			errMsg: "no bellatrix block",
 		},
 		{
 			name:   "none",
-			block:  &eth2api.VersionedSignedBlindedBeaconBlock{Version: spec.DataVersion(4)},
+			block:  &eth2api.VersionedSignedBlindedBeaconBlock{Version: eth2spec.DataVersion(4)},
 			errMsg: "unsupported version",
 		},
 		{
 			name: "no bellatrix sig",
 			block: &eth2api.VersionedSignedBlindedBeaconBlock{
-				Version: spec.DataVersionBellatrix,
+				Version: eth2spec.DataVersionBellatrix,
 				Bellatrix: &eth2bellatrix.SignedBlindedBeaconBlock{
 					Message:   &eth2bellatrix.BlindedBeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomBellatrixBlindedBeaconBlockBody()},
 					Signature: eth2p0.BLSSignature{},
@@ -896,7 +896,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidBlock(t *testing.T) {
 		{
 			name: "no capella sig",
 			block: &eth2api.VersionedSignedBlindedBeaconBlock{
-				Version: spec.DataVersionCapella,
+				Version: eth2spec.DataVersionCapella,
 				Capella: &eth2capella.SignedBlindedBeaconBlock{
 					Message:   &eth2capella.BlindedBeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomCapellaBlindedBeaconBlockBody()},
 					Signature: eth2p0.BLSSignature{},
@@ -1158,7 +1158,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 
 	sigEth2 := tblsconv.SigToETH2(s)
 	signed := &eth2api.VersionedSignedValidatorRegistration{
-		Version: spec.BuilderVersionV1,
+		Version: eth2spec.BuilderVersionV1,
 		V1: &eth2v1.SignedValidatorRegistration{
 			Message:   unsigned,
 			Signature: sigEth2,
@@ -1233,7 +1233,7 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 
 	sigEth2 := tblsconv.SigToETH2(s)
 	signed := &eth2api.VersionedSignedValidatorRegistration{
-		Version: spec.BuilderVersionV1,
+		Version: eth2spec.BuilderVersionV1,
 		V1: &eth2v1.SignedValidatorRegistration{
 			Message:   unsigned,
 			Signature: sigEth2,

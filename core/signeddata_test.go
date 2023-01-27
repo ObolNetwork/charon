@@ -22,7 +22,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -40,8 +40,8 @@ func TestSignedDataSetSignature(t *testing.T) {
 		{
 			name: "versioned signed beacon block",
 			data: core.VersionedSignedBeaconBlock{
-				VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
-					Version: spec.DataVersionBellatrix,
+				VersionedSignedBeaconBlock: eth2spec.VersionedSignedBeaconBlock{
+					Version: eth2spec.DataVersionBellatrix,
 					Bellatrix: &bellatrix.SignedBeaconBlock{
 						Message:   testutil.RandomBellatrixBeaconBlock(),
 						Signature: testutil.RandomEth2Signature(),
@@ -53,7 +53,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 			name: "versioned signed blinded beacon block bellatrix",
 			data: core.VersionedSignedBlindedBeaconBlock{
 				VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
-					Version: spec.DataVersionBellatrix,
+					Version: eth2spec.DataVersionBellatrix,
 					Bellatrix: &eth2bellatrix.SignedBlindedBeaconBlock{
 						Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
 						Signature: testutil.RandomEth2Signature(),
@@ -65,7 +65,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 			name: "versioned signed blinded beacon block capella",
 			data: core.VersionedSignedBlindedBeaconBlock{
 				VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
-					Version: spec.DataVersionCapella,
+					Version: eth2spec.DataVersionCapella,
 					Capella: &eth2capella.SignedBlindedBeaconBlock{
 						Message:   testutil.RandomCapellaBlindedBeaconBlock(),
 						Signature: testutil.RandomEth2Signature(),

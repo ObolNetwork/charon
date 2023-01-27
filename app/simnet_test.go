@@ -29,7 +29,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
@@ -391,7 +391,7 @@ func newRegistrationProvider(t *testing.T, args simnetArgs) func() <-chan *eth2a
 	pubkey, err := core.PubKey(args.Lock.Validators[0].PublicKeyHex()).ToETH2()
 	require.NoError(t, err)
 	reg := &eth2api.VersionedValidatorRegistration{
-		Version: spec.BuilderVersionV1,
+		Version: eth2spec.BuilderVersionV1,
 		V1: &eth2v1.ValidatorRegistration{
 			FeeRecipient: testutil.RandomExecutionAddress(),
 			GasLimit:     99,
