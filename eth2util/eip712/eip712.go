@@ -14,7 +14,7 @@
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Package eip712 provides a minimal EIP-712 implementation supporting only a few
-// primitive types and fixed set of domain fields.
+// primitive types and fixed set of domain fields. See https://eips.ethereum.org/EIPS/eip-712.
 package eip712
 
 import (
