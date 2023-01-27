@@ -480,7 +480,7 @@ func hashLockV1x5(l Lock, hh ssz.HashWalker) error {
 		return err
 	}
 
-	// Field (1) 'ValidatorAddresses' CompositeList[65536]
+	// Field (1) 'Validators' CompositeList[65536]
 	{
 		subIndx := hh.Index()
 		num := uint64(len(l.Validators))
