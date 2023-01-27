@@ -106,7 +106,7 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL string, shares []s
 	)
 
 	for _, s := range shares {
-		password, err := randomHex32()
+		password, err := randomHex64()
 		if err != nil {
 			return err
 		}
@@ -238,9 +238,9 @@ func validURI(str string) bool {
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
-// randomHex32 returns a random 32 character hex string. It uses crypto/rand.
-func randomHex32() (string, error) {
-	b := make([]byte, 16)
+// randomHex64 returns a random 64 character hex string. It uses crypto/rand.
+func randomHex64() (string, error) {
+	b := make([]byte, 32)
 	_, err := rand.Read(b)
 	if err != nil {
 		return "", errors.Wrap(err, "read random")

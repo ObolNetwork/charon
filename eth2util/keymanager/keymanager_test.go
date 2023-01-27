@@ -33,7 +33,6 @@ import (
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestImportKeystores(t *testing.T) {
@@ -54,8 +53,7 @@ func TestImportKeystores(t *testing.T) {
 		passwords []string
 	)
 	for _, secret := range secrets {
-		password, err := testutil.RandomHex32()
-		require.NoError(t, err)
+		password := randomHex32(t)
 
 		store, err := keystore.Encrypt(secret, password, rand.Reader)
 		require.NoError(t, err)
@@ -169,4 +167,15 @@ func decrypt(t *testing.T, store noopKeystore, password string) (*bls_sig.Secret
 	require.NoError(t, err)
 
 	return tblsconv.SecretFromBytes(secretBytes)
+}
+
+// randomHex32 returns a random 32 character hex string.
+func randomHex32(t *testing.T) string {
+	t.Helper()
+
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	require.NoError(t, err)
+
+	return hex.EncodeToString(b)
 }

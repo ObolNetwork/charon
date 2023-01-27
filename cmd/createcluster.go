@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -44,7 +45,6 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"github.com/obolnetwork/charon/testutil"
 )
 
 const (
@@ -423,7 +423,7 @@ func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sh
 			passwords []string
 		)
 		for _, shares := range shareSets {
-			password, err := testutil.RandomHex32()
+			password, err := randomHex64()
 			if err != nil {
 				return err
 			}
@@ -695,4 +695,15 @@ func safeThreshold(ctx context.Context, numNodes, threshold int) int {
 	}
 
 	return threshold
+}
+
+// randomHex64 returns a random 64 character hex string. It uses crypto/rand.
+func randomHex64() (string, error) {
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", errors.Wrap(err, "read random")
+	}
+
+	return hex.EncodeToString(b), nil
 }

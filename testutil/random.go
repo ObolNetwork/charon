@@ -19,7 +19,6 @@ package testutil
 import (
 	"crypto/ecdsa"
 	crand "crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"math/rand"
@@ -861,17 +860,6 @@ func RandomCoreSignedRandao() core.SignedRandao {
 		Epoch:     RandomEpoch(),
 		Signature: RandomEth2Signature(),
 	}}
-}
-
-// RandomHex32 returns a random 32 character hex string.
-func RandomHex32() (string, error) {
-	b := make([]byte, 16)
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", errors.Wrap(err, "read random")
-	}
-
-	return hex.EncodeToString(b), nil
 }
 
 // GenerateInsecureK1Key returns a new deterministic insecure secp256k1 private using the provided seed for testing purposes only.
