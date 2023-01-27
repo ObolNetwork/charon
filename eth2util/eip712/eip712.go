@@ -27,6 +27,19 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
+// Primitive represents a primitive field type.
+type Primitive int
+
+const (
+	PrimitiveString  Primitive = 1
+	PrimitiveUint256 Primitive = 2
+)
+
+var primitiveNames = map[Primitive]string{
+	PrimitiveString:  "string",
+	PrimitiveUint256: "uint256",
+}
+
 // TypedData represents a dynamically typed EIP-712 message.
 type TypedData struct {
 	// Domain is the domain.
@@ -44,7 +57,7 @@ type Type struct {
 // Field is the field of an EIP-712 message primary data-type.
 type Field struct {
 	Name  string
-	Type  string
+	Type  Primitive
 	Value any
 }
 
@@ -60,9 +73,9 @@ func domainToType(domain Domain) Type {
 	return Type{
 		Name: "EIP712Domain",
 		Fields: []Field{
-			{Name: "name", Type: "string", Value: domain.Name},
-			{Name: "version", Type: "string", Value: domain.Version},
-			{Name: "chainId", Type: "uint256", Value: domain.ChainID},
+			{Name: "name", Type: PrimitiveString, Value: domain.Name},
+			{Name: "version", Type: PrimitiveString, Value: domain.Version},
+			{Name: "chainId", Type: PrimitiveUint256, Value: domain.ChainID},
 		},
 	}
 }
@@ -99,14 +112,14 @@ func hashData(typ Type) ([]byte, error) {
 
 func encodeField(field Field) ([]byte, error) {
 	switch field.Type {
-	case "string":
+	case PrimitiveString:
 		s, ok := field.Value.(string)
 		if !ok {
 			return nil, errors.New("invalid string field")
 		}
 
 		return keccakHash([]byte(s)), nil
-	case "uint256":
+	case PrimitiveUint256:
 		i, ok := field.Value.(uint64)
 		if !ok {
 			return nil, errors.New("invalid uint64 field")
@@ -137,7 +150,7 @@ func encodeType(typ Type) []byte {
 		if i != 0 {
 			_, _ = buf.WriteString(",")
 		}
-		_, _ = buf.WriteString(field.Type)
+		_, _ = buf.WriteString(primitiveNames[field.Type])
 		_, _ = buf.WriteString(" ")
 		_, _ = buf.WriteString(field.Name)
 	}

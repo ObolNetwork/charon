@@ -38,7 +38,7 @@ func TestCreatorHash(t *testing.T) {
 			Fields: []eip712.Field{
 				{
 					Name:  "creator_config_hash",
-					Type:  "string",
+					Type:  eip712.PrimitiveString,
 					Value: "0xe57f66637bdfa05cce6a78e8cf4120d67d305b485367a69baa5f738436533bcb",
 				},
 			},
