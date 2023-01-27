@@ -17,10 +17,12 @@ package tracker2
 
 import (
 	"context"
+	"net/http"
 	"reflect"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -141,7 +143,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 				{
 					duty:    attDuty,
 					step:    fetcher,
-					stepErr: errors.New("beacon api error"),
+					stepErr: errors.New("test error"),
 				},
 			},
 		}
@@ -149,7 +151,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, step, msg := analyseDutyFailed(attDuty, events, true)
 		require.True(t, failed)
 		require.Equal(t, step, fetcher)
-		require.Contains(t, msg, msgFetcher)
+		require.Contains(t, msg, msgFetcherUnknownError)
 
 		// Failed at consensus
 		events[attDuty] = append(events[attDuty], event{
@@ -705,6 +707,24 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 		msg    string
 		failed bool
 	}{
+		{
+			name: "eth2 error",
+			duty: dutyAtt,
+			events: map[core.Duty][]event{
+				dutyAtt: {event{
+					duty: dutyAtt,
+					step: fetcher,
+					stepErr: errors.Wrap(eth2http.Error{
+						Method:     http.MethodGet,
+						Endpoint:   "/eth/v1/validator/attestation_data",
+						StatusCode: 404,
+						Data:       nil,
+					}, "beacon api error"),
+				}},
+			},
+			msg:    msgFetcher,
+			failed: true,
+		},
 		{
 			name: "beacon committee selections endpoint not supported",
 			duty: dutyAgg,

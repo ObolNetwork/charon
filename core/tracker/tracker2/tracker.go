@@ -20,8 +20,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 
+	eth2http "github.com/attestantio/go-eth2-client/http"
+
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -415,7 +417,8 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 // and the reason which might actually be due a pre-requisite duty that failed.
 func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetchErr error) string {
 	// Check for beacon api errors.
-	if strings.Contains(fetchErr.Error(), "beacon api") {
+	var eth2Error eth2http.Error
+	if errors.As(fetchErr, &eth2Error) {
 		return msgFetcher
 	}
 
