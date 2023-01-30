@@ -7,7 +7,6 @@ require (
 	github.com/bufbuild/buf v1.13.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0
-	github.com/ethereum/go-ethereum v1.10.26
 	github.com/ferranbt/fastssz v0.1.2
 	github.com/golang/snappy v0.0.4
 	github.com/gorilla/mux v1.8.0
@@ -52,7 +51,6 @@ require (
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/btcsuite/btcd v0.22.1 // indirect
-	github.com/btcsuite/btcd/btcec/v2 v2.2.0 // indirect
 	github.com/bufbuild/connect-go v1.4.1 // indirect
 	github.com/bufbuild/protocompile v0.1.0 // indirect
 	github.com/bwesterb/go-ristretto v1.2.0 // indirect

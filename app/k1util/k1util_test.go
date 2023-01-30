@@ -16,13 +16,11 @@
 package k1util_test
 
 import (
-	"crypto/ecdsa"
 	"encoding/hex"
 	"math/rand"
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/k1util"
@@ -35,25 +33,27 @@ const (
 	sig1     = "e08097bed6dc40d70aa0076f9d8250057566cdf40c652b3785ad9c06b1e38d584f8f331bf46f68e3737823a3bda905e90ca96735d510a6934b215753c09acec201"
 )
 
-func TestLegacyGethCrypto(t *testing.T) {
-	key, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(0)))
-	require.NoError(t, err)
-
-	require.Equal(t, fromHex(t, privKey1), crypto.FromECDSA(key))
-	require.Equal(t, fromHex(t, pubKey1), crypto.CompressPubkey(&key.PublicKey))
-
-	digest := fromHex(t, digest1)
-
-	sig, err := crypto.Sign(digest, key)
-	require.NoError(t, err)
-	require.Equal(t, fromHex(t, sig1), sig)
-
-	ok := crypto.VerifySignature(
-		crypto.CompressPubkey(&key.PublicKey),
-		digest,
-		sig[:len(sig)-1])
-	require.True(t, ok)
-}
+// TestLegacyGethCrypto ensures compatibility with github.com/ethereum/go-ethereum/crypto.
+// But since we do not want the dependency, it has been commented out.
+// func TestLegacyGethCrypto(t *testing.T) {
+//	key, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(0)))
+//	require.NoError(t, err)
+//
+//	require.Equal(t, fromHex(t, privKey1), crypto.FromECDSA(key))
+//	require.Equal(t, fromHex(t, pubKey1), crypto.CompressPubkey(&key.PublicKey))
+//
+//	digest := fromHex(t, digest1)
+//
+//	sig, err := crypto.Sign(digest, key)
+//	require.NoError(t, err)
+//	require.Equal(t, fromHex(t, sig1), sig)
+//
+//	ok := crypto.VerifySignature(
+//		crypto.CompressPubkey(&key.PublicKey),
+//		digest,
+//		sig[:len(sig)-1])
+//	require.True(t, ok)
+//}
 
 func TestK1Util(t *testing.T) {
 	key := k1.PrivKeyFromBytes(fromHex(t, privKey1))
