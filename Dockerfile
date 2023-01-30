@@ -3,7 +3,7 @@ FROM golang:1.19.5-alpine AS builder
 # Install dependencies
 RUN apk add --no-cache build-base git
 # Prep and copy source
-WORKDIR /app
+WORKDIR /app/charon
 COPY . .
 # Build with Go module and Go build caches.
 RUN \
@@ -15,7 +15,7 @@ RUN \
 FROM alpine:3
 ARG GITHUB_SHA=local
 ENV GITHUB_SHA=${GITHUB_SHA}
-COPY --from=builder /app/charon /usr/local/bin/
+COPY --from=builder /app/charon/charon /usr/local/bin/
 # Don't run container as root
 ENV USER=charon
 ENV UID=1000
