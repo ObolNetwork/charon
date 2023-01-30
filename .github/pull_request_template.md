@@ -20,6 +20,10 @@
 - [ ] Passes smoke tests
 - [ ] Passes optional manual tests
 
+# 🤝 Passing additional acceptance criteria
+
+<!-- If any acceptance criteria had been listed in a linked issue, list how this PR addresses them below -->
+
 # 📋 Categorization
 <!-- Pick one, delete the rest -->
 category: bug feature refactor docs test fixbuild misc
