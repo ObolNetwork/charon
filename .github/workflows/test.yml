@@ -61,7 +61,7 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - run: GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o testutil/compose/smoke # Pre-build current SHA charon binary
+      - run: GOOS=linux GOARCH=amd64 go build -o testutil/compose/smoke # Pre-build current SHA charon binary
       - run: go test github.com/obolnetwork/charon/testutil/compose/smoke -v -integration -sudo-perms -prebuilt-binary=charon -timeout=20m -log-dir=.
       - uses: actions/upload-artifact@v3
         if: always()
