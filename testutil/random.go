@@ -726,7 +726,7 @@ func RandomBitVec() bitfield.Bitvector128 {
 	return resp
 }
 
-// RandomSecp256k1Signature returns a random secp256k1 ECDSA signature with the last byte set to 0, 1, 27 or 28.
+// RandomSecp256k1Signature returns a random byte slice of length 65 with the last byte set to 0, 1, 27 or 28.
 func RandomSecp256k1Signature() []byte {
 	var resp [65]byte
 	_, _ = rand.Read(resp[:])
