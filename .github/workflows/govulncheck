@@ -1,0 +1,15 @@
+name: govulncheck
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  govulncheck:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Templum/govulncheck-action@v0.0.9
