@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 
 	eth2http "github.com/attestantio/go-eth2-client/http"
 
@@ -261,7 +260,7 @@ type Tracker struct {
 	parSigReporter func(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg)
 
 	// failedDutyReporter instruments duty failures.
-	failedDutyReporter func(ctx context.Context, duty core.Duty, failed bool, step step, reason string)
+	failedDutyReporter func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error)
 
 	// participationReporter instruments duty peer participation.
 	participationReporter func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]bool, unexpectedPeers map[int]bool)
@@ -310,8 +309,8 @@ func (t *Tracker) Run(ctx context.Context) error {
 			t.parSigReporter(ctx, duty, parsigs)
 
 			// Analyse failed duties
-			failed, failedStep, failedMsg := analyseDutyFailed(duty, t.events, parsigs.MsgRootsConsistent())
-			t.failedDutyReporter(ctx, duty, failed, failedStep, failedMsg)
+			failed, failedStep, failedMsg, failedErr := analyseDutyFailed(duty, t.events, parsigs.MsgRootsConsistent())
+			t.failedDutyReporter(ctx, duty, failed, failedStep, failedMsg, failedErr)
 
 			// Analyse peer participation
 			participatedShares, unexpectedShares := analyseParticipation(duty, t.events)
@@ -331,17 +330,23 @@ func dutyFailedStep(es []event) (bool, step, error) {
 		return true, zero, nil // Duty failed since no events.
 	}
 
-	// Copy and sort in ascending order of steps (see step order above).
-	clone := append([]event(nil), es...)
+	// Dedup events by step.
+	eventsByStep := make(map[step][]event)
+	for _, e := range es {
+		eventsByStep[e.step] = append(eventsByStep[e.step], e)
+	}
 
-	// SliceStable is needed to keep same elements in the original order which means multiple events of the same step
-	// with at least one non-error event will have error events followed by non-error events in the sorted slice as
-	// retryer doesn't retry after successful attempt.
-	sort.SliceStable(clone, func(i, j int) bool {
-		return clone[i].step < clone[j].step
-	})
+	// Find last failed/successful step.
+	var lastEvent event
+	for step := bcast; step > zero; step-- {
+		if len(eventsByStep[step]) == 0 {
+			continue
+		}
 
-	lastEvent := clone[len(clone)-1]
+		lastEvent = eventsByStep[step][len(eventsByStep[step])-1]
+
+		break
+	}
 
 	// No failed step.
 	if lastEvent.step == bcast && lastEvent.stepErr == nil {
@@ -363,17 +368,11 @@ func dutyFailedStep(es []event) (bool, step, error) {
 //
 // It returns false if the duty didn't fail, i.e., the duty
 // didn't get stuck and completed the bcast step.
-func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootConsistent bool) (failed bool, failedStep step, failureMsg string) {
+func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootConsistent bool) (failed bool, failedStep step, failureMsg string, failedErr error) {
 	failed, step, err := dutyFailedStep(allEvents[duty])
 	if !failed {
-		return false, zero, ""
+		return false, zero, "", err
 	}
-
-	defer func() {
-		if err != nil {
-			failureMsg = fmt.Sprintf("%s with error: %s", failureMsg, err.Error())
-		}
-	}()
 
 	var msg string
 	switch step {
@@ -410,7 +409,7 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 		msg = fmt.Sprintf("%s duty failed at %s", duty.String(), step.String())
 	}
 
-	return failed, step, msg
+	return failed, step, msg, err
 }
 
 // analyseFetcherFailed returns whether the duty that got stuck in fetcher actually failed
@@ -504,14 +503,14 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetch
 
 // analyseConsensusFailed returns whether the duty that got stuck in consensus got failed
 // because of error in consensus component.
-func analyseConsensusFailed(duty core.Duty, consensusErr error) (bool, step, string) {
+func analyseConsensusFailed(duty core.Duty, consensusErr error) (bool, step, string, error) {
 	// No aggregators or sync committee contributors found in this slot.
 	// Fetcher sends an event with nil error in this case.
 	if consensusErr == nil && (duty.Type == core.DutyAggregator || duty.Type == core.DutySyncContribution) {
-		return false, fetcher, ""
+		return false, fetcher, "", nil
 	}
 
-	return true, consensus, msgConsensus
+	return true, consensus, msgConsensus, consensusErr
 }
 
 // analyseParSigs returns a mapping of partial signed data messages by peers (share index) by validator (pubkey).
@@ -553,10 +552,10 @@ func analyseParSigs(ctx context.Context, events []event) parsigsByMsg {
 }
 
 // newFailedDutyReporter returns failed duty reporter which instruments failed duties.
-func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bool, step step, reason string) {
+func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error) {
 	var loggedNoSelections bool
 
-	return func(ctx context.Context, duty core.Duty, failed bool, step step, reason string) {
+	return func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error) {
 		counter := failedCounter.WithLabelValues(duty.Type.String())
 		counter.Add(0) // Zero the metric so first failure shows in grafana.
 
@@ -582,9 +581,10 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 			return
 		}
 
-		log.Warn(ctx, "Duty failed", nil,
+		log.Warn(ctx, "Duty failed", err,
 			z.Any("step", step),
-			z.Str("reason", reason))
+			z.Str("reason", reason),
+		)
 
 		counter.Inc()
 	}
