@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	pb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
@@ -195,12 +196,19 @@ func (c *Client) sendMsg(stream network.Stream, shutdown bool) (*pb.MsgSyncRespo
 
 // connect returns an opened libp2p stream/connection, it will retry if instructed.
 func (c *Client) connect(ctx context.Context, retry bool) (network.Stream, error) {
+	backoff := expbackoff.New(
+		ctx,
+		expbackoff.WithFastConfig(),
+		expbackoff.WithMaxDelay(1*time.Second),
+	)
+
 	for {
 		s, err := c.tcpNode.NewStream(network.WithUseTransient(ctx, "sync"), c.peer, protocolID)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		} else if err != nil {
 			if retry {
+				backoff()
 				continue
 			}
 
