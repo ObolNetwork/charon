@@ -18,6 +18,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"net/http"
@@ -210,7 +211,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	initStartupMetrics(p2p.PeerName(tcpNode.ID()), lock.Threshold, len(lock.Operators), len(lock.Validators), network)
 
-	eth2Cl, err := newETH2Client(ctx, conf, life, lock.Validators)
+	eth2Cl, err := newETH2Client(ctx, conf, life, lock.Validators, lock.ForkVersion)
 	if err != nil {
 		return err
 	}
@@ -627,7 +628,7 @@ func eth2PubKeys(validators []cluster.DistValidator) ([]eth2p0.BLSPubKey, error)
 // newETH2Client returns a new eth2client; it is either a beaconmock for
 // simnet or a multi http client to a real beacon node.
 func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
-	validators []cluster.DistValidator,
+	validators []cluster.DistValidator, forkVersion []byte,
 ) (eth2wrap.Client, error) {
 	pubkeys, err := eth2PubKeys(validators)
 	if err != nil {
@@ -678,6 +679,22 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 	if conf.SyntheticBlockProposals {
 		log.Info(ctx, "Synthetic block proposals enabled")
 		eth2Cl = eth2wrap.WithSyntheticDuties(eth2Cl, pubkeys)
+	}
+
+	// Check BN chain/network.
+	schedule, err := eth2Cl.ForkSchedule(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "fetch fork schedule")
+	}
+	var ok bool
+	for _, fork := range schedule {
+		if bytes.Equal(fork.CurrentVersion[:], forkVersion) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return nil, errors.Wrap(err, "lock file fork version not in beacon node fork schedule (probably wrong chain/network)")
 	}
 
 	return eth2Cl, nil
