@@ -36,7 +36,7 @@ labels: Enhancement
 <!--# ✅ Issue Creation Checklist
 
 Delete this section once you have validated that this ticket is
-- [ ] **`Feasible`**: it can be completed in one sprint, according to the definition of done
-- [ ] **`Actionable`**: all team members must be able to determine immediately what needs to be done to complete the ticket
-- [ ] **`Clear`**: all team members have a shared understanding of what it means
-- [ ] **`Testable`**: there is an effective way to determine if the functionality works as expected -->
+- [ ] Feasible: it can be completed in one sprint (2 weeks) by a single person, otherwise split the ticket into multiple issues
+- [ ] Actionable: any contributor must be able to determine immediately what needs to be done to complete the ticket
+- [ ] Clear: all contributors have a shared understanding of what it means
+- [ ] Testable: there is an effective way to determine if the functionality works as expected -->
