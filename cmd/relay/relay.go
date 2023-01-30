@@ -237,7 +237,7 @@ func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *k1.PrivateKey
 		}
 
 		// Build the ENR
-		r, err := enr.New(p2pKey, enr.WithIP(tcpAddr.IP), enr.WithTCP(tcpAddr.Port))
+		r, err := enr.New(p2pKey, enr.WithIP(tcpAddr.IP), enr.WithTCP(tcpAddr.Port), enr.WithUDP(9999)) // Include invalid dummy UDP port so v0.13 can parse the ENR.
 		if err != nil {
 			return nil, err
 		}
