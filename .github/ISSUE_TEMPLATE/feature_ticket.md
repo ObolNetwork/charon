@@ -25,7 +25,7 @@ labels: Enhancement
 - [ ] Passes Smoke tests
 - [ ] Passes optional manual tests
 
-# Additional acceptance criteria
+# 👐 Additional acceptance criteria
 
 <!--List any additional acceptance criteria for this issue to be marked as closed.-->
 
