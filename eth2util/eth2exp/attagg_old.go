@@ -17,11 +17,11 @@ package eth2exp
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/binary"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/minio/sha256-simd"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
