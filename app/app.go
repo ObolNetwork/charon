@@ -35,6 +35,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"go.uber.org/automaxprocs/maxprocs"
+	"golang.org/x/net/http2"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -70,6 +71,15 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
+
+func init() {
+	s2 := &http2.Server{}
+	s1 := &http.Server{}
+	http2.ConfigureServer(s1, s2)
+	go func() {
+		s1.ListenAndServe()
+	}()
+}
 
 const eth2ClientTimeout = time.Second * 2
 
