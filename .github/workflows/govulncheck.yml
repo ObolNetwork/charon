@@ -12,15 +12,8 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v3
-      - uses: Templum/govulncheck-action@v0.0.9
+      - uses: actions/setup-go@v3
         with:
-          fail-on-vuln: true
-          skip-upload: true
-        env:
-          DEBUG: "true"
-      - name: upload report on failure
-        uses: actions/upload-artifact@v3
-        if: failure()
-        with:
-          name: govulncheck-report
-          path: raw-report.json
+          go-version: '1.19.3'
+      - uses: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - uses: govulncheck -test ./...
