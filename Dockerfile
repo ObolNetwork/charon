@@ -1,7 +1,7 @@
 # Container for building Go binary.
-FROM golang:1.19.5-alpine AS builder
+FROM golang:1.19.5-bullseye AS builder
 # Install dependencies
-RUN apk add --no-cache build-base git
+RUN apt-get update && apt-get install -y build-essential git
 # Prep and copy source
 WORKDIR /app/charon
 COPY . .
@@ -12,7 +12,7 @@ RUN \
    go build -o charon .
 
 # Copy final binary into light stage.
-FROM alpine:3
+FROM debian:bullseye-slim
 ARG GITHUB_SHA=local
 ENV GITHUB_SHA=${GITHUB_SHA}
 COPY --from=builder /app/charon/charon /usr/local/bin/
@@ -20,7 +20,7 @@ COPY --from=builder /app/charon/charon /usr/local/bin/
 ENV USER=charon
 ENV UID=1000
 ENV GID=1000
-RUN addgroup -g "$GID" "$USER"
+RUN addgroup --gid "$GID" "$USER"
 RUN adduser \
     --disabled-password \
     --gecos "charon" \
