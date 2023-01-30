@@ -320,7 +320,7 @@ var keyGenFunc = func() (*k1.PrivateKey, error) {
 	return privkey, nil
 }
 
-// newP2PKeys returns a slice of newly generated ecdsa private keys.
+// newP2PKeys returns a slice of newly generated secp256k1 private keys.
 func newP2PKeys(n int) ([]*k1.PrivateKey, error) {
 	var resp []*k1.PrivateKey
 	for i := 0; i < n; i++ {
