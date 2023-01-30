@@ -15,7 +15,7 @@
 
 <!-- Delete or Add as needed -->
 
-- [ ] Passes unit Tests 
+- [ ] Passes unit tests 
 - [ ] Works on core team/canary/test clusters
 - [ ] Passes smoke tests
 - [ ] Passes optional manual tests
