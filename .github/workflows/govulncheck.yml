@@ -13,3 +13,5 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: Templum/govulncheck-action@v0.0.9
+        with:
+          fail-on-vuln: true
