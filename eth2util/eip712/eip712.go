@@ -105,6 +105,7 @@ func hashData(typ Type) ([]byte, error) {
 	return keccakHash(buf.Bytes()), nil
 }
 
+// encodeField returns the encoded primitive field.
 func encodeField(field Field) ([]byte, error) {
 	switch field.Type {
 	case PrimitiveString:
@@ -121,7 +122,7 @@ func encodeField(field Field) ([]byte, error) {
 		}
 
 		b := make([]byte, 32)
-		binary.BigEndian.PutUint64(b[24:], i)
+		binary.BigEndian.PutUint64(b[24:], i) // Encode int64 as last 8 bytes 32-8=24.
 
 		return b, nil
 
