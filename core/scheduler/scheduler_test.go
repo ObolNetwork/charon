@@ -383,6 +383,36 @@ func TestScheduler_GetDuty(t *testing.T) {
 	require.NoError(t, sched.Run())
 }
 
+//go:generate go test . -run=TestNoActive -count=100
+
+func TestNoActive(t *testing.T) {
+	var (
+		ctx          = context.Background()
+		t0           = time.Now()
+		slotDuration = time.Second
+	)
+
+	// Configure beacon mock.
+	eth2Cl, err := beaconmock.New(
+		beaconmock.WithGenesisTime(t0),
+		beaconmock.WithSlotDuration(slotDuration),
+		beaconmock.WithSlotsPerEpoch(1),
+	)
+	require.NoError(t, err)
+
+	// Construct scheduler.
+	clock := newTestClock(t0)
+	sched := scheduler.NewForT(t, clock, new(delayer).delay, nil, eth2Cl, false)
+
+	clock.CallbackAfter(t0.Add(slotDuration*2), func() {
+		_, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(1))
+		require.ErrorContains(t, err, "duty not present for resolved epoch")
+		sched.Stop()
+	})
+
+	require.NoError(t, sched.Run())
+}
+
 // delayer implements scheduler.delayFunc and records the deadline and returns it immediately.
 type delayer struct {
 	mu        sync.Mutex

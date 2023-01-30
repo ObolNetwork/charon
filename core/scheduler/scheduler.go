@@ -262,6 +262,8 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 
 	if len(vals) == 0 {
 		log.Info(ctx, "No active validators for slot", z.I64("slot", slot.Slot))
+		s.setResolvedEpoch(slot.Epoch())
+
 		return nil
 	}
 
