@@ -15,5 +15,11 @@ jobs:
       - uses: Templum/govulncheck-action@v0.0.9
         with:
           fail-on-vuln: true
+          skip-upload: true
         env:
           DEBUG: "true"
+      - name: Upload Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: raw-report
+          path: raw-report.json
