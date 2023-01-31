@@ -59,4 +59,28 @@ var (
 		Name:      "validator_effectiveness",
 		Help:      "Effectiveness of a validation key.",
 	}, labels)
+
+	networkUptime = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "promrated",
+		Name:      "network_uptime",
+		Help:      "Uptime of the network.",
+	}, labels)
+
+	networkCorrectness = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "promrated",
+		Name:      "network_correctness",
+		Help:      "Average correctness of the network.",
+	}, labels)
+
+	networkInclusionDelay = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "promrated",
+		Name:      "network_inclusion_delay",
+		Help:      "Average inclusion delay of the network.",
+	}, labels)
+
+	networkEffectiveness = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "promrated",
+		Name:      "network_effectiveness",
+		Help:      "Effectiveness of the network.",
+	}, labels)
 )

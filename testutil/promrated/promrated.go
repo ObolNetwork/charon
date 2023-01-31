@@ -82,6 +82,8 @@ func reportMetrics(ctx context.Context, config Config) {
 		return
 	}
 
+	networks := make(map[string]bool)
+
 	for _, validator := range validators {
 		log.Info(ctx, "Fetched validator from prometheus",
 			z.Str("pubkey", validator.PubKey),
@@ -89,7 +91,9 @@ func reportMetrics(ctx context.Context, config Config) {
 			z.Str("cluster_network", validator.ClusterNetwork),
 		)
 
-		stats, err := getValidationStatistics(ctx, config.RatedEndpoint, validator)
+		networks[validator.ClusterNetwork] = true
+
+		stats, err := getValidatorStatistics(ctx, config.RatedEndpoint, validator)
 		if err != nil {
 			log.Error(ctx, "Getting validator statistics", err, z.Str("validator", validator.PubKey))
 			continue
@@ -108,5 +112,22 @@ func reportMetrics(ctx context.Context, config Config) {
 		attester.With(clusterLabels).Set(stats.AttesterEffectiveness)
 		proposer.With(clusterLabels).Set(stats.ProposerEffectiveness)
 		effectiveness.With(clusterLabels).Set(stats.ValidatorEffectiveness)
+	}
+
+	for network := range networks {
+		networkLabels := prometheus.Labels{
+			"cluster_network": network,
+		}
+
+		stats, err := getNetworkStatistics(ctx, config.RatedEndpoint, network)
+		if err != nil {
+			log.Error(ctx, "Getting network statistics", err, z.Str("network", network))
+			continue
+		}
+
+		networkUptime.With(networkLabels).Set(stats.AvgUptime)
+		networkCorrectness.With(networkLabels).Set(stats.AvgCorrectness)
+		networkInclusionDelay.With(networkLabels).Set(stats.AvgInclusionDelay)
+		networkEffectiveness.With(networkLabels).Set(stats.ValidatorEffectiveness)
 	}
 }

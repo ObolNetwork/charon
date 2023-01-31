@@ -33,18 +33,30 @@ func TestGetValidationStatistics(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v0/eth/validators/0xA/effectiveness", r.URL.Path)
 		require.Equal(t, "1", r.URL.Query()["size"][0])
-		_, _ = w.Write([]byte(ratedFixture))
+		_, _ = w.Write([]byte(ratedValidatorFixture))
 	}))
 	defer ts.Close()
 
 	validator := validator{ClusterName: "test-cluster", ClusterHash: "hash", ClusterNetwork: "goerli", PubKey: "0xA"}
 
-	vals, err := getValidationStatistics(context.Background(), ts.URL, validator)
+	vals, err := getValidatorStatistics(context.Background(), ts.URL, validator)
 	assert.NoError(t, err)
 	testutil.RequireGoldenJSON(t, vals)
 }
 
-const ratedFixture = `
+func TestGetNetworkStatistics(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v0/eth/network/stats", r.URL.Path)
+		_, _ = w.Write([]byte(ratedNetworkFixture))
+	}))
+	defer ts.Close()
+
+	vals, err := getNetworkStatistics(context.Background(), ts.URL, "goerli")
+	assert.NoError(t, err)
+	testutil.RequireGoldenJSON(t, vals)
+}
+
+const ratedValidatorFixture = `
 {
   "page": {
       "from": null,
@@ -65,3 +77,13 @@ const ratedFixture = `
   ],
   "next": "/v0/eth/validators/379356/effectiveness?size=1&from=629&granularity=day&filterType=day"
 }`
+
+const ratedNetworkFixture = `
+[
+    {
+        "avgUptime": 0.9964608763093223,
+        "avgInclusionDelay": 1.0147019732112206,
+        "avgCorrectness": 0.9914412918384125,
+        "avgValidatorEffectiveness": 97.6838307968488
+    }
+]`
