@@ -21,6 +21,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	blsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls/v2/herumi"
+	"github.com/obolnetwork/charon/tbls/v2/kryptology"
 	"net/http"
 	"strings"
 	"time"
@@ -428,6 +431,13 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc)
+	}
+
+	blsv2.SetImplementation(kryptology.Kryptology{})
+
+	if featureset.Enabled(featureset.HerumiBLS) {
+		log.Info(ctx, "enabling Herumi BLS signature backend")
+		blsv2.SetImplementation(herumi.Herumi{})
 	}
 
 	sigAgg := sigagg.New(lock.Threshold)
