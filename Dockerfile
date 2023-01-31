@@ -1,7 +1,7 @@
 # Container for building Go binary.
 FROM golang:1.19.5-bullseye AS builder
 # Install dependencies
-RUN apt-get update && apt-get install -y build-essential git
+RUN apt-get update && apt-get install -y build-essential git ca-certificates
 # Prep and copy source
 WORKDIR /app/charon
 COPY . .
@@ -13,6 +13,7 @@ RUN \
 
 # Copy final binary into light stage.
 FROM debian:bullseye-slim
+RUN apt-get update && apt-get install -y ca-certificates
 ARG GITHUB_SHA=local
 ENV GITHUB_SHA=${GITHUB_SHA}
 COPY --from=builder /app/charon/charon /usr/local/bin/
