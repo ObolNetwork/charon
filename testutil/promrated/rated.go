@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -48,7 +49,7 @@ type networkEffectivenessData struct {
 
 // getValidationStatistics queries rated for a pubkey and returns rated data about the pubkey
 // See https://api.rated.network/docs#/default/get_effectiveness_v0_eth_validators__validator_index_or_pubkey__effectiveness_get
-func getValidatorStatistics(ctx context.Context, ratedEndpoint string, validator validator) (validatorEffectivenessData, error) {
+func getValidatorStatistics(ctx context.Context, ratedEndpoint string, ratedAuth string, validator validator) (validatorEffectivenessData, error) {
 	url, err := url.Parse(ratedEndpoint)
 	if err != nil {
 		return validatorEffectivenessData{}, errors.Wrap(err, "parse rated endpoint")
@@ -61,7 +62,7 @@ func getValidatorStatistics(ctx context.Context, ratedEndpoint string, validator
 	query.Add("size", "1")
 	url.RawQuery = query.Encode()
 
-	body, err := getValidationStatistics(ctx, url, validator.ClusterNetwork)
+	body, err := getValidationStatistics(ctx, url, ratedAuth, validator.ClusterNetwork)
 	if err != nil {
 		return validatorEffectivenessData{}, err
 	}
@@ -71,7 +72,7 @@ func getValidatorStatistics(ctx context.Context, ratedEndpoint string, validator
 
 // getNetworkStatistics queries rated for the network and returns the network 7d average
 // See https://api.rated.network/docs#/Network/get_network_overview_v0_eth_network_overview_get
-func getNetworkStatistics(ctx context.Context, ratedEndpoint string, network string) (networkEffectivenessData, error) {
+func getNetworkStatistics(ctx context.Context, ratedEndpoint string, ratedAuth string, network string) (networkEffectivenessData, error) {
 	url, err := url.Parse(ratedEndpoint)
 	if err != nil {
 		return networkEffectivenessData{}, errors.Wrap(err, "parse rated endpoint")
@@ -79,7 +80,7 @@ func getNetworkStatistics(ctx context.Context, ratedEndpoint string, network str
 
 	url.Path = "/v0/eth/network/stats"
 
-	body, err := getValidationStatistics(ctx, url, network)
+	body, err := getValidationStatistics(ctx, url, ratedAuth, network)
 	if err != nil {
 		return networkEffectivenessData{}, err
 	}
@@ -88,7 +89,7 @@ func getNetworkStatistics(ctx context.Context, ratedEndpoint string, network str
 }
 
 // getValidationStatistics queries rated url and returns effectiveness data.
-func getValidationStatistics(ctx context.Context, url *url.URL, network string) ([]byte, error) {
+func getValidationStatistics(ctx context.Context, url *url.URL, ratedAuth string, network string) ([]byte, error) {
 	// Workaround for rated api not recognising goerli
 	clusterNetwork := network
 	if clusterNetwork == "goerli" {
@@ -109,6 +110,7 @@ func getValidationStatistics(ctx context.Context, url *url.URL, network string) 
 			return nil, errors.Wrap(err, "new rated request")
 		}
 
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", ratedAuth))
 		req.Header.Add("X-Rated-Network", clusterNetwork)
 		res, err := client.Do(req)
 		if err != nil {
@@ -126,6 +128,8 @@ func getValidationStatistics(ctx context.Context, url *url.URL, network string) 
 
 			continue
 		} else if res.StatusCode/100 != 2 {
+			incRatedErrors(req.URL.String(), res.StatusCode)
+
 			return nil, errors.New("not ok http response", z.Str("body", string(body)))
 		}
 
@@ -178,4 +182,8 @@ func extractBody(res *http.Response) ([]byte, error) {
 	defer res.Body.Close()
 
 	return body, nil
+}
+
+func incRatedErrors(endpoint string, statusCode int) {
+	ratedErrors.WithLabelValues(endpoint, strconv.Itoa(statusCode)).Inc()
 }

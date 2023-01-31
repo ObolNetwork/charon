@@ -16,12 +16,11 @@
 package cluster
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util"
@@ -34,6 +33,19 @@ func TestDefinitionVerify(t *testing.T) {
 	secret0, op0 := randomOperator(t)
 	secret1, op1 := randomOperator(t)
 	secret3, creator := randomCreator(t)
+
+	t.Run("verify definition v1.5 solo", func(t *testing.T) {
+		definition := randomDefinition(t, creator, Operator{}, Operator{},
+			WithVersion(v1_5),
+			WithMultiVAddrs(RandomValidatorAddresses(2)),
+		)
+
+		definition, err = signCreator(secret3, definition)
+		require.NoError(t, err)
+
+		err = definition.VerifySignatures()
+		require.NoError(t, err)
+	})
 
 	t.Run("verify definition v1.5", func(t *testing.T) {
 		definition := randomDefinition(t, creator, op0, op1,
@@ -193,30 +205,30 @@ func TestDefinitionVerify(t *testing.T) {
 }
 
 // randomOperator returns a random ETH1 private key and populated creator struct (excluding config signature).
-func randomCreator(t *testing.T) (*ecdsa.PrivateKey, Creator) {
+func randomCreator(t *testing.T) (*k1.PrivateKey, Creator) {
 	t.Helper()
 
-	secret, err := crypto.GenerateKey()
+	secret, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
-	addr := crypto.PubkeyToAddress(secret.PublicKey)
+	addr := eth2util.PublicKeyToAddress(secret.PubKey())
 
 	return secret, Creator{
-		Address: addr.Hex(),
+		Address: addr,
 	}
 }
 
 // randomOperator returns a random ETH1 private key and populated operator struct (excluding config signature).
-func randomOperator(t *testing.T) (*ecdsa.PrivateKey, Operator) {
+func randomOperator(t *testing.T) (*k1.PrivateKey, Operator) {
 	t.Helper()
 
-	secret, err := crypto.GenerateKey()
+	secret, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
-	addr := crypto.PubkeyToAddress(secret.PublicKey)
+	addr := eth2util.PublicKeyToAddress(secret.PubKey())
 
 	return secret, Operator{
-		Address: addr.Hex(),
+		Address: addr,
 		ENR:     fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
 	}
 }

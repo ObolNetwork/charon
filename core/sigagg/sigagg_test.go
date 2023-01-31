@@ -24,7 +24,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
@@ -228,12 +228,12 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		block *spec.VersionedSignedBeaconBlock
+		block *eth2spec.VersionedSignedBeaconBlock
 	}{
 		{
 			name: "phase0 block",
-			block: &spec.VersionedSignedBeaconBlock{
-				Version: spec.DataVersionPhase0,
+			block: &eth2spec.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionPhase0,
 				Phase0: &eth2p0.SignedBeaconBlock{
 					Message:   testutil.RandomPhase0BeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
@@ -242,8 +242,8 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		},
 		{
 			name: "altair block",
-			block: &spec.VersionedSignedBeaconBlock{
-				Version: spec.DataVersionAltair,
+			block: &eth2spec.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionAltair,
 				Altair: &altair.SignedBeaconBlock{
 					Message:   testutil.RandomAltairBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
@@ -252,8 +252,8 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		},
 		{
 			name: "bellatrix block",
-			block: &spec.VersionedSignedBeaconBlock{
-				Version: spec.DataVersionBellatrix,
+			block: &eth2spec.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionBellatrix,
 				Bellatrix: &bellatrix.SignedBeaconBlock{
 					Message:   testutil.RandomBellatrixBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
@@ -262,8 +262,8 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		},
 		{
 			name: "capella block",
-			block: &spec.VersionedSignedBeaconBlock{
-				Version: spec.DataVersionCapella,
+			block: &eth2spec.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionCapella,
 				Capella: &capella.SignedBeaconBlock{
 					Message:   testutil.RandomCapellaBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
@@ -348,7 +348,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 		{
 			name: "bellatrix block",
 			block: &eth2api.VersionedSignedBlindedBeaconBlock{
-				Version: spec.DataVersionBellatrix,
+				Version: eth2spec.DataVersionBellatrix,
 				Bellatrix: &eth2bellatrix.SignedBlindedBeaconBlock{
 					Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
@@ -358,7 +358,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 		{
 			name: "capella block",
 			block: &eth2api.VersionedSignedBlindedBeaconBlock{
-				Version: spec.DataVersionCapella,
+				Version: eth2spec.DataVersionCapella,
 				Capella: &eth2capella.SignedBlindedBeaconBlock{
 					Message:   testutil.RandomCapellaBlindedBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
@@ -443,7 +443,7 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 		{
 			name: "V1 registration",
 			registration: &eth2api.VersionedSignedValidatorRegistration{
-				Version: spec.BuilderVersionV1,
+				Version: eth2spec.BuilderVersionV1,
 				V1: &eth2v1.SignedValidatorRegistration{
 					Message:   testutil.RandomValidatorRegistration(t),
 					Signature: testutil.RandomEth2Signature(),

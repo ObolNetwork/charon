@@ -16,25 +16,15 @@
 package cmd
 
 import (
-	"crypto/ecdsa"
-	"encoding/hex"
 	"io"
-	"math/rand"
 	"os"
-	"strings"
 	"testing"
-	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
-)
-
-const (
-	compressedK1PubkeyLen = 33
 )
 
 func TestRunNewEnr(t *testing.T) {
@@ -44,14 +34,4 @@ func TestRunNewEnr(t *testing.T) {
 	got := runNewENR(io.Discard, temp, false)
 	expected := errors.New("private key not found. If this is your first time running this client, create one with `charon create enr`.", z.Str("enr_path", p2p.KeyPath(temp)))
 	require.Equal(t, expected.Error(), got.Error())
-}
-
-func TestPubkeyHex(t *testing.T) {
-	key, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(time.Now().Unix())))
-	require.NoError(t, err)
-
-	pk := pubkeyHex(key.PublicKey)
-	bytes, err := hex.DecodeString(strings.TrimPrefix(pk, "0x"))
-	require.NoError(t, err)
-	require.Equal(t, len(bytes), compressedK1PubkeyLen)
 }

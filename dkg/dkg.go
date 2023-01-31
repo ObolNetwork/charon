@@ -17,14 +17,13 @@ package dkg
 
 import (
 	"context"
-	"crypto/ecdsa"
 	crand "crypto/rand"
 	"fmt"
 	"time"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -57,8 +56,6 @@ type Config struct {
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
-//
-//nolint:gocognit
 func Run(ctx context.Context, conf Config) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -73,12 +70,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	version.LogInfo(ctx, "Charon DKG starting")
 
 	def, err := loadDefinition(ctx, conf)
-	if err != nil {
-		return err
-	}
-
-	// TODO(corver): Refactor DKG to support multiple withdrawal addresses.
-	vaddrs, err := def.LegacyValidatorAddresses()
 	if err != nil {
 		return err
 	}
@@ -112,7 +103,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	pID, err := p2p.PeerIDFromKey(&key.PublicKey)
+	pID, err := p2p.PeerIDFromKey(key.PubKey())
 	if err != nil {
 		return err
 	}
@@ -195,8 +186,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Aggregated lock hash signatures")
 
+	withdrawalAddresses, err := lock.WithdrawalAddresses()
+	if err != nil {
+		return err
+	}
+
 	// Sign, exchange and aggregate Deposit Data signatures
-	aggSigDepositData, err := signAndAggDepositData(ctx, ex, shares, vaddrs.WithdrawalAddress, network, nodeIdx)
+	pubkeys, depositDataSigs, err := signAndAggDepositData(ctx, ex, shares, withdrawalAddresses, network, nodeIdx)
 	if err != nil {
 		return err
 	}
@@ -226,7 +222,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Saved lock file to disk")
 
-	if err := writeDepositData(aggSigDepositData, vaddrs.WithdrawalAddress, network, conf.DataDir); err != nil {
+	if err := writeDepositData(pubkeys, depositDataSigs, withdrawalAddresses, network, conf.DataDir); err != nil {
 		return err
 	}
 	log.Debug(ctx, "Saved deposit data file to disk")
@@ -237,7 +233,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
-func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, peers []p2p.Peer, lockHashHex string) (host.Host, func(), error) {
+func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers []p2p.Peer, lockHashHex string) (host.Host, func(), error) {
 	var peerIDs []peer.ID
 	for _, p := range peers {
 		peerIDs = append(peerIDs, p.ID)
@@ -262,7 +258,7 @@ func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, pe
 		return nil, nil, err
 	}
 
-	p2p.RegisterConnectionLogger(tcpNode, peerIDs)
+	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
 
 	for _, relay := range relays {
 		go func(relay *p2p.MutablePeer) {
@@ -282,16 +278,12 @@ func setupP2P(ctx context.Context, key *ecdsa.PrivateKey, p2pConf p2p.Config, pe
 
 // startSyncProtocol sets up a sync protocol server and clients for each peer and returns a shutdown function
 // when all peers are connected.
-func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *ecdsa.PrivateKey, defHash []byte, peerIDs []peer.ID,
+func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKey, defHash []byte, peerIDs []peer.ID,
 	onFailure func(), testCallback func(connected int, id peer.ID),
 ) (func(context.Context) error, error) {
 	// Sign definition hash with charon-enr-private-key
-	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))
-	if err != nil {
-		return nil, errors.Wrap(err, "convert key")
-	}
-
-	hashSig, err := priv.Sign(defHash)
+	// Note: libp2p signing does another hash of the defHash.
+	hashSig, err := ((*libp2pcrypto.Secp256k1PrivateKey)(key)).Sign(defHash)
 	if err != nil {
 		return nil, errors.Wrap(err, "sign definition hash")
 	}
@@ -427,36 +419,55 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 }
 
 // signAndAggDepositData returns aggregated signatures per DV after signing, exchange and aggregation of partial signatures.
-func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, withdrawalAddr string, network string, nodeIdx cluster.NodeIdx) (map[core.PubKey]*bls_sig.Signature, error) {
-	parSig, msgs, err := signDepositData(shares, nodeIdx.ShareIdx, withdrawalAddr, network)
+func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, withdrawalAddresses []string, network string, nodeIdx cluster.NodeIdx) ([]eth2p0.BLSPubKey, []eth2p0.BLSSignature, error) {
+	parSig, msgs, err := signDepositData(shares, nodeIdx.ShareIdx, withdrawalAddresses, network)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	peerSigs, err := ex.exchange(ctx, sigDepositData, parSig)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	aggSigDepositData, err := aggDepositDataSigs(peerSigs, shares, msgs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for pk, sig := range aggSigDepositData {
 		pubkey, err := tblsconv.KeyFromCore(pk)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		ok, err := tbls.Verify(pubkey, msgs[pk], sig)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		} else if !ok {
-			return nil, errors.New("invalid deposit data aggregated signature")
+			return nil, nil, errors.New("invalid deposit data aggregated signature")
 		}
 	}
 
-	return aggSigDepositData, nil
+	var (
+		pubkeys         []eth2p0.BLSPubKey
+		depositDataSigs []eth2p0.BLSSignature
+	)
+	for _, sh := range shares {
+		eth2Pk, err := tblsconv.KeyToETH2(sh.PubKey)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		corePk, err := tblsconv.KeyToCore(sh.PubKey)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		pubkeys = append(pubkeys, eth2Pk)
+		depositDataSigs = append(depositDataSigs, tblsconv.SigToETH2(aggSigDepositData[corePk]))
+	}
+
+	return pubkeys, depositDataSigs, nil
 }
 
 // aggLockHashSig returns the aggregated multi signature of the lock hash
@@ -539,12 +550,14 @@ func signLockHash(shareIdx int, shares []share, hash []byte) (core.ParSignedData
 }
 
 // signDepositData returns a partially signed dataset containing signatures of the deposit data signing root.
-func signDepositData(shares []share, shareIdx int, withdrawalAddr string, network string) (core.ParSignedDataSet, map[core.PubKey][]byte, error) {
-	withdrawalHex := checksumAddr(withdrawalAddr)
-
+func signDepositData(shares []share, shareIdx int, withdrawalAddresses []string, network string) (core.ParSignedDataSet, map[core.PubKey][]byte, error) {
 	msgs := make(map[core.PubKey][]byte)
 	set := make(core.ParSignedDataSet)
-	for _, share := range shares {
+	for i, share := range shares {
+		withdrawalHex, err := eth2util.ChecksumAddress(withdrawalAddresses[i])
+		if err != nil {
+			return nil, nil, err
+		}
 		pubkey, err := tblsconv.KeyToETH2(share.PubKey)
 		if err != nil {
 			return nil, nil, err
@@ -634,10 +647,6 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []shar
 	}
 
 	return resp, nil
-}
-
-func checksumAddr(addr string) string {
-	return common.HexToAddress(addr).Hex()
 }
 
 // dvsFromShares returns the shares as a slice of cluster distributed validator types.

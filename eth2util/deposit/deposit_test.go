@@ -30,11 +30,6 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-const (
-	// Test output file and it's input values.
-	withdrawalAddr = "0xc0404ed740a69d11201f5ed297c5732f562c6e4e"
-)
-
 //go:generate go test . -run=TestMarshalDepositData -update -clean
 
 func TestMarshalDepositData(t *testing.T) {
@@ -44,22 +39,31 @@ func TestMarshalDepositData(t *testing.T) {
 		"1dabcbfc9258f0f28606bf9e3b1c9f06d15a6e4eb0fbc28a43835eaaed7623fc",
 		"002ff4fd29d3deb6de9f5d115182a49c618c97acaa365ad66a0b240bd825c4ff",
 	}
+	withdrawalAddrs := []string{
+		"0x321dcb529f3945bc94fecea9d3bc5caf35253b94",
+		"0x08ef6a66a4f315aa250d2e748de0bfe5a6121096",
+		"0x05f9f73f74c205f2b9267c04296e3069767531fb",
+		"0x67f5df029ae8d3f941abef0bec6462a6b4e4b522",
+	}
 
-	sigsByKeys := make(map[eth2p0.BLSPubKey]eth2p0.BLSSignature)
-
+	var (
+		pubkeys []eth2p0.BLSPubKey
+		sigs    []eth2p0.BLSSignature
+	)
 	for i := 0; i < len(privKeys); i++ {
 		sk, pk := GetKeys(t, privKeys[i])
 
-		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddr, eth2util.Goerli.Name)
+		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddrs[i], eth2util.Goerli.Name)
 		require.NoError(t, err)
 
 		sig, err := tbls.Sign(sk, msgRoot[:])
 		require.NoError(t, err)
 
-		sigsByKeys[pk] = tblsconv.SigToETH2(sig)
+		sigs = append(sigs, tblsconv.SigToETH2(sig))
+		pubkeys = append(pubkeys, pk)
 	}
 
-	actual, err := deposit.MarshalDepositData(sigsByKeys, withdrawalAddr, eth2util.Goerli.Name)
+	actual, err := deposit.MarshalDepositData(pubkeys, sigs, withdrawalAddrs, eth2util.Goerli.Name)
 	require.NoError(t, err)
 
 	testutil.RequireGoldenBytes(t, actual)

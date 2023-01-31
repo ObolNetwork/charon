@@ -29,7 +29,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
@@ -78,7 +78,7 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 	}
 
 	var pubkey eth2p0.BLSPubKey
-	var block *spec.VersionedBeaconBlock
+	var block *eth2spec.VersionedBeaconBlock
 	for _, duty := range duties {
 		if duty.Slot != slot {
 			continue
@@ -132,25 +132,25 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 	}
 
 	// create signed beacon block
-	signedBlock := new(spec.VersionedSignedBeaconBlock)
+	signedBlock := new(eth2spec.VersionedSignedBeaconBlock)
 	signedBlock.Version = block.Version
 	switch block.Version {
-	case spec.DataVersionPhase0:
+	case eth2spec.DataVersionPhase0:
 		signedBlock.Phase0 = &eth2p0.SignedBeaconBlock{
 			Message:   block.Phase0,
 			Signature: sig,
 		}
-	case spec.DataVersionAltair:
+	case eth2spec.DataVersionAltair:
 		signedBlock.Altair = &altair.SignedBeaconBlock{
 			Message:   block.Altair,
 			Signature: sig,
 		}
-	case spec.DataVersionBellatrix:
+	case eth2spec.DataVersionBellatrix:
 		signedBlock.Bellatrix = &bellatrix.SignedBeaconBlock{
 			Message:   block.Bellatrix,
 			Signature: sig,
 		}
-	case spec.DataVersionCapella:
+	case eth2spec.DataVersionCapella:
 		signedBlock.Capella = &capella.SignedBeaconBlock{
 			Message:   block.Capella,
 			Signature: sig,
@@ -252,12 +252,12 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 	signedBlock := new(eth2api.VersionedSignedBlindedBeaconBlock)
 	signedBlock.Version = block.Version
 	switch block.Version {
-	case spec.DataVersionBellatrix:
+	case eth2spec.DataVersionBellatrix:
 		signedBlock.Bellatrix = &eth2bellatrix.SignedBlindedBeaconBlock{
 			Message:   block.Bellatrix,
 			Signature: sig,
 		}
-	case spec.DataVersionCapella:
+	case eth2spec.DataVersionCapella:
 		signedBlock.Capella = &eth2capella.SignedBlindedBeaconBlock{
 			Message:   block.Capella,
 			Signature: sig,
@@ -292,7 +292,7 @@ func Register(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	// create signed builder registration
 	signedRegistration := new(eth2api.VersionedSignedValidatorRegistration)
 	switch signedRegistration.Version {
-	case spec.BuilderVersionV1:
+	case eth2spec.BuilderVersionV1:
 		signedRegistration.V1 = &eth2v1.SignedValidatorRegistration{
 			Message:   registration.V1,
 			Signature: sig,
@@ -343,7 +343,7 @@ func getSecret(secrets []*bls_sig.SecretKey, pubkey eth2p0.BLSPubKey) (*bls_sig.
 
 // versionJSON extracts the version from a response.
 type versionJSON struct {
-	Version spec.DataVersion `json:"version"`
+	Version eth2spec.DataVersion `json:"version"`
 }
 
 type phase0BlockJSON struct {
@@ -366,7 +366,7 @@ type capellaBlockJSON struct {
 // refer: https://github.com/attestantio/go-eth2-client/blob/906db73739859de06f46dfa91384675ed9300af0/http/beaconblockproposal.go#L87
 func beaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature,
 	graffiti []byte, addr string,
-) (*spec.VersionedBeaconBlock, error) {
+) (*eth2spec.VersionedBeaconBlock, error) {
 	endpoint := fmt.Sprintf("/eth/v2/validator/blocks/%d?randao_reveal=%#x&graffiti=%#x",
 		slot, randaoReveal, graffiti)
 	body, err := httpGet(ctx, addr, endpoint)
@@ -378,12 +378,12 @@ func beaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth
 	if err := json.Unmarshal(body, &version); err != nil {
 		return nil, errors.Wrap(err, "failed to parse version")
 	}
-	res := &spec.VersionedBeaconBlock{
+	res := &eth2spec.VersionedBeaconBlock{
 		Version: version.Version,
 	}
 
 	switch version.Version {
-	case spec.DataVersionPhase0:
+	case eth2spec.DataVersionPhase0:
 		var resp phase0BlockJSON
 		if err := json.Unmarshal(body, &resp); err != nil {
 			return nil, errors.Wrap(err, "failed to parse phase 0 beacon block proposal")
@@ -393,7 +393,7 @@ func beaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth
 			return nil, errors.New("beacon block proposal not for requested slot")
 		}
 		res.Phase0 = resp.Data
-	case spec.DataVersionAltair:
+	case eth2spec.DataVersionAltair:
 		var resp altairBlockJSON
 		if err := json.Unmarshal(body, &resp); err != nil {
 			return nil, errors.Wrap(err, "failed to parse altair beacon block proposal")
@@ -403,7 +403,7 @@ func beaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth
 			return nil, errors.New("beacon block proposal not for requested slot")
 		}
 		res.Altair = resp.Data
-	case spec.DataVersionBellatrix:
+	case eth2spec.DataVersionBellatrix:
 		var resp bellatrixBlockJSON
 		if err := json.Unmarshal(body, &resp); err != nil {
 			return nil, errors.Wrap(err, "failed to parse bellatrix beacon block proposal")
@@ -413,7 +413,7 @@ func beaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth
 			return nil, errors.New("beacon block proposal not for requested slot")
 		}
 		res.Bellatrix = resp.Data
-	case spec.DataVersionCapella:
+	case eth2spec.DataVersionCapella:
 		var resp capellaBlockJSON
 		if err := json.Unmarshal(body, &resp); err != nil {
 			return nil, errors.Wrap(err, "failed to parse capella beacon block proposal")
@@ -459,7 +459,7 @@ func blindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoRev
 	}
 
 	switch version.Version {
-	case spec.DataVersionBellatrix:
+	case eth2spec.DataVersionBellatrix:
 		var resp bellatrixBlindedBlockJSON
 		if err := json.Unmarshal(body, &resp); err != nil {
 			return nil, errors.Wrap(err, "failed to parse bellatrix beacon block proposal")
@@ -469,7 +469,7 @@ func blindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoRev
 			return nil, errors.New("beacon block proposal not for requested slot")
 		}
 		res.Bellatrix = resp.Data
-	case spec.DataVersionCapella:
+	case eth2spec.DataVersionCapella:
 		var resp capellaBlindedBlockJSON
 		if err := json.Unmarshal(body, &resp); err != nil {
 			return nil, errors.Wrap(err, "failed to parse capella beacon block proposal")
@@ -503,7 +503,7 @@ func httpGet(ctx context.Context, base string, endpoint string) ([]byte, error) 
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode == 404 {
+	if res.StatusCode == http.StatusNotFound {
 		// Nothing found.  This is not an error, so we return nil on both counts.
 		return nil, nil
 	}

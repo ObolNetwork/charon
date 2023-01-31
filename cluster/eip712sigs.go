@@ -16,14 +16,12 @@
 package cluster
 
 import (
-	"crypto/ecdsa"
-
-	ethmath "github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/signer/core/apitypes"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/eip712"
 )
 
 // eip712Type defines the EIP712 (https://eips.ethereum.org/EIPS/eip-712) Primary type and the Message field and value.
@@ -91,29 +89,25 @@ func digestEIP712(typ eip712Type, def Definition, operator Operator) ([]byte, er
 		return nil, err
 	}
 
-	data := apitypes.TypedData{
-		Types: apitypes.Types{
-			"EIP712Domain": []apitypes.Type{
-				{Name: "name", Type: "string"},
-				{Name: "version", Type: "string"},
-				{Name: "chainId", Type: "uint256"},
-			},
-			typ.PrimaryType: []apitypes.Type{
-				{Name: typ.Field, Type: "string"},
-			},
-		},
-		PrimaryType: typ.PrimaryType,
-		Message: apitypes.TypedDataMessage{
-			typ.Field: typ.ValueFunc(def, operator),
-		},
-		Domain: apitypes.TypedDataDomain{
+	data := eip712.TypedData{
+		Domain: eip712.Domain{
 			Name:    "Obol",
 			Version: "1",
-			ChainId: ethmath.NewHexOrDecimal256(chainID),
+			ChainID: uint64(chainID),
+		},
+		Type: eip712.Type{
+			Name: typ.PrimaryType,
+			Fields: []eip712.Field{
+				{
+					Name:  typ.Field,
+					Type:  eip712.PrimitiveString,
+					Value: typ.ValueFunc(def, operator),
+				},
+			},
 		},
 	}
 
-	digest, _, err := apitypes.TypedDataAndHash(data)
+	digest, err := eip712.HashTypedData(data)
 	if err != nil {
 		return nil, errors.Wrap(err, "hash EIP712")
 	}
@@ -122,13 +116,13 @@ func digestEIP712(typ eip712Type, def Definition, operator Operator) ([]byte, er
 }
 
 // signEIP712 returns the EIP712 signature for the primary type.
-func signEIP712(secret *ecdsa.PrivateKey, typ eip712Type, def Definition, operator Operator) ([]byte, error) {
+func signEIP712(secret *k1.PrivateKey, typ eip712Type, def Definition, operator Operator) ([]byte, error) {
 	digest, err := digestEIP712(typ, def, operator)
 	if err != nil {
 		return nil, err
 	}
 
-	sig, err := crypto.Sign(digest, secret)
+	sig, err := k1util.Sign(secret, digest)
 	if err != nil {
 		return nil, errors.Wrap(err, "sign EIP712")
 	}

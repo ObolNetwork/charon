@@ -16,17 +16,17 @@
 package consensus
 
 import (
-	"crypto/ecdsa"
 	"encoding/hex"
 	"math/rand"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
@@ -54,7 +54,7 @@ func TestHashProto(t *testing.T) {
 //go:generate go test . -update
 
 func TestSigning(t *testing.T) {
-	privkey, err := crypto.GenerateKey()
+	privkey, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
 	msg := randomMsg(t)
@@ -62,13 +62,13 @@ func TestSigning(t *testing.T) {
 	signed, err := signMsg(msg, privkey)
 	require.NoError(t, err)
 
-	ok, err := verifyMsgSig(signed, &privkey.PublicKey)
+	ok, err := verifyMsgSig(signed, privkey.PubKey())
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	privkey2, err := crypto.GenerateKey()
+	privkey2, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
-	ok, err = verifyMsgSig(signed, &privkey2.PublicKey)
+	ok, err = verifyMsgSig(signed, privkey2.PubKey())
 	require.NoError(t, err)
 	require.False(t, ok)
 }
@@ -83,8 +83,7 @@ func TestBackwardsCompatibility(t *testing.T) {
 
 	prevKeyBytes, err := hex.DecodeString(prevKey)
 	require.NoError(t, err)
-	key, err := crypto.ToECDSA(prevKeyBytes)
-	require.NoError(t, err)
+	key := k1.PrivKeyFromBytes(prevKeyBytes)
 
 	t.Run("previous wire, latest logic", func(t *testing.T) {
 		msg := new(pbv1.QBFTMsg)
@@ -93,7 +92,7 @@ func TestBackwardsCompatibility(t *testing.T) {
 		err = proto.Unmarshal(prevProtoBytes, msg)
 		require.NoError(t, err)
 
-		ok, err := verifyMsgSig(msg, &key.PublicKey)
+		ok, err := verifyMsgSig(msg, key.PubKey())
 		testutil.RequireNoError(t, err)
 		require.True(t, ok)
 
@@ -131,10 +130,9 @@ func TestBackwardsCompatibility(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, hashLegacy, hashLatest)
 
-		actual, err := crypto.SigToPub(hashLegacy[:], sigLegacy)
+		recovered, err := k1util.Recover(hashLegacy[:], sigLegacy)
 		require.NoError(t, err)
-
-		require.True(t, key.PublicKey.Equal(actual))
+		require.True(t, key.PubKey().IsEqual(recovered))
 	})
 }
 
@@ -196,10 +194,9 @@ func TestLegacyMsgHashAndSig(t *testing.T) {
 	hash, err := hashProto(msg)
 	require.NoError(t, err)
 
-	privkey, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(0)))
-	require.NoError(t, err)
+	privkey := testutil.GenerateInsecureK1Key(t, rand.New(rand.NewSource(0)))
 
-	sig, err := crypto.Sign(hash[:], privkey)
+	sig, err := k1util.Sign(privkey, hash[:])
 	require.NoError(t, err)
 
 	require.Equal(t,

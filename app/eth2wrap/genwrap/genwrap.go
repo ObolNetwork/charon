@@ -58,6 +58,7 @@ type Client interface {
     eth2exp.BeaconCommitteeSelectionAggregator
     eth2exp.SyncCommitteeSelectionAggregator
     BlockAttestationsProvider
+    NodePeerCountProvider
 
     {{range .Providers}} eth2client.{{.}}
     {{end -}}
@@ -306,7 +307,6 @@ func writeTemplate(methods []Method, providers []string, imprts []string) error 
 	return nil
 }
 
-//nolint:gocognit
 func parseEth2Methods(pkg *packages.Package) ([]Method, []string, error) {
 	var (
 		methods   []Method

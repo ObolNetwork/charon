@@ -33,13 +33,16 @@ func TestGetValidationStatistics(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v0/eth/validators/0xA/effectiveness", r.URL.Path)
 		require.Equal(t, "1", r.URL.Query()["size"][0])
+
+		require.Equal(t, "Bearer auth", r.Header.Get("Authorization"))
+		require.Equal(t, "prater", r.Header.Get("X-Rated-Network"))
 		_, _ = w.Write([]byte(ratedValidatorFixture))
 	}))
 	defer ts.Close()
 
 	validator := validator{ClusterName: "test-cluster", ClusterHash: "hash", ClusterNetwork: "goerli", PubKey: "0xA"}
 
-	vals, err := getValidatorStatistics(context.Background(), ts.URL, validator)
+	vals, err := getValidatorStatistics(context.Background(), ts.URL, "auth", validator)
 	assert.NoError(t, err)
 	testutil.RequireGoldenJSON(t, vals)
 }
@@ -47,11 +50,14 @@ func TestGetValidationStatistics(t *testing.T) {
 func TestGetNetworkStatistics(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v0/eth/network/stats", r.URL.Path)
+
+		require.Equal(t, "Bearer auth", r.Header.Get("Authorization"))
+		require.Equal(t, "prater", r.Header.Get("X-Rated-Network"))
 		_, _ = w.Write([]byte(ratedNetworkFixture))
 	}))
 	defer ts.Close()
 
-	vals, err := getNetworkStatistics(context.Background(), ts.URL, "goerli")
+	vals, err := getNetworkStatistics(context.Background(), ts.URL, "auth", "goerli")
 	assert.NoError(t, err)
 	testutil.RequireGoldenJSON(t, vals)
 }

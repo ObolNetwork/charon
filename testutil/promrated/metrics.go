@@ -83,4 +83,10 @@ var (
 		Name:      "network_effectiveness",
 		Help:      "Effectiveness of the network.",
 	}, labels)
+
+	ratedErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "promrated",
+		Name:      "api_error_total",
+		Help:      "Total number of rated api errors",
+	}, []string{"peer"})
 )

@@ -16,9 +16,7 @@
 package cluster
 
 import (
-	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -29,20 +27,15 @@ import (
 	"time"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-)
-
-const (
-	// k1SigLen is the length of secp256k1 signatures.
-	k1SigLen = 65
-	// k1RecIdx is the secp256k1 signature recovery id index.
-	k1RecIdx = 64
 )
 
 // FetchDefinition fetches cluster definition file from a remote URI.
@@ -84,37 +77,23 @@ func uuid(random io.Reader) string {
 
 // verifySig returns true if the signature matches the digest and address.
 func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
-	if len(sig) != k1SigLen {
-		return false, errors.New("invalid signature length", z.Int("siglen", len(sig)))
-	}
-
-	// https://github.com/ethereum/go-ethereum/issues/19751#issuecomment-504900739
-	// TL;DR: Metamask signatures end with 0x1b (27) or 0x1c (28) while go-ethereum/crypto signatures end with 0x0(0) or 0x1(1) and both are correct.
-	if sig[k1RecIdx] != 0 && sig[k1RecIdx] != 1 && sig[k1RecIdx] != 27 && sig[k1RecIdx] != 28 {
-		return false, errors.New("invalid recovery id", z.Any("id", sig[k1RecIdx]))
-	}
-
-	if sig[k1RecIdx] == 27 || sig[k1RecIdx] == 28 {
-		sig[k1RecIdx] -= 27 // Make the last byte 0 or 1 since that is the canonical V value.
-	}
-
-	pubkey, err := crypto.SigToPub(digest, sig)
-	if err != nil {
-		return false, errors.Wrap(err, "pubkey from signature")
-	}
-
-	actualAddr := crypto.PubkeyToAddress(*pubkey)
-
-	addrBytes, err := from0xHex(expectedAddr, addressLen)
+	expectedAddr, err := eth2util.ChecksumAddress(expectedAddr)
 	if err != nil {
 		return false, err
 	}
 
-	return bytes.Equal(addrBytes, actualAddr[:]), nil
+	pubkey, err := k1util.Recover(digest, sig)
+	if err != nil {
+		return false, errors.Wrap(err, "pubkey from signature")
+	}
+
+	actualAddr := eth2util.PublicKeyToAddress(pubkey)
+
+	return expectedAddr == actualAddr, nil
 }
 
 // signCreator returns the definition with signed creator config hash.
-func signCreator(secret *ecdsa.PrivateKey, def Definition) (Definition, error) {
+func signCreator(secret *k1.PrivateKey, def Definition) (Definition, error) {
 	var err error
 
 	def.Creator.ConfigSignature, err = signEIP712(secret, eip712CreatorConfigHash, def, Operator{})
@@ -126,7 +105,7 @@ func signCreator(secret *ecdsa.PrivateKey, def Definition) (Definition, error) {
 }
 
 // signOperator returns the operator with signed config hash and enr.
-func signOperator(secret *ecdsa.PrivateKey, def Definition, operator Operator) (Operator, error) {
+func signOperator(secret *k1.PrivateKey, def Definition, operator Operator) (Operator, error) {
 	var err error
 
 	operator.ConfigSignature, err = signEIP712(secret, getOperatorEIP712Type(def.Version), def, operator)
@@ -218,6 +197,38 @@ func putByteList(h ssz.HashWalker, b []byte, limit int, field string) error {
 	h.MerkleizeWithMixin(elemIndx, uint64(byteLen), uint64(limit+31)/32)
 
 	return nil
+}
+
+// putByteList appends b as a ssz fixed size byte array of length n.
+func putBytesN(h ssz.HashWalker, b []byte, n int) error {
+	if len(b) > n {
+		return errors.New("bytes too long", z.Int("n", n), z.Int("l", len(b)))
+	}
+
+	h.PutBytes(leftPad(b, n))
+
+	return nil
+}
+
+// putHexBytes20 appends a 20 byte fixed size byte ssz array from the 0xhex address.
+func putHexBytes20(h ssz.HashWalker, addr string) error {
+	b, err := from0xHex(addr, addressLen)
+	if err != nil {
+		return err
+	}
+
+	h.PutBytes(leftPad(b, addressLen))
+
+	return nil
+}
+
+// leftPad returns the byte slice left padded with zero to ensure a length of at least l.
+func leftPad(b []byte, l int) []byte {
+	for len(b) < l {
+		b = append([]byte{0x00}, b...)
+	}
+
+	return b
 }
 
 // to0xHex returns the bytes as a 0x prefixed hex string.

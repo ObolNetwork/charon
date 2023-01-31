@@ -17,20 +17,18 @@ package compose
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -125,7 +123,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			// Best effort creation of folder, rather fail when saving p2pkey file next.
 			_ = os.MkdirAll(nodeFile(dir, i, ""), 0o755)
 
-			err := crypto.SaveECDSA(nodeFile(dir, i, "charon-enr-private-key"), key)
+			err := k1util.Save(key, nodeFile(dir, i, "charon-enr-private-key"))
 			if err != nil {
 				return TmplData{}, errors.Wrap(err, "save charon-enr-private-key")
 			}
@@ -255,7 +253,7 @@ func buildLocal(ctx context.Context, dir string) error {
 	log.Info(ctx, "Building local charon binary", z.Str("repo", repo), z.Str("target", target))
 
 	cmd := exec.CommandContext(ctx, "go", "build", "-o", target)
-	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0")
+	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Dir = repo
@@ -312,15 +310,21 @@ func copyStaticFolders(dir string) error {
 	return nil
 }
 
-// p2pSeed can be overridden in tests for deterministic p2pkeys.
-var p2pSeed = time.Now().UnixNano()
+// keyGenFunc can be overridden in tests for deterministic p2pkeys.
+var keyGenFunc = func() (*k1.PrivateKey, error) {
+	privkey, err := k1.GeneratePrivateKey()
+	if err != nil {
+		return nil, errors.Wrap(err, "new priv key")
+	}
 
-// newP2PKeys returns a slice of newly generated ecdsa private keys.
-func newP2PKeys(n int) ([]*ecdsa.PrivateKey, error) {
-	random := rand.New(rand.NewSource(p2pSeed)) //nolint:gosec // Weak random is fine for testing.
-	var resp []*ecdsa.PrivateKey
+	return privkey, nil
+}
+
+// newP2PKeys returns a slice of newly generated secp256k1 private keys.
+func newP2PKeys(n int) ([]*k1.PrivateKey, error) {
+	var resp []*k1.PrivateKey
 	for i := 0; i < n; i++ {
-		key, err := ecdsa.GenerateKey(crypto.S256(), random)
+		key, err := keyGenFunc()
 		if err != nil {
 			return nil, errors.Wrap(err, "new key")
 		}

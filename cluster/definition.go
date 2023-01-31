@@ -165,7 +165,7 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 
 // VerifySignatures returns true if all config signatures are fully populated and valid. A verified definition is ready for use in DKG.
 //
-//nolint:nestif,gocognit // We should try and break this into functions.
+//nolint:nestif
 func (d Definition) VerifySignatures() error {
 	// Skip signature verification for definition versions earlier than v1.3 since there are no EIP712 signatures before v1.3.0.
 	if !supportEIP712Sigs(d.Version) && !eip712SigsPresent(d.Operators) {
@@ -312,6 +312,16 @@ func (d Definition) WithdrawalAddresses() ([]string, error) {
 	return resp, nil
 }
 
+// FeeRecipientAddresses is a convenience function to return all fee-recipient address from the validator addresses slice.
+func (d Definition) FeeRecipientAddresses() ([]string, error) {
+	var resp []string
+	for _, vaddrs := range d.ValidatorAddresses {
+		resp = append(resp, vaddrs.FeeRecipientAddress)
+	}
+
+	return resp, nil
+}
+
 // SetDefinitionHashes returns a copy of the definition with the config hash and definition hash populated.
 func (d Definition) SetDefinitionHashes() (Definition, error) {
 	// Marshal config hash
@@ -334,21 +344,21 @@ func (d Definition) SetDefinitionHashes() (Definition, error) {
 }
 
 func (d Definition) MarshalJSON() ([]byte, error) {
-	d, err := d.SetDefinitionHashes()
+	d2, err := d.SetDefinitionHashes()
 	if err != nil {
 		return nil, err
 	}
 
 	switch {
-	case isV1x0(d.Version) || isV1x1(d.Version):
-		return marshalDefinitionV1x0or1(d)
-	case isV1x2(d.Version) || isV1x3(d.Version):
+	case isV1x0(d2.Version) || isV1x1(d2.Version):
+		return marshalDefinitionV1x0or1(d2)
+	case isV1x2(d2.Version) || isV1x3(d2.Version):
 		// v1.2 and v1.3 has the same json format.
-		return marshalDefinitionV1x2or3(d)
-	case isV1x4(d.Version):
-		return marshalDefinitionV1x4(d)
-	case isV1x5(d.Version):
-		return marshalDefinitionV1x5(d)
+		return marshalDefinitionV1x2or3(d2)
+	case isV1x4(d2.Version):
+		return marshalDefinitionV1x4(d2)
+	case isV1x5(d2.Version):
+		return marshalDefinitionV1x5(d2)
 	default:
 		return nil, errors.New("unsupported version")
 	}

@@ -17,13 +17,11 @@ package sync_test
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"fmt"
 	"math/rand"
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/libp2p/go-libp2p"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -133,15 +131,13 @@ func testCluster(t *testing.T, n int) {
 func newTCPNode(t *testing.T, seed int64) (host.Host, libp2pcrypto.PrivKey) {
 	t.Helper()
 
-	key, err := ecdsa.GenerateKey(crypto.S256(), rand.New(rand.NewSource(seed)))
-	require.NoError(t, err)
+	key := testutil.GenerateInsecureK1Key(t, rand.New(rand.NewSource(seed)))
 
 	addr := testutil.AvailableAddr(t)
 	multiAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", addr.IP, addr.Port))
 	require.NoError(t, err)
 
-	priv, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(crypto.FromECDSA(key))
-	require.NoError(t, err)
+	priv := (*libp2pcrypto.Secp256k1PrivateKey)(key)
 
 	tcpNode, err := libp2p.New(libp2p.ListenAddrs(multiAddr), libp2p.Identity(priv))
 	testutil.SkipIfBindErr(t, err)

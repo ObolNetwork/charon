@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,7 +29,6 @@ import (
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -44,7 +44,6 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"github.com/obolnetwork/charon/testutil"
 )
 
 const (
@@ -96,7 +95,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.Name, "name", "", "The cluster name")
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
 	flags.StringVar(&config.DefFile, "definition-file", "", "Optional path to a cluster definition file or an HTTP URL. This overrides all other configuration flags.")
-	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to push validator key shares to. Note that multiple addresses are required, one for each node in the cluster, with node0's keyshares being pushed to the first address, node1's keyshares to the second, and so on.")
+	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to import validator key shares to. Note that multiple addresses are required, one for each node in the cluster, with node0's keyshares being imported to the first address, node1's keyshares to the second, and so on.")
 	flags.IntVarP(&config.NumNodes, "nodes", "", minNodes, "The number of charon nodes in the cluster. Minimum is 4.")
 	flags.IntVarP(&config.Threshold, "threshold", "", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
@@ -181,24 +180,23 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	def.Operators = ops
 
 	keysToDisk := len(conf.KeymanagerAddrs) == 0
-	if keysToDisk { // Write keys to disk
+	if keysToDisk { // Save keys to disk
 		if err = writeKeysToDisk(numNodes, conf.ClusterDir, conf.InsecureKeys, shareSets); err != nil {
 			return err
 		}
-	} else { // Or else push keys to keymanager
+	} else { // Or else save keys to keymanager
 		if err = writeKeysToKeymanager(ctx, conf.KeymanagerAddrs, numNodes, shareSets); err != nil {
 			return err
 		}
 	}
 
-	// TODO(corver): Refactor writeDepositData to take a slice of withdrawal addresses.
-	vaddrs, err := def.LegacyValidatorAddresses()
+	withdrawalAddresses, err := def.WithdrawalAddresses()
 	if err != nil {
 		return err
 	}
 
 	// Write deposit-data file
-	if err = writeDepositData(vaddrs.WithdrawalAddress, conf.ClusterDir, def.ForkVersion, numNodes, secrets); err != nil {
+	if err = writeDepositData(withdrawalAddresses, conf.ClusterDir, def.ForkVersion, numNodes, secrets); err != nil {
 		return err
 	}
 
@@ -226,39 +224,47 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	return nil
 }
 
-// signDepositDatas returns a map of deposit data signatures by DV pubkey.
-func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddr string, network string) (map[eth2p0.BLSPubKey]eth2p0.BLSSignature, error) {
-	withdrawalAddr, err := checksumAddr(withdrawalAddr)
-	if err != nil {
-		return nil, err
+// signDepositDatas returns Distributed Validator pubkeys and deposit data signatures corresponding to each pubkey.
+func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddresses []string, network string) ([]eth2p0.BLSPubKey, []eth2p0.BLSSignature, error) {
+	if len(secrets) != len(withdrawalAddresses) {
+		return nil, nil, errors.New("insufficient withdrawal addresses")
 	}
 
-	resp := make(map[eth2p0.BLSPubKey]eth2p0.BLSSignature)
-	for _, secret := range secrets {
+	var (
+		pubkeys    []eth2p0.BLSPubKey
+		signatures []eth2p0.BLSSignature
+	)
+	for i, secret := range secrets {
+		withdrawalAddr, err := eth2util.ChecksumAddress(withdrawalAddresses[i])
+		if err != nil {
+			return nil, nil, err
+		}
+
 		pk, err := secret.GetPublicKey()
 		if err != nil {
-			return nil, errors.Wrap(err, "secret to pubkey")
+			return nil, nil, errors.Wrap(err, "secret to pubkey")
 		}
 
 		pubkey, err := tblsconv.KeyToETH2(pk)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		msgRoot, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, network)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		sig, err := tbls.Sign(secret, msgRoot[:])
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		resp[pubkey] = tblsconv.SigToETH2(sig)
+		pubkeys = append(pubkeys, pubkey)
+		signatures = append(signatures, tblsconv.SigToETH2(sig))
 	}
 
-	return resp, nil
+	return pubkeys, signatures, nil
 }
 
 // getTSSShares splits the secrets and returns the threshold key shares.
@@ -323,20 +329,24 @@ func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]*bls_sig.Secret
 }
 
 // writeDepositData writes deposit data to disk for the DVs for all peers in a cluster.
-func writeDepositData(withdrawalAddr, clusterDir string, forkVersion []byte, numNodes int, secrets []*bls_sig.SecretKey) error {
+func writeDepositData(withdrawalAddresses []string, clusterDir string, forkVersion []byte, numNodes int, secrets []*bls_sig.SecretKey) error {
+	if len(secrets) != len(withdrawalAddresses) {
+		return errors.New("insufficient withdrawal addresses")
+	}
+
 	network, err := eth2util.ForkVersionToNetwork(forkVersion)
 	if err != nil {
 		return err
 	}
 
 	// Create deposit message signatures
-	msgSigs, err := signDepositDatas(secrets, withdrawalAddr, network)
+	pubkeys, sigs, err := signDepositDatas(secrets, withdrawalAddresses, network)
 	if err != nil {
 		return err
 	}
 
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(msgSigs, withdrawalAddr, network)
+	bytes, err := deposit.MarshalDepositData(pubkeys, sigs, withdrawalAddresses, network)
 	if err != nil {
 		return err
 	}
@@ -423,7 +433,7 @@ func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sh
 			passwords []string
 		)
 		for _, shares := range shareSets {
-			password, err := testutil.RandomHex32()
+			password, err := randomHex64()
 			if err != nil {
 				return err
 			}
@@ -443,7 +453,7 @@ func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sh
 
 		err := clients[i].ImportKeystores(ctx, keystores, passwords)
 		if err != nil {
-			log.Error(ctx, "Failed to push keys", err, z.Str("addr", addrs[i]))
+			log.Error(ctx, "Failed to import keys", err, z.Str("addr", addrs[i]))
 			return err
 		}
 
@@ -558,15 +568,6 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 // nodeDir returns a node directory.
 func nodeDir(clusterDir string, i int) string {
 	return fmt.Sprintf("%s/node%d", clusterDir, i)
-}
-
-// checksumAddr returns a valid EIP55-compliant checksummed ethereum address. Returns an error if a valid address cannot be constructed.
-func checksumAddr(a string) (string, error) {
-	if !common.IsHexAddress(a) {
-		return "", errors.New("invalid address", z.Str("address", a))
-	}
-
-	return common.HexToAddress(a).Hex(), nil
 }
 
 // validateDef returns an error if the provided cluster definition is invalid.
@@ -695,4 +696,15 @@ func safeThreshold(ctx context.Context, numNodes, threshold int) int {
 	}
 
 	return threshold
+}
+
+// randomHex64 returns a random 64 character hex string. It uses crypto/rand.
+func randomHex64() (string, error) {
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", errors.Wrap(err, "read random")
+	}
+
+	return hex.EncodeToString(b), nil
 }

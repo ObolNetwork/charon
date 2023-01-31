@@ -15,7 +15,7 @@ repos:
     rev: v0.0.3
     hooks:
       - id: check-go-version
-        args: [ -v=go1.19.3 ]
+        args: [ -v=go1.19.5 ]
         pass_filenames: false
         additional_dependencies: [ packaging ]
       - id: check-licence-header
@@ -41,11 +41,10 @@ repos:
 
   # Then run code validators (on the formatted code)
 
-  - repo: https://github.com/golangci/golangci-lint
-    rev: v1.48.0
+  - repo: https://github.com/golangci/golangci-lint # See .golangci.yml for config
+    rev: v1.50.1
     hooks:
       - id: golangci-lint
-        args: [ -n ] # See .golangci.yml for config
 
   - repo: local
     hooks:

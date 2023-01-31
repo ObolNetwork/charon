@@ -46,8 +46,6 @@ type AutoConfig struct {
 }
 
 // Auto runs all three steps (define,lock,run) sequentially with support for detecting alerts.
-//
-//nolint:gocognit
 func Auto(ctx context.Context, conf AutoConfig) error {
 	ctx = log.WithTopic(ctx, "auto")
 

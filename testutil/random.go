@@ -19,7 +19,6 @@ package testutil
 import (
 	"crypto/ecdsa"
 	crand "crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"math/rand"
@@ -32,14 +31,14 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -244,8 +243,8 @@ func RandomCapellaExecutionPayload() *capella.ExecutionPayload {
 
 func RandomBellatrixCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
 	return core.VersionedBeaconBlock{
-		VersionedBeaconBlock: spec.VersionedBeaconBlock{
-			Version:   spec.DataVersionBellatrix,
+		VersionedBeaconBlock: eth2spec.VersionedBeaconBlock{
+			Version:   eth2spec.DataVersionBellatrix,
 			Bellatrix: RandomBellatrixBeaconBlock(),
 		},
 	}
@@ -253,8 +252,8 @@ func RandomBellatrixCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
 
 func RandomCapellaCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
 	return core.VersionedBeaconBlock{
-		VersionedBeaconBlock: spec.VersionedBeaconBlock{
-			Version: spec.DataVersionCapella,
+		VersionedBeaconBlock: eth2spec.VersionedBeaconBlock{
+			Version: eth2spec.DataVersionCapella,
 			Capella: RandomCapellaBeaconBlock(),
 		},
 	}
@@ -262,8 +261,8 @@ func RandomCapellaCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
 
 func RandomBellatrixCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlock {
 	return core.VersionedSignedBeaconBlock{
-		VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
-			Version: spec.DataVersionBellatrix,
+		VersionedSignedBeaconBlock: eth2spec.VersionedSignedBeaconBlock{
+			Version: eth2spec.DataVersionBellatrix,
 			Bellatrix: &bellatrix.SignedBeaconBlock{
 				Message:   RandomBellatrixBeaconBlock(),
 				Signature: RandomEth2Signature(),
@@ -274,8 +273,8 @@ func RandomBellatrixCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconB
 
 func RandomCapellaCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlock {
 	return core.VersionedSignedBeaconBlock{
-		VersionedSignedBeaconBlock: spec.VersionedSignedBeaconBlock{
-			Version: spec.DataVersionCapella,
+		VersionedSignedBeaconBlock: eth2spec.VersionedSignedBeaconBlock{
+			Version: eth2spec.DataVersionCapella,
 			Capella: &capella.SignedBeaconBlock{
 				Message:   RandomCapellaBeaconBlock(),
 				Signature: RandomEth2Signature(),
@@ -285,9 +284,9 @@ func RandomCapellaCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlo
 }
 
 // RandomCapellaVersionedSignedBeaconBlock returns a random signed capella beacon block.
-func RandomCapellaVersionedSignedBeaconBlock() *spec.VersionedSignedBeaconBlock {
-	return &spec.VersionedSignedBeaconBlock{
-		Version: spec.DataVersionCapella,
+func RandomCapellaVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBlock {
+	return &eth2spec.VersionedSignedBeaconBlock{
+		Version: eth2spec.DataVersionCapella,
 		Capella: &capella.SignedBeaconBlock{
 			Message:   RandomCapellaBeaconBlock(),
 			Signature: RandomEth2Signature(),
@@ -357,7 +356,7 @@ func RandomCapellaBlindedBeaconBlockBody() *eth2capella.BlindedBeaconBlockBody {
 func RandomBellatrixVersionedBlindedBeaconBlock() core.VersionedBlindedBeaconBlock {
 	return core.VersionedBlindedBeaconBlock{
 		VersionedBlindedBeaconBlock: eth2api.VersionedBlindedBeaconBlock{
-			Version:   spec.DataVersionBellatrix,
+			Version:   eth2spec.DataVersionBellatrix,
 			Bellatrix: RandomBellatrixBlindedBeaconBlock(),
 		},
 	}
@@ -366,7 +365,7 @@ func RandomBellatrixVersionedBlindedBeaconBlock() core.VersionedBlindedBeaconBlo
 func RandomCapellaVersionedBlindedBeaconBlock() core.VersionedBlindedBeaconBlock {
 	return core.VersionedBlindedBeaconBlock{
 		VersionedBlindedBeaconBlock: eth2api.VersionedBlindedBeaconBlock{
-			Version: spec.DataVersionCapella,
+			Version: eth2spec.DataVersionCapella,
 			Capella: RandomCapellaBlindedBeaconBlock(),
 		},
 	}
@@ -375,7 +374,7 @@ func RandomCapellaVersionedBlindedBeaconBlock() core.VersionedBlindedBeaconBlock
 func RandomBellatrixVersionedSignedBlindedBeaconBlock() core.VersionedSignedBlindedBeaconBlock {
 	return core.VersionedSignedBlindedBeaconBlock{
 		VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
-			Version: spec.DataVersionBellatrix,
+			Version: eth2spec.DataVersionBellatrix,
 			Bellatrix: &eth2bellatrix.SignedBlindedBeaconBlock{
 				Message:   RandomBellatrixBlindedBeaconBlock(),
 				Signature: RandomEth2Signature(),
@@ -387,7 +386,7 @@ func RandomBellatrixVersionedSignedBlindedBeaconBlock() core.VersionedSignedBlin
 func RandomCapellaVersionedSignedBlindedBeaconBlock() core.VersionedSignedBlindedBeaconBlock {
 	return core.VersionedSignedBlindedBeaconBlock{
 		VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
-			Version: spec.DataVersionCapella,
+			Version: eth2spec.DataVersionCapella,
 			Capella: &eth2capella.SignedBlindedBeaconBlock{
 				Message:   RandomCapellaBlindedBeaconBlock(),
 				Signature: RandomEth2Signature(),
@@ -425,7 +424,7 @@ func RandomCoreVersionedSignedValidatorRegistration(t *testing.T) core.Versioned
 
 	return core.VersionedSignedValidatorRegistration{
 		VersionedSignedValidatorRegistration: eth2api.VersionedSignedValidatorRegistration{
-			Version: spec.BuilderVersionV1,
+			Version: eth2spec.BuilderVersionV1,
 			V1:      RandomSignedValidatorRegistration(t),
 		},
 	}
@@ -435,7 +434,7 @@ func RandomVersionedSignedValidatorRegistration(t *testing.T) *eth2api.Versioned
 	t.Helper()
 
 	return &eth2api.VersionedSignedValidatorRegistration{
-		Version: spec.BuilderVersionV1,
+		Version: eth2spec.BuilderVersionV1,
 		V1:      RandomSignedValidatorRegistration(t),
 	}
 }
@@ -727,7 +726,7 @@ func RandomBitVec() bitfield.Bitvector128 {
 	return resp
 }
 
-// RandomSecp256k1Signature returns a random secp256k1 ECDSA signature with the last byte set to 0, 1, 27 or 28.
+// RandomSecp256k1Signature returns a random byte slice of length 65 with the last byte set to 0, 1, 27 or 28.
 func RandomSecp256k1Signature() []byte {
 	var resp [65]byte
 	_, _ = rand.Read(resp[:])
@@ -814,16 +813,15 @@ func CreateHost(t *testing.T, addr *net.TCPAddr, opts ...libp2p.Option) host.Hos
 	return h
 }
 
-func RandomENR(t *testing.T, random io.Reader) (*ecdsa.PrivateKey, enr.Record) {
+func RandomENR(t *testing.T, random io.Reader) (*k1.PrivateKey, enr.Record) {
 	t.Helper()
 
-	p2pKey, err := ecdsa.GenerateKey(crypto.S256(), random)
+	key := GenerateInsecureK1Key(t, random)
+
+	record, err := enr.New(key)
 	require.NoError(t, err)
 
-	record, err := enr.New(p2pKey)
-	require.NoError(t, err)
-
-	return p2pKey, record
+	return key, record
 }
 
 func RandomCoreAttestationData(t *testing.T) core.AttestationData {
@@ -863,13 +861,13 @@ func RandomCoreSignedRandao() core.SignedRandao {
 	}}
 }
 
-// RandomHex32 returns a random 32 character hex string.
-func RandomHex32() (string, error) {
-	b := make([]byte, 16)
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", errors.Wrap(err, "read random")
-	}
+// GenerateInsecureK1Key returns a new deterministic insecure secp256k1 private using the provided seed for testing purposes only.
+// For random keys, rather use k1.GeneratePrivateKey().
+func GenerateInsecureK1Key(t *testing.T, random io.Reader) *k1.PrivateKey {
+	t.Helper()
 
-	return hex.EncodeToString(b), nil
+	k, err := ecdsa.GenerateKey(k1.S256(), random)
+	require.NoError(t, err)
+
+	return k1.PrivKeyFromBytes(k.D.Bytes())
 }

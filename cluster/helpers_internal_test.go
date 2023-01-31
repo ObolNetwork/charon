@@ -23,41 +23,51 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/k1util"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/testutil"
 )
 
+func TestLeftPad(t *testing.T) {
+	b := []byte{0x01, 0x02}
+	require.Equal(t, []byte{0x01, 0x02}, leftPad(b, 1))
+	require.Equal(t, []byte{0x01, 0x02}, leftPad(b, 2))
+	require.Equal(t, []byte{0x00, 0x01, 0x02}, leftPad(b, 3))
+	require.Equal(t, []byte{0x00, 0x00, 0x01, 0x02}, leftPad(b, 4))
+}
+
 func TestVerifySig(t *testing.T) {
-	secret, err := crypto.GenerateKey()
+	secret, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
-	addr := crypto.PubkeyToAddress(secret.PublicKey)
+	addr := eth2util.PublicKeyToAddress(secret.PubKey())
 	digest := testutil.RandomRoot()
-	sig, err := crypto.Sign(digest[:], secret)
+	sig, err := k1util.Sign(secret, digest[:])
 	require.NoError(t, err)
 
 	t.Run("valid signature", func(t *testing.T) {
-		ok, err := verifySig(addr.String(), digest[:], sig)
+		ok, err := verifySig(addr, digest[:], sig)
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
 
 	t.Run("invalid signature length", func(t *testing.T) {
 		var invalidSig [70]byte
-		ok, err := verifySig(addr.String(), digest[:], invalidSig[:])
+		ok, err := verifySig(addr, digest[:], invalidSig[:])
 		require.Error(t, err)
-		require.ErrorContains(t, err, "invalid signature length")
+		require.ErrorContains(t, err, "signature not 65 bytes")
 		require.False(t, ok)
 	})
 
 	t.Run("invalid recovery id", func(t *testing.T) {
 		var newSig [65]byte
 		copy(newSig[:], sig)
-		newSig[k1RecIdx] = byte(165) // Make the last byte invalid.
+		newSig[64] = byte(165) // Make the last byte invalid.
 
-		ok, err := verifySig(addr.String(), digest[:], newSig[:])
+		ok, err := verifySig(addr, digest[:], newSig[:])
 		require.Error(t, err)
 		require.ErrorContains(t, err, "invalid recovery id")
 		require.False(t, ok)
@@ -66,9 +76,9 @@ func TestVerifySig(t *testing.T) {
 	t.Run("sig ending with 27/28", func(t *testing.T) {
 		var newSig [65]byte
 		copy(newSig[:], sig)
-		newSig[k1RecIdx] += 27 // Make last byte 27/28.
+		newSig[64] += 27 // Make last byte 27/28.
 
-		ok, err := verifySig(addr.String(), digest[:], newSig[:])
+		ok, err := verifySig(addr, digest[:], newSig[:])
 		require.NoError(t, err)
 		require.True(t, ok)
 	})

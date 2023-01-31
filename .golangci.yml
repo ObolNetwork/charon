@@ -1,6 +1,6 @@
 run:
   timeout: 5m
-  go: "1.19.3"
+  go: "1.19.5"
 linters-settings:
   cyclop:
     max-complexity: 15
@@ -13,6 +13,7 @@ linters-settings:
   forbidigo:
     forbid:
       - 'fmt\.Print.*(# Avoid debug logging)?'
+      - 'fmt\.Errorf.*(# Prefer app/errors.Wrap)?'
   gci:
     local-prefixes: github.com/obolnetwork/charon
   gocritic:
@@ -23,6 +24,27 @@ linters-settings:
     disable:
       - fieldalignment
       - shadow
+  importas:
+    no-unaliased: true
+    alias:
+      - pkg: github.com/attestantio/go-eth2-client/spec/phase0
+        alias: eth2p0
+      - pkg: github.com/attestantio/go-eth2-client/api/v1
+        alias: eth2v1
+      - pkg: github.com/attestantio/go-eth2-client/api
+        alias: eth2api
+      - pkg: github.com/attestantio/go-eth2-client/spec
+        alias: eth2spec
+      - pkg: github.com/attestantio/go-eth2-client/http
+        alias: eth2http
+      - pkg: github.com/attestantio/go-eth2-client/mock
+        alias: eth2mock
+      - pkg: github.com/attestantio/go-eth2-client/api/v1/bellatrix
+        alias: eth2bellatrix
+      - pkg: github.com/attestantio/go-eth2-client/api/v1/capella
+        alias: eth2capella
+      - pkg: github.com/decred/dcrd/dcrec/secp256k1/v4
+        alias: k1
   nlreturn:
     block-size: 2
   revive:
@@ -50,16 +72,20 @@ linters-settings:
         disabled: true
       - name: cognitive-complexity
         disabled: true
-
       # Some configured revive rules
+      - name: unhandled-error
+        arguments:
+         - 'fmt.Printf'
+         - 'fmt.Println'
       - name: imports-blacklist
         arguments:
          - "errors" # Prefer ./app/errors
          - "github.com/pkg/errors" # Prefer ./app/errors
          - "github.com/golang/protobuf" # Prefer google.golang.org/protobuf
+         - "github.com/gogo/protobuf/proto" # Prefer google.golang.org/protobuf
          - "github.com/prometheus/client_golang/prometheus/promauto" # Prefer ./app/promauto
   staticcheck:
-    go: "1.19.3"
+    go: "1.19.5"
     checks:
      - "all"
      - "-SA1019" # Ignoring since github.com/drand/kyber/sign/bls uses Proof Of Possession as does Ethereum.
@@ -79,6 +105,9 @@ issues:
         - gosec
         - noctx
         - revive
+    - path: 'eth2wrap'
+      linters:
+        - importas
   exclude:
     - "error returned from interface method should be wrapped" # Relax wrapcheck
     - "defer: prefer not to defer chains of function calls" # Relax revive
@@ -88,15 +117,13 @@ issues:
     - "nested-structs" # Relax revive
     - "0xhex" # Relax revive and staticcheck about our custom struct tag
     - "shadow: declaration of \"err\" shadows declaration" # Relax govet
-    - "bls_sig contains underscore" # Relax nosnakecase
-    - "v\\d_\\d contains underscore" # Relax nosnakecase
-    - "P_\\w+ contains underscore" # Relax nosnakecase
 
 linters:
   enable-all: true
   disable:
     # Keep disabled
     - containedctx
+    - contextcheck
     - cyclop
     - exhaustivestruct
     - exhaustruct
@@ -104,6 +131,7 @@ linters:
     - forcetypeassert
     - gci
     - gochecknoglobals
+    - gocognit
     - gocyclo
     - godox
     - goerr113
@@ -111,6 +139,7 @@ linters:
     - gomnd
     - gomoddirectives
     - ifshort
+    - interfacebloat
     - interfacer
     - ireturn
     - lll # Think about adding this (max line length)
@@ -122,3 +151,8 @@ linters:
     - tagliatelle
     - varnamelen
     - wsl
+    # Deprecated
+    - nosnakecase
+    - structcheck
+    - varcheck
+    - deadcode

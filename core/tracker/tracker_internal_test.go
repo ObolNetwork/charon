@@ -943,7 +943,7 @@ func TestIsParSigEventExpected(t *testing.T) {
 }
 
 func TestAnalyseParSigs(t *testing.T) {
-	require.Empty(t, analyseParSigs(nil))
+	require.Empty(t, analyseParSigs(context.Background(), nil))
 
 	var events []event
 
@@ -972,7 +972,7 @@ func TestAnalyseParSigs(t *testing.T) {
 		makeEvents(n, pubkey)
 	}
 
-	allParSigMsgs := analyseParSigs(events)
+	allParSigMsgs := analyseParSigs(context.Background(), events)
 
 	lengths := make(map[int]string)
 	for pubkey, parSigMsgs := range allParSigMsgs {

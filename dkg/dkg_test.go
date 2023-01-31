@@ -17,7 +17,6 @@ package dkg_test
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -28,11 +27,12 @@ import (
 	"time"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cmd/relay"
@@ -90,7 +90,7 @@ func TestDKG(t *testing.T) {
 	}
 }
 
-func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*ecdsa.PrivateKey, keymanager bool) {
+func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.PrivateKey, keymanager bool) {
 	t.Helper()
 
 	require.NoError(t, def.VerifySignatures())
@@ -131,7 +131,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*ecdsa.
 		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
 
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
-		err := crypto.SaveECDSA(p2p.KeyPath(conf.DataDir), p2pKeys[i])
+		err := k1util.Save(p2pKeys[i], p2p.KeyPath(conf.DataDir))
 		require.NoError(t, err)
 
 		eg.Go(func() error {
@@ -286,7 +286,6 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 	}
 }
 
-//nolint:gocognit
 func TestSyncFlow(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -406,7 +405,7 @@ func TestSyncFlow(t *testing.T) {
 	}
 }
 
-func getConfigs(t *testing.T, def cluster.Definition, keys []*ecdsa.PrivateKey, dir, bootnode string) []dkg.Config {
+func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir, bootnode string) []dkg.Config {
 	t.Helper()
 
 	var configs []dkg.Config
@@ -422,7 +421,7 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*ecdsa.PrivateKey, 
 		}
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
 
-		err := crypto.SaveECDSA(p2p.KeyPath(conf.DataDir), keys[i])
+		err := k1util.Save(keys[i], p2p.KeyPath(conf.DataDir))
 		require.NoError(t, err)
 
 		configs = append(configs, conf)

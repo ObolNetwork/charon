@@ -33,7 +33,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -106,7 +106,7 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL string, shares []s
 	)
 
 	for _, s := range shares {
-		password, err := randomHex32()
+		password, err := randomHex64()
 		if err != nil {
 			return err
 		}
@@ -169,26 +169,21 @@ func writeLock(datadir string, lock cluster.Lock) error {
 }
 
 // writeDepositData writes deposit data file to disk.
-func writeDepositData(aggSigs map[core.PubKey]*bls_sig.Signature, withdrawalAddr string, network string, dataDir string) error {
-	// Create deposit message signatures
-	aggSigsEth2 := make(map[eth2p0.BLSPubKey]eth2p0.BLSSignature)
-	for pk, sig := range aggSigs {
-		blsPubKey, err := tblsconv.KeyFromCore(pk)
+func writeDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLSSignature, withdrawalAddresses []string, network string, dataDir string) error {
+	if len(pubkeys) != len(withdrawalAddresses) {
+		return errors.New("insufficient withdrawal addresses")
+	}
+
+	for i := 0; i < len(withdrawalAddresses); i++ {
+		var err error
+		withdrawalAddresses[i], err = eth2util.ChecksumAddress(withdrawalAddresses[i])
 		if err != nil {
 			return err
 		}
-
-		pubkey, err := tblsconv.KeyToETH2(blsPubKey)
-		if err != nil {
-			return err
-		}
-
-		sigEth2 := tblsconv.SigToETH2(sig)
-		aggSigsEth2[pubkey] = sigEth2
 	}
 
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(aggSigsEth2, checksumAddr(withdrawalAddr), network)
+	bytes, err := deposit.MarshalDepositData(pubkeys, depositDataSigs, withdrawalAddresses, network)
 	if err != nil {
 		return err
 	}
@@ -238,9 +233,9 @@ func validURI(str string) bool {
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
-// randomHex32 returns a random 32 character hex string. It uses crypto/rand.
-func randomHex32() (string, error) {
-	b := make([]byte, 16)
+// randomHex64 returns a random 64 character hex string. It uses crypto/rand.
+func randomHex64() (string, error) {
+	b := make([]byte, 32)
 	_, err := rand.Read(b)
 	if err != nil {
 		return "", errors.Wrap(err, "read random")

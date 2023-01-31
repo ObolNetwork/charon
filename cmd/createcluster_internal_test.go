@@ -77,7 +77,7 @@ func TestCreateCluster(t *testing.T) {
 			Config: clusterConfig{
 				NumNodes:  4,
 				Threshold: 3,
-				NumDVs:    1,
+				NumDVs:    2,
 				SplitKeys: true,
 			},
 			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
@@ -193,17 +193,6 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition)
 			}
 		}
 	})
-}
-
-func TestChecksumAddr(t *testing.T) {
-	expected := "0xC0404ed740a69d11201f5eD297c5732F562c6E4e"
-	got, err := checksumAddr(expected)
-	require.NoError(t, err)
-	require.Equal(t, got, expected)
-
-	expected = "0x32F562c6E4eexyzXYZ69d11201f5eD297c57C0404"
-	_, err = checksumAddr(expected)
-	require.Error(t, err, "invalid address")
 }
 
 func TestValidateDef(t *testing.T) {

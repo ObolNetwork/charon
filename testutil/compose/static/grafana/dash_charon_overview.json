@@ -86,7 +86,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.2.6",
+      "pluginVersion": "9.3.2",
       "targets": [
         {
           "datasource": {
@@ -226,7 +226,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.6",
+      "pluginVersion": "9.3.2",
       "targets": [
         {
           "datasource": {
@@ -424,7 +424,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.6",
+      "pluginVersion": "9.3.2",
       "targets": [
         {
           "datasource": {
@@ -602,7 +602,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.6",
+      "pluginVersion": "9.3.2",
       "targets": [
         {
           "datasource": {
@@ -945,7 +945,7 @@
           }
         ]
       },
-      "pluginVersion": "9.2.6",
+      "pluginVersion": "9.3.2",
       "targets": [
         {
           "datasource": {
@@ -1800,6 +1800,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Peer count of the connected beacon node",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1820,7 +1821,7 @@
               "viz": false
             },
             "lineInterpolation": "linear",
-            "lineWidth": 2,
+            "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -1848,8 +1849,7 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "reqps"
+          }
         },
         "overrides": []
       },
@@ -1859,7 +1859,7 @@
         "x": 0,
         "y": 33
       },
-      "id": 15,
+      "id": 69,
       "options": {
         "legend": {
           "calcs": [],
@@ -1878,14 +1878,16 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "exemplar": true,
-          "expr": "rate(core_validatorapi_request_latency_seconds_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])",
-          "interval": "",
-          "legendFormat": "{{endpoint}}",
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "app_beacon_node_peers{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "instant": false,
+          "legendFormat": "Peer count",
+          "range": true,
           "refId": "A"
         }
       ],
-      "title": "Validator API requests rate",
+      "title": "Beacon node peer count",
       "type": "timeseries"
     },
     {
@@ -2022,7 +2024,6 @@
             }
           },
           "mappings": [],
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -2036,7 +2037,7 @@
               }
             ]
           },
-          "unit": "decbytes"
+          "unit": "reqps"
         },
         "overrides": []
       },
@@ -2046,7 +2047,7 @@
         "x": 0,
         "y": 40
       },
-      "id": 50,
+      "id": 15,
       "options": {
         "legend": {
           "calcs": [],
@@ -2065,28 +2066,14 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "editorMode": "code",
           "exemplar": true,
-          "expr": "go_memstats_alloc_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "expr": "rate(core_validatorapi_request_latency_seconds_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])",
           "interval": "",
-          "legendFormat": "Allocated Memory",
-          "range": true,
+          "legendFormat": "{{endpoint}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "go_memstats_heap_inuse_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
-          "hide": true,
-          "legendFormat": "Inuse Heap",
-          "range": true,
-          "refId": "B"
         }
       ],
-      "title": "Memory",
+      "title": "Validator API requests rate",
       "type": "timeseries"
     },
     {
@@ -2215,23 +2202,48 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Total balance of validators with links to beaconcha.in for each public key.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
           },
           "custom": {
-            "align": "auto",
-            "displayMode": "auto",
-            "inspect": false
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue",
+                "color": "green",
                 "value": null
               },
               {
@@ -2239,82 +2251,31 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "decbytes"
         },
         "overrides": [
           {
+            "__systemRef": "hideSeriesFrom",
             "matcher": {
-              "id": "byName",
-              "options": "Balance"
-            },
-            "properties": [
-              {
-                "id": "custom.displayMode",
-                "value": "color-text"
-              },
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "from": 32,
-                      "result": {
-                        "color": "green",
-                        "index": 0
-                      },
-                      "to": 100
-                    },
-                    "type": "range"
-                  },
-                  {
-                    "options": {
-                      "from": 30,
-                      "result": {
-                        "color": "orange",
-                        "index": 1
-                      },
-                      "to": 32
-                    },
-                    "type": "range"
-                  },
-                  {
-                    "options": {
-                      "from": 0,
-                      "result": {
-                        "color": "red",
-                        "index": 2
-                      },
-                      "to": 30
-                    },
-                    "type": "range"
-                  }
-                ]
-              },
-              {
-                "id": "unit",
-                "value": "ETH"
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "Allocated Memory"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
               }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "pubkey_full"
             },
             "properties": [
               {
-                "id": "links",
-                "value": [
-                  {
-                    "targetBlank": true,
-                    "title": "beaconcha.in",
-                    "url": "http://beaconcha.in/validator/${__data.fields[\"Pubkey\"]}"
-                  }
-                ]
-              },
-              {
-                "id": "custom.displayMode",
-                "value": "color-text"
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": true
+                }
               }
             ]
           }
@@ -2326,24 +2287,19 @@
         "x": 0,
         "y": 47
       },
-      "id": 56,
+      "id": 50,
       "options": {
-        "footer": {
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "showHeader": true,
-        "sortBy": [
-          {
-            "desc": true,
-            "displayName": "Balance"
-          }
-        ]
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
-      "pluginVersion": "9.2.6",
       "targets": [
         {
           "datasource": {
@@ -2351,13 +2307,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "core_scheduler_validator_balance_gwei{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} / 1000000000",
-          "format": "table",
-          "hide": false,
-          "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
+          "exemplar": true,
+          "expr": "go_memstats_alloc_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "interval": "",
+          "legendFormat": "Allocated Memory",
+          "range": true,
           "refId": "A"
         },
         {
@@ -2366,62 +2320,15 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "core_scheduler_validator_status{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
-          "format": "table",
-          "hide": false,
-          "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
+          "expr": "go_memstats_heap_inuse_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "hide": true,
+          "legendFormat": "Inuse Heap",
+          "range": true,
           "refId": "B"
         }
       ],
-      "title": "Validators",
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {
-            "byField": "pubkey_full",
-            "mode": "outer"
-          }
-        },
-        {
-          "id": "groupBy",
-          "options": {
-            "fields": {
-              "Value #A": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "pubkey 1": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "pubkey_full": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "status": {
-                "aggregations": [],
-                "operation": "groupby"
-              }
-            }
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {},
-            "indexByName": {},
-            "renameByName": {
-              "Value #A": "Balance",
-              "pubkey_full": "Pubkey",
-              "status": "Status"
-            }
-          }
-        }
-      ],
-      "type": "table"
+      "title": "Memory",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -2523,6 +2430,218 @@
     },
     {
       "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Total balance of validators with links to beaconcha.in for each public key.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "light-blue"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Balance"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": 32,
+                      "result": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "to": 100
+                    },
+                    "type": "range"
+                  },
+                  {
+                    "options": {
+                      "from": 30,
+                      "result": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "to": 32
+                    },
+                    "type": "range"
+                  },
+                  {
+                    "options": {
+                      "from": 0,
+                      "result": {
+                        "color": "red",
+                        "index": 2
+                      },
+                      "to": 30
+                    },
+                    "type": "range"
+                  }
+                ]
+              },
+              {
+                "id": "unit",
+                "value": "ETH"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pubkey_full"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "beaconcha.in",
+                    "url": "http://beaconcha.in/validator/${__data.fields[\"Pubkey\"]}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 54
+      },
+      "id": 56,
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Balance"
+          }
+        ]
+      },
+      "pluginVersion": "9.3.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "core_scheduler_validator_balance_gwei{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} / 1000000000",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "core_scheduler_validator_status{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
+        }
+      ],
+      "title": "Validators",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "pubkey_full",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Value #A": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "pubkey 1": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "pubkey_full": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "status": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value #A": "Balance",
+              "pubkey_full": "Pubkey",
+              "status": "Status"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
         "type": "loki",
         "uid": "loki"
       },
@@ -2530,7 +2649,7 @@
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 54
+        "y": 61
       },
       "id": 65,
       "options": {
@@ -2568,10 +2687,9 @@
     "list": [
       {
         "current": {
-          "isNone": true,
           "selected": false,
-          "text": "None",
-          "value": ""
+          "text": "compose-4-1",
+          "value": "compose-4-1"
         },
         "datasource": {
           "type": "prometheus",
@@ -2598,8 +2716,8 @@
       {
         "current": {
           "selected": false,
-          "text": "cad83ab",
-          "value": "cad83ab"
+          "text": "70260bf",
+          "value": "70260bf"
         },
         "datasource": {
           "type": "prometheus",
@@ -2626,8 +2744,8 @@
       {
         "current": {
           "selected": false,
-          "text": "defiant-name",
-          "value": "defiant-name"
+          "text": "courageous-glass",
+          "value": "courageous-glass"
         },
         "datasource": {
           "type": "prometheus",
@@ -2654,8 +2772,8 @@
       {
         "current": {
           "selected": false,
-          "text": "node0",
-          "value": "node0"
+          "text": "node2",
+          "value": "node2"
         },
         "datasource": {
           "type": "prometheus",
@@ -2682,7 +2800,7 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-5m",
     "to": "now"
   },
   "timepicker": {},

@@ -17,10 +17,10 @@ package relay
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"encoding/hex"
 	"time"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	relaylog "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -39,7 +39,7 @@ import (
 )
 
 // startP2P returns a started libp2p host or an error.
-func startP2P(ctx context.Context, config Config, key *ecdsa.PrivateKey, reporter metrics.Reporter) (host.Host, error) {
+func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter metrics.Reporter) (host.Host, error) {
 	if len(config.P2PConfig.TCPAddrs) == 0 {
 		return nil, errors.New("p2p TCP addresses required")
 	}
@@ -67,7 +67,7 @@ func startP2P(ctx context.Context, config Config, key *ecdsa.PrivateKey, reporte
 		return nil, errors.Wrap(err, "new tcp node")
 	}
 
-	p2p.RegisterConnectionLogger(tcpNode, nil)
+	p2p.RegisterConnectionLogger(ctx, tcpNode, nil)
 
 	// Reservations are valid for 30min (github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay/constraints.go:14)
 	relayResources := relay.DefaultResources()
@@ -94,8 +94,6 @@ func startP2P(ctx context.Context, config Config, key *ecdsa.PrivateKey, reporte
 const unknownCluster = "unknown"
 
 // monitorConnections blocks instrumenting peer connection metrics until the context is closed.
-//
-//nolint:gocognit // Long but not complex.
 func monitorConnections(ctx context.Context, tcpNode host.Host, bwTuples <-chan bwTuple) {
 	// peerState tracks connection data per peer.
 	type peerState struct {

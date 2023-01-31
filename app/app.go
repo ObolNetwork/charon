@@ -18,8 +18,8 @@
 package app
 
 import (
+	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"encoding/hex"
 	"net/http"
 	"strings"
@@ -30,7 +30,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-	"github.com/ethereum/go-ethereum/crypto"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -40,6 +40,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/featureset"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/peerinfo"
@@ -101,7 +102,7 @@ type TestConfig struct {
 	// Lock provides the lock explicitly, skips loading from disk.
 	Lock *cluster.Lock
 	// P2PKey provides the p2p privkey explicitly, skips loading from keystore on disk.
-	P2PKey *ecdsa.PrivateKey
+	P2PKey *k1.PrivateKey
 	// ParSigExFunc provides an in-memory partial signature exchange.
 	ParSigExFunc func() core.ParSigEx
 	// LcastTransportFunc provides an in-memory leader cast transport.
@@ -163,7 +164,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
 		var err error
-		p2pKey, err = crypto.LoadECDSA(conf.PrivKeyFile)
+		p2pKey, err = k1util.Load(conf.PrivKeyFile)
 		if err != nil {
 			return errors.Wrap(err, "load priv key")
 		}
@@ -210,7 +211,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	initStartupMetrics(p2p.PeerName(tcpNode.ID()), lock.Threshold, len(lock.Operators), len(lock.Validators), network)
 
-	eth2Cl, err := newETH2Client(ctx, conf, life, lock.Validators)
+	eth2Cl, err := newETH2Client(ctx, conf, life, lock.Validators, lock.ForkVersion)
 	if err != nil {
 		return err
 	}
@@ -262,7 +263,7 @@ func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, l
 
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
 func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
-	lock cluster.Lock, p2pKey *ecdsa.PrivateKey, lockHashHex string,
+	lock cluster.Lock, p2pKey *k1.PrivateKey, lockHashHex string,
 ) (host.Host, error) {
 	peers, err := lock.Peers()
 	if err != nil {
@@ -294,7 +295,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 		conf.TestConfig.TCPNodeCallback(tcpNode)
 	}
 
-	p2p.RegisterConnectionLogger(tcpNode, peerIDs)
+	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
 
 	life.RegisterStop(lifecycle.StopP2PTCPNode, lifecycle.HookFuncErr(tcpNode.Close))
 
@@ -310,21 +311,25 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 }
 
 // wireCoreWorkflow wires the core workflow components.
-//
-//nolint:gocognit
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
-	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
+	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 	qbftSniffer func(*pbv1.SniffedConsensusInstance), seenPubkeys func(core.PubKey),
 ) error {
+	feeRecipientAddrs, err := lock.FeeRecipientAddresses()
+	if err != nil {
+		return err
+	}
+
 	// Convert and prep public keys and public shares
 	var (
-		corePubkeys       []core.PubKey
-		eth2Pubkeys       []eth2p0.BLSPubKey
-		pubshares         []eth2p0.BLSPubKey
-		allPubSharesByKey = make(map[core.PubKey]map[int]*bls_sig.PublicKey) // map[pubkey]map[shareIdx]pubshare
+		corePubkeys                  []core.PubKey
+		eth2Pubkeys                  []eth2p0.BLSPubKey
+		pubshares                    []eth2p0.BLSPubKey
+		allPubSharesByKey            = make(map[core.PubKey]map[int]*bls_sig.PublicKey) // map[pubkey]map[shareIdx]pubshare
+		feeRecipientAddrByCorePubkey = make(map[core.PubKey]string)
 	)
-	for _, dv := range lock.Validators {
+	for i, dv := range lock.Validators {
 		pubkey, err := dv.PublicKey()
 		if err != nil {
 			return err
@@ -365,6 +370,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		corePubkeys = append(corePubkeys, corePubkey)
 		pubshares = append(pubshares, eth2Share)
 		allPubSharesByKey[corePubkey] = allPubShares
+		feeRecipientAddrByCorePubkey[corePubkey] = feeRecipientAddrs[i]
 	}
 
 	peers, err := lock.Peers()
@@ -386,23 +392,21 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	// TODO(corver): refactor to support multiple fee recipient addresses.
-	vaddrs, err := lock.LegacyValidatorAddresses()
-	if err != nil {
-		return err
+	feeRecipientFunc := func(pubkey core.PubKey) string {
+		return feeRecipientAddrByCorePubkey[pubkey]
 	}
 
-	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, vaddrs.FeeRecipientAddress))
+	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, feeRecipientFunc))
 	sched.SubscribeSlots(tracker.NewInclDelayFunc(eth2Cl, sched.GetDutyDefinition))
 
-	fetch, err := fetcher.New(eth2Cl, vaddrs.FeeRecipientAddress)
+	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc)
 	if err != nil {
 		return err
 	}
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, vaddrs.FeeRecipientAddress,
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientFunc,
 		conf.BuilderAPI, seenPubkeys)
 	if err != nil {
 		return err
@@ -489,7 +493,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 // wirePrioritise wires the priority protocol which determines cluster wide priorities for the next epoch.
 func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host,
 	peers []peer.ID, threshold int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
-	sched core.Scheduler, p2pKey *ecdsa.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
+	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 ) error {
 	if !featureset.Enabled(featureset.Priority) {
 		return nil
@@ -624,7 +628,7 @@ func eth2PubKeys(validators []cluster.DistValidator) ([]eth2p0.BLSPubKey, error)
 // newETH2Client returns a new eth2client; it is either a beaconmock for
 // simnet or a multi http client to a real beacon node.
 func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
-	validators []cluster.DistValidator,
+	validators []cluster.DistValidator, forkVersion []byte,
 ) (eth2wrap.Client, error) {
 	pubkeys, err := eth2PubKeys(validators)
 	if err != nil {
@@ -677,11 +681,27 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 		eth2Cl = eth2wrap.WithSyntheticDuties(eth2Cl, pubkeys)
 	}
 
+	// Check BN chain/network.
+	schedule, err := eth2Cl.ForkSchedule(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "fetch fork schedule")
+	}
+	var ok bool
+	for _, fork := range schedule {
+		if bytes.Equal(fork.CurrentVersion[:], forkVersion) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return nil, errors.Wrap(err, "lock file fork version not in beacon node fork schedule (probably wrong chain/network)")
+	}
+
 	return eth2Cl, nil
 }
 
 // newConsensus returns a new consensus component and its start lifecycle hook.
-func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *ecdsa.PrivateKey,
+func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *k1.PrivateKey,
 	sender *p2p.Sender, nodeIdx cluster.NodeIdx, deadliner core.Deadliner,
 	qbftSniffer func(*pbv1.SniffedConsensusInstance),
 ) (core.Consensus, lifecycle.IHookFunc, error) {
@@ -772,7 +792,7 @@ func wireTracing(life *lifecycle.Manager, conf Config) error {
 
 // setFeeRecipient returns a slot subscriber for scheduler which calls prepare_beacon_proposer endpoint at start of each epoch.
 // TODO(dhruv): move this somewhere else once more use-cases like this becomes clear.
-func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeRecipient string) func(ctx context.Context, slot core.Slot) error {
+func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeRecipientFunc func(core.PubKey) string) func(ctx context.Context, slot core.Slot) error {
 	onStartup := true
 
 	return func(ctx context.Context, slot core.Slot) error {
@@ -788,29 +808,31 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeReci
 			return err
 		}
 
-		var activeIdxs []eth2p0.ValidatorIndex
+		var activeVals []*eth2v1.Validator
 		for _, validator := range vals {
 			if validator.Status != eth2v1.ValidatorStateActiveOngoing {
 				continue
 			}
-			activeIdxs = append(activeIdxs, validator.Index)
+			activeVals = append(activeVals, validator)
 		}
 
-		if len(activeIdxs) == 0 {
+		if len(activeVals) == 0 {
 			return nil // No active validators.
 		}
 
-		var addr bellatrix.ExecutionAddress
-		b, err := hex.DecodeString(strings.TrimPrefix(feeRecipient, "0x"))
-		if err != nil {
-			return errors.Wrap(err, "hex decode fee recipient address")
-		}
-		copy(addr[:], b)
-
 		var preps []*eth2v1.ProposalPreparation
-		for _, vIdx := range activeIdxs {
+		for _, val := range activeVals {
+			feeRecipient := feeRecipientFunc(core.PubKeyFrom48Bytes(val.Validator.PublicKey))
+
+			var addr bellatrix.ExecutionAddress
+			b, err := hex.DecodeString(strings.TrimPrefix(feeRecipient, "0x"))
+			if err != nil {
+				return errors.Wrap(err, "hex decode fee recipient address")
+			}
+			copy(addr[:], b)
+
 			preps = append(preps, &eth2v1.ProposalPreparation{
-				ValidatorIndex: vIdx,
+				ValidatorIndex: val.Index,
 				FeeRecipient:   addr,
 			})
 		}

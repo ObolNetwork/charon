@@ -168,8 +168,6 @@ type dedupKey struct {
 // Run executes the consensus algorithm until the context closed.
 // The generic type I is the instance of consensus and can be anything.
 // The generic type V is the arbitrary data value being proposed; it only requires an Equal method.
-//
-//nolint:gocognit // It is indeed a complex algorithm.
 func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transport[I, V], instance I, process int64, inputValue V) (err error) {
 	if isZeroVal(inputValue) {
 		return errors.New("zero input value not supported")
@@ -181,7 +179,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			if !strings.Contains(fmt.Sprint(r), "bug") {
 				panic(r) // Only catch internal sanity checks.
 			}
-			err = fmt.Errorf("qbft sanity check: %v", r)
+			err = fmt.Errorf("qbft sanity check: %v", r) //nolint: forbidigo // Wrapping a panic, not error.
 		}
 	}()
 

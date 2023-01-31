@@ -252,7 +252,7 @@ func (t *Tracker) Run(ctx context.Context) error {
 		case duty := <-t.analyser.C():
 			ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
-			parsigs := analyseParSigs(t.events[duty])
+			parsigs := analyseParSigs(ctx, t.events[duty])
 			t.parSigReporter(ctx, duty, parsigs)
 
 			// Analyse failed duties
@@ -339,7 +339,7 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 }
 
 // analyseParSigs returns a mapping of partial signed data messages by peers (share index) by validator (pubkey).
-func analyseParSigs(events []event) parsigsByMsg {
+func analyseParSigs(ctx context.Context, events []event) parsigsByMsg {
 	type dedupKey struct {
 		Pubkey   core.PubKey
 		ShareIdx int
@@ -361,7 +361,7 @@ func analyseParSigs(events []event) parsigsByMsg {
 
 		root, err := e.parSig.MessageRoot()
 		if err != nil {
-			log.Warn(context.Background(), "Parsig message root", err)
+			log.Warn(ctx, "Parsig message root", err)
 			continue // Just log and ignore as this is highly unlikely and non-critical code.
 		}
 

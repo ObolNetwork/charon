@@ -19,7 +19,6 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
-	ioprometheusclient "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/promauto"
@@ -47,31 +46,26 @@ func TestWrapRegisterer(t *testing.T) {
 	var foundTest bool
 	for _, metricFam := range metrics {
 		// All metrics contain own and registered labels.
-		containsLabels(t, metricFam, labels)
+		for _, metric := range metricFam.Metric {
+			notFound := make(prometheus.Labels)
+			for k, v := range labels {
+				notFound[k] = v
+			}
+			for _, label := range metric.Label {
+				v, ok := notFound[*label.Name]
+				if !ok {
+					continue
+				}
+				require.Equal(t, v, *label.Value)
+				delete(notFound, *label.Name)
+			}
+
+			require.Empty(t, notFound)
+		}
 		if *metricFam.Name == "test" {
 			foundTest = true
 		}
 	}
 
 	require.True(t, foundTest)
-}
-
-func containsLabels(t *testing.T, family *ioprometheusclient.MetricFamily, labels prometheus.Labels) {
-	t.Helper()
-
-	for _, metric := range family.Metric {
-		notFound := make(prometheus.Labels)
-		for k, v := range labels {
-			notFound[k] = v
-		}
-		for _, label := range metric.Label {
-			v, ok := notFound[*label.Name]
-			if !ok {
-				continue
-			}
-			require.Equal(t, v, *label.Value)
-			delete(notFound, *label.Name)
-		}
-		require.Empty(t, notFound)
-	}
 }

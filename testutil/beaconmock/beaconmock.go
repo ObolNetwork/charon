@@ -45,7 +45,7 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
@@ -134,14 +134,15 @@ type Mock struct {
 	AttestationDataFunc                    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	BlockAttestationsFunc                  func(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
+	NodePeerCountFunc                      func(ctx context.Context) (int, error)
 	BlindedBeaconBlockProposalFunc         func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
 	BeaconCommitteesFunc                   func(ctx context.Context, stateID string) ([]*eth2v1.BeaconCommittee, error)
-	BeaconBlockProposalFunc                func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error)
+	BeaconBlockProposalFunc                func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error)
 	BeaconBlockRootFunc                    func(ctx context.Context, blockID string) (*eth2p0.Root, error)
-	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error)
+	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	SubmitAttestationsFunc                 func(context.Context, []*eth2p0.Attestation) error
-	SubmitBeaconBlockFunc                  func(context.Context, *spec.VersionedSignedBeaconBlock) error
+	SubmitBeaconBlockFunc                  func(context.Context, *eth2spec.VersionedSignedBeaconBlock) error
 	SubmitBlindedBeaconBlockFunc           func(context.Context, *eth2api.VersionedSignedBlindedBeaconBlock) error
 	SubmitVoluntaryExitFunc                func(context.Context, *eth2p0.SignedVoluntaryExit) error
 	ValidatorsByPubKeyFunc                 func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
@@ -168,11 +169,15 @@ func (m Mock) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.
 	return m.BlockAttestationsFunc(ctx, stateID)
 }
 
+func (m Mock) NodePeerCount(ctx context.Context) (int, error) {
+	return m.NodePeerCountFunc(ctx)
+}
+
 func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
 	return m.SubmitAttestationsFunc(ctx, attestations)
 }
 
-func (m Mock) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+func (m Mock) SubmitBeaconBlock(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
 	return m.SubmitBeaconBlockFunc(ctx, block)
 }
 
@@ -192,7 +197,7 @@ func (m Mock) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, 
 	return m.BlindedBeaconBlockProposalFunc(ctx, slot, randaoReveal, graffiti)
 }
 
-func (m Mock) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
+func (m Mock) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error) {
 	return m.BeaconBlockProposalFunc(ctx, slot, randaoReveal, graffiti)
 }
 
@@ -280,7 +285,7 @@ func (m Mock) SubmitProposalPreparations(ctx context.Context, preparations []*et
 	return m.SubmitProposalPreparationsFunc(ctx, preparations)
 }
 
-func (m Mock) SignedBeaconBlock(ctx context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error) {
+func (m Mock) SignedBeaconBlock(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 	return m.SignedBeaconBlockFunc(ctx, blockID)
 }
 

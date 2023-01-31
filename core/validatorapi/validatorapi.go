@@ -23,7 +23,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -55,10 +55,8 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 }
 
 // NewComponent returns a new instance of the validator API core workflow component.
-//
-//nolint:gocognit
 func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[int]*bls_sig.PublicKey,
-	shareIdx int, feeRecipientAddress string, builderAPI bool, seenPubkeys func(core.PubKey),
+	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderAPI bool, seenPubkeys func(core.PubKey),
 ) (*Component, error) {
 	var (
 		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
@@ -133,23 +131,23 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 	}
 
 	return &Component{
-		getVerifyShareFunc:  getVerifyShareFunc,
-		getPubShareFunc:     getPubShareFunc,
-		getPubKeyFunc:       getPubKeyFunc,
-		sharesByKey:         coreSharesByKey,
-		eth2Cl:              eth2Cl,
-		shareIdx:            shareIdx,
-		feeRecipientAddress: feeRecipientAddress,
-		builderAPI:          builderAPI,
+		getVerifyShareFunc: getVerifyShareFunc,
+		getPubShareFunc:    getPubShareFunc,
+		getPubKeyFunc:      getPubKeyFunc,
+		sharesByKey:        coreSharesByKey,
+		eth2Cl:             eth2Cl,
+		shareIdx:           shareIdx,
+		feeRecipientFunc:   feeRecipientFunc,
+		builderAPI:         builderAPI,
 	}, nil
 }
 
 type Component struct {
-	eth2Cl              eth2wrap.Client
-	shareIdx            int
-	insecureTest        bool
-	feeRecipientAddress string
-	builderAPI          bool
+	eth2Cl           eth2wrap.Client
+	shareIdx         int
+	insecureTest     bool
+	feeRecipientFunc func(core.PubKey) string
+	builderAPI       bool
 
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
 	// to public keys (the DV root public key)
@@ -165,7 +163,7 @@ type Component struct {
 
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
-	awaitBlockFunc            func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)
+	awaitBlockFunc            func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error)
 	awaitBlindedBlockFunc     func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc           func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
@@ -176,7 +174,7 @@ type Component struct {
 
 // RegisterAwaitBeaconBlock registers a function to query unsigned beacon block.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (*spec.VersionedBeaconBlock, error)) {
+func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error)) {
 	c.awaitBlockFunc = fn
 }
 
@@ -305,7 +303,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 }
 
 // BeaconBlockProposal submits the randao for aggregation and inclusion in DutyProposer and then queries the dutyDB for an unsigned beacon block.
-func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*spec.VersionedBeaconBlock, error) {
+func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*eth2spec.VersionedBeaconBlock, error) {
 	// Get proposer pubkey (this is a blocking query).
 	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(int64(slot)))
 	if err != nil {
@@ -363,7 +361,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	return block, nil
 }
 
-func (c Component) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+func (c Component) SubmitBeaconBlock(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
 	// Calculate slot epoch
 	slot, err := block.Slot()
 	if err != nil {

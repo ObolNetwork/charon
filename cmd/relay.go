@@ -86,7 +86,7 @@ func newBootnodeCmd(runFunc func(context.Context, relay.Config) error) *cobra.Co
 func bindRelayFlag(flags *pflag.FlagSet, config *relay.Config) {
 	flags.StringVar(&config.HTTPAddr, "http-address", "127.0.0.1:3640", "Listening address (ip and port) for the relay http server serving runtime ENR.")
 	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:3620", "Listening address (ip and port) for the prometheus and pprof monitoring http server.")
-	flags.BoolVar(&config.AutoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory.")
+	flags.BoolVar(&config.AutoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (secp256k1 private key used for p2p authentication and ENR) if none found in data directory.")
 	flags.StringVar(&config.RelayLogLevel, "p2p-relay-loglevel", "", "Libp2p circuit relay log level. E.g., debug, info, warn, error.")
 
 	// Decrease defaults after this has been addressed https://github.com/libp2p/go-libp2p/issues/1713
@@ -97,7 +97,7 @@ func bindRelayFlag(flags *pflag.FlagSet, config *relay.Config) {
 func bindBootnodeFlag(flags *pflag.FlagSet, config *relay.Config) {
 	flags.StringVar(&config.HTTPAddr, "bootnode-http-address", "127.0.0.1:3640", "Listening address (ip and port) for the bootnode http server serving runtime ENR.")
 	flags.StringVar(&config.MonitoringAddr, "bootnode-monitoring-address", "127.0.0.1:3620", "Listening address (ip and port) for the prometheus and pprof monitoring http server.")
-	flags.BoolVar(&config.AutoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (ecdsa private key used for p2p authentication and ENR) if none found in data directory.")
+	flags.BoolVar(&config.AutoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (secp256k1 private key used for p2p authentication and ENR) if none found in data directory.")
 	flags.StringVar(&config.RelayLogLevel, "p2p-relay-loglevel", "", "Libp2p circuit relay log level. E.g., debug, info, warn, error.")
 
 	// Decrease defaults after this has been addressed https://github.com/libp2p/go-libp2p/issues/1713

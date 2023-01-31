@@ -74,6 +74,13 @@ var (
 			"4 if quorum peers are not connected.",
 	})
 
+	peerCountGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "beacon_node",
+		Name:      "peers",
+		Help:      "Gauge set to the peer count of the beacon node connected to this charon instance.",
+	})
+
 	thresholdGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "cluster",
 		Name:      "threshold",

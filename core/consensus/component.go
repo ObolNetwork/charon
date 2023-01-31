@@ -17,12 +17,12 @@ package consensus
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -127,11 +127,11 @@ func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Dut
 }
 
 // New returns a new consensus QBFT component.
-func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *ecdsa.PrivateKey,
+func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
 	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance),
 ) (*Component, error) {
 	// Extract peer pubkeys.
-	keys := make(map[int64]*ecdsa.PublicKey)
+	keys := make(map[int64]*k1.PublicKey)
 	var labels []string
 	for i, p := range peers {
 		labels = append(labels, fmt.Sprintf("%d:%s", p.Index, p.Name))
@@ -169,8 +169,8 @@ type Component struct {
 	sender      *p2p.Sender
 	peerLabels  []string
 	peers       []p2p.Peer
-	pubkeys     map[int64]*ecdsa.PublicKey
-	privkey     *ecdsa.PrivateKey
+	pubkeys     map[int64]*k1.PublicKey
+	privkey     *k1.PrivateKey
 	def         qbft.Definition[core.Duty, [32]byte]
 	subs        []subscriber
 	deadliner   core.Deadliner

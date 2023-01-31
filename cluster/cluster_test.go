@@ -41,6 +41,7 @@ const (
 	v1_0 = "v1.0.0"
 )
 
+// TestEncode tests whether charon can correctly encode lock and definition files.
 func TestEncode(t *testing.T) {
 	for _, version := range cluster.SupportedVersionsForT(t) {
 		t.Run(version, func(t *testing.T) {
