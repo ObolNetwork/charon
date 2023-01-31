@@ -1,8 +1,7 @@
 <!-- 🎉🚀 Thanks for submitting a PR!
 - Format PR title format (above) as: `package[/subpackage]: concise overview`
 - Please review our contribution guide https://github.com/ObolNetwork/charon/blob/main/docs/contributing.md
-- Sign the Contributor License Agreement (CLA) when prompted.
-- Starting with an issue, outlining the problem and proposed solution, is highly encouraged.
+- Sign the Contributor License Agreement (CLA) when prompted by the bot.
 - We do trunk based development; small PRs on stable main branch.
 - Delete these instructions
 -->
@@ -28,7 +27,7 @@
 <!-- Pick one, delete the rest -->
 category: bug feature refactor docs test fixbuild misc
 
-<!-- Add link to a GitHub issue (or 'none' if PR is trivial)-->
+<!-- Add link to a GitHub issue (or 'none' if PR is trivial). Starting with an issue, outlining the problem and proposed solution, is highly encouraged.-->
 ticket: 
 
 <!-- Add feature as per `app/featureset/featureset.go` (or delete completely if not applicable). -->
