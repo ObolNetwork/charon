@@ -51,6 +51,9 @@ const (
 	//   - When connected via relay, libp2p's identify protocol detects the remote peer's addresses.
 	//   - Those are added to the peer store so libp2p will try to use them.
 	RelayDiscovery Feature = "relay_discovery"
+
+	// HerumiBLS enables usage of the Herumi BLS12-381 implementation, rather than Kryptology.
+	HerumiBLS Feature = "herumi_bls"
 )
 
 var (
@@ -60,6 +63,7 @@ var (
 		Priority:       statusStable,
 		MockAlpha:      statusAlpha,
 		RelayDiscovery: statusStable,
+		HerumiBLS:      statusBeta,
 		// Add all features and there status here.
 	}
 
