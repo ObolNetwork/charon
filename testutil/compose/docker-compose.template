@@ -101,6 +101,9 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:latest
     networks: [compose]
+    environment:
+      SPAN_STORAGE_TYPE: memory
+      MEMORY_MAX_TRACES: 10000
     {{if .MonitoringPorts}}ports:
       - "16686:16686"
     {{end}}
