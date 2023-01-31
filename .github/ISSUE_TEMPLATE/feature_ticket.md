@@ -24,10 +24,9 @@ labels: Enhancement
 
 <!--Delete any irrelevant item and add other mandatory tests that should be passing-->
 
-- [ ] Passes unit tests 
-- [ ] Works on core team/canary clusters
-- [ ] Passes smoke tests
-- [ ] Passes optional manual tests
+- [ ] Test via automated unit/integration/smoke tests
+- [ ] Manually test on core team/canary/test clusters
+- [ ] Manually test on local compose simnet
 
 # 👐 Additional acceptance criteria
 
