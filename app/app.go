@@ -436,7 +436,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	blsv2.SetImplementation(kryptology.Kryptology{})
 
 	if featureset.Enabled(featureset.HerumiBLS) {
-		log.Info(ctx, "enabling Herumi BLS signature backend")
+		log.Info(ctx, "Enabling Herumi BLS signature backend")
 		blsv2.SetImplementation(herumi.Herumi{})
 	}
 
