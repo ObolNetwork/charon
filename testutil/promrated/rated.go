@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -90,9 +91,9 @@ func getValidationStatistics(ctx context.Context, ratedEndpoint string, validato
 			backoff()
 
 			continue
-		} else if res.StatusCode == http.StatusUnauthorized {
-			panic("unauthorized")
 		} else if res.StatusCode/100 != 2 {
+			incRatedErrors(req.URL.String(), res.StatusCode)
+
 			return validatorEffectivenessData{}, errors.New("not ok http response", z.Str("body", string(body)))
 		}
 
@@ -129,4 +130,8 @@ func extractBody(res *http.Response) ([]byte, error) {
 	defer res.Body.Close()
 
 	return body, nil
+}
+
+func incRatedErrors(endpoint string, statusCode int) {
+	ratedErrors.WithLabelValues(endpoint, strconv.Itoa(statusCode)).Inc()
 }
