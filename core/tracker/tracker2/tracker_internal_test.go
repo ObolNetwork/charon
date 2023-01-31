@@ -153,7 +153,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		require.ErrorAs(t, err, &fetcherErr)
 		require.True(t, failed)
 		require.Equal(t, step, fetcher)
-		require.Contains(t, msg, msgFetcherUnknownError)
+		require.Contains(t, msg, msgFetcherError)
 
 		// Failed at consensus
 		consensusErr := errors.New("consensus failed")
@@ -742,7 +742,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 					}, "beacon api error"),
 				}},
 			},
-			msg:    msgFetcher,
+			msg:    msgFetcherBN,
 			failed: true,
 			err: errors.Wrap(eth2http.Error{
 				Method:     http.MethodGet,
@@ -1107,7 +1107,7 @@ func TestIsParSigEventExpected(t *testing.T) {
 }
 
 func TestAnalyseParSigs(t *testing.T) {
-	require.Empty(t, analyseParSigs(context.Background(), nil))
+	require.Empty(t, extractParSigs(context.Background(), nil))
 
 	var events []event
 
@@ -1136,7 +1136,7 @@ func TestAnalyseParSigs(t *testing.T) {
 		makeEvents(n, pubkey)
 	}
 
-	allParSigMsgs := analyseParSigs(context.Background(), events)
+	allParSigMsgs := extractParSigs(context.Background(), events)
 
 	lengths := make(map[int]string)
 	for pubkey, parSigMsgs := range allParSigMsgs {

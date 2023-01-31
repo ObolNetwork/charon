@@ -68,10 +68,10 @@ func (s step) String() string {
 
 // These constants are used for improving messages for why a duty failed.
 const (
-	// msgFetcher indicates a duty failed in the fetcher step when it failed
+	// msgFetcherBN indicates a duty failed in the fetcher step when it failed
 	// to fetch the required data from the beacon node API. This indicates a problem with
 	// the upstream beacon node.
-	msgFetcher = "couldn't fetch duty data from the beacon node"
+	msgFetcherBN = "couldn't fetch duty data from the beacon node"
 
 	// msgFetcherAggregatorNoAttData indicates an attestation aggregation duty failed in
 	// the fetcher step since it couldn't fetch the prerequisite attestation data. This
@@ -167,9 +167,9 @@ const (
 	// This indicates a bug in charon as it is unexpected.
 	msgFetcherSyncContributionFailedSigAggPrepare = "couldn't fetch sync contribution due to no aggregated sync contribution selection, this is unexpected"
 
-	// msgFetcherUnknownError indicates duty failed in fetcher step with some unknown error.
-	// This indicates a bug in charon as it is unexpected.
-	msgFetcherUnknownError = "couldn't fetch due to unknown error"
+	// msgFetcherError indicates duty failed in fetcher step with some unexpected error.
+	// This indicates a problem in charon as it is unexpected.
+	msgFetcherError = "couldn't fetch due to unexpected error"
 
 	// msgConsensus indicates a duty failed in consensus step.
 	// This could indicate that insufficient honest peers participated in consensus or p2p network
@@ -221,8 +221,8 @@ type parsigsByMsg map[core.PubKey]map[[32]byte][]core.ParSignedData
 
 // MsgRootsConsistent returns true if the all partial signatures have consistent message roots.
 func (m parsigsByMsg) MsgRootsConsistent() bool {
-	for _, inner := range m {
-		if len(inner) > 1 {
+	for _, roots := range m {
+		if len(roots) > 1 {
 			return false
 		}
 	}
@@ -305,7 +305,7 @@ func (t *Tracker) Run(ctx context.Context) error {
 		case duty := <-t.analyser.C():
 			ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
-			parsigs := analyseParSigs(ctx, t.events[duty])
+			parsigs := extractParSigs(ctx, t.events[duty])
 			t.parSigReporter(ctx, duty, parsigs)
 
 			// Analyse failed duties
@@ -321,8 +321,9 @@ func (t *Tracker) Run(ctx context.Context) error {
 	}
 }
 
-// dutyFailedStep returns true if the duty failed. It also returns the step where the duty got stuck.
-// If the duty didn't fail, it returns false and the zero step.
+// dutyFailedStep returns true if the duty failed. It also returns the step where the
+// duty got stuck and the last error that component returned.
+// If the duty didn't fail, it returns false and the zero step and a nil error.
 // It assumes that all the input events are for a single duty.
 // If the input events slice is empty, it returns true and the zero step.
 func dutyFailedStep(es []event) (bool, step, error) {
@@ -330,7 +331,7 @@ func dutyFailedStep(es []event) (bool, step, error) {
 		return true, zero, nil // Duty failed since no events.
 	}
 
-	// Dedup events by step.
+	// Group events by step.
 	eventsByStep := make(map[step][]event)
 	for _, e := range es {
 		eventsByStep[e.step] = append(eventsByStep[e.step], e)
@@ -338,7 +339,7 @@ func dutyFailedStep(es []event) (bool, step, error) {
 
 	// Find last failed/successful step.
 	var lastEvent event
-	for step := bcast; step > zero; step-- {
+	for step := sentinel - 1; step > zero; step-- {
 		if len(eventsByStep[step]) == 0 {
 			continue
 		}
@@ -348,7 +349,7 @@ func dutyFailedStep(es []event) (bool, step, error) {
 		break
 	}
 
-	// No failed step.
+	// Final step was successful.
 	if lastEvent.step == bcast && lastEvent.stepErr == nil {
 		return false, zero, nil
 	}
@@ -364,52 +365,54 @@ func dutyFailedStep(es []event) (bool, step, error) {
 // analyseDutyFailed detects if the given duty failed.
 //
 // It returns true if the duty failed as well as the step
-// where the duty got stuck and a human friendly error message explaining why.
+// where the duty got stuck and a human friendly error message explaining why
+// as well as the error reported by the step/component.
 //
 // It returns false if the duty didn't fail, i.e., the duty
 // didn't get stuck and completed the bcast step.
-func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootConsistent bool) (failed bool, failedStep step, failureMsg string, failedErr error) {
-	failed, step, err := dutyFailedStep(allEvents[duty])
+func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootConsistent bool,
+) (bool, step, string, error) {
+	failed, failedStep, failedErr := dutyFailedStep(allEvents[duty])
 	if !failed {
-		return false, zero, "", err
+		return false, zero, "", nil
 	}
 
-	var msg string
-	switch step {
+	var failedMsg string
+	switch failedStep {
 	case fetcher:
-		msg = analyseFetcherFailed(duty, allEvents, err)
+		failedMsg = analyseFetcherFailed(duty, allEvents, failedErr)
 	case consensus:
-		return analyseConsensusFailed(duty, err)
+		return analyseConsensusFailed(duty, failedErr)
 	case dutyDB:
-		msg = msgDutyDB
+		failedMsg = msgDutyDB
 	case validatorAPI:
-		msg = msgValidatorAPI
+		failedMsg = msgValidatorAPI
 	case parSigDBInternal:
-		msg = msgParSigDBInternal
+		failedMsg = msgParSigDBInternal
 	case parSigEx:
-		msg = msgParSigEx
+		failedMsg = msgParSigEx
 	case parSigDBExternal:
-		msg = msgParSigDBExternal
+		failedMsg = msgParSigDBExternal
 	case parSigDBThreshold:
 		if msgRootConsistent {
-			msg = msgParSigDBInsufficient
+			failedMsg = msgParSigDBInsufficient
 		} else {
-			msg = msgParSigDBInconsistent
+			failedMsg = msgParSigDBInconsistent
 			if expectInconsistentParSigs(duty.Type) {
-				msg = msgParSigDBInconsistentSync
+				failedMsg = msgParSigDBInconsistentSync
 			}
 		}
 	case sigAgg:
-		msg = msgSigAgg
+		failedMsg = msgSigAgg
 	case bcast:
-		msg = msgBcast
+		failedMsg = msgBcast
 	case zero:
-		msg = fmt.Sprintf("no events for %s duty", duty.String()) // This should never happen.
+		failedMsg = fmt.Sprintf("no events for %s duty", duty.String()) // This should never happen.
 	default:
-		msg = fmt.Sprintf("%s duty failed at %s", duty.String(), step.String())
+		failedMsg = fmt.Sprintf("%s duty failed at %s", duty.String(), failedStep.String())
 	}
 
-	return failed, step, msg, err
+	return true, failedStep, failedMsg, failedErr
 }
 
 // analyseFetcherFailed returns whether the duty that got stuck in fetcher actually failed
@@ -418,7 +421,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetch
 	// Check for beacon api errors.
 	var eth2Error eth2http.Error
 	if errors.As(fetchErr, &eth2Error) {
-		return msgFetcher
+		return msgFetcherBN
 	}
 
 	// Proposer duties depend on randao duty, so check if that was why it failed.
@@ -498,7 +501,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetch
 		}
 	}
 
-	return msgFetcherUnknownError
+	return msgFetcherError
 }
 
 // analyseConsensusFailed returns whether the duty that got stuck in consensus got failed
@@ -513,20 +516,20 @@ func analyseConsensusFailed(duty core.Duty, consensusErr error) (bool, step, str
 	return true, consensus, msgConsensus, consensusErr
 }
 
-// analyseParSigs returns a mapping of partial signed data messages by peers (share index) by validator (pubkey).
-func analyseParSigs(ctx context.Context, events []event) parsigsByMsg {
+// extractParSigs returns a mapping of unique partial signed data messages by peers (share index) by validator (pubkey).
+func extractParSigs(ctx context.Context, events []event) parsigsByMsg {
 	type dedupKey struct {
 		Pubkey   core.PubKey
 		ShareIdx int
 	}
 	var (
 		dedup = make(map[dedupKey]bool)
-		datas = make(map[core.PubKey]map[[32]byte][]core.ParSignedData)
+		resp  = make(parsigsByMsg)
 	)
 
 	for _, e := range events {
 		if e.parSig == nil {
-			continue
+			continue // Ignore events without parsigs.
 		}
 		key := dedupKey{Pubkey: e.pubkey, ShareIdx: e.parSig.ShareIdx}
 		if dedup[key] {
@@ -540,15 +543,15 @@ func analyseParSigs(ctx context.Context, events []event) parsigsByMsg {
 			continue // Just log and ignore as this is highly unlikely and non-critical code.
 		}
 
-		inner, ok := datas[e.pubkey]
+		inner, ok := resp[e.pubkey]
 		if !ok {
 			inner = make(map[[32]byte][]core.ParSignedData)
 		}
 		inner[root] = append(inner[root], *e.parSig)
-		datas[e.pubkey] = inner
+		resp[e.pubkey] = inner
 	}
 
-	return datas
+	return resp
 }
 
 // newFailedDutyReporter returns failed duty reporter which instruments failed duties.
