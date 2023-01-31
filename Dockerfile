@@ -1,7 +1,7 @@
 # Container for building Go binary.
 FROM golang:1.19.5-bullseye AS builder
 # Install dependencies
-RUN apt-get update && apt-get install -y build-essential git ca-certificates
+RUN apt-get update && apt-get install -y build-essential git
 # Prep and copy source
 WORKDIR /app/charon
 COPY . .
