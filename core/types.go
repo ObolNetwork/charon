@@ -102,6 +102,20 @@ func (d Duty) String() string {
 	return fmt.Sprintf("%d/%s", d.Slot, d.Type)
 }
 
+// ProposalType defines a tyoe of block proposal process.
+type ProposalType string
+
+const (
+	// Note these ProposalType strings MUST NOT be changed as it will break wire compatibility.
+
+	// ProposalTypeFull defines normal full beacon block proposals.
+	ProposalTypeFull ProposalType = "full"
+	// ProposalTypeBuilder defines builder API blinded beacon block proposals.
+	ProposalTypeBuilder ProposalType = "blinded"
+	// ProposalTypeSynthetic defines synthetic block proposals, can be either full or builder.
+	ProposalTypeSynthetic ProposalType = "synthetic"
+)
+
 // NewAttesterDuty returns a new attester duty. It is a convenience function that is
 // slightly more readable and concise than the struct literal equivalent:
 //

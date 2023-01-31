@@ -413,6 +413,7 @@ func (a *priorityAsserter) Callback(t *testing.T, i int) func(ctx context.Contex
 		expect := map[string]string{
 			"version":  fmt.Sprint(version.Supported()),
 			"protocol": fmt.Sprint(app.Protocols()),
+			"proposal": fmt.Sprint(app.ProposalTypes(false, false)),
 		}
 
 		if !assert.Len(t, results, len(expect)) {

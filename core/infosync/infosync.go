@@ -33,13 +33,16 @@ import (
 const (
 	topicVersion  = "version"
 	topicProtocol = "protocol"
+	topicProposal = "proposal"
 
 	// maxResults limits the number of results to keep.
 	maxResults = 100
 )
 
 // New returns a new infosync component.
-func New(prioritiser *priority.Component, versions []string, protocols []protocol.ID) *Component {
+func New(prioritiser *priority.Component, versions []string, protocols []protocol.ID,
+	proposals []core.ProposalType,
+) *Component {
 	// Add a mock alpha protocol if alpha features enabled in order to test infosync in prod.
 	// TODO(corver): Remove this once we have an actual use case.
 	if featureset.Enabled(featureset.MockAlpha) {
@@ -50,6 +53,7 @@ func New(prioritiser *priority.Component, versions []string, protocols []protoco
 		prioritiser: prioritiser,
 		versions:    versions,
 		protocols:   protocols,
+		proposals:   proposals,
 	}
 
 	prioritiser.Subscribe(func(ctx context.Context, duty core.Duty, results []priority.TopicResult) error {
@@ -64,6 +68,8 @@ func New(prioritiser *priority.Component, versions []string, protocols []protoco
 					res.versions = append(res.versions, prio)
 				case topicProtocol:
 					res.protocols = append(res.protocols, protocol.ID(prio))
+				case topicProposal:
+					res.proposals = append(res.proposals, core.ProposalType(prio))
 				}
 			}
 		}
@@ -84,6 +90,7 @@ type Component struct {
 	prioritiser *priority.Component
 	versions    []string
 	protocols   []protocol.ID
+	proposals   []core.ProposalType
 
 	mu      sync.Mutex
 	results []result
@@ -103,6 +110,25 @@ func (c *Component) Protocols(slot int64) []protocol.ID {
 		}
 
 		resp = result.protocols
+	}
+
+	return resp
+}
+
+// Proposals returns the latest cluster wide supported proposal types before the slot.
+// It returns the default "full" proposal type if no results before the slot are available.
+func (c *Component) Proposals(slot int64) []core.ProposalType {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	resp := []core.ProposalType{core.ProposalTypeFull} // Default to "full" proposals.
+
+	for _, result := range c.results {
+		if result.slot > slot {
+			break
+		}
+
+		resp = result.proposals
 	}
 
 	return resp
@@ -135,6 +161,10 @@ func (c *Component) Trigger(ctx context.Context, slot int64) error {
 		priority.TopicProposal{
 			Topic:      topicProtocol,
 			Priorities: protocolsToStrings(c.protocols),
+		},
+		priority.TopicProposal{
+			Topic:      topicProposal,
+			Priorities: proposalsToStrings(c.proposals),
 		})
 }
 
@@ -148,16 +178,28 @@ func protocolsToStrings(features []protocol.ID) []string {
 	return resp
 }
 
+// protocolsToStrings returns the protocols as strings.
+func proposalsToStrings(proposals []core.ProposalType) []string {
+	var resp []string
+	for _, proposal := range proposals {
+		resp = append(resp, string(proposal))
+	}
+
+	return resp
+}
+
 // result is a cluster-wide agreed-upon infosync result.
 type result struct {
 	slot      int64
 	versions  []string
 	protocols []protocol.ID
+	proposals []core.ProposalType
 }
 
 // Equal returns true if the results are equal.
 func (x result) Equal(y result) bool {
 	return x.slot == y.slot &&
 		fmt.Sprint(x.versions) == fmt.Sprint(y.versions) &&
-		fmt.Sprint(x.protocols) == fmt.Sprint(y.protocols)
+		fmt.Sprint(x.protocols) == fmt.Sprint(y.protocols) &&
+		fmt.Sprint(x.proposals) == fmt.Sprint(y.proposals)
 }

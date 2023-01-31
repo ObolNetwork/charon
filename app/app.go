@@ -515,7 +515,11 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 		return err
 	}
 
-	sync := infosync.New(prio, version.Supported(), Protocols())
+	sync := infosync.New(prio,
+		version.Supported(),
+		Protocols(),
+		ProposalTypes(conf.BuilderAPI, conf.SyntheticBlockProposals),
+	)
 
 	// Trigger info syncs in last slot of the epoch (for the next epoch).
 	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
@@ -881,6 +885,20 @@ func Protocols() []protocol.ID {
 	resp = append(resp, parsigex.Protocols()...)
 	resp = append(resp, peerinfo.Protocols()...)
 	resp = append(resp, priority.Protocols()...)
+
+	return resp
+}
+
+// ProposalTypes returns the local proposal types in order of precedence.
+func ProposalTypes(builder bool, synthetic bool) []core.ProposalType {
+	var resp []core.ProposalType
+	if builder {
+		resp = append(resp, core.ProposalTypeBuilder)
+	}
+	if synthetic {
+		resp = append(resp, core.ProposalTypeSynthetic)
+	}
+	resp = append(resp, core.ProposalTypeFull) // Always support full as fallback.
 
 	return resp
 }
