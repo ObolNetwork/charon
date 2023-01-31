@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/attestantio/go-eth2-client v0.15.2
-	github.com/bufbuild/buf v1.13.0
+	github.com/bufbuild/buf v1.13.1
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0
 	github.com/ferranbt/fastssz v0.1.2

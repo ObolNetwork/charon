@@ -70,8 +70,8 @@ github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625/go.mod h1:HYsPBT
 github.com/btcsuite/btcd v0.22.1 h1:CnwP9LM/M9xuRrGSCGeMVs9iv09uMqwsVX7EeIpgV2c=
 github.com/btcsuite/btcd v0.22.1/go.mod h1:wqgTSL29+50LRkmOVknEdmt8ZojIzhuWvgu/iptuN7Y=
 github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 h1:q0rUy8C/TYNBQS1+CGKw68tLOFYSNEs0TFnxxnS9+4U=
-github.com/bufbuild/buf v1.13.0 h1:6tpG6HpfQgMVYS8X94FpsYyf0C+eCrFzA/eDCRpv8dQ=
-github.com/bufbuild/buf v1.13.0/go.mod h1:dlUu+5hsNzyaN3ymq6Gnziu7mM8h4Jvm4JBF5cLqEqs=
+github.com/bufbuild/buf v1.13.1 h1:PQKYf4HUgVVCrajuafsJRgVRPS7UQisRNuYCioKBzRk=
+github.com/bufbuild/buf v1.13.1/go.mod h1:dlUu+5hsNzyaN3ymq6Gnziu7mM8h4Jvm4JBF5cLqEqs=
 github.com/bufbuild/connect-go v1.4.1 h1:6usL3JGjKhxQpvDlizP7u8VfjAr1JkckcAUbrdcbgNY=
 github.com/bufbuild/connect-go v1.4.1/go.mod h1:9iNvh/NOsfhNBUH5CtvXeVUskQO1xsrEviH7ZArwZ3I=
 github.com/bufbuild/protocompile v0.1.0 h1:HjgJBI85hY/qmW5tw/66sNDZ7z0UDdVSi/5r40WHw4s=
