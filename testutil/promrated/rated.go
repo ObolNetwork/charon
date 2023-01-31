@@ -93,7 +93,7 @@ func getValidationStatistics(ctx context.Context, ratedEndpoint string, ratedAut
 
 			continue
 		} else if res.StatusCode/100 != 2 {
-			incRatedErrors(req.URL.String(), res.StatusCode)
+			incRatedErrors(res.StatusCode)
 
 			return validatorEffectivenessData{}, errors.New("not ok http response", z.Str("body", string(body)))
 		}
@@ -133,6 +133,6 @@ func extractBody(res *http.Response) ([]byte, error) {
 	return body, nil
 }
 
-func incRatedErrors(endpoint string, statusCode int) {
-	ratedErrors.WithLabelValues(endpoint, strconv.Itoa(statusCode)).Inc()
+func incRatedErrors(statusCode int) {
+	ratedErrors.WithLabelValues(strconv.Itoa(statusCode)).Inc()
 }
