@@ -6,24 +6,15 @@
 - Delete these instructions
 -->
 
-# ✅ Description of the changes
+# Description of the changes
 
 <!-- Describe in details -->
 
-# 🧪 Passing tests
-
-<!-- Delete or Add as needed -->
-
-- [ ] Passes unit tests 
-- [ ] Works on core team/canary/test clusters
-- [ ] Passes smoke tests
-- [ ] Passes optional manual tests
-
-# 🤝 Passing additional acceptance criteria
+# Passing additional acceptance criteria
 
 <!-- If any acceptance criteria had been listed in a linked issue, list how this PR addresses them below -->
 
-# 📋 Categorization
+# Categorization
 <!-- Pick one, delete the rest -->
 category: bug feature refactor docs test fixbuild misc
 
