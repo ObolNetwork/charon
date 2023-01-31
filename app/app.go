@@ -21,9 +21,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	blsv2 "github.com/obolnetwork/charon/tbls/v2"
-	"github.com/obolnetwork/charon/tbls/v2/herumi"
-	"github.com/obolnetwork/charon/tbls/v2/kryptology"
 	"net/http"
 	"strings"
 	"time"
@@ -72,6 +69,9 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	blsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls/v2/herumi"
+	"github.com/obolnetwork/charon/tbls/v2/kryptology"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
