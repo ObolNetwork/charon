@@ -1,28 +1,32 @@
 ---
-name: "\U0001F680 Feature Ticket"
-about: Create a new feature for charon
+name: "\U0001F680 Feature or Improvement Ticket"
+about: Create a new feature or suggest an improvement for charon
 labels: Enhancement
 ---
 
 # 🎯 Problem to be solved
 
-<!--Describe the problem to be solved by this feature in detail and why it is important. -->
+<!--Describe in detail the problem to be solved by this feature/enhancement and why it is important. -->
 
 # 🛠️ Proposed solution
 
-### 🔗 Link to Design Doc
-
+### Link to Design Doc: 
 <!--[Insert Link to Design doc]-->
 
-<!--Describe the consensus solution to be implemented-->
+### Is there core team consensus on the proposed solution?
+- [ ] Yes
+- [ ] No
+
+### Detailed proposed solution
+<!--Describe the solution to be implemented-->
 
 # 🧪 Tests
 
 <!--Delete any irrelevant item and add other mandatory tests that should be passing-->
 
-- [ ] Passes Unit Tests 
+- [ ] Passes unit tests 
 - [ ] Works on core team/canary clusters
-- [ ] Passes Smoke tests
+- [ ] Passes smoke tests
 - [ ] Passes optional manual tests
 
 # 👐 Additional acceptance criteria
