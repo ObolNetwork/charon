@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -41,7 +42,7 @@ type validatorEffectivenessData struct {
 
 // getValidationStatistics queries rated for a pubkey and returns rated data about the pubkey
 // See https://api.rated.network/docs#/default/get_effectiveness_v0_eth_validators__validator_index_or_pubkey__effectiveness_get
-func getValidationStatistics(ctx context.Context, ratedEndpoint string, validator validator) (validatorEffectivenessData, error) {
+func getValidationStatistics(ctx context.Context, ratedEndpoint string, ratedAuth string, validator validator) (validatorEffectivenessData, error) {
 	url, err := url.Parse(ratedEndpoint)
 	if err != nil {
 		return validatorEffectivenessData{}, errors.Wrap(err, "parse rated endpoint")
@@ -74,6 +75,7 @@ func getValidationStatistics(ctx context.Context, ratedEndpoint string, validato
 			return validatorEffectivenessData{}, errors.Wrap(err, "new rated request")
 		}
 
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", ratedAuth))
 		req.Header.Add("X-Rated-Network", clusterNetwork)
 		res, err := client.Do(req)
 		if err != nil {
@@ -91,6 +93,8 @@ func getValidationStatistics(ctx context.Context, ratedEndpoint string, validato
 
 			continue
 		} else if res.StatusCode/100 != 2 {
+			incRatedErrors(req.URL.String(), res.StatusCode)
+
 			return validatorEffectivenessData{}, errors.New("not ok http response", z.Str("body", string(body)))
 		}
 
@@ -127,4 +131,8 @@ func extractBody(res *http.Response) ([]byte, error) {
 	defer res.Body.Close()
 
 	return body, nil
+}
+
+func incRatedErrors(endpoint string, statusCode int) {
+	ratedErrors.WithLabelValues(endpoint, strconv.Itoa(statusCode)).Inc()
 }

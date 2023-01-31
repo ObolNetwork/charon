@@ -59,4 +59,10 @@ var (
 		Name:      "validator_effectiveness",
 		Help:      "Effectiveness of a validation key.",
 	}, labels)
+
+	ratedErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "promrated",
+		Name:      "api_error_total",
+		Help:      "Total number of rated api errors",
+	}, []string{"peer"})
 )

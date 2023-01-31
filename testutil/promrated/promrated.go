@@ -30,6 +30,7 @@ import (
 
 type Config struct {
 	RatedEndpoint  string
+	RatedAuth      string
 	PromEndpoint   string
 	PromAuth       string
 	MonitoringAddr string
@@ -89,7 +90,7 @@ func reportMetrics(ctx context.Context, config Config) {
 			z.Str("cluster_network", validator.ClusterNetwork),
 		)
 
-		stats, err := getValidationStatistics(ctx, config.RatedEndpoint, validator)
+		stats, err := getValidationStatistics(ctx, config.RatedEndpoint, config.RatedAuth, validator)
 		if err != nil {
 			log.Error(ctx, "Getting validator statistics", err, z.Str("validator", validator.PubKey))
 			continue
