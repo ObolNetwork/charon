@@ -90,6 +90,8 @@ func getValidationStatistics(ctx context.Context, ratedEndpoint string, validato
 			backoff()
 
 			continue
+		} else if res.StatusCode == http.StatusUnauthorized {
+			panic("unauthorized")
 		} else if res.StatusCode/100 != 2 {
 			return validatorEffectivenessData{}, errors.New("not ok http response", z.Str("body", string(body)))
 		}
