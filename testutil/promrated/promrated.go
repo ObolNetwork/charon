@@ -53,7 +53,7 @@ func Run(ctx context.Context, config Config) error {
 		serverErr <- serveMonitoring(config.MonitoringAddr, promRegistry)
 	}()
 
-	ticker := time.NewTicker(10 * time.Minute)
+	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
 	onStartup := make(chan struct{}, 1)
