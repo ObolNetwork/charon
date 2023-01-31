@@ -57,6 +57,7 @@ var stepLabels = map[step]string{
 	parSigDBThreshold: "parsig_db_threshold",
 	sigAgg:            "sig_aggregation",
 	bcast:             "bcast",
+	sentinel:          "sentinel",
 }
 
 // step in the core workflow.
@@ -359,7 +360,27 @@ func dutyFailedStep(es []event) (bool, step, error) {
 		return true, lastEvent.step, lastEvent.stepErr
 	}
 
-	return true, lastEvent.step + 1, nil
+	// Check for no aggregators case for DutySyncContribution and DutyAggregator.
+	if lastEvent.step == fetcher && (lastEvent.duty.Type == core.DutySyncContribution || lastEvent.duty.Type == core.DutyAggregator) {
+		return false, fetcher, nil
+	}
+
+	// Check if failed in validatorAPI.
+	if lastEvent.step == dutyDB {
+		return true, validatorAPI, nil
+	}
+
+	// Check if failed in parSigEx.
+	if lastEvent.step == parSigDBInternal {
+		return true, parSigEx, nil
+	}
+
+	// Check if failed in parSigDBThreshold.
+	if lastEvent.step == parSigDBExternal {
+		return true, parSigDBThreshold, nil
+	}
+
+	return true, sentinel, nil // This should never happen.
 }
 
 // analyseDutyFailed detects if the given duty failed.
@@ -374,7 +395,7 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 ) (bool, step, string, error) {
 	failed, failedStep, failedErr := dutyFailedStep(allEvents[duty])
 	if !failed {
-		return false, zero, "", nil
+		return false, failedStep, "", nil
 	}
 
 	var failedMsg string
@@ -382,7 +403,7 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 	case fetcher:
 		failedMsg = analyseFetcherFailed(duty, allEvents, failedErr)
 	case consensus:
-		return analyseConsensusFailed(duty, failedErr)
+		failedMsg = msgConsensus
 	case dutyDB:
 		failedMsg = msgDutyDB
 	case validatorAPI:
@@ -422,6 +443,8 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetch
 	var eth2Error eth2http.Error
 	if errors.As(fetchErr, &eth2Error) {
 		return msgFetcherBN
+	} else if !errors.Is(fetchErr, context.Canceled) && !errors.Is(fetchErr, context.DeadlineExceeded) {
+		return msgFetcherError
 	}
 
 	// Proposer duties depend on randao duty, so check if that was why it failed.
@@ -502,18 +525,6 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetch
 	}
 
 	return msgFetcherError
-}
-
-// analyseConsensusFailed returns whether the duty that got stuck in consensus got failed
-// because of error in consensus component.
-func analyseConsensusFailed(duty core.Duty, consensusErr error) (bool, step, string, error) {
-	// No aggregators or sync committee contributors found in this slot.
-	// Fetcher sends an event with nil error in this case.
-	if consensusErr == nil && (duty.Type == core.DutyAggregator || duty.Type == core.DutySyncContribution) {
-		return false, fetcher, "", nil
-	}
-
-	return true, consensus, msgConsensus, consensusErr
 }
 
 // extractParSigs returns a mapping of unique partial signed data messages by peers (share index) by validator (pubkey).

@@ -46,13 +46,15 @@ func TestTrackerFailedDuty(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
 		deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
+		consensusErr := errors.New("consensus error")
 
 		count := 0
-		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, step step, msg string, _ error) {
+		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, step step, msg string, err error) {
 			require.Equal(t, testData[0].duty, failedDuty)
 			require.True(t, isFailed)
 			require.Equal(t, consensus, step)
 			require.Equal(t, msg, msgConsensus)
+			require.ErrorIs(t, err, consensusErr)
 			count++
 
 			if count == len(testData) {
@@ -69,6 +71,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 		go func() {
 			for _, td := range testData {
 				tr.FetcherFetched(ctx, td.duty, td.defSet, nil)
+				tr.ConsensusProposed(ctx, td.duty, td.unsignedDataSet, consensusErr)
 
 				// Explicitly mark the current duty as deadlined.
 				analyser.deadlineChan <- td.duty
@@ -258,7 +261,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 				{
 					duty:    proposerDuty,
 					step:    fetcher,
-					stepErr: errors.New("failed to query randao"),
+					stepErr: context.Canceled,
 				},
 			},
 			randaoDuty: {
@@ -337,22 +340,6 @@ func TestDutyFailedStep(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, f)
 		require.Equal(t, zero, step)
-	})
-
-	t.Run("DutyFailed", func(t *testing.T) {
-		// Remove the last step (bcast) from the events array.
-		events = events[:len(events)-1]
-		f, step, err := dutyFailedStep(events)
-		require.NoError(t, err)
-		require.True(t, f)
-		require.Equal(t, step, bcast)
-
-		// Remove the second-last step (parsigDBThreshold) from the events array.
-		events = events[:len(events)-1]
-		f, step, err = dutyFailedStep(events)
-		require.NoError(t, err)
-		require.True(t, f)
-		require.Equal(t, step, sigAgg)
 	})
 }
 
@@ -758,12 +745,12 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutyAgg: {event{
 					duty:    dutyAgg,
 					step:    fetcher,
-					stepErr: errors.New("zero prepares"),
+					stepErr: context.Canceled,
 				}},
 			},
 			msg:    msgFetcherAggregatorZeroPrepares,
 			failed: true,
-			err:    errors.New("zero prepares"),
+			err:    context.Canceled,
 		},
 		{
 			name: "no external DutyPrepareAggregator signatures received",
@@ -772,7 +759,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutyAgg: {event{
 					duty:    dutyAgg,
 					step:    fetcher,
-					stepErr: errors.New("no external prepares"),
+					stepErr: context.Canceled,
 				}},
 				dutyPrepAgg: {event{
 					duty: dutyPrepAgg,
@@ -781,7 +768,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			},
 			msg:    msgFetcherAggregatorNoExternalPrepares,
 			failed: true,
-			err:    errors.New("no external prepares"),
+			err:    context.Canceled,
 		},
 		{
 			name: "insufficient DutyPrepareAggregator signature",
@@ -790,7 +777,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutyAgg: {event{
 					duty:    dutyAgg,
 					step:    fetcher,
-					stepErr: errors.New("insufficient prepares"),
+					stepErr: context.Canceled,
 				}},
 				dutyPrepAgg: {event{
 					duty: dutyPrepAgg,
@@ -799,7 +786,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			},
 			msg:    msgFetcherAggregatorFewPrepares,
 			failed: true,
-			err:    errors.New("insufficient prepares"),
+			err:    context.Canceled,
 		},
 		{
 			name: "DutyPrepareAggregator failed in sigagg",
@@ -808,16 +795,17 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutyAgg: {event{
 					duty:    dutyAgg,
 					step:    fetcher,
-					stepErr: errors.New("prepagg failed"),
+					stepErr: context.Canceled,
 				}},
 				dutyPrepAgg: {event{
-					duty: dutyPrepAgg,
-					step: parSigDBThreshold,
+					duty:    dutyPrepAgg,
+					step:    sigAgg,
+					stepErr: errors.New("some error"),
 				}},
 			},
 			msg:    msgFetcherAggregatorFailedSigAggPrepare,
 			failed: true,
-			err:    errors.New("prepagg failed"),
+			err:    context.Canceled,
 		},
 		{
 			name: "DutyPrepareAggregator failed",
@@ -826,7 +814,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutyAgg: {event{
 					duty:    dutyAgg,
 					step:    fetcher,
-					stepErr: errors.New("prepagg failed"),
+					stepErr: context.Canceled,
 				}},
 				dutyPrepAgg: {event{
 					duty: dutyPrepAgg,
@@ -835,7 +823,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			},
 			msg:    msgFetcherAggregatorFailedPrepare,
 			failed: true,
-			err:    errors.New("prepagg failed"),
+			err:    context.Canceled,
 		},
 		{
 			name: "DutyAttester failed",
@@ -844,20 +832,21 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutyAgg: {event{
 					duty:    dutyAgg,
 					step:    fetcher,
-					stepErr: errors.New("no attestation data found"),
+					stepErr: context.Canceled,
 				}},
 				dutyPrepAgg: {event{
 					duty: dutyPrepAgg,
 					step: bcast,
 				}},
 				dutyAtt: {event{
-					duty: dutyAtt,
-					step: fetcher,
+					duty:    dutyAtt,
+					step:    fetcher,
+					stepErr: errors.New("some error"),
 				}},
 			},
 			msg:    msgFetcherAggregatorNoAttData,
 			failed: true,
-			err:    errors.New("no attestation data found"),
+			err:    context.Canceled,
 		},
 		{
 			name: "no aggregator found",
@@ -887,12 +876,12 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutySyncCon: {event{
 					duty:    dutySyncCon,
 					step:    fetcher,
-					stepErr: errors.New("no prepares found"),
+					stepErr: context.Canceled,
 				}},
 			},
 			msg:    msgFetcherSyncContributionZeroPrepares,
 			failed: true,
-			err:    errors.New("no prepares found"),
+			err:    context.Canceled,
 		},
 		{
 			name: "no external DutyPrepareSyncContribution signatures",
@@ -901,7 +890,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutySyncCon: {event{
 					duty:    dutySyncCon,
 					step:    fetcher,
-					stepErr: errors.New("no external prepares received"),
+					stepErr: context.Canceled,
 				}},
 				dutyPrepSyncCon: {event{
 					duty: dutyPrepSyncCon,
@@ -910,7 +899,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			},
 			msg:    msgFetcherSyncContributionNoExternalPrepares,
 			failed: true,
-			err:    errors.New("no external prepares received"),
+			err:    context.Canceled,
 		},
 		{
 			name: "insufficient DutyPrepareSyncContribution signatures",
@@ -919,7 +908,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutySyncCon: {event{
 					duty:    dutySyncCon,
 					step:    fetcher,
-					stepErr: errors.New("insufficient prepares"),
+					stepErr: context.Canceled,
 				}},
 				dutyPrepSyncCon: {event{
 					duty: dutyPrepSyncCon,
@@ -928,7 +917,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			},
 			msg:    msgFetcherSyncContributionFewPrepares,
 			failed: true,
-			err:    errors.New("insufficient prepares"),
+			err:    context.Canceled,
 		},
 		{
 			name: "DutyPrepareSyncContribution failed in sigagg",
@@ -937,16 +926,17 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutySyncCon: {event{
 					duty:    dutySyncCon,
 					step:    fetcher,
-					stepErr: errors.New("failed prepsync"),
+					stepErr: context.Canceled,
 				}},
 				dutyPrepSyncCon: {event{
-					duty: dutyPrepSyncCon,
-					step: parSigDBThreshold,
+					duty:    dutyPrepSyncCon,
+					step:    sigAgg,
+					stepErr: errors.New("some error"),
 				}},
 			},
 			msg:    msgFetcherSyncContributionFailedSigAggPrepare,
 			failed: true,
-			err:    errors.New("failed prepsync"),
+			err:    context.Canceled,
 		},
 		{
 			name: "DutyPrepareSyncContribution failed",
@@ -955,7 +945,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutySyncCon: {event{
 					duty:    dutySyncCon,
 					step:    fetcher,
-					stepErr: errors.New("failed prepsync"),
+					stepErr: context.Canceled,
 				}},
 				dutyPrepSyncCon: {event{
 					duty: dutyPrepSyncCon,
@@ -964,7 +954,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			},
 			msg:    msgFetcherSyncContributionFailedPrepare,
 			failed: true,
-			err:    errors.New("failed prepsync"),
+			err:    context.Canceled,
 		},
 		{
 			name: "DutySyncMessage failed",
@@ -973,7 +963,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutySyncCon: {event{
 					duty:    dutySyncCon,
 					step:    fetcher,
-					stepErr: errors.New("no sync message found"),
+					stepErr: context.Canceled,
 				}},
 				dutyPrepSyncCon: {event{
 					duty: dutyPrepSyncCon,
@@ -986,7 +976,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			},
 			msg:    msgFetcherSyncContributionNoSyncMsg,
 			failed: true,
-			err:    errors.New("no sync message found"),
+			err:    context.Canceled,
 		},
 		{
 			name: "no sync committee aggregators found",
@@ -1008,6 +998,22 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			msg:    "",
 			failed: false,
 			err:    nil,
+		},
+		{
+			name: "unexpected error",
+			duty: dutyAtt,
+			events: map[core.Duty][]event{
+				dutyAtt: {
+					event{
+						duty:    dutyAtt,
+						step:    fetcher,
+						stepErr: errors.New("unexpected error"),
+					},
+				},
+			},
+			msg:    msgFetcherError,
+			failed: true,
+			err:    errors.New("unexpected error"),
 		},
 	}
 
