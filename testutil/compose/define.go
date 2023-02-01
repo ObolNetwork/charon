@@ -16,6 +16,7 @@
 package compose
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -244,13 +245,14 @@ func buildLocal(ctx context.Context) error {
 
 	log.Info(ctx, "Building `obolnetwork/charon:local` docker container", z.Str("repo", repo))
 
+	var out bytes.Buffer // Only log output if there is an error.
 	cmd := exec.CommandContext(ctx, "docker", "build", "-t", "obolnetwork/charon:local", ".")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = &out
+	cmd.Stderr = &out
 	cmd.Dir = repo
 
 	if err := cmd.Run(); err != nil {
-		return errors.Wrap(err, "exec docker build")
+		return errors.Wrap(err, "exec docker build", z.Str("output", out.String()))
 	}
 
 	return nil
