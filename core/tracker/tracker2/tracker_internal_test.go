@@ -198,16 +198,30 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		require.Equal(t, step, parSigDBInternal)
 		require.Contains(t, msg, msgParSigDBInternal)
 
+		// Failed to broadcast parsigex
+		parSigExBroadcastErr := errors.New("parsigdb_internal failed")
+		events[attDuty] = append(events[attDuty], event{
+			duty:    attDuty,
+			step:    parSigExBroadcast,
+			stepErr: errors.New("parsigex_broadcast failed"),
+		})
+
+		failed, step, msg, err = analyseDutyFailed(attDuty, events, true)
+		require.ErrorAs(t, err, &parSigExBroadcastErr)
+		require.True(t, failed)
+		require.Equal(t, step, parSigExBroadcast)
+		require.Contains(t, msg, msgParSigExBroadcast)
+
 		// Failed at parsigEx
 		events[attDuty] = append(events[attDuty], event{
 			duty: attDuty,
-			step: parSigDBInternal,
+			step: parSigExBroadcast,
 		})
 
 		failed, step, msg, err = analyseDutyFailed(attDuty, events, true)
 		require.NoError(t, err)
 		require.True(t, failed)
-		require.Equal(t, step, parSigEx)
+		require.Equal(t, step, parSigExReceive)
 		require.Equal(t, msg, msgParSigEx)
 
 		// Failed at parsigDBInternal
@@ -226,9 +240,6 @@ func TestAnalyseDutyFailed(t *testing.T) {
 
 		// Failed at parsigDBThreshold
 		events[attDuty] = append(events[attDuty], event{
-			duty: attDuty,
-			step: parSigEx,
-		}, event{
 			duty: attDuty,
 			step: parSigDBExternal,
 		})
@@ -254,7 +265,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 	})
 
 	t.Run("FailedAtFetcherAsRandaoFailed", func(t *testing.T) {
-		// Randao failed at parSigEx/parSigDBExternal
+		// Randao failed at parSigExReceive/parSigDBExternal
 		expectedErr := errors.New("failed to query randao")
 		events := map[core.Duty][]event{
 			proposerDuty: {
@@ -272,6 +283,10 @@ func TestAnalyseDutyFailed(t *testing.T) {
 				{
 					duty: proposerDuty,
 					step: parSigDBInternal,
+				},
+				{
+					duty: proposerDuty,
+					step: parSigExBroadcast,
 				},
 			},
 		}
@@ -763,7 +778,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				}},
 				dutyPrepAgg: {event{
 					duty: dutyPrepAgg,
-					step: parSigDBInternal,
+					step: parSigExBroadcast,
 				}},
 			},
 			msg:    msgFetcherAggregatorNoExternalPrepares,
@@ -894,7 +909,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				}},
 				dutyPrepSyncCon: {event{
 					duty: dutyPrepSyncCon,
-					step: parSigDBInternal,
+					step: parSigExBroadcast,
 				}},
 			},
 			msg:    msgFetcherSyncContributionNoExternalPrepares,
@@ -971,7 +986,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				}},
 				dutySyncMsg: {event{
 					duty: dutySyncMsg,
-					step: parSigDBInternal,
+					step: parSigExBroadcast,
 				}},
 			},
 			msg:    msgFetcherSyncContributionNoSyncMsg,
