@@ -38,8 +38,7 @@ func TestLoadLock(t *testing.T) {
 	b, err := json.MarshalIndent(lock, "", " ")
 	require.NoError(t, err)
 
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	filename := path.Join(dir, "cluster-lock.json")
 

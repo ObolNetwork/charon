@@ -83,8 +83,7 @@ func TestCreateCluster(t *testing.T) {
 			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
 				t.Helper()
 
-				keyDir, err := os.MkdirTemp("", "")
-				require.NoError(t, err)
+				keyDir := t.TempDir()
 
 				_, secret1, err := tbls.Keygen()
 				require.NoError(t, err)
@@ -141,13 +140,12 @@ func TestCreateCluster(t *testing.T) {
 func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition) {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	dir := t.TempDir()
 	conf.ClusterDir = dir
 	conf.Name = t.Name()
 
 	var buf bytes.Buffer
-	err = runCreateCluster(context.Background(), &buf, conf)
+	err := runCreateCluster(context.Background(), &buf, conf)
 	if err != nil {
 		log.Error(context.Background(), "", err)
 	}
@@ -274,8 +272,7 @@ func TestKeymanager(t *testing.T) {
 	require.NoError(t, err)
 
 	// Store secret
-	keyDir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	keyDir := t.TempDir()
 	err = keystore.StoreKeys([]*bls_sig.SecretKey{secret1}, keyDir)
 	require.NoError(t, err)
 
@@ -309,9 +306,7 @@ func TestKeymanager(t *testing.T) {
 		WithdrawalAddr:  defaultWithdrawalAddr,
 		Clean:           true,
 	}
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-	conf.ClusterDir = dir
+	conf.ClusterDir = t.TempDir()
 
 	t.Run("all successful", func(t *testing.T) {
 		// Run create cluster command

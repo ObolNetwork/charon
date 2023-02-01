@@ -86,8 +86,7 @@ func TestDockerCompose(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			dir, err := os.MkdirTemp("", "")
-			require.NoError(t, err)
+			dir := t.TempDir()
 
 			conf := NewDefaultConfig()
 			if test.ConfFunc != nil {

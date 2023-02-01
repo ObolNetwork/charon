@@ -79,8 +79,7 @@ func TestDKG(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0, withAlgo(test.dkgAlgo))
-			dir, err := os.MkdirTemp("", "")
-			require.NoError(t, err)
+			dir := t.TempDir()
 
 			testDKG(t, lock.Definition, dir, keys, test.keymanager)
 			if !test.keymanager {
@@ -183,8 +182,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	addr := testutil.AvailableAddr(t).String()
 
@@ -323,8 +321,7 @@ func TestSyncFlow(t *testing.T) {
 			// Start bootnode.
 			bnode, errChan := startRelay(ctx, t)
 
-			dir, err := os.MkdirTemp("", "")
-			require.NoError(t, err)
+			dir := t.TempDir()
 
 			configs := getConfigs(t, lock.Definition, keys, dir, bnode)
 
@@ -360,11 +357,11 @@ func TestSyncFlow(t *testing.T) {
 				select {
 				case <-done:
 					connectedCount++
-				case err = <-errChan:
+				case err := <-errChan:
 					cancel()
 					testutil.SkipIfBindErr(t, err)
 					require.Fail(t, fmt.Sprintf("bootnode error: %v", err))
-				case err = <-dkgErrChan:
+				case err := <-dkgErrChan:
 					cancel()
 					testutil.SkipIfBindErr(t, err)
 					require.Fail(t, fmt.Sprintf("dkg error: %v", err))
@@ -376,7 +373,7 @@ func TestSyncFlow(t *testing.T) {
 				stopDkgs[idx]()
 
 				// Wait for this dkg process to return.
-				err = <-dkgErrChan
+				err := <-dkgErrChan
 				require.ErrorIs(t, err, context.Canceled)
 			}
 
@@ -389,11 +386,11 @@ func TestSyncFlow(t *testing.T) {
 			var disconnectedCount int
 			for disconnectedCount != test.nodes {
 				select {
-				case err = <-errChan:
+				case err := <-errChan:
 					cancel()
 					testutil.SkipIfBindErr(t, err)
 					require.Fail(t, fmt.Sprintf("bootnode error: %v", err))
-				case err = <-dkgErrChan:
+				case err := <-dkgErrChan:
 					testutil.SkipIfBindErr(t, err)
 					require.NoError(t, err)
 					disconnectedCount++

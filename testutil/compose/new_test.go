@@ -28,10 +28,9 @@ import (
 )
 
 func TestNewDefaultConfig(t *testing.T) {
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
-	err = compose.New(context.Background(), dir, compose.NewDefaultConfig())
+	err := compose.New(context.Background(), dir, compose.NewDefaultConfig())
 	require.NoError(t, err)
 
 	conf, err := os.ReadFile(path.Join(dir, "config.json"))

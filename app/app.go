@@ -69,6 +69,9 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	blsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls/v2/herumi"
+	"github.com/obolnetwork/charon/tbls/v2/kryptology"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -316,11 +319,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 	qbftSniffer func(*pbv1.SniffedConsensusInstance), seenPubkeys func(core.PubKey),
 ) error {
-	feeRecipientAddrs, err := lock.FeeRecipientAddresses()
-	if err != nil {
-		return err
-	}
-
 	// Convert and prep public keys and public shares
 	var (
 		corePubkeys                  []core.PubKey
@@ -370,7 +368,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		corePubkeys = append(corePubkeys, corePubkey)
 		pubshares = append(pubshares, eth2Share)
 		allPubSharesByKey[corePubkey] = allPubShares
-		feeRecipientAddrByCorePubkey[corePubkey] = feeRecipientAddrs[i]
+		feeRecipientAddrByCorePubkey[corePubkey] = lock.FeeRecipientAddresses()[i]
 	}
 
 	peers, err := lock.Peers()
@@ -428,6 +426,13 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc)
+	}
+
+	blsv2.SetImplementation(kryptology.Kryptology{})
+
+	if featureset.Enabled(featureset.HerumiBLS) {
+		log.Info(ctx, "Enabling Herumi BLS signature backend")
+		blsv2.SetImplementation(herumi.Herumi{})
 	}
 
 	sigAgg := sigagg.New(lock.Threshold)
@@ -515,7 +520,11 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 		return err
 	}
 
-	sync := infosync.New(prio, version.Supported(), Protocols())
+	sync := infosync.New(prio,
+		version.Supported(),
+		Protocols(),
+		ProposalTypes(conf.BuilderAPI, conf.SyntheticBlockProposals),
+	)
 
 	// Trigger info syncs in last slot of the epoch (for the next epoch).
 	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
@@ -881,6 +890,20 @@ func Protocols() []protocol.ID {
 	resp = append(resp, parsigex.Protocols()...)
 	resp = append(resp, peerinfo.Protocols()...)
 	resp = append(resp, priority.Protocols()...)
+
+	return resp
+}
+
+// ProposalTypes returns the local proposal types in order of precedence.
+func ProposalTypes(builder bool, synthetic bool) []core.ProposalType {
+	var resp []core.ProposalType
+	if builder {
+		resp = append(resp, core.ProposalTypeBuilder)
+	}
+	if synthetic {
+		resp = append(resp, core.ProposalTypeSynthetic)
+	}
+	resp = append(resp, core.ProposalTypeFull) // Always support full as fallback.
 
 	return resp
 }

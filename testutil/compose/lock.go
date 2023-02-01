@@ -56,11 +56,10 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		}}
 
 		data = TmplData{
-			ComposeDir:       dir,
-			CharonImageTag:   conf.ImageTag,
-			CharonEntrypoint: conf.entrypoint(),
-			CharonCommand:    cmdCreateCluster,
-			Nodes:            []TmplNode{n},
+			ComposeDir:     dir,
+			CharonImageTag: conf.ImageTag,
+			CharonCommand:  cmdCreateCluster,
+			Nodes:          []TmplNode{n},
 		}
 	case KeyGenDKG:
 
@@ -69,18 +68,17 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			n := TmplNode{
 				EnvVars:    newNodeEnvs(i, conf, ""),
 				Entrypoint: "sh",
-				Command:    fmt.Sprintf("[-c,'%s %s && sleep 2']", conf.entrypoint(), cmdDKG), // Sleep after completion to allow other nodes to finish
+				Command:    fmt.Sprintf("[-c,'%s %s && sleep 2']", containerBinary, cmdDKG), // Sleep after completion to allow other nodes to finish
 			}
 			nodes = append(nodes, n)
 		}
 
 		data = TmplData{
-			ComposeDir:       dir,
-			CharonImageTag:   conf.ImageTag,
-			CharonEntrypoint: conf.entrypoint(),
-			CharonCommand:    "not used",
-			Relay:            true,
-			Nodes:            nodes,
+			ComposeDir:     dir,
+			CharonImageTag: conf.ImageTag,
+			CharonCommand:  "not used",
+			Relay:          true,
+			Nodes:          nodes,
 		}
 	default:
 		return TmplData{}, errors.New("unsupported keygen", z.Any("keygen", conf.KeyGen))
