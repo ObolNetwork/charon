@@ -186,13 +186,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Aggregated lock hash signatures")
 
-	withdrawalAddresses, err := lock.WithdrawalAddresses()
-	if err != nil {
-		return err
-	}
-
 	// Sign, exchange and aggregate Deposit Data signatures
-	pubkeys, depositDataSigs, err := signAndAggDepositData(ctx, ex, shares, withdrawalAddresses, network, nodeIdx)
+	pubkeys, depositDataSigs, err := signAndAggDepositData(ctx, ex, shares, lock.WithdrawalAddresses(), network, nodeIdx)
 	if err != nil {
 		return err
 	}
@@ -222,7 +217,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Saved lock file to disk")
 
-	if err := writeDepositData(pubkeys, depositDataSigs, withdrawalAddresses, network, conf.DataDir); err != nil {
+	if err := writeDepositData(pubkeys, depositDataSigs, lock.WithdrawalAddresses(), network, conf.DataDir); err != nil {
 		return err
 	}
 	log.Debug(ctx, "Saved deposit data file to disk")
