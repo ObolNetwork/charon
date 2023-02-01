@@ -111,7 +111,7 @@ const (
 	// ProposalTypeFull defines normal full beacon block proposals.
 	ProposalTypeFull ProposalType = "full"
 	// ProposalTypeBuilder defines builder API blinded beacon block proposals.
-	ProposalTypeBuilder ProposalType = "blinded"
+	ProposalTypeBuilder ProposalType = "builder"
 	// ProposalTypeSynthetic defines synthetic block proposals, can be either full or builder.
 	ProposalTypeSynthetic ProposalType = "synthetic"
 )

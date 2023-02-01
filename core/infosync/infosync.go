@@ -178,7 +178,7 @@ func protocolsToStrings(features []protocol.ID) []string {
 	return resp
 }
 
-// protocolsToStrings returns the protocols as strings.
+// proposalsToStrings returns the protocols as strings.
 func proposalsToStrings(proposals []core.ProposalType) []string {
 	var resp []string
 	for _, proposal := range proposals {
