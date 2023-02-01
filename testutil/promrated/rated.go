@@ -166,7 +166,7 @@ func parseNetworkMetrics(body []byte) (networkEffectivenessData, error) {
 		return networkEffectivenessData{}, errors.Wrap(err, "deserializing json")
 	}
 
-	if len(result) < 1 {
+	if len(result) == 0 {
 		return networkEffectivenessData{}, errors.New("unexpected data response from rated network")
 	}
 
