@@ -18,6 +18,7 @@ package sigagg_test
 import (
 	"context"
 	"crypto/rand"
+	"os"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -36,8 +37,15 @@ import (
 	"github.com/obolnetwork/charon/core/sigagg"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls/v2/herumi"
 	"github.com/obolnetwork/charon/testutil"
 )
+
+func TestMain(m *testing.M) {
+	tblsv2.SetImplementation(herumi.Herumi{})
+	os.Exit(m.Run())
+}
 
 func TestSigAgg_DutyAttester(t *testing.T) {
 	ctx := context.Background()
