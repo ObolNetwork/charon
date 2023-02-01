@@ -303,23 +303,23 @@ func (d Definition) LegacyValidatorAddresses() (ValidatorAddresses, error) {
 }
 
 // WithdrawalAddresses is a convenience function to return all withdrawal address from the validator addresses slice.
-func (d Definition) WithdrawalAddresses() ([]string, error) {
+func (d Definition) WithdrawalAddresses() []string {
 	var resp []string
 	for _, vaddrs := range d.ValidatorAddresses {
 		resp = append(resp, vaddrs.WithdrawalAddress)
 	}
 
-	return resp, nil
+	return resp
 }
 
 // FeeRecipientAddresses is a convenience function to return all fee-recipient address from the validator addresses slice.
-func (d Definition) FeeRecipientAddresses() ([]string, error) {
+func (d Definition) FeeRecipientAddresses() []string {
 	var resp []string
 	for _, vaddrs := range d.ValidatorAddresses {
 		resp = append(resp, vaddrs.FeeRecipientAddress)
 	}
 
-	return resp, nil
+	return resp
 }
 
 // SetDefinitionHashes returns a copy of the definition with the config hash and definition hash populated.

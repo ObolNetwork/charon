@@ -319,11 +319,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 	qbftSniffer func(*pbv1.SniffedConsensusInstance), seenPubkeys func(core.PubKey),
 ) error {
-	feeRecipientAddrs, err := lock.FeeRecipientAddresses()
-	if err != nil {
-		return err
-	}
-
 	// Convert and prep public keys and public shares
 	var (
 		corePubkeys                  []core.PubKey
@@ -373,7 +368,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		corePubkeys = append(corePubkeys, corePubkey)
 		pubshares = append(pubshares, eth2Share)
 		allPubSharesByKey[corePubkey] = allPubShares
-		feeRecipientAddrByCorePubkey[corePubkey] = feeRecipientAddrs[i]
+		feeRecipientAddrByCorePubkey[corePubkey] = lock.FeeRecipientAddresses()[i]
 	}
 
 	peers, err := lock.Peers()
