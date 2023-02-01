@@ -61,6 +61,9 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+      - run: pwd
+      - run: ls -la
+      - run: echo $(pwd)
       - run: export CHARON_REPO=$pwd && echo $CHARON_REPO
       - run: go test github.com/obolnetwork/charon/testutil/compose/smoke -v -integration -sudo-perms -timeout=20m -log-dir=.
       - uses: actions/upload-artifact@v3
