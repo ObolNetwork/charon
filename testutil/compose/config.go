@@ -27,7 +27,6 @@ const (
 	defaultFeatureSet = "alpha"
 
 	charonImage      = "obolnetwork/charon"
-	localBinary      = "/compose/charon"
 	containerBinary  = "/usr/local/bin/charon"
 	cmdRun           = "run"
 	cmdDKG           = "dkg"
@@ -88,11 +87,8 @@ type Config struct {
 	// ImageTag defines the charon docker image tag: obolnetwork/charon:{ImageTag}.
 	ImageTag string `json:"image_tag"`
 
-	// BuildBinary enables building a local charon binary from source and using that in the containers.
-	BuildBinary bool `json:"build_binary"`
-
-	// PrebuiltBinary enables using a prebuilt local charon binary to use in the containers.
-	PrebuiltBinary bool `json:"prebuilt_binary"`
+	// BuildLocal enables building a local docker container from source overriding ImageTag with 'local'.
+	BuildLocal bool `json:"build_local"`
 
 	// KeyGen defines the key generation process.
 	KeyGen KeyGen `json:"key_gen"`
@@ -128,15 +124,6 @@ func (c Config) VCStrings() []string {
 	}
 
 	return resp
-}
-
-// entrypoint returns the path to the charon binary based on the BuildLocal field.
-func (c Config) entrypoint() string {
-	if c.BuildBinary || c.PrebuiltBinary {
-		return localBinary
-	}
-
-	return containerBinary
 }
 
 // NewDefaultConfig returns a new default config.

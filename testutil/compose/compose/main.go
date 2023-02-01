@@ -127,7 +127,7 @@ func newNewCmd() *cobra.Command {
 
 	dir := addDirFlag(cmd.Flags())
 	keygen := cmd.Flags().String("keygen", string(conf.KeyGen), "Key generation process: create, split, dkg")
-	buildLocal := cmd.Flags().Bool("build-local", conf.BuildBinary, "Enables building a local charon binary from source. Note this requires the CHARON_REPO env var.")
+	buildLocal := cmd.Flags().Bool("build-local", conf.BuildLocal, "Enables building a local charon container from source. Note this requires the CHARON_REPO env var.")
 	beaconNode := cmd.Flags().String("beacon-node", conf.BeaconNode, "Beacon node URL endpoint or 'mock' for simnet.")
 	extRelay := cmd.Flags().String("external-relay", "", "Optional external relay HTTP url.")
 	splitKeys := cmd.Flags().String("split-keys-dir", conf.SplitKeysDir, "Directory containing keys to split for keygen==create, or empty not to split.")
@@ -137,12 +137,16 @@ func newNewCmd() *cobra.Command {
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
-		conf.BuildBinary = *buildLocal
+		conf.BuildLocal = *buildLocal
 		conf.BeaconNode = *beaconNode
 		conf.SplitKeysDir = *splitKeys
 		conf.FeatureSet = *featureSet
 		conf.ExternalRelay = *extRelay
 		conf.NumValidators = *numVals
+
+		if conf.BuildLocal {
+			conf.ImageTag = "local"
+		}
 
 		var vcs []compose.VCType
 		for _, vc := range *vcTypes {

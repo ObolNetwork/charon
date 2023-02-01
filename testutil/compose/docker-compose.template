@@ -2,11 +2,12 @@ version: "3.8"
 
 x-node-base: &node-base
   image: obolnetwork/charon:{{.CharonImageTag}}
-  entrypoint: {{.CharonEntrypoint}}
+  {{if .CharonEntrypoint }}entrypoint: {{.CharonEntrypoint}}
+  {{end -}}
   command: {{.CharonCommand}}
   networks: [compose]
   volumes: [{{.ComposeDir}}:/compose]
-  {{if .Relay }}depends_on: [relay] {{end}}
+  {{if .Relay }}depends_on: [relay]{{end}}
 
 services:
   {{- range $i, $node := .Nodes}}
