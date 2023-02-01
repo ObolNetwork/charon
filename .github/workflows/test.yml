@@ -50,7 +50,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: docker/setup-qemu-action@v2
       - uses: docker/setup-buildx-action@v2 # For compose to build images
       - uses: actions/setup-go@v3
         with:
@@ -63,9 +62,9 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-
-      - run: echo "CHARON_REPO=$(pwd)" >> $GITHUB_ENV
-      - run: docker build -t obolnetwork/charon:local .
+      - run: |
+          echo "CHARON_REPO=$(pwd)" >> $GITHUB_ENV
+          echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
       - run: go test github.com/obolnetwork/charon/testutil/compose/smoke -v -integration -sudo-perms -timeout=20m -log-dir=.
       - uses: actions/upload-artifact@v3
         if: always()
