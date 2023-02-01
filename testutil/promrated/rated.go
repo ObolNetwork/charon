@@ -70,7 +70,7 @@ func getValidatorStatistics(ctx context.Context, ratedEndpoint string, ratedAuth
 	return parseValidatorMetrics(body)
 }
 
-// getNetworkStatistics queries rated for the network and returns the network 7d average
+// getNetworkStatistics queries rated for the network and returns the network 1d average
 // See https://api.rated.network/docs#/Network/get_network_overview_v0_eth_network_overview_get
 func getNetworkStatistics(ctx context.Context, ratedEndpoint string, ratedAuth string, network string) (networkEffectivenessData, error) {
 	url, err := url.Parse(ratedEndpoint)
