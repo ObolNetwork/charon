@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"io"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,8 +27,7 @@ import (
 )
 
 func TestRunNewEnr(t *testing.T) {
-	temp, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	temp := t.TempDir()
 
 	got := runNewENR(io.Discard, temp, false)
 	expected := errors.New("private key not found. If this is your first time running this client, create one with `charon create enr`.", z.Str("enr_path", p2p.KeyPath(temp)))

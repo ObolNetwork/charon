@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"regexp"
 	"sync"
 	"testing"
@@ -197,8 +196,7 @@ func newAddrFactoryFilter(filterStr string) libp2p.Option {
 func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	addr := testutil.AvailableAddr(t).String()
 

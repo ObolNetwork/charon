@@ -25,8 +25,7 @@ import (
 )
 
 func TestCreateDkgValid(t *testing.T) {
-	temp, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	temp := t.TempDir()
 
 	conf := createDKGConfig{
 		OutputDir:         temp,
@@ -44,7 +43,7 @@ func TestCreateDkgValid(t *testing.T) {
 		},
 	}
 
-	err = runCreateDKG(context.Background(), conf)
+	err := runCreateDKG(context.Background(), conf)
 	require.NoError(t, err)
 }
 
