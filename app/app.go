@@ -390,7 +390,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return core.NewDeadliner(ctx, label, deadlineFunc)
 	}
 
-	mutableConf := newMutableConfig(conf)
+	mutableConf := newMutableConfig(ctx, conf)
 
 	sched, err := scheduler.New(corePubkeys, eth2Cl, mutableConf.BuilderAPI)
 	if err != nil {
