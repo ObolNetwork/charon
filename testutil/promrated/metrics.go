@@ -22,43 +22,68 @@ import (
 )
 
 var (
-	labels = []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"}
+	validatorLabels = []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"}
+	networkLabels   = []string{"cluster_network"}
 
 	uptime = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "promrated",
 		Name:      "validator_uptime",
 		Help:      "Uptime of a validation key.",
-	}, labels)
+	}, validatorLabels)
 
 	correctness = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "promrated",
 		Name:      "validator_correctness",
 		Help:      "Average correctness of a validation key.",
-	}, labels)
+	}, validatorLabels)
 
 	inclusionDelay = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "promrated",
 		Name:      "validator_inclusion_delay",
 		Help:      "Average inclusion delay of a validation key.",
-	}, labels)
+	}, validatorLabels)
 
 	attester = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "promrated",
 		Name:      "validator_attester_effectiveness",
 		Help:      "Attester effectiveness of a validation key.",
-	}, labels)
+	}, validatorLabels)
 
 	proposer = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "promrated",
 		Name:      "validator_proposer_effectiveness",
 		Help:      "Proposer effectiveness of a validation key.",
-	}, labels)
+	}, validatorLabels)
 
 	effectiveness = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "promrated",
 		Name:      "validator_effectiveness",
 		Help:      "Effectiveness of a validation key.",
-	}, labels)
+	}, validatorLabels)
+
+	networkUptime = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "promrated",
+		Name:      "network_uptime",
+		Help:      "Uptime of the network.",
+	}, networkLabels)
+
+	networkCorrectness = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "promrated",
+		Name:      "network_correctness",
+		Help:      "Average correctness of the network.",
+	}, networkLabels)
+
+	networkInclusionDelay = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "promrated",
+		Name:      "network_inclusion_delay",
+		Help:      "Average inclusion delay of the network.",
+	}, networkLabels)
+
+	networkEffectiveness = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "promrated",
+		Name:      "network_effectiveness",
+		Help:      "Effectiveness of the network.",
+	}, networkLabels)
 
 	ratedErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "promrated",
