@@ -29,7 +29,7 @@ import (
 
 //go:generate go test . -update -clean
 
-func TestGetValidationStatistics(t *testing.T) {
+func TestGetValidatorStatistics(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v0/eth/validators/0xA/effectiveness", r.URL.Path)
 		require.Equal(t, "1", r.URL.Query()["size"][0])

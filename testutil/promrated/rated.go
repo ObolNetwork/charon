@@ -47,7 +47,7 @@ type networkEffectivenessData struct {
 	ValidatorEffectiveness float64 `json:"avgValidatorEffectiveness"`
 }
 
-// getValidationStatistics queries rated for a pubkey and returns rated data about the pubkey
+// getValidatorStatistics queries rated for a pubkey and returns rated data about the pubkey
 // See https://api.rated.network/docs#/default/get_effectiveness_v0_eth_validators__validator_index_or_pubkey__effectiveness_get
 func getValidatorStatistics(ctx context.Context, ratedEndpoint string, ratedAuth string, validator validator) (validatorEffectivenessData, error) {
 	url, err := url.Parse(ratedEndpoint)
@@ -62,7 +62,7 @@ func getValidatorStatistics(ctx context.Context, ratedEndpoint string, ratedAuth
 	query.Add("size", "1")
 	url.RawQuery = query.Encode()
 
-	body, err := getValidationStatistics(ctx, url, ratedAuth, validator.ClusterNetwork)
+	body, err := queryRatedAPI(ctx, url, ratedAuth, validator.ClusterNetwork)
 	if err != nil {
 		return validatorEffectivenessData{}, err
 	}
@@ -80,7 +80,7 @@ func getNetworkStatistics(ctx context.Context, ratedEndpoint string, ratedAuth s
 
 	url.Path = "/v0/eth/network/stats"
 
-	body, err := getValidationStatistics(ctx, url, ratedAuth, network)
+	body, err := queryRatedAPI(ctx, url, ratedAuth, network)
 	if err != nil {
 		return networkEffectivenessData{}, err
 	}
@@ -88,8 +88,8 @@ func getNetworkStatistics(ctx context.Context, ratedEndpoint string, ratedAuth s
 	return parseNetworkMetrics(body)
 }
 
-// getValidationStatistics queries rated url and returns effectiveness data.
-func getValidationStatistics(ctx context.Context, url *url.URL, ratedAuth string, network string) ([]byte, error) {
+// queryRatedAPI queries rated url and returns effectiveness data.
+func queryRatedAPI(ctx context.Context, url *url.URL, ratedAuth string, network string) ([]byte, error) {
 	// Workaround for rated api not recognising goerli
 	clusterNetwork := network
 	if clusterNetwork == "goerli" {
