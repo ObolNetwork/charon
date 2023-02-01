@@ -64,7 +64,7 @@ jobs:
             ${{ runner.os }}-go-
 
       - run: echo "CHARON_REPO=$(pwd)" >> $GITHUB_ENV
-      - run: echo $CHARON_REPO
+      - run: docker build -t obolnetwork/charon:local .
       - run: go test github.com/obolnetwork/charon/testutil/compose/smoke -v -integration -sudo-perms -timeout=20m -log-dir=.
       - uses: actions/upload-artifact@v3
         if: always()
