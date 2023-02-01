@@ -35,10 +35,9 @@ import (
 //go:generate go test . -run=TestSmoke -integration -v
 
 var (
-	integration    = flag.Bool("integration", false, "Enable docker based integration test")
-	prebuiltBinary = flag.String("prebuilt-binary", "", "Path to a prebuilt charon binary to run inside containers")
-	sudoPerms      = flag.Bool("sudo-perms", false, "Enables changing all compose artefacts file permissions using sudo.")
-	logDir         = flag.String("log-dir", "", "Specifies the directory to store test docker-compose logs. Empty defaults to stdout.")
+	integration = flag.Bool("integration", false, "Enable docker based integration test")
+	sudoPerms   = flag.Bool("sudo-perms", false, "Enables changing all compose artefacts file permissions using sudo.")
+	logDir      = flag.String("log-dir", "", "Specifies the directory to store test docker-compose logs. Empty defaults to stdout.")
 )
 
 func TestSmoke(t *testing.T) {
@@ -145,10 +144,7 @@ func TestSmoke(t *testing.T) {
 
 			conf := compose.NewDefaultConfig()
 			conf.DisableMonitoringPorts = true
-			if *prebuiltBinary != "" {
-				copyPrebuiltBinary(t, dir, *prebuiltBinary)
-				conf.PrebuiltBinary = true
-			}
+			conf.BuildLocal = true
 			if test.ConfigFunc != nil {
 				test.ConfigFunc(&conf)
 			}
@@ -177,15 +173,6 @@ func TestSmoke(t *testing.T) {
 			testutil.RequireNoError(t, err)
 		})
 	}
-}
-
-// copyPrebuiltBinary copies the prebuilt charon binary to the compose dir.
-func copyPrebuiltBinary(t *testing.T, dir string, binary string) {
-	t.Helper()
-	b, err := os.ReadFile(binary)
-	require.NoError(t, err)
-
-	require.NoError(t, os.WriteFile(path.Join(dir, "charon"), b, 0o555))
 }
 
 // pegImageTag pegs the charon docker image tag for one of the nodes.

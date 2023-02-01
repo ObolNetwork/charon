@@ -55,15 +55,14 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	}
 
 	data := TmplData{
-		ComposeDir:       dir,
-		CharonImageTag:   conf.ImageTag,
-		CharonEntrypoint: conf.entrypoint(),
-		CharonCommand:    cmdRun,
-		Nodes:            nodes,
-		Relay:            true,
-		Monitoring:       true,
-		MonitoringPorts:  !conf.DisableMonitoringPorts,
-		VCs:              vcs,
+		ComposeDir:      dir,
+		CharonImageTag:  conf.ImageTag,
+		CharonCommand:   cmdRun,
+		Nodes:           nodes,
+		Relay:           true,
+		Monitoring:      true,
+		MonitoringPorts: !conf.DisableMonitoringPorts,
+		VCs:             vcs,
 	}
 
 	log.Info(ctx, "Created docker-compose.yml")

@@ -1,7 +1,7 @@
 {
  "ComposeDir": "testdir",
  "CharonImageTag": "latest",
- "CharonEntrypoint": "/usr/local/bin/charon",
+ "CharonEntrypoint": "",
  "CharonCommand": "not used",
  "Nodes": [
   {

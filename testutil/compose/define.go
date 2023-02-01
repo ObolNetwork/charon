@@ -90,13 +90,13 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		return TmplData{}, errors.New("compose config not new, so can't be defined", z.Any("step", conf.Step))
 	}
 
-	if conf.BuildBinary {
-		if err := buildLocal(ctx, dir); err != nil {
+	if conf.BuildLocal {
+		if err := buildLocal(ctx); err != nil {
 			return TmplData{}, err
 		}
 	}
 
-	if !noPull && !conf.BuildBinary && !conf.PrebuiltBinary && conf.ImageTag == "latest" {
+	if !noPull && !conf.BuildLocal && conf.ImageTag == "latest" {
 		if err := pullLatest(ctx); err != nil {
 			return TmplData{}, err
 		}
@@ -146,11 +146,10 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		}}
 
 		data = TmplData{
-			ComposeDir:       dir,
-			CharonImageTag:   conf.ImageTag,
-			CharonEntrypoint: conf.entrypoint(),
-			CharonCommand:    cmdCreateDKG,
-			Nodes:            []TmplNode{n},
+			ComposeDir:     dir,
+			CharonImageTag: conf.ImageTag,
+			CharonCommand:  cmdCreateDKG,
+			Nodes:          []TmplNode{n},
 		}
 	} else {
 		// Other keygens only need a noop docker-compose, since charon-compose.yml
@@ -236,30 +235,22 @@ func pullLatest(ctx context.Context) error {
 	return nil
 }
 
-// buildLocal builds a local charon binary and writes it to the cluster dir. Note this requires CHARON_REPO env var.
-func buildLocal(ctx context.Context, dir string) error {
+// buildLocal builds an `obolnetwork/charon:local` docker container from source. Note this requires CHARON_REPO env var.
+func buildLocal(ctx context.Context) error {
 	repo, ok := os.LookupEnv("CHARON_REPO")
 	if !ok || repo == "" {
 		return errors.New("cannot build local charon binary; CHARON_REPO env var, the path to the charon repo, is not set")
 	}
 
-	dir, err := filepath.Abs(dir)
-	if err != nil {
-		return errors.Wrap(err, "abs dir")
-	}
+	log.Info(ctx, "Building `obolnetwork/charon:local` docker container", z.Str("repo", repo))
 
-	target := path.Join(dir, "charon")
-
-	log.Info(ctx, "Building local charon binary", z.Str("repo", repo), z.Str("target", target))
-
-	cmd := exec.CommandContext(ctx, "go", "build", "-ldflags='-linkmode 'external' -extldflags '-static'", "-o", target)
-	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64")
+	cmd := exec.CommandContext(ctx, "docker", "build", "-t", "obolnetwork/charon:local", ".")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Dir = repo
 
 	if err := cmd.Run(); err != nil {
-		return errors.Wrap(err, "exec go build")
+		return errors.Wrap(err, "exec docker build")
 	}
 
 	return nil
