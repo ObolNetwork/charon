@@ -67,7 +67,8 @@ func TestIntegration(t *testing.T) {
 		"0xb790b322e1cce41c48e3c344cf8d752bdc3cfd51e8eeef44a4bdaac081bc92b53b73e823a9878b5d7a532eb9d9dce1e3",
 	}
 
-	s, err := scheduler.New(pubkeys, eth2Cl, false)
+	builderDisabled := func(int64) bool { return false }
+	s, err := scheduler.New(pubkeys, eth2Cl, builderDisabled)
 	require.NoError(t, err)
 
 	count := 10

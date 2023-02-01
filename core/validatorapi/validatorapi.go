@@ -47,16 +47,16 @@ type PubShareFunc func(pubkey core.PubKey, shareIdx int) (*bls_sig.PublicKey, er
 // that does not perform signature verification.
 func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*Component, error) {
 	return &Component{
-		eth2Cl:   eth2Cl,
-		shareIdx: shareIdx,
-
-		insecureTest: true,
+		eth2Cl:         eth2Cl,
+		shareIdx:       shareIdx,
+		builderEnabled: func(int64) bool { return false },
+		insecureTest:   true,
 	}, nil
 }
 
 // NewComponent returns a new instance of the validator API core workflow component.
 func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[int]*bls_sig.PublicKey,
-	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderAPI bool, seenPubkeys func(core.PubKey),
+	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled core.BuilderEnabled, seenPubkeys func(core.PubKey),
 ) (*Component, error) {
 	var (
 		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
@@ -138,7 +138,7 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		eth2Cl:             eth2Cl,
 		shareIdx:           shareIdx,
 		feeRecipientFunc:   feeRecipientFunc,
-		builderAPI:         builderAPI,
+		builderEnabled:     builderEnabled,
 	}, nil
 }
 
@@ -147,7 +147,7 @@ type Component struct {
 	shareIdx         int
 	insecureTest     bool
 	feeRecipientFunc func(core.PubKey) string
-	builderAPI       bool
+	builderEnabled   core.BuilderEnabled
 
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
 	// to public keys (the DV root public key)
@@ -553,8 +553,17 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 
 // SubmitValidatorRegistrations receives the partially signed validator (builder) registration.
 func (c Component) SubmitValidatorRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
+	if len(registrations) == 0 {
+		return nil // Nothing to do
+	}
+
+	slot, err := c.slotFromTimestamp(ctx, time.Now())
+	if err != nil {
+		return err
+	}
+
 	// Swallow unexpected validator registrations from VCs (for ex: vouch)
-	if !c.builderAPI {
+	if !c.builderEnabled(int64(slot)) {
 		return nil
 	}
 

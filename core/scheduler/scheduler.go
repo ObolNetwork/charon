@@ -45,7 +45,7 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys [
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(pubkeys, eth2Cl, builderAPI)
+	s, err := New(pubkeys, eth2Cl, func(int64) bool { return builderAPI })
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -55,7 +55,7 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys [
 }
 
 // New returns a new scheduler.
-func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderAPI bool) (*Scheduler, error) {
+func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderEnabled core.BuilderEnabled) (*Scheduler, error) {
 	return &Scheduler{
 		eth2Cl:        eth2Cl,
 		pubkeys:       pubkeys,
@@ -68,7 +68,7 @@ func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderAPI bool) (*Sched
 		},
 		metricSubmitter: newMetricSubmitter(),
 		resolvedEpoch:   math.MaxInt64,
-		builderAPI:      builderAPI,
+		builderEnabled:  builderEnabled,
 	}, nil
 }
 
@@ -85,7 +85,7 @@ type Scheduler struct {
 	dutiesMutex     sync.Mutex
 	dutySubs        []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 	slotSubs        []func(context.Context, core.Slot) error
-	builderAPI      bool
+	builderEnabled  core.BuilderEnabled
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -149,9 +149,9 @@ func (s *Scheduler) emitCoreSlot(ctx context.Context, slot core.Slot) {
 // GetDutyDefinition returns the definition for a duty or core.ErrNotFound if no definitions exist for a resolved epoch
 // or another error.
 func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
-	if duty.Type == core.DutyBuilderProposer && !s.builderAPI {
+	if duty.Type == core.DutyBuilderProposer && !s.builderEnabled(duty.Slot) {
 		return nil, errors.New("builder-api not enabled, but duty builder proposer requested")
-	} else if duty.Type == core.DutyProposer && s.builderAPI {
+	} else if duty.Type == core.DutyProposer && s.builderEnabled(duty.Slot) {
 		return nil, errors.New("builder-api enabled, but duty proposer requested")
 	}
 
@@ -366,7 +366,7 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 
 		var duty core.Duty
 
-		if s.builderAPI {
+		if s.builderEnabled(int64(proDuty.Slot)) {
 			duty = core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyBuilderProposer}
 		} else {
 			duty = core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
