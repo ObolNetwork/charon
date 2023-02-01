@@ -17,16 +17,14 @@ package cmd
 
 import (
 	"io"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestRunCreateEnr(t *testing.T) {
-	temp, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	temp := t.TempDir()
 
-	err = runCreateEnrCmd(io.Discard, temp)
+	err := runCreateEnrCmd(io.Discard, temp)
 	require.NoError(t, err)
 }

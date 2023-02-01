@@ -33,8 +33,7 @@ import (
 func TestCombine(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 1, 3, 4, 0)
 
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	lockfile := storeLock(t, dir, lock)
 
@@ -44,11 +43,10 @@ func TestCombine(t *testing.T) {
 		require.NoError(t, err)
 		secrets = append(secrets, secret)
 	}
-	err = keystore.StoreKeys(secrets, dir)
+	err := keystore.StoreKeys(secrets, dir)
 	require.NoError(t, err)
 
-	out, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	out := t.TempDir()
 
 	err = run(context.Background(), lockfile, dir, out)
 	require.NoError(t, err)

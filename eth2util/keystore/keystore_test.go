@@ -17,7 +17,6 @@ package keystore_test
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
@@ -28,8 +27,7 @@ import (
 )
 
 func TestStoreLoad(t *testing.T) {
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	var secrets []*bls_sig.SecretKey
 	for i := 0; i < 2; i++ {
@@ -39,7 +37,7 @@ func TestStoreLoad(t *testing.T) {
 		secrets = append(secrets, secret)
 	}
 
-	err = keystore.StoreKeys(secrets, dir)
+	err := keystore.StoreKeys(secrets, dir)
 	require.NoError(t, err)
 
 	actual, err := keystore.LoadKeys(dir)

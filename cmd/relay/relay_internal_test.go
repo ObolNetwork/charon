@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
@@ -38,8 +37,7 @@ import (
 )
 
 func TestRunBootnode(t *testing.T) {
-	temp, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	temp := t.TempDir()
 
 	config := Config{
 		DataDir:   temp,
@@ -48,7 +46,7 @@ func TestRunBootnode(t *testing.T) {
 		HTTPAddr:  testutil.AvailableAddr(t).String(),
 	}
 
-	_, err = p2p.NewSavedPrivKey(temp)
+	_, err := p2p.NewSavedPrivKey(temp)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -60,8 +58,7 @@ func TestRunBootnode(t *testing.T) {
 }
 
 func TestRunBootnodeAutoP2P(t *testing.T) {
-	temp, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	temp := t.TempDir()
 
 	config := Config{
 		DataDir:   temp,
@@ -73,7 +70,7 @@ func TestRunBootnodeAutoP2P(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err = Run(ctx, config)
+	err := Run(ctx, config)
 	testutil.SkipIfBindErr(t, err)
 	require.Error(t, err)
 
@@ -190,8 +187,7 @@ func TestServeAddrs(t *testing.T) {
 
 func testServeAddrs(t *testing.T, p2pConfig p2p.Config, path string, asserter func(*testing.T, []byte) bool) {
 	t.Helper()
-	temp, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	temp := t.TempDir()
 
 	config := Config{
 		AutoP2PKey: true,
@@ -232,7 +228,7 @@ func testServeAddrs(t *testing.T, p2pConfig p2p.Config, path string, asserter fu
 		return nil
 	})
 
-	err = eg.Wait()
+	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 }
