@@ -162,6 +162,29 @@ func (Herumi) RecoverSecret(shares map[int]v2.PrivateKey, _, _ uint) (v2.Private
 	return *(*v2.PrivateKey)(pk.Serialize()), nil
 }
 
+func (Herumi) CombineSignatures(signs []v2.Signature) (v2.Signature, error) {
+	var sig bls.Sign
+
+	var rawSigns []bls.Sign
+
+	for idx, rawSignature := range signs {
+		var signature bls.Sign
+		if err := signature.Deserialize(rawSignature[:]); err != nil {
+			return v2.Signature{}, errors.Wrap(
+				err,
+				"cannot unmarshal signature into Herumi signature",
+				z.Int("signature_number", idx),
+			)
+		}
+
+		rawSigns = append(rawSigns, signature)
+	}
+
+	sig.Aggregate(rawSigns)
+
+	return *(*v2.Signature)(sig.Serialize()), nil
+}
+
 func (Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) (v2.Signature, error) {
 	var rawSigns []bls.Sign
 	var rawIDs []bls.ID
@@ -229,4 +252,28 @@ func (Herumi) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, error) 
 	sigBytes := p.SignByte(data).Serialize()
 
 	return *(*v2.Signature)(sigBytes), nil
+}
+
+func (Herumi) FastAggregateVerify(shares []v2.PublicKey, signature v2.Signature, data []byte) error {
+	var rawShares []bls.PublicKey
+	var sig bls.Sign
+
+	if err := sig.Deserialize(signature[:]); err != nil {
+		return errors.Wrap(err, "cannot unmarshal signature into Herumi signature")
+	}
+
+	for _, share := range shares {
+		var pubKey bls.PublicKey
+		if err := pubKey.Deserialize(share[:]); err != nil {
+			return errors.Wrap(err, "cannot set compressed public key in Herumi format")
+		}
+
+		rawShares = append(rawShares, pubKey)
+	}
+
+	if !sig.FastAggregateVerify(rawShares, data) {
+		return errors.New("signature verification failed")
+	}
+
+	return nil
 }
