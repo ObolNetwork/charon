@@ -80,20 +80,26 @@ func WithSyntheticDuties(cl Client, pubkeys []eth2p0.BLSPubKey) Client {
 func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses ...string) (Client, error) {
 	var clients []Client
 	for _, address := range addresses {
-		eth2Svc, err := eth2http.New(ctx,
-			eth2http.WithLogLevel(zeroLogInfo),
-			eth2http.WithAddress(address),
-			eth2http.WithTimeout(timeout),
-		)
-		if err != nil {
-			return nil, wrapError(ctx, err, "new eth2 client")
-		}
-		eth2Http, ok := eth2Svc.(*eth2http.Service)
-		if !ok {
-			return nil, errors.New("invalid eth2 http service")
-		}
+		address := address // Capture range variable.
 
-		clients = append(clients, AdaptEth2HTTP(eth2Http, timeout))
+		cl := newLazy(func() (Client, error) {
+			eth2Svc, err := eth2http.New(ctx,
+				eth2http.WithLogLevel(zeroLogInfo),
+				eth2http.WithAddress(address),
+				eth2http.WithTimeout(timeout),
+			)
+			if err != nil {
+				return nil, wrapError(ctx, err, "new eth2 client")
+			}
+			eth2Http, ok := eth2Svc.(*eth2http.Service)
+			if !ok {
+				return nil, errors.New("invalid eth2 http service")
+			}
+
+			return AdaptEth2HTTP(eth2Http, timeout), nil
+		})
+
+		clients = append(clients, cl)
 	}
 
 	return Instrument(clients...)

@@ -72,7 +72,6 @@ func newHTTPAdapter(ethSvc *eth2http.Service, address string, timeout time.Durat
 // httpAdapter implements Client by wrapping and adding the following to eth2http.Service:
 //   - interfaces not present in go-eth2-client
 //   - experimental interfaces
-//   - synthetic duties
 type httpAdapter struct {
 	*eth2http.Service
 	address string
@@ -143,7 +142,7 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 // NodePeerCount provides the peer count of the beacon node.
 // See https://ethereum.github.io/beacon-APIs/#/Node/getPeerCount.
 func (h *httpAdapter) NodePeerCount(ctx context.Context) (int, error) {
-	path := "/eth/v1/node/peer_count"
+	const path = "/eth/v1/node/peer_count"
 	respBody, statusCode, err := httpGet(ctx, h.address, path, h.timeout)
 	if err != nil {
 		return 0, errors.Wrap(err, "request beacon node peer count")
