@@ -19,18 +19,14 @@ import (
 	"context"
 	"sync"
 
-	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/infosync"
 )
 
 // newMutableConfig returns a new mutable config.
 func newMutableConfig(ctx context.Context, conf Config) *mutableConfig {
 	return &mutableConfig{
-		ctx:            ctx,
-		conf:           conf,
-		prevBuilderAPI: conf.BuilderAPI,
+		ctx:  ctx,
+		conf: conf,
 	}
 }
 
@@ -39,9 +35,8 @@ type mutableConfig struct {
 	ctx  context.Context
 	conf Config
 
-	mu             sync.Mutex
-	infosync       *infosync.Component
-	prevBuilderAPI bool
+	mu       sync.Mutex
+	infosync *infosync.Component
 }
 
 func (c *mutableConfig) SetInfoSync(infosync *infosync.Component) {
@@ -50,6 +45,7 @@ func (c *mutableConfig) SetInfoSync(infosync *infosync.Component) {
 	c.mu.Unlock()
 }
 
+//nolint:unused // TODO: Remove this once we have a use case.
 func (c *mutableConfig) getInfoSync() (*infosync.Component, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -57,36 +53,8 @@ func (c *mutableConfig) getInfoSync() (*infosync.Component, bool) {
 	return c.infosync, c.infosync != nil
 }
 
-// casBuilderAPI compares-and-swaps the new builderAPI value, returning true if it was different.
-func (c *mutableConfig) casBuilderAPI(builderAPI bool) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	diff := c.prevBuilderAPI != builderAPI
-	c.prevBuilderAPI = builderAPI
-
-	return diff
-}
-
 // BuilderAPI returns true if the cluster supports the builder API for the provided slot.
-func (c *mutableConfig) BuilderAPI(slot int64) bool {
-	isync, ok := c.getInfoSync()
-	if !ok { // Infosync not available yet.
-		return c.conf.BuilderAPI
-	}
-
-	var builderAPI bool
-	for _, proposal := range isync.Proposals(slot) {
-		if proposal == core.ProposalTypeBuilder {
-			builderAPI = true
-			break
-		}
-	}
-
-	if c.casBuilderAPI(builderAPI) {
-		// TODO(corver): This might flip flop due to provided slot.
-		log.Info(c.ctx, "Dynamic cluster-wide BuilderAPI config changed", z.Bool("enabled", builderAPI), z.I64("slot", slot))
-	}
-
-	return false
+func (c *mutableConfig) BuilderAPI(_ int64) bool {
+	// TODO(corver): Dynamic BuilderAPI config disabled since VCs do not support it.
+	return c.conf.BuilderAPI
 }
