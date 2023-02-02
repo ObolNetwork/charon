@@ -8,7 +8,7 @@ labels: Enhancement
 Describe in detail the problem to be solved by this feature/enhancement and why it is important.
 
 # 🛠️ Proposed solution
-- [ ] Approved design doc: **TBD**
+- [ ] Approved design doc: *link*
 - [ ] Core team consensus on the proposed solution
 
 Describe the solution to be implemented
