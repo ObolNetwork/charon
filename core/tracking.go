@@ -68,7 +68,7 @@ func WithTracking(tracker Tracker) WireOption {
 		}
 		w.AggSigDBStore = func(ctx context.Context, duty Duty, key PubKey, data SignedData) error {
 			err := clone.AggSigDBStore(ctx, duty, key, data)
-			tracker.AggSigSBStored(ctx, duty, key, data, err)
+			tracker.AggSigDBStored(ctx, duty, key, data, err)
 
 			return err
 		}

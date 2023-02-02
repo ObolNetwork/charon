@@ -196,8 +196,8 @@ type Tracker interface {
 	// SigAggAggregated sends SigAgg component's aggregate events to tracker.
 	SigAggAggregated(context.Context, Duty, PubKey, []ParSignedData, error)
 
-	// AggSigSBStored sends AggSigDB component's store events to tracker.
-	AggSigSBStored(context.Context, Duty, PubKey, SignedData, error)
+	// AggSigDBStored sends AggSigDB component's store events to tracker.
+	AggSigDBStored(context.Context, Duty, PubKey, SignedData, error)
 
 	// BroadcasterBroadcast sends Broadcaster component's broadcast events to tracker.
 	BroadcasterBroadcast(context.Context, Duty, PubKey, SignedData, error)

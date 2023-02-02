@@ -17,6 +17,7 @@ package tracker2
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"reflect"
 	"testing"
@@ -198,31 +199,17 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		require.Equal(t, step, parSigDBInternal)
 		require.Contains(t, msg, msgParSigDBInternal)
 
-		// Failed to broadcast parsigex
-		parSigExBroadcastErr := errors.New("parsigdb_internal failed")
-		events[attDuty] = append(events[attDuty], event{
-			duty:    attDuty,
-			step:    parSigExBroadcast,
-			stepErr: errors.New("parsigex_broadcast failed"),
-		})
-
-		failed, step, msg, err = analyseDutyFailed(attDuty, events, true)
-		require.ErrorAs(t, err, &parSigExBroadcastErr)
-		require.True(t, failed)
-		require.Equal(t, step, parSigExBroadcast)
-		require.Contains(t, msg, msgParSigExBroadcast)
-
 		// Failed at parsigEx
 		events[attDuty] = append(events[attDuty], event{
 			duty: attDuty,
-			step: parSigExBroadcast,
+			step: parSigEx,
 		})
 
 		failed, step, msg, err = analyseDutyFailed(attDuty, events, true)
 		require.NoError(t, err)
 		require.True(t, failed)
-		require.Equal(t, step, parSigExReceive)
-		require.Equal(t, msg, msgParSigEx)
+		require.Equal(t, step, parSigEx)
+		require.Equal(t, msg, msgParSigExReceive)
 
 		// Failed at parsigDBInternal
 		parSigDBExternalErr := errors.New("parsigdb_external failed")
@@ -247,20 +234,20 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		failed, step, msg, err = analyseDutyFailed(attDuty, events, true)
 		require.NoError(t, err)
 		require.True(t, failed)
-		require.Equal(t, step, parSigDBThreshold)
+		require.Equal(t, step, parSigDBExternal)
 		require.Equal(t, msg, msgParSigDBInsufficient)
 
 		failed, step, msg, err = analyseDutyFailed(attDuty, events, false)
 		require.NoError(t, err)
 		require.True(t, failed)
-		require.Equal(t, step, parSigDBThreshold)
+		require.Equal(t, step, parSigDBExternal)
 		require.Equal(t, msg, msgParSigDBInconsistent)
 
 		events[syncMsgDuty] = events[attDuty]
 		failed, step, msg, err = analyseDutyFailed(syncMsgDuty, events, false)
 		require.NoError(t, err)
 		require.True(t, failed)
-		require.Equal(t, step, parSigDBThreshold)
+		require.Equal(t, step, parSigDBExternal)
 		require.Equal(t, msg, msgParSigDBInconsistentSync)
 	})
 
@@ -286,7 +273,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 				},
 				{
 					duty: proposerDuty,
-					step: parSigExBroadcast,
+					step: parSigEx,
 				},
 			},
 		}
@@ -778,7 +765,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				}},
 				dutyPrepAgg: {event{
 					duty: dutyPrepAgg,
-					step: parSigExBroadcast,
+					step: parSigEx,
 				}},
 			},
 			msg:    msgFetcherAggregatorNoExternalPrepares,
@@ -800,25 +787,6 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				}},
 			},
 			msg:    msgFetcherAggregatorFewPrepares,
-			failed: true,
-			err:    context.Canceled,
-		},
-		{
-			name: "DutyPrepareAggregator failed in sigagg",
-			duty: dutyAgg,
-			events: map[core.Duty][]event{
-				dutyAgg: {event{
-					duty:    dutyAgg,
-					step:    fetcher,
-					stepErr: context.Canceled,
-				}},
-				dutyPrepAgg: {event{
-					duty:    dutyPrepAgg,
-					step:    sigAgg,
-					stepErr: errors.New("some error"),
-				}},
-			},
-			msg:    msgFetcherAggregatorFailedSigAggPrepare,
 			failed: true,
 			err:    context.Canceled,
 		},
@@ -909,7 +877,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				}},
 				dutyPrepSyncCon: {event{
 					duty: dutyPrepSyncCon,
-					step: parSigExBroadcast,
+					step: parSigEx,
 				}},
 			},
 			msg:    msgFetcherSyncContributionNoExternalPrepares,
@@ -931,25 +899,6 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				}},
 			},
 			msg:    msgFetcherSyncContributionFewPrepares,
-			failed: true,
-			err:    context.Canceled,
-		},
-		{
-			name: "DutyPrepareSyncContribution failed in sigagg",
-			duty: dutySyncCon,
-			events: map[core.Duty][]event{
-				dutySyncCon: {event{
-					duty:    dutySyncCon,
-					step:    fetcher,
-					stepErr: context.Canceled,
-				}},
-				dutyPrepSyncCon: {event{
-					duty:    dutyPrepSyncCon,
-					step:    sigAgg,
-					stepErr: errors.New("some error"),
-				}},
-			},
-			msg:    msgFetcherSyncContributionFailedSigAggPrepare,
 			failed: true,
 			err:    context.Canceled,
 		},
@@ -986,7 +935,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				}},
 				dutySyncMsg: {event{
 					duty: dutySyncMsg,
-					step: parSigExBroadcast,
+					step: parSigEx,
 				}},
 			},
 			msg:    msgFetcherSyncContributionNoSyncMsg,
@@ -1192,4 +1141,51 @@ func TestDutyFailedMultipleEvents(t *testing.T) {
 	require.False(t, failed)
 	require.Equal(t, zero, step)
 	require.NoError(t, err)
+}
+
+func TestUnexpectedFailures(t *testing.T) {
+	duty := core.NewAttesterDuty(123)
+	tests := []struct {
+		name    string
+		stepErr error
+		step    step
+		events  map[core.Duty][]event
+	}{
+		{
+			name:    "consensus failed with nil error",
+			stepErr: nil,
+			step:    consensus,
+			events: map[core.Duty][]event{
+				duty: {{duty: duty, step: consensus}},
+			},
+		},
+		{
+			name:    "parsigex broadcast failed with error",
+			stepErr: errors.New("parsigex broadcast err"),
+			step:    parSigEx,
+			events: map[core.Duty][]event{
+				duty: {{duty: duty, step: parSigEx, stepErr: errors.New("parsigex broadcast err")}},
+			},
+		},
+		{
+			name:    "consensus failed with nil error",
+			stepErr: nil,
+			step:    sigAgg,
+			events: map[core.Duty][]event{
+				duty: {{duty: duty, step: sigAgg}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		failed, step, msg, err := analyseDutyFailed(duty, test.events, false)
+		require.True(t, failed)
+		require.Equal(t, step, test.step)
+		require.Equal(t, fmt.Sprintf("unexpected failure for %s duty at %s step", duty, step), msg)
+		if test.stepErr == nil {
+			require.NoError(t, err)
+		} else {
+			require.ErrorAs(t, err, &test.stepErr)
+		}
+	}
 }
