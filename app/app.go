@@ -385,7 +385,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return core.NewDeadliner(ctx, label, deadlineFunc)
 	}
 
-	sched, err := scheduler.New(corePubkeys, eth2Cl, conf.BuilderAPI)
+	mutableConf := newMutableConfig(ctx, conf)
+
+	sched, err := scheduler.New(corePubkeys, eth2Cl, mutableConf.BuilderAPI)
 	if err != nil {
 		return err
 	}
@@ -405,7 +407,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
 	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientFunc,
-		conf.BuilderAPI, seenPubkeys)
+		mutableConf.BuilderAPI, seenPubkeys)
 	if err != nil {
 		return err
 	}
@@ -462,7 +464,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, lock.Threshold,
-		sender.SendReceive, cons, sched, p2pKey, deadlineFunc)
+		sender.SendReceive, cons, sched, p2pKey, deadlineFunc, mutableConf)
 	if err != nil {
 		return err
 	}
@@ -499,6 +501,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host,
 	peers []peer.ID, threshold int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
+	mutableConf *mutableConfig,
 ) error {
 	if !featureset.Enabled(featureset.Priority) {
 		return nil
@@ -520,11 +523,13 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 		return err
 	}
 
-	sync := infosync.New(prio,
+	isync := infosync.New(prio,
 		version.Supported(),
 		Protocols(),
 		ProposalTypes(conf.BuilderAPI, conf.SyntheticBlockProposals),
 	)
+
+	mutableConf.SetInfoSync(isync)
 
 	// Trigger info syncs in last slot of the epoch (for the next epoch).
 	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
@@ -532,7 +537,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 			return nil
 		}
 
-		return sync.Trigger(ctx, slot.Slot)
+		return isync.Trigger(ctx, slot.Slot)
 	})
 
 	if conf.TestConfig.PrioritiseCallback != nil {

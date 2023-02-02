@@ -18,6 +18,7 @@ package validatorapi
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 type TekuProposerConfigResponse struct {
@@ -62,11 +63,16 @@ func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigRe
 		return TekuProposerConfigResponse{}, err
 	}
 
+	slot, err := c.slotFromTimestamp(ctx, time.Now())
+	if err != nil {
+		return TekuProposerConfigResponse{}, err
+	}
+
 	for pubkey, pubshare := range c.sharesByKey {
 		resp.Proposers[string(pubshare)] = TekuProposerConfig{
 			FeeRecipient: c.feeRecipientFunc(pubkey),
 			Builder: TekuBuilder{
-				Enabled:  c.builderAPI,
+				Enabled:  c.builderEnabled(int64(slot)),
 				GasLimit: gasLimit,
 				Overrides: map[string]string{
 					"timestamp":  fmt.Sprint(genesis.Unix()),

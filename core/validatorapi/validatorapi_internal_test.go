@@ -42,7 +42,7 @@ func TestMismatchKeysFunc(t *testing.T) {
 	t.Run("no mismatch", func(t *testing.T) {
 		allPubSharesByKey := map[core.PubKey]map[int]*bls_sig.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
-		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, false, nil)
+		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 		require.NoError(t, err)
 		pk, err := vapi.getPubKeyFunc(eth2Pubkey)
 		require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestMismatchKeysFunc(t *testing.T) {
 		require.NoError(t, err)
 		allPubSharesByKey := map[core.PubKey]map[int]*bls_sig.PublicKey{corePubKey: {shareIdx: pubkey, shareIdx + 1: pk}}
 
-		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, false, nil)
+		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 		require.NoError(t, err)
 
 		resp, err := vapi.getPubKeyFunc(pubshare) // Ask for a mismatching key
@@ -74,7 +74,7 @@ func TestMismatchKeysFunc(t *testing.T) {
 		require.NoError(t, err)
 		allPubSharesByKey := map[core.PubKey]map[int]*bls_sig.PublicKey{corePubKey: {shareIdx: pubkey}}
 
-		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, false, nil)
+		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 		require.NoError(t, err)
 
 		_, err = vapi.getPubKeyFunc(pubshare) // Ask for a mismatching key
