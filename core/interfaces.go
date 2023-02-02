@@ -187,11 +187,17 @@ type Tracker interface {
 	// ParSigDBStoredInternal sends ParSigDB component's store internal events to tracker.
 	ParSigDBStoredInternal(context.Context, Duty, ParSignedDataSet, error)
 
+	// ParSigExBroadcasted sends ParSigEx component's broadcast events to tracker.
+	ParSigExBroadcasted(context.Context, Duty, ParSignedDataSet, error)
+
 	// ParSigDBStoredExternal sends ParSigDB component's store external events to tracker.
 	ParSigDBStoredExternal(context.Context, Duty, ParSignedDataSet, error)
 
-	// SigAggAggregated sends SigAgg component's events to tracker.
+	// SigAggAggregated sends SigAgg component's aggregate events to tracker.
 	SigAggAggregated(context.Context, Duty, PubKey, []ParSignedData, error)
+
+	// AggSigDBStored sends AggSigDB component's store events to tracker.
+	AggSigDBStored(context.Context, Duty, PubKey, SignedData, error)
 
 	// BroadcasterBroadcast sends Broadcaster component's broadcast events to tracker.
 	BroadcasterBroadcast(context.Context, Duty, PubKey, SignedData, error)

@@ -48,6 +48,12 @@ func WithTracking(tracker Tracker) WireOption {
 
 			return err
 		}
+		w.ParSigExBroadcast = func(ctx context.Context, duty Duty, set ParSignedDataSet) error {
+			err := clone.ParSigExBroadcast(ctx, duty, set)
+			tracker.ParSigExBroadcasted(ctx, duty, set, err)
+
+			return err
+		}
 		w.ParSigDBStoreExternal = func(ctx context.Context, duty Duty, set ParSignedDataSet) error {
 			err := clone.ParSigDBStoreExternal(ctx, duty, set)
 			tracker.ParSigDBStoredExternal(ctx, duty, set, err)
@@ -57,6 +63,12 @@ func WithTracking(tracker Tracker) WireOption {
 		w.SigAggAggregate = func(ctx context.Context, duty Duty, key PubKey, data []ParSignedData) error {
 			err := clone.SigAggAggregate(ctx, duty, key, data)
 			tracker.SigAggAggregated(ctx, duty, key, data, err)
+
+			return err
+		}
+		w.AggSigDBStore = func(ctx context.Context, duty Duty, key PubKey, data SignedData) error {
+			err := clone.AggSigDBStore(ctx, duty, key, data)
+			tracker.AggSigDBStored(ctx, duty, key, data, err)
 
 			return err
 		}

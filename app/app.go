@@ -65,6 +65,7 @@ import (
 	"github.com/obolnetwork/charon/core/scheduler"
 	"github.com/obolnetwork/charon/core/sigagg"
 	"github.com/obolnetwork/charon/core/tracker"
+	"github.com/obolnetwork/charon/core/tracker/tracker2"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
@@ -471,11 +472,23 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	wireRecaster(sched, sigAgg, broadcaster)
 
-	core.Wire(sched, fetch, cons, dutyDB, vapi,
-		parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster,
+	opts := []core.WireOption{
 		core.WithTracing(),
 		core.WithAsyncRetry(retryer),
-	)
+	}
+	if featureset.Enabled(featureset.TrackerV2) {
+		track, err := newTrackerV2(ctx, life, deadlineFunc, peers, eth2Cl)
+		if err != nil {
+			return err
+		}
+
+		opts = []core.WireOption{
+			core.WithTracing(),
+			core.WithTracking(track),
+			core.WithAsyncRetry(retryer),
+		}
+	}
+	core.Wire(sched, fetch, cons, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 
 	err = wireValidatorMock(conf, pubshares, sched)
 	if err != nil {
@@ -589,6 +602,35 @@ func wireTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartTracker, lifecycle.HookFunc(trackr.Run))
 
 	return nil
+}
+
+// newTrackerV2 creates a new tracker2 instance.
+func newTrackerV2(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(duty core.Duty) (time.Time, bool),
+	peers []p2p.Peer, eth2Cl eth2wrap.Client,
+) (core.Tracker, error) {
+	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	analyser := core.NewDeadliner(ctx, "tracker2_analyser", func(duty core.Duty) (time.Time, bool) {
+		d, ok := deadlineFunc(duty)
+		return d.Add(slotDuration), ok // Add one slot delay to analyser to capture duty expired errors.
+	})
+	deleter := core.NewDeadliner(ctx, "tracker2_deleter", func(duty core.Duty) (time.Time, bool) {
+		d, ok := deadlineFunc(duty)
+		return d.Add(time.Minute), ok // Delete duties after deadline+1min.
+	})
+
+	trackFrom, err := calculateTrackerDelay(ctx, eth2Cl, time.Now())
+	if err != nil {
+		return nil, err
+	}
+
+	track := tracker2.New(analyser, deleter, peers, trackFrom)
+	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartTracker, lifecycle.HookFunc(track.Run))
+
+	return track, nil
 }
 
 // calculateTrackerDelay returns the slot to start tracking from. This mitigates noisy failed duties on
