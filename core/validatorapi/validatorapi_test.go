@@ -18,6 +18,7 @@ package validatorapi_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"sync"
 	"testing"
@@ -43,10 +44,17 @@ import (
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	herumiImpl "github.com/obolnetwork/charon/tbls/v2/herumi"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 	"github.com/obolnetwork/charon/testutil/validatormock"
 )
+
+func TestMain(m *testing.M) {
+	tblsv2.SetImplementation(herumiImpl.Herumi{})
+	os.Exit(m.Run())
+}
 
 func TestComponent_ValidSubmitAttestations(t *testing.T) {
 	ctx := context.Background()
@@ -541,7 +549,7 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	})
 
 	err = vapi.SubmitBeaconBlock(ctx, signedBlock)
-	require.ErrorContains(t, err, "invalid signature")
+	require.ErrorContains(t, err, "signature not verified")
 }
 
 func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
@@ -840,7 +848,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 	})
 
 	err = vapi.SubmitBlindedBeaconBlock(ctx, signedBlindedBlock)
-	require.ErrorContains(t, err, "invalid signature")
+	require.ErrorContains(t, err, "signature not verified")
 }
 
 func TestComponent_SubmitBlindedBeaconBlockInvalidBlock(t *testing.T) {
@@ -1026,7 +1034,7 @@ func TestComponent_SubmitVoluntaryExitInvalidSignature(t *testing.T) {
 	exit.Signature = tblsconv.SigToETH2(sig)
 
 	err = vapi.SubmitVoluntaryExit(ctx, exit)
-	require.ErrorContains(t, err, "invalid signature")
+	require.ErrorContains(t, err, "signature not verified")
 }
 
 func TestComponent_Duties(t *testing.T) {
@@ -1235,7 +1243,7 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	}
 
 	err = vapi.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
-	require.ErrorContains(t, err, "invalid signature")
+	require.ErrorContains(t, err, "signature not verified")
 }
 
 func TestComponent_TekuProposerConfig(t *testing.T) {
