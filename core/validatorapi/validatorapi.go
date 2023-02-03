@@ -18,6 +18,7 @@ package validatorapi
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
@@ -1022,6 +1024,13 @@ func (c Component) ValidatorsByPubKey(ctx context.Context, stateID string, pubsh
 
 	// Then convert back.
 	return c.convertValidators(valMap)
+}
+
+// NodeVersion returns the current version of charon.
+func (Component) NodeVersion(context.Context) (string, error) {
+	commitSHA, _ := version.GitCommit()
+
+	return fmt.Sprintf("obolnetwork/charon/%s-%s/%s-%s", version.Version, commitSHA, runtime.GOARCH, runtime.GOOS), nil
 }
 
 // convertValidators returns the validator map with all root public keys replaced by public shares.

@@ -271,21 +271,21 @@ func TestRawRouter(t *testing.T) {
 
 //nolint:maintidx // This function is a test of tests, so analysed as "complex".
 func TestRouter(t *testing.T) {
-	t.Run("attesterduty", func(t *testing.T) {
-		handler := testHandler{
-			AttesterDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
-				var res []*eth2v1.AttesterDuty
-				for _, index := range il {
-					res = append(res, &eth2v1.AttesterDuty{
-						ValidatorIndex:   index,              // Echo index
-						Slot:             eth2p0.Slot(epoch), // Echo epoch as slot
-						CommitteeLength:  1,                  // 0 fails validation
-						CommitteesAtSlot: 1,                  // 0 fails validation
-					})
-				}
+	handler := newTestHandler()
 
-				return res, nil
-			},
+	t.Run("attesterduty", func(t *testing.T) {
+		handler.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+			var res []*eth2v1.AttesterDuty
+			for _, index := range il {
+				res = append(res, &eth2v1.AttesterDuty{
+					ValidatorIndex:   index,              // Echo index
+					Slot:             eth2p0.Slot(epoch), // Echo epoch as slot
+					CommitteeLength:  1,                  // 0 fails validation
+					CommitteesAtSlot: 1,                  // 0 fails validation
+				})
+			}
+
+			return res, nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -310,19 +310,17 @@ func TestRouter(t *testing.T) {
 
 	t.Run("proposerduty", func(t *testing.T) {
 		const total = 2
-		handler := testHandler{
-			ProposerDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-				// Returns ordered total number of duties for the epoch
-				var res []*eth2v1.ProposerDuty
-				for i := 0; i < total; i++ {
-					res = append(res, &eth2v1.ProposerDuty{
-						ValidatorIndex: eth2p0.ValidatorIndex(i),
-						Slot:           eth2p0.Slot(int(epoch)*slotsPerEpoch + i),
-					})
-				}
+		handler.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			// Returns ordered total number of duties for the epoch
+			var res []*eth2v1.ProposerDuty
+			for i := 0; i < total; i++ {
+				res = append(res, &eth2v1.ProposerDuty{
+					ValidatorIndex: eth2p0.ValidatorIndex(i),
+					Slot:           eth2p0.Slot(int(epoch)*slotsPerEpoch + i),
+				})
+			}
 
-				return res, nil
-			},
+			return res, nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -342,19 +340,17 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("synccommduty", func(t *testing.T) {
-		handler := testHandler{
-			SyncCommitteeDutiesFunc: func(ctx context.Context, epoch eth2p0.Epoch, vIdxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
-				// Returns ordered total number of duties for the epoch
-				var res []*eth2v1.SyncCommitteeDuty
-				for _, vIdx := range vIdxs {
-					res = append(res, &eth2v1.SyncCommitteeDuty{
-						ValidatorIndex:                vIdx,
-						ValidatorSyncCommitteeIndices: []eth2p0.CommitteeIndex{eth2p0.CommitteeIndex(vIdx)},
-					})
-				}
+		handler.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vIdxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+			// Returns ordered total number of duties for the epoch
+			var res []*eth2v1.SyncCommitteeDuty
+			for _, vIdx := range vIdxs {
+				res = append(res, &eth2v1.SyncCommitteeDuty{
+					ValidatorIndex:                vIdx,
+					ValidatorSyncCommitteeIndices: []eth2p0.CommitteeIndex{eth2p0.CommitteeIndex(vIdx)},
+				})
+			}
 
-				return res, nil
-			},
+			return res, nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -374,22 +370,20 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("get validator index", func(t *testing.T) {
-		handler := testHandler{
-			ValidatorsFunc: func(_ context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
-				res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
-				for _, index := range indices {
-					res[index] = &eth2v1.Validator{
-						Index:  index,
-						Status: eth2v1.ValidatorStateActiveOngoing,
-						Validator: &eth2p0.Validator{
-							PublicKey:             testutil.RandomEth2PubKey(t),
-							WithdrawalCredentials: []byte("12345678901234567890123456789012"),
-						},
-					}
+		handler.ValidatorsFunc = func(_ context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+			res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+			for _, index := range indices {
+				res[index] = &eth2v1.Validator{
+					Index:  index,
+					Status: eth2v1.ValidatorStateActiveOngoing,
+					Validator: &eth2p0.Validator{
+						PublicKey:             testutil.RandomEth2PubKey(t),
+						WithdrawalCredentials: []byte("12345678901234567890123456789012"),
+					},
 				}
+			}
 
-				return res, nil
-			},
+			return res, nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -413,23 +407,21 @@ func TestRouter(t *testing.T) {
 
 	t.Run("get validator pubkeu", func(t *testing.T) {
 		var idx eth2p0.ValidatorIndex
-		handler := testHandler{
-			ValidatorsByPubKeyFunc: func(_ context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
-				res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
-				for _, pubkey := range pubkeys {
-					idx++
-					res[idx] = &eth2v1.Validator{
-						Index:  idx,
-						Status: eth2v1.ValidatorStateActiveOngoing,
-						Validator: &eth2p0.Validator{
-							PublicKey:             pubkey,
-							WithdrawalCredentials: []byte("12345678901234567890123456789012"),
-						},
-					}
+		handler.ValidatorsByPubKeyFunc = func(_ context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+			res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+			for _, pubkey := range pubkeys {
+				idx++
+				res[idx] = &eth2v1.Validator{
+					Index:  idx,
+					Status: eth2v1.ValidatorStateActiveOngoing,
+					Validator: &eth2p0.Validator{
+						PublicKey:             pubkey,
+						WithdrawalCredentials: []byte("12345678901234567890123456789012"),
+					},
 				}
+			}
 
-				return res, nil
-			},
+			return res, nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -448,10 +440,8 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("empty validators", func(t *testing.T) {
-		handler := testHandler{
-			ValidatorsByPubKeyFunc: func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
-				return nil, nil //nolint:nilnil
-			},
+		handler.ValidatorsByPubKeyFunc = func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+			return nil, nil //nolint:nilnil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -467,10 +457,8 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("empty attester duties", func(t *testing.T) {
-		handler := testHandler{
-			AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
-				return nil, nil
-			},
+		handler.AttesterDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+			return nil, nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -483,10 +471,8 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("empty synccomm duties", func(t *testing.T) {
-		handler := testHandler{
-			SyncCommitteeDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
-				return nil, nil
-			},
+		handler.SyncCommitteeDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+			return nil, nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -499,10 +485,8 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("empty proposer duties", func(t *testing.T) {
-		handler := testHandler{
-			ProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-				return nil, nil
-			},
+		handler.ProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			return nil, nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -515,14 +499,12 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("attestation data", func(t *testing.T) {
-		handler := testHandler{
-			AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
-				data := testutil.RandomAttestationData()
-				data.Slot = slot
-				data.Index = commIdx
+		handler.AttestationDataFunc = func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+			data := testutil.RandomAttestationData()
+			data.Slot = slot
+			data.Index = commIdx
 
-				return data, nil
-			},
+			return data, nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -538,10 +520,8 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit randao", func(t *testing.T) {
-		handler := testHandler{
-			BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error) {
-				return nil, errors.New("not implemented")
-			},
+		handler.BeaconBlockProposalFunc = func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error) {
+			return nil, errors.New("not implemented")
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -558,10 +538,8 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit randao blinded block", func(t *testing.T) {
-		handler := testHandler{
-			BlindedBeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
-				return nil, errors.New("not implemented")
-			},
+		handler.BlindedBeaconBlockProposalFunc = func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
+			return nil, errors.New("not implemented")
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -585,11 +563,9 @@ func TestRouter(t *testing.T) {
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}
-		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
-				require.Equal(t, block, block1)
-				return nil
-			},
+		handler.SubmitBeaconBlockFunc = func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+			require.Equal(t, block, block1)
+			return nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -608,11 +584,9 @@ func TestRouter(t *testing.T) {
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}
-		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
-				require.Equal(t, block, block1)
-				return nil
-			},
+		handler.SubmitBeaconBlockFunc = func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+			require.Equal(t, block, block1)
+			return nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -631,11 +605,9 @@ func TestRouter(t *testing.T) {
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}
-		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
-				require.Equal(t, block, block1)
-				return nil
-			},
+		handler.SubmitBeaconBlockFunc = func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+			require.Equal(t, block, block1)
+			return nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -654,11 +626,9 @@ func TestRouter(t *testing.T) {
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}
-		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
-				require.Equal(t, block, block1)
-				return nil
-			},
+		handler.SubmitBeaconBlockFunc = func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+			require.Equal(t, block, block1)
+			return nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -677,11 +647,9 @@ func TestRouter(t *testing.T) {
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}
-		handler := testHandler{
-			SubmitBlindedBeaconBlockFunc: func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
-				require.Equal(t, block, block1)
-				return nil
-			},
+		handler.SubmitBlindedBeaconBlockFunc = func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
+			require.Equal(t, block, block1)
+			return nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -700,11 +668,9 @@ func TestRouter(t *testing.T) {
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}
-		handler := testHandler{
-			SubmitBlindedBeaconBlockFunc: func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
-				require.Equal(t, block1, block)
-				return nil
-			},
+		handler.SubmitBlindedBeaconBlockFunc = func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
+			require.Equal(t, block1, block)
+			return nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -722,12 +688,10 @@ func TestRouter(t *testing.T) {
 				V1:      testutil.RandomSignedValidatorRegistration(t),
 			},
 		}
-		handler := testHandler{
-			SubmitValidatorRegistrationsFunc: func(ctx context.Context, actual []*eth2api.VersionedSignedValidatorRegistration) error {
-				require.Equal(t, actual, expect)
+		handler.SubmitValidatorRegistrationsFunc = func(ctx context.Context, actual []*eth2api.VersionedSignedValidatorRegistration) error {
+			require.Equal(t, actual, expect)
 
-				return nil
-			},
+			return nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -741,11 +705,9 @@ func TestRouter(t *testing.T) {
 	t.Run("submit voluntary exit", func(t *testing.T) {
 		exit1 := testutil.RandomExit()
 
-		handler := testHandler{
-			SubmitVoluntaryExitFunc: func(ctx context.Context, exit2 *eth2p0.SignedVoluntaryExit) error {
-				require.Equal(t, *exit1, *exit2)
-				return nil
-			},
+		handler.SubmitVoluntaryExitFunc = func(ctx context.Context, exit2 *eth2p0.SignedVoluntaryExit) error {
+			require.Equal(t, *exit1, *exit2)
+			return nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -757,15 +719,13 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("sync committee contribution", func(t *testing.T) {
-		handler := testHandler{
-			SyncCommitteeContributionFunc: func(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
-				contrib := testutil.RandomSyncCommitteeContribution()
-				contrib.Slot = slot
-				contrib.SubcommitteeIndex = subcommitteeIndex
-				contrib.BeaconBlockRoot = beaconBlockRoot
+		handler.SyncCommitteeContributionFunc = func(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+			contrib := testutil.RandomSyncCommitteeContribution()
+			contrib.Slot = slot
+			contrib.SubcommitteeIndex = subcommitteeIndex
+			contrib.BeaconBlockRoot = beaconBlockRoot
 
-				return contrib, nil
-			},
+			return contrib, nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -789,14 +749,12 @@ func TestRouter(t *testing.T) {
 	t.Run("submit sync committee messages", func(t *testing.T) {
 		msgs := []*altair.SyncCommitteeMessage{testutil.RandomSyncCommitteeMessage(), testutil.RandomSyncCommitteeMessage()}
 
-		handler := testHandler{
-			SubmitSyncCommitteeMessagesFunc: func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
-				for i := range msgs {
-					require.Equal(t, msgs[i], messages[i])
-				}
+		handler.SubmitSyncCommitteeMessagesFunc = func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
+			for i := range msgs {
+				require.Equal(t, msgs[i], messages[i])
+			}
 
-				return nil
-			},
+			return nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -809,14 +767,12 @@ func TestRouter(t *testing.T) {
 	t.Run("aggregate sync committee selections", func(t *testing.T) {
 		selections := []*eth2exp.SyncCommitteeSelection{testutil.RandomSyncCommitteeSelection(), testutil.RandomSyncCommitteeSelection()}
 
-		handler := testHandler{
-			AggregateSyncCommitteeSelectionsFunc: func(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
-				for i := range selections {
-					require.Equal(t, selections[i], partialSelections[i])
-				}
+		handler.AggregateSyncCommitteeSelectionsFunc = func(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
+			for i := range selections {
+				require.Equal(t, selections[i], partialSelections[i])
+			}
 
-				return partialSelections, nil
-			},
+			return partialSelections, nil
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
@@ -824,6 +780,22 @@ func TestRouter(t *testing.T) {
 			actual, err := eth2Cl.AggregateSyncCommitteeSelections(ctx, selections)
 			require.NoError(t, err)
 			require.Equal(t, selections, actual)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
+	t.Run("node version", func(t *testing.T) {
+		expectedVersion := "obolnetwork/charon/v0.25.0-eth123b/darwin-arm64"
+
+		handler.NodeVersionFunc = func(ctx context.Context) (string, error) {
+			return expectedVersion, nil
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			actualVersion, err := cl.NodeVersion(ctx)
+			require.NoError(t, err)
+			require.Equal(t, expectedVersion, actualVersion)
 		}
 
 		testRouter(t, handler, callback)
@@ -841,14 +813,15 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 		vIdxC = 3
 	)
 
-	testHandler := testHandler{AggregateBeaconCommitteeSelectionsFunc: func(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
+	handler := newTestHandler()
+	handler.AggregateBeaconCommitteeSelectionsFunc = func(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
 		return selections, nil
-	}}
+	}
 
-	proxy := httptest.NewServer(testHandler.newBeaconHandler(t))
+	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(testHandler, testBeaconAddr{addr: proxy.URL})
+	r, err := NewRouter(handler, testBeaconAddr{addr: proxy.URL})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -899,15 +872,17 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 		Signature: testutil.RandomEth2Signature(),
 	}
 
-	testHandler := testHandler{SubmitAggregateAttestationsFunc: func(_ context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
+	handler := newTestHandler()
+	handler.SubmitAggregateAttestationsFunc = func(_ context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
 		require.Equal(t, agg, aggregateAndProofs[0])
 
 		return nil
-	}}
-	proxy := httptest.NewServer(testHandler.newBeaconHandler(t))
+	}
+
+	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(testHandler, testBeaconAddr{addr: proxy.URL})
+	r, err := NewRouter(handler, testBeaconAddr{addr: proxy.URL})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -962,6 +937,15 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 	callback(context.Background(), server.URL)
 }
 
+// newTestHandler returns a new testHandler with NodeVersionFunc set.
+func newTestHandler() testHandler {
+	return testHandler{
+		NodeVersionFunc: func(ctx context.Context) (string, error) {
+			return "", nil
+		},
+	}
+}
+
 // testHandler implements the Handler interface allowing test-cases to specify only what they require.
 // This includes optional validatorapi handler functions, an optional beacon-node reserve proxy handler, and
 // mocked beacon-node endpoints required by the eth2http client during startup.
@@ -976,6 +960,7 @@ type testHandler struct {
 	BlindedBeaconBlockProposalFunc         func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
 	SubmitBlindedBeaconBlockFunc           func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
 	ProposerDutiesFunc                     func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	NodeVersionFunc                        func(ctx context.Context) (string, error)
 	ValidatorsFunc                         func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	ValidatorsByPubKeyFunc                 func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	SubmitVoluntaryExitFunc                func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
@@ -1021,6 +1006,10 @@ func (h testHandler) ValidatorsByPubKey(ctx context.Context, stateID string, pub
 
 func (h testHandler) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 	return h.ProposerDutiesFunc(ctx, epoch, il)
+}
+
+func (h testHandler) NodeVersion(ctx context.Context) (string, error) {
+	return h.NodeVersionFunc(ctx)
 }
 
 func (h testHandler) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
