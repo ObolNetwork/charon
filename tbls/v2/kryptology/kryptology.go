@@ -134,7 +134,7 @@ func (Kryptology) RecoverSecret(shares map[int]v2.PrivateKey, total uint, thresh
 	return *(*v2.PrivateKey)(ret), nil
 }
 
-func (Kryptology) CombineSignatures(signs []v2.Signature) (v2.Signature, error) {
+func (Kryptology) Aggregate(signs []v2.Signature) (v2.Signature, error) {
 	sig := bls_sig.NewSigEth2()
 
 	var rawSigns []*bls_sig.Signature
@@ -239,7 +239,7 @@ func (Kryptology) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, err
 	return *(*v2.Signature)(ret), nil
 }
 
-func (Kryptology) FastAggregateVerify(shares []v2.PublicKey, signature v2.Signature, data []byte) error {
+func (Kryptology) VerifyAggregate(shares []v2.PublicKey, signature v2.Signature, data []byte) error {
 	sig := bls_sig.NewSigEth2()
 
 	rawSign := new(bls_sig.Signature)
@@ -259,7 +259,7 @@ func (Kryptology) FastAggregateVerify(shares []v2.PublicKey, signature v2.Signat
 
 	verified, err := sig.FastAggregateVerify(rawKeys, data, rawSign)
 	if err != nil {
-		return errors.Wrap(err, "kryptology FastAggregateVerify failed")
+		return errors.Wrap(err, "kryptology VerifyAggregate failed")
 	}
 
 	if !verified {

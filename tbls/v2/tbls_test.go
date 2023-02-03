@@ -323,22 +323,22 @@ func (r randomizedImpl) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signatur
 	return impl.Sign(privateKey, data)
 }
 
-func (r randomizedImpl) FastAggregateVerify(shares []v2.PublicKey, signature v2.Signature, data []byte) error {
+func (r randomizedImpl) VerifyAggregate(shares []v2.PublicKey, signature v2.Signature, data []byte) error {
 	impl, err := r.selectImpl()
 	if err != nil {
 		return err
 	}
 
-	return impl.FastAggregateVerify(shares, signature, data)
+	return impl.VerifyAggregate(shares, signature, data)
 }
 
-func (r randomizedImpl) CombineSignatures(signs []v2.Signature) (v2.Signature, error) {
+func (r randomizedImpl) Aggregate(signs []v2.Signature) (v2.Signature, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
 		return v2.Signature{}, err
 	}
 
-	return impl.CombineSignatures(signs)
+	return impl.Aggregate(signs)
 }
 
 func FuzzRandomImplementations(f *testing.F) {

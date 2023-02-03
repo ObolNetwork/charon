@@ -52,10 +52,10 @@ func (Unimplemented) Sign(_ PrivateKey, _ []byte) (Signature, error) {
 	return Signature{}, ErrNotImplemented
 }
 
-func (Unimplemented) FastAggregateVerify(_ []PublicKey, _ Signature, _ []byte) error {
+func (Unimplemented) VerifyAggregate(_ []PublicKey, _ Signature, _ []byte) error {
 	return ErrNotImplemented
 }
 
-func (Unimplemented) CombineSignatures(_ []Signature) (Signature, error) {
+func (Unimplemented) Aggregate(_ []Signature) (Signature, error) {
 	return Signature{}, ErrNotImplemented
 }
