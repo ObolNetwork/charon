@@ -18,16 +18,14 @@ package signing
 import (
 	"context"
 
-	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/tbls"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
 // DomainName as defined in eth2 spec.
@@ -94,31 +92,20 @@ func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Clien
 
 	sigRoot, err := eth2util.SlotHashRoot(agg.Aggregate.Data.Slot)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "cannot get hash root of slot")
 	}
 
-	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, pubkey)
-}
-
-// VerifySyncContributionAndProof verifies the altair.SignedContributionAndProof with the provided pubkey.
-// Refer get_contribution_and_proof_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#broadcast-sync-committee-contribution.
-func VerifySyncContributionAndProof(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, contrib *altair.SignedContributionAndProof) error {
-	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, contrib.Message.Contribution.Slot)
+	rawKey, err := pubkey.MarshalBinary()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "cannot serialize public key")
 	}
 
-	sigRoot, err := contrib.Message.HashTreeRoot()
-	if err != nil {
-		return err
-	}
-
-	return Verify(ctx, eth2Cl, DomainContributionAndProof, epoch, sigRoot, contrib.Signature, pubkey)
+	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, rawKey)
 }
 
 // Verify returns an error if the signature doesn't match the eth2 domain signed root.
 func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoch eth2p0.Epoch, sigRoot eth2p0.Root,
-	signature eth2p0.BLSSignature, pubkey *bls_sig.PublicKey,
+	signature eth2p0.BLSSignature, pubkey []byte,
 ) error {
 	ctx, span := tracer.Start(ctx, "eth2util.Verify")
 	defer span.End()
@@ -133,29 +120,11 @@ func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoc
 		return errors.New("no signature found")
 	}
 
-	// Convert the signature
-	s, err := sigFromETH2(signature)
-	if err != nil {
-		return errors.Wrap(err, "convert signature")
+	if len(pubkey) != len(tblsv2.PublicKey{}) {
+		return errors.New("wrong length")
 	}
 
 	span.AddEvent("tbls.Verify")
-	ok, err := tbls.Verify(pubkey, sigData[:], s)
-	if err != nil {
-		return err
-	} else if !ok {
-		return errors.New("invalid signature")
-	}
 
-	return nil
-}
-
-// sigFromETH2 converts an eth2 phase0 bls signature into a kryptology bls signature.
-func sigFromETH2(sig eth2p0.BLSSignature) (*bls_sig.Signature, error) {
-	point, err := new(bls12381.G2).FromCompressed((*[96]byte)(sig[:]))
-	if err != nil {
-		return nil, errors.Wrap(err, "uncompress sig")
-	}
-
-	return &bls_sig.Signature{Value: *point}, nil
+	return tblsv2.Verify(*(*tblsv2.PublicKey)(pubkey), sigData[:], tblsv2.Signature(signature))
 }

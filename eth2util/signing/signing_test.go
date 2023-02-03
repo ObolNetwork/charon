@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -28,8 +29,15 @@ import (
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	herumiImpl "github.com/obolnetwork/charon/tbls/v2/herumi"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
+
+func TestMain(m *testing.M) {
+	tblsv2.SetImplementation(herumiImpl.Herumi{})
+	os.Exit(m.Run())
+}
 
 func TestVerifyRegistrationReference(t *testing.T) {
 	bmock, err := beaconmock.New()
@@ -76,6 +84,9 @@ func TestVerifyRegistrationReference(t *testing.T) {
 	pubkey, err := secretShare.GetPublicKey()
 	require.NoError(t, err)
 
-	err = signing.Verify(context.Background(), bmock, signing.DomainApplicationBuilder, 0, sigRoot, tblsconv.SigToETH2(sig), pubkey)
+	rawKey, err := pubkey.MarshalBinary()
+	require.NoError(t, err)
+
+	err = signing.Verify(context.Background(), bmock, signing.DomainApplicationBuilder, 0, sigRoot, tblsconv.SigToETH2(sig), rawKey)
 	require.NoError(t, err)
 }
