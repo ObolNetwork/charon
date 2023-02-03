@@ -126,5 +126,7 @@ func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoc
 
 	span.AddEvent("tbls.Verify")
 
-	return tblsv2.Verify(*(*tblsv2.PublicKey)(pubkey), sigData[:], tblsv2.Signature(signature))
+	tbls2Pubkey := *(*tblsv2.PublicKey)(pubkey)
+
+	return tblsv2.Verify(tbls2Pubkey, sigData[:], tblsv2.Signature(signature))
 }
