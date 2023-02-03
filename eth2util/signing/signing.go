@@ -121,7 +121,7 @@ func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoc
 	}
 
 	if len(pubkey) != len(tblsv2.PublicKey{}) {
-		return errors.New("wrong length")
+		return errors.New("invalid length", z.Str("pubkey", hex.EncodeToString(pubkey)))
 	}
 
 	span.AddEvent("tbls.Verify")
