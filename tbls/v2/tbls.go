@@ -59,6 +59,14 @@ type Implementation interface {
 	// Sign signs data with the provided private key, and returns the resulting signature.
 	// This function works on both shares of private keys, and complete private keys.
 	Sign(privateKey PrivateKey, data []byte) (Signature, error)
+
+	// VerifyAggregate is the BLS standard FastAggregateVerify call, as defined by the standard:
+	// https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-bls-signature-03#section-3.3.4.
+	VerifyAggregate(shares []PublicKey, signature Signature, data []byte) error
+
+	// Aggregate combines signs in a single Signature with standard BLS signature aggregation,
+	// as defined by the standard: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-bls-signature-03#section-2.8.
+	Aggregate(signs []Signature) (Signature, error)
 }
 
 // SetImplementation sets newImpl as the package backing implementation.
@@ -94,4 +102,12 @@ func Verify(compressedPublicKey PublicKey, data []byte, signature Signature) err
 
 func Sign(privateKey PrivateKey, data []byte) (Signature, error) {
 	return impl.Sign(privateKey, data)
+}
+
+func VerifyAggregate(shares []PublicKey, signature Signature, data []byte) error {
+	return impl.VerifyAggregate(shares, signature, data)
+}
+
+func Aggregate(signs []Signature) (Signature, error) {
+	return impl.Aggregate(signs)
 }

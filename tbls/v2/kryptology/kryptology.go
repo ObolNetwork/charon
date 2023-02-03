@@ -23,6 +23,7 @@ import (
 	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	v2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
@@ -133,6 +134,39 @@ func (Kryptology) RecoverSecret(shares map[int]v2.PrivateKey, total uint, thresh
 	return *(*v2.PrivateKey)(ret), nil
 }
 
+func (Kryptology) Aggregate(signs []v2.Signature) (v2.Signature, error) {
+	sig := bls_sig.NewSigEth2()
+
+	var rawSigns []*bls_sig.Signature
+
+	for idx, rawSignature := range signs {
+		rawSignature := rawSignature
+		var signature bls_sig.Signature
+
+		if err := signature.UnmarshalBinary(rawSignature[:]); err != nil {
+			return v2.Signature{}, errors.Wrap(
+				err,
+				"cannot unmarshal signature into Kryptology signature",
+				z.Int("signature_number", idx),
+			)
+		}
+
+		rawSigns = append(rawSigns, &signature)
+	}
+
+	s, err := sig.AggregateSignatures(rawSigns...)
+	if err != nil {
+		return v2.Signature{}, errors.Wrap(err, "cannot aggregate signatures")
+	}
+
+	sbytes, err := s.MarshalBinary()
+	if err != nil {
+		return v2.Signature{}, errors.Wrap(err, "cannot marshal signature")
+	}
+
+	return *(*v2.Signature)(sbytes), nil
+}
+
 func (Kryptology) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) (v2.Signature, error) {
 	var kryptologyPartialSigs []*bls_sig.PartialSignature
 
@@ -203,4 +237,34 @@ func (Kryptology) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, err
 	}
 
 	return *(*v2.Signature)(ret), nil
+}
+
+func (Kryptology) VerifyAggregate(shares []v2.PublicKey, signature v2.Signature, data []byte) error {
+	sig := bls_sig.NewSigEth2()
+
+	rawSign := new(bls_sig.Signature)
+	if err := rawSign.UnmarshalBinary(signature[:]); err != nil {
+		return errors.Wrap(err, "unmarshal raw signature into kryptology object")
+	}
+
+	var rawKeys []*bls_sig.PublicKey
+	for _, keyShare := range shares {
+		rawKey := new(bls_sig.PublicKey)
+		if err := rawKey.UnmarshalBinary(keyShare[:]); err != nil {
+			return errors.Wrap(err, "unmarshal raw public key into kryptology object")
+		}
+
+		rawKeys = append(rawKeys, rawKey)
+	}
+
+	verified, err := sig.FastAggregateVerify(rawKeys, data, rawSign)
+	if err != nil {
+		return errors.Wrap(err, "kryptology VerifyAggregate failed")
+	}
+
+	if !verified {
+		return errors.New("signature verification failed")
+	}
+
+	return nil
 }

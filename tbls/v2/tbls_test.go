@@ -141,6 +141,46 @@ func (ts *TestSuite) Test_Sign() {
 	require.NotEmpty(ts.T(), signature)
 }
 
+func (ts *TestSuite) Test_VerifyAggregate() {
+	data := []byte("hello obol!")
+
+	type key struct {
+		pub  v2.PublicKey
+		priv v2.PrivateKey
+	}
+
+	var keys []key
+
+	for i := 0; i < 10; i++ {
+		secret, err := v2.GenerateSecretKey()
+		require.NoError(ts.T(), err)
+		require.NotEmpty(ts.T(), secret)
+
+		pubkey, err := v2.SecretToPublicKey(secret)
+		require.NoError(ts.T(), err)
+
+		keys = append(keys, key{
+			pub:  pubkey,
+			priv: secret,
+		})
+	}
+
+	var signs []v2.Signature
+	var pshares []v2.PublicKey
+
+	for _, key := range keys {
+		s, err := v2.Sign(key.priv, data)
+		require.NoError(ts.T(), err)
+		signs = append(signs, s)
+		pshares = append(pshares, key.pub)
+	}
+
+	sig, err := v2.Aggregate(signs)
+	require.NoError(ts.T(), err)
+
+	require.NoError(ts.T(), v2.VerifyAggregate(pshares, sig, data))
+}
+
 func runSuite(t *testing.T, i v2.Implementation) {
 	t.Helper()
 	ts := NewTestSuite(i)
@@ -177,6 +217,7 @@ func runBenchmark(b *testing.B, impl v2.Implementation) {
 		s.Test_ThresholdAggregate()
 		s.Test_Verify()
 		s.Test_Sign()
+		s.Test_VerifyAggregate()
 	}
 }
 
@@ -280,6 +321,24 @@ func (r randomizedImpl) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signatur
 	}
 
 	return impl.Sign(privateKey, data)
+}
+
+func (r randomizedImpl) VerifyAggregate(shares []v2.PublicKey, signature v2.Signature, data []byte) error {
+	impl, err := r.selectImpl()
+	if err != nil {
+		return err
+	}
+
+	return impl.VerifyAggregate(shares, signature, data)
+}
+
+func (r randomizedImpl) Aggregate(signs []v2.Signature) (v2.Signature, error) {
+	impl, err := r.selectImpl()
+	if err != nil {
+		return v2.Signature{}, err
+	}
+
+	return impl.Aggregate(signs)
 }
 
 func FuzzRandomImplementations(f *testing.F) {

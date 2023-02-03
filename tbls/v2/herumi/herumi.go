@@ -124,10 +124,11 @@ func (Herumi) ThresholdSplit(secret v2.PrivateKey, total uint, threshold uint) (
 }
 
 func (Herumi) RecoverSecret(shares map[int]v2.PrivateKey, _, _ uint) (v2.PrivateKey, error) {
-	var pk bls.SecretKey
-
-	var rawKeys []bls.SecretKey
-	var rawIDs []bls.ID
+	var (
+		pk      bls.SecretKey
+		rawKeys []bls.SecretKey
+		rawIDs  []bls.ID
+	)
 
 	for idx, key := range shares {
 		// do a local copy, we're dealing with references here
@@ -162,9 +163,35 @@ func (Herumi) RecoverSecret(shares map[int]v2.PrivateKey, _, _ uint) (v2.Private
 	return *(*v2.PrivateKey)(pk.Serialize()), nil
 }
 
+func (Herumi) Aggregate(signs []v2.Signature) (v2.Signature, error) {
+	var (
+		sig      bls.Sign
+		rawSigns []bls.Sign
+	)
+
+	for idx, rawSignature := range signs {
+		var signature bls.Sign
+		if err := signature.Deserialize(rawSignature[:]); err != nil {
+			return v2.Signature{}, errors.Wrap(
+				err,
+				"cannot unmarshal signature into Herumi signature",
+				z.Int("signature_number", idx),
+			)
+		}
+
+		rawSigns = append(rawSigns, signature)
+	}
+
+	sig.Aggregate(rawSigns)
+
+	return *(*v2.Signature)(sig.Serialize()), nil
+}
+
 func (Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) (v2.Signature, error) {
-	var rawSigns []bls.Sign
-	var rawIDs []bls.ID
+	var (
+		rawSigns []bls.Sign
+		rawIDs   []bls.ID
+	)
 
 	for idx, rawSignature := range partialSignaturesByIndex {
 		// do a local copy, we're dealing with references here
@@ -229,4 +256,30 @@ func (Herumi) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, error) 
 	sigBytes := p.SignByte(data).Serialize()
 
 	return *(*v2.Signature)(sigBytes), nil
+}
+
+func (Herumi) VerifyAggregate(publicShares []v2.PublicKey, signature v2.Signature, data []byte) error {
+	var (
+		rawShares []bls.PublicKey
+		sig       bls.Sign
+	)
+
+	if err := sig.Deserialize(signature[:]); err != nil {
+		return errors.Wrap(err, "cannot unmarshal signature into Herumi signature")
+	}
+
+	for _, share := range publicShares {
+		var pubKey bls.PublicKey
+		if err := pubKey.Deserialize(share[:]); err != nil {
+			return errors.Wrap(err, "cannot set compressed public key in Herumi format")
+		}
+
+		rawShares = append(rawShares, pubKey)
+	}
+
+	if !sig.FastAggregateVerify(rawShares, data) {
+		return errors.New("signature verification failed")
+	}
+
+	return nil
 }
