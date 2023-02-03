@@ -104,10 +104,10 @@ func Sign(privateKey PrivateKey, data []byte) (Signature, error) {
 	return impl.Sign(privateKey, data)
 }
 
-func FastAggregateVerify(shares []PublicKey, signature Signature, data []byte) error {
+func VerifyAggregate(shares []PublicKey, signature Signature, data []byte) error {
 	return impl.VerifyAggregate(shares, signature, data)
 }
 
-func CombineSignatures(signs []Signature) (Signature, error) {
+func Aggregate(signs []Signature) (Signature, error) {
 	return impl.Aggregate(signs)
 }

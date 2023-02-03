@@ -141,7 +141,7 @@ func (ts *TestSuite) Test_Sign() {
 	require.NotEmpty(ts.T(), signature)
 }
 
-func (ts *TestSuite) Test_FastAggregateVerify() {
+func (ts *TestSuite) Test_VerifyAggregate() {
 	data := []byte("hello obol!")
 
 	type key struct {
@@ -175,10 +175,10 @@ func (ts *TestSuite) Test_FastAggregateVerify() {
 		pshares = append(pshares, key.pub)
 	}
 
-	sig, err := v2.CombineSignatures(signs)
+	sig, err := v2.Aggregate(signs)
 	require.NoError(ts.T(), err)
 
-	require.NoError(ts.T(), v2.FastAggregateVerify(pshares, sig, data))
+	require.NoError(ts.T(), v2.VerifyAggregate(pshares, sig, data))
 }
 
 func runSuite(t *testing.T, i v2.Implementation) {
@@ -217,7 +217,7 @@ func runBenchmark(b *testing.B, impl v2.Implementation) {
 		s.Test_ThresholdAggregate()
 		s.Test_Verify()
 		s.Test_Sign()
-		s.Test_FastAggregateVerify()
+		s.Test_VerifyAggregate()
 	}
 }
 
