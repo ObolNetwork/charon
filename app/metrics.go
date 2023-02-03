@@ -25,16 +25,17 @@ import (
 const (
 	// readyzReady indicates that readyz returns 200s and the node is operational.
 	readyzReady = 1
-	// readyzBeaconNodeDown indicates the readyz is returning 500s since the Beacon Node API is down.
+	// readyzBeaconNodeDown indicates that readyz is returning 500s since the Beacon Node API is down.
 	readyzBeaconNodeDown = 2
-	// readyzBeaconNodeSyncing indicates the readyz is returning 500s since the Beacon Node is syncing.
+	// readyzBeaconNodeSyncing indicates that readyz is returning 500s since the Beacon Node is syncing.
 	readyzBeaconNodeSyncing = 3
-	// readyzInsufficientPeers indicates the readyz is returning 500s since this node isn't connected
+	// readyzInsufficientPeers indicates that readyz is returning 500s since this node isn't connected
 	// to quorum peers via the P2P network.
 	readyzInsufficientPeers = 4
-	// readyzVCNotConfigured indicates the readyz is returning 500s since VC is not configured for this node.
-	readyzVCNotConfigured = 5
-	// readyVCMissingValidators indicates the ready is returning 500s since VC missing some validators.
+	// readyzVCNotConnected indicates that readyz is returning 500s since VC is connected to this node.
+	readyzVCNotConnected = 5
+	// readyVCMissingValidators indicates that readyz is returning 500s since VC is not configured correctly
+	// and missing some/all validators.
 	readyzVCMissingValidators = 6
 )
 

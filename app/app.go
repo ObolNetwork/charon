@@ -240,16 +240,24 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}
 
+	vapiCalls := make(chan struct{})
+	vapiCallsFunc := func() {
+		select {
+		case <-ctx.Done():
+		case vapiCalls <- struct{}{}:
+		}
+	}
+
 	pubkeys, err := getDVPubkeys(lock)
 	if err != nil {
 		return err
 	}
 
 	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, tcpNode, eth2Cl, peerIDs,
-		promRegistry, qbftDebug, pubkeys, seenPubkeys)
+		promRegistry, qbftDebug, pubkeys, seenPubkeys, vapiCalls)
 
 	err = wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, tcpNode, p2pKey, eth2Cl,
-		peerIDs, sender, qbftDebug.AddInstance, seenPubkeysFunc)
+		peerIDs, sender, qbftDebug.AddInstance, seenPubkeysFunc, vapiCallsFunc)
 	if err != nil {
 		return err
 	}
@@ -319,6 +327,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock cluster.Lock, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 	qbftSniffer func(*pbv1.SniffedConsensusInstance), seenPubkeys func(core.PubKey),
+	vapiCalls func(),
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -413,7 +422,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err := wireVAPIRouter(life, conf.ValidatorAPIAddr, eth2Cl, vapi); err != nil {
+	if err := wireVAPIRouter(life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls); err != nil {
 		return err
 	}
 
@@ -813,15 +822,20 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 }
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
-func wireVAPIRouter(life *lifecycle.Manager, vapiAddr string, eth2Cl eth2wrap.Client, handler validatorapi.Handler) error {
+func wireVAPIRouter(life *lifecycle.Manager, vapiAddr string, eth2Cl eth2wrap.Client,
+	handler validatorapi.Handler, vapiCalls func(),
+) error {
 	vrouter, err := validatorapi.NewRouter(handler, eth2Cl)
 	if err != nil {
 		return errors.Wrap(err, "new monitoring server")
 	}
 
 	server := &http.Server{
-		Addr:              vapiAddr,
-		Handler:           vrouter,
+		Addr: vapiAddr,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			vapiCalls()
+			vrouter.ServeHTTP(w, r)
+		}),
 		ReadHeaderTimeout: time.Second,
 	}
 

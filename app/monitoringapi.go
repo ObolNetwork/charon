@@ -42,8 +42,8 @@ var (
 	errReadyInsufficientPeers = errors.New("quorum peers not connected")
 	errReadyBeaconNodeSyncing = errors.New("beacon node not synced")
 	errReadyBeaconNodeDown    = errors.New("beacon node down")
-	errReadyVCNotConfigured   = errors.New("vc not configured")
-	errReadyVCMissingVals     = errors.New("vc missing some validators")
+	errReadyVCNotConnected    = errors.New("vc not connected")
+	errReadyVCMissingVals     = errors.New("vc missing validators")
 )
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
@@ -51,7 +51,7 @@ var (
 func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string,
 	tcpNode host.Host, eth2Cl eth2wrap.Client,
 	peerIDs []peer.ID, registry *prometheus.Registry, qbftDebug http.Handler,
-	pubkeys []core.PubKey, seenPubkeys chan core.PubKey,
+	pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
 ) {
 	peerCounter(ctx, eth2Cl, clockwork.NewRealClock())
 
@@ -67,7 +67,9 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 		writeResponse(w, http.StatusOK, "ok")
 	}))
 
-	readyErrFunc := startReadyChecker(ctx, tcpNode, eth2Cl, peerIDs, clockwork.NewRealClock(), pubkeys, seenPubkeys)
+	readyErrFunc := startReadyChecker(ctx, tcpNode, eth2Cl, peerIDs, clockwork.NewRealClock(),
+		pubkeys, seenPubkeys, vapiCalls)
+
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
 		readyErr := readyErrFunc()
 		if readyErr != nil {
@@ -100,7 +102,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 
 // startReadyChecker returns function which returns an error resulting from ready checks periodically.
 func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID,
-	clock clockwork.Clock, pubkeys []core.PubKey, seenPubkeys chan core.PubKey,
+	clock clockwork.Clock, pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
 ) func() error {
 	const minNotConnected = 6 // Require 6 rounds (1min) of too few connected
 	var (
@@ -111,20 +113,13 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 	go func() {
 		ticker := clock.NewTicker(10 * time.Second)
 		epochTicker := clock.NewTicker(32 * 12 * time.Second) // 32 slots * 12 second slot time
-		previous := make(map[core.PubKey]bool)
-
-		// newCurrent returns a new current map, populated with all the pubkeys.
-		newCurrent := func() map[core.PubKey]bool {
-			current := make(map[core.PubKey]bool)
-			for _, pubkey := range pubkeys {
-				current[pubkey] = true
-			}
-
-			return current
+		currVAPICount := 0
+		prevVAPICount := 1 // Assume connected.
+		currPKs := make(map[core.PubKey]bool)
+		prevPKs := make(map[core.PubKey]bool)
+		for _, pubkey := range pubkeys { // Assume all validators seen.
+			prevPKs[pubkey] = true
 		}
-
-		// Initialise current.
-		current := newCurrent()
 
 		for {
 			select {
@@ -132,7 +127,8 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 				return
 			case <-epochTicker.Chan():
 				// Copy current to previous and clear current.
-				previous, current = current, newCurrent()
+				prevPKs, currPKs = currPKs, make(map[core.PubKey]bool)
+				prevVAPICount, currVAPICount = currVAPICount, 0
 			case <-ticker.Chan():
 				if quorumPeersConnected(peerIDs, tcpNode) {
 					notConnectedRounds = 0
@@ -151,10 +147,10 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 				} else if notConnectedRounds >= minNotConnected {
 					err = errReadyInsufficientPeers
 					readyzGauge.Set(readyzInsufficientPeers)
-				} else if len(previous) == len(pubkeys) {
-					err = errReadyVCNotConfigured
-					readyzGauge.Set(readyzVCNotConfigured)
-				} else if len(previous) > 0 {
+				} else if prevVAPICount == 0 {
+					err = errReadyVCNotConnected
+					readyzGauge.Set(readyzVCNotConnected)
+				} else if len(prevPKs) < len(pubkeys) {
 					err = errReadyVCMissingVals
 					readyzGauge.Set(readyzVCMissingValidators)
 				} else {
@@ -165,8 +161,9 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 				readyErr = err
 				mu.Unlock()
 			case pubkey := <-seenPubkeys:
-				// Delete pubkey if called by a VC.
-				delete(current, pubkey)
+				currPKs[pubkey] = true
+			case <-vapiCalls:
+				currVAPICount++
 			}
 		}
 	}()

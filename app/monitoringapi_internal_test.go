@@ -40,6 +40,7 @@ func TestStartChecker(t *testing.T) {
 		numPeers    int
 		absentPeers int
 		seenPubkeys []core.PubKey
+		noVAPICalls bool
 		err         error
 	}{
 		{
@@ -66,14 +67,15 @@ func TestStartChecker(t *testing.T) {
 			err:         errReadyInsufficientPeers,
 		},
 		{
-			name:        "vc not configured",
+			name:        "vc not connected",
 			isSyncing:   false,
 			numPeers:    4,
 			absentPeers: 0,
-			err:         errReadyVCNotConfigured,
+			noVAPICalls: true,
+			err:         errReadyVCNotConnected,
 		},
 		{
-			name:        "vc missing some validators",
+			name:        "vc missing validators",
 			isSyncing:   false,
 			numPeers:    4,
 			absentPeers: 0,
@@ -126,10 +128,15 @@ func TestStartChecker(t *testing.T) {
 
 			clock := clockwork.NewFakeClock()
 			seenPubkeys := make(chan core.PubKey)
-			readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock, pubkeys, seenPubkeys)
+			vapiCalls := make(chan struct{})
+			readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock,
+				pubkeys, seenPubkeys, vapiCalls)
 
 			for _, pubkey := range tt.seenPubkeys {
 				seenPubkeys <- pubkey
+			}
+			if !tt.noVAPICalls {
+				vapiCalls <- struct{}{}
 			}
 
 			// Advance clock for first tick.
