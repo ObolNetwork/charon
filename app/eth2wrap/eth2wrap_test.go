@@ -21,6 +21,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"testing"
 	"time"
 
@@ -174,7 +176,10 @@ func TestSyncState(t *testing.T) {
 func TestErrors(t *testing.T) {
 	ctx := context.Background()
 	t.Run("network dial error", func(t *testing.T) {
-		_, err := eth2wrap.NewMultiHTTP(ctx, time.Hour, "localhost:22222")
+		cl, err := eth2wrap.NewMultiHTTP(ctx, time.Hour, "localhost:22222")
+		require.NoError(t, err)
+
+		_, err = cl.SlotsPerEpoch(ctx)
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "beacon api new eth2 client: network operation error: dial: connect: connection refused")
@@ -186,7 +191,10 @@ func TestErrors(t *testing.T) {
 	}))
 
 	t.Run("http timeout", func(t *testing.T) {
-		_, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond, srv.URL)
+		cl, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond, srv.URL)
+		require.NoError(t, err)
+
+		_, err = cl.SlotsPerEpoch(ctx)
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "beacon api new eth2 client: http request timeout: context deadline exceeded")
@@ -195,10 +203,14 @@ func TestErrors(t *testing.T) {
 	t.Run("caller cancelled", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()
-		_, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond, srv.URL)
+
+		cl, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond, srv.URL)
+		require.NoError(t, err)
+
+		_, err = cl.SlotsPerEpoch(ctx)
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api new eth2 client: caller cancelled http request: context canceled")
+		require.ErrorContains(t, err, "beacon api slots_per_epoch: context canceled")
 	})
 
 	t.Run("go-eth2-client http error", func(t *testing.T) {
@@ -275,4 +287,54 @@ func TestBlockAttestations(t *testing.T) {
 	resp, err = cl.BlockAttestations(context.Background(), "head")
 	require.NoError(t, err)
 	require.Empty(t, resp)
+}
+
+func TestOneDown(t *testing.T) {
+	ctx := context.Background()
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	addresses := []string{
+		bmock.Address(),                // Valid
+		"http://222.222.222.222:22222", // Invalid
+	}
+
+	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, addresses...)
+	require.NoError(t, err)
+
+	_, err = eth2Cl.SlotDuration(ctx)
+	require.NoError(t, err)
+}
+
+func TestLazy(t *testing.T) {
+	ctx := context.Background()
+
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	target, err := url.Parse(bmock.Address())
+	require.NoError(t, err)
+
+	// Start a proxy that we can enable/disable.
+	var enabled bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !enabled {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
+	}))
+
+	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, srv.URL)
+	require.NoError(t, err)
+
+	// Proxy is disabled, so this should fail.
+	_, err = eth2Cl.SlotDuration(ctx)
+	require.Error(t, err)
+
+	enabled = true
+
+	// Proxy is enabled, so this should succeed.
+	_, err = eth2Cl.SlotDuration(ctx)
+	require.NoError(t, err)
 }

@@ -88,6 +88,18 @@ type Client interface {
 		return {{.ResultNames}}
 	}
 {{end}}
+
+{{range .Methods}}
+	{{.Doc -}}
+	func (l *lazy) {{.Name}}({{.Params}}) ({{.NamedResults}}) {
+		cl, err := l.getClient()
+		if err != nil {
+			return {{.ResultNames}}
+		}
+
+		return cl.{{.Name}}({{.ParamNames}})
+	}
+{{end}}
 `
 
 	// interfaces defines all the interfaces to implement and whether to measure latency for each.
@@ -180,6 +192,15 @@ func (m Method) ParamNames() string {
 	var resp []string
 	for _, param := range m.params {
 		resp = append(resp, param.Name)
+	}
+
+	return strings.Join(resp, ", ")
+}
+
+func (m Method) NamedResults() string {
+	var resp []string
+	for _, result := range m.results {
+		resp = append(resp, fmt.Sprintf("%s %s", result.Name, result.Type))
 	}
 
 	return strings.Join(resp, ", ")

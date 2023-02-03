@@ -122,12 +122,7 @@ func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, slot eth2
 		return nil, err
 	}
 
-	switch block.Version {
-	case spec.DataVersionBellatrix, spec.DataVersionCapella:
-		return blindedBlock(block), nil
-	default:
-		return nil, errors.New("unsupported blinded block version")
-	}
+	return blindedBlock(block)
 }
 
 // syntheticBlock returns a synthetic beacon block to propose.
@@ -414,10 +409,10 @@ func getStandardHashFn() shuffle.HashFn {
 }
 
 // blindedBlock converts a normal block into a blinded block.
-func blindedBlock(block *spec.VersionedBeaconBlock) *api.VersionedBlindedBeaconBlock {
+func blindedBlock(block *spec.VersionedBeaconBlock) (*api.VersionedBlindedBeaconBlock, error) {
 	var resp *api.VersionedBlindedBeaconBlock
 	// Blinded blocks are only available from bellatrix.
-	switch block.Version { //nolint:exhaustive
+	switch block.Version {
 	case spec.DataVersionBellatrix:
 		resp = &api.VersionedBlindedBeaconBlock{
 			Version: block.Version,
@@ -492,7 +487,9 @@ func blindedBlock(block *spec.VersionedBeaconBlock) *api.VersionedBlindedBeaconB
 				},
 			},
 		}
+	default:
+		return nil, errors.New("unsupported blinded block version")
 	}
 
-	return resp
+	return resp, nil
 }
