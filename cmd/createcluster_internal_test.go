@@ -39,10 +39,17 @@ import (
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	herumiImpl "github.com/obolnetwork/charon/tbls/v2/herumi"
 	"github.com/obolnetwork/charon/testutil"
 )
 
 //go:generate go test . -run=TestCreateCluster -update -clean
+
+func TestMain(m *testing.M) {
+	tblsv2.SetImplementation(herumiImpl.Herumi{})
+	os.Exit(m.Run())
+}
 
 func TestCreateCluster(t *testing.T) {
 	defPath := "../cluster/examples/cluster-definition-002.json"
