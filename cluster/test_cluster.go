@@ -27,7 +27,7 @@ import (
 
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
-	"github.com/obolnetwork/charon/tbls"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -53,27 +53,36 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 	}
 
 	for i := 0; i < dv; i++ {
-		tss, shares, err := tbls.GenerateTSS(k, n, random)
+		rootSecret, err := tblsv2.GenerateSecretKey()
 		require.NoError(t, err)
 
-		pk, err := tss.PublicKey().MarshalBinary()
+		rootPublic, err := tblsv2.SecretToPublicKey(rootSecret)
+		require.NoError(t, err)
+
+		shares, err := tblsv2.ThresholdSplit(rootSecret, uint(n), uint(k))
 		require.NoError(t, err)
 
 		var pubshares [][]byte
+		var privshares []*bls_sig.SecretKeyShare
 		for i := 0; i < n; i++ {
-			share := tss.PublicShare(i + 1) // Share indexes are 1-indexed.
+			sharePrivkey := shares[i+1] // Share indexes are 1-indexed.
 
-			b, err := share.MarshalBinary()
+			sharePub, err := tblsv2.SecretToPublicKey(sharePrivkey)
 			require.NoError(t, err)
 
-			pubshares = append(pubshares, b)
+			pubshares = append(pubshares, sharePub[:])
+
+			// TODO(gsora): this needs to be fully ported to tblsv2
+			sks := new(bls_sig.SecretKeyShare)
+			require.NoError(t, sks.UnmarshalBinary(append(sharePrivkey[:], byte(i))))
+			privshares = append(privshares, sks)
 		}
 
 		vals = append(vals, DistValidator{
-			PubKey:    pk,
+			PubKey:    rootPublic[:],
 			PubShares: pubshares,
 		})
-		dvShares = append(dvShares, shares)
+		dvShares = append(dvShares, privshares)
 	}
 
 	for i := 0; i < n; i++ {

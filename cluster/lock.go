@@ -19,12 +19,10 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 // Lock extends the cluster config Definition with bls threshold public keys and checksums.
@@ -147,15 +145,15 @@ func (l Lock) VerifySignatures() error {
 		return errors.New("empty lock aggregate signature")
 	}
 
-	sig, err := tblsconv.SigFromBytes(l.SignatureAggregate)
+	sig, err := tblsconv2.SignatureFromBytes(l.SignatureAggregate)
 	if err != nil {
 		return err
 	}
 
-	var pubkeys []*bls_sig.PublicKey
+	var pubkeys []tblsv2.PublicKey
 	for _, val := range l.Validators {
 		for _, share := range val.PubShares {
-			pubkey, err := tblsconv.KeyFromBytes(share)
+			pubkey, err := tblsconv2.PubkeyFromBytes(share)
 			if err != nil {
 				return err
 			}
@@ -168,11 +166,9 @@ func (l Lock) VerifySignatures() error {
 		return err
 	}
 
-	ok, err := tbls.Scheme().FastAggregateVerify(pubkeys, hash[:], sig)
+	err = tblsv2.VerifyAggregate(pubkeys, sig, hash[:])
 	if err != nil {
 		return errors.Wrap(err, "verify lock signature aggregate")
-	} else if !ok {
-		return errors.New("invalid lock signature aggregate")
 	}
 
 	return nil

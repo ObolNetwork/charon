@@ -34,8 +34,9 @@ import (
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 // FetchDefinition fetches cluster definition file from a remote URI.
@@ -123,32 +124,39 @@ func signOperator(secret *k1.PrivateKey, def Definition, operator Operator) (Ope
 
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.
 func aggSign(secrets [][]*bls_sig.SecretKeyShare, message []byte) ([]byte, error) {
-	var sigs []*bls_sig.Signature
+	var sigs []tblsv2.Signature
 	for _, shares := range secrets {
 		for _, share := range shares {
 			secret, err := tblsconv.ShareToSecret(share)
 			if err != nil {
 				return nil, err
 			}
-			sig, err := tbls.Sign(secret, message)
+
+			secretRaw, err := secret.MarshalBinary()
+			if err != nil {
+				return nil, errors.Wrap(err, "unmarshal error")
+			}
+
+			secretV2, err := tblsconv2.PrivkeyFromBytes(secretRaw)
 			if err != nil {
 				return nil, err
 			}
+
+			sig, err := tblsv2.Sign(secretV2, message)
+			if err != nil {
+				return nil, err
+			}
+
 			sigs = append(sigs, sig)
 		}
 	}
 
-	aggSig, err := tbls.Scheme().AggregateSignatures(sigs...)
+	aggSig, err := tblsv2.Aggregate(sigs)
 	if err != nil {
 		return nil, errors.Wrap(err, "aggregate signatures")
 	}
 
-	b, err := aggSig.MarshalBinary()
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal signature")
-	}
-
-	return b, nil
+	return aggSig[:], nil
 }
 
 // ethHex represents a byte slices that is json formatted as 0x prefixed hex.

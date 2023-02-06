@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"sync"
 	"testing"
@@ -45,9 +46,16 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/priority"
 	"github.com/obolnetwork/charon/p2p"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	herumiImpl "github.com/obolnetwork/charon/tbls/v2/herumi"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
+
+func TestMain(m *testing.M) {
+	tblsv2.SetImplementation(herumiImpl.Herumi{})
+	os.Exit(m.Run())
+}
 
 // TestPingCluster starts a cluster of charon nodes and waits for each node to ping all the others.
 // It relies on discv5 for peer discovery.
