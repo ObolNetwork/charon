@@ -805,6 +805,7 @@ func submitProposalPreparations() handlerFunc {
 	}
 }
 
+// nodeVersion returns the version of the node.
 func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, _ []byte) (interface{}, error) {
 		version, err := p.NodeVersion(ctx)
@@ -813,9 +814,9 @@ func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
 		}
 
 		return nodeVersionResponse{
-			Data: nodeVersionInner{
-				Version: version,
-			},
+			Data: struct {
+				Version string `json:"version"`
+			}(struct{ Version string }{Version: version}),
 		}, nil
 	}
 }

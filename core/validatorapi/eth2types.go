@@ -171,9 +171,7 @@ type syncCommitteeContributionResponse struct {
 // nodeVersionResponse defines the response to the node version endpoint.
 // See: https://ethereum.github.io/beacon-APIs/#/Node/getNodeVersion
 type nodeVersionResponse struct {
-	Data nodeVersionInner `json:"data"`
-}
-
-type nodeVersionInner struct {
-	Version string `json:"version"`
+	Data struct {
+		Version string `json:"version"`
+	} `json:"data"`
 }
