@@ -68,6 +68,7 @@ type Handler interface {
 	eth2exp.BeaconCommitteeSelectionAggregator
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
+	eth2client.NodeVersionProvider
 	eth2client.ProposerDutiesProvider
 	eth2client.SyncCommitteeContributionProvider
 	eth2client.SyncCommitteeContributionsSubmitter
@@ -200,6 +201,11 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 			Name:    "aggregate_sync_committee_selections",
 			Path:    "/eth/v1/validator/sync_committee_selections",
 			Handler: aggregateSyncCommitteeSelections(h),
+		},
+		{
+			Name:    "node_version",
+			Path:    "/eth/v1/node/version",
+			Handler: nodeVersion(h),
 		},
 	}
 
@@ -796,6 +802,22 @@ func submitSyncCommitteeMessages(s eth2client.SyncCommitteeMessagesSubmitter) ha
 func submitProposalPreparations() handlerFunc {
 	return func(context.Context, map[string]string, url.Values, []byte) (interface{}, error) {
 		return nil, nil
+	}
+}
+
+// nodeVersion returns the version of the node.
+func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, _ []byte) (interface{}, error) {
+		version, err := p.NodeVersion(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		return nodeVersionResponse{
+			Data: struct {
+				Version string `json:"version"`
+			}(struct{ Version string }{Version: version}),
+		}, nil
 	}
 }
 
