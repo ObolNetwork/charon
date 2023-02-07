@@ -268,3 +268,27 @@ func (Kryptology) VerifyAggregate(shares []v2.PublicKey, signature v2.Signature,
 
 	return nil
 }
+
+func (Kryptology) AggregatePublicKeys(pubkeys []v2.PublicKey) (v2.PublicKey, error) {
+	var pks []*bls_sig.PublicKey
+
+	for _, key := range pubkeys {
+		final := new(bls_sig.PublicKey)
+		if err := final.UnmarshalBinary(key[:]); err != nil {
+			return v2.PublicKey{}, errors.Wrap(err, "kryptology pubkey unmarshal")
+		}
+		pks = append(pks, final)
+	}
+
+	final, err := bls_sig.NewSigEth2().AggregatePublicKeys(pks...)
+	if err != nil {
+		return v2.PublicKey{}, errors.Wrap(err, "kryptology pubkey aggregation")
+	}
+
+	finalBytes, err := final.MarshalBinary()
+	if err != nil {
+		return v2.PublicKey{}, errors.Wrap(err, "kryptology pubkey marshal")
+	}
+
+	return *(*v2.PublicKey)(finalBytes), nil
+}

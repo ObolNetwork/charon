@@ -67,6 +67,9 @@ type Implementation interface {
 	// Aggregate combines signs in a single Signature with standard BLS signature aggregation,
 	// as defined by the standard: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-bls-signature-03#section-2.8.
 	Aggregate(signs []Signature) (Signature, error)
+
+	// AggregatePublicKeys combines a set of PublicKey into a single one using standard BLS public key aggregation.
+	AggregatePublicKeys(pubkeys []PublicKey) (PublicKey, error)
 }
 
 // SetImplementation sets newImpl as the package backing implementation.
@@ -110,4 +113,8 @@ func VerifyAggregate(shares []PublicKey, signature Signature, data []byte) error
 
 func Aggregate(signs []Signature) (Signature, error) {
 	return impl.Aggregate(signs)
+}
+
+func AggregatePublicKeys(pubkeys []PublicKey) (PublicKey, error) {
+	return impl.AggregatePublicKeys(pubkeys)
 }

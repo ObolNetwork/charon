@@ -283,3 +283,18 @@ func (Herumi) VerifyAggregate(publicShares []v2.PublicKey, signature v2.Signatur
 
 	return nil
 }
+
+func (Herumi) AggregatePublicKeys(pubkeys []v2.PublicKey) (v2.PublicKey, error) {
+	hfinal := new(bls.PublicKey)
+
+	for _, key := range pubkeys {
+		final := new(bls.PublicKey)
+		if err := final.Deserialize(key[:]); err != nil {
+			return v2.PublicKey{}, errors.Wrap(err, "herumi pubkey aggregation")
+		}
+
+		hfinal.Add(final)
+	}
+
+	return *(*v2.PublicKey)(hfinal.Serialize()), nil
+}

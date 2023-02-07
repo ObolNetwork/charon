@@ -59,3 +59,7 @@ func (Unimplemented) VerifyAggregate(_ []PublicKey, _ Signature, _ []byte) error
 func (Unimplemented) Aggregate(_ []Signature) (Signature, error) {
 	return Signature{}, ErrNotImplemented
 }
+
+func (Unimplemented) AggregatePublicKeys(_ []PublicKey) (PublicKey, error) {
+	return PublicKey{}, ErrNotImplemented
+}
