@@ -29,13 +29,12 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	herumiImpl "github.com/obolnetwork/charon/tbls/v2/herumi"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(herumiImpl.Herumi{})
+	tblsv2.SetImplementation(tblsv2.Herumi{})
 	os.Exit(m.Run())
 }
 

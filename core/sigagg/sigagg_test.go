@@ -34,13 +34,12 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/sigagg"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	"github.com/obolnetwork/charon/tbls/v2/herumi"
 	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(herumi.Herumi{})
+	tblsv2.SetImplementation(tblsv2.Herumi{})
 	code := m.Run()
 	os.Exit(code)
 }

@@ -71,8 +71,6 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	blsv2 "github.com/obolnetwork/charon/tbls/v2"
-	"github.com/obolnetwork/charon/tbls/v2/herumi"
-	"github.com/obolnetwork/charon/tbls/v2/kryptology"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -146,11 +144,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	version.LogInfo(ctx, "Charon starting")
 
-	blsv2.SetImplementation(kryptology.Kryptology{})
-
 	if featureset.Enabled(featureset.HerumiBLS) {
 		log.Info(ctx, "Enabling Herumi BLS signature backend")
-		blsv2.SetImplementation(herumi.Herumi{})
+		blsv2.SetImplementation(blsv2.Herumi{})
 	}
 
 	// Wire processes and their dependencies
