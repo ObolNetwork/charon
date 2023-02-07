@@ -146,6 +146,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	version.LogInfo(ctx, "Charon starting")
 
+	blsv2.SetImplementation(kryptology.Kryptology{})
+
+	if featureset.Enabled(featureset.HerumiBLS) {
+		log.Info(ctx, "Enabling Herumi BLS signature backend")
+		blsv2.SetImplementation(herumi.Herumi{})
+	}
+
 	// Wire processes and their dependencies
 	life := new(lifecycle.Manager)
 
@@ -438,13 +445,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc)
-	}
-
-	blsv2.SetImplementation(kryptology.Kryptology{})
-
-	if featureset.Enabled(featureset.HerumiBLS) {
-		log.Info(ctx, "Enabling Herumi BLS signature backend")
-		blsv2.SetImplementation(herumi.Herumi{})
 	}
 
 	sigAgg := sigagg.New(lock.Threshold)
