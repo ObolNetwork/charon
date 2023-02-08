@@ -17,15 +17,10 @@ package signing
 
 import (
 	"context"
-	"encoding/hex"
-
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/tracer"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
@@ -86,7 +81,7 @@ func GetDataRoot(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, e
 
 // VerifyAggregateAndProofSelection verifies the eth2p0.AggregateAndProof with the provided pubkey.
 // Refer get_slot_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#aggregation-selection.
-func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey *bls_sig.PublicKey, agg *eth2p0.AggregateAndProof) error {
+func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey tblsv2.PublicKey, agg *eth2p0.AggregateAndProof) error {
 	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, agg.Aggregate.Data.Slot)
 	if err != nil {
 		return err
@@ -97,17 +92,12 @@ func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Clien
 		return errors.Wrap(err, "cannot get hash root of slot")
 	}
 
-	rawKey, err := pubkey.MarshalBinary()
-	if err != nil {
-		return errors.Wrap(err, "cannot serialize public key")
-	}
-
-	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, rawKey)
+	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, pubkey)
 }
 
 // Verify returns an error if the signature doesn't match the eth2 domain signed root.
 func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoch eth2p0.Epoch, sigRoot eth2p0.Root,
-	signature eth2p0.BLSSignature, pubkey []byte,
+	signature eth2p0.BLSSignature, pubkey tblsv2.PublicKey,
 ) error {
 	ctx, span := tracer.Start(ctx, "eth2util.Verify")
 	defer span.End()
@@ -122,13 +112,7 @@ func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoc
 		return errors.New("no signature found")
 	}
 
-	if len(pubkey) != len(tblsv2.PublicKey{}) {
-		return errors.New("invalid length", z.Str("pubkey", hex.EncodeToString(pubkey)))
-	}
-
 	span.AddEvent("tbls.Verify")
 
-	tbls2Pubkey := *(*tblsv2.PublicKey)(pubkey)
-
-	return tblsv2.Verify(tbls2Pubkey, sigData[:], tblsv2.Signature(signature))
+	return tblsv2.Verify(pubkey, sigData[:], tblsv2.Signature(signature))
 }

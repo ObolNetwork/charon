@@ -20,6 +20,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"os"
 	"testing"
 
@@ -27,8 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util/signing"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -47,7 +47,7 @@ func TestVerifyRegistrationReference(t *testing.T) {
 	secretShareBytes, err := hex.DecodeString("345768c0245f1dc702df9e50e811002f61ebb2680b3d5931527ef59f96cbaf9b")
 	require.NoError(t, err)
 
-	secretShare, err := tblsconv.SecretFromBytes(secretShareBytes)
+	secretShare, err := tblsconv2.PrivkeyFromBytes(secretShareBytes)
 	require.NoError(t, err)
 
 	registrationJSON := `
@@ -71,21 +71,18 @@ func TestVerifyRegistrationReference(t *testing.T) {
 	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainApplicationBuilder, 0, sigRoot)
 	require.NoError(t, err)
 
-	sig, err := tbls.Sign(secretShare, sigData[:])
+	sig, err := tblsv2.Sign(secretShare, sigData[:])
 	require.NoError(t, err)
 
-	sigEth2 := tblsconv.SigToETH2(sig)
+	sigEth2 := eth2p0.BLSSignature(sig)
 	require.Equal(t,
 		fmt.Sprintf("%x", registration.Signature),
 		fmt.Sprintf("%x", sigEth2),
 	)
 
-	pubkey, err := secretShare.GetPublicKey()
+	pubkey, err := tblsv2.SecretToPublicKey(secretShare)
 	require.NoError(t, err)
 
-	rawKey, err := pubkey.MarshalBinary()
-	require.NoError(t, err)
-
-	err = signing.Verify(context.Background(), bmock, signing.DomainApplicationBuilder, 0, sigRoot, tblsconv.SigToETH2(sig), rawKey)
+	err = signing.Verify(context.Background(), bmock, signing.DomainApplicationBuilder, 0, sigRoot, eth2p0.BLSSignature(sig), pubkey)
 	require.NoError(t, err)
 }

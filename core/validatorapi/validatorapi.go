@@ -18,6 +18,7 @@ package validatorapi
 import (
 	"context"
 	"fmt"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	"runtime"
 	"testing"
 	"time"
@@ -719,12 +720,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 
 		// Verify inner selection proof (outcome of DutyPrepareAggregator).
 		if !c.insecureTest {
-			blsPubkey, err := tblsconv.KeyFromETH2(eth2Pubkey) // Use group pubkey, not pubshare.
-			if err != nil {
-				return err
-			}
-
-			err = signing.VerifyAggregateAndProofSelection(ctx, c.eth2Cl, blsPubkey, agg.Message)
+			err = signing.VerifyAggregateAndProofSelection(ctx, c.eth2Cl, tblsv2.PublicKey(eth2Pubkey), agg.Message)
 			if err != nil {
 				return err
 			}
