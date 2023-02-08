@@ -36,6 +36,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
+	"github.com/obolnetwork/charon/launchpad"
 	"github.com/obolnetwork/charon/p2p"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
@@ -48,6 +49,9 @@ type Config struct {
 	DataDir        string
 	P2P            p2p.Config
 	Log            log.Config
+
+	LaunchpadAPIAddr string
+	Publish          bool
 
 	TestDef          *cluster.Definition
 	TestSyncCallback func(connected int, id peer.ID)
@@ -208,6 +212,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 			return err
 		}
 		log.Debug(ctx, "Saved keyshares to disk")
+	}
+
+	if conf.Publish {
+		cl := launchpad.New(conf.LaunchpadAPIAddr)
+		if err = cl.PublishLock(ctx, lock); err != nil {
+			log.Warn(ctx, "Publishing lock file", err)
+		} else {
+			log.Debug(ctx, "Published lock file to api")
+		}
 	}
 
 	if err = writeLock(conf.DataDir, lock); err != nil {
