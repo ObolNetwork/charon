@@ -16,14 +16,13 @@
 package dkg
 
 import (
-	"crypto/rand"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 func TestInvalidSignatures(t *testing.T) {
@@ -31,51 +30,122 @@ func TestInvalidSignatures(t *testing.T) {
 		n  = 4
 		th = 3
 	)
-	tss, sks, err := tbls.GenerateTSS(th, n, rand.Reader)
+
+	secret, err := tblsv2.GenerateSecretKey()
 	require.NoError(t, err)
 
+	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	secretShares, err := tblsv2.ThresholdSplit(secret, n, th)
+	require.NoError(t, err)
+
+	pubshares := make(map[int]tblsv2.PublicKey)
+
+	for idx, share := range secretShares {
+		pubkey, err := tblsv2.SecretToPublicKey(share)
+		require.NoError(t, err)
+
+		pubshares[idx] = pubkey
+	}
+
 	shares := share{
-		PubKey:       tss.PublicKey(),
-		SecretShare:  sks[0],
-		PublicShares: tss.PublicShares(),
+		PubKey:       pubkey,
+		SecretShare:  secretShares[0],
+		PublicShares: pubshares,
 	}
 
 	getSigs := func(msg []byte) []core.ParSignedData {
 		var sigs []core.ParSignedData
 		for i := 0; i < n-1; i++ {
-			sk, err := tblsconv.ShareToSecret(sks[i])
+			sig, err := tblsv2.Sign(secretShares[i+1], msg)
 			require.NoError(t, err)
 
-			sig, err := tbls.Sign(sk, msg)
-			require.NoError(t, err)
-
-			sigs = append(sigs, core.NewPartialSignature(tblsconv.SigToCore(sig), i+1))
+			sigs = append(sigs, core.NewPartialSignature(tblsconv2.SigToCore(sig), i+1))
 		}
 
-		sk, err := tblsconv.ShareToSecret(sks[n-1])
+		invalidSig, err := tblsv2.Sign(secretShares[n-1], []byte("invalid msg"))
 		require.NoError(t, err)
 
-		invalidSig, err := tbls.Sign(sk, []byte("invalid msg"))
-		require.NoError(t, err)
-
-		sigs = append(sigs, core.NewPartialSignature(tblsconv.SigToCore(invalidSig), n))
+		sigs = append(sigs, core.NewPartialSignature(tblsconv2.SigToCore(invalidSig), n))
 
 		return sigs
 	}
 
-	pubkey, err := tblsconv.KeyToCore(tss.PublicKey())
+	corePubkey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
 
 	// Aggregate and verify deposit data signatures
 	depositDataMsg := []byte("deposit data msg")
 
-	_, err = aggDepositDataSigs(map[core.PubKey][]core.ParSignedData{pubkey: getSigs(depositDataMsg)}, []share{shares},
-		map[core.PubKey][]byte{pubkey: depositDataMsg})
+	_, err = aggDepositDataSigs(map[core.PubKey][]core.ParSignedData{corePubkey: getSigs(depositDataMsg)}, []share{shares},
+		map[core.PubKey][]byte{corePubkey: depositDataMsg})
 	require.EqualError(t, err, "invalid deposit data partial signature from peer")
 
 	// Aggregate and verify cluster lock hash signatures
 	lockMsg := []byte("cluster lock hash")
 
-	_, _, err = aggLockHashSig(map[core.PubKey][]core.ParSignedData{pubkey: getSigs(lockMsg)}, map[core.PubKey]share{pubkey: shares}, lockMsg)
-	require.EqualError(t, err, "invalid lock hash partial signature from peer")
+	_, _, err = aggLockHashSig(map[core.PubKey][]core.ParSignedData{corePubkey: getSigs(lockMsg)}, map[core.PubKey]share{corePubkey: shares}, lockMsg)
+	require.EqualError(t, err, "invalid lock hash partial signature from peer: signature not verified")
+}
+
+func TestValidSignatures(t *testing.T) {
+	const (
+		n  = 4
+		th = 3
+	)
+
+	secret, err := tblsv2.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	secretShares, err := tblsv2.ThresholdSplit(secret, n, th)
+	require.NoError(t, err)
+
+	pubshares := make(map[int]tblsv2.PublicKey)
+
+	for idx, share := range secretShares {
+		pubkey, err := tblsv2.SecretToPublicKey(share)
+		require.NoError(t, err)
+
+		pubshares[idx] = pubkey
+	}
+
+	shares := share{
+		PubKey:       pubkey,
+		SecretShare:  secret,
+		PublicShares: pubshares,
+	}
+
+	getSigs := func(msg []byte) []core.ParSignedData {
+		var sigs []core.ParSignedData
+		for i := 0; i < n-1; i++ {
+			pk := secretShares[i+1]
+			sig, err := tblsv2.Sign(pk, msg)
+			require.NoError(t, err)
+
+			coreSig := tblsconv2.SigToCore(sig)
+			sigs = append(sigs, core.NewPartialSignature(coreSig, i+1))
+		}
+
+		return sigs
+	}
+
+	corePubkey, err := core.PubKeyFromBytes(pubkey[:])
+	require.NoError(t, err)
+
+	// Aggregate and verify deposit data signatures
+	depositDataMsg := []byte("deposit data msg")
+
+	_, err = aggDepositDataSigs(map[core.PubKey][]core.ParSignedData{corePubkey: getSigs(depositDataMsg)}, []share{shares},
+		map[core.PubKey][]byte{corePubkey: depositDataMsg})
+	require.NoError(t, err)
+
+	// Aggregate and verify cluster lock hash signatures
+	lockMsg := []byte("cluster lock hash")
+
+	_, _, err = aggLockHashSig(map[core.PubKey][]core.ParSignedData{corePubkey: getSigs(lockMsg)}, map[core.PubKey]share{corePubkey: shares}, lockMsg)
+	require.NoError(t, err)
 }

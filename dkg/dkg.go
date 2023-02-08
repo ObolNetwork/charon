@@ -17,12 +17,10 @@ package dkg
 
 import (
 	"context"
-	crand "crypto/rand"
 	"fmt"
 	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -39,8 +37,8 @@ import (
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 type Config struct {
@@ -160,7 +158,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 			clusterID: clusterID,
 		}
 
-		shares, err = runKeyCast(ctx, def, tp, nodeIdx.PeerIdx, crand.Reader)
+		shares, err = runKeyCast(ctx, def, tp, nodeIdx.PeerIdx)
 		if err != nil {
 			return err
 		}
@@ -357,17 +355,14 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 
 // signAndAggLockHash returns cluster lock file with aggregated signature after signing, exchange and aggregation of partial signatures.
 func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definition, nodeIdx cluster.NodeIdx, ex *exchanger) (cluster.Lock, error) {
-	dvs, err := dvsFromShares(shares)
-	if err != nil {
-		return cluster.Lock{}, err
-	}
+	dvs := dvsFromShares(shares)
 
 	lock := cluster.Lock{
 		Definition: def,
 		Validators: dvs,
 	}
 
-	lock, err = lock.SetLockHash()
+	lock, err := lock.SetLockHash()
 	if err != nil {
 		return cluster.Lock{}, err
 	}
@@ -384,7 +379,7 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 
 	pubkeyToShares := make(map[core.PubKey]share)
 	for _, sh := range shares {
-		pk, err := tblsconv.KeyToCore(sh.PubKey)
+		pk, err := core.PubKeyFromBytes(sh.PubKey[:])
 		if err != nil {
 			return cluster.Lock{}, err
 		}
@@ -397,18 +392,12 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 		return cluster.Lock{}, err
 	}
 
-	verified, err := tbls.Scheme().VerifyMultiSignature(aggPkLockHash, lock.LockHash, aggSigLockHash)
+	err = tblsv2.VerifyAggregate(aggPkLockHash, aggSigLockHash, lock.LockHash)
 	if err != nil {
 		return cluster.Lock{}, errors.Wrap(err, "verify multisignature")
-	} else if !verified {
-		return cluster.Lock{}, errors.New("invalid lock hash aggregated signature")
 	}
 
-	sigBytes, err := aggSigLockHash.MarshalBinary()
-	if err != nil {
-		return cluster.Lock{}, errors.Wrap(err, "marshal binary aggSigLockHash")
-	}
-	lock.SignatureAggregate = sigBytes
+	lock.SignatureAggregate = aggSigLockHash[:]
 
 	return lock, nil
 }
@@ -431,15 +420,21 @@ func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, w
 	}
 
 	for pk, sig := range aggSigDepositData {
-		pubkey, err := tblsconv.KeyFromCore(pk)
+		pk := pk
+		sig := sig
+		pkb, err := pk.Bytes()
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "core bytes marshaling failure")
+		}
+
+		pubkey, err := tblsconv2.PubkeyFromBytes(pkb)
 		if err != nil {
 			return nil, nil, err
 		}
-		ok, err := tbls.Verify(pubkey, msgs[pk], sig)
+
+		err = tblsv2.Verify(pubkey, msgs[pk], sig)
 		if err != nil {
-			return nil, nil, err
-		} else if !ok {
-			return nil, nil, errors.New("invalid deposit data aggregated signature")
+			return nil, nil, errors.Wrap(err, "invalid deposit data aggregated signature")
 		}
 	}
 
@@ -448,18 +443,18 @@ func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, w
 		depositDataSigs []eth2p0.BLSSignature
 	)
 	for _, sh := range shares {
-		eth2Pk, err := tblsconv.KeyToETH2(sh.PubKey)
+		eth2Pk, err := tblsconv2.PubkeyToETH2(sh.PubKey)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		corePk, err := tblsconv.KeyToCore(sh.PubKey)
+		corePk, err := core.PubKeyFromBytes(sh.PubKey[:])
 		if err != nil {
 			return nil, nil, err
 		}
 
 		pubkeys = append(pubkeys, eth2Pk)
-		depositDataSigs = append(depositDataSigs, tblsconv.SigToETH2(aggSigDepositData[corePk]))
+		depositDataSigs = append(depositDataSigs, tblsconv2.SigToETH2(aggSigDepositData[corePk]))
 	}
 
 	return pubkeys, depositDataSigs, nil
@@ -467,35 +462,36 @@ func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, w
 
 // aggLockHashSig returns the aggregated multi signature of the lock hash
 // signed by all the private key shares of all the distributed validators.
-func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.PubKey]share, hash []byte) (*bls_sig.MultiSignature, *bls_sig.MultiPublicKey, error) {
+func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.PubKey]share, hash []byte) (tblsv2.Signature, []tblsv2.PublicKey, error) {
 	var (
-		sigs    []*bls_sig.Signature
-		pubkeys []*bls_sig.PublicKey
+		sigs    []tblsv2.Signature
+		pubkeys []tblsv2.PublicKey
 	)
+
 	for pk, psigs := range data {
+		pk := pk
+		psigs := psigs
 		for _, s := range psigs {
-			sig, err := tblsconv.SigFromCore(s.Signature())
+			sig, err := tblsconv2.SignatureFromBytes(s.Signature())
 			if err != nil {
-				return nil, nil, errors.Wrap(err, "signature from core")
+				return tblsv2.Signature{}, nil, errors.Wrap(err, "signature from bytes")
 			}
 
 			sh, ok := shares[pk]
 			if !ok {
 				// peerIdx is 0-indexed while shareIdx is 1-indexed
-				return nil, nil, errors.New("invalid pubkey in lock hash partial signature from peer",
+				return tblsv2.Signature{}, nil, errors.New("invalid pubkey in lock hash partial signature from peer",
 					z.Int("peerIdx", s.ShareIdx-1), z.Str("pubkey", pk.String()))
 			}
 
 			pubshare, ok := sh.PublicShares[s.ShareIdx]
 			if !ok {
-				return nil, nil, errors.New("invalid pubshare")
+				return tblsv2.Signature{}, nil, errors.New("invalid pubshare")
 			}
 
-			ok, err = tbls.Verify(pubshare, hash, sig)
+			err = tblsv2.Verify(pubshare, hash, sig)
 			if err != nil {
-				return nil, nil, err
-			} else if !ok {
-				return nil, nil, errors.New("invalid lock hash partial signature from peer",
+				return tblsv2.Signature{}, nil, errors.Wrap(err, "invalid lock hash partial signature from peer",
 					z.Int("peerIdx", s.ShareIdx-1), z.Str("pubkey", pk.String()))
 			}
 
@@ -505,40 +501,29 @@ func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.P
 	}
 
 	// Full BLS Signature Aggregation
-	aggSig, err := tbls.Scheme().AggregateSignatures(sigs...)
+	aggSig, err := tblsv2.Aggregate(sigs)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "bls aggregate Signatures")
+		return tblsv2.Signature{}, nil, errors.Wrap(err, "bls aggregate Signatures")
 	}
 
-	// Aggregate Public Keys to verify aggregated signature
-	aggPubKey, err := tbls.Scheme().AggregatePublicKeys(pubkeys...)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "bls aggregate Public Keys")
-	}
-
-	return aggSig, aggPubKey, nil
+	return aggSig, pubkeys, nil
 }
 
 // signLockHash returns a partially signed dataset containing signatures of the lock hash.
 func signLockHash(shareIdx int, shares []share, hash []byte) (core.ParSignedDataSet, error) {
 	set := make(core.ParSignedDataSet)
 	for _, share := range shares {
-		pk, err := tblsconv.KeyToCore(share.PubKey)
+		pk, err := core.PubKeyFromBytes(share.PubKey[:])
 		if err != nil {
 			return nil, err
 		}
 
-		secret, err := tblsconv.ShareToSecret(share.SecretShare)
+		sig, err := tblsv2.Sign(share.SecretShare, hash)
 		if err != nil {
 			return nil, err
 		}
 
-		sig, err := tbls.Sign(secret, hash)
-		if err != nil {
-			return nil, err
-		}
-
-		set[pk] = core.NewPartialSignature(tblsconv.SigToCore(sig), shareIdx)
+		set[pk] = core.NewPartialSignature(tblsconv2.SigToCore(sig), shareIdx)
 	}
 
 	return set, nil
@@ -553,12 +538,12 @@ func signDepositData(shares []share, shareIdx int, withdrawalAddresses []string,
 		if err != nil {
 			return nil, nil, err
 		}
-		pubkey, err := tblsconv.KeyToETH2(share.PubKey)
+		pubkey, err := tblsconv2.PubkeyToETH2(share.PubKey)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		pk, err := tblsconv.KeyToCore(share.PubKey)
+		pk, err := core.PubKeyFromBytes(share.PubKey[:])
 		if err != nil {
 			return nil, nil, err
 		}
@@ -569,27 +554,22 @@ func signDepositData(shares []share, shareIdx int, withdrawalAddresses []string,
 		}
 		msgs[pk] = msg[:]
 
-		secret, err := tblsconv.ShareToSecret(share.SecretShare)
+		sig, err := tblsv2.Sign(share.SecretShare, msg[:])
 		if err != nil {
 			return nil, nil, err
 		}
 
-		sig, err := tbls.Sign(secret, msg[:])
-		if err != nil {
-			return nil, nil, err
-		}
-
-		set[pk] = core.NewPartialSignature(tblsconv.SigToCore(sig), shareIdx)
+		set[pk] = core.NewPartialSignature(tblsconv2.SigToCore(sig), shareIdx)
 	}
 
 	return set, msgs, nil
 }
 
 // aggDepositDataSigs returns the threshold aggregated signatures of the deposit data per DV.
-func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []share, msgs map[core.PubKey][]byte) (map[core.PubKey]*bls_sig.Signature, error) {
-	pubkeyToPubShares := make(map[core.PubKey]map[int]*bls_sig.PublicKey)
+func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []share, msgs map[core.PubKey][]byte) (map[core.PubKey]tblsv2.Signature, error) {
+	pubkeyToPubShares := make(map[core.PubKey]map[int]tblsv2.PublicKey)
 	for _, sh := range shares {
-		pk, err := tblsconv.KeyToCore(sh.PubKey)
+		pk, err := core.PubKeyFromBytes(sh.PubKey[:])
 		if err != nil {
 			return nil, err
 		}
@@ -597,12 +577,14 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []shar
 		pubkeyToPubShares[pk] = sh.PublicShares
 	}
 
-	resp := make(map[core.PubKey]*bls_sig.Signature)
+	resp := make(map[core.PubKey]tblsv2.Signature)
 
 	for pk, psigsData := range data {
-		var psigs []*bls_sig.PartialSignature
+		pk := pk
+		psigsData := psigsData
+		psigs := make(map[int]tblsv2.Signature)
 		for _, s := range psigsData {
-			sig, err := tblsconv.SigFromCore(s.Signature())
+			sig, err := tblsconv2.SignatureFromBytes(s.Signature())
 			if err != nil {
 				return nil, errors.Wrap(err, "signature from core")
 			}
@@ -619,22 +601,17 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []shar
 				return nil, errors.New("invalid pubshare")
 			}
 
-			ok, err = tbls.Verify(pubshare, msgs[pk], sig)
+			err = tblsv2.Verify(pubshare, msgs[pk], sig)
 			if err != nil {
-				return nil, err
-			} else if !ok {
 				return nil, errors.New("invalid deposit data partial signature from peer",
 					z.Int("peerIdx", s.ShareIdx-1), z.Str("pubkey", pk.String()))
 			}
 
-			psigs = append(psigs, &bls_sig.PartialSignature{
-				Identifier: byte(s.ShareIdx),
-				Signature:  sig.Value,
-			})
+			psigs[s.ShareIdx] = sig
 		}
 
 		// Aggregate signatures per DV
-		asig, err := tbls.Aggregate(psigs)
+		asig, err := tblsv2.ThresholdAggregate(psigs)
 		if err != nil {
 			return nil, err
 		}
@@ -645,13 +622,10 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []shar
 }
 
 // dvsFromShares returns the shares as a slice of cluster distributed validator types.
-func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
+func dvsFromShares(shares []share) []cluster.DistValidator {
 	var dvs []cluster.DistValidator
 	for _, s := range shares {
-		msg, err := msgFromShare(s)
-		if err != nil {
-			return nil, err
-		}
+		msg := msgFromShare(s)
 
 		dvs = append(dvs, cluster.DistValidator{
 			PubKey:    msg.PubKey,
@@ -659,5 +633,5 @@ func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 		})
 	}
 
-	return dvs, nil
+	return dvs
 }

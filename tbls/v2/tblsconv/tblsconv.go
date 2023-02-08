@@ -31,12 +31,16 @@ func SigFromCore(sig core.Signature) v2.Signature {
 
 // SigToCore converts a tbls.Signature into a core workflow Signature type.
 func SigToCore(sig v2.Signature) core.Signature {
-	return core.SigFromETH2(eth2p0.BLSSignature(sig))
+	return sig[:]
 }
 
 // SigToETH2 converts a tbls.Signature into an eth2 phase0 bls signature.
 func SigToETH2(sig v2.Signature) eth2p0.BLSSignature {
 	return eth2p0.BLSSignature(sig)
+}
+
+func PubkeyToETH2(pk v2.PublicKey) (eth2p0.BLSPubKey, error) {
+	return eth2p0.BLSPubKey(pk), nil
 }
 
 // PrivkeyFromBytes returns a v2.PrivateKey from the given compressed private key bytes contained in data.
