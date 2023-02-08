@@ -211,6 +211,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
+	// Write cluster-lock file
 	if conf.Publish {
 		cl := launchpad.New(conf.LaunchpadAPIAddr)
 		if err = cl.PublishLock(ctx, lock); err != nil {
@@ -223,7 +224,6 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	if err = writeLock(lock, conf.ClusterDir, numNodes, shareSets); err != nil {
 		return err
 	}
-	log.Debug(ctx, "Saved lock file to disk")
 
 	if conf.SplitKeys {
 		writeWarning(w)
