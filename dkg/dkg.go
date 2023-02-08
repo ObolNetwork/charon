@@ -17,10 +17,7 @@ package dkg
 
 import (
 	"context"
-	crand "crypto/rand"
 	"fmt"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -40,6 +37,8 @@ import (
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/p2p"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 type Config struct {
@@ -159,7 +158,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 			clusterID: clusterID,
 		}
 
-		shares, err = runKeyCast(ctx, def, tp, nodeIdx.PeerIdx, crand.Reader)
+		shares, err = runKeyCast(ctx, def, tp, nodeIdx.PeerIdx)
 		if err != nil {
 			return err
 		}
@@ -586,7 +585,7 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []shar
 	for pk, psigsData := range data {
 		pk := pk
 		psigsData := psigsData
-		var psigs []tblsv2.Signature
+		psigs := make(map[int]tblsv2.Signature)
 		for _, s := range psigsData {
 			sig, err := tblsconv2.SignatureFromBytes(s.Signature())
 			if err != nil {
@@ -611,11 +610,11 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []shar
 					z.Int("peerIdx", s.ShareIdx-1), z.Str("pubkey", pk.String()))
 			}
 
-			psigs = append(psigs, sig)
+			psigs[s.ShareIdx] = sig
 		}
 
 		// Aggregate signatures per DV
-		asig, err := tblsv2.Aggregate(psigs)
+		asig, err := tblsv2.ThresholdAggregate(psigs)
 		if err != nil {
 			return nil, err
 		}
@@ -629,10 +628,7 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []shar
 func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 	var dvs []cluster.DistValidator
 	for _, s := range shares {
-		msg, err := msgFromShare(s)
-		if err != nil {
-			return nil, err
-		}
+		msg := msgFromShare(s)
 
 		dvs = append(dvs, cluster.DistValidator{
 			PubKey:    msg.PubKey,
