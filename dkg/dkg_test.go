@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -39,10 +38,9 @@ import (
 	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	herumiImpl "github.com/obolnetwork/charon/tbls/v2/herumi"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -230,7 +228,7 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 
 	// Read generated lock and keystores from disk
 	var (
-		secretShares = make([][]*bls_sig.SecretKey, def.NumValidators)
+		secretShares = make([][]tblsv2.PrivateKey, def.NumValidators)
 		locks        []cluster.Lock
 	)
 	for i := 0; i < len(def.Operators); i++ {
@@ -240,7 +238,14 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 		require.Len(t, keyShares, def.NumValidators)
 
 		for i, key := range keyShares {
-			secretShares[i] = append(secretShares[i], key)
+			// convert kryptology keys to tblsv2 keys
+			// TODO(gsora): this needs to go away once keystore is on tblsv2
+			rawKey, err := key.MarshalBinary()
+			require.NoError(t, err)
+
+			v2Key, err := tblsconv2.PrivkeyFromBytes(rawKey)
+			require.NoError(t, err)
+			secretShares[i] = append(secretShares[i], v2Key)
 		}
 
 		lockFile, err := os.ReadFile(path.Join(dataDir, "cluster-lock.json"))
@@ -264,29 +269,25 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 
 	// 	Ensure keystores can generate valid tbls aggregate signature.
 	for i := 0; i < def.NumValidators; i++ {
-		var sigs []*bls_sig.PartialSignature
+		var sigs []tblsv2.Signature
 		for j := 0; j < len(def.Operators); j++ {
 			msg := []byte("data")
-			sig, err := tbls.Sign(secretShares[i][j], msg)
+			sig, err := tblsv2.Sign(secretShares[i][j], msg)
 			require.NoError(t, err)
-			sigs = append(sigs, &bls_sig.PartialSignature{
-				Identifier: byte(j),
-				Signature:  sig.Value,
-			})
+			sigs = append(sigs, sig)
 
 			// Ensure all public shares can verify the partial signature
 			for _, lock := range locks {
 				if len(lock.Validators[i].PubShares) == 0 {
 					continue
 				}
-				pk, err := tblsconv.KeyFromBytes(lock.Validators[i].PubShares[j])
+				pk, err := tblsconv2.PubkeyFromBytes(lock.Validators[i].PubShares[j])
 				require.NoError(t, err)
-				ok, err := tbls.Verify(pk, msg, sig)
+				err = tblsv2.Verify(pk, msg, sig)
 				require.NoError(t, err)
-				require.True(t, ok)
 			}
 		}
-		_, err := tbls.Aggregate(sigs)
+		_, err := tblsv2.Aggregate(sigs)
 		require.NoError(t, err)
 	}
 }
