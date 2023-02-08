@@ -145,6 +145,7 @@ func TestSmoke(t *testing.T) {
 			conf := compose.NewDefaultConfig()
 			conf.DisableMonitoringPorts = true
 			conf.BuildLocal = true
+			conf.ImageTag = "local"
 			if test.ConfigFunc != nil {
 				test.ConfigFunc(&conf)
 			}
