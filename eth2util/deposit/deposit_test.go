@@ -20,13 +20,12 @@ import (
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -56,10 +55,10 @@ func TestMarshalDepositData(t *testing.T) {
 		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddrs[i], eth2util.Goerli.Name)
 		require.NoError(t, err)
 
-		sig, err := tbls.Sign(sk, msgRoot[:])
+		sig, err := tblsv2.Sign(sk, msgRoot[:])
 		require.NoError(t, err)
 
-		sigs = append(sigs, tblsconv.SigToETH2(sig))
+		sigs = append(sigs, tblsconv2.SigToETH2(sig))
 		pubkeys = append(pubkeys, pk)
 	}
 
@@ -70,19 +69,19 @@ func TestMarshalDepositData(t *testing.T) {
 }
 
 // Get the private and public keys in appropriate format for the test.
-func GetKeys(t *testing.T, privKey string) (*bls_sig.SecretKey, eth2p0.BLSPubKey) {
+func GetKeys(t *testing.T, privKey string) (tblsv2.PrivateKey, eth2p0.BLSPubKey) {
 	t.Helper()
 
 	privKeyBytes, err := hex.DecodeString(privKey)
 	require.NoError(t, err)
 
-	sk, err := tblsconv.SecretFromBytes(privKeyBytes)
+	sk, err := tblsconv2.PrivkeyFromBytes(privKeyBytes)
 	require.NoError(t, err)
 
-	pk, err := sk.GetPublicKey()
+	pk, err := tblsv2.SecretToPublicKey(sk)
 	require.NoError(t, err)
 
-	pubkey, err := tblsconv.KeyToETH2(pk)
+	pubkey, err := tblsconv2.PubkeyToETH2(pk)
 	require.NoError(t, err)
 
 	return sk, pubkey
