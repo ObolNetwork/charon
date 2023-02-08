@@ -24,8 +24,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	v2 "github.com/obolnetwork/charon/tbls/v2"
-	herumiImpl "github.com/obolnetwork/charon/tbls/v2/herumi"
-	"github.com/obolnetwork/charon/tbls/v2/kryptology"
 )
 
 type TestSuite struct {
@@ -189,11 +187,11 @@ func runSuite(t *testing.T, i v2.Implementation) {
 }
 
 func TestHerumiImplementation(t *testing.T) {
-	runSuite(t, herumiImpl.Herumi{})
+	runSuite(t, v2.Herumi{})
 }
 
 func TestKryptologyImplementation(t *testing.T) {
-	runSuite(t, kryptology.Kryptology{})
+	runSuite(t, v2.Kryptology{})
 }
 
 func runBenchmark(b *testing.B, impl v2.Implementation) {
@@ -222,18 +220,18 @@ func runBenchmark(b *testing.B, impl v2.Implementation) {
 }
 
 func BenchmarkHerumiImplementation(b *testing.B) {
-	runBenchmark(b, herumiImpl.Herumi{})
+	runBenchmark(b, v2.Herumi{})
 }
 
 func BenchmarkKryptologyImplementation(b *testing.B) {
-	runBenchmark(b, kryptology.Kryptology{})
+	runBenchmark(b, v2.Kryptology{})
 }
 
 func TestRandomized(t *testing.T) {
 	runSuite(t, randomizedImpl{
 		implementations: []v2.Implementation{
-			herumiImpl.Herumi{},
-			kryptology.Kryptology{},
+			v2.Herumi{},
+			v2.Kryptology{},
 		},
 	})
 }

@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package herumi
+package v2
 
 import (
 	"fmt"
@@ -24,7 +24,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
-	v2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
 var initOnce = sync.Once{}
@@ -50,7 +49,7 @@ func init() {
 // Herumi is an Implementation with Herumi-specific inner logic.
 type Herumi struct{}
 
-func (Herumi) GenerateSecretKey() (v2.PrivateKey, error) {
+func (Herumi) GenerateSecretKey() (PrivateKey, error) {
 	var p bls.SecretKey
 	p.SetByCSPRNG()
 
@@ -59,25 +58,25 @@ func (Herumi) GenerateSecretKey() (v2.PrivateKey, error) {
 	// an array with constant size.
 	// I'm dereferencing it to return a copy as well.
 	// Ref: https://go.dev/ref/spec#Conversions_from_slice_to_array_pointer
-	return *(*v2.PrivateKey)(p.Serialize()), nil
+	return *(*PrivateKey)(p.Serialize()), nil
 }
 
-func (Herumi) SecretToPublicKey(secret v2.PrivateKey) (v2.PublicKey, error) {
+func (Herumi) SecretToPublicKey(secret PrivateKey) (PublicKey, error) {
 	var p bls.SecretKey
 
 	if err := p.Deserialize(secret[:]); err != nil {
-		return v2.PublicKey{}, errors.Wrap(err, "cannot unmarshal secret into Herumi secret key")
+		return PublicKey{}, errors.Wrap(err, "cannot unmarshal secret into Herumi secret key")
 	}
 
 	pubk, err := p.GetSafePublicKey()
 	if err != nil {
-		return v2.PublicKey{}, errors.Wrap(err, "cannot obtain public key from secret")
+		return PublicKey{}, errors.Wrap(err, "cannot obtain public key from secret")
 	}
 
-	return *(*v2.PublicKey)(pubk.Serialize()), nil
+	return *(*PublicKey)(pubk.Serialize()), nil
 }
 
-func (Herumi) ThresholdSplit(secret v2.PrivateKey, total uint, threshold uint) (map[int]v2.PrivateKey, error) {
+func (Herumi) ThresholdSplit(secret PrivateKey, total uint, threshold uint) (map[int]PrivateKey, error) {
 	var p bls.SecretKey
 
 	if err := p.Deserialize(secret[:]); err != nil {
@@ -96,7 +95,7 @@ func (Herumi) ThresholdSplit(secret v2.PrivateKey, total uint, threshold uint) (
 		poly[i] = sk
 	}
 
-	ret := make(map[int]v2.PrivateKey)
+	ret := make(map[int]PrivateKey)
 	for i := 1; i <= int(total); i++ {
 		var blsID bls.ID
 
@@ -117,13 +116,13 @@ func (Herumi) ThresholdSplit(secret v2.PrivateKey, total uint, threshold uint) (
 			return nil, errors.Wrap(err, "cannot set ID on polynomial", z.Int("id_number", i))
 		}
 
-		ret[i] = *(*v2.PrivateKey)(sk.Serialize())
+		ret[i] = *(*PrivateKey)(sk.Serialize())
 	}
 
 	return ret, nil
 }
 
-func (Herumi) RecoverSecret(shares map[int]v2.PrivateKey, _, _ uint) (v2.PrivateKey, error) {
+func (Herumi) RecoverSecret(shares map[int]PrivateKey, _, _ uint) (PrivateKey, error) {
 	var (
 		pk      bls.SecretKey
 		rawKeys []bls.SecretKey
@@ -135,7 +134,7 @@ func (Herumi) RecoverSecret(shares map[int]v2.PrivateKey, _, _ uint) (v2.Private
 		key := key
 		var kpk bls.SecretKey
 		if err := kpk.Deserialize(key[:]); err != nil {
-			return v2.PrivateKey{}, errors.Wrap(
+			return PrivateKey{}, errors.Wrap(
 				err,
 				"cannot unmarshal key with into Herumi secret key",
 				z.Int("key_number", idx),
@@ -146,7 +145,7 @@ func (Herumi) RecoverSecret(shares map[int]v2.PrivateKey, _, _ uint) (v2.Private
 
 		var id bls.ID
 		if err := id.SetDecString(strconv.Itoa(idx)); err != nil {
-			return v2.PrivateKey{}, errors.Wrap(
+			return PrivateKey{}, errors.Wrap(
 				err,
 				"private key isn't a number",
 				z.Int("key_number", idx),
@@ -157,13 +156,13 @@ func (Herumi) RecoverSecret(shares map[int]v2.PrivateKey, _, _ uint) (v2.Private
 	}
 
 	if err := pk.Recover(rawKeys, rawIDs); err != nil {
-		return v2.PrivateKey{}, errors.Wrap(err, "cannot recover full private key from partial keys")
+		return PrivateKey{}, errors.Wrap(err, "cannot recover full private key from partial keys")
 	}
 
-	return *(*v2.PrivateKey)(pk.Serialize()), nil
+	return *(*PrivateKey)(pk.Serialize()), nil
 }
 
-func (Herumi) Aggregate(signs []v2.Signature) (v2.Signature, error) {
+func (Herumi) Aggregate(signs []Signature) (Signature, error) {
 	var (
 		sig      bls.Sign
 		rawSigns []bls.Sign
@@ -172,7 +171,7 @@ func (Herumi) Aggregate(signs []v2.Signature) (v2.Signature, error) {
 	for idx, rawSignature := range signs {
 		var signature bls.Sign
 		if err := signature.Deserialize(rawSignature[:]); err != nil {
-			return v2.Signature{}, errors.Wrap(
+			return Signature{}, errors.Wrap(
 				err,
 				"cannot unmarshal signature into Herumi signature",
 				z.Int("signature_number", idx),
@@ -184,10 +183,10 @@ func (Herumi) Aggregate(signs []v2.Signature) (v2.Signature, error) {
 
 	sig.Aggregate(rawSigns)
 
-	return *(*v2.Signature)(sig.Serialize()), nil
+	return *(*Signature)(sig.Serialize()), nil
 }
 
-func (Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) (v2.Signature, error) {
+func (Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]Signature) (Signature, error) {
 	var (
 		rawSigns []bls.Sign
 		rawIDs   []bls.ID
@@ -198,7 +197,7 @@ func (Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) 
 		rawSignature := rawSignature
 		var signature bls.Sign
 		if err := signature.Deserialize(rawSignature[:]); err != nil {
-			return v2.Signature{}, errors.Wrap(
+			return Signature{}, errors.Wrap(
 				err,
 				"cannot unmarshal signature into Herumi signature",
 				z.Int("signature_number", idx),
@@ -209,7 +208,7 @@ func (Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) 
 
 		var id bls.ID
 		if err := id.SetDecString(strconv.Itoa(idx)); err != nil {
-			return v2.Signature{}, errors.Wrap(
+			return Signature{}, errors.Wrap(
 				err,
 				"signature id isn't a number",
 				z.Int("signature_number", idx),
@@ -222,13 +221,13 @@ func (Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) 
 	var complete bls.Sign
 
 	if err := complete.Recover(rawSigns, rawIDs); err != nil {
-		return v2.Signature{}, errors.Wrap(err, "cannot combine signatures")
+		return Signature{}, errors.Wrap(err, "cannot combine signatures")
 	}
 
-	return *(*v2.Signature)(complete.Serialize()), nil
+	return *(*Signature)(complete.Serialize()), nil
 }
 
-func (Herumi) Verify(compressedPublicKey v2.PublicKey, data []byte, rawSignature v2.Signature) error {
+func (Herumi) Verify(compressedPublicKey PublicKey, data []byte, rawSignature Signature) error {
 	var pubKey bls.PublicKey
 	if err := pubKey.Deserialize(compressedPublicKey[:]); err != nil {
 		return errors.Wrap(err, "cannot set compressed public key in Herumi format")
@@ -246,19 +245,19 @@ func (Herumi) Verify(compressedPublicKey v2.PublicKey, data []byte, rawSignature
 	return nil
 }
 
-func (Herumi) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, error) {
+func (Herumi) Sign(privateKey PrivateKey, data []byte) (Signature, error) {
 	var p bls.SecretKey
 
 	if err := p.Deserialize(privateKey[:]); err != nil {
-		return v2.Signature{}, errors.Wrap(err, "cannot unmarshal secret into Herumi secret key")
+		return Signature{}, errors.Wrap(err, "cannot unmarshal secret into Herumi secret key")
 	}
 
 	sigBytes := p.SignByte(data).Serialize()
 
-	return *(*v2.Signature)(sigBytes), nil
+	return *(*Signature)(sigBytes), nil
 }
 
-func (Herumi) VerifyAggregate(publicShares []v2.PublicKey, signature v2.Signature, data []byte) error {
+func (Herumi) VerifyAggregate(publicShares []PublicKey, signature Signature, data []byte) error {
 	var (
 		rawShares []bls.PublicKey
 		sig       bls.Sign

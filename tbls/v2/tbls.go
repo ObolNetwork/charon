@@ -18,7 +18,7 @@ package v2
 import "sync"
 
 var (
-	impl     Implementation = Unimplemented{}
+	impl     Implementation = Kryptology{}
 	implLock sync.Mutex
 )
 
