@@ -18,16 +18,15 @@ package dkg
 import (
 	"context"
 	"encoding/json"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"io"
 	"sort"
-
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/tbls"
 )
 
 // kcTransport provides secure transport abstraction to keycast.
@@ -41,10 +40,10 @@ type kcTransport interface {
 // share is the co-validator public key, tbls public shares, and private key share.
 // Each node in the cluster will receive one for each distributed validator.
 type share struct {
-	PubKey      *bls_sig.PublicKey
-	SecretShare *bls_sig.SecretKeyShare
+	PubKey      tblsv2.PublicKey
+	SecretShare tblsv2.PrivateKey
 
-	PublicShares map[int]*bls_sig.PublicKey // map[shareIdx]*bls_sig.PublicKey
+	PublicShares map[int]tblsv2.PublicKey // map[shareIdx]*bls_sig.PublicKey
 }
 
 // shareMsg is the share message wire format sent by the dealer.
@@ -164,7 +163,17 @@ func leadKeyCast(ctx context.Context, tp kcTransport, def cluster.Definition, ra
 func createShares(numValidators, numNodes, threshold int, random io.Reader) ([][]share, error) {
 	resp := make([][]share, numNodes)
 	for i := 0; i < numValidators; i++ {
-		tss, shares, err := tbls.GenerateTSS(threshold, numNodes, random)
+		rootSecret, err := tblsv2.GenerateSecretKey()
+		if err != nil {
+			return nil, err
+		}
+
+		rootPubkey, err := tblsv2.SecretToPublicKey(rootSecret)
+		if err != nil {
+			return nil, err
+		}
+
+		shares, err := tblsv2.ThresholdSplit(rootSecret, uint(numNodes), uint(threshold))
 		if err != nil {
 			return nil, err
 		}
@@ -173,11 +182,23 @@ func createShares(numValidators, numNodes, threshold int, random io.Reader) ([][
 			return nil, errors.New("bug: sanity check length of shares")
 		}
 
+		pubShares := make(map[int]tblsv2.PublicKey)
+		for idx, privShare := range shares {
+			privShare := privShare
+			idx := idx
+			pubShare, err := tblsv2.SecretToPublicKey(privShare)
+			if err != nil {
+				return nil, errors.Wrap(err, "can't obtain pubkey from secret", z.Int("index", idx))
+			}
+
+			pubShares[idx] = pubShare
+		}
+
 		for nodeIdx := 0; nodeIdx < numNodes; nodeIdx++ {
 			resp[nodeIdx] = append(resp[nodeIdx], share{
-				PubKey:       tss.PublicKey(),
-				PublicShares: tss.PublicShares(),
-				SecretShare:  shares[nodeIdx],
+				PubKey:       rootPubkey,
+				PublicShares: pubShares,
+				SecretShare:  shares[nodeIdx+1],
 			})
 		}
 	}
@@ -187,10 +208,7 @@ func createShares(numValidators, numNodes, threshold int, random io.Reader) ([][
 
 // msgFromShare returns a new share message to send over the wire.
 func msgFromShare(s share) (shareMsg, error) {
-	pubkey, err := s.PubKey.MarshalBinary()
-	if err != nil {
-		return shareMsg{}, errors.Wrap(err, "marshal pubkey")
-	}
+	pubkey := s.PubKey[:]
 
 	// Sort pub shares by id/index.
 	var pubSharesIDs []int
@@ -201,17 +219,11 @@ func msgFromShare(s share) (shareMsg, error) {
 
 	var pubShares [][]byte
 	for _, id := range pubSharesIDs {
-		b, err := s.PublicShares[id].MarshalBinary()
-		if err != nil {
-			return shareMsg{}, errors.Wrap(err, "marshal public share")
-		}
-		pubShares = append(pubShares, b)
+		key := s.PublicShares[id]
+		pubShares = append(pubShares, key[:])
 	}
 
-	secretShare, err := s.SecretShare.MarshalBinary()
-	if err != nil {
-		return shareMsg{}, errors.Wrap(err, "marshal secretShare share")
-	}
+	secretShare := s.SecretShare[:]
 
 	return shareMsg{
 		PubKey:      pubkey,
@@ -222,24 +234,23 @@ func msgFromShare(s share) (shareMsg, error) {
 
 // shareFromMsg returns the share by unmarshalling the wire message types.
 func shareFromMsg(msg shareMsg) (share, error) {
-	pubKey := new(bls_sig.PublicKey)
-	if err := pubKey.UnmarshalBinary(msg.PubKey); err != nil {
-		return share{}, errors.Wrap(err, "unmarshal pubkey")
+	pubKey, err := tblsconv2.PubkeyFromBytes(msg.PubKey)
+	if err != nil {
+		return share{}, errors.Wrap(err, "public key from bytes")
 	}
+	pubShares := make(map[int]tblsv2.PublicKey)
 
-	pubShares := make(map[int]*bls_sig.PublicKey)
 	for id, bytes := range msg.PubShares {
-		pubShare := new(bls_sig.PublicKey)
-		if err := pubShare.UnmarshalBinary(bytes); err != nil {
-			return share{}, errors.Wrap(err, "unmarshal public share")
+		pubKey, err := tblsconv2.PubkeyFromBytes(bytes)
+		if err != nil {
+			return share{}, errors.Wrap(err, "public key from bytes")
 		}
-
-		pubShares[id+1] = pubShare // Public shares IDs are 1-indexed.
+		pubShares[id+1] = pubKey // Public shares IDs are 1-indexed.
 	}
 
-	secretShare := new(bls_sig.SecretKeyShare)
-	if err := secretShare.UnmarshalBinary(msg.SecretShare); err != nil {
-		return share{}, errors.Wrap(err, "unmarshal pubkey")
+	secretShare, err := tblsconv2.PrivkeyFromBytes(msg.SecretShare)
+	if err != nil {
+		return share{}, errors.Wrap(err, "private key from bytes")
 	}
 
 	return share{
@@ -247,4 +258,29 @@ func shareFromMsg(msg shareMsg) (share, error) {
 		SecretShare:  secretShare,
 		PublicShares: pubShares,
 	}, nil
+	//pubKey := new(bls_sig.PublicKey)
+	//if err := pubKey.UnmarshalBinary(msg.PubKey); err != nil {
+	//	return share{}, errors.Wrap(err, "unmarshal pubkey")
+	//}
+	//
+	//pubShares := make(map[int]*bls_sig.PublicKey)
+	//for id, bytes := range msg.PubShares {
+	//	pubShare := new(bls_sig.PublicKey)
+	//	if err := pubShare.UnmarshalBinary(bytes); err != nil {
+	//		return share{}, errors.Wrap(err, "unmarshal public share")
+	//	}
+	//
+	//	pubShares[id+1] = pubShare // Public shares IDs are 1-indexed.
+	//}
+	//
+	//secretShare := new(bls_sig.SecretKeyShare)
+	//if err := secretShare.UnmarshalBinary(msg.SecretShare); err != nil {
+	//	return share{}, errors.Wrap(err, "unmarshal pubkey")
+	//}
+	//
+	//return share{
+	//	PubKey:       pubKey,
+	//	SecretShare:  secretShare,
+	//	PublicShares: pubShares,
+	//}, nil
 }

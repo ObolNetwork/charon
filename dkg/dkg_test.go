@@ -166,7 +166,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		// If this returns first, something went wrong with the relay and the test will fail.
 		cancel()
 		testutil.SkipIfBindErr(t, err)
-		require.Fail(t, "bootnode error: %v", err)
+		require.Fail(t, "bootnode error:", err)
 	case err := <-runChan:
 		cancel()
 		testutil.SkipIfBindErr(t, err)

@@ -37,7 +37,6 @@ import (
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It returns the test definition if configured.
@@ -112,9 +111,10 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL string, shares []s
 		}
 		passwords = append(passwords, password)
 
-		secret, err := tblsconv.ShareToSecret(s.SecretShare)
-		if err != nil {
-			return err
+		// TODO(gsora): needs to go away once we get rid of kryptology
+		secret := new(bls_sig.SecretKey)
+		if err := secret.UnmarshalBinary(s.SecretShare[:]); err != nil {
+			return errors.Wrap(err, "cannot convert tblsv2 key to kyrptology")
 		}
 
 		store, err := keystore.Encrypt(secret, password, rand.Reader)
@@ -137,10 +137,12 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL string, shares []s
 func writeKeysToDisk(datadir string, shares []share) error {
 	var secrets []*bls_sig.SecretKey
 	for _, s := range shares {
-		secret, err := tblsconv.ShareToSecret(s.SecretShare)
-		if err != nil {
-			return err
+		// TODO(gsora): needs to go away once we get rid of kryptology
+		secret := new(bls_sig.SecretKey)
+		if err := secret.UnmarshalBinary(s.SecretShare[:]); err != nil {
+			return errors.Wrap(err, "cannot convert tblsv2 key to kyrptology")
 		}
+
 		secrets = append(secrets, secret)
 	}
 

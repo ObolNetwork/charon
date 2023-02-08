@@ -17,13 +17,13 @@ package dkg
 
 import (
 	"context"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"sort"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/dkg/frost"
 	"github.com/coinbase/kryptology/pkg/sharing"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 )
@@ -219,7 +219,7 @@ func makeShares(
 	targetID uint32,
 ) ([]share, error) {
 	// Get set of public shares for each validator.
-	pubShares := make(map[uint32]map[int]*bls_sig.PublicKey) // map[ValIdx]map[SourceID]*bls_sig.PublicKey
+	pubShares := make(map[uint32]map[int]tblsv2.PublicKey) // map[ValIdx]map[SourceID]*bls_sig.PublicKey
 	for key, result := range r2Result {
 		if key.TargetID != targetID {
 			// Not for us.
@@ -232,7 +232,7 @@ func makeShares(
 
 		m, ok := pubShares[key.ValIdx]
 		if !ok {
-			m = make(map[int]*bls_sig.PublicKey)
+			m = make(map[int]tblsv2.PublicKey)
 			pubShares[key.ValIdx] = m
 		}
 		m[int(key.SourceID)] = pubShare
@@ -255,7 +255,7 @@ func makeShares(
 			return nil, err
 		}
 
-		secretShare, err := scalarToSecretShare(v.Id, v.SkShare)
+		secretShare, err := scalarToSecretShare(v.SkShare)
 		if err != nil {
 			return nil, err
 		}
@@ -271,35 +271,12 @@ func makeShares(
 }
 
 // pointToPubKey returns the point as a public key.
-func pointToPubKey(point curves.Point) (*bls_sig.PublicKey, error) {
-	pk := new(bls_sig.PublicKey)
-	err := pk.UnmarshalBinary(point.ToAffineCompressed())
-	if err != nil {
-		return nil, errors.Wrap(err, "unmarshal pubkey pooint")
-	}
-
-	return pk, nil
+func pointToPubKey(point curves.Point) (tblsv2.PublicKey, error) {
+	return tblsconv2.PubkeyFromBytes(point.ToAffineCompressed())
 }
 
 // scalarToSecretShare returns the scalar as a secret key share using the share index.
 // Copied from github.com/coinbase/kryptology/test/frost_dkg/bls/main.go.
-func scalarToSecretShare(shareIdx uint32, scalar curves.Scalar) (*bls_sig.SecretKeyShare, error) {
-	share := sharing.ShamirShare{
-		Id:    shareIdx,
-		Value: scalar.Bytes(),
-	}
-	sk := share.Bytes()
-
-	// secret share expects 1 byte identifier at the end of the array
-	skBytes := make([]byte, bls_sig.SecretKeyShareSize)
-	copy(skBytes, sk[4:])
-	skBytes[bls_sig.SecretKeyShareSize-1] = sk[3]
-
-	skShare := new(bls_sig.SecretKeyShare)
-	err := skShare.UnmarshalBinary(skBytes)
-	if err != nil {
-		return nil, errors.Wrap(err, "unmarshal secret share")
-	}
-
-	return skShare, nil
+func scalarToSecretShare(scalar curves.Scalar) (tblsv2.PrivateKey, error) {
+	return tblsconv2.PrivkeyFromBytes(scalar.Bytes())
 }
