@@ -19,19 +19,18 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	"github.com/obolnetwork/charon/tbls"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
 func TestStoreLoad(t *testing.T) {
 	dir := t.TempDir()
 
-	var secrets []*bls_sig.SecretKey
+	var secrets []tblsv2.PrivateKey
 	for i := 0; i < 2; i++ {
-		_, secret, err := tbls.Keygen()
+		secret, err := tblsv2.GenerateSecretKey()
 		require.NoError(t, err)
 
 		secrets = append(secrets, secret)
@@ -57,7 +56,5 @@ func TestLoadScrypt(t *testing.T) {
 
 	require.Len(t, secrets, 1)
 
-	b, err := secrets[0].MarshalBinary()
-	require.NoError(t, err)
-	require.Equal(t, "10b16fc552aa607fa1399027f7b86ab789077e470b5653b338693dc2dde02468", fmt.Sprintf("%x", b))
+	require.Equal(t, "10b16fc552aa607fa1399027f7b86ab789077e470b5653b338693dc2dde02468", fmt.Sprintf("%x", secrets[0]))
 }
