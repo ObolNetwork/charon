@@ -18,15 +18,14 @@ package dkg
 import (
 	"context"
 	"encoding/json"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
-	"io"
 	"sort"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 // kcTransport provides secure transport abstraction to keycast.
@@ -53,9 +52,9 @@ type shareMsg struct {
 	SecretShare []byte
 }
 
-func runKeyCast(ctx context.Context, def cluster.Definition, tx kcTransport, nodeIdx int, random io.Reader) ([]share, error) {
+func runKeyCast(ctx context.Context, def cluster.Definition, tx kcTransport, nodeIdx int) ([]share, error) {
 	if nodeIdx == 0 {
-		return leadKeyCast(ctx, tx, def, random)
+		return leadKeyCast(ctx, tx, def)
 	}
 
 	return joinKeyCast(ctx, tx, nodeIdx)
@@ -90,11 +89,11 @@ func joinKeyCast(ctx context.Context, tp kcTransport, nodeIdx int) ([]share, err
 }
 
 // leadKeyCast creates all shares for the cluster, then serves them via requests until done.
-func leadKeyCast(ctx context.Context, tp kcTransport, def cluster.Definition, random io.Reader) ([]share, error) {
+func leadKeyCast(ctx context.Context, tp kcTransport, def cluster.Definition) ([]share, error) {
 	numNodes := len(def.Operators)
 
 	// Create shares for all nodes.
-	allShares, err := createShares(def.NumValidators, numNodes, def.Threshold, random)
+	allShares, err := createShares(def.NumValidators, numNodes, def.Threshold)
 	if err != nil {
 		return nil, err
 	}
@@ -119,10 +118,7 @@ func leadKeyCast(ctx context.Context, tp kcTransport, def cluster.Definition, ra
 		// Marshal share messages
 		var msgs []shareMsg
 		for _, s := range shares {
-			msg, err := msgFromShare(s)
-			if err != nil {
-				return nil, err
-			}
+			msg := msgFromShare(s)
 			msgs = append(msgs, msg)
 		}
 
@@ -160,7 +156,7 @@ func leadKeyCast(ctx context.Context, tp kcTransport, def cluster.Definition, ra
 }
 
 // createShares returns a slice of shares to send to each node.
-func createShares(numValidators, numNodes, threshold int, random io.Reader) ([][]share, error) {
+func createShares(numValidators, numNodes, threshold int) ([][]share, error) {
 	resp := make([][]share, numNodes)
 	for i := 0; i < numValidators; i++ {
 		rootSecret, err := tblsv2.GenerateSecretKey()
@@ -207,7 +203,7 @@ func createShares(numValidators, numNodes, threshold int, random io.Reader) ([][
 }
 
 // msgFromShare returns a new share message to send over the wire.
-func msgFromShare(s share) (shareMsg, error) {
+func msgFromShare(s share) shareMsg {
 	pubkey := s.PubKey[:]
 
 	// Sort pub shares by id/index.
@@ -229,7 +225,7 @@ func msgFromShare(s share) (shareMsg, error) {
 		PubKey:      pubkey,
 		SecretShare: secretShare,
 		PubShares:   pubShares,
-	}, nil
+	}
 }
 
 // shareFromMsg returns the share by unmarshalling the wire message types.
@@ -258,29 +254,4 @@ func shareFromMsg(msg shareMsg) (share, error) {
 		SecretShare:  secretShare,
 		PublicShares: pubShares,
 	}, nil
-	//pubKey := new(bls_sig.PublicKey)
-	//if err := pubKey.UnmarshalBinary(msg.PubKey); err != nil {
-	//	return share{}, errors.Wrap(err, "unmarshal pubkey")
-	//}
-	//
-	//pubShares := make(map[int]*bls_sig.PublicKey)
-	//for id, bytes := range msg.PubShares {
-	//	pubShare := new(bls_sig.PublicKey)
-	//	if err := pubShare.UnmarshalBinary(bytes); err != nil {
-	//		return share{}, errors.Wrap(err, "unmarshal public share")
-	//	}
-	//
-	//	pubShares[id+1] = pubShare // Public shares IDs are 1-indexed.
-	//}
-	//
-	//secretShare := new(bls_sig.SecretKeyShare)
-	//if err := secretShare.UnmarshalBinary(msg.SecretShare); err != nil {
-	//	return share{}, errors.Wrap(err, "unmarshal pubkey")
-	//}
-	//
-	//return share{
-	//	PubKey:       pubKey,
-	//	SecretShare:  secretShare,
-	//	PublicShares: pubShares,
-	//}, nil
 }

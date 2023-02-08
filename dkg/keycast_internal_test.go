@@ -58,7 +58,7 @@ func TestKeyCastNoNetwork(t *testing.T) {
 	for i := 0; i < nodes; i++ {
 		i := i // Copy loop variable.
 		eg.Go(func() error {
-			shares, err := runKeyCast(ctx, def, tp, i, random)
+			shares, err := runKeyCast(ctx, def, tp, i)
 			if err != nil {
 				cancel()
 				return err

@@ -17,15 +17,16 @@ package dkg
 
 import (
 	"context"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"sort"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/dkg/frost"
 	"github.com/coinbase/kryptology/pkg/sharing"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 var curve = curves.BLS12381G1()

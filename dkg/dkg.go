@@ -355,17 +355,14 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 
 // signAndAggLockHash returns cluster lock file with aggregated signature after signing, exchange and aggregation of partial signatures.
 func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definition, nodeIdx cluster.NodeIdx, ex *exchanger) (cluster.Lock, error) {
-	dvs, err := dvsFromShares(shares)
-	if err != nil {
-		return cluster.Lock{}, err
-	}
+	dvs := dvsFromShares(shares)
 
 	lock := cluster.Lock{
 		Definition: def,
 		Validators: dvs,
 	}
 
-	lock, err = lock.SetLockHash()
+	lock, err := lock.SetLockHash()
 	if err != nil {
 		return cluster.Lock{}, err
 	}
@@ -625,7 +622,7 @@ func aggDepositDataSigs(data map[core.PubKey][]core.ParSignedData, shares []shar
 }
 
 // dvsFromShares returns the shares as a slice of cluster distributed validator types.
-func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
+func dvsFromShares(shares []share) []cluster.DistValidator {
 	var dvs []cluster.DistValidator
 	for _, s := range shares {
 		msg := msgFromShare(s)
@@ -636,5 +633,5 @@ func dvsFromShares(shares []share) ([]cluster.DistValidator, error) {
 		})
 	}
 
-	return dvs, nil
+	return dvs
 }

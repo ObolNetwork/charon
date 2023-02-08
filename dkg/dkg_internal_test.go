@@ -16,13 +16,13 @@
 package dkg
 
 import (
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 func TestInvalidSignatures(t *testing.T) {
