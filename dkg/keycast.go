@@ -42,7 +42,7 @@ type share struct {
 	PubKey      tblsv2.PublicKey
 	SecretShare tblsv2.PrivateKey
 
-	PublicShares map[int]tblsv2.PublicKey // map[shareIdx]*bls_sig.PublicKey
+	PublicShares map[int]tblsv2.PublicKey // map[shareIdx]tblsv2.PublicKey
 }
 
 // shareMsg is the share message wire format sent by the dealer.
