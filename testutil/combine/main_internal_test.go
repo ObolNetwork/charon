@@ -29,11 +29,10 @@ import (
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	herumiImpl "github.com/obolnetwork/charon/tbls/v2/herumi"
 )
 
 func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(herumiImpl.Herumi{})
+	tblsv2.SetImplementation(tblsv2.Herumi{})
 	os.Exit(m.Run())
 }
 
