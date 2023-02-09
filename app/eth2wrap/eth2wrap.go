@@ -374,8 +374,7 @@ func (s *bestSelector) Increment(i int) {
 		panic("invalid index") // This should never happen
 	}
 
-	now := time.Now()
-	if now.Sub(s.start) > s.period {
+	if time.Since(s.start) > s.period {
 		s.counts = make([]int, s.n)
 		s.start = time.Now()
 	}
