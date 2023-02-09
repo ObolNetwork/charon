@@ -52,6 +52,11 @@ func Parse(enrStr string) (Record, error) {
 		return Record{}, errors.New("missing 'enr:' prefix")
 	}
 
+	// Ensure backwards compatibility with older versions with encoded ENR strings.
+	// Older version ENR strings were base64 padded strings with "=" as padding character.
+	// Refer: https://github.com/ObolNetwork/charon/issues/970
+	enrStr = strings.TrimRight(enrStr, "=")
+
 	raw, err := base64.RawURLEncoding.DecodeString(enrStr[4:])
 	if err != nil {
 		return Record{}, errors.Wrap(err, "invalid base64 encoding")
