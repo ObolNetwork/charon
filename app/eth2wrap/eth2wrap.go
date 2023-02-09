@@ -341,7 +341,7 @@ func newBestSelector(n int, period time.Duration) *bestSelector {
 	}
 }
 
-// bestSelector keeps a "best client index" based on a rolling period.
+// bestSelector calculates the "best client index" per period.
 type bestSelector struct {
 	n      int
 	mu     sync.Mutex
@@ -374,7 +374,7 @@ func (s *bestSelector) Increment(i int) {
 		panic("invalid index") // This should never happen
 	}
 
-	if time.Since(s.start) > s.period {
+	if time.Since(s.start) > s.period { // Reset counters after period.
 		s.counts = make([]int, s.n)
 		s.start = time.Now()
 	}
