@@ -37,7 +37,7 @@ func TestBackwardsENR(t *testing.T) {
 		record, err := New(key)
 		require.NoError(t, err)
 
-		// Encode ENR string with padding which is supported by v0.9.0 or earlier.
+		// Encode ENR string with padding which is supported by charon versions v0.9.0 or earlier.
 		enrStr := "enr:" + base64.URLEncoding.EncodeToString(encodeElements(record.Signature, record.kvs))
 
 		_, err = Parse(enrStr)
