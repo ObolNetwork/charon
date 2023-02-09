@@ -41,7 +41,7 @@ type Client struct {
 	baseURL string // Base obol-api URL
 }
 
-// VerifyConnection returns an error if the provided keymanager address is not reachable.
+// VerifyConnection returns an error if the provided obol-api address is not reachable.
 func (c Client) VerifyConnection(ctx context.Context) error {
 	u, err := url.Parse(c.baseURL)
 	if err != nil {
