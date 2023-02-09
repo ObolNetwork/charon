@@ -53,7 +53,7 @@ func Parse(enrStr string) (Record, error) {
 	}
 
 	// Ensure backwards compatibility with older versions with encoded ENR strings.
-	// Older version ENR strings were base64 padded strings with "=" as padding character.
+	// ENR strings in older versions of charon (<= v0.9.0) were base64 padded strings with "=" as the padding character.
 	// Refer: https://github.com/ObolNetwork/charon/issues/970
 	enrStr = strings.TrimRight(enrStr, "=")
 
