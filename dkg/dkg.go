@@ -28,6 +28,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -36,7 +37,6 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
-	"github.com/obolnetwork/charon/launchpad"
 	"github.com/obolnetwork/charon/p2p"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
@@ -50,8 +50,8 @@ type Config struct {
 	P2P            p2p.Config
 	Log            log.Config
 
-	LaunchpadAPIAddr string
-	Publish          bool
+	PublishAddr string
+	Publish     bool
 
 	TestDef          *cluster.Definition
 	TestSyncCallback func(connected int, id peer.ID)
@@ -215,11 +215,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	if conf.Publish {
-		cl := launchpad.New(conf.LaunchpadAPIAddr)
-		if err = cl.PublishLock(ctx, lock); err != nil {
-			log.Warn(ctx, "Publishing lock file", err)
-		} else {
-			log.Debug(ctx, "Published lock file to api")
+		if err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
+			log.Warn(ctx, "Couldn't publish lock file to Obol API", err)
 		}
 	}
 
@@ -647,4 +644,20 @@ func dvsFromShares(shares []share) []cluster.DistValidator {
 	}
 
 	return dvs
+}
+
+// writeLockToAPI posts the lock file to obol-api.
+func writeLockToAPI(ctx context.Context, publish string, lock cluster.Lock) error {
+	cl := obolapi.New(publish)
+	if err := cl.VerifyConnection(ctx); err != nil {
+		return err
+	}
+
+	if err := cl.PublishLock(ctx, lock); err != nil {
+		return err
+	}
+
+	log.Debug(ctx, "Published lock file to api")
+
+	return nil
 }

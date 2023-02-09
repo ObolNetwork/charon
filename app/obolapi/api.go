@@ -13,13 +13,13 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package launchpad
+package obolapi
 
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -36,21 +36,37 @@ func New(url string) Client {
 	}
 }
 
-// Client is the REST client for launchpad API requests.
+// Client is the REST client for obol-api requests.
 type Client struct {
-	baseURL string // Base launchpad URL
+	baseURL string // Base obol-api URL
+}
+
+// VerifyConnection returns an error if the provided keymanager address is not reachable.
+func (c Client) VerifyConnection(ctx context.Context) error {
+	u, err := url.Parse(c.baseURL)
+	if err != nil {
+		return errors.Wrap(err, "parse address")
+	}
+
+	var d net.Dialer
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	conn, err := d.DialContext(ctx, "tcp", u.Host)
+	if err != nil {
+		return errors.Wrap(err, "cannot ping address", z.Str("addr", c.baseURL))
+	}
+	_ = conn.Close()
+
+	return nil
 }
 
 // PublishLock posts the lockfile to obol-api.
 func (c Client) PublishLock(ctx context.Context, lock cluster.Lock) error {
-	if lock.Version != "v1.5.0" {
-		return errors.New("version not supported", z.Str("version", lock.Version))
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	addr, err := url.JoinPath(c.baseURL, "/lock")
+	addr, err := url.JoinPath(c.baseURL, "lock")
 	if err != nil {
 		return errors.Wrap(err, "invalid address")
 	}
@@ -60,7 +76,7 @@ func (c Client) PublishLock(ctx context.Context, lock cluster.Lock) error {
 		return errors.Wrap(err, "invalid endpoint")
 	}
 
-	b, err := json.MarshalIndent(lock, "", " ")
+	b, err := lock.MarshalJSON()
 	if err != nil {
 		return errors.Wrap(err, "marshal lock")
 	}

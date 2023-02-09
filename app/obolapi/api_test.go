@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package launchpad_test
+package obolapi_test
 
 import (
 	"context"
@@ -25,10 +25,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/launchpad"
 )
 
+// TestLockPublish tests.
 func TestLockPublish(t *testing.T) {
 	ctx := context.Background()
 
@@ -56,16 +57,8 @@ func TestLockPublish(t *testing.T) {
 
 		lock, _, _ := cluster.NewForT(t, 3, 3, 4, 0, opts...)
 
-		cl := launchpad.New(srv.URL)
+		cl := obolapi.New(srv.URL)
 		err := cl.PublishLock(ctx, lock)
 		require.NoError(t, err)
-	})
-
-	t.Run("version not supported", func(t *testing.T) {
-		lock, _, _ := cluster.NewForT(t, 3, 3, 4, 0)
-
-		cl := launchpad.New("")
-		err := cl.PublishLock(ctx, lock)
-		require.ErrorContains(t, err, "version not supported")
 	})
 }

@@ -34,6 +34,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
@@ -41,7 +42,6 @@ import (
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	"github.com/obolnetwork/charon/launchpad"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -72,8 +72,8 @@ type clusterConfig struct {
 
 	InsecureKeys bool
 
-	LaunchpadAPIAddr string
-	Publish          bool
+	PublishAddr string
+	Publish     bool
 }
 
 func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig) error) *cobra.Command {
@@ -109,8 +109,8 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVar(&config.NumDVs, "num-validators", 1, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
-	flags.StringVar(&config.LaunchpadAPIAddr, "launchpad-api-address", "https://obol-api-prod-green.gcp.obol.tech", "The launchpad api URL.")
-	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to Obol DVT launchpad.")
+	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The obol api URL.")
+	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -213,11 +213,8 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	// Write cluster-lock file
 	if conf.Publish {
-		cl := launchpad.New(conf.LaunchpadAPIAddr)
-		if err = cl.PublishLock(ctx, lock); err != nil {
-			log.Warn(ctx, "Publishing lock file", err)
-		} else {
-			log.Debug(ctx, "Published lock file to api")
+		if err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
+			log.Warn(ctx, "Couldn't publish lock file to Obol API", err)
 		}
 	}
 
@@ -717,4 +714,20 @@ func randomHex64() (string, error) {
 	}
 
 	return hex.EncodeToString(b), nil
+}
+
+// writeLockToAPI posts the lock file to obol-api.
+func writeLockToAPI(ctx context.Context, publish string, lock cluster.Lock) error {
+	cl := obolapi.New(publish)
+	if err := cl.VerifyConnection(ctx); err != nil {
+		return err
+	}
+
+	if err := cl.PublishLock(ctx, lock); err != nil {
+		return err
+	}
+
+	log.Debug(ctx, "Published lock file to api")
+
+	return nil
 }

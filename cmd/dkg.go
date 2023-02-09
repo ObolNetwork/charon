@@ -52,8 +52,7 @@ this command at the same time.`,
 	bindNoVerifyFlag(cmd.Flags(), &config.NoVerify)
 	bindP2PFlags(cmd, &config.P2P)
 	bindLogFlags(cmd.Flags(), &config.Log)
-	bindLaunchpadAPIAddrFlag(cmd.Flags(), &config.LaunchpadAPIAddr)
-	bindPublishFlag(cmd.Flags(), &config.Publish)
+	bindPublishFlags(cmd.Flags(), config)
 
 	return cmd
 }
@@ -70,10 +69,7 @@ func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
 	flags.StringVar(dataDir, "data-dir", ".charon", "The directory where charon will store all its internal data")
 }
 
-func bindLaunchpadAPIAddrFlag(flags *pflag.FlagSet, addr *string) {
-	flags.StringVar(addr, "launchpad-api-address", "https://obol-api-prod-green.gcp.obol.tech", "The launchpad api URL.")
-}
-
-func bindPublishFlag(flags *pflag.FlagSet, publish *bool) {
-	flags.BoolVar(publish, "publish", false, "Publish lock file to Obol DVT launchpad.")
+func bindPublishFlags(flags *pflag.FlagSet, config dkg.Config) {
+	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The obol api URL.")
+	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
 }

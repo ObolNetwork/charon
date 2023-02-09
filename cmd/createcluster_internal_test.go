@@ -360,6 +360,47 @@ func TestKeymanager(t *testing.T) {
 	})
 }
 
+// TestPublish tests support for uploading the cluster lockfile to obol-api.
+func TestPublish(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create minNodes test servers
+	result := make(chan bool) // Buffered channel
+	defer close(result)
+
+	srv := httptest.NewServer(newObolAPIHandler(ctx, t, result))
+	addr := srv.URL
+
+	defer func() {
+		srv.Close()
+	}()
+
+	// Create cluster config
+	conf := clusterConfig{
+		Name:           t.Name(),
+		NumNodes:       minNodes,
+		NumDVs:         1,
+		Network:        defaultNetwork,
+		WithdrawalAddr: defaultWithdrawalAddr,
+		PublishAddr:    addr,
+		Publish:        true,
+	}
+	conf.ClusterDir = t.TempDir()
+
+	t.Run("upload successful", func(t *testing.T) {
+		// Run create cluster command
+		var buf bytes.Buffer
+		err := runCreateCluster(context.Background(), &buf, conf)
+		if err != nil {
+			log.Error(context.Background(), "", err)
+		}
+
+		require.NoError(t, err)
+		require.Equal(t, <-result, true)
+	})
+}
+
 // mockKeymanagerReq is a mock keymanager request for use in tests.
 type mockKeymanagerReq struct {
 	Keystores []keystore.Keystore `json:"keystores"`
@@ -413,6 +454,28 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 		case <-ctx.Done():
 			return
 		case results <- res:
+		}
+	})
+}
+
+// newObolAPIHandler returns http handler for a test obol-api server.
+func newObolAPIHandler(ctx context.Context, t *testing.T, result chan<- bool) http.Handler {
+	t.Helper()
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+
+		var req cluster.Lock
+		require.NoError(t, json.Unmarshal(data, &req))
+
+		w.WriteHeader(http.StatusOK)
+
+		select {
+		case <-ctx.Done():
+			return
+		case result <- true:
 		}
 	})
 }
