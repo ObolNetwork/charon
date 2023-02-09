@@ -365,8 +365,7 @@ func TestPublish(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Create minNodes test servers
-	result := make(chan bool) // Buffered channel
+	result := make(chan struct{}) // Buffered channel
 	defer close(result)
 
 	srv := httptest.NewServer(newObolAPIHandler(ctx, t, result))
@@ -397,7 +396,7 @@ func TestPublish(t *testing.T) {
 		}
 
 		require.NoError(t, err)
-		require.Equal(t, <-result, true)
+		require.Equal(t, <-result, struct{}{})
 	})
 }
 
@@ -459,7 +458,7 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 }
 
 // newObolAPIHandler returns http handler for a test obol-api server.
-func newObolAPIHandler(ctx context.Context, t *testing.T, result chan<- bool) http.Handler {
+func newObolAPIHandler(ctx context.Context, t *testing.T, result chan<- struct{}) http.Handler {
 	t.Helper()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -475,7 +474,7 @@ func newObolAPIHandler(ctx context.Context, t *testing.T, result chan<- bool) ht
 		select {
 		case <-ctx.Done():
 			return
-		case result <- true:
+		case result <- struct{}{}:
 		}
 	})
 }

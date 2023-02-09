@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -39,26 +38,6 @@ func New(url string) Client {
 // Client is the REST client for obol-api requests.
 type Client struct {
 	baseURL string // Base obol-api URL
-}
-
-// VerifyConnection returns an error if the provided keymanager address is not reachable.
-func (c Client) VerifyConnection(ctx context.Context) error {
-	u, err := url.Parse(c.baseURL)
-	if err != nil {
-		return errors.Wrap(err, "parse address")
-	}
-
-	var d net.Dialer
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-
-	conn, err := d.DialContext(ctx, "tcp", u.Host)
-	if err != nil {
-		return errors.Wrap(err, "cannot ping address", z.Str("addr", c.baseURL))
-	}
-	_ = conn.Close()
-
-	return nil
 }
 
 // PublishLock posts the lockfile to obol-api.

@@ -70,6 +70,6 @@ func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
 }
 
 func bindPublishFlags(flags *pflag.FlagSet, config dkg.Config) {
-	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The obol api URL.")
+	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the lock file to.")
 	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
 }

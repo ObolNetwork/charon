@@ -132,11 +132,11 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		conf.KeymanagerAddr = srv.URL
 	}
 
-	receivedLockfile := make(chan bool) // Receives string for lockfile intercepted by the obol-api server
+	receivedLockfile := make(chan struct{}) // Receives string for lockfile intercepted by the obol-api server
 	if publish {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			go func() {
-				receivedLockfile <- true
+				receivedLockfile <- struct{}{}
 			}()
 		}))
 		defer srv.Close()
@@ -201,7 +201,11 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	}
 
 	if publish {
-		require.Equal(t, <-receivedLockfile, true)
+		expectedReceives := 1
+		for expectedReceives > 0 {
+			<-receivedLockfile
+			expectedReceives--
+		}
 
 		t.Log("Lockfile published to obol-api 🎉")
 	}

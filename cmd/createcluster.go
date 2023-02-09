@@ -109,7 +109,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVar(&config.NumDVs, "num-validators", 1, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
-	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The obol api URL.")
+	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the lock file to.")
 	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
 }
 
@@ -717,17 +717,14 @@ func randomHex64() (string, error) {
 }
 
 // writeLockToAPI posts the lock file to obol-api.
-func writeLockToAPI(ctx context.Context, publish string, lock cluster.Lock) error {
-	cl := obolapi.New(publish)
-	if err := cl.VerifyConnection(ctx); err != nil {
-		return err
-	}
+func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) error {
+	cl := obolapi.New(publishAddr)
 
 	if err := cl.PublishLock(ctx, lock); err != nil {
 		return err
 	}
 
-	log.Debug(ctx, "Published lock file to api")
+	log.Info(ctx, "Published lock file", z.Str("addr", publishAddr))
 
 	return nil
 }

@@ -647,11 +647,8 @@ func dvsFromShares(shares []share) []cluster.DistValidator {
 }
 
 // writeLockToAPI posts the lock file to obol-api.
-func writeLockToAPI(ctx context.Context, publish string, lock cluster.Lock) error {
-	cl := obolapi.New(publish)
-	if err := cl.VerifyConnection(ctx); err != nil {
-		return err
-	}
+func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) error {
+	cl := obolapi.New(publishAddr)
 
 	if err := cl.PublishLock(ctx, lock); err != nil {
 		return err
