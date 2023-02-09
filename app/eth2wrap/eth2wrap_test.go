@@ -295,15 +295,17 @@ func TestOneDown(t *testing.T) {
 	require.NoError(t, err)
 
 	addresses := []string{
-		bmock.Address(),                // Valid
 		"http://222.222.222.222:22222", // Invalid
+		bmock.Address(),                // Valid
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, addresses...)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond*10, addresses...)
 	require.NoError(t, err)
 
 	_, err = eth2Cl.SlotDuration(ctx)
 	require.NoError(t, err)
+
+	require.Equal(t, bmock.Address(), eth2Cl.Address())
 }
 
 func TestLazy(t *testing.T) {
@@ -315,26 +317,47 @@ func TestLazy(t *testing.T) {
 	target, err := url.Parse(bmock.Address())
 	require.NoError(t, err)
 
-	// Start a proxy that we can enable/disable.
-	var enabled bool
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !enabled {
+	// Start two proxys that we can enable/disable.
+	var enabled1, enabled2 bool
+	srv1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !enabled1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
+	}))
+	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !enabled2 {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 	}))
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, srv.URL)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, srv1.URL, srv2.URL)
 	require.NoError(t, err)
 
-	// Proxy is disabled, so this should fail.
+	// Both proxies are disabled, so this should fail.
 	_, err = eth2Cl.SlotDuration(ctx)
 	require.Error(t, err)
+	require.Equal(t, "", eth2Cl.Address())
 
-	enabled = true
+	enabled1 = true
 
-	// Proxy is enabled, so this should succeed.
+	// Proxy1 is enabled, so this should succeed.
 	_, err = eth2Cl.SlotDuration(ctx)
 	require.NoError(t, err)
+	require.Equal(t, srv1.URL, eth2Cl.Address())
+
+	enabled1 = false
+	enabled2 = true
+
+	// Proxy2 is enabled, so this should succeed.
+	_, err = eth2Cl.SlotDuration(ctx)
+	require.NoError(t, err)
+
+	// Do another request to make Proxy2 the "best".
+	_, err = eth2Cl.SlotDuration(ctx)
+	require.NoError(t, err)
+	require.Equal(t, srv2.URL, eth2Cl.Address())
 }
