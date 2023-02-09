@@ -28,6 +28,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -48,6 +49,9 @@ type Config struct {
 	DataDir        string
 	P2P            p2p.Config
 	Log            log.Config
+
+	PublishAddr string
+	Publish     bool
 
 	TestDef          *cluster.Definition
 	TestSyncCallback func(connected int, id peer.ID)
@@ -208,6 +212,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 			return err
 		}
 		log.Debug(ctx, "Saved keyshares to disk")
+	}
+
+	if conf.Publish {
+		if err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
+			log.Warn(ctx, "Couldn't publish lock file to Obol API", err)
+		}
 	}
 
 	if err = writeLock(conf.DataDir, lock); err != nil {
@@ -634,4 +644,17 @@ func dvsFromShares(shares []share) []cluster.DistValidator {
 	}
 
 	return dvs
+}
+
+// writeLockToAPI posts the lock file to obol-api.
+func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) error {
+	cl := obolapi.New(publishAddr)
+
+	if err := cl.PublishLock(ctx, lock); err != nil {
+		return err
+	}
+
+	log.Debug(ctx, "Published lock file to api")
+
+	return nil
 }

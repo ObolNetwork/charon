@@ -34,6 +34,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
@@ -70,6 +71,9 @@ type clusterConfig struct {
 	SplitKeysDir string
 
 	InsecureKeys bool
+
+	PublishAddr string
+	Publish     bool
 }
 
 func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig) error) *cobra.Command {
@@ -105,6 +109,8 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVar(&config.NumDVs, "num-validators", 1, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
+	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the lock file to.")
+	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -206,6 +212,12 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	// Write cluster-lock file
+	if conf.Publish {
+		if err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
+			log.Warn(ctx, "Couldn't publish lock file to Obol API", err)
+		}
+	}
+
 	if err = writeLock(lock, conf.ClusterDir, numNodes, shareSets); err != nil {
 		return err
 	}
@@ -702,4 +714,17 @@ func randomHex64() (string, error) {
 	}
 
 	return hex.EncodeToString(b), nil
+}
+
+// writeLockToAPI posts the lock file to obol-api.
+func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) error {
+	cl := obolapi.New(publishAddr)
+
+	if err := cl.PublishLock(ctx, lock); err != nil {
+		return err
+	}
+
+	log.Info(ctx, "Published lock file", z.Str("addr", publishAddr))
+
+	return nil
 }

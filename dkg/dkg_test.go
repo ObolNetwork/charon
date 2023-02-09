@@ -64,6 +64,7 @@ func TestDKG(t *testing.T) {
 		name       string
 		dkgAlgo    string
 		keymanager bool
+		publish    bool
 	}{
 		{
 			name:    "keycast",
@@ -78,6 +79,11 @@ func TestDKG(t *testing.T) {
 			dkgAlgo:    "keycast",
 			keymanager: true,
 		},
+		{
+			name:    "dkg with lockfile publish",
+			dkgAlgo: "keycast",
+			publish: true,
+		},
 	}
 
 	for _, test := range tests {
@@ -85,7 +91,7 @@ func TestDKG(t *testing.T) {
 			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0, withAlgo(test.dkgAlgo))
 			dir := t.TempDir()
 
-			testDKG(t, lock.Definition, dir, keys, test.keymanager)
+			testDKG(t, lock.Definition, dir, keys, test.keymanager, test.publish)
 			if !test.keymanager {
 				verifyDKGResults(t, lock.Definition, dir)
 			}
@@ -93,7 +99,7 @@ func TestDKG(t *testing.T) {
 	}
 }
 
-func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.PrivateKey, keymanager bool) {
+func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.PrivateKey, keymanager bool, publish bool) {
 	t.Helper()
 
 	require.NoError(t, def.VerifySignatures())
@@ -114,16 +120,29 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		TestDef: &def,
 	}
 
-	allReceived := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
+	allReceivedKeystores := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
 	if keymanager {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			go func() {
-				allReceived <- struct{}{}
+				allReceivedKeystores <- struct{}{}
 			}()
 		}))
 		defer srv.Close()
 
 		conf.KeymanagerAddr = srv.URL
+	}
+
+	receivedLockfile := make(chan struct{}) // Receives string for lockfile intercepted by the obol-api server
+	if publish {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			go func() {
+				receivedLockfile <- struct{}{}
+			}()
+		}))
+		defer srv.Close()
+
+		conf.Publish = true
+		conf.PublishAddr = srv.URL
 	}
 
 	// Run dkg for each node
@@ -174,11 +193,21 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		// Wait until all keystores are received by the keymanager server
 		expectedReceives := len(def.Operators)
 		for expectedReceives > 0 {
-			<-allReceived
+			<-allReceivedKeystores
 			expectedReceives--
 		}
 
 		t.Log("All keystores received 🎉")
+	}
+
+	if publish {
+		expectedReceives := 1
+		for expectedReceives > 0 {
+			<-receivedLockfile
+			expectedReceives--
+		}
+
+		t.Log("Lockfile published to obol-api 🎉")
 	}
 }
 
