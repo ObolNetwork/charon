@@ -22,12 +22,10 @@ import (
 	"path"
 	"testing"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
@@ -43,12 +41,8 @@ func TestCombine(t *testing.T) {
 
 	lockfile := storeLock(t, dir, lock)
 
-	var secrets []*bls_sig.SecretKey
-	for _, share := range shares[0] {
-		secret, err := tblsconv.ShareToSecret(share)
-		require.NoError(t, err)
-		secrets = append(secrets, secret)
-	}
+	secrets := shares[0]
+
 	err := keystore.StoreKeys(secrets, dir)
 	require.NoError(t, err)
 
@@ -61,17 +55,12 @@ func TestCombine(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 
-	pubkey, err := result[0].GetPublicKey()
-	require.NoError(t, err)
-	actualBytes, err := pubkey.MarshalBinary()
+	actualBytes, err := tblsv2.SecretToPublicKey(result[0])
 	require.NoError(t, err)
 
-	pubkey, err = lock.Validators[0].PublicKey()
-	require.NoError(t, err)
-	expectBytes, err := pubkey.MarshalBinary()
-	require.NoError(t, err)
+	pubkey := lock.Validators[0].PubKey
 
-	require.Equal(t, expectBytes, actualBytes)
+	require.Equal(t, pubkey, actualBytes[:])
 }
 
 func storeLock(t *testing.T, dir string, lock cluster.Lock) string {

@@ -24,14 +24,12 @@ import (
 	"flag"
 	"os"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	"github.com/obolnetwork/charon/tbls"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
 var (
@@ -80,27 +78,22 @@ func run(ctx context.Context, lockfile, inputDir, outputDir string) error {
 		return errors.New("insufficient number of keys")
 	}
 
-	secret, err := tbls.CombineShares(shares, lock.Threshold, len(lock.Operators))
+	secret, err := tblsv2.RecoverSecret(shares, uint(len(lock.Operators)), uint(lock.Threshold))
 	if err != nil {
 		return err
 	}
 
-	return keystore.StoreKeys([]*bls_sig.SecretKey{secret}, outputDir)
+	return keystore.StoreKeys([]tblsv2.PrivateKey{secret}, outputDir)
 }
 
-func secretsToShares(lock cluster.Lock, secrets []*bls_sig.SecretKey) ([]*bls_sig.SecretKeyShare, error) {
+func secretsToShares(lock cluster.Lock, secrets []tblsv2.PrivateKey) (map[int]tblsv2.PrivateKey, error) {
 	n := len(lock.Operators)
 
-	var resp []*bls_sig.SecretKeyShare
-	for _, secret := range secrets {
-		pubkey, err := secret.GetPublicKey()
+	resp := make(map[int]tblsv2.PrivateKey)
+	for idx, secret := range secrets {
+		pubkey, err := tblsv2.SecretToPublicKey(secret)
 		if err != nil {
 			return nil, errors.Wrap(err, "pubkey from share")
-		}
-
-		expect, err := pubkey.MarshalBinary()
-		if err != nil {
-			return nil, errors.Wrap(err, "marshal pubkey")
 		}
 
 		var found bool
@@ -116,22 +109,11 @@ func secretsToShares(lock cluster.Lock, secrets []*bls_sig.SecretKey) ([]*bls_si
 					return nil, errors.Wrap(err, "marshal pubshare")
 				}
 
-				if !bytes.Equal(expect, actual) {
+				if !bytes.Equal(pubkey[:], actual) {
 					continue
 				}
 
-				secretBin, err := secret.MarshalBinary()
-				if err != nil {
-					return nil, errors.Wrap(err, "marshalling secret")
-				}
-
-				// ref: https://github.com/coinbase/kryptology/blob/71ffd4cbf01951cd0ee056fc7b45b13ffb178330/pkg/signatures/bls/bls_sig/lib.go#L26
-				share := new(bls_sig.SecretKeyShare)
-				if err := share.UnmarshalBinary(append(secretBin, byte(i+1))); err != nil {
-					return nil, errors.Wrap(err, "unmarshalling share")
-				}
-
-				resp = append(resp, share)
+				resp[idx+1] = secret
 				found = true
 
 				break

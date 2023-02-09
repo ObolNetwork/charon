@@ -27,7 +27,6 @@ import (
 	"path/filepath"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -37,6 +36,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It returns the test definition if configured.
@@ -112,12 +112,7 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL string, shares []s
 		passwords = append(passwords, password)
 
 		// TODO(gsora): needs to go away once we get rid of kryptology
-		secret := new(bls_sig.SecretKey)
-		if err := secret.UnmarshalBinary(s.SecretShare[:]); err != nil {
-			return errors.Wrap(err, "cannot convert tblsv2 key to kyrptology")
-		}
-
-		store, err := keystore.Encrypt(secret, password, rand.Reader)
+		store, err := keystore.Encrypt(s.SecretShare, password, rand.Reader)
 		if err != nil {
 			return err
 		}
@@ -135,15 +130,9 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL string, shares []s
 
 // writeKeysToDisk writes validator private keyshares for the node to disk.
 func writeKeysToDisk(datadir string, shares []share) error {
-	var secrets []*bls_sig.SecretKey
+	var secrets []tblsv2.PrivateKey
 	for _, s := range shares {
-		// TODO(gsora): needs to go away once we get rid of kryptology
-		secret := new(bls_sig.SecretKey)
-		if err := secret.UnmarshalBinary(s.SecretShare[:]); err != nil {
-			return errors.Wrap(err, "cannot convert tblsv2 key to kyrptology")
-		}
-
-		secrets = append(secrets, secret)
+		secrets = append(secrets, s.SecretShare)
 	}
 
 	keysDir := path.Join(datadir, "/validator_keys")

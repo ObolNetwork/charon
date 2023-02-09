@@ -21,14 +21,12 @@ import (
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/signing"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -132,14 +130,17 @@ func TestVerifyEth2SignedData(t *testing.T) {
 	}
 }
 
-func sign(t *testing.T, data []byte) (core.Signature, *bls_sig.PublicKey) {
+func sign(t *testing.T, data []byte) (core.Signature, tblsv2.PublicKey) {
 	t.Helper()
 
-	pk, secret, err := tbls.Keygen()
+	secret, err := tblsv2.GenerateSecretKey()
 	require.NoError(t, err)
 
-	sig, err := tbls.Sign(secret, data)
+	pk, err := tblsv2.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
-	return tblsconv.SigToCore(sig), pk
+	sig, err := tblsv2.Sign(secret, data)
+	require.NoError(t, err)
+
+	return tblsconv2.SigToCore(sig), pk
 }

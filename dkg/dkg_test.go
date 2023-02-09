@@ -237,14 +237,7 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 		require.Len(t, keyShares, def.NumValidators)
 
 		for i, key := range keyShares {
-			// convert kryptology keys to tblsv2 keys
-			// TODO(gsora): this needs to go away once keystore is on tblsv2
-			rawKey, err := key.MarshalBinary()
-			require.NoError(t, err)
-
-			v2Key, err := tblsconv2.PrivkeyFromBytes(rawKey)
-			require.NoError(t, err)
-			secretShares[i] = append(secretShares[i], v2Key)
+			secretShares[i] = append(secretShares[i], key)
 		}
 
 		lockFile, err := os.ReadFile(path.Join(dataDir, "cluster-lock.json"))

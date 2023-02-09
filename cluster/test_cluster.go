@@ -21,7 +21,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
@@ -35,14 +34,14 @@ import (
 // It also returns the peer p2p keys and BLS secret shares. If the seed is zero a random cluster on available loopback
 // ports is generated, else a deterministic cluster is generated.
 // Note this is not defined in testutil since it is tightly coupled with the cluster package.
-func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock, []*k1.PrivateKey, [][]*bls_sig.SecretKeyShare) {
+func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock, []*k1.PrivateKey, [][]tblsv2.PrivateKey) {
 	t.Helper()
 
 	var (
 		vals     []DistValidator
 		p2pKeys  []*k1.PrivateKey
 		ops      []Operator
-		dvShares [][]*bls_sig.SecretKeyShare
+		dvShares [][]tblsv2.PrivateKey
 	)
 
 	random := io.Reader(rand.New(rand.NewSource(int64(seed)))) //nolint:gosec // Explicit use of weak random generator for determinism.
@@ -63,7 +62,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		require.NoError(t, err)
 
 		var pubshares [][]byte
-		var privshares []*bls_sig.SecretKeyShare
+		var privshares []tblsv2.PrivateKey
 		for i := 0; i < n; i++ {
 			sharePrivkey := shares[i+1] // Share indexes are 1-indexed.
 
@@ -72,10 +71,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 
 			pubshares = append(pubshares, sharePub[:])
 
-			// TODO(gsora): this needs to be fully ported to tblsv2
-			sks := new(bls_sig.SecretKeyShare)
-			require.NoError(t, sks.UnmarshalBinary(append(sharePrivkey[:], byte(i))))
-			privshares = append(privshares, sks)
+			privshares = append(privshares, sharePrivkey)
 		}
 
 		vals = append(vals, DistValidator{

@@ -17,7 +17,9 @@ package signing
 
 import (
 	"context"
+
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/tracer"

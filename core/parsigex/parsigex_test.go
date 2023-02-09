@@ -23,7 +23,6 @@ import (
 
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -34,8 +33,6 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -138,20 +135,23 @@ func TestParSigExVerifier(t *testing.T) {
 
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 
-	pk, secret, err := tbls.Keygen()
+	secret, err := tblsv2.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pk, err := tblsv2.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	sign := func(msg []byte) eth2p0.BLSSignature {
-		sig, err := tbls.Sign(secret, msg)
+		sig, err := tblsv2.Sign(secret, msg)
 		require.NoError(t, err)
 
-		return tblsconv.SigToETH2(sig)
+		return eth2p0.BLSSignature(sig)
 	}
 
-	pubkey, err := tblsconv.KeyToCore(pk)
+	pubkey, err := core.PubKeyFromBytes(pk[:])
 	require.NoError(t, err)
 
-	mp := map[core.PubKey]map[int]*bls_sig.PublicKey{
+	mp := map[core.PubKey]map[int]tblsv2.PublicKey{
 		pubkey: {
 			shareIdx: pk,
 		},

@@ -20,7 +20,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +32,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
 func TestImportKeystores(t *testing.T) {

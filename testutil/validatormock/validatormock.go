@@ -34,15 +34,14 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 // SignFunc abstract signing done by the validator client.
@@ -305,32 +304,32 @@ func Register(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 }
 
 // NewSigner returns a signing function supporting the provided private keys.
-func NewSigner(secrets ...*bls_sig.SecretKey) SignFunc {
+func NewSigner(secrets ...tblsv2.PrivateKey) SignFunc {
 	return func(pubkey eth2p0.BLSPubKey, msg []byte) (eth2p0.BLSSignature, error) {
 		secret, err := getSecret(secrets, pubkey)
 		if err != nil {
 			return eth2p0.BLSSignature{}, err
 		}
 
-		sig, err := tbls.Sign(secret, msg)
+		sig, err := tblsv2.Sign(secret, msg)
 		if err != nil {
 			return eth2p0.BLSSignature{}, err
 		}
 
-		return tblsconv.SigToETH2(sig), nil
+		return tblsconv2.SigToETH2(sig), nil
 	}
 }
 
-func getSecret(secrets []*bls_sig.SecretKey, pubkey eth2p0.BLSPubKey) (*bls_sig.SecretKey, error) {
+func getSecret(secrets []tblsv2.PrivateKey, pubkey eth2p0.BLSPubKey) (tblsv2.PrivateKey, error) {
 	for _, secret := range secrets {
-		pk, err := secret.GetPublicKey()
+		pk, err := tblsv2.SecretToPublicKey(secret)
 		if err != nil {
-			return nil, errors.Wrap(err, "get pubkey")
+			return tblsv2.PrivateKey{}, errors.Wrap(err, "get pubkey")
 		}
 
-		eth2Pubkey, err := tblsconv.KeyToETH2(pk)
+		eth2Pubkey, err := tblsconv2.PubkeyToETH2(pk)
 		if err != nil {
-			return nil, err
+			return tblsv2.PrivateKey{}, err
 		}
 
 		if eth2Pubkey == pubkey {
@@ -338,7 +337,7 @@ func getSecret(secrets []*bls_sig.SecretKey, pubkey eth2p0.BLSPubKey) (*bls_sig.
 		}
 	}
 
-	return nil, errors.New("private key not found")
+	return tblsv2.PrivateKey{}, errors.New("private key not found")
 }
 
 // versionJSON extracts the version from a response.

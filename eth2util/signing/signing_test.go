@@ -20,16 +20,16 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"os"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util/signing"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
