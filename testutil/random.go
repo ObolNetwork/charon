@@ -808,6 +808,7 @@ func CreateHost(t *testing.T, addr *net.TCPAddr, opts ...libp2p.Option) host.Hos
 
 	h, err := libp2p.New(opts2...)
 
+	SkipIfBindErr(t, err)
 	require.NoError(t, err)
 
 	return h
