@@ -60,7 +60,11 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 	// Get all partial signatures.
 	blsSigs := make(map[int]tblsv2.Signature)
 	for _, parSig := range parSigs {
-		blsSigs[parSig.ShareIdx] = tblsconv2.SigFromCore(parSig.Signature())
+		sig, err := tblsconv2.SigFromCore(parSig.Signature())
+		if err != nil {
+			return errors.Wrap(err, "signature from core")
+		}
+		blsSigs[parSig.ShareIdx] = sig
 	}
 
 	// Aggregate signatures

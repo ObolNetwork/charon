@@ -24,9 +24,8 @@ import (
 )
 
 // SigFromCore converts a core workflow Signature type into a tbls.Signature.
-func SigFromCore(sig core.Signature) v2.Signature {
-	rawSig := (*[96]byte)(sig.Signature())
-	return *rawSig
+func SigFromCore(sig core.Signature) (v2.Signature, error) {
+	return SignatureFromBytes(sig)
 }
 
 // SigToCore converts a tbls.Signature into a core workflow Signature type.
