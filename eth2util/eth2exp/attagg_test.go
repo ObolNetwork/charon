@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -37,13 +37,13 @@ func TestIsAttAggregator(t *testing.T) {
 	// https://github.com/prysmaticlabs/prysm/blob/8627fe72e80009ae162430140bcfff6f209d7a32/beacon-chain/core/helpers/attestation_test.go#L28
 	sig, err := hex.DecodeString("8776a37d6802c4797d113169c5fcfda50e68a32058eb6356a6f00d06d7da64c841a00c7c38b9b94a204751eca53707bd03523ce4797827d9bacff116a6e776a20bbccff4b683bf5201b610797ed0502557a58a65c8395f8a1649b976c3112d15")
 	require.NoError(t, err)
-	blsSig, err := tblsconv.SigFromBytes(sig)
+	blsSig, err := tblsconv2.SigFromBytes(sig)
 	require.NoError(t, err)
 
 	t.Run("aggregator", func(t *testing.T) {
 		// https://github.com/prysmaticlabs/prysm/blob/8627fe72e80009ae162430140bcfff6f209d7a32/beacon-chain/core/helpers/attestation_test.go#L26
 		commLen := uint64(3)
-		isAgg, err := eth2exp.IsAttAggregator(ctx, bmock, commLen, tblsconv.SigToETH2(blsSig))
+		isAgg, err := eth2exp.IsAttAggregator(ctx, bmock, commLen, eth2p0.BLSSignature(blsSig))
 		require.NoError(t, err)
 		require.True(t, isAgg)
 	})
@@ -51,7 +51,7 @@ func TestIsAttAggregator(t *testing.T) {
 	t.Run("not an aggregator", func(t *testing.T) {
 		// https://github.com/prysmaticlabs/prysm/blob/fc509cc220a82efd555704d41aa362903a06ab9e/beacon-chain/core/helpers/attestation_test.go#L39
 		commLen := uint64(64)
-		isAgg, err := eth2exp.IsAttAggregator(ctx, bmock, commLen, tblsconv.SigToETH2(blsSig))
+		isAgg, err := eth2exp.IsAttAggregator(ctx, bmock, commLen, eth2p0.BLSSignature(blsSig))
 		require.NoError(t, err)
 		require.False(t, isAgg)
 	})
