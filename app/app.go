@@ -68,7 +68,6 @@ import (
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -346,7 +345,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			return err
 		}
 
-		corePubkey, err := tblsconv.KeyToCore(pubkey)
+		corePubkey, err := core.PubKeyFromBytes(pubkey[:])
 		if err != nil {
 			return err
 		}
@@ -367,15 +366,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			return err
 		}
 
-		eth2Share, err := tblsconv.KeyToETH2(pubShare)
-		if err != nil {
-			return err
-		}
+		eth2Share := eth2p0.BLSPubKey(pubShare)
 
-		eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
-		if err != nil {
-			return err
-		}
+		eth2Pubkey := eth2p0.BLSPubKey(pubkey)
 
 		eth2Pubkeys = append(eth2Pubkeys, eth2Pubkey)
 		corePubkeys = append(corePubkeys, corePubkey)
@@ -675,11 +668,7 @@ func eth2PubKeys(validators []cluster.DistValidator) ([]eth2p0.BLSPubKey, error)
 			return []eth2p0.BLSPubKey{}, err
 		}
 
-		pk, err := tblsconv.KeyToETH2(pubkey)
-		if err != nil {
-			return []eth2p0.BLSPubKey{}, err
-		}
-
+		pk := eth2p0.BLSPubKey(pubkey)
 		pubkeys = append(pubkeys, pk)
 	}
 
@@ -916,7 +905,7 @@ func getDVPubkeys(lock cluster.Lock) ([]core.PubKey, error) {
 			return nil, err
 		}
 
-		pubkey, err := tblsconv.KeyToCore(pk)
+		pubkey, err := core.PubKeyFromBytes(pk[:])
 		if err != nil {
 			return nil, err
 		}

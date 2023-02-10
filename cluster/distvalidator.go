@@ -16,9 +16,8 @@
 package cluster
 
 import (
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
-
-	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 // DistValidator is a distributed validator (1x32ETH) managed by the cluster.
@@ -32,8 +31,8 @@ type DistValidator struct {
 }
 
 // PublicKey returns the validator BLS group public key.
-func (v DistValidator) PublicKey() (*bls_sig.PublicKey, error) {
-	return tblsconv.KeyFromBytes(v.PubKey)
+func (v DistValidator) PublicKey() (tblsv2.PublicKey, error) {
+	return tblsconv2.PubkeyFromBytes(v.PubKey)
 }
 
 // PublicKeyHex returns the validator hex group public key.
@@ -42,8 +41,8 @@ func (v DistValidator) PublicKeyHex() string {
 }
 
 // PublicShare returns a peer's threshold BLS public share.
-func (v DistValidator) PublicShare(peerIdx int) (*bls_sig.PublicKey, error) {
-	return tblsconv.KeyFromBytes(v.PubShares[peerIdx])
+func (v DistValidator) PublicShare(peerIdx int) (tblsv2.PublicKey, error) {
+	return tblsconv2.PubkeyFromBytes(v.PubShares[peerIdx])
 }
 
 // distValidatorJSONv1x1 is the json formatter of DistValidator for versions v1.0.0 and v1.1.0.

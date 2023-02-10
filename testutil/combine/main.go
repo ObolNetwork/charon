@@ -104,12 +104,7 @@ func secretsToShares(lock cluster.Lock, secrets []tblsv2.PrivateKey) (map[int]tb
 					return nil, errors.Wrap(err, "pubshare from lock")
 				}
 
-				actual, err := pubShare.MarshalBinary()
-				if err != nil {
-					return nil, errors.Wrap(err, "marshal pubshare")
-				}
-
-				if !bytes.Equal(pubkey[:], actual) {
+				if !bytes.Equal(pubkey[:], pubShare[:]) {
 					continue
 				}
 
