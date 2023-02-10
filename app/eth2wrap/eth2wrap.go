@@ -119,6 +119,7 @@ func newMulti(clients []Client) Client {
 // multi implements Client by wrapping multiple clients, calling them in parallel
 // and returning the first successful response.
 // It also adds prometheus metrics and error wrapping.
+// It also implements a best client selector.
 type multi struct {
 	clients  []Client
 	selector *bestSelector
