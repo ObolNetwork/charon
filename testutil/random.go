@@ -36,8 +36,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/core/curves/native/bls12381"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -46,22 +44,29 @@ import (
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
+
+func deterministicPubkey(t *testing.T) tblsv2.PublicKey {
+	t.Helper()
+	random := rand.New(rand.NewSource(rand.Int63()))
+
+	var key tblsv2.PublicKey
+	_, err := random.Read(key[:])
+	require.NoError(t, err)
+
+	return key
+}
 
 // RandomCorePubKey returns a random core workflow pubkey.
 func RandomCorePubKey(t *testing.T) core.PubKey {
 	t.Helper()
-	random := rand.New(rand.NewSource(rand.Int63()))
-	pubkey, _, err := tbls.KeygenWithSeed(random)
-	require.NoError(t, err)
-	resp, err := tblsconv.KeyToCore(pubkey)
+	pubkey := deterministicPubkey(t)
+	resp, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
 
 	return resp
@@ -70,13 +75,9 @@ func RandomCorePubKey(t *testing.T) core.PubKey {
 // RandomEth2PubKey returns a random eth2 phase0 bls pubkey.
 func RandomEth2PubKey(t *testing.T) eth2p0.BLSPubKey {
 	t.Helper()
-	random := rand.New(rand.NewSource(rand.Int63()))
-	pubkey, _, err := tbls.KeygenWithSeed(random)
-	require.NoError(t, err)
-	resp, err := tblsconv.KeyToETH2(pubkey)
-	require.NoError(t, err)
+	pubkey := deterministicPubkey(t)
 
-	return resp
+	return eth2p0.BLSPubKey(pubkey)
 }
 
 func RandomValidator(t *testing.T) *eth2v1.Validator {
@@ -622,15 +623,6 @@ func RandomRoot() eth2p0.Root {
 	return resp
 }
 
-func RandomBLSSignature() (*bls_sig.Signature, error) {
-	g2, err := new(bls12381.G2).Random(crand.Reader)
-	if err != nil {
-		return nil, errors.Wrap(err, "random point in g2")
-	}
-
-	return &bls_sig.Signature{Value: *g2}, nil
-}
-
 func RandomEth2Signature() eth2p0.BLSSignature {
 	var resp eth2p0.BLSSignature
 	_, _ = rand.Read(resp[:])
@@ -681,10 +673,6 @@ func RandomGwei() eth2p0.Gwei {
 
 func RandomETHAddress() string {
 	return fmt.Sprintf("%#x", RandomBytes32()[:20])
-}
-
-func RandomBytes20() []byte {
-	return RandomBytes32()[:20]
 }
 
 func RandomBytes48() []byte {

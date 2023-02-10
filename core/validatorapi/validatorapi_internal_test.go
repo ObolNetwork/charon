@@ -22,8 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -71,10 +71,11 @@ func TestMismatchKeysFunc(t *testing.T) {
 
 	t.Run("unknown public key", func(t *testing.T) {
 		// Create a mismatching key
-		pk, err := tblsconv.KeyFromCore(testutil.RandomCorePubKey(t))
+		pkb, err := testutil.RandomCorePubKey(t).Bytes()
 		require.NoError(t, err)
-		pubshare, err := tblsconv.KeyToETH2(pk)
+		pk, err := tblsconv2.PubkeyFromBytes(pkb)
 		require.NoError(t, err)
+		pubshare := eth2p0.BLSPubKey(pk)
 		allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}}
 
 		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
