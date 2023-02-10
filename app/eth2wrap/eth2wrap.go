@@ -359,6 +359,7 @@ func (s *bestSelector) Best() int {
 	for i, c := range s.counts {
 		if c > count {
 			resp = i
+			count = c
 		}
 	}
 
