@@ -257,10 +257,12 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 				// TODO(corver): Remove once gauge count issue #1790 identified and fixed.
 				log.Debug(ctx, "Libp2p connected count updated",
 					z.Str("peer", name),
+					z.Bool("connected", e.Connected),
 					z.Any("peer_address", addr),
 					z.Any("direction", e.Direction),
 					z.Str("type", typ),
 					z.Int("count", typeCounts[typeKey]),
+					z.Str("conn_id", e.ConnID),
 				)
 
 				// Ensure both connection type metrics are initiated
