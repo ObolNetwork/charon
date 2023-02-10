@@ -97,7 +97,8 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	// Assert output
 	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
 		require.Equal(t, expect, aggData.Signature())
-		sig := tblsconv2.SigFromCore(aggData.Signature())
+		sig, err := tblsconv2.SigFromCore(aggData.Signature())
+		require.NoError(t, err)
 
 		require.NoError(t, tblsv2.Verify(pubKey, msg, sig))
 		require.NoError(t, err)
@@ -160,7 +161,8 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	// Assert output
 	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
 		require.Equal(t, expect, aggData.Signature())
-		sig := tblsconv2.SigFromCore(aggData.Signature())
+		sig, err := tblsconv2.SigFromCore(aggData.Signature())
+		require.NoError(t, err)
 
 		require.NoError(t, tblsv2.Verify(pubKey, msg, sig))
 		require.NoError(t, err)
@@ -227,7 +229,8 @@ func TestSigAgg_DutyExit(t *testing.T) {
 	// Assert output
 	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
 		require.Equal(t, expect, aggData.Signature())
-		sig := tblsconv2.SigFromCore(aggData.Signature())
+		sig, err := tblsconv2.SigFromCore(aggData.Signature())
+		require.NoError(t, err)
 
 		require.NoError(t, tblsv2.Verify(pubKey, msg, sig))
 		require.NoError(t, err)
@@ -328,7 +331,11 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 				sigCore := tblsconv2.SigToCore(sig)
 				signed, err := block.SetSignature(sigCore)
 				require.NoError(t, err)
-				require.Equal(t, sig, tblsconv2.SigFromCore(signed.Signature()))
+
+				coreSig, err := tblsconv2.SigFromCore(signed.Signature())
+				require.NoError(t, err)
+
+				require.Equal(t, sig, coreSig)
 
 				psigs[idx] = sig
 				parsigs = append(parsigs, core.ParSignedData{
@@ -347,7 +354,8 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			// Assert output
 			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
 				require.Equal(t, expect, aggData.Signature())
-				sig := tblsconv2.SigFromCore(aggData.Signature())
+				sig, err := tblsconv2.SigFromCore(aggData.Signature())
+				require.NoError(t, err)
 
 				require.NoError(t, tblsv2.Verify(pubKey, msg[:], sig))
 				require.NoError(t, err)
@@ -430,7 +438,11 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 				sigCore := tblsconv2.SigToCore(sig)
 				signed, err := block.SetSignature(sigCore)
 				require.NoError(t, err)
-				require.Equal(t, sig, tblsconv2.SigFromCore(signed.Signature()))
+
+				coreSig, err := tblsconv2.SigFromCore(signed.Signature())
+				require.NoError(t, err)
+
+				require.Equal(t, sig, coreSig)
 
 				psigs[idx] = sig
 				parsigs = append(parsigs, core.ParSignedData{
@@ -449,7 +461,8 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			// Assert output
 			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
 				require.Equal(t, expect, aggData.Signature())
-				sig := tblsconv2.SigFromCore(aggData.Signature())
+				sig, err := tblsconv2.SigFromCore(aggData.Signature())
+				require.NoError(t, err)
 
 				require.NoError(t, tblsv2.Verify(pubKey, msg[:], sig))
 				require.NoError(t, err)
@@ -522,7 +535,11 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 				sigCore := tblsconv2.SigToCore(sig)
 				signed, err := block.SetSignature(sigCore)
 				require.NoError(t, err)
-				require.Equal(t, sig, tblsconv2.SigFromCore(signed.Signature()))
+
+				coreSig, err := tblsconv2.SigFromCore(signed.Signature())
+				require.NoError(t, err)
+
+				require.Equal(t, sig, coreSig)
 
 				psigs[idx] = sig
 				parsigs = append(parsigs, core.ParSignedData{
@@ -541,7 +558,8 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 			// Assert output
 			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
 				require.Equal(t, expect, aggData.Signature())
-				sig := tblsconv2.SigFromCore(aggData.Signature())
+				sig, err := tblsconv2.SigFromCore(aggData.Signature())
+				require.NoError(t, err)
 
 				require.NoError(t, tblsv2.Verify(pubKey, msg[:], sig))
 				require.NoError(t, err)

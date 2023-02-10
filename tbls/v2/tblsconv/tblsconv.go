@@ -24,23 +24,13 @@ import (
 )
 
 // SigFromCore converts a core workflow Signature type into a tbls.Signature.
-func SigFromCore(sig core.Signature) v2.Signature {
-	rawSig := (*[96]byte)(sig.Signature())
-	return *rawSig
+func SigFromCore(sig core.Signature) (v2.Signature, error) {
+	return SignatureFromBytes(sig)
 }
 
 // SigToCore converts a tbls.Signature into a core workflow Signature type.
 func SigToCore(sig v2.Signature) core.Signature {
 	return sig[:]
-}
-
-// SigFromBytes converts arbitrary bytes to a v2.Signature.
-func SigFromBytes(sig []byte) (v2.Signature, error) {
-	if len(sig) != len(v2.Signature{}) {
-		return v2.Signature{}, errors.New("data is not of the correct length")
-	}
-
-	return *(*v2.Signature)(sig), nil
 }
 
 // SigToETH2 converts a tbls.Signature into an eth2 phase0 bls signature.
