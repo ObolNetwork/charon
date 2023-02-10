@@ -338,14 +338,14 @@ func TestLazy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Both proxies are disabled, so this should fail.
-	_, err = eth2Cl.SlotDuration(ctx)
+	_, err = eth2Cl.NodeSyncing(ctx)
 	require.Error(t, err)
 	require.Equal(t, "", eth2Cl.Address())
 
 	enabled1 = true
 
 	// Proxy1 is enabled, so this should succeed.
-	_, err = eth2Cl.SlotDuration(ctx)
+	_, err = eth2Cl.NodeSyncing(ctx)
 	require.NoError(t, err)
 	require.Equal(t, srv1.URL, eth2Cl.Address())
 
@@ -353,11 +353,10 @@ func TestLazy(t *testing.T) {
 	enabled2 = true
 
 	// Proxy2 is enabled, so this should succeed.
-	_, err = eth2Cl.SlotDuration(ctx)
-	require.NoError(t, err)
+	for i := 0; i < 5; i++ { // Do multiple request to make Proxy2 the "best".
+		_, err = eth2Cl.NodeSyncing(ctx)
+		require.NoError(t, err)
+	}
 
-	// Do another request to make Proxy2 the "best".
-	_, err = eth2Cl.SlotDuration(ctx)
-	require.NoError(t, err)
 	require.Equal(t, srv2.URL, eth2Cl.Address())
 }
