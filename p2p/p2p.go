@@ -196,9 +196,15 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 	quit := make(chan struct{})
 	defer close(quit)
 
+	type connType struct {
+		Peer peer.ID
+		Type string
+	}
+
 	var (
-		peers  = make(map[peer.ID]bool)
-		events = make(chan logEvent)
+		peers      = make(map[peer.ID]bool)
+		events     = make(chan logEvent)
+		typeCounts = make(map[connType]int)
 	)
 
 	for _, p := range peerIDs {
@@ -237,12 +243,25 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 					continue
 				}
 
+				typeKey := connType{Peer: e.Peer, Type: typ}
+
 				if e.Connected {
 					peerConnGauge.WithLabelValues(name, addrType(e.Addr)).Inc()
 					peerConnCounter.WithLabelValues(name).Inc()
+					typeCounts[typeKey]++
 				} else if e.Disconnect {
 					peerConnGauge.WithLabelValues(name, addrType(e.Addr)).Dec()
+					typeCounts[typeKey]--
 				}
+
+				// TODO(corver): Remove once gauge count issue #1790 identified and fixed.
+				log.Debug(ctx, "Libp2p connected count updated",
+					z.Str("peer", name),
+					z.Any("peer_address", addr),
+					z.Any("direction", e.Direction),
+					z.Str("type", typ),
+					z.Int("count", typeCounts[typeKey]),
+				)
 
 				// Ensure both connection type metrics are initiated
 				peerConnGauge.WithLabelValues(name, addrTypeDirect).Add(0)
