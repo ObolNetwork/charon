@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	ssz "github.com/ferranbt/fastssz"
 
@@ -34,9 +33,7 @@ import (
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 // FetchDefinition fetches cluster definition file from a remote URI.
@@ -123,26 +120,11 @@ func signOperator(secret *k1.PrivateKey, def Definition, operator Operator) (Ope
 }
 
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.
-func aggSign(secrets [][]*bls_sig.SecretKeyShare, message []byte) ([]byte, error) {
+func aggSign(secrets [][]tblsv2.PrivateKey, message []byte) ([]byte, error) {
 	var sigs []tblsv2.Signature
 	for _, shares := range secrets {
 		for _, share := range shares {
-			secret, err := tblsconv.ShareToSecret(share)
-			if err != nil {
-				return nil, err
-			}
-
-			secretRaw, err := secret.MarshalBinary()
-			if err != nil {
-				return nil, errors.Wrap(err, "unmarshal error")
-			}
-
-			secretV2, err := tblsconv2.PrivkeyFromBytes(secretRaw)
-			if err != nil {
-				return nil, err
-			}
-
-			sig, err := tblsv2.Sign(secretV2, message)
+			sig, err := tblsv2.Sign(share, message)
 			if err != nil {
 				return nil, err
 			}

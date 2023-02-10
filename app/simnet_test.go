@@ -30,7 +30,6 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -46,7 +45,7 @@ import (
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -182,7 +181,7 @@ type simnetArgs struct {
 	VMocks              []bool
 	VAPIAddrs           []string
 	P2PKeys             []*k1.PrivateKey
-	SimnetKeys          []*bls_sig.SecretKey
+	SimnetKeys          []tblsv2.PrivateKey
 	BMockOpts           []beaconmock.Option
 	Lock                cluster.Lock
 	ErrChan             chan error
@@ -202,12 +201,7 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 	)
 	lock, p2pKeys, secretShares := cluster.NewForT(t, numDVs, n, n, 99)
 
-	var secrets []*bls_sig.SecretKey
-	for _, share := range secretShares[0] { // Using only index 0 since we only have 1 DV.
-		secret, err := tblsconv.ShareToSecret(share)
-		require.NoError(t, err)
-		secrets = append(secrets, secret)
-	}
+	secrets := secretShares[0]
 
 	var (
 		vmocks    []bool
@@ -302,7 +296,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect simnetExpect) {
 				Lock:               &args.Lock,
 				P2PKey:             args.P2PKeys[i],
 				TestPingConfig:     p2p.TestPingConfig{Disable: true},
-				SimnetKeys:         []*bls_sig.SecretKey{args.SimnetKeys[i]},
+				SimnetKeys:         []tblsv2.PrivateKey{args.SimnetKeys[i]},
 				ParSigExFunc:       parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
 				BroadcastCallback: func(_ context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
@@ -443,7 +437,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 
 	// Write private share keystore and password
 	tempDir := t.TempDir()
-	err := keystore.StoreKeys([]*bls_sig.SecretKey{args.SimnetKeys[node]}, tempDir)
+	err := keystore.StoreKeys([]tblsv2.PrivateKey{args.SimnetKeys[node]}, tempDir)
 	require.NoError(t, err)
 	err = os.WriteFile(path.Join(tempDir, "keystore-simnet-0.txt"), []byte("simnet"), 0o644)
 	require.NoError(t, err)

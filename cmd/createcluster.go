@@ -28,7 +28,6 @@ import (
 	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -43,8 +42,8 @@ import (
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 const (
@@ -167,13 +166,13 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 	// Generate threshold bls key shares
-	dvs, shareSets, err := getTSSShares(secrets, def.Threshold, numNodes)
+	pubkeys, shareSets, err := getTSSShares(secrets, def.Threshold, numNodes)
 	if err != nil {
 		return err
 	}
 
 	// Create validators
-	vals, err := getValidators(dvs)
+	vals, err := getValidators(pubkeys, shareSets)
 	if err != nil {
 		return err
 	}
@@ -232,7 +231,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 }
 
 // signDepositDatas returns Distributed Validator pubkeys and deposit data signatures corresponding to each pubkey.
-func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddresses []string, network string) ([]eth2p0.BLSPubKey, []eth2p0.BLSSignature, error) {
+func signDepositDatas(secrets []tblsv2.PrivateKey, withdrawalAddresses []string, network string) ([]eth2p0.BLSPubKey, []eth2p0.BLSSignature, error) {
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, nil, errors.New("insufficient withdrawal addresses")
 	}
@@ -247,53 +246,54 @@ func signDepositDatas(secrets []*bls_sig.SecretKey, withdrawalAddresses []string
 			return nil, nil, err
 		}
 
-		pk, err := secret.GetPublicKey()
+		pk, err := tblsv2.SecretToPublicKey(secret)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "secret to pubkey")
 		}
 
-		pubkey, err := tblsconv.KeyToETH2(pk)
+		msgRoot, err := deposit.GetMessageSigningRoot(eth2p0.BLSPubKey(pk), withdrawalAddr, network)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		msgRoot, err := deposit.GetMessageSigningRoot(pubkey, withdrawalAddr, network)
+		sig, err := tblsv2.Sign(secret, msgRoot[:])
 		if err != nil {
 			return nil, nil, err
 		}
 
-		sig, err := tbls.Sign(secret, msgRoot[:])
-		if err != nil {
-			return nil, nil, err
-		}
-
-		pubkeys = append(pubkeys, pubkey)
-		signatures = append(signatures, tblsconv.SigToETH2(sig))
+		pubkeys = append(pubkeys, eth2p0.BLSPubKey(pk))
+		signatures = append(signatures, tblsconv2.SigToETH2(sig))
 	}
 
 	return pubkeys, signatures, nil
 }
 
 // getTSSShares splits the secrets and returns the threshold key shares.
-func getTSSShares(secrets []*bls_sig.SecretKey, threshold, numNodes int) ([]tbls.TSS, [][]*bls_sig.SecretKeyShare, error) {
+func getTSSShares(secrets []tblsv2.PrivateKey, threshold, numNodes int) ([]tblsv2.PublicKey, [][]tblsv2.PrivateKey, error) {
 	var (
-		dvs    []tbls.TSS
-		splits [][]*bls_sig.SecretKeyShare
+		dvs    []tblsv2.PublicKey
+		splits [][]tblsv2.PrivateKey
 	)
 	for _, secret := range secrets {
-		shares, verifier, err := tbls.SplitSecret(secret, threshold, numNodes, rand.Reader)
+		shares, err := tblsv2.ThresholdSplit(secret, uint(numNodes), uint(threshold))
 		if err != nil {
 			return nil, nil, err
 		}
 
-		splits = append(splits, shares)
+		// preserve order when transforming from map of private shares to array of private keys
+		secretSet := make([]tblsv2.PrivateKey, len(shares))
+		for i := 1; i <= len(shares); i++ {
+			secretSet[i-1] = shares[i]
+		}
 
-		tss, err := tbls.NewTSS(verifier, len(shares))
+		splits = append(splits, secretSet)
+
+		pubkey, err := tblsv2.SecretToPublicKey(secret)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		dvs = append(dvs, tss)
+		dvs = append(dvs, pubkey)
 	}
 
 	return dvs, splits, nil
@@ -313,7 +313,7 @@ func writeWarning(w io.Writer) {
 }
 
 // getKeys fetches secret keys for each distributed validator.
-func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]*bls_sig.SecretKey, error) {
+func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]tblsv2.PrivateKey, error) {
 	if splitKeys {
 		if splitKeysDir == "" {
 			return nil, errors.New("--split-keys-dir required when splitting keys")
@@ -322,9 +322,9 @@ func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]*bls_sig.Secret
 		return keystore.LoadKeys(splitKeysDir)
 	}
 
-	var secrets []*bls_sig.SecretKey
+	var secrets []tblsv2.PrivateKey
 	for i := 0; i < numDVs; i++ {
-		_, secret, err := tbls.KeygenWithSeed(rand.Reader)
+		secret, err := tblsv2.GenerateSecretKey()
 		if err != nil {
 			return nil, err
 		}
@@ -336,7 +336,7 @@ func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]*bls_sig.Secret
 }
 
 // writeDepositData writes deposit data to disk for the DVs for all peers in a cluster.
-func writeDepositData(withdrawalAddresses []string, clusterDir string, forkVersion []byte, numNodes int, secrets []*bls_sig.SecretKey) error {
+func writeDepositData(withdrawalAddresses []string, clusterDir string, forkVersion []byte, numNodes int, secrets []tblsv2.PrivateKey) error {
 	if len(secrets) != len(withdrawalAddresses) {
 		return errors.New("insufficient withdrawal addresses")
 	}
@@ -370,7 +370,7 @@ func writeDepositData(withdrawalAddresses []string, clusterDir string, forkVersi
 }
 
 // writeLock creates a cluster lock and writes it to disk for all peers.
-func writeLock(lock cluster.Lock, clusterDir string, numNodes int, shareSets [][]*bls_sig.SecretKeyShare) error {
+func writeLock(lock cluster.Lock, clusterDir string, numNodes int, shareSets [][]tblsv2.PrivateKey) error {
 	var err error
 	lock.SignatureAggregate, err = aggSign(shareSets, lock.LockHash)
 	if err != nil {
@@ -395,26 +395,22 @@ func writeLock(lock cluster.Lock, clusterDir string, numNodes int, shareSets [][
 
 // getValidators returns distributed validators from the provided dv public keys and keyshares.
 // It creates new peers from the provided config and saves validator keys to disk for each peer.
-func getValidators(dvs []tbls.TSS) ([]cluster.DistValidator, error) {
+func getValidators(dvsPubkeys []tblsv2.PublicKey, dvPrivShares [][]tblsv2.PrivateKey) ([]cluster.DistValidator, error) {
 	var vals []cluster.DistValidator
-	for _, dv := range dvs {
-		pk, err := dv.PublicKey().MarshalBinary()
-		if err != nil {
-			return []cluster.DistValidator{}, errors.Wrap(err, "marshal pubkey")
-		}
-
+	for idx, dv := range dvsPubkeys {
+		privShares := dvPrivShares[idx]
 		var pubshares [][]byte
-		for i := 0; i < dv.NumShares(); i++ {
-			share := dv.PublicShare(i + 1) // Shares are 1-indexed.
-			b, err := share.MarshalBinary()
+		for _, ps := range privShares {
+			pubk, err := tblsv2.SecretToPublicKey(ps)
 			if err != nil {
-				return []cluster.DistValidator{}, errors.Wrap(err, "marshal pubshare")
+				return nil, errors.Wrap(err, "public key generation")
 			}
-			pubshares = append(pubshares, b)
+
+			pubshares = append(pubshares, pubk[:])
 		}
 
 		vals = append(vals, cluster.DistValidator{
-			PubKey:    pk,
+			PubKey:    dv[:],
 			PubShares: pubshares,
 		})
 	}
@@ -423,7 +419,7 @@ func getValidators(dvs []tbls.TSS) ([]cluster.DistValidator, error) {
 }
 
 // writeKeysToKeymanager writes validator keys to the provided keymanager addresses.
-func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]*bls_sig.SecretKeyShare) error {
+func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]tblsv2.PrivateKey) error {
 	// Ping all keymanager addresses to check if they are accessible to avoid partial writes
 	var clients []keymanager.Client
 	for i := 0; i < numNodes; i++ {
@@ -446,12 +442,7 @@ func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sh
 			}
 			passwords = append(passwords, password)
 
-			secret, err := tblsconv.ShareToSecret(shares[i])
-			if err != nil {
-				return err
-			}
-
-			store, err := keystore.Encrypt(secret, password, rand.Reader)
+			store, err := keystore.Encrypt(shares[i], password, rand.Reader)
 			if err != nil {
 				return err
 			}
@@ -473,15 +464,11 @@ func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, sh
 }
 
 // writeKeysToDisk writes validator keyshares to disk. It assumes that the directory for each node already exists.
-func writeKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSets [][]*bls_sig.SecretKeyShare) error {
+func writeKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSets [][]tblsv2.PrivateKey) error {
 	for i := 0; i < numNodes; i++ {
-		var secrets []*bls_sig.SecretKey
+		var secrets []tblsv2.PrivateKey
 		for _, shares := range shareSets {
-			secret, err := tblsconv.ShareToSecret(shares[i])
-			if err != nil {
-				return err
-			}
-			secrets = append(secrets, secret)
+			secrets = append(secrets, shares[i])
 		}
 
 		keysDir := path.Join(nodeDir(clusterDir, i), "/validator_keys")
@@ -616,15 +603,11 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 }
 
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.
-func aggSign(secrets [][]*bls_sig.SecretKeyShare, message []byte) ([]byte, error) {
-	var sigs []*bls_sig.Signature
+func aggSign(secrets [][]tblsv2.PrivateKey, message []byte) ([]byte, error) {
+	var sigs []tblsv2.Signature
 	for _, shares := range secrets {
 		for _, share := range shares {
-			secret, err := tblsconv.ShareToSecret(share)
-			if err != nil {
-				return nil, err
-			}
-			sig, err := tbls.Sign(secret, message)
+			sig, err := tblsv2.Sign(share, message)
 			if err != nil {
 				return nil, err
 			}
@@ -632,17 +615,12 @@ func aggSign(secrets [][]*bls_sig.SecretKeyShare, message []byte) ([]byte, error
 		}
 	}
 
-	aggSig, err := tbls.Scheme().AggregateSignatures(sigs...)
+	aggSig, err := tblsv2.Aggregate(sigs)
 	if err != nil {
 		return nil, errors.Wrap(err, "aggregate signatures")
 	}
 
-	b, err := aggSig.MarshalBinary()
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal signature")
-	}
-
-	return b, nil
+	return aggSig[:], nil
 }
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It also verifies signatures

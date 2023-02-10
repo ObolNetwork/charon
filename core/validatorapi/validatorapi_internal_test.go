@@ -19,12 +19,11 @@ import (
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -32,15 +31,18 @@ func TestMismatchKeysFunc(t *testing.T) {
 	const shareIdx = 1
 
 	// Create keys (just use normal keys, not split tbls)
-	pubkey, _, err := tbls.Keygen()
-	require.NoError(t, err)
-	corePubKey, err := tblsconv.KeyToCore(pubkey)
-	require.NoError(t, err)
-	eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
+	secret, err := tblsv2.GenerateSecretKey()
 	require.NoError(t, err)
 
+	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
+	require.NoError(t, err)
+	eth2Pubkey := eth2p0.BLSPubKey(pubkey)
+
 	t.Run("no mismatch", func(t *testing.T) {
-		allPubSharesByKey := map[core.PubKey]map[int]*bls_sig.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+		allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 		require.NoError(t, err)
@@ -51,16 +53,17 @@ func TestMismatchKeysFunc(t *testing.T) {
 
 	t.Run("mismatch", func(t *testing.T) {
 		// Create a mismatching key
-		pk, err := tblsconv.KeyFromCore(testutil.RandomCorePubKey(t))
+		pkraw := testutil.RandomCorePubKey(t)
+		pkb, err := pkraw.Bytes()
 		require.NoError(t, err)
-		pubshare, err := tblsconv.KeyToETH2(pk)
-		require.NoError(t, err)
-		allPubSharesByKey := map[core.PubKey]map[int]*bls_sig.PublicKey{corePubKey: {shareIdx: pubkey, shareIdx + 1: pk}}
+
+		pubshare := *(*tblsv2.PublicKey)(pkb)
+		allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey, shareIdx + 1: pubshare}}
 
 		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 		require.NoError(t, err)
 
-		resp, err := vapi.getPubKeyFunc(pubshare) // Ask for a mismatching key
+		resp, err := vapi.getPubKeyFunc(eth2p0.BLSPubKey(pubshare)) // Ask for a mismatching key
 		require.Error(t, err)
 		require.Equal(t, resp, eth2p0.BLSPubKey{})
 		require.ErrorContains(t, err, "mismatching validator client key share index, Mth key share submitted to Nth charon peer")
@@ -72,7 +75,7 @@ func TestMismatchKeysFunc(t *testing.T) {
 		require.NoError(t, err)
 		pubshare, err := tblsconv.KeyToETH2(pk)
 		require.NoError(t, err)
-		allPubSharesByKey := map[core.PubKey]map[int]*bls_sig.PublicKey{corePubKey: {shareIdx: pubkey}}
+		allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}}
 
 		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 		require.NoError(t, err)

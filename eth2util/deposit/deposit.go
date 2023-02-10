@@ -28,8 +28,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
 var (
@@ -95,20 +94,12 @@ func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLS
 			return nil, err
 		}
 
-		blsSig, err := tblsconv.SigFromETH2(sig)
-		if err != nil {
-			return nil, err
-		}
-		blsPubkey, err := tblsconv.KeyFromETH2(pubkeys[i])
-		if err != nil {
-			return nil, err
-		}
+		blsSig := tblsv2.Signature(sig)
+		blsPubkey := tblsv2.PublicKey(pubkeys[i])
 
-		ok, err := tbls.Verify(blsPubkey, sigData[:], blsSig)
+		err = tblsv2.Verify(blsPubkey, sigData[:], blsSig)
 		if err != nil {
-			return nil, err
-		} else if !ok {
-			return nil, errors.New("invalid deposit data signature")
+			return nil, errors.Wrap(err, "invalid deposit data signature")
 		}
 
 		dd := eth2p0.DepositData{

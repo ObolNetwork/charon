@@ -31,19 +31,19 @@ import (
 
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
 func TestImportKeystores(t *testing.T) {
 	var (
 		ctx        = context.Background()
 		numSecrets = 4
-		secrets    []*bls_sig.SecretKey
+		secrets    []tblsv2.PrivateKey
 	)
 
 	for i := 0; i < numSecrets; i++ {
-		_, secret, err := tbls.Keygen()
+		secret, err := tblsv2.GenerateSecretKey()
 		require.NoError(t, err)
 		secrets = append(secrets, secret)
 	}
@@ -69,7 +69,9 @@ func TestImportKeystores(t *testing.T) {
 
 			data, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
-			defer r.Body.Close()
+			defer func() {
+				require.NoError(t, r.Body.Close())
+			}()
 
 			var req mockKeymanagerReq
 			require.NoError(t, json.Unmarshal(data, &req))
@@ -96,9 +98,7 @@ func TestImportKeystores(t *testing.T) {
 		// Convert original secrets to strings
 		var originalSecrets []string
 		for _, secret := range secrets {
-			secretBytes, err := secret.MarshalBinary()
-			require.NoError(t, err)
-			originalSecrets = append(originalSecrets, hex.EncodeToString(secretBytes))
+			originalSecrets = append(originalSecrets, hex.EncodeToString(secret[:]))
 		}
 
 		require.Equal(t, originalSecrets, receivedSecrets)

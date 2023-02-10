@@ -29,7 +29,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
@@ -37,9 +36,8 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -91,12 +89,12 @@ func TestCreateCluster(t *testing.T) {
 
 				keyDir := t.TempDir()
 
-				_, secret1, err := tbls.Keygen()
+				secret1, err := tblsv2.GenerateSecretKey()
 				require.NoError(t, err)
-				_, secret2, err := tbls.Keygen()
+				secret2, err := tblsv2.GenerateSecretKey()
 				require.NoError(t, err)
 
-				err = keystore.StoreKeys([]*bls_sig.SecretKey{secret1, secret2}, keyDir)
+				err = keystore.StoreKeys([]tblsv2.PrivateKey{secret1, secret2}, keyDir)
 				require.NoError(t, err)
 
 				config.SplitKeysDir = keyDir
@@ -272,14 +270,12 @@ func TestKeymanager(t *testing.T) {
 	defer cancel()
 
 	// Create secret
-	_, secret1, err := tbls.Keygen()
-	require.NoError(t, err)
-	originalSecret, err := secret1.MarshalBinary()
+	secret1, err := tblsv2.GenerateSecretKey()
 	require.NoError(t, err)
 
 	// Store secret
 	keyDir := t.TempDir()
-	err = keystore.StoreKeys([]*bls_sig.SecretKey{secret1}, keyDir)
+	err = keystore.StoreKeys([]tblsv2.PrivateKey{secret1}, keyDir)
 	require.NoError(t, err)
 
 	// Create minNodes test servers
@@ -324,26 +320,17 @@ func TestKeymanager(t *testing.T) {
 		require.NoError(t, err)
 
 		// Receive secret shares from all keymanager servers
-		var shares []*bls_sig.SecretKeyShare
+		shares := make(map[int]tblsv2.PrivateKey)
 		for len(shares) < minNodes {
 			res := <-results
-			secretBin, err := res.secret.MarshalBinary()
-			require.NoError(t, err)
-
-			share := new(bls_sig.SecretKeyShare)
-			err = share.UnmarshalBinary(append(secretBin, byte(res.id+1)))
-			require.NoError(t, err)
-
-			shares = append(shares, share)
+			shares[res.id+1] = res.secret
 		}
 
 		// Combine the shares and test equality with original share
-		csb, err := tbls.CombineShares(shares, 3, minNodes)
-		require.NoError(t, err)
-		combinedSecret, err := csb.MarshalBinary()
+		csb, err := tblsv2.RecoverSecret(shares, minNodes, 3)
 		require.NoError(t, err)
 
-		require.Equal(t, combinedSecret, originalSecret)
+		require.EqualValues(t, secret1, csb)
 	})
 
 	t.Run("some unsuccessful", func(t *testing.T) {
@@ -407,21 +394,21 @@ type mockKeymanagerReq struct {
 }
 
 // decrypt returns the secret from the encrypted keystore.
-func decrypt(t *testing.T, store keystore.Keystore, password string) (*bls_sig.SecretKey, error) {
+func decrypt(t *testing.T, store keystore.Keystore, password string) (tblsv2.PrivateKey, error) {
 	t.Helper()
 
 	decryptor := keystorev4.New()
 	secretBytes, err := decryptor.Decrypt(store.Crypto, password)
 	require.NoError(t, err)
 
-	return tblsconv.SecretFromBytes(secretBytes)
+	return tblsconv2.PrivkeyFromBytes(secretBytes)
 }
 
 // result is a struct for receiving secrets along with their id.
 // This is needed as tbls.CombineShares needs shares in the correct (original) order.
 type result struct {
 	id     int
-	secret *bls_sig.SecretKey
+	secret tblsv2.PrivateKey
 }
 
 // newKeymanagerHandler returns http handler for a test keymanager API server.
@@ -431,7 +418,9 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
-		defer r.Body.Close()
+		defer func() {
+			require.NoError(t, r.Body.Close())
+		}()
 
 		var req mockKeymanagerReq
 		require.NoError(t, json.Unmarshal(data, &req))

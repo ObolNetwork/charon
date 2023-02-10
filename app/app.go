@@ -29,7 +29,6 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -70,7 +69,8 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	blsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -110,7 +110,7 @@ type TestConfig struct {
 	// LcastTransportFunc provides an in-memory leader cast transport.
 	LcastTransportFunc func() leadercast.Transport
 	// SimnetKeys provides private key shares for the simnet validatormock signer.
-	SimnetKeys []*bls_sig.SecretKey
+	SimnetKeys []tblsv2.PrivateKey
 	// SimnetBMockOpts defines additional simnet beacon mock options.
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
@@ -146,7 +146,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	if featureset.Enabled(featureset.HerumiBLS) {
 		log.Info(ctx, "Enabling Herumi BLS signature backend")
-		blsv2.SetImplementation(blsv2.Herumi{})
+		tblsv2.SetImplementation(tblsv2.Herumi{})
 	}
 
 	// Wire processes and their dependencies
@@ -337,7 +337,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		corePubkeys                  []core.PubKey
 		eth2Pubkeys                  []eth2p0.BLSPubKey
 		pubshares                    []eth2p0.BLSPubKey
-		allPubSharesByKey            = make(map[core.PubKey]map[int]*bls_sig.PublicKey) // map[pubkey]map[shareIdx]pubshare
+		allPubSharesByKey            = make(map[core.PubKey]map[int]tblsv2.PublicKey) // map[pubkey]map[shareIdx]pubshare
 		feeRecipientAddrByCorePubkey = make(map[core.PubKey]string)
 	)
 	for i, dv := range lock.Validators {
@@ -351,9 +351,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			return err
 		}
 
-		allPubShares := make(map[int]*bls_sig.PublicKey)
+		allPubShares := make(map[int]tblsv2.PublicKey)
 		for i, b := range dv.PubShares {
-			pubshare, err := tblsconv.KeyFromBytes(b)
+			pubshare, err := tblsconv2.PubkeyFromBytes(b)
 			if err != nil {
 				return err
 			}

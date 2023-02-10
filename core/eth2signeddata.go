@@ -19,12 +19,11 @@ import (
 	"context"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
+	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
 var (
@@ -42,7 +41,7 @@ var (
 )
 
 // VerifyEth2SignedData verifies signature associated with given Eth2SignedData.
-func VerifyEth2SignedData(ctx context.Context, eth2Cl eth2wrap.Client, data Eth2SignedData, pubkey *bls_sig.PublicKey) error {
+func VerifyEth2SignedData(ctx context.Context, eth2Cl eth2wrap.Client, data Eth2SignedData, pubkey tblsv2.PublicKey) error {
 	epoch, err := data.Epoch(ctx, eth2Cl)
 	if err != nil {
 		return err
@@ -53,13 +52,7 @@ func VerifyEth2SignedData(ctx context.Context, eth2Cl eth2wrap.Client, data Eth2
 		return err
 	}
 
-	// TODO(gsora): refactor this to tblsv2.PublicKey
-	pkBytes, err := pubkey.MarshalBinary()
-	if err != nil {
-		return errors.Wrap(err, "cannot serialize public key")
-	}
-
-	return signing.Verify(ctx, eth2Cl, data.DomainName(), epoch, sigRoot, data.Signature().ToETH2(), pkBytes)
+	return signing.Verify(ctx, eth2Cl, data.DomainName(), epoch, sigRoot, data.Signature().ToETH2(), pubkey)
 }
 
 // Implement Eth2SignedData for VersionedSignedBeaconBlock.
