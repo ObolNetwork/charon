@@ -20,6 +20,7 @@ import (
 	"context"
 	"net"
 	"net/url"
+	"sync"
 	"time"
 
 	eth2http "github.com/attestantio/go-eth2-client/http"
@@ -36,7 +37,10 @@ import (
 
 //go:generate go run genwrap/genwrap.go
 
-const zeroLogInfo = 1 // Avoid importing zero log for this constant.
+const (
+	zeroLogInfo = 1           // Avoid importing zero log for this constant.
+	bestPeriod  = time.Minute // Best client selector period.
+)
 
 var (
 	latencyHist = promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -64,7 +68,7 @@ func Instrument(clients ...Client) (Client, error) {
 		return nil, errors.New("clients empty")
 	}
 
-	return multi{clients: clients}, nil
+	return newMulti(clients), nil
 }
 
 // WithSyntheticDuties wraps the provided client adding synthetic duties.
@@ -105,11 +109,25 @@ func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses ...strin
 	return Instrument(clients...)
 }
 
+func newMulti(clients []Client) Client {
+	return multi{
+		clients:  clients,
+		selector: newBestSelector(len(clients), bestPeriod),
+	}
+}
+
 // multi implements Client by wrapping multiple clients, calling them in parallel
 // and returning the first successful response.
 // It also adds prometheus metrics and error wrapping.
+// It also implements a best client selector.
 type multi struct {
-	clients []Client
+	clients  []Client
+	selector *bestSelector
+}
+
+// bestIdx increments the selector with the best client index.
+func (m multi) bestIdx(i int) {
+	m.selector.Increment(i)
 }
 
 func (multi) Name() string {
@@ -117,8 +135,7 @@ func (multi) Name() string {
 }
 
 func (m multi) Address() string {
-	// TODO(corver): return "best" address.
-	return m.clients[0].Address()
+	return m.clients[m.selector.Best()].Address()
 }
 
 func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
@@ -129,7 +146,7 @@ func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selection
 		func(ctx context.Context, cl Client) ([]*eth2exp.BeaconCommitteeSelection, error) {
 			return cl.AggregateBeaconCommitteeSelections(ctx, selections)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 	if err != nil {
 		incError(label)
@@ -147,7 +164,7 @@ func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections 
 		func(ctx context.Context, cl Client) ([]*eth2exp.SyncCommitteeSelection, error) {
 			return cl.AggregateSyncCommitteeSelections(ctx, selections)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 	if err != nil {
 		incError(label)
@@ -165,7 +182,7 @@ func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0
 		func(ctx context.Context, cl Client) ([]*eth2p0.Attestation, error) {
 			return cl.BlockAttestations(ctx, stateID)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 	if err != nil {
 		incError(label)
@@ -183,7 +200,7 @@ func (m multi) NodePeerCount(ctx context.Context) (int, error) {
 		func(ctx context.Context, cl Client) (int, error) {
 			return cl.NodePeerCount(ctx)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 	if err != nil {
 		incError(label)
@@ -195,8 +212,9 @@ func (m multi) NodePeerCount(ctx context.Context) (int, error) {
 
 // provide calls the work function with each client in parallel, returning the
 // first successful result or first error.
+// The bestIdxFunc is called with the index of the client returning a successful response.
 func provide[O any](ctx context.Context, clients []Client,
-	work forkjoin.Work[Client, O], isSuccess func(O) bool,
+	work forkjoin.Work[Client, O], isSuccess func(O) bool, bestIdxFunc func(int),
 ) (O, error) {
 	if isSuccess == nil {
 		isSuccess = func(O) bool { return true }
@@ -220,6 +238,13 @@ func provide[O any](ctx context.Context, clients []Client,
 		if ctx.Err() != nil {
 			return zero, ctx.Err()
 		} else if res.Err == nil && isSuccess(res.Output) {
+			// TODO(corver): Find a better way to get the index of successful client.
+			for i, client := range clients {
+				if client.Address() == res.Input.Address() {
+					bestIdxFunc(i)
+				}
+			}
+
 			return res.Output, nil
 		} else {
 			nokResp = res
@@ -239,12 +264,14 @@ func provide[O any](ctx context.Context, clients []Client,
 type empty struct{}
 
 // submit proxies provide, but returns nil instead of a successful result.
-func submit(ctx context.Context, clients []Client, work func(context.Context, Client) error) error {
+func submit(ctx context.Context, clients []Client, work func(context.Context, Client) error,
+	bestIdxFunc func(int),
+) error {
 	_, err := provide(ctx, clients,
 		func(ctx context.Context, cl Client) (empty, error) {
 			return empty{}, work(ctx, cl)
 		},
-		nil,
+		nil, bestIdxFunc,
 	)
 
 	return err
@@ -304,4 +331,55 @@ func wrapError(ctx context.Context, err error, label string) error {
 	}
 
 	return errors.Wrap(err, "beacon api "+label, z.Str("label", label))
+}
+
+// newBestSelector returns a new bestSelector.
+func newBestSelector(n int, period time.Duration) *bestSelector {
+	return &bestSelector{
+		n:      n,
+		period: period,
+		counts: make([]int, n),
+	}
+}
+
+// bestSelector calculates the "best client index" per period.
+type bestSelector struct {
+	n      int
+	mu     sync.Mutex
+	start  time.Time
+	period time.Duration
+	counts []int
+}
+
+// Best returns the best index or 0 if no counts.
+func (s *bestSelector) Best() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var resp, count int
+	for i, c := range s.counts {
+		if c > count {
+			resp = i
+			count = c
+		}
+	}
+
+	return resp
+}
+
+// Increment increments the counter for the given index.
+func (s *bestSelector) Increment(i int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if i < 0 || i >= s.n {
+		panic("invalid index") // This should never happen
+	}
+
+	if time.Since(s.start) > s.period { // Reset counters after period.
+		s.counts = make([]int, s.n)
+		s.start = time.Now()
+	}
+
+	s.counts[i]++
 }

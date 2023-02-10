@@ -83,7 +83,7 @@ func (m multi) NodeVersion(ctx context.Context) (string, error) {
 		func(ctx context.Context, cl Client) (string, error) {
 			return cl.NodeVersion(ctx)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -103,7 +103,7 @@ func (m multi) SlotDuration(ctx context.Context) (time.Duration, error) {
 		func(ctx context.Context, cl Client) (time.Duration, error) {
 			return cl.SlotDuration(ctx)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -123,7 +123,7 @@ func (m multi) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 		func(ctx context.Context, cl Client) (uint64, error) {
 			return cl.SlotsPerEpoch(ctx)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -143,7 +143,7 @@ func (m multi) DepositContract(ctx context.Context) (*apiv1.DepositContract, err
 		func(ctx context.Context, cl Client) (*apiv1.DepositContract, error) {
 			return cl.DepositContract(ctx)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -163,7 +163,7 @@ func (m multi) SignedBeaconBlock(ctx context.Context, blockID string) (*spec.Ver
 		func(ctx context.Context, cl Client) (*spec.VersionedSignedBeaconBlock, error) {
 			return cl.SignedBeaconBlock(ctx, blockID)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -183,7 +183,7 @@ func (m multi) AggregateAttestation(ctx context.Context, slot phase0.Slot, attes
 		func(ctx context.Context, cl Client) (*phase0.Attestation, error) {
 			return cl.AggregateAttestation(ctx, slot, attestationDataRoot)
 		},
-		isAggregateAttestationOk,
+		isAggregateAttestationOk, m.bestIdx,
 	)
 
 	if err != nil {
@@ -203,6 +203,7 @@ func (m multi) SubmitAggregateAttestations(ctx context.Context, aggregateAndProo
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitAggregateAttestations(ctx, aggregateAndProofs)
 		},
+		m.bestIdx,
 	)
 
 	if err != nil {
@@ -222,7 +223,7 @@ func (m multi) AttestationData(ctx context.Context, slot phase0.Slot, committeeI
 		func(ctx context.Context, cl Client) (*phase0.AttestationData, error) {
 			return cl.AttestationData(ctx, slot, committeeIndex)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -242,6 +243,7 @@ func (m multi) SubmitAttestations(ctx context.Context, attestations []*phase0.At
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitAttestations(ctx, attestations)
 		},
+		m.bestIdx,
 	)
 
 	if err != nil {
@@ -262,7 +264,7 @@ func (m multi) AttesterDuties(ctx context.Context, epoch phase0.Epoch, validator
 		func(ctx context.Context, cl Client) ([]*apiv1.AttesterDuty, error) {
 			return cl.AttesterDuties(ctx, epoch, validatorIndices)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -283,7 +285,7 @@ func (m multi) SyncCommitteeDuties(ctx context.Context, epoch phase0.Epoch, vali
 		func(ctx context.Context, cl Client) ([]*apiv1.SyncCommitteeDuty, error) {
 			return cl.SyncCommitteeDuties(ctx, epoch, validatorIndices)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -303,6 +305,7 @@ func (m multi) SubmitSyncCommitteeMessages(ctx context.Context, messages []*alta
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitSyncCommitteeMessages(ctx, messages)
 		},
+		m.bestIdx,
 	)
 
 	if err != nil {
@@ -322,6 +325,7 @@ func (m multi) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptio
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitSyncCommitteeSubscriptions(ctx, subscriptions)
 		},
+		m.bestIdx,
 	)
 
 	if err != nil {
@@ -341,7 +345,7 @@ func (m multi) SyncCommitteeContribution(ctx context.Context, slot phase0.Slot, 
 		func(ctx context.Context, cl Client) (*altair.SyncCommitteeContribution, error) {
 			return cl.SyncCommitteeContribution(ctx, slot, subcommitteeIndex, beaconBlockRoot)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -361,6 +365,7 @@ func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
 		},
+		m.bestIdx,
 	)
 
 	if err != nil {
@@ -380,7 +385,7 @@ func (m multi) BeaconBlockProposal(ctx context.Context, slot phase0.Slot, randao
 		func(ctx context.Context, cl Client) (*spec.VersionedBeaconBlock, error) {
 			return cl.BeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -400,7 +405,7 @@ func (m multi) BeaconBlockRoot(ctx context.Context, blockID string) (*phase0.Roo
 		func(ctx context.Context, cl Client) (*phase0.Root, error) {
 			return cl.BeaconBlockRoot(ctx, blockID)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -420,6 +425,7 @@ func (m multi) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSigne
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitBeaconBlock(ctx, block)
 		},
+		m.bestIdx,
 	)
 
 	if err != nil {
@@ -439,6 +445,7 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
 		},
+		m.bestIdx,
 	)
 
 	if err != nil {
@@ -458,7 +465,7 @@ func (m multi) BlindedBeaconBlockProposal(ctx context.Context, slot phase0.Slot,
 		func(ctx context.Context, cl Client) (*api.VersionedBlindedBeaconBlock, error) {
 			return cl.BlindedBeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -478,6 +485,7 @@ func (m multi) SubmitBlindedBeaconBlock(ctx context.Context, block *api.Versione
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitBlindedBeaconBlock(ctx, block)
 		},
+		m.bestIdx,
 	)
 
 	if err != nil {
@@ -497,6 +505,7 @@ func (m multi) SubmitValidatorRegistrations(ctx context.Context, registrations [
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitValidatorRegistrations(ctx, registrations)
 		},
+		m.bestIdx,
 	)
 
 	if err != nil {
@@ -516,6 +525,7 @@ func (m multi) Events(ctx context.Context, topics []string, handler eth2client.E
 		func(ctx context.Context, cl Client) error {
 			return cl.Events(ctx, topics, handler)
 		},
+		m.bestIdx,
 	)
 
 	if err != nil {
@@ -535,7 +545,7 @@ func (m multi) Fork(ctx context.Context, stateID string) (*phase0.Fork, error) {
 		func(ctx context.Context, cl Client) (*phase0.Fork, error) {
 			return cl.Fork(ctx, stateID)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -555,7 +565,7 @@ func (m multi) ForkSchedule(ctx context.Context) ([]*phase0.Fork, error) {
 		func(ctx context.Context, cl Client) ([]*phase0.Fork, error) {
 			return cl.ForkSchedule(ctx)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -575,7 +585,7 @@ func (m multi) Genesis(ctx context.Context) (*apiv1.Genesis, error) {
 		func(ctx context.Context, cl Client) (*apiv1.Genesis, error) {
 			return cl.Genesis(ctx)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -595,7 +605,7 @@ func (m multi) NodeSyncing(ctx context.Context) (*apiv1.SyncState, error) {
 		func(ctx context.Context, cl Client) (*apiv1.SyncState, error) {
 			return cl.NodeSyncing(ctx)
 		},
-		isSyncStateOk,
+		isSyncStateOk, m.bestIdx,
 	)
 
 	if err != nil {
@@ -616,6 +626,7 @@ func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*a
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitProposalPreparations(ctx, preparations)
 		},
+		m.bestIdx,
 	)
 
 	if err != nil {
@@ -636,7 +647,7 @@ func (m multi) ProposerDuties(ctx context.Context, epoch phase0.Epoch, validator
 		func(ctx context.Context, cl Client) ([]*apiv1.ProposerDuty, error) {
 			return cl.ProposerDuties(ctx, epoch, validatorIndices)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -656,7 +667,7 @@ func (m multi) Spec(ctx context.Context) (map[string]interface{}, error) {
 		func(ctx context.Context, cl Client) (map[string]interface{}, error) {
 			return cl.Spec(ctx)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -679,7 +690,7 @@ func (m multi) Validators(ctx context.Context, stateID string, validatorIndices 
 		func(ctx context.Context, cl Client) (map[phase0.ValidatorIndex]*apiv1.Validator, error) {
 			return cl.Validators(ctx, stateID, validatorIndices)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -702,7 +713,7 @@ func (m multi) ValidatorsByPubKey(ctx context.Context, stateID string, validator
 		func(ctx context.Context, cl Client) (map[phase0.ValidatorIndex]*apiv1.Validator, error) {
 			return cl.ValidatorsByPubKey(ctx, stateID, validatorPubKeys)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -722,6 +733,7 @@ func (m multi) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0.Si
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitVoluntaryExit(ctx, voluntaryExit)
 		},
+		m.bestIdx,
 	)
 
 	if err != nil {
@@ -741,7 +753,7 @@ func (m multi) Domain(ctx context.Context, domainType phase0.DomainType, epoch p
 		func(ctx context.Context, cl Client) (phase0.Domain, error) {
 			return cl.Domain(ctx, domainType, epoch)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
@@ -761,7 +773,7 @@ func (m multi) GenesisTime(ctx context.Context) (time.Time, error) {
 		func(ctx context.Context, cl Client) (time.Time, error) {
 			return cl.GenesisTime(ctx)
 		},
-		nil,
+		nil, m.bestIdx,
 	)
 
 	if err != nil {
