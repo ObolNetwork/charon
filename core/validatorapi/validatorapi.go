@@ -27,7 +27,6 @@ import (
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -39,12 +38,9 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
-
-// PubShareFunc abstracts the mapping of validator root public key to tbls public share.
-type PubShareFunc func(pubkey core.PubKey, shareIdx int) (*bls_sig.PublicKey, error)
 
 // NewComponentInsecure returns a new instance of the validator API core workflow component
 // that does not perform signature verification.
@@ -73,14 +69,17 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		if err != nil {
 			return nil, err
 		}
-		pubkey, err := tblsconv.KeyFromCore(corePubkey)
+
+		cpBytes, err := corePubkey.Bytes()
 		if err != nil {
 			return nil, err
 		}
-		eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
+		pubkey, err := tblsconv2.PubkeyFromBytes(cpBytes)
 		if err != nil {
 			return nil, err
 		}
+		eth2Pubkey := eth2p0.BLSPubKey(pubkey)
+
 		eth2Share := eth2p0.BLSPubKey(pubshare)
 		sharesByCoreKey[corePubkey] = pubshare
 		coreSharesByKey[corePubkey] = coreShare

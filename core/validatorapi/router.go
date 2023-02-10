@@ -52,7 +52,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 // Handler defines the request handler providing the business logic
@@ -1129,14 +1129,15 @@ func getValidatorsByID(ctx context.Context, p eth2client.ValidatorsProvider, sta
 	if strings.HasPrefix(ids[0], "0x") {
 		var pubkeys []eth2p0.BLSPubKey
 		for _, id := range ids {
-			pubkey, err := tblsconv.KeyFromCore(core.PubKey(id))
+			coreBytes, err := core.PubKey(id).Bytes()
+			if err != nil {
+				return nil, errors.Wrap(err, "fetch public key bytes")
+			}
+			pubkey, err := tblsconv2.PubkeyFromBytes(coreBytes)
 			if err != nil {
 				return nil, errors.Wrap(err, "decode public key hex")
 			}
-			eth2Pubkey, err := tblsconv.KeyToETH2(pubkey)
-			if err != nil {
-				return nil, err
-			}
+			eth2Pubkey := eth2p0.BLSPubKey(pubkey)
 
 			pubkeys = append(pubkeys, eth2Pubkey)
 		}

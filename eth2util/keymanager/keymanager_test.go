@@ -25,14 +25,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
 func TestImportKeystores(t *testing.T) {
@@ -82,9 +81,7 @@ func TestImportKeystores(t *testing.T) {
 				secret, err := decrypt(t, req.Keystores[i], req.Passwords[i])
 				require.NoError(t, err)
 
-				secretBytes, err := secret.MarshalBinary()
-				require.NoError(t, err)
-				receivedSecrets = append(receivedSecrets, hex.EncodeToString(secretBytes))
+				receivedSecrets = append(receivedSecrets, hex.EncodeToString(secret[:]))
 			}
 
 			w.WriteHeader(http.StatusOK)
@@ -159,14 +156,14 @@ type noopKeystore struct {
 }
 
 // decrypt returns the secret from the encrypted keystore.
-func decrypt(t *testing.T, store noopKeystore, password string) (*bls_sig.SecretKey, error) {
+func decrypt(t *testing.T, store noopKeystore, password string) (tblsv2.PrivateKey, error) {
 	t.Helper()
 
 	decryptor := keystorev4.New()
 	secretBytes, err := decryptor.Decrypt(store.Crypto, password)
 	require.NoError(t, err)
 
-	return tblsconv.SecretFromBytes(secretBytes)
+	return tblsconv2.PrivkeyFromBytes(secretBytes)
 }
 
 // randomHex32 returns a random 32 character hex string.

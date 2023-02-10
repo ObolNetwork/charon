@@ -34,6 +34,15 @@ func SigToCore(sig v2.Signature) core.Signature {
 	return sig[:]
 }
 
+// SigFromBytes converts arbitrary bytes to a v2.Signature.
+func SigFromBytes(sig []byte) (v2.Signature, error) {
+	if len(sig) != len(v2.Signature{}) {
+		return v2.Signature{}, errors.New("data is not of the correct length")
+	}
+
+	return *(*v2.Signature)(sig), nil
+}
+
 // SigToETH2 converts a tbls.Signature into an eth2 phase0 bls signature.
 func SigToETH2(sig v2.Signature) eth2p0.BLSSignature {
 	return eth2p0.BLSSignature(sig)
