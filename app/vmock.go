@@ -234,7 +234,10 @@ func newVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.Si
 		}
 	}
 
-	signer := validatormock.NewSigner(secrets...)
+	signer, err := validatormock.NewSigner(secrets...)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(secrets) == 0 && len(pubshares) != 0 {
 		return nil, errors.New("validator mock keys empty")

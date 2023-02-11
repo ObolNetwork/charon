@@ -285,7 +285,7 @@ func WithDeterministicAttesterDuties(factor int) Option {
 					PubKey:                  val.Validator.PublicKey,
 					Slot:                    eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(slotOffset)),
 					ValidatorIndex:          index,
-					CommitteeIndex:          eth2p0.CommitteeIndex(slotOffset),
+					CommitteeIndex:          eth2p0.CommitteeIndex(index),
 					CommitteeLength:         commLength,
 					CommitteesAtSlot:        slotsPerEpoch,
 					ValidatorCommitteeIndex: valCommIndex,

@@ -84,15 +84,16 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name: "very_large", // TODO(dhruv): fix consensus issues in this test
+			Name: "very_large",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.NumNodes = 10
 				conf.Threshold = 7
-				conf.NumValidators = 15
+				conf.NumValidators = 100
 				conf.InsecureKeys = true
 				conf.KeyGen = compose.KeyGenCreate
+				conf.VCs = []compose.VCType{compose.VCMock}
 			},
-			Timeout: time.Second * 120,
+			Timeout: time.Minute * 5,
 		},
 		{
 			Name:     "run_version_matrix_with_dkg",

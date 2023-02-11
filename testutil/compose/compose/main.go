@@ -32,6 +32,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/testutil/compose"
 )
 
@@ -134,6 +135,8 @@ func newNewCmd() *cobra.Command {
 	featureSet := cmd.Flags().String("feature-set", conf.FeatureSet, "Minimum feature set to enable: alpha, beta, stable")
 	numVals := cmd.Flags().Int("num-validators", conf.NumValidators, "Number of distributed validators.")
 	vcTypes := cmd.Flags().StringSlice("validator-types", conf.VCStrings(), "Validator types to include.")
+	nodes := cmd.Flags().Int("nodes", conf.NumNodes, "Number of charon nodes in the cluster.")
+	insecureKeys := cmd.Flags().Bool("insecure-keys", conf.InsecureKeys, "To generate keys quickly.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
@@ -143,6 +146,9 @@ func newNewCmd() *cobra.Command {
 		conf.FeatureSet = *featureSet
 		conf.ExternalRelay = *extRelay
 		conf.NumValidators = *numVals
+		conf.NumNodes = *nodes
+		conf.Threshold = cluster.Threshold(conf.NumNodes)
+		conf.InsecureKeys = *insecureKeys
 
 		if conf.BuildLocal {
 			conf.ImageTag = "local"
