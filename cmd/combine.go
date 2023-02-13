@@ -41,7 +41,7 @@ func newCombineCmd(runFunc func(lockfile, inputDir, outputDir string) error) *co
 		},
 	}
 
-	bindVars(
+	bindCombineFlags(
 		cmd.Flags(),
 		&inputDir,
 		&outputDir,
@@ -56,7 +56,7 @@ func newCombineFunc(lockfile, inputDir, outputDir string) error {
 	return combine.Combine(ctx, lockfile, inputDir, outputDir)
 }
 
-func bindVars(flags *pflag.FlagSet, inputDir, outputDir, lockfile *string) {
+func bindCombineFlags(flags *pflag.FlagSet, inputDir, outputDir, lockfile *string) {
 	flags.StringVar(inputDir, "keyfile-dir", "./validator-keys", `Directory containing all the "keyfile-N.json" and "keyfile-N.txt" files`)
 	flags.StringVar(outputDir, "out-dir", "./recombined-validator-key", "Directory where to save the resulting private key")
 	flags.StringVar(lockfile, "lockfile-path", "./lock.json", "Charon lock.json file")
