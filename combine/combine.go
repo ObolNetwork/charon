@@ -70,10 +70,10 @@ func Combine(ctx context.Context, lockfile, inputDir, outputDir string) error {
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			return errors.Wrap(err, "output directory error")
-		} else {
-			if err := os.Mkdir(outputDir, 0755); err != nil {
-				return errors.Wrap(err, "can't create output directory")
-			}
+		}
+
+		if err := os.Mkdir(outputDir, 0o755); err != nil {
+			return errors.Wrap(err, "can't create output directory")
 		}
 	}
 

@@ -106,13 +106,15 @@ func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string) {
 			log.Warn(ctx, "Deprecated flag 'data-dir' used, please use new flag 'private-key-file'.", nil)
 		}
 
-		if _, err := os.Open(*privKeyFile); err == nil { //nolint:revive
-			// Ignore data-dir since priv key file is present
-		} else if _, err := os.Open(p2p.KeyPath(dataDir)); err == nil { //nolint:revive
-			*privKeyFile = p2p.KeyPath(dataDir)
-		} else {
+		if _, err := os.Open(*privKeyFile); err == nil {
+			return nil
+		}
+
+		if _, err := os.Open(p2p.KeyPath(dataDir)); err != nil {
 			return errors.New("charon enr private key file not found in either `data-dir` or `private-key-file`")
 		}
+
+		*privKeyFile = p2p.KeyPath(dataDir)
 
 		return nil
 	})

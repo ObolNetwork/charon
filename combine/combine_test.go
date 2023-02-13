@@ -18,7 +18,6 @@ package combine_test
 import (
 	"context"
 	"encoding/json"
-	"github.com/obolnetwork/charon/combine"
 	"os"
 	"path"
 	"testing"
@@ -26,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/combine"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
@@ -75,6 +75,13 @@ func TestCombineNonexistentOutdir(t *testing.T) {
 
 	err := keystore.StoreKeys(secrets, dir)
 	require.NoError(t, err)
+
+	currentDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, os.Chdir(currentDir))
+	}()
 
 	require.NoError(t, os.Chdir(t.TempDir()))
 
