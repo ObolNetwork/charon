@@ -13,15 +13,13 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Command combine combines threshold BLS secret shares into the group/root BLS secret.
-// Note this only combines a single secret at a time.
-package main
+package combine
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"flag"
+	"io/fs"
 	"os"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -32,24 +30,9 @@ import (
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
-var (
-	inputDir  = flag.String("input-dir", ".", "Directory containing the input keyshares to combine")
-	outputDir = flag.String("output-dir", "output", "Directory to write the output combined keyshare")
-	lockfile  = flag.String("lock-file", "cluster-lock.json", "Cluster lock file (required to infer share indexes)")
-)
-
-func main() {
-	flag.Parse()
-	ctx := context.Background()
-	err := run(ctx, *lockfile, *inputDir, *outputDir)
-	if err != nil {
-		log.Error(ctx, "Fatal run error", err)
-		os.Exit(1)
-	}
-}
-
-func run(ctx context.Context, lockfile, inputDir, outputDir string) error {
-	log.Info(ctx, "Resharing key shares",
+// Combine combines validator keys contained in inputDir, and writes the original BLS12-381 private key in outputDir.
+func Combine(ctx context.Context, lockfile, inputDir, outputDir string) error {
+	log.Info(ctx, "Recombining key shares",
 		z.Str("lockfile", lockfile),
 		z.Str("input_dir", inputDir),
 		z.Str("output_dir", outputDir),
@@ -81,6 +64,17 @@ func run(ctx context.Context, lockfile, inputDir, outputDir string) error {
 	secret, err := tblsv2.RecoverSecret(shares, uint(len(lock.Operators)), uint(lock.Threshold))
 	if err != nil {
 		return err
+	}
+
+	_, err = os.Stat(outputDir)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			return errors.Wrap(err, "output directory error")
+		} else {
+			if err := os.Mkdir(outputDir, 0755); err != nil {
+				return errors.Wrap(err, "can't create output directory")
+			}
+		}
 	}
 
 	return keystore.StoreKeys([]tblsv2.PrivateKey{secret}, outputDir)

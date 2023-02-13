@@ -13,11 +13,12 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package main
+package combine_test
 
 import (
 	"context"
 	"encoding/json"
+	"github.com/obolnetwork/charon/combine"
 	"os"
 	"path"
 	"testing"
@@ -34,7 +35,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestCombine(t *testing.T) {
+func TestCombineExistingOutdir(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 1, 3, 4, 0)
 
 	dir := t.TempDir()
@@ -48,7 +49,38 @@ func TestCombine(t *testing.T) {
 
 	out := t.TempDir()
 
-	err = run(context.Background(), lockfile, dir, out)
+	err = combine.Combine(context.Background(), lockfile, dir, out)
+	require.NoError(t, err)
+
+	result, err := keystore.LoadKeys(out)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+
+	actualBytes, err := tblsv2.SecretToPublicKey(result[0])
+	require.NoError(t, err)
+
+	pubkey := lock.Validators[0].PubKey
+
+	require.Equal(t, pubkey, actualBytes[:])
+}
+
+func TestCombineNonexistentOutdir(t *testing.T) {
+	lock, _, shares := cluster.NewForT(t, 1, 3, 4, 0)
+
+	dir := t.TempDir()
+
+	lockfile := storeLock(t, dir, lock)
+
+	secrets := shares[0]
+
+	err := keystore.StoreKeys(secrets, dir)
+	require.NoError(t, err)
+
+	require.NoError(t, os.Chdir(t.TempDir()))
+
+	out := "./nonexisting-directory"
+
+	err = combine.Combine(context.Background(), lockfile, dir, out)
 	require.NoError(t, err)
 
 	result, err := keystore.LoadKeys(out)
