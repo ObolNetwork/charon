@@ -56,7 +56,7 @@ func newCombineFunc(ctx context.Context, lockfile, inputDir, outputDir string) e
 }
 
 func bindCombineFlags(flags *pflag.FlagSet, inputDir, outputDir, lockfile *string) {
-	flags.StringVar(inputDir, "keyfile-dir", "./validator-keys", `Directory containing all the "keyfile-N.json" and "keyfile-N.txt" files`)
+	flags.StringVar(inputDir, "keystore-dir", "./validator-keys", `Directory containing all the "keystore-N.json" and "keystore-N.txt" files`)
 	flags.StringVar(outputDir, "out-dir", "./recombined-validator-key", "Directory where to save the resulting private key")
 	flags.StringVar(lockfile, "lock-file", "./cluster-lock.json", "The path to the cluster lock file defining distributed validator cluster.")
 }
