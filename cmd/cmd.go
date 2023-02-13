@@ -49,7 +49,6 @@ func New() *cobra.Command {
 		newVersionCmd(runVersionCmd),
 		newEnrCmd(runNewENR),
 		newRunCmd(app.Run),
-		newBootnodeCmd(relay.Run),
 		newRelayCmd(relay.Run),
 		newDKGCmd(dkg.Run),
 		newCreateCmd(
