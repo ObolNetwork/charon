@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p"
@@ -196,16 +197,17 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 	quit := make(chan struct{})
 	defer close(quit)
 
-	type connType struct {
-		Peer peer.ID
-		Type string
+	type connKey struct {
+		PeerName string
+		Type     string
 	}
 
 	var (
-		peers      = make(map[peer.ID]bool)
-		events     = make(chan logEvent)
-		typeCounts = make(map[connType]int)
+		peers  = make(map[peer.ID]bool)
+		events = make(chan logEvent)
+		ticker = time.NewTicker(time.Second * 30)
 	)
+	defer ticker.Stop()
 
 	for _, p := range peerIDs {
 		peers[p] = true
@@ -221,7 +223,21 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 			select {
 			case <-ctx.Done():
 				return
+			case <-ticker.C:
+				// Instrument connection counts.
+				counts := make(map[connKey]int)
+				for _, conn := range tcpNode.Network().Conns() {
+					key := connKey{PeerName: PeerName(conn.RemotePeer()), Type: addrType(conn.RemoteMultiaddr())}
+					counts[key]++
+				}
+				for _, pID := range peerIDs {
+					for _, typ := range []string{addrTypeRelay, addrTypeDirect} {
+						key := connKey{PeerName: PeerName(pID), Type: typ}
+						peerConnGauge.WithLabelValues(key.PeerName, key.Type).Set(float64(counts[key]))
+					}
+				}
 			case e := <-events:
+				// Log and instrument events.
 				addr := NamedAddr(e.Addr)
 				name := PeerName(e.Peer)
 				typ := addrType(e.Addr)
@@ -238,36 +254,9 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 					)
 				}
 
-				if !peers[e.Peer] {
-					// Do not instrument relays.
-					continue
-				}
-
-				typeKey := connType{Peer: e.Peer, Type: typ}
-
-				if e.Connected {
-					peerConnGauge.WithLabelValues(name, addrType(e.Addr)).Inc()
+				if e.Connected && peers[e.Peer] { // Do not instrument relays.
 					peerConnCounter.WithLabelValues(name).Inc()
-					typeCounts[typeKey]++
-				} else if e.Disconnect {
-					peerConnGauge.WithLabelValues(name, addrType(e.Addr)).Dec()
-					typeCounts[typeKey]--
 				}
-
-				// TODO(corver): Remove once gauge count issue #1790 identified and fixed.
-				log.Debug(ctx, "Libp2p connected count updated",
-					z.Str("peer", name),
-					z.Bool("connected", e.Connected),
-					z.Any("peer_address", addr),
-					z.Any("direction", e.Direction),
-					z.Str("type", typ),
-					z.Int("count", typeCounts[typeKey]),
-					z.Str("conn_id", e.ConnID),
-				)
-
-				// Ensure both connection type metrics are initiated
-				peerConnGauge.WithLabelValues(name, addrTypeDirect).Add(0)
-				peerConnGauge.WithLabelValues(name, addrTypeRelay).Add(0)
 			}
 		}
 	}()
