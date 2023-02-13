@@ -398,6 +398,7 @@ func writeLock(lock cluster.Lock, clusterDir string, numNodes int, shareSets [][
 func getValidators(dvsPubkeys []tblsv2.PublicKey, dvPrivShares [][]tblsv2.PrivateKey) ([]cluster.DistValidator, error) {
 	var vals []cluster.DistValidator
 	for idx, dv := range dvsPubkeys {
+		dv := dv
 		privShares := dvPrivShares[idx]
 		var pubshares [][]byte
 		for _, ps := range privShares {
