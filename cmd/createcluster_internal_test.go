@@ -184,6 +184,14 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition)
 		require.NoError(t, lock.VerifyHashes())
 		require.NoError(t, lock.VerifySignatures())
 
+		// check that there are lock.Definition.NumValidators different public keys in the validator slice
+		vals := make(map[string]struct{})
+		for _, val := range lock.Validators {
+			vals[val.PublicKeyHex()] = struct{}{}
+		}
+
+		require.Equal(t, lock.Definition.NumValidators, len(vals))
+
 		if conf.DefFile != "" {
 			// Config hash and creator should remain the same
 			require.Equal(t, def.ConfigHash, lock.ConfigHash)
