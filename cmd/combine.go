@@ -24,7 +24,7 @@ import (
 	"github.com/obolnetwork/charon/combine"
 )
 
-func newCombineCmd(runFunc func(lockfile, inputDir, outputDir string) error) *cobra.Command {
+func newCombineCmd(runFunc func(ctx context.Context, lockfile, inputDir, outputDir string) error) *cobra.Command {
 	var (
 		inputDir  string
 		outputDir string
@@ -37,7 +37,7 @@ func newCombineCmd(runFunc func(lockfile, inputDir, outputDir string) error) *co
 		Long:  "Combines private key shares into a single private key for a distributed validator.\nWarning: running the resulting private key in a validator alongside the original distributed validator will result in slashing.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(lockfile, inputDir, outputDir)
+			return runFunc(cmd.Context(), lockfile, inputDir, outputDir)
 		},
 	}
 
@@ -51,8 +51,7 @@ func newCombineCmd(runFunc func(lockfile, inputDir, outputDir string) error) *co
 	return cmd
 }
 
-func newCombineFunc(lockfile, inputDir, outputDir string) error {
-	ctx := context.Background()
+func newCombineFunc(ctx context.Context, lockfile, inputDir, outputDir string) error {
 	return combine.Combine(ctx, lockfile, inputDir, outputDir)
 }
 
