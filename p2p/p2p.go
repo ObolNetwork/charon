@@ -207,7 +207,6 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 		events = make(chan logEvent)
 		ticker = time.NewTicker(time.Second * 30)
 	)
-	defer ticker.Stop()
 
 	for _, p := range peerIDs {
 		peers[p] = true
@@ -222,6 +221,7 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 		for {
 			select {
 			case <-ctx.Done():
+				ticker.Stop()
 				return
 			case <-ticker.C:
 				// Instrument connection counts.
