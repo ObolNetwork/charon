@@ -122,7 +122,6 @@ Usage:
 Flags:
       --beacon-node-endpoints strings      Comma separated list of one or more beacon node endpoint URLs.
       --builder-api                        Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.
-      --data-dir string                    Deprecated, please use 'private-key-file'.
       --feature-set string                 Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
       --feature-set-disable strings        Comma-separated list of features to disable, overriding the default minimum feature set.
       --feature-set-enable strings         Comma-separated list of features to enable, overriding the default minimum feature set.

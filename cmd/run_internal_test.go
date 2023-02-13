@@ -44,59 +44,6 @@ func TestBindPrivKeyFlag(t *testing.T) {
 				PrivKeyFile: ".charon/charon-enr-private-key",
 			},
 		},
-		{
-			Name: "privKeyFile and dataDir absent",
-			Args: slice("run"),
-			Envs: map[string]string{
-				"CHARON_BEACON_NODE_ENDPOINTS": "http://beacon.node",
-			},
-			AppConfig: &app.Config{},
-			WantErr:   true,
-		},
-		{
-			Name: "privKeyFile and dataDir both present and file exists in none",
-			Args: slice("run"),
-			Envs: map[string]string{
-				"CHARON_BEACON_NODE_ENDPOINTS": "http://beacon.node",
-				"CHARON_DATA_DIR":              ".charon",
-			},
-			AppConfig: &app.Config{
-				PrivKeyFile: ".charon/charon-enr-private-key",
-			},
-			WantErr: true,
-		},
-		{
-			Name: "privKeyFile and dataDir both present and file exists in dataDir",
-			Args: slice("run"),
-			Envs: map[string]string{
-				"CHARON_BEACON_NODE_ENDPOINTS": "http://beacon.node",
-				"CHARON_DATA_DIR":              ".charon",
-			},
-			AppConfig: &app.Config{
-				PrivKeyFile: ".charon/enr-key",
-			},
-			WantErr: false,
-		},
-		{
-			Name: "dataDir present but file doesn't exist",
-			Args: slice("run"),
-			Envs: map[string]string{
-				"CHARON_BEACON_NODE_ENDPOINTS": "http://beacon.node",
-				"CHARON_DATA_DIR":              ".charon",
-			},
-			AppConfig: &app.Config{},
-			WantErr:   true,
-		},
-		{
-			Name: "dataDir present and file exists",
-			Args: slice("run"),
-			Envs: map[string]string{
-				"CHARON_BEACON_NODE_ENDPOINTS": "http://beacon.node",
-				"CHARON_DATA_DIR":              ".charon",
-			},
-			AppConfig: &app.Config{},
-			WantErr:   false,
-		},
 	}
 
 	for _, test := range tests {

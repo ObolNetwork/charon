@@ -18,7 +18,6 @@ package cmd
 import (
 	"context"
 	"net/url"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -95,27 +94,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 }
 
 func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string) {
-	var dataDir string
-
-	cmd.Flags().StringVar(&dataDir, "data-dir", "", "Deprecated, please use 'private-key-file'.")
 	cmd.Flags().StringVar(privKeyFile, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file.")
-
-	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
-		ctx := log.WithTopic(cmd.Context(), "cmd")
-		if dataDir != "" {
-			log.Warn(ctx, "Deprecated flag 'data-dir' used, please use new flag 'private-key-file'.", nil)
-		}
-
-		if _, err := os.Open(*privKeyFile); err == nil { //nolint:revive
-			// Ignore data-dir since priv key file is present
-		} else if _, err := os.Open(p2p.KeyPath(dataDir)); err == nil { //nolint:revive
-			*privKeyFile = p2p.KeyPath(dataDir)
-		} else {
-			return errors.New("charon enr private key file not found in either `data-dir` or `private-key-file`")
-		}
-
-		return nil
-	})
 }
 
 func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
