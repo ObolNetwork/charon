@@ -217,7 +217,7 @@ func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
 				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
 			},
 			LogConfig: log.Config{
-				Level:  "debug",
+				Level:  "error",
 				Format: "console",
 			},
 			AutoP2PKey:    true,
@@ -411,10 +411,9 @@ func TestRelayConnections(t *testing.T) {
 	relay, ok := relays[0].Peer()
 	require.True(t, ok)
 
-	const total = 1024
-
-	connectErr := make(chan error, total)
-	for i := 0; i < total; i++ {
+	const totalOK = 1024
+	okErrs := make(chan error, totalOK)
+	for i := 0; i < totalOK; i++ {
 		privKey, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)
 
@@ -422,22 +421,35 @@ func TestRelayConnections(t *testing.T) {
 		require.NoError(t, err)
 
 		go func(tcpNode host.Host) {
-			connectErr <- tcpNode.Connect(ctx, peer.AddrInfo{
+			okErrs <- tcpNode.Connect(ctx, peer.AddrInfo{
 				ID:    relay.ID,
 				Addrs: relay.Addrs,
 			})
 		}(tcpNode)
 	}
 
-	for i := 0; i < total; i++ {
+	for i := 0; i < totalOK; i++ {
 		select {
-		case err := <-connectErr:
-			require.NoError(t, err)
+		case err := <-okErrs:
+			require.NoError(t, err, i)
 		case err := <-relayErr:
 			testutil.SkipIfBindErr(t, err)
 			require.NoError(t, err)
 		}
 	}
+
+	// One more should fail
+	privKey, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	tcpNode, err := p2p.NewTCPNode(ctx, p2p.Config{}, privKey, p2p.NewOpenGater())
+	require.NoError(t, err)
+
+	err = tcpNode.Connect(ctx, peer.AddrInfo{
+		ID:    relay.ID,
+		Addrs: relay.Addrs,
+	})
+	require.Error(t, err)
 }
 
 // priorityAsserter asserts that all nodes resolved the same priorities.
