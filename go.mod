@@ -33,7 +33,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.13.0
 	go.opentelemetry.io/otel/trace v1.13.0
 	go.uber.org/automaxprocs v1.5.1
-	go.uber.org/goleak v1.2.0
+	go.uber.org/goleak v1.2.1
 	go.uber.org/zap v1.24.0
 	golang.org/x/crypto v0.6.0
 	golang.org/x/oauth2 v0.5.0
