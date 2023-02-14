@@ -1147,3 +1147,36 @@ type testBeaconAddr struct {
 func (t testBeaconAddr) Address() string {
 	return t.addr
 }
+
+func NewFakeResponse() FakeResponse {
+	fakeHeader := make(http.Header)
+	return FakeResponse{header: fakeHeader}
+}
+
+// FakeResponse represents a fake HTTP response for use in testing. See https://github.com/rs/cors/blob/master/bench_test.go#L8.
+type FakeResponse struct {
+	header http.Header
+}
+
+func (r FakeResponse) Header() http.Header {
+	return r.header
+}
+
+func (r FakeResponse) WriteHeader(_ int) {}
+
+func (r FakeResponse) Write(b []byte) (n int, err error) {
+	return len(b), nil
+}
+
+func TestWriteError(t *testing.T) {
+	w := NewFakeResponse()
+	err := errors.New("errmsg")
+	writeError(context.Background(), w, "", err)
+	require.Equal(t, w.header.Get("Content-Type"), "application/json")
+}
+
+func TestWriteResponse(t *testing.T) {
+	w := NewFakeResponse()
+	writeResponse(context.Background(), w, "", "")
+	require.Equal(t, w.header.Get("Content-Type"), "application/json")
+}
