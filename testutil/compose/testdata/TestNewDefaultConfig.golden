@@ -18,5 +18,6 @@
  "feature_set": "alpha",
  "disable_monitoring_ports": false,
  "insecure_keys": false,
- "slot_duration": 1000000000
+ "slot_duration": 1000000000,
+ "synthetic_block_proposals": true
 }

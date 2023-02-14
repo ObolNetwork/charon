@@ -148,7 +148,7 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 		kv{"simnet-validator-keys-dir", fmt.Sprintf("/compose/node%d/validator_keys", index)},
 		kv{"loki-addresses", "http://loki:3100/loki/api/v1/push"},
 		kv{"loki-service", fmt.Sprintf("node%d", index)},
-		kv{"synthetic-block-proposals", `"true"`},
+		kv{"synthetic-block-proposals", fmt.Sprintf(`"%v"`, conf.SyntheticBlockProposals)},
 	)
 }
 

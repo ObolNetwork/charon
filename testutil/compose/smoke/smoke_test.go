@@ -93,6 +93,7 @@ func TestSmoke(t *testing.T) {
 				conf.KeyGen = compose.KeyGenCreate
 				conf.VCs = []compose.VCType{compose.VCMock}
 				conf.SlotDuration = time.Second * 6
+				conf.SyntheticBlockProposals = false
 			},
 			Timeout: time.Minute * 2,
 		},

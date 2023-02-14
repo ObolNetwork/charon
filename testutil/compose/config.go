@@ -119,6 +119,9 @@ type Config struct {
 
 	// SlotDuration configures slot duration on simnet beacon mock for all the nodes in the cluster.
 	SlotDuration time.Duration `json:"slot_duration"`
+
+	// SyntheticBlockProposals configures use of synthetic block proposals in simnet cluster.
+	SyntheticBlockProposals bool `json:"synthetic_block_proposals"`
 }
 
 // VCStrings returns the VCs field as a slice of strings.
@@ -134,16 +137,17 @@ func (c Config) VCStrings() []string {
 // NewDefaultConfig returns a new default config.
 func NewDefaultConfig() Config {
 	return Config{
-		Version:       version,
-		NumNodes:      defaultNumNodes,
-		Threshold:     defaultThreshold,
-		NumValidators: defaultNumVals,
-		ImageTag:      defaultImageTag,
-		VCs:           []VCType{VCTeku, VCLighthouse, VCMock},
-		KeyGen:        defaultKeyGen,
-		BeaconNode:    defaultBeaconNode,
-		Step:          stepNew,
-		FeatureSet:    defaultFeatureSet,
-		SlotDuration:  time.Second,
+		Version:                 version,
+		NumNodes:                defaultNumNodes,
+		Threshold:               defaultThreshold,
+		NumValidators:           defaultNumVals,
+		ImageTag:                defaultImageTag,
+		VCs:                     []VCType{VCTeku, VCLighthouse, VCMock},
+		KeyGen:                  defaultKeyGen,
+		BeaconNode:              defaultBeaconNode,
+		Step:                    stepNew,
+		FeatureSet:              defaultFeatureSet,
+		SlotDuration:            time.Second,
+		SyntheticBlockProposals: true,
 	}
 }

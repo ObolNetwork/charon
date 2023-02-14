@@ -177,6 +177,10 @@ func WithValidatorSet(set ValidatorSet) Option {
 
 			return resp, nil
 		}
+
+		mock.getAllValidatorsFunc = func(ctx context.Context) []*eth2v1.Validator {
+			return set.Validators()
+		}
 	}
 }
 
@@ -301,40 +305,33 @@ func WithDeterministicAttesterDuties(factor int) Option {
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
 func WithDeterministicProposerDuties(factor int) Option {
 	return func(mock *Mock) {
-		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-			// if indices slice is empty then it would use 0th index or in that case first validator will be the proposer always
-			// this would be the case when validator calls for block proposer and expects proposer duties from beacon node.
-			if len(indices) == 0 {
-				indices = []eth2p0.ValidatorIndex{0}
-			}
+		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			vals := mock.getAllValidators(ctx)
 
-			vals, err := mock.Validators(ctx, "", indices)
-			if err != nil {
-				return nil, err
-			}
+			sort.Slice(vals, func(i, j int) bool {
+				return vals[i].Index < vals[j].Index
+			})
 
 			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
 			if err != nil {
 				return nil, err
 			}
 
-			sort.Slice(indices, func(i, j int) bool {
-				return indices[i] < indices[j]
-			})
+			slotsAssigned := make(map[int]bool)
 
 			var resp []*eth2v1.ProposerDuty
-			for i, index := range indices {
-				val, ok := vals[index]
-				if !ok {
-					continue
+			for i, val := range vals {
+				offset := (i * factor) % int(slotsPerEpoch)
+				if slotsAssigned[offset] {
+					break
 				}
 
-				offset := (i * factor) % int(slotsPerEpoch)
+				slotsAssigned[offset] = true
 
 				resp = append(resp, &eth2v1.ProposerDuty{
 					PubKey:         val.Validator.PublicKey,
 					Slot:           eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(offset)),
-					ValidatorIndex: index,
+					ValidatorIndex: val.Index,
 				})
 
 				// there can be only one proposer per slot, in this case it would be the first validator who will propose
