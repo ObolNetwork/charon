@@ -15,6 +15,8 @@
 
 package compose
 
+import "time"
+
 const (
 	version           = "obol/charon/compose/1.0.0"
 	configFile        = "config.json"
@@ -114,6 +116,9 @@ type Config struct {
 	// InsecureKeys generates insecure keys. Useful when testing large validator sets
 	// as it speeds up keystore encryption and decryption.
 	InsecureKeys bool `json:"insecure_keys"`
+
+	// SlotDuration configures slot duration on simnet beacon mock for all the nodes in the cluster.
+	SlotDuration time.Duration `json:"slot_duration"`
 }
 
 // VCStrings returns the VCs field as a slice of strings.
@@ -139,5 +144,6 @@ func NewDefaultConfig() Config {
 		BeaconNode:    defaultBeaconNode,
 		Step:          stepNew,
 		FeatureSet:    defaultFeatureSet,
+		SlotDuration:  time.Second,
 	}
 }

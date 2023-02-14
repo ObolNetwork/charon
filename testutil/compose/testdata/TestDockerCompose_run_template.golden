@@ -66,6 +66,10 @@
      "Value": "\"false\""
     },
     {
+     "Key": "simnet-slot-duration",
+     "Value": "1s"
+    },
+    {
      "Key": "simnet-validator-keys-dir",
      "Value": "/compose/node0/validator_keys"
     },
@@ -161,6 +165,10 @@
     {
      "Key": "simnet-validator-mock",
      "Value": "\"false\""
+    },
+    {
+     "Key": "simnet-slot-duration",
+     "Value": "1s"
     },
     {
      "Key": "simnet-validator-keys-dir",
@@ -260,6 +268,10 @@
      "Value": "\"true\""
     },
     {
+     "Key": "simnet-slot-duration",
+     "Value": "1s"
+    },
+    {
      "Key": "simnet-validator-keys-dir",
      "Value": "/compose/node2/validator_keys"
     },
@@ -355,6 +367,10 @@
     {
      "Key": "simnet-validator-mock",
      "Value": "\"false\""
+    },
+    {
+     "Key": "simnet-slot-duration",
+     "Value": "1s"
     },
     {
      "Key": "simnet-validator-keys-dir",

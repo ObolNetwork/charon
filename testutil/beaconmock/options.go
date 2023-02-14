@@ -558,12 +558,16 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return nil
 		},
 		SyncCommitteeContributionFunc: func(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
-			contrib := testutil.RandomSyncCommitteeContribution()
-			contrib.Slot = slot
-			contrib.SubcommitteeIndex = subcommitteeIndex
-			contrib.BeaconBlockRoot = beaconBlockRoot
+			aggBits := bitfield.NewBitvector128()
+			aggBits.SetBitAt(uint64(slot%128), true)
 
-			return contrib, nil
+			return &altair.SyncCommitteeContribution{
+				Slot:              slot,
+				SubcommitteeIndex: subcommitteeIndex,
+				BeaconBlockRoot:   beaconBlockRoot,
+				AggregationBits:   aggBits,
+				Signature:         testutil.RandomEth2SignatureWithSeed(int64(slot)),
+			}, nil
 		},
 		SubmitSyncCommitteeContributionsFunc: func(context.Context, []*altair.SignedContributionAndProof) error {
 			return nil

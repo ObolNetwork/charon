@@ -27,6 +27,8 @@ import (
 	"github.com/obolnetwork/charon/testutil/compose"
 )
 
+//go:generate go test . -update -clean
+
 func TestNewDefaultConfig(t *testing.T) {
 	dir := t.TempDir()
 

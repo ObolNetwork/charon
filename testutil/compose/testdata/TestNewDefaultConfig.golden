@@ -17,5 +17,6 @@
  ],
  "feature_set": "alpha",
  "disable_monitoring_ports": false,
- "insecure_keys": false
+ "insecure_keys": false,
+ "slot_duration": 1000000000
 }

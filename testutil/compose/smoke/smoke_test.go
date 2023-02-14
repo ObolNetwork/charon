@@ -92,8 +92,9 @@ func TestSmoke(t *testing.T) {
 				conf.InsecureKeys = true
 				conf.KeyGen = compose.KeyGenCreate
 				conf.VCs = []compose.VCType{compose.VCMock}
+				conf.SlotDuration = time.Second * 6
 			},
-			Timeout: time.Minute * 5,
+			Timeout: time.Minute * 2,
 		},
 		{
 			Name:     "run_version_matrix_with_dkg",

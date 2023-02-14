@@ -90,6 +90,7 @@ type Config struct {
 	SimnetBMock             bool
 	SimnetVMock             bool
 	SimnetValidatorKeysDir  string
+	SimnetSlotDuration      time.Duration
 	SyntheticBlockProposals bool
 	BuilderAPI              bool
 
@@ -685,10 +686,15 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 		return nil, err
 	}
 
+	// Default to 1s slot duration if not set.
+	if conf.SimnetSlotDuration == 0 {
+		conf.SimnetSlotDuration = time.Second
+	}
+
 	if conf.SimnetBMock { // Configure the beacon mock.
 		const dutyFactor = 100 // Duty factor spreads duties deterministically in an epoch.
 		opts := []beaconmock.Option{
-			beaconmock.WithSlotDuration(time.Second * 6),
+			beaconmock.WithSlotDuration(conf.SimnetSlotDuration),
 			beaconmock.WithDeterministicAttesterDuties(dutyFactor),
 			beaconmock.WithDeterministicSyncCommDuties(2, 8), // First 2 epochs of every 8
 			beaconmock.WithValidatorSet(createMockValidators(pubkeys)),

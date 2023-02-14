@@ -27,6 +27,7 @@ import (
 	"context"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -137,6 +138,7 @@ func newNewCmd() *cobra.Command {
 	vcTypes := cmd.Flags().StringSlice("validator-types", conf.VCStrings(), "Validator types to include.")
 	nodes := cmd.Flags().Int("nodes", conf.NumNodes, "Number of charon nodes in the cluster.")
 	insecureKeys := cmd.Flags().Bool("insecure-keys", conf.InsecureKeys, "To generate keys quickly.")
+	slotDuration := cmd.Flags().Duration("simnet-slot-duration", time.Second, "Configures slot duration in simnet beacon mock.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
@@ -149,6 +151,7 @@ func newNewCmd() *cobra.Command {
 		conf.NumNodes = *nodes
 		conf.Threshold = cluster.Threshold(conf.NumNodes)
 		conf.InsecureKeys = *insecureKeys
+		conf.SlotDuration = *slotDuration
 
 		if conf.BuildLocal {
 			conf.ImageTag = "local"

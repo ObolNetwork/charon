@@ -23,6 +23,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
@@ -88,6 +89,7 @@ func TestCmdFlags(t *testing.T) {
 				LockFile:               ".charon/cluster-lock.json",
 				PrivKeyFile:            ".charon/charon-enr-private-key",
 				SimnetValidatorKeysDir: ".charon/validator_keys",
+				SimnetSlotDuration:     time.Second,
 				MonitoringAddr:         "127.0.0.1:3620",
 				ValidatorAPIAddr:       "127.0.0.1:3600",
 				BeaconNodeAddrs:        []string{"http://beacon.node"},
