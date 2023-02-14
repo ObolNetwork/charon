@@ -210,6 +210,33 @@ func TestRawRouter(t *testing.T) {
 		testRawRouter(t, handler, callback)
 	})
 
+	t.Run("valid content type in 2xx response", func(t *testing.T) {
+		handler := testHandler{}
+
+		callback := func(ctx context.Context, baseURL string) {
+			res, err := http.Get(baseURL + "/eth/v1/node/version")
+			require.NoError(t, err)
+			require.Equal(t, res.Header.Get("Content-Type"), "application/json")
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("valid content type in non-2xx response", func(t *testing.T) {
+		handler := testHandler{}
+
+		callback := func(ctx context.Context, baseURL string) {
+			res, err := http.Post(baseURL+"/eth/v1/validator/duties/attester/1", "", strings.NewReader("not json"))
+			require.NoError(t, err)
+			require.Equal(t, res.Header.Get("Content-Type"), "application/json")
+			var errRes errorResponse
+			require.NoError(t, json.NewDecoder(res.Body).Decode(&errRes))
+			require.Equal(t, errRes.Code, http.StatusBadRequest)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
 	t.Run("client timeout", func(t *testing.T) {
 		cctx, cancel := context.WithCancel(context.Background())
 		handler := testHandler{
