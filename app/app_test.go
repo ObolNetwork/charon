@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -396,6 +397,58 @@ func TestInfoSync(t *testing.T) {
 	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
+}
+
+func TestRelayConnections(t *testing.T) {
+	ctx := context.Background()
+
+	relayAddr, relayErr := startRelay(ctx, t)
+
+	relays, err := p2p.NewRelays(ctx, []string{relayAddr}, "")
+	require.NoError(t, err)
+
+	relay, ok := relays[0].Peer()
+	require.True(t, ok)
+
+	const totalOK = 1024
+	okErrs := make(chan error, totalOK)
+	for i := 0; i < totalOK; i++ {
+		privKey, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		tcpNode, err := p2p.NewTCPNode(ctx, p2p.Config{}, privKey, p2p.NewOpenGater())
+		require.NoError(t, err)
+
+		go func(tcpNode host.Host) {
+			okErrs <- tcpNode.Connect(ctx, peer.AddrInfo{
+				ID:    relay.ID,
+				Addrs: relay.Addrs,
+			})
+		}(tcpNode)
+	}
+
+	for i := 0; i < totalOK; i++ {
+		select {
+		case err := <-okErrs:
+			require.NoError(t, err, i)
+		case err := <-relayErr:
+			testutil.SkipIfBindErr(t, err)
+			require.NoError(t, err)
+		}
+	}
+
+	// One more should fail
+	privKey, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	tcpNode, err := p2p.NewTCPNode(ctx, p2p.Config{}, privKey, p2p.NewOpenGater())
+	require.NoError(t, err)
+
+	err = tcpNode.Connect(ctx, peer.AddrInfo{
+		ID:    relay.ID,
+		Addrs: relay.Addrs,
+	})
+	require.Error(t, err)
 }
 
 // priorityAsserter asserts that all nodes resolved the same priorities.
