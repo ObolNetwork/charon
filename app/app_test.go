@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -216,12 +217,13 @@ func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
 				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
 			},
 			LogConfig: log.Config{
-				Level:  "error",
+				Level:  "debug",
 				Format: "console",
 			},
 			AutoP2PKey:    true,
 			MaxResPerPeer: 8,
 			MaxConns:      1024,
+			RelayLogLevel: "debug",
 		})
 	}()
 
@@ -396,6 +398,46 @@ func TestInfoSync(t *testing.T) {
 	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
+}
+
+func TestRelayConnections(t *testing.T) {
+	ctx := context.Background()
+
+	relayAddr, relayErr := startRelay(ctx, t)
+
+	relays, err := p2p.NewRelays(ctx, []string{relayAddr}, "")
+	require.NoError(t, err)
+
+	relay, ok := relays[0].Peer()
+	require.True(t, ok)
+
+	const total = 1024
+
+	connectErr := make(chan error, total)
+	for i := 0; i < total; i++ {
+		privKey, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		tcpNode, err := p2p.NewTCPNode(ctx, p2p.Config{}, privKey, p2p.NewOpenGater())
+		require.NoError(t, err)
+
+		go func(tcpNode host.Host) {
+			connectErr <- tcpNode.Connect(ctx, peer.AddrInfo{
+				ID:    relay.ID,
+				Addrs: relay.Addrs,
+			})
+		}(tcpNode)
+	}
+
+	for i := 0; i < total; i++ {
+		select {
+		case err := <-connectErr:
+			require.NoError(t, err)
+		case err := <-relayErr:
+			testutil.SkipIfBindErr(t, err)
+			require.NoError(t, err)
+		}
+	}
 }
 
 // priorityAsserter asserts that all nodes resolved the same priorities.

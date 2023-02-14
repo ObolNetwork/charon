@@ -53,6 +53,7 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 	// Increase resource limits
 	limiter := rcmgr.DefaultLimits
 	limiter.SystemBaseLimit.ConnsInbound = config.MaxConns
+	limiter.SystemBaseLimit.Conns = config.MaxConns
 	limiter.SystemBaseLimit.FD = config.MaxConns
 	limiter.TransientBaseLimit = limiter.SystemBaseLimit
 
