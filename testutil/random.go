@@ -630,6 +630,13 @@ func RandomEth2Signature() eth2p0.BLSSignature {
 	return resp
 }
 
+func RandomEth2SignatureWithSeed(seed int64) eth2p0.BLSSignature {
+	var resp eth2p0.BLSSignature
+	_, _ = rand.New(rand.NewSource(seed)).Read(resp[:])
+
+	return resp
+}
+
 func RandomCoreSignature() core.Signature {
 	resp := make(core.Signature, 96)
 	_, _ = rand.Read(resp)
