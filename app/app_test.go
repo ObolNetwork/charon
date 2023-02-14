@@ -401,19 +401,24 @@ func TestInfoSync(t *testing.T) {
 }
 
 var (
-	relayExternal  = flag.String("relay-external", "", "External relay address for TestRelayConnections")
-	relayConnCount = flag.Int("relay-conn-count", 0, "Number of relay connections for TestRelayConnections")
+	relayExternal  = flag.String("relay-external", "", "External relay address for TestRemoteRelayConnections")
+	relayConnCount = flag.Int("relay-conn-count", 0, "Number of relay connections for TestRemoteRelayConnections")
+	relayLockHash  = flag.String("relay-lock-hash", "", "Lock hash to resolve relay for TestRemoteRelayConnections")
 )
 
 // TestRemoteRelayConnections allows testing connection count to a remote relay.
 //
-//	go test github.com/obolnetwork/charon/app -run=TestRemoteRelayConnections -relay-external=https://0.relay.obol.tech -relay-conn-count=1024
+//	go test github.com/obolnetwork/charon/app -run=TestRemoteRelayConnections \
+//	  -relay-external=https://0.relay.obol.tech \
+//	  -relay-conn-count=1024 \
+//	  -relay-lock-hash=736c122
 func TestRemoteRelayConnections(t *testing.T) {
 	if *relayExternal == "" {
 		t.Skip("No external relay address provided")
 	}
 
-	testRelayConnections(context.Background(), t, *relayExternal, make(chan error, 1), *relayConnCount, false)
+	testRelayConnections(context.Background(), t, *relayExternal, make(chan error, 1),
+		*relayLockHash, *relayConnCount, false)
 }
 
 func TestLocalRelayConnections(t *testing.T) {
@@ -421,13 +426,15 @@ func TestLocalRelayConnections(t *testing.T) {
 
 	relayAddr, relayErr := startRelay(ctx, t)
 
-	testRelayConnections(ctx, t, relayAddr, relayErr, 1024, true)
+	testRelayConnections(ctx, t, relayAddr, relayErr, "", 1024, true)
 }
 
-func testRelayConnections(ctx context.Context, t *testing.T, relayAddr string, relayErr <-chan error, totalOK int, expectNOK bool) {
+func testRelayConnections(ctx context.Context, t *testing.T, relayAddr string,
+	relayErr <-chan error, lockHashHex string, totalOK int, expectNOK bool,
+) {
 	t.Helper()
 
-	relays, err := p2p.NewRelays(ctx, []string{relayAddr}, "")
+	relays, err := p2p.NewRelays(ctx, []string{relayAddr}, lockHashHex)
 	require.NoError(t, err)
 
 	relay, ok := relays[0].Peer()
