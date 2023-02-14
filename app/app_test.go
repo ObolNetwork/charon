@@ -223,7 +223,6 @@ func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
 			AutoP2PKey:    true,
 			MaxResPerPeer: 8,
 			MaxConns:      1024,
-			RelayLogLevel: "debug",
 		})
 	}()
 
