@@ -17,6 +17,7 @@ package app_test
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -399,18 +400,46 @@ func TestInfoSync(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestRelayConnections(t *testing.T) {
+var (
+	relayExternal  = flag.String("relay-external", "", "External relay address for TestRemoteRelayConnections")
+	relayConnCount = flag.Int("relay-conn-count", 0, "Number of relay connections for TestRemoteRelayConnections")
+	relayLockHash  = flag.String("relay-lock-hash", "", "Lock hash to resolve relay for TestRemoteRelayConnections")
+)
+
+// TestRemoteRelayConnections allows testing connection count to a remote relay.
+//
+//	go test github.com/obolnetwork/charon/app -run=TestRemoteRelayConnections \
+//	  -relay-external=https://0.relay.obol.tech \
+//	  -relay-conn-count=1024 \
+//	  -relay-lock-hash=736c122
+func TestRemoteRelayConnections(t *testing.T) {
+	if *relayExternal == "" {
+		t.Skip("No external relay address provided")
+	}
+
+	testRelayConnections(context.Background(), t, *relayExternal, make(chan error, 1),
+		*relayLockHash, *relayConnCount, false)
+}
+
+func TestLocalRelayConnections(t *testing.T) {
 	ctx := context.Background()
 
 	relayAddr, relayErr := startRelay(ctx, t)
 
-	relays, err := p2p.NewRelays(ctx, []string{relayAddr}, "")
+	testRelayConnections(ctx, t, relayAddr, relayErr, "", 1024, true)
+}
+
+func testRelayConnections(ctx context.Context, t *testing.T, relayAddr string,
+	relayErr <-chan error, lockHashHex string, totalOK int, expectNOK bool,
+) {
+	t.Helper()
+
+	relays, err := p2p.NewRelays(ctx, []string{relayAddr}, lockHashHex)
 	require.NoError(t, err)
 
 	relay, ok := relays[0].Peer()
 	require.True(t, ok)
 
-	const totalOK = 1024
 	okErrs := make(chan error, totalOK)
 	for i := 0; i < totalOK; i++ {
 		privKey, err := k1.GeneratePrivateKey()
@@ -435,6 +464,10 @@ func TestRelayConnections(t *testing.T) {
 			testutil.SkipIfBindErr(t, err)
 			require.NoError(t, err)
 		}
+	}
+
+	if !expectNOK {
+		return
 	}
 
 	// One more should fail
