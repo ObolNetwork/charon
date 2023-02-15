@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"time"
 
+	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -42,6 +43,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 			if err := log.InitLogger(conf.Log); err != nil {
 				return err
 			}
+			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
 
 			printFlags(cmd.Context(), cmd.Flags())
 
