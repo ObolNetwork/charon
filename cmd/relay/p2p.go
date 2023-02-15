@@ -44,6 +44,9 @@ func startP2P(ctx context.Context, config Config, key *ecdsa.PrivateKey, reporte
 		if err := relaylog.SetLogLevel("relay", config.RelayLogLevel); err != nil {
 			return nil, errors.Wrap(err, "set relay log level")
 		}
+		if err := relaylog.SetLogLevel("rcmgr", config.RelayLogLevel); err != nil {
+			return nil, errors.Wrap(err, "set rcmgr log level")
+		}
 	}
 
 	// Increase resource limits
