@@ -350,14 +350,14 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 	}
 
 	switch {
-	case isV1x0(d2.Version) || isV1x1(d2.Version):
+	case isAnyVersion(d2.Version, v1_0, v1_1):
 		return marshalDefinitionV1x0or1(d2)
-	case isV1x2(d2.Version) || isV1x3(d2.Version):
+	case isAnyVersion(d2.Version, v1_2, v1_3):
 		// v1.2 and v1.3 has the same json format.
 		return marshalDefinitionV1x2or3(d2)
-	case isV1x4(d2.Version):
+	case isAnyVersion(d2.Version, v1_4):
 		return marshalDefinitionV1x4(d2)
-	case isV1x5(d2.Version):
+	case isAnyVersion(d2.Version, v1_5, v1_6):
 		return marshalDefinitionV1x5(d2)
 	default:
 		return nil, errors.New("unsupported version")
@@ -383,22 +383,22 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		err error
 	)
 	switch {
-	case isV1x0(version.Version) || isV1x1(version.Version):
+	case isAnyVersion(version.Version, v1_0, v1_1):
 		def, err = unmarshalDefinitionV1x0or1(data)
 		if err != nil {
 			return err
 		}
-	case isV1x2(version.Version) || isV1x3(version.Version):
+	case isAnyVersion(version.Version, v1_2, v1_3):
 		def, err = unmarshalDefinitionV1x2or3(data)
 		if err != nil {
 			return err
 		}
-	case isV1x4(version.Version):
+	case isAnyVersion(version.Version, v1_4):
 		def, err = unmarshalDefinitionV1x4(data)
 		if err != nil {
 			return err
 		}
-	case isV1x5(version.Version):
+	case isAnyVersion(version.Version, v1_5, v1_6):
 		def, err = unmarshalDefinitionV1x5(data)
 		if err != nil {
 			return err
@@ -681,7 +681,7 @@ func unmarshalDefinitionV1x5(data []byte) (def Definition, err error) {
 // supportEIP712Sigs returns true if the provided definition version supports EIP712 signatures.
 // Note that Definition versions prior to v1.3.0 don't support EIP712 signatures.
 func supportEIP712Sigs(version string) bool {
-	return !(isV1x0(version) || isV1x1(version) || isV1x2(version))
+	return !isAnyVersion(version, v1_0, v1_1, v1_2)
 }
 
 func eip712SigsPresent(operators []Operator) bool {
