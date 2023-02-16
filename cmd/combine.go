@@ -50,7 +50,7 @@ func newCombineCmd(runFunc func(ctx context.Context, inputDir string, force bool
 }
 
 func newCombineFunc(ctx context.Context, inputDir string, force bool) error {
-	return combine.Combine2(ctx, inputDir, force)
+	return combine.Combine(ctx, inputDir, force)
 }
 
 func bindCombineFlags(flags *pflag.FlagSet, inputDir *string, force *bool) {

@@ -32,99 +32,14 @@ import (
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
-// Combine combines validator keys contained in inputDir, and writes the original BLS12-381 private key in outputDir.
-func Combine(ctx context.Context, lockfile, inputDir, outputDir string) error {
-	b, err := os.Open(lockfile)
-	if err != nil {
-		return errors.Wrap(err, "read lock file")
-	}
-	var lock cluster.Lock
-	if err := json.NewDecoder(b).Decode(&lock); err != nil {
-		return errors.Wrap(err, "unmarshal lock file")
-	}
-
-	log.Info(ctx, "Recombining key shares",
-		z.Int("validators_amount", lock.NumValidators),
-		z.Str("lockfile", lockfile),
-		z.Str("input_dir", inputDir),
-		z.Str("output_dir", outputDir),
-	)
-
-	secrets, err := keystore.LoadKeys(inputDir)
-	if err != nil {
-		return err
-	}
-
-	shares, err := secretsToShares(lock, secrets)
-	if err != nil {
-		return err
-	}
-
-	if len(shares) < lock.Threshold {
-		return errors.New("insufficient number of keys")
-	}
-
-	secret, err := tblsv2.RecoverSecret(shares, uint(len(lock.Operators)), uint(lock.Threshold))
-	if err != nil {
-		return err
-	}
-
-	_, err = os.Stat(outputDir)
-	if err != nil {
-		if !errors.Is(err, fs.ErrNotExist) {
-			return errors.Wrap(err, "output directory error")
-		}
-
-		if err := os.Mkdir(outputDir, 0o755); err != nil {
-			return errors.Wrap(err, "can't create output directory")
-		}
-	}
-
-	return keystore.StoreKeys([]tblsv2.PrivateKey{secret}, outputDir)
-}
-
-func secretsToShares(lock cluster.Lock, secrets []tblsv2.PrivateKey) (map[int]tblsv2.PrivateKey, error) {
-	n := len(lock.Operators)
-
-	resp := make(map[int]tblsv2.PrivateKey)
-	for idx, secret := range secrets {
-		pubkey, err := tblsv2.SecretToPublicKey(secret)
-		if err != nil {
-			return nil, errors.Wrap(err, "pubkey from share")
-		}
-
-		var found bool
-		for _, val := range lock.Validators {
-			for i := 0; i < n; i++ {
-				pubShare, err := val.PublicShare(i)
-				if err != nil {
-					return nil, errors.Wrap(err, "pubshare from lock")
-				}
-
-				if !bytes.Equal(pubkey[:], pubShare[:]) {
-					continue
-				}
-
-				resp[idx+1] = secret
-				found = true
-
-				break
-			}
-
-			if found {
-				break
-			}
-		}
-
-		if !found {
-			return nil, errors.New("share not found in lock")
-		}
-	}
-
-	return resp, nil
-}
-
-func Combine2(ctx context.Context, inputDir string, force bool) error {
+// Combine combines validator keys contained in inputDir, and writes the original BLS12-381 private keys.
+// Combine is validator-aware: it'll recombine all the validator keys listed in the "Validator" field of the lock file.
+// To do so, the user must prepare inputDir as follows:
+//   - place the lock file in input dir, named as "cluster-lock.json"
+//   - create one directory for each operator, named after their ENR
+//   - place in each of those directories the content of the "validator_keys" directory, contained in their Charon runtime
+//     directory
+func Combine(ctx context.Context, inputDir string, force bool) error {
 	lfPath := filepath.Join(inputDir, "cluster-lock.json")
 	b, err := os.Open(lfPath)
 	if err != nil {
@@ -206,10 +121,51 @@ func Combine2(ctx context.Context, inputDir string, force bool) error {
 			return errors.New("refusing to overwrite existing private key", z.Int("validator_number", idx), z.Str("path", outFile))
 		}
 
-		if err := os.WriteFile(outFile, secret[:], 0o755); err != nil {
+		if err := os.WriteFile(outFile, secret[:], 0o600); err != nil {
 			return errors.Wrap(err, "cannot write private key file", z.Int("validator_number", idx), z.Str("path", outFile))
 		}
 	}
 
 	return nil
+}
+
+func secretsToShares(lock cluster.Lock, secrets []tblsv2.PrivateKey) (map[int]tblsv2.PrivateKey, error) {
+	n := len(lock.Operators)
+
+	resp := make(map[int]tblsv2.PrivateKey)
+	for idx, secret := range secrets {
+		pubkey, err := tblsv2.SecretToPublicKey(secret)
+		if err != nil {
+			return nil, errors.Wrap(err, "pubkey from share")
+		}
+
+		var found bool
+		for _, val := range lock.Validators {
+			for i := 0; i < n; i++ {
+				pubShare, err := val.PublicShare(i)
+				if err != nil {
+					return nil, errors.Wrap(err, "pubshare from lock")
+				}
+
+				if !bytes.Equal(pubkey[:], pubShare[:]) {
+					continue
+				}
+
+				resp[idx+1] = secret
+				found = true
+
+				break
+			}
+
+			if found {
+				break
+			}
+		}
+
+		if !found {
+			return nil, errors.New("share not found in lock")
+		}
+	}
+
+	return resp, nil
 }
