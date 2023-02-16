@@ -18,11 +18,15 @@ package dkg
 import (
 	"testing"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestInvalidSignatures(t *testing.T) {
@@ -76,10 +80,14 @@ func TestInvalidSignatures(t *testing.T) {
 	require.NoError(t, err)
 
 	// Aggregate and verify deposit data signatures
-	depositDataMsg := []byte("deposit data msg")
+	msg := testutil.RandomDepositMsg(t)
 
-	_, err = aggDepositDataSigs(map[core.PubKey][]core.ParSignedData{corePubkey: getSigs(depositDataMsg)}, []share{shares},
-		map[core.PubKey][]byte{corePubkey: depositDataMsg})
+	_, err = aggDepositData(
+		map[core.PubKey][]core.ParSignedData{corePubkey: getSigs([]byte("any digest"))},
+		[]share{shares},
+		map[core.PubKey]eth2p0.DepositMessage{corePubkey: msg},
+		eth2util.Goerli.Name,
+	)
 	require.EqualError(t, err, "invalid deposit data partial signature from peer")
 
 	// Aggregate and verify cluster lock hash signatures
@@ -135,12 +143,23 @@ func TestValidSignatures(t *testing.T) {
 
 	corePubkey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
+	eth2Pubkey, err := corePubkey.ToETH2()
+	require.NoError(t, err)
 
-	// Aggregate and verify deposit data signatures
-	depositDataMsg := []byte("deposit data msg")
+	withdrawalAddr := testutil.RandomETHAddress()
+	network := eth2util.Goerli.Name
 
-	_, err = aggDepositDataSigs(map[core.PubKey][]core.ParSignedData{corePubkey: getSigs(depositDataMsg)}, []share{shares},
-		map[core.PubKey][]byte{corePubkey: depositDataMsg})
+	msg, err := deposit.NewMessage(eth2Pubkey, withdrawalAddr)
+	require.NoError(t, err)
+	sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
+	require.NoError(t, err)
+
+	_, err = aggDepositData(
+		map[core.PubKey][]core.ParSignedData{corePubkey: getSigs(sigRoot[:])},
+		[]share{shares},
+		map[core.PubKey]eth2p0.DepositMessage{corePubkey: msg},
+		network,
+	)
 	require.NoError(t, err)
 
 	// Aggregate and verify cluster lock hash signatures

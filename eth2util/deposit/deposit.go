@@ -44,80 +44,63 @@ var (
 	depositCliVersion = "2.3.0"
 )
 
-// getMessageRoot returns a deposit message hash root created by the parameters.
-func getMessageRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.Root, error) {
+// NewMessage returns a deposit message hash root created by the parameters.
+func NewMessage(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.DepositMessage, error) {
 	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
 	if err != nil {
-		return eth2p0.Root{}, err
+		return eth2p0.DepositMessage{}, err
 	}
 
-	dm := eth2p0.DepositMessage{
+	return eth2p0.DepositMessage{
 		PublicKey:             pubkey,
 		WithdrawalCredentials: creds[:],
 		Amount:                validatorAmt,
-	}
-	hashRoot, err := dm.HashTreeRoot()
-	if err != nil {
-		return eth2p0.Root{}, errors.Wrap(err, "deposit message hash root")
-	}
-
-	return hashRoot, nil
+	}, nil
 }
 
 // MarshalDepositData serializes a list of deposit data into a single file.
-func MarshalDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLSSignature, withdrawalAddrs []string, network string) ([]byte, error) {
-	if len(pubkeys) != len(withdrawalAddrs) {
-		return nil, errors.New("insufficient withdrawal addresses")
-	}
-
+func MarshalDepositData(depositDatas []eth2p0.DepositData, network string) ([]byte, error) {
 	forkVersion, err := eth2util.NetworkToForkVersion(network)
 	if err != nil {
 		return nil, err
 	}
 
 	var ddList []depositDataJSON
-	for i, sig := range depositDataSigs {
-		creds, err := withdrawalCredsFromAddr(withdrawalAddrs[i])
-		if err != nil {
-			return nil, err
+	for _, depositData := range depositDatas {
+		msg := eth2p0.DepositMessage{
+			PublicKey:             depositData.PublicKey,
+			WithdrawalCredentials: depositData.WithdrawalCredentials,
+			Amount:                depositData.Amount,
 		}
-
-		// calculate depositMessage root
-		msgRoot, err := getMessageRoot(pubkeys[i], withdrawalAddrs[i])
+		msgRoot, err := msg.HashTreeRoot()
 		if err != nil {
 			return nil, err
 		}
 
 		// Verify deposit data signature
-		sigData, err := GetMessageSigningRoot(pubkeys[i], withdrawalAddrs[i], network)
+		sigData, err := GetMessageSigningRoot(msg, network)
 		if err != nil {
 			return nil, err
 		}
 
-		blsSig := tblsv2.Signature(sig)
-		blsPubkey := tblsv2.PublicKey(pubkeys[i])
+		blsSig := tblsv2.Signature(depositData.Signature)
+		blsPubkey := tblsv2.PublicKey(depositData.PublicKey)
 
 		err = tblsv2.Verify(blsPubkey, sigData[:], blsSig)
 		if err != nil {
 			return nil, errors.Wrap(err, "invalid deposit data signature")
 		}
 
-		dd := eth2p0.DepositData{
-			PublicKey:             pubkeys[i],
-			WithdrawalCredentials: creds[:],
-			Amount:                validatorAmt,
-			Signature:             sig,
-		}
-		dataRoot, err := dd.HashTreeRoot()
+		dataRoot, err := depositData.HashTreeRoot()
 		if err != nil {
 			return nil, errors.Wrap(err, "deposit data hash root")
 		}
 
 		ddList = append(ddList, depositDataJSON{
-			PubKey:                fmt.Sprintf("%x", pubkeys[i]),
-			WithdrawalCredentials: fmt.Sprintf("%x", creds),
+			PubKey:                fmt.Sprintf("%x", depositData.PublicKey),
+			WithdrawalCredentials: fmt.Sprintf("%x", depositData.WithdrawalCredentials),
 			Amount:                uint64(validatorAmt),
-			Signature:             fmt.Sprintf("%x", sig),
+			Signature:             fmt.Sprintf("%x", depositData.Signature),
 			DepositMessageRoot:    fmt.Sprintf("%x", msgRoot),
 			DepositDataRoot:       fmt.Sprintf("%x", dataRoot),
 			ForkVersion:           strings.TrimPrefix(forkVersion, "0x"),
@@ -157,10 +140,10 @@ func getDepositDomain(forkVersion eth2p0.Version) (eth2p0.Domain, error) {
 }
 
 // GetMessageSigningRoot returns the deposit message signing root created by the provided parameters.
-func GetMessageSigningRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string, network string) ([32]byte, error) {
-	msgRoot, err := getMessageRoot(pubkey, withdrawalAddr)
+func GetMessageSigningRoot(msg eth2p0.DepositMessage, network string) ([32]byte, error) {
+	msgRoot, err := msg.HashTreeRoot()
 	if err != nil {
-		return [32]byte{}, err
+		return [32]byte{}, errors.Wrap(err, "deposit message root")
 	}
 
 	fv, err := eth2util.NetworkToForkVersionBytes(network)
@@ -184,7 +167,7 @@ func GetMessageSigningRoot(pubkey eth2p0.BLSPubKey, withdrawalAddr string, netwo
 	return resp, nil
 }
 
-// WithdrawalCredsFromAddr returns the Withdrawal Credentials corresponding to a '0x01' Ethereum withdrawal address.
+// withdrawalCredsFromAddr returns the Withdrawal Credentials corresponding to a '0x01' Ethereum withdrawal address.
 func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 	// Check for validity of address.
 	if _, err := eth2util.ChecksumAddress(addr); err != nil {
