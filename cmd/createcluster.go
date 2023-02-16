@@ -349,6 +349,7 @@ func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]tblsv2.PrivateK
 	return secrets, nil
 }
 
+// createDepositDatas creates a slice of deposit datas using the provided parameters and returns it.
 func createDepositDatas(withdrawalAddresses []string, network string, secrets []tblsv2.PrivateKey) ([]eth2p0.DepositData, error) {
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, errors.New("insufficient withdrawal addresses")

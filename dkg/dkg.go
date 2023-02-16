@@ -634,7 +634,7 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 }
 
 // createDistValidators returns a slice of distributed validators from the provided
-// shares and deposit datas..
+// shares and deposit datas.
 func createDistValidators(shares []share, depositDatas []eth2p0.DepositData) ([]cluster.DistValidator, error) {
 	var dvs []cluster.DistValidator
 	for _, s := range shares {

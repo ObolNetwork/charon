@@ -44,7 +44,7 @@ var (
 	depositCliVersion = "2.3.0"
 )
 
-// NewMessage returns a deposit message hash root created by the parameters.
+// NewMessage returns a deposit message created using the provided parameters.
 func NewMessage(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.DepositMessage, error) {
 	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
 	if err != nil {
