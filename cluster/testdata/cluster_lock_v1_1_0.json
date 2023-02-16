@@ -38,13 +38,13 @@
    ]
   },
   {
-   "distributed_public_key": "0xfd69d22ae5411947cb553d7694267aef4ebcea406b32d6108bd68584f57e37caac6e33feaa3263a399437024ba9c9b14",
+   "distributed_public_key": "0x143e63408d8724b0cf3fae17a3f79be1072fb63c35d6042c4160f38ee9e2a9f3fb4ffb0019b454d522b5ffa17604193f",
    "public_shares": [
-    "Z4onTwGpEK4pX277/l9av0TM3iY7VgZjPivwAG8oKV19OQafAaI5xDZYVMOvf2tB",
-    "1jH5K5qNEvQSVzJf/zMvdXawYgVWMEo+Pq4Uwo0M6jnSkBpScg2oXKHks46vP0TG"
+    "uJZnEKeWBzLKUs9Tw/UgyIm3m/UEz7V8dgEjLVibrM6p1uJj4lwndB0/bGLLuxXZ",
+    "r7y/f32kGrBAjjlpwuLNzyM0OL8XdKzncJpPCR6ag/3q4OxV6yM6m1OUyzx4VrVG"
    ]
   }
  ],
  "signature_aggregate": "K3x4Irpk+Eq0PKDG5rkcH9O+iZBDQXnTr0SRo2kBLbk=",
- "lock_hash": "hXEeMf1sE9fqoz7hTzbmTsf+EcCzN08rpNrSM5BHn3g="
+ "lock_hash": "tTR/07EXBRNU9BE+wpjTNm1cfIMOWbKJhcjJmDpvq1s="
 }

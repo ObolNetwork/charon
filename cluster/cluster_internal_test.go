@@ -265,3 +265,12 @@ func RandomValidatorAddresses(n int) []ValidatorAddresses {
 
 	return resp
 }
+
+func RandomDepositData() DepositData {
+	return DepositData{
+		PubKey:                testutil.RandomBytes48(),
+		WithdrawalCredentials: testutil.RandomBytes32(),
+		Amount:                rand.Int(),
+		Signature:             testutil.RandomBytes96(),
+	}
+}

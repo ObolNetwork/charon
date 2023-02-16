@@ -18,11 +18,12 @@ package cluster
 import "testing"
 
 const (
-	currentVersion = v1_4
+	currentVersion = v1_5
 	dkgAlgo        = "default"
 
-	v1_5 = "v1.5.0" // Draft
-	v1_4 = "v1.4.0" // Default
+	v1_6 = "v1.6.0" // Draft
+	v1_5 = "v1.5.0" // Default
+	v1_4 = "v1.4.0"
 	v1_3 = "v1.3.0"
 	v1_2 = "v1.2.0"
 	v1_1 = "v1.1.0"
@@ -32,6 +33,7 @@ const (
 )
 
 var supportedVersions = map[string]bool{
+	v1_6: true,
 	v1_5: true,
 	v1_4: true,
 	v1_3: true,
@@ -50,28 +52,8 @@ func isAnyVersion(version string, versions ...string) bool {
 	return false
 }
 
-func isV1x0(version string) bool {
-	return version == v1_0
-}
-
-func isV1x1(version string) bool {
-	return version == v1_1
-}
-
-func isV1x2(version string) bool {
-	return version == v1_2
-}
-
 func isV1x3(version string) bool {
 	return version == v1_3
-}
-
-func isV1x4(version string) bool {
-	return version == v1_4
-}
-
-func isV1x5(version string) bool {
-	return version == v1_5
 }
 
 // SupportedVersionsForT returns the supported definition versions for testing purposes only.
