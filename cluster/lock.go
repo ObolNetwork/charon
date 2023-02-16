@@ -273,12 +273,6 @@ func unmarshalLockV1x6orLater(data []byte) (lock Lock, err error) {
 		return Lock{}, errors.Wrap(err, "unmarshal definition")
 	}
 
-	for _, validator := range lockJSON.Validators {
-		if len(validator.FeeRecipientAddress) > 0 {
-			return Lock{}, errors.New("distributed validator fee recipient not supported anymore")
-		}
-	}
-
 	lock = Lock{
 		Definition:         lockJSON.Definition,
 		Validators:         distValidatorsFromV1x6orLater(lockJSON.Validators),

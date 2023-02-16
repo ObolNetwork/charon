@@ -64,10 +64,9 @@ type distValidatorJSONv1x2to5 struct {
 
 // distValidatorJSONv1x6 is the json formatter of DistValidator for versions v1.6.0 or later.
 type distValidatorJSONv1x6 struct {
-	PubKey              ethHex          `json:"distributed_public_key"`
-	PubShares           []ethHex        `json:"public_shares,omitempty"`
-	FeeRecipientAddress ethHex          `json:"fee_recipient_address,omitempty"`
-	DepositData         depositDataJSON `json:"deposit_data,omitempty"`
+	PubKey      ethHex          `json:"distributed_public_key"`
+	PubShares   []ethHex        `json:"public_shares,omitempty"`
+	DepositData depositDataJSON `json:"deposit_data,omitempty"`
 }
 
 func distValidatorsFromV1x1(distValidators []distValidatorJSONv1x1) []DistValidator {
