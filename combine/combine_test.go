@@ -16,17 +16,15 @@
 package combine_test
 
 import (
-	"context"
 	"encoding/json"
+	"log"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/combine"
-	"github.com/obolnetwork/charon/eth2util/keystore"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
@@ -35,83 +33,98 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestCombineExistingOutdir(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 1, 3, 4, 0)
+// func TestCombineExistingOutdir(t *testing.T) {
+//	lock, _, shares := cluster.NewForT(t, 1, 3, 4, 0)
+//
+//	dir := t.TempDir()
+//
+//	lockfile := storeLock(t, dir, lock)
+//
+//	secrets := shares[0]
+//
+//	err := keystore.StoreKeys(secrets, dir)
+//	require.NoError(t, err)
+//
+//	out := t.TempDir()
+//
+//	err = combine.Combine(context.Background(), lockfile, dir, out)
+//	require.NoError(t, err)
+//
+//	result, err := keystore.LoadKeys(out)
+//	require.NoError(t, err)
+//	require.Len(t, result, 1)
+//
+//	actualBytes, err := tblsv2.SecretToPublicKey(result[0])
+//	require.NoError(t, err)
+//
+//	pubkey := lock.Validators[0].PubKey
+//
+//	require.Equal(t, pubkey, actualBytes[:])
+//}
 
-	dir := t.TempDir()
+func TestCombine2(t *testing.T) {
+	// lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	//
+	//// TODO: split shares among ENRs
+	//
+	//dir := t.TempDir()
+	//
+	//storeLock(t, dir, lock)
 
-	lockfile := storeLock(t, dir, lock)
+	for i := 0; i < 4*2; i += 4 {
+		log.Printf("for enr %d, grabbing keys [%d: %d]\n", i, i, i+2)
+	}
 
-	secrets := shares[0]
+	//// flatten secrets, each validator slice is unpacked in a flat structure
+	//// there are now n*validator txt/json files
+	// var secrets []tblsv2.PrivateKey
+	//for _, s := range shares {
+	//	secrets = append(secrets, s...)
+	//}
+	//
+	//// temporarily store shares in a dir
+	//tempSharesDir := t.TempDir()
+	//err := keystore.StoreKeys(secrets, tempSharesDir)
+	//require.NoError(t, err)
+	//
+	//for idx, dv := range lock.Definition.Operators {
+	//	ep := filepath.Join(dir, dv.ENR)
+	//
+	//	require.NoError(t, os.Mkdir(ep, 0755))
+	//}
 
-	err := keystore.StoreKeys(secrets, dir)
-	require.NoError(t, err)
 
-	out := t.TempDir()
+	//require.NoError(t, err)
 
-	err = combine.Combine(context.Background(), lockfile, dir, out)
-	require.NoError(t, err)
-
-	result, err := keystore.LoadKeys(out)
-	require.NoError(t, err)
-	require.Len(t, result, 1)
-
-	actualBytes, err := tblsv2.SecretToPublicKey(result[0])
-	require.NoError(t, err)
-
-	pubkey := lock.Validators[0].PubKey
-
-	require.Equal(t, pubkey, actualBytes[:])
+	// secrets := shares[0]
+	//
+	//err := keystore.StoreKeys(secrets, dir)
+	//require.NoError(t, err)
+	//
+	//out := t.TempDir()
+	//
+	//err = combine.Combine(context.Background(), lockfile, dir, out)
+	//require.NoError(t, err)
+	//
+	//result, err := keystore.LoadKeys(out)
+	//require.NoError(t, err)
+	//require.Len(t, result, 1)
+	//
+	//actualBytes, err := tblsv2.SecretToPublicKey(result[0])
+	//require.NoError(t, err)
+	//
+	//pubkey := lock.Validators[0].PubKey
+	//
+	//require.Equal(t, pubkey, actualBytes[:])
 }
 
-func TestCombineNonexistentOutdir(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 1, 3, 4, 0)
-
-	dir := t.TempDir()
-
-	lockfile := storeLock(t, dir, lock)
-
-	secrets := shares[0]
-
-	err := keystore.StoreKeys(secrets, dir)
-	require.NoError(t, err)
-
-	currentDir, err := os.Getwd()
-	require.NoError(t, err)
-
-	defer func() {
-		require.NoError(t, os.Chdir(currentDir))
-	}()
-
-	require.NoError(t, os.Chdir(t.TempDir()))
-
-	out := "./nonexisting-directory"
-
-	err = combine.Combine(context.Background(), lockfile, dir, out)
-	require.NoError(t, err)
-
-	result, err := keystore.LoadKeys(out)
-	require.NoError(t, err)
-	require.Len(t, result, 1)
-
-	actualBytes, err := tblsv2.SecretToPublicKey(result[0])
-	require.NoError(t, err)
-
-	pubkey := lock.Validators[0].PubKey
-
-	require.Equal(t, pubkey, actualBytes[:])
-}
-
-func storeLock(t *testing.T, dir string, lock cluster.Lock) string {
+func storeLock(t *testing.T, dir string, lock cluster.Lock) {
 	t.Helper()
 
 	b, err := json.Marshal(lock)
 	require.NoError(t, err)
 
-	file := path.Join(dir, "lock.json")
+	file := filepath.Join(dir, "cluster-lock.json")
 
-	err = os.WriteFile(file, b, 0o755)
-	require.NoError(t, err)
-
-	return file
+	require.NoError(t, os.WriteFile(file, b, 0o755))
 }

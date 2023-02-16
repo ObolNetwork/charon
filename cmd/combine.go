@@ -24,11 +24,10 @@ import (
 	"github.com/obolnetwork/charon/combine"
 )
 
-func newCombineCmd(runFunc func(ctx context.Context, lockfile, inputDir, outputDir string) error) *cobra.Command {
+func newCombineCmd(runFunc func(ctx context.Context, inputDir string, force bool) error) *cobra.Command {
 	var (
-		inputDir  string
-		outputDir string
-		lockfile  string
+		inputDir string
+		force    bool
 	)
 
 	cmd := &cobra.Command{
@@ -37,26 +36,24 @@ func newCombineCmd(runFunc func(ctx context.Context, lockfile, inputDir, outputD
 		Long:  "Combines private key shares into a single private key for a distributed validator.\nWarning: running the resulting private key in a validator alongside the original distributed validator will result in slashing.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(cmd.Context(), lockfile, inputDir, outputDir)
+			return runFunc(cmd.Context(), inputDir, force)
 		},
 	}
 
 	bindCombineFlags(
 		cmd.Flags(),
 		&inputDir,
-		&outputDir,
-		&lockfile,
+		&force,
 	)
 
 	return cmd
 }
 
-func newCombineFunc(ctx context.Context, lockfile, inputDir, outputDir string) error {
-	return combine.Combine(ctx, lockfile, inputDir, outputDir)
+func newCombineFunc(ctx context.Context, inputDir string, force bool) error {
+	return combine.Combine2(ctx, inputDir, force)
 }
 
-func bindCombineFlags(flags *pflag.FlagSet, inputDir, outputDir, lockfile *string) {
-	flags.StringVar(inputDir, "keystore-dir", "./validator-keys", `Directory containing all the "keystore-N.json" and "keystore-N.txt" files`)
-	flags.StringVar(outputDir, "out-dir", "./recombined-validator-key", "Directory where to save the resulting private key")
-	flags.StringVar(lockfile, "lock-file", "./cluster-lock.json", "The path to the cluster lock file defining distributed validator cluster.")
+func bindCombineFlags(flags *pflag.FlagSet, inputDir *string, force *bool) {
+	flags.StringVar(inputDir, "keystore-dir", "./", `Directory containing all the keystore files organized by ENR, and the lock file.`)
+	flags.BoolVar(force, "force", false, "Overwrites private keys with the same name if present.")
 }
