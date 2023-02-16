@@ -26,11 +26,14 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2http "github.com/attestantio/go-eth2-client/http"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/gorilla/mux"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 //go:embed static.json
@@ -99,6 +102,38 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 			case <-shutdown:
 			case <-r.Context().Done():
 			}
+		},
+		"/eth/v2/beacon/blocks/{block_id}": func(w http.ResponseWriter, r *http.Request) {
+			type signedBlockResponseJSON struct {
+				Version eth2spec.DataVersion         `json:"version"`
+				Data    *bellatrix.SignedBeaconBlock `json:"data"`
+			}
+
+			resp, err := json.Marshal(signedBlockResponseJSON{
+				Version: eth2spec.DataVersionBellatrix,
+				Data:    testutil.RandomBellatrixSignedBeaconBlock(),
+			})
+			if err != nil {
+				panic(err) // This should never happen and this is test code sorry ;)
+			}
+
+			_, _ = w.Write(resp)
+		},
+		"/eth/v1/beacon/blocks/{block_id}": func(w http.ResponseWriter, r *http.Request) {
+			type signedBlockResponseJSON struct {
+				Version eth2spec.DataVersion         `json:"version"`
+				Data    *bellatrix.SignedBeaconBlock `json:"data"`
+			}
+
+			resp, err := json.Marshal(signedBlockResponseJSON{
+				Version: eth2spec.DataVersionBellatrix,
+				Data:    testutil.RandomBellatrixSignedBeaconBlock(),
+			})
+			if err != nil {
+				panic(err) // This should never happen and this is test code sorry ;)
+			}
+
+			_, _ = w.Write(resp)
 		},
 	}
 

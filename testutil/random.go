@@ -182,6 +182,13 @@ func RandomBellatrixBeaconBlock() *bellatrix.BeaconBlock {
 	}
 }
 
+func RandomBellatrixSignedBeaconBlock() *bellatrix.SignedBeaconBlock {
+	return &bellatrix.SignedBeaconBlock{
+		Message:   RandomBellatrixBeaconBlock(),
+		Signature: RandomEth2Signature(),
+	}
+}
+
 func RandomBellatrixBeaconBlockBody() *bellatrix.BeaconBlockBody {
 	return &bellatrix.BeaconBlockBody{
 		RANDAOReveal: RandomEth2Signature(),

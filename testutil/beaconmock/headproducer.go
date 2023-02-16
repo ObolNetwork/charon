@@ -28,25 +28,32 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
 	"github.com/r3labs/sse/v2"
+
+	"github.com/obolnetwork/charon/app/log"
 )
 
 const sseStreamID = "head_events"
 
 func newHeadProducer() *headProducer {
-	server := sse.New()
-	server.CreateStream(sseStreamID)
+	headEventServer := sse.New()
+	headEventServer.CreateStream(sseStreamID)
+
+	blockEventServer := sse.New()
+	blockEventServer.CreateStream(sseStreamID)
 
 	return &headProducer{
-		server: server,
-		quit:   make(chan struct{}),
+		headServer:  headEventServer,
+		blockServer: blockEventServer,
+		quit:        make(chan struct{}),
 	}
 }
 
 // headProducer is a stateful struct for providing deterministic block roots based on slot events.
 type headProducer struct {
 	// Immutable state
-	server *sse.Server
-	quit   chan struct{}
+	headServer  *sse.Server
+	blockServer *sse.Server
+	quit        chan struct{}
 
 	// Mutable state
 	mu          sync.Mutex
@@ -100,14 +107,28 @@ func (p *headProducer) updateHead(slot eth2p0.Slot) {
 	currentHead := pseudoRandomHeadEvent(slot)
 	p.setCurrentHead(currentHead)
 
-	data, err := json.Marshal(currentHead)
+	currentBlock := &eth2v1.BlockEvent{
+		Slot:  slot,
+		Block: currentHead.Block,
+	}
+
+	headData, err := json.Marshal(currentHead)
 	if err != nil {
 		panic(err) // This should never happen and this is test code sorry ;)
 	}
 
-	p.server.Publish(sseStreamID, &sse.Event{
+	blockData, err := json.Marshal(currentBlock)
+	if err != nil {
+		panic(err) // This should never happen and this is test code sorry ;)
+	}
+
+	p.blockServer.Publish(sseStreamID, &sse.Event{
+		Event: []byte("block"),
+		Data:  blockData,
+	})
+	p.headServer.Publish(sseStreamID, &sse.Event{
 		Event: []byte("head"),
-		Data:  data,
+		Data:  headData,
 	})
 }
 
@@ -176,7 +197,28 @@ func (p *headProducer) handleEvents(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	query.Set("stream", sseStreamID) // Add sseStreamID for sse server to serve events on.
 	r.URL.RawQuery = query.Encode()
-	p.server.ServeHTTP(w, r)
+
+	for _, topic := range query["topics"] {
+		switch topic {
+		case "head":
+			p.headServer.ServeHTTP(w, r)
+		case "block":
+			p.blockServer.ServeHTTP(w, r)
+		default:
+			log.Warn(context.Background(), "Unknown topic requested", nil)
+			w.WriteHeader(http.StatusInternalServerError)
+			resp, err := json.Marshal(errorMsgJSON{
+				Code:    500,
+				Message: "unknown topic",
+			})
+			if err != nil {
+				panic(err) // This should never happen and this is test code sorry ;)
+			}
+			_, _ = w.Write(resp)
+
+			return
+		}
+	}
 }
 
 // startSlotTicker returns a blocking channel that will be populated with new slots in real time.
