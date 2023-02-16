@@ -78,7 +78,6 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 			)
 			relayConnGauge.WithLabelValues(name).Set(1)
 
-			ticker := time.NewTicker(time.Second * 5)
 			refresh := time.After(refreshDelay)
 
 			var done bool
@@ -88,15 +87,9 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 					done = true
 				case <-refresh:
 					done = true
-				case <-ticker.C:
-					if len(tcpNode.Network().ConnsToPeer(relayPeer.ID)) == 0 {
-						log.Warn(ctx, "No connections to relay", nil)
-						done = true
-					}
 				}
 			}
 
-			ticker.Stop()
 			log.Debug(ctx, "Refreshing relay circuit reservation")
 		}
 
