@@ -105,34 +105,21 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 		},
 		"/eth/v2/beacon/blocks/{block_id}": func(w http.ResponseWriter, r *http.Request) {
 			type signedBlockResponseJSON struct {
-				Version eth2spec.DataVersion         `json:"version"`
+				Version *eth2spec.DataVersion        `json:"version"`
 				Data    *bellatrix.SignedBeaconBlock `json:"data"`
 			}
 
+			version := eth2spec.DataVersionBellatrix
 			resp, err := json.Marshal(signedBlockResponseJSON{
-				Version: eth2spec.DataVersionBellatrix,
+				Version: &version,
 				Data:    testutil.RandomBellatrixSignedBeaconBlock(),
 			})
 			if err != nil {
 				panic(err) // This should never happen and this is test code sorry ;)
 			}
 
-			_, _ = w.Write(resp)
-		},
-		"/eth/v1/beacon/blocks/{block_id}": func(w http.ResponseWriter, r *http.Request) {
-			type signedBlockResponseJSON struct {
-				Version eth2spec.DataVersion         `json:"version"`
-				Data    *bellatrix.SignedBeaconBlock `json:"data"`
-			}
-
-			resp, err := json.Marshal(signedBlockResponseJSON{
-				Version: eth2spec.DataVersionBellatrix,
-				Data:    testutil.RandomBellatrixSignedBeaconBlock(),
-			})
-			if err != nil {
-				panic(err) // This should never happen and this is test code sorry ;)
-			}
-
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(resp)
 		},
 	}
