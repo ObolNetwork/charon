@@ -62,6 +62,17 @@ func PubkeyFromBytes(data []byte) (v2.PublicKey, error) {
 	return *(*v2.PublicKey)(data), nil
 }
 
+// PubkeyFromCore returns a v2.PublicKey from the given core public key.
+// Returns an error if the data isn't of the expected length.
+func PubkeyFromCore(pk core.PubKey) (v2.PublicKey, error) {
+	data, err := pk.Bytes()
+	if err != nil {
+		return v2.PublicKey{}, err
+	}
+
+	return PubkeyFromBytes(data)
+}
+
 // SignatureFromBytes returns a v2.Signature from the given compressed signature bytes contained in data.
 // Returns an error if the data isn't of the expected length.
 func SignatureFromBytes(data []byte) (v2.Signature, error) {

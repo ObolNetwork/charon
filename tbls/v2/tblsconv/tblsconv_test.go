@@ -17,12 +17,15 @@ package tblsconv_test
 
 import (
 	"bytes"
+	"encoding/hex"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	v2 "github.com/obolnetwork/charon/tbls/v2"
 	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestPrivkeyFromBytes(t *testing.T) {
@@ -131,6 +134,17 @@ func TestPubkeyToETH2(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, pubkey[:], res[:])
+}
+
+func TestPubkeyFromCore(t *testing.T) {
+	pubkey := testutil.RandomCorePubKey(t)
+
+	res, err := tblsconv2.PubkeyFromCore(pubkey)
+	require.NoError(t, err)
+
+	expect, err := hex.DecodeString(strings.TrimPrefix(string(pubkey), "0x"))
+	require.NoError(t, err)
+	require.Equal(t, expect, res[:])
 }
 
 func TestSignatureFromBytes(t *testing.T) {

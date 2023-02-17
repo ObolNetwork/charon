@@ -864,6 +864,16 @@ func RandomCoreSignedRandao() core.SignedRandao {
 	}}
 }
 
+func RandomDepositMsg(t *testing.T) eth2p0.DepositMessage {
+	t.Helper()
+
+	return eth2p0.DepositMessage{
+		PublicKey:             RandomEth2PubKey(t),
+		WithdrawalCredentials: RandomBytes32(),
+		Amount:                RandomGwei(),
+	}
+}
+
 // GenerateInsecureK1Key returns a new deterministic insecure secp256k1 private using the provided seed for testing purposes only.
 // For random keys, rather use k1.GeneratePrivateKey().
 func GenerateInsecureK1Key(t *testing.T, random io.Reader) *k1.PrivateKey {

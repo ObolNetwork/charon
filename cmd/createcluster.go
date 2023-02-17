@@ -171,12 +171,6 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	// Create validators
-	vals, err := getValidators(pubkeys, shareSets)
-	if err != nil {
-		return err
-	}
-
 	// Create operators
 	ops, err := getOperators(numNodes, conf.ClusterDir)
 	if err != nil {
@@ -195,12 +189,26 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 	}
 
-	// Write deposit-data file
-	if err = writeDepositData(def.WithdrawalAddresses(), conf.ClusterDir, def.ForkVersion, numNodes, secrets); err != nil {
+	network, err := eth2util.ForkVersionToNetwork(def.ForkVersion)
+	if err != nil {
 		return err
 	}
 
-	// Create cluster-lock
+	depositDatas, err := createDepositDatas(def.WithdrawalAddresses(), network, secrets)
+	if err != nil {
+		return err
+	}
+
+	// Write deposit-data file
+	if err = writeDepositData(depositDatas, network, conf.ClusterDir, numNodes); err != nil {
+		return err
+	}
+
+	vals, err := getValidators(pubkeys, shareSets, depositDatas)
+	if err != nil {
+		return err
+	}
+
 	lock := cluster.Lock{
 		Definition: def,
 		Validators: vals,
@@ -231,41 +239,47 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 }
 
 // signDepositDatas returns Distributed Validator pubkeys and deposit data signatures corresponding to each pubkey.
-func signDepositDatas(secrets []tblsv2.PrivateKey, withdrawalAddresses []string, network string) ([]eth2p0.BLSPubKey, []eth2p0.BLSSignature, error) {
+func signDepositDatas(secrets []tblsv2.PrivateKey, withdrawalAddresses []string, network string) ([]eth2p0.DepositData, error) {
 	if len(secrets) != len(withdrawalAddresses) {
-		return nil, nil, errors.New("insufficient withdrawal addresses")
+		return nil, errors.New("insufficient withdrawal addresses")
 	}
 
-	var (
-		pubkeys    []eth2p0.BLSPubKey
-		signatures []eth2p0.BLSSignature
-	)
+	var datas []eth2p0.DepositData
 	for i, secret := range secrets {
 		withdrawalAddr, err := eth2util.ChecksumAddress(withdrawalAddresses[i])
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		pk, err := tblsv2.SecretToPublicKey(secret)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "secret to pubkey")
+			return nil, errors.Wrap(err, "secret to pubkey")
 		}
 
-		msgRoot, err := deposit.GetMessageSigningRoot(eth2p0.BLSPubKey(pk), withdrawalAddr, network)
+		msg, err := deposit.NewMessage(eth2p0.BLSPubKey(pk), withdrawalAddr)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
-		sig, err := tblsv2.Sign(secret, msgRoot[:])
+		sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
-		pubkeys = append(pubkeys, eth2p0.BLSPubKey(pk))
-		signatures = append(signatures, tblsconv2.SigToETH2(sig))
+		sig, err := tblsv2.Sign(secret, sigRoot[:])
+		if err != nil {
+			return nil, err
+		}
+
+		datas = append(datas, eth2p0.DepositData{
+			PublicKey:             msg.PublicKey,
+			WithdrawalCredentials: msg.WithdrawalCredentials,
+			Amount:                msg.Amount,
+			Signature:             tblsconv2.SigToETH2(sig),
+		})
 	}
 
-	return pubkeys, signatures, nil
+	return datas, nil
 }
 
 // getTSSShares splits the secrets and returns the threshold key shares.
@@ -335,25 +349,19 @@ func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]tblsv2.PrivateK
 	return secrets, nil
 }
 
-// writeDepositData writes deposit data to disk for the DVs for all peers in a cluster.
-func writeDepositData(withdrawalAddresses []string, clusterDir string, forkVersion []byte, numNodes int, secrets []tblsv2.PrivateKey) error {
+// createDepositDatas creates a slice of deposit datas using the provided parameters and returns it.
+func createDepositDatas(withdrawalAddresses []string, network string, secrets []tblsv2.PrivateKey) ([]eth2p0.DepositData, error) {
 	if len(secrets) != len(withdrawalAddresses) {
-		return errors.New("insufficient withdrawal addresses")
+		return nil, errors.New("insufficient withdrawal addresses")
 	}
 
-	network, err := eth2util.ForkVersionToNetwork(forkVersion)
-	if err != nil {
-		return err
-	}
+	return signDepositDatas(secrets, withdrawalAddresses, network)
+}
 
-	// Create deposit message signatures
-	pubkeys, sigs, err := signDepositDatas(secrets, withdrawalAddresses, network)
-	if err != nil {
-		return err
-	}
-
+// writeDepositData writes deposit data to disk for the DVs for all peers in a cluster.
+func writeDepositData(depositDatas []eth2p0.DepositData, network string, clusterDir string, numNodes int) error {
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(pubkeys, sigs, withdrawalAddresses, network)
+	bytes, err := deposit.MarshalDepositData(depositDatas, network)
 	if err != nil {
 		return err
 	}
@@ -395,7 +403,7 @@ func writeLock(lock cluster.Lock, clusterDir string, numNodes int, shareSets [][
 
 // getValidators returns distributed validators from the provided dv public keys and keyshares.
 // It creates new peers from the provided config and saves validator keys to disk for each peer.
-func getValidators(dvsPubkeys []tblsv2.PublicKey, dvPrivShares [][]tblsv2.PrivateKey) ([]cluster.DistValidator, error) {
+func getValidators(dvsPubkeys []tblsv2.PublicKey, dvPrivShares [][]tblsv2.PrivateKey, depositDatas []eth2p0.DepositData) ([]cluster.DistValidator, error) {
 	var vals []cluster.DistValidator
 	for idx, dv := range dvsPubkeys {
 		dv := dv
@@ -410,9 +418,28 @@ func getValidators(dvsPubkeys []tblsv2.PublicKey, dvPrivShares [][]tblsv2.Privat
 			pubshares = append(pubshares, pubk[:])
 		}
 
+		depositIdx := -1
+		for i, dd := range depositDatas {
+			if [48]byte(dd.PublicKey) != dv {
+				continue
+			}
+			depositIdx = i
+
+			break
+		}
+		if depositIdx == -1 {
+			return nil, errors.New("deposit data not found")
+		}
+
 		vals = append(vals, cluster.DistValidator{
 			PubKey:    dv[:],
 			PubShares: pubshares,
+			DepositData: cluster.DepositData{
+				PubKey:                depositDatas[depositIdx].PublicKey[:],
+				WithdrawalCredentials: depositDatas[depositIdx].WithdrawalCredentials,
+				Amount:                int(depositDatas[depositIdx].Amount),
+				Signature:             depositDatas[depositIdx].Signature[:],
+			},
 		})
 	}
 
