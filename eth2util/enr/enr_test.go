@@ -113,5 +113,5 @@ func TestNew(t *testing.T) {
 	r, err := enr.New(privkey)
 	require.NoError(t, err)
 
-	require.Equal(t, "enr:-HW4QMNo8q6cHeIVPW70BA6PZKjKwTKNIALmuE0tkvtAB8YgYzOYYaf8evsNo2Z1nnqPRiJAJp3-1i3shLchccqovCmAgmlkgnY0iXNlY3AyNTZrMaECvI5821Dg_9UqVPr5hNasj-XuaFbTil-KzZvTP8nH1Q0", r.String())
+	require.Equal(t, "enr:-HW4QE_bilJiV518riilxqJ_693Fazktmp3RzesUnI_Afmj_X2XdHCiCl2wA_aIGZ6s09C4Xwlvy3XrpWgraDRpAlJWAgmlkgnY0iXNlY3AyNTZrMaECrpLOdVOZPwRADGl2-M1FQK4Ha_ATHuyLNa4P-fxXepA", r.String())
 }

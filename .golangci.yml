@@ -144,6 +144,7 @@ linters:
     - ireturn
     - lll # Think about adding this (max line length)
     - maligned
+    - musttag
     - nonamedreturns
     - paralleltest
     - prealloc

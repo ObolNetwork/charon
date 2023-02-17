@@ -416,7 +416,7 @@ func hashLock(l Lock) ([32]byte, error) {
 		hashFunc = hashLockLegacy
 	} else if isAnyVersion(l.Version, v1_3, v1_4) {
 		hashFunc = hashLockV1x3or4
-	} else if isAnyVersion(l.Version, v1_5, v1_6) { //nolint:revive // Early return not applicable to else if
+	} else if isAnyVersion(l.Version, v1_5, v1_6) {
 		hashFunc = hashLockV1x5
 	} else {
 		return [32]byte{}, errors.New("unknown version")

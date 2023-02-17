@@ -204,7 +204,7 @@ func TestLegacyMsgHashAndSig(t *testing.T) {
 		hex.EncodeToString(hash[:]),
 	)
 	require.Equal(t,
-		"b8fe6df5596d4163324365231e0d465324a802bd8867cb0d0c56b21a2aa518c51f657102d979fb04ac319089921972aae124b7b232b83849beae7eb60ca76e6900",
+		"e9e4573b660ae2ed8dca04abcf4021bca7908f669f3f2a3def98d1931b25f40027e64be0d9325cb4459162806764a63d7e55a2a5e1a5c94bf4e496bb5e2bb8b600",
 		hex.EncodeToString(sig),
 	)
 

@@ -874,12 +874,35 @@ func RandomDepositMsg(t *testing.T) eth2p0.DepositMessage {
 	}
 }
 
+// deterministicReader is a hacky workaround. It counter-acts the Go library's attempt at
+// making ECDSA signatures non-deterministic. Go adds non-determinism by
+// randomly dropping a singly byte from the reader stream. This counteracts this
+// by detecting when a read is a single byte and using a different reader
+// instead. Refer: https://cs.opensource.google/go/go/+/refs/tags/go1.20.1:src/crypto/ecdsa/ecdsa.go;l=155
+type deterministicReader struct {
+	r io.Reader
+}
+
+func (z deterministicReader) Read(buf []byte) (int, error) {
+	if len(buf) == 1 {
+		buf[0] = 0
+
+		return len(buf), nil
+	}
+
+	return z.r.Read(buf)
+}
+
+func newDeterministicReader(random io.Reader) io.Reader {
+	return &deterministicReader{r: random}
+}
+
 // GenerateInsecureK1Key returns a new deterministic insecure secp256k1 private using the provided seed for testing purposes only.
 // For random keys, rather use k1.GeneratePrivateKey().
 func GenerateInsecureK1Key(t *testing.T, random io.Reader) *k1.PrivateKey {
 	t.Helper()
 
-	k, err := ecdsa.GenerateKey(k1.S256(), random)
+	k, err := ecdsa.GenerateKey(k1.S256(), newDeterministicReader(random))
 	require.NoError(t, err)
 
 	return k1.PrivKeyFromBytes(k.D.Bytes())
