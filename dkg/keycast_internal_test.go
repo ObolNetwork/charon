@@ -38,11 +38,12 @@ func TestKeyCastNoNetwork(t *testing.T) {
 	const (
 		nodes = 3
 		vals  = 2
+		seed  = 1
 	)
 
 	var ops []cluster.Operator
 	for i := 0; i < nodes; i++ {
-		_, r := testutil.RandomENR(t, random)
+		_, r := testutil.RandomENR(t, seed)
 
 		ops = append(ops, cluster.Operator{
 			ENR: r.String(),

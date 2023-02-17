@@ -20,7 +20,6 @@ import (
 	"crypto/ecdsa"
 	crand "crypto/rand"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
 	"strings"
@@ -816,10 +815,10 @@ func CreateHost(t *testing.T, addr *net.TCPAddr, opts ...libp2p.Option) host.Hos
 	return h
 }
 
-func RandomENR(t *testing.T, random io.Reader) (*k1.PrivateKey, enr.Record) {
+func RandomENR(t *testing.T, seed int) (*k1.PrivateKey, enr.Record) {
 	t.Helper()
 
-	key := GenerateInsecureK1Key(t, random)
+	key := GenerateInsecureK1Key(t, seed)
 
 	record, err := enr.New(key)
 	require.NoError(t, err)
@@ -874,35 +873,25 @@ func RandomDepositMsg(t *testing.T) eth2p0.DepositMessage {
 	}
 }
 
-// deterministicReader is a hacky workaround. It counter-acts the Go library's attempt at
-// making ECDSA signatures non-deterministic. Go adds non-determinism by
-// randomly dropping a singly byte from the reader stream. This counteracts this
-// by detecting when a read is a single byte and using a different reader
-// instead. Refer: https://cs.opensource.google/go/go/+/refs/tags/go1.20.1:src/crypto/ecdsa/ecdsa.go;l=155
-type deterministicReader struct {
-	r io.Reader
-}
+// constReader is a workaround. It counter-acts the Go library's attempt at
+// making ECDSA signatures non-deterministic.
+// Refer: https://cs.opensource.google/go/go/+/refs/tags/go1.20.1:src/crypto/ecdsa/ecdsa.go;l=155
+type constReader byte
 
-func (z deterministicReader) Read(buf []byte) (int, error) {
-	if len(buf) == 1 {
-		buf[0] = 0
-
-		return len(buf), nil
+func (c constReader) Read(buf []byte) (int, error) {
+	for i := 0; i < len(buf); i++ {
+		buf[i] = byte(c)
 	}
 
-	return z.r.Read(buf)
-}
-
-func newDeterministicReader(random io.Reader) io.Reader {
-	return &deterministicReader{r: random}
+	return len(buf), nil
 }
 
 // GenerateInsecureK1Key returns a new deterministic insecure secp256k1 private using the provided seed for testing purposes only.
 // For random keys, rather use k1.GeneratePrivateKey().
-func GenerateInsecureK1Key(t *testing.T, random io.Reader) *k1.PrivateKey {
+func GenerateInsecureK1Key(t *testing.T, seed int) *k1.PrivateKey {
 	t.Helper()
 
-	k, err := ecdsa.GenerateKey(k1.S256(), newDeterministicReader(random))
+	k, err := ecdsa.GenerateKey(k1.S256(), constReader(seed+1))
 	require.NoError(t, err)
 
 	return k1.PrivKeyFromBytes(k.D.Bytes())
