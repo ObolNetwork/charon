@@ -446,10 +446,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	retryer, err := retry.New[core.Duty](deadlineFunc)
-	if err != nil {
-		return err
-	}
+	retryer := retry.New[core.Duty](deadlineFunc)
 
 	cons, startCons, err := newConsensus(conf, lock, tcpNode, p2pKey, sender,
 		nodeIdx, deadlinerFunc("consensus"), qbftSniffer)
