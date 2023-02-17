@@ -1,6 +1,6 @@
 module github.com/obolnetwork/charon
 
-go 1.19
+go 1.20
 
 require (
 	github.com/attestantio/go-eth2-client v0.15.4
