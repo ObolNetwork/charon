@@ -32,7 +32,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
-	"github.com/libp2p/go-libp2p/core/protocol"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -348,11 +347,11 @@ func TestInfoSync(t *testing.T) {
 	tcpNodeCallback := func(tcpNode host.Host) {
 		for _, other := range tcpNodes {
 			other.Peerstore().AddAddrs(tcpNode.ID(), tcpNode.Addrs(), peerstore.PermanentAddrTTL)
-			err := other.Peerstore().AddProtocols(tcpNode.ID(), toStrs(priority.Protocols())...)
+			err := other.Peerstore().AddProtocols(tcpNode.ID(), priority.Protocols()...)
 			require.NoError(t, err)
 
 			tcpNode.Peerstore().AddAddrs(other.ID(), other.Addrs(), peerstore.PermanentAddrTTL)
-			err = tcpNode.Peerstore().AddProtocols(other.ID(), toStrs(priority.Protocols())...)
+			err = tcpNode.Peerstore().AddProtocols(other.ID(), priority.Protocols()...)
 			require.NoError(t, err)
 		}
 		tcpNodes = append(tcpNodes, tcpNode)
@@ -526,13 +525,4 @@ func (a *priorityAsserter) Callback(t *testing.T, i int) func(ctx context.Contex
 
 		return nil
 	}
-}
-
-func toStrs(protocols []protocol.ID) []string {
-	var strs []string
-	for _, p := range protocols {
-		strs = append(strs, string(p))
-	}
-
-	return strs
 }
