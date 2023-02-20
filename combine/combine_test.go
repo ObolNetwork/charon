@@ -165,8 +165,89 @@ func TestCombine(t *testing.T) {
 		require.NoError(t, json.NewEncoder(lf).Encode(lock))
 	}
 
+	err := combine.Combine(context.Background(), dir, true)
+	require.NoError(t, err)
+
+	for _, exp := range expectedData {
+		keys, err := keystore.LoadKeys(filepath.Join(dir, exp.pubkey))
+		require.NoError(t, err)
+		require.Equal(t, exp.secret, fmt.Sprintf("%#x", keys[0]))
+	}
+}
+
+func TestCombineTwiceWithoutForceFails(t *testing.T) {
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+
+	// calculate expected public keys and secrets
+	type expected struct {
+		pubkey string
+		secret string
+	}
+
+	var expectedData []expected
+
+	for _, share := range shares {
+		share := share
+
+		sm := make(map[int]tblsv2.PrivateKey)
+		for idx, shareObj := range share {
+			shareObj := shareObj
+			sm[idx+1] = shareObj
+		}
+
+		complSecret, err := tblsv2.RecoverSecret(sm, 4, 3)
+		require.NoError(t, err)
+
+		complPubkey, err := tblsv2.SecretToPublicKey(complSecret)
+		require.NoError(t, err)
+
+		expectedData = append(expectedData, expected{
+			pubkey: fmt.Sprintf("%#x", complPubkey),
+			secret: fmt.Sprintf("%#x", complSecret),
+		})
+	}
+
+	dir := t.TempDir()
+
+	// flatten secrets, each validator slice is unpacked in a flat structure
+	var rawSecrets []tblsv2.PrivateKey
+	for _, s := range shares {
+		rawSecrets = append(rawSecrets, s...)
+	}
+
+	// for each ENR, create a slice of keys to hold
+	// each set will be len(lock.Definition.Operators)
+	secrets := make([][]tblsv2.PrivateKey, len(lock.Definition.Operators))
+
+	// populate key sets
+	for enrIdx := 0; enrIdx < len(lock.Definition.Operators); enrIdx++ {
+		keyIdx := enrIdx
+		for dvIdx := 0; dvIdx < lock.NumValidators; dvIdx++ {
+			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
+			keyIdx += len(lock.Definition.Operators)
+		}
+	}
+
+	for idx, keys := range secrets {
+		ep := filepath.Join(dir, fmt.Sprintf("node%d", idx))
+
+		vk := filepath.Join(ep, "validator_keys")
+
+		require.NoError(t, os.Mkdir(ep, 0o755))
+		require.NoError(t, os.Mkdir(vk, 0o755))
+		require.NoError(t, keystore.StoreKeys(keys, vk))
+
+		lf, err := os.OpenFile(filepath.Join(ep, "cluster-lock.json"), os.O_WRONLY|os.O_CREATE, 0o755)
+		require.NoError(t, err)
+
+		require.NoError(t, json.NewEncoder(lf).Encode(lock))
+	}
+
 	err := combine.Combine(context.Background(), dir, false)
 	require.NoError(t, err)
+
+	err = combine.Combine(context.Background(), dir, false)
+	require.Error(t, err)
 
 	for _, exp := range expectedData {
 		keys, err := keystore.LoadKeys(filepath.Join(dir, exp.pubkey))
