@@ -54,6 +54,6 @@ func newCombineFunc(ctx context.Context, inputDir string, force bool) error {
 }
 
 func bindCombineFlags(flags *pflag.FlagSet, inputDir *string, force *bool) {
-	flags.StringVar(inputDir, "keystore-dir", "./", `Directory containing all the keystore files organized by ENR, and the lock file.`)
+	flags.StringVar(inputDir, "keystores-dir", "./", `Directory containing all the keystore files organized by ENR, and the lock file.`)
 	flags.BoolVar(force, "force", false, "Overwrites private keys with the same name if present.")
 }
