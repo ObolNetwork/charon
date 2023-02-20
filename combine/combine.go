@@ -214,5 +214,13 @@ func loadLockfile(dir string) (cluster.Lock, []string, error) {
 		return cluster.Lock{}, nil, errors.Wrap(err, "unmarshal lock file")
 	}
 
+	if err := lock.VerifyHashes(); err != nil {
+		return cluster.Lock{}, nil, errors.Wrap(err, "cluster lock hash verification failed")
+	}
+
+	if err := lock.VerifySignatures(); err != nil {
+		return cluster.Lock{}, nil, errors.Wrap(err, "cluster lock signature verification failed")
+	}
+
 	return lock, possibleValKeysDir, nil
 }
