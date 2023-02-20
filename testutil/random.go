@@ -891,6 +891,7 @@ func (c constReader) Read(buf []byte) (int, error) {
 func GenerateInsecureK1Key(t *testing.T, seed int) *k1.PrivateKey {
 	t.Helper()
 
+	// Add 1 to seed to avoid passing 0 as seed which can trigger infinite loop.
 	k, err := ecdsa.GenerateKey(k1.S256(), constReader(seed+1))
 	require.NoError(t, err)
 
