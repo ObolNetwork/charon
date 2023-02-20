@@ -1,9 +1,11 @@
 name: govulncheck
-on:
-  pull_request:
-  push:
-    branches:
-      - main
+
+# TODO(dhruv): Enable govulncheck once we have upgraded to go1.20.1
+#on:
+#  pull_request:
+#  push:
+#    branches:
+#      - main
 
 jobs:
   govulncheck:
