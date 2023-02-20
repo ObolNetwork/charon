@@ -86,7 +86,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.3.2",
+      "pluginVersion": "9.3.6",
       "targets": [
         {
           "datasource": {
@@ -226,7 +226,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.3.2",
+      "pluginVersion": "9.3.6",
       "targets": [
         {
           "datasource": {
@@ -424,7 +424,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.3.2",
+      "pluginVersion": "9.3.6",
       "targets": [
         {
           "datasource": {
@@ -602,7 +602,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.3.2",
+      "pluginVersion": "9.3.6",
       "targets": [
         {
           "datasource": {
@@ -643,6 +643,95 @@
       "title": "Cluster Info",
       "transformations": [],
       "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Beacon node metrics",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "label"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 116
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 0,
+        "y": 7
+      },
+      "id": 71,
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "9.3.6",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum(app_beacon_node_version{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (version)",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Beacon node",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "rows"
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "datasource": {
@@ -922,9 +1011,9 @@
         ]
       },
       "gridPos": {
-        "h": 6,
-        "w": 24,
-        "x": 0,
+        "h": 5,
+        "w": 19,
+        "x": 5,
         "y": 7
       },
       "id": 54,
@@ -945,7 +1034,7 @@
           }
         ]
       },
-      "pluginVersion": "9.3.2",
+      "pluginVersion": "9.3.6",
       "targets": [
         {
           "datasource": {
@@ -1337,7 +1426,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 13
+        "y": 12
       },
       "id": 7,
       "options": {
@@ -1430,7 +1519,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 13
+        "y": 12
       },
       "id": 67,
       "options": {
@@ -1537,7 +1626,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 20
+        "y": 19
       },
       "id": 62,
       "options": {
@@ -1579,7 +1668,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 20
+        "y": 19
       },
       "id": 66,
       "options": {
@@ -1671,7 +1760,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 26
+        "y": 25
       },
       "id": 17,
       "options": {
@@ -1764,7 +1853,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 26
+        "y": 25
       },
       "id": 18,
       "options": {
@@ -1857,7 +1946,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 33
+        "y": 32
       },
       "id": 69,
       "options": {
@@ -1952,7 +2041,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 33
+        "y": 32
       },
       "id": 24,
       "options": {
@@ -2045,7 +2134,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 39
       },
       "id": 15,
       "options": {
@@ -2152,7 +2241,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 40
+        "y": 39
       },
       "id": 49,
       "options": {
@@ -2285,7 +2374,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 47
+        "y": 46
       },
       "id": 50,
       "options": {
@@ -2392,7 +2481,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 47
+        "y": 46
       },
       "id": 52,
       "links": [],
@@ -2449,7 +2538,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue"
+                "color": "light-blue",
+                "value": null
               },
               {
                 "color": "red",
@@ -2541,7 +2631,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 54
+        "y": 53
       },
       "id": 56,
       "options": {
@@ -2560,7 +2650,7 @@
           }
         ]
       },
-      "pluginVersion": "9.3.2",
+      "pluginVersion": "9.3.6",
       "targets": [
         {
           "datasource": {
@@ -2649,7 +2739,7 @@
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 61
+        "y": 60
       },
       "id": 65,
       "options": {
@@ -2697,6 +2787,11 @@
         },
         "definition": "label_values(app_peer_name, cluster_name)",
         "description": "",
+        "error": {
+          "data": {
+            "message": "Unexpected error"
+          }
+        },
         "hide": 0,
         "includeAll": false,
         "label": "Cluster Name",
@@ -2716,8 +2811,8 @@
       {
         "current": {
           "selected": false,
-          "text": "70260bf",
-          "value": "70260bf"
+          "text": "84a5dac",
+          "value": "84a5dac"
         },
         "datasource": {
           "type": "prometheus",
@@ -2725,6 +2820,11 @@
         },
         "definition": "label_values(app_peer_name{cluster_name=\"$cluster_name\"}, cluster_hash)",
         "description": "",
+        "error": {
+          "data": {
+            "message": "Unexpected error"
+          }
+        },
         "hide": 0,
         "includeAll": false,
         "label": "Cluster Hash",
@@ -2744,8 +2844,8 @@
       {
         "current": {
           "selected": false,
-          "text": "courageous-glass",
-          "value": "courageous-glass"
+          "text": "dazzling-life",
+          "value": "dazzling-life"
         },
         "datasource": {
           "type": "prometheus",
@@ -2753,6 +2853,11 @@
         },
         "definition": "label_values(app_peer_name{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\"}, cluster_peer)",
         "description": "",
+        "error": {
+          "data": {
+            "message": "Unexpected error"
+          }
+        },
         "hide": 0,
         "includeAll": false,
         "label": "Cluster Peer",
@@ -2781,6 +2886,11 @@
         },
         "definition": "label_values(app_peer_name{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"},job)",
         "description": "Prometheus job (can be ignored)",
+        "error": {
+          "data": {
+            "message": "Unexpected error"
+          }
+        },
         "hide": 2,
         "includeAll": false,
         "label": "--",
